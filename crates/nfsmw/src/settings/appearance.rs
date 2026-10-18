@@ -271,9 +271,18 @@ impl Settings {
     }
 
     /// Complete F8 snapshot, including renderer requests that are currently downgraded.
-    /// Includes F8 traffic controls; renderer/API, window and audio remain outside the preset.
+    /// Includes F8 video and traffic controls; renderer selection and audio remain outside the preset.
     pub fn graphics_layer(&self) -> Partial {
         Partial {
+            backend: Some(self.backend),
+            window_mode: Some(self.window_mode),
+            monitor: Some(self.monitor),
+            resolution: Some(self.resolution),
+            vsync: Some(self.vsync),
+            max_fps: Some(self.max_fps),
+            show_metrics: Some(self.show_metrics),
+            hd_content: self.hd_content.into(),
+            custom_fonts: self.custom_fonts.into(),
             traffic_policy: Some(self.traffic_policy),
             traffic: Some(self.traffic),
             cop_share: Some(self.cop_share),

@@ -3,15 +3,18 @@ mod bevy;
 mod controls;
 mod detail;
 mod display;
+mod effects;
 mod environment;
 mod lighting;
 mod materials;
 mod presets;
 mod profiles;
 mod quality;
+mod reflections;
 mod roads;
 mod saved;
 mod traffic;
+mod video;
 mod view;
 #[cfg(test)]
 mod workflow_tests;
@@ -74,6 +77,7 @@ impl Default for GraphicsLab {
                 || std::env::var("NFSMW_LAB_DEBUG").is_ok())
             .then_some(options),
             tab: match std::env::var("NFSMW_LAB_TAB").as_deref() {
+                Ok("video") => profiles::Tab::Video,
                 Ok("lighting") => profiles::Tab::Lighting,
                 Ok("materials") => profiles::Tab::Materials,
                 Ok("detail") => profiles::Tab::Detail,

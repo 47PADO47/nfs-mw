@@ -2,6 +2,52 @@ use super::*;
 use crate::settings::{GraphicsQuality, Partial, RendererKind, TextureFiltering, VisualStyle};
 
 #[test]
+fn video_vsync_control_is_live_and_participates_in_comparison_and_reset() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        tab: profiles::Tab::Video,
+        caps: Some(crate::settings::test_caps::native()),
+        profile_path: None,
+        ..Default::default()
+    };
+    let mut settings = Settings::from(Partial::default());
+    let original = settings.vsync;
+    super::tests::click(&ctx, &mut lab, &mut settings, "Store A");
+    super::tests::click(&ctx, &mut lab, &mut settings, "VSync");
+    assert_eq!(settings.vsync, !original);
+    super::tests::click(&ctx, &mut lab, &mut settings, "Swap A/B");
+    assert_eq!(settings.vsync, original);
+    super::tests::click(&ctx, &mut lab, &mut settings, "VSync");
+    super::tests::click(&ctx, &mut lab, &mut settings, "Reset section");
+    assert_eq!(settings.vsync, original);
+}
+
+#[test]
+fn opening_video_retains_unavailable_dlss_and_custom_window_preferences() {
+    let ctx = egui::Context::default();
+    let caps = crate::settings::test_caps::native();
+    let mut settings = Settings::from(Partial::default());
+    settings.upscaler = crate::settings::UpscaleMode::Dlss;
+    settings.upscale_quality = crate::settings::UpscaleQuality::Native;
+    settings.monitor = crate::settings::Monitor::Index(12);
+    settings.max_fps = "117".parse().unwrap();
+    settings.resolution = crate::settings::Resolution::pixels(1792, 1008).unwrap();
+    let before = settings;
+    let lab = GraphicsLab { caps: Some(caps), ..Default::default() };
+    for _ in 0..3 {
+        let mut output = ctx.run_ui(Default::default(), |ui| video::show(ui, &lab, &mut settings));
+        output.textures_delta.clear();
+        assert_eq!(settings, before);
+    }
+    assert!(!video::upscalers(Some(&caps)).contains(&crate::settings::UpscaleMode::Dlss));
+    let mut dlss = blackbox_gfx::Capabilities::mock_dlss("blackbox", blackbox_gfx::GraphicsApi::Vulkan);
+    assert!(video::upscalers(Some(&dlss)).contains(&crate::settings::UpscaleMode::Dlss));
+    dlss.upscalers.remove(blackbox_gfx::Upscaler::Dlss);
+    assert!(!video::upscalers(Some(&dlss)).contains(&crate::settings::UpscaleMode::Dlss));
+}
+
+#[test]
 fn active_renderer_hides_inapplicable_controls_without_losing_stored_values() {
     for native in [true, false] {
         let ctx = egui::Context::default();

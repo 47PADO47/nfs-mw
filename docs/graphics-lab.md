@@ -29,7 +29,17 @@ Save/load includes render scale, upscaling quality/sharpness and visual effect
 preferences, alongside lighting, materials, treatment and HDR calibration. It
 preserves requested values even when the active renderer uses a fallback.
 Detail and Traffic controls are shared by both renderers and included in saved snapshots.
-Renderer/API, window, audio and other gameplay preferences remain unchanged on load.
+Video includes API (after restart), window mode, monitor, resolution, VSync, frame
+limit, performance overlay, upscaler, temporal quality (Native selects DLAA with
+DLSS), spatial render scale and sharpening. Only supported upscalers are offered;
+unavailable stored requests are retained and their fallback is shown.
+Materials includes cubemap/mirror sizes, power-of-two faces, capture detail,
+content, distance, reflection brightness and mirror tint. Effects also exposes
+motion blur, smoke, skid marks, sparks, speed trails and exhaust flames. Detail
+includes custom fonts and HD fonts/cursor/movie toggles. These controls participate
+in saves, startup reverts and A/B snapshots. Particle and HD preferences survive
+style/quality changes and section resets. Renderer selection, audio and other
+gameplay preferences remain unchanged on load. API changes require a restart.
 Older profiles leave controls they never stored at their current values.
 Select a named preset to preview it immediately, including reselecting the current
 name. **Save for startup** (Ctrl+S) makes the current request the startup default, while

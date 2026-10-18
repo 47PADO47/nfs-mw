@@ -37,5 +37,6 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         );
     });
     ui.small("Car environment captures; resolution and update budgets are custom.");
+    super::reflections::show(ui, lab, settings);
     roads::show(ui, lab, settings);
 }
