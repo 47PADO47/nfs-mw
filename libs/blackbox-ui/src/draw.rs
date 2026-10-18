@@ -51,6 +51,31 @@ impl DrawList {
         draw_order.sort_by(|a, b| self.nodes[*b].z.total_cmp(&self.nodes[*a].z));
         UiTree { nodes: self.nodes, draw_order }
     }
+
+    /// Puts the nodes in `index` order, stable, so nodes that share an index keep their order. `parent` is a position
+    /// in the list, so it is remapped to the node's new position. A parent that is not in the list becomes `None`.
+    ///
+    /// A composed list uses this to keep a source's object order, whatever order its slots were built in. Ties in `z`
+    /// fall back to list order (`into_tree`), so the order matters for what draws on top.
+    pub fn sort_by_index(&mut self) {
+        let count = self.nodes.len();
+        let mut order: Vec<usize> = (0..count).collect();
+        order.sort_by_key(|&old| self.nodes[old].index);
+        // `at[old]` is the new position of the node that was at `old`.
+        let mut at = vec![0; count];
+        for (new, &old) in order.iter().enumerate() {
+            at[old] = new;
+        }
+        let mut taken: Vec<Option<UiNode>> = std::mem::take(&mut self.nodes).into_iter().map(Some).collect();
+        self.nodes = order
+            .iter()
+            .filter_map(|&old| {
+                let mut node = taken[old].take()?;
+                node.parent = node.parent.and_then(|parent| at.get(parent).copied());
+                Some(node)
+            })
+            .collect();
+    }
 }
 
 #[cfg(test)]
@@ -105,6 +130,36 @@ mod tests {
         assert_eq!(tree.nodes[1].colour[0], 20);
         // Node 1 is hidden, so it is left out; nodes 0 and 2 tie on z and keep insertion order.
         assert_eq!(tree.draw_order, vec![0, 2, 3]);
+    }
+
+    fn indexed(index: usize, parent: Option<usize>) -> UiNode {
+        UiNode { index, parent, visible: true, z: 1.0, ..UiNode::default() }
+    }
+
+    #[test]
+    fn sort_by_index_orders_nodes_and_remaps_parents() {
+        // Built out of order: the child (index 2) comes first and points at the parent (index 5) by position 1.
+        let mut list = DrawList::new();
+        list.push(indexed(2, Some(1)));
+        list.push(indexed(5, None));
+        list.push(indexed(3, Some(1)));
+        list.push(indexed(4, Some(9)));
+        list.sort_by_index();
+        let order: Vec<usize> = list.iter().map(|n| n.index).collect();
+        assert_eq!(order, vec![2, 3, 4, 5]);
+        // Node 2 now sits at position 0 and its parent (index 5) at position 3; node 4's parent is not in the list.
+        assert_eq!(list.iter().map(|n| n.parent).collect::<Vec<_>>(), vec![Some(3), Some(3), None, None]);
+    }
+
+    #[test]
+    fn sort_by_index_keeps_equal_indices_in_list_order() {
+        let mut list = DrawList::new();
+        list.push(UiNode { colour: [1, 0, 0, 255], ..indexed(0, None) });
+        list.push(UiNode { colour: [2, 0, 0, 255], ..indexed(0, None) });
+        list.push(UiNode { colour: [3, 0, 0, 255], ..indexed(0, None) });
+        list.sort_by_index();
+        let order: Vec<u8> = list.iter().map(|n| n.colour[0]).collect();
+        assert_eq!(order, vec![1, 2, 3]);
     }
 
     #[test]

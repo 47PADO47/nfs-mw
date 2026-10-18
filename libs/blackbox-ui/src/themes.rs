@@ -80,6 +80,17 @@ impl Themes {
         Box::new(Empty)
     }
 
+    /// The theme `resolve` takes the component for `slot` from: the active theme when it provides the slot, else
+    /// Original, else `None` when no theme provides it. Asks each theme for a component, so it costs what `resolve`
+    /// costs.
+    pub fn provider(&self, slot: SlotId, cx: &BuildCx<'_>) -> Option<ThemeId> {
+        let from_active = self.find(self.active).is_some_and(|theme| theme.element(slot, cx).is_some());
+        if from_active {
+            return Some(self.active);
+        }
+        self.original.element(slot, cx).map(|_| ThemeId::Original)
+    }
+
     fn find(&self, id: ThemeId) -> Option<&dyn Theme> {
         if id == ThemeId::Original {
             return Some(self.original.as_ref());
@@ -222,6 +233,28 @@ mod tests {
         let refused = themes.set_active(ThemeId::Mod(9));
         assert_eq!(refused, Err(ThemeError::Unknown(ThemeId::Mod(9))));
         assert_eq!(themes.active(), ThemeId::Original);
+    }
+
+    /// The theme `provider` names for `slot`.
+    fn provided(themes: &Themes, slot: SlotId) -> Option<ThemeId> {
+        let skin = Skin::new();
+        themes.provider(slot, &BuildCx::new(&skin))
+    }
+
+    #[test]
+    fn provider_names_the_theme_resolve_takes_the_slot_from() {
+        let mut themes = registry();
+        themes.register(theme(ThemeId::Custom, CUSTOM_SLOTS)).expect("register custom");
+        themes.set_active(ThemeId::Custom).expect("activate custom");
+        assert_eq!(provided(&themes, RADIO), Some(ThemeId::Custom));
+        assert_eq!(provided(&themes, PANEL_A), Some(ThemeId::Original));
+        assert_eq!(provided(&themes, UNKNOWN), None);
+    }
+
+    #[test]
+    fn provider_names_original_when_the_original_theme_is_active() {
+        let themes = registry();
+        assert_eq!(provided(&themes, RADIO), Some(ThemeId::Original));
     }
 
     #[test]

@@ -11,6 +11,12 @@ use crate::runtime::{PackageId, Runtime};
 // `blackbox_feng::{UiTree, UiNode, NodeKind}` and `blackbox_feng::tree::*` path keeps resolving.
 pub use blackbox_ui::{NodeKind, UiNode, UiTree};
 
+/// Whether a node goes into a package tree's `draw_order`: visible, in front of the screen plane, and not a group or an
+/// object this runtime does not draw. The composer uses the same rule for the trees it builds (`ui/theme/compose.rs`).
+pub fn is_drawn(node: &UiNode) -> bool {
+    node.visible && node.z > 0.0 && !matches!(node.kind, NodeKind::Group | NodeKind::Other)
+}
+
 /// Per-channel product used for the colour of nested objects: `a * b / 255`, exact for 255.
 fn mul_channel(a: u8, b: u8) -> u8 {
     ((a as u32 * (b as u32 + 1)) >> 8).min(255) as u8
@@ -109,7 +115,7 @@ impl Runtime {
         }
         // The drawn nodes are the visible ones in front of the screen plane that are not groups or unsupported
         // objects. `into_tree` sorts them farthest first, stable: objects later in the list draw over earlier ones.
-        list.into_tree(|n| n.visible && n.z > 0.0 && !matches!(n.kind, NodeKind::Group | NodeKind::Other))
+        list.into_tree(is_drawn)
     }
 }
 
