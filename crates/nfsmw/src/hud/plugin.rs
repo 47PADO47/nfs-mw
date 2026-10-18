@@ -111,6 +111,7 @@ fn present(
     let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
     hud.binding.set_mirror_shown(settings.rear_view_mirror);
     hud.binding.advance_mirror_fade(time.delta_secs());
+    hud.binding.advance_blips(time.delta_secs());
     hud.binding.apply(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_mut() {
         let song = ea_trax.then(|| radio.song().zip(radio.serial())).flatten();

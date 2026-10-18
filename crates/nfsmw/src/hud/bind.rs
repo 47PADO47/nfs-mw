@@ -169,6 +169,10 @@ impl HudBinding {
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
     }
 
+    pub fn advance_blips(&mut self, dt: f32) {
+        self.blips.advance(dt);
+    }
+
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
         let shown = Shown {

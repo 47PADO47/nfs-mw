@@ -6,7 +6,7 @@
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
-use super::blip_style::{BlipStyle, MapBlip, colour_to_apply, drawn_in, look_of};
+use super::blip_style::{BlipStyle, MapBlip, TICK_SECONDS, colour_to_apply, drawn_in, look_of};
 use super::blip_styles;
 use super::minimap::MinimapBinding;
 use super::state::HudState;
@@ -22,7 +22,8 @@ struct Slot {
 pub struct BlipBinding {
     styles: Vec<Box<dyn BlipStyle>>,
     slots: Vec<Slot>,
-    tick: u32,
+    /// Seconds since the binding began, advanced by the frame time. The look tick is this over `TICK_SECONDS`.
+    elapsed: f32,
 }
 
 impl BlipBinding {
@@ -33,7 +34,7 @@ impl BlipBinding {
 
     /// Registers `styles`, finds their pools' objects and hides them all.
     pub fn new(rt: &mut Runtime, package: PackageId, styles: Vec<Box<dyn BlipStyle>>) -> Self {
-        let mut binding = Self { styles: Vec::new(), slots: Vec::new(), tick: 0 };
+        let mut binding = Self { styles: Vec::new(), slots: Vec::new(), elapsed: 0.0 };
         for style in styles {
             binding.add(rt, package, style);
         }
@@ -67,10 +68,14 @@ impl BlipBinding {
         self.styles.push(style);
     }
 
+    /// Moves the looks on by `dt` seconds. Call once per frame.
+    pub fn advance(&mut self, dt: f32) {
+        self.elapsed += dt;
+    }
+
     /// Places the blips of `state` on the minimap. Call before `Runtime::update`, after the minimap itself.
     pub fn apply(&mut self, rt: &mut Runtime, state: &HudState, minimap: &MinimapBinding) {
-        let tick = self.tick;
-        self.tick = self.tick.wrapping_add(1);
+        let tick = (self.elapsed / TICK_SECONDS) as u32;
         self.hide_all(rt);
         let Some(at) = state.minimap else {
             return;
@@ -97,7 +102,8 @@ impl BlipBinding {
             let Some(look) = look_of(style, blip, tick) else {
                 continue;
             };
-            let placed = minimap.blip(&view, at.orientation, blip.position, blip.heading);
+            // Every blip turns with the player's arrow, whatever way it is heading.
+            let placed = minimap.blip(&view, at.orientation, blip.position, at.heading);
             if !drawn_in(style.visibility(blip), placed.inside) {
                 continue;
             }
@@ -114,10 +120,11 @@ impl BlipBinding {
             rt.set_hidden(o, false);
             rt.set_position_xy(o, centre[0] + placed.offset[0], centre[1] + placed.offset[1]);
             rt.set_rotation_z(o, (placed.rotation + look.spin).to_radians());
-            rt.set_alpha(o, (alpha * 255.0) as u8);
+            // The colour's alpha would overwrite the fade, so the colour goes first and the fade last.
             if let Some(colour) = colour_to_apply(&look, style.fallback_colour(), slot.package) {
                 rt.set_colour_rgba(o, colour);
             }
+            rt.set_alpha(o, (alpha * 255.0) as u8);
         }
     }
 

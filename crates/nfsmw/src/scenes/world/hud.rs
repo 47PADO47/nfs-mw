@@ -1,7 +1,7 @@
 //! The HUD of the world scene: the drive's state, with the traffic's and the map's blips on the minimap.
 
 use glam::Vec3;
-use nfsmw_data::gameplay::{self, ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
+use nfsmw_data::gameplay::{ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
 use super::{View, WorldScene, space};
 use crate::audio::PursuitFeed;
@@ -104,8 +104,7 @@ pub(super) fn static_blips(data: &GameplayData) -> Vec<MapBlip> {
 fn race_blip(race: &Race) -> Option<MapBlip> {
     let style = race_style(race.race_type?)?;
     let start: Placement = race.start?;
-    let forward = space::to_render(gameplay::world_heading(start.heading_deg).to_array());
-    Some(map_blip(style, start.position, [forward.x, forward.y]))
+    Some(map_blip(style, start.position))
 }
 
 fn race_style(kind: RaceType) -> Option<&'static str> {
@@ -127,13 +126,13 @@ fn interior_blip(marker: &ActivityMarker) -> MapBlip {
         ActivityKind::CarLot => CAR_LOT,
         ActivityKind::SafeHouse => SAFE_HOUSE,
     };
-    map_blip(style, marker.position, [1.0, 0.0])
+    map_blip(style, marker.position)
 }
 
 /// A stored position (physics space, see `gameplay`) as a map blip in render space.
-fn map_blip(style: &'static str, position: Vec3, heading: [f32; 2]) -> MapBlip {
+fn map_blip(style: &'static str, position: Vec3) -> MapBlip {
     let at = space::to_render(position.to_array());
-    MapBlip { style, position: [at.x, at.y], heading, active: false }
+    MapBlip { style, position: [at.x, at.y], active: false }
 }
 
 #[cfg(test)]
@@ -166,7 +165,6 @@ mod tests {
         assert_eq!(blips.len(), 1);
         assert_eq!(blips[0].style, RACE_SPRINT);
         assert_eq!(blips[0].position, [1511.824, 4404.865]);
-        assert!((blips[0].heading[0] - 1.0).abs() < 1e-5 && blips[0].heading[1].abs() < 1e-5);
         assert!(!blips[0].active);
     }
 

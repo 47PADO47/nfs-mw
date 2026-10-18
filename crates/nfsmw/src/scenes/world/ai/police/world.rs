@@ -212,8 +212,8 @@ impl super::super::TrafficWorld {
 
     /// The helicopter's minimap blip, while it flies.
     pub(in crate::scenes::world::ai) fn helicopter_blips(&self, pursuing: bool, out: &mut Vec<crate::hud::MapBlip>) {
-        let Some((position, heading)) = self.police.helicopter_blip() else { return };
-        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, heading, active: pursuing });
+        let Some(position) = self.police.helicopter_blip() else { return };
+        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, active: pursuing });
     }
 }
 
