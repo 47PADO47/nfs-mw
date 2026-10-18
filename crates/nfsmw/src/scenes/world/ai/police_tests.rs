@@ -3,6 +3,9 @@
 use super::*;
 use glam::Quat;
 
+#[path = "police/free_roam_tests.rs"]
+mod free_roam;
+
 fn view(speed: f32) -> PlayerView {
     PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed, nitrous: 0.0, throttle: 0.0 }
 }
@@ -389,10 +392,10 @@ Speeding = 999
 }
 
 #[test]
-fn the_default_reset_penalty_is_fairbusts_normal_reach_with_the_gate() {
+fn the_default_reset_penalty_is_stock_without_a_fairbusts_opt_in() {
     let police = Police::default();
     let t = police.bust_tuning();
-    assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (15.0, true, 4.0));
+    assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (90.0, false, 4.0));
 }
 
 #[test]
@@ -407,8 +410,7 @@ fn a_disabled_fairbusts_gives_the_stock_reset_penalty() {
 #[test]
 fn reset_auto_bust_and_the_multiplier_reach_the_timer() {
     let mut police = Police::default();
-    let stock_reach =
-        FairBustsSettings { reset_auto_bust: true, reset_bust_multiplier: 2.0, ..FairBustsSettings::default() };
+    let stock_reach = FairBustsSettings { enabled: true, reset_auto_bust: true, reset_bust_multiplier: 2.0 };
     police.set_settings(BartenderSettings::default(), stock_reach);
     let t = police.bust_tuning();
     assert_eq!((t.flashing_reach, t.flashing_speed_gate, t.flashing_multiplier), (90.0, false, 2.0));
@@ -417,6 +419,7 @@ fn reset_auto_bust_and_the_multiplier_reach_the_timer() {
 #[test]
 fn a_fair_reset_does_not_bust_a_fast_player_far_away_but_the_stock_one_does() {
     let mut fair = Police::default();
+    fair.set_settings(BartenderSettings::default(), FairBustsSettings { enabled: true, ..Default::default() });
     assert!(
         !busted_while_flashing(&mut fair, 60.0, 20.0, 10.0),
         "60 m is out of the 15 m fair reach, and the speed gate holds"
@@ -435,6 +438,7 @@ fn a_fair_reset_does_not_bust_a_fast_player_far_away_but_the_stock_one_does() {
 #[test]
 fn a_fair_reset_still_fills_fast_when_the_player_is_slow_and_close() {
     let mut fair = Police::default();
+    fair.set_settings(BartenderSettings::default(), FairBustsSettings { enabled: true, ..Default::default() });
     assert!(
         busted_while_flashing(&mut fair, 10.0, 0.0, 3.0),
         "slow and in reach: four times the fill busts in about 1.3 s"
@@ -444,7 +448,7 @@ fn a_fair_reset_still_fills_fast_when_the_player_is_slow_and_close() {
 #[test]
 fn a_multiplier_of_one_is_the_normal_fill() {
     let mut police = Police::default();
-    let one = FairBustsSettings { reset_bust_multiplier: 1.0, ..FairBustsSettings::default() };
+    let one = FairBustsSettings { enabled: true, reset_bust_multiplier: 1.0, ..FairBustsSettings::default() };
     police.set_settings(BartenderSettings::default(), one);
     assert!(!busted_while_flashing(&mut police, 10.0, 0.0, 4.0), "at 1x the timer is still under its 5 s timeout");
     assert!(busted_while_flashing(&mut police, 10.0, 0.0, 6.0), "at 1x it busts by 6 s");

@@ -28,6 +28,8 @@ mod air_support;
 mod air_support_tests;
 mod cues;
 #[cfg(test)]
+mod installed_tests;
+#[cfg(test)]
 mod line_tests;
 #[cfg(test)]
 mod tests;
@@ -42,6 +44,7 @@ use super::{Audio, MusicInput, PursuitFeed};
 /// The speech event a chase opens with: number 61 of the speech tables (`initpursuit` in
 /// `docs/specs/ai-pursuit-speech-events.md`), whose collection is named `setup_initpursuit` in the data.
 const OPENING_LINE: &str = "setup_initpursuit";
+const OPENING_ID: u32 = 61;
 
 /// The speech event of each cue, by its collection name (numbers in `docs/specs/ai-pursuit-speech-events.md`):
 /// `lostvisual` is 106, `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76,
@@ -58,6 +61,22 @@ fn cue_line(cue: Cue) -> &'static str {
         Cue::HeliLost => "helilostvisual",
         Cue::HeliSpotted => "spotted",
         Cue::CopDown => "unitdisabled",
+    }
+}
+
+/// Stable installed speech IDs; the labels above abbreviate some actual collection names.
+fn cue_id(cue: Cue) -> u32 {
+    match cue {
+        Cue::Lost => 106,
+        Cue::Regained => 107,
+        Cue::HeatJump => 220,
+        Cue::TimeExpired => 180,
+        Cue::Rain => 219,
+        Cue::RoadblockCalled => 76,
+        Cue::BeenHit => 98,
+        Cue::HeliLost => 169,
+        Cue::HeliSpotted => 214,
+        Cue::CopDown => 164,
     }
 }
 
@@ -86,18 +105,18 @@ impl Audio {
         };
         self.set_speech_context(chase.heat as i32, chase.player_mph, chase.secs);
         if started {
-            self.say_line(OPENING_LINE);
+            self.say_line(OPENING_LINE, OPENING_ID);
         }
         // The cues are tracked whether or not they are said: a switched-off group still keeps its edges.
         let allowed: Vec<Cue> = cues.into_iter().filter(|cue| self.air_support.allows(*cue)).collect();
         for cue in allowed {
-            self.say_line(cue_line(cue));
+            self.say_line(cue_line(cue), cue_id(cue));
         }
     }
 
     /// Ask for a named pursuit line (speaker 0, any voice) and log what became of it.
-    fn say_line(&mut self, name: &str) {
-        match self.say_named(name, 0) {
+    fn say_line(&mut self, name: &str, id: u32) {
+        match self.say(id, 0) {
             Ok(outcome) => log::info!("pursuit: {name} {outcome:?}"),
             Err(e) => log::warn!("pursuit: no {name}: {e}"),
         }

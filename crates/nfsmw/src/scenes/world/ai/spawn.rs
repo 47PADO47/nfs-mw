@@ -93,7 +93,8 @@ impl TrafficWorld {
             return Err(Rejection::Lane);
         }
         let slots = 1 + usize::from(model.trailer.is_some());
-        if occupied + slots > self.target {
+        // Patrols use the heat row's separate population cap, including when traffic is disabled.
+        if matches!(pick, Pick::Traffic(_)) && occupied + slots > self.target {
             return Err(Rejection::Budget);
         }
         if collision.resident_near(nav.position.to_array(), 40.0) == Some(false) {

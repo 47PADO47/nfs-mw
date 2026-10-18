@@ -1,86 +1,80 @@
-# The pursuit HUD: the board, the cool-down bar, the heat meter and the cost to state
+# The pursuit HUD
 
-What the in-game HUD shows during a chase, which objects of `HUD_SingleRace.fng` carry it, and what the rewrite
-drives. The chase itself (heat, evade, busted) is in [ai-pursuit.md](ai-pursuit.md) and [ai-pursuit-heat.md](ai-pursuit-heat.md);
-the HUD framework is in [feng-runtime.md](feng-runtime.md) section 8.
+The current integration is recorded in [pursuit-system](../pursuit-system.md).
+The detailed radar and signed meter contract is
+[hud-pursuit-state](hud-pursuit-state.md). The chase simulation is described in
+[ai-pursuit](ai-pursuit.md) and [ai-pursuit-heat](ai-pursuit-heat.md).
 
-**Evidence tags** as in [docs/README.md](../README.md#evidence-tags). **[verified]** = read from the install's
-package or checked on screen; **[binary]** = a string or code in `speed.exe`; **[decomp]** = the decompiled
-sources cited by the pursuit specs; **[inferred]** = a reading not yet confirmed.
+## Sources and evidence
 
-**Sources.** The package `HUD_SingleRace.fng` in `GLOBAL/InGameB.bun` (install, `nfsmw dump-screen`); the object
-names are FEng hashes, so each candidate name was hashed with `fe_hash_upper` and looked up in the package
-**[verified]**. The HUD class names in `speed.exe` (`Hud_PursuitBoard`, `Hud_BustedMeter`, `Hud_HeatMeter`,
-`Hud_CostToState`, `Hud_RadarDetector`, `Hud_GetAwayMeter`, `Hud_SpeedBreakerMeter`) at `0x008a2840`–`0x008a28c0`
-**[binary]**: these are the classes that drive the elements, not object names (none of them hashes to a package
-object). The strings `HEAT_X%.0f`, `HEAT_BASE_LED_%d`, `BOUNTY_%d`, `cost_to_state_in_pursuit` **[binary]**.
+- **[verified]** Installed `HUD_SingleRace.fng` in `GLOBAL/InGameB.bun`:
+  object identities, parentage, original sizes, pivots, scripts and messages.
+- **[decomp]** [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw), CC0,
+  `Frontend/HUD/FePursuitBoard.cpp`, `FeRadarDetector.cpp` and `FeHeatMeter.cpp`.
+  The implementation follows the behavior contract; no decompiled code or
+  extracted game data is shipped.
+- **[binary]** The PC radar update and target feeder confirm the two backing
+  states, 300-metre 3D range, 45-degree forward cone and per-update LED ramp.
+  The pursuit-board update confirms the signed segment formulas and anchors.
+  Matched gameplay captures and timing/listening comparisons remain necessary
+  before claiming original-game visual and behavioral parity.
 
-## 1. The objects
+## Bound objects
 
-Names are the FEng object names; the hash is in brackets. The parent is the object's parent in the package.
+| Object/hash | Current behavior |
+|---|---|
+| `PursuitBoardGroup` / `0xde89e070` | Board shown while the pursuit feed exists, including the arrest display. |
+| `PursuitTime` / `0xfc39cb0a` | Elapsed time in `mm:ss.cc`. |
+| Cops group / `0xe0b1430b` | Live count, damaged count and destroyed count. Ground engagement counting still needs original comparison. |
+| Engaged / `0x814918ca` | Ground units reported by the world; no template `99`. |
+| Damaged / `0x5fa70d4c` | Distinct damaged police vehicles in the current pursuit. |
+| Destroyed / `0xa16f9f1e` | Police vehicles destroyed in the current pursuit. |
+| Meter group / `0x7b422ba3` | Signed busted/evade meter with authored entrance and cooldown transition tracks. |
+| Five meter images / `0xe0e0169b`, `0x8eeebd33`, `0x47a4e2a9`, `0x8e3653a6`, `0x30f39a6f` | Piecewise widths, fixed outer edges and flashing states from the signed display value. |
+| `Cooldown_Meter_Group` / `0x84a226ec` | Shown on actual cooldown state, independently of fill fraction. |
+| Cooldown fill / `0xcf817638` | Installed width times cooldown progress, keeping its left edge fixed. |
+| `Heat_Meter_Group` / `0xc46a80a9` | Retained vehicle heat, including outside a pursuit. |
+| Duplicate heat strings / `0xa81a2028` | Both string objects updated to the integer multiplier. |
+| Radar backing / `0x839e7d77` | Standalone layout selected through authored `APPEAR`; hidden when the mirror supplies the backing. |
+| Mirror backing / `0x9ee06631` | Mirror layout selected with `APPEAR`; retained during pursuit when enabled. |
+| `RADAR_GROUP` / `0x062743f5` | Authored `INIT` in mirror mode or `APPEAR` standalone. Suppressed during active pursuit. |
+| `Radar_DirectionArrow` / `0x24196ad4` | Relative target direction, hidden without a target and during active pursuit. |
+| `Radar_Icon` / `0x6ccbbbf1` | Authored idle state instead of distance-dependent host alpha. |
+| LEDs / `0x69aa01e7`, `0x9f59065a` | Both installed mask windows updated; zero width without a target. |
 
-| Object | Kind | What it is | Status |
-|---|---|---|---|
-| `PursuitBoardGroup` [0xde89e070] | group | The pursuit board: backing top and bottom, the leader-list pulse, the bounty row and the timer. Parent: group 0x5c7a5c8a, root 0x5d0101f1 (the right context). | **bound** |
-| `PursuitTime` [0xfc39cb0a] | string | The timer, `00:00.00` (font `FONT_MW_BODY`), under `Timer_Icon` in the board. | **bound**: `mm:ss.cc` |
-| bounty row [0x8674e6d4] | group | `BOUNTY >` and the value `9999999` (placeholder). | held hidden: no bounty in the feed |
-| `Cooldown_Meter_Group` [0x84a226ec] | group | The cool-down (evade) bar: the text `COOLDOWN`, `Outrun_Backing`, the track `BasePoly_Add` [0xa1eb7e6e] and the fill `BasePoly` [0xcf817638] (pivot x = -108, the left end). Parent: the radar group 0xab9c1d4d. | **bound** |
-| `HIDING` group [0x60b45523] and `Hide_Car_Icon` [0x38074901] | group, image | The hiding indicator under the cool-down bar. | held hidden: the hiding timer is not in the feed |
-| `Heat_Meter_Group` [0xc46a80a9] | group | The heat meter's backing, `Heat_Icon`, `Shift_Up_Icon`, `Heat_Icon_Additive` and the `x` label group. | held hidden (see 2) |
-| `Heat_Meter_Multi_Image` [0x862824c9], second arc [0x4b2cbe1b] | multi image | The two half arcs of the heat gauge (`Meter_Backing.tga`; the game turns each arc's mask). Parent: group 0xb0f63386 under the group 0x1603009e. | **not bound**: which arc takes which half of the heat is not confirmed |
-| heat label `x10` [0xa81a2028] | string (two objects, same hash) | The heat multiplier text, `x{int}` (`HEAT_X%.0f` **[binary]**). | **not bound**: the two objects share one hash, so a lookup by name finds only one of them |
-| `CostToState` [0x3ff5f33c] | string | The cost-to-state text, `1000000` (placeholder). | **not bound**: the feed has no cost |
-| cops group [0xe0b1430b] | group | The group holding `Cops_Icon` [0x3787231c] with its count `99`, `Cops_TakenOut_Icon` [0x0fe608e6] and `Cops_Damaged_Icon` [0xb224abde] with their counts (the dump lists them as its children). The group's own name is not among the candidates tried. Its fade-in scripts start on `0x3c97521a` / `0x5c930796`, the same messages as the board. | **bound** (E8b): shown with the board, held at full alpha in a chase |
-| `Cops_TakenOut` [0xa16f9f1e] | string | The cops taken out (wrecked) count, right-justified beside `Cops_TakenOut_Icon` (placeholder `99`, `FONT_MW_BODY`). Hash checked with `fe_hash_upper`. | **bound** (E8b): the wrecked count of the chase (`PursuitHud::cops_destroyed`) |
-| `Cops_Damaged` count [0x5fa70d4c] | string | The damaged count beside `Cops_Damaged_Icon` (placeholder `999`). | not bound: the damaged count is not in the feed |
-| `Cops_Icon` count [0x814918ca] | string | The cops in pursuit beside `Cops_Icon` (placeholder `99`). | not bound: the engaged count is not in the feed |
-| `Radar_Icon` [0x6ccbbbf1] | image | The radar's green laser. | bound already (`cop_nearby`) |
-| `Radar_DirectionArrow` [0x24196ad4], `RADAR_GROUP` [0x062743f5] | image, group | The radar's arrow and group. | not bound (the radar detector's target is not in the feed) |
-| busted bar | — | The bust meter (five segments, [ai-pursuit.md](ai-pursuit.md) section 4.4). | **not located**: no object name hashes to a candidate; the group 0x3345911d with four `button_ring.tga` images under 0x1603009e is unverified |
+The radar backing and group no longer receive the earlier +75/+15 unit shifts.
+Those shifts aligned the mirror-oriented initial poses in the standalone view,
+leaving the detector floating in the upper quarter of the scene. The authored
+standalone entrance places it near the top of the screen instead.
+The presenter preserves the standalone backing's authored alpha 200 rather
+than forcing it opaque with the old mirror compensation.
 
-The original's HUD classes are `Hud_PursuitBoard`, `Hud_BustedMeter`, `Hud_HeatMeter`, `Hud_CostToState`,
-`Hud_RadarDetector` [binary]. Only the board, the timer and the cool-down bar have their objects identified above.
+The fill geometry is applied again after FEng script evaluation. In particular,
+restarting a flashing segment must not briefly restore its authored position or
+size over the newly calculated fixed edge.
 
-**Other objects of the chase in the package.** `INFRACTIONS` [0xc0f39f88] and `Ramming a Police Vehicle`, `CODE: 404`
-text (placeholders), `Generic_Infraction.tga` [0x69d4e157]. These are the infraction list, not bound.
+## Remaining presentation gaps
 
-## 2. What the rewrite shows
+| Feature | Status |
+|---|---|
+| Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
+| Bounty row / `0x8674e6d4` | Held hidden until the complete bounty feed is bound. |
+| `CostToState` / `0x3ff5f33c` | No complete cost-to-state presentation. |
+| Backup timer / `0xbee44775`, `0x6a144066` | Original finite backup scheduling and countdown are not implemented. |
+| Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
+| Infraction notifications | Original notification queue and authored actions remain incomplete. |
+| Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
+| View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
+| Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
 
-Driven by `HudState::pursuit` (`Option<PursuitHud>`, `None` while no cop chases the player). The world fills it in
-`scenes/world/hud.rs` from `TrafficWorld::pursuit_feed()`.
+The board and cops groups still have host-managed alpha. This is not a claim
+that every original HUD message, fade, counter animation or sound is reproduced.
 
-- **The board** (`PursuitBoardGroup`): shown while a pursuit runs; hidden otherwise (`crates/nfsmw/src/hud/elements.rs`,
-  `Layout::update`). Its group and the cool-down group are held at full alpha during a chase, because their fade-in
-  scripts (`0x033113ac`, `0x5079c8f8`, `0x13f51124`) start on messages this build does not raise (the cool-down group
-  has `on 0x3c97521a`) **[verified]**. The fade is skipped, as for the mirror.
-- **The timer**: `secs` (the feed's seconds since the chase began) as `mm:ss.cc`, the package's template **[verified]**.
-- **The cool-down bar**: shown when the cool-down meter is at least 0.05 (the spec's `evade_level >= 0.05`, ai-pursuit.md
-  section 6 **[decomp]**). Its fill grows from the left end: width = full width × the meter. The meter is
-  `TrafficWorld::evade_level()` (`blackbox_pursuit::Cooldown`, which decays by 0.93 while a cop sees the player). The
-  feed's `secs_to_evade` still gives the timeout's progress for the audio. Shown on screen: the fill starts at the
-  left end and grows right **[verified, offscreen screenshot]**.
-- The cool-down group is inside the radar group in the package, so the layout decides it on its own flag, and the
-  hiding parts and the bounty row are held hidden under any feature that shows around them.
+## Verification
 
-**Not done, with reasons.** The heat arcs and label (the arcs' mask mapping and the label object are not resolved),
-the cost to state and the bounty (not in the feed), the busted bar (no object located), the infraction list, and
-the radar detector beyond the laser (its target source is not in the feed). Each is a feed or an object question,
-not a rendering one.
-
-## 3. How to check it
-
-1. `nfsmw view-world --drive BMWM3GTR --open-console --exec "wait 4" --exec "pursuit 5" --exec "wait 3" --screenshot-delay 10 --screenshot out.png`:
-   the timer shows top right and, once the evade share is at least 5 per cent, the cool-down bar shows at the bottom
-   with its fill at the left end.
-2. Without a chase the board and the bar are hidden.
-3. Tests: `cargo test -p nfsmw hud::pursuit` (the evade share, the threshold, the timer format, the board and bar
-   gating, the fill's left end), and with the install `NFSMW_GAME_DIR=… cargo test -p nfsmw hud:: -- --include-ignored`
-   (the objects above exist in the package).
-
-## Open questions
-
-- The heat arcs: which of `0x862824c9` and `0x4b2cbe1b` is the first half of the gauge, and the mask rotation per heat.
-- The `x10` label: the two objects share a hash; the game sets its text through the object's own pointer, which
-  the runtime does not expose by name.
-- The busted bar's object name (see the table).
-- The message that starts the board's fade in the game (`0x3c97521a` on the cool-down group is one candidate).
+The installed HUD regression checks both duplicate heat labels and live
+counters, standalone and mirror transforms, repeated state changes, stale target
+suppression, 4:3/16:9/ultrawide centering, and the five meter segments retaining
+fixed edges after their scripts run. Synthetic tests cover the signed threshold
+values and explicit cooldown phase. These checks establish asset binding and
+state integration; a matched original route/capture remains a separate check.

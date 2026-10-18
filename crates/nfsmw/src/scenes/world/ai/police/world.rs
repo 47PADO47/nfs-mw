@@ -48,6 +48,7 @@ impl super::super::TrafficWorld {
 
     /// The player pressed the reset key: the post-reset blink starts (the reset penalty applies while it runs).
     pub fn note_manual_reset(&mut self) {
+        self.spike_patches = None;
         self.police.note_manual_reset();
     }
 
@@ -81,7 +82,7 @@ impl super::super::TrafficWorld {
         // The busted timer's inputs. `flashing` is the post-reset blink, started by a manual reset (FairBusts' penalty).
         let bust = BustInput {
             cop_distance: self.nearest_matched_cop(at),
-            seen: sensed.seen,
+            seen: self.police.is_perp_in_sight(),
             player_speed: player.speed.abs(),
             slow_speed: self.police.bust_speed(level),
             flashing: self.police.flashing(),
@@ -133,7 +134,7 @@ impl super::super::TrafficWorld {
     }
 
     /// Whether a physics-space point is in a HIDDEN zone that hides it from cars: any zone but one flagged `Heli`.
-    fn hidden_from_cars(&self, at: Vec3) -> bool {
+    pub(in crate::scenes::world::ai) fn hidden_from_cars(&self, at: Vec3) -> bool {
         self.in_hidden_zone(at, |zone| zone.data[0] as u32 != HELI_HASH)
     }
 
@@ -194,7 +195,7 @@ impl super::super::TrafficWorld {
     fn nearest_cop(&self, at: Vec3) -> f32 {
         self.cars
             .iter()
-            .filter(|car| car.is_cop())
+            .filter(|car| car.is_live_police())
             .filter(|car| rules::on_level(car.avoidable().position.y - at.y))
             .map(|car| horizontal(car.avoidable().position - at).length())
             .fold(f32::INFINITY, f32::min)

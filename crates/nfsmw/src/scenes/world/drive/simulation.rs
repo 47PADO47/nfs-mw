@@ -60,7 +60,8 @@ impl Drive {
                 input
             }
             None => self.presses.take_into(self.frame_input),
-        };
+        }
+        .during_arrest(self.arrested);
         if input.pop {
             self.flames.pop();
         }

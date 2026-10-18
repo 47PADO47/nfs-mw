@@ -193,6 +193,8 @@ fn the_status_line_tells_what_plays_and_what_is_asked() {
     run(&mut conductor, &mut stage, &state, true, 1.0);
     let busy = conductor.status(&state, true);
     assert!(busy.contains("pursuit set 3 at control 64") && busy.contains("racing"), "{busy}");
+    assert!(busy.contains("the songs are held for pursuit music"), "{busy}");
+    assert!(!busy.contains("free to play"), "{busy}");
     run(&mut conductor, &mut stage, &MusicState::default(), true, 1.0);
     assert!(conductor.status(&MusicState::default(), true).contains("the songs return in"));
 }

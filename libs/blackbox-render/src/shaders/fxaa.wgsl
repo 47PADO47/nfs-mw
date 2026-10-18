@@ -48,7 +48,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let range = luma_max - luma_min;
     // Flat or faint areas are left alone.
     if (range < max(params.a.y, luma_max * params.a.x)) {
-        return centre;
+        return vec4<f32>(centre.rgb, 1.0);
     }
 
     let nw = luma_at(p + vec2<i32>(-1, -1));
@@ -132,5 +132,5 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     } else {
         final_uv.x += final_offset * step_length;
     }
-    return vec4<f32>(textureSampleLevel(src, samp, final_uv, 0.0).rgb, centre.a);
+    return vec4<f32>(textureSampleLevel(src, samp, final_uv, 0.0).rgb, 1.0);
 }

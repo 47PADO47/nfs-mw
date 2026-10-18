@@ -32,14 +32,25 @@ pub struct Look {
 /// The sight state carried between thinks: the hidden latch and the place the player was last seen.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Sight {
+    visible: bool,
     latched: bool,
     last_seen: Option<Vec3>,
 }
 
 impl Sight {
+    /// Result of the last completed sight test, including the pursuit grace.
+    pub fn visible(&self) -> bool {
+        self.visible
+    }
+
     /// Whether the helicopter sees its target now. `clear` tests the line from the helicopter to the target, lifted
     /// a metre; it is only called when the target is in view by distance and direction.
     pub fn can_see(&mut self, look: &Look, clear: impl FnOnce() -> bool) -> bool {
+        self.visible = self.test(look, clear);
+        self.visible
+    }
+
+    fn test(&mut self, look: &Look, clear: impl FnOnce() -> bool) -> bool {
         if look.hidden && self.latched {
             return false;
         }

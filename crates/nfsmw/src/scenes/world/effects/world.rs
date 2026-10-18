@@ -3,15 +3,11 @@
 use crate::scenes::world::sign_lamps;
 use blackbox_gfx::{EffectLayer, RenderBackend};
 
-use super::super::damage_marks::Mark;
 use super::super::{View, WorldScene};
 use super::entry_marks;
 
 /// Rain streaks: a pale blue, dim enough to read as water rather than light.
 const RAIN_COLOUR: [u8; 4] = [180, 200, 255, 90];
-/// Damage marks: a dark scrape and a pale crack line.
-const SCUFF_COLOUR: [u8; 4] = [40, 40, 40, 170];
-const CRACK_COLOUR: [u8; 4] = [235, 240, 245, 210];
 
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
@@ -36,7 +32,6 @@ impl WorldScene {
         if !trails_visible {
             drive.tail_trails.clear();
         }
-        let damage = drive.damage_quads();
         let layer = drive.effects.build(position, forward);
         if self.view == View::Chase {
             entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
@@ -53,13 +48,6 @@ impl WorldScene {
         if trails_visible {
             flares.draw_trails(&lamps, &drive.tail_trails, lamp_frame, lamp_state, flare_view, &mut layer.textured);
         }
-        for mark in damage {
-            let colour = match mark.mark {
-                Mark::Scuff => SCUFF_COLOUR,
-                Mark::Crack => CRACK_COLOUR,
-            };
-            blackbox_gfx::EffectLayer::quad(&mut layer.streaks, mark.corners, colour);
-        }
         let mut drops = Vec::new();
         self.rain.streaks(position, &mut drops);
         for quad in drops {
@@ -68,6 +56,7 @@ impl WorldScene {
         let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
         sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
+            traffic.spike_geometry(&mut layer.streaks);
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
             traffic.car_beams(&mut layer.streaks);
             traffic.cop_particles(position, forward, &mut layer.textured);

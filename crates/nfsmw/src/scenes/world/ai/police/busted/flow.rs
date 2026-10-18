@@ -1,5 +1,5 @@
-//! The bust sequence after the busted meter fills, as a plain state machine: the arrest shot, the busted overlay, then
-//! the infractions screen in free roam (a race ends with the arrest shot and its end card). The world starts it with
+//! The fallback after the busted meter fills: hold the car, then show the infractions screen in free roam.
+//! The original's NIS player is unavailable; the no-NIS path does not invent an extra overlay delay. The world starts it with
 //! the bust and the frame's time; the front end carries out the steps it asks for and reports the payment back.
 //! Nothing here reads a clock or a screen. Spec: `docs/specs/busted-sequence.md` sections 2, 6 and 7.
 
@@ -7,9 +7,7 @@ use blackbox_pursuit::{Fines, Infraction, InfractionLog};
 
 use super::arrest;
 
-/// Seconds the arrest shot runs, and then the same again for the overlay. The arrest framing's length is
-/// `viewer/camera/pursuit` (`ARREST_SECS`, the busted HUD time, [community]); the overlay's is the spec's "arrest shot
-/// duration" (section 6.1).
+/// The original's delay before requesting the arrest NIS. Without NIS playback the ticket follows this hold.
 pub const SHOT_SECS: f32 = 3.0;
 
 /// One infraction of the chase and its fine.
@@ -55,8 +53,6 @@ pub enum PayError {
 /// What the sequence asks the game to do when a step ends.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Step {
-    /// Show the busted overlay (`BUSTED_OVERLAY.fng`) over the frame.
-    Overlay,
     /// Show the infractions screen with this report; the front end answers with [`BustFlow::pay`].
     Infractions(BustReport),
     /// The sequence is over: a race's arrest shot has run, or the player has paid in free roam.
@@ -69,9 +65,6 @@ enum Stage {
     #[default]
     Idle,
     Arrest {
-        secs: f32,
-    },
-    Overlay {
         secs: f32,
     },
     /// The infractions screen is up and waits for the payment.
@@ -91,6 +84,10 @@ pub struct BustFlow {
 }
 
 impl BustFlow {
+    pub fn active(&self) -> bool {
+        !matches!(self.stage, Stage::Idle | Stage::Finished)
+    }
+
     /// Starts the sequence for a bust. `class` and `roll` pick the arrest scene (`arrest.rs`); `report` is the chase's
     /// infractions. Returns `false` (and changes nothing) when a bust is already on in this chase.
     pub fn start(&mut self, race: bool, class: u8, roll: f32, report: BustReport) -> bool {
@@ -118,9 +115,11 @@ impl BustFlow {
 
     /// Advances the sequence by `dt` seconds. Returns the step that ended this frame, if one did.
     pub fn tick(&mut self, dt: f32) -> Option<Step> {
+        if !dt.is_finite() || dt <= 0.0 {
+            return None;
+        }
         match self.stage {
             Stage::Arrest { secs } => self.run_arrest(secs + dt),
-            Stage::Overlay { secs } => self.run_overlay(secs + dt),
             Stage::Idle | Stage::Infractions | Stage::Finished => None,
         }
     }
@@ -133,15 +132,6 @@ impl BustFlow {
         if self.race {
             self.stage = Stage::Finished;
             return Some(Step::Finished);
-        }
-        self.stage = Stage::Overlay { secs: 0.0 };
-        Some(Step::Overlay)
-    }
-
-    fn run_overlay(&mut self, secs: f32) -> Option<Step> {
-        if secs < SHOT_SECS {
-            self.stage = Stage::Overlay { secs };
-            return None;
         }
         self.stage = Stage::Infractions;
         self.request = Some(self.report.clone());
@@ -161,9 +151,9 @@ impl BustFlow {
         Ok(())
     }
 
-    /// Whether the busted overlay is up: the overlay step has begun and its time has not run out.
+    /// The fallback has no arrest NIS completion event to trigger an overlay.
     pub fn overlay_shown(&self) -> bool {
-        matches!(self.stage, Stage::Overlay { .. })
+        false
     }
 
     /// Whether this bust takes the place of the end-of-chase card: a free-roam bust does (its infractions screen does
@@ -192,9 +182,8 @@ mod tests {
         log
     }
 
-    /// Ticks a free-roam bust through its arrest shot and overlay, to the infractions screen.
+    /// Ticks a free-roam bust through the NIS request delay to the fallback ticket.
     fn to_the_screen(flow: &mut BustFlow) {
-        flow.tick(SHOT_SECS + 0.1);
         assert!(matches!(flow.tick(SHOT_SECS + 0.1), Some(Step::Infractions(_))));
     }
 
@@ -240,25 +229,31 @@ mod tests {
     }
 
     #[test]
-    fn a_free_roam_bust_runs_arrest_then_overlay_then_infractions() {
+    fn invalid_time_cannot_skip_the_hold_or_corrupt_the_fallback_clock() {
         let mut flow = free_roam_bust();
-        assert_eq!(flow.tick(SHOT_SECS / 2.0), None, "the arrest shot runs first");
-        assert!(!flow.overlay_shown());
-        assert_eq!(flow.tick(SHOT_SECS / 2.0 + 0.01), Some(Step::Overlay));
-        assert!(flow.overlay_shown());
-        assert_eq!(flow.tick(SHOT_SECS - 0.1), None);
-        assert!(flow.overlay_shown(), "the overlay holds for its time");
-        let step = flow.tick(0.2);
-        assert!(matches!(step, Some(Step::Infractions(ref r)) if r.total == 500), "{step:?}");
-        assert!(!flow.overlay_shown(), "the overlay is gone when the screen comes up");
+        let before = flow.clone();
+        for dt in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(flow.tick(dt), None);
+            assert_eq!(flow, before);
+        }
     }
 
     #[test]
-    fn an_overshooting_step_gives_the_overlay_its_full_time() {
+    fn a_free_roam_bust_holds_then_requests_the_ticket_without_a_fake_nis_delay() {
         let mut flow = free_roam_bust();
-        assert_eq!(flow.tick(SHOT_SECS + 2.0), Some(Step::Overlay));
-        assert_eq!(flow.tick(SHOT_SECS - 0.1), None, "the overlay starts from zero, not from the overshoot");
-        assert!(matches!(flow.tick(0.2), Some(Step::Infractions(_))));
+        assert_eq!(flow.tick(SHOT_SECS / 2.0), None, "the arrest shot runs first");
+        assert!(!flow.overlay_shown());
+        let step = flow.tick(SHOT_SECS / 2.0 + 0.01);
+        assert!(matches!(step, Some(Step::Infractions(ref r)) if r.total == 500), "{step:?}");
+        assert!(!flow.overlay_shown());
+        assert!(flow.active(), "the ticket keeps controls held until payment");
+    }
+
+    #[test]
+    fn an_overshooting_step_requests_only_one_ticket() {
+        let mut flow = free_roam_bust();
+        assert!(matches!(flow.tick(SHOT_SECS + 2.0), Some(Step::Infractions(_))));
+        assert_eq!(flow.tick(SHOT_SECS), None);
     }
 
     #[test]

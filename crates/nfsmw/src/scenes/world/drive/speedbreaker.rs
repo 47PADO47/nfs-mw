@@ -26,6 +26,12 @@ impl SpeedBreaker {
         self.active
     }
 
+    /// Gameplay control holds cancel dilation while preserving the stored charge.
+    pub fn cancel(&mut self) {
+        self.active = false;
+        self.held = false;
+    }
+
     /// The tunables the breaker and the physics read. Set each frame from the world settings.
     pub fn tuning(&self) -> SpeedbreakerTuning {
         self.tuning
@@ -87,6 +93,18 @@ mod tests {
         assert!(sb.step(true, 50.0, 0.0, 0.0));
         assert!(sb.step(false, 50.0, 0.0, 0.0));
         assert!(!sb.step(true, 50.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn an_arrest_cancels_dilation_without_spending_or_refilling_the_charge() {
+        let mut sb = SpeedBreaker::default();
+        assert!(sb.step(true, 50.0, 0.0, 1.0));
+        let charge = sb.meter;
+        sb.cancel();
+        assert!(!sb.active());
+        assert_eq!(sb.meter, charge);
+        assert!(!sb.step(false, 0.0, 3.0, 3.0));
+        assert_eq!(sb.meter, charge);
     }
 
     #[test]

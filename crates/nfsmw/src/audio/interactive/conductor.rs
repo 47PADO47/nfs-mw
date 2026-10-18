@@ -122,9 +122,10 @@ impl Conductor {
             None => "no pursuit music".to_owned(),
         };
         let leaving = if self.fading.is_empty() { String::new() } else { format!(", {} leaving", self.fading.len()) };
-        let radio = match self.director.resume_in() {
-            Some(left) => format!("the songs return in {left:.0} s"),
-            None => "the songs are free to play".to_owned(),
+        let radio = match (self.playing(), self.director.resume_in()) {
+            (true, _) => "the songs are held for pursuit music".to_owned(),
+            (_, Some(left)) => format!("the songs return in {left:.0} s"),
+            _ => "the songs are free to play".to_owned(),
         };
         let wanted = match state.pursuit {
             Some(p) => format!("asked: set {} at intensity {:.2}", p.set, p.intensity),

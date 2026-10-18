@@ -231,6 +231,15 @@ impl Renderer {
     /// `onscreen` is false for a capture, which a temporal upscaler cannot work on (no history): it is drawn at
     /// the output size and goes through the other passes alone.
     fn scene_plan(&self, output: (u32, u32), onscreen: bool) -> targets::ScenePlan {
+        self.scene_plan_for_format(output, onscreen, self.output.format())
+    }
+
+    fn scene_plan_for_format(
+        &self,
+        output: (u32, u32),
+        onscreen: bool,
+        format: wgpu::TextureFormat,
+    ) -> targets::ScenePlan {
         let temporal = self.post.has_temporal() && onscreen;
         let render = match self.post.has_temporal() && !onscreen {
             true => output,
@@ -242,7 +251,7 @@ impl Renderer {
             passes: self.post.has_passes(),
             hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
             temporal,
-            surface_format: self.output.format(),
+            surface_format: format,
             hdr_format: self.hdr_format,
         })
     }

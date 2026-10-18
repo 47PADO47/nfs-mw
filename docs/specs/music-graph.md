@@ -211,8 +211,13 @@ every song turns up within 2N picks [confirmed by the Rust tests of the rule, in
 ## 8. Other sections of the graph (out of scope)
 
 Section numbers of the head nodes [confirmed-by-data]: 1 to 4 have 11 groups each and are the four
-interactive pursuit sets (the game's own table of start nodes, 0x199, 0x6A, 0x132, 0xD5 and 0, are exactly head
-records 409, 106, 306, 213 and 0); 5 has 31 groups and holds the 26 songs plus the start-screen music; 6 has 14
+interactive pursuit sections. The first heads are nodes 0, 427, 755 and 1127. Each sustains
+300 audio bars at control 0, 64 and 127 in the installed regression. The earlier claim that
+409/106/306/213 are four section starts was incorrect: all four are internal heads of
+section 1, and 409 leads to a single-bar ending. Their original controller-table meaning
+remains unresolved. The host now discovers the first head per section, with no fallback
+to those internal cues. See [pursuit-free-roam.md](pursuit-free-roam.md).
+Section 5 has 31 groups and holds the 26 songs plus the start-screen music; 6 has 14
 groups and is the ambience (one per ambient zone). The pursuit music is started by event `0x026E7282` and then
 steered by writing the control value 0 to 127 [inferred]; the ambience events are chains of
 "if the section of the current node is k then branch to ..." conditionals. The ambient zone 13 (rap sheet) has

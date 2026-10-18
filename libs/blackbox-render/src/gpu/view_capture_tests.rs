@@ -59,6 +59,32 @@ fn a_view_capture_is_polled_until_its_picture_is_ready() {
 
 #[test]
 #[ignore = "needs a GPU"]
+fn hdr_effects_view_capture_is_sdr_and_restores_main_output() {
+    use super::{output::Output, post::display::Mapping};
+
+    let _gpu = test_support::serial();
+    let mut renderer = test_support::headless((64, 36)).expect("HDR mirror adapter");
+    renderer.output = Output::texture_format(&renderer.device, (64, 36), wgpu::TextureFormat::Rgba16Float);
+    let mapping = Some(Mapping { peak: 1000.0 / 203.0, white: 203.0, linear: true });
+    renderer.post.set_display(&renderer.device, mapping);
+    renderer.ui.set_hdr_white(Some(203.0));
+    renderer.refresh_targets();
+    let frame = clear_frame([0.25, 0.5, 2.0]);
+    let reference = renderer.capture(384, 131, &frame, &[]).unwrap();
+
+    let id = renderer.request_view_capture([384, 131], &frame, &[]).unwrap();
+    let image = poll_until_ready(&mut renderer, id).expect("the HDR mirror returns an SDR UI picture");
+    assert_eq!(image.rgba.len(), 384 * 131 * 4);
+    assert!(image.rgba.iter().zip(&reference).all(|(a, b)| a.abs_diff(*b) <= 1));
+    assert_eq!(renderer.output.format(), wgpu::TextureFormat::Rgba16Float);
+    assert_eq!(renderer.surface_size(), (64, 36));
+    assert_eq!(renderer.post.display, mapping);
+    assert_eq!(renderer.ui.hdr_white(), Some(203.0));
+    assert!(renderer.render(&frame, &[]).unwrap(), "the main HDR frame still renders after the mirror");
+}
+
+#[test]
+#[ignore = "needs a GPU"]
 fn a_second_view_capture_waits_for_the_first_to_be_polled() {
     let _gpu = test_support::serial();
     let Some(mut renderer) = test_support::headless((64, 36)) else { return };

@@ -78,7 +78,7 @@ impl Police {
     /// bust rewards read this.
     #[allow(dead_code)] // read by the arrest scene (E8f), not built yet
     pub fn is_busted(&self) -> bool {
-        self.busted.is_busted()
+        self.busted.is_busted() || self.bust.active()
     }
 
     /// Starts the bust sequence for the bust that just happened: the infractions so far are the ticket. The chase is in
@@ -106,7 +106,7 @@ impl super::super::TrafficWorld {
         let gate = self.police.bust_tuning().height_gate;
         self.cars
             .iter()
-            .filter(|car| car.is_cop())
+            .filter(|car| car.is_cop() || (car.is_roadblock() && car.is_live_police()))
             .filter(|car| height_matches(car.avoidable().position.y - at.y, gate))
             .map(|car| horizontal(car.avoidable().position - at).length())
             .fold(f32::INFINITY, f32::min)
@@ -118,7 +118,7 @@ impl super::super::TrafficWorld {
         let gate = self.police.bust_tuning().height_gate;
         self.cars
             .iter()
-            .filter(|car| car.is_cop())
+            .filter(|car| car.is_cop() || (car.is_roadblock() && car.is_live_police()))
             .filter(|car| height_matches(car.avoidable().position.y - at.y, gate))
             .map(|car| car.avoidable().position)
             .min_by(|a, b| horizontal(*a - at).length().total_cmp(&horizontal(*b - at).length()))
@@ -145,7 +145,58 @@ impl super::super::TrafficWorld {
     pub fn pay_bust(&mut self, marker: bool) -> bool {
         let payment = if marker { Payment::Marker } else { Payment::Cash };
         // The port has no career state, so no markers are in stock.
-        self.police.bust.pay(payment, 0).is_ok()
+        if self.police.bust.pay(payment, 0).is_err() {
+            return false;
+        }
+        self.police.carried_heat = 1.0;
+        self.police.busted.reset();
+        self.police.cooldown = Cooldown::default();
+        self.police.reset_blink = 0.0;
+        self.cars.retain(|car| !car.is_police());
+        true
+    }
+
+    /// The player controls remain held through the fallback and its unpaid ticket.
+    pub fn arrest_active(&self) -> bool {
+        self.police.bust.active()
+    }
+
+    pub fn cooldown_shown(&self) -> bool {
+        self.police.cooldown.is_shown()
+    }
+
+    pub fn pursuit_time(&self) -> f32 {
+        self.police.pursuit_time
+    }
+
+    /// Signed proximity/arrest warning consumed by the authored five-part pursuit bar.
+    pub fn pursuit_meter(&self, position: Vec3, speed: f32) -> f32 {
+        use blackbox_pursuit::busted::meter::{MeterInput, MeterTuning};
+        let at = Vec3::from_array(space::to_physics(position));
+        let distance = self
+            .cars
+            .iter()
+            .filter(|car| car.is_cop() || (car.is_roadblock() && car.is_live_police()))
+            .map(|car| car.avoidable().position.distance(at))
+            .fold(f32::INFINITY, f32::min);
+        let level = self.police.level().unwrap_or_else(|| self.police.patrol_heat());
+        let input = MeterInput {
+            distance,
+            speed: speed.abs(),
+            slow_speed: self.police.bust_speed(level),
+            since_seen: self.police.cooldown.since_seen(),
+            evade: self.police.evade_level(),
+        };
+        let tuning = MeterTuning {
+            bust_dead_zone: 35.0,
+            evade_dead_zone: 50.0,
+            front_sight: blackbox_pursuit::sight::ranges(level).0,
+            warning_speed: 100.0 / 3.6,
+            neutral_speed: 70.0 * super::super::traffic::MPH,
+            fresh_sighting: 0.29,
+            sight_grace: blackbox_pursuit::cooldown::TUNING.grace,
+        };
+        self.police.busted.display_meter(input, &self.police.bust_tuning(), &tuning)
     }
 
     /// Whether the busted overlay (`BUSTED_OVERLAY.fng`) is up: the arrest shot has run and its time has not.
@@ -164,9 +215,7 @@ mod bust_sequence_tests {
         assert!(police.start_bust(0.0), "a bust starts");
         assert!(!police.bust.overlay_shown());
         police.tick_bust(flow::SHOT_SECS + 0.1);
-        assert!(police.bust.overlay_shown(), "the overlay follows the arrest shot");
-        police.tick_bust(flow::SHOT_SECS + 0.1);
-        assert!(!police.bust.overlay_shown(), "the overlay runs its time");
+        assert!(!police.bust.overlay_shown(), "the unavailable NIS does not invent an overlay stage");
         assert!(police.bust.take_request().is_some(), "the ticket is up for the front end");
         assert!(police.bust.take_request().is_none(), "and handed over once");
         assert!(police.bust.pay(Payment::Cash, 0).is_ok(), "the payment is taken on the ticket");

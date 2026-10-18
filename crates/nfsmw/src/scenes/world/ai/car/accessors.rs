@@ -7,6 +7,8 @@ impl AiCar {
     pub fn set_roadblock(&mut self) {
         self.roadblock = true;
         self.breaker_stop = true;
+        self.sim.collision_role.cop = true;
+        self.damage.get_or_insert_with(|| CopDamage::for_model(&self.name));
     }
 
     /// Whether this car is part of a roadblock (and so holds its place).

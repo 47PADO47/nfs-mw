@@ -1,8 +1,8 @@
 //! Roadblocks in the world: a block of cop cars across the road 250 m ahead of the player, laid out by
 //! `blackbox_pursuit::roadblock`. The cars stop where they are placed, with the brakes held (`AIGoalStaticRoadBlock`).
 //! The cars and the spike strips are placed; the sawhorse barriers are not, as they need props. A roadblock rolls its
-//! layout list by the heat's spike chance. The road is taken as two lanes (a 3.5 m half width, unconfirmed) because the
-//! rewrite does not read the lane profile here yet. Spec: `docs/specs/ai-pursuit-roadblocks.md` sections 2 to 4.
+//! layout list by the heat's spike chance. The road's navigable corridor supplies the layout width and tangent.
+//! Spec: `docs/specs/ai-pursuit-roadblocks.md` sections 2 to 4.
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::roadblock::{self, Element, Layout, NORMAL, Road, SPIKES};
@@ -20,9 +20,6 @@ use crate::scenes::world::space;
 
 /// How far ahead of the player the roadblock stands, metres (`kRoadBlockAheadDistance`).
 const AHEAD: f32 = 250.0;
-/// Half the width of the road (two lanes), metres (unconfirmed).
-const LANE_HALF: f32 = 3.5;
-
 impl TrafficWorld {
     /// Lays a roadblock 250 m ahead of the player. Returns the number of cop cars placed.
     pub(in crate::scenes::world) fn place_roadblock(
@@ -41,21 +38,28 @@ impl TrafficWorld {
             LaneType::Racing,
             SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() },
         );
-        if !nav.init_at_point(&self.network, &self.index, at_player + forward * AHEAD, forward, false) {
+        if !nav.init_at_point(&self.network, &self.index, at_player, forward, false) {
             return Err("there is no road 250 m ahead".into());
         }
-        let side = Vec3::new(forward.z, 0.0, -forward.x);
+        nav.half_width = 0.0;
+        nav.advance(&self.network, AHEAD, forward, &mut self.rng);
+        if nav.dead_end || nav.position.distance(at_player) < 100.0 {
+            return Err("the road does not provide a safe roadblock site ahead".into());
+        }
+        let forward = nav.forward.with_y(0.0).normalize_or_zero();
+        let cross_section = nav.road_cross_section(&self.network);
         let centre = nav.position;
+        let lift = |point: Vec2| Vec3::new(point.x, centre.y, point.y);
         let road =
-            Road { left: centre + side * LANE_HALF, right: centre - side * LANE_HALF, target: at_player, forward };
-        let cr_width = 2.0 * LANE_HALF + 1.0;
+            Road { left: lift(cross_section.left), right: lift(cross_section.right), target: at_player, forward };
+        let cr_width = cross_section.left.distance(cross_section.right);
         let cars = roadblock::cars_asked(cr_width);
         let heat = self.police.level().unwrap_or(1);
         let spikes = roadblock::takes_spikes(heat, self.rng.next_f32());
         let list: &[Layout] = if spikes { &SPIKES } else { &NORMAL };
         let layout = roadblock::pick(list, cr_width, cars).ok_or("no roadblock layout fits this road")?;
         let mut placed = 0;
-        let mut strips = 0;
+        let mut strips = Vec::new();
         for slot in roadblock::place(layout, &road) {
             let at = Vec3::new(slot.position.x, centre.y, slot.position.z);
             match slot.kind {
@@ -65,14 +69,17 @@ impl TrafficWorld {
                     }
                 }
                 Element::Spike => {
-                    self.spikes.push(Strip { position: Vec2::new(at.x, at.z), heading: slot.heading });
-                    strips += 1;
+                    strips.push(Strip { position: Vec2::new(at.x, at.z), elevation: at.y, heading: slot.heading });
                 }
                 // Sawhorse barriers need their props, which are not spawned yet.
                 Element::Barrier => {}
             }
         }
-        log::info!("roadblock: {} layout, {strips} spike strips", if spikes { "spike" } else { "plain" });
+        if placed == 0 {
+            return Err("no roadblock car could stand at the selected site".into());
+        }
+        log::info!("roadblock: {} layout, {} spike strips", if spikes { "spike" } else { "plain" }, strips.len());
+        self.spikes.extend(strips);
         Ok(placed)
     }
 
@@ -91,9 +98,8 @@ impl TrafficWorld {
             return false;
         }
         let render_forward = space::to_render(direction.to_array());
-        // Snap to the road: the nav gives the nearest road point, as the traffic spawn does; a point beside the road has no ground.
-        let on_road = nav.position;
-        let render_at = space::to_render(on_road.to_array());
+        // Ground placement resolves elevation; do not discard the layout's lateral and longitudinal offsets.
+        let render_at = space::to_render(at.to_array());
         let spawn = Spawn { position: render_at, heading: render_forward.y.atan2(render_forward.x) };
         let start = Start {
             stagger: 0,
@@ -101,7 +107,15 @@ impl TrafficWorld {
             cruise: Cruise { street: 0.0, highway: 0.0, lateral_g: 1.6, limit_acceleration: false },
             patrol: false,
         };
-        let model = &self.cop_models[0].model;
+        let model = self
+            .pursuit
+            .as_ref()
+            .into_iter()
+            .flat_map(|p| p.wave())
+            .find_map(|(name, _, _)| {
+                self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)).map(|m| &m.model)
+            })
+            .unwrap_or(&self.cop_models[0].model);
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
         let Some(mut car) = AiCar::place(model, Role::Traffic, nav, spawn, start, &WorldGround { collision, surfaces })

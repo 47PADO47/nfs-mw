@@ -28,9 +28,11 @@ impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         let _span = bevy_log::info_span!("world::simulation").entered();
         self.prepare_traffic(renderer);
+        let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         let speedbreaker = self.tuning.speedbreaker;
         self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
         if let Some(drive) = self.drive.as_mut() {
+            drive.hold_for_arrest(arrested);
             drive.set_speedbreaker_tuning(speedbreaker);
         }
         let driving = self.view == View::Chase;
@@ -85,7 +87,7 @@ impl WorldScene {
                 if drive.take_manual_resets() > 0 {
                     traffic.note_manual_reset();
                 }
-                let cast = super::drive::walls::world_cast(collision);
+                let cast = super::drive::sight::sight_cast(collision);
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
                 // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
                 // a per-frame dt would stop the police clock offscreen.

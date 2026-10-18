@@ -84,6 +84,8 @@ pub struct Radio {
     playing: Option<Playing>,
     /// The song on the air is held (paused); cleared whenever it stops.
     paused: bool,
+    /// The interactive soundtrack owns the music transport this frame.
+    held: bool,
     /// The tracks played this session, oldest first, so `previous` can go back and `next` forward again.
     history: Vec<Entry>,
     /// How many entries of `history` are behind and including the track on the air; the next one is `history[cursor]`.
@@ -121,6 +123,7 @@ impl Radio {
             manual: false,
             playing: None,
             paused: false,
+            held: false,
             history: Vec::new(),
             cursor: 0,
             custom: Custom::default(),
@@ -302,6 +305,7 @@ impl Radio {
     /// paused song stays where it is and goes on only when the player resumes it. `menus` is true while the main
     /// menu is up: the radio plays there too, from the front-end list.
     pub fn update_held(&mut self, driving: bool, menus: bool, held: bool, audible: bool, music: &mut impl Player) {
+        self.held = held;
         if driving != self.driving {
             self.driving = driving;
             self.manual = false;
@@ -334,6 +338,7 @@ impl Radio {
 
     /// `radio next`: stop the song and start the next one now, in the game or not. Returns the title.
     pub fn skip(&mut self, music: &mut impl Player) -> Result<String, String> {
+        self.transport_available()?;
         if !self.enabled {
             return Err("the radio is off (radio on)".into());
         }

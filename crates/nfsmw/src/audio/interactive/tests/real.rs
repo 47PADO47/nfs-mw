@@ -46,10 +46,15 @@ fn every_pursuit_set_can_be_entered_and_its_first_bar_decodes() {
                 "set {set} (node {start:#X}) at control {control}: {bars} bars, {} distinct streams, end {ended:?}",
                 streams.len()
             );
-            assert!(bars > 0, "set {set} at control {control} plays nothing");
-            let first = *streams.iter().next().unwrap() as usize;
-            let pcm = files.mpf.decode(&source, first).unwrap();
-            assert!(!pcm.samples.is_empty());
+            assert_eq!(bars, 300, "set {set} at control {control} must sustain the pursuit, end {ended:?}");
+            assert!(streams.len() > 1, "a score must progress through multiple bars");
+            let mut format = None;
+            for &stream in &streams {
+                let pcm = files.mpf.decode(&source, stream as usize).unwrap();
+                assert!(!pcm.samples.is_empty());
+                let found = (pcm.sample_rate, pcm.channels);
+                assert_eq!(*format.get_or_insert(found), found, "all bars must share a playback format");
+            }
         }
     }
 }

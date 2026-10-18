@@ -8,6 +8,11 @@ use super::{CarRig, Drive};
 
 impl Drive {
     #[cfg(test)]
+    pub(in crate::scenes::world) fn test_damage(&self) -> Option<blackbox_damage::Damage> {
+        Some(self.sim.as_ref()?.events.as_ref()?.damage.clone())
+    }
+
+    #[cfg(test)]
     pub(in crate::scenes::world) fn test_model(&self) -> &CarModel {
         self.rig.model()
     }

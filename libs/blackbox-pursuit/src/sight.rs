@@ -37,6 +37,11 @@ pub fn out_of_range(level: u32, distance: f32, facing_dot: f32) -> bool {
     distance >= front || (distance >= rear && facing_dot <= REAR_CONE_DOT)
 }
 
+/// An unassigned patrol uses the constructor's default sight distances, rather than pursuit heat tuning.
+pub fn patrol_out_of_range(distance: f32, facing_dot: f32) -> bool {
+    distance >= 150.0 || (distance >= 50.0 && facing_dot <= REAR_CONE_DOT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,5 +71,14 @@ mod tests {
     fn levels_clamp_to_one_to_ten() {
         assert_eq!(ranges(0), (151.0, 151.0));
         assert_eq!(ranges(99), (201.0, 101.0));
+    }
+
+    #[test]
+    fn patrols_have_shorter_rear_sight_than_assigned_heat_one_units() {
+        assert!(!patrol_out_of_range(149.0, 1.0));
+        assert!(patrol_out_of_range(150.0, 1.0));
+        assert!(!patrol_out_of_range(49.0, -1.0));
+        assert!(patrol_out_of_range(50.0, -1.0));
+        assert!(!out_of_range(1, 100.0, -1.0));
     }
 }

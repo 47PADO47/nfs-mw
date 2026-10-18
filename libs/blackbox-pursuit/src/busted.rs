@@ -5,6 +5,8 @@
 //!
 //! Spec: `docs/specs/ai-pursuit.md` sections 4.4 and 5.1-5.2 (decomp, rates as the spec states them).
 
+pub mod meter;
+
 /// The tuning of the busted timer. The caller fills it from the install's constants and the heat's table.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BustTuning {
@@ -33,7 +35,7 @@ pub struct BustInput {
     /// Horizontal distance (metres) to the nearest cop whose height matches the player's (see [`height_matches`]);
     /// infinite when there is none.
     pub cop_distance: f32,
-    /// A cop can see the player.
+    /// The pursuit's tracked contact gate is active. The caller decides whether this includes a sight-loss grace.
     pub seen: bool,
     /// The player's speed, metres per second (the magnitude).
     pub player_speed: f32,
