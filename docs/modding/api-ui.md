@@ -5,9 +5,8 @@ display text, then gives any slot of the game's UI a draw spec: a short list of 
 that list into the game's own components and draws it in place of the element's usual look. A slot the mod does not name
 keeps the game's look. The design is in [ui-themes.md](../specs/ui-themes.md#12-the-bbui-mod-hook).
 
-Status: the registry and the game side are built and tested. The presenter draws the registry's slots in the live game
-only after the T12 wiring, so a mod theme is resolved but not yet visible in play. The Mods page row that chooses a mod
-theme is owed too; until then a theme is chosen in code (see [Selecting a theme](#selecting-a-theme)).
+Status: the registry, the game side and the Mods page choice are built and tested. The presenter draws the registry's slots
+in the live game (T12). A player picks a mod theme on the Mods page (see [Selecting a theme](#selecting-a-theme)).
 
 ## Concepts
 
@@ -77,8 +76,12 @@ ui.set_slot(theme, 4, &[
 ## Selecting a theme
 
 A mod theme is a `ThemeId::Mod(n)` in the registry. The style setting (`ui_style`) picks only the built-in styles, so a mod
-theme is chosen separately. In code, the host calls `UiThemes::select_mod(id)`, and `UiThemes::clear_mod()` gives the choice
-back to the style. The style sync keeps a chosen mod theme. The row on the Mods page that makes this choice is owed.
+theme is chosen separately, on the Mods page of the options. Its first row, `UI theme`, appears once a mod has registered a
+theme. It steps through `Built-in style` and then each mod theme, and wraps. The choice is saved in the config as
+`[mod_values.nfsmw] ui_style_mod`, the `owner/name` of the theme (empty for the built-in style). When the theme registers
+again in a later run, it is selected again. If the theme is absent, the built-in style applies until it returns.
+
+In code, the host calls `UiThemes::select_mod(id)`, and `UiThemes::clear_mod()` gives the choice back to the style.
 
 ## Errors
 

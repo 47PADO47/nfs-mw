@@ -438,13 +438,29 @@ Mirrors `bb.menus` ([ADR 0005](../decisions/0005-native-mod-plugins.md), section
 - **Sync.** `sync_mod_themes` copies `Mods::ui_themes()` into `UiThemes` every frame. An unchanged set is one comparison.
   A changed set rebuilds the registry, keeps the Original and Custom themes, and drops a chosen mod theme that is gone.
 - **Selection.** `UiThemes::select_mod(id)` makes a mod theme active until `clear_mod()`; `select(style)` (the per-frame
-  sync) keeps the mod choice. `UiStyle` stays a closed enum (question 3). Owed: the options row or `ui_style_mod` key that
-  calls `select_mod`.
-- **Drawn.** The presenter reads the registry through the composer (T12). A mod theme that is selected draws its slots;
-  the selector is still owed.
+  sync) keeps the mod choice. `set_mod_choice(choice)` applies the player's choice each frame: `Some(id)` selects it when
+  registered (else gives it up), `None` clears it. `UiStyle` stays a closed enum (question 3).
+- **Choice on the Mods page (T13).** The Mods page's first row, `UI theme`, is offered only when a mod registered a theme.
+  It steps through the built-in style (shown as `Built-in style`) and then each mod theme in registration order, and
+  wraps. Its value is `Mods::ui_theme_choice()`, kept in the bridge (`Bridge::ui_theme_choice`), which the frontend can
+  write through `&Mods`. The sync reads it in `sync_mod_themes`. The row shows only with a mod theme, and the Mods page
+  shows only when it has a row (`Mods::has_mods_page`). Code: `frontend/mod_options.rs`, `modding/backends/ui.rs`
+  (`step_choice`, `chosen_display`).
+- **Persistence (T13).** The choice is saved as the text `owner/name` of the chosen theme, or empty for the built-in style,
+  in the config's `[mod_values.nfsmw] ui_style_mod` (through the same store as the `bb.menus` values, `menu_store.rs`).
+  The stable identity is `owner/name`, not the id: the id is an FNV hash of it, so the two agree every run, but the text
+  is what a config file can hold and read. When a theme registers, `register_theme` selects it if the saved text names it.
+  A saved name that is absent leaves the built-in style; the saved value stays, so the theme is selected when it returns.
+  A choice made in a run takes effect at once and is saved at once.
+  - **Why not the `ui_style` layers.** The brief asked for `file`, `partial` and `write` keys like `ui_style`. `Settings`
+    and `Partial` are `Copy`, and a `String` cannot sit in them. The mod values store is the game's only string-keyed,
+    persisted store, so the choice lives there. Env and CLI keys for the choice are not added.
+- **Drawn.** The presenter reads the registry through the composer (T12). A mod theme that is selected draws its slots.
 - **Tests:** `host/table/ui_tests.rs` (the table: shape checks, lifecycle, offer), `sdk/ffi/ui_tests.rs` (the SDK round trip),
   `modding/backends/ui_tests.rs` (the port: register, override, build, fallback, names and ids), and
-  `ui/theme/modded/tests.rs` (primitives, fallback, select and clear).
+  `ui/theme/modded/tests.rs` (primitives, fallback, select and clear, the Mods page choice through `set_mod_choice` and
+  the style sync), `modding/backends/ui_tests.rs` (the choice cycle, the saved choice on register and its absence),
+  `modding/backends/menu_store.rs` (text values), and `frontend/mod_options_tests.rs` (the row offered only with a theme).
 
 ## 13. Testing and verification
 
@@ -469,6 +485,7 @@ These are not decided. The parent task (or the owner) decides them before the ma
 2. **Mutable state in components.** `build(&self)` cannot advance FEng scripts (section 3). Choose between state in
    `layout(&mut self)` and a separate `update(&mut self, dt)`. Before T2.
 3. **Mod themes in `UiStyle`.** Resolved (T11): mod themes stay out of the closed `UiStyle` enum and are selected with
-   `UiThemes::select_mod` (section 12). The options row or `ui_style_mod` key that calls it is owed.
+   `UiThemes::select_mod` (section 12). The choice is on the Mods page and saved as `[mod_values.nfsmw] ui_style_mod`
+   (T13).
 4. **Components across the ABI.** Resolved (T11): a declarative primitive list, not handles (section 12).
 5. **Live switch or restart.** Resolved (T10): live. `sync_active_theme` selects the theme every frame (section 11).
