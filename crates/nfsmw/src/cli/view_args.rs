@@ -24,6 +24,12 @@ pub struct ViewArgs {
     /// Disable vsync [env NFSMW_VSYNC=off; config `vsync = false`].
     #[arg(long)]
     pub no_vsync: bool,
+    /// NVIDIA Reflex: off, on or boost; available with native Streamline Vulkan.
+    #[arg(long)]
+    pub reflex: Option<crate::settings::ReflexMode>,
+    /// DLSS frame generation: off, 2x, 3x, 4x, 5x or 6x (hardware-dependent).
+    #[arg(long)]
+    pub frame_generation: Option<crate::settings::FrameGeneration>,
     /// Frame-rate cap: a number such as 60, or `unlocked` (vsync still applies unless --no-vsync)
     /// [env NFSMW_MAX_FPS; default unlocked].
     #[arg(long, value_name = "FPS|unlocked")]
@@ -351,6 +357,8 @@ impl ViewArgs {
             appearance: None,
             backend: self.backend,
             renderer: self.renderer,
+            reflex: self.reflex,
+            frame_generation: self.frame_generation,
             vsync: self.no_vsync.then_some(false),
             max_fps: self.max_fps,
             show_metrics: self.show_metrics,

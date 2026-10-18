@@ -31,7 +31,7 @@ mod plan;
 mod radial_blur;
 #[cfg(test)]
 mod radial_blur_tests;
-mod resolve;
+pub(in crate::gpu) mod resolve;
 #[cfg(test)]
 mod tests;
 mod tonemap;

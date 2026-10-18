@@ -3,6 +3,7 @@ use super::*;
 use crate::settings::VisualStyle;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) enum Tab {
+    Video,
     #[default]
     Look,
     Lighting,
@@ -14,7 +15,8 @@ pub(super) enum Tab {
     Diagnostics,
 }
 impl Tab {
-    pub(super) const ALL: [Self; 8] = [
+    pub(super) const ALL: [Self; 9] = [
+        Self::Video,
         Self::Look,
         Self::Lighting,
         Self::Materials,
@@ -26,6 +28,7 @@ impl Tab {
     ];
     pub fn label(self) -> &'static str {
         match self {
+            Self::Video => "Video",
             Self::Look => "Look",
             Self::Lighting => "Lighting",
             Self::Materials => "Materials",
@@ -57,14 +60,14 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
 }
 
 pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
-    if !super::view::blackbox(lab, settings) && !matches!(lab.tab, Tab::Detail | Tab::Traffic) {
+    if !super::view::blackbox(lab, settings) && !matches!(lab.tab, Tab::Video | Tab::Detail | Tab::Traffic) {
         super::bevy::reset(lab.tab, settings);
         return;
     }
     let defaults = defaults(settings);
     match lab.tab {
+        Tab::Video => super::video::reset(settings),
         Tab::Look => {
-            settings.post_aa = defaults.post_aa;
             settings.post_bloom = defaults.post_bloom;
             settings.post_tonemap = defaults.post_tonemap;
             settings.visual_treatment = defaults.visual_treatment;
@@ -83,6 +86,11 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.road_reflections = defaults.road_reflections;
             settings.road_reflection_resolution = defaults.road_reflection_resolution;
             settings.car_shading = defaults.car_shading;
+            settings.reflection_cube_size = defaults.reflection_cube_size;
+            settings.reflection_mirror_size = defaults.reflection_mirror_size;
+            settings.reflection_pow2 = defaults.reflection_pow2;
+            settings.mirror_tint = defaults.mirror_tint;
+            settings.reflection_extra = defaults.reflection_extra;
         }
         Tab::Traffic => {
             settings.traffic = crate::settings::DEFAULT_TRAFFIC;

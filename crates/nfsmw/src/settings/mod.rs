@@ -37,6 +37,8 @@ pub(crate) mod file;
 mod filtering_tests;
 pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
+mod latency;
+pub use latency::{FrameGeneration, ReflexMode};
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
@@ -193,6 +195,8 @@ pub struct Settings {
     pub backend: GraphicsApi,
     /// Who draws: the native `blackbox` renderer (default) or `bevy`; applies after a restart.
     pub renderer: RendererKind,
+    pub reflex: ReflexMode,
+    pub frame_generation: FrameGeneration,
     pub vsync: bool,
     pub max_fps: MaxFps,
     pub show_metrics: ShowMetrics,
@@ -351,6 +355,8 @@ impl From<Partial> for Settings {
             },
             backend: p.backend.unwrap_or_default(),
             renderer: p.renderer.unwrap_or_default(),
+            reflex: p.reflex.unwrap_or_default(),
+            frame_generation: p.frame_generation.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
             show_metrics: p.show_metrics.unwrap_or_default(),

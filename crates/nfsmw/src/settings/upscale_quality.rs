@@ -35,6 +35,9 @@ names!(
 );
 
 impl UpscaleQuality {
+    pub const ALL: [Self; 6] =
+        [Self::Auto, Self::Native, Self::Quality, Self::Balanced, Self::Performance, Self::UltraPerformance];
+
     /// The renderer's quality mode.
     pub fn mode(self) -> Mode {
         match self {

@@ -77,6 +77,7 @@ toml.workspace = true
 wgpu.workspace = true
 
 [features]
+native-dlss = ["blackbox-render/streamline"]
 # mimalloc as the global allocator (src/main.rs): 3-5 % less CPU per frame than the system allocator in the world frame cost
 # benchmark (docs/profiling.md). Needs a C compiler; `--no-default-features` leaves it out.
 mimalloc = ["dep:mimalloc"]

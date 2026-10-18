@@ -54,7 +54,10 @@ fn fs_main_srgb(in: VsOut) -> @location(0) vec4<f32> {
 
 // Decode straight RGB, then reapply alpha for linear premultiplied compositing.
 @fragment fn fs_main_hdr(in: VsOut) -> @location(0) vec4<f32> {
-    let c = textureSample(tex, samp, in.uv) * in.color;
+    return hdr_color(textureSample(tex, samp, in.uv) * in.color);
+}
+
+fn hdr_color(c: vec4<f32>) -> vec4<f32> {
     // Zero alpha with nonzero RGB is the UI layer's additive blend encoding,
     // used by authored map tiles, fonts and egui glows. Zero coverage is black.
     if c.a <= 0.0 {
@@ -62,4 +65,31 @@ fn fs_main_srgb(in: VsOut) -> @location(0) vec4<f32> {
     }
     let straight = max(c.rgb / c.a, vec3(0.0));
     return vec4(linear_from_gamma(straight) * c.a * globals.screen.z, c.a);
+}
+
+// Track geometry coverage before blending: an additive glyph over a translucent panel
+// must not inherit just the panel's alpha. RGB is still premultiplied in gamma space.
+struct CoveredUi {
+    @location(0) color: vec4<f32>,
+    @location(1) coverage: vec4<f32>,
+}
+fn covered(c: vec4<f32>, color: vec4<f32>) -> CoveredUi {
+    let additive = c.a == 0.0;
+    let alpha = clamp(select(c.a, max(c.r, max(c.g, c.b)), additive), 0.0, 1.0);
+    var out: CoveredUi;
+    out.color = color;
+    out.coverage = vec4(alpha);
+    return out;
+}
+@fragment fn fs_coverage(in: VsOut) -> CoveredUi {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    return covered(c, c);
+}
+@fragment fn fs_coverage_srgb(in: VsOut) -> CoveredUi {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    return covered(c, vec4(linear_from_gamma(c.rgb), c.a));
+}
+@fragment fn fs_coverage_hdr(in: VsOut) -> CoveredUi {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    return covered(c, hdr_color(c));
 }

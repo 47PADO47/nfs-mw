@@ -157,6 +157,7 @@ pub fn draw(
     let _span = bevy_log::info_span!("render::draw").entered();
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
+    renderer.end_latency_simulation();
     for patch in ui.patches.drain(..) {
         renderer.update_ui_texture(&patch.as_patch());
     }
@@ -211,6 +212,7 @@ pub fn draw(
         })
     } else {
         let _span = bevy_log::info_span!("render::submit").entered();
+        host.cpu_update_ms = host.cpu_work_started.elapsed().as_secs_f32() * 1000.0;
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };
     if let Err(e) = result {

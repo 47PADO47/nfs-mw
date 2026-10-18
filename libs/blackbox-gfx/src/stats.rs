@@ -32,6 +32,20 @@ pub struct RenderStats {
     pub streak_capacity: usize,
 }
 
+/// Main-thread wall timings and asynchronous GPU timestamps for the last rendered frame.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FramePerformance {
+    pub rendered_frames: u64,
+    /// Command recording/submission, excluding explicit surface acquisition and presentation waits.
+    pub cpu_render_ms: f32,
+    pub acquire_wait_ms: f32,
+    pub present_wait_ms: f32,
+    /// Render queue span; includes SR/post processing, excludes present-time frame generation.
+    pub gpu_render_ms: Option<f32>,
+    /// Advances when a new asynchronous timestamp readback completes.
+    pub gpu_sample: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

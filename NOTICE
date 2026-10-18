@@ -301,3 +301,14 @@ RenoDX / PsychoV by Carlos Lopez Jr. (MIT), pinned at
 the full MIT notice in libs/blackbox-render/src/shaders/psychov/.
 See docs/provenance/psychov.md for defaults, conversion and numerical fixtures.
   https://github.com/clshortfuse/renodx
+NVIDIA Streamline 2.14.16 integration guidance (MIT-licensed SDK headers and documentation):
+https://github.com/NVIDIA-RTX/Streamline
+The optional native renderer bridge uses SDK headers supplied separately at build time.
+The Reflex, PCL, Frame Generation and separate UI recomposition integration follows
+the SDK's corresponding programming guides. Vulkan presentation flow was also
+checked against NVIDIA's Apache-2.0 vk_streamline sample:
+https://github.com/nvpro-samples/vk_streamline
+HDR10 presentation follows Microsoft's Advanced Color and wgpu's BT.2100 PQ
+surface contracts; color conversion and UI compensation are independently implemented.
+https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
+NVIDIA DLSS runtime binaries have separate distribution terms and are not included here.

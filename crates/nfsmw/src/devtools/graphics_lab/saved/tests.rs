@@ -57,6 +57,17 @@ fn saved_blackbox_profile_restores_complete_requests_and_preserves_runtime_prefe
     settings.fe_shadows.bias = 1.5;
     settings.motion_blur = false;
     settings.motion_blur_strength = 0.4;
+    settings.backend = blackbox_gfx::GraphicsApi::Vulkan;
+    settings.window_mode = crate::settings::WindowMode::Borderless;
+    settings.monitor = crate::settings::Monitor::Index(2);
+    settings.resolution = crate::settings::Resolution::pixels(3440, 1440).unwrap();
+    settings.vsync = false;
+    settings.max_fps = "165".parse().unwrap();
+    settings.show_metrics = crate::devtools::ShowMetrics::Advanced;
+    settings.custom_fonts.enabled = true;
+    settings.hd_content.fonts = false;
+    settings.hd_content.cursor = false;
+    settings.hd_content.fmv = false;
     settings.detail.world = crate::settings::WorldDetail::Medium;
     settings.detail.car = crate::settings::CarGeometry::Low;
     settings.detail.visibility_range = crate::settings::detail::DetailRange::Extended;

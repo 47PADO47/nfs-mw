@@ -11,6 +11,8 @@ mod backend_tests;
 pub mod caps;
 pub mod capture;
 pub mod display;
+pub mod latency;
+pub use latency::{LatencySettings, LatencyStatus, ReflexMode};
 pub mod effects;
 pub mod error;
 pub mod experiments;
@@ -66,7 +68,7 @@ pub use settings::{
 pub use settings::{ShadowQuality, TextureFiltering};
 pub use shadow::ShadowProjection;
 pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState};
-pub use stats::{BackendInfo, RenderStats};
+pub use stats::{BackendInfo, FramePerformance, RenderStats};
 pub use texture::{PixelFormat, TextureDesc};
 pub use treatment::{ColourTreatment, ColourTreatmentOverride};
 pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};

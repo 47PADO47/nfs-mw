@@ -30,7 +30,7 @@ impl Mode {
     }
 }
 
-pub(super) struct Resolve {
+pub(in crate::gpu) struct Resolve {
     shader: wgpu::ShaderModule,
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
@@ -43,7 +43,7 @@ pub(super) struct Resolve {
 }
 
 impl Resolve {
-    pub(super) fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
+    pub(in crate::gpu) fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("resolve"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/resolve.wgsl").into()),

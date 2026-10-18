@@ -66,6 +66,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
     );
     ui.small("Extensions affect the main view within authored map sections. Shadows, reflections and distant section coverage keep independent budgets.");
     ui.small("Original projection calibration and some per-usage car rules remain incomplete; these controls do not imply exact visual parity.");
+    super::effects::content(ui, settings);
 }
 
 fn select<T: Copy + PartialEq>(

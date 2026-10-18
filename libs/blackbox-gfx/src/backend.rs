@@ -31,6 +31,16 @@ pub trait RenderBackend {
 
     fn set_vsync(&mut self, vsync: bool);
 
+    /// Start the CPU frame before input sampling. True means the backend owns frame limiting.
+    fn begin_latency_frame(&mut self, _settings: crate::LatencySettings) -> bool {
+        false
+    }
+    fn end_latency_simulation(&mut self) {}
+    fn latency_input(&mut self) {}
+    fn latency_status(&self) -> crate::LatencyStatus {
+        Default::default()
+    }
+
     /// Surface width over height.
     fn aspect_ratio(&self) -> f32 {
         let [width, height] = self.surface_size();
@@ -49,6 +59,10 @@ pub trait RenderBackend {
     /// The size in pixels (width, height) the scene is drawn at: the surface size times the effective
     /// render scale.
     fn render_size(&self) -> [u32; 2];
+
+    fn frame_performance(&self) -> crate::FramePerformance {
+        Default::default()
+    }
 
     /// Session-only prototypes; unsupported renderers keep defaults.
     /// SDR is retained by backends without explicit HDR presentation support.

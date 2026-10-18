@@ -113,6 +113,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         invert_camera_y: value(&get, "NFSMW_INVERT_CAMERA_Y", parse_bool),
         backend: value(&get, BACKEND, |s| s.parse().map_err(|e| format!("{e}"))),
         renderer: value(&get, RENDERER, RendererKind::from_str),
+        reflex: value(&get, "NFSMW_REFLEX", super::ReflexMode::from_str),
+        frame_generation: value(&get, "NFSMW_FRAME_GENERATION", super::FrameGeneration::from_str),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),

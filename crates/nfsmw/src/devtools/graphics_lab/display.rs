@@ -11,39 +11,41 @@ pub(super) fn show(ui: &mut egui::Ui, status: blackbox_gfx::DisplayStatus, setti
     let tuning = &mut settings.appearance.display;
     super::view::choice(ui, "HDR output", &mut tuning.mode, &DisplayMode::ALL);
     ui.label(match status.active {
-        true => "Active: HDR scRGB / PsychoV",
+        true => "Active: HDR / PsychoV",
         false => "Active: SDR",
     });
     ui.small(status.note);
-    ui.add_enabled_ui(status.supported, |ui| {
-        let mut automatic = tuning.peak_nits == 0.0;
-        if ui.checkbox(&mut automatic, "Use display peak estimate").changed() {
-            tuning.peak_nits = match automatic {
-                true => 0.0,
-                false => status.peak_nits,
-            };
-        }
-        // Keep the zero sentinel away from Slider's unconditional range clamping,
-        // which also runs while a widget is disabled.
-        let mut peak = match automatic {
-            true => status.peak_nits,
-            false => tuning.peak_nits,
-        };
-        ui.add_enabled_ui(!automatic, |ui| {
-            if ui.add(egui::Slider::new(&mut peak, 80.0..=10000.0).logarithmic(true).text("Peak nits")).changed()
-                && !automatic
-            {
-                tuning.peak_nits = peak;
+    ui.collapsing("HDR calibration (nits)", |ui| {
+        ui.add_enabled_ui(status.supported, |ui| {
+            let mut automatic = tuning.peak_nits == 0.0;
+            if ui.checkbox(&mut automatic, "Use display peak estimate").changed() {
+                tuning.peak_nits = match automatic {
+                    true => 0.0,
+                    false => status.peak_nits,
+                };
             }
+            // Keep the zero sentinel away from Slider's unconditional range clamping,
+            // which also runs while a widget is disabled.
+            let mut peak = match automatic {
+                true => status.peak_nits,
+                false => tuning.peak_nits,
+            };
+            ui.add_enabled_ui(!automatic, |ui| {
+                if ui.add(egui::Slider::new(&mut peak, 80.0..=10000.0).logarithmic(true).text("Peak nits")).changed()
+                    && !automatic
+                {
+                    tuning.peak_nits = peak;
+                }
+            });
+            ui.add(egui::Slider::new(&mut tuning.scene_white_nits, 16.0..=500.0).text("Scene white nits"));
+            ui.add(egui::Slider::new(&mut tuning.ui_white_nits, 16.0..=500.0).text("UI white nits"));
         });
-        ui.add(egui::Slider::new(&mut tuning.scene_white_nits, 16.0..=500.0).text("Scene white nits"));
-        ui.add(egui::Slider::new(&mut tuning.ui_white_nits, 16.0..=500.0).text("UI white nits"));
+        ui.small(format!(
+            "Effective HDR calibration: peak {:.0}, scene white {:.0}, UI white {:.0} nits.",
+            status.peak_nits, status.scene_white_nits, status.ui_white_nits
+        ));
+        ui.small("HDR uses PsychoV after scene effects; the SDR tone mapper is retained for SDR output. PNG captures are SDR previews.");
     });
-    ui.small(format!(
-        "Effective HDR calibration: peak {:.0}, scene white {:.0}, UI white {:.0} nits.",
-        status.peak_nits, status.scene_white_nits, status.ui_white_nits
-    ));
-    ui.small("HDR uses PsychoV after scene effects; the SDR tone mapper is retained for SDR output. PNG captures are SDR previews.");
     ui.separator();
 }
 

@@ -26,12 +26,8 @@ pub(super) fn show(
         .open(&mut open)
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.strong(format!(
-                    "{:.0} FPS · {:.2} ms · worst {:.2} ms",
-                    metrics.fps(),
-                    metrics.average_ms(),
-                    metrics.worst_ms()
-                ));
+                ui.strong(metrics.rate_line());
+                ui.small(format!("{:.2} ms · {}", metrics.average_ms(), metrics.limit));
                 ui.weak("F8 / Esc to close");
             });
             ui.small(format!("{} · Changes preview immediately", match blackbox(lab, settings) { true => "Black Box", false => "Bevy" }));
@@ -44,13 +40,13 @@ pub(super) fn show(
             });
             ui.separator();
             egui::ScrollArea::vertical().id_salt(("graphics_section", lab.tab as u8)).max_height((ui.available_height()-8.0).max(120.0)).show(ui, |ui| {
-                if !blackbox(lab, settings) && !matches!(lab.tab, profiles::Tab::Environment | profiles::Tab::Diagnostics | profiles::Tab::Detail | profiles::Tab::Traffic) {
+                if !blackbox(lab, settings) && !matches!(lab.tab, profiles::Tab::Video | profiles::Tab::Environment | profiles::Tab::Diagnostics | profiles::Tab::Detail | profiles::Tab::Traffic) {
                     super::bevy::show(ui, lab, settings);
                     return;
                 }
                 match lab.tab {
+                    profiles::Tab::Video => video::show(ui, lab, settings),
                     profiles::Tab::Look => {
-                        display::show(ui, lab.display, settings);
                         appearance(ui, settings);
                     },
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
@@ -71,7 +67,8 @@ pub(super) fn show(
                             super::controls::checkbox(ui, &mut settings.ao_depth_mips,"Depth-prefiltered AO", defaults.ao_depth_mips)
                                 .on_hover_text("Uses a depth-aware hierarchy for distant samples. Disable for direct-depth comparison.");
                         });
-                        ui.small("GTAO, kernel SSAO and XeGTAO spatial AO are custom enhancements. Particle preferences remain in the Video menu and are not reset by style/quality.");
+                        ui.small("GTAO, kernel SSAO and XeGTAO spatial AO are custom enhancements.");
+                        effects::show(ui, settings);
                     }
                     profiles::Tab::Environment => environment::show(ui,lab,settings),
                     profiles::Tab::Diagnostics => profiles::diagnostics(ui, lab, settings),
@@ -103,13 +100,6 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
         &mut settings.post_bloom,
         &[PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High],
         defaults.post_bloom,
-    );
-    super::controls::choice(
-        ui,
-        "AA",
-        &mut settings.post_aa,
-        &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa],
-        defaults.post_aa,
     );
     ui.horizontal_wrapped(|ui| {
         ui.label("Visual Treatment:");

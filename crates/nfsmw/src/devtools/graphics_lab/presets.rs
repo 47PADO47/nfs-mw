@@ -138,6 +138,17 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
 
 pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     restore_appearance(settings, snapshot);
+    settings.backend = snapshot.backend;
+    settings.window_mode = snapshot.window_mode;
+    settings.monitor = snapshot.monitor;
+    settings.resolution = snapshot.resolution;
+    settings.reflex = snapshot.reflex;
+    settings.frame_generation = snapshot.frame_generation;
+    settings.vsync = snapshot.vsync;
+    settings.max_fps = snapshot.max_fps;
+    settings.show_metrics = snapshot.show_metrics;
+    settings.hd_content = snapshot.hd_content;
+    settings.custom_fonts = snapshot.custom_fonts;
     settings.traffic_policy = snapshot.traffic_policy;
     settings.traffic = snapshot.traffic;
     settings.cop_share = snapshot.cop_share;

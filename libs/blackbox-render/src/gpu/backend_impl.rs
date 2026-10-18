@@ -109,6 +109,39 @@ impl RenderBackend for Renderer {
         [width, height]
     }
 
+    fn begin_latency_frame(&mut self, settings: blackbox_gfx::LatencySettings) -> bool {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            let output_changed = (self.presentation.request.generated_frames > 0) != (settings.generated_frames > 0);
+            let pacing = self.presentation.begin(settings);
+            if output_changed {
+                self.refresh_display(true);
+            }
+            return pacing;
+        }
+        let _ = settings;
+        false
+    }
+    fn end_latency_simulation(&mut self) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.render_start();
+        }
+    }
+    fn latency_input(&mut self) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.marker(7);
+        }
+    }
+    fn latency_status(&self) -> blackbox_gfx::LatencyStatus {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            return self.presentation.status;
+        }
+        Default::default()
+    }
+
     fn set_vsync(&mut self, vsync: bool) {
         Renderer::set_vsync(self, vsync);
     }
@@ -118,8 +151,18 @@ impl RenderBackend for Renderer {
     /// follows the effective render scale: the spatial bias for a spatial upscaler, and one mip sharper for a
     /// temporal one, whose history supplies the samples.
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() && *requested != self.graphics {
+            self.presentation.suspend(&self.device);
+        }
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
+        #[cfg(all(windows, feature = "streamline"))]
+        if effective.upscale_quality != self.graphics.upscale_quality {
+            self.post.set_temporal(None);
+            self.temporal.stop();
+            self.graphics.upscale_quality = effective.upscale_quality;
+        }
         Renderer::set_texture_filtering(self, effective.texture_filtering);
         Renderer::set_post_effects(self, effective.post);
         Renderer::set_upscaler(self, effective.upscaler);
@@ -134,6 +177,8 @@ impl RenderBackend for Renderer {
             self.ao = None;
         }
         self.graphics = effective;
+        #[cfg(all(windows, feature = "streamline"))]
+        self.sync_upscale_passes();
         resolved
     }
 
@@ -231,6 +276,15 @@ impl RenderBackend for Renderer {
             return Some(Ok(image));
         }
         self.poll_view_capture(id.raw())
+    }
+
+    fn frame_performance(&self) -> blackbox_gfx::FramePerformance {
+        let mut performance = self.performance;
+        if let Some(timing) = &self.timing {
+            performance.gpu_render_ms = timing.latest.map(|sample| sample[0]);
+            performance.gpu_sample = timing.completed;
+        }
+        performance
     }
 
     fn stats(&self) -> RenderStats {

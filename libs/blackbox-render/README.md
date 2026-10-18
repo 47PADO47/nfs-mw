@@ -13,6 +13,11 @@ shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha tri
 
 License: MIT OR Apache-2.0.
 
+The optional `streamline` feature adds NVIDIA DLSS Super Resolution and DLAA on
+Windows/Vulkan. It needs SDK headers at build time and signed runtime plugins;
+see [native-dlss.md](../../docs/native-dlss.md). Unsupported devices and APIs use
+the existing upscaler fallback. Frame Generation is not included.
+
 Scene-owned additive mask filtering uses `set_focus_mask` once on scene entry,
 then `set_focus_filter` for retained uniform updates. The generic pass keeps its
 mask and cached pipelines across strength and user post-setting changes, runs
@@ -210,4 +215,8 @@ first in the post chain so bloom and tone mapping see the upscaled image. The sc
 from the quality mode through `apply_graphics`, and captures (screenshots, the mirror) are drawn at the output size
 without it.
 
-Not done, for DLSS and other temporal upscalers: they need the device created by their own SDK.
+Optional Windows/Vulkan `streamline` builds support native DLSS SR/DLAA, Reflex and
+DLSS Frame Generation with a separate UI color/alpha buffer for recomposition.
+HDR generation selects HDR10 output while retaining linear tone mapping and UI blending.
+The SDK owns Vulkan interposition; runtime binaries are supplied separately.
+See [native DLSS](../../docs/native-dlss.md) for setup, requirements and limitations.

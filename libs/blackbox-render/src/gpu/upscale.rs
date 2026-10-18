@@ -37,6 +37,7 @@ impl Renderer {
             return;
         }
         self.upscale.upscaler = upscaler;
+        self.temporal.stop();
         self.sync_upscale_passes();
     }
 
@@ -90,11 +91,27 @@ impl Renderer {
     /// Keep the FSR 3 pass in the chain exactly while FSR 3 is the upscaler and the device can run it.
     fn sync_temporal_pass(&mut self) {
         let wanted = self.temporal_wanted();
-        if wanted == self.post.has_temporal() {
+        let name = match self.upscaler() {
+            Upscaler::Dlss => "dlss",
+            _ => "fsr3",
+        };
+        if wanted && self.post.names().first() == Some(&name) {
             return;
         }
         if !wanted {
             self.post.set_temporal(None);
+            return;
+        }
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.upscaler() == Upscaler::Dlss {
+            let Some(runtime) = &self.dlss else { return };
+            let pass = super::dlss::pass::DlssPass::new(
+                &self.device,
+                self.graphics.upscale_quality,
+                self.pipeline_cache.as_ref(),
+                runtime.failed.clone(),
+            );
+            self.post.set_temporal(Some(Box::new(pass)));
             return;
         }
         match Fsr3Pass::new(&self.device, &self.adapter, self.pipeline_cache.as_ref()) {

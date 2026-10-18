@@ -55,7 +55,7 @@ pub struct UiPass {
     shader: wgpu::ShaderModule,
     pipeline_layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the UI is drawn into it.
-    pipelines: HashMap<(wgpu::TextureFormat, bool), wgpu::RenderPipeline>,
+    pipelines: HashMap<(wgpu::TextureFormat, bool, bool), wgpu::RenderPipeline>,
     hdr_white: Option<f32>,
     globals: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
@@ -152,7 +152,11 @@ impl UiPass {
 
     /// Build the pipeline for targets of `format` now (it is otherwise built by the first draw into it).
     pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
-        let key = (format, self.hdr_white.is_some());
+        self.use_format_coverage(device, format, false);
+    }
+
+    fn use_format_coverage(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat, coverage: bool) {
+        let key = (format, self.hdr_white.is_some(), coverage);
         if self.pipelines.contains_key(&key) {
             return;
         }
@@ -161,6 +165,24 @@ impl UiPass {
             (false, true) => "fs_main_srgb",
             (false, false) => "fs_main",
         };
+        let entry_point = match (coverage, entry_point) {
+            (true, "fs_main_hdr") => "fs_coverage_hdr",
+            (true, "fs_main_srgb") => "fs_coverage_srgb",
+            (true, _) => "fs_coverage",
+            _ => entry_point,
+        };
+        let mut targets = vec![Some(wgpu::ColorTargetState {
+            format,
+            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
+        if coverage {
+            targets.push(Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::R16Float,
+                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::RED,
+            }));
+        }
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("ui"),
             layout: Some(&self.pipeline_layout),
@@ -181,11 +203,7 @@ impl UiPass {
                 module: &self.shader,
                 entry_point: Some(entry_point),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: &targets,
             }),
             multiview_mask: None,
             cache: self.cache.as_ref(),
@@ -288,13 +306,40 @@ impl UiPass {
         format: wgpu::TextureFormat,
         size: (u32, u32),
     ) {
+        self.encode_targets(device, queue, encoder, (target, None), format, size);
+    }
+
+    /// Draw colour and an independent R16F UI coverage mask in one pass. Clear both targets first.
+    /// Coverage includes additive elements before overlaps, HDR conversion and white calibration.
+    pub fn encode_with_coverage(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        coverage: &wgpu::TextureView,
+        size: (u32, u32),
+    ) {
+        self.encode_targets(device, queue, encoder, (target, Some(coverage)), target.texture().format(), size);
+    }
+
+    fn encode_targets(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        targets: (&wgpu::TextureView, Option<&wgpu::TextureView>),
+        format: wgpu::TextureFormat,
+        size: (u32, u32),
+    ) {
+        let (target, coverage) = targets;
         let ppp = self.layer.pixels_per_point.max(0.1);
         let (vertex_count, index_count) =
             self.layer.meshes.iter().fold((0, 0), |(v, i), m| (v + m.vertices.len(), i + m.indices.len()));
         if index_count == 0 {
             return;
         }
-        self.use_format(device, format);
+        self.use_format_coverage(device, format, coverage.is_some());
         let vertex_bytes = (vertex_count * std::mem::size_of::<UiVertex>()) as u64;
         let index_bytes = (index_count * 4) as u64;
         if vertex_bytes > self.vertices.size() {
@@ -313,20 +358,26 @@ impl UiPass {
         let screen = [size.0 as f32 / ppp, size.1 as f32 / ppp, self.hdr_white.unwrap_or(80.0) / 80.0, 0.0];
         queue.write_buffer(&self.globals, 0, bytemuck::cast_slice(&screen));
 
+        let attachments: Vec<_> = std::iter::once(target)
+            .chain(coverage)
+            .map(|view| {
+                Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })
+            })
+            .collect();
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ui"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
-            })],
+            color_attachments: &attachments,
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(&self.pipelines[&(format, self.hdr_white.is_some())]);
+        pass.set_pipeline(&self.pipelines[&(format, self.hdr_white.is_some(), coverage.is_some())]);
         pass.set_bind_group(0, &self.globals_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
         pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);

@@ -21,13 +21,40 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
         .anchor(Align2::LEFT_TOP, vec2(left + 8.0, 8.0))
         .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
         .show(ctx, |ui| {
-            let headline = format!("{:.0} fps  {:.1} ms", m.fps(), m.average_ms());
-            ui.label(RichText::new(headline).monospace().strong());
+            ui.label(
+                RichText::new(format!("Base / rendered: {:.0} FPS  {:.1} ms", m.fps(), m.average_ms()))
+                    .monospace()
+                    .strong(),
+            );
+            let presented = m.presented_fps().map(|fps| format!("{fps:.0} FPS")).unwrap_or_else(|| "measuring…".into());
+            let mode = match m.generation_configured {
+                true => "FG configured",
+                false => "FG off / suspended",
+            };
+            ui.label(RichText::new(format!("Presented: {presented} · {mode}")).monospace());
+            ui.label(RichText::new(m.limit).color(Color32::LIGHT_BLUE));
             if level == ShowMetrics::Advanced {
                 ui.label(
-                    RichText::new(format!("1% low {:.0} fps  worst {:.1} ms", m.low_1pct_fps(), m.worst_ms()))
+                    RichText::new(format!("Base 1% low {:.0} FPS  worst {:.1} ms", m.low_1pct_fps(), m.worst_ms()))
                         .monospace(),
                 );
+                let gpu = m.work.gpu_ms.map(|v| format!("{v:.2} ms")).unwrap_or_else(|| "unavailable".into());
+                ui.label(
+                    RichText::new(format!("CPU update + submit {:.2} ms · GPU render {gpu}", m.work.cpu_ms))
+                        .monospace(),
+                );
+                ui.label(
+                    RichText::new(format!(
+                        "Acquire {:.2} · Present {:.2} · Driver pacing {:.2} ms",
+                        m.work.acquire_ms, m.work.present_ms, m.work.sleep_ms
+                    ))
+                    .monospace(),
+                );
+                ui.small("Limit is an estimate. CPU wall time; GPU render excludes FG and auxiliary views.");
+                ui.small("Presented FPS uses SDK counts with FG; it is not the monitor's scanout rate.");
+                let [ow, oh] = m.output_size;
+                let [rw, rh] = m.render_size;
+                ui.label(RichText::new(format!("Internal {rw}×{rh} → Game output {ow}×{oh}")).monospace());
                 graph(ui, m);
                 ui.label(RichText::new(format!("{} meshes  {} textures", m.meshes, m.textures)).monospace());
                 if !m.adapter.is_empty() {

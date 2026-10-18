@@ -6,6 +6,8 @@ mod backend_impl;
 mod capture;
 mod contact;
 mod display;
+#[cfg(all(windows, feature = "streamline"))]
+mod dlss;
 mod draw_list;
 mod effects;
 mod filtering;
@@ -63,6 +65,10 @@ use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
 use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
+    #[cfg(all(windows, feature = "streamline"))]
+    dlss: Option<dlss::Runtime>,
+    #[cfg(all(windows, feature = "streamline"))]
+    presentation: dlss::presentation::Presentation,
     adapter: wgpu::Adapter,
     display: display::Display,
     output: output::Output,
@@ -96,6 +102,7 @@ pub struct Renderer {
     surfaces: Option<surface::Surfaces>,
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,
+    performance: blackbox_gfx::FramePerformance,
     render_scale: f32,
     upscale: upscale::Upscale,
     /// The jitter, motion vectors and history of the temporal upscaler (FSR 3).
@@ -155,6 +162,7 @@ impl Renderer {
     /// [`Self::capture`] (or `request_capture`) reads a frame back. The texture's format is
     /// `Rgba8Unorm`. Set [`RendererOptions::force_fallback_adapter`] to pick a software adapter such
     /// as lavapipe.
+    /// DLSS is not offered offscreen: Streamline requires swapchain presentation on every frame.
     pub fn headless(size: (u32, u32), options: RendererOptions) -> Result<Self, RenderError> {
         init::create_headless(size, options)
     }
@@ -174,6 +182,10 @@ impl Renderer {
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
+        }
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
         }
         self.output.resize(&self.device, (width, height));
         self.refresh_display(true);
@@ -245,6 +257,11 @@ impl Renderer {
             true => output,
             false => scaled_size(output, self.render_scale),
         };
+        #[cfg(all(windows, feature = "streamline"))]
+        let render = match temporal && self.upscaler() == crate::Upscaler::Dlss {
+            true => dlss::render_size(self.graphics.upscale_quality, output).unwrap_or(render),
+            false => render,
+        };
         targets::plan_scene(&SceneInputs {
             output,
             render,
@@ -264,6 +281,7 @@ impl Renderer {
             return;
         }
         self.targets = SceneTargets::new(&self.device, &plan);
+        self.temporal.stop();
         if plan.direct {
             self.post.release_scratch();
         }
@@ -271,6 +289,10 @@ impl Renderer {
 
     /// Turn vertical sync on or off without recreating the renderer.
     pub fn set_vsync(&mut self, vsync: bool) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
         self.output.set_vsync(&self.device, vsync);
     }
 
