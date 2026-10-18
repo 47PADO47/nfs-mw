@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 
+use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
 use crate::career::{CareerHandle, ProfileDir};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
@@ -45,7 +46,7 @@ const SAVE_QUESTION: u32 = 0x39B3_CCBA;
 const SAVE_QUESTION_FALLBACK: &str = "Save your career progress?";
 
 /// The label the title shows for `mode`.
-pub const fn title_label(mode: ListMode) -> u32 {
+pub(crate) const fn title_label(mode: ListMode) -> u32 {
     match mode {
         ListMode::Load => TITLE_LOAD,
         ListMode::Delete => TITLE_DELETE,
@@ -53,9 +54,8 @@ pub const fn title_label(mode: ListMode) -> u32 {
 }
 
 /// What a pick on the list does.
-#[allow(dead_code)] // the alias manager will open the delete list and name new profiles (save-alias-manager.md)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ListMode {
+pub(crate) enum ListMode {
     Load,
     Delete,
 }
@@ -63,8 +63,8 @@ pub enum ListMode {
 /// The mode the next list opened shows. Set just before `MC_List.fng` is pushed.
 static LIST_MODE: Mutex<ListMode> = Mutex::new(ListMode::Load);
 
-#[allow(dead_code)] // the alias manager will open the delete list and name new profiles (save-alias-manager.md)
-fn set_list_mode(mode: ListMode) {
+/// Sets the mode the next list opened shows (`alias_options.rs` opens the list in load or delete mode).
+pub(crate) fn set_list_mode(mode: ListMode) {
     *LIST_MODE.lock().unwrap_or_else(|e| e.into_inner()) = mode;
 }
 
@@ -101,8 +101,7 @@ pub const fn answer(yes: bool, has_alias: bool) -> Answer {
 /// The name a new career gets when the folder holds `taken`: `PLAYER`, then `PLAYER2` to `PLAYER9`, then `P10` on.
 /// Names are compared without case, as the Windows folder is. Every name is shorter than 8 characters without a space,
 /// so the list finds it (`career/io.rs`).
-#[allow(dead_code)] // the alias manager will open the delete list and name new profiles (save-alias-manager.md)
-pub fn next_alias(taken: &[String]) -> String {
+pub(crate) fn next_alias(taken: &[String]) -> String {
     let mut number = 1;
     loop {
         let name = alias_candidate(number);
@@ -113,7 +112,6 @@ pub fn next_alias(taken: &[String]) -> String {
     }
 }
 
-#[allow(dead_code)] // the alias manager will open the delete list and name new profiles (save-alias-manager.md)
 fn alias_candidate(number: u32) -> String {
     match number {
         1 => "PLAYER".to_owned(),
@@ -152,7 +150,7 @@ pub fn row_text(alias: &str, selected: bool) -> String {
 }
 
 /// The profiles the list shows: the folder's listable aliases, or none when there is no folder.
-fn list_aliases() -> Vec<String> {
+pub(crate) fn list_aliases() -> Vec<String> {
     ProfileDir::default_dir().map(|dir| dir.aliases()).unwrap_or_default()
 }
 
@@ -220,6 +218,7 @@ impl SavePromptLogic {
 
 impl ScreenLogic for SavePromptLogic {
     fn start(&mut self, cx: &mut Cx) {
+        post_opening(cx, &[MC_MAIN_PREPARE, INITIALIZE_SCREEN]);
         self.alias = CareerHandle::shared().with(|career| career.alias.clone());
         cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
         self.show(cx);

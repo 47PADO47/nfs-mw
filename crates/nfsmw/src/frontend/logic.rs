@@ -90,7 +90,6 @@ pub enum Command {
     /// Load the profile of this alias and play it (`flow_save.rs`).
     CareerLoad(String),
     /// Make a new career profile under this alias and play it (`flow_save.rs`).
-    #[allow(dead_code)] // the alias manager will send it (save-alias-manager.md)
     CareerNew(String),
     /// Delete the profile of this alias (`flow_save.rs`).
     CareerDelete(String),
