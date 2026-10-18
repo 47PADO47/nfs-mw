@@ -13,9 +13,12 @@
 //! - [`element`]: the [`ElementId`] catalogue with its explicit numbers.
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the rewrite's own theme. It fills the radio card (T9) and returns `None` for the rest.
+//! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`]; the
+//!   style setting does not choose it (`docs/specs/ui-themes.md` section 12).
 
 pub mod custom;
 mod element;
+pub mod modded;
 pub mod original;
 #[cfg(test)]
 mod tests;
@@ -23,10 +26,11 @@ mod tests;
 pub use element::ElementId;
 
 use bevy_ecs::prelude::*;
-use blackbox_ui::{BuildCx, Component, Skin, ThemeId, Themes};
+use blackbox_ui::{BuildCx, Component, Skin, Theme, ThemeError, ThemeId, Themes};
 
 use crate::settings::{Settings, UiStyle};
 use custom::{CustomTheme, RadioFeedCell};
+use modded::ModTheme;
 use original::{FrameCell, OriginalTheme};
 
 /// The theme a UI style selects. `Remastered` has no theme yet: [`UiThemes::select`] then keeps Original active.
@@ -43,6 +47,15 @@ pub fn theme_of(style: UiStyle) -> ThemeId {
 pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) {
     // `bypass_change_detection`: the registry is selected every frame, so it should not look changed every frame.
     themes.bypass_change_detection().select(settings.ui_style);
+}
+
+/// Keeps the mod themes in step with the mods' registrations, every frame. The mods are a non-send resource, so the
+/// system takes them as `NonSend`. A set that has not changed costs one comparison.
+pub fn sync_mod_themes(mods: Option<NonSend<crate::modding::Mods>>, mut themes: ResMut<UiThemes>) {
+    let Some(mods) = mods else {
+        return;
+    };
+    themes.bypass_change_detection().set_mod_themes(mods.ui_themes());
 }
 
 /// Builds the registry: Original as the floor, Custom registered beside it, Original active. The Original theme reads
@@ -86,6 +99,12 @@ pub struct UiThemes {
     skin: Skin,
     frame: FrameCell,
     radio: RadioFeedCell,
+    /// The style the settings chose. A chosen mod theme wins over it.
+    style: UiStyle,
+    /// The mod theme the player chose with [`UiThemes::select_mod`], or `None` to follow `style`.
+    mod_choice: Option<ThemeId>,
+    /// The themes the mods registered, as the registry holds them (rebuilt into `themes` when they change).
+    mods: Vec<ModTheme>,
 }
 
 impl UiThemes {
@@ -93,13 +112,66 @@ impl UiThemes {
     pub fn build() -> Self {
         let frame = FrameCell::new();
         let radio = RadioFeedCell::new();
-        Self { themes: build_themes(frame.clone(), radio.clone()), skin: default_skin(), frame, radio }
+        Self {
+            themes: build_themes(frame.clone(), radio.clone()),
+            skin: default_skin(),
+            frame,
+            radio,
+            style: UiStyle::Original,
+            mod_choice: None,
+            mods: Vec::new(),
+        }
     }
 
-    /// Makes the theme for `style` active. A theme that is not registered (Remastered, for now) leaves Original active,
-    /// so the registry never names a theme that nothing can fill.
+    /// Makes the theme for `style` active, unless a mod theme was chosen. A theme that is not registered (Remastered, for
+    /// now) leaves Original active, so the registry never names a theme that nothing can fill.
     pub fn select(&mut self, style: UiStyle) {
-        if self.themes.set_active(theme_of(style)).is_ok() {
+        self.style = style;
+        self.apply();
+    }
+
+    /// Makes the mod theme `id` active, until [`UiThemes::clear_mod`]. Refuses an id no mod registered.
+    // Called by the Mods page's theme choice, which comes with the settings row (owed); the tests call it now.
+    #[allow(dead_code)]
+    pub fn select_mod(&mut self, id: ThemeId) -> Result<(), ThemeError> {
+        if !self.mods.iter().any(|theme| theme.id() == id) {
+            return Err(ThemeError::Unknown(id));
+        }
+        self.mod_choice = Some(id);
+        self.apply();
+        Ok(())
+    }
+
+    /// Gives up the mod theme chosen with [`UiThemes::select_mod`]: the style decides again.
+    #[allow(dead_code)]
+    pub fn clear_mod(&mut self) {
+        self.mod_choice = None;
+        self.apply();
+    }
+
+    /// Replaces the mod themes with `mods`. An unchanged set costs one comparison. A changed set rebuilds the registry
+    /// (the Original and Custom themes come back as they were), and a chosen mod theme that is gone is dropped.
+    pub fn set_mod_themes(&mut self, mods: Vec<ModTheme>) {
+        if self.mods == mods {
+            return;
+        }
+        self.mods = mods;
+        self.mod_choice = self.mod_choice.filter(|id| self.mods.iter().any(|theme| theme.id() == *id));
+        self.themes = build_themes(self.frame.clone(), self.radio.clone());
+        for theme in &self.mods {
+            // The port gives each mod theme its own id, so a refusal here is a bug. It is logged and the theme skipped.
+            if let Err(error) = self.themes.register(Box::new(theme.clone())) {
+                log::warn!("the mod theme {:?} is not registered: {error}", theme.id());
+            }
+        }
+        self.apply();
+    }
+
+    /// The active theme is the chosen mod theme, else the one the style names; a theme that is not registered leaves
+    /// Original active.
+    fn apply(&mut self) {
+        let wanted = self.mod_choice.unwrap_or(theme_of(self.style));
+        if self.themes.set_active(wanted).is_ok() {
             return;
         }
         self.themes.set_active(ThemeId::Original).expect("the Original theme is always registered");
