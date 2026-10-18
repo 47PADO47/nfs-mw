@@ -1,5 +1,5 @@
 //! The game's side of the interfaces a mod can ask for: the generic ones (`bb.commands`, `bb.input`, `bb.time`, `bb.map`,
-//! `bb.menus`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
+//! `bb.menus`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, `bb.ui`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
 //! `nfsmw.career` over the career being played, and `nfsmw.races` with no state behind it yet).
 //!
 //! Each interface has a backend trait in `blackbox-modding` or `nfsmw-modding` and a port here that implements it. A call
@@ -20,6 +20,7 @@ pub mod menu_store;
 pub mod menus;
 mod nfsmw_pursuit;
 mod time;
+pub mod ui;
 mod unsupported;
 mod vehicles;
 mod world;
@@ -44,6 +45,8 @@ mod nfsmw_pursuit_tests;
 pub(crate) mod support;
 #[cfg(test)]
 mod time_tests;
+#[cfg(test)]
+mod ui_tests;
 #[cfg(test)]
 mod vehicles_tests;
 #[cfg(test)]
@@ -79,7 +82,8 @@ pub fn interfaces() -> Interfaces {
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))
         .add_audio(Rc::new(audio::AudioPort))
-        .add_world(Rc::new(world::WorldPort(bridge.clone())));
+        .add_world(Rc::new(world::WorldPort(bridge.clone())))
+        .add_ui(Rc::new(ui::UiPort(bridge.clone())));
     let pursuit_bridge = bridge.clone();
     let career_handle = crate::career::CareerHandle::shared();
     registry

@@ -69,6 +69,11 @@ impl Mods {
         &self.bridge
     }
 
+    /// The themes the mods registered with `bb.ui`, as the theme registry holds them.
+    pub fn ui_themes(&self) -> Vec<crate::ui::theme::modded::ModTheme> {
+        super::backends::ui::themes(&self.bridge)
+    }
+
     /// Copy the scene's clock, car, camera and track in, before the mods run this frame. The scene is mutable because
     /// reading the car goes through its physics.
     pub fn sync(&self, scene: &mut dyn Scene) {

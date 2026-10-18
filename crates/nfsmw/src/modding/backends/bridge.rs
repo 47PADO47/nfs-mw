@@ -23,6 +23,7 @@ use super::map::{self, ModBlip};
 use super::menu_store::{ConfigFile, ValueStore};
 use super::menus::MenuRow;
 use super::time::{self, Clock, ClockRequest};
+use super::ui::UiRecord;
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
@@ -53,6 +54,8 @@ pub struct Bridge {
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
     pub(super) menu_rows: RefCell<Vec<MenuRow>>,
+    /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
+    pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// Where the rows' values are saved.
     pub(super) store: Box<dyn ValueStore>,
     /// The install, once the layers are in place (see `open.rs`). The cop waves of the install are read through it.
@@ -82,6 +85,7 @@ impl Bridge {
             world_requests: RefCell::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
+            ui_themes: RefCell::default(),
             store,
             install: RefCell::default(),
         }
