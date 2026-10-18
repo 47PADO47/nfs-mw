@@ -441,8 +441,9 @@ is `ea-audio`, engine synthesis is `blackbox-ginsu`, and the mix controller is `
   every frame, so the pause menu's audio rows change the song on the air at once; a music volume of zero silences
   the song without dropping it, and a new song only starts when the music is audible. `--no-sound` turns the radio
   off. Console: `radio` (status), `radio next|prev|pause|resume|toggle`, `radio on|off`, `radio list`, `radio play <n>`,
-  `radio shuffle|ordered`; the keys `radio_toggle`, `radio_next`, `radio_previous` work while driving (spec section 7). `Audio::now_playing()` feeds the card of `hud/radio.rs` (artist, title, album, time), shown at the
-  HUD's left edge for 6 s after a song starts, pauses or resumes. Unheard; how the original ends a song is inferred.
+  `radio shuffle|ordered`; the keys `radio_toggle`, `radio_next`, `radio_previous` work while driving (spec section 7). `Audio::now_playing()` feeds the radio data of `hud/radio.rs`; the Custom theme's card (`ui/theme/custom/radio_card.rs`,
+  artist, title, album, time) is drawn at the HUD's left edge for 6 s after a song starts, pauses or resumes. The
+  card draws through the presenter once T12 wires the feed. Unheard; how the original ends a song is inferred.
 - **The pursuit music.** `audio/interactive/`: the four pursuit sets of the graph, steered by a control value (a
   `MusicInput` resource, hooks for milestone 7, or the `music` command). A director and conductor play them on a child
   track (`graph::Cursor` walks the bars), cross-fade sets, keep songs off for the chase and 40 s after. Map events are

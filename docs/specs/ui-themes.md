@@ -15,7 +15,8 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
   No game data and no decompiled code is used in this spec.
 - **Status:** design. The component model (`libs/blackbox-ui`), the MW slot catalogue and theme scaffolding
   (`crates/nfsmw/src/ui/theme/`, T6), the Original HUD adapters (`original/`, T7) and the Original menu adapters and
-  menu cell (T8, [ui-themes-menus.md](ui-themes-menus.md)) are built. Every catalogue slot has an Original adapter.
+  menu cell (T8, [ui-themes-menus.md](ui-themes-menus.md)) and the Custom `RadioCard` with the egui radio retired (T9,
+  [ui-themes-custom.md](ui-themes-custom.md)) are built. Every catalogue slot has an Original adapter.
   Nothing draws through them yet: the live path is unchanged until T12 wires the cells into the HUD and frontend
   plugins. Items marked **open** are not decided (section 14).
 
@@ -155,7 +156,7 @@ the T1 draft are resolved here.
 | `Nitrous` (7) | Group guid `0x87C38E97`, bar guid `0xEDFB6D37` (`nos_bar`), icon guid `0x27DDF583` (`nos_icon`, scripts `SCRIPT_NOS_BURNING` and `SCRIPT_NOS_READY`). Bound by `HudBinding::nitrous`. **Confirmed** (was `?`) |
 | `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
 | `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
-| `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: the card in `hud/radio.rs` (egui today, moves to the presenter in T9) |
+| `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: `ui/theme/custom/radio_card.rs`, fed by `hud/radio.rs` data (built in T9, [ui-themes-custom.md](ui-themes-custom.md)) |
 | `BustedOverlay` (11) | `hud/busted_overlay.rs`, package `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), loaded by the HUD while `HudState::busted_overlay` is set. **Confirmed** (was `?`) |
 
 **Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
@@ -352,13 +353,14 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
 
 ## 9. The Custom theme: native components
 
-`Custom` implements `RadioCard` and returns `None` for every other slot. The card is today's `hud/radio.rs`
-(title, artist, album and time) re-expressed with `Panel`, `Text` and `Stack`, emitting neutral nodes. It goes
-through the same presenter and the same `hud.viewport.apply` call as the chyron. Nothing is drawn in egui.
+`Custom` implements `RadioCard` and returns `None` for every other slot. The card is built (T9) and described in
+[ui-themes-custom.md](ui-themes-custom.md): a `Panel` and three `Text` rows, emitted as neutral nodes. It draws through
+the presenter, and nothing is drawn in egui. It reads its state from a feed the plugin fills each frame (T12), and
+places itself from the HUD layout, so the composer does not apply the HUD viewport to it.
 
-When the card moves to the presenter, the egui branch in `crates/nfsmw/src/devtools/mod.rs` (the
-`settings.radio_hud == RadioHudStyle::Custom` check and the call to `crate::hud::show_radio`) is removed. Task
-T9 checks that metrics and console overlays do not depend on that branch.
+The egui branch in `crates/nfsmw/src/devtools/mod.rs` (the `settings.radio_hud == RadioHudStyle::Custom` check and
+the call to `crate::hud::show_radio`) is removed. T9 checked that the metrics and console overlays do not depend on
+that branch: they draw as before.
 
 ## 10. Remastered: extension point and worked example
 
