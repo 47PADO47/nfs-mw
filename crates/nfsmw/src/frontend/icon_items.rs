@@ -1,6 +1,8 @@
 //! The icons of each icon menu: what an icon does, its picture and its name (docs/specs/frontend-menus.md, section 2).
 //! `icon_menu.rs` binds them to the package's objects and scrolls them.
 
+use nfsmw_career::safehouse::menu::MenuItem;
+
 use super::icon_menu::Kind;
 use super::logic::Category;
 
@@ -25,6 +27,12 @@ pub enum Id {
     Category(Category),
     Resume,
     QuitToMenu,
+    /// The safe house menu's items (`career_screens/safehouse_menu.rs`); Blacklist carries the stage it opens.
+    SafeHouseResume,
+    SafeHouseBlacklist(u8),
+    SafeHouseCarSelect,
+    SafeHouseRapSheet,
+    SafeHouseSave,
 }
 
 /// The share of its slot the Discord mark is drawn at. The mark is a bundled 128-unit image drawn whole
@@ -104,7 +112,25 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true),
             icon(Id::QuitToMenu, 0x4C9E_34E6, 0xE950_B7AF, true),
         ],
+        // The safe house row depends on the career: see `safehouse_icons`.
+        Kind::SafeHouse => Vec::new(),
     }
+}
+
+/// The icons of the safe house menu, one per item in menu order (`career-safehouse-2.md`). Textures are the
+/// install's pictures this build knows by hash: Resume Free Roam (pause), Car Select (My Cars), Save (the alias
+/// manager's disk). Blacklist and Rap Sheet have none known yet and draw no picture (texture 0).
+pub fn safehouse_icons(items: &[MenuItem]) -> Vec<Icon> {
+    items
+        .iter()
+        .map(|item| match *item {
+            MenuItem::ResumeFreeRoam => icon(Id::SafeHouseResume, 0x12BB_5EA2, 0x01BD_185C, true),
+            MenuItem::Blacklist(stage) => icon(Id::SafeHouseBlacklist(stage), 0, 0x80B9_FF9B, true),
+            MenuItem::CarSelect => icon(Id::SafeHouseCarSelect, 0xB0C4_6023, 0x00D5_F627, true),
+            MenuItem::RapSheet => icon(Id::SafeHouseRapSheet, 0, 0xAC22_F27E, true),
+            MenuItem::Save => icon(Id::SafeHouseSave, 0x6B30_3856, 0x001C_8ACE, true),
+        })
+        .collect()
 }
 
 #[cfg(test)]

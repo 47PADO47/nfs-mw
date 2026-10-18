@@ -6,6 +6,7 @@
 use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
+use super::career_screens::safehouse_menu;
 use super::confirm::Confirm;
 use super::icon_items::{Icon, Id, draw_scale, icons};
 use super::icon_window;
@@ -24,6 +25,8 @@ pub enum Kind {
         mods: bool,
     },
     Pause,
+    /// The safe house menu (`MainMenu_Sub.fng` with `Args::safehouse`): its row is built from the career's items.
+    SafeHouse,
 }
 
 /// An icon object of the package and the place it takes on the strip.
@@ -71,11 +74,20 @@ pub struct IconMenu {
 
 impl IconMenu {
     pub fn new(kind: Kind, args: Args) -> Self {
-        let colours = if matches!(kind, Kind::Main | Kind::Categories { pause: false, .. }) { WHITE } else { ORANGE };
+        Self::with_icons(kind, args, icons(kind))
+    }
+
+    /// A menu over icons the caller built (the safe house row, `icon_items::safehouse_icons`).
+    pub fn with_icons(kind: Kind, args: Args, icons: Vec<Icon>) -> Self {
+        let colours = if matches!(kind, Kind::Main | Kind::SafeHouse | Kind::Categories { pause: false, .. }) {
+            WHITE
+        } else {
+            ORANGE
+        };
         Self {
             kind,
             args,
-            icons: icons(kind),
+            icons,
             slots: Vec::new(),
             base: 0,
             selected: 0,
@@ -176,16 +188,17 @@ impl IconMenu {
     fn refresh_header(&self, cx: &mut Cx) {
         let Some(i) = self.current_icon() else { return };
         let name = self.icons[i].name;
-        let text = match self.icons[i].id {
-            Id::ControlOptions => Some("Control Options"),
-            Id::Category(Category::Discord) => Some("Discord"),
-            Id::Category(Category::Mods) => Some("Mods"),
+        let text: Option<String> = match self.icons[i].id {
+            Id::ControlOptions => Some("Control Options".into()),
+            Id::Category(Category::Discord) => Some("Discord".into()),
+            Id::Category(Category::Mods) => Some("Mods".into()),
+            Id::SafeHouseBlacklist(stage) => Some(format!("Blacklist {stage}")),
             _ => None,
         };
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
             let Some(o) = cx.object(hash) else { continue };
-            match text {
-                Some(text) => cx.rt.set_text(o, text),
+            match &text {
+                Some(text) => cx.rt.set_text(o, text.as_str()),
                 None => cx.label(o, name),
             }
         }
@@ -258,6 +271,7 @@ impl IconMenu {
             (Kind::Categories { .. } | Kind::Pause, Pending::Start) | (Kind::Pause, Pending::Back) => {
                 cx.send(Command::Resume);
             }
+            (Kind::SafeHouse, Pending::Pressed(id)) => safehouse_menu::press(cx, self.args, id),
             (Kind::Pause, Pending::Pressed(Id::Resume)) => cx.send(Command::Resume),
             (Kind::Pause, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }));
@@ -369,6 +383,7 @@ impl ScreenLogic for IconMenu {
             Kind::Categories { pause: false, .. } => cx.label_group(ids::TITLE_GROUP, 0x4ECA_678C),
             Kind::Categories { pause: true, .. } => cx.label_group(ids::PAUSE_HEADER, 0x1D7B_B6C9),
             Kind::Pause => cx.label_group(ids::PAUSE_HEADER, 0x6C83_9FBE),
+            Kind::SafeHouse => cx.label_group(ids::TITLE_GROUP, 0xE596_C4A3),
         }
         let remembered = cx.memory.get(&self.memory_key(cx)).copied().unwrap_or(0);
         let strip = (self.first_slot() + remembered).min(self.last_slot());
@@ -420,7 +435,8 @@ impl ScreenLogic for IconMenu {
             }
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
             PAD_BACK => match self.kind {
-                Kind::Main => {}
+                // The safe house's Back leaves to the main menu outside this menu's scope: nothing happens here.
+                Kind::Main | Kind::SafeHouse => {}
                 Kind::Categories { pause: false, .. } => {
                     self.pending = Some(Pending::Back);
                     self.reacts = false;
