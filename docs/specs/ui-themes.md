@@ -380,24 +380,25 @@ The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base 
 
 ## 11. The `UiStyle` setting
 
-Built in T10. `enum UiStyle { Original, Custom, OriginalGold, Remastered }`, default `Original`
-(`crates/nfsmw/src/settings/ui_style.rs`). `OriginalGold` and the Bevy palette of `Custom` are token themes (section 15).
+Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
+(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette of the token-driven HUD is the separate
+`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which applies only when the HUD is not Original (section 15).
 
 - Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
-  `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom`, `original-gold` and
-  `remastered`. Labels: `Original`, `Bevy` (the `custom` value), `Original (gold)`, `Remastered (incomplete)`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
+  `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
+  Labels: `Original`, `Custom`, `Remastered`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
   `Original`, because the UI look and the graphics look are separate choices (decision 6).
 - **Layers**, each read like the other settings (CLI over env over file over default):
 
 | Layer | Where | Key |
 |---|---|---|
-| TOML | `settings/file.rs` | `ui_style = 'original' \| 'custom' \| 'original-gold' \| 'remastered'` |
+| TOML | `settings/file.rs` | `ui_style = 'original' \| 'custom' \| 'remastered'` |
 | Env | `settings/env.rs` (`UI_STYLE`) | `NFSMW_UI_STYLE` |
 | CLI | `cli/view_args.rs` | `--ui-style original\|custom\|remastered` |
 | Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` |
 | Write | `settings/write.rs` | writes `ui_style` only |
 | Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `set ui_style <value>` |
-| Options | `frontend/options.rs`, `options_rows.rs` | row "UI style" cycles the four values |
+| Options | `frontend/options.rs`, `options_rows.rs` | row "HUD style" cycles the three values; row "HUD theme" cycles `remastered` and `bevy` |
 
 - **Legacy `radio_hud` (deprecated, read only).** The old key `radio_hud` (`ea_trax` or `custom`, see
   `settings/radio_hud.rs`) still loads. `ea_trax` maps to `Original`, `custom` maps to `Custom`. The mapping is per

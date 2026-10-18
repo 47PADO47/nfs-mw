@@ -12,8 +12,8 @@ defaults to a neutral set.
 - **Custom HUD.** The radio card, speedometer, tachometer, gear and meters read `theme.*` for their colours. The radio
   card and the tachometer read `theme.padding` and `theme.radius`. The status colours (redline, shift light, the three
   meter fills) stay fixed.
-- **Palettes.** `ui/theme/custom/palette.rs`: `bevy()` (the speedometer and panel colours, `ThemeId::Custom`, `UiStyle::Custom`
-  labelled "Bevy") and `original_gold()` (the yellow of the original HUD, `ThemeId::OriginalGold`, `UiStyle::OriginalGold`).
-  Both are `CustomTheme`s over the same components.
+- **Palettes.** `ui/theme/custom/palette.rs`: `bevy()` (the speedometer and panel colours) and `remastered()` (the gold
+  accent of the remastered HUD). The settings choose one (`UiTheme`, row "HUD theme"); `palette::for_ui_theme` maps it.
+  The palette applies to the token-driven HUD (`ThemeId::Custom`) only, so the Remastered HUD does not read it yet.
 - **Mods.** `bb.ui` 1.1 `set_tokens`. A mod theme that declares tokens draws the token look for the slots it does not
   name (`ui/theme/modded` `ModHud`). See [api-ui.md](../modding/api-ui.md).

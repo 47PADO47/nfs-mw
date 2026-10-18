@@ -18,7 +18,7 @@ Custom theme fills today (`ElementId::RadioCard`, number 10). The contract it si
 
 | Node | Source | Content |
 |---|---|---|
-| background | `Panel` | `radio.background` colour, black at alpha 150 |
+| background | `Panel` | `radio.background` colour, black at alpha 170 |
 | title row | `Text` in a `Stack` (column, row 1) | the song title, `radio.title`, scale 1.0 |
 | credit row | `Text` (row 2) | `Artist - Album`, or the artist alone, `radio.credit`, scale 0.8 |
 | time row | `Text` (row 3) | `m:ss / m:ss`, with `  PAUSED` when held, `radio.status`, scale 0.8 |
@@ -63,7 +63,7 @@ one skin, shared by all themes; the Original components read none of these keys)
 
 | Key | Value |
 |---|---|
-| `radio.background` | `[0, 0, 0, 150]` |
+| `radio.background` | `[0, 0, 0, 170]` |
 | `radio.title` | `[255, 255, 255, 255]` |
 | `radio.credit` | `[200, 200, 200, 255]` |
 | `radio.status` | `[150, 150, 150, 255]` |
@@ -98,8 +98,8 @@ The EA Trax chyron (`Original` `RadioCard`, `hud/trax.rs`, `EA_TRAX.fng`) is unc
 
 - `custom/tests.rs`: `CustomTheme::element` returns `Some` only for `RadioCard` (and `None` for every other catalogue
   slot and for an id outside the catalogue). The card builds one background and three text rows with the right
-  strings; the background alpha is 150 and the title alpha 255 while the card is up; at half fade both fall to about
-  75 and 128; it builds nothing when idle or past its show time; and its background sits where the PC layout puts it
+  strings; the background alpha is 170 and the title alpha 255 while the card is up; at half fade both fall to about
+  85 and 128; it builds nothing when idle or past its show time; and its background sits where the PC layout puts it
   on a 1080p screen.
 - `custom/radio_placement.rs`: the PC, Classic and Xbox 360 layouts, the edge clamp in narrow and odd windows, and a
   window with no height.
@@ -121,3 +121,36 @@ baseline.
 - The card's `z` is the default 1, and the background is built before the text, so the text draws on top at equal
   depth. The composer sorts by `index`, and the card's nodes keep their build order (stable sort, equal indices).
 - Owed: the end-to-end screenshot with `--ui-style custom` on a GPU machine (`ui-themes-compose.md` section 7).
+
+## 8. The speedometer and the tachometer
+
+The Custom theme also fills `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
+rest of the HUD (the gear digit in the tachometer group, the minimap, the blips, the pursuit board) stays Original.
+
+- **Data:** `custom/drive_feed.rs`. `DriveFeedCell::set(&HudState)` runs once per frame in the HUD plugin, after the radio.
+  It copies the speed in the unit shown (`display_speed`), the unit, the rev fraction, the red line fraction and the gear.
+- **Placement:** `custom/drive_layout.rs`. A column in the bottom-right of the canvas: the rev bar, with the speed card
+  under it. These are fixed FEng positions. The HUD layout setting does not move them yet.
+- **Speedometer** (`custom/speedometer.rs`): a `Panel` and a `Stack` of two `Text` rows: the speed, then the unit and
+  the gear (`R`, `N` or the number).
+- **Tachometer** (`custom/tachometer.rs`): a track `Panel`, and a fill `Panel` whose width is the rev fraction. The fill
+  turns red from the red line.
+- **Skin:** the `drive.*` keys in `skin.rs`. They are not faded with the radio card.
+- **Tests:** `custom/drive_tests.rs`.
+
+Still Original: the minimap (it needs the track geometry and the blips, so it is a separate piece of work).
+
+## 9. The drive cluster (current)
+
+The Custom cluster replaces the Original tachometer, speedometer, gear, nitrous, turbo and speed breaker slots. It is
+one card in the bottom-right corner, drawn in parts by six slots, all fed from `DriveFeedCell` (`custom/drive_feed.rs`):
+
+- **Tachometer** (`tachometer.rs`): the card and a thin 32-segment rev gauge. Segments are cyan, amber from 85% of the
+  scale (`WARN_FRACTION`), and red past the red line.
+- **Speedometer** (`speedometer.rs`): the speed in large digits and the unit (KM/H or MPH).
+- **GearIndicator** (`gear.rs`): the gear in a box (red on the shift light), and a strip of eight pips for R, N and 1 to 6.
+- **Nitrous, Turbo, Speedbreaker** (`meters.rs`): one row each, a label and a thin bar. A meter the car does not have
+  draws nothing. The boost bar fills to 30 psi, a scale and not a limit.
+
+Layout: `drive_layout.rs`. The HUD layout setting does not move the cluster yet. The palette is in `skin.rs` (the `drive.*` keys).
+Tests: `custom/drive_tests.rs`.
