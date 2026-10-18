@@ -40,6 +40,7 @@ mod map;
 mod menus;
 mod module;
 mod time;
+mod ui;
 mod vehicles;
 mod world;
 
@@ -50,7 +51,7 @@ pub use commands::Commands;
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
 pub use error::{Error, ModResult};
 pub use event::{Collider, Event, Role};
-pub use handle::{AbilityId, ActionId, BlipId, CommandId, MenuId, SoundId, VehicleId, WorldId};
+pub use handle::{AbilityId, ActionId, BlipId, CommandId, MenuId, SoundId, UiThemeId, VehicleId, WorldId};
 pub use hud::{Hud, MessageStyle};
 pub use iface::Interface;
 pub use input::Input;
@@ -58,6 +59,7 @@ pub use map::Map;
 pub use menus::{Menus, SliderRange};
 pub use module::Mod;
 pub use time::{Time, TimeOfDay};
+pub use ui::{Prim, Rect, Ui};
 pub use vehicles::{VehicleState, Vehicles};
 pub use world::World;
 

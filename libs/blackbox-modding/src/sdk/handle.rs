@@ -6,6 +6,7 @@
 //! - `CommandId`: a console command the mod registered.
 //! - `BlipId`: a map blip the mod added.
 //! - `SoundId`: a one-shot sound the mod started.
+//! - `UiThemeId`: a theme the mod registered.
 
 macro_rules! handle {
     ($($name:ident),* $(,)?) => {
@@ -29,4 +30,4 @@ macro_rules! handle {
     };
 }
 
-handle!(VehicleId, WorldId, MenuId, AbilityId, ActionId, CommandId, BlipId, SoundId);
+handle!(VehicleId, WorldId, MenuId, AbilityId, ActionId, CommandId, BlipId, SoundId, UiThemeId);
