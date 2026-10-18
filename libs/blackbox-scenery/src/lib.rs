@@ -8,6 +8,9 @@ pub mod build;
 #[cfg(test)]
 mod build_tests;
 mod error;
+mod group;
+#[cfg(test)]
+mod group_tests;
 mod hierarchy;
 mod info;
 mod instance;
@@ -17,6 +20,7 @@ mod section;
 mod spawner;
 
 pub use error::{Error, Result};
+pub use group::{SceneryGroup, override_group_numbers, parse_groups, read_scenery_groups};
 pub use hierarchy::{ModelHierarchy, ModelNode, read_model_hierarchies};
 pub use info::SceneryInfo;
 pub use instance::SceneryInstance;

@@ -1,5 +1,7 @@
 //! The streaming index of a track, and its zones.
 
+use std::collections::HashMap;
+
 use anyhow::{Context, Result};
 use blackbox_streaming::{StreamingSection, VisibleSections};
 use game_install::GameDir;
@@ -22,6 +24,10 @@ pub struct WorldIndex {
     /// Original event engines, including breakables and truck cargo.
     pub sequences: super::sequences::SequenceCatalog,
     pub model_hierarchies: Vec<blackbox_scenery::ModelHierarchy>,
+    /// The scenery groups of the track (`docs/specs/career-regions.md` section 1.2).
+    pub scenery_groups: Vec<blackbox_scenery::SceneryGroup>,
+    /// The group number of each scenery override index that a group lists (`ScenerySection::override_hooks`).
+    pub override_groups: HashMap<u16, u16>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -49,6 +55,9 @@ impl WorldIndex {
             blackbox_chunk::ids::MODEL_HIERARCHY_TREE,
             blackbox_chunk::ids::MODEL_HIERARCHY,
         )?;
+        let scenery_groups = blackbox_scenery::read_scenery_groups(&meta)
+            .with_context(|| format!("reading the scenery groups in {meta_file}"))?;
+        let override_groups = blackbox_scenery::override_group_numbers(&scenery_groups);
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -66,6 +75,8 @@ impl WorldIndex {
             prop_bounds,
             sequences,
             model_hierarchies,
+            scenery_groups,
+            override_groups,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })
     }
