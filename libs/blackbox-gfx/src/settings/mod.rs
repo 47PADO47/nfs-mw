@@ -6,7 +6,7 @@
 pub mod filtering;
 pub use filtering::TextureFiltering;
 pub mod ao;
-pub use ao::{AoQuality, AoSettings};
+pub use ao::{AoMethod, AoQuality, AoSettings};
 pub mod shadows;
 pub use shadows::{ShadowQuality, ShadowTuning};
 pub mod post;

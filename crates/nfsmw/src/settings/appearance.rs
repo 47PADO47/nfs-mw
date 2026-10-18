@@ -43,15 +43,27 @@ pub enum Quality {
     Balanced,
     #[default]
     High,
+    VeryHigh,
 }
-names!(Quality, "low, balanced or high", [(Self::Low, "low"), (Self::Balanced, "balanced"), (Self::High, "high")]);
+names!(
+    Quality,
+    "low, balanced, high or very-high",
+    [(Self::Low, "low"), (Self::Balanced, "balanced"), (Self::High, "high"), (Self::VeryHigh, "very-high")]
+);
 impl Quality {
-    pub const ALL: [Self; 3] = [Self::Low, Self::Balanced, Self::High];
+    pub const ALL: [Self; 4] = [Self::Low, Self::Balanced, Self::High, Self::VeryHigh];
+    pub fn offered(renderer: super::RendererKind) -> &'static [Self] {
+        match renderer {
+            super::RendererKind::Blackbox => &Self::ALL,
+            super::RendererKind::Bevy => &[Self::Low, Self::Balanced, Self::High],
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
             Self::Low => "Low",
             Self::Balanced => "Balanced",
             Self::High => "High",
+            Self::VeryHigh => "Very High",
         }
     }
 }
@@ -118,17 +130,21 @@ impl Settings {
             VisualStyle::Enhanced => {
                 self.visual_treatment = VisualTreatment::Low;
                 self.post_tonemap = PostTonemap::Aces;
-                self.post_aa = PostAa::Fxaa;
+                self.post_aa = PostAa::Smaa;
                 self.ao = AoQuality::High;
+                self.ao_method = super::AoMethod::XeGtao;
+                self.ao_intensity = Percent(80);
+                self.ao_depth_mips = true;
+                self.road_reflections = super::RoadReflections::Blurred;
                 self.appearance.lighting = RenderExperiments {
                     sun_shadows: true,
                     car_skylight: true,
                     clearcoat: true,
                     original_shadows: false,
-                    sky_strength: 0.32,
-                    ground_strength: 0.55,
-                    shadow_filter: 0.7,
-                    sun_angle: 0.51,
+                    sky_strength: 0.76,
+                    ground_strength: 1.12,
+                    shadow_filter: 1.0,
+                    sun_angle: 0.55,
                     ..self.appearance.lighting
                 };
             }
@@ -141,34 +157,66 @@ impl Settings {
         self.detail.world = match quality {
             Quality::Low => super::WorldDetail::Low,
             Quality::Balanced => super::WorldDetail::High,
-            Quality::High => super::WorldDetail::Maximum,
+            Quality::High | Quality::VeryHigh => super::WorldDetail::Maximum,
         };
         self.detail.car = match (quality, self.appearance.style) {
             (Quality::Low, _) => super::CarGeometry::Low,
-            (Quality::High, VisualStyle::Enhanced | VisualStyle::Custom) => super::CarGeometry::Highest,
+            (Quality::High | Quality::VeryHigh, VisualStyle::Enhanced | VisualStyle::Custom) => {
+                super::CarGeometry::Highest
+            }
             _ => super::CarGeometry::High,
         };
         self.graphics_preset = GraphicsPreset::Custom;
+        self.texture_filtering = super::TextureFiltering::Anisotropic16;
         let (size, range, reach, reflection, ao) = match quality {
             Quality::Low => (1024, 120.0, 0.25, ReflectionQuality::Low, AoQuality::Low),
-            Quality::Balanced => (2048, 200.0, 0.3, ReflectionQuality::Medium, AoQuality::Medium),
-            Quality::High => (4096, 320.0, 0.425, ReflectionQuality::High, AoQuality::High),
+            Quality::Balanced => (2048, 240.0, 0.5, ReflectionQuality::Medium, AoQuality::Medium),
+            Quality::High | Quality::VeryHigh => (4096, 320.0, 0.8, ReflectionQuality::High, AoQuality::High),
         };
+        self.reflections = reflection;
+        if self.ao != AoQuality::Off {
+            self.ao = ao;
+        }
+        if self.renderer == super::RendererKind::Bevy {
+            self.shadows = match quality {
+                Quality::Low => ShadowQuality::Low,
+                Quality::Balanced => ShadowQuality::Medium,
+                Quality::High | Quality::VeryHigh => ShadowQuality::High,
+            };
+            return;
+        }
+        if self.ao != AoQuality::Off && matches!(quality, Quality::High | Quality::VeryHigh) {
+            self.ao_method = super::AoMethod::XeGtao;
+            self.ao_intensity = Percent(80);
+            self.ao_depth_mips = true;
+        }
         let light = &mut self.appearance.lighting;
+        if light.shadow_projection.is_none() {
+            self.road_reflection_resolution = match quality {
+                Quality::Low => super::RoadReflectionResolution::Original,
+                Quality::Balanced | Quality::High => super::RoadReflectionResolution::Double,
+                Quality::VeryHigh => super::RoadReflectionResolution::Quadruple,
+            };
+        }
         light.shadow_resolution = size;
         light.shadow_distance = range;
         light.contact_length = reach;
         light.soft_shadows = quality != Quality::Low;
         light.contact_shadows = light.sun_shadows && light.shadow_projection.is_none() && quality != Quality::Low;
-        self.reflections = reflection;
-        if self.ao != AoQuality::Off {
-            self.ao = ao;
-        }
+        light.near_shadow_focus = false;
+        light.wide_shadow_detail = light.shadow_projection.is_none() && quality != Quality::Low;
+        light.shadow_detail_resolution = match quality {
+            Quality::Low => 1024,
+            Quality::Balanced | Quality::High => 4096,
+            Quality::VeryHigh => 8192,
+        };
+        light.far_shadows = false;
+        light.dense_shadow_filter = matches!(quality, Quality::High | Quality::VeryHigh);
         self.shadows = match (light.sun_shadows, quality) {
             (false, _) => ShadowQuality::Off,
             (true, Quality::Low) => ShadowQuality::Low,
             (true, Quality::Balanced) => ShadowQuality::Medium,
-            (true, Quality::High) => ShadowQuality::High,
+            (true, Quality::High | Quality::VeryHigh) => ShadowQuality::High,
         };
     }
     /// Baseline metadata survives overrides, while the visible selection reads Custom.
@@ -216,6 +264,8 @@ impl Settings {
             ao: Some(self.ao),
             ao_intensity: Some(self.ao_intensity),
             ao_compare: Some(self.ao_compare),
+            ao_depth_mips: Some(self.ao_depth_mips),
+            ao_method: Some(self.ao_method),
             ..Default::default()
         }
     }

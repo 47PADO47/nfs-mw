@@ -108,12 +108,13 @@ fn throttle(app: &App) -> f32 {
     actions.value(crate::input::Action::Throttle)
 }
 
-fn pass(
+pub(super) fn pass(
     ctx: &egui::Context,
     lab: &mut GraphicsLab,
     settings: &mut Settings,
     events: Vec<egui::Event>,
 ) -> egui::FullOutput {
+    ctx.global_style_mut(|style| style.animation_time = 0.0);
     ctx.begin_pass(egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))),
         events,
@@ -129,7 +130,13 @@ fn pass(
 pub(super) fn click(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings, label: &str) {
     // Let window auto-sizing settle, then hit the actual text drawn by the production panel.
     pass(ctx, lab, settings, vec![]);
-    let output = pass(ctx, lab, settings, vec![]);
+    let mut output = pass(ctx, lab, settings, vec![]);
+    if !output.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Text(t) if t.galley.job.text == label))
+        && matches!(label, "Sun" | "Coat" | "Store A" | "Swap A/B" | "Restore startup · 0")
+    {
+        click(ctx, lab, settings, "Compare / experiments");
+        output = pass(ctx, lab, settings, vec![]);
+    }
     let pos = output
         .shapes
         .iter()

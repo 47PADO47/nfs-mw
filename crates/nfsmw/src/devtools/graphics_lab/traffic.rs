@@ -15,7 +15,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&s
         }
     });
     ui.small("Reference follows the playable PC reference. Extended increases range and retention; density and budget stay independent.");
-    ui.small("Changes apply live; existing cars recycle naturally. Save profile keeps these settings. Named F8 presets and A/B include traffic.");
+    ui.small("Changes apply live; existing cars recycle naturally. Save for startup keeps these settings. Named F8 presets and A/B include traffic.");
     ui.separator();
     ui.horizontal_wrapped(|ui| {
         ui.label("Population preset:");

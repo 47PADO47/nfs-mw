@@ -4,17 +4,17 @@ Press **F8** to open the resizable graphics lab. It frees the mouse and takes
 input like the F6 garage; no modifier needs to remain held. **F8**, **Esc** or
 the close button returns to driving and restores the prior mouse capture.
 Opening F6 or the console transfers input ownership to that panel.
-Changes preview immediately. Save profile writes the owned graphics request.
+Changes preview immediately. Save for startup writes the owned graphics request.
 
 The menu and overlay share one persistent graphics request. Choose **Original PC
 (incomplete)**, **Enhanced** or **Custom** as the visual style. Quality buttons
-**Low (1)**, **Balanced (2)** and **High (3)** change cost without resetting the
+**Low (1)**, **Balanced (2)**, **High (3)** and **Very High (4)** change cost without resetting the
 colour grade, tone mapping, AA or gameplay preferences. Original PC selects the
 available original midday treatment, single-map projected shadows and authored overlays; it does not claim
 complete original materials, lighting, shadows or weather. Enhanced uses the same authored world materials with optional modern lighting. Manual edits show Custom while keeping the
 base style for later quality changes.
 
-F8 has **Look**, **Lighting**, **Materials**, **Effects**, **Environment** and
+F8 has **Look**, **Lighting**, **Materials**, **Detail**, **Traffic**, **Effects**, **Environment** and
 **Diagnostics** tabs. Look exposes Off/Subtle/Original/Reference (mod) treatment and a continuous
 strength override. Lighting contains independent shadow and car-light controls;
 Materials contains car shading, texture filtering, car reflections and road
@@ -22,20 +22,29 @@ reflection detail/resolution; Effects contains AO tuning.
 Diagnostics lists the source, implementation coverage and missing work for each
 feature. Backend downgrades are displayed without erasing stored requests.
 
-**Save profile** persists owned graphics fields, **Load saved** reloads them,
+**Save for startup** persists owned graphics fields, **Revert saved** reloads them,
 **Restore startup (0)** reverts the initial request, **Reset section** resets only
 the selected graphics domain, and **Store A / Swap A/B** compares snapshots.
 Save/load includes render scale, upscaling quality/sharpness and visual effect
 preferences, alongside lighting, materials, treatment and HDR calibration. It
 preserves requested values even when the active renderer uses a fallback.
-Renderer/API, window, audio and gameplay preferences remain unchanged on load.
+Detail and Traffic controls are shared by both renderers and included in saved snapshots.
+Renderer/API, window, audio and other gameplay preferences remain unchanged on load.
 Older profiles leave controls they never stored at their current values.
-Expand **Saved presets**, enter a name, then **Save preset** to keep multiple
-looks in `graphics-presets.toml` beside the user config. Saving the same name
-replaces it. Choose a name and **Load preset** to preview it; **Save profile**
-makes that look the startup default. Malformed or future-schema files are not
-overwritten. Renderer warnings identify the affected setting and do not block
-persistence.
+Select a named preset to preview it immediately, including reselecting the current
+name. **Save for startup** (Ctrl+S) makes the current request the startup default, while
+**Revert saved** discards unsaved graphics edits. **Save as…** stores a named
+snapshot and saves the same request for startup in one action; an existing name
+replaces only that snapshot. The header reports unsaved changes and disk errors.
+The independent F6 garage presets are unchanged. **Compare / experiments** holds
+the session A/B tools and the older lighting experiments. Renderer downgrades
+are listed in Diagnostics. Black Box controls are hidden on Bevy; the active
+renderer decides the layout even when a different renderer is selected for restart.
+Section resets and individual reset arrows use the selected style and quality.
+Enhanced and the Black Box High/Very High presets use XeGTAO at 80% strength.
+High/Very High preserve deliberately disabled AO; saved method/strength overrides
+remain intact on load. Strength changes affect the composition, not the sample count.
+HDR calibration has its own reset and survives resetting Look.
 Environment overrides remain independent. Freeze time and surface-debug state
 are session diagnostics and are not saved. Existing configuration without the
 versioned appearance table keeps its previous settings; no style is auto-applied.
@@ -47,14 +56,14 @@ Road Reflection Detail selects Off, World, World + vehicles, or the same content
 with the original two-pass blur. It requires native rendering and Original world
 material support; unavailable controls explain the backend limitation without erasing preferences.
 320×240 is the source image size; 640×480 and 1280×960 are independent enhancements.
-These choices persist with Save profile and participate in A/B/startup restores.
+These choices persist with Save for startup and participate in A/B/startup restores.
 Environment offers Rain history, Dry, Damp and Wet comparison overrides. Overrides
 are session-only, while natural dampness builds during rain and lingers after it.
 Its 60 Hz reference recurrence is adapted to elapsed time, not rendered frames.
 `NFSMW_ROAD_REFLECTIONS`, `NFSMW_ROAD_REFLECTION_RESOLUTION`, and the session-only
 `NFSMW_ROAD_WETNESS` expose the same choices for controlled captures.
 
-Quality budgets are 1024/120 m, 2048/200 m and 4096/320 m for Low/Balanced/High
+Quality budgets are 1024/120 m, 2048/240 m and 4096/320 m for Low/Balanced/High
 custom shadow maps/range, with progressively higher reflection/AO budgets. The original perspective fit retains its .01 to 50 source frustum at every resolution. Quality keeps
 the chosen lighting family and manual colour treatment. Original-style shadow
 rendering remains incomplete; `SHD_` overlays are original scenery art rather
@@ -276,7 +285,7 @@ Car shading in Materials offers Original PC, Original PC (shadowless), Custom
 Glossy and Simple. The two original choices reproduce distinct PC material
 families on the native renderer; choosing one does not enable original projected
 shadows. Original PC style selects the regular family. Graphics quality preserves
-the selected family, and Save profile persists it. Bevy reports its custom shader
+the selected family, and Save for startup persists it. Bevy reports its custom shader
 fallback explicitly. See [graphics coverage](graphics-coverage.md).
 
 
@@ -313,6 +322,21 @@ UI-white calibration in nits. Auto requires positive OS HDR confirmation and a
 supported native scRGB surface; other outputs retain SDR with an explanation.
 HDR uses pinned PsychoV and preserves extended highlights through material and
 treatment output. The SDR tone-mapping choice is stored separately and restored
-when HDR is disabled. Save profile, A/B and startup restores include calibration.
+when HDR is disabled. Save for startup, A/B and startup restores include calibration.
 PNG screenshots are SDR previews. See [the HDR contract](specs/hdr-output.md) and
 [PsychoV provenance](provenance/psychov.md). This is a remake enhancement.
+
+## Revised quality budgets
+
+All quality levels retain 16× anisotropic filtering, the selected colour treatment,
+AA, HDR calibration and gameplay settings. Quality does not switch AO on if it
+was deliberately disabled. High uses wide 4K cascades and dense penumbra filtering;
+Very High raises the first two maps to 8K while retaining 4K distant maps. Its
+640 MiB atlas and higher shadow time are explicit costs, not a different art style.
+Balanced uses 4K detail / 2K distant maps. Low uses regular 1K maps without PCSS
+or contact detail. Legacy tight focus is disabled by presets. Road capture sizes
+are original / 2× / 2× / 4×; reflection content remains independently selectable.
+Enhanced now defaults to SMAA, XeGTAO with depth prefiltering, 0.55° sun, filter
+width 1.0 and the tested car sky/ground lighting. Bevy quality changes only shared
+budgets and preserves Black Box experiments. Original PC retains its projected
+shadow family and independently selected road captures.

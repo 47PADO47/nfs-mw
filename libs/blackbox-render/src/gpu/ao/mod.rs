@@ -5,16 +5,25 @@ mod benchmark;
 mod bindings;
 #[cfg(test)]
 mod contact_tests;
+mod depth;
 #[cfg(test)]
 mod depth_tests;
 mod frame;
 #[cfg(test)]
 mod integration_tests;
+#[cfg(test)]
+mod method_tests;
 mod pipelines;
+#[cfg(test)]
+mod pyramid_tests;
+#[cfg(test)]
+mod resolution_tests;
+#[cfg(test)]
+mod surface_tests;
 #[cfg(test)]
 mod tests;
 
-use blackbox_gfx::{AoSettings, FrameParams, Projection};
+use blackbox_gfx::{AoMethod, AoSettings, FrameParams, Projection};
 use pipelines::Pipelines;
 
 #[repr(C)]
@@ -59,6 +68,8 @@ pub(super) struct AmbientOcclusion {
     params: wgpu::Buffer,
     images: Option<Images>,
     inputs: Option<bindings::Inputs>,
+    depth: depth::DepthPyramid,
+    fallback_depth: wgpu::TextureView,
     pub mask: wgpu::TextureView,
     pub size: (u32, u32),
 }
@@ -84,6 +95,8 @@ impl AmbientOcclusion {
             }),
             images: None,
             inputs: None,
+            depth: depth::DepthPyramid::new(device, (1, 1)),
+            fallback_depth: depth::DepthPyramid::new(device, (1, 1)).view,
             mask: super::surface::mask(device, size, "ambient visibility"),
             size,
         }
@@ -101,7 +114,15 @@ impl AmbientOcclusion {
         if !settings.active() {
             return;
         }
-        let (divisor, slices, steps) = settings.quality.sampling();
+        let (divisor, slices, steps) = match settings.method {
+            AoMethod::XeGtao => match settings.quality {
+                blackbox_gfx::AoQuality::Off => (1, 0, 0),
+                blackbox_gfx::AoQuality::Low => (2, 2, 3),
+                blackbox_gfx::AoQuality::Medium => (2, 3, 4),
+                blackbox_gfx::AoQuality::High => (1, 4, 4),
+            },
+            _ => settings.quality.sampling(),
+        };
         let size = (draw.size.0.div_ceil(divisor).max(1), draw.size.1.div_ceil(divisor).max(1));
         if self.images.as_ref().is_none_or(|i| i.size != size) {
             self.images = Some(Images::new(device, size));
@@ -111,23 +132,51 @@ impl AmbientOcclusion {
         let [fog_start, fog_end] = draw.frame.fog_range();
         let params = Params {
             sizes: [draw.size.0 as f32, draw.size.1 as f32, size.0 as f32, size.1 as f32],
-            projection: [tan_y * aspect, tan_y, near, 0.0],
+            projection: [tan_y * aspect, tan_y, near, f32::from(u8::from(settings.depth_mips))],
             effect: [settings.radius, settings.intensity, 40.0, 100.0],
             sampling: [divisor, slices, steps, u32::from(settings.compare)],
-            fog: [fog_start, fog_end, 0.0, 0.0],
+            fog: [fog_start, fog_end, f32::from(u8::from(settings.method == AoMethod::XeGtao)), 0.0],
             view: draw.frame.view.to_cols_array(),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
-        let views = [draw.depth, draw.normals, &images.raw, &images.filtered];
+        let depth_size = match settings.depth_mips {
+            true => draw.size,
+            false => (1, 1),
+        };
+        let xe = settings.method == AoMethod::XeGtao;
+        if self.depth.size != depth_size || self.depth.xe != xe {
+            self.depth = depth::DepthPyramid::with_method(device, depth_size, xe);
+        }
+        if settings.depth_mips {
+            self.depth.encode(device, encoder, &self.pipelines, &self.params, draw.depth, &self.fallback_depth);
+        }
+        let views = [draw.depth, draw.normals, &images.raw, &images.filtered, &self.depth.view];
         if self.inputs.as_ref().is_none_or(|inputs| !inputs.matches(views)) {
             self.inputs = Some(bindings::Inputs::new(device, &self.pipelines, &self.params, views));
         }
         let inputs = &self.inputs.as_ref().expect("AO inputs exist").groups;
         let composite = &self.pipelines.resolve;
-        for (label, pipeline, inputs) in [
-            ("AO horizons", &self.pipelines.generate, &inputs[0]),
-            ("AO spatial denoise", &self.pipelines.filter, &inputs[1]),
-        ] {
+        let generate = match settings.method {
+            AoMethod::Gtao => &self.pipelines.generate,
+            AoMethod::Ssao => &self.pipelines.ssao,
+            AoMethod::XeGtao => &self.pipelines.xegtao,
+        };
+        let filter = match settings.method {
+            AoMethod::XeGtao => &self.pipelines.xe_filter,
+            _ => &self.pipelines.filter,
+        };
+        let passes: &[(&str, &wgpu::ComputePipeline, &wgpu::BindGroup)] = match settings.method {
+            AoMethod::XeGtao => &[
+                ("AO estimate", generate, &inputs[0]),
+                ("AO spatial denoise 1", &self.pipelines.xe_intermediate, &inputs[1]),
+                ("AO spatial denoise 2", &self.pipelines.xe_intermediate, &inputs[3]),
+                ("AO spatial denoise 3", &self.pipelines.xe_intermediate, &inputs[1]),
+                ("AO spatial denoise 4", &self.pipelines.xe_intermediate, &inputs[3]),
+                ("AO spatial denoise final", filter, &inputs[1]),
+            ],
+            _ => &[("AO estimate", generate, &inputs[0]), ("AO spatial denoise", filter, &inputs[1])],
+        };
+        for &(label, pipeline, inputs) in passes {
             let mut pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(label), timestamp_writes: None });
             pass.set_pipeline(pipeline);
@@ -153,12 +202,22 @@ impl AmbientOcclusion {
     }
 }
 
-pub(crate) fn sources() -> [(&'static str, String); 3] {
+pub(crate) fn sources() -> [(&'static str, String); 5] {
     let common = include_str!("../../shaders/ao_common.wgsl");
     [
         ("AO horizons", include_str!("../../shaders/ao_horizon.wgsl")),
         ("AO filter", include_str!("../../shaders/ao_filter.wgsl")),
         ("AO composite", include_str!("../../shaders/ao_composite.wgsl")),
+        ("AO depth prefilter", include_str!("../../shaders/ao_depth.wgsl")),
+        ("XeGTAO edge denoise", include_str!("../../shaders/ao_xe_filter.wgsl")),
     ]
-    .map(|(name, source)| (name, format!("{common}\n{source}")))
+    .map(|(name, source)| {
+        let extra = match name {
+            "AO horizons" => {
+                concat!(include_str!("../../shaders/ao_ssao.wgsl"), "\n", include_str!("../../shaders/ao_xegtao.wgsl"))
+            }
+            _ => "",
+        };
+        (name, format!("{common}\n{source}\n{extra}"))
+    })
 }

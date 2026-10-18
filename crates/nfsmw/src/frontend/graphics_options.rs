@@ -258,8 +258,11 @@ impl GraphicsSetting {
                 *changed = s.appearance_layer().or(*changed);
             }
             Self::Quality => {
-                let next =
-                    super::post_options::pick(&crate::settings::GraphicsQuality::ALL, s.appearance.quality, forward);
+                let next = super::post_options::pick(
+                    crate::settings::GraphicsQuality::offered(s.renderer),
+                    s.appearance.quality,
+                    forward,
+                );
                 s.select_graphics_quality(next);
                 *changed = s.appearance_layer().or(*changed);
             }

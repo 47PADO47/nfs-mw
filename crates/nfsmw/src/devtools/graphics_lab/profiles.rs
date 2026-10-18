@@ -38,6 +38,13 @@ impl Tab {
     }
 }
 pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
+    saved::show(ui, lab, settings);
+    if let Some(message) = &lab.message {
+        ui.small(message);
+    }
+    if !super::view::blackbox(lab, settings) {
+        return;
+    }
     ui.horizontal_wrapped(|ui| {
         ui.label("Visual style:");
         for style in VisualStyle::ALL {
@@ -47,60 +54,16 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
             }
         }
     });
-    if settings.appearance.style == VisualStyle::OriginalPc {
-        ui.small("Original PC is incomplete. See Diagnostics for remaining parity gaps.");
-    }
-    if settings.visual_style() == VisualStyle::Custom && settings.appearance.style != VisualStyle::Custom {
-        ui.small(format!("Custom overrides based on {}.", settings.appearance.style.label()));
-    }
-    ui.horizontal_wrapped(|ui| {
-        if ui.button("Save profile").clicked() {
-            lab.save_requested = true;
-        }
-        if ui.button("Load saved").clicked() {
-            let result = lab.profile_path.as_deref().ok_or_else(|| "No settings folder".to_owned()).and_then(|path| {
-                let text = std::fs::read_to_string(path).map_err(|e| format!("Cannot load saved graphics: {e}"))?;
-                saved::restore(settings, &text).map_err(|e| format!("Cannot load saved graphics: {e:#}"))?;
-                lab.options = settings.appearance.lighting;
-                Ok(())
-            });
-            lab.message = Some(match result {
-                Ok(_) => "Saved graphics loaded.".into(),
-                Err(e) => e,
-            });
-        }
-        if ui.button("Reset section").clicked() {
-            reset(lab, settings);
-        }
-    });
-    if let Some(message) = &lab.message {
-        ui.small(message);
-    }
-    if let Some(caps) = lab.caps {
-        let resolved = blackbox_gfx::resolve(&settings.graphics(), &caps);
-        if !resolved.downgrades.is_empty() {
-            ui.small("Renderer limits affect the preview; your requested settings can still be saved and loaded.");
-        }
-        for downgrade in resolved.downgrades {
-            if downgrade.setting == blackbox_gfx::Setting::Shadows && lab.stats.supported && lab.options.sun_shadows {
-                ui.small("F8 dynamic shadows are active; the separate Video soft-shadow option is unavailable on this renderer.");
-                continue;
-            }
-            ui.colored_label(egui::Color32::YELLOW, format!("{}: {}", downgrade.setting, downgrade.reason));
-        }
-    }
-    saved::show(ui, lab, settings);
 }
-fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
-    let mut defaults = *settings;
-    let style = match settings.appearance.style {
-        VisualStyle::Custom => VisualStyle::Enhanced,
-        v => v,
-    };
-    defaults.select_visual_style(style);
+
+pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
+    if !super::view::blackbox(lab, settings) && !matches!(lab.tab, Tab::Detail | Tab::Traffic) {
+        super::bevy::reset(lab.tab, settings);
+        return;
+    }
+    let defaults = defaults(settings);
     match lab.tab {
         Tab::Look => {
-            settings.appearance.display = Default::default();
             settings.post_aa = defaults.post_aa;
             settings.post_bloom = defaults.post_bloom;
             settings.post_tonemap = defaults.post_tonemap;
@@ -114,7 +77,7 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             lab.options.lighting_debug = settings.appearance.lighting.lighting_debug;
         }
         Tab::Materials => {
-            settings.texture_filtering = crate::settings::TextureFiltering::default();
+            settings.texture_filtering = defaults.texture_filtering;
             lab.options.original_world_materials = defaults.appearance.lighting.original_world_materials;
             settings.reflections = defaults.reflections;
             settings.road_reflections = defaults.road_reflections;
@@ -129,11 +92,13 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.traffic_avoidance = false;
         }
         Tab::Detail => {
-            settings.detail = Default::default();
+            settings.detail = defaults.detail;
         }
         Tab::Effects => {
             settings.ao = defaults.ao;
             settings.ao_intensity = defaults.ao_intensity;
+            settings.ao_depth_mips = defaults.ao_depth_mips;
+            settings.ao_method = defaults.ao_method;
             settings.ao_compare = false;
         }
         Tab::Diagnostics => {
@@ -146,7 +111,28 @@ fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
         }
     }
 }
-pub(super) fn diagnostics(ui: &mut egui::Ui) {
+pub(super) fn defaults(settings: &Settings) -> Settings {
+    let mut defaults = Settings::from(crate::settings::Partial::default());
+    defaults.renderer = settings.renderer;
+    defaults.appearance.quality = settings.appearance.quality;
+    let style = match settings.appearance.style {
+        VisualStyle::Custom => VisualStyle::Enhanced,
+        v => v,
+    };
+    defaults.select_visual_style(style);
+    defaults
+}
+
+pub(super) fn diagnostics(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &Settings) {
+    if let Some(caps) = lab.caps {
+        for downgrade in blackbox_gfx::resolve(&settings.graphics(), &caps).downgrades {
+            ui.colored_label(egui::Color32::YELLOW, format!("{}: {}", downgrade.setting, downgrade.reason));
+        }
+    }
+    if !super::view::blackbox(lab, settings) {
+        ui.label("Bevy controls follow the active renderer's capabilities. Black Box experiments remain stored.");
+        return;
+    }
     ui.label(crate::settings::appearance::registry::REFERENCE_POLICY);
     ui.separator();
     for feature in crate::settings::appearance::registry::FEATURES {

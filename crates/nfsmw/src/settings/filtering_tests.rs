@@ -17,16 +17,17 @@ fn filtering_persistence_layers_and_capability_fallback_preserve_the_request() {
 }
 
 #[test]
-fn style_quality_and_legacy_presets_leave_the_filtering_choice_independent() {
+fn quality_presets_keep_16x_while_legacy_presets_preserve_manual_filtering() {
     let mut stored =
         Settings::from(Partial { texture_filtering: Some(TextureFiltering::Trilinear), ..Default::default() });
     for style in VisualStyle::ALL {
         stored.select_visual_style(style);
         for quality in GraphicsQuality::ALL {
             stored.select_graphics_quality(quality);
-            assert_eq!(stored.texture_filtering, TextureFiltering::Trilinear);
+            assert_eq!(stored.texture_filtering, TextureFiltering::Anisotropic16);
         }
     }
+    stored.texture_filtering = TextureFiltering::Trilinear;
     for preset in GraphicsPreset::ALL {
         stored.apply_preset(preset);
         assert_eq!(stored.texture_filtering, TextureFiltering::Trilinear);

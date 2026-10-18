@@ -40,6 +40,7 @@ pub(super) fn fit(
     params.matrices[0] = fit.clip_from_world.to_cols_array();
     params.splits = [far; 4];
     params.options = [1.0, settings.shadow_resolution as f32, 0.0, 0.0];
+    params.resolutions = [settings.shadow_resolution as f32; 4];
     params.camera = frame.camera_position.extend(1.0).to_array();
     params.forward = inverse.transform_vector3(Vec3::NEG_Z).extend(0.0).to_array();
     params.sun = sun.extend(0.0).to_array();

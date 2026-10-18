@@ -152,7 +152,8 @@ fn temporal_upscaling_keeps_hdr_highlights_and_display_mapping_after_capture() {
     for _ in 0..8 {
         r.render(&bright, &[]).unwrap();
     }
-    assert_eq!(r.post_passes(), ["fsr3", "hdr-display", "resolve"]);
+    // The presentation copy is deliberately omitted by post_passes().
+    assert_eq!(r.post_passes(), ["fsr3", "hdr-display"]);
     let super::output::Output::Texture { texture, .. } = &r.output else { unreachable!() };
     let pixels = r.read_raw_texture(texture, (64, 32), 8).unwrap();
     for pixel in pixels.as_chunks::<8>().0 {
@@ -162,7 +163,7 @@ fn temporal_upscaling_keeps_hdr_highlights_and_display_mapping_after_capture() {
     let mapping = r.post.display;
     r.capture(32, 16, &bright, &[]).unwrap();
     assert_eq!(r.post.display, mapping);
-    assert_eq!(r.post_passes(), ["fsr3", "hdr-display", "resolve"]);
+    assert_eq!(r.post_passes(), ["fsr3", "hdr-display"]);
     r.render(&bright, &[]).unwrap();
 }
 

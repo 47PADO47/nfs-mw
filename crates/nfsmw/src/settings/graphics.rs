@@ -39,6 +39,8 @@ impl Settings {
                 quality: self.ao,
                 intensity: self.ao_intensity.amplitude(),
                 compare: self.ao_compare,
+                depth_mips: self.ao_depth_mips,
+                method: self.ao_method,
                 ..AoSettings::default()
             },
         }

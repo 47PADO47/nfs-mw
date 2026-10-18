@@ -13,6 +13,33 @@ use blackbox_gfx_testkit::camera::Camera;
 
 const SIZE: (u32, u32) = (160, 90);
 
+#[test]
+#[ignore = "needs a GPU"]
+fn hdr_and_srgb_outputs_capture_an_sdr_mirror_and_restore_the_main_output() {
+    let _gpu = test_support::serial();
+    let Some(mut renderer) = test_support::headless((64, 36)) else { return };
+    let frame = clear_frame([2.0, 0.25, 0.05]);
+    renderer.ui.set_hdr_white(Some(203.0));
+    for format in [wgpu::TextureFormat::Rgba16Float, wgpu::TextureFormat::Bgra8UnormSrgb] {
+        renderer.output = super::output::Output::texture_format(&renderer.device, (64, 36), format);
+        for mapping in [None, Some(super::post::display::Mapping { peak: 5.0, white: 203.0, linear: true })] {
+            renderer.post.set_display(&renderer.device, mapping);
+            let expected = renderer.capture(16, 9, &frame, &[]).unwrap();
+            let id = renderer.request_view_capture([16, 9], &frame, &[]).unwrap();
+            assert_eq!(renderer.output.format(), format);
+            assert_eq!(renderer.post.display, mapping);
+            assert_eq!(renderer.ui.hdr_white(), Some(203.0));
+            let image = poll_until_ready(&mut renderer, id).expect("HDR mirror picture completes");
+            for y in 0..9 {
+                for x in 0..16 {
+                    let offset = ((y * 16 + x) * 4) as usize;
+                    assert_eq!(&image.pixel(x, y).unwrap()[..], &expected[offset..offset + 4]);
+                }
+            }
+        }
+    }
+}
+
 fn clear_frame(color: [f32; 3]) -> FrameParams {
     FrameParams {
         view: Mat4::IDENTITY,

@@ -69,7 +69,7 @@ fn vs_main(v: Input) -> Output {
     }
     return out;
 }
-fn shade(in: Output) -> vec4<f32> {
+fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
     let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
     let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
@@ -94,7 +94,9 @@ fn shade(in: Output) -> vec4<f32> {
     }
     var q = 1.0;
     if globals.fog_range.w<0.5 { q = direct_visibility(in.world,plane,in.clip.xy); }
-    var rgb = 2.0*(tex.rgb*in.ambient.rgb+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected)*in.extinction+in.scatter;
+    var ao = 1.0;
+    if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
+    var rgb = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected)*in.extinction+in.scatter;
     if globals.scatter_rayleigh.w<0.5 {
         let distance = length(in.world-globals.camera_pos.xyz);
         let fog = clamp((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001),0.0,1.0);
@@ -103,13 +105,13 @@ fn shade(in: Output) -> vec4<f32> {
     if uv_offset.value.z>0.5 { return extended_output(vec4(rgb,1.0)); }
     return extended_output(vec4(rgb,tex.a*in.ambient.a));
 }
-@fragment fn fs_opaque(in: Output) -> @location(0) vec4<f32> { return vec4(shade(in).rgb,1.0); }
+@fragment fn fs_opaque(in: Output) -> @location(0) vec4<f32> { return vec4(shade(in,true).rgb,1.0); }
 @fragment fn fs_alpha_test(in: Output) -> @location(0) vec4<f32> {
-    let color = shade(in);
+    let color = shade(in,true);
     if color.a<0.5 { discard; }
     return vec4(color.rgb,1.0);
 }
-@fragment fn fs_blend(in: Output) -> @location(0) vec4<f32> { return shade(in); }
+@fragment fn fs_blend(in: Output) -> @location(0) vec4<f32> { return shade(in,false); }
 
 // HDR-only extension of final RGB; intermediate authored arithmetic remains intact.
 fn extended_output(c:vec4<f32>)->vec4<f32> {

@@ -1,19 +1,28 @@
 //! Prototype raster sun visibility. Separate caster lists never enter the colour pass.
 #[cfg(test)]
 mod coverage_tests;
+#[cfg(test)]
+mod density_tests;
 mod fit;
 #[cfg(test)]
 mod foliage_tests;
+mod grid;
 pub(in crate::gpu) mod maps;
+#[cfg(test)]
+mod motion_tests;
 mod pipelines;
 mod projected;
 mod projected_fit;
+#[cfg(test)]
+mod sampling_tests;
 #[cfg(test)]
 mod stability_tests;
 #[cfg(test)]
 mod surface_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod wide_tests;
 
 use super::{Renderer, instances::InstanceBuffer};
 use blackbox_gfx::{BlendMode, ExperimentStats, FrameParams, Instance, Shading};
@@ -22,6 +31,7 @@ use glam::{Mat4, Vec3, Vec4};
 use std::time::Instant;
 
 pub(super) struct Shadows {
+    grid: grid::Grid,
     bias: [f32; 2],
     opaque: wgpu::RenderPipeline,
     cutout: wgpu::RenderPipeline,
@@ -82,7 +92,10 @@ impl Renderer {
                     let shadows = self.shadows.as_mut().expect("prepared bounds");
                     projected::fit(frame, settings, &shadows.bounds, &mut shadows.fit_points)
                 }
-                None => fit::fit(frame, settings, &self.shadows.as_ref().expect("prepared bounds").bounds),
+                None => {
+                    let shadows = self.shadows.as_mut().expect("prepared bounds");
+                    fit::fit_with_grid(frame, settings, &shadows.bounds, &mut shadows.grid)
+                }
             })
             .flatten();
         let resolution = fit.as_ref().map_or(1, |_| settings.shadow_resolution);
@@ -90,12 +103,18 @@ impl Renderer {
             true => 1,
             false => 4,
         };
-        if self.shared.shadows.resolution != resolution || self.shared.shadows.layer_count != layers {
+        let detail = (fit.is_some() && settings.shadow_projection.is_none() && settings.wide_shadow_detail)
+            .then_some(settings.shadow_detail_resolution);
+        if self.shared.shadows.resolution != resolution
+            || self.shared.shadows.layer_count != layers
+            || self.shared.shadows.detail_resolution != detail
+        {
             self.shared.shadows = maps::Maps::new(
                 &self.device,
                 &self.shared.glossy.material,
                 resolution,
                 layers,
+                detail,
                 Some(self.shared.shadows.contact.clone()),
                 Some(self.shared.shadows.ambient.clone()),
             );
@@ -103,7 +122,11 @@ impl Renderer {
                 glossy.rebind_shadows(&self.device, &self.shared.shadows);
             }
         }
-        stats.map_mib = resolution * resolution * 4 * layers / (1024 * 1024);
+        let pixels = match detail {
+            Some(size) => size * size * 2 + resolution * resolution * (layers - 2),
+            None => resolution * resolution * layers,
+        };
+        stats.map_mib = pixels * 4 / (1024 * 1024);
         let mut params = fit.as_ref().map_or_else(fit::Params::zeroed, |f| f.params);
         params.options[3] = u8::from(settings.clearcoat) as f32;
         if settings.contact_shadows
@@ -182,9 +205,9 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            let size = settings.shadow_resolution as f32;
+            let size = fit.params.resolutions[cascade];
             pass.set_viewport(0.0, 0.0, size, size, 0.0, 1.0);
-            pass.set_scissor_rect(0, 0, settings.shadow_resolution, settings.shadow_resolution);
+            pass.set_scissor_rect(0, 0, size as u32, size as u32);
             pass.set_bind_group(0, &shadows.groups[cascade], &[]);
             pass.set_vertex_buffer(1, shadows.instances[cascade].buffer.slice(..));
             let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;

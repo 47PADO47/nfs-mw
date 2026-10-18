@@ -1,8 +1,11 @@
 //! F8 graphics lab: canonical previews, explicit persistence and reversible comparisons.
+mod bevy;
+mod controls;
 mod detail;
 mod display;
 mod environment;
 mod lighting;
+mod materials;
 mod presets;
 mod profiles;
 mod quality;
@@ -10,6 +13,8 @@ mod roads;
 mod saved;
 mod traffic;
 mod view;
+#[cfg(test)]
+mod workflow_tests;
 
 use crate::{
     app::{FrameSet, Host},
@@ -28,7 +33,7 @@ pub struct GraphicsLab {
     startup_options: Option<RenderExperiments>,
     tab: profiles::Tab,
     save_requested: bool,
-    preset_picker: crate::preset_store::Picker,
+    disk: saved::Presets,
     profile_path: Option<std::path::PathBuf>,
     message: Option<String>,
     caps: Option<blackbox_gfx::Capabilities>,
@@ -54,13 +59,16 @@ impl Default for GraphicsLab {
             Ok("sun") => LightingDebug::SunVisibility,
             Ok("ao") => LightingDebug::AmbientVisibility,
             Ok("cascades") => LightingDebug::Cascades,
+            Ok("blockers") => LightingDebug::ShadowBlockers,
+            Ok("penumbra") => LightingDebug::ShadowPenumbra,
             _ => LightingDebug::Off,
         };
         if std::env::var("NFSMW_LAB_WORLD_AMBIENT").as_deref() == Ok("0") {
             options.world_ambient = false;
         }
         Self {
-            open: !preset.is_empty() && std::env::var("NFSMW_LAB_OVERLAY").as_deref() != Ok("0"),
+            open: std::env::var("NFSMW_LAB_OVERLAY").as_deref() == Ok("1")
+                || (!preset.is_empty() && std::env::var("NFSMW_LAB_OVERLAY").as_deref() != Ok("0")),
             startup_options: (!preset.is_empty()
                 || std::env::var("NFSMW_LAB_FROZEN_SUN").is_ok()
                 || std::env::var("NFSMW_LAB_DEBUG").is_ok())
@@ -76,7 +84,7 @@ impl Default for GraphicsLab {
                 _ => profiles::Tab::Look,
             },
             save_requested: false,
-            preset_picker: Default::default(),
+            disk: Default::default(),
             profile_path: Settings::config_path(),
             message: None,
             caps: None,
@@ -231,23 +239,14 @@ pub fn show(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings,
             (false, _) => crate::settings::ShadowQuality::Off,
             (true, crate::settings::GraphicsQuality::Low) => crate::settings::ShadowQuality::Low,
             (true, crate::settings::GraphicsQuality::Balanced) => crate::settings::ShadowQuality::Medium,
-            (true, crate::settings::GraphicsQuality::High) => crate::settings::ShadowQuality::High,
+            (true, crate::settings::GraphicsQuality::High | crate::settings::GraphicsQuality::VeryHigh) => {
+                crate::settings::ShadowQuality::High
+            }
         };
     }
     if lab.save_requested {
         lab.save_requested = false;
-        let result =
-            lab.profile_path.as_deref().ok_or_else(|| anyhow::anyhow!("No settings folder")).and_then(|path| {
-                crate::settings::write_file(path, &settings.graphics_layer())?;
-                Ok(path.to_owned())
-            });
-        lab.message = Some(match result {
-            Ok(path) => {
-                log::info!("graphics profile saved to {}", path.display());
-                "Profile saved. Normal launches will restore these settings.".into()
-            }
-            Err(error) => format!("Could not save profile: {error:#}"),
-        });
+        saved::save_startup(lab, settings);
     }
 }
 

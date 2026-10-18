@@ -5,22 +5,38 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
     let receivers = lab.options.original_world_materials;
     ui.separator();
     ui.add_enabled_ui(supported && receivers, |ui| {
-        egui::ComboBox::from_label("Road reflection detail").selected_text(settings.road_reflections.label()).show_ui(
-            ui,
-            |ui| {
-                for value in crate::settings::RoadReflections::ALL {
-                    ui.selectable_value(&mut settings.road_reflections, value, value.label());
-                }
-            },
-        );
-        ui.add_enabled_ui(settings.road_reflections != crate::settings::RoadReflections::Off, |ui| {
-            egui::ComboBox::from_label("Road reflection resolution")
-                .selected_text(settings.road_reflection_resolution.label())
+        let defaults = super::profiles::defaults(settings);
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_label("Road reflection detail")
+                .selected_text(settings.road_reflections.label())
                 .show_ui(ui, |ui| {
-                    for value in crate::settings::RoadReflectionResolution::ALL {
-                        ui.selectable_value(&mut settings.road_reflection_resolution, value, value.label());
+                    for value in crate::settings::RoadReflections::ALL {
+                        ui.selectable_value(&mut settings.road_reflections, value, value.label());
                     }
                 });
+            super::controls::reset(
+                ui,
+                &mut settings.road_reflections,
+                defaults.road_reflections,
+                "Road reflection detail",
+            );
+        });
+        ui.add_enabled_ui(settings.road_reflections != crate::settings::RoadReflections::Off, |ui| {
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_label("Road reflection resolution")
+                    .selected_text(settings.road_reflection_resolution.label())
+                    .show_ui(ui, |ui| {
+                        for value in crate::settings::RoadReflectionResolution::ALL {
+                            ui.selectable_value(&mut settings.road_reflection_resolution, value, value.label());
+                        }
+                    });
+                super::controls::reset(
+                    ui,
+                    &mut settings.road_reflection_resolution,
+                    defaults.road_reflection_resolution,
+                    "Road reflection resolution",
+                );
+            });
         });
     });
     if !supported {

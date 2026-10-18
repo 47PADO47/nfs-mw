@@ -201,6 +201,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         ao: Some(s.ao),
         ao_intensity: Some(s.ao_intensity),
         ao_compare: Some(s.ao_compare),
+        ao_depth_mips: Some(s.ao_depth_mips),
+        ao_method: Some(s.ao_method),
         render_scale: Some(s.render_scale),
         upscaler: Some(s.upscaler),
         upscale_sharpness: Some(s.upscale_sharpness),
@@ -339,6 +341,7 @@ mod tests {
         settings.game_speed = 0.5;
         settings.traffic = 7;
         settings.ao_compare = !settings.ao_compare;
+        settings.ao_depth_mips = !settings.ao_depth_mips;
         settings.paddle_up = Some(0x1234);
         let name = save_new_alias(&store, &settings).unwrap();
         assert_eq!(load_latest_alias(&store).unwrap(), Some((name, settings)));
