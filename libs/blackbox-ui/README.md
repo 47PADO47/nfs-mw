@@ -27,8 +27,11 @@ Design decision: `docs/decisions/0008-ui-themes.md`.
 - **`Skin`** is the values a theme hands to its components: colours, font keys, texture keys and
   metrics, each looked up by name. A component reads its look from the skin, so one component renders
   differently under different themes. Unknown keys return `None`, and the component picks its default.
-- **`DrawList`** is the flat output: a list of `DrawNode`s with a draw order (`z`). `in_draw_order`
-  returns the nodes sorted by `z`, with ties kept in insertion order.
+- **`DrawList`** is the flat output: a list of `UiNode`s, the same neutral node the presenter draws.
+  `in_draw_order` returns the nodes sorted by `z`, with ties kept in insertion order. `into_tree(drawn)`
+  turns the list into a `UiTree` (nodes plus `draw_order`); see the next section.
+- **`UiNode`, `UiTree`, `NodeKind`** are the neutral draw tree (`src/tree.rs`). They were moved here from
+  `blackbox-feng` in task T3 and are re-exported from `blackbox-feng` unchanged.
 - **`InputEvent`** is small on purpose: a pad button press or release, or a pointer move, press or
   release. A host translates device events into these.
 - **`Empty`** is a component with no size and no output. The resolver returns it only if no theme,
@@ -57,16 +60,25 @@ Design decision: `docs/decisions/0008-ui-themes.md`.
 The resolver is the migration path. A theme only needs the slots it has converted. Everything else
 renders from Original, so a partly converted theme still draws a complete UI.
 
-## Seam for the draw tree
+## The draw tree
 
-`DrawNode` in `src/draw.rs` is a placeholder for the neutral draw node that already exists in
-`libs/blackbox-feng/src/tree/mod.rs` (`UiTree`, `UiNode`, `NodeKind`). The move of those types into this
-crate is a separate step; the seam is marked with a `T3:` comment in `draw.rs`. Until that step lands,
-nothing outside this crate reads `DrawNode`. The `z` draw order carries over unchanged.
+`src/tree.rs` holds the neutral tree that a presenter draws: `UiTree { nodes, draw_order }`, one `UiNode`
+per object (transform, colours, `z`, visibility, kind), and `NodeKind` (`Group`, `Image`, `Text`, `Other`).
+Texture and font fields are opaque `u32` keys. The types were relocated unchanged from `blackbox-feng`
+(task T3): the only addition is `Default` on `NodeKind` and `UiNode`, so a node can be built with
+`..UiNode::default()`. The FEng producer (`blackbox-feng`, `Runtime::tree`) and component producers both
+emit this tree; the presenter in `crates/nfsmw/src/ui/present/` reads it and nothing else.
+
+`DrawList::into_tree(drawn)` builds the `UiTree` from a component's output. The caller supplies `drawn`, the
+rule that picks which nodes enter `draw_order`. The library holds no default rule, because the depth and
+visibility conventions belong to the producer. The FEng producer uses `visible && z > 0 && kind is neither
+Group nor Other`. Entries in `draw_order` run farthest first (largest `z`), and the sort is stable, so later
+nodes draw on top of earlier ones at the same depth.
 
 ## Dependencies
 
-Only `thiserror` (for `ThemeError`). No Bevy, no wgpu, no `blackbox-feng` (that dependency runs the other
-way, feng depends on this crate), no NFS:MW names or paths, and no `unsafe`.
+`glam` (for the `Mat4`, `Quat` and `Vec3` fields of the draw tree) and `thiserror` (for `ThemeError`). No
+Bevy, no wgpu, no `blackbox-feng` (that dependency runs the other way: feng depends on this crate), no NFS:MW
+names or paths, and no `unsafe`.
 
 License: MIT OR Apache-2.0.

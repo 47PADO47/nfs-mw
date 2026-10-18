@@ -26,8 +26,9 @@ FEng, the presenter or a theme. Themes read the same state the Original code rea
 
 ## 2. The neutral draw tree
 
-The tree is the only output a theme produces. It exists today in `libs/blackbox-feng/src/tree/mod.rs` and moves
-to `libs/blackbox-ui` (task T3). `blackbox-feng` re-exports the three types so existing paths still compile.
+The tree is the only output a theme produces. It lives in `libs/blackbox-ui/src/tree.rs` (moved from
+`libs/blackbox-feng/src/tree/mod.rs` in task T3). `blackbox-feng` re-exports the three types, so existing paths still compile.
+The FEng producer, `Runtime::tree`, stays in `blackbox-feng`.
 
 ```rust
 pub struct UiTree { pub nodes: Vec<UiNode>, pub draw_order: Vec<usize> }
@@ -49,6 +50,8 @@ pub enum NodeKind {
 Rules for the tree, which every producer keeps:
 
 - `draw_order` lists the visible drawable nodes, farthest first. Later entries draw on top. The order is stable.
+  The producer decides which nodes are drawable when it calls `DrawList::into_tree(drawn)`; `blackbox-ui`
+  holds no default rule.
 - `world` is the full transform. A presenter does not multiply parents.
 - `world_colour` is the colour after parent tinting. Producers set it; the presenter does not re-derive it.
 - `Image` with a `mask` is a gauge or a sweep: the game turns `mask_rotation` to fill it. `Gauge` (section 5)
@@ -74,8 +77,8 @@ pub trait Component {
   [hud-viewport.md](hud-viewport.md)); a component tree goes through the same call.
 - `build` appends the nodes for the current state. It emits `UiNode`s with parent links and `draw_order` entries.
 - `handle` returns `true` when the component used the event. The default ignores events.
-- `DrawList` wraps the growing `Vec<UiNode>` and the draw order. It hands out node indices and fills `parent`.
-  It does not own the tree; the caller turns it into a `UiTree`.
+- `DrawList` wraps the growing `Vec<UiNode>` in insertion order. `into_tree(drawn)` turns it into a `UiTree`:
+  the nodes keep their order, so `parent` indices stay valid, and `draw_order` is built from `drawn`.
 - `Rect`, `LayoutCx`, `EventCx` and `InputEvent` are small generic types in `blackbox-ui`. `InputEvent` is
   a neutral event, not the FEng message type (see [feng-input.md](feng-input.md) for the FEng side).
 
