@@ -133,14 +133,17 @@ extern "C" int bb_sl_tag_generation(const Image* images, const Frame* frame) {
     return static_cast<int>(p_slSetTagForFrame(*current_frame, viewport, tags, 4, nullptr));
 }
 
-extern "C" void bb_sl_presented(uint32_t* stats) {
+extern "C" int bb_sl_presented(uint32_t* stats) {
+    if (!generation_state) return -1;
     sl::DLSSGState state{};
-    if (generation_state && generation_state(viewport, state, nullptr) == sl::Result::eOk) {
+    auto result = generation_state(viewport, state, nullptr);
+    if (result == sl::Result::eOk) {
         presented = state.numFramesActuallyPresented;
         generation_error = static_cast<uint32_t>(state.status);
     }
     stats[0] = presented;
     stats[1] = generation_error;
+    return static_cast<int>(result);
 }
 
 extern "C" uint64_t bb_sl_markers(uint32_t marker) { return marker < 8 ? marker_counts[marker] : 0; }

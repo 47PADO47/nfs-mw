@@ -276,6 +276,7 @@ fn assemble(
         surfaces: None,
         reuse_prepass_depth: true,
         timing,
+        performance: Default::default(),
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
         temporal: Default::default(),

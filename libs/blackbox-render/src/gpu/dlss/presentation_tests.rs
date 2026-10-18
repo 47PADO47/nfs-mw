@@ -68,6 +68,8 @@ pub(super) fn exercise(
         renderer.set_display_settings(blackbox_gfx::DisplaySettings { hdr, ..Default::default() });
         eprintln!("Presentation display: {:?}", renderer.display_status());
         for generated in 1..=status.max_generated_frames.min(5) {
+            let before_presented = renderer.latency_status().presented_total.expect("SDK counter");
+            let before_rendered = renderer.frame_performance().rendered_frames;
             let mut saw_generated_present = false;
             for index in 0..32 {
                 window.pump();
@@ -89,6 +91,10 @@ pub(super) fn exercise(
                 saw_generated_present |= state.presented_frames == generated + 1;
             }
             assert!(saw_generated_present, "SDK must actually present generated frames, not merely accept options");
+            let performance = renderer.frame_performance();
+            assert_eq!(performance.rendered_frames - before_rendered, 32);
+            assert!(renderer.latency_status().presented_total.unwrap() - before_presented > 32);
+            assert!(performance.gpu_sample > 0 && performance.gpu_render_ms.is_some_and(|ms| ms > 0.0));
         }
     }
     if renderer.display_status().active {

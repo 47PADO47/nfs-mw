@@ -53,6 +53,8 @@ pub struct LatencyStatus {
     pub generation_active: bool,
     /// Actual frames presented since the preceding status sample, never an estimated multiplier.
     pub presented_frames: u32,
+    /// Cumulative SDK-reported presentations; None when the SDK cannot measure them.
+    pub presented_total: Option<u64>,
     pub driver_pacing: bool,
     pub note: &'static str,
 }

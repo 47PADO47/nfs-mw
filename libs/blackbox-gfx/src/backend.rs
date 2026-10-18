@@ -60,6 +60,10 @@ pub trait RenderBackend {
     /// render scale.
     fn render_size(&self) -> [u32; 2];
 
+    fn frame_performance(&self) -> crate::FramePerformance {
+        Default::default()
+    }
+
     /// Session-only prototypes; unsupported renderers keep defaults.
     /// SDR is retained by backends without explicit HDR presentation support.
     fn set_display_settings(&mut self, _settings: crate::DisplaySettings) {}

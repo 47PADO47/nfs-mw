@@ -22,7 +22,9 @@ impl Renderer {
         let device = self.device.clone();
         let queue = self.queue.clone();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        if let Some(timing) = &mut self.timing {
+        if scene.is_none()
+            && let Some(timing) = &mut self.timing
+        {
             timing.begin(&device, &mut encoder);
         }
         #[cfg(all(windows, feature = "streamline"))]
@@ -40,11 +42,15 @@ impl Renderer {
             if hudless.is_none() {
                 self.encode_ui(&mut encoder, output, size);
             }
-            if let Some(timing) = &mut self.timing {
+            if scene.is_none()
+                && let Some(timing) = &mut self.timing
+            {
                 timing.finish(&mut encoder);
             }
             queue.submit([encoder.finish()]);
-            if let Some(timing) = &mut self.timing {
+            if scene.is_none()
+                && let Some(timing) = &mut self.timing
+            {
                 timing.submitted();
             }
             self.smaa = None;
@@ -85,11 +91,15 @@ impl Renderer {
         if hudless.is_none() {
             self.encode_ui(&mut encoder, output, size);
         }
-        if let Some(timing) = &mut self.timing {
+        if scene.is_none()
+            && let Some(timing) = &mut self.timing
+        {
             timing.finish(&mut encoder);
         }
         queue.submit([encoder.finish()]);
-        if let Some(timing) = &mut self.timing {
+        if scene.is_none()
+            && let Some(timing) = &mut self.timing
+        {
             timing.submitted();
         }
         self.end_temporal();

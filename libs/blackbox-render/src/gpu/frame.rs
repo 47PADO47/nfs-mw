@@ -23,6 +23,7 @@ impl Renderer {
             self.presentation.render_start();
             self.prepare_generation(frame);
         }
+        let acquire_started = std::time::Instant::now();
         let (surface_texture, view) = match &self.output {
             Output::Window { surface, config } => {
                 let texture = match surface.get_current_texture() {
@@ -44,12 +45,16 @@ impl Renderer {
             }
             Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
+        self.performance.acquire_wait_ms = acquire_started.elapsed().as_secs_f32() * 1000.0;
+        let submit_started = std::time::Instant::now();
         self.submit_frame(None, &view, self.surface_size(), frame, instances);
+        self.performance.cpu_render_ms = submit_started.elapsed().as_secs_f32() * 1000.0;
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             self.presentation.marker(3);
             self.presentation.marker(4);
         }
+        let present_started = std::time::Instant::now();
         match surface_texture {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
@@ -60,6 +65,8 @@ impl Renderer {
             self.presentation.marker(5);
             self.presentation.finish();
         }
+        self.performance.present_wait_ms = present_started.elapsed().as_secs_f32() * 1000.0;
+        self.performance.rendered_frames += 1;
         self.count_frame();
         Ok(true)
     }

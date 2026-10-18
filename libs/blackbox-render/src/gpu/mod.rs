@@ -102,6 +102,7 @@ pub struct Renderer {
     surfaces: Option<surface::Surfaces>,
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,
+    performance: blackbox_gfx::FramePerformance,
     render_scale: f32,
     upscale: upscale::Upscale,
     /// The jitter, motion vectors and history of the temporal upscaler (FSR 3).

@@ -48,7 +48,9 @@ fn dlss_sdk_evaluates_quality_modes_and_dlaa_on_gpu() {
     assert_eq!(renderer.render_size(), (800, 450));
     renderer.render(&built.frame, &built.instances).expect("DLAA after resize");
     let before = unsafe { super::native::bb_sl_evaluations() };
+    let rendered_before = renderer.frame_performance().rendered_frames;
     renderer.capture(320, 180, &built.frame, &built.instances).expect("independent screenshot");
+    assert_eq!(renderer.frame_performance().rendered_frames, rendered_before, "captures do not count as game frames");
     assert_eq!(unsafe { super::native::bb_sl_evaluations() }, before, "captures must not evaluate DLSS");
     renderer.render(&built.frame, &built.instances).expect("DLAA after capture");
     assert_eq!(unsafe { super::native::bb_sl_evaluations() }, before + 1);

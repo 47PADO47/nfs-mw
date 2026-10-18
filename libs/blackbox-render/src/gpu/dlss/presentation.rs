@@ -13,7 +13,7 @@ unsafe extern "C" {
     fn bb_sl_generation(count: u32, width: u32, height: u32) -> i32;
     fn bb_sl_suspend();
     fn bb_sl_tag_generation(images: *const native::Image, frame: *const native::Frame) -> i32;
-    fn bb_sl_presented(stats: *mut u32);
+    fn bb_sl_presented(stats: *mut u32) -> i32;
     #[cfg(test)]
     pub(super) fn bb_sl_markers(marker: u32) -> u64;
 }
@@ -78,14 +78,17 @@ impl Presentation {
 
     pub(in crate::gpu) fn finish(&mut self) {
         let mut stats = [0; 2];
-        unsafe {
-            bb_sl_presented(stats.as_mut_ptr());
+        let result = unsafe {
+            let result = bb_sl_presented(stats.as_mut_ptr());
             bb_sl_end();
-        }
+            result
+        };
         self.token_open = false;
         self.status.presented_frames = stats[0];
-        if self.status.generation_active && stats[1] != 0 {
-            log::error!("DLSS frame generation runtime status: {}", stats[1]);
+        self.status.presented_total =
+            (result == 0).then(|| self.status.presented_total.unwrap_or(0) + u64::from(stats[0]));
+        if self.status.generation_active && (stats[1] != 0 || result != 0) {
+            log::error!("DLSS frame generation state query {result}, runtime status: {}", stats[1]);
             self.failed = true;
             self.disable();
             self.status.note = "Frame generation stopped after a runtime error; restart to retry.";

@@ -278,6 +278,15 @@ impl RenderBackend for Renderer {
         self.poll_view_capture(id.raw())
     }
 
+    fn frame_performance(&self) -> blackbox_gfx::FramePerformance {
+        let mut performance = self.performance;
+        if let Some(timing) = &self.timing {
+            performance.gpu_render_ms = timing.latest.map(|sample| sample[0]);
+            performance.gpu_sample = timing.completed;
+        }
+        performance
+    }
+
     fn stats(&self) -> RenderStats {
         let (meshes, textures) = self.resource_counts();
         RenderStats {

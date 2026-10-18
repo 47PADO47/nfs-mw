@@ -19,6 +19,7 @@ pub(super) struct Timing {
     next: usize,
     period: f32,
     pub latest: Option<[f32; 4]>,
+    pub completed: u64,
 }
 
 impl Timing {
@@ -55,6 +56,7 @@ impl Timing {
             next: 0,
             period: queue.get_timestamp_period(),
             latest: None,
+            completed: 0,
         })
     }
 
@@ -77,6 +79,7 @@ impl Timing {
                     sample[i] = ticks[i * 2 + 1].saturating_sub(ticks[i * 2]) as f32 * self.period / 1_000_000.0;
                 }
                 self.latest = Some(sample);
+                self.completed += 1;
             }
             slot.readback.unmap();
             slot.state.store(0, Ordering::Release);
