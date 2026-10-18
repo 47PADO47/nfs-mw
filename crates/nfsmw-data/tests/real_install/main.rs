@@ -7,6 +7,7 @@
 //!
 //! Without `NFSMW_GAME_DIR` they pass without checking anything.
 
+mod career;
 mod carparts;
 mod cars;
 mod compare;
