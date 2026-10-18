@@ -122,7 +122,11 @@ pub fn milestones(db: &Database) -> Vec<Milestone> {
 
 /// Every speed trap of the database, sorted by bin and then name.
 pub fn speed_traps(db: &Database) -> Vec<SpeedTrap> {
-    let mut out: Vec<SpeedTrap> = instances(db).filter(|c| inherits(*c, "speedtrap")).map(speed_trap).collect();
+    // Race and challenge events have speed traps of their own; the career ones are `speedtraps/bin_NN/...`.
+    let mut out: Vec<SpeedTrap> = instances(db)
+        .filter(|c| inherits(*c, "speedtrap") && name_of(*c).starts_with("speedtraps/bin_"))
+        .map(speed_trap)
+        .collect();
     out.sort_by(|a, b| a.bin.cmp(&b.bin).then_with(|| a.name.cmp(&b.name)));
     out
 }
