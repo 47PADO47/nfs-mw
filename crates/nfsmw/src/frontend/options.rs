@@ -64,6 +64,9 @@ pub enum Setting {
     Mod(u64),
     /// The on/off switch of a listed mod, by its position in the mod manager's list (`mod_options.rs`).
     ModManaged(usize),
+    /// The UI theme the Mods page chooses among the mods' themes (`bb.ui`), or the built-in style. Its value is kept by
+    /// the bridge, not the settings (`mod_options.rs`).
+    ModTheme,
 }
 
 /// What a row's title shows.
@@ -305,8 +308,9 @@ impl Setting {
         let before = *s;
         match self {
             Setting::AdvancedGraphics => return false,
-            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
-            Setting::Mod(_) | Setting::ModManaged(_) => return false,
+            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
+            // bridge too.
+            Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
