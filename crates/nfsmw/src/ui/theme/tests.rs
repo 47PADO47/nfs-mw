@@ -92,9 +92,9 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {
-        // Custom fills no slot yet, so every slot falls back to Original: the HUD slots get their adapter (which
-        // draws nothing from an empty frame cell) and the menu slots get the empty component. The check is that
-        // resolution and build run for every slot without panicking.
+        // Custom fills no slot yet, so every slot falls back to Original: the HUD and menu slots get their adapters,
+        // which draw nothing from an empty frame cell. The check is that resolution and build run for every slot
+        // without panicking.
         let component = themes.resolve(slot.slot(), &BuildCx::new(&skin));
         let mut out = DrawList::new();
         component.build(&mut out);

@@ -377,16 +377,17 @@ fn clearing_one_source_leaves_the_others_drawn() {
     assert_eq!(indices(&emitted(&frame, ElementId::RadioCard)), vec![0]);
 }
 
+/// The every-slot invariant (T8, `docs/specs/ui-themes.md` section 7): the Original theme returns a component for every
+/// slot of the MW catalogue, HUD, menu and career alike. An empty cell is enough: the adapters exist whether or not a
+/// tree is set. `build_themes` runs the same check at start-up.
 #[test]
-fn every_hud_slot_has_an_adapter_and_the_menu_slots_do_not_yet() {
+fn every_slot_has_an_original_adapter() {
     let frame = FrameCell::new();
     let theme = OriginalTheme::new(frame);
     let skin = Skin::new();
     for element in ElementId::ALL {
         let filled = theme.element(element.slot(), &BuildCx::new(&skin)).is_some();
-        let hud = element.raw() <= 11;
-        // Menu slots (raw 20 and up) are T8's. Until T8 lands they are `None`, and this assertion marks that.
-        assert_eq!(filled, hud, "{} filled={filled}", element.name());
+        assert!(filled, "the Original theme has no adapter for {}", element.name());
     }
 }
 
