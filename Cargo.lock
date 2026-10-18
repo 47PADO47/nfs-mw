@@ -1638,11 +1638,14 @@ dependencies = [
 name = "blackbox-render"
 version = "0.1.0"
 dependencies = [
+ "ash",
  "blackbox-gfx",
  "blackbox-gfx-testkit",
  "blackbox-gpu-passes",
  "blackbox-smaa",
  "bytemuck",
+ "cc",
+ "env_logger",
  "fsr3-wgpu",
  "glam 0.34.1",
  "half",

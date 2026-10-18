@@ -25,6 +25,10 @@ pub(super) use motion::MotionPass;
 /// What the upscale and the motion pass need to know about the frame being drawn.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::gpu) struct TemporalFrame {
+    #[cfg(all(windows, feature = "streamline"))]
+    pub projection: Mat4,
+    #[cfg(all(windows, feature = "streamline"))]
+    pub camera_to_world: Mat4,
     /// The sub-pixel offset of this frame's projection, in render pixels (right and down).
     pub jitter: Vec2,
     /// Moves clip space by the jitter after the projection.
@@ -71,7 +75,7 @@ impl Temporal {
     }
 
     /// Forget the last frame: this one was not drawn temporally, so the next starts a new history.
-    fn stop(&mut self) {
+    pub(super) fn stop(&mut self) {
         self.frame = None;
         self.previous = None;
         self.last = None;
@@ -89,13 +93,22 @@ fn jitter_matrix(ndc: Vec2) -> Mat4 {
 impl Renderer {
     /// Whether FSR 3 is the upscaler and this renderer can run it.
     pub(super) fn temporal_wanted(&self) -> bool {
-        self.upscaler() == Upscaler::Fsr3 && self.caps.upscalers.contains(Upscaler::Fsr3)
+        matches!(self.upscaler(), Upscaler::Fsr3 | Upscaler::Dlss) && self.caps.upscalers.contains(self.upscaler())
     }
 
     /// Decide whether the frame about to be drawn is a temporal one, and if so jitter it. `onscreen` is false
     /// for captures (a screenshot, the rear-view mirror), which draw at the output size with no history. They
     /// are drawn between the window's frames, so they leave the history alone.
     pub(super) fn begin_temporal(&mut self, onscreen: bool, frame: &FrameParams) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.upscaler() == Upscaler::Dlss
+            && self.dlss.as_ref().is_some_and(|runtime| runtime.failed.load(std::sync::atomic::Ordering::Acquire))
+        {
+            self.caps.upscalers.remove(Upscaler::Dlss);
+            let settings = self.graphics;
+            let fallback = blackbox_gfx::RenderBackend::apply_graphics(self, &settings);
+            log::warn!("DLSS evaluation failed; using {:?}", fallback.effective.upscaler);
+        }
         if !onscreen {
             self.temporal.frame = None;
             return;
@@ -123,6 +136,10 @@ impl Renderer {
         let previous = self.temporal.previous.replace(unjittered);
         let sharpness = self.upscale_sharpness();
         Some(TemporalFrame {
+            #[cfg(all(windows, feature = "streamline"))]
+            projection: frame.projection.matrix(),
+            #[cfg(all(windows, feature = "streamline"))]
+            camera_to_world: frame.view.inverse(),
             jitter,
             jitter_matrix: jitter_matrix(fsr3_wgpu::jitter::projection_offset_ndc(jitter, render)),
             unjittered,

@@ -120,6 +120,12 @@ impl RenderBackend for Renderer {
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
+        #[cfg(all(windows, feature = "streamline"))]
+        if effective.upscale_quality != self.graphics.upscale_quality {
+            self.post.set_temporal(None);
+            self.temporal.stop();
+            self.graphics.upscale_quality = effective.upscale_quality;
+        }
         Renderer::set_texture_filtering(self, effective.texture_filtering);
         Renderer::set_post_effects(self, effective.post);
         Renderer::set_upscaler(self, effective.upscaler);
@@ -134,6 +140,8 @@ impl RenderBackend for Renderer {
             self.ao = None;
         }
         self.graphics = effective;
+        #[cfg(all(windows, feature = "streamline"))]
+        self.sync_upscale_passes();
         resolved
     }
 

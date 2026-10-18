@@ -8,6 +8,38 @@ use crate::caps::native_capabilities;
 use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 use blackbox_gfx::{BackendInfo, GraphicsApi, GraphicsSettings};
 
+#[cfg(all(windows, feature = "streamline"))]
+type DlssRuntime = Option<super::dlss::Runtime>;
+#[cfg(not(all(windows, feature = "streamline")))]
+type DlssRuntime = ();
+
+fn create_instance(desc: wgpu::InstanceDescriptor, backend: Backend) -> (wgpu::Instance, DlssRuntime) {
+    #[cfg(all(windows, feature = "streamline"))]
+    if matches!(backend, Backend::Auto | Backend::Vulkan) {
+        match super::dlss::Runtime::create() {
+            Ok((instance, runtime)) => return (instance, Some(runtime)),
+            Err(error) => log::warn!("DLSS unavailable: {error}"),
+        }
+    }
+    let _ = backend;
+    (wgpu::Instance::new(desc), DlssRuntime::default())
+}
+
+fn attach_dlss(renderer: &mut Renderer, runtime: DlssRuntime) {
+    #[cfg(all(windows, feature = "streamline"))]
+    {
+        renderer.dlss = runtime;
+        if let Some(runtime) = &mut renderer.dlss {
+            runtime.check(&renderer.device);
+            if runtime.supported && renderer.hdr_format == targets::HDR_FORMAT {
+                renderer.caps.upscalers.insert(blackbox_gfx::Upscaler::Dlss);
+            }
+        }
+    }
+    #[cfg(not(all(windows, feature = "streamline")))]
+    let _ = (renderer, runtime);
+}
+
 pub(super) fn wgpu_backends(backend: Backend) -> wgpu::Backends {
     match backend {
         Backend::Auto => wgpu::Backends::PRIMARY | wgpu::Backends::GL,
@@ -37,7 +69,7 @@ where
 {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
     desc.backends = wgpu_backends(options.backend);
-    let instance = wgpu::Instance::new(desc);
+    let (instance, dlss) = create_instance(desc, options.backend);
     let surface = instance.create_surface(window).map_err(|e| RenderError::Surface(e.to_string()))?;
 
     let adapter = request_adapter(&instance, Some(&surface), &options)?;
@@ -56,12 +88,15 @@ where
 
     let info = adapter.get_info();
     let cache = blackbox_gpu_passes::pipeline_cache::open(&device, &info, options.pipeline_cache_dir.as_deref());
-    Ok(assemble(Output::Window { surface, config }, &adapter, device, queue, cache))
+    let mut renderer = assemble(Output::Window { surface, config }, &adapter, device, queue, cache);
+    attach_dlss(&mut renderer, dlss);
+    Ok(renderer)
 }
 
 pub(super) fn create_headless(size: (u32, u32), options: RendererOptions) -> Result<Renderer, RenderError> {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
     desc.backends = wgpu_backends(options.backend);
+    // Streamline needs presentation hooks every frame; an offscreen-only renderer cannot provide them.
     let instance = wgpu::Instance::new(desc);
     let adapter = request_adapter(&instance, None, &options)?;
     let (device, queue) = request_device(&adapter)?;
@@ -208,6 +243,8 @@ fn assemble(
     let timing = super::timing::Timing::new(&device, &queue);
     let display = super::display::Display::new(&output, adapter);
     let mut renderer = Renderer {
+        #[cfg(all(windows, feature = "streamline"))]
+        dlss: None,
         adapter: adapter.clone(),
         display,
         output,

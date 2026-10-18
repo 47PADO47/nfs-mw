@@ -6,7 +6,9 @@ upscale at the window's own resolution, so they stay sharp. Nothing changes at t
 
 ## Status
 
-- **DLSS** (`dlss`, `dlss-mock`): tested through the mock in the Bevy renderer. The real path is written but has
+- **Native DLSS** (`native-dlss`): optional Windows/Vulkan Streamline integration, including Super Resolution and
+  DLAA. Build/runtime details and validation requirements are in [native-dlss.md](native-dlss.md).
+- **Bevy DLSS** (`dlss`, `dlss-mock`): tested through the mock in the Bevy renderer. The real path is written but has
   not been compiled, because no NVIDIA DLSS SDK is installed where it was written. See [DLSS status](#dlss-status).
 - **FSR 3** (`fsr3`): wired into the Bevy renderer, with the world's depth and motion-vector prepass fixed, and into
   the native renderer ([below](#fsr-3-on-the-native-renderer)). The Bevy one is measured against native in
@@ -104,7 +106,8 @@ softer than AMD's reference value.
 
 ## DLSS status
 
-DLSS Super Resolution is offered by the Bevy renderer only (`libs/blackbox-bevy-render`). It has two builds:
+The native renderer offers DLSS through the optional [Streamline integration](native-dlss.md).
+The Bevy renderer (`libs/blackbox-bevy-render`) has its own separate integration with two builds:
 
 - `dlss-mock` is what has been tested here. A DLSS request runs as TAA plus the FSR 1 pass at the same render
   scale, so the caps, settings and apply path are exercised without an RTX GPU. The picture is not DLSS's.

@@ -301,3 +301,7 @@ RenoDX / PsychoV by Carlos Lopez Jr. (MIT), pinned at
 the full MIT notice in libs/blackbox-render/src/shaders/psychov/.
 See docs/provenance/psychov.md for defaults, conversion and numerical fixtures.
   https://github.com/clshortfuse/renodx
+NVIDIA Streamline 2.14.16 integration guidance (MIT-licensed SDK headers and documentation):
+https://github.com/NVIDIA-RTX/Streamline
+The optional native renderer bridge uses SDK headers supplied separately at build time.
+NVIDIA DLSS runtime binaries have separate distribution terms and are not included here.

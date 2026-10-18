@@ -35,6 +35,8 @@
 # Per-crate licence texts for ported third-party code (e.g. libs/blackbox-smaa/LICENSE-SMAA).
 !/libs/*/LICENSE-*
 !/libs/*/src/**/*.rs
+!/libs/blackbox-render/build.rs
+!/libs/blackbox-render/src/gpu/dlss/bridge.cpp
 !/libs/*/src/**/*.wgsl
 !/libs/*/src/**/*.wesl
 !/libs/*/tests/**/*.rs

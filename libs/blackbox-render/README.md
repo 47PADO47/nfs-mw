@@ -13,6 +13,11 @@ shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha tri
 
 License: MIT OR Apache-2.0.
 
+The optional `streamline` feature adds NVIDIA DLSS Super Resolution and DLAA on
+Windows/Vulkan. It needs SDK headers at build time and signed runtime plugins;
+see [native-dlss.md](../../docs/native-dlss.md). Unsupported devices and APIs use
+the existing upscaler fallback. Frame Generation is not included.
+
 Scene-owned additive mask filtering uses `set_focus_mask` once on scene entry,
 then `set_focus_filter` for retained uniform updates. The generic pass keeps its
 mask and cached pipelines across strength and user post-setting changes, runs

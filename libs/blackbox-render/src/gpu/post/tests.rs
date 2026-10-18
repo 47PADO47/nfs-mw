@@ -242,6 +242,10 @@ impl PostPass for Sizes {
 
 fn temporal_frame() -> TemporalFrame {
     TemporalFrame {
+        #[cfg(all(windows, feature = "streamline"))]
+        projection: glam::Mat4::IDENTITY,
+        #[cfg(all(windows, feature = "streamline"))]
+        camera_to_world: glam::Mat4::IDENTITY,
         jitter: glam::Vec2::ZERO,
         jitter_matrix: glam::Mat4::IDENTITY,
         unjittered: glam::Mat4::IDENTITY,
