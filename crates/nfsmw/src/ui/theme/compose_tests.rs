@@ -173,12 +173,31 @@ fn a_hidden_root_keeps_its_nodes_but_draws_none_of_them() {
 }
 
 #[test]
-fn the_custom_theme_keeps_every_hud_slot_original() {
+fn the_custom_theme_fills_the_drive_readouts_and_keeps_the_other_hud_slots_original() {
     let mut themes = UiThemes::build();
     themes.select(UiStyle::Custom);
     themes.frame().set(FengSource::Hud, synthetic_hud());
-    assert_eq!(themes.provided_by(ElementId::Tachometer), Some(ThemeId::Original));
-    assert_same(&hud_layer(&themes, 0.0), &expected_hud());
+    assert_eq!(themes.provided_by(ElementId::Tachometer), Some(ThemeId::Custom));
+    assert_eq!(themes.provided_by(ElementId::Speedometer), Some(ThemeId::Custom));
+    assert_eq!(themes.provided_by(ElementId::GearIndicator), Some(ThemeId::Custom));
+    for element in super::original::HUD_SLOTS {
+        if matches!(
+            element,
+            ElementId::Tachometer
+                | ElementId::Speedometer
+                | ElementId::GearIndicator
+                | ElementId::Nitrous
+                | ElementId::Turbo
+                | ElementId::Speedbreaker
+        ) {
+            continue;
+        }
+        assert_eq!(themes.provided_by(element), Some(ThemeId::Original), "{}", element.name());
+    }
+    // The Original tachometer and speedometer nodes are gone: the Custom readouts replace them.
+    let composed = hud_layer(&themes, 0.0);
+    assert!(!has_name(&composed, roots::tachometer().roots[0]), "the Original tachometer is still drawn");
+    assert!(!has_name(&composed, roots::speedometer().roots[0]), "the Original speedometer is still drawn");
 }
 
 #[test]

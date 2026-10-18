@@ -7,8 +7,8 @@
 use std::rc::Rc;
 
 use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_EXISTS, BB_ERR_NOT_FOUND};
-use blackbox_modding::host::{BackendResult, MAX_PRIMITIVES, UiBackend, UiPrim, UiThemeSpec};
-use blackbox_ui::{SlotId, Theme, ThemeId};
+use blackbox_modding::host::{BackendResult, MAX_PRIMITIVES, UiBackend, UiPrim, UiThemeSpec, UiTokens};
+use blackbox_ui::{SlotId, Theme, ThemeId, Tokens};
 use toml::Value;
 
 use super::bridge::Bridge;
@@ -96,6 +96,19 @@ pub fn step_choice(bridge: &Bridge, forward: bool) {
     }
 }
 
+/// The tokens the mod sent, as the theme registry holds them.
+fn to_tokens(tokens: &UiTokens) -> Tokens {
+    Tokens {
+        primary: tokens.primary,
+        secondary: tokens.secondary,
+        background: tokens.background,
+        border: tokens.border,
+        muted: tokens.muted,
+        radius: tokens.radius,
+        padding: tokens.padding,
+    }
+}
+
 /// A font or texture name a primitive may use: empty for none, else a name with no whitespace.
 fn name_ok(name: &str) -> bool {
     name.is_empty() || is_plain_name(name)
@@ -145,6 +158,14 @@ impl UiBackend for UiPort {
         let record = records.iter_mut().find(|record| record.handle == theme && record.owner == owner);
         let record = record.ok_or(BB_ERR_NOT_FOUND)?;
         record.theme.set_slot(element.slot(), prims.to_vec());
+        Ok(())
+    }
+
+    fn set_tokens(&self, owner: &str, theme: u64, tokens: &UiTokens) -> BackendResult<()> {
+        let mut records = self.0.ui_themes.borrow_mut();
+        let record = records.iter_mut().find(|record| record.handle == theme && record.owner == owner);
+        let record = record.ok_or(BB_ERR_NOT_FOUND)?;
+        record.theme.set_tokens(to_tokens(tokens));
         Ok(())
     }
 
