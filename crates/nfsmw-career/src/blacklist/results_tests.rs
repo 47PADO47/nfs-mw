@@ -1,6 +1,7 @@
 use super::*;
 use crate::blacklist::BinDef;
 use crate::milestones::speedtrap::def_for;
+use crate::milestones::{MilestoneDef, MilestoneState, StatType};
 use crate::settings::CareerSettings;
 use crate::stable::Stable;
 
@@ -145,4 +146,53 @@ fn bounty_total_and_challenge_series_flag_are_written() {
     assert_eq!(blacklist.bounty(), 5);
     assert!(outcome.bins_done.is_empty());
     assert!(career.flags.contains(Flags::CHALLENGE_SERIES_DONE));
+}
+
+#[test]
+fn a_new_career_enters_bin_15_at_the_first_visit() {
+    let mut career = CareerSettings::new_career();
+    let mut blacklist = Blacklist::new(defs(), 16).unwrap();
+    let milestone_defs =
+        vec![MilestoneDef { key: 1501, bin: 15, stat: StatType::CopsDamaged, threshold: 10.0, bounty: 50_000 }];
+    let mut milestones = MilestoneSet::new(&milestone_defs);
+    let mut traps = vec![SpeedTrap::new(def_for(15, 1, 7).unwrap())];
+    assert_eq!(milestones.state_of(1501), Some(MilestoneState::Locked));
+    assert!(!traps[0].unlocked());
+
+    let outcome = enter_first_bin(&mut career, &mut blacklist, &mut milestones, &mut traps);
+
+    assert_eq!(outcome.bins_entered, vec![15]);
+    assert_eq!(outcome.traps_unlocked, 1);
+    assert_eq!(outcome.cash_paid, 0);
+    assert_eq!(outcome.region_screen, None);
+    assert_eq!(blacklist.current_bin(), 15);
+    assert_eq!(career.stage, 15);
+    assert_eq!(milestones.state_of(1501), Some(MilestoneState::Active));
+    assert!(traps[0].unlocked());
+}
+
+#[test]
+fn a_second_first_visit_does_nothing() {
+    let mut career = CareerSettings::new_career();
+    let mut blacklist = Blacklist::new(defs(), 16).unwrap();
+    let mut milestones = MilestoneSet::new(&[]);
+    let mut traps = vec![SpeedTrap::new(def_for(15, 1, 7).unwrap())];
+    enter_first_bin(&mut career, &mut blacklist, &mut milestones, &mut traps);
+    let (career_after, blacklist_after) = (career.clone(), blacklist.clone());
+
+    let outcome = enter_first_bin(&mut career, &mut blacklist, &mut milestones, &mut traps);
+
+    assert_eq!(outcome, EventOutcome::default());
+    assert_eq!(career, career_after);
+    assert_eq!(blacklist, blacklist_after);
+    assert_eq!(career.stage, 15);
+}
+
+#[test]
+fn the_first_visit_is_skipped_at_any_other_stage() {
+    let (mut career, mut blacklist, mut milestones, mut traps, _) = start_at(14);
+    let outcome = enter_first_bin(&mut career, &mut blacklist, &mut milestones, &mut traps);
+    assert_eq!(outcome, EventOutcome::default());
+    assert_eq!(blacklist.current_bin(), 14);
+    assert_eq!(career.stage, 16, "the stage byte is not touched either");
 }

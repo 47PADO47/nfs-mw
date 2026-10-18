@@ -27,7 +27,7 @@ mod tests;
 
 pub use bin::{BinDef, BinRecord, BinState, SideBin};
 pub use gate::{Counters, challenge_button_active, rival_gate_open};
-pub use results::{EventOutcome, EventResult, apply_event_result};
+pub use results::{EventOutcome, EventResult, apply_event_result, enter_first_bin};
 
 use std::collections::BTreeMap;
 

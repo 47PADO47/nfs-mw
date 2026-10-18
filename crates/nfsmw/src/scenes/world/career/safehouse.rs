@@ -54,9 +54,29 @@ impl WorldScene {
             self.end_cool_down_pursuit();
             self.career.pursuit.note_safe_house_unload();
         }
+        self.enter_first_bin();
         self.career.requests.push_back(CareerRequest::SafeHouse { zone: name.to_owned() });
         log::info!("career: entering safe house {name} (cool-down evade: {cool_down})");
         true
+    }
+
+    /// The first safe house visit after the prologue (stage 16) enters Blacklist bin 15: the stage byte becomes 15 and the
+    /// bin's milestones and speed traps unlock. Done before the front end is asked, so the stepper reads stage 15. Any
+    /// later visit finds no stage 16 and changes nothing.
+    fn enter_first_bin(&mut self) {
+        let entered = self.career.handle.with(|career| {
+            nfsmw_career::blacklist::enter_first_bin(
+                &mut career.settings,
+                &mut career.blacklist,
+                &mut career.milestones,
+                &mut career.traps,
+            )
+        });
+        let Some(outcome) = entered else { return };
+        if outcome.bins_entered.is_empty() {
+            return;
+        }
+        log::info!("career: first safe house visit entered bins {:?}", outcome.bins_entered);
     }
 
     /// A car lot entry: the car lot screen is asked for. No pursuit rule applies to it, so the chase is left alone.

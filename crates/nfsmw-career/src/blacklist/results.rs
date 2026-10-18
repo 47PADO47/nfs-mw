@@ -21,7 +21,7 @@ use crate::economy::cash::{RaceWin, award_race_win};
 use crate::milestones::MilestoneSet;
 use crate::milestones::speedtrap::{SpeedTrap, unlock_bin};
 use crate::regions::{RegionPicture, region_unlock_screen};
-use crate::settings::{CareerSettings, Flags};
+use crate::settings::{CareerSettings, FIRST_RIVAL_STAGE, Flags, PROLOGUE_STAGE};
 use crate::stable::Stable;
 
 /// One finished event, as the caller read it from the game.
@@ -88,6 +88,41 @@ pub fn apply_event_result(
     if result.challenge_series_complete {
         career.flags.insert(Flags::CHALLENGE_SERIES_DONE);
     }
+    apply_bin_entries(career, blacklist, milestones, traps, previous, &mut outcome);
+    outcome.region_screen = region_screen(&outcome.bins_done, blacklist.current_bin());
+    outcome
+}
+
+/// The first safe-house visit of a career still at the prologue stage (16) enters Blacklist bin 15, the way the rival
+/// bio screen does (`docs/specs/career-safehouse.md` section 5.3; `safehouse::first_visit`). Does nothing at any other
+/// stage, so a second call is a no-op. The bin entry, the milestones, the speed traps and the stage byte follow
+/// [`apply_event_result`]. The first-visit rule grants no flag, SMS or marker, so none is written here.
+pub fn enter_first_bin(
+    career: &mut CareerSettings,
+    blacklist: &mut Blacklist,
+    milestones: &mut MilestoneSet,
+    traps: &mut [SpeedTrap],
+) -> EventOutcome {
+    let mut outcome = EventOutcome::default();
+    if career.stage != PROLOGUE_STAGE || blacklist.current_bin() != PROLOGUE_STAGE {
+        return outcome;
+    }
+    let previous = blacklist.current_bin();
+    blacklist.enter_bin(FIRST_RIVAL_STAGE);
+    apply_bin_entries(career, blacklist, milestones, traps, previous, &mut outcome);
+    outcome
+}
+
+/// Enters the bins between `previous` and the current bin: milestones and speed traps of each unlock, and the stage
+/// byte is written. Shared by a race or challenge result and by the first safe-house visit.
+fn apply_bin_entries(
+    career: &mut CareerSettings,
+    blacklist: &Blacklist,
+    milestones: &mut MilestoneSet,
+    traps: &mut [SpeedTrap],
+    previous: u8,
+    outcome: &mut EventOutcome,
+) {
     let now = blacklist.current_bin();
     outcome.bins_entered = (now..previous).rev().collect();
     milestones.enter_bins(previous, now);
@@ -96,8 +131,6 @@ pub fn apply_event_result(
     }
     outcome.traps_unlocked = traps.iter().filter(|trap| outcome.bins_entered.contains(&trap.bin())).count();
     blacklist.apply_to_settings(career);
-    outcome.region_screen = region_screen(&outcome.bins_done, now);
-    outcome
 }
 
 /// Routes a challenge to the Blacklist's challenge count, and a race to [`apply_race`].
