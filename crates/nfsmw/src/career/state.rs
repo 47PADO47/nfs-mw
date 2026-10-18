@@ -92,7 +92,7 @@ impl Career {
         // The Blacklist re-checks its rival gates against the bounty; the entries it returns are not replayed here.
         let _ = blacklist.bounty_changed(total);
         let (milestones, traps) = restored_progress(&settings, &data).unwrap_or_else(|| fresh_progress(&data));
-        let markers = MarkerInventory::from_table(&settings.popups[..]).context("reading the marker inventory")?;
+        let markers = MarkerInventory::from_table(&settings.inventory[..]).context("reading the marker inventory")?;
         Ok(Career {
             alias: alias.to_string(),
             settings,
@@ -118,7 +118,7 @@ impl Career {
         if let Err(e) = self.write_progress() {
             log::warn!("career progress not written to the milestone block: {e:#}");
         }
-        self.settings.popups[..].copy_from_slice(&self.markers.to_table());
+        self.settings.inventory[..].copy_from_slice(&self.markers.to_table());
         if let Err(e) = self.profile.set_settings(&self.settings) {
             log::warn!("career settings not written to the profile: {e}");
         }
