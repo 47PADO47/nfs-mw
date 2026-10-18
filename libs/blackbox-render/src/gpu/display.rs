@@ -92,6 +92,10 @@ impl Renderer {
                 true => wgpu::SurfaceColorSpace::ExtendedSrgbLinear,
                 false => wgpu::SurfaceColorSpace::Auto,
             };
+            #[cfg(all(windows, feature = "streamline"))]
+            if self.dlss.is_some() {
+                self.presentation.suspend(&self.device);
+            }
             surface.configure(&self.device, config);
         }
         self.display.status = status;

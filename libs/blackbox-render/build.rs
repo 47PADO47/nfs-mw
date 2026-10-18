@@ -5,6 +5,7 @@ fn main() {
         let sdk = std::env::var("STREAMLINE_SDK")
             .expect("streamline requires STREAMLINE_SDK pointing to NVIDIA Streamline SDK 2.14.16");
         println!("cargo:rerun-if-changed=src/gpu/dlss/bridge.cpp");
+        println!("cargo:rerun-if-changed=src/gpu/dlss/presentation.cpp");
         let mut build = cc::Build::new();
         build.cpp(true).define("_WIN32_WINNT", "0x0A00").define("NTDDI_VERSION", "0x0A000000");
         // The bridge uses only the C runtime and SDK POD types; no C++ runtime DLL is needed.

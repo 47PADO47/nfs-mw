@@ -1,8 +1,8 @@
 # Native renderer DLSS
 
 The optional `native-dlss` game feature integrates NVIDIA Streamline 2.14.16 with
-the BlackBox renderer on Windows/Vulkan. It requests Super Resolution only; it
-does not request Frame Generation, Reflex or Ray Reconstruction.
+the BlackBox renderer on Windows/Vulkan. It supports Super Resolution, DLAA,
+Reflex and fixed-multiplier DLSS Frame Generation. Ray Reconstruction is not included.
 
 ## Build and runtime
 
@@ -22,8 +22,11 @@ the executable, or set `STREAMLINE_PLUGIN_DIR` to their absolute directory:
 - `sl.common.dll`
 - `sl.dlss.dll`
 - `sl.pcl.dll`
+- `sl.reflex.dll`
+- `sl.dlss_g.dll`
 - `NvLowLatencyVk.dll`
 - `nvngx_dlss.dll`
+- `nvngx_dlssg.dll`
 
 The loader checks the interposer's Authenticode signature and NVIDIA signer.
 Streamline validates its plugins. Logs go to the temporary directory's
@@ -41,7 +44,41 @@ and Performance; Ultra Performance uses preset L. The UI is drawn at output
 resolution after DLSS, bloom, tone mapping and other post effects. Captures and
 rear-view mirrors use their existing independent, non-temporal paths.
 Offscreen-only renderers do not advertise DLSS: Streamline needs presentation
-hooks on every frame, so its tests use a hidden window and real swapchain.
+hooks on every frame, so its tests use a real window and swapchain.
+
+## Reflex and Frame Generation
+
+F8 exposes Reflex Off, On and On + Boost, and frame multipliers from Off through
+the maximum reported by the SDK (up to 6x). Settings persist with other video
+options. CLI equivalents are `--reflex off|on|boost` and
+`--frame-generation off|2x|3x|4x|5x|6x`. The NVIDIA SDK checks hardware, driver and
+Hardware Accelerated GPU Scheduling support before these controls become available.
+Dynamic Multi Frame Generation is not exposed because the SDK limits it to D3D12.
+
+Vulkan generation requires VSync off, including driver overrides, and HDR off.
+Streamline 2.14.16 does not support FP16/scRGB frame generation. The current native
+HDR path uses scRGB, so generation suspends while HDR is active; an HDR10 output
+path is future work. Reflex and SR/DLAA remain available with HDR.
+Use DLSS or
+FSR 3 for temporal depth/motion inputs; choose Native DLSS quality for DLAA.
+Generation runs during focused, unpaused gameplay and stops for menus, captures,
+unsupported sizes, resize and runtime errors. The SDK also suppresses interpolation
+while the window is unfocused. Reflex On is enforced whenever generation is requested.
+FPS overlays measure rendered frames; F8 separately shows the SDK's presented-frame count.
+
+Reflex sleep runs before time/input sampling, with one frame token shared by
+simulation, submission, present, SR and generation. The in-game frame limit is
+passed to Reflex instead of running a second software limiter.
+
+The post-processed scene is rendered into a full-resolution HUDless target.
+The HUD and debug UI render into a separate transparent color/alpha target;
+`kBufferTypeHUDLessColor` and `kBufferTypeUIColorAndAlpha` are tagged through
+present with `enableUserInterfaceRecomposition` enabled. Thus the UI is recomposed
+over generated scene frames. Premultiplied alpha and additive UI retain the
+renderer's real-frame composition. Moving HUD elements
+still require visual checks. The implementation follows NVIDIA's
+[Frame Generation](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideDLSS_G.md)
+and [Reflex](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideReflex.md) guides.
 
 ## Integration
 
@@ -75,7 +112,11 @@ normal fallback chain.
 With the feature and runtime installed, this explicit test requires an RTX
 adapter and fails when the runtime is absent. It counts successful real SDK
 evaluations through all modes and DLAA, real presentation, resizing, capture and
-runtime-failure fallback. A fallback image cannot pass the evaluation counter:
+runtime-failure fallback. It also checks Reflex marker cadence in all three modes,
+actual generated presentation at each supported multiplier, VSync/menu suspension,
+and separate UI composition pixels. Generation tests briefly activate their window:
+the SDK intentionally suppresses interpolation in an unfocused window.
+A fallback image cannot pass the evaluation counter:
 
 ```text
 cargo test -p blackbox-render --features streamline --lib dlss_sdk -- --ignored --nocapture --test-threads=1

@@ -18,12 +18,21 @@ impl Renderer {
     /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
         self.refresh_display(false);
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.render_start();
+            self.prepare_generation(frame);
+        }
         let (surface_texture, view) = match &self.output {
             Output::Window { surface, config } => {
                 let texture = match surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
                     wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
                     wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                        #[cfg(all(windows, feature = "streamline"))]
+                        if self.dlss.is_some() {
+                            self.presentation.suspend(&self.device);
+                        }
                         surface.configure(&self.device, config);
                         return Ok(false);
                     }
@@ -36,10 +45,20 @@ impl Renderer {
             Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
         self.submit_frame(None, &view, self.surface_size(), frame, instances);
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.marker(3);
+            self.presentation.marker(4);
+        }
         match surface_texture {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
+        }
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.marker(5);
+            self.presentation.finish();
         }
         self.count_frame();
         Ok(true)

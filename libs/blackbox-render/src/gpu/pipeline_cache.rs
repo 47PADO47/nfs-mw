@@ -37,6 +37,7 @@ impl Drop for Renderer {
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
+            self.presentation.suspend(&self.device);
             self.post.set_temporal(None);
             self.dlss.take();
         }

@@ -31,6 +31,16 @@ pub trait RenderBackend {
 
     fn set_vsync(&mut self, vsync: bool);
 
+    /// Start the CPU frame before input sampling. True means the backend owns frame limiting.
+    fn begin_latency_frame(&mut self, _settings: crate::LatencySettings) -> bool {
+        false
+    }
+    fn end_latency_simulation(&mut self) {}
+    fn latency_input(&mut self) {}
+    fn latency_status(&self) -> crate::LatencyStatus {
+        Default::default()
+    }
+
     /// Surface width over height.
     fn aspect_ratio(&self) -> f32 {
         let [width, height] = self.surface_size();

@@ -215,4 +215,7 @@ first in the post chain so bloom and tone mapping see the upscaled image. The sc
 from the quality mode through `apply_graphics`, and captures (screenshots, the mirror) are drawn at the output size
 without it.
 
-Not done, for DLSS and other temporal upscalers: they need the device created by their own SDK.
+Optional Windows/Vulkan `streamline` builds support native DLSS SR/DLAA, Reflex and
+DLSS Frame Generation with a separate UI color/alpha buffer for recomposition.
+The SDK owns Vulkan interposition; runtime binaries are supplied separately.
+See [native DLSS](../../docs/native-dlss.md) for setup, requirements and limitations.

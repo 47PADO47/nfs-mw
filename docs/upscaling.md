@@ -145,10 +145,11 @@ below. Both renderers have them now for FSR 3; DLSS runs on the Bevy renderer's.
 | Mip bias | Done: `set_texture_lod_bias`; `apply_graphics` gives a temporal upscaler `log2(scale) - 1`. | Done: `facade.rs` gives a temporal upscaler the temporal curve. |
 | Projection jitter | Done for FSR 3: the renderer shifts the projection itself (`FrameParams` stays unjittered). | Done for FSR 3 (Halton(2,3) on the projection). DLSS gets its jitter from Bevy. |
 | Motion vectors | Done for FSR 3: a pass after the scene writes them from the previous frame's matrix and the previous transform of every keyed instance. | Done: the world material writes motion vectors in its prepass, from Bevy's previous transforms. |
-| Device creation | DLSS: missing, the native renderer would need `dlss_wgpu` to create the device. | Done by Bevy: the `dlss` build adds `DlssInitPlugin` before `RenderPlugin`. |
+| Device creation | Done for native DLSS through optional Streamline Vulkan interposition. | Done by Bevy: the `dlss` build adds `DlssInitPlugin` before `RenderPlugin`. |
 
-FSR 2 needs the same inputs and is not planned: FSR 3.1 is built instead. Frame generation (DLSS and FSR 3) and
-Streamline are not planned. FSR 4 is not built: it needs DX12 and a Radeon RX 7000 or 9000 to test, and there is
+FSR 2 needs the same inputs and is not planned: FSR 3.1 is built instead. Optional native Streamline
+supports DLSS frame generation, separate UI recomposition and Reflex; see [native-dlss.md](native-dlss.md).
+FSR frame generation is not included. FSR 4 is not built: it needs DX12 and a Radeon RX 7000 or 9000 to test, and there is
 no tester yet ([status.md](plans/gfx-renderers/status.md), PR 14).
 
 ### FSR 3.1 temporal upscaler (`libs/fsr3-wgpu`)

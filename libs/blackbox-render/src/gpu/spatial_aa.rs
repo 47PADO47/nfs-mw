@@ -25,10 +25,21 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.begin(&device, &mut encoder);
         }
+        #[cfg(all(windows, feature = "streamline"))]
+        let hudless = self.generation_target(scene.is_none());
+        #[cfg(not(all(windows, feature = "streamline")))]
+        let hudless: Option<wgpu::TextureView> = None;
+        let scene_output = hudless.as_ref().unwrap_or(output);
         if self.post_effects().antialiasing != Antialiasing::Smaa {
-            self.encode_scene(&mut encoder, scene, output, frame, instances);
-            self.encode_post(&mut encoder, scene, output, size);
-            self.encode_ui(&mut encoder, output, size);
+            self.encode_scene(&mut encoder, scene, scene_output, frame, instances);
+            self.encode_post(&mut encoder, scene, scene_output, size);
+            #[cfg(all(windows, feature = "streamline"))]
+            if let Some(hudless) = &hudless {
+                self.composite_generation(&mut encoder, hudless, output);
+            }
+            if hudless.is_none() {
+                self.encode_ui(&mut encoder, output, size);
+            }
             if let Some(timing) = &mut self.timing {
                 timing.finish(&mut encoder);
             }
@@ -59,7 +70,7 @@ impl Renderer {
             aa.target.resize(&device, size.0, size.1);
             aa.size = size;
         }
-        let target = aa.target.start_frame(&device, &queue, output);
+        let target = aa.target.start_frame(&device, &queue, scene_output);
         self.encode_scene(&mut encoder, scene, &target, frame, instances);
         self.encode_post(&mut encoder, scene, &target, size);
         queue.submit([encoder.finish()]);
@@ -67,7 +78,13 @@ impl Renderer {
         self.smaa = Some(aa);
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("UI after SMAA") });
-        self.encode_ui(&mut encoder, output, size);
+        #[cfg(all(windows, feature = "streamline"))]
+        if let Some(hudless) = &hudless {
+            self.composite_generation(&mut encoder, hudless, output);
+        }
+        if hudless.is_none() {
+            self.encode_ui(&mut encoder, output, size);
+        }
         if let Some(timing) = &mut self.timing {
             timing.finish(&mut encoder);
         }

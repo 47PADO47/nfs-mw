@@ -37,6 +37,7 @@
 !/libs/*/src/**/*.rs
 !/libs/blackbox-render/build.rs
 !/libs/blackbox-render/src/gpu/dlss/bridge.cpp
+!/libs/blackbox-render/src/gpu/dlss/presentation.cpp
 !/libs/*/src/**/*.wgsl
 !/libs/*/src/**/*.wesl
 !/libs/*/tests/**/*.rs

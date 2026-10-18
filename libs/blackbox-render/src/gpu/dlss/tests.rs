@@ -52,6 +52,7 @@ fn dlss_sdk_evaluates_quality_modes_and_dlaa_on_gpu() {
     assert_eq!(unsafe { super::native::bb_sl_evaluations() }, before, "captures must not evaluate DLSS");
     renderer.render(&built.frame, &built.instances).expect("DLAA after capture");
     assert_eq!(unsafe { super::native::bb_sl_evaluations() }, before + 1);
+    super::presentation_tests::exercise(&window, &mut renderer, &built);
     // Simulate a runtime loss: the next frame must resolve a truthful supported fallback.
     renderer.dlss.as_ref().unwrap().failed.store(true, std::sync::atomic::Ordering::Release);
     renderer.render(&built.frame, &built.instances).expect("fallback after runtime failure");

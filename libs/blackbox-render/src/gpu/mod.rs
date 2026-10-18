@@ -67,6 +67,8 @@ use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 pub struct Renderer {
     #[cfg(all(windows, feature = "streamline"))]
     dlss: Option<dlss::Runtime>,
+    #[cfg(all(windows, feature = "streamline"))]
+    presentation: dlss::presentation::Presentation,
     adapter: wgpu::Adapter,
     display: display::Display,
     output: output::Output,
@@ -180,6 +182,10 @@ impl Renderer {
         if width == 0 || height == 0 {
             return;
         }
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
         self.output.resize(&self.device, (width, height));
         self.refresh_display(true);
         self.refresh_targets();
@@ -282,6 +288,10 @@ impl Renderer {
 
     /// Turn vertical sync on or off without recreating the renderer.
     pub fn set_vsync(&mut self, vsync: bool) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
         self.output.set_vsync(&self.device, vsync);
     }
 

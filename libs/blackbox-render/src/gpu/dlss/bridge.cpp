@@ -20,6 +20,9 @@ BB_DECL(slSetTagForFrame);
 BB_DECL(slEvaluateFeature);
 BB_DECL(slFreeResources);
 #include <sl_dlss.h>
+#include <sl_dlss_g.h>
+#include <sl_reflex.h>
+#include <sl_pcl.h>
 static_assert(SL_VERSION_MAJOR == 2 && SL_VERSION_MINOR == 14 && SL_VERSION_PATCH == 16,
     "This bridge is validated against Streamline 2.14.16; review ABI changes before upgrading");
 
@@ -27,6 +30,11 @@ static HMODULE module;
 static bool initialized;
 static uint64_t evaluations;
 static sl::ViewportHandle viewport(0);
+static sl::FrameToken* current_frame{};
+static bool constants_set{};
+extern "C" int bb_sl_begin(uint32_t mode, uint32_t limit_us);
+extern "C" void bb_sl_end();
+extern "C" void bb_sl_suspend();
 
 static void retain_plugin_code() {
     // SDK plugins can register CRT thread-exit callbacks. Keep their code mapped after slShutdown,
@@ -40,7 +48,9 @@ static void retain_plugin_code() {
             bool plugin = wcsncmp(entry.szModule, L"sl.", 3) == 0
                 || wcsstr(entry.szExePath, L"\\sl_common_override_")
                 || wcsstr(entry.szExePath, L"\\sl_dlss_override_")
-                || wcsstr(entry.szExePath, L"\\sl_pcl_override_");
+                || wcsstr(entry.szExePath, L"\\sl_pcl_override_")
+                || wcsstr(entry.szExePath, L"\\sl_reflex_override_")
+                || wcsstr(entry.szExePath, L"\\sl_dlss_g_override_");
             if (!plugin) continue;
             HMODULE retained{};
             GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
@@ -72,17 +82,18 @@ extern "C" int bb_sl_init(const wchar_t* directory, const wchar_t* logs) {
     IMPORT(slFreeResources);
 #undef IMPORT
     sl::Preferences preferences{};
-    sl::Feature features[] = {sl::kFeatureDLSS};
+    sl::Feature features[] = {sl::kFeatureDLSS, sl::kFeatureReflex, sl::kFeaturePCL, sl::kFeatureDLSS_G};
     const wchar_t* paths[] = {directory};
     preferences.pathsToPlugins = paths;
     preferences.numPathsToPlugins = 1;
     preferences.pathToLogsAndData = logs;
     preferences.featuresToLoad = features;
-    preferences.numFeaturesToLoad = 1;
+    preferences.numFeaturesToLoad = 4;
     preferences.engine = sl::EngineType::eCustom;
     preferences.engineVersion = "0.1.0";
     preferences.projectId = "9a49ed89-a846-4ecd-b25a-18461a02f048";
     preferences.renderAPI = sl::RenderAPI::eVulkan;
+    if (GetEnvironmentVariableW(L"STREAMLINE_VERBOSE", nullptr, 0)) preferences.logLevel = sl::LogLevel::eVerbose;
     preferences.flags = sl::PreferenceFlags::eDisableCLStateTracking | sl::PreferenceFlags::eUseManualHooking | sl::PreferenceFlags::eUseFrameBasedResourceTagging;
     auto result = p_slInit(preferences, sl::kSDKVersion);
     initialized = result == sl::Result::eOk;
@@ -91,6 +102,8 @@ extern "C" int bb_sl_init(const wchar_t* directory, const wchar_t* logs) {
 
 extern "C" void bb_sl_shutdown() {
     if (!initialized) return;
+    bb_sl_suspend();
+    bb_sl_end();
     p_slShutdown();
     initialized = false;
     // Keep the loader resident: wgpu still uses its Vulkan trampolines during teardown.
@@ -124,6 +137,25 @@ extern "C" intptr_t bb_sl_test_window_create() {
 
 extern "C" void bb_sl_test_window_resize(intptr_t window, uint32_t width, uint32_t height) {
     SetWindowPos(reinterpret_cast<HWND>(window), nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+extern "C" void bb_sl_test_window_visible(intptr_t window) {
+    auto hwnd = reinterpret_cast<HWND>(window);
+    ShowWindow(hwnd, SW_SHOW);
+    auto foreground = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
+    auto thread = GetCurrentThreadId();
+    bool attached = foreground != thread && AttachThreadInput(thread, foreground, TRUE);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    if (attached) AttachThreadInput(thread, foreground, FALSE);
+}
+
+extern "C" void bb_sl_test_window_pump() {
+    MSG message{};
+    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
 }
 
 extern "C" void bb_sl_test_window_destroy(intptr_t window) {
@@ -167,18 +199,12 @@ struct Frame {
     uint32_t mode, reset;
 };
 
-extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* frame) {
-    auto opt = options(frame->mode, images[3].width, images[3].height);
-    PFun_slDLSSSetOptions* function{};
-    auto result = p_slGetFeatureFunction(sl::kFeatureDLSS, "slDLSSSetOptions", reinterpret_cast<void*&>(function));
-    if (result == sl::Result::eOk) result = function(viewport, opt);
-    if (result != sl::Result::eOk) return static_cast<int>(result);
-    sl::FrameToken* token{};
-    result = p_slGetNewFrameToken(token, nullptr);
-    if (result != sl::Result::eOk) return static_cast<int>(result);
+static sl::Result common_constants(const Image* images, const Frame* frame) {
+    if (constants_set) return sl::Result::eOk;
     sl::Constants constants{};
     std::memcpy(&constants.cameraViewToClip, frame->projection, sizeof(frame->projection));
     std::memcpy(&constants.clipToCameraView, frame->inverse_projection, sizeof(frame->inverse_projection));
+    constants.clipToLensClip = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
     std::memcpy(&constants.clipToPrevClip, frame->reprojection, sizeof(frame->reprojection));
     std::memcpy(&constants.prevClipToClip, frame->inverse_reprojection, sizeof(frame->inverse_reprojection));
     constants.jitterOffset = {frame->jitter[0], frame->jitter[1]};
@@ -199,7 +225,20 @@ extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* f
     constants.cameraFOV = frame->fov;
     constants.cameraAspectRatio = float(images[0].width) / float(images[0].height);
 
-    result = p_slSetConstants(constants, *token, viewport);
+    auto result = p_slSetConstants(constants, *current_frame, viewport);
+    constants_set = result == sl::Result::eOk;
+    return result;
+}
+
+extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* frame) {
+    auto opt = options(frame->mode, images[3].width, images[3].height);
+    PFun_slDLSSSetOptions* function{};
+    auto result = p_slGetFeatureFunction(sl::kFeatureDLSS, "slDLSSSetOptions", reinterpret_cast<void*&>(function));
+    if (result == sl::Result::eOk) result = function(viewport, opt);
+    if (result != sl::Result::eOk) return static_cast<int>(result);
+    if (!current_frame) bb_sl_begin(1, 0);
+    if (!current_frame) return -1;
+    result = common_constants(images, frame);
     if (result != sl::Result::eOk) return static_cast<int>(result);
     sl::Resource resources[4];
     sl::BufferType types[] = {sl::kBufferTypeScalingInputColor, sl::kBufferTypeDepth,
@@ -221,10 +260,13 @@ extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* f
         resources[i].arrayLayers = 1;
         tags[i].extent = {0, 0, images[i].width, images[i].height};
     }
-    result = p_slSetTagForFrame(*token, viewport, tags, 4, command);
+    result = p_slSetTagForFrame(*current_frame, viewport, tags, 4, command);
     if (result != sl::Result::eOk) return static_cast<int>(result);
     const sl::BaseStructure* inputs[] = {&viewport};
-    result = p_slEvaluateFeature(sl::kFeatureDLSS, *token, inputs, 1, command);
+    result = p_slEvaluateFeature(sl::kFeatureDLSS, *current_frame, inputs, 1, command);
     if (result == sl::Result::eOk) ++evaluations;
     return static_cast<int>(result);
 }
+
+// Shared private SDK state; kept in a separate source file for the presentation domain.
+#include "presentation.cpp"

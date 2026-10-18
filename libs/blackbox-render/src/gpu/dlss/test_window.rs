@@ -9,6 +9,8 @@ unsafe extern "C" {
     fn bb_sl_test_instance() -> isize;
     fn bb_sl_test_window_create() -> isize;
     fn bb_sl_test_window_resize(window: isize, width: u32, height: u32);
+    fn bb_sl_test_window_visible(window: isize);
+    fn bb_sl_test_window_pump();
     fn bb_sl_test_window_destroy(window: isize);
 }
 
@@ -42,6 +44,14 @@ impl TestWindow {
     pub(super) fn resize(&self, size: (u32, u32)) {
         // SAFETY: the window is alive and owned by this thread.
         unsafe { bb_sl_test_window_resize(self.0.get(), size.0, size.1) };
+    }
+    pub(super) fn visible(&self) {
+        // SAFETY: the owned window is shown and activated for real presentation tests.
+        unsafe { bb_sl_test_window_visible(self.0.get()) };
+    }
+    pub(super) fn pump(&self) {
+        // SAFETY: dispatch messages on the window's owning test thread.
+        unsafe { bb_sl_test_window_pump() };
     }
 }
 

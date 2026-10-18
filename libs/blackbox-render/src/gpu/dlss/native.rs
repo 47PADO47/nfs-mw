@@ -15,7 +15,7 @@ pub(super) struct Image {
 }
 
 #[repr(C)]
-struct Frame {
+pub(super) struct Frame {
     projection: [f32; 16],
     inverse_projection: [f32; 16],
     reprojection: [f32; 16],
@@ -122,6 +122,16 @@ pub(super) fn image(view: &wgpu::TextureView, output: bool) -> Option<Image> {
             vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
         ),
+        (wgpu::TextureFormat::Bgra8Unorm, _) => (
+            vk::Format::B8G8R8A8_UNORM,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
+        ),
+        (wgpu::TextureFormat::Rgba8Unorm, _) => (
+            vk::Format::R8G8B8A8_UNORM,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_SRC,
+        ),
         _ => return None,
     };
     Some(Image {
@@ -160,22 +170,7 @@ pub(super) fn evaluate(
             },
         }),
     );
-    let reprojection = frame.previous * frame.unjittered.inverse();
-    let projection = frame.projection;
-    // Column-vector glam storage equals row-major storage for SL's row-vector convention.
-    let constants = Frame {
-        projection: projection.to_cols_array(),
-        inverse_projection: projection.inverse().to_cols_array(),
-        camera_to_world: frame.camera_to_world.to_cols_array(),
-        reprojection: reprojection.to_cols_array(),
-        inverse_reprojection: reprojection.inverse().to_cols_array(),
-        jitter: frame.jitter.to_array(),
-        near: frame.near,
-        fov: frame.fov_y,
-        delta_ms: frame.delta_time * 1000.0,
-        mode,
-        reset: u32::from(frame.reset),
-    };
+    let constants = frame_data(frame, mode);
     // SAFETY: resource transitions above match the tagged layouts. All resources outlive this encoder;
     // SL records only into its borrowed command buffer and restores resource layouts before returning.
     // wgpu 30 prohibits mixing its encoding API and raw commands on one encoder.
@@ -199,4 +194,23 @@ pub(super) fn evaluate(
         return Err(format!("slEvaluateFeature failed ({result})"));
     }
     Ok(())
+}
+
+pub(super) fn frame_data(frame: &TemporalFrame, mode: u32) -> Frame {
+    let reprojection = frame.previous * frame.unjittered.inverse();
+    let projection = frame.projection;
+    // Column-vector glam storage equals row-major storage for SL's row-vector convention.
+    Frame {
+        projection: projection.to_cols_array(),
+        inverse_projection: projection.inverse().to_cols_array(),
+        camera_to_world: frame.camera_to_world.to_cols_array(),
+        reprojection: reprojection.to_cols_array(),
+        inverse_reprojection: reprojection.inverse().to_cols_array(),
+        jitter: frame.jitter.to_array(),
+        near: frame.near,
+        fov: frame.fov_y,
+        delta_ms: frame.delta_time * 1000.0,
+        mode,
+        reset: u32::from(frame.reset),
+    }
 }

@@ -109,6 +109,34 @@ impl RenderBackend for Renderer {
         [width, height]
     }
 
+    fn begin_latency_frame(&mut self, settings: blackbox_gfx::LatencySettings) -> bool {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            return self.presentation.begin(settings);
+        }
+        let _ = settings;
+        false
+    }
+    fn end_latency_simulation(&mut self) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.render_start();
+        }
+    }
+    fn latency_input(&mut self) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.marker(7);
+        }
+    }
+    fn latency_status(&self) -> blackbox_gfx::LatencyStatus {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            return self.presentation.status;
+        }
+        Default::default()
+    }
+
     fn set_vsync(&mut self, vsync: bool) {
         Renderer::set_vsync(self, vsync);
     }
@@ -118,6 +146,10 @@ impl RenderBackend for Renderer {
     /// follows the effective render scale: the spatial bias for a spatial upscaler, and one mip sharper for a
     /// temporal one, whose history supplies the samples.
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() && *requested != self.graphics {
+            self.presentation.suspend(&self.device);
+        }
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
         #[cfg(all(windows, feature = "streamline"))]

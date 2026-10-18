@@ -11,6 +11,8 @@ mod backend_tests;
 pub mod caps;
 pub mod capture;
 pub mod display;
+pub mod latency;
+pub use latency::{LatencySettings, LatencyStatus, ReflexMode};
 pub mod effects;
 pub mod error;
 pub mod experiments;

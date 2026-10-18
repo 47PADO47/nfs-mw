@@ -1,8 +1,14 @@
 //! Optional Windows/Vulkan Streamline integration. Native handles never escape this module.
 #![allow(unsafe_code, reason = "Streamline and wgpu HAL expose native Vulkan handles through FFI")]
 
+mod composition;
+#[cfg(test)]
+mod composition_tests;
 mod native;
 pub(super) mod pass;
+pub(super) mod presentation;
+#[cfg(test)]
+mod presentation_tests;
 #[cfg(test)]
 mod test_window;
 #[cfg(test)]

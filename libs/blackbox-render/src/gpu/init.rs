@@ -31,6 +31,8 @@ fn attach_dlss(renderer: &mut Renderer, runtime: DlssRuntime) {
         renderer.dlss = runtime;
         if let Some(runtime) = &mut renderer.dlss {
             runtime.check(&renderer.device);
+            renderer.presentation.status = super::dlss::presentation::capabilities(&renderer.device);
+            renderer.caps.frame_generation = renderer.presentation.status.max_generated_frames > 0;
             if runtime.supported && renderer.hdr_format == targets::HDR_FORMAT {
                 renderer.caps.upscalers.insert(blackbox_gfx::Upscaler::Dlss);
             }
@@ -245,6 +247,8 @@ fn assemble(
     let mut renderer = Renderer {
         #[cfg(all(windows, feature = "streamline"))]
         dlss: None,
+        #[cfg(all(windows, feature = "streamline"))]
+        presentation: Default::default(),
         adapter: adapter.clone(),
         display,
         output,
