@@ -7,14 +7,14 @@
 //!
 //! ```
 //! use blackbox_ui::{
-//!     BuildCx, Component, DrawList, DrawNode, LayoutCx, Rect, Skin, SlotId, Theme, ThemeId, Themes,
+//!     BuildCx, Component, DrawList, LayoutCx, NodeKind, Rect, Skin, SlotId, Theme, ThemeId, Themes, UiNode,
 //! };
 //!
 //! struct Panel;
 //! impl Component for Panel {
 //!     fn layout(&mut self, _cx: &LayoutCx<'_>, _bounds: Rect) {}
 //!     fn build(&self, out: &mut DrawList) {
-//!         out.push(DrawNode { bounds: Rect::SCREEN, colour: [255, 255, 255, 255], z: 0.0 });
+//!         out.push(UiNode { kind: NodeKind::Group, colour: [255, 255, 255, 255], visible: true, ..UiNode::default() });
 //!     }
 //! }
 //!
@@ -43,13 +43,15 @@ mod skin;
 mod slot;
 mod theme;
 mod themes;
+mod tree;
 
 pub use component::{Component, Empty};
 pub use context::{BuildCx, EventCx, LayoutCx};
-pub use draw::{DrawList, DrawNode};
+pub use draw::DrawList;
 pub use geom::Rect;
 pub use input::{InputEvent, PadButton, PointerKind};
 pub use skin::Skin;
 pub use slot::SlotId;
 pub use theme::{Theme, ThemeId};
 pub use themes::{ThemeError, Themes};
+pub use tree::{NodeKind, UiNode, UiTree};

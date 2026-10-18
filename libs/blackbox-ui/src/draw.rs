@@ -1,26 +1,12 @@
-//! The draw list: the flat output of a component tree, in draw order.
+//! The draw list: the flat output of a component tree. It collects `UiNode`s in insertion order and turns them
+//! into the `UiTree` a presenter draws.
 
-use crate::geom::Rect;
-
-// T3: `DrawNode` is a placeholder. T3 moves the neutral tree (`UiTree`, `UiNode`, `NodeKind`) from
-// `libs/blackbox-feng/src/tree/mod.rs` into this crate and makes `DrawList` hold `UiNode`. The
-// `z: f32` draw order carries over unchanged, so `DrawList::in_draw_order` keeps its meaning.
-// Until then nothing outside this crate reads `DrawNode`.
-
-/// One primitive: a coloured rectangle at a draw order. Stands in for the relocated `UiNode`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DrawNode {
-    pub bounds: Rect,
-    /// `[r, g, b, a]`.
-    pub colour: [u8; 4],
-    /// Draw order: lower draws first. Equal values keep insertion order.
-    pub z: f32,
-}
+use crate::tree::{UiNode, UiTree};
 
 /// A growing list of draw nodes, filled by `Component::build`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default)]
 pub struct DrawList {
-    nodes: Vec<DrawNode>,
+    nodes: Vec<UiNode>,
 }
 
 impl DrawList {
@@ -28,7 +14,7 @@ impl DrawList {
         Self::default()
     }
 
-    pub fn push(&mut self, node: DrawNode) {
+    pub fn push(&mut self, node: UiNode) {
         self.nodes.push(node);
     }
 
@@ -45,25 +31,35 @@ impl DrawList {
     }
 
     /// The nodes in insertion order.
-    pub fn iter(&self) -> std::slice::Iter<'_, DrawNode> {
+    pub fn iter(&self) -> std::slice::Iter<'_, UiNode> {
         self.nodes.iter()
     }
 
-    /// The nodes sorted by `z`, stable, so ties keep insertion order. This is the order a presenter draws.
-    pub fn in_draw_order(&self) -> Vec<&DrawNode> {
-        let mut ordered: Vec<&DrawNode> = self.nodes.iter().collect();
+    /// The nodes sorted by `z`, stable, so ties keep insertion order. Lower `z` comes first.
+    pub fn in_draw_order(&self) -> Vec<&UiNode> {
+        let mut ordered: Vec<&UiNode> = self.nodes.iter().collect();
         ordered.sort_by(|a, b| a.z.total_cmp(&b.z));
         ordered
+    }
+
+    /// Turns the list into a `UiTree`. The nodes keep their insertion order, so parent indices stay valid.
+    /// `drawn` picks the nodes that go into `draw_order`; the caller owns that policy (visibility, depth
+    /// cut-off, which kinds draw). The order is farthest first (largest `z`), stable: later nodes draw on top.
+    pub fn into_tree(self, drawn: impl Fn(&UiNode) -> bool) -> UiTree {
+        let mut draw_order: Vec<usize> =
+            self.nodes.iter().enumerate().filter(|(_, n)| drawn(n)).map(|(k, _)| k).collect();
+        draw_order.sort_by(|a, b| self.nodes[*b].z.total_cmp(&self.nodes[*a].z));
+        UiTree { nodes: self.nodes, draw_order }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DrawList, DrawNode};
-    use crate::geom::Rect;
+    use super::DrawList;
+    use crate::tree::UiNode;
 
-    fn node(z: f32, colour: u8) -> DrawNode {
-        DrawNode { bounds: Rect::SCREEN, colour: [colour, 0, 0, 255], z }
+    fn node(z: f32, colour: u8) -> UiNode {
+        UiNode { colour: [colour, 0, 0, 255], z, visible: true, ..UiNode::default() }
     }
 
     #[test]
@@ -95,5 +91,28 @@ mod tests {
         list.push(node(-5.0, 2));
         let order: Vec<u8> = list.iter().map(|n| n.colour[0]).collect();
         assert_eq!(order, vec![1, 2]);
+    }
+
+    #[test]
+    fn into_tree_keeps_every_node_and_orders_the_drawn_ones_farthest_first() {
+        let mut list = DrawList::new();
+        list.push(node(2.0, 10));
+        list.push(UiNode { visible: false, ..node(9.0, 20) });
+        list.push(node(2.0, 30));
+        list.push(node(-1.0, 40));
+        let tree = list.into_tree(|n| n.visible);
+        assert_eq!(tree.nodes.len(), 4);
+        assert_eq!(tree.nodes[1].colour[0], 20);
+        // Node 1 is hidden, so it is left out; nodes 0 and 2 tie on z and keep insertion order.
+        assert_eq!(tree.draw_order, vec![0, 2, 3]);
+    }
+
+    #[test]
+    fn into_tree_uses_the_caller_predicate() {
+        let mut list = DrawList::new();
+        list.push(node(1.0, 1));
+        list.push(node(3.0, 2));
+        let tree = list.into_tree(|n| n.z > 2.0);
+        assert_eq!(tree.draw_order, vec![1]);
     }
 }

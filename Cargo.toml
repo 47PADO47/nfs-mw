@@ -92,6 +92,7 @@ blackbox-solid = { path = "libs/blackbox-solid" }
 blackbox-streaming = { path = "libs/blackbox-streaming" }
 blackbox-text = { path = "libs/blackbox-text" }
 blackbox-tpk = { path = "libs/blackbox-tpk" }
+blackbox-ui = { path = "libs/blackbox-ui" }
 blackbox-vehicle = { path = "libs/blackbox-vehicle" }
 ini-tuning = { path = "libs/ini-tuning" }
 ea-audio = { path = "libs/ea-audio" }

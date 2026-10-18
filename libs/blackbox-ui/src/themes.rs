@@ -93,11 +93,12 @@ mod tests {
     use super::{ThemeError, Themes};
     use crate::component::Component;
     use crate::context::{BuildCx, LayoutCx};
-    use crate::draw::{DrawList, DrawNode};
+    use crate::draw::DrawList;
     use crate::geom::Rect;
     use crate::skin::Skin;
     use crate::slot::SlotId;
     use crate::theme::{Theme, ThemeId};
+    use crate::tree::{NodeKind, UiNode};
 
     /// Draws one node whose red channel is the marker, so a test can see which theme produced it.
     struct Marked(u8);
@@ -106,7 +107,7 @@ mod tests {
         fn layout(&mut self, _cx: &LayoutCx<'_>, _bounds: Rect) {}
 
         fn build(&self, out: &mut DrawList) {
-            out.push(DrawNode { bounds: Rect::SCREEN, colour: [self.0, 0, 0, 255], z: 0.0 });
+            out.push(UiNode { kind: NodeKind::Group, colour: [self.0, 0, 0, 255], visible: true, ..UiNode::default() });
         }
     }
 
