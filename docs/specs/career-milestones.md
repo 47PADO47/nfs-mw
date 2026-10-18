@@ -399,9 +399,11 @@ unlock state is not separate. The details of the unrelated parts are not decoded
 The milestone state exists in `crates/nfsmw-career::milestones` (statistics, the four states, the bin transitions, the
 speed traps in `milestones::speedtrap`, and the save block records in `save::milestones_block`); the data readers are in
 `nfsmw-data`. The choices are in [provenance/career-core.md](../provenance/career-core.md). **Still open:** the native mod
-API placeholder still pays cash (`BbMilestone` with progress and goal, `BbMilestoneDef` with `reward_cash` and goal, in
-`crates/nfsmw-modding/src/abi/career_records.rs`). The original pays **bounty (rep points), not cash**, and its threshold
-is one number (not a progress/goal pair with a ladder). The ABI must move to the bounty and the single threshold.
+API now pays bounty: `nfsmw.career` 0.2 has `MilestoneDef` with `reward_bounty` (`BbMilestoneDef.reward_bounty`, in
+`crates/nfsmw-modding/src/abi/career_records.rs`), and `nfsmw.career`'s `milestone_complete` pays it to the current car
+(`crates/nfsmw/src/modding/backends/career.rs`). The original pays **bounty (rep points), not cash**, and its
+threshold is one number: `MilestoneDef.goal` is that number. Race rewards keep `reward_cash` (`RaceDef`), because races
+pay cash.
 
 ## 9. Open questions
 

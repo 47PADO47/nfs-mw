@@ -2,8 +2,9 @@
 
 How the original's career works end to end, and where each part is written down. The rewrite has the career rules in `crates/nfsmw-career`
 (pure logic, no I/O: settings and stable, safe house, rap sheet, save screens, regions, milestones, Blacklist, car lot,
-new career); [provenance/career-core.md](../provenance/career-core.md) lists what each module models. The app runs free
-roam only (see [../app-flow.md](../app-flow.md)); these pages are the specs the career code follows.
+new career); [provenance/career-core.md](../provenance/career-core.md) lists what each module models. Career on the main
+menu starts or resumes a profile and drives in free roam with it (see [../app-flow.md](../app-flow.md#career-flow));
+these pages are the specs the career code follows.
 
 - **Sources:** `speed.exe` (Black Edition PC v1.3, image base `0x00400000`) through the Ghidra MCP, the install's
   `GLOBAL/gameplay.bin` and `FE_ATTRIB.bin`, and the three saves on the development machine (read only). Each page lists
@@ -58,15 +59,27 @@ roam only (see [../app-flow.md](../app-flow.md)); these pages are the specs the 
 
 ## What the rewrite needs first
 
-1. The state of [career-state.md](../formats/career-state.md) as a Rust module (`crates/nfsmw-data` for the readers,
-   a `career` module for the runtime state), with the save format of [career-save.md](../formats/career-save.md) behind
-   `libs/save-store`. The modding career table ([../modding/api-nfsmw.md](../modding/api-nfsmw.md)) can then answer its
-   queries; its field lists marked [unconfirmed] should be checked against these pages (for example milestones pay
-   **bounty** in the original, not cash).
-2. The pursuit-end recorder, with the order in [career-economy-flows.md](career-economy-flows.md).
-3. The milestone tracker and the bin state machine: both exist in `nfsmw-career` (`milestones`, `blacklist`), fed by the
-   install's own `gameplay.bin` data. What remains is wiring them to the races, the pursuit end and the save.
-4. The safe house screens and the car lot on top of the existing front end.
+Status of each item (the code is in `crates/nfsmw-career`, `crates/nfsmw-data`, `crates/nfsmw/src/career`,
+`crates/nfsmw/src/scenes/world/career` and `crates/nfsmw/src/frontend/career_screens`; the choices and gaps are in
+[provenance/career-runtime.md](../provenance/career-runtime.md) and [provenance/career-core.md](../provenance/career-core.md)):
+
+1. **Done.** The state of [career-state.md](../formats/career-state.md) as Rust: the readers in `nfsmw-data`, the
+   runtime career in [`crates/nfsmw/src/career`](../../crates/nfsmw/src/career) (`state`, `data`, `io`, `start`,
+   `autosave`), and the save format of [career-save.md](../formats/career-save.md) in the profile file glue. The
+   modding career table is served by a real backend at `nfsmw.career` 0.2
+   ([`modding/backends/career.rs`](../../crates/nfsmw/src/modding/backends/career.rs)). Its field lists marked
+   [unconfirmed] still need checking against these pages; milestones pay **bounty**, not cash.
+2. **Done.** The pursuit-end recorder, in the order of [career-economy-flows.md](career-economy-flows.md): bounty
+   banked on escape, cost to state, bust with markers, cash and impound
+   ([`scenes/world/career/pursuit.rs`](../../crates/nfsmw/src/scenes/world/career/pursuit.rs),
+   [`bust.rs`](../../crates/nfsmw/src/scenes/world/career/bust.rs)).
+3. **Done for the rules and the wiring to the pursuit end and the save.** The milestone tracker and the bin state
+   machine (`milestones`, `blacklist` in `nfsmw-career`) are fed by the install's `gameplay.bin` data. Not wired yet:
+   the races (race mode is not run).
+4. **Done.** The safe house entry and menu ([`scenes/world/career/safehouse.rs`](../../crates/nfsmw/src/scenes/world/career/safehouse.rs),
+   [`career_screens/safehouse_menu.rs`](../../crates/nfsmw/src/frontend/career_screens/safehouse_menu.rs)) and the car
+   lot ([`career_screens/car_lot.rs`](../../crates/nfsmw/src/frontend/career_screens/car_lot.rs)) on the existing front end.
+   Open: the customization shop.
 
 ## Open questions (all pages)
 
