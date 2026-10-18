@@ -1,7 +1,8 @@
 //! Smooth contact shading around a raised body, without game textures or baked shadows.
 
 use blackbox_gfx::{
-    AoQuality, AoSettings, BlendMode, FrameParams, GraphicsSettings, Instance, Projection, RenderBackend, Shading,
+    AoMethod, AoQuality, AoSettings, BlendMode, FrameParams, GraphicsSettings, Instance, Projection, RenderBackend,
+    Shading,
 };
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use glam::{Mat4, Vec3};
@@ -51,9 +52,14 @@ fn raised_body_has_smooth_ground_contact() {
     let Some(mut renderer) = test_support::headless(SIZE) else { return };
     let (frame, instances) = scene(&mut renderer);
     let baseline = renderer.capture(SIZE.0, SIZE.1, &frame, &instances).unwrap();
-    for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
+    let choices = [AoMethod::Gtao, AoMethod::XeGtao]
+        .into_iter()
+        .flat_map(|method| [AoQuality::High, AoQuality::Medium, AoQuality::Low].map(|quality| (method, quality)));
+    for (method, quality, depth_mips) in
+        choices.flat_map(|(method, quality)| [false, true].map(|depth_mips| (method, quality, depth_mips)))
+    {
         renderer.apply_graphics(&GraphicsSettings {
-            ao: AoSettings { quality, ..Default::default() },
+            ao: AoSettings { method, quality, depth_mips, intensity: 1.0, ..Default::default() },
             ..Default::default()
         });
         let rgba = renderer.capture(SIZE.0, SIZE.1, &frame, &instances).unwrap();
@@ -63,7 +69,7 @@ fn raised_body_has_smooth_ground_contact() {
             .map(|y| (448..576).map(|x| f32::from(rgba[(y * SIZE.0 as usize + x) * 4])).sum::<f32>() / 128.0)
             .collect();
         let gradient = profile.windows(2).map(|p| (p[1] - p[0]).abs()).fold(0.0, f32::max);
-        assert!(gradient < 3.5, "{quality}: contact gradient has a hard band ({gradient})");
+        assert!(gradient < 3.5, "{method}/{quality}: contact gradient has a hard band ({gradient})");
         let contrast = (477..535)
             .map(|y| {
                 let before =
@@ -86,14 +92,18 @@ fn raised_body_has_smooth_ground_contact() {
             }
             errors.sort_by(f32::total_cmp);
             eprintln!(
-                "{quality}: shift {shift} ground error mean {:.2}, p99 {:.2}",
+                "{method}/{quality} depth_mips={depth_mips}: shift {shift} ground error mean {:.2}, p99 {:.2}",
                 errors.iter().sum::<f32>() / errors.len() as f32,
                 errors[396]
             );
-            assert!(errors[396] < 4.0, "{quality}: contact shading shimmers during a small camera move");
+            assert!(errors[396] < 4.0, "{method}/{quality}: contact shading shimmers during a small camera move");
         }
         if let Ok(directory) = std::env::var("BLACKBOX_AO_CAPTURE_DIR") {
-            std::fs::write(std::path::Path::new(&directory).join(format!("ao-raised-{quality}.rgba")), &rgba).unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join(format!("ao-raised-{method}-{quality}-{depth_mips}.rgba")),
+                &rgba,
+            )
+            .unwrap();
         }
     }
 }
