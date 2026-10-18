@@ -99,8 +99,8 @@ value type, copied, not shared.
 ## 5. Base components
 
 These are generic, implemented once in `blackbox-ui` (`src/components/`, one file each) and emit `UiNode`s through
-`DrawList`. Each has unit tests for layout and for the nodes it builds. The first five are built (T4). The last
-three are T5 and not yet built.
+`DrawList`. Each has unit tests for layout and for the nodes it builds. The first five are built (T4), and so are
+the three menu components (T5).
 
 | Component | Purpose | Emits | Used by (examples) |
 |---|---|---|---|
@@ -109,9 +109,14 @@ three are T5 and not yet built.
 | `Text` | One string in one skin font, with justification flags (FEng bits) and a max width | one `Text` | labels, values |
 | `Image` | One textured quad over a UV rectangle, filling its rectangle, with a tint | one `Image` | icons, backdrops |
 | `Gauge` | A dial with a rotating mask fill and an optional needle | one `Image` with `mask` (plus one needle `Image`) | tachometer, speed bar |
-| `Table` | Rows and columns of cells, with a selected row | `Group` of `Row`s | option tables, lists |
-| `Row` | One table row: label, value, optional arrows | `Group`, `Text`, `Image` | option rows |
-| `Switch` | A control that cycles through values (on/off, arrow cycle) | `Group`, `Text`, `Image` | settings toggles |
+| `Table` | Vertical list of rows at a fixed height each, with an optional header and a focused row | nothing itself; each row builds its own (plus the focus `Panel`) | option tables, lists |
+| `Row` | One table row: title in the left column, any control in the right | the title's `Text` and the control's nodes | option rows |
+| `Switch` | A control that cycles through values (on/off, arrow cycle) | `Text` for the selected label, plus arrow `Image`s | settings toggles |
+
+The menu components `Switch`, `Row` and `Table` are built (T5). `Row` and `Switch` emit `Text`/`Image` nodes
+directly, and `Table` emits no node of its own (its focus highlight is a `Panel`). Table rows stack at a fixed
+height, not equal shares. Focus moves with pad Up and Down, and pad Left and Right go to the focused row's
+control. Details and the API are in `libs/blackbox-ui/README.md` ("Menu components").
 
 `Gauge` is the generalised form of the tachometer mechanic. Its fraction (0..1) maps to the mask angle as
 `mask_rotation = [pivot_x, pivot_y, fraction * sweep_deg]`, with `sweep_deg` 360 by default. The mask fields of

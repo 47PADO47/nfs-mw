@@ -6,8 +6,8 @@ builds a flat draw list, and draws it. A theme registry decides which component 
 slot, and falls back to the Original theme when the active theme has no component for a slot.
 
 The crate has the component trait, the support types, the slot names, the theme registry and its fallback,
-and the first five base components (`Panel`, `Stack`, `Text`, `Image`, `Gauge`). Still to come: `Table`,
-`Row` and `Switch` (task T5), and the concrete elements (HUD parts, menus), which live in the game crate.
+the base components (`Panel`, `Stack`, `Text`, `Image`, `Gauge`) and the menu components (`Switch`, `Row`,
+`Table`). Still to come: the concrete elements (HUD parts, menus), which live in the game crate.
 
 Design decision: `docs/decisions/0008-ui-themes.md`.
 
@@ -75,6 +75,53 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
 
 Each component has unit tests that build it into a `DrawList` and check the node count, the `NodeKind`,
 the placement and the field values. The shared test helpers are in `src/components/mod.rs` (`testing`).
+
+## Menu components
+
+The menu components are the rows-and-switches building blocks of a settings or options screen. Each is one
+file in `src/components/`. They are built from the base components, so they reuse their skin lookups and
+their justification flags, and they add input handling.
+
+- **`Switch::new(font_key, options)`** cycles through a list of option labels. It emits one `Text` node for
+  the selected label, and, when arrows are set, one `Image` node per arrow (left, then right).
+  - `.with_arrows(left_key, right_key)` adds the arrow textures from the skin. Each arrow is a square as high
+    as the switch, or half its width when that is less. The label fills the middle.
+  - `Switch::on_off(font_key, off, on)` is a two-option switch that starts off. `is_on()` and `set_on(bool)`
+    read and write it. `is_on()` means "the second option is selected".
+  - `.with_selected(index)` sets the start option, clamped to the last option.
+  - `handle` consumes pad Left and Right (on press), which step the selection and wrap at both ends. It also
+    consumes a press on an arrow, which steps it the same way. A release, or any other button, is ignored.
+    A switch with no options consumes nothing.
+  - Reporting: `selected()` is the index, `selected_label()` is its label, and `take_changed()` returns
+    whether input changed the selection since the last call, then clears the flag. A change that input makes
+    also calls `EventCx::request_redraw`. `set_selected(index)` (clamped) does not set the flag.
+- **`Row::new(font_key, title)`** is a two-column row. The title is left-justified and vertically centred in
+  the left column. The control sits in the right column. `.with_control(c)` takes any `Component` (a
+  `Switch`, or a `Text` for a value), and `.with_boxed_control(Box<dyn Component>)` takes one already boxed.
+  The default control is `Empty`, so a row without one draws only its title.
+  - The title column is `.with_title_width(w)` (FEng units), or the skin metric named by
+    `.with_title_width_metric(key)`, which wins when the skin has it. Without either it is half the row.
+  - `title_rect()` and `control_rect()` report the two columns at the last layout.
+  - `handle` sends pad events to the control. A pointer event goes to the control only when it lands in the
+    right column.
+- **`Table::new(row_height)`** stacks its rows vertically from the top of its bounds. Every slot is the same
+  fixed height, so the rows do not share the height equally (that is `Stack`'s job). The height can come from
+  the skin: `.with_row_height_metric(key)` wins when the skin has the key.
+  - `.with_header(font_key, title)` adds a header row. It takes the first slot, so the rows start one slot
+    lower. `header_rect()` returns it as `Option<Rect>`.
+  - `.with_row(row)` appends a row. `row_count()` and `row_rects()` report the rows.
+  - Focus: one row has the focus, held as an index (`focused()`, `set_focused(i)`, clamped; it takes
+    effect at the next layout). Pad Up and Down move the focus one row, clamped at the ends. At an end they
+    return `false`, so a parent can use the press. Pad Left and Right go to the focused row. A pointer press
+    on a row focuses that row, passes the press to it, and is consumed.
+  - `.with_focus_colour(key)` draws a `Panel` behind the focused row, filled with the skin colour `key`. It
+    is drawn first, so it sits behind the rows.
+  - A focus move asks for a redraw. The host lays out again before the next frame, so the highlight moves.
+
+Once a switch sits inside a row, it is boxed, so a host cannot read its value back through the table. Input
+reports a change only as a redraw request, and the table's focus index says which row was driven. The host's
+own settings model is the source of truth: it applies the change there and feeds the value back when it
+rebuilds the row (`with_selected`, `set_selected`, or `set_on`).
 
 ## Slots and themes
 
