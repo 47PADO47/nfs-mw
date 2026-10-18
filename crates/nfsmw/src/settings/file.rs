@@ -14,6 +14,7 @@ use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
+    UiStyle,
 };
 use super::{
     Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
@@ -126,7 +127,10 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
-        radio_hud: field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?)),
+        // `radio_hud` is the legacy key: read only when this file sets no `ui_style` (`docs/specs/ui-themes.md` section 11).
+        ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {
+            field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
+        }),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),

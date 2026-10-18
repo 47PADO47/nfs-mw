@@ -91,6 +91,9 @@ pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
 mod transmission;
 #[cfg(test)]
 mod treatment_tests;
+mod ui_style;
+#[cfg(test)]
+mod ui_style_tests;
 mod upscale;
 mod upscale_quality;
 #[cfg(test)]
@@ -126,6 +129,7 @@ pub use spark_style::SparkStyle;
 pub use speed_trail_style::SpeedTrailStyle;
 pub use speedbreaker::SpeedbreakerTuning;
 pub use transmission::Transmission;
+pub use ui_style::UiStyle;
 pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
@@ -276,8 +280,9 @@ pub struct Settings {
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
-    /// How the radio announces the song on the HUD: the original EA Trax chyron or the rewrite's card.
-    pub radio_hud: RadioHudStyle,
+    /// The look of all HUD and menu UI: the original (default), the rewrite's Custom elements, or Remastered (not yet
+    /// implemented, falls back to Original). Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
+    pub ui_style: UiStyle,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
@@ -401,7 +406,7 @@ impl From<Partial> for Settings {
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
-            radio_hud: p.radio_hud.unwrap_or_default(),
+            ui_style: p.ui_style.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),

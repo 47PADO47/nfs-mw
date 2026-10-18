@@ -1,5 +1,7 @@
 //! The Bevy side of the front end: drives the flow every frame and draws the screens.
 
+use std::sync::Arc;
+
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
@@ -18,7 +20,7 @@ use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
-use super::screens::Screens;
+use super::screens::{Presented, Screens};
 use super::script::{self, UiScript};
 use super::world_map::{WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
@@ -27,6 +29,7 @@ use crate::gui::UiOutput;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
+use crate::ui::theme::{ElementId, UiThemes, slot_layer};
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
 
 /// Longest step the screens' clock takes, so a stall does not skip animations.
@@ -320,6 +323,10 @@ fn update(
     fe.changed = changed;
 }
 
+/// Draws the screens through the theme composer. Each screen with a menu slot fills that slot's cell once per frame
+/// (the tree the presenter gets), and a slot another screen already took keeps its own tree. The menu slots are cleared
+/// first, so a closed screen leaves no tree behind (`docs/specs/ui-themes-menus.md`, section 4).
+#[allow(clippy::too_many_arguments)]
 fn present(
     fe: Res<Frontend>,
     assets: Res<SharedAssets>,
@@ -328,11 +335,28 @@ fn present(
     mut out: ResMut<UiOutput>,
     bindings: Res<Bindings>,
     input: Res<InputPresentation>,
+    themes: Res<UiThemes>,
+    time: Res<Time>,
 ) {
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     // The presenter puts what it draws below what is already there, so the top screen goes first.
     let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
-    for tree in fe.screens.presented_trees(&bindings, device).iter().rev() {
-        presenter.0.present(tree, &assets.0, screen, &mut out);
+    let frame = themes.frame();
+    for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu()) {
+        frame.clear_menu(slot.slot());
+    }
+    let time_s = time.elapsed_secs();
+    let mut claimed: Vec<ElementId> = Vec::new();
+    for Presented { tree, slot } in fe.screens.presented(&bindings, device).into_iter().rev() {
+        let layer = match slot {
+            // The topmost screen on a slot takes it. A screen under it on the same slot is drawn as its own tree.
+            Some(slot) if !claimed.contains(&slot) => {
+                claimed.push(slot);
+                frame.set_menu(slot.slot(), Arc::new(tree));
+                slot_layer(&themes, slot, time_s)
+            }
+            _ => tree,
+        };
+        presenter.0.present(&layer, &assets.0, screen, &mut out);
     }
 }

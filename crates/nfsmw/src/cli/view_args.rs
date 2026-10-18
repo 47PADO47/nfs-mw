@@ -102,7 +102,10 @@ pub struct ViewArgs {
     /// HUD placement: pc, classic (centered) or xbox360 [env NFSMW_HUD_LAYOUT; default pc].
     #[arg(long, value_name = "pc|classic|xbox360")]
     pub hud_layout: Option<crate::settings::HudLayout>,
-    /// How the radio announces songs on the HUD: ea_trax (the original chyron) or custom [env NFSMW_RADIO_HUD; default ea_trax].
+    /// The look of all HUD and menu UI: original, custom or remastered [env NFSMW_UI_STYLE; config `ui_style`; default original].
+    #[arg(long, value_name = "original|custom|remastered")]
+    pub ui_style: Option<crate::settings::UiStyle>,
+    /// Legacy radio switch: ea_trax is --ui-style original, custom is --ui-style custom. --ui-style wins if both are set [env NFSMW_RADIO_HUD].
     #[arg(long, value_name = "ea_trax|custom")]
     pub radio_hud: Option<crate::settings::RadioHudStyle>,
     /// Enable tire smoke [env NFSMW_TIRE_SMOKE; config `tire_smoke`; default on].
@@ -369,7 +372,7 @@ impl ViewArgs {
             master_volume: if self.muted { Some(crate::settings::Percent(0)) } else { self.volume },
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             hud_layout: self.hud_layout,
-            radio_hud: self.radio_hud,
+            ui_style: self.ui_style.or(self.radio_hud.map(crate::settings::UiStyle::from)),
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,

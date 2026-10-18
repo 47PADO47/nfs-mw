@@ -27,6 +27,9 @@ mod slot;
 #[cfg(test)]
 mod tests;
 mod time;
+mod ui;
+#[cfg(test)]
+mod ui_tests;
 mod vehicles;
 #[cfg(test)]
 mod vehicles_tests;
@@ -57,6 +60,7 @@ pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
 pub use slot::Attached;
 pub(crate) use time::attach as attach_time;
+pub(crate) use ui::attach as attach_ui;
 pub(crate) use vehicles::attach as attach_vehicles;
 pub(crate) use world::attach as attach_world;
 
@@ -68,6 +72,7 @@ pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
 pub use time::TimeBackend;
+pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec};
 pub use vehicles::{VehicleState, VehiclesBackend};
 pub use world::{MAX_COP_SHARE, WorldBackend};
 

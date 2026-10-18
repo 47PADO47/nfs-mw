@@ -17,7 +17,7 @@ be enabled, selectable and reachable from both category strips. Leaving the
 screen saves changed settings and returns to the category strip with Player
 still selected, using the normal package animations and input handling.
 
-Gameplay keeps the existing HUD layout, Radio HUD, Minimap, Rear-View Mirror
+Gameplay keeps the existing HUD layout, UI style, Minimap, Rear-View Mirror
 and Turn Signals controls. Moving the three Player controls must not change
 their values or the remaining controls' behavior. Custom camera values stay
 available through the existing setting; this routing change does not change

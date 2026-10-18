@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::{PackageId, Runtime};
+use blackbox_ui::ThemeId;
 use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
@@ -19,8 +20,10 @@ use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
-use crate::settings::{RadioHudStyle, Settings};
+use crate::settings::Settings;
 use crate::ui::present::Screen;
+use crate::ui::theme::original::FengSource;
+use crate::ui::theme::{ElementId, UiThemes, hud_layer, slot_layer};
 use crate::ui::{Catalog, Presenter, SharedAssets};
 
 /// The package that is the in-game HUD, and the files that hold it.
@@ -118,6 +121,10 @@ fn sync(
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
 }
 
+/// Draws the HUD through the theme composer (`ui/theme/compose.rs`). Each frame the plugin stores each source's tree in
+/// the frame cell, with the transforms the presenter always got (the chyron placed, the HUD viewported, the busted
+/// overlay as it is). The layers are then composed from the active theme's slots and presented in order: the radio
+/// layer, the HUD, the busted overlay.
 #[allow(clippy::too_many_arguments)]
 fn present(
     mut hud: ResMut<Hud>,
@@ -126,6 +133,7 @@ fn present(
     settings: Res<Settings>,
     time: Res<Time>,
     assets: Res<SharedAssets>,
+    themes: Res<UiThemes>,
     mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
@@ -134,13 +142,15 @@ fn present(
         return;
     }
     let hud = &mut *hud;
-    let ea_trax = settings.radio_hud == RadioHudStyle::EaTrax;
+    // The RadioCard slot decides the radio look. The EA Trax chyron plays and is drawn only where the active theme
+    // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.
+    let chyron_shown = themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
     hud.binding.set_mirror_shown(settings.rear_view_mirror);
     hud.binding.advance_mirror_fade(time.delta_secs());
     hud.binding.advance_blips(time.delta_secs());
     hud.binding.apply(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_mut() {
-        let song = ea_trax.then(|| radio.song().zip(radio.serial())).flatten();
+        let song = chyron_shown.then(|| radio.song().zip(radio.serial())).flatten();
         trax.apply(&mut hud.runtime, song);
     }
     hud.runtime.update(time.delta_secs());
@@ -150,18 +160,37 @@ fn present(
     }
     let _ = hud.runtime.take_outgoing();
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
-    // The presenter puts each call's meshes in front of the ones of the calls before it, so the chyron is drawn
-    // first and the HUD after it: the chyron then sits on top of the gauges.
-    if let (true, Some(trax)) = (ea_trax, hud.trax.as_ref()) {
-        let mut chyron = hud.runtime.tree(trax.package());
-        trax.place(&mut chyron, screen, settings.hud_layout);
-        presenter.0.present(&chyron, &assets.0, screen, &mut out);
+    let frame = themes.frame();
+    // The card places itself from the HUD layout, so it takes the feed, not the viewport.
+    themes.radio().set(&radio, screen, settings.hud_layout);
+    match (chyron_shown, hud.trax.as_ref()) {
+        (true, Some(trax)) => {
+            let mut chyron = hud.runtime.tree(trax.package());
+            trax.place(&mut chyron, screen, settings.hud_layout);
+            frame.set(FengSource::Chyron, chyron);
+        }
+        _ => frame.clear(FengSource::Chyron),
     }
+    // The viewport is applied to the source tree (its `index` is the position), never to the composed tree.
     let mut tree = hud.runtime.tree(hud.package);
     hud.viewport.apply(&mut tree, screen, settings.hud_layout);
-    presenter.0.present(&tree, &assets.0, screen, &mut out);
-    // The busted overlay goes over the HUD. It is drawn in the frame's full screen, not the HUD's viewport.
-    if let Some(overlay) = hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
-        presenter.0.present(&overlay, &assets.0, screen, &mut out);
+    frame.set(FengSource::Hud, tree);
+    match hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
+        Some(overlay) => frame.set(FengSource::BustedOverlay, overlay),
+        None => frame.clear(FengSource::BustedOverlay),
+    }
+    // The presenter puts each call's meshes over the ones of the calls before it, so the chyron (or the card) goes
+    // first, the HUD over it, and the busted overlay last, as the presenter always drew them.
+    let time_s = time.elapsed_secs();
+    let layers = [
+        slot_layer(&themes, ElementId::RadioCard, time_s),
+        hud_layer(&themes, time_s),
+        slot_layer(&themes, ElementId::BustedOverlay, time_s),
+    ];
+    for layer in &layers {
+        if layer.nodes.is_empty() {
+            continue;
+        }
+        presenter.0.present(layer, &assets.0, screen, &mut out);
     }
 }

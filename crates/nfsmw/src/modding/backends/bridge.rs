@@ -13,6 +13,7 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::host::HotkeyHandler;
+use blackbox_ui::ThemeId;
 use game_install::GameDir;
 use nfsmw_data::pursuit::{HeatRow, heat_row, race_heat_row};
 use nfsmw_modding::abi::CopTable;
@@ -23,6 +24,7 @@ use super::map::{self, ModBlip};
 use super::menu_store::{ConfigFile, ValueStore};
 use super::menus::MenuRow;
 use super::time::{self, Clock, ClockRequest};
+use super::ui::UiRecord;
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
@@ -53,6 +55,11 @@ pub struct Bridge {
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
     pub(super) menu_rows: RefCell<Vec<MenuRow>>,
+    /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
+    pub(super) ui_themes: RefCell<Vec<UiRecord>>,
+    /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
+    /// reads it each frame and keeps it while the theme is registered.
+    pub(super) ui_theme_choice: Cell<Option<ThemeId>>,
     /// Where the rows' values are saved.
     pub(super) store: Box<dyn ValueStore>,
     /// The install, once the layers are in place (see `open.rs`). The cop waves of the install are read through it.
@@ -82,6 +89,8 @@ impl Bridge {
             world_requests: RefCell::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
+            ui_themes: RefCell::default(),
+            ui_theme_choice: Cell::new(None),
             store,
             install: RefCell::default(),
         }

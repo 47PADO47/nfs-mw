@@ -9,10 +9,12 @@ use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use super::minimap::{ARROW, BACKING, GROUP};
 
 /// The speedometer group and the group of the tachometer (needle, face, gear, shift light, redline).
-const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
-const TACHOMETER: [u32; 1] = [0x5164_d4ea];
+pub(super) const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
+pub(super) const TACHOMETER: [u32; 1] = [0x5164_d4ea];
+/// The turbo gauge's group: its needle sits inside it. The name is the one the package uses.
+pub(super) const TURBO_GROUP: &str = "TURBO_GROUP";
 /// The nitrous gauge: its group (frame and icon) and the bar, a multi image next to the group.
-const NITROUS: [u32; 2] = [0x87c3_8e97, 0xedfb_6d37];
+pub(super) const NITROUS: [u32; 2] = [0x87c3_8e97, 0xedfb_6d37];
 /// The rear-view mirror's backing, with the detector grille integrated under it.
 const MIRROR: [u32; 1] = [0x9ee0_6631];
 /// The standalone backing and detector objects. Authored scripts select the mirror/standalone poses.
@@ -20,13 +22,13 @@ const RADAR: [u32; 2] = [0x839e_7d77, 0x0627_43f5];
 /// The radar's green laser (`Radar_Icon.tga`): it shows over the base radar while a cop is nearby.
 const LASER: [u32; 1] = [0x6ccb_bbf1];
 /// The pursuit board (`PursuitBoardGroup`): the backing, the timer and the bounty row. Shown while a chase runs.
-const PURSUIT_BOARD: [u32; 2] = [0xde89_e070, 0x7b42_2ba3];
+pub(super) const PURSUIT_BOARD: [u32; 2] = [0xde89_e070, 0x7b42_2ba3];
 /// The cops group (`0xe0b1430b`): the cops icon with its count, and the taken-out icon with the wrecked count. It shows
 /// with the board, as the cops it counts are the chase's.
-const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
+pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
-const COOLDOWN: [u32; 1] = [0x84a2_26ec];
+pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
 /// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
 const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
 /// Parts of the package with no state bound yet, held hidden whatever the feature: the heat arcs (their
@@ -102,7 +104,7 @@ impl Layout {
                 super::speedbreaker::LINEAR_GROUP,
             ]),
             nitrous: find(&NITROUS),
-            turbo: find(&[fe_hash_upper("TURBO_GROUP")]),
+            turbo: find(&[fe_hash_upper(TURBO_GROUP)]),
             minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
             mirror: find(&MIRROR),
             radar: find(&RADAR),

@@ -14,14 +14,27 @@ use crate::settings::Settings;
 /// The config table that holds every mod's values.
 const TABLE: &str = "mod_values";
 
+/// The value of row `name` of mod `owner` in a parsed config, if it is there.
+fn row_value<'a>(table: &'a Table, owner: &str, name: &str) -> Option<&'a Value> {
+    table.get(TABLE)?.as_table()?.get(owner)?.as_table()?.get(name)
+}
+
 /// The saved value of row `name` of mod `owner` in the config text, as a number. A boolean reads as 0 or 1.
 pub fn saved_in(text: &str, owner: &str, name: &str) -> Option<f32> {
     let table: Table = text.parse().ok()?;
-    let value = table.get(TABLE)?.as_table()?.get(owner)?.as_table()?.get(name)?;
-    match value {
+    match row_value(&table, owner, name)? {
         Value::Boolean(on) => Some(f32::from(u8::from(*on))),
         Value::Integer(number) => Some(*number as f32),
         Value::Float(number) => Some(*number as f32),
+        _ => None,
+    }
+}
+
+/// The saved text of row `name` of mod `owner` in the config text. Only a string reads back as text.
+pub fn saved_text_in(text: &str, owner: &str, name: &str) -> Option<String> {
+    let table: Table = text.parse().ok()?;
+    match row_value(&table, owner, name)? {
+        Value::String(text) => Some(text.clone()),
         _ => None,
     }
 }
@@ -39,10 +52,13 @@ pub fn with_saved(text: &str, owner: &str, name: &str, value: Value) -> Result<S
     toml::to_string(&table).map_err(|e| e.to_string())
 }
 
-/// Where the rows' values are kept: the config file in a game run, a memory store in the tests.
+/// Where the rows' values are kept: the config file in a game run, a memory store in the tests. The game's own text
+/// values (the mod theme choice, `ui/theme`) are kept here too, under the owner `nfsmw`.
 pub trait ValueStore {
-    /// The saved value of row `name` of mod `owner`, if any.
+    /// The saved value of row `name` of mod `owner` as a number, if any.
     fn saved(&self, owner: &str, name: &str) -> Option<f32>;
+    /// The saved value of row `name` of mod `owner` as text, if it is text.
+    fn saved_text(&self, owner: &str, name: &str) -> Option<String>;
     /// Save row `name` of mod `owner`. An error says why it could not be.
     fn save(&self, owner: &str, name: &str, value: Value) -> Result<(), String>;
 }
@@ -53,6 +69,12 @@ pub struct ConfigFile;
 impl ValueStore for ConfigFile {
     fn saved(&self, owner: &str, name: &str) -> Option<f32> {
         saved(owner, name)
+    }
+
+    fn saved_text(&self, owner: &str, name: &str) -> Option<String> {
+        let path = Settings::config_path()?;
+        let text = std::fs::read_to_string(path).ok()?;
+        saved_text_in(&text, owner, name)
     }
 
     fn save(&self, owner: &str, name: &str, value: Value) -> Result<(), String> {
@@ -102,6 +124,16 @@ mod tests {
         assert_eq!(saved_in(&text, "example.hello", "pick"), Some(2.0));
         assert_eq!(saved_in(&text, "other.mod", "speed"), None, "each mod has its own table");
         assert_eq!(saved_in(&text, "example.hello", "missing"), None);
+    }
+
+    #[test]
+    fn a_saved_text_reads_back_as_text_and_not_as_a_number() {
+        let text = with_saved("", "nfsmw", "ui_style_mod", Value::String("example.a/night".into())).unwrap();
+        assert_eq!(saved_text_in(&text, "nfsmw", "ui_style_mod").as_deref(), Some("example.a/night"));
+        assert_eq!(saved_in(&text, "nfsmw", "ui_style_mod"), None, "a string is not a number");
+        let text = with_saved(&text, "nfsmw", "ui_style_mod", Value::String(String::new())).unwrap();
+        assert_eq!(saved_text_in(&text, "nfsmw", "ui_style_mod").as_deref(), Some(""), "the built-in choice is empty");
+        assert_eq!(saved_text_in(&text, "nfsmw", "missing"), None);
     }
 
     #[test]

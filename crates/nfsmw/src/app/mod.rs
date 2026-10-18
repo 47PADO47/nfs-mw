@@ -167,6 +167,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .insert_resource(window::WindowModes::new(screenshot.is_some()))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
+    // The theme registry (`ui/theme`). The HUD and menu presenters resolve their slots through it (`ui/theme/compose.rs`).
+    .insert_resource(crate::ui::theme::UiThemes::build())
     .insert_non_send(Host::new(scene, settings, plan).with_bench(bench_seconds))
     .configure_sets(
         Update,
@@ -201,6 +203,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, crate::settings::hd_content::publish.in_set(FrameSet::Prepare))
     .add_systems(Update, crate::settings::custom_fonts::publish.in_set(FrameSet::Prepare))
     .add_systems(Update, crate::settings::fe_shadows::publish.in_set(FrameSet::Prepare))
+    .add_systems(Update, crate::ui::theme::sync_active_theme.in_set(FrameSet::Prepare))
+    .add_systems(Update, crate::ui::theme::sync_mod_themes.in_set(FrameSet::Prepare))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
     .add_systems(bevy_app::First, latency::begin.before(bevy_time::TimeSystems))
     .add_systems(bevy_app::PreUpdate, latency::input.after(bevy_input::InputSystems))

@@ -66,6 +66,10 @@ pub use iface::{
     IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
     IFACE_TIME_VERSION,
 };
+pub use iface::{
+    BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiUnregisterThemeFn,
+    IFACE_UI, IFACE_UI_VERSION,
+};
 pub use module::{
     BB_EVENT_CANCEL, BB_EVENT_CONTINUE, BbDestroyFn, BbEvent, BbEventResult, BbModApi, BbModCreateFn, BbModInfo,
     BbModInfoFn, BbOnEventFn, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL,

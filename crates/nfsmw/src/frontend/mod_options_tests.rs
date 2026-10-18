@@ -56,3 +56,24 @@ fn without_mods_there_are_no_switches_to_show_or_change() {
     assert!(shown(None, Setting::ModManaged(0)).is_none());
     change(None, Setting::ModManaged(0), true);
 }
+
+#[test]
+fn the_ui_theme_row_is_offered_only_when_a_mod_registered_a_theme() {
+    let row = theme_row(true).expect("a mod theme is registered, so the choice is offered");
+    assert_eq!(row.setting, Setting::ModTheme);
+    assert!(theme_row(false).is_none(), "no mod theme, no choice");
+}
+
+#[test]
+fn the_ui_theme_row_shows_the_chosen_theme_or_the_built_in_style() {
+    let built_in = describe_theme(None);
+    assert_eq!(built_in.label, "UI theme");
+    assert_eq!((built_in.control, built_in.data), (Control::Toggle, Data::Text("Built-in style".into())));
+    assert_eq!(describe_theme(Some("Night drive".into())).data, Data::Text("Night drive".into()));
+}
+
+#[test]
+fn without_mods_there_is_no_ui_theme_row_to_show_or_change() {
+    assert!(shown(None, Setting::ModTheme).is_none());
+    change(None, Setting::ModTheme, true);
+}

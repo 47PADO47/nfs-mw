@@ -17,6 +17,9 @@ pub(crate) mod menus;
 #[cfg(all(test, feature = "host"))]
 mod menus_tests;
 pub(crate) mod time;
+pub(crate) mod ui;
+#[cfg(all(test, feature = "host"))]
+mod ui_tests;
 pub(crate) mod vehicles;
 pub(crate) mod world;
 

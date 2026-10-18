@@ -46,6 +46,8 @@ const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
 /// The cops group (`0xE0B1430B`, the parent of the cops counters): its icons and the taken-out count beside them.
 /// Its fade-in is a script on a message this build does not raise, so it is held at full alpha during a chase too.
 const COPS_GROUP: u32 = 0xE0B1_430B;
+/// The gear digit inside the tachometer group (`3rdPersonGear`). The Original theme's gear slot emits it on its own.
+pub(super) const GEAR: &str = "3rdPersonGear";
 
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
@@ -113,7 +115,7 @@ impl HudBinding {
                 find(rt, package, "SPEED_DIGIT_3"),
             ],
             units: find(rt, package, "3rdPersonSpeedUnits"),
-            gear: find(rt, package, "3rdPersonGear"),
+            gear: find(rt, package, GEAR),
             needle: find(rt, package, "3rdPersonNeedle"),
             fill: rt.find_guid(package, 0x456e),
             face: find(rt, package, "TAC_Lines_7500"),

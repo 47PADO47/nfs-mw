@@ -14,8 +14,8 @@ use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, RadioHudStyle, Settings, SmokeQuality, Transmission,
-    UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, Transmission, UiStyle, UpscaleMode,
+    WindowMode,
 };
 
 /// A setting a row edits.
@@ -55,7 +55,7 @@ pub enum Setting {
     Graphics(GraphicsSetting),
     Renderer(RendererSetting),
     HudLayout,
-    RadioHud,
+    UiStyle,
     Minimap,
     RenderScale,
     Upscaler,
@@ -64,6 +64,9 @@ pub enum Setting {
     Mod(u64),
     /// The on/off switch of a listed mod, by its position in the mod manager's list (`mod_options.rs`).
     ModManaged(usize),
+    /// The UI theme the Mods page chooses among the mods' themes (`bb.ui`), or the built-in style. Its value is kept by
+    /// the bridge, not the settings (`mod_options.rs`).
+    ModTheme,
 }
 
 /// What a row's title shows.
@@ -192,13 +195,7 @@ impl Setting {
                 }
                 .to_owned(),
             ),
-            Setting::RadioHud => Data::Text(
-                match s.radio_hud {
-                    RadioHudStyle::EaTrax => "EA Trax",
-                    RadioHudStyle::Custom => "Custom",
-                }
-                .to_owned(),
-            ),
+            Setting::UiStyle => Data::Text(s.ui_style.label().to_owned()),
             Setting::Minimap => Data::Text(
                 match s.minimap {
                     MinimapMode::Fixed => "Fixed",
@@ -311,8 +308,9 @@ impl Setting {
         let before = *s;
         match self {
             Setting::AdvancedGraphics => return false,
-            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings.
-            Setting::Mod(_) | Setting::ModManaged(_) => return false,
+            // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
+            // bridge too.
+            Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
@@ -325,11 +323,10 @@ impl Setting {
                 s.hud_layout = layouts[cycle(at, layouts.len(), forward)];
                 changed.hud_layout = Some(s.hud_layout);
             }
-            Setting::RadioHud => {
-                let styles = [RadioHudStyle::EaTrax, RadioHudStyle::Custom];
-                let at = styles.iter().position(|style| *style == s.radio_hud).unwrap_or(0);
-                s.radio_hud = styles[cycle(at, styles.len(), forward)];
-                changed.radio_hud = Some(s.radio_hud);
+            Setting::UiStyle => {
+                let at = UiStyle::ALL.iter().position(|style| *style == s.ui_style).unwrap_or(0);
+                s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
+                changed.ui_style = Some(s.ui_style);
             }
             Setting::Minimap => {
                 let modes = [MinimapMode::Fixed, MinimapMode::Rotating, MinimapMode::Off];

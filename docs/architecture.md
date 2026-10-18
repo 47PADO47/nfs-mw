@@ -351,6 +351,9 @@ with `Scene::hud_state`; nothing else knows FEng.
   skins other than 00 are not loaded; the original also zeroes the shift light for a frame after a gear change and
   when the wheels lack traction (not in the decompilation, not done); the mask blend of multi images is inferred from
   the gauge textures; the HUD has not been compared with a capture of the original.
+- **Theme composition (T12).** The plugin stores each source's tree in the frame cell, and the composer
+  (`ui/theme/compose.rs`) draws the radio layer, the HUD and the busted overlay, each as one presenter call. Under
+  Original the composed HUD equals the stored tree; the chyron plays only where `RadioCard` is Original ([spec](specs/ui-themes-compose.md)).
 
 ## The front end
 
@@ -372,6 +375,8 @@ The menus are the install's own FEng screens run by the same runtime and drawn b
 - **Input.** The `Menu*` actions of the input layer (arrows or WASD or the D-pad, Enter or Space or A, Escape or B,
   Start or P, Q on the main menu) become a pad mask for the runtime, which sends the engine's messages and moves the
   focus by geometry. `--ui-script` replaces input and clock for screenshots and tests.
+- **Theme composition (T12).** The topmost screen on a menu slot fills that slot's cell; its composed layer draws in
+  place of its own tree ([spec](specs/ui-themes-compose.md), section 4).
 
 Settings: the option rows change `Settings` (the resource the console edits, so volumes, vsync, the frame cap, the
 overlay and the HUD apply at once) and record the change; the config file layer is written when a screen is left
@@ -441,8 +446,9 @@ is `ea-audio`, engine synthesis is `blackbox-ginsu`, and the mix controller is `
   every frame, so the pause menu's audio rows change the song on the air at once; a music volume of zero silences
   the song without dropping it, and a new song only starts when the music is audible. `--no-sound` turns the radio
   off. Console: `radio` (status), `radio next|prev|pause|resume|toggle`, `radio on|off`, `radio list`, `radio play <n>`,
-  `radio shuffle|ordered`; the keys `radio_toggle`, `radio_next`, `radio_previous` work while driving (spec section 7). `Audio::now_playing()` feeds the card of `hud/radio.rs` (artist, title, album, time), shown at the
-  HUD's left edge for 6 s after a song starts, pauses or resumes. Unheard; how the original ends a song is inferred.
+  `radio shuffle|ordered`; the keys `radio_toggle`, `radio_next`, `radio_previous` work while driving (spec section 7). `Audio::now_playing()` feeds the radio data of `hud/radio.rs`; the Custom theme's card (`ui/theme/custom/radio_card.rs`,
+  artist, title, album, time) is drawn at the HUD's left edge for 6 s after a song starts, pauses or resumes. The
+  card draws through the presenter via the composer (T12). Unheard; how the original ends a song is inferred.
 - **The pursuit music.** `audio/interactive/`: the four pursuit sets of the graph, steered by a control value (a
   `MusicInput` resource, hooks for milestone 7, or the `music` command). A director and conductor play them on a child
   track (`graph::Cursor` walks the bars), cross-fade sets, keep songs off for the chase and 40 s after. Map events are

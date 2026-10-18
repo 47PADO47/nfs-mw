@@ -11,7 +11,7 @@ use crate::settings::fe_shadows;
 use crate::settings::hd_content;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
-    RendererKind, Settings, Transmission, parse_bool,
+    RendererKind, Settings, Transmission, UiStyle, parse_bool,
 };
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -70,7 +70,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "camera_mode" => settings.camera_mode.to_string(),
         "minimap" => settings.minimap.to_string(),
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
-        "radio_hud" | "radio-hud" => settings.radio_hud.to_string(),
+        "ui_style" | "ui-style" | "radio_hud" | "radio-hud" => settings.ui_style.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
         key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
@@ -173,7 +173,9 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "camera_mode" => settings.camera_mode = CameraMode::from_str(value)?,
         "minimap" => settings.minimap = MinimapMode::from_str(value)?,
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
-        "radio_hud" | "radio-hud" => settings.radio_hud = RadioHudStyle::from_str(value)?,
+        "ui_style" | "ui-style" => settings.ui_style = UiStyle::from_str(value)?,
+        // The legacy alias: ea_trax and custom, mapped onto the same setting.
+        "radio_hud" | "radio-hud" => settings.ui_style = UiStyle::from(RadioHudStyle::from_str(value)?),
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
         "h_shifter" => settings.h_shifter = parse_bool(value)?,
         "motion_blur" => settings.motion_blur = parse_bool(value)?,
@@ -277,7 +279,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "camera_mode" => "<chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
-        "radio_hud" | "radio-hud" => "<ea_trax|custom>",
+        "ui_style" | "ui-style" => "<original|custom|remastered>",
+        "radio_hud" | "radio-hud" => "<ea_trax|custom> (alias of ui_style)",
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",

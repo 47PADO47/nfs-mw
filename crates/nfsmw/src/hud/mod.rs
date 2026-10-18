@@ -42,11 +42,14 @@ mod pursuit_end;
 mod pursuit_tests;
 mod radar;
 mod radio;
+/// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).
+pub(crate) mod roots;
 mod skin;
 mod speedbreaker;
 mod state;
 mod trax;
-mod viewport;
+/// The HUD layout's viewport math. The Custom radio card (`ui/theme/custom/radio_card`) reuses its `parameters`.
+pub(crate) mod viewport;
 #[cfg(test)]
 mod viewport_tests;
 
@@ -62,5 +65,5 @@ pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_m
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
-pub use radio::{RadioHud, show as show_radio};
+pub use radio::{Card, RadioHud};
 pub use state::{HudState, MapPosition};
