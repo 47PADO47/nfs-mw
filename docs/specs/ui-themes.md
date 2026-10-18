@@ -13,7 +13,9 @@ trade-offs are in [ADR 0008](../decisions/0008-ui-themes.md). This spec gives th
   [feng-runtime.md](feng-runtime.md), [frontend-menus.md](frontend-menus.md), [hud-viewport.md](hud-viewport.md).
 - **Data inputs:** none new. The Original theme reads the same FEng packages and HUD and menu state as today.
   No game data and no decompiled code is used in this spec.
-- **Status:** design. Nothing here is built yet. Items marked **open** are not decided (section 14).
+- **Status:** design. The component model (`libs/blackbox-ui`) and the MW slot catalogue and theme scaffolding
+  (`crates/nfsmw/src/ui/theme/`, T6) are built. Nothing draws through them yet. Items marked **open** are not decided
+  (section 14).
 
 ## 1. What a theme controls
 
@@ -133,42 +135,61 @@ side). The table lists the candidate catalogue from the plan. "Original code tod
 draws the slot now; entries marked **?** are not yet confirmed in the code and are to be checked in the task
 named.
 
+The catalogue below is final for this milestone (T6). Each slot's number is explicit in
+`crates/nfsmw/src/ui/theme/element.rs` and pinned by a test in `crates/nfsmw/src/ui/theme/tests.rs`. Numbers are part
+of the mod ABI: never reused, never renumbered. "Original source" was confirmed in the code in T6; the `?` entries of
+the T1 draft are resolved here.
+
 **HUD (state-fed):**
 
-| Slot | Original code today |
+| Slot (id) | Original source (confirmed in code) |
 |---|---|
-| `Tachometer` | HUD package (`HUD_SingleRace.fng`), gauge objects fed by `hud/bind.rs` from `hud/state.rs` |
-| `Speedometer` | same package and binding as `Tachometer` |
-| `GearIndicator` | `hud/bind.rs` (**?** object names, T7) |
-| `Minimap` | `hud/minimap.rs`, placed by `hud/viewport.rs` (see [hud-minimap.md](hud-minimap.md)) |
-| `Blips` | `hud/blips.rs`, styles from `hud/blip_style.rs` |
-| `PursuitMeter` | `hud/pursuit_meter.rs` |
-| `Nitrous`, `Turbo`, `Speedbreaker` | HUD package objects bound in `hud/bind.rs` (**?** T7) |
-| `RadioCard` | Original: the EA Trax chyron from `hud/trax.rs` (package `EA_TRAX.fng`). Custom: `hud/radio.rs` card |
-| `BustedOverlay` | `hud/busted_overlay.rs` |
+| `Tachometer` (1) | Group guid `0x5164D4EA` (`TACHOMETER`, `hud/elements.rs`) in `HUD_SingleRace.fng`. Needle `3rdPersonNeedle`, face `TAC_Lines_7500`, redline `RPM_REDLINE`, shift light `Shift_light`, fill guid `0x456E`. Bound by `HudBinding::tachometer` (`hud/bind.rs`) |
+| `Speedometer` (2) | Group guid `0x941FFF09` (`SPEEDOMETER`). Digits `SPEED_DIGIT_1..3`, units `3rdPersonSpeedUnits`. Bound by `HudBinding::speedometer` |
+| `GearIndicator` (3) | Object `3rdPersonGear`, inside the tachometer group. Text and shift-time alpha set in `HudBinding::tachometer`. **Confirmed** (was `?`) |
+| `Minimap` (4) | `hud/minimap.rs` (`GROUP`, `BACKING`, `ARROW`), shown by `hud/elements.rs`, placed by `hud/viewport.rs` ([hud-minimap.md](hud-minimap.md)) |
+| `Blips` (5) | `hud/blips.rs`; styles from `hud/blip_style.rs` and `hud/blip_styles.rs` |
+| `PursuitMeter` (6) | `hud/pursuit_meter.rs` (meter guid `0x7B422BA3`, cool-down guid `0x84A226EC`). The pursuit board (timer and cops count, groups `0xDE89E070` and `0xE0B1430B`) is bound in `HudBinding::pursuit`. **Open for T7:** whether the board is part of this slot |
+| `Nitrous` (7) | Group guid `0x87C38E97`, bar guid `0xEDFB6D37` (`nos_bar`), icon guid `0x27DDF583` (`nos_icon`, scripts `SCRIPT_NOS_BURNING` and `SCRIPT_NOS_READY`). Bound by `HudBinding::nitrous`. **Confirmed** (was `?`) |
+| `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
+| `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
+| `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: the card in `hud/radio.rs` (egui today, moves to the presenter in T9) |
+| `BustedOverlay` (11) | `hud/busted_overlay.rs`, package `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), loaded by the HUD while `HudState::busted_overlay` is set. **Confirmed** (was `?`) |
 
 **Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
 
-| Slot | Original code today |
+| Slot (id) | Original source (confirmed in code) |
 |---|---|
-| `MainMenu` | `frontend/screens.rs`, `frontend/icon_menu.rs` |
-| `Categories` | `frontend/icon_menu.rs`, `frontend/options.rs` (**?** T8) |
-| `PauseMenu` | `frontend/screens.rs` (`Pause_Main` icon menu) (**?** T8) |
-| `OptionTable` | `frontend/options_rows.rs`, `frontend/widget_menu.rs` |
-| `TrackSelect` | **?** quick race screens (T8) |
-| `SafeHouseMenu` | **?** (T8) |
-| career screens | `crates/nfsmw/src/career` and [provenance/career-runtime.md](../provenance/career-runtime.md) (**?** T8) |
+| `MainMenu` (20) | `MainMenu.fng` → `IconMenu` `Kind::Main` (`frontend/factory.rs`, `frontend/icon_menu.rs`) |
+| `Categories` (21) | `MainMenu_Sub.fng` → `IconMenu` `Kind::Categories { pause: false }`. `Pause_Main.fng` with `Args::options` → `Kind::Categories { pause: true }`. **Confirmed** (was `?`). Shares a package with `SafeHouseMenu`: see section 8 |
+| `PauseMenu` (22) | `Pause_Main.fng` without `Args::options` → `IconMenu` `Kind::Pause`. **Confirmed** (was `?`) |
+| `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
+| `TrackSelect` (24) | `Track_Select.fng` → `frontend/track_select.rs` (Quick Race, step one; the track list is not populated yet). **Confirmed** (was `?`) |
+| `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
 
-The list is a starting point. Each slot needs a consumer before it is added. A slot with no theme that overrides
-it and no test is a sign it should not exist yet.
+**Career screens (`frontend/career_screens/`):**
+
+| Slot (id) | Original source (confirmed in code) |
+|---|---|
+| `Blacklist` (40) | `SafeHouseRivalChallenge.fng`, `SafeHouseRivalBio.fng` → `career_screens/blacklist.rs` |
+| `CarLot` (41) | `Car_Select.fng` → `career_screens/car_lot.rs` |
+| `RapSheet` (42) | `RapSheetLogin.fng`, `RapSheetLogin2.fng`, `RapSheetMain.fng`, `RapSheetUS.fng`, `RapSheetVD.fng`, `RapSheetCTS.fng`, `RapSheetRankings.fng`, `RapSheetRankingsDetail.fng`, `RapSheetRS.fng`, `RapSheetTEP.fng`, `RapSheetPD.fng` → `career_screens/rap_sheet/`. Only once `unlocked()` |
+| `RegionUnlock` (43) | `SafehouseRegionUnlock.fng` → `career_screens/region_unlock.rs` |
+| `MemoryCard` (44) | `MC_Main.fng`, `MC_List.fng` → `career_screens/save.rs` |
+| `Sms` (45) | `SMS_Mailboxes.fng`, `SMS_Message.fng` → `career_screens/sms.rs` |
+
+**Screens with no slot yet.** These exist but are not in the catalogue, because no theme needs to override them yet
+(the rule "each slot needs a consumer"): `Track_Options.fng` (`track_options.rs`), `Options_PC_Controller.fng` and
+`Pause_PC_Controller.fng` (`controls_screen.rs`), `Dialog.fng` (`confirm.rs`), `Credits.fng`, `EA_Trax_Jukebox.fng`
+(`jukebox.rs`), `WorldMapMain.fng` (`world_map/`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
+a theme or a mod needs it, with its number from the next free block.
 
 **Slot kinds.** HUD slots receive a snapshot of `HudState` through `BuildCx`. Front-end slots receive the screen's
 data through the same `ScreenLogic` values the Original code reads today. Neither kind exposes FEng types.
 
-**Where `ElementId` lives.** The plan's sketch lists the MW names inside the enum in `blackbox-ui`. That conflicts
-with [AGENTS.md](../../AGENTS.md) ("no NFS:MW-specific names in `libs/`"). The working assumption of this spec:
-`blackbox-ui` defines a generic slot id (a `u32` newtype plus a static name table), and `crates/nfsmw` defines the
-MW slot enum and the mapping to those ids. This is **open**; see section 14.
+**Where `ElementId` lives (decided, T6).** `blackbox-ui` defines the generic `SlotId(u32)` (`libs/blackbox-ui/src/slot.rs`).
+`crates/nfsmw/src/ui/theme/element.rs` defines the MW `ElementId` enum with explicit numbers, and `ElementId::slot()`
+converts it to a `SlotId`. No MW name is in `libs/`.
 
 ## 7. `Theme`, `Themes` and the `resolve` fallback
 
@@ -224,6 +245,34 @@ The Original theme implements every slot. Each implementation is an **adapter** 
 original game (see [hud-viewport.md](hud-viewport.md) and [frontend-menus.md](frontend-menus.md)). Tests must
 show the tree is unchanged before and after each slot is wrapped (the digest tests in
 `libs/blackbox-render/src/gpu/parity/digests/`).
+
+### Adapter design: emitting the FEng subtree (note for T7 and T8, not built)
+
+The T6 scaffolding leaves `OriginalTheme::element` returning `None`. The adapters follow this design:
+
+1. **One producer.** The owning plugin (`hud/plugin.rs`, `frontend/plugin.rs`) advances its package (scripts,
+   messages) and calls `Runtime::tree()` once per frame, as it does today. Adapters only read. They never run a
+   second copy of a package.
+2. **One adapter per slot, over one FEng subtree.** A slot's objects are a root group and its children (section 6).
+   The adapter's subtree is the nodes of that frame's `UiTree` under the root. Node indices belong to one tree, so the
+   adapter copies its nodes and remaps each `parent` into the index space of its own `DrawList`.
+3. **How the frame's nodes reach `build`. Open for T7.** `build(&self)` takes no runtime (section 3, decision 2 in the
+   plan), and `LayoutCx` carries only the skin and the clock, so neither can hand over the tree. Recommended: the
+   adapter holds a shared cell (for example `Rc<RefCell<Vec<UiNode>>>`, stored NonSend) that the plugin fills right
+   after `Runtime::tree()`, and `build` copies from it. Any other route changes the `Component` contract, so T7 decides
+   this before it writes the first adapter.
+4. **One composed tree.** The presenter sees one `UiTree`. The plugin composes the slot subtrees in the FEng node
+   order, so `draw_order` matches today's, and calls `hud.viewport.apply` once on the composed tree, not per slot
+   (section 5, [hud-viewport.md](hud-viewport.md)). Pixel parity is checked with the digest tests.
+5. **Argument-dependent packages.** `MainMenu_Sub.fng` serves `Categories` and `SafeHouseMenu`, and `Pause_Main.fng`
+   serves `PauseMenu` and `Categories` (pause). An adapter must test the same `Args` that `frontend/factory.rs` tests,
+   so a package is never drawn by two slots at once.
+6. **Stateful pieces stay put.** Per-frame state that a component owns (fade timers, needle easing) moves into
+   `layout(&mut self, ..)` only where it needs no FEng data. Anything that needs the package stays in the plugin.
+
+**Check owed (T7 or T8).** `Themes::new` in `libs/blackbox-ui` checks only that the floor's id is `Original`. It does
+not check that the floor fills every slot, which section 7 asks for. Once the Original theme fills slots, add a test
+that `OriginalTheme::element` returns `Some` for every `ElementId::ALL` entry, and add the check to the constructor.
 
 ## 9. The Custom theme: native components
 
@@ -321,8 +370,8 @@ slot, and checks that `resolve` returns the mod component for that slot and Orig
 
 These are not decided. The parent task (or the owner) decides them before the matching subtask starts.
 
-1. **`ElementId` ownership.** The plan's sketch puts MW names in `blackbox-ui`. [AGENTS.md](../../AGENTS.md) forbids
-   that. Working assumption in section 6: generic slot id in `libs`, MW enum in `crates/nfsmw`. Confirm before T2.
+1. **`ElementId` ownership.** Resolved (T6): generic `SlotId` in `libs/blackbox-ui`, MW `ElementId` in
+   `crates/nfsmw/src/ui/theme/element.rs` (section 6).
 2. **Mutable state in components.** `build(&self)` cannot advance FEng scripts (section 3). Choose between state in
    `layout(&mut self)` and a separate `update(&mut self, dt)`. Before T2.
 3. **Mod themes in `UiStyle`.** The plan names `UiStyle::Mod(id)`. The settings pattern (closed enum, `ALL`, cycle
@@ -335,5 +384,6 @@ These are not decided. The parent task (or the owner) decides them before the ma
    intended. Before T10.
 7. **Remastered in the menu.** Whether the Remastered row is shown before a Remastered theme exists, since it looks
    like Original until then. Before T10.
-8. **Busted overlay and career screens.** Their Original code is marked **?** in section 6. T7 and T8 confirm them.
+8. **Busted overlay and career screens.** Resolved (T6): confirmed in section 6. Still open for T7: whether the pursuit
+   board belongs to `PursuitMeter`, and the adapter route for per-frame nodes (section 8, point 3).
 9. **Milestone number.** The work has no milestone number in the plan. Set it when the subtasks are scheduled.
