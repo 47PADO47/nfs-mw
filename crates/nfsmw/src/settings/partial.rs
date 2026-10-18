@@ -6,7 +6,7 @@ use super::custom_fonts::CustomFontsLayer;
 use super::hd_content::HdContentLayer;
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, Monitor, PostAa, PostBloom, PostTonemap,
-    RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UiStyle, UpscaleMode, WindowMode,
+    RenderScale, RendererKind, Resolution, Sensitivity, SmokeQuality, Transmission, UiStyle, UiTheme, UpscaleMode, WindowMode,
 };
 use super::{RayTracingLevel, UpscaleQuality};
 use crate::app::pacing::MaxFps;
@@ -117,6 +117,8 @@ pub struct Partial {
     pub hud_layout: Option<HudLayout>,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
+    /// The palette of the token-driven HUD (`ui_theme`).
+    pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
     pub post_bloom: Option<PostBloom>,
     pub post_aa: Option<PostAa>,
@@ -232,6 +234,7 @@ impl Partial {
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
             ui_style: self.ui_style.or(lower.ui_style),
+            ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),
             post_aa: self.post_aa.or(lower.post_aa),

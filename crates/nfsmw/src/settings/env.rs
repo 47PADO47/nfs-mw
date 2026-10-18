@@ -95,6 +95,7 @@ pub const MOTION_BLUR_STRENGTH: &str = "NFSMW_MOTION_BLUR_STRENGTH";
 /// does not parse is reported and ignored.
 pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
+        ui_theme: None,
         traffic_policy: None,
         detail: None,
         appearance: None,

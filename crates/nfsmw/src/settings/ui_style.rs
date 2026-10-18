@@ -1,5 +1,7 @@
-//! The UI theme: the look of all HUD and menu UI (`docs/specs/ui-themes.md` section 11).
-//! Independent of the graphics `VisualStyle`. It replaces the old `radio_hud` key (see `radio_hud.rs`).
+//! The HUD style: the look of the HUD and menu UI (`docs/specs/ui-themes.md` section 11). Three choices: the game's own
+//! HUD, the rewrite's token-driven HUD, and the remastered HUD. The theme the token-driven HUD takes its colours from is
+//! [`UiTheme`](super::UiTheme), and it applies only when the HUD is not Original. Independent of the graphics
+//! `VisualStyle`. It replaces the old `radio_hud` key (see `radio_hud.rs`).
 
 use serde::{Deserialize, Serialize};
 
@@ -9,23 +11,19 @@ pub enum UiStyle {
     /// The game's own screens and HUD, drawn through the authored `.fng` packages. Pixel-faithful by default.
     #[default]
     Original,
-    /// The rewrite's own elements (the radio card so far). Everything else falls back to Original.
+    /// The rewrite's token-driven HUD: the speedometer, tachometer, gear, meters and radio card.
     Custom,
-    /// Reserved for the remastered theme. Not implemented yet: until it is, every slot falls back to Original.
+    /// The remastered HUD. Not implemented yet: until it is, every slot falls back to Original.
     Remastered,
 }
-names!(
-    UiStyle,
-    "original, custom or remastered",
-    [(Self::Original, "original"), (Self::Custom, "custom"), (Self::Remastered, "remastered")]
-);
+names!(UiStyle, "original, custom or remastered", [(Self::Original, "original"), (Self::Custom, "custom"), (Self::Remastered, "remastered")]);
 impl UiStyle {
     pub const ALL: [Self; 3] = [Self::Original, Self::Custom, Self::Remastered];
     pub fn label(self) -> &'static str {
         match self {
             Self::Original => "Original",
             Self::Custom => "Custom",
-            Self::Remastered => "Remastered (incomplete)",
+            Self::Remastered => "Remastered",
         }
     }
 }
@@ -50,9 +48,9 @@ mod tests {
     }
 
     #[test]
-    fn labels_name_the_incomplete_remastered_theme() {
+    fn labels_are_the_three_hud_choices() {
         assert_eq!(UiStyle::Original.label(), "Original");
         assert_eq!(UiStyle::Custom.label(), "Custom");
-        assert_eq!(UiStyle::Remastered.label(), "Remastered (incomplete)");
+        assert_eq!(UiStyle::Remastered.label(), "Remastered");
     }
 }

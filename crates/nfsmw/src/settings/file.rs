@@ -14,7 +14,7 @@ use super::hd_content;
 use super::partial::{Partial, Percent};
 use super::{
     CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
-    UiStyle,
+    UiStyle, UiTheme,
 };
 use super::{
     Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
@@ -128,6 +128,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         // `radio_hud` is the legacy key: read only when this file sets no `ui_style` (`docs/specs/ui-themes.md` section 11).
+        ui_theme: field(&table, origin, "ui_theme", |v| UiTheme::from_str(text_of(v)?)),
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {
             field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
         }),

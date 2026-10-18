@@ -183,6 +183,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ui_style {
         put("ui_style", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.ui_theme {
+        put("ui_theme", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.post_tonemap {
         put("post_tonemap", Value::String(v.to_string()));
     }
