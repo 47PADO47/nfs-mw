@@ -157,6 +157,11 @@ impl HudBinding {
         self
     }
 
+    /// The minimap, to switch its map variant.
+    pub fn minimap_mut(&mut self) -> Option<&mut MinimapBinding> {
+        self.minimap.as_mut()
+    }
+
     /// Pushes the state into the objects. Call before `Runtime::update`.
     /// Shows or hides the rear-view mirror. The detector switches layouts at the next `apply`.
     pub fn set_mirror_shown(&mut self, on: bool) {
@@ -188,6 +193,7 @@ impl HudBinding {
             mirror: self.mirror_shown,
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
+            career: s.career_bounty.is_some(),
         };
         self.layout.update(rt, shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.

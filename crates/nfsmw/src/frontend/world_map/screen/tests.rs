@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime};
 use game_install::GameDir;
+use nfsmw_career::regions::MapVariant;
 
 use super::pools;
 use super::{EMPTY, PROMPT_TITLE, WorldMapLogic};
@@ -51,7 +52,7 @@ impl Harness {
             mods: None,
             name: WORLD_MAP,
         };
-        WorldMapLogic.tick(&mut cx, 1.0 / 60.0);
+        WorldMapLogic { variant: MapVariant::Full }.tick(&mut cx, 1.0 / 60.0);
     }
 
     fn object(&self, guid: u32) -> ObjectRef {

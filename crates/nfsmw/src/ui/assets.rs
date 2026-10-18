@@ -11,6 +11,7 @@ use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
 use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs, read_texture_packs_filtered};
 use game_install::{GameDir, Provider};
+use nfsmw_career::regions::MapVariant;
 use nfsmw_data::shared;
 use nfsmw_data::shared_unwrapped;
 
@@ -18,6 +19,9 @@ use super::fonts::CustomFontSet;
 use super::fonts::tier::Tier;
 use crate::settings::custom_fonts;
 use crate::settings::hd_content;
+
+/// The minimap and world map variants whose textures are loaded up front (the career stage picks one at run time).
+const MAP_VARIANTS: [MapVariant; 3] = [MapVariant::Full, MapVariant::Unlock1, MapVariant::Unlock2];
 
 const FENG_FONT: u32 = 0x0003_0201;
 
@@ -176,19 +180,25 @@ impl UiAssets {
             }
         }
 
-        // The minimap's tiles are textures too: the HUD swaps them into its pieces by name.
-        match nfsmw_data::minimap::read_tiles(dir, nfsmw_data::minimap::FULL_MAP) {
-            Ok(tiles) => {
-                for t in tiles.tiles {
-                    textures.entry(t.name_hash).or_insert(t);
+        // The minimap's tiles are textures too: the HUD swaps them into its pieces by name. Every variant's map is read,
+        // since the career stage picks one (`nfsmw_career::regions::MapVariant`).
+        for variant in MAP_VARIANTS {
+            let stem = variant.minimap_file().trim_end_matches(".BIN");
+            match nfsmw_data::minimap::read_tiles(dir, stem) {
+                Ok(tiles) => {
+                    for t in tiles.tiles {
+                        textures.entry(t.name_hash).or_insert(t);
+                    }
                 }
+                Err(e) => log::warn!("the minimap tiles {stem} do not read: {e:#}"),
             }
-            Err(e) => log::warn!("the minimap tiles do not read: {e:#}"),
         }
 
-        // The world map's picture is the `TRACK_MAP` texture of `TrackMaps.bin` (314 MB); only that texture is read.
+        // The world map's picture is one of the `TRACK_MAP*` textures of `TrackMaps.bin` (314 MB), one per variant;
+        // only those textures are read.
+        let world_maps = MAP_VARIANTS.map(|v| fe_hash_upper(v.world_map_texture()));
         match shared_unwrapped(dir, "TRACKS/L2RA/TrackMaps.bin") {
-            Ok(data) => match read_texture_packs_filtered(&data, |h| h == fe_hash_upper("TRACK_MAP")) {
+            Ok(data) => match read_texture_packs_filtered(&data, |h| world_maps.contains(&h)) {
                 Ok(packs) => {
                     for t in packs.into_iter().flat_map(|p| p.textures) {
                         textures.entry(t.name_hash).or_insert(t);

@@ -5,6 +5,7 @@
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
+use nfsmw_career::regions::MapVariant;
 
 use super::screen::WorldMapLogic;
 use super::{MapInput, Outcome, activate_gps};
@@ -108,7 +109,9 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
     overlay.open(calibration);
     overlay.refresh(&blips, player);
     log::info!("world map open: {} blips", overlay.blips.len());
-    fe.open_map(Box::new(WorldMapLogic), host, env);
+    // The career stage picks the map; outside career mode (no career handle) it is the full map.
+    let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);
+    fe.open_map(Box::new(WorldMapLogic { variant }), host, env);
 }
 
 /// One frame of the open map: the input goes to the session, and its outcome closes the map, sets the GPS, or draws

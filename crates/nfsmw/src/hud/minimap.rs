@@ -8,7 +8,8 @@ use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use blackbox_minimap::{Blip, Calibration, Orientation, View, place_blip, speed_zoom, tile_name};
 use game_install::GameDir;
 use glam::Vec3;
-use nfsmw_data::minimap::{FULL_MAP, GRID, MAX_SPEED};
+use nfsmw_career::regions::MapVariant;
+use nfsmw_data::minimap::{GRID, MAX_SPEED};
 
 use super::state::{HudState, MapPosition};
 use crate::ui::UiAssets;
@@ -23,6 +24,32 @@ const PIECES: [&str; 4] = ["TRACK_MAP1", "TRACK_MAP2", "TRACK_MAP3", "TRACK_MAP4
 const PIVOT_SHIFT: [f32; 2] = [0.0, 0.0];
 /// The width of the whole picture on the HUD, in HUD units (`docs/specs/hud-minimap.md` section 7).
 const PICTURE_WIDTH: f32 = 1024.0;
+
+/// The minimap file stem of a variant, upper case: its tile textures are `<stem>_CHOP<n>`.
+pub fn variant_stem(variant: MapVariant) -> &'static str {
+    variant.minimap_file().trim_end_matches(".BIN")
+}
+
+/// The variant the HUD wants: the career stage's in career mode (`None` outside it), the full map otherwise.
+pub fn variant_for_stage(stage: Option<u8>) -> MapVariant {
+    match stage {
+        Some(stage) => MapVariant::of_stage(stage),
+        None => MapVariant::Full,
+    }
+}
+
+/// The variant to show: the wanted one when its tiles are loaded, else the full map (its tiles are always loaded).
+pub fn usable_variant(wanted: MapVariant, loaded: impl Fn(MapVariant) -> bool) -> MapVariant {
+    if loaded(wanted) {
+        return wanted;
+    }
+    MapVariant::Full
+}
+
+/// Whether a binding whose tiles are named by `header` must switch to `variant`.
+pub fn needs_switch(header: &str, variant: MapVariant) -> bool {
+    header != variant_stem(variant)
+}
 
 /// The minimap objects and what is needed to drive them.
 pub struct MinimapBinding {
@@ -74,9 +101,21 @@ impl MinimapBinding {
         })
     }
 
-    /// The minimap of the open city: the calibration from the install and the full map's tiles, which have to be in
-    /// `assets`. `None` (with a log line) when anything is missing.
+    /// The minimap of the open city's full map: see [`MinimapBinding::open_variant`].
     pub fn open_city(rt: &Runtime, package: PackageId, dir: &GameDir, assets: &UiAssets) -> Option<Self> {
+        Self::open_variant(rt, package, dir, assets, MapVariant::Full)
+    }
+
+    /// The minimap of the open city with the tiles of `variant`: the calibration from the install and those tiles,
+    /// which have to be in `assets`. `None` (with a log line) when anything is missing.
+    pub fn open_variant(
+        rt: &Runtime,
+        package: PackageId,
+        dir: &GameDir,
+        assets: &UiAssets,
+        variant: MapVariant,
+    ) -> Option<Self> {
+        let stem = variant_stem(variant);
         let calibration = match nfsmw_data::minimap::open_city_calibration(dir) {
             Ok(c) => c,
             Err(e) => {
@@ -84,8 +123,8 @@ impl MinimapBinding {
                 return None;
             }
         };
-        let Some(binding) = Self::new(rt, package, calibration, FULL_MAP) else {
-            log::warn!("the minimap is off: invalid calibration or incomplete HUD objects");
+        let Some(binding) = Self::new(rt, package, calibration, stem) else {
+            log::warn!("the minimap {stem} is off: invalid calibration or incomplete HUD objects");
             return None;
         };
         let complete = binding.resources_available(
@@ -93,10 +132,22 @@ impl MinimapBinding {
             |key| assets.image(key).is_some_and(|image| image.width > 0 && image.height > 0),
         );
         if !complete {
-            log::warn!("the minimap is off: a map tile or readable mask texture is missing");
+            log::warn!("the minimap {stem} is off: a map tile or readable mask texture is missing");
             return None;
         }
         Some(binding)
+    }
+
+    /// Switches the tiles to `variant`'s map file. Its tiles must be loaded (see [`usable_variant`]): the pieces take
+    /// the new tiles on the next [`MinimapBinding::apply`]. The tile keys hashed for the old file are dropped.
+    /// Returns whether anything changed.
+    pub fn set_variant(&mut self, variant: MapVariant) -> bool {
+        if !needs_switch(&self.header, variant) {
+            return false;
+        }
+        self.header = variant_stem(variant).to_owned();
+        *self.tile_keys.get_mut().unwrap_or_else(|e| e.into_inner()) = [None; 4];
+        true
     }
 
     /// Resource validation is separate from install discovery, so incomplete hosts can fail closed.
@@ -112,7 +163,6 @@ impl MinimapBinding {
         }
         self.masks.iter().enumerate().all(|(i, mask)| self.masks[..i].contains(mask) || mask_readable(*mask))
     }
-
     /// The view for this frame: the player's place, the car's heading and the speed zoom.
     pub fn view(&self, state: &HudState, at: &MapPosition) -> View {
         View::new(GRID, &self.calibration, at.position, at.heading, speed_zoom(state.speed, MAX_SPEED))
@@ -160,3 +210,7 @@ impl MinimapBinding {
         rt.set_rotation_z(self.arrow, view.arrow_rotation(at.orientation).to_radians());
     }
 }
+
+#[cfg(test)]
+#[path = "minimap_variant_tests.rs"]
+mod variant_tests;
