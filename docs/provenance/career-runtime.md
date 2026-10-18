@@ -68,12 +68,15 @@
     `StartFreeRoam` command has no sender).
   - The `nfsmw.career` table keeps `BB_ERR_UNSUPPORTED` for `milestone_register`, `milestone_progress`,
     `rival_defeat`, `rival_set_locked`, `give_car`, `remove_car`, `save`, `slot_get` and every safe house and shop call.
-  - Open items (see [roadmap](../roadmap.md#career-open-items-milestone-7)): the race mode, AI racers, the alias
-    manager's profile list entry point, the per-bin SMS ids reader, the customization shop, the stat bars and some
-    label hashes.
-  - `SafeHouseRivalChallenge.fng`, `SafeHouseRivalBio.fng` and `MC_Main.fng` run their logic but their packages draw
-    nothing yet: their content groups wait for messages the game posts that this port does not. Posting the two
-    candidates their message responses list (`0x0B21A45F`, `0xAF922178`) did not show them, so the trigger is still
-    unknown.
+  - Open items (see [roadmap](../roadmap.md#career-open-items-milestone-7)): the race mode, AI racers, the
+    customization shop, the car lot stat bars and some label hashes.
+  - The career screens draw once their opening messages are posted (`career_screens::post_opening`, from
+    [career-safehouse-2.md](../specs/career-safehouse-2.md) section 11) and the FEng runtime treats an object's flag 8
+    as its start-hidden state that a script set on it clears (`libs/blackbox-feng`). Two of the posted messages
+    (`0x5FF45174` for the rival challenge content, `0x8BBAB3ED` for the bio content) come from the packages' message
+    responses; who posts them in the original is not traced. The rival pictures load from `GLOBAL/RIVALS.BIN` (the 45
+    menu pictures, not the `_IG` variants).
+  - The first safe house visit enters bin 15 on engaging the safe house; the original does it when the rival bio opens
+    (`career-safehouse.md` 5.3).
   - The 12 statistic types with no producer in the executable and the open questions of [specs/career.md](../specs/career.md)
     apply to the runtime as they do to the rules.

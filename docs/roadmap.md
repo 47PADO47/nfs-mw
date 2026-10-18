@@ -49,10 +49,11 @@ What the pursuit still lacks, so the work can be planned. Each item names the sp
 
 What the career still lacks. The rules and the wiring listed in the table above are done; these need their own work.
 
-- **Race mode:** the race mode, so races do not run yet.
+- **Race mode:** the race mode, so races do not run yet; race wins, the per-bin race and challenge SMS and the bins
+  after 15 wait on it.
 - **AI racers:** the opponents of the races (`MMICON_AIRACER_0..7`).
-- **Alias manager's profile list:** the entry point in the alias manager that lists the career's profiles.
-- **Per-bin SMS ids:** a reader for the per-bin SMS ids.
-- **Customization shop:** the customization shop.
-- **Stat bars:** the stat bars.
-- **Label hashes:** some label hashes.
+- **Customization shop:** the auto shop entries keep the "not built yet" card.
+- **Car lot stat bars:** the blend formula of the seven upgrade categories is read
+  ([career-car-lot.md](specs/career-car-lot.md), open question 1), but the per-car base values and the lit-segment
+  rule are not, so the bars are not drawn.
+- **Label hashes:** a few screen labels are plain strings or guesses (car lot tab title, delete list title).
