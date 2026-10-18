@@ -214,7 +214,7 @@ fn the_main_menu_lists_online_dimmed() {
     let drawn = tree
         .nodes
         .iter()
-        .find(|n| matches!(n.kind, NodeKind::Image { texture: 0x5A5E_5137, .. }))
+        .find(|n| matches!(n.kind, NodeKind::Image { texture: 0x2056_3D30, .. }))
         .expect("the Online icon is on a package object");
     assert!(drawn.world_colour[3] > 0 && drawn.world_colour[3] <= 150, "dimmed, but drawn");
     let master = tree.nodes.iter().find(|n| n.name_hash == ids::OPTION_MASTER).unwrap();
