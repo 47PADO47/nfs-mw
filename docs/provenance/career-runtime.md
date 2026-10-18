@@ -69,7 +69,7 @@
   - The `nfsmw.career` table keeps `BB_ERR_UNSUPPORTED` for `milestone_register`, `milestone_progress`,
     `rival_defeat`, `rival_set_locked`, `give_car`, `remove_car`, `save`, `slot_get` and every safe house and shop call.
   - Open items (see [roadmap](../roadmap.md#career-open-items-milestone-7)): the race mode, AI racers, the
-    customization shop, the car lot stat bars and some label hashes.
+    auto shop prices, and the exact car lot stat values (the bars use the repo's estimator, normalized over the lot).
   - The career screens draw once their opening messages are posted (`career_screens::post_opening`, from
     [career-safehouse-2.md](../specs/career-safehouse-2.md) section 11) and the FEng runtime treats an object's flag 8
     as its start-hidden state that a script set on it clears (`libs/blackbox-feng`). Two of the posted messages

@@ -52,8 +52,8 @@ What the career still lacks. The rules and the wiring listed in the table above 
 - **Race mode:** the race mode, so races do not run yet; race wins, the per-bin race and challenge SMS and the bins
   after 15 wait on it.
 - **AI racers:** the opponents of the races (`MMICON_AIRACER_0..7`).
-- **Customization shop:** the auto shop entries keep the "not built yet" card.
-- **Car lot stat bars:** the blend formula of the seven upgrade categories is read
-  ([career-car-lot.md](specs/career-car-lot.md), open question 1), but the per-car base values and the lit-segment
-  rule are not, so the bars are not drawn.
-- **Label hashes:** a few screen labels are plain strings or guesses (car lot tab title, delete list title).
+- **Auto shop prices:** in career mode an auto shop opens the garage without charging: no price rule for the
+  performance packages is documented.
+- **Car lot stat bars:** drawn from the repo's own top speed, grip and 0-100 mph estimate, normalized over the lot
+  (the game's own per-car simulation and the bar's exact fill rule are not read; [career-car-lot.md](specs/career-car-lot.md),
+  open question 1).
