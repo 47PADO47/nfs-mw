@@ -46,9 +46,10 @@ fn the_contact_markers_and_the_traffic_lights_free_their_meshes() {
     let mut renderer = tracking_renderer();
     let markers = MarkerMeshes::upload(&mut renderer);
     let lamps = LampMeshes::upload(&mut renderer);
-    assert_eq!(renderer.mesh_labels.len(), 10);
+    // Five contact markers and three lamp colours; no synthetic posts or stop bars.
+    assert_eq!(renderer.mesh_labels.len(), 8);
     markers.release(&mut renderer);
-    assert_eq!(renderer.mesh_labels.len(), 5);
+    assert_eq!(renderer.mesh_labels.len(), 3);
     lamps.release(&mut renderer);
     assert!(renderer.mesh_labels.is_empty());
 }
