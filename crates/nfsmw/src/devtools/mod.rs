@@ -49,8 +49,6 @@ fn run_ui(
     mut lab: ResMut<graphics_lab::GraphicsLab>,
     metrics: Res<Metrics>,
     mut console: ResMut<Console>,
-    hud: Option<Res<crate::hud::HudState>>,
-    radio: Option<Res<crate::hud::RadioHud>>,
     mut host: NonSendMut<crate::app::Host>,
     mut garage: ResMut<crate::garage::Overlay>,
     mut capture: ResMut<crate::input::MouseCapture>,
@@ -68,16 +66,6 @@ fn run_ui(
         ..Default::default()
     };
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
-        // The radio's card belongs to the HUD: it shows when the HUD does, and is placed by the HUD layout. The EA
-        // Trax chyron is drawn by the HUD itself, so the card only shows in the custom style.
-        if let (Some(radio), Some(hud)) = (&radio, &hud)
-            && hud.visible
-            && settings.hud
-            && settings.radio_hud == crate::settings::RadioHudStyle::Custom
-        {
-            let screen = crate::ui::present::Screen { width, height, pixels_per_point: window.scale_factor() };
-            crate::hud::show_radio(ctx, radio, screen, settings.hud_layout);
-        }
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);

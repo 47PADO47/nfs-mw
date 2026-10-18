@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 
-use super::custom::CustomTheme;
+use super::custom::{CustomTheme, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
 use super::{ElementId, build_themes, default_skin};
 
@@ -75,12 +75,12 @@ fn name_is_the_variant_name() {
 #[test]
 fn theme_ids_are_original_and_custom() {
     assert_eq!(OriginalTheme::new(FrameCell::new()).id(), ThemeId::Original);
-    assert_eq!(CustomTheme.id(), ThemeId::Custom);
+    assert_eq!(CustomTheme::default().id(), ThemeId::Custom);
 }
 
 #[test]
 fn registry_has_original_then_custom_with_original_active() {
-    let themes = build_themes(FrameCell::new());
+    let themes = build_themes(FrameCell::new(), RadioFeedCell::new());
     let ids: Vec<ThemeId> = themes.ids().collect();
     assert_eq!(ids, vec![ThemeId::Original, ThemeId::Custom]);
     assert_eq!(themes.active(), ThemeId::Original);
@@ -88,13 +88,13 @@ fn registry_has_original_then_custom_with_original_active() {
 
 #[test]
 fn custom_can_be_made_active_and_resolves_every_slot() {
-    let mut themes = build_themes(FrameCell::new());
+    let mut themes = build_themes(FrameCell::new(), RadioFeedCell::new());
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {
-        // Custom fills no slot yet, so every slot falls back to Original: the HUD and menu slots get their adapters,
-        // which draw nothing from an empty frame cell. The check is that resolution and build run for every slot
-        // without panicking.
+        // Custom fills only the radio card, and every other slot falls back to Original: the HUD and menu slots get
+        // their adapters, which draw nothing from an empty frame cell. The radio card draws nothing from an empty
+        // feed. The check is that resolution and build run for every slot without panicking.
         let component = themes.resolve(slot.slot(), &BuildCx::new(&skin));
         let mut out = DrawList::new();
         component.build(&mut out);
