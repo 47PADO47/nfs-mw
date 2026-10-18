@@ -1,7 +1,7 @@
 //! The HUD of the world scene: the drive's state, with the traffic's and the map's blips on the minimap.
 
 use glam::Vec3;
-use nfsmw_data::gameplay::{self, ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
+use nfsmw_data::gameplay::{ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
 use super::{View, WorldScene, space};
 use crate::audio::PursuitFeed;
@@ -43,14 +43,35 @@ impl WorldScene {
         if let Some(state) = hud.as_mut() {
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
-                // The radar's green laser shows while cops chase the player.
-                state.cop_nearby = traffic.is_pursuing();
+                let mut meter = 0.0;
+                if let Some(drive) = &self.drive {
+                    let player = drive.player_view();
+                    state.radar = traffic.radar(player.position, player.forward);
+                    meter = traffic.pursuit_meter(player.position, player.speed);
+                }
+                state.cop_nearby = state.radar.is_some();
+                state.vehicle_heat = traffic.vehicle_heat();
+                state.cops_engaged = traffic.cops_engaged();
+                state.cops_damaged = traffic.cops_damaged();
                 let wrecked = traffic.cops_destroyed();
                 // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
                 // they see the player again (`docs/specs/ai-pursuit.md` section 6).
-                state.pursuit = traffic
-                    .pursuit_feed()
-                    .map(|feed| PursuitHud { evade: traffic.evade_level(), ..pursuit_hud(feed, wrecked) });
+                state.pursuit = traffic.pursuit_feed().map(|feed| PursuitHud {
+                    evade: traffic.evade_level(),
+                    busted: meter,
+                    cooldown: traffic.cooldown_shown(),
+                    ..pursuit_hud(feed, wrecked)
+                });
+                if traffic.arrest_active() {
+                    state.pursuit = Some(PursuitHud {
+                        secs: traffic.pursuit_time(),
+                        evade: 0.0,
+                        cops_destroyed: wrecked,
+                        busted: 1.0,
+                        cooldown: false,
+                    });
+                    state.radar = None;
+                }
                 state.busted = traffic.busted_meter();
                 state.busted_overlay = traffic.busted_overlay();
             }
@@ -83,8 +104,7 @@ pub(super) fn static_blips(data: &GameplayData) -> Vec<MapBlip> {
 fn race_blip(race: &Race) -> Option<MapBlip> {
     let style = race_style(race.race_type?)?;
     let start: Placement = race.start?;
-    let forward = space::to_render(gameplay::world_heading(start.heading_deg).to_array());
-    Some(map_blip(style, start.position, [forward.x, forward.y]))
+    Some(map_blip(style, start.position))
 }
 
 fn race_style(kind: RaceType) -> Option<&'static str> {
@@ -99,20 +119,20 @@ fn race_style(kind: RaceType) -> Option<&'static str> {
     }
 }
 
-/// An auto shop, car lot or safe house. Its icon does not turn, so the heading points along the minimap's x axis.
+/// An auto shop, car lot or safe house: a fixed blip, so its icon turns with the player's arrow.
 fn interior_blip(marker: &ActivityMarker) -> MapBlip {
     let style = match marker.kind {
         ActivityKind::AutoShop => AUTO_SHOP,
         ActivityKind::CarLot => CAR_LOT,
         ActivityKind::SafeHouse => SAFE_HOUSE,
     };
-    map_blip(style, marker.position, [1.0, 0.0])
+    map_blip(style, marker.position)
 }
 
 /// A stored position (physics space, see `gameplay`) as a map blip in render space.
-fn map_blip(style: &'static str, position: Vec3, heading: [f32; 2]) -> MapBlip {
+fn map_blip(style: &'static str, position: Vec3) -> MapBlip {
     let at = space::to_render(position.to_array());
-    MapBlip { style, position: [at.x, at.y], heading, active: false }
+    MapBlip { style, position: [at.x, at.y], active: false, heading: None }
 }
 
 #[cfg(test)]
@@ -146,7 +166,6 @@ mod tests {
         assert_eq!(blips.len(), 1);
         assert_eq!(blips[0].style, RACE_SPRINT);
         assert_eq!(blips[0].position, [1511.824, 4404.865]);
-        assert!((blips[0].heading[0] - 1.0).abs() < 1e-5 && blips[0].heading[1].abs() < 1e-5);
         assert!(!blips[0].active);
     }
 

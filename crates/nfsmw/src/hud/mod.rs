@@ -31,10 +31,16 @@ mod minimap;
 #[cfg(test)]
 mod minimap_tests;
 mod plugin;
+pub(crate) mod police;
+#[cfg(test)]
+mod police_install_tests;
 mod pursuit;
+mod pursuit_meter;
+pub use police::RadarHud;
 mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
+mod radar;
 mod radio;
 mod skin;
 mod speedbreaker;

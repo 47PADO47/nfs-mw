@@ -36,6 +36,6 @@ fn fs_main(@builtin(position) fragment: vec4<f32>) -> @location(0) vec4<f32> {
     if weight_sum < 1e-4 { return vec4<f32>(1.0); }
     let occlusion = 1.0 - clamp(sum / weight_sum, 0.0, 1.0);
     // A visibility term, consumed by ambient lighting before fog. Direct light is untouched.
-    let factor = 1.0 - 0.45 * params.effect.y * occlusion;
+    let factor = 1.0 - params.effect.y * occlusion;
     return vec4<f32>(factor, 0.0, 0.0, 1.0);
 }

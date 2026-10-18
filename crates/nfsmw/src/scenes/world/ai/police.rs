@@ -104,6 +104,8 @@ pub struct Police {
     heat: Option<Heat>,
     infractions: InfractionLog,
     heli: Option<Helicopter>,
+    /// Standalone rules assume available assets; the world supplies actual model readiness through `set_rig`.
+    heli_available: bool,
     /// The helicopter's tuning per level, from `NFSMWHelicopterSettings.ini` (vanilla until it is loaded).
     heli_settings: HeliSettings,
     /// The pursuit tunables from `NFSMWBartenderSettings.ini`: cop cap, heat growth, bust rules and fines (vanilla until
@@ -171,6 +173,7 @@ impl Default for Police {
             infractions: InfractionLog::default(),
             bust: busted::BustFlow::default(),
             heli: None,
+            heli_available: true,
             heli_settings: HeliSettings::default(),
             settings: BartenderSettings::default(),
             reset_penalty: FairBustsSettings::default().penalty(BartenderSettings::default().busted.reach),
@@ -249,6 +252,10 @@ impl Police {
         self.busted.reset();
         self.reset_blink = 0.0;
         self.cops_destroyed = 0;
+        self.last_formation = None;
+        self.last_level = 0;
+        self.formations = Picker::new();
+        self.finisher = Finisher::default();
     }
 
     /// A cop car was wrecked. Only a chase counts it. The rep points of the wreck (`RepPointsForDestroying[heat]`,
@@ -306,6 +313,10 @@ impl Police {
     }
 
     pub fn set_rig(&mut self, rig: Option<Rc<CarRig>>) {
+        self.heli_available = rig.is_some();
+        if !self.heli_available {
+            self.heli = None;
+        }
         self.rig = rig;
     }
 
@@ -320,12 +331,12 @@ impl Police {
         rig.instances(&pose, None, &BTreeSet::new(), out);
     }
 
-    /// The helicopter's place on the minimap in render space, and its heading, while it flies.
+    /// The helicopter's place on the minimap and the way its nose points, in render space, while it flies.
     pub fn helicopter_blip(&self) -> Option<([f32; 2], [f32; 2])> {
         let heli = self.heli.as_ref()?;
         let at = space::to_render(heli.body.position.to_array());
-        let forward = space::to_render(heli.body.forward().to_array());
-        Some(([at.x, at.y], [forward.x, forward.y]))
+        let nose = space::to_render(heli.body.forward().to_array());
+        Some(([at.x, at.y], [nose.x, nose.y]))
     }
 
     /// Advances the police by `dt` seconds. `pursuing` is a chase on; `sensed` is what the world saw this frame.
@@ -342,16 +353,20 @@ impl Police {
         dt: f32,
         pursuing: bool,
         player: &PlayerView,
-        sensed: Sensed,
+        mut sensed: Sensed,
         clear: &dyn Fn(Vec3, Vec3) -> bool,
     ) -> bool {
         self.speed_fx.update(player.speed, player.nitrous, dt);
         self.reset_blink = (self.reset_blink - dt).max(0.0);
         self.heli_wait = (self.heli_wait - dt).max(0.0);
+        self.think_helicopter(dt, pursuing, player, sensed, clear);
+        sensed.seen |= self.helicopter_sees();
         let mut evaded = false;
         if pursuing && self.heat.is_some() {
             self.record_infractions(player, sensed);
-            if let Some(heat) = self.heat.as_mut() {
+            if self.cooldown.status() == blackbox_pursuit::CooldownStatus::InitialChase
+                && let Some(heat) = self.heat.as_mut()
+            {
                 heat.grow(dt, self.settings.time_per_level(heat.level()));
             }
             let level = self.level().unwrap_or(1);
@@ -366,7 +381,6 @@ impl Police {
         if !pursuing {
             self.age_end_card(dt);
         }
-        self.think_helicopter(dt, pursuing, player, sensed, clear);
         evaded
     }
 
@@ -474,6 +488,7 @@ mod heli;
 mod helpers;
 mod mod_feed;
 mod original_camera;
+mod patrol;
 mod roll;
 mod world;
 

@@ -34,6 +34,7 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>) -> Ob
             h if h == fe_hash_upper("Shift_light") => scripts(&[SCRIPT_INIT, SCRIPT_GREEN]),
             0x27DD_F583 => scripts(&[SCRIPT_INIT, SCRIPT_NOS_BURNING, SCRIPT_NOS_READY]),
             0x1144_8B5C => scripts(&[SCRIPT_INIT, SCRIPT_NOS_BURNING]),
+            0x839E_7D77 | 0x9EE0_6631 => super::pursuit_tests::visibility_scripts(),
             _ => Vec::new(),
         },
         responses: Vec::new(),
@@ -337,23 +338,29 @@ fn the_mirror_fades_in_over_the_game_track_length() {
 }
 
 #[test]
-fn the_mirror_and_its_radar_show_only_while_the_setting_is_on() {
+fn the_mirror_setting_leaves_the_standalone_police_radar_available() {
     let (mut rt, id, mut b) = setup();
     // Past the fade, so the frame's alpha is full and only the setting can hide the mirror.
     b.advance_mirror_fade(1.0);
     b.apply(&mut rt, &HudState::default());
-    let mirror = [20, 21, 22, 23];
+    rt.update(1.0);
+    let mirror = [20, 21, 22];
+    assert!(!visible(&rt, id, 23), "mirror mode hides the separate standalone backing");
     for guid in mirror {
         assert!(visible(&rt, id, guid), "{guid} shows by default");
     }
     b.set_mirror_shown(false);
     b.apply(&mut rt, &HudState::default());
+    rt.update(1.0);
     for guid in mirror {
         assert!(!visible(&rt, id, guid), "{guid} hides with rear_view_mirror off");
     }
+    assert!(visible(&rt, id, 23), "standalone radar is independent of the mirror setting");
     assert!(visible(&rt, id, 1) && visible(&rt, id, 8), "the speedometer and tachometer stay");
     b.set_mirror_shown(true);
     b.apply(&mut rt, &HudState::default());
+    rt.update(1.0);
+    assert!(!visible(&rt, id, 23), "the standalone backing hides again");
     for guid in mirror {
         assert!(visible(&rt, id, guid), "{guid} shows again");
     }

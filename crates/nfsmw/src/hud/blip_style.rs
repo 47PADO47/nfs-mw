@@ -8,10 +8,11 @@ pub struct MapBlip {
     /// The style's [`BlipStyle::name`]. A blip whose style is not registered is not drawn.
     pub style: &'static str,
     pub position: [f32; 2],
-    /// Any length; the icon points along it.
-    pub heading: [f32; 2],
     /// The condition the style reads as its state: the cop style flashes while this is set.
     pub active: bool,
+    /// Where a moving thing (a car, a helicopter) is pointing, in the same space. `None` for a fixed one (a race, an
+    /// interior): its icon turns with the player's arrow instead.
+    pub heading: Option<[f32; 2]>,
 }
 
 /// When a blip of a style is drawn at all.
@@ -39,6 +40,9 @@ impl BlipLook {
     /// The package object's own colour, opaque, not turned.
     pub const PLAIN: BlipLook = BlipLook { colour: None, alpha: 1.0, spin: 0.0 };
 }
+
+/// One look tick, in seconds. A look that changes with the tick (the light bar) moves at this rate, whatever the frame rate.
+pub const TICK_SECONDS: f32 = 0.1;
 
 /// What a kind of blip is. Implement it for a custom blip; register it with the HUD binding.
 pub trait BlipStyle: Send + Sync {

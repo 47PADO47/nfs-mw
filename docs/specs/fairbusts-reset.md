@@ -38,7 +38,7 @@ File: `NFSMWFairBustsSettings.ini`, next to the config file. Section `[General]`
 
 | Key | Default | Range | Meaning |
 |---|---|---|---|
-| `Enabled` | `1` | switch | `0` gives the stock penalty, whatever the other keys say. |
+| `Enabled` | `0` | switch | `0` gives the stock penalty, whatever the other keys say. `1` explicitly enables the enhancement. |
 | `ResetAutoBust` | `0` | switch | `0`: the reset uses the normal reach (15 m) and the speed gate, so a reset does not bust by itself. `1`: the stock reach (90 m) and no gate, so the instant bust returns. |
 | `ResetBustMultiplier` | `4.0` | 0 to 64 | The flashing fill rate. |
 
@@ -55,6 +55,8 @@ The mapping (`FairBustsSettings::penalty`):
 
 ## 4. Differences from the mod
 
+- **Opt-in enhancement.** The base remake now uses the stock reset penalty. A
+  missing settings file does not activate FairBusts; `Enabled = 1` opts in.
 - **Default multiplier.** The mod's INI sets `ResetBustMultiplier = 1.0`, which its README describes as normal rules. The
   brief for this rewrite sets 4.0. At 4.0 the fair reset still fills four times as fast, but only within the normal reach
   and with the speed gate, so a reset does not bust a player who is moving away from cops.

@@ -19,15 +19,15 @@ fn enhanced_high_matches_the_supplied_reference_controls() {
     assert_eq!(options.lighting_debug, LightingDebug::Off);
     assert_eq!(options.shadow_resolution, 4096);
     assert_eq!(options.shadow_distance, 320.0);
-    assert_eq!((options.shadow_filter, options.sun_angle, options.contact_length), (0.7, 0.51, 0.425));
-    assert_eq!((options.sky_strength, options.ground_strength), (0.32, 0.55));
+    assert_eq!((options.shadow_filter, options.sun_angle, options.contact_length), (1.0, 0.55, 0.8));
+    assert_eq!((options.sky_strength, options.ground_strength), (0.76, 1.12));
     assert_eq!(settings.reflections, ReflectionQuality::High);
     assert_eq!(settings.ao, AoQuality::High);
-    assert_eq!(settings.ao_intensity, Percent(100));
+    assert_eq!(settings.ao_intensity, Percent(80));
     assert!(!settings.ao_compare);
     assert_eq!(settings.post_tonemap, PostTonemap::Aces);
     assert_eq!(settings.post_bloom, PostBloom::Off);
-    assert_eq!(settings.post_aa, PostAa::Fxaa);
+    assert_eq!(settings.post_aa, PostAa::Smaa);
     assert_eq!(settings.visual_treatment, VisualTreatment::Low);
 }
 

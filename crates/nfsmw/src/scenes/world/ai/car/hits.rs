@@ -3,11 +3,12 @@
 //! Spec: `docs/specs/ai-pursuit-cop-cars.md` section 6.
 
 use blackbox_pursuit::health_bar::Sample;
-use blackbox_pursuit::wreck::{Wreck, WreckTuning, is_flipped, zone_of};
+use blackbox_pursuit::wreck::{MIN_CLOSING, Wreck, WreckTuning, is_flipped, zone_of};
 use glam::Vec3;
 
 use super::{AiCar, Role, SHOCK_FORCE, SHOCK_MIN_SPEED_CHANGE};
 use crate::scenes::world::ai::collide::DriverClass;
+use crate::scenes::world::events::{DamageHit, OtherBody};
 
 /// Seconds after a hit by the player's car that the car still counts as moved by it (the causality chain;
 /// design value, unconfirmed).
@@ -69,6 +70,9 @@ fn cop_sample(is_cop: bool, key: u32, position: Vec3, damage: f32, destroyed: bo
 }
 
 impl AiCar {
+    pub fn is_damaged_cop(&self) -> bool {
+        self.is_police() && self.damage.as_ref().is_some_and(|d| d.wreck.damage() > 0.0)
+    }
     /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
     /// shock, the accident of a hit by a human, cop or racer, and a cop's damage. `striker` and `speed` (m/s) are the
     /// class and the speed of the party that hit the car; the player's speed is the one the world sets. Returns whether
@@ -82,6 +86,7 @@ impl AiCar {
         point: Vec3,
         from_camera: f32,
     ) -> bool {
+        self.dent(impulse, point);
         let speed_change = impulse / self.mass.max(1.0);
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
@@ -111,6 +116,29 @@ impl AiCar {
     /// The impact on a cop: the arm from the car's centre in its frame gives the zone, and the zone's scale and the
     /// impulse give the damage. A traffic car has no damage state and nothing happens. Returns whether this hit by the
     /// player is the first to damage the cop (its damage was zero before and is over zero after).
+    /// The visible damage of a hit: the panel where it landed is dented, as the player's car's is. The contact's normal
+    /// is not carried by the hit, so it is taken as the direction of the contact from the car's centre.
+    fn dent(&mut self, impulse: f32, point: Vec3) {
+        let closing = impulse / self.mass.max(1.0);
+        if closing < MIN_CLOSING {
+            return;
+        }
+        let view = self.sim.driver_view();
+        let offset = point - view.position;
+        let side = Vec3::Y.cross(view.forward).normalize_or_zero();
+        let arm = Vec3::new(offset.dot(side), offset.dot(Vec3::Y), offset.dot(view.forward));
+        let Some(events) = self.sim.events.as_mut() else { return };
+        events.damage_hit(DamageHit {
+            arm,
+            normal: arm.normalize_or_zero(),
+            half: self.dim,
+            closing_speed: closing,
+            force: impulse,
+            before_velocity: Vec3::ZERO,
+            other: OtherBody::default(),
+        });
+    }
+
     pub(super) fn wreck_hit(&mut self, impulse: f32, point: Vec3, by_player: bool, from_camera: f32) -> bool {
         let Some(damage) = self.damage.as_mut() else { return false };
         // The contact's normal is not carried by the hit, so the zone is the front, rear or side (see `zone_of`).

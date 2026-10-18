@@ -49,20 +49,64 @@ impl std::fmt::Display for AoQuality {
     }
 }
 
+/// Independent AO estimators sharing geometry, filtering and ambient composition.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum AoMethod {
+    #[default]
+    Gtao,
+    Ssao,
+    XeGtao,
+}
+
+impl AoMethod {
+    pub const ALL: [Self; 3] = [Self::Gtao, Self::Ssao, Self::XeGtao];
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Gtao => "gtao",
+            Self::Ssao => "ssao",
+            Self::XeGtao => "xegtao",
+        }
+    }
+}
+impl std::str::FromStr for AoMethod {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|m| m.name() == s.trim().to_ascii_lowercase())
+            .ok_or_else(|| format!("expected gtao, ssao or xegtao, got {s:?}"))
+    }
+}
+impl std::fmt::Display for AoMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AoSettings {
     pub quality: AoQuality,
-    /// Strength from 0 to 1. The composite never removes more than 45% of the scene light.
+    pub method: AoMethod,
+    /// Ambient visibility strength from 0 to 1. Direct lighting and reflections are unchanged.
     pub intensity: f32,
     /// Contact radius in world units; bounded to avoid large distant silhouettes.
     pub radius: f32,
     /// Left half without AO, right half with AO, in the same frame.
     pub compare: bool,
+    /// Depth-aware mip sampling for distant horizon taps; false retains the direct-depth reference.
+    pub depth_mips: bool,
 }
 
 impl Default for AoSettings {
     fn default() -> Self {
-        Self { quality: AoQuality::Off, intensity: 0.75, radius: 1.25, compare: false }
+        Self {
+            quality: AoQuality::Off,
+            method: AoMethod::Gtao,
+            intensity: 0.75,
+            radius: 1.25,
+            compare: false,
+            depth_mips: false,
+        }
     }
 }
 

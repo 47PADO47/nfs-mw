@@ -1,7 +1,13 @@
 //! Output state and calibration are separate from artistic colour treatment.
 use crate::settings::{Settings, appearance::display::DisplayMode};
 pub(super) fn show(ui: &mut egui::Ui, status: blackbox_gfx::DisplayStatus, settings: &mut Settings) {
-    ui.heading("Display output");
+    ui.horizontal(|ui| {
+        ui.heading("Display output");
+        if ui.small_button("Reset display").on_hover_text("Restore Auto HDR and default display calibration").clicked()
+        {
+            settings.appearance.display = Default::default();
+        }
+    });
     let tuning = &mut settings.appearance.display;
     super::view::choice(ui, "HDR output", &mut tuning.mode, &DisplayMode::ALL);
     ui.label(match status.active {

@@ -71,5 +71,5 @@ fn fs_up(in: VsOut) -> @location(0) vec4<f32> {
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
-    return vec4<f32>(base.rgb + glow * params.a.z, base.a);
+    return vec4<f32>(base.rgb + glow * params.a.z, 1.0);
 }

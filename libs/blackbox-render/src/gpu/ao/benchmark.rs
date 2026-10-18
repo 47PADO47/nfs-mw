@@ -1,8 +1,8 @@
-//! Explicit GPU timestamp benchmark of the three AO passes on synthetic depth, excluding readback.
+//! GPU timestamps for direct and depth-prefiltered AO, including hierarchy construction and excluding readback.
 //! Run with `cargo test -p blackbox-render ao_gpu_timings -- --ignored --nocapture`.
 
 use super::{AmbientOcclusion, Draw};
-use blackbox_gfx::{AoQuality, AoSettings, FrameParams, Projection};
+use blackbox_gfx::{AoMethod, AoQuality, AoSettings, FrameParams, Projection};
 use glam::{Mat4, Vec3};
 
 #[test]
@@ -49,6 +49,10 @@ fn ao_gpu_timings() {
         mapped_at_creation: false,
     });
     let mut ao = AmbientOcclusion::new(&device, (1, 1), None);
+    let method = std::env::var("BLACKBOX_AO_BENCH_METHOD")
+        .unwrap_or_else(|_| "gtao".into())
+        .parse::<AoMethod>()
+        .expect("gtao, ssao or xegtao benchmark method");
     for size in [(1920, 1080), (3840, 2160)] {
         let normals = crate::gpu::surface::targets::Targets::new(&device, size).normals;
         let (color, depth) = fixture(&device, &queue, size);
@@ -69,42 +73,44 @@ fn ao_gpu_timings() {
             shadow_tuning: None,
         };
         for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
-            let mut times = Vec::new();
-            for index in 0..32 {
-                let mut encoder = device.create_command_encoder(&Default::default());
-                encoder.write_timestamp(&queries, 0);
-                ao.encode(
-                    &device,
-                    &queue,
-                    &mut encoder,
-                    Draw {
-                        target: &color,
-                        depth: &depth,
-                        size,
-                        normals: &normals,
-                        frame: &frame,
-                        settings: AoSettings { quality, ..Default::default() },
-                    },
-                );
-                encoder.write_timestamp(&queries, 1);
-                encoder.resolve_query_set(&queries, 0..2, &resolved, 0);
-                encoder.copy_buffer_to_buffer(&resolved, 0, &readback, 0, 16);
-                queue.submit([encoder.finish()]);
-                readback.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-                device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-                let mapped = readback.slice(..).get_mapped_range().unwrap();
-                let ticks: &[u64] = bytemuck::cast_slice(&mapped);
-                if index >= 8 {
-                    times.push((ticks[1] - ticks[0]) as f64 * f64::from(queue.get_timestamp_period()) / 1e6);
+            for depth_mips in [false, true] {
+                let mut times = Vec::new();
+                for index in 0..32 {
+                    let mut encoder = device.create_command_encoder(&Default::default());
+                    encoder.write_timestamp(&queries, 0);
+                    ao.encode(
+                        &device,
+                        &queue,
+                        &mut encoder,
+                        Draw {
+                            target: &color,
+                            depth: &depth,
+                            size,
+                            normals: &normals,
+                            frame: &frame,
+                            settings: AoSettings { quality, method, depth_mips, ..Default::default() },
+                        },
+                    );
+                    encoder.write_timestamp(&queries, 1);
+                    encoder.resolve_query_set(&queries, 0..2, &resolved, 0);
+                    encoder.copy_buffer_to_buffer(&resolved, 0, &readback, 0, 16);
+                    queue.submit([encoder.finish()]);
+                    readback.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+                    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+                    let mapped = readback.slice(..).get_mapped_range().unwrap();
+                    let ticks: &[u64] = bytemuck::cast_slice(&mapped);
+                    if index >= 8 {
+                        times.push((ticks[1] - ticks[0]) as f64 * f64::from(queue.get_timestamp_period()) / 1e6);
+                    }
+                    drop(mapped);
+                    readback.unmap();
                 }
-                drop(mapped);
-                readback.unmap();
+                times.sort_by(f64::total_cmp);
+                eprintln!(
+                    "{}x{} {method} {quality} depth_mips={depth_mips}: median {:.3} ms, p90 {:.3} ms (24 samples)",
+                    size.0, size.1, times[12], times[21]
+                );
             }
-            times.sort_by(f64::total_cmp);
-            eprintln!(
-                "{}x{} {quality}: median {:.3} ms, p90 {:.3} ms (24 samples)",
-                size.0, size.1, times[12], times[21]
-            );
         }
     }
 }

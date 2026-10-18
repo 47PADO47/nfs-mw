@@ -141,6 +141,8 @@ fn normal_menu_style_quality_and_shadows_update_the_shared_request() {
     assert_eq!(changes.appearance, Some(s.appearance));
     let art = (s.post_aa, s.post_tonemap, s.visual_treatment);
     assert!(GraphicsSetting::Quality.step(&mut s, &mut changes, true));
+    assert_eq!(s.appearance.quality, GraphicsQuality::VeryHigh);
+    assert!(GraphicsSetting::Quality.step(&mut s, &mut changes, true));
     assert_eq!(s.appearance.quality, GraphicsQuality::Low);
     assert_eq!((s.post_aa, s.post_tonemap, s.visual_treatment), art);
     assert!(crate::frontend::options::Setting::Graphics(GraphicsSetting::Shadows).advance(

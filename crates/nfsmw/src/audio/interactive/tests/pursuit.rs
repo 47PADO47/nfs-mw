@@ -2,7 +2,9 @@
 
 use ea_audio::mus::graph::{Graph, Node, NodeKind};
 
-use super::super::pursuit::{START_TABLE, set_index, starts};
+use super::super::pursuit::{set_index, starts};
+
+const HEADS: [usize; 4] = [15, 42, 73, 106];
 
 fn node(kind: NodeKind, section: u8) -> Node {
     Node {
@@ -22,34 +24,43 @@ fn node(kind: NodeKind, section: u8) -> Node {
 /// A graph big enough to hold the table's nodes, all heads of `sections` (in table order).
 fn graph(sections: [u8; 4]) -> Graph {
     let mut nodes: Vec<Node> = (0..0x200).map(|_| node(NodeKind::Audio { stream: 0 }, 5)).collect();
-    for (&at, section) in START_TABLE.iter().zip(sections) {
+    for (&at, section) in HEADS.iter().zip(sections) {
         nodes[at] = node(NodeKind::Head, section);
     }
     Graph { project: 0, sections: 7, nodes, events: vec![], routers: vec![], variables: vec![] }
 }
 
 #[test]
-fn each_set_starts_at_the_table_node_of_its_section() {
+fn each_set_starts_at_the_first_head_of_its_section() {
     // The table lists section 4 first, then 1, 3, 2: set 1 is the second entry, and so on.
     let found = starts(&graph([4, 1, 3, 2])).unwrap();
-    assert_eq!(found, [START_TABLE[1], START_TABLE[3], START_TABLE[2], START_TABLE[0]]);
+    assert_eq!(found, [HEADS[1], HEADS[3], HEADS[2], HEADS[0]]);
 }
 
 #[test]
-fn heads_that_do_not_cover_the_four_sections_fall_back_to_the_table_order() {
-    assert_eq!(starts(&graph([1, 1, 2, 3])).unwrap(), START_TABLE);
-    assert_eq!(starts(&graph([5, 5, 5, 5])).unwrap(), START_TABLE);
+fn a_missing_section_is_refused_instead_of_playing_an_unrelated_cue() {
+    assert!(starts(&graph([1, 1, 2, 3])).is_err());
+    assert!(starts(&graph([5, 5, 5, 5])).is_err());
 }
 
 #[test]
 fn a_map_without_the_table_nodes_is_refused() {
     let mut small = graph([1, 2, 3, 4]);
-    small.nodes.truncate(0x100);
-    assert!(starts(&small).unwrap_err().contains("not MW_Music.mpf"));
+    small.nodes.truncate(HEADS[3]);
+    assert!(starts(&small).unwrap_err().contains("section 4"));
 
     let mut audio = graph([1, 2, 3, 4]);
-    audio.nodes[START_TABLE[2]] = node(NodeKind::Audio { stream: 3 }, 3);
-    assert!(starts(&audio).unwrap_err().contains("not a group head"));
+    audio.nodes[HEADS[2]] = node(NodeKind::Audio { stream: 3 }, 3);
+    assert!(starts(&audio).unwrap_err().contains("section 3"));
+}
+
+#[test]
+fn later_section_one_stingers_do_not_replace_the_entry_of_another_section() {
+    let mut graph = graph([1, 2, 3, 4]);
+    for at in [213, 306, 409] {
+        graph.nodes[at] = node(NodeKind::Head, 1);
+    }
+    assert_eq!(starts(&graph).unwrap(), HEADS);
 }
 
 #[test]

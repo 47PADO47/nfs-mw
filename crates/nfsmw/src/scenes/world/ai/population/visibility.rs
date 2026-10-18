@@ -18,6 +18,8 @@ const EYE_WEIGHT: f32 = 1.0;
 #[derive(Clone, Copy)]
 pub struct Viewing {
     frustum: Frustum,
+    /// The frustum of the view the player is shown, when it differs from `frustum`: a part seen through either counts.
+    shown: Option<Frustum>,
     /// The camera eye, render space (`P0`).
     eye: Vec3,
     /// The player's car, render space (`P1`); the eye again when no car is driven.
@@ -37,6 +39,7 @@ impl Viewing {
         };
         Self {
             frustum: Frustum::from_view_proj(&camera.view_proj()),
+            shown: None,
             eye,
             player,
             focus: focus.position,
@@ -45,9 +48,17 @@ impl Viewing {
         }
     }
 
-    /// Whether a sphere of `radius` (metres) around `centre` (render space) reaches the camera's view.
+    /// Also counts as seen what the player is shown through `camera`: the drawn view can differ from the simulation's,
+    /// and a car on the screen must not be removed for being unseen by the other one.
+    pub fn also_shown_through(mut self, camera: &Lens) -> Self {
+        self.shown = Some(Frustum::from_view_proj(&camera.view_proj()));
+        self
+    }
+
+    /// Whether a sphere of `radius` (metres) around `centre` (render space) reaches the view the player sees.
     pub fn sees(&self, centre: Vec3, radius: f32) -> bool {
         sphere_seen(&self.frustum, centre, radius)
+            || self.shown.as_ref().is_some_and(|f| sphere_seen(f, centre, radius))
     }
 
     /// 3D distance (metres) from the nearer of the player's car and the camera eye.
@@ -133,5 +144,20 @@ mod tests {
         let to_eye = p.distance(eye);
         assert!((view.distance(p) - to_player.min(to_eye)).abs() < 1e-4);
         assert!((view.away(p) - 10.0).abs() < 1e-4, "horizontal distance from the player");
+    }
+}
+
+#[cfg(test)]
+mod shown_tests {
+    use super::*;
+
+    #[test]
+    fn a_car_on_the_drawn_screen_counts_as_seen_even_when_the_simulation_view_misses_it() {
+        let north = Lens::look_at(Vec3::ZERO, Vec3::Y, 90.0, 0.1, 1.0);
+        let south = Lens::look_at(Vec3::ZERO, -Vec3::Y, 90.0, 0.1, 1.0);
+        let focus = Focus { position: [0.0, 0.0], heading: 0.0, speed: 0.0, body: None };
+        let car = Vec3::new(0.0, -50.0, 0.0);
+        assert!(!Viewing::new(&north, focus).sees(car, 3.0), "the simulation view alone misses it");
+        assert!(Viewing::new(&north, focus).also_shown_through(&south).sees(car, 3.0), "the drawn view sees it");
     }
 }

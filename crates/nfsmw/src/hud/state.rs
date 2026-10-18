@@ -19,6 +19,10 @@ pub struct MapPosition {
 /// the HUD is built or drawn.
 #[derive(Resource, Debug, Clone, PartialEq)]
 pub struct HudState {
+    pub vehicle_heat: f32,
+    pub radar: Option<super::RadarHud>,
+    pub cops_engaged: u32,
+    pub cops_damaged: u32,
     /// Draw the HUD at all.
     pub visible: bool,
     /// Speed in metres per second.
@@ -69,6 +73,10 @@ pub struct HudState {
 impl Default for HudState {
     fn default() -> Self {
         Self {
+            vehicle_heat: 0.0,
+            radar: None,
+            cops_engaged: 0,
+            cops_damaged: 0,
             visible: true,
             busted: 0.0,
             busted_overlay: false,

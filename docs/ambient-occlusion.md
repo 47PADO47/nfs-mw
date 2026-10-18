@@ -1,14 +1,43 @@
 # Experimental ambient occlusion
 
-Spatial GTAO in the native `blackbox-render` backend. AO and contact shadows share
+Spatial GTAO, XeGTAO and a hemisphere-kernel SSAO reference in the native `blackbox-render` backend. AO and contact shadows share
 a reverse-Z depth/world-normal prepass. AO produces an ambient visibility mask
 before colour shading, with no motion vectors or temporal history. It is off by
 default in normal settings; the Graphics Lab launcher selects Medium. Other backends
 and adapters without compute support report an unsupported-setting downgrade.
 
+F8 Effects has an independent **AO method** selector: `gtao` uses horizon search and
+analytic slice integration; `ssao` projects cosine-weighted hemisphere probes and
+counts depth occlusion. The latter is a comparison baseline, not HBAO+ or CACAO.
+These two reuse the same geometry, radius limits, strength, depth hierarchy and spatial
+filter. Switching methods does not allocate another set of images or retain history.
+The selection persists in profiles and A/B snapshots; `ao_method = "ssao"`,
+`NFSMW_AO_METHOD=ssao` and `--ao-method ssao` provide the same control.
+
+F8 Effects offers opt-in **Depth-prefiltered AO**, also controlled by `ao_depth_mips`,
+`NFSMW_AO_DEPTH_MIPS` and `--ao-depth-mips true|false`. Disable it to compare the
+direct-depth reference at the same radius, intensity and quality (the default). Profile saves,
+A/B snapshots and startup restores retain this choice independently of AO quality.
+The hierarchy uses up to three half-resolution-and-smaller R32F levels, with a
+farthest-depth-weighted reduction that rejects unrelated foreground depths. Near
+taps continue reading the original depth; distant taps choose a coarser footprint.
+Odd image edges are included. It adds approximately 10.4 MiB at 4K and skips its
+reduction passes and releases full-size resources when disabled. It has no frame
+history and does not change material lighting or grading. Include hierarchy
+construction in AO GPU timings when comparing performance.
+
 Authored alpha-tested leaf cards use their camera-facing geometric plane in that
 prepass. Their bent lighting normals stay in the colour pass; treating them as
 surface planes creates false self-occlusion that changes as the camera moves.
+
+The game defaults to XeGTAO at 80% strength when no method/strength is saved.
+AO remains opt-in without an appearance preset. Enhanced and Black Box High/Very High
+use the depth prefilter; explicit saved overrides are preserved on startup.
+Reducing strength changes ambient composition, not the sampling budget.
+
+All three methods use a single depth layer. Thin foreground pipes can over-occlude
+ceilings behind them; stronger AO also compounds baked shading. These limitations
+remain and are not fixed by the depth prefilter or changing methods.
 
 ## Try it
 
@@ -61,7 +90,8 @@ One shared geometry prepass precedes three AO passes and the colour draw:
 
 1. Reconstruct view positions from depth and transform authored world normals into
    view space. Missing normals use edge-aware depth reconstruction. Search nearby
-   horizons with a static 4-by-4 stratification of slice angles and radial offsets.
+   horizons with a static Hilbert/R2 sequence over 64-by-64 pixel regions, adapted
+   from XeGTAO's sampling. This replaces the visibly repeating 4-by-4 ordered strata.
    Neighbouring pixels cover different samples, avoiding repeated hard bands around
    wide occluders. Store visibility, view depth and an octahedral normal in RGBA16F.
 2. Denoise with a 5-by-5 spatial filter. Plane distance and normal agreement reject
@@ -70,14 +100,23 @@ One shared geometry prepass precedes three AO passes and the colour draw:
    mask. Scene shaders apply it to ambient lighting before fog. Direct sunlight,
    sun highlights, environment reflections and blended surfaces are unchanged.
 
-The default contact radius is 1.25 world units, capped at 96 screen pixels. A
+Normal-mapped opaque and cutout pavement/road materials now consume that mask too.
+Previously their prepass contributed to AO, but their colour shader omitted the
+ambient multiplier, leaving the ground bright beside an occluded pole. Regression
+fixtures cover bump and reflective receivers, both estimators, transparent exclusion,
+and preservation of direct sunlight, specular highlights and reflected images.
+
+The default contact radius is 1.25 world units. Its screen cap scales with scene
+height (96 pixels at 1080p, 192 at 4K), preserving angular reach across resolutions. A
 short range falloff and thickness heuristic limit distant silhouette occlusion.
 Depth bias rejects coplanar self-occlusion. Visibility is normalized against an
 unobstructed slice so open roads and slopes stay bright. AO fades between 40 and
-100 view-space units; scene fog is applied after lighting. Full intensity removes
-at most 45% of ambient light; default 75% intensity caps that at 33.75%.
+100 view-space units; scene fog is applied after lighting. Intensity blends between
+unoccluded ambient light and the full GTAO visibility. The former 45% reduction cap
+has been removed; approximately 34% intensity matches the previous default 75% response.
 The prelit world's ambient share remains an approximation (35% of its lighting).
-For the original car rig, fill/back lights are treated as ambient illumination.
+Custom Glossy treats the rig's fill/back lights as ambient illumination. Original
+PC car materials bypass screen-space AO. Direct sunlight and reflections remain unchanged.
 
 Static sampling avoids animated grain. There is no accumulation to ghost behind
 cars or survive a camera cut. Smoke, sparks, other effect particles and the UI
@@ -116,3 +155,48 @@ depth at 1080p and 4K, after warmup. It excludes geometry, CPU setup and capture
 readback; its numbers are not whole-game frame times. Before considering a default
 change, compare repeatable driving routes and inspect car silhouettes, vegetation,
 road slopes and building corners with the split view on multiple adapters.
+
+## XeGTAO spatial comparison
+
+`xegtao` in F8 Effects, `--ao-method xegtao`, the console or the saved settings
+selects a separate WGSL port of Intel's spatial core. The pinned upstream revision is
+[`a5b1686c7ea37788eeb3576b5be47f7c03db532c`](https://github.com/GameTechDev/XeGTAO/tree/a5b1686c7ea37788eeb3576b5be47f7c03db532c).
+The shader files retain Intel's full MIT notice. The original `gtao` method remains
+available as the smaller earlier adaptation described above.
+
+This mode uses the reference radius multiplier (1.457), quadratic sample placement,
+linear horizon falloff (0.615 of the effective radius), projected-normal correction,
+visibility power (2.2), slope-adjusted packed edges, symmetric edge rejection and
+the nine-tap spatial denoiser (four intermediate passes with beta 0.24, final beta 1.2).
+Five spatial passes suppress undersampling noise without temporal history or extra
+images: the existing two images alternate as input and output. High uses four slices
+and four steps on both sides: 32 depth samples at full resolution. Medium uses 24
+and Low uses 12 at half width/height. These budgets trade some fine detail for camera
+stability without Intel's host TAA; they differ from its reference 18-sample High preset.
+
+The optional depth hierarchy uses four half-resolution-and-smaller R32F levels for
+this mode, with reference radius-scaled depth weighting. It costs about 10.5 MiB at
+4K. Distant taps read point samples from the selected mip; near taps use original
+depth. The direct-depth toggle remains an independent comparison. Coarse positions
+are reconstructed at their selected texel centers to avoid false slopes.
+
+Integration differences from Intel's complete implementation: FP32 shader arithmetic,
+RGBA16F intermediates instead of integer working-term textures, exact `acos`, shared
+authored normals and reverse-Z geometry, fixed Hilbert/R2 noise, normalization against
+each unobstructed slice and a small coplanar rejection bias to preserve open slopes,
+engine distance fade and common R8
+ambient composition. There are no bent
+normals, TAA, history accumulation or animated noise. The port does not promise the
+quality or cost of Intel's full renderer. Open surfaces, ground contacts, material
+coverage, repeated frames and live method switches are covered by GPU regressions.
+
+## Larger alternatives
+
+[AMD CACAO](https://gpuopen.com/fidelityfx-cacao/) is an MIT-licensed ASSAO derivative
+with Vulkan and DX12 implementations, adaptive sampling and edge-aware filtering.
+It is a suitable separate integration experiment, not yet included here. Its HLSL/GLSL
+passes and deinterleaved resources require a WGPU port or explicit native API bridge.
+[NVIDIA HBAO+](https://github.com/NVIDIAGameWorks/HBAOPlus) uses NVIDIA's own source
+license rather than this project's permitted port licenses; no code is imported.
+Ray-traced AO additionally needs acceleration structures, dynamic geometry updates
+and denoising. None of these methods can compensate for a material omitting AO.

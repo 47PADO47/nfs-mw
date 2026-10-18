@@ -35,18 +35,12 @@ The body kit's corner overlays `DAMAGE0_FRONT`, `DAMAGE0_FRONTLEFT`, `DAMAGE0_FR
 rig draws one only while its zone's panel level is at least 1 (`revealed_overlays`). The car viewer
 skips overlays, so the garage shows the undamaged car.
 
-## Scuffs and cracks (procedural)
+## Scuffs and cracks
 
-The install has no scrape or crack texture for these, so the port draws them as quads on the body
-(`scenes/world/damage_marks.rs`):
-
-- one dark square per zone with paint damage, sized by the paint level, on the face the zone is on;
-- two thin lines per glass level, radiating from the zone's centre on the glazed face.
-
-The marks use the body's half extents mapped into the model frame (model x is the physics z, y is x, z
-is y). Their placement has been checked by tests against the body box, but not yet against a running
-car, so the exact spot on each car is unverified.
-
+The procedural bounding-box squares and crack-line quads have been removed from
+normal rendering. They did not follow the body/window geometry and could float
+near the wheels. Installed corner overlays and cracked-window texture swaps
+remain; original paint/deformation parity is still incomplete.
 ## Punctured tires
 
 Two parts. The **tire state machine** is the spike-strip rule of the original
@@ -57,18 +51,30 @@ Two parts. The **tire state machine** is the spike-strip rule of the original
 - a blown tire takes the full brake command (`brake = 1`, handbrake released, `brakes::wheel_command`) and
   keeps 30 % of its traction (`BLOWN_TRACTION`).
 
-The **trigger** is the port's own rule for now: a top-severity (6) hit on a corner zone punctures that tire
-(`nfsmw-data/src/car/damage.rs`, `ZONE_WHEEL` and `PUNCTURE_SEVERITY`). The original punctures from a spike
-strip: a swept box test between the strip and the tire (section 6.2 of the roadblock spec, not yet confirmed
-in the decompilation). The port has that test in `libs/blackbox-vehicle/src/tires/spike.rs` (oriented-box separating axes, sampled sweep), but nothing places a strip yet. Run-flat is off: the run-flat attribute name is not in the binary's strings, so the car data flag is still unread. `repair` resets the tires.
+The **trigger** is contact with a roadblock spike strip. Ordinary impacts,
+including the severity-6 damage command, never puncture a tire. The world's
+strip test sweeps consecutive grounded patches across the inflated strip box,
+including elevation. A reset or large teleport discards the previous patch.
+The visible strip and its dimensions remain procedural; exact installed-prop
+collision and original swept-box parity are unverified. See
+[pursuit-free-roam](pursuit-free-roam.md) and
+[pursuit-system](../pursuit-system.md). Run-flat data remains unread. `repair`
+resets tire state.
+## Traffic and cop cars (rewrite choice, not reverse-engineered this pass)
 
-The spike strip itself (the prop, its placement and its pursuit roadblock) belongs to the pursuit systems and is
-not in the port.
+An impact on a traffic or cop car now feeds its own `VehicleEvents` damage model (`scenes/world/ai/car/hits.rs`
+`dent`): the hit is taken at its contact point, relative to the car centre, with its impulse as the force. The contact
+normal is not carried by the hit, so it is taken as the contact direction. Impacts below `MIN_CLOSING` are ignored.
+The visible result is the same corner overlay the player car shows. Basis: the existing damage model and zone table;
+the retail per-car feed for AI cars was not re-read in Ghidra for this change.
+
+Not shown yet for AI cars: the engine exposed behind a broken front, and tire smoke or engine smoke after heavy
+damage. Cracked windows are not drawn on AI cars either.
 
 
 ## Not done
 
-- **Scraped paint texture.** Not found in the install; scuffs stay procedural.
+- **Scraped paint texture.** The procedural overlay is removed; original paint scuff rendering remains missing.
 - **Cracked windows.** The cracked-window texture is `WINDOW_DAMAGE0` in `GLOBAL/GLOBALB.BUN` (key
   `0x0A155545`). Each glazed zone with a crack swaps its window placeholders to it (`zone_windows`,
   `TextureSwaps::with_window_hashes`), re-uploading the car when the set changes. Confirmed in a screenshot after a
@@ -76,10 +82,10 @@ not in the port.
   diffuse texture (`zone_window_solid`), because the rear glass does not draw `WINDOW_REAR`.
   (Earlier note, now superseded:) a screenshot
   after a rear hit shows the rear panels lighter, but the crack pattern on the window is not yet confirmed.
-- **Spike strips** and the `blown_tires` mask from the original.
+- **Original spike prop presentation** and the complete original `blown_tires` integration.
 - **Repair in the garage or between races.** The `repair` world console command clears the damage and
   the punctures; no in-game repair exists yet.
-- **Damage on the handling side** (lost grip or handling from panel damage).
+- **Original damage visual parity.** Body damage has no generic handling penalty; spike blowouts affect the tires.
 - **Persistence** across sessions. Damage is per run.
 
 ## Code

@@ -68,7 +68,9 @@ if wanted > current: spawn one patrol car
 random valid name, else `copmidsize`), pick a random traffic-capable road segment from the spawn manager's candidate
 list (section 3.1), a rotating lane and a random point along it, require that the spot passes the checks of 3.2, put
 the car on the lane (`ResetVehicleToRoadNav`), mark it spawned and start `AIGoalPatrol` (actions: traffic-style cruising
-at the default `SearchModeCityMPH` 50 / `SearchModeHwyMPH` 71 mph, and the "too damaged" action).
+at the normal 35/55 mph city/highway speeds, and the "too damaged" action).
+`SearchModeCityMPH` / `SearchModeHwyMPH` apply only when a pursuit has lost tracked
+sight. The native PC traffic action corroborates that distinction. **[decomp]**
 
 **Per active cop** (every run, in list order): decide whether to remove it: **[decomp]**
 

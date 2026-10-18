@@ -60,11 +60,18 @@ impl Drive {
                 input
             }
             None => self.presses.take_into(self.frame_input),
-        };
+        }
+        .during_arrest(self.arrested);
         if input.pop {
             self.flames.pop();
         }
-        let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
+        let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, &mut *props)));
+        let hits = impact
+            .visuals
+            .iter()
+            .map(|v| (v.prop, v.info))
+            .chain(impact.knocked.iter().map(|&(id, _)| (Some(id), None)));
+        self.markers.log_new_hits(hits, props);
         Some(DriveStep { input, impact })
     }
 

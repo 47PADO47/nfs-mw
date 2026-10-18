@@ -38,6 +38,14 @@ impl super::TrafficWorld {
     /// by the goal's step, which is kept in the car (`car/goal_drive.rs`) for its think and its brake. The aims are in the map
     /// plane lifted to the player's height.
     pub(super) fn cop_aims(&self, player: &Body, out: &mut Vec<Option<Vec3>>) {
+        if !self.police.is_perp_in_sight() {
+            out.clear();
+            out.resize(self.cars.len(), None);
+            for car in &self.cars {
+                car.set_goal_drive(None);
+            }
+            return;
+        }
         let tuning = goal_aims::tuning_for(self.police.level().unwrap_or(1));
         let plans = self.cop_plans(player);
         out.clear();

@@ -72,6 +72,8 @@ pub const SHADOWS: &str = "NFSMW_SHADOWS";
 pub const AO: &str = "NFSMW_AO";
 pub const AO_INTENSITY: &str = "NFSMW_AO_INTENSITY";
 pub const AO_COMPARE: &str = "NFSMW_AO_COMPARE";
+pub const AO_DEPTH_MIPS: &str = "NFSMW_AO_DEPTH_MIPS";
+pub const AO_METHOD: &str = "NFSMW_AO_METHOD";
 pub const POST_AA: &str = "NFSMW_POST_AA";
 pub const TEXTURE_FILTERING: &str = "NFSMW_TEXTURE_FILTERING";
 pub const RENDER_SCALE: &str = "NFSMW_RENDER_SCALE";
@@ -187,6 +189,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         ao: value(&get, AO, super::AoQuality::from_str),
         ao_intensity: value(&get, AO_INTENSITY, Percent::from_str),
         ao_compare: value(&get, AO_COMPARE, parse_bool),
+        ao_depth_mips: value(&get, AO_DEPTH_MIPS, parse_bool),
+        ao_method: value(&get, AO_METHOD, super::AoMethod::from_str),
         render_scale: value(&get, RENDER_SCALE, RenderScale::from_str),
         upscaler: value(&get, UPSCALER, UpscaleMode::from_str),
         upscale_sharpness: value(&get, UPSCALE_SHARPNESS, Percent::from_str),

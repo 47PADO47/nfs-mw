@@ -39,7 +39,7 @@ impl Police {
         sensed: Sensed,
         clear: &dyn Fn(Vec3, Vec3) -> bool,
     ) {
-        if self.heli.is_none() && pursuing {
+        if self.heli.is_none() && pursuing && sensed.seen {
             self.try_join(player);
         }
         let Some(mut heli) = self.heli.take() else { return };
@@ -75,7 +75,7 @@ impl Police {
     /// metres behind the player on the road.
     pub(super) fn try_join(&mut self, player: &PlayerView) {
         let Some(level) = self.level() else { return };
-        if self.heli_wait > 0.0 || !HELI_LEVELS.contains(&level) {
+        if !self.heli_available || self.heli_wait > 0.0 || !HELI_LEVELS.contains(&level) {
             return;
         }
         let tuning = Tuning { skid_hit: SKID_LEVELS.contains(&level), ..self.heli_settings.tuning(level, RACING) };

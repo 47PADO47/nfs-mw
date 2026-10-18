@@ -61,6 +61,24 @@ fn hit() -> DamageHit {
     }
 }
 
+#[test]
+fn severe_corner_impacts_damage_the_body_without_puncturing_tires() {
+    let mut events = engine();
+    for (arm, normal) in [
+        (Vec3::new(-1.0, 0.0, 3.0), Vec3::X),
+        (Vec3::new(1.0, 0.0, 3.0), Vec3::NEG_X),
+        (Vec3::new(-1.0, 0.0, -3.0), Vec3::X),
+        (Vec3::new(1.0, 0.0, -3.0), Vec3::NEG_X),
+    ] {
+        events.hit(DamageHit { arm, normal, force: 1_000_000.0, ..hit() });
+    }
+    events.tick(0.0);
+    for corner in 4..8 {
+        assert!(events.damage.zone(corner).panel > 0);
+    }
+    assert!((0..4).all(|wheel| !events.damage.is_punctured(wheel)));
+}
+
 fn ids(events: &[Effect]) -> Vec<u32> {
     events
         .iter()

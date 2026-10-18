@@ -101,7 +101,7 @@ impl Audio {
     /// The song on the air, for the HUD.
     pub fn now_playing(&self) -> Option<&NowPlaying> {
         match &self.radio {
-            RadioSlot::Ready(radio) => radio.now.as_ref(),
+            RadioSlot::Ready(radio) if !radio.held => radio.now.as_ref(),
             _ => None,
         }
     }

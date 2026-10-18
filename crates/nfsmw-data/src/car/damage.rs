@@ -29,10 +29,6 @@ pub const ZONE_HAS_GLASS: [bool; 10] = [true, true, true, true, true, true, true
 /// The wheel each corner zone's tire is (0 front left, 1 front right, 2 rear left, 3 rear right).
 pub const ZONE_WHEEL: [Option<usize>; 10] = [None, None, None, None, Some(0), Some(1), Some(2), Some(3), None, None];
 
-/// The impact severity from which a corner zone punctures its tire: the top level. A port choice; the
-/// original punctures tires from spike strips, which this port does not have yet.
-pub const PUNCTURE_SEVERITY: usize = 6;
-
 /// The window placeholders a glazed zone covers: the windscreen, the rear window or the side windows at
 /// that corner. Empty for zones without glass.
 pub fn zone_windows(zone: usize) -> &'static [&'static str] {

@@ -24,10 +24,12 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod radar;
 mod release;
 mod road_reflection;
 mod roadblock;
 mod scene;
+mod search;
 mod shading;
 pub(super) mod signal_props;
 mod simulation;
@@ -152,6 +154,7 @@ pub struct TrafficWorld {
     strikes: collide::Strikes,
     /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
     spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -215,6 +218,7 @@ impl TrafficWorld {
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
             spikes: Vec::new(),
+            spike_patches: None,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),
@@ -283,14 +287,13 @@ impl TrafficWorld {
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
         self.helicopter_blips(pursuing, out);
-        for car in self.cars.iter().filter(|c| c.is_cop()) {
+        for car in self.cars.iter().filter(|c| c.is_live_police()) {
             let at = car.position();
-            let forward = car.pose(1.0).rotation * Vec3::X;
             out.push(crate::hud::MapBlip {
                 style: crate::hud::COP,
                 position: [at.x, at.y],
-                heading: [forward.x, forward.y],
-                active: pursuing,
+                active: pursuing && !car.is_patrol(),
+                heading: Some(car.heading()),
             });
         }
     }

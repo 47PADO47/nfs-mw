@@ -116,16 +116,18 @@ uses the same slot animation as the installed icons.
 Entries this rewrite cannot do yet (Challenge Series, My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
 selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
-(`0x1AFD5BE6`, `0xB0C46023`), Online (`0x7D347E05`, `0x5A5E5137`), LAN (`0x03F6F2BF`, none), Alias Manager
+(`0x1AFD5BE6`, `0xB0C46023`), Online (`0x74FB90A8`, `0x20563D30`), LAN (`0x4D78216D`, `0xD13A2E66`), Alias Manager
 (`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`). **Eight entries** (`icons(Kind::Main)`).
 **[decomp]** `UIMain::Setup` (the non-Mike-Mann branch) adds Alias Manager only when `IsMemcardEnabled` is nonzero;
 whether the PC build sets that flag is **[unconfirmed]**, so the rewrite shows the entry greyed out. The label
 `0xBCB18F38` reads "Alias Manager" **[verified]** (`nfsmw strings`). The same decompiled setup adds no Online or LAN
 entry to the main menu **[decomp]**. Online and LAN are listed anyway, disabled, at the user's request **[ours]**.
-Online takes the texture of the option list's Online entry (`0x5A5E5137`, below) and the label `0x7D347E05`, whose
-text is "Online Options" **[verified]**. LAN takes the main-menu LAN label `0x03F6F2BF`, "LAN main menu"
-**[verified]**; no LAN picture is recorded, so its icon is blank (texture 0, as Credits and EA Trax are). Both are
-greyed out (alpha 150) and do nothing on accept (`act()` has no arm for them). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
+Online takes the label `0x74FB90A8`, "Online" **[verified, `nfsmw strings`]**, and the install's picture
+`Main_Icon_Online` (texture `0x20563D30`, the hash of that name **[ours]**, a network of computers, checked on screen).
+The option list's Online texture `0x5A5E5137` drew the gears of the Options icon, so it is not used. LAN takes the
+main-menu LAN label `0x4D78216D`, "lan" **[verified]** (the install has no capitalised LAN label; "LAN main menu" `0x03F6F2BF` is not used), and the install's picture `Main_Icon_LAN`
+(texture `0xD13A2E66`, **[ours]**, checked on screen). Both are greyed out (alpha 150) and do nothing on accept
+(`act()` has no arm for them). The title is the label `0xB24AAE58` on `TITLE_GROUP` (`0xB71B576D`). With no profile loaded the
 screen hides the player name group (`0xFB80CDAC`) and the game-statistics hint (`0x8913E195`). A `Quit` button (the
 object `0xC0A32823`, label `0xC51FBF74`, keyboard hint `Q`) lives in the package and answers a mouse release
 with the message `0x62799A4C` for the game **[verified, name unknown]**; this rewrite has no mouse, so the `Q` key
@@ -185,6 +187,8 @@ picture in the Controls slot, which the rewrite uses for the Controls icon. Cont
 **LAN.** The strings `LAN main menu` (`0x03F6F2BF`) and `LAN options` (`0x19889765`) exist **[verified]**, but neither
 `UIMain::Setup` nor `UIOptionsMain::Setup` adds a LAN icon **[decomp]**, so the original has no LAN entry. The
 main menu lists a disabled one anyway (2.1), at the user's request **[ours]**; the category list has none.
+The main-menu picture is `Main_Icon_LAN` (`0xD13A2E66`), found by hashing the install's `Main_Icon_<name>` naming
+(`Main_Icon_Options` hashes to the Options texture `0x3058FE37`).
 
 **Ghidra.** `/speed.exe` has no function names, and the byte search needed to find the code that adds these
 entries was not available in this pass. The hashes above come from the decompiled source; the Player texture was

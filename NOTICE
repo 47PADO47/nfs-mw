@@ -202,9 +202,16 @@ Input references
 Rendering concepts
   Intel XeGTAO — https://github.com/GameTechDev/XeGTAO — MIT.
     Copyright (C) 2016-2021, Intel Corporation.
-    Horizon search and analytic slice integration adapted in
+    Horizon search, analytic slice integration and static Hilbert/R2 sampling adapted in
     libs/blackbox-render/src/shaders/ao_horizon.wgsl, which carries the full MIT notice.
     This is a compact spatial GTAO adaptation, not the complete XeGTAO implementation.
+    The separately selectable XeGTAO spatial mode ports the main pass, depth weighting,
+    packed edge continuity and symmetric 3x3 denoiser from revision
+    a5b1686c7ea37788eeb3576b5be47f7c03db532c. Full MIT notices are retained in
+    ao_xegtao.wgsl and ao_xe_filter.wgsl. The depth weighting adaptation in ao_depth.wgsl
+    is covered by its accompanying Intel MIT notice. See docs/ambient-occlusion.md for deviations.
+    Its depth-prefiltering discussion also informed the independent linear-depth hierarchy in
+    libs/blackbox-render/src/shaders/ao_depth.wgsl and gpu/ao/depth.rs.
   Quasar — https://github.com/dev25bansal-ops/quasar — MIT.
     Hemisphere SSAO shader considered as a reference; no code copied.
     See docs/ambient-occlusion.md for the approach and limitations.

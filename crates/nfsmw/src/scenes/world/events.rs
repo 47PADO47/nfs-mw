@@ -15,7 +15,7 @@ use blackbox_attrib::vlt_hash;
 use blackbox_damage::Damage;
 use blackbox_sequence::{Player, QueueMode};
 use glam::Vec3;
-use nfsmw_data::car::damage::{PUNCTURE_SEVERITY, ZONE_HAS_GLASS, ZONE_WHEEL, revealed_overlays};
+use nfsmw_data::car::damage::{ZONE_HAS_GLASS, revealed_overlays};
 use nfsmw_data::car::physics::{CarEventSpec, DAMAGE_ZONES};
 use nfsmw_data::world::sequences::{TAGS, WorldEvent};
 
@@ -90,6 +90,27 @@ impl VehicleEvents {
         }
     }
 
+    /// Applies an impact to the visible damage alone, for a car with no sequencer to tell of it (a traffic car hit
+    /// by the player or by another car). The same zone and level as a hit the sequencer is told of.
+    pub fn damage_hit(&mut self, hit: DamageHit) {
+        self.wear(&hit);
+    }
+
+    /// Applies `hit` to the visible damage: its zone and the impact level it reached. `None` when it does nothing
+    /// (no strength, or a force that is not finite).
+    fn wear(&mut self, hit: &DamageHit) -> Option<(usize, usize)> {
+        if self.spec.strength <= 0.0 || !hit.force.is_finite() {
+            return None;
+        }
+        let zone = hit.zone();
+        let level = (hit.force / self.spec.strength * self.spec.visual_scale[zone]).clamp(0.0, 6.0) as usize;
+        log::debug!("vehicle damage {}: force {:.1}, impact level {level}", DAMAGE_ZONES[zone], hit.force);
+        if self.damage.impact(zone, level as u8, ZONE_HAS_GLASS[zone]) {
+            log::info!("vehicle damage {} now {:?}", DAMAGE_ZONES[zone], self.damage.zone(zone));
+        }
+        Some((zone, level))
+    }
+
     fn advance(&mut self, view_distance: f32) -> Result<Vec<Effect>> {
         let mut out = Vec::new();
         if let (Some(sequence), Some(player)) = (&self.spec.sequence, self.player.as_mut()) {
@@ -101,10 +122,7 @@ impl VehicleEvents {
             if self.spec.suppress_distance > 0.0 && view_distance > self.spec.suppress_distance {
                 continue;
             }
-            if self.spec.strength <= 0.0 || !hit.force.is_finite() {
-                continue;
-            }
-            let zone = hit.zone();
+            let Some((zone, level)) = self.wear(&hit) else { continue };
             let target = Some(vlt_hash(DAMAGE_ZONES[zone]));
             let mut stimuli = vec![vlt_hash("COLLISION")];
             if hit.other.vehicle {
@@ -115,17 +133,6 @@ impl VehicleEvents {
             }
             if hit.other.player {
                 stimuli.push(vlt_hash("COLLISION_PLAYER"));
-            }
-            let level = (hit.force / self.spec.strength * self.spec.visual_scale[zone]).clamp(0.0, 6.0) as usize;
-            log::debug!("vehicle damage {}: force {:.1}, impact level {level}", DAMAGE_ZONES[zone], hit.force);
-            if level >= PUNCTURE_SEVERITY
-                && let Some(wheel) = ZONE_WHEEL[zone]
-                && self.damage.puncture(wheel)
-            {
-                log::info!("tire {wheel} punctured by a hit on {}", DAMAGE_ZONES[zone]);
-            }
-            if self.damage.impact(zone, level as u8, ZONE_HAS_GLASS[zone]) {
-                log::info!("vehicle damage {} now {:?}", DAMAGE_ZONES[zone], self.damage.zone(zone));
             }
             stimuli.extend((1..=level).map(|n| vlt_hash(&format!("IMPACT_{n}"))));
             if let (Some(sequence), Some(player)) = (&self.spec.sequence, self.player.as_mut()) {

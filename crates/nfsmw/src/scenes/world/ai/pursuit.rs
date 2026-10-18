@@ -52,6 +52,9 @@ pub(super) struct CopSpot {
 /// The chase: the heat rows of all levels, the heat it is at, and the spawn bookkeeping. The wave is the row of the
 /// current heat, so a rise in heat brings the cop types of the higher row.
 pub struct Pursuit {
+    pub(super) damaged: std::collections::BTreeSet<u32>,
+    /// Last observed target in physics space. Search never reads the hidden player's live pose.
+    pub(super) last_seen: Option<blackbox_roads::Body>,
     pub heat: u32,
     /// The rows of the heat levels, index = level - 1 (`nfsmw_data::pursuit::heat_rows`).
     rows: Vec<HeatRow>,
@@ -64,7 +67,16 @@ pub struct Pursuit {
 
 impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
-        Self { heat, rows, player, spawn_timer: 0.0, involved: 0, support: Default::default() }
+        Self {
+            heat,
+            rows,
+            player,
+            last_seen: None,
+            damaged: Default::default(),
+            spawn_timer: 0.0,
+            involved: 0,
+            support: Default::default(),
+        }
     }
 
     /// How the player's car performs, for the cops that chase it.
@@ -115,8 +127,23 @@ impl TrafficWorld {
     /// The cars of the support requests are asked for too, at every level, so they load while the chase waits for its
     /// first support (a support car whose model is not in yet waits for it, `ai/support`).
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
-        self.pursuit = Some(Pursuit::new(heat, rows, player));
         self.police.begin(heat);
+        self.pursuit = Some(Pursuit::new(self.police.patrol_heat(), rows, player));
+        let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
+        for car in &mut self.cars {
+            let near = self.player_position.is_some_and(|p| car.physics_position().distance(p) < range);
+            if !near {
+                continue;
+            }
+            let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(&car.name)) else {
+                continue;
+            };
+            if car.join_pursuit(model.car, player, &self.network, &self.index)
+                && let Some(pursuit) = self.pursuit.as_mut()
+            {
+                pursuit.involved += 1;
+            }
+        }
         for name in super::support::support_models() {
             self.request_cop(name);
         }
@@ -131,7 +158,15 @@ impl TrafficWorld {
     pub fn end_pursuit(&mut self, reason: EndReason) {
         self.pursuit = None;
         self.police.end(reason);
-        self.cars.retain(|c| !c.is_cop());
+        match reason == EndReason::Busted && self.arrest_active() {
+            true => {
+                for car in self.cars.iter_mut().filter(|car| car.is_police()) {
+                    car.hold_for_arrest();
+                }
+            }
+            false => self.cars.retain(|car| !car.is_police()),
+        }
+        self.seen_by_cops = false;
         self.clear_spikes();
     }
 
@@ -170,12 +205,19 @@ impl TrafficWorld {
         surfaces: &SurfaceTable,
     ) {
         let Some(player) = focus.body else { return };
+        if !self.police.can_begin() {
+            return;
+        }
         self.cars.retain(|car| {
             let p = car.position();
             !car.is_cop() || (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < LOST_DISTANCE
         });
-        self.update_support(sim_dt, focus, collision, surfaces);
+        match self.police.is_perp_in_sight() {
+            true => self.update_support(sim_dt, focus, collision, surfaces),
+            false => self.age_search_support(sim_dt),
+        }
         let level = self.police.level();
+        let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         if let Some(level) = level
             && pursuit.follow_heat(level)
@@ -185,7 +227,13 @@ impl TrafficWorld {
         }
         pursuit.spawn_timer -= sim_dt;
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
-        if alive >= pursuit.wanted(self.police.settings()) || pursuit.spawn_timer > 0.0 {
+        let wanted = match cooldown {
+            true => {
+                pursuit.row().map_or(0, |row| row.patrol_cars as usize).min(self.police.settings().max_cops as usize)
+            }
+            false => pursuit.wanted(self.police.settings()),
+        };
+        if alive >= wanted || pursuit.spawn_timer > 0.0 {
             return;
         }
         // The next type of the current wave, weighted by its chance among those the wave still needs.
@@ -208,9 +256,11 @@ impl TrafficWorld {
             false => later,
         };
         let performance = pursuit.player;
-        if self.spawn_cop(&name, focus, player.position, performance, collision, surfaces)
-            && let Some(p) = self.pursuit.as_mut()
-        {
+        let spawned = match self.police.is_perp_in_sight() {
+            true => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
+            false => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
+        };
+        if spawned && let Some(p) = self.pursuit.as_mut() {
             p.involved += 1;
             p.spawn_timer = delay;
         }

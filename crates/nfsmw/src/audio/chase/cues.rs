@@ -8,6 +8,8 @@
 //! Every edge of the feed's air-support state (rain, roadblock, been hit, cop down) is a rising edge: the first frame
 //! of a chase only records the state, so a chase that opens already raining or already hit says nothing.
 
+use blackbox_pursuit::EndReason;
+
 use crate::audio::PursuitFeed;
 use crate::audio::speech::random::Rng;
 
@@ -47,6 +49,8 @@ pub enum Cue {
     HeliSpotted,
     /// A cop car was wrecked: the feed's `cops_destroyed` went up.
     CopDown,
+    /// The chase ended evaded: the suspect got away (`lostsuspect`). Said once per end, not from the feed.
+    Escaped,
 }
 
 /// The rising edge of a flag. `None` before the chase's first frame, which only records the flag.
@@ -82,6 +86,8 @@ pub struct Cues {
     hit: Rising,
     /// The cops wrecked on the last frame of the chase.
     cops_down: Option<u32>,
+    /// The escape's line was said for the chase that just ended.
+    escape_said: bool,
     rng: Rng,
 }
 
@@ -96,8 +102,23 @@ impl Cues {
             roadblock: Rising::default(),
             hit: Rising::default(),
             cops_down: None,
+            escape_said: false,
             rng,
         }
+    }
+
+    /// The escape's line, once per chase that ends evaded: the suspect got away. While a chase runs it re-arms, so the
+    /// next end is said too.
+    pub fn escape(&mut self, chase_running: bool, ended: EndReason) -> Option<Cue> {
+        if chase_running {
+            self.escape_said = false;
+            return None;
+        }
+        if ended != EndReason::Evaded || self.escape_said {
+            return None;
+        }
+        self.escape_said = true;
+        Some(Cue::Escaped)
     }
 
     /// Once per frame: the cues of this frame. `None` (no chase) forgets the chase, so the next one starts fresh.

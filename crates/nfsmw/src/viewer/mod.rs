@@ -216,6 +216,10 @@ pub trait Scene {
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None
     }
+    /// How the last chase ended, while none runs: the speech says the suspect's escape once per end. `None` before any.
+    fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
+        blackbox_pursuit::EndReason::None
+    }
     /// The bust sequence's infractions ticket, once, when the front end should show it (`(infraction, fine)` lines);
     /// `None` otherwise.
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {

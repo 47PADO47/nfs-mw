@@ -8,6 +8,8 @@ pub enum LightingDebug {
     SunVisibility,
     AmbientVisibility,
     Cascades,
+    ShadowBlockers,
+    ShadowPenumbra,
 }
 
 impl std::fmt::Display for LightingDebug {
@@ -17,6 +19,8 @@ impl std::fmt::Display for LightingDebug {
             Self::SunVisibility => "sun visibility",
             Self::AmbientVisibility => "AO visibility",
             Self::Cascades => "cascade coverage",
+            Self::ShadowBlockers => "shadow blocker count",
+            Self::ShadowPenumbra => "shadow filter radius",
         })
     }
 }
@@ -42,6 +46,13 @@ pub struct RenderExperiments {
     pub sky_strength: f32,
     pub ground_strength: f32,
     pub soft_shadows: bool,
+    /// Integrate wide penumbras with a dense tent footprint; independent of blocker search.
+    pub dense_shadow_filter: bool,
+    /// Double the nearest cascade's density by reducing its coverage, retaining the other cascades.
+    pub near_shadow_focus: bool,
+    /// Broader near coverage with independently sized first and second cascade maps.
+    pub wide_shadow_detail: bool,
+    pub shadow_detail_resolution: u32,
     pub original_shadows: bool,
     /// Directional light angular radius in degrees.
     pub sun_angle: f32,
@@ -69,6 +80,10 @@ impl Default for RenderExperiments {
             sky_strength: 0.8,
             ground_strength: 0.5,
             soft_shadows: true,
+            dense_shadow_filter: false,
+            near_shadow_focus: false,
+            wide_shadow_detail: false,
+            shadow_detail_resolution: 4096,
             original_shadows: true,
             sun_angle: 0.27,
             shadow_resolution: 2048,
@@ -82,7 +97,12 @@ impl Default for RenderExperiments {
 impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
-            shadow_resolution: self.shadow_resolution.clamp(512, 4096).next_power_of_two(),
+            shadow_resolution: self.shadow_resolution.clamp(512, 8192).next_power_of_two(),
+            shadow_detail_resolution: self
+                .shadow_detail_resolution
+                .clamp(512, 8192)
+                .next_power_of_two()
+                .max(self.shadow_resolution.clamp(512, 8192).next_power_of_two()),
             sky_strength: finite(self.sky_strength, 0.8).clamp(0.0, 2.0),
             ground_strength: finite(self.ground_strength, 0.5).clamp(0.0, 2.0),
             world_ambient_share: finite(self.world_ambient_share, 0.6).clamp(0.35, 0.9),

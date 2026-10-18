@@ -63,8 +63,8 @@ pub(super) fn quotas(rules: &[Rule], slots: u32, census: &impl Census) -> Vec<u3
                 p => p,
             });
             let product = u64::from(remaining) * w;
-            group.quota = (product / weight.get()) as u32;
-            group.remainder = product % weight.get();
+            group.quota = (product / weight) as u32;
+            group.remainder = product % weight;
             assigned += group.quota;
         }
         for _ in assigned..remaining {

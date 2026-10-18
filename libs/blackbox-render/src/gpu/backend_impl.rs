@@ -49,6 +49,10 @@ impl RenderBackend for Renderer {
     }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
         self.experiments = options.sanitized();
+        self.experiments.shadow_resolution =
+            self.experiments.shadow_resolution.min(self.device.limits().max_texture_dimension_2d);
+        self.experiments.shadow_detail_resolution =
+            self.experiments.shadow_detail_resolution.min(self.device.limits().max_texture_dimension_2d);
     }
     fn render_experiments(&self) -> blackbox_gfx::RenderExperiments {
         self.experiments

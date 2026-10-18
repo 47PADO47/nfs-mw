@@ -3,6 +3,7 @@
 //! the car appears; this module owns everything about the car itself.
 
 mod access;
+mod arrest;
 mod breaker_camera;
 mod car_detail;
 mod clock;
@@ -107,6 +108,8 @@ pub struct Drive {
     request: Option<SpawnRequest>,
     alpha: f32,
     frame_input: DriveInput,
+    /// Bust fallback holds controls until the ticket is paid.
+    arrested: bool,
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
@@ -183,6 +186,7 @@ impl Drive {
             request: Some(request),
             alpha: 0.0,
             frame_input: DriveInput::default(),
+            arrested: false,
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),
@@ -275,23 +279,6 @@ impl Drive {
         self.headlights = on;
     }
 
-    /// The visible damage over the car, as world-space quads (see `damage_marks`).
-    pub fn damage_quads(&self) -> Vec<crate::scenes::world::damage_marks::MarkQuad> {
-        let Some(sim) = &self.sim else { return Vec::new() };
-        let Some(events) = &sim.events else { return Vec::new() };
-        let physics = sim.half_extents();
-        // Physics x is the width, z the length; the model frame has x forward and y left.
-        let model_half = glam::Vec3::new(physics.z, physics.x, physics.y);
-        let to_world = self.pose().transform();
-        crate::scenes::world::damage_marks::marks(&events.damage, model_half)
-            .into_iter()
-            .map(|m| crate::scenes::world::damage_marks::MarkQuad {
-                corners: m.corners.map(|c| to_world.transform_point3(c)),
-                mark: m.mark,
-            })
-            .collect()
-    }
-
     pub fn heading(&self) -> f32 {
         let forward = self.current.rotation * Vec3::X;
         forward.y.atan2(forward.x)
@@ -326,19 +313,6 @@ impl Drive {
     #[cfg(test)]
     pub fn physics_pose(&self) -> CarPose {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
-    }
-
-    /// The car as the police and the high-speed effects see it. Nitrous is 1 while it burns, else 0.
-    pub fn player_view(&self) -> crate::scenes::world::ai::PlayerView {
-        let forward = self.pose().rotation * Vec3::X;
-        let nitrous = self.telemetry.nitrous_burn();
-        crate::scenes::world::ai::PlayerView {
-            position: self.pose().position,
-            forward,
-            speed: self.speed(),
-            nitrous,
-            throttle: self.frame_input.throttle,
-        }
     }
 
     /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which

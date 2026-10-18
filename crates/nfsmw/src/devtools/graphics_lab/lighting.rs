@@ -5,8 +5,9 @@ use super::*;
 mod dependencies;
 
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
+    let defaults = super::profiles::defaults(settings).appearance.lighting;
     ui.add_enabled_ui(lab.stats.supported, |ui| {
-        ui.checkbox(&mut lab.options.freeze_sun, "Freeze sun")
+        super::controls::checkbox(ui, &mut lab.options.freeze_sun, "Freeze sun", defaults.freeze_sun)
             .on_hover_text("Keeps the lighting phase fixed while you drive.");
         choice(
             ui,
@@ -17,12 +18,18 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
                 LightingDebug::SunVisibility,
                 LightingDebug::AmbientVisibility,
                 LightingDebug::Cascades,
+                LightingDebug::ShadowBlockers,
+                LightingDebug::ShadowPenumbra,
             ],
         );
-        if lab.options.lighting_debug != LightingDebug::Off {
+        if matches!(lab.options.lighting_debug, LightingDebug::SunVisibility | LightingDebug::AmbientVisibility) {
             ui.small("Debug bypasses colour effects. White means visible; black means occluded.");
         }
-        ui.checkbox(&mut lab.options.sun_shadows, "Sun shadows");
+        if matches!(lab.options.lighting_debug, LightingDebug::ShadowBlockers | LightingDebug::ShadowPenumbra) {
+            ui.small("Custom cascades only. Blockers: black = 0, white = 16. Filter radius: black = 0, white = 8 shadow texels. PCSS off keeps a fixed radius.");
+        }
+        super::controls::checkbox(ui, &mut lab.options.sun_shadows, "Sun shadows", defaults.sun_shadows);
+        super::controls::checkbox(ui, &mut lab.options.original_shadows, "Original shadow overlays", defaults.original_shadows);
         ui.add_enabled_ui(lab.options.sun_shadows, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Shadow system:");
@@ -36,26 +43,33 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
             if lab.options.shadow_projection.is_some() {
                 ui.small("Single fitted perspective map; original camera and sun/cloud strength. Caster selection and vendor filtering remain incomplete. Stock size: 1024; larger maps need no new assets.");
             }
-            egui::ComboBox::from_label("Map resolution")
-                .selected_text(lab.options.shadow_resolution.to_string())
-                .show_ui(ui, |ui| {
-                    for size in [512, 1024, 2048, 4096] {
-                        ui.selectable_value(&mut lab.options.shadow_resolution, size, size.to_string());
-                    }
-                });
+            super::controls::choice(ui, "Map resolution", &mut lab.options.shadow_resolution, &[512, 1024, 2048, 4096, 8192], defaults.shadow_resolution);
             ui.add_enabled_ui(lab.options.shadow_projection.is_none(), |ui| {
-                ui.checkbox(&mut lab.options.far_shadows, "Distant coverage (3× range)");
-                ui.add(egui::Slider::new(&mut lab.options.shadow_distance, 40.0..=320.0).text("Near range"));
-                ui.add(egui::Slider::new(&mut lab.options.shadow_filter, 0.0..=3.0).text("Filter width"));
-                ui.checkbox(&mut lab.options.soft_shadows, "Contact-hardening sun (PCSS)");
+                super::controls::checkbox(ui, &mut lab.options.wide_shadow_detail, "Wide-detail cascades", defaults.wide_shadow_detail)
+                    .on_hover_text("Keeps the first two cascades detailed over a wider area, with separate map resolution and consistent filter softness. Overrides legacy tight focus. Higher resolutions cost GPU time and memory.");
+                if lab.options.wide_shadow_detail {
+                    lab.options.shadow_detail_resolution = lab.options.shadow_detail_resolution.max(lab.options.shadow_resolution);
+                    let sizes: Vec<_> = [512, 1024, 2048, 4096, 8192].into_iter().filter(|size| *size >= lab.options.shadow_resolution).collect();
+                    super::controls::choice(ui, "Detail map resolution (first two)", &mut lab.options.shadow_detail_resolution, &sizes, defaults.shadow_detail_resolution.max(lab.options.shadow_resolution));
+                    ui.small("Map resolution above controls distant cascades. Filter width uses the nearest map's texel size.");
+                }
+                if !lab.options.wide_shadow_detail {
+                    super::controls::checkbox(ui, &mut lab.options.near_shadow_focus, "Tight near focus (legacy)", defaults.near_shadow_focus)
+                        .on_hover_text("Doubles nearest detail by halving coverage; makes the quality transition appear closer to the camera.");
+                }
+                super::controls::checkbox(ui, &mut lab.options.far_shadows, "Distant coverage (3× range)", defaults.far_shadows);
+                super::controls::slider(ui, &mut lab.options.shadow_distance, 40.0..=320.0, "Near range", defaults.shadow_distance);
+                super::controls::slider(ui, &mut lab.options.shadow_filter, 0.0..=3.0, "Filter width", defaults.shadow_filter);
+                super::controls::checkbox(ui, &mut lab.options.soft_shadows, "Contact-hardening sun (PCSS)", defaults.soft_shadows);
+                super::controls::checkbox(ui, &mut lab.options.dense_shadow_filter, "Dense penumbra filter", defaults.dense_shadow_filter)
+                    .on_hover_text("Smooths gaps in wide shadow edges. Can increase GPU cost; narrow filters stay unchanged.");
                 if lab.options.soft_shadows {
-                    ui.add(egui::Slider::new(&mut lab.options.sun_angle, 0.0..=2.0).text("Sun radius °"));
+                    super::controls::slider(ui, &mut lab.options.sun_angle, 0.0..=2.0, "Sun radius °", defaults.sun_angle);
                 }
             });
         });
         advanced(ui, lab, settings);
     });
-    ui.checkbox(&mut lab.options.original_shadows, "Original shadow overlays");
     if !lab.stats.supported {
         ui.colored_label(egui::Color32::YELLOW, "Prototypes require native Vulkan or DX12.");
     }
@@ -78,15 +92,22 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
 }
 
 fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
+    let defaults = super::profiles::defaults(settings).appearance.lighting;
     let dependencies = dependencies::for_selection(
         settings.car_shading,
         lab.options.original_world_materials,
         lab.options.sun_shadows && lab.options.shadow_projection.is_some(),
     );
-    ui.checkbox(&mut lab.options.contact_shadows, "Contact shadow detail")
+    super::controls::checkbox(ui, &mut lab.options.contact_shadows, "Contact shadow detail", defaults.contact_shadows)
         .on_hover_text("Custom screen-space occlusion for direct-lit world surfaces; it also works without a sun map.");
     ui.add_enabled_ui(lab.options.contact_shadows, |ui| {
-        ui.add(egui::Slider::new(&mut lab.options.contact_length, 0.05..=0.8).text("Contact reach"));
+        super::controls::slider(
+            ui,
+            &mut lab.options.contact_length,
+            0.05..=0.8,
+            "Contact reach",
+            defaults.contact_length,
+        );
     });
     if !lab.options.contact_shadows {
         ui.small("Enable Contact shadow detail to adjust its reach.");
@@ -103,11 +124,23 @@ fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         }
     }
     ui.add_enabled_ui(dependencies.custom_car, |ui| {
-        ui.checkbox(&mut lab.options.clearcoat, "Car clearcoat experiment");
-        ui.checkbox(&mut lab.options.car_skylight, "Car sky and ground light");
+        super::controls::checkbox(ui, &mut lab.options.clearcoat, "Car clearcoat experiment", defaults.clearcoat);
+        super::controls::checkbox(ui, &mut lab.options.car_skylight, "Car sky and ground light", defaults.car_skylight);
         ui.add_enabled_ui(lab.options.car_skylight, |ui| {
-            ui.add(egui::Slider::new(&mut lab.options.sky_strength, 0.0..=2.0).text("Sky strength"));
-            ui.add(egui::Slider::new(&mut lab.options.ground_strength, 0.0..=2.0).text("Ground bounce"));
+            super::controls::slider(
+                ui,
+                &mut lab.options.sky_strength,
+                0.0..=2.0,
+                "Sky strength",
+                defaults.sky_strength,
+            );
+            super::controls::slider(
+                ui,
+                &mut lab.options.ground_strength,
+                0.0..=2.0,
+                "Ground bounce",
+                defaults.ground_strength,
+            );
         });
     });
     if !dependencies.custom_car {

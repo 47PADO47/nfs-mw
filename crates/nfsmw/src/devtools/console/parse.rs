@@ -38,7 +38,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 66] = [
+pub const BUILT_IN: [(&str, &str); 68] = [
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
     ("unbind <action> [keyboard|mouse|gamepad|all]", "remove action assignments"),
@@ -94,6 +94,8 @@ pub const BUILT_IN: [(&str, &str); 66] = [
     ("ao <off|low|medium|high>", "experimental contact occlusion; off releases its resources"),
     ("ao_intensity <0-100>", "contact occlusion strength"),
     ("ao_compare <on|off>", "same-frame comparison: left off, right on"),
+    ("ao_depth_mips <on|off>", "depth-prefiltered AO or direct-depth reference"),
+    ("ao_method <gtao|ssao|xegtao>", "select GTAO, hemisphere SSAO or XeGTAO spatial AO"),
     ("collision_sparks <on|off>", "change collision sparks"),
     ("spark_style <original-pc|restored-experimental>", "select stock or experimental collision particles"),
     ("speed_trails <on|off>", "change experimental high-speed effect"),
@@ -117,7 +119,7 @@ pub const BUILT_IN: [(&str, &str); 66] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 33] = [
+const SET_SHORTHANDS: [&str; 34] = [
     "fps",
     "renderer",
     "vsync",
@@ -151,6 +153,7 @@ const SET_SHORTHANDS: [&str; 33] = [
     "ao",
     "ao_intensity",
     "ao_compare",
+    "ao_depth_mips",
 ];
 
 /// Parse one line. `Ok(None)` for an empty line.

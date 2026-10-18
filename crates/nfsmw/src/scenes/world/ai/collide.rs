@@ -241,16 +241,23 @@ impl TrafficWorld {
             self.seen_by_cops = false;
             return;
         };
-        let level = self.police.level().unwrap_or(1);
+        let level = self.police.patrol_heat();
+        let hidden = self.hidden_from_cars(player);
         let eye = player + EYE;
-        self.seen_by_cops = self.cars.iter().any(|car| {
-            if !(car.is_patrol() || car.is_cop() || car.is_roadblock()) {
-                return false;
+        self.seen_by_cops = self.cars.iter_mut().fold(false, |seen, car| {
+            if !car.is_live_police() {
+                return seen;
             }
             let cop = car.physics_position();
             let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
             let facing = car.physics_forward().dot(to_player);
-            !sight::out_of_range(level, cop.distance(player), facing) && clear(cast, cop + EYE, eye)
+            let distance = cop.distance(player);
+            let out_of_range = match car.is_cop() || car.is_roadblock() {
+                true => sight::out_of_range(level, distance, facing),
+                false => sight::patrol_out_of_range(distance, facing),
+            };
+            let visible = !out_of_range && clear(cast, cop + EYE, eye);
+            seen | car.report_sight(hidden, visible)
         });
     }
 }

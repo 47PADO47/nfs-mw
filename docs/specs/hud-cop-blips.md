@@ -18,10 +18,10 @@ cop case. The icon images and their names are in [../formats/minimap.md](../form
 - The icon is white in normal driving and flashes blue and red during a pursuit. **[user]**
 - The icon is the car arrow, not a dot: its texture is `Minimap_Icon_Car.tga`, the same arrow as the player's
   `PLAYERCARINDICATOR` (14 x 16, package colour `0xffebebeb`). Probed in `HUD_SingleRace.fng`, `MMICON_COPCAR_0` and
-  `_1`. **[package]** Like every blip it turns to the car's heading (`hud-minimap.md` section 7).
-- Outside a pursuit a car is drawn only while the minimap view covers it: inside the disc, never pinned to the rim.
-  A pursuing car is always drawn, pinned to the rim when it is outside. This is the rewrite's rule, asked for by the
-  user; the original's behaviour here has not been checked. (Section 8.)
+  `_1`. **[package]** A cop is a moving blip: it points along the car's nose, not the player's arrow (`hud-minimap.md` section 7).
+- A car is drawn only while the minimap view covers it: inside the disc, never pinned to the rim, pursuing or not.
+  The rewrite once pinned a pursuing car to the rim; the user asked for that to stop. The original's behaviour here
+  has not been checked. (Section 8.)
 - The minimap setup (`FUN_00548810`) hides the icon groups, then builds the blips (`FUN_00531060`, one object per
   eligible car), then the other minimap parts (`FUN_00531350`). **[binary]**
 
@@ -62,9 +62,9 @@ element's colour from a counter `+0x38` that runs 1..8 and wraps to 1. **[binary
 | Counter | Colour (as stored) | Shade |
 |---|---|---|
 | 1, 2 | `0xff0000ff` | blue |
-| 3, 4 | `0xffcccccc` | light grey |
-| 5, 6 | `0xffa00000` | red |
-| 7, 8 | `0xffcccccc` | light grey |
+| 3, 4 | `0xffa00000` | red |
+| 5, 6 | `0xff0000ff` | blue |
+| 7, 8 | `0xffa00000` | red |
 
 The values are read as ARGB, so `0xff0000ff` is pure blue and `0xffa00000` is a dark red. The byte order is
 **[inferred]** (the colour object is built by `FUN_005b2d50`, not yet read). The pattern is blue, grey, red, grey:
@@ -83,7 +83,9 @@ known (likely the pursuit ring or the GPS target pulse). **[open]**
 ## 6. Timing
 
 The colour counter moves once per call of `FUN_0051f6c0`. The caller is a per-frame virtual dispatch that has not
-been traced, so the rate is not known. The rewrite uses one step per HUD update as a placeholder. **[open]**
+been traced, so the rate is not known. The rewrite moves the colour counter once per `TICK_SECONDS` (0.1 s) of frame time, not once per frame. Stepping per frame
+ran the eight-step cycle at about 7.5 Hz, which blended into a flicker rather than a light bar. The 0.1 s rate is a
+choice, not a measured value. **[open]**
 
 ## 7. Open questions
 
@@ -102,10 +104,9 @@ A capture of a pursuit in the original, with the minimap on, would settle 3 and 
 
 The map blips are an abstract system, the same for every kind of blip:
 
-- `crates/nfsmw/src/hud/blip_style.rs`: `MapBlip` (style name, world position, heading, an `active` condition) and
+- `crates/nfsmw/src/hud/blip_style.rs`: `MapBlip` (style name, world position, an `active` condition) and
   the trait `BlipStyle` (name, icon pool, `shows` condition, `look(tick)` for colour, fade and spin). Pure, tested.
-- `crates/nfsmw/src/hud/blip_styles.rs`: the game's styles: `Cop` (flashes while `active`; `visibility` is `InZone`
-  while not `active`, `Always` while it is), `Racer`, `Checkpoint` (shows only while `active`), `Helicopter`.
+- `crates/nfsmw/src/hud/blip_styles.rs`: the game's styles: `Cop` (flashes while `active`; `visibility` is `InZone` for every car), `Racer`, `Checkpoint` (shows only while `active`), `Helicopter`.
   `BlipStyle::visibility` takes the blip, so one style can gate some of its blips and not others.
 - `crates/nfsmw/src/hud/blips.rs`: `BlipBinding` places every registered style's blips with
   `blackbox_minimap::place_blip`, keeps a per-style pool of HUD objects, and advances a tick each frame.

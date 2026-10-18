@@ -1,11 +1,8 @@
 //! The pursuit readout the HUD shows during a chase: the pursuit board's timer and the cool-down (evade) bar. What
 //! each part shows and where it comes from is in `docs/specs/hud-pursuit.md`.
 
-/// The cool-down bar shows from this much evaded, 0 to 1 (the spec's `evade_level >= 0.05`, decomp).
-pub const COOLDOWN_SHOWN_FROM: f32 = 0.05;
-
 /// The chase as the HUD shows it. `None` in [`HudState`](super::HudState) means no pursuit.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PursuitHud {
     /// Seconds since the chase began.
     pub secs: f32,
@@ -13,6 +10,10 @@ pub struct PursuitHud {
     pub evade: f32,
     /// The cop cars wrecked so far in the chase: the counter beside the board's cops icon.
     pub cops_destroyed: u32,
+    /// Original signed display value: +1 busted, 0 neutral, -1 cooldown.
+    pub busted: f32,
+    /// The pursuit is in its actual cooldown phase, independently of the fill fraction.
+    pub cooldown: bool,
 }
 
 impl PursuitHud {
@@ -21,14 +22,14 @@ impl PursuitHud {
     pub fn from_evade_time(secs: f32, secs_to_evade: f32, timeout: f32) -> Self {
         let secs = secs.max(0.0);
         if timeout <= 0.0 {
-            return Self { secs, evade: 0.0, cops_destroyed: 0 };
+            return Self { secs, ..Default::default() };
         }
-        Self { secs, evade: (1.0 - secs_to_evade / timeout).clamp(0.0, 1.0), cops_destroyed: 0 }
+        Self { secs, evade: (1.0 - secs_to_evade / timeout).clamp(0.0, 1.0), ..Default::default() }
     }
 
     /// Whether the cool-down bar is on the screen.
     pub fn cooldown_shown(&self) -> bool {
-        self.evade >= COOLDOWN_SHOWN_FROM
+        self.cooldown
     }
 }
 
@@ -54,9 +55,9 @@ mod tests {
     }
 
     #[test]
-    fn the_cooldown_bar_shows_from_five_per_cent_evaded() {
-        assert!(!PursuitHud { secs: 0.0, evade: 0.04, cops_destroyed: 0 }.cooldown_shown());
-        assert!(PursuitHud { secs: 0.0, evade: 0.05, cops_destroyed: 0 }.cooldown_shown());
+    fn cooldown_is_an_explicit_phase_instead_of_an_inferred_fill_threshold() {
+        assert!(!PursuitHud { evade: 0.5, ..Default::default() }.cooldown_shown());
+        assert!(PursuitHud { evade: 0.0, cooldown: true, ..Default::default() }.cooldown_shown());
     }
 
     #[test]

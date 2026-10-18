@@ -225,6 +225,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ao_compare {
         put("ao_compare", Value::Boolean(v));
     }
+    if let Some(v) = changes.ao_method {
+        put("ao_method", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.ao_depth_mips {
+        put("ao_depth_mips", Value::Boolean(v));
+    }
     if let Some(v) = changes.texture_filtering {
         put("texture_filtering", Value::String(v.to_string()));
     }
@@ -328,6 +334,7 @@ mod tests {
             ao: Some(AoQuality::High),
             ao_intensity: Some(Percent(60)),
             ao_compare: Some(true),
+            ao_depth_mips: Some(true),
             ..Default::default()
         };
         let text = merge("future_option = 42", &changes).unwrap();
@@ -337,6 +344,7 @@ mod tests {
         let override_layer = Partial { ao: Some(AoQuality::Off), ao_compare: Some(false), ..Default::default() };
         let s = super::super::Settings::from(override_layer.or(saved));
         assert_eq!((s.ao, s.ao_intensity, s.ao_compare), (AoQuality::Off, Percent(60), false));
+        assert!(s.ao_depth_mips);
     }
 
     #[test]

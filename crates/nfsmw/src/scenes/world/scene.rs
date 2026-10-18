@@ -237,6 +237,10 @@ impl Scene for WorldScene {
         self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
     }
 
+    fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
+        self.traffic.as_ref().map_or(blackbox_pursuit::EndReason::None, |traffic| traffic.end_reason())
+    }
+
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
     }

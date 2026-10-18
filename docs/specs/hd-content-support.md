@@ -83,9 +83,10 @@ two it gives 128 or 64 (for `TAC_NUMBERS`) and 256 (for `ARIAL`, `ARIAL12`). Tho
 For each font name, the glyph divisor is the **native size**: the size of the stock texture named in the font's
 texture-name field. The rule is:
 
-1. The native size is read from the **stock** texture pack in the install (not from the loaded texture, which may
-   be an HD replacement). The stock `TextureInfo` gives width and height (section 1.2).
-2. If the install has no stock texture for the name, the **built-in table** gives the size (section 2.2).
+1. The **built-in table** gives the size when it names the font (section 2.2). The glyph layout is in stock pixels,
+   so the stock size is the divisor whatever texture is loaded.
+2. Otherwise the stock `TextureInfo` in the install's own pack gives width and height (section 1.2). A mod can replace
+   a stock texture inside the install, so this is a fallback, not the first choice.
 3. If neither exists, the loaded texture's real size is used. That is the stock behaviour and the fallback.
 
 The native size is passed to the layout as the texture size (the layout already takes a `texture_size` argument, see
@@ -286,8 +287,9 @@ Not done or different from the text above:
   which was outside the task's file list.
 - **No `hd` console command.** The console uses the flat `set` form with keys `hd_fonts`, `hd_cursor`, `hd_fmv`.
   `hd status` is not implemented.
-- **Native sizes are read from the install's packs only.** A font texture served by an overlay has no stock size in the
-  install's packs, so the table is used for it (for `FONT_MW_BODY` that is 256 x 256, verified).
+- **Native sizes come from the table first.** A modded install can replace `FONT_MW_BODY` in place with a 2048 x 2048
+  texture (`GLOBALA.BUN` on the Desktop copy), so the install's copy is not the stock size. The install value is used
+  only for a font the table does not name, and a mismatch is logged.
 - **Unverified rows.** `tac_numbers`, `arial` and `arial12` are table values only. `tac_numbers` takes the table only when
   its texture is loaded as a replacement, so a stock copy in a pack that is not scanned cannot change.
 - **Section 10 open questions** stay open. Question 1 (custom fonts with HD fonts) depends on the custom-fonts work.

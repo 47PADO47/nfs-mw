@@ -9,9 +9,6 @@ use super::traffic_events::{Sighting, starts_pursuit};
 use crate::modding::cop_rows::{with_heat_overrides, without_models};
 use crate::scenes::world::WorldScene;
 
-/// The heat of the patrol cops: the first wave (`data.rs`). A patrol cop chases at this heat.
-const PATROL_HEAT: u32 = 1;
-
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
     let focus = scene.traffic_focus();
@@ -102,6 +99,9 @@ fn begin_pursuit(
         log::warn!("the police helicopter has no model: {e}");
     }
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    if !traffic.police.can_begin() {
+        return Err("finish the arrest and infractions screen before starting another pursuit".into());
+    }
     traffic.start_pursuit(heat, rows, player);
     Ok(format!("pursuit at heat {heat}: {}", start_names.join(", ")))
 }
@@ -125,34 +125,30 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     if traffic.is_pursuing() {
         return;
     }
+    if !traffic.police.can_begin() {
+        return;
+    }
     let Some(drive) = scene.drive.as_ref() else { return };
     // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
-    let sight = Sighting { player_speed: drive.speed(), ..traffic.sighting(PATROL_HEAT) };
+    let heat = traffic.police.patrol_heat();
+    let sight = Sighting { player_speed: drive.speed().abs(), ..traffic.sighting(heat) };
     if !starts_pursuit(&traffic.events(), &sight) {
         return;
     }
     let player = drive.performance();
-    match begin_pursuit(scene, renderer, PATROL_HEAT, player) {
+    match begin_pursuit(scene, renderer, heat, player) {
         Ok(line) => log::info!("speeding: {line}"),
         Err(e) => log::warn!("speeding: no chase: {e}"),
     }
 }
 
-/// `signals props|synthetic on|off`: the traffic lights of the signalled approaches, matched to the real traffic-light
-/// props of the map or not. `synthetic on` also draws the synthetic post and bar of every approach (a debug aid).
+/// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map
+/// or not. An approach with no matched prop shows no light.
 pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: signals props|synthetic on|off";
+    const USAGE: &str = "usage: signals [props]";
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     match args {
         [] | ["props"] => Ok(traffic.signal_props_status()),
-        ["synthetic", "on"] => {
-            traffic.set_synthetic_posts(true);
-            Ok("synthetic posts drawn for every approach".into())
-        }
-        ["synthetic", "off"] => {
-            traffic.set_synthetic_posts(false);
-            Ok("synthetic posts only where no real light matches".into())
-        }
         _ => Err(USAGE.into()),
     }
 }

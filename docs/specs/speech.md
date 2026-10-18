@@ -89,16 +89,16 @@ behaviour:
 `0xFFFF` for any), 13,562 takes in all, each a stream of the `.big`. A phrase is named by an event number. Of the 139
 events, 28 have banks of their own (`cellcall`, `arrest_disparrestreply`, `anytimeevents_bailoutdeny`,
 `anytimeevents_weatherreport`, ...); those can be said as they are by choosing a bank of the requested speaker (any
-bank when that speaker did not record it) and a take that was not said lately. The other events are *sentences*:
-their records in `copspeech.evt` list the phrases (other event numbers, with banks of their own) and rules on the
-parameters, which choose among variants. That rule language is not decoded: see the format notes.
+bank when that speaker did not record it) and a take that was not said lately. The other events are *sentences*: their records in `copspeech.evt` list the phrases (other event numbers, with banks of
+their own). The phrases are joined in file order; the parameter tests that choose among variants are not read yet (the
+format notes). Pursuit lines (`chase/cues.rs`) are sentences, so they are said this way.
 The SPCH library's rule for avoiding repeated takes is not in the decomp (header only).
 
 ## 6. This rewrite
 
 Implemented (`crates/nfsmw/src/audio/speech/`): the request, the checks of section 3, the order and the single voice
 of section 4 (as one queue, not four lists), the thinning, the history, the speech volume, recordings of the 28 events
-with banks of their own. Not implemented: sentences built from several phrases, the radio click, the filter, panning,
+with banks of their own. Implemented too: sentences, joined from their phrases (`ea_audio::speech::Sentences`). Not implemented: the parameter tests of the sentences, the radio click, the filter, panning,
 the per-speaker volumes, the cut-scene module, the track-streamer gating of the original, and every gameplay trigger
 (there is no pursuit yet: `Audio::say` is the entry point a pursuit would call, `speech say <event>` the console's).
 `speech_volume` (the original's *Speech Volume* row, `0x9E5FB82A`) is a setting and a row of the audio options.

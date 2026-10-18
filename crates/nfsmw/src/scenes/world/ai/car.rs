@@ -16,9 +16,9 @@ use super::traffic::{self, Cruise, THINK_STEPS};
 use super::trailer::{Brakes, TrailerCar};
 use crate::scenes::world::car_lights::LampState;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
+use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
-use crate::scenes::world::{keys, space};
 
 mod accessors;
 mod accident;
@@ -26,6 +26,7 @@ mod avoid;
 mod goal_drive;
 mod hits;
 mod original_camera;
+mod patrol;
 mod setup;
 mod sound;
 pub(super) mod support_drive;
@@ -99,6 +100,9 @@ pub struct AiCar {
     tractor: bool,
     cruise: Cruise,
     patrol: bool,
+    searching: bool,
+    arrested: bool,
+    perp_hidden_from_me: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     breaker_stop: bool,
@@ -187,6 +191,9 @@ impl AiCar {
             tractor: model.tractor,
             cruise: start.cruise,
             patrol: start.patrol,
+            searching: false,
+            arrested: false,
+            perp_hidden_from_me: false,
             offscreen: 0.0,
             breaker_stop: false,
             arrived: false,
@@ -224,7 +231,7 @@ impl AiCar {
             steer: self.controls.steer,
             headlights: true,
             turn_signals,
-            siren: self.is_cop(),
+            siren: self.emergency_lights(),
             time,
         };
         self.rig.lights().glows(self.pose(alpha).transform(), state, camera, forward, out);
@@ -235,8 +242,17 @@ impl AiCar {
         self.current.position
     }
 
+    /// Where the car's nose points, in render space (x and y), for the minimap.
+    pub fn heading(&self) -> [f32; 2] {
+        let nose = self.current.rotation * Vec3::X;
+        [nose.x, nose.y]
+    }
+
     /// Advance the light bars by one tick, at the car's frame.
     pub fn step_lights(&mut self) {
+        if !self.emergency_lights() {
+            return;
+        }
         if let Some(lights) = &mut self.cop_lights {
             lights.step(STEP, self.current.transform());
         }
@@ -244,6 +260,9 @@ impl AiCar {
 
     /// The sprites of the light bars, for the effect layer.
     pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
+        if !self.emergency_lights() {
+            return;
+        }
         if let Some(lights) = &self.cop_lights {
             lights.textured(camera, forward, out);
         }
@@ -268,8 +287,8 @@ impl AiCar {
         view.in_shock = self.shock > 0.0;
         self.shock = (self.shock - STEP / SHOCK_TIME).max(0.0);
         let reversing = self.driver.reverse_override_left() > 0.0;
-        let flags = match (&self.role, reversing) {
-            (Role::Cop(_), false) => DriveFlags::FULL,
+        let flags = match (&self.role, reversing, self.searching) {
+            (Role::Cop(_), false, false) => DriveFlags::FULL,
             _ => DriveFlags::SIMPLE,
         };
         let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
@@ -284,6 +303,9 @@ impl AiCar {
         self.hold_goal_brake();
         if self.breaker_stop || self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
+        }
+        if self.arrested {
+            self.controls = AiControls { brake: 1.0, handbrake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
         let input = DriveInput {
@@ -338,6 +360,10 @@ impl AiCar {
             tractor: self.tractor,
             stop: None,
         };
+        if self.searching {
+            self.think_search(ctx, &state);
+            return;
+        }
         match &mut self.role {
             Role::Traffic => {
                 self.accident.think();
@@ -410,12 +436,12 @@ impl AiCar {
 
     /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
     pub fn physics_position(&self) -> Vec3 {
-        Vec3::from(space::to_physics(self.current.position))
+        self.sim.driver_view().position
     }
 
     /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
     pub fn physics_forward(&self) -> Vec3 {
-        let forward = Vec3::from(space::to_physics(self.sim.driver_view().forward));
+        let forward = self.sim.driver_view().forward;
         forward.try_normalize().unwrap_or(Vec3::Z)
     }
 }

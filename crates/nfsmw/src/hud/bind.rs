@@ -2,7 +2,6 @@
 //! `docs/specs/feng-runtime.md` section 8).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
-use glam::Vec3;
 
 use super::blip_style::BlipStyle;
 use super::blips::BlipBinding;
@@ -20,14 +19,8 @@ pub(super) const SCRIPT_NOS_BURNING: u32 = 0x77031C70;
 pub(super) const SCRIPT_NOS_READY: u32 = 0x03826A28;
 /// The rear-view mirror's top group (`0x7fac287b`) and the script that brings it to full colour.
 const MIRROR_FRAME: u32 = 0x7FAC_287B;
-/// The mirror's group of bezel images under it (`0x9ee06631`).
-const MIRROR_GROUP: u32 = 0x9EE0_6631;
-/// The radar's backing group (`0xab9c1d4d`) and its icon and LED group (`0x062743f5`).
+/// The radar's outer fade group. The detector binding owns the layouts under it.
 const RADAR_BACKING_GROUP: u32 = 0xAB9C_1D4D;
-const RADAR_ICON_GROUP: u32 = 0x0627_43F5;
-/// The radar's backing image (`0x839e7d77`). The package puts it over the picture; the reference screenshot has it
-/// just under the bezel, so both radar pieces move down by these amounts (docs/specs/rear-view-mirror.md).
-const RADAR_BACKING: u32 = 0x839E_7D77;
 /// The mirror fades in over this many seconds, the length of the game's own mirror track (`len 600`).
 const MIRROR_FADE_SECONDS: f32 = 0.6;
 
@@ -35,8 +28,6 @@ const MIRROR_FADE_SECONDS: f32 = 0.6;
 pub fn mirror_fade_alpha(elapsed: f32) -> u8 {
     (elapsed / MIRROR_FADE_SECONDS).clamp(0.0, 1.0).mul_add(255.0, 0.5) as u8
 }
-const RADAR_BACKING_DROP: f32 = 75.0;
-const RADAR_GROUP_DROP: f32 = 15.0;
 /// Language labels of the speed units.
 const LABEL_KMH: u32 = 0x8569a25f;
 const LABEL_MPH: u32 = 0x8569ab44;
@@ -50,23 +41,21 @@ const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
 /// The gear digit's alpha while a gear change is in progress.
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
-/// The cool-down bar's fill (`BasePoly`, pivot at its left end): its width is the share of the evade done. Its track
-/// (`BasePoly_Add`) stays at full width behind it.
-const COOLDOWN_FILL: u32 = 0xCF81_7638;
-/// The pursuit board's group (`PursuitBoardGroup`) and the cool-down bar's group (`Cooldown_Meter_Group`).
+/// The pursuit board's group (`PursuitBoardGroup`).
 const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
-const COOLDOWN_GROUP: u32 = 0x84A2_26EC;
 /// The cops group (`0xE0B1430B`, the parent of the cops counters): its icons and the taken-out count beside them.
 /// Its fade-in is a script on a message this build does not raise, so it is held at full alpha during a chase too.
 const COPS_GROUP: u32 = 0xE0B1_430B;
 
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
+    police: super::police::Binding,
+    pursuit_meter: super::pursuit_meter::Binding,
     layout: Layout,
-    /// The rear-view mirror and the radar under it are shown (the `rear_view_mirror` setting).
+    /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
     /// The mirror's top group and the group under it, held at full alpha (see `apply`).
-    mirror_frames: [Option<ObjectRef>; 4],
+    mirror_frames: [Option<ObjectRef>; 2],
     /// Seconds since the HUD started, up to the end of the mirror's fade-in.
     mirror_elapsed: f32,
     digits: [Option<ObjectRef>; 3],
@@ -85,9 +74,7 @@ pub struct HudBinding {
     pursuit_timer: Option<ObjectRef>,
     /// The cops taken out in the chase (`Cops_TakenOut`, beside `Cops_TakenOut_Icon`): the wrecked count.
     cops_taken: Option<ObjectRef>,
-    /// The cool-down bar's fill, with its full width and height.
-    cooldown_bar: Option<CooldownBar>,
-    /// The pursuit board's group and the cool-down bar's group, held at full alpha during a chase (see `pursuit`).
+    /// The pursuit board and cops groups, held at full alpha during a chase (see `pursuit`).
     pursuit_frames: Vec<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
@@ -103,24 +90,6 @@ fn find(rt: &Runtime, package: PackageId, name: &str) -> Option<ObjectRef> {
     rt.find(package, fe_hash_upper(name))
 }
 
-/// The cool-down bar's fill as the package has it: its centre, and its full size.
-#[derive(Clone, Copy)]
-struct CooldownBar {
-    object: ObjectRef,
-    /// The left end of the full bar, in the fill's parent's space.
-    left: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-}
-
-fn cooldown_fill(rt: &Runtime, package: PackageId) -> Option<CooldownBar> {
-    let object = rt.find(package, COOLDOWN_FILL)?;
-    let size = rt.size(object)?;
-    let at = rt.position(object)?;
-    Some(CooldownBar { object, left: at.x - size.x / 2.0, y: at.y, width: size.x, height: size.y })
-}
-
 /// Starts `script` on `o` unless it is the one playing.
 fn ensure_script(rt: &mut Runtime, o: ObjectRef, script: u32) {
     if rt.script_of(o) != Some(script) {
@@ -132,8 +101,10 @@ impl HudBinding {
     /// Finds the objects, and hides everything but the speedometer and the tachometer.
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
+            police: super::police::Binding::new(rt, package),
+            pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
             layout: Layout::new(rt, package),
-            mirror_frames: [None; 4],
+            mirror_frames: [None; 2],
             mirror_shown: true,
             mirror_elapsed: 0.0,
             digits: [
@@ -154,11 +125,7 @@ impl HudBinding {
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
             pursuit_timer: find(rt, package, "PursuitTime"),
             cops_taken: find(rt, package, "Cops_TakenOut"),
-            cooldown_bar: cooldown_fill(rt, package),
-            pursuit_frames: [PURSUIT_BOARD_GROUP, COOLDOWN_GROUP, COPS_GROUP]
-                .iter()
-                .filter_map(|h| rt.find(package, *h))
-                .collect(),
+            pursuit_frames: [PURSUIT_BOARD_GROUP, COPS_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
             shift_on: false,
@@ -168,15 +135,7 @@ impl HudBinding {
         b.layout.update(rt, Shown { mirror: true, speedbreaker: true, ..Default::default() });
         // The mirror's frame rests fully visible. The game fades it in from a script on an event this build does
         // not raise, so the fade is skipped here.
-        b.mirror_frames =
-            [MIRROR_FRAME, MIRROR_GROUP, RADAR_BACKING_GROUP, RADAR_ICON_GROUP].map(|h| rt.find(package, h));
-        for (hash, drop) in [(RADAR_BACKING, RADAR_BACKING_DROP), (RADAR_ICON_GROUP, RADAR_GROUP_DROP)] {
-            if let Some(o) = rt.find(package, hash)
-                && let Some(p) = rt.position(o)
-            {
-                rt.set_position(o, p + Vec3::Y * drop);
-            }
-        }
+        b.mirror_frames = [MIRROR_FRAME, RADAR_BACKING_GROUP].map(|h| rt.find(package, h));
         b
     }
 
@@ -199,14 +158,19 @@ impl HudBinding {
     }
 
     /// Pushes the state into the objects. Call before `Runtime::update`.
-    /// Shows or hides the rear-view mirror and the radar under it. Takes effect at the next `apply`.
+    /// Shows or hides the rear-view mirror. The detector switches layouts at the next `apply`.
     pub fn set_mirror_shown(&mut self, on: bool) {
         self.mirror_shown = on;
     }
 
     /// Advances the mirror's fade-in by `dt` seconds. Called once per frame, before `apply`.
     pub fn advance_mirror_fade(&mut self, dt: f32) {
+        self.police.advance(dt);
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
+    }
+
+    pub fn advance_blips(&mut self, dt: f32) {
+        self.blips.advance(dt);
     }
 
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
@@ -218,6 +182,9 @@ impl HudBinding {
             speedbreaker: true,
             minimap: map.is_some(),
             laser: s.cop_nearby,
+            // The detector's own scripts hide its two layouts and preserve their exit animations.
+            radar: true,
+            heat: s.vehicle_heat >= 1.0,
             mirror: self.mirror_shown,
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
@@ -240,12 +207,19 @@ impl HudBinding {
         self.tachometer(rt, s);
         self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
+        self.pursuit_meter.apply(rt, s.pursuit);
+        self.police.apply(rt, s, self.mirror_shown);
         if s.has_nos {
             self.nitrous(rt, s);
         }
         if s.has_turbo {
             self.turbo(rt, s);
         }
+    }
+
+    /// Dynamic widths keep their fixed edges after any authored script changes in this frame.
+    pub fn finish_frame(&self, rt: &mut Runtime, s: &HudState) {
+        self.pursuit_meter.finish_frame(rt, s.pursuit);
     }
 
     fn speedometer(&self, rt: &mut Runtime, s: &HudState) {
@@ -316,12 +290,6 @@ impl HudBinding {
         }
         if let Some(o) = self.cops_taken {
             rt.set_text(o, p.cops_destroyed.to_string());
-        }
-        if let Some(bar) = self.cooldown_bar {
-            // The fill keeps its left end where the package has it: it grows to the right.
-            let width = bar.width * p.evade;
-            rt.set_size_xy(bar.object, width, bar.height);
-            rt.set_position_xy(bar.object, bar.left + width / 2.0, bar.y);
         }
     }
 

@@ -19,7 +19,8 @@ macro_rules! lighting {
 lighting! {
     original_world_materials: bool, sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool,
     car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
-    sky_strength: f32, ground_strength: f32, soft_shadows: bool, original_shadows: bool,
+    sky_strength: f32, ground_strength: f32, soft_shadows: bool, dense_shadow_filter: bool, near_shadow_focus: bool, original_shadows: bool,
+    wide_shadow_detail: bool, shadow_detail_resolution: u32,
     sun_angle: f32, shadow_resolution: u32, shadow_distance: f32, shadow_filter: f32, contact_length: f32,
 }
 #[derive(Serialize, Deserialize)]

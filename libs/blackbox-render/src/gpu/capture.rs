@@ -195,7 +195,14 @@ impl Renderer {
         slice.map_async(wgpu::MapMode::Read, |_| {});
         let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
         let mapped = slice.get_mapped_range().map_err(|e| RenderError::Device(format!("capture readback: {e:?}")))?;
-        Ok(pack_rgba(&mapped, row, width, height, is_bgra(self.output.format())))
+        // Float/depth captures need every channel byte unchanged. RGBA8 conversion
+        // belongs to read_texture_bytes, where the source format is known.
+        let payload = (width * bytes_per_pixel) as usize;
+        let mut bytes = Vec::with_capacity(payload * height as usize);
+        for line in mapped.chunks(row as usize).take(height as usize) {
+            bytes.extend_from_slice(&line[..payload]);
+        }
+        Ok(bytes)
     }
 }
 

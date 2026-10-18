@@ -52,10 +52,7 @@ impl RoadNav {
     }
 
     /// The corridor round the lane at the cursor: the bounds' lateral offsets from the lane line.
-    fn corridor(&self, net: &RoadNetwork) -> (f32, f32) {
-        if self.kind == NavKind::Traffic {
-            return (-self.half_width * 0.5, self.half_width * 0.5);
-        }
+    fn corridor(&self, net: &RoadNetwork, margin: f32) -> (f32, f32) {
         let heading_end = self.t >= 0.5;
         let profile = travel_profile(net, self.segment, self.node_ind, heading_end);
         let lane_offset = |end: bool| {
@@ -86,7 +83,6 @@ impl RoadNav {
         while hi + 1 < profile.zones.len() && drivable(hi + 1) {
             hi += 1;
         }
-        let margin = self.half_width + EDGE_MARGIN;
         let mut left = profile.signed_offset(lo) - profile.zones[lo].width * 0.5 + margin;
         let mut right = profile.signed_offset(hi) + profile.zones[hi].width * 0.5 - margin;
         if right - left < 2.0 * margin {
@@ -103,9 +99,21 @@ impl RoadNav {
         Cookie::new(self.position, left, right, self.curvature, self.segment)
     }
 
+    /// Uninset drivable road edges at this cursor, for placing objects across the road.
+    /// Unlike the steering corridor, these edges reserve no room for a moving car.
+    pub fn road_cross_section(&self, net: &RoadNetwork) -> Cookie {
+        let (left, right) = self.corridor(net, 0.0);
+        let [left, right] = [left, right]
+            .map(|delta| xz(lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta).position(self.t)));
+        Cookie::new(self.position, left, right, self.curvature, self.segment)
+    }
+
     /// Lane bounds use the same join as the centre, so the trail cannot snap back to the node's layout.
     pub(super) fn bound_lines(&self, net: &RoadNetwork) -> [Bezier; 2] {
-        let (left, right) = self.corridor(net);
+        let (left, right) = match self.kind {
+            NavKind::Traffic => (-self.half_width * 0.5, self.half_width * 0.5),
+            _ => self.corridor(net, self.half_width + EDGE_MARGIN),
+        };
         let deltas = [left, right];
         let Some(starts) = self.bound_starts else {
             return deltas.map(|delta| lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta));

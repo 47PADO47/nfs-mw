@@ -68,9 +68,9 @@ mod tests {
     fn only_the_map_filters_blips_are_placed_on_the_picture() {
         use crate::hud::{AUTO_SHOP, COP, RACE_SPRINT};
         let blips = [
-            MapBlip { style: COP, position: [0.0, 0.0], heading: [1.0, 0.0], active: false },
-            MapBlip { style: AUTO_SHOP, position: [0.0, 0.0], heading: [1.0, 0.0], active: false },
-            MapBlip { style: RACE_SPRINT, position: [100.0, 0.0], heading: [1.0, 0.0], active: false },
+            MapBlip { style: COP, position: [0.0, 0.0], active: false, heading: None },
+            MapBlip { style: AUTO_SHOP, position: [0.0, 0.0], active: false, heading: None },
+            MapBlip { style: RACE_SPRINT, position: [100.0, 0.0], active: false, heading: None },
         ];
         let placed = placed(&blips, &CITY);
         assert_eq!(placed.len(), 2, "the cop is not on the map");

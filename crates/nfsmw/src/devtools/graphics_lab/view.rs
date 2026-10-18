@@ -11,6 +11,11 @@ pub(super) fn show(
     if !lab.open {
         return;
     }
+    let requested_renderer = settings.renderer;
+    settings.renderer = match blackbox(lab, settings) {
+        true => crate::settings::RendererKind::Blackbox,
+        false => crate::settings::RendererKind::Bevy,
+    };
     let mut open = lab.open;
     egui::Window::new("Graphics lab · F8")
         .default_pos(egui::pos2(24.0, 48.0))
@@ -29,15 +34,20 @@ pub(super) fn show(
                 ));
                 ui.weak("F8 / Esc to close");
             });
-            ui.small("Changes preview immediately. Save profile keeps graphics and traffic for the next launch.");
+            ui.small(format!("{} · Changes preview immediately", match blackbox(lab, settings) { true => "Black Box", false => "Bevy" }));
             profiles::header(ui, lab, settings);
             presets::show(ui, lab, settings);
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 for tab in profiles::Tab::ALL { ui.selectable_value(&mut lab.tab, tab, tab.label()); }
+                if !matches!(lab.tab, profiles::Tab::Environment | profiles::Tab::Diagnostics) && ui.button("Reset section").on_hover_text("Restore this section to the selected style/quality defaults. Display calibration has its own reset.").clicked() { profiles::reset(lab, settings); }
             });
             ui.separator();
             egui::ScrollArea::vertical().id_salt(("graphics_section", lab.tab as u8)).max_height((ui.available_height()-8.0).max(120.0)).show(ui, |ui| {
+                if !blackbox(lab, settings) && !matches!(lab.tab, profiles::Tab::Environment | profiles::Tab::Diagnostics | profiles::Tab::Detail | profiles::Tab::Traffic) {
+                    super::bevy::show(ui, lab, settings);
+                    return;
+                }
                 match lab.tab {
                     profiles::Tab::Look => {
                         display::show(ui, lab.display, settings);
@@ -46,58 +56,61 @@ pub(super) fn show(
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
                     profiles::Tab::Detail => detail::show(ui, settings),
                     profiles::Tab::Traffic => traffic::show(ui, settings, lab.traffic_status.as_deref()),
-                    profiles::Tab::Materials => {
-                        egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(ui, |ui| {
-                            for filtering in crate::settings::TextureFiltering::ALL {
-                                ui.selectable_value(&mut settings.texture_filtering, filtering, filtering.label());
-                            }
-                        });
-                        ui.small("Trilinear or 8x/16x anisotropic filtering for scene surfaces, including normal-mapped roads. Authored mip levels remain in use.");
-                        if lab.caps.is_some_and(|c| c.restart_required.contains(blackbox_gfx::Setting::TextureFiltering)) {
-                            ui.small("This renderer applies texture filtering after restart. Save profile to keep the selection.");
-                        }
-                        ui.label("Authored world materials");
-                        ui.small("Common, normal, reflective-road and glass families form the shared world baseline. Unsupported effects use a simple fallback.");
-                        egui::ComboBox::from_label("Car shading").selected_text(settings.car_shading.label()).show_ui(ui, |ui| {
-                            for shading in crate::settings::CarShading::ALL {
-                                ui.selectable_value(&mut settings.car_shading, shading, shading.label());
-                            }
-                        });
-                        if settings.car_shading.is_original() && lab.caps.is_some_and(|c| c.renderer != "blackbox") {
-                            ui.small("This renderer uses a custom shader fallback. Original car material arithmetic requires the native renderer.");
-                        }
-                        ui.small("Original PC uses the regular PC material family; shadowless uses the low-shadow family. Select the separate shadow system in Lighting. Custom Glossy retains the enhanced rig.");
-                        ui.add_enabled_ui(lab.caps.is_none_or(|c| c.local_reflections), |ui| {
-                            choice(ui,"Car reflections",&mut settings.reflections,&[ReflectionQuality::Off,ReflectionQuality::Low,ReflectionQuality::Medium,ReflectionQuality::High]);
-                        });
-                        ui.small("Car environment captures; resolution/update budgets are custom.");
-                        roads::show(ui, lab, settings);
-                    }
+                    profiles::Tab::Materials => super::materials::show(ui, lab, settings),
                     profiles::Tab::Effects => {
                         ui.add_enabled_ui(lab.caps.is_none_or(|c| c.ambient_occlusion), |ui| {
-                            choice(ui,"Ambient occlusion",&mut settings.ao,&[AoQuality::Off,AoQuality::Low,AoQuality::Medium,AoQuality::High]);
-                            ui.add(egui::Slider::new(&mut settings.ao_intensity.0,0..=100).text("AO intensity %"));
+                            let defaults = profiles::defaults(settings);
+                            super::controls::choice(ui,"Ambient occlusion",&mut settings.ao,&[AoQuality::Off,AoQuality::Low,AoQuality::Medium,AoQuality::High], defaults.ao);
+                            ui.horizontal(|ui| {
+                            ui.add(egui::Slider::new(&mut settings.ao_intensity.0,0..=100).text("AO intensity %"))
+                                .on_hover_text("Controls ambient occlusion strength. Direct sunlight and reflections stay unchanged; lower this to preserve baked shading.");
+                            super::controls::reset(ui, &mut settings.ao_intensity, defaults.ao_intensity, "AO intensity");
+                            });
+                            super::controls::choice(ui,"AO method",&mut settings.ao_method,&crate::settings::AoMethod::ALL, defaults.ao_method);
                             ui.checkbox(&mut settings.ao_compare,"AO split comparison");
+                            super::controls::checkbox(ui, &mut settings.ao_depth_mips,"Depth-prefiltered AO", defaults.ao_depth_mips)
+                                .on_hover_text("Uses a depth-aware hierarchy for distant samples. Disable for direct-depth comparison.");
                         });
-                        ui.small("GTAO is a custom enhancement. Particle preferences remain in the Video menu and are not reset by style/quality.");
+                        ui.small("GTAO, kernel SSAO and XeGTAO spatial AO are custom enhancements. Particle preferences remain in the Video menu and are not reset by style/quality.");
                     }
                     profiles::Tab::Environment => environment::show(ui,lab,settings),
-                    profiles::Tab::Diagnostics => profiles::diagnostics(ui),
+                    profiles::Tab::Diagnostics => profiles::diagnostics(ui, lab, settings),
                 }
             });
         });
     lab.open = open;
+    settings.renderer = requested_renderer;
+}
+
+pub(super) fn blackbox(lab: &GraphicsLab, settings: &Settings) -> bool {
+    lab.caps
+        .map(|caps| caps.renderer == "blackbox")
+        .unwrap_or(settings.renderer == crate::settings::RendererKind::Blackbox)
 }
 
 fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
-    choice(ui, "SDR tone mapping", &mut settings.post_tonemap, &[PostTonemap::Off, PostTonemap::Aces]);
-    choice(
+    let defaults = profiles::defaults(settings);
+    super::controls::choice(
+        ui,
+        "SDR tone mapping",
+        &mut settings.post_tonemap,
+        &[PostTonemap::Off, PostTonemap::Aces],
+        defaults.post_tonemap,
+    );
+    super::controls::choice(
         ui,
         "Bloom",
         &mut settings.post_bloom,
         &[PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High],
+        defaults.post_bloom,
     );
-    choice(ui, "AA", &mut settings.post_aa, &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa, PostAa::Taa]);
+    super::controls::choice(
+        ui,
+        "AA",
+        &mut settings.post_aa,
+        &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa],
+        defaults.post_aa,
+    );
     ui.horizontal_wrapped(|ui| {
         ui.label("Visual Treatment:");
         for (label, value) in [

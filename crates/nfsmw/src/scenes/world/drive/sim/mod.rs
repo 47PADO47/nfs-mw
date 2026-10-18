@@ -328,6 +328,7 @@ impl CarSim {
             let wheel = self.vehicle.wheel(i);
             blackbox_pursuit::spikes::Patch {
                 position: glam::Vec2::new(wheel.position.x, wheel.position.z),
+                elevation: wheel.position.y,
                 radius: wheel.radius,
                 on_ground: wheel.on_ground,
             }
@@ -435,11 +436,6 @@ impl CarSim {
         };
         let changed = events.damage.impact(zone, severity, glazed);
         log::info!("damage: zone {zone} severity {severity}, changed {changed}, now {:?}", events.damage.zone(zone));
-        if usize::from(severity) >= nfsmw_data::car::damage::PUNCTURE_SEVERITY
-            && let Some(wheel) = nfsmw_data::car::damage::ZONE_WHEEL.get(zone).copied().flatten()
-        {
-            events.damage.puncture(wheel);
-        }
         changed
     }
 

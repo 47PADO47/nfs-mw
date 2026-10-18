@@ -4,7 +4,7 @@
 //! speech events. The air-support switches of the config (`chase/air_support.rs`) gate the groups that have a switch.
 //!
 //! Wired from the feed's air-support state (each an edge in `chase/cues.rs`, gated by its air-support switch):
-//! `WeatherReport` `weatherreport` 219 (rain rising), `RoadblockCall` `callforrb` 76, `BeenHit` `collisionworld` 98,
+//! `WeatherReport` `weatherreport` 219 (rain rising), `RoadblockCall` `callforrb` 76, `BeenHit` `collworld_spin` 98,
 //! `Reacquire` `helilostvisual` 169 and `SpottedAgain` `spotted` 214 (both with a helicopter in the chase), and
 //! `KillShot` `unitdisabled` 164 (a cop wrecked).
 //!
@@ -28,6 +28,8 @@ mod air_support;
 mod air_support_tests;
 mod cues;
 #[cfg(test)]
+mod installed_tests;
+#[cfg(test)]
 mod line_tests;
 #[cfg(test)]
 mod tests;
@@ -37,27 +39,49 @@ pub(crate) use cues::Cues;
 
 pub(crate) use air_support::AirSupport;
 
+use blackbox_pursuit::EndReason;
+
 use super::{Audio, MusicInput, PursuitFeed};
 
 /// The speech event a chase opens with: number 61 of the speech tables (`initpursuit` in
 /// `docs/specs/ai-pursuit-speech-events.md`), whose collection is named `setup_initpursuit` in the data.
 const OPENING_LINE: &str = "setup_initpursuit";
+const OPENING_ID: u32 = 61;
 
-/// The speech event of each cue, by its collection name (numbers in `docs/specs/ai-pursuit-speech-events.md`):
-/// `lostvisual` is 106, `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76,
-/// `collisionworld` 98, `helilostvisual` 169, `spotted` 214, `unitdisabled` 164.
+/// The speech event of each cue, by the name the attribute database gives it: the group of its collection, an
+/// underscore, then the collection name (groups in `docs/specs/ai-pursuit-speech-events.md`). `lostvisual` is 106,
+/// `regainvisual` 107, `heatjump` 220, `disptimeexpired` 180, `weatherreport` 219, `callforrb` 76, `collworld_spin` 98,
+/// `helilostvisual` 169, `spotted` 214, `unitdisabled` 164.
 fn cue_line(cue: Cue) -> &'static str {
     match cue {
-        Cue::Lost => "lostvisual",
-        Cue::Regained => "regainvisual",
-        Cue::HeatJump => "heatjump",
-        Cue::TimeExpired => "disptimeexpired",
-        Cue::Rain => "weatherreport",
-        Cue::RoadblockCalled => "callforrb",
-        Cue::BeenHit => "collisionworld",
-        Cue::HeliLost => "helilostvisual",
-        Cue::HeliSpotted => "spotted",
-        Cue::CopDown => "unitdisabled",
+        Cue::Lost => "anytimeevents_lostvisual",
+        Cue::Regained => "anytimeevents_regainvisual",
+        Cue::HeatJump => "anytimeevents_heatjump",
+        Cue::TimeExpired => "anytimeevents_disptimeexpired",
+        Cue::Rain => "anytimeevents_weatherreport",
+        Cue::RoadblockCalled => "staticroadblock_callforrb",
+        Cue::BeenHit => "anytimeevents_collworld_spin",
+        Cue::HeliLost => "helispecific_helilostvisual",
+        Cue::HeliSpotted => "anytimeevents_spotted",
+        Cue::CopDown => "anytimeevents_unitdisabled",
+        Cue::Escaped => "anytimeevents_lostsuspect",
+    }
+}
+
+/// Stable installed speech IDs; the labels above abbreviate some actual collection names.
+fn cue_id(cue: Cue) -> u32 {
+    match cue {
+        Cue::Lost => 106,
+        Cue::Regained => 107,
+        Cue::HeatJump => 220,
+        Cue::TimeExpired => 180,
+        Cue::Rain => 219,
+        Cue::RoadblockCalled => 76,
+        Cue::BeenHit => 98,
+        Cue::HeliLost => 169,
+        Cue::HeliSpotted => 214,
+        Cue::CopDown => 164,
+        Cue::Escaped => 108,
     }
 }
 
@@ -75,29 +99,37 @@ impl Audio {
         self.air_support = air_support;
     }
 
-    /// Once per frame: `chase` is the world's chase, `None` while no cops chase. The music follows it, and the
-    /// speech gets its context; a chase that has just begun says its opening line, and its cues are said.
-    pub fn follow_chase(&mut self, music: &mut MusicInput, chase: Option<&PursuitFeed>) {
+    /// Once per frame: `chase` is the world's chase, `None` while no cops chase, and `ended` is how the last chase
+    /// ended (`EndReason::None` before any). The music follows the chase, and the speech gets its context; a chase that
+    /// has just begun says its opening line, and its cues are said, the escape's line included.
+    pub fn follow_chase(&mut self, music: &mut MusicInput, chase: Option<&PursuitFeed>, ended: EndReason) {
         let started = music.follow(chase);
-        let cues = self.chase_cues.step(chase);
+        let mut cues = self.chase_cues.step(chase);
+        cues.extend(self.chase_cues.escape(chase.is_some(), ended));
         let Some(chase) = chase else {
             self.set_speech_context(0, 0.0, 0.0);
+            self.say_cues(cues);
             return;
         };
         self.set_speech_context(chase.heat as i32, chase.player_mph, chase.secs);
         if started {
-            self.say_line(OPENING_LINE);
+            self.say_line(OPENING_LINE, OPENING_ID);
         }
-        // The cues are tracked whether or not they are said: a switched-off group still keeps its edges.
+        self.say_cues(cues);
+    }
+
+    /// Says the cues the air-support switches allow. The cues are tracked whether or not they are said: a switched-off
+    /// group still keeps its edges.
+    fn say_cues(&mut self, cues: Vec<Cue>) {
         let allowed: Vec<Cue> = cues.into_iter().filter(|cue| self.air_support.allows(*cue)).collect();
         for cue in allowed {
-            self.say_line(cue_line(cue));
+            self.say_line(cue_line(cue), cue_id(cue));
         }
     }
 
     /// Ask for a named pursuit line (speaker 0, any voice) and log what became of it.
-    fn say_line(&mut self, name: &str) {
-        match self.say_named(name, 0) {
+    fn say_line(&mut self, name: &str, id: u32) {
+        match self.say(id, 0) {
             Ok(outcome) => log::info!("pursuit: {name} {outcome:?}"),
             Err(e) => log::warn!("pursuit: no {name}: {e}"),
         }

@@ -9,7 +9,8 @@
 use blackbox_gfx::{BlendMode, DrawRange, Instance, MeshDesc, MeshHandle, RenderBackend, Shading, Vertex};
 use glam::{Mat4, Vec3};
 
-use super::walls::{ContactKind, ContactPoint};
+use super::walls::{ContactKind, ContactPoint, HitInfo};
+use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::space;
 
 /// Physics steps a wall or prop contact stays on screen (half a second at 60 Hz).
@@ -143,12 +144,28 @@ pub struct ContactMarkers {
     recent: Vec<Marker>,
     /// Where the tyres' rays hit the road in the latest step.
     tyres: Vec<Marker>,
+    /// What the car touched in the latest step, as the log names it (while the view is on).
+    hit_names: Vec<String>,
 }
 
 impl ContactMarkers {
     /// Draw the markers (`true`) or not.
     pub fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
+        self.hit_names.clear();
+    }
+
+    /// Logs what the car touched this step and did not touch the step before, by name and id, while the view is on:
+    /// a prop by its id and scenery name, a piece of the collision data by its section, instance and surface.
+    pub fn log_new_hits(&mut self, hits: impl IntoIterator<Item = (Option<u32>, Option<HitInfo>)>, props: &PropWorld) {
+        if !self.enabled {
+            return;
+        }
+        let names: Vec<String> = hits.into_iter().map(|(prop, info)| describe(prop, info, props)).collect();
+        for name in names.iter().filter(|name| !self.hit_names.contains(name)) {
+            log::info!("debug collisions: hit {name}");
+        }
+        self.hit_names = names;
     }
 
     /// Takes the contacts of one physics step: the wall and prop contacts and the tyre ray hits (point and normal).
@@ -199,6 +216,22 @@ impl ContactMarkers {
                 .into_iter()
                 .map(|(kind, transform)| Instance::new(meshes.meshes[kind.index()], transform)),
         );
+    }
+}
+
+/// What a contact hit: a prop by its id and scenery name, or a barrier or face by its collision section, instance and
+/// surface hash.
+fn describe(prop: Option<u32>, info: Option<HitInfo>, props: &PropWorld) -> String {
+    match (prop, info) {
+        (Some(id), _) => format!("prop {id} \"{}\"", props.name(id).unwrap_or("?")),
+        (None, Some(info)) => format!(
+            "{} section {} instance {} surface {:#010X}",
+            if info.barrier { "barrier" } else { "face" },
+            info.section,
+            info.instance,
+            info.surface,
+        ),
+        (None, None) => "unknown contact".to_owned(),
     }
 }
 

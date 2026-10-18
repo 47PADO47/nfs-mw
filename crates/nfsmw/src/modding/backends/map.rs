@@ -58,7 +58,7 @@ impl ModBlip {
 
     /// The blip as the minimap draws it. `bb.map` has no heading, so the icon points forward.
     fn as_map_blip(&self) -> MapBlip {
-        MapBlip { style: self.style, position: self.position, heading: [1.0, 0.0], active: self.active }
+        MapBlip { style: self.style, position: self.position, active: self.active, heading: None }
     }
 }
 
