@@ -1,6 +1,6 @@
 //! `Text`: one string in one font, placed in its `Rect` with justification flags. It emits one `Text` node.
 
-use glam::{Mat4, Vec2};
+use glam::{Mat4, Vec2, Vec3};
 
 use super::{DEFAULT_Z, FALLBACK_COLOUR, node_at};
 use crate::component::Component;
@@ -30,6 +30,7 @@ pub struct Text {
     justification: u32,
     leading: i32,
     z: f32,
+    scale: f32,
     rect: Rect,
     font: u32,
     colour: [u8; 4],
@@ -45,10 +46,18 @@ impl Text {
             justification: 0,
             leading: 0,
             z: DEFAULT_Z,
+            scale: 1.0,
             rect: Rect::ZERO,
             font: 0,
             colour: FALLBACK_COLOUR,
         }
+    }
+
+    /// Sets the glyph scale: 1.0 is the skin font's own size, 0.5 half of it. The glyphs grow about the text origin,
+    /// so the justification point does not move. The wrap width is the rectangle's width in the unscaled text.
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
     }
 
     /// Sets the justification flags (see [`justify`]).
@@ -108,9 +117,10 @@ impl Component for Text {
             font: self.font,
             justification: self.justification,
             leading: self.leading,
-            max_width: self.rect.w.round() as i32,
+            max_width: (self.rect.w / self.scale).round() as i32,
         };
-        let mut node = node_at(Mat4::from_translation(at), self.z, self.colour, kind);
+        let world = Mat4::from_translation(at) * Mat4::from_scale(Vec3::splat(self.scale));
+        let mut node = node_at(world, self.z, self.colour, kind);
         node.text = Some(self.text.clone());
         out.push(node);
     }
@@ -161,6 +171,17 @@ mod tests {
         lay_out(&mut right, &skin(), Rect::new(0.0, 0.0, 200.0, 40.0));
         let node = drawn(&right).iter().next().expect("one node").clone();
         assert_eq!(node.world.w_axis.truncate(), Vec3::new(100.0, 20.0, 1.0));
+    }
+
+    #[test]
+    fn scale_grows_the_glyphs_about_the_origin_and_keeps_the_wrap_width() {
+        let mut t = Text::new("body", "A").with_scale(0.5);
+        lay_out(&mut t, &skin(), Rect::new(0.0, 0.0, 200.0, 40.0));
+        let node = drawn(&t).iter().next().expect("one node").clone();
+        // The origin is still the top-left corner; the scale rides on the transform.
+        assert_eq!(node.world.w_axis.truncate(), Vec3::new(-100.0, -20.0, 1.0));
+        assert_eq!((node.world.x_axis.x, node.world.y_axis.y), (0.5, 0.5));
+        assert_eq!(node.kind, NodeKind::Text { font: 7, justification: 0, leading: 0, max_width: 400 });
     }
 
     #[test]
