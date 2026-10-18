@@ -127,15 +127,33 @@ impl Screens {
 
     /// Unloads the top screen. The screen below gets its buttons back: the press that opened the screen on top
     /// (a quit question, say) switched them off, as a package does while it leaves.
-    pub fn pop(&mut self) {
+    pub fn pop(&mut self, env: &mut Env) -> Vec<Command> {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
         self.await_release = true;
         self.give_control();
-        if let Some(top) = self.stack.last() {
-            self.runtime.set_input_enabled(top.id, true);
-        }
+        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
+        let Some(top) = stack.last_mut() else { return Vec::new() };
+        runtime.set_input_enabled(top.id, true);
+        let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
+        let mut commands = Vec::new();
+        let mut cx = Cx {
+            rt: runtime,
+            package: top.id,
+            assets,
+            settings,
+            changed,
+            caps,
+            commands: &mut commands,
+            memory,
+            key_texts,
+            world_map: world_map.as_ref(),
+            mods,
+            name: &top.name,
+        };
+        top.logic.resume(&mut cx);
+        commands
     }
 
     /// Only the screen on top takes pad input.
@@ -227,7 +245,7 @@ impl Screens {
                 match command {
                     Command::Switch(name, args) => commands.extend(self.open(&name, args, true, env)),
                     Command::Push(name, args) => commands.extend(self.open(&name, args, false, env)),
-                    Command::Pop => self.pop(),
+                    Command::Pop => commands.extend(self.pop(env)),
                     Command::Confirm(confirm) => {
                         let logic = Box::new(ConfirmLogic::new(confirm));
                         commands.extend(self.open_with(DIALOG, logic, false, env));
