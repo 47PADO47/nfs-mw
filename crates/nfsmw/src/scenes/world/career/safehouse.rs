@@ -24,9 +24,18 @@ impl WorldScene {
         match kind {
             ZoneKind::SafeHouse => self.career_enter_safe_house(name),
             ZoneKind::CarLot => self.career_enter_car_lot(name),
-            // A custom shop (`ZoneType customshop`) has no career request yet, and a race is not the career's.
-            ZoneKind::AutoShop | ZoneKind::Race => false,
+            ZoneKind::AutoShop => self.career_enter_auto_shop(name),
+            // A race is not the career's.
+            ZoneKind::Race => false,
         }
+    }
+
+    /// An auto shop entry in career mode: the garage is asked for (`CareerRequest::AutoShop`), and the front end opens it
+    /// over the world. The garage has no performance package prices yet, so nothing is charged here.
+    fn career_enter_auto_shop(&mut self, name: &str) -> bool {
+        self.career.requests.push_back(auto_shop_request(name));
+        log::info!("career: entering auto shop {name} (no charge: the garage has no price data)");
+        true
     }
 
     /// A safe house entry: the engage decision for the chase's phase, the chase ends as evaded when it was cooling down,
@@ -115,6 +124,11 @@ impl WorldScene {
             log::warn!("career: the driven car has no career record; its heat is not kept");
         }
     }
+}
+
+/// The request an auto shop entry queues for the front end.
+pub(super) fn auto_shop_request(name: &str) -> CareerRequest {
+    CareerRequest::AutoShop { zone: name.to_owned() }
 }
 
 /// The pursuit's phase for the entry rules: no chase, a chase that runs, or a chase whose cool-down meter is shown.

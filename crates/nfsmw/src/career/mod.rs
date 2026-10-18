@@ -34,6 +34,9 @@ pub enum CareerRequest {
     SafeHouse { zone: String },
     /// The player engaged a car lot: the car lot screen opens (`career-car-lot.md`).
     CarLot { zone: String },
+    /// The player engaged an auto shop in career mode: the customization garage opens over the world, with no charge
+    /// (the garage has no price data yet).
+    AutoShop { zone: String },
     /// A stage that closes fewer gates was reached: the region unlock screen is due (`career-regions.md` section 6).
     RegionUnlock { stage: u8 },
 }

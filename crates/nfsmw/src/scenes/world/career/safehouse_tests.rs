@@ -28,6 +28,11 @@ fn a_safe_house_with_a_live_chase_is_refused() {
 }
 
 #[test]
+fn an_auto_shop_entry_asks_for_the_garage_by_zone_name() {
+    assert_eq!(auto_shop_request("downtown"), CareerRequest::AutoShop { zone: "downtown".to_owned() });
+}
+
+#[test]
 fn the_engage_input_is_a_ready_prompt_at_a_safe_house() {
     let input = safe_house_input(PursuitPhase::None);
     assert!(input.prompt_present && input.prompt_ready);

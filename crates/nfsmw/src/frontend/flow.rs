@@ -126,6 +126,8 @@ pub struct Frontend {
     pub(super) profiles: Option<ProfileDir>,
     /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
     pub(super) in_safe_house: bool,
+    /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
+    pub(in crate::frontend) auto_shop_requested: bool,
 }
 
 impl Frontend {
@@ -155,6 +157,7 @@ impl Frontend {
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
+            auto_shop_requested: false,
         }
     }
 
