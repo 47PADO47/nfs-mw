@@ -9,7 +9,7 @@ use blackbox_feng::font::uv_size;
 use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
-use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs};
+use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs, read_texture_packs_filtered};
 use game_install::{GameDir, Provider};
 use nfsmw_data::shared;
 use nfsmw_data::shared_unwrapped;
@@ -184,6 +184,19 @@ impl UiAssets {
                 }
             }
             Err(e) => log::warn!("the minimap tiles do not read: {e:#}"),
+        }
+
+        // The world map's picture is the `TRACK_MAP` texture of `TrackMaps.bin` (314 MB); only that texture is read.
+        match shared_unwrapped(dir, "TRACKS/L2RA/TrackMaps.bin") {
+            Ok(data) => match read_texture_packs_filtered(&data, |h| h == fe_hash_upper("TRACK_MAP")) {
+                Ok(packs) => {
+                    for t in packs.into_iter().flat_map(|p| p.textures) {
+                        textures.entry(t.name_hash).or_insert(t);
+                    }
+                }
+                Err(e) => log::warn!("TrackMaps.bin: the world map picture does not read: {e:#}"),
+            },
+            Err(e) => log::warn!("TrackMaps.bin: {e:#}"),
         }
 
         let strings = shared::language(dir)
