@@ -152,7 +152,7 @@ fn section_reset_preserves_hdr_and_other_sections() {
     settings.post_aa = PostAa::Off;
     let mut lab = GraphicsLab { options: settings.appearance.lighting, tab: profiles::Tab::Look, ..Default::default() };
     profiles::reset(&mut lab, &mut settings);
-    assert_eq!(settings.post_aa, PostAa::Smaa);
+    assert_eq!(settings.post_aa, PostAa::Off, "AA belongs to Video, not Look");
     assert_eq!(settings.appearance.display.scene_white_nits, 260.0);
     assert_eq!(settings.ao_intensity.0, 27);
     assert_eq!(lab.options.sun_angle, 1.4);

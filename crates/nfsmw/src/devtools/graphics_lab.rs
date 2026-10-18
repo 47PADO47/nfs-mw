@@ -42,6 +42,8 @@ pub struct GraphicsLab {
     caps: Option<blackbox_gfx::Capabilities>,
     display: blackbox_gfx::DisplayStatus,
     latency: blackbox_gfx::LatencyStatus,
+    output_size: [u32; 2],
+    render_size: [u32; 2],
     startup_quality: Option<quality::Quality>,
     startup_style: Option<crate::settings::VisualStyle>,
     stats: ExperimentStats,
@@ -95,6 +97,8 @@ impl Default for GraphicsLab {
             caps: None,
             display: Default::default(),
             latency: Default::default(),
+            output_size: [0; 2],
+            render_size: [0; 2],
             options,
             startup_style: std::env::var("NFSMW_LAB_STYLE").ok().and_then(|s| s.parse().ok()),
             startup_quality: std::env::var("NFSMW_LAB_QUALITY").ok().as_deref().and_then(quality::Quality::parse),
@@ -218,6 +222,8 @@ fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSen
     lab.caps = Some(*renderer.capabilities());
     lab.display = renderer.display_status();
     lab.latency = renderer.latency_status();
+    lab.output_size = renderer.surface_size();
+    lab.render_size = renderer.render_size();
     lab.stats = renderer.experiment_stats();
 }
 

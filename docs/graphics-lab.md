@@ -14,7 +14,7 @@ available original midday treatment, single-map projected shadows and authored o
 complete original materials, lighting, shadows or weather. Enhanced uses the same authored world materials with optional modern lighting. Manual edits show Custom while keeping the
 base style for later quality changes.
 
-F8 has **Look**, **Lighting**, **Materials**, **Detail**, **Traffic**, **Effects**, **Environment** and
+F8 has **Video**, **Look**, **Lighting**, **Materials**, **Detail**, **Traffic**, **Effects**, **Environment** and
 **Diagnostics** tabs. Look exposes Off/Subtle/Original/Reference (mod) treatment and a continuous
 strength override. Lighting contains independent shadow and car-light controls;
 Materials contains car shading, texture filtering, car reflections and road
@@ -29,7 +29,8 @@ Save/load includes render scale, upscaling quality/sharpness and visual effect
 preferences, alongside lighting, materials, treatment and HDR calibration. It
 preserves requested values even when the active renderer uses a fallback.
 Detail and Traffic controls are shared by both renderers and included in saved snapshots.
-Video includes API (after restart), window mode, monitor, resolution, VSync, frame
+Video contains HDR output/calibration and post-process anti-aliasing; Look keeps
+tone mapping, bloom and colour treatment. Video includes API (after restart), window mode, monitor, resolution, VSync, frame
 limit, performance overlay, upscaler, temporal quality (Native selects DLAA with
 DLSS), spatial render scale and sharpening. Native Streamline builds also expose
 Reflex Off/On/Boost and hardware-supported frame-generation multipliers. Generation
@@ -331,7 +332,7 @@ sun shadows. See `specs/scenery-shadow-casters.md`.
 
 ## HDR output
 
-Look offers Auto / On / Off display output and independent peak, scene-white and
+Video offers Auto / On / Off display output and independent peak, scene-white and
 UI-white calibration in nits. Auto requires positive OS HDR confirmation and a
 supported native scRGB surface; other outputs retain SDR with an explanation.
 HDR uses pinned PsychoV and preserves extended highlights through material and
@@ -354,3 +355,24 @@ Enhanced now defaults to SMAA, XeGTAO with depth prefiltering, 0.55° sun, filte
 width 1.0 and the tested car sky/ground lighting. Bevy quality changes only shared
 budgets and preserves Black Box experiments. Original PC retains its projected
 shadow family and independently selected road captures.
+
+## Resolution and performance readings
+
+**Game / output resolution** is the final image and UI size. **Desktop / monitor
+native** follows the display mode; the live pixel dimensions are shown separately.
+**Internal 3D render** is the scene size before upscaling. Temporal **Native**
+quality renders at output size (DLAA with DLSS); internal render scale controls
+spatial upscalers. Changing internal resolution leaves output/UI resolution intact.
+
+The performance overlay shows measured **Base / rendered** FPS and **Presented**
+FPS. Base counts successful main renders; presented uses actual Streamline
+presentation counts when available, including generated frames. It never multiplies
+base FPS by the requested generation mode. Missing presentation data is explicit.
+These are rolling rates, not a monitor scanout measurement.
+
+Advanced metrics separate CPU update/submission wall time, GPU render time,
+surface acquisition/presentation waits and Reflex pacing. GPU render timestamps
+exclude frame generation and auxiliary views. The likely CPU/GPU limit compares
+work with measured base cadence; caps, VSync, background operation, missing GPU
+timing and presentation waits get separate labels. This is a bottleneck estimate,
+not hardware utilization, and cannot isolate all frame-generation GPU cost.

@@ -26,12 +26,8 @@ pub(super) fn show(
         .open(&mut open)
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.strong(format!(
-                    "{:.0} FPS · {:.2} ms · worst {:.2} ms",
-                    metrics.fps(),
-                    metrics.average_ms(),
-                    metrics.worst_ms()
-                ));
+                ui.strong(metrics.rate_line());
+                ui.small(format!("{:.2} ms · {}", metrics.average_ms(), metrics.limit));
                 ui.weak("F8 / Esc to close");
             });
             ui.small(format!("{} · Changes preview immediately", match blackbox(lab, settings) { true => "Black Box", false => "Bevy" }));
@@ -51,7 +47,6 @@ pub(super) fn show(
                 match lab.tab {
                     profiles::Tab::Video => video::show(ui, lab, settings),
                     profiles::Tab::Look => {
-                        display::show(ui, lab.display, settings);
                         appearance(ui, settings);
                     },
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
@@ -106,15 +101,6 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
         &[PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High],
         defaults.post_bloom,
     );
-    ui.add_enabled_ui(!settings.upscaler.upscaler().is_temporal(), |ui| {
-        super::controls::choice(
-            ui,
-            "AA",
-            &mut settings.post_aa,
-            &[PostAa::Off, PostAa::Fxaa, PostAa::Smaa],
-            defaults.post_aa,
-        );
-    });
     ui.horizontal_wrapped(|ui| {
         ui.label("Visual Treatment:");
         for (label, value) in [

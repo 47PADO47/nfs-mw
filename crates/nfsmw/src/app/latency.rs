@@ -11,6 +11,7 @@ pub(super) fn begin(mut host: NonSendMut<Host>, settings: Res<Settings>, window:
         && !host.scene.paused()
         && host.scene.benchmark_ready()
         && window.focused;
+    let started = std::time::Instant::now();
     host.latency_pacing = host.renderer.as_mut().is_some_and(|renderer| {
         renderer.begin_latency_frame(blackbox_gfx::LatencySettings {
             reflex: settings.reflex,
@@ -22,6 +23,8 @@ pub(super) fn begin(mut host: NonSendMut<Host>, settings: Res<Settings>, window:
             gameplay,
         })
     });
+    host.reflex_sleep_ms = started.elapsed().as_secs_f32() * 1000.0;
+    host.cpu_work_started = std::time::Instant::now();
 }
 
 pub(super) fn input(mut host: NonSendMut<Host>, mouse: Res<bevy_input::ButtonInput<bevy_input::mouse::MouseButton>>) {

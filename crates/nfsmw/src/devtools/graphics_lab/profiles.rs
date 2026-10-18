@@ -68,7 +68,6 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
     match lab.tab {
         Tab::Video => super::video::reset(settings),
         Tab::Look => {
-            settings.post_aa = defaults.post_aa;
             settings.post_bloom = defaults.post_bloom;
             settings.post_tonemap = defaults.post_tonemap;
             settings.visual_treatment = defaults.visual_treatment;

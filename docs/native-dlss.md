@@ -66,7 +66,11 @@ FSR 3 for temporal depth/motion inputs; choose Native DLSS quality for DLAA.
 Generation runs during focused, unpaused gameplay and stops for menus, captures,
 unsupported sizes, resize and runtime errors. The SDK also suppresses interpolation
 while the window is unfocused. Reflex On is enforced whenever generation is requested.
-FPS overlays measure rendered frames; F8 separately shows the SDK's presented-frame count.
+The overlay shows measured base/rendered FPS and actual SDK presented FPS,
+including generated frames. It does not infer presentation rate from the selected
+multiplier. Advanced metrics estimate the likely limit and distinguish caps,
+missing GPU timings and presentation waits. GPU render time excludes generation;
+CPU work is wall time, not utilization. See [graphics lab](graphics-lab.md).
 
 Reflex sleep runs before time/input sampling, with one frame token shared by
 simulation, submission, present, SR and generation. The in-game frame limit is

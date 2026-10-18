@@ -33,7 +33,7 @@ impl Plugin for DevToolsPlugin {
         app.init_resource::<Metrics>()
             .init_resource::<crate::garage::Overlay>()
             .add_systems(Update, run_ui.in_set(crate::app::FrameSet::Ui))
-            .add_systems(Last, metrics::collect);
+            .add_systems(Last, metrics::collect.before(crate::app::pacing::end_of_frame));
     }
 }
 

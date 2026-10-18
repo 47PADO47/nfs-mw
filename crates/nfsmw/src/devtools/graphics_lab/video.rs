@@ -49,15 +49,25 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
     if !resolutions.contains(&settings.resolution) {
         resolutions.push(settings.resolution);
     }
-    choice(ui, "Resolution", &mut settings.resolution, &resolutions);
+    egui::ComboBox::from_label("Game / output resolution")
+        .selected_text(resolution_label(settings.resolution))
+        .show_ui(ui, |ui| {
+            for resolution in resolutions {
+                ui.selectable_value(&mut settings.resolution, resolution, resolution_label(resolution));
+            }
+        });
     if let Resolution::Pixels { width, height } = &mut settings.resolution {
         ui.horizontal(|ui| {
-            ui.label("Custom size");
+            ui.label("Custom output size (pixels)");
             ui.add(egui::DragValue::new(width).range(160..=16384).prefix("W "));
             ui.add(egui::DragValue::new(height).range(160..=16384).prefix("H "));
         });
     }
     ui.small("Borderless uses the desktop size. Exclusive mode needs a supported monitor mode; unavailable choices use the existing window fallback.");
+    resolution_summary(ui, lab);
+    ui.separator();
+    super::display::show(ui, lab.display, settings);
+    ui.heading("Frame pacing");
     ui.checkbox(&mut settings.vsync, "VSync");
     ui.add_enabled_ui(!settings.vsync, |ui| {
         let mut limits: Vec<_> = ["unlocked", "30", "60", "90", "120", "144", "165", "240", "360"]
@@ -92,20 +102,30 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
     ui.small("Frame generation requires VSync off and DLSS/FSR 3. HDR uses HDR10 output. Reflex On is enforced while generation is requested. Native DLSS quality uses DLAA.");
     ui.small(lab.latency.note);
     if lab.latency.generation_active {
-        ui.small(format!("Frame generation active; last SDK sample: {} frames actually presented. FPS above measures rendered frames.", lab.latency.presented_frames));
+        ui.small(format!("Frame generation active; last SDK sample: {} frames actually presented. Base FPS counts rendered frames; Presented FPS includes generated frames.", lab.latency.presented_frames));
     }
+    ui.separator();
+    ui.heading("Internal rendering & anti-aliasing");
     let offered = upscalers(lab.caps.as_ref());
     choice(ui, "Upscaler", &mut settings.upscaler, &offered);
     let effective = lab.caps.map(|c| settings.effective(&c)).unwrap_or(*settings);
     ui.add_enabled_ui(settings.upscaler.upscaler().is_temporal(), |ui| {
         choice(ui, "Upscale quality", &mut settings.upscale_quality, &UpscaleQuality::ALL);
     });
-    if settings.upscaler == UpscaleMode::Dlss {
-        ui.small("Native quality selects DLAA at output resolution.");
-    }
+    ui.small("Upscale quality controls the internal 3D resolution; game output and UI keep the resolution above. Native means full-resolution rendering (DLAA with DLSS).");
+    ui.add_enabled_ui(!effective.upscaler.upscaler().is_temporal(), |ui| {
+        let default_aa = super::profiles::defaults(settings).post_aa;
+        super::controls::choice(
+            ui,
+            "Post-process anti-aliasing",
+            &mut settings.post_aa,
+            &[crate::settings::PostAa::Off, crate::settings::PostAa::Fxaa, crate::settings::PostAa::Smaa],
+            default_aa,
+        );
+    });
     ui.add_enabled_ui(matches!(settings.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1), |ui| {
         let mut scale = settings.render_scale.percent();
-        if ui.add(egui::Slider::new(&mut scale, 50..=200).text("Render scale %")).changed() {
+        if ui.add(egui::Slider::new(&mut scale, 50..=200).text("Internal render scale %")).changed() {
             settings.render_scale = RenderScale::new(scale).expect("bounded scale");
         }
     });
@@ -151,4 +171,51 @@ pub(super) fn reset(settings: &mut Settings) {
     settings.upscale_quality = defaults.upscale_quality;
     settings.render_scale = defaults.render_scale;
     settings.upscale_sharpness = defaults.upscale_sharpness;
+    settings.post_aa = super::profiles::defaults(settings).post_aa;
+}
+
+fn resolution_label(resolution: Resolution) -> String {
+    match resolution {
+        Resolution::Native => "Desktop / monitor native".into(),
+        value => value.to_string(),
+    }
+}
+fn resolution_summary(ui: &mut egui::Ui, lab: &GraphicsLab) {
+    let [ow, oh] = lab.output_size;
+    let [rw, rh] = lab.render_size;
+    if ow == 0 || oh == 0 {
+        ui.small("Waiting for effective renderer dimensions…");
+        return;
+    }
+    ui.group(|ui| {
+        ui.strong(format!("Game output + UI: {ow} × {oh} pixels"));
+        ui.label(format!(
+            "Internal 3D render: {rw} × {rh} pixels ({:.1}% of output width)",
+            rw as f32 / ow as f32 * 100.0
+        ));
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn moving_aa_to_video_keeps_look_reset_and_calibration_independent() {
+        let mut settings = Settings::from(crate::settings::Partial::default());
+        settings.post_aa = crate::settings::PostAa::Smaa;
+        settings.appearance.display.ui_white_nits = 150.0;
+        let mut lab = GraphicsLab { tab: super::super::profiles::Tab::Look, ..Default::default() };
+        super::super::profiles::reset(&mut lab, &mut settings);
+        assert_eq!(settings.post_aa, crate::settings::PostAa::Smaa);
+        assert_eq!(settings.appearance.display.ui_white_nits, 150.0);
+        lab.tab = super::super::profiles::Tab::Video;
+        let expected_aa = super::super::profiles::defaults(&settings).post_aa;
+        super::super::profiles::reset(&mut lab, &mut settings);
+        assert_eq!(settings.post_aa, expected_aa);
+        assert_eq!(settings.appearance.display.ui_white_nits, 150.0, "display has its own reset");
+    }
+    #[test]
+    fn output_native_is_named_as_the_monitor_size() {
+        assert_eq!(resolution_label(Resolution::Native), "Desktop / monitor native");
+    }
 }

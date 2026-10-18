@@ -212,6 +212,7 @@ pub fn draw(
         })
     } else {
         let _span = bevy_log::info_span!("render::submit").entered();
+        host.cpu_update_ms = host.cpu_work_started.elapsed().as_secs_f32() * 1000.0;
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };
     if let Err(e) = result {
