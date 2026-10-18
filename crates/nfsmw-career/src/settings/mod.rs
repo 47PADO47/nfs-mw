@@ -7,9 +7,14 @@
 //! unlock table and the popup queue are not decoded yet and travel as raw bytes.
 
 mod flags;
+mod new_career;
 mod sms;
 
 pub use flags::Flags;
+pub use new_career::{
+    NewCareer, SERIAL_NUMBER_OFFSET, SERIAL_NUMBER_RANGE, SERIAL_TEXT_MAX, SerialRng, format_serial, generate_serial,
+    new_career_with,
+};
 pub use sms::{SMS_INVALID_ID, SMS_SLOTS, SMS_TABLE_LEN, SmsInbox, SmsSlot, SmsState};
 
 use crate::LayoutError;
