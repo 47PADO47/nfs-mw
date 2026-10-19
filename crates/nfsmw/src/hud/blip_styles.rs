@@ -8,6 +8,7 @@ use super::cop_blip;
 pub const COP: &str = "cop";
 pub const RACER: &str = "racer";
 pub const CHECKPOINT: &str = "checkpoint";
+pub const GPS: &str = "gps";
 pub const HELICOPTER: &str = "helicopter";
 pub const RACE_SPRINT: &str = "race_sprint";
 pub const RACE_DRAG: &str = "race_drag";
@@ -76,6 +77,24 @@ pub struct Checkpoint;
 impl BlipStyle for Checkpoint {
     fn name(&self) -> &'static str {
         CHECKPOINT
+    }
+
+    fn icons(&self) -> Vec<String> {
+        vec!["MMICON_CHECKPOINT".to_string()]
+    }
+
+    fn shows(&self, blip: &MapBlip) -> bool {
+        blip.active
+    }
+}
+
+/// The GPS route's target. It shows while the route is set (`active`), with the checkpoint's icon: the original's
+/// GPS icon is not in the package's minimap objects (`docs/specs/gps-route.md`).
+pub struct GpsTarget;
+
+impl BlipStyle for GpsTarget {
+    fn name(&self) -> &'static str {
+        GPS
     }
 
     fn icons(&self) -> Vec<String> {
@@ -177,5 +196,5 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
 
 /// The styles the game uses.
 pub fn builtin() -> Vec<Box<dyn BlipStyle>> {
-    vec![Box::new(Cop), Box::new(Racer), Box::new(Checkpoint), Box::new(Helicopter)]
+    vec![Box::new(Cop), Box::new(Racer), Box::new(Checkpoint), Box::new(GpsTarget), Box::new(Helicopter)]
 }

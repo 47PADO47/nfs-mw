@@ -187,6 +187,7 @@ impl WorldScene {
             car_shading: crate::settings::CarShading::default(),
             markers_on: false,
             marker_meshes: None,
+            guide: Default::default(),
             cut: CameraCut::default(),
             waiting_since: None,
             camera_mode: CameraMode::default(),

@@ -114,6 +114,10 @@ impl Scene for Pausable {
         self.inner.set_mod_blips(blips);
     }
 
+    fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
+        self.inner.set_waypoint(target)
+    }
+
     fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
         self.inner.player_car()
     }

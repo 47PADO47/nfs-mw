@@ -84,6 +84,11 @@ pub trait Scene {
     fn set_time_held(&mut self, _held: bool) {}
     /// The minimap blips the mods placed (`bb.map`), merged into the scene's own. Scenes without a minimap ignore them.
     fn set_mod_blips(&mut self, _blips: &[MapBlip]) {}
+    /// Sets the GPS route to a point on the road (render space x, y), or clears it with `None`. Returns whether the
+    /// route is set. Scenes without a road network refuse. The world map, the console and the mods come through here.
+    fn set_waypoint(&mut self, _target: Option<[f32; 2]>) -> bool {
+        false
+    }
     /// The player's car, as the mods read it (`bb.vehicles`). `None` where no car is driven. Takes `&mut` because the
     /// car's physics is reached through the drive.
     fn player_car(&mut self) -> Option<PlayerCar> {

@@ -25,6 +25,7 @@ mod exhaust;
 mod explosion_fx;
 mod frame;
 mod garage;
+mod gps;
 mod ground;
 mod hud;
 mod keys;
@@ -199,6 +200,8 @@ pub struct WorldScene {
     markers_on: bool,
     /// The meshes of the contact markers, uploaded the first time they are asked for.
     marker_meshes: Option<MarkerMeshes>,
+    /// The GPS route to a point on the road, and the arrow that shows it.
+    guide: gps::Guide,
     /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
     cut: CameraCut,
     /// When the car started waiting for a road (no physics while it waits).

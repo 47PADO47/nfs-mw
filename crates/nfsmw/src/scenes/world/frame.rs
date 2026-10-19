@@ -60,6 +60,9 @@ impl WorldScene {
                 drive.marker_instances(meshes, &mut self.visible);
             }
         }
+        if let Some(arrow) = self.route_arrow() {
+            self.visible.push(arrow);
+        }
         // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
         visibility::sort_by_mesh(&mut self.visible);
         let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
