@@ -81,6 +81,13 @@ Press **F12** to open the developer console (Esc or F12 closes it). The console 
 (coloured by level) above a command line with history (Up/Down) and Tab completion. While the
 console is open, game input is paused and the mouse is released. Type `help` for a list of commands.
 
+The console and the developer panels draw in the active UI style's palette, corner radius, padding and text size,
+so they change with the Options menu's UI style. The font stays egui's, because the game's fonts are not the TTF
+files egui loads.
+
+Pressing Ctrl+C in the terminal that runs the game closes it cleanly, as closing the window does. A second Ctrl+C
+stops it at once.
+
 ## Settings
 
 The per-user config file lives at:
@@ -100,6 +107,10 @@ the earlier centered layout, or the Xbox addon's 92% wide scale.
 Xbox menus use bundled Kenney CC0 prompts that follow the live bindings and active input device.
 A accepts, B goes back, Menu/Start pauses or resumes, and View/Back quits from the main menu.
 Idle stick drift and console hotkeys do not switch the prompts. Losing the active controller pauses driving.
+
+The UI style (Original, Custom or Remastered) in the Options menu sets the look of the menus and the HUD, and the
+developer panels follow it. The world map has a Remastered overlay, with its own legend and the place and pool
+blips restyled.
 
 Video options include opt-in [experimental ambient occlusion](docs/ambient-occlusion.md), with quality,
 intensity and a live split comparison. Start with `nfsmw play --ao medium`; it needs only base-game assets.
