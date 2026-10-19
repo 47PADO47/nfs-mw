@@ -151,14 +151,25 @@ pub fn step(
     match outcome {
         Outcome::Stay => draw(fe, overlay, dt, themed, host, env),
         Outcome::Close => close(fe, overlay),
-        Outcome::AskGps(_) => ask_gps(fe, overlay, dt, themed, host, env),
+        Outcome::AskGps(index) => ask_gps(fe, overlay, index, dt, themed, host, env),
     }
 }
 
-/// Opens the game's own `Dialog.fng` Yes/No confirm over the map. Yes resumes the game (sets the route — a stub — and
-/// closes the map); No pops the dialog and the map continues with the blip still focused.
-fn ask_gps(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, themed: bool, host: &mut Host, env: &mut Env) {
-    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::Resume);
+/// Opens the game's own `Dialog.fng` Yes/No confirm over the map. Yes sets the route to the focused blip, then closes
+/// the map and goes on driving; No pops the dialog and the map continues with the blip still focused.
+fn ask_gps(
+    fe: &mut Frontend,
+    overlay: &WorldMapOverlay,
+    index: usize,
+    dt: f32,
+    themed: bool,
+    host: &mut Host,
+    env: &mut Env,
+) {
+    let Some(blip) = overlay.blips.get(index) else {
+        return draw(fe, overlay, dt, themed, host, env);
+    };
+    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::SetWaypoint(blip.world));
     let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
     fe.apply(commands, host, env);
     draw(fe, overlay, dt, themed, host, env);

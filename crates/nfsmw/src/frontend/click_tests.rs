@@ -83,3 +83,50 @@ fn the_wheel_moves_the_option_selection_like_the_arrows() {
     let (_, first) = h.node("RIGHT_ARROW_1");
     assert!(!first, "the first row is no longer selected");
 }
+
+/// The centre of the visible node with this name hash on the top screen.
+fn centre_of(h: &Harness, name_hash: u32) -> Option<glam::Vec2> {
+    let tree = h.screens.trees().pop()?;
+    let node = tree.nodes.iter().find(|n| n.name_hash == name_hash && n.visible)?;
+    Some(node.world.transform_point3(glam::Vec3::ZERO).truncate())
+}
+
+/// The map's GPS Yes/No dialog over the options screen, asking to set `answer`.
+fn gps_dialog(answer: Command) -> Option<Harness> {
+    use crate::frontend::confirm::{Confirm, ConfirmLogic};
+    use crate::ui::Text;
+    let mut h = Harness::open(screen::OPTIONS, Args { category: Category::Video, ..Args::default() })?;
+    h.wait(1.5);
+    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), answer);
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let opened = h.screens.open_with(screen::DIALOG, Box::new(ConfirmLogic::new(confirm)), false, &mut env);
+    h.commands.extend(opened);
+    h.wait(0.5);
+    Some(h)
+}
+
+#[test]
+fn the_gps_dialog_answers_only_on_yes_or_no() {
+    use crate::frontend::confirm::{NO_BUTTON, YES_BUTTON};
+    let route = Command::SetWaypoint([1.0, 2.0]);
+    let Some(mut h) = gps_dialog(route.clone()) else { return };
+    assert_eq!(h.screens.top(), Some(screen::DIALOG));
+
+    // A click that misses both answers is taken by the dialog and answers nothing.
+    let before = h.commands.len();
+    assert!(h.click(glam::Vec2::new(-400.0, -300.0)), "the dialog takes the click");
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "a click off the answers keeps the dialog open");
+    assert_eq!(h.commands.len(), before, "and answers nothing");
+
+    // Yes sets the route and closes the dialog.
+    let yes = centre_of(&h, YES_BUTTON).expect("the Yes answer is on screen");
+    assert!(h.click(yes));
+    assert!(h.commands.contains(&route), "Yes sets the route");
+
+    // No closes the dialog and sets nothing.
+    let Some(mut h) = gps_dialog(route.clone()) else { return };
+    let no = centre_of(&h, NO_BUTTON).expect("the No answer is on screen");
+    assert!(h.click(no));
+    assert!(!h.commands.contains(&route), "No sets no route");
+    assert_ne!(h.screens.top(), Some(screen::DIALOG), "No closes the dialog");
+}

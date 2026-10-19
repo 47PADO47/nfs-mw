@@ -43,8 +43,8 @@ impl Confirm {
 /// hidden, so that the package's left and right moves between the two answers.
 const TITLE: u32 = 0x42ad_b44c;
 const MESSAGE: u32 = 0x1e26_40fa;
-const YES_BUTTON: u32 = 0xf936_3f30;
-const NO_BUTTON: u32 = 0xfb8b_67d1;
+pub(super) const YES_BUTTON: u32 = 0xf936_3f30;
+pub(super) const NO_BUTTON: u32 = 0xfb8b_67d1;
 const UNUSED_BUTTON: u32 = 0xfde0_9072;
 /// The button holders (the objects that take the focus and send the press): Yes's, No's and the unused one's, by
 /// GUID. The package's own left and right do not move the focus between them, so the logic does.
@@ -117,6 +117,25 @@ impl ScreenLogic for ConfirmLogic {
             cx.rt.set_hidden(o, true);
         }
         focus(cx, NO_HOLDER);
+    }
+
+    /// The focus follows the pointer over the two answers, so the one under it shows as selected before a click.
+    fn hover(&mut self, cx: &mut Cx, point: glam::Vec2) {
+        let (Some(yes), Some(no)) = (by_guid(cx, YES_HOLDER), by_guid(cx, NO_HOLDER)) else { return };
+        if let Some(hit) = cx.rt.object_at(&[yes, no], point) {
+            cx.rt.focus_button(hit);
+        }
+    }
+
+    /// A click answers the dialog only on Yes or No. The dialog takes every click, so one that misses both does nothing
+    /// and does not reach the screen or the map under it.
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        let (Some(yes), Some(no)) = (by_guid(cx, YES_HOLDER), by_guid(cx, NO_HOLDER)) else { return true };
+        if let Some(hit) = cx.rt.object_at(&[yes, no], point) {
+            cx.rt.focus_button(hit);
+            self.answer(cx, hit == yes);
+        }
+        true
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

@@ -67,9 +67,9 @@ mod upscale_tests;
 mod vehicle_effects_tests;
 
 pub use browse::Browse;
-pub use flow::Start;
+pub use flow::{Frontend, Start};
 pub use logic::{Args, Category};
-pub use plugin::FrontendPlugin;
+pub use plugin::{FrontendPlugin, map_pointer_on_picture};
 pub use scene::MenuScene;
 #[cfg(test)]
 pub(crate) use scene::{Pausable, PauseFlag};

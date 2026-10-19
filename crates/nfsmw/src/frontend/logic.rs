@@ -65,6 +65,8 @@ pub enum Command {
     StartCareer,
     /// Close the pause menu and go on driving.
     Resume,
+    /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
+    SetWaypoint([f32; 2]),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
     /// game goes on driving when it does.
     PayBust {
@@ -269,6 +271,9 @@ pub trait ScreenLogic: Send + Sync {
     fn click(&mut self, _cx: &mut Cx, _point: Vec2) -> bool {
         false
     }
+
+    /// The pointer moved over a point of the screen (FEng units). A screen that shows focus follows it.
+    fn hover(&mut self, _cx: &mut Cx, _point: Vec2) {}
 
     /// The mouse wheel turned `steps` notches, positive is up.
     fn scroll(&mut self, _cx: &mut Cx, _steps: i32) {}

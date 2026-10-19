@@ -362,6 +362,13 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
+    /// Saves the settings the menus changed, leaves the safe house and goes on driving.
+    fn resume_driving(&mut self, env: &mut Env) {
+        self.save_settings(env.changed);
+        self.leave_safe_house();
+        self.resume();
+    }
+
     pub(super) fn resume(&mut self) {
         self.latch = true;
         self.screens.clear();
@@ -378,10 +385,10 @@ impl Frontend {
                     self.start_free_roam(host, env);
                 }
                 Command::StartCareer => self.start_career(host, env),
-                Command::Resume => {
-                    self.save_settings(env.changed);
-                    self.leave_safe_house();
-                    self.resume();
+                Command::Resume => self.resume_driving(env),
+                Command::SetWaypoint(target) => {
+                    host.scene.set_waypoint(Some(target));
+                    self.resume_driving(env);
                 }
                 Command::QuitToMenu => {
                     self.save_settings(env.changed);
