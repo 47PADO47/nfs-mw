@@ -13,10 +13,9 @@ impl Renderer {
         instances: &[Instance],
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: selective reflections");
-        let Some(surfaces) = &self.surfaces else { return };
         let Projection::PerspectiveInfiniteReverse { near, .. } = frame.projection else { return };
         let Some(glossy) = &mut self.glossy else { return };
-        glossy.screen.capture(&self.device, &self.queue, encoder, target, &surfaces.targets.depth, near);
+        glossy.screen.capture(&self.device, &self.queue, encoder, target, depth, near);
         glossy.scene = super::scene_group(
             &self.device,
             &glossy.layouts,

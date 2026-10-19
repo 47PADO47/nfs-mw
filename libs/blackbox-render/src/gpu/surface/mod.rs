@@ -40,9 +40,7 @@ impl Renderer {
         instances: &[Instance],
         depth: &wgpu::TextureView,
     ) {
-        if !self.screen_lighting_active(frame)
-            || !(self.experiments.contact_shadows || self.graphics.ao.active() || self.experiments.screen_reflections)
-        {
+        if !self.screen_lighting_active(frame) || !(self.experiments.contact_shadows || self.graphics.ao.active()) {
             self.surfaces = None;
             return;
         }

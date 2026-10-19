@@ -15,8 +15,8 @@ F8 Materials adds two independently saved choices, both off by default:
   glossy materials retain their own reflection strengths and brightness controls.
 
 Opaque/cutout world colour is copied before opaque/cutout cars. Blended draws and
-world effects keep their later ordering. A separate camera depth prepass avoids
-sampling the depth attachment while a material writes to it. Scene colour keeps
+world effects keep their later ordering. The matching scenery-only depth is snapshotted before cars, avoiding false self
+hits and sampling the depth attachment while a material writes to it. Scene colour keeps
 its render format, including HDR, before tone mapping, display encoding, upscaling,
 UI composition and frame generation. No UI or generated frame enters reflection
 sampling. The mirror and wet-road capture algorithms are unchanged.
