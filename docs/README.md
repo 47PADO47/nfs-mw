@@ -39,7 +39,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
-| [ambient-occlusion.md](ambient-occlusion.md) | Spatial ambient-only GTAO: shared depth/normals, live comparison, filtering, limitations and GPU validation |
+| [ambient-occlusion.md](ambient-occlusion.md) | Spatial and temporal ambient-only AO: shared geometry, history rejection, comparison and GPU validation |
+| [optional-reflections.md](optional-reflections.md) | Optional cached local probes and selective current-frame car reflections |
+| [cached-shadows.md](cached-shadows.md) | Optional exact static shadow reuse, dynamic casters, memory costs and invalidation |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [world-interactions.md](world-interactions.md) | Contact, dynamic scenery and frame-rate parity work, validation and remaining gaps |
