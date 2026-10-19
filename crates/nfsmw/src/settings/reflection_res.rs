@@ -17,6 +17,47 @@ pub const MENU_SIZES: [ReflectionSize; 5] = [
     ReflectionSize::Scale(2.0),
 ];
 
+/// Explicit square face sizes offered by the car-cubemap UI. Saved legacy sizes still load unchanged.
+pub const CUBE_SIZES: [u32; 7] = [16, 32, 64, 128, 256, 512, 1024];
+
+/// Effective face edge, including quality-relative legacy values and power-of-two rounding.
+pub fn cube_pixels(settings: &super::Settings, output_height: u32) -> u32 {
+    settings.graphics().reflection_resolution.cube_face(
+        settings.reflections.size(),
+        output_height,
+        blackbox_gfx::reflection::PLANAR_MAX,
+    )
+}
+
+/// The current capture size, with the saved legacy rule spelled out when applicable.
+pub fn cube_label(settings: &super::Settings, output_height: u32) -> String {
+    let pixels = cube_pixels(settings, output_height);
+    let dimensions = format!("{pixels} × {pixels} per face");
+    match settings.reflection_cube_size {
+        ReflectionSize::Fixed(_) => dimensions,
+        ReflectionSize::Auto => format!("{dimensions} (saved: follow output height, capped at 1024)"),
+        ReflectionSize::Scale(_) => format!("{dimensions} (saved: {} of quality size)", settings.reflection_cube_size),
+    }
+}
+
+/// Frontend values have no live surface dimensions. Spell out Auto rather than invent a native size.
+pub fn cube_menu_label(settings: &super::Settings) -> String {
+    if settings.reflection_cube_size == ReflectionSize::Auto {
+        return "Output height (maximum 1024 per face)".into();
+    }
+    cube_label(settings, 0)
+}
+
+/// Step to the next explicit face edge from the current effective size; wrap at either end.
+pub fn step_cube(settings: &super::Settings, forward: bool) -> ReflectionSize {
+    let pixels = cube_pixels(settings, blackbox_gfx::reflection::CUBE_FACE_MAX);
+    let next = match forward {
+        true => CUBE_SIZES.into_iter().find(|px| *px > pixels).unwrap_or(CUBE_SIZES[0]),
+        false => CUBE_SIZES.into_iter().rev().find(|px| *px < pixels).unwrap_or(CUBE_SIZES[CUBE_SIZES.len() - 1]),
+    };
+    ReflectionSize::Fixed(next)
+}
+
 /// The next (or previous) size in [`MENU_SIZES`], wrapping.
 pub fn step_size(current: ReflectionSize, forward: bool) -> ReflectionSize {
     let at = MENU_SIZES.iter().position(|size| *size == current).unwrap_or(0);
