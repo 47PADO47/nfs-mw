@@ -7,8 +7,8 @@ use super::fe_shadows;
 use super::hd_content;
 use super::partial::{Partial, Percent, parse_bool};
 use super::{
-    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, Transmission,
-    UiStyle,
+    CameraMode, CarShading, Deadzone, GraphicsPreset, HudLayout, MinimapMode, RadioHudStyle, Sensitivity, SpeedUnits,
+    Transmission, UiStyle,
 };
 use super::{
     Monitor, PostAa, PostBloom, PostTonemap, RayTracingLevel, RenderScale, RendererKind, Resolution, SmokeQuality,
@@ -58,6 +58,7 @@ pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const UI_STYLE: &str = "NFSMW_UI_STYLE";
+pub const SPEED_UNITS: &str = "NFSMW_SPEED_UNITS";
 /// The legacy radio switch. Read only when `NFSMW_UI_STYLE` is unset or invalid.
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
@@ -160,6 +161,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         ui_style: value(&get, UI_STYLE, UiStyle::from_str)
             .or_else(|| value(&get, RADIO_HUD, RadioHudStyle::from_str).map(UiStyle::from)),
+        speed_units: value(&get, SPEED_UNITS, SpeedUnits::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),

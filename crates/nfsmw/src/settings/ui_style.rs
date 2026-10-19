@@ -16,7 +16,11 @@ pub enum UiStyle {
     /// The remastered HUD. Not implemented yet: until it is, every slot falls back to Original.
     Remastered,
 }
-names!(UiStyle, "original, custom or remastered", [(Self::Original, "original"), (Self::Custom, "custom"), (Self::Remastered, "remastered")]);
+names!(
+    UiStyle,
+    "original, custom or remastered",
+    [(Self::Original, "original"), (Self::Custom, "custom"), (Self::Remastered, "remastered")]
+);
 impl UiStyle {
     pub const ALL: [Self; 3] = [Self::Original, Self::Custom, Self::Remastered];
     pub fn label(self) -> &'static str {

@@ -8,11 +8,7 @@ use clap::Parser;
 fn ui_style_defaults_to_original_and_round_trips_every_token() {
     assert_eq!(Settings::from(Partial::default()).ui_style, UiStyle::Original);
     for (token, style) in
-        [
-            ("original", UiStyle::Original),
-            ("custom", UiStyle::Custom),
-            ("remastered", UiStyle::Remastered),
-        ]
+        [("original", UiStyle::Original), ("custom", UiStyle::Custom), ("remastered", UiStyle::Remastered)]
     {
         assert_eq!(token.parse(), Ok(style));
         assert_eq!(style.to_string(), token);
