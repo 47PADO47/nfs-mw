@@ -280,6 +280,7 @@ impl RenderBackend for Renderer {
 
     fn frame_performance(&self) -> blackbox_gfx::FramePerformance {
         let mut performance = self.performance;
+        performance.activity = self.activity.sample();
         if let Some(timing) = &self.timing {
             performance.gpu_render_ms = timing.latest.map(|sample| sample[0]);
             performance.gpu_sample = timing.completed;

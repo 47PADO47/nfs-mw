@@ -220,3 +220,10 @@ DLSS Frame Generation with a separate UI color/alpha buffer for recomposition.
 HDR generation selects HDR10 output while retaining linear tone mapping and UI blending.
 The SDK owns Vulkan interposition; runtime binaries are supplied separately.
 See [native DLSS](../../docs/native-dlss.md) for setup, requirements and limitations.
+
+Windowed Windows renderers expose asynchronous OS activity in `FramePerformance`:
+main-thread active percentage and this process's busiest GPU-engine percentage,
+including auxiliary and SDK/FG queues. A background worker samples once a second;
+missing or stale counters remain unknown. Headless rendering does not start it.
+These percentages complement render timestamps; neither is shader occupancy.
+See [graphics lab](../../docs/graphics-lab.md) for scope and API references.

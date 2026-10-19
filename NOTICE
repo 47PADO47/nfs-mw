@@ -312,3 +312,11 @@ HDR10 presentation follows Microsoft's Advanced Color and wgpu's BT.2100 PQ
 surface contracts; color conversion and UI compensation are independently implemented.
 https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
 NVIDIA DLSS runtime binaries have separate distribution terms and are not included here.
+
+Windows activity telemetry
+--------------------------
+Original implementation using Microsoft Windows API documentation:
+- GetThreadTimes: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadtimes
+- PDH formatted counter arrays: https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw
+- Busiest-engine convention: https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/
+Documentation references only; no third-party implementation code was ported.

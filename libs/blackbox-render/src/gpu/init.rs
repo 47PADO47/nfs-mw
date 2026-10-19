@@ -284,6 +284,7 @@ fn assemble(
     }
     let timing = super::timing::Timing::new(&device, &queue);
     let display = super::display::Display::new(&output, adapter);
+    let activity = super::activity::Monitor::new(matches!(output, Output::Window { .. }));
     let mut renderer = Renderer {
         #[cfg(all(windows, feature = "streamline"))]
         dlss: None,
@@ -317,6 +318,7 @@ fn assemble(
         reuse_prepass_depth: true,
         timing,
         performance: Default::default(),
+        activity,
         render_scale: DEFAULT_RENDER_SCALE,
         upscale: Default::default(),
         temporal: Default::default(),

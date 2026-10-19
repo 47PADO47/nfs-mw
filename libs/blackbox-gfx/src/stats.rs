@@ -36,6 +36,8 @@ pub struct RenderStats {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FramePerformance {
     pub rendered_frames: u64,
+    /// OS activity over a recent sampling interval, independent of generated presentation counts.
+    pub activity: WorkloadActivity,
     /// Command recording/submission, excluding explicit surface acquisition and presentation waits.
     pub cpu_render_ms: f32,
     pub acquire_wait_ms: f32,
@@ -44,6 +46,18 @@ pub struct FramePerformance {
     pub gpu_render_ms: Option<f32>,
     /// Advances when a new asynchronous timestamp readback completes.
     pub gpu_sample: u64,
+}
+
+/// OS scheduler activity. Missing/stale counters stay unknown rather than becoming zero utilization.
+/// GPU activity is this process's busiest engine across adapters, including SDK/auxiliary queues.
+/// Main-thread activity excludes time asleep/blocked, but includes driver CPU work on that thread.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WorkloadActivity {
+    pub main_thread_busy_percent: Option<f32>,
+    pub gpu_busy_percent: Option<f32>,
+    pub gpu_engine: &'static str,
+    pub sample: u64,
+    pub age_ms: f32,
 }
 
 #[cfg(test)]

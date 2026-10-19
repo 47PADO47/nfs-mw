@@ -1,5 +1,6 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod activity;
 mod adapters;
 pub(crate) mod ao;
 mod backend_impl;
@@ -103,6 +104,7 @@ pub struct Renderer {
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,
     performance: blackbox_gfx::FramePerformance,
+    activity: activity::Monitor,
     render_scale: f32,
     upscale: upscale::Upscale,
     /// The jitter, motion vectors and history of the temporal upscaler (FSR 3).

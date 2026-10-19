@@ -6,6 +6,7 @@ pub(super) fn exercise(
     renderer: &mut crate::Renderer,
     built: &blackbox_gfx_testkit::scenes::BuiltScene,
 ) {
+    let mut saw_activity_during_generation = false;
     let status = renderer.latency_status();
     eprintln!("Streamline presentation: {status:?}");
     assert!(status.reflex_available, "strict test requires real Reflex support");
@@ -95,11 +96,20 @@ pub(super) fn exercise(
             }
             assert!(saw_generated_present, "SDK must actually present generated frames, not merely accept options");
             let performance = renderer.frame_performance();
+            eprintln!("Activity with {}x FG: {:?}", generated + 1, performance.activity);
+            saw_activity_during_generation |= performance.activity.main_thread_busy_percent.is_some()
+                && performance.activity.gpu_busy_percent.is_some_and(|v| v > 0.0 && v <= 100.0)
+                && performance.activity.sample > 0
+                && performance.activity.age_ms <= 2500.0;
             assert_eq!(performance.rendered_frames - before_rendered, 32);
             assert!(renderer.latency_status().presented_total.unwrap() - before_presented > 32);
             assert!(performance.gpu_sample > 0 && performance.gpu_render_ms.is_some_and(|ms| ms > 0.0));
         }
     }
+    assert!(
+        saw_activity_during_generation,
+        "strict window test requires fresh Windows CPU/GPU engine activity with FG"
+    );
     if renderer.display_status().active {
         assert_eq!(renderer.output.format(), wgpu::TextureFormat::Rgb10a2Unorm);
         assert_eq!(renderer.capture(32, 18, &built.frame, &built.instances).unwrap().len(), 32 * 18 * 4);
