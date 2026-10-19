@@ -5,13 +5,13 @@ use std::path::Path;
 
 #[repr(C)]
 pub(super) struct Image {
-    image: u64,
-    view: u64,
-    width: u32,
-    height: u32,
-    format: u32,
-    layout: u32,
-    usage: u32,
+    pub(super) image: u64,
+    pub(super) view: u64,
+    pub(super) width: u32,
+    pub(super) height: u32,
+    pub(super) format: u32,
+    pub(super) layout: u32,
+    pub(super) usage: u32,
 }
 
 #[repr(C)]
@@ -32,7 +32,7 @@ pub(super) struct Frame {
 unsafe extern "C" {
     #[cfg(test)]
     pub(super) fn bb_sl_evaluations() -> u64;
-    fn bb_sl_init(directory: *const u16, logs: *const u16) -> i32;
+    fn bb_sl_init(directory: *const u16, logs: *const u16, api: u32) -> i32;
     fn bb_sl_shutdown();
     fn bb_sl_release();
     fn bb_sl_supported(physical_device: *mut std::ffi::c_void) -> i32;
@@ -63,10 +63,10 @@ fn wide(path: &Path) -> Vec<u16> {
     units
 }
 
-pub(super) fn initialize(directory: &Path, logs: &Path) -> Result<(), String> {
+pub(super) fn initialize(directory: &Path, logs: &Path, directx: bool) -> Result<(), String> {
     let (directory, logs) = (wide(directory), wide(logs));
     // SAFETY: terminated UTF-16 strings live for the synchronous call; SL copies its preferences.
-    let result = unsafe { bb_sl_init(directory.as_ptr(), logs.as_ptr()) };
+    let result = unsafe { bb_sl_init(directory.as_ptr(), logs.as_ptr(), u32::from(directx)) };
     if result != 0 {
         return Err(format!("Streamline initialization failed ({result})"));
     }
@@ -91,6 +91,9 @@ pub(super) fn optimal_size(mode: u32, output: (u32, u32)) -> Option<(u32, u32)> 
 }
 
 pub(super) fn image(view: &wgpu::TextureView, output: bool) -> Option<Image> {
+    if let Some(image) = super::dx12::image(view, output) {
+        return Some(image);
+    }
     let texture = view.texture();
     // SAFETY: both native handles are borrowed from a live wgpu image and never destroyed here.
     let image = {
@@ -168,7 +171,7 @@ pub(super) fn evaluate(
         .enumerate()
         .map(|(i, view)| image(view, i == 3))
         .collect::<Option<Vec<_>>>()
-        .ok_or("DLSS needs Vulkan HDR/depth/motion images")?;
+        .ok_or("DLSS needs supported native HDR/depth/motion images")?;
     encoder.transition_resources(
         std::iter::empty(),
         views.into_iter().enumerate().map(|(i, v)| wgpu::TextureTransition {
@@ -188,14 +191,26 @@ pub(super) fn evaluate(
     let continuation = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("after DLSS") });
     let before = std::mem::replace(encoder, continuation);
     queue.submit([before.finish()]);
-    let mut native = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("native DLSS") });
-    let result = unsafe {
-        native.as_hal_mut::<wgpu::hal::api::Vulkan, _, _>(|hal| {
-            let Some(hal) = hal else { return -1 };
-            bb_sl_evaluate(hal.raw_handle().as_raw() as *mut _, images.as_ptr(), &constants)
-        })
+    let result = match unsafe { device.as_hal::<wgpu::hal::api::Dx12>() }.is_some() {
+        true => {
+            let result = super::dx12::evaluate(&images, &constants);
+            // Native work uses this same queue. A following wgpu submission retires its keepalives.
+            queue.submit([]);
+            result
+        }
+        false => {
+            let mut native =
+                device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("native DLSS") });
+            let result = unsafe {
+                native.as_hal_mut::<wgpu::hal::api::Vulkan, _, _>(|hal| {
+                    let Some(hal) = hal else { return -1 };
+                    bb_sl_evaluate(hal.raw_handle().as_raw() as *mut _, images.as_ptr(), &constants)
+                })
+            };
+            queue.submit([native.finish()]);
+            result
+        }
     };
-    queue.submit([native.finish()]);
     // The raw buffer cannot register wgpu resources. Retain them until its submission completes,
     // including when a following resize or settings change replaces the scene and output images.
     let keepalive: Vec<_> = views.into_iter().cloned().collect();

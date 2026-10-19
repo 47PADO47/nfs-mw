@@ -34,14 +34,15 @@ pub(in crate::gpu) struct Presentation {
 
 pub(in crate::gpu) fn capabilities(device: &wgpu::Device) -> LatencyStatus {
     // SAFETY: borrowed physical-device handle belongs to the initialized interposer session.
-    let Some(hal) = (unsafe { device.as_hal::<wgpu::hal::api::Vulkan>() }) else { return LatencyStatus::default() };
+    let physical =
+        unsafe { device.as_hal::<wgpu::hal::api::Vulkan>() }.map(|hal| hal.raw_physical_device().as_raw()).unwrap_or(0);
     let mut caps = [0; 3];
-    unsafe { bb_sl_latency_caps(hal.raw_physical_device().as_raw() as *mut _, caps.as_mut_ptr()) };
+    unsafe { bb_sl_latency_caps(physical as *mut _, caps.as_mut_ptr()) };
     LatencyStatus {
         reflex_available: caps[0] != 0,
         max_generated_frames: caps[1],
         min_dimension: caps[2],
-        note: "Ready; Vulkan frame generation requires VSync off and a temporal upscaler.",
+        note: "Ready; frame generation requires VSync off and a temporal upscaler.",
         ..Default::default()
     }
 }

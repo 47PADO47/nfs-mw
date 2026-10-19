@@ -25,7 +25,9 @@ impl Renderer {
         }
         let acquire_started = std::time::Instant::now();
         let (surface_texture, view) = match &self.output {
-            Output::Window { surface, config } => {
+            #[cfg(all(windows, feature = "streamline"))]
+            Output::Window { dx12: Some(native), .. } => (None, native.view()?),
+            Output::Window { surface, config, .. } => {
                 let texture = match surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
                     wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
@@ -55,6 +57,14 @@ impl Renderer {
             self.presentation.marker(4);
         }
         let present_started = std::time::Instant::now();
+        #[cfg(all(windows, feature = "streamline"))]
+        if let Output::Window { dx12: Some(native), config, .. } = &self.output {
+            native.present(
+                &self.device,
+                &self.queue,
+                matches!(config.present_mode, wgpu::PresentMode::AutoVsync | wgpu::PresentMode::Fifo),
+            )?;
+        }
         match surface_texture {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.

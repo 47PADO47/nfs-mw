@@ -15,8 +15,10 @@ type DlssRuntime = ();
 
 fn create_instance(desc: wgpu::InstanceDescriptor, backend: Backend) -> (wgpu::Instance, DlssRuntime) {
     #[cfg(all(windows, feature = "streamline"))]
-    if matches!(backend, Backend::Auto | Backend::Vulkan) {
-        match super::dlss::Runtime::create() {
+    let mut desc = desc;
+    #[cfg(all(windows, feature = "streamline"))]
+    if matches!(backend, Backend::Auto | Backend::Vulkan | Backend::Dx12) {
+        match super::dlss::Runtime::create(&mut desc, backend == Backend::Dx12) {
             Ok((instance, runtime)) => return (instance, Some(runtime)),
             Err(error) => log::warn!("DLSS unavailable: {error}"),
         }
@@ -30,8 +32,10 @@ fn attach_dlss(renderer: &mut Renderer, runtime: DlssRuntime) {
     {
         renderer.dlss = runtime;
         if let Some(runtime) = &mut renderer.dlss {
-            runtime.check(&renderer.device);
-            renderer.presentation.status = super::dlss::presentation::capabilities(&renderer.device);
+            runtime.check(&renderer.device, &renderer.queue);
+            if runtime.supported {
+                renderer.presentation.status = super::dlss::presentation::capabilities(&renderer.device);
+            }
             renderer.caps.frame_generation = renderer.presentation.status.max_generated_frames > 0;
             if runtime.supported && renderer.hdr_format == targets::HDR_FORMAT {
                 renderer.caps.upscalers.insert(blackbox_gfx::Upscaler::Dlss);
@@ -71,7 +75,14 @@ where
 {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
     desc.backends = wgpu_backends(options.backend);
+    #[cfg(all(windows, feature = "streamline"))]
+    let hwnd = window.window_handle().ok().and_then(|handle| match handle.as_raw() {
+        raw_window_handle::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+        _ => None,
+    });
     let (instance, dlss) = create_instance(desc, options.backend);
+    #[cfg(all(windows, feature = "streamline"))]
+    let mut dlss = dlss;
     let surface = instance.create_surface(window).map_err(|e| RenderError::Surface(e.to_string()))?;
 
     let adapter = request_adapter(&instance, Some(&surface), &options)?;
@@ -86,11 +97,40 @@ where
         config.format = f;
     }
     config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
-    surface.configure(&device, &config);
+    #[cfg(all(windows, feature = "streamline"))]
+    let dx12 = {
+        if let Some(runtime) = &mut dlss {
+            runtime.check(&device, &queue);
+        }
+        match (options.backend, dlss.as_ref().is_some_and(|r| r.supported), hwnd) {
+            (Backend::Dx12, true, Some(hwnd)) => {
+                Some(super::dlss::dx12::Surface::new(hwnd, &device, &config).map_err(RenderError::Surface)?)
+            }
+            _ => None,
+        }
+    };
+    #[cfg(all(windows, feature = "streamline"))]
+    let native = dx12.is_some();
+    #[cfg(not(all(windows, feature = "streamline")))]
+    let native = false;
+    if !native {
+        surface.configure(&device, &config);
+    }
 
     let info = adapter.get_info();
     let cache = blackbox_gpu_passes::pipeline_cache::open(&device, &info, options.pipeline_cache_dir.as_deref());
-    let mut renderer = assemble(Output::Window { surface, config }, &adapter, device, queue, cache);
+    let mut renderer = assemble(
+        Output::Window {
+            surface,
+            config,
+            #[cfg(all(windows, feature = "streamline"))]
+            dx12,
+        },
+        &adapter,
+        device,
+        queue,
+        cache,
+    );
     attach_dlss(&mut renderer, dlss);
     Ok(renderer)
 }

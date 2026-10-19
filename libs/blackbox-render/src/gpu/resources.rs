@@ -1,7 +1,15 @@
 //! Resources shared by every draw: the globals uniform, bind group layouts and the sampler (from
 //! `blackbox-gpu-passes`, which the effect passes are built against), plus the glossy layouts.
 
-pub(super) use blackbox_gpu_passes::{DEPTH_FORMAT, Globals, WorldBindings, create_depth};
+pub(super) use blackbox_gpu_passes::{DEPTH_FORMAT, Globals, WorldBindings};
+
+pub(super) fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+    #[cfg(all(windows, feature = "streamline"))]
+    if let Some(view) = super::dlss::dx12::depth(device, width, height) {
+        return view;
+    }
+    blackbox_gpu_passes::create_depth(device, width, height)
+}
 
 pub(super) struct Shared {
     pub bindings: WorldBindings,

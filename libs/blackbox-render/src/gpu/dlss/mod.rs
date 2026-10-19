@@ -1,9 +1,10 @@
-//! Optional Windows/Vulkan Streamline integration. Native handles never escape this module.
-#![allow(unsafe_code, reason = "Streamline and wgpu HAL expose native Vulkan handles through FFI")]
+//! Optional Windows Vulkan/DX12 Streamline integration. Native handles never escape this module.
+#![allow(unsafe_code, reason = "Streamline and wgpu HAL expose native graphics handles through FFI")]
 
 mod composition;
 #[cfg(test)]
 mod composition_tests;
+pub(super) mod dx12;
 mod native;
 pub(super) mod pass;
 pub(super) mod presentation;
@@ -31,7 +32,7 @@ pub(super) struct Runtime {
 
 impl Runtime {
     /// This integration permits one Streamline device session per process.
-    pub(super) fn create() -> Result<(wgpu::Instance, Self), String> {
+    pub(super) fn create(desc: &mut wgpu::InstanceDescriptor, directx: bool) -> Result<(wgpu::Instance, Self), String> {
         if STARTED.load(Ordering::Acquire) {
             return Err(
                 "this integration permits one Streamline device session per process; restart to enable DLSS again"
@@ -49,8 +50,14 @@ impl Runtime {
         let directory = directory.canonicalize().map_err(|e| e.to_string())?;
         let logs = std::env::temp_dir().join("blackbox-streamline");
         std::fs::create_dir_all(&logs).map_err(|e| e.to_string())?;
-        native::initialize(&directory, &logs)?;
+        native::initialize(&directory, &logs, directx)?;
         STARTED.store(true, Ordering::Release);
+        if directx {
+            return Ok((
+                wgpu::Instance::new(std::mem::replace(desc, wgpu::InstanceDescriptor::new_without_display_handle())),
+                runtime,
+            ));
+        }
         // The interposer proxies vkCreateInstance, vkCreateDevice and all presentation hooks.
         // Its library remains resident until process exit, including after slShutdown.
         let entry = unsafe { ash::Entry::load_from(directory.join("sl.interposer.dll")) }.map_err(|e| e.to_string())?;
@@ -81,7 +88,14 @@ impl Runtime {
         Ok((unsafe { wgpu::Instance::from_hal::<wgpu::hal::api::Vulkan>(hal) }, runtime))
     }
 
-    pub(super) fn check(&mut self, device: &wgpu::Device) {
+    pub(super) fn check(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.supported {
+            return;
+        }
+        if unsafe { device.as_hal::<wgpu::hal::api::Dx12>() }.is_some() {
+            self.supported = dx12::attach(device, queue) && native::supported(0);
+            return;
+        }
         // SAFETY: the borrowed device is live and belongs to this Streamline loader.
         let Some(device) = (unsafe { device.as_hal::<wgpu::hal::api::Vulkan>() }) else { return };
         use ash::vk::Handle;

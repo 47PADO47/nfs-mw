@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cwchar>
 #include <limits>
+#include <initializer_list>
 #include <sl.h>
 #include <wintrust.h>
 #include <sl_security.h>
@@ -28,6 +29,10 @@ static_assert(SL_VERSION_MAJOR == 2 && SL_VERSION_MINOR == 14 && SL_VERSION_PATC
 
 static HMODULE module;
 static bool initialized;
+static bool directx;
+extern "C" void bb_sl_dx12_shutdown();
+static void dx_adapter(sl::AdapterInfo& info);
+static int dx_inputs_consumed(const sl::DLSSGState& state);
 static uint64_t evaluations;
 static sl::ViewportHandle viewport(0);
 static sl::FrameToken* current_frame{};
@@ -63,7 +68,7 @@ static void retain_plugin_code() {
     CloseHandle(snapshot);
 }
 
-extern "C" int bb_sl_init(const wchar_t* directory, const wchar_t* logs) {
+extern "C" int bb_sl_init(const wchar_t* directory, const wchar_t* logs, uint32_t api) {
     if (initialized) return -1;
     const auto length = wcslen(directory);
     if (length > 32740) return -5;
@@ -95,7 +100,8 @@ extern "C" int bb_sl_init(const wchar_t* directory, const wchar_t* logs) {
     preferences.engine = sl::EngineType::eCustom;
     preferences.engineVersion = "0.1.0";
     preferences.projectId = "9a49ed89-a846-4ecd-b25a-18461a02f048";
-    preferences.renderAPI = sl::RenderAPI::eVulkan;
+    directx = api == 1;
+    preferences.renderAPI = directx ? sl::RenderAPI::eD3D12 : sl::RenderAPI::eVulkan;
     if (GetEnvironmentVariableW(L"STREAMLINE_VERBOSE", nullptr, 0)) preferences.logLevel = sl::LogLevel::eVerbose;
     preferences.flags = sl::PreferenceFlags::eDisableCLStateTracking | sl::PreferenceFlags::eUseManualHooking | sl::PreferenceFlags::eUseFrameBasedResourceTagging;
     auto result = p_slInit(preferences, sl::kSDKVersion);
@@ -107,6 +113,7 @@ extern "C" void bb_sl_shutdown() {
     if (!initialized) return;
     bb_sl_suspend();
     bb_sl_end();
+    if (directx) bb_sl_dx12_shutdown();
     p_slShutdown();
     initialized = false;
     // Keep the loader resident: wgpu still uses its Vulkan trampolines during teardown.
@@ -119,6 +126,7 @@ extern "C" void bb_sl_release() {
 extern "C" int bb_sl_supported(void* physical_device) {
     sl::AdapterInfo info{};
     info.vkPhysicalDevice = physical_device;
+    if (directx) dx_adapter(info);
     auto result = p_slIsFeatureSupported(sl::kFeatureDLSS, info);
     retain_plugin_code();
     return static_cast<int>(result);
@@ -273,3 +281,5 @@ extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* f
 
 // Shared private SDK state; kept in a separate source file for the presentation domain.
 #include "presentation.cpp"
+
+#include "dx12.cpp"

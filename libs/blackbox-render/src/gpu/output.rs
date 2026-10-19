@@ -5,7 +5,12 @@ pub(super) const HEADLESS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb
 
 pub(super) enum Output {
     /// A window's swapchain.
-    Window { surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration },
+    Window {
+        surface: wgpu::Surface<'static>,
+        config: wgpu::SurfaceConfiguration,
+        #[cfg(all(windows, feature = "streamline"))]
+        dx12: Option<super::dlss::dx12::Surface>,
+    },
     /// A texture nothing presents; the frame ends up in it. No window system is involved.
     Texture { texture: wgpu::Texture, size: (u32, u32) },
 }
@@ -44,13 +49,22 @@ impl Output {
         }
     }
 
+    pub(super) fn configure(&mut self, device: &wgpu::Device) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if let Self::Window { dx12: Some(native), config, .. } = self {
+            native.configure(device, config);
+            return;
+        }
+        let Self::Window { surface, config, .. } = self else { return };
+        surface.configure(device, config);
+    }
     /// Follow a new size of at least 1x1.
     pub(super) fn resize(&mut self, device: &wgpu::Device, size: (u32, u32)) {
         match self {
-            Self::Window { surface, config } => {
+            Self::Window { config, .. } => {
                 config.width = size.0;
                 config.height = size.1;
-                surface.configure(device, config);
+                self.configure(device);
             }
             Self::Texture { texture, .. } => *self = Self::texture_format(device, size, texture.format()),
         }
@@ -58,8 +72,8 @@ impl Output {
 
     /// Switch vertical sync; a texture has none.
     pub(super) fn set_vsync(&mut self, device: &wgpu::Device, vsync: bool) {
-        let Self::Window { surface, config } = self else { return };
+        let Self::Window { config, .. } = self else { return };
         config.present_mode = if vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
-        surface.configure(device, config);
+        self.configure(device);
     }
 }
