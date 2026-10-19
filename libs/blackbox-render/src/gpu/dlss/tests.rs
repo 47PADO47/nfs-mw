@@ -1,5 +1,5 @@
 //! Strict SDK/GPU smoke test: missing runtime/hardware is a failure, never a skipped pass.
-use blackbox_gfx::{GraphicsSettings, RenderBackend, UpscaleQuality, Upscaler};
+use blackbox_gfx::{AoMethod, AoQuality, AoSettings, GraphicsSettings, RenderBackend, UpscaleQuality, Upscaler};
 use blackbox_gfx_testkit::SceneId;
 
 #[test]
@@ -19,7 +19,12 @@ fn dlss_sdk_evaluates_quality_modes_and_dlaa_on_gpu() {
         UpscaleQuality::UltraPerformance,
         UpscaleQuality::Native,
     ] {
-        let settings = GraphicsSettings { upscaler: Upscaler::Dlss, upscale_quality: quality, ..Default::default() };
+        let settings = GraphicsSettings {
+            upscaler: Upscaler::Dlss,
+            upscale_quality: quality,
+            ao: AoSettings { method: AoMethod::TemporalXeGtao, quality: AoQuality::Medium, ..Default::default() },
+            ..Default::default()
+        };
         assert!(renderer.apply_graphics(&settings).is_exact());
         assert_eq!(renderer.post_passes()[0], "dlss");
         let expected = super::render_size(quality, (640, 360)).expect("SDK optimal size");

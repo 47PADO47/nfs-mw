@@ -12,12 +12,16 @@ mod frame;
 #[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
+mod jitter_tests;
+#[cfg(test)]
 mod method_tests;
 mod pipelines;
 #[cfg(test)]
 mod pyramid_tests;
 #[cfg(test)]
 mod resolution_tests;
+#[cfg(test)]
+mod sampling_tests;
 #[cfg(test)]
 mod surface_tests;
 mod temporal;
@@ -123,7 +127,15 @@ impl AmbientOcclusion {
             return;
         }
         let (mut divisor, slices, steps) = match settings.method {
-            AoMethod::XeGtao | AoMethod::TemporalXeGtao => match settings.quality {
+            // Spatial output cannot rely on TAA to hide sparse depth-search strata. Temporal
+            // AO keeps the cheaper estimator and accumulates that coverage across frames.
+            AoMethod::XeGtao => match settings.quality {
+                blackbox_gfx::AoQuality::Off => (1, 0, 0),
+                blackbox_gfx::AoQuality::Low => (2, 2, 6),
+                blackbox_gfx::AoQuality::Medium => (2, 3, 6),
+                blackbox_gfx::AoQuality::High => (1, 4, 8),
+            },
+            AoMethod::TemporalXeGtao => match settings.quality {
                 blackbox_gfx::AoQuality::Off => (1, 0, 0),
                 blackbox_gfx::AoQuality::Low => (2, 2, 3),
                 blackbox_gfx::AoQuality::Medium => (2, 3, 4),
@@ -187,7 +199,12 @@ impl AmbientOcclusion {
             AoMethod::XeGtao | AoMethod::TemporalXeGtao => &self.pipelines.xe_filter,
             _ => &self.pipelines.filter,
         };
-        let temporal_passes = [("AO estimate", generate, &inputs[0]), ("AO spatial denoise", filter, &inputs[1])];
+        let temporal_passes = [
+            ("AO estimate", generate, &inputs[0]),
+            ("AO spatial denoise 1", &self.pipelines.xe_intermediate, &inputs[1]),
+            ("AO spatial denoise 2", &self.pipelines.xe_intermediate, &inputs[3]),
+            ("AO spatial denoise final", filter, &inputs[1]),
+        ];
         let passes: &[(&str, &wgpu::ComputePipeline, &wgpu::BindGroup)] = match settings.method {
             AoMethod::XeGtao | AoMethod::TemporalXeGtao => &[
                 ("AO estimate", generate, &inputs[0]),

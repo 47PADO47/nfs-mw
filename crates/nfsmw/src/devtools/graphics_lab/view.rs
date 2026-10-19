@@ -67,7 +67,7 @@ pub(super) fn show(
                             super::controls::checkbox(ui, &mut settings.ao_depth_mips,"Depth-prefiltered AO", defaults.ao_depth_mips)
                                 .on_hover_text("Uses a depth-aware hierarchy for distant samples. Disable for direct-depth comparison.");
                         });
-                        ui.small("Spatial methods keep their original sampling. xegtao-temporal uses half-resolution history with motion and disocclusion rejection.");
+                        ui.small("Spatial methods use spatial filtering only. xegtao-temporal uses half-resolution history with motion and disocclusion rejection.");
                         effects::show(ui, settings);
                     }
                     profiles::Tab::Environment => environment::show(ui,lab,settings),

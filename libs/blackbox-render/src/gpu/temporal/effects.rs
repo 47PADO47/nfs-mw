@@ -27,7 +27,7 @@ impl EffectMotion {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: crate::gpu::targets::MOTION_FORMAT,
+                format: wgpu::TextureFormat::Rgba16Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             })
@@ -37,10 +37,11 @@ impl EffectMotion {
             reset: true,
             previous_from_current: Mat4::IDENTITY,
             jitter_delta: Vec2::ZERO,
-            pass: MotionPass::new(
+            pass: MotionPass::with_format(
                 &renderer.device,
                 &renderer.shared.bindings.texture_layout,
                 renderer.pipeline_cache.as_ref(),
+                wgpu::TextureFormat::Rgba16Float,
             ),
             objects: History::new(&renderer.device),
             previous: None,

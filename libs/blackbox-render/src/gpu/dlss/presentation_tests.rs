@@ -1,5 +1,8 @@
 //! Runs within the strict SDK test's sole process session, rather than initializing another device.
-use blackbox_gfx::{GraphicsSettings, LatencySettings, ReflexMode, RenderBackend, UpscaleQuality, Upscaler};
+use blackbox_gfx::{
+    AoMethod, AoQuality, AoSettings, GraphicsSettings, LatencySettings, ReflexMode, RenderBackend, UpscaleQuality,
+    Upscaler,
+};
 
 pub(super) fn exercise(
     window: &super::test_window::TestWindow,
@@ -20,6 +23,7 @@ pub(super) fn exercise(
     renderer.apply_graphics(&GraphicsSettings {
         upscaler: Upscaler::Dlss,
         upscale_quality: UpscaleQuality::Native,
+        ao: AoSettings { method: AoMethod::TemporalXeGtao, quality: AoQuality::Medium, ..Default::default() },
         ..Default::default()
     });
     for reflex in ReflexMode::ALL {

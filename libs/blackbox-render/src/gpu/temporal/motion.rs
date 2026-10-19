@@ -47,6 +47,16 @@ impl MotionPass {
         textures: &wgpu::BindGroupLayout,
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
+        Self::with_format(device, textures, cache, MOTION_FORMAT)
+    }
+
+    /// Effects may retain previous view depth and coverage in the extra two channels.
+    pub(in crate::gpu) fn with_format(
+        device: &wgpu::Device,
+        textures: &wgpu::BindGroupLayout,
+        cache: Option<&wgpu::PipelineCache>,
+        format: wgpu::TextureFormat,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("motion camera"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -113,7 +123,7 @@ impl MotionPass {
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: MOTION_FORMAT,
+                        format,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
