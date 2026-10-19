@@ -73,7 +73,7 @@ pub enum UpscaleMode {
     Fsr3,
     /// AMD FSR 4: machine-learning, recent Radeon GPUs under DX12.
     Fsr4,
-    /// NVIDIA DLSS Super Resolution: RTX GPUs under Vulkan.
+    /// NVIDIA DLSS Super Resolution: RTX GPUs under Vulkan or DX12.
     Dlss,
 }
 

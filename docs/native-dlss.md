@@ -1,7 +1,7 @@
 # Native renderer DLSS
 
 The optional `native-dlss` game feature integrates NVIDIA Streamline 2.14.16 with
-the BlackBox renderer on Windows/Vulkan. It supports Super Resolution, DLAA,
+the BlackBox renderer on Windows with Vulkan or Direct3D 12. It supports Super Resolution, DLAA,
 Reflex and fixed-multiplier DLSS Frame Generation. Ray Reconstruction is not included.
 
 ## Build and runtime
@@ -38,7 +38,7 @@ renderers use the existing upscaler fallback; restart the application to enable
 DLSS after a renderer has been destroyed. Window resizing retains the renderer
 and supports DLSS normally.
 
-Select the BlackBox renderer and Vulkan, then choose DLSS in graphics options.
+Select the BlackBox renderer and Vulkan or DX12, then choose DLSS in graphics options.
 Quality modes use the SDK's optimal dimensions. Native selects DLAA. Preset M
 selects the DLSS 4.5 second-generation transformer for DLAA, Quality, Balanced
 and Performance; Ultra Performance uses preset L. The UI is drawn at output
@@ -54,7 +54,7 @@ the maximum reported by the SDK (up to 6x). Settings persist with other video
 options. CLI equivalents are `--reflex off|on|boost` and
 `--frame-generation off|2x|3x|4x|5x|6x`. The NVIDIA SDK checks hardware, driver and
 Hardware Accelerated GPU Scheduling support before these controls become available.
-Dynamic Multi Frame Generation is not exposed because the SDK limits it to D3D12.
+Dynamic Multi Frame Generation is not exposed; both APIs use fixed multipliers.
 
 Vulkan generation requires VSync off, including driver overrides.
 HDR generation automatically selects a 10-bit BT.2100 PQ/HDR10 swapchain,
@@ -110,6 +110,23 @@ the swapchain signals PQ/BT.2020 and existing calibration controls set luminance
 The Vulkan instance and device are created through the interposer. This routes
 presentation and swapchain functions through Streamline as required by its
 [manual hooking guide](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideManualHooking.md).
+On DX12, wgpu retains its native device, queue and rendering resources. The
+integration owns a separate Streamline proxy DXGI factory, device wrapper,
+presenting queue and swapchain. It copies the completed wgpu frame into the
+proxy backbuffer. GPU fences order the copy against rendering and wait for the
+SDK's input-consumption fence before tagged inputs are reused on the render
+queue. It never accesses private wgpu layouts or replaces COM vtables.
+
+DX12 SR uses a three-slot native command allocator/list ring on wgpu's own
+queue. The scene and resource transitions are submitted first; a following
+wgpu submission retires native-work keepalives. The depth allocation is R32
+TYPELESS with typed Depth32Float views: SDK 2.14.16 does not recognize fully
+typed D32_FLOAT in its resource-size table. The native allocation remains
+owned and tracked by wgpu. The proxy device outlives its queues and swapchain.
+This extra full-frame presentation copy has a cost that requires measurement.
+DX12 compiler selection follows wgpu's existing DXC/FXC configuration; package
+DXC beside the executable to avoid legacy FXC limitations on complex shaders.
+
 The bridge follows NVIDIA's
 [DLSS guide](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideDLSS.md).
 
@@ -129,8 +146,7 @@ column-vector transforms. Auto exposure is enabled; there is no exposure texture
 The existing limitations of native temporal inputs still apply: transparent
 objects and particles lack their own motion vectors, and transient unkeyed
 objects have camera motion only. Visual quality during driving must be checked
-separately from successful SDK evaluation. Direct3D 12 and OpenGL retain the
-normal fallback chain.
+separately from successful SDK evaluation. OpenGL retains the normal fallback chain.
 
 ## Validation
 
@@ -141,7 +157,9 @@ runtime-failure fallback. It also checks Reflex marker cadence in all three mode
 actual generated presentation at each supported multiplier in SDR and supported HDR10,
 VSync/menu suspension, capture isolation and separate SDR/HDR UI composition pixels.
 HDR pixel checks cover absolute luminance, gamut conversion and alpha precision.
-Generation tests briefly activate their window:
+Run the same strict SDK test with `BLACKBOX_TEST_API=vulkan` and `dx12` in
+separate processes. Headless targets do not advertise native DLSS. Composition
+pixel tests also follow this backend selection. Generation tests activate their window:
 the SDK intentionally suppresses interpolation in an unfocused window.
 A fallback image cannot pass the evaluation counter:
 

@@ -53,7 +53,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
-| [native-dlss.md](native-dlss.md) | Optional Streamline DLSS Super Resolution and DLAA on the native Windows/Vulkan renderer |
+| [native-dlss.md](native-dlss.md) | Optional Streamline DLSS SR/DLAA, Reflex and Frame Generation on native Windows Vulkan/DX12 |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
 | [reshade-shaders/](reshade-shaders/README.md) | Survey of a local ReShade effect pack (33 files): what each does, licence tiers, ideas worth taking and what the repo already has |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |

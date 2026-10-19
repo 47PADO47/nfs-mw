@@ -5,7 +5,7 @@ use crate::settings::{Monitor, RenderScale, Resolution, Settings, UpscaleMode, U
 pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings) {
     if super::view::blackbox(lab, settings) {
         choice(ui, "Graphics API (after restart)", &mut settings.backend, &blackbox_gfx::GraphicsApi::ALL);
-        ui.small("Save for startup and restart to change API. DLSS requires Vulkan.");
+        ui.small("Save for startup and restart to change API. Native DLSS supports Vulkan and DX12.");
     }
     choice(
         ui,
