@@ -61,3 +61,13 @@ fn no_route_means_no_gps() {
     let gps = Gps::engage(&net, &index, Vec3::new(0.0, 0.0, 10.0), Vec3::Z, Vec3::new(5000.0, 0.0, 0.0), 0.0);
     assert!(gps.is_none());
 }
+
+#[test]
+fn the_first_aim_point_is_ahead_before_any_update() {
+    let net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let car = Vec3::new(0.0, 0.0, 10.0);
+    let gps = Gps::engage(&net, &index, car, Vec3::Z, Vec3::new(0.0, 0.0, 150.0), 0.0).expect("a route");
+    let ahead = gps.arrow_point().z - car.z;
+    assert!((ahead - 20.0).abs() < 2.0, "the aim starts a look-ahead ahead, not on the car: {ahead}");
+}

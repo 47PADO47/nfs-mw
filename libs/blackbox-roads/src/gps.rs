@@ -66,13 +66,16 @@ impl Gps {
         if nav.find_path_to(net, index, target, None, PathType::Gps) != PathState::Full {
             return None;
         }
+        // The first aim point is a look-ahead distance along the route, not the car's own place on it.
+        let mut rng = SplitMix(0);
+        nav.advance(net, LOOK_AHEAD_MIN, Vec3::ZERO, &mut rng);
         Some(Self {
             nav,
             target,
             max_deviation: if max_deviation < 0.1 { MAX_DEVIATION } else { max_deviation },
             look_ahead: LOOK_AHEAD_MIN,
             state: GpsState::Tracking,
-            rng: SplitMix(0),
+            rng,
         })
     }
 
