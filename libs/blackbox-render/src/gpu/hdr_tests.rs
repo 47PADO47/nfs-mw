@@ -27,6 +27,7 @@ fn hdr(r: &mut super::Renderer) {
 }
 fn layer(colour: [u8; 4]) -> UiLayer {
     UiLayer {
+        compositions: Vec::new(),
         pixels_per_point: 1.0,
         meshes: vec![UiMesh {
             vertices: [[0.0, 0.0], [16.0, 0.0], [16.0, 8.0], [0.0, 8.0]]

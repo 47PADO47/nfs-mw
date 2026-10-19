@@ -29,6 +29,21 @@ its own encoder. No pass creates a device, a surface or an encoder, and none sub
 
 ## The passes
 
+`UiLayer::compositions` optionally rebuilds persistent masked textures on the GPU
+before the UI draw. Upload straight picture/mask pixels once; subsequent mask
+scroll/rotation changes carry only IDs and transform parameters. The compute pass
+samples the mask bilinearly at picture texel centres, rounds combined alpha to
+RGBA8, then premultiplies RGB with the existing integer rounding. Additive results
+retain RGB with zero alpha. This removes dynamic CPU pixel loops/uploads while
+keeping the ordinary SDR/HDR and independent frame-generation coverage shaders.
+Sources are independent straight RGBA8 textures, not other composition outputs;
+each output must differ from its sources. Output size follows the picture.
+Unchanged outputs persist across frames and are freed with `free_texture`.
+Commands survive a skipped encode, with the latest command retained per output.
+GPU pixel tests compare rotated/scrolled masks, partial alpha, additive output,
+resize and reuse against the previous CPU calculation on Vulkan and DX12 (one
+RGBA8 level of tolerance for floating-point sampling).
+
 | Pass | Type | Draws | Needs |
 |---|---|---|---|
 | UI layer | `UiPass` | a `UiLayer` over a target, `LoadOp::Load`, no depth | target view, its format and size |

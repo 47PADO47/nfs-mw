@@ -172,7 +172,7 @@ fn read(gpu: &Gpu, texture: &wgpu::Texture, bytes_per_pixel: u32) -> Vec<u8> {
 #[test]
 #[ignore = "requires a Vulkan or DX12 adapter"]
 fn additive_hud_over_translucent_panel_keeps_coverage_independent_of_hdr_white() {
-    use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiTexturePatch, UiVertex};
+    use blackbox_gfx::{UiLayer, UiMesh, UiTextureComposition, UiTextureId, UiTexturePatch, UiVertex};
     let _serial = serial();
     let gpu = Gpu::new(match super::super::test_support::test_api() {
         crate::Backend::Dx12 => wgpu::Backends::DX12,
@@ -197,13 +197,24 @@ fn additive_hud_over_translucent_panel_keeps_coverage_independent_of_hdr_white()
         indices: vec![0, 1, 2, 0, 2, 3],
     };
     let layer = UiLayer {
+        compositions: [false, true]
+            .map(|additive| UiTextureComposition {
+                output: UiTextureId::from_raw(3 + u64::from(additive)),
+                picture: UiTextureId::from_raw(1),
+                mask: UiTextureId::from_raw(1),
+                pivot: [0.5; 2],
+                degrees: 33.25,
+                window: [0.0, 0.0, 1.0, 1.0],
+                additive,
+            })
+            .into(),
         pixels_per_point: 1.0,
         meshes: vec![
-            quad(0.0, 3.0, [0, 0, 0, 64], 1),      // translucent pursuit-panel backing
-            quad(0.0, 1.0, [255, 255, 255, 0], 1), // additive vertex colour
-            quad(1.0, 2.0, [255; 4], 2),           // additive texture alpha (authored HUD path)
-            quad(2.0, 3.0, [128, 128, 128, 0], 1), // antialiased glyph edge
-            quad(3.0, 4.0, [0, 0, 0, 255], 1),     // black opaque UI still has coverage
+            quad(0.0, 3.0, [0, 0, 0, 64], 3),      // GPU-composed translucent pursuit-panel backing
+            quad(0.0, 1.0, [255, 255, 255, 0], 3), // additive vertex colour
+            quad(1.0, 2.0, [255; 4], 4),           // GPU-composed additive texture alpha
+            quad(2.0, 3.0, [128, 128, 128, 0], 3), // antialiased glyph edge
+            quad(3.0, 4.0, [0, 0, 0, 255], 3),     // black opaque UI still has coverage
         ],
     };
     pass.set_layer(layer.clone());

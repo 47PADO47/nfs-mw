@@ -71,7 +71,7 @@ pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState};
 pub use stats::{BackendInfo, FramePerformance, RenderStats, WorkloadActivity};
 pub use texture::{PixelFormat, TextureDesc};
 pub use treatment::{ColourTreatment, ColourTreatmentOverride};
-pub use ui::{UiLayer, UiMesh, UiTexturePatch, UiVertex};
+pub use ui::{UiLayer, UiMesh, UiTextureComposition, UiTexturePatch, UiVertex};
 pub use window::WindowMaterialDesc;
 
 /// The former name of [`GraphicsApi`], kept so existing callers compile unchanged.

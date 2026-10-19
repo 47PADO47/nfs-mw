@@ -140,6 +140,7 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
     let ui = UiTextureId::from_raw(1234);
     backend.update_ui_texture(&UiTexturePatch { id: ui, offset: None, size: [1, 1], rgba: &[255; 4] });
     backend.set_ui_layer(UiLayer {
+        compositions: Vec::new(),
         pixels_per_point: 1.0,
         meshes: vec![UiMesh {
             vertices: [[0.0, 0.0], [64.0, 0.0], [64.0, 64.0], [0.0, 64.0]]

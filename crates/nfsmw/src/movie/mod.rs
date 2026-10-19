@@ -213,8 +213,11 @@ fn present(
         texture: PICTURE,
         clip: [0.0, 0.0, w, h],
     };
-    let layer =
-        out.layer.get_or_insert_with(|| UiLayer { pixels_per_point: window.scale_factor(), meshes: Vec::new() });
+    let layer = out.layer.get_or_insert_with(|| UiLayer {
+        compositions: Vec::new(),
+        pixels_per_point: window.scale_factor(),
+        meshes: Vec::new(),
+    });
     layer.meshes.insert(0, mesh);
 }
 

@@ -47,6 +47,7 @@ pub(super) fn exercise(
     let texture = UiTextureId::from_raw(7);
     renderer.update_ui_texture(&UiTexturePatch { id: texture, offset: None, size: [1, 1], rgba: &[255; 4] });
     renderer.set_ui_layer(UiLayer {
+        compositions: Vec::new(),
         pixels_per_point: 1.0,
         meshes: [[255; 4], [64, 64, 64, 64], [32, 16, 0, 0]]
             .into_iter()

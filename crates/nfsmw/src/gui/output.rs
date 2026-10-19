@@ -80,5 +80,5 @@ pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut
             })
         })
         .collect();
-    out.layer = Some(UiLayer { pixels_per_point, meshes });
+    out.layer = Some(UiLayer { compositions: Vec::new(), pixels_per_point, meshes });
 }

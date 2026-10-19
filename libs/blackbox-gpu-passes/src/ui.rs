@@ -6,7 +6,9 @@
 
 use std::collections::HashMap;
 
-use blackbox_gfx::{UiLayer, UiTextureId, UiTexturePatch, UiVertex};
+use blackbox_gfx::{UiLayer, UiTextureComposition, UiTextureId, UiTexturePatch, UiVertex};
+
+mod mask;
 
 const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
     wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Unorm8x4];
@@ -74,6 +76,8 @@ pub struct UiPass {
     draws: Vec<Draw>,
     /// Used by the pipelines built per format.
     cache: Option<wgpu::PipelineCache>,
+    mask_pass: Option<mask::MaskPass>,
+    pending_compositions: HashMap<UiTextureId, UiTextureComposition>,
 }
 
 fn buffer(device: &wgpu::Device, usage: wgpu::BufferUsages, bytes: u64) -> wgpu::Buffer {
@@ -147,6 +151,8 @@ impl UiPass {
             index_staging: Vec::new(),
             draws: Vec::new(),
             cache: cache.cloned(),
+            mask_pass: None,
+            pending_compositions: HashMap::new(),
         }
     }
 
@@ -257,7 +263,10 @@ impl UiPass {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: TEXTURE_FORMAT,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::STORAGE_BINDING,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -275,11 +284,15 @@ impl UiPass {
     /// Free a UI texture. Meshes that still name it are skipped.
     pub fn free_texture(&mut self, id: UiTextureId) {
         self.textures.remove(&id.raw());
+        self.pending_compositions.remove(&id);
     }
 
     /// The UI to draw on every following [`Self::encode`], until replaced. An empty layer draws nothing.
     /// A layer equal to the current one changes nothing, so the next encode does not upload it again.
-    pub fn set_layer(&mut self, layer: UiLayer) {
+    pub fn set_layer(&mut self, mut layer: UiLayer) {
+        for command in layer.compositions.drain(..) {
+            self.pending_compositions.insert(command.output, command);
+        }
         if layer == self.layer {
             return;
         }
@@ -332,6 +345,7 @@ impl UiPass {
         format: wgpu::TextureFormat,
         size: (u32, u32),
     ) {
+        self.compose_textures(device, encoder);
         let (target, coverage) = targets;
         let ppp = self.layer.pixels_per_point.max(0.1);
         let (vertex_count, index_count) =
