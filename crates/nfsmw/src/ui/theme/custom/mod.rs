@@ -25,7 +25,6 @@ pub mod palette;
 mod radio_card;
 mod radio_feed;
 mod radio_placement;
-mod rounded;
 mod skin;
 mod speedometer;
 mod tachometer;
@@ -59,7 +58,6 @@ impl CustomTheme {
     pub fn new(radio: RadioFeedCell, drive: DriveFeedCell) -> Self {
         Self { id: ThemeId::Custom, tokens: palette::bevy(), radio, drive }
     }
-
 }
 
 impl Theme for CustomTheme {

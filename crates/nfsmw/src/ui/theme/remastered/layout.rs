@@ -16,6 +16,11 @@ pub(super) fn at(x: f32, y: f32) -> (f32, f32) {
 }
 
 /// A width and height of the reference picture on the canvas.
+/// A height on the canvas, as a height of the reference picture: the inverse of [`size`] for the vertical axis.
+pub(super) fn picture_height(canvas: f32) -> f32 {
+    canvas / scale_y()
+}
+
 pub(super) fn size(width: f32, height: f32) -> (f32, f32) {
     (width * scale_x(), height * scale_y())
 }

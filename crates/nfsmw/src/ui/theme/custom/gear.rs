@@ -4,11 +4,10 @@
 //!
 //! State comes from the feed (`drive_feed.rs`). `layout` reads it and lays the parts out; `build` emits them.
 
-use blackbox_ui::{Component, DrawList, LayoutCx, Rect, Text, justify};
+use blackbox_ui::{Component, DrawList, LayoutCx, Rect, Rounded, Text, justify};
 
 use super::drive_feed::{DriveFeed, DriveFeedCell};
 use super::drive_layout::{self, PIPS};
-use super::rounded::Rounded;
 use super::skin::drive;
 
 /// The gear letter's glyph scale.

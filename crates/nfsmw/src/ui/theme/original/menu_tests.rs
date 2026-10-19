@@ -76,7 +76,7 @@ fn tree_names(tree: &UiTree) -> Vec<u32> {
 
 #[test]
 fn the_menu_slots_list_every_menu_and_career_slot_of_the_catalogue() {
-    let catalogue: Vec<ElementId> = ElementId::ALL.iter().copied().filter(|slot| slot.raw() >= 20).collect();
+    let catalogue: Vec<ElementId> = ElementId::ALL.iter().copied().filter(|slot| slot.is_menu()).collect();
     assert_eq!(catalogue.len(), MENU_SLOTS.len());
     for slot in MENU_SLOTS {
         assert!(catalogue.contains(&slot), "{} is not a menu slot", slot.name());

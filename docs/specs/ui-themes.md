@@ -169,6 +169,7 @@ the T1 draft are resolved here.
 | `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
 | `TrackSelect` (24) | `Track_Select.fng` → `frontend/track_select.rs` (Quick Race, step one; the track list is not populated yet). **Confirmed** (was `?`) |
 | `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
+| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Remastered), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
 
 **Career screens (`frontend/career_screens/`):**
 
@@ -184,7 +185,7 @@ the T1 draft are resolved here.
 **Screens with no slot yet.** These exist but are not in the catalogue, because no theme needs to override them yet
 (the rule "each slot needs a consumer"): `Track_Options.fng` (`track_options.rs`), `Options_PC_Controller.fng` and
 `Pause_PC_Controller.fng` (`controls_screen.rs`), `Dialog.fng` (`confirm.rs`), `Credits.fng`, `EA_Trax_Jukebox.fng`
-(`jukebox.rs`), `WorldMapMain.fng` (`world_map/`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
+(`jukebox.rs`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
 a theme or a mod needs it, with its number from the next free block.
 
 **Slot kinds.** HUD slots receive a snapshot of `HudState` through `BuildCx`. Front-end slots receive the screen's

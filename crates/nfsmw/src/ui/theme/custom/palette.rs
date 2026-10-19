@@ -5,17 +5,21 @@ use blackbox_ui::Tokens;
 
 use crate::settings::UiTheme;
 
-/// The Bevy palette: a black panel at 170/255 alpha (the FPS counter's background), white digits and title, grey labels
-/// and credit, and a dim rule. The corners and the card padding are the Custom card's own.
+/// The corner radius of a palette's panels and bars, in FEng units.
+pub const DEFAULT_RADIUS: f32 = 14.0;
+
+/// The Bevy palette: a black panel at 170/255 alpha (the FPS counter's background), white digits and title, a cyan
+/// accent for the rev gauge, the nitrous and the speed breaker, grey labels, and a dim rule.
 pub fn bevy() -> Tokens {
     Tokens {
         primary: [255, 255, 255, 255],
-        secondary: [255, 200, 80, 255],
+        secondary: [120, 220, 255, 255],
         background: [0, 0, 0, 170],
         border: [255, 255, 255, 40],
-        muted: [180, 185, 195, 255],
-        radius: 6.0,
-        padding: 6.0,
+        muted: [150, 160, 172, 255],
+        radius: DEFAULT_RADIUS,
+        padding: 3.0,
+        text_scale: 1.0,
     }
 }
 
@@ -23,12 +27,13 @@ pub fn bevy() -> Tokens {
 pub fn remastered() -> Tokens {
     Tokens {
         primary: [255, 255, 255, 255],
-        secondary: [255, 196, 64, 255],
-        background: [0, 0, 0, 170],
-        border: [255, 255, 255, 34],
+        secondary: [255, 200, 80, 255],
+        background: [8, 8, 12, 180],
+        border: [255, 255, 255, 80],
         muted: [170, 170, 170, 255],
-        radius: 4.0,
-        padding: 6.0,
+        radius: DEFAULT_RADIUS,
+        padding: 3.0,
+        text_scale: 1.0,
     }
 }
 

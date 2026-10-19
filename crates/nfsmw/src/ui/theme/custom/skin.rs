@@ -26,21 +26,21 @@ pub(super) mod drive {
     use blackbox_ui::token_keys;
 
     pub const BACKGROUND: &str = token_keys::BACKGROUND;
-    pub const VALUE: &str = "drive.value";
-    pub const LABEL: &str = "drive.label";
-    pub const UNIT: &str = "drive.unit";
-    pub const REV_LIT: &str = "drive.rev.lit";
+    pub const VALUE: &str = token_keys::PRIMARY;
+    pub const LABEL: &str = token_keys::MUTED;
+    pub const UNIT: &str = token_keys::MUTED;
+    pub const REV_LIT: &str = token_keys::SECONDARY;
     pub const REV_WARN: &str = "drive.rev.warn";
     pub const REV_REDLINE: &str = "drive.rev.redline";
-    pub const TRACK: &str = "drive.track";
-    pub const GEAR_BOX: &str = "drive.gear.box";
+    pub const TRACK: &str = token_keys::BORDER;
+    pub const GEAR_BOX: &str = token_keys::BORDER;
     pub const GEAR_SHIFT: &str = "drive.gear.shift";
-    pub const GEAR_LETTER: &str = "drive.gear.letter";
-    pub const PIP_OFF: &str = "drive.pip.off";
-    pub const PIP_ON: &str = "drive.pip.on";
-    pub const NOS: &str = "drive.nos";
-    pub const BOOST: &str = "drive.boost";
-    pub const SPEEDBREAKER: &str = "drive.speedbreaker";
+    pub const GEAR_LETTER: &str = token_keys::SECONDARY;
+    pub const PIP_OFF: &str = token_keys::BORDER;
+    pub const PIP_ON: &str = token_keys::SECONDARY;
+    pub const NOS: &str = token_keys::SECONDARY;
+    pub const BOOST: &str = token_keys::SECONDARY;
+    pub const SPEEDBREAKER: &str = token_keys::SECONDARY;
     pub const FONT: &str = "drive.font";
 }
 
@@ -51,21 +51,9 @@ pub fn card_skin() -> Skin {
     let body = fe_hash_upper("FONT_MW_BODY");
     Skin::new()
         .with_font(keys::FONT, body)
-        .with_colour(drive::VALUE, [255, 255, 255, 255])
-        .with_colour(drive::LABEL, [150, 160, 172, 255])
-        .with_colour(drive::UNIT, [150, 160, 172, 255])
-        .with_colour(drive::REV_LIT, [120, 220, 255, 235])
         .with_colour(drive::REV_WARN, [255, 190, 60, 255])
         .with_colour(drive::REV_REDLINE, [255, 80, 90, 255])
-        .with_colour(drive::TRACK, [255, 255, 255, 26])
-        .with_colour(drive::GEAR_BOX, [255, 255, 255, 22])
         .with_colour(drive::GEAR_SHIFT, [255, 80, 90, 255])
-        .with_colour(drive::GEAR_LETTER, [120, 220, 255, 255])
-        .with_colour(drive::PIP_OFF, [255, 255, 255, 30])
-        .with_colour(drive::PIP_ON, [120, 220, 255, 255])
-        .with_colour(drive::NOS, [90, 200, 255, 255])
-        .with_colour(drive::BOOST, [255, 170, 80, 255])
-        .with_colour(drive::SPEEDBREAKER, [150, 255, 170, 255])
         .with_font(drive::FONT, RASTER_UPRIGHT_FONT_KEY)
 }
 

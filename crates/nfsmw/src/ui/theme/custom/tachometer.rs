@@ -5,15 +5,14 @@
 //!
 //! State comes from the feed (`drive_feed.rs`). `layout` reads it and lays the parts out; `build` emits them.
 
-use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, token_keys};
+use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, Rounded, token_keys};
 
 use super::drive_feed::{DriveFeed, DriveFeedCell};
 use super::drive_layout::{self, SEGMENTS};
-use super::rounded::Rounded;
 use super::skin::drive;
 
 /// The card's corner radius, in FEng units, when the theme declares none.
-pub(super) const CARD_RADIUS: f32 = 6.0;
+pub(super) const CARD_RADIUS: f32 = 14.0;
 
 /// Where the lit segments turn amber, as a fraction of the scale (before the red line).
 pub(super) const WARN_FRACTION: f32 = 0.85;

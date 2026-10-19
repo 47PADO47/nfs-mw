@@ -1,18 +1,24 @@
 //! The presenter for `blackbox-render`: quads and glyphs of the tree as premultiplied UI meshes, and the
 //! textures they need as UI texture patches.
 
+mod mirror;
+
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
 use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_ui::justify;
 use glam::{Vec3, Vec4};
 
+use self::mirror::{MIRROR_BEZEL, faded_alpha, mirror_picture};
 use super::{Screen, mask, repeat};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::ui::UiAssets;
 use crate::ui::assets::Image;
-use crate::ui::raster_text::{self, RASTER_FONT_KEY, RASTER_UPRIGHT_FONT_KEY};
+use crate::ui::raster_text::{
+    self, RASTER_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY, RASTER_UPRIGHT_FONT_KEY,
+};
 
 /// UI texture ids of the HUD carry this bit so they never meet egui's small ones.
 const HUD_TEXTURE_BIT: u64 = 1 << 62;
@@ -34,12 +40,6 @@ const RASTER_ITALIC: f32 = 0.18;
 const RASTER_UNITS_PER_SCALE: f32 = 10.0;
 /// The rear-view mirror's picture, uploaded by the app (`app::mirror`). Drawn under the bezel.
 pub const MIRROR_TEXTURE: UiTextureId = UiTextureId(0x4D49_5252_4F52);
-/// Name of the two bezel images of the mirror (`Mirror_Backing_Radar.tga`), in `HUD_SingleRace.fng`.
-const MIRROR_BEZEL: u32 = 0x5630_E0B9;
-/// The alpha the package gives those two images on their own.
-const MIRROR_OWN_ALPHA: u32 = 200;
-/// The glass inside the bezel, as fractions of the bezel's width and height that are left out on each side.
-const MIRROR_GLASS_INSET: [f32; 2] = [0.03, 0.05];
 
 /// A multi image drawn through its mask: the slot is the object's (and its mask's), whatever picture it shows.
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -75,7 +75,7 @@ pub struct BlackboxPresenter {
     repeated: HashMap<u32, ([u32; 2], bool)>,
     solid_uploaded: bool,
     /// Strings rasterised in the Windows font: the texture and the image's width over height, by the string.
-    raster: HashMap<String, (UiTextureId, f32)>,
+    raster: HashMap<(String, u32), (UiTextureId, f32)>,
 }
 
 fn id_of(hash: u32) -> UiTextureId {
@@ -130,52 +130,6 @@ impl MeshBuilder {
         }
         mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
-}
-
-/// The alpha of the mirror bezel: the package's alpha (200) scaled to the full
-/// range, so the fade of the group reaches 255 at the end.
-fn faded_alpha(alpha: u8) -> u8 {
-    (u32::from(alpha) * 255 / MIRROR_OWN_ALPHA).min(255) as u8
-}
-
-/// The rear-view picture, over the rectangle the mirror's bezel covers. The bezel is drawn after it, so the frame
-/// sits on top of the picture's edges.
-fn mirror_picture(tree: &UiTree, builder: &mut MeshBuilder, scale: f32, origin: [f32; 2]) {
-    let mut lo = [f32::MAX; 2];
-    let mut hi = [f32::MIN; 2];
-    let mut bezel_alpha = None;
-    for node in tree.draw_order.iter().map(|&i| &tree.nodes[i]).filter(|n| n.name_hash == MIRROR_BEZEL) {
-        bezel_alpha.get_or_insert(node.world_colour[3]);
-        for (x, y) in [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)] {
-            let p = (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
-            lo = [lo[0].min(p.x), lo[1].min(p.y)];
-            hi = [hi[0].max(p.x), hi[1].max(p.y)];
-        }
-    }
-    if lo[0] > hi[0] {
-        return;
-    }
-    // The bezel is a frame around the glass: the picture covers the glass, not the frame. Insets are fractions of the
-    // bezel's size, measured on the reference screenshot.
-    let (w, h) = (hi[0] - lo[0], hi[1] - lo[1]);
-    lo = [lo[0] + w * MIRROR_GLASS_INSET[0], lo[1] + h * MIRROR_GLASS_INSET[1]];
-    hi = [hi[0] - w * MIRROR_GLASS_INSET[0], hi[1] - h * MIRROR_GLASS_INSET[1]];
-    let corners = [
-        Vec3::new(lo[0], lo[1], 0.0),
-        Vec3::new(hi[0], lo[1], 0.0),
-        Vec3::new(hi[0], hi[1], 0.0),
-        Vec3::new(lo[0], hi[1], 0.0),
-    ];
-    // The picture fades with the bezel: it takes the bezel's alpha, scaled to the full range.
-    let alpha = faded_alpha(bezel_alpha.unwrap_or(0));
-    builder.quad(
-        MIRROR_TEXTURE,
-        corners,
-        [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
-        vertex_colour([255, 255, 255, alpha], false),
-        scale,
-        origin,
-    );
 }
 
 impl BlackboxPresenter {
@@ -252,20 +206,33 @@ impl BlackboxPresenter {
         &mut self,
         node: &UiNode,
         text: &str,
+        font_key: u32,
+        justification: u32,
         lean_fraction: f32,
         out: &mut UiOutput,
         builder: &mut MeshBuilder,
         scale: f32,
         origin: [f32; 2],
     ) {
-        let (id, aspect) = match self.raster.get(text) {
+        // The Remastered text is drawn wider and heavier than the Custom text, so the two keep apart in the cache.
+        let look = match font_key {
+            RASTER_FONT_KEY => raster_text::REMASTERED,
+            RASTER_NUMBER_FONT_KEY => raster_text::NUMBERS,
+            _ => raster_text::PLAIN,
+        };
+        let key = (text.to_owned(), font_key);
+        let (id, aspect) = match self.raster.get(&key) {
             Some(entry) => *entry,
             None => {
-                let Some(image) = raster_text::render(text) else { return };
+                let rendered = match font_key {
+                    RASTER_MONO_FONT_KEY => raster_text::render_mono(text, look),
+                    _ => raster_text::render(text, look),
+                };
+                let Some(image) = rendered else { return };
                 let aspect = image.width as f32 / image.height as f32;
                 let id = UiTextureId(RASTER_TEXTURE_BIT | self.raster.len() as u64);
                 send(id, image, out);
-                self.raster.insert(text.to_owned(), (id, aspect));
+                self.raster.insert(key, (id, aspect));
                 (id, aspect)
             }
         };
@@ -276,8 +243,17 @@ impl BlackboxPresenter {
             return;
         }
         let width = height * aspect * RASTER_UNITS_ASPECT;
+        // The node's point is the text's left, centre or right edge, as its justification says, so the text is drawn
+        // from that edge.
+        let shift = if justification & justify::H_RIGHT != 0 {
+            -width / 2.0
+        } else if justification & justify::H_CENTRE != 0 {
+            0.0
+        } else {
+            width / 2.0
+        };
         let centre = node.world.w_axis;
-        let (cx, cy) = (centre.x, centre.y);
+        let (cx, cy) = (centre.x + shift, centre.y);
         let lean = lean_fraction * height / 2.0;
         let corners = [
             Vec3::new(cx - width / 2.0 + lean, cy - height / 2.0, 0.0),
@@ -414,10 +390,12 @@ impl BlackboxPresenter {
         scale: f32,
         origin: [f32; 2],
     ) {
-        if font_key == RASTER_FONT_KEY || font_key == RASTER_UPRIGHT_FONT_KEY {
-            let lean = if font_key == RASTER_FONT_KEY { RASTER_ITALIC } else { 0.0 };
+        if [RASTER_FONT_KEY, RASTER_NUMBER_FONT_KEY, RASTER_UPRIGHT_FONT_KEY, RASTER_MONO_FONT_KEY].contains(&font_key)
+        {
+            let upright = font_key == RASTER_UPRIGHT_FONT_KEY || font_key == RASTER_MONO_FONT_KEY;
+            let lean = if upright { 0.0 } else { RASTER_ITALIC };
             if let Some(text) = node.text.as_deref() {
-                self.raster_text(node, text, lean, out, builder, scale, origin);
+                self.raster_text(node, text, font_key, style.justification, lean, out, builder, scale, origin);
             }
             return;
         }

@@ -3,8 +3,8 @@
 
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, NodeKind, Rect, SlotId, Theme, UiNode};
 
-use super::radio_card::{FADE_SECS, RadioCard, SHOW_SECS};
 use super::palette;
+use super::radio_card::{FADE_SECS, RadioCard, SHOW_SECS};
 use super::{CustomTheme, DriveFeedCell, RadioFeedCell, card_skin};
 use crate::audio::NowPlaying;
 use crate::hud::RadioHud;
@@ -108,8 +108,10 @@ fn the_card_builds_nothing_when_idle_or_past_its_fade() {
 #[test]
 fn the_card_sits_where_the_hud_layout_puts_it() {
     // 1080p, 16:9, PC layout: the card's top-left corner is (-420, -228) in FEng units, and its box is 242 by 60
-    // units, so its background centre is at (-299, -198).
+    // units. The background is inset by the palette's padding, so its centre is at (-305, -204) plus that padding.
     let nodes = card_at(Some(song(false)), 0.0);
     let centre = nodes[0].world.w_axis;
-    assert!((centre.x - -299.0).abs() < 1e-3 && (centre.y - -198.0).abs() < 1e-3, "{centre:?}");
+    let padding = palette::bevy().padding;
+    let (x, y) = (-305.0 + padding, -204.0 + padding);
+    assert!((centre.x - x).abs() < 1e-3 && (centre.y - y).abs() < 1e-3, "{centre:?}");
 }

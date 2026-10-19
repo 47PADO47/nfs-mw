@@ -31,7 +31,7 @@ pub use frame::{FengSource, FrameCell};
 pub(crate) use hud_slots::claim_counts;
 pub(crate) use hud_slots::{HUD_SLOTS, emit_unclaimed};
 
-use blackbox_ui::{BuildCx, Component, SlotId, Theme, ThemeId};
+use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
 use super::ElementId;
 
@@ -57,6 +57,11 @@ impl Theme for OriginalTheme {
     fn element(&self, slot: SlotId, _cx: &BuildCx<'_>) -> Option<Box<dyn Component>> {
         // A slot id outside the catalogue (a mod's, or a retired one) has no Original component.
         let element = ElementId::from_slot(slot)?;
+        // The world map's chrome is an overlay only alternative themes draw. Original leaves it empty, so the FEng map
+        // screen keeps drawing its own list, card, tab and zoom.
+        if element == ElementId::WorldMapChrome {
+            return Some(Box::new(Empty));
+        }
         if let Some(adapter) = hud_slots::adapter(&self.frame, element) {
             return Some(Box::new(adapter));
         }

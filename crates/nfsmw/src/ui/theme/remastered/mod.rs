@@ -9,10 +9,15 @@
 //! - [`skin`]: the colours and fonts the components read, by key.
 //!
 //! State comes from the same drive feed the Custom theme reads (`custom::DriveFeedCell`), filled once per frame by the HUD.
+//!
+//! The Remastered map is the live FEng screen recoloured dark and translucent in place
+//! (`frontend/world_map/screen/restyle.rs`), with its own list hidden and replaced by [`MapLegend`] — the `WorldMapChrome`
+//! slot. Providing the slot is also what tells the frontend plugin to run the recolour and fill the legend.
 
 mod bar;
 mod dial;
 mod layout;
+mod map_legend;
 mod readout;
 mod skin;
 #[cfg(test)]
@@ -20,24 +25,26 @@ mod tests;
 
 pub use bar::{Bar, Gauge};
 pub use dial::Dial;
+pub use map_legend::{MapLegend, WorldMapLegendCell};
 pub use readout::Readout;
-pub use skin::skin;
+pub use skin::{palette_skin, skin};
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
 use crate::ui::theme::ElementId;
 use crate::ui::theme::custom::DriveFeedCell;
 
-/// The Remastered theme. It holds the drive feed the cluster reads.
+/// The Remastered theme. It holds the drive feed the cluster reads and the legend the themed map draws.
 #[derive(Clone, Debug, Default)]
 pub struct RemasteredTheme {
     drive: DriveFeedCell,
+    legend: WorldMapLegendCell,
 }
 
 impl RemasteredTheme {
-    /// The Remastered theme whose cluster reads `drive`.
-    pub fn new(drive: DriveFeedCell) -> Self {
-        Self { drive }
+    /// The Remastered theme whose cluster reads `drive` and whose map legend reads `legend`.
+    pub fn new(drive: DriveFeedCell, legend: WorldMapLegendCell) -> Self {
+        Self { drive, legend }
     }
 }
 
@@ -52,9 +59,11 @@ impl Theme for RemasteredTheme {
             ElementId::Speedometer => Some(Box::new(Readout::new(self.drive.clone()))),
             ElementId::Nitrous => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Nitrous))),
             ElementId::Speedbreaker => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Speedbreaker))),
-            ElementId::Turbo => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Boost))),
+            ElementId::Turbo => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Supercharger))),
             // The cluster draws the gear inside the dial, so the original gear digit stays hidden.
             ElementId::GearIndicator => Some(Box::new(Empty)),
+            // The map is recoloured in place by the frontend; this draws the themed legend over it.
+            ElementId::WorldMapChrome => Some(Box::new(MapLegend::new(self.legend.clone()))),
             _ => None,
         }
     }

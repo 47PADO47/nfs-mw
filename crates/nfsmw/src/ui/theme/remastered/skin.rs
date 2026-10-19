@@ -1,45 +1,68 @@
-//! The Remastered skin: the colours and fonts the cluster reads, by key. Keys are namespaced `remastered.*`, so they sit
-//! beside the Custom keys in the one skin the registry hands out (`ui/theme/mod.rs`).
+//! The Remastered skin: maps the cluster's keys to the theme's token colours where they express the same intent (primary
+//! for bright digits, secondary for gold accents, muted for dim labels, border for tracks). Keys that are tints of a
+//! token colour stay as custom entries. Font scale metrics let the components read their sizes from the skin.
 
-use crate::ui::raster_text::RASTER_FONT_KEY;
-use blackbox_ui::Skin;
+use blackbox_feng::resource_handle;
+use blackbox_ui::{Skin, Tokens};
 
-/// The skin keys the cluster reads.
+use crate::frontend::world_map::control::MAP_ICON_FILES;
+use crate::ui::raster_text::{RASTER_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY};
+
+/// The skin keys the cluster reads. Token-backed keys point directly at `token_keys::*`; custom keys are namespaced
+/// `remastered.*` so they sit beside the Custom theme's keys in the shared skin.
 pub(super) mod keys {
-    pub const ARC_LIT: &str = "remastered.arc.lit";
-    pub const ARC_DIM: &str = "remastered.arc.dim";
-    pub const ARC_REDLINE: &str = "remastered.arc.redline";
+    use blackbox_ui::token_keys;
+
+    pub const ARC_LIT: &str = token_keys::PRIMARY;
+    pub const ARC_DIM: &str = token_keys::BORDER;
+    pub const ARC_REDLINE: &str = token_keys::SECONDARY;
     pub const ARC_REDLINE_DIM: &str = "remastered.arc.redline_dim";
-    pub const TICK: &str = "remastered.tick";
-    pub const TICK_REDLINE: &str = "remastered.tick.redline";
-    pub const VALUE: &str = "remastered.value";
-    pub const UNIT: &str = "remastered.unit";
-    pub const UNIT_HIGHLIGHT: &str = "remastered.unit.highlight";
-    pub const GEAR: &str = "remastered.gear";
-    pub const BAR_TRACK: &str = "remastered.bar.track";
-    pub const BAR_FILL: &str = "remastered.bar.fill";
-    pub const BAR_LABEL: &str = "remastered.bar.label";
+    pub const TICK: &str = token_keys::MUTED;
+    pub const TICK_REDLINE: &str = token_keys::SECONDARY;
+    pub const VALUE: &str = token_keys::PRIMARY;
+    pub const UNIT: &str = token_keys::MUTED;
+    pub const UNIT_HIGHLIGHT: &str = token_keys::SECONDARY;
+    pub const GEAR: &str = token_keys::MUTED;
+    pub const BAR_TRACK: &str = token_keys::BORDER;
+    pub const BAR_FILL: &str = token_keys::SECONDARY;
+    pub const BAR_BORDER: &str = token_keys::BORDER;
+    pub const BAR_LABEL: &str = token_keys::SECONDARY;
+    pub const CLUSTER_BG: &str = token_keys::BACKGROUND;
     pub const FONT_NUMBERS: &str = "remastered.font.numbers";
     pub const FONT_TEXT: &str = "remastered.font.text";
+    /// The map legend's font: the upright monospace the FPS overlay uses, so the legend is not leaned like the cluster.
+    pub const FONT_LEGEND: &str = "remastered.font.legend";
+    pub const SCALE_SPEED: &str = "remastered.scale.speed";
+    pub const SCALE_UNIT: &str = "remastered.scale.unit";
+    pub const SCALE_GEAR: &str = "remastered.scale.gear";
+    pub const SCALE_TICK: &str = "remastered.scale.tick";
+    pub const SCALE_BAR_LABEL: &str = "remastered.scale.bar_label";
 }
 
-/// The Remastered skin: white arc and numbers, gold for the red line and the highlighted H of MPH, a grey unit, and a solid
-/// gold bar. Every text uses the same font (`raster_text`).
-pub fn skin() -> Skin {
+/// The Remastered entries that follow the selected palette: the redline tint of its secondary colour, and the font sizes,
+/// which the palette's `text_scale` multiplies. The registry merges it over the palette's tokens for the Remastered HUD.
+pub fn palette_skin(tokens: &Tokens) -> Skin {
+    let [r, g, b, _] = tokens.secondary;
+    let scale = tokens.text_scale;
     Skin::new()
-        .with_colour(keys::ARC_LIT, [255, 255, 255, 255])
-        .with_colour(keys::ARC_DIM, [255, 255, 255, 120])
-        .with_colour(keys::ARC_REDLINE, [255, 196, 64, 255])
-        .with_colour(keys::ARC_REDLINE_DIM, [255, 196, 64, 120])
-        .with_colour(keys::TICK, [235, 235, 235, 255])
-        .with_colour(keys::TICK_REDLINE, [255, 196, 64, 255])
-        .with_colour(keys::VALUE, [255, 255, 255, 255])
-        .with_colour(keys::UNIT, [170, 170, 170, 255])
-        .with_colour(keys::UNIT_HIGHLIGHT, [255, 196, 64, 255])
-        .with_colour(keys::GEAR, [255, 255, 255, 255])
-        .with_colour(keys::BAR_TRACK, [255, 255, 255, 34])
-        .with_colour(keys::BAR_FILL, [255, 190, 70, 255])
-        .with_colour(keys::BAR_LABEL, [255, 196, 64, 255])
-        .with_font(keys::FONT_NUMBERS, RASTER_FONT_KEY)
+        .with_colour(keys::ARC_REDLINE_DIM, [r, g, b, 100])
+        .with_metric(keys::SCALE_SPEED, 3.4 * scale)
+        .with_metric(keys::SCALE_UNIT, 1.6 * scale)
+        .with_metric(keys::SCALE_GEAR, 2.4 * scale)
+        .with_metric(keys::SCALE_TICK, 1.4 * scale)
+        .with_metric(keys::SCALE_BAR_LABEL, 0.7 * scale)
+}
+
+/// The Remastered skin. Token-backed colours are supplied by the theme's `Tokens::skin()` merge; this function provides
+/// the custom entries, the fonts, and the map legend's blip-icon textures (keyed by their file name, so the legend
+/// draws an icon by the file [`icon_name`](crate::frontend::world_map::control::icon_name) returns).
+pub fn skin() -> Skin {
+    let mut skin = Skin::new()
+        .with_font(keys::FONT_NUMBERS, RASTER_NUMBER_FONT_KEY)
         .with_font(keys::FONT_TEXT, RASTER_FONT_KEY)
+        .with_font(keys::FONT_LEGEND, RASTER_MONO_FONT_KEY);
+    for file in MAP_ICON_FILES {
+        skin = skin.with_texture(file, resource_handle(file));
+    }
+    skin
 }

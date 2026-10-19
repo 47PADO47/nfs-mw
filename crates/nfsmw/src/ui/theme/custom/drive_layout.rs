@@ -13,7 +13,7 @@ use crate::ui::present::Screen;
 /// The card's size and padding, in FEng units.
 const CARD_WIDTH: f32 = 210.0;
 const CARD_HEIGHT: f32 = 112.0;
-const PAD: f32 = 14.0;
+const PAD: f32 = 16.0;
 const INNER: f32 = CARD_WIDTH - 2.0 * PAD;
 /// Never closer to the window's edge than this many points.
 const EDGE: f32 = 6.0;

@@ -14,15 +14,17 @@ use crate::hud::HudState;
 use crate::ui::present::Screen;
 use crate::ui::theme::ElementId;
 
-const REV_LIT: [u8; 4] = [120, 220, 255, 235];
+// The palette's secondary (the accent) and border, as the Bevy palette sets them; the status colours are fixed.
+const ACCENT: [u8; 4] = [120, 220, 255, 255];
+const REV_LIT: [u8; 4] = ACCENT;
 const REV_WARN: [u8; 4] = [255, 190, 60, 255];
 const REV_REDLINE: [u8; 4] = [255, 80, 90, 255];
-const TRACK: [u8; 4] = [255, 255, 255, 26];
-const PIP_ON: [u8; 4] = [120, 220, 255, 255];
-const PIP_OFF: [u8; 4] = [255, 255, 255, 30];
-const NOS: [u8; 4] = [90, 200, 255, 255];
-const BOOST: [u8; 4] = [255, 170, 80, 255];
-const SPEEDBREAKER: [u8; 4] = [150, 255, 170, 255];
+const TRACK: [u8; 4] = [255, 255, 255, 40];
+const PIP_ON: [u8; 4] = ACCENT;
+const PIP_OFF: [u8; 4] = [255, 255, 255, 40];
+const NOS: [u8; 4] = ACCENT;
+const BOOST: [u8; 4] = ACCENT;
+const SPEEDBREAKER: [u8; 4] = ACCENT;
 const SHIFT: [u8; 4] = [255, 80, 90, 255];
 
 /// A 16:9 window at 1080p, one point per pixel.
