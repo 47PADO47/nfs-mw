@@ -1,6 +1,6 @@
 # Experimental ambient occlusion
 
-Spatial GTAO, XeGTAO and a hemisphere-kernel SSAO reference in the native `blackbox-render` backend. AO and contact shadows share
+Spatial GTAO, XeGTAO, temporal half-resolution XeGTAO and a hemisphere-kernel SSAO reference in the native `blackbox-render` backend. AO and contact shadows share
 a reverse-Z depth/world-normal prepass. AO produces an ambient visibility mask
 before colour shading, with no motion vectors or temporal history. It is off by
 default in normal settings; the Graphics Lab launcher selects Medium. Other backends
@@ -200,3 +200,22 @@ passes and deinterleaved resources require a WGPU port or explicit native API br
 license rather than this project's permitted port licenses; no code is imported.
 Ray-traced AO additionally needs acceleration structures, dynamic geometry updates
 and denoising. None of these methods can compensate for a material omitting AO.
+
+## Optional temporal half-resolution method
+
+`xegtao-temporal` in F8 Effects always estimates visibility at half resolution.
+It rotates sampling over frames, uses one edge-aware spatial denoise, then
+reprojects AO-only history using independent camera/object motion. This works
+without a temporal upscaler and does not read presented frames or UI. Existing
+spatial methods and defaults retain their paths.
+
+History rejects camera cuts, projection/size changes, long frame gaps, changed AO
+settings, out-of-view samples, depth discontinuities and normal disagreement.
+Accepted history is clamped to the current local visibility range. Moving
+surfaces whose old depth cannot be established conservatively use current AO.
+The approach builds on the temporal sampling discussion in the GTAO research
+already cited above; the reprojection and rejection shader is a custom implementation.
+
+Synthetic GPU coverage checks contact visibility, newly exposed open planes,
+camera-cut cold starts, odd-size resizing, and exact spatial-method round trips
+on Vulkan and DX12. This does not establish visual quality during a full drive.

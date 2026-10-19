@@ -80,7 +80,7 @@ fn generate_xegtao(@builtin(global_invocation_id) id: vec3<u32>) {
     let min_s = 1.3 / screen_radius;
     let slices = f32(params.sampling.y);
     let steps = f32(params.sampling.z);
-    let noise = sample_phase(id.xy);
+    let noise = fract(sample_phase(id.xy) + params.fog.w * vec2<f32>(0.754877666, 0.569840296));
     var visibility = clamp((10.0-screen_radius)/100.0,0.0,1.0)*0.5;
     var open_visibility = 0.0;
     for (var slice=0u; slice<params.sampling.y; slice++) {

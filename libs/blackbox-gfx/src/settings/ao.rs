@@ -1,4 +1,4 @@
-//! Experimental screen-space contact occlusion. No temporal history or game-specific data.
+//! Independent spatial and temporal screen-space ambient occlusion settings.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum AoQuality {
@@ -56,15 +56,24 @@ pub enum AoMethod {
     Gtao,
     Ssao,
     XeGtao,
+    /// Half-resolution XeGTAO with independent motion-reprojected history.
+    TemporalXeGtao,
 }
 
 impl AoMethod {
-    pub const ALL: [Self; 3] = [Self::Gtao, Self::Ssao, Self::XeGtao];
+    pub const ALL: [Self; 4] = [Self::Gtao, Self::Ssao, Self::XeGtao, Self::TemporalXeGtao];
+    pub const fn is_xe(self) -> bool {
+        matches!(self, Self::XeGtao | Self::TemporalXeGtao)
+    }
+    pub const fn temporal(self) -> bool {
+        matches!(self, Self::TemporalXeGtao)
+    }
     pub const fn name(self) -> &'static str {
         match self {
             Self::Gtao => "gtao",
             Self::Ssao => "ssao",
             Self::XeGtao => "xegtao",
+            Self::TemporalXeGtao => "xegtao-temporal",
         }
     }
 }
@@ -74,7 +83,7 @@ impl std::str::FromStr for AoMethod {
         Self::ALL
             .into_iter()
             .find(|m| m.name() == s.trim().to_ascii_lowercase())
-            .ok_or_else(|| format!("expected gtao, ssao or xegtao, got {s:?}"))
+            .ok_or_else(|| format!("expected gtao, ssao, xegtao or xegtao-temporal, got {s:?}"))
     }
 }
 impl std::fmt::Display for AoMethod {

@@ -313,6 +313,7 @@ fn assemble(
         smaa: None,
         shadow_casters: None,
         ao: None,
+        effect_motion: None,
         contact: None,
         surfaces: None,
         reuse_prepass_depth: true,

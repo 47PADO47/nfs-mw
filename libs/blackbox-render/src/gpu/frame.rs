@@ -131,6 +131,7 @@ impl Renderer {
         }
         let depth = targets.unwrap_or(&self.targets).depth_view().clone();
         self.encode_surfaces(encoder, size, frame, instances, &depth);
+        self.encode_effect_motion(encoder, frame, instances);
         self.encode_contact(encoder, size, frame);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 5);

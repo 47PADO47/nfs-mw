@@ -7,7 +7,9 @@
 //! ([`Renderer::world_to_clip`]), and the motion pass writes the vectors from the unjittered matrices. Any other
 //! frame draws as before, and the next temporal frame starts from a reset.
 
+mod effects;
 mod history;
+pub(in crate::gpu) use effects::EffectMotion;
 mod motion;
 #[cfg(test)]
 mod tests;

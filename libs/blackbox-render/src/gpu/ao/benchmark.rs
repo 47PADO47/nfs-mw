@@ -83,6 +83,7 @@ fn ao_gpu_timings() {
                         &queue,
                         &mut encoder,
                         Draw {
+                            motion: None,
                             target: &color,
                             depth: &depth,
                             size,
