@@ -173,8 +173,8 @@ visibility power (2.2), slope-adjusted packed edges, symmetric edge rejection an
 the nine-tap spatial denoiser (four intermediate passes with beta 0.24, final beta 1.2).
 Five spatial passes suppress undersampling noise without temporal history or extra
 images: the existing two images alternate as input and output. High uses four slices
-and four steps on both sides: 32 depth samples at full resolution. Medium uses 24
-and Low uses 12 at half width/height. These budgets trade some fine detail for camera
+and eight steps on both sides: 64 depth samples at full resolution. Medium uses 36
+and Low uses 24 at half width/height. These budgets trade some fine detail for camera
 stability without Intel's host TAA; they differ from its reference 18-sample High preset.
 
 The optional depth hierarchy uses four half-resolution-and-smaller R32F levels for
@@ -185,7 +185,7 @@ are reconstructed at their selected texel centers to avoid false slopes.
 
 Integration differences from Intel's complete implementation: FP32 shader arithmetic,
 RGBA16F intermediates instead of integer working-term textures, exact `acos`, shared
-authored normals and reverse-Z geometry, fixed Hilbert/R2 noise, normalization against
+authored normals and reverse-Z geometry, decorrelated per-pixel sample phases, normalization against
 each unobstructed slice and a small coplanar rejection bias to preserve open slopes,
 engine distance fade and common R8
 ambient composition. There are no bent
@@ -207,7 +207,7 @@ and denoising. None of these methods can compensate for a material omitting AO.
 ## Optional temporal half-resolution method
 
 `xegtao-temporal` in F8 Effects always estimates visibility at half resolution.
-It rotates sampling over frames, uses three edge-aware spatial denoise passes, then
+It changes sampling over frames, uses three edge-aware spatial denoise passes, then
 reprojects AO-only history using independent camera/object motion. This works
 without a temporal upscaler and does not read presented frames or UI. Existing
 spatial methods and defaults retain their paths.
@@ -256,3 +256,23 @@ removal, camera cuts and odd-sized resize coverage remain separate checks.
 These synthetic metrics do not establish in-game visual quality; inspect fine
 car geometry and moving contacts in a driving test. Single-layer depth limitations
 and thin-geometry over-occlusion still apply.
+
+## Sampling pattern regression at 4K
+
+XeGTAO uses independent hashed angular/radial phases instead of the shared
+Hilbert/R2 pair retained by `gtao`. The former correlated pair produced coherent
+vertical blocks in a 4K raised-body/road fixture, including after temporal warmup.
+Pixel/frame seeding changes the temporal samples without rotating the same
+structured pattern. Spatial phases remain deterministic and time independent.
+Sample counts, radius, filter passes, history weight and intensity are unchanged.
+
+The integer permutation is Chris Wellons' `lowbias32` from
+[Hash Function Prospector](https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c)
+(Unlicense/public domain; credited in NOTICE). The pixel/frame seeding is custom.
+The Vulkan regression compares each quality against the former noise and a dense
+24-by-24 reference using the same filtering/resolution. It requires at least a
+30 percent reduction in coherent column error without materially increasing
+contact-shape error. A slow-camera sequence samples fixed ground points to check
+temporal noise independently of screen movement. Optional diagnostic exports
+separate raw estimates, filtered estimates and resolved history. These checks
+do not replace driving and fine-geometry review; residual grain can remain.

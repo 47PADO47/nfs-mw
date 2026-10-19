@@ -48,11 +48,15 @@ fn spatial_sampling_reduces_error_against_a_dense_reference() {
     assert!(improved, "each quality must reduce fixed sampling error");
 }
 
-fn pipeline(renderer: &crate::Renderer, slices: u32, steps: u32) -> wgpu::ComputePipeline {
+pub(super) fn pipeline(renderer: &crate::Renderer, slices: u32, steps: u32) -> wgpu::ComputePipeline {
     let source = super::sources()[0]
         .1
         .replace("params.sampling.y", &format!("{slices}u"))
         .replace("params.sampling.z", &format!("{steps}u"));
+    source_pipeline(renderer, source)
+}
+
+pub(super) fn source_pipeline(renderer: &crate::Renderer, source: String) -> wgpu::ComputePipeline {
     let module = renderer.device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("dense AO sampling reference"),
         source: wgpu::ShaderSource::Wgsl(source.into()),

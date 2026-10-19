@@ -5,6 +5,8 @@ mod benchmark;
 mod bindings;
 #[cfg(test)]
 mod contact_tests;
+#[cfg(test)]
+mod convergence_tests;
 mod depth;
 #[cfg(test)]
 mod depth_tests;
@@ -61,7 +63,9 @@ impl Images {
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba16Float,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::STORAGE_BINDING
+                        | wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC,
                     view_formats: &[],
                 })
                 .create_view(&wgpu::TextureViewDescriptor::default())

@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 // Source: GameTechDev/XeGTAO, a5b1686c7ea37788eeb3576b5be47f7c03db532c,
 // Source/Rendering/Shaders/XeGTAO.hlsli: MainPass, CalculateEdges, PackEdges.
-// Shares the licensed Hilbert/R2 noise and arc integral from ao_horizon.wgsl.
+// Shares the licensed arc integral from ao_horizon.wgsl.
 
 fn xe_edges(pixel: vec2<i32>, center_z: f32) -> f32 {
     let step=i32(params.sampling.x);
@@ -32,6 +32,23 @@ fn xe_edges(pixel: vec2<i32>, center_z: f32) -> f32 {
     edges = min(abs(edges), abs(edges + vec4<f32>(slope.x,-slope.x,slope.y,-slope.y)));
     let continuity = clamp(1.25 - edges / max(center_z * 0.011, 1e-6), vec4<f32>(0.0), vec4<f32>(1.0));
     return dot(round(continuity * 2.9), vec4<f32>(64.0,16.0,4.0,1.0));
+}
+
+// lowbias32, Hash Function Prospector (Chris Wellons), Unlicense/public domain.
+// https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c
+// README.md, lowbias32.
+// Unlike the correlated Hilbert/R2 pair, these independent phases do not form
+// visible columns in sparse horizon searches without a following TAA pass.
+fn xe_hash(value: u32) -> u32 {
+    var h = value;
+    h = (h ^ (h >> 16u)) * 0x7feb352du;
+    h = (h ^ (h >> 15u)) * 0x846ca68bu;
+    return h ^ (h >> 16u);
+}
+
+fn xe_phase(pixel: vec2<u32>) -> vec2<f32> {
+    let seed = xe_hash(pixel.x ^ xe_hash(pixel.y) ^ (u32(params.fog.w) * 0x9e3779b9u));
+    return vec2<f32>(f32(seed & 0xffffffu), f32(xe_hash(seed) & 0xffffffu)) / 16777216.0;
 }
 
 fn xe_position(pixel: vec2<i32>, offset: vec2<i32>) -> vec3<f32> {
@@ -87,7 +104,7 @@ fn generate_xegtao(@builtin(global_invocation_id) id: vec3<u32>) {
     let min_s = 1.3 / screen_radius;
     let slices = f32(params.sampling.y);
     let steps = f32(params.sampling.z);
-    let noise = fract(sample_phase(id.xy) + params.fog.w * vec2<f32>(0.754877666, 0.569840296));
+    let noise = xe_phase(id.xy);
     var visibility = clamp((10.0-screen_radius)/100.0,0.0,1.0)*0.5;
     var open_visibility = 0.0;
     for (var slice=0u; slice<params.sampling.y; slice++) {
