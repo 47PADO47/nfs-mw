@@ -29,8 +29,11 @@ impl Work {
         let fresh = self.activity.sample > 0 && (0.0..=2500.0).contains(&self.activity.age_ms);
         let cpu = fresh.then(|| valid(self.activity.main_thread_busy_percent)).flatten();
         let gpu = fresh.then(|| valid(self.activity.gpu_busy_percent)).flatten();
+        let waits = self.acquire_ms + self.present_ms;
+        // Driver pacing/present can busy-spin: OS CPU time alone must not turn that into game CPU pressure.
+        let cpu_pressure = cpu.is_some_and(|v| v >= 85.0) && waits + self.sleep_ms <= frame_ms * 0.2;
         if gpu.is_some_and(|v| v >= 90.0) {
-            if cpu.is_some_and(|v| v >= 85.0) {
+            if cpu_pressure {
                 return result(
                     "CPU + GPU pressure",
                     "Both are busy: profile simulation/draw preparation and GPU passes separately.",
@@ -47,13 +50,6 @@ impl Work {
                 "GPU engine is saturated. Profile shadows, AO, reflections and pixel/render cost.",
             );
         }
-        if cpu.is_some_and(|v| v >= 85.0) && gpu.is_some_and(|v| v < 75.0) {
-            return result(
-                "Likely CPU main-thread limited",
-                "GPU has measured headroom. Profile simulation, visibility, draw preparation and driver CPU cost.",
-            );
-        }
-        let waits = self.acquire_ms + self.present_ms;
         if vsync && waits + self.sleep_ms > frame_ms * 0.2 && gpu.is_some_and(|v| v < 85.0) {
             return result("VSync / presentation pacing", "Disable pacing for an uncapped CPU/GPU comparison.");
         }
@@ -67,6 +63,12 @@ impl Work {
             return result(
                 "Pacing / idle; no proven bottleneck",
                 "Reflex sleep alone does not establish CPU or GPU limitation.",
+            );
+        }
+        if cpu_pressure && gpu.is_some_and(|v| v < 75.0) {
+            return result(
+                "Likely CPU main-thread limited",
+                "GPU has measured headroom. Profile simulation, visibility, draw preparation and driver CPU cost.",
             );
         }
         if cpu.is_none() || gpu.is_none() {
@@ -108,13 +110,18 @@ mod tests {
     }
     #[test]
     fn caps_and_waits_never_turn_into_cpu_saturation() {
-        let mut work = measured(25.0, 40.0);
+        let mut work = measured(99.0, 40.0);
         work.present_ms = 10.0;
         assert_eq!(work.limit(16.0, None, false, true, true).label, "FG / presentation wait; limit uncertain");
         assert_eq!(work.limit(16.0, None, true, true, true).label, "VSync / presentation pacing");
         // Cap uses base cadence, regardless of a 2x-6x presented rate.
         assert_eq!(work.limit(1000.0 / 60.0, Some(60.0), false, true, true).label, "At frame cap / pacing");
         assert_eq!(work.limit(16.0, None, false, false, true).label, "Background / unfocused");
+        work.present_ms = 0.0;
+        work.sleep_ms = 10.0;
+        assert_eq!(work.limit(16.0, None, false, true, true).label, "Pacing / idle; no proven bottleneck");
+        work.activity.gpu_busy_percent = Some(98.0);
+        assert_eq!(work.limit(16.0, None, false, true, true).label, "Likely GPU limited (rendering / FG)");
     }
     #[test]
     fn missing_stale_or_invalid_counters_are_unknown_not_idle() {

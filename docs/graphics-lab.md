@@ -389,7 +389,9 @@ missing counters retain unavailable status, never fabricated idle values.
 
 The bottleneck estimate uses fresh OS samples (at most 2.5 seconds old): at least
 90% on a GPU engine indicates GPU pressure; at least 85% on the main thread with
-less than 75% GPU activity indicates likely CPU-main-thread pressure. Both busy
+less than 75% GPU activity and little explicit pacing/wait time indicates likely
+CPU-main-thread pressure. Significant waits/pacing suppress CPU attribution even
+when a driver busy-spin consumes CPU time. Both busy
 means mixed pressure. A reached base-frame cap takes priority. Pacing and waits
 are reported when neither processor is proven saturated; Reflex sleep alone is
 not a CPU/GPU diagnosis. Each label has a profiling hint. Let the counters settle
