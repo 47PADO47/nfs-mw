@@ -48,6 +48,7 @@ impl ScreenLogic for WorldMapLogic {
         let drawn = place::assign(&frame.blips, session.filter);
         draw_picture(cx, session.camera, session.filter, self.variant);
         draw_blips(cx, frame, &drawn);
+        draw_player(cx, frame);
         // Every map hides the stripe lines and shows the frozen world through a translucent background. Under the
         // Remastered theme the screen is also recoloured dark in place (keeping its own fullscreen picture, filter
         // switch, button prompts and mouse behaviour), its own list and legend chrome are hidden, and the themed legend
@@ -140,6 +141,26 @@ fn draw_blips(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
         cx.rt.set_position_xy(o, x, y);
         show_icon(cx, o, blip.style);
     }
+}
+
+/// The player's car on the picture, turned to its bearing. It is hidden when there is no car or it is off the picture.
+fn draw_player(cx: &mut Cx, frame: &WorldMapFrame) {
+    let Some(o) = cx.guid(pools::PLAYER) else { return };
+    let placed = frame.player_mark.and_then(|mark| {
+        let view = frame.session.camera.to_view(mark.map);
+        let inside = view.iter().all(|v| (0.0..=1.0).contains(v));
+        inside.then_some((mark, view))
+    });
+    let Some((mark, view)) = placed else {
+        hide(cx, pools::PLAYER, true);
+        return;
+    };
+    let [x, y] = layout::point_of(view);
+    cx.rt.set_position_xy(o, x, y);
+    cx.rt.set_rotation_z(o, mark.bearing.to_radians());
+    cx.rt.set_texture(o, resource_handle("Minimap_Icon_Car.tga"));
+    cx.rt.set_colour(o, WHITE);
+    hide(cx, pools::PLAYER, false);
 }
 
 /// The icon of a style on an image: its texture and its tint (the HUD's own for the interiors).

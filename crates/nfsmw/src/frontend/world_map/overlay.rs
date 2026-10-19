@@ -2,10 +2,10 @@
 //! city calibration. The frontend writes it; the map's screen draws its frame (`screen/`).
 
 use bevy_ecs::prelude::Resource;
-use blackbox_minimap::Calibration;
+use blackbox_minimap::{Calibration, bearing_degrees};
 
-use super::{Filter, PlacedBlip, WorldMap, WorldMapFrame};
-use crate::hud::MapBlip;
+use super::{Filter, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
+use crate::hud::{MapBlip, MapPosition};
 
 #[derive(Resource, Default)]
 pub struct WorldMapOverlay {
@@ -16,6 +16,8 @@ pub struct WorldMapOverlay {
     pub blips: Vec<PlacedBlip>,
     /// The player's place in the world (render space metres), for the distances.
     pub player: [f32; 2],
+    /// The player's car on the picture, once a calibration places it.
+    pub player_mark: Option<PlayerMark>,
 }
 
 impl WorldMapOverlay {
@@ -34,8 +36,14 @@ impl WorldMapOverlay {
     }
 
     /// Places the blips the scene reported. Without a calibration there is nothing to place.
-    pub fn refresh(&mut self, blips: &[MapBlip], player: Option<[f32; 2]>) {
-        self.player = player.unwrap_or(self.player);
+    pub fn refresh(&mut self, blips: &[MapBlip], player: Option<&MapPosition>) {
+        self.player = player.map_or(self.player, |p| p.position);
+        self.player_mark = match (player, &self.calibration) {
+            (Some(p), Some(calibration)) => {
+                Some(PlayerMark { map: calibration.to_map(p.position), bearing: bearing_degrees(p.heading) })
+            }
+            _ => None,
+        };
         self.blips = match self.calibration {
             Some(calibration) => placed(blips, &calibration),
             None => Vec::new(),
@@ -45,7 +53,13 @@ impl WorldMapOverlay {
     /// The frame the map's screen draws this tick. `chrome_themed` says whether an alternative theme draws the map's
     /// list, card, tab and zoom as its own overlay (so the FEng screen leaves those to it).
     pub fn frame(&self, chrome_themed: bool) -> WorldMapFrame {
-        WorldMapFrame { session: self.session.clone(), blips: self.blips.clone(), player: self.player, chrome_themed }
+        WorldMapFrame {
+            session: self.session.clone(),
+            blips: self.blips.clone(),
+            player: self.player,
+            player_mark: self.player_mark,
+            chrome_themed,
+        }
     }
 }
 
@@ -83,7 +97,9 @@ mod tests {
     fn a_closed_map_forgets_its_blips_and_a_new_one_starts_on_locations() {
         let mut overlay = WorldMapOverlay { calibration: Some(CITY), ..Default::default() };
         overlay.session.filter = Filter::Races;
-        overlay.refresh(&[], Some([5.0, 6.0]));
+        use blackbox_minimap::Orientation;
+        let at = MapPosition { position: [5.0, 6.0], heading: [0.0, 1.0], orientation: Orientation::North };
+        overlay.refresh(&[], Some(&at));
         assert_eq!(overlay.player, [5.0, 6.0]);
         overlay.close();
         assert!(!overlay.open && overlay.blips.is_empty());

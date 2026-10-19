@@ -118,7 +118,7 @@ pub fn format_metres(metres: f32) -> String {
 /// reports no blips), and stay as they were while it is paused.
 pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
     let (blips, player) = match host.scene.hud_state() {
-        Some(hud) => (hud.blips.clone(), hud.minimap.as_ref().map(|m| m.position)),
+        Some(hud) => (hud.blips.clone(), hud.minimap),
         None => (Vec::new(), None),
     };
     let calibration = match nfsmw_data::minimap::open_city_calibration(&fe.dir) {
@@ -129,7 +129,7 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
         }
     };
     overlay.open(calibration);
-    overlay.refresh(&blips, player);
+    overlay.refresh(&blips, player.as_ref());
     log::info!("world map open: {} blips", overlay.blips.len());
     // The career stage picks the map; outside career mode (no career handle) it is the full map.
     let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);

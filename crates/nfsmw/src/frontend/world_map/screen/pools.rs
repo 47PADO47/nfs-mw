@@ -65,6 +65,9 @@ pub const HIDE_SHOW_TEXT: u32 = 0xF91FE;
 pub const MOVE_CURSOR_TEXT: u32 = 0xF92E0;
 pub const MOVE_CURSOR_ICON: u32 = 0xF92DD;
 pub const LOADING_RING: u32 = 0xFC6B1;
+/// The player's car on the picture: the minimap's own arrow object (`PLAYERCARINDICATOR`), placed and turned by
+/// [`super::draw_player`].
+pub const PLAYER: u32 = 0xF4D61;
 /// The "Activate GPS" button's label, greyed until a blip is selected.
 pub const ACTIVATE_TEXT: u32 = 0x122E01;
 /// The PC keyboard-prompt icons the buttons show before their label (`PC_key_esc` for Back, `PC_key_enter` for Activate
