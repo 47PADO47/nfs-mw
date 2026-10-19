@@ -57,6 +57,8 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
                     super::controls::checkbox(ui, &mut lab.options.near_shadow_focus, "Tight near focus (legacy)", defaults.near_shadow_focus)
                         .on_hover_text("Doubles nearest detail by halving coverage; makes the quality transition appear closer to the camera.");
                 }
+                super::controls::checkbox(ui, &mut lab.options.cached_shadows, "Cache unchanged shadow cascades", defaults.cached_shadows)
+                    .on_hover_text("Caches static depth only when the exact cascade projection is unchanged. Moving casters redraw every frame. Most effective with a stationary camera and frozen sun; moving projections use the original path.");
                 super::controls::checkbox(ui, &mut lab.options.far_shadows, "Distant coverage (3× range)", defaults.far_shadows);
                 super::controls::slider(ui, &mut lab.options.shadow_distance, 40.0..=320.0, "Near range", defaults.shadow_distance);
                 super::controls::slider(ui, &mut lab.options.shadow_filter, 0.0..=3.0, "Filter width", defaults.shadow_filter);
@@ -77,6 +79,9 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
         "{} cascades · {} draws · {:.2} ms CPU setup · {} MiB atlas",
         lab.stats.cascades, lab.stats.shadow_draws, lab.stats.shadow_cpu_ms, lab.stats.map_mib
     ));
+    if lab.options.cached_shadows {
+        ui.small(format!("{} cascades reused static depth this frame", lab.stats.shadow_cached_cascades));
+    }
     if let Some(frame) = lab.stats.gpu_frame_ms {
         ui.small(format!(
             "GPU main {:.2} ms · sun {:.2} · geometry/contact {:.2} · AO {:.2}",

@@ -46,6 +46,7 @@ fn custom_overrides_survive_a_round_trip_and_quality_selection() {
     s.post_aa = PostAa::Smaa;
     s.appearance.lighting.sky_strength = 0.41;
     s.appearance.lighting.cached_reflections = true;
+    s.appearance.lighting.cached_shadows = true;
     s.appearance.lighting.screen_reflections = true;
     s.appearance.treatment_strength = Some(0.73);
     s.appearance.lighting.freeze_sun = true;
@@ -69,6 +70,7 @@ value=7
     assert_eq!(loaded.appearance.lighting.sky_strength, 0.41);
     assert!(loaded.appearance.lighting.cached_reflections && loaded.appearance.lighting.screen_reflections);
     assert!(!loaded.appearance.lighting.freeze_sun);
+    assert!(loaded.appearance.lighting.cached_shadows);
     loaded.select_graphics_quality(Quality::Balanced);
     assert_eq!(loaded.post_aa, PostAa::Smaa);
     assert_eq!(loaded.appearance.lighting.sky_strength, 0.41);

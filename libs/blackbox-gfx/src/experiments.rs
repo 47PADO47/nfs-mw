@@ -30,6 +30,8 @@ pub struct RenderExperiments {
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
     pub sun_shadows: bool,
+    /// Reuse exact static depth while redrawing moving casters every frame.
+    pub cached_shadows: bool,
     /// Reuse local probes within a bounded time and movement budget.
     pub cached_reflections: bool,
     /// Trace current scene colour only on glossy materials, with probe fallback.
@@ -71,6 +73,7 @@ impl Default for RenderExperiments {
         Self {
             original_world_materials: false,
             sun_shadows: false,
+            cached_shadows: false,
             cached_reflections: false,
             screen_reflections: false,
             shadow_projection: None,
@@ -149,6 +152,7 @@ pub struct ExperimentStats {
     /// CPU command preparation only, not GPU elapsed time.
     pub shadow_cpu_ms: f32,
     pub shadow_draws: u32,
+    pub shadow_cached_cascades: u32,
     pub shadow_instances: u32,
     pub cascades: u32,
     pub map_mib: u32,

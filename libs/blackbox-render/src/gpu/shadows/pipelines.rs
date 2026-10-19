@@ -89,6 +89,8 @@ impl Shadows {
             .collect();
         Self {
             grid: super::grid::Grid::default(),
+            cache: super::cache::Cache::default(),
+            static_instances: (0..4).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
             bias,
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
