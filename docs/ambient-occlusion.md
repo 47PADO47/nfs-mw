@@ -269,10 +269,12 @@ Sample counts, radius, filter passes, history weight and intensity are unchanged
 The integer permutation is Chris Wellons' `lowbias32` from
 [Hash Function Prospector](https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c)
 (Unlicense/public domain; credited in NOTICE). The pixel/frame seeding is custom.
-The Vulkan regression compares each quality against the former noise and a dense
-24-by-24 reference using the same filtering/resolution. It requires at least a
-30 percent reduction in coherent column error without materially increasing
-contact-shape error. A slow-camera sequence samples fixed ground points to check
-temporal noise independently of screen movement. Optional diagnostic exports
+The 4K regression compares each quality against the former noise and a dense
+24-by-24 reference using the same filtering/resolution. It requires coherent
+column error below 1.4/255 RMS without materially increasing contact-shape error.
+A slow-camera sequence samples fixed ground points and requires mean temporal
+variation below 0.25/255, independently of screen movement. The former sequence
+is already quieter in the DX12 fixture; percentage improvements measured on
+Vulkan are not universal API guarantees. Optional diagnostic exports
 separate raw estimates, filtered estimates and resolved history. These checks
 do not replace driving and fine-geometry review; residual grain can remain.
