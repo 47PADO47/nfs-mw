@@ -17,7 +17,7 @@ Available in ordinary builds, with either renderer and no DLSS or Tracy requirem
 Hotkeys require the game window to be focused and work with the menus closed.
 Recording stops automatically on a frame boundary. A recording/saving indicator
 appears even with the performance overlay off. Capture data stays in a bounded
-1,000,000-event buffer; excess events are counted in JSON metadata and the save
+4,000,000-event buffer; excess events are counted in JSON metadata and the save
 message. Normal shutdown saves an active capture; forced termination cannot.
 File export runs on a worker after recording stops. Only shutdown waits for it.
 
@@ -92,3 +92,7 @@ cargo build --release -p nfsmw --no-default-features --features renderer-bevy,fs
 
 The allocator is set in `crates/nfsmw/src/main.rs` with `#[global_allocator]`. It needs a C compiler (it builds
 the mimalloc C sources), so a target without one builds with the feature left out.
+
+The buffer grows on demand up to four million events, enough for longer high-FPS
+captures. A full capture can occupy several hundred MiB before JSON export.
+Overflow remains bounded and is disclosed in the saved trace metadata.
