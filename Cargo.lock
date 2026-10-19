@@ -1660,6 +1660,7 @@ dependencies = [
  "blackbox-gfx-testkit",
  "blackbox-gpu-passes",
  "blackbox-smaa",
+ "blackbox-trace",
  "bytemuck",
  "cc",
  "env_logger",
@@ -1761,6 +1762,13 @@ dependencies = [
  "ea-compress",
  "texture2ddecoder",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-trace"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -3822,6 +3830,7 @@ dependencies = [
  "blackbox-streaming",
  "blackbox-text",
  "blackbox-tpk",
+ "blackbox-trace",
  "blackbox-ui",
  "blackbox-vehicle",
  "clap",
@@ -3878,6 +3887,7 @@ dependencies = [
  "blackbox-solid",
  "blackbox-streaming",
  "blackbox-tpk",
+ "blackbox-trace",
  "blackbox-vehicle",
  "ea-audio",
  "ea-compress",

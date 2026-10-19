@@ -97,6 +97,7 @@ pub fn end_of_frame(
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     if !host.latency_pacing {
+        let _trace = blackbox_trace::scope("Wait: game FPS limiter");
         host.limiter.wait();
     }
 }

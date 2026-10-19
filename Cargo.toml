@@ -7,6 +7,7 @@ members = ["libs/*", "crates/*", "xtask", "examples/mods/hello"]
 # Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
 # (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
 default-members = [
+    "libs/blackbox-trace",
     "libs/blackbox-aems",
     "libs/blackbox-attrib",
     "libs/blackbox-carparts",
@@ -55,6 +56,7 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }

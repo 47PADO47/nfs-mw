@@ -320,3 +320,9 @@ Original implementation using Microsoft Windows API documentation:
 - PDH formatted counter arrays: https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw
 - Busiest-engine convention: https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/
 Documentation references only; no third-party implementation code was ported.
+
+Performance trace format
+------------------------
+The original blackbox-trace exporter follows Perfetto's documented Chrome Trace
+Event JSON support (Apache-2.0 documentation; no implementation code copied):
+https://perfetto.dev/docs/getting-started/other-formats

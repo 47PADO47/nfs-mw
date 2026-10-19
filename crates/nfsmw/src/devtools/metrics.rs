@@ -61,6 +61,7 @@ const AVERAGE_OVER: usize = 60;
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct Metrics {
+    trace: super::trace::Samples,
     /// Recent frame times in milliseconds, oldest first.
     pub frame_ms: VecDeque<f32>,
     pub adapter: String,
@@ -187,6 +188,7 @@ pub fn collect(
     let stats = renderer.stats();
     let performance = renderer.frame_performance();
     let latency = renderer.latency_status();
+    super::trace::observe(&mut metrics.trace, renderer.as_ref(), &host, &settings, window.focused);
     let seconds = now.duration_since(*metrics.clock.get_or_insert(now)).as_secs_f64();
     let rendered = match renderer.info().renderer {
         "blackbox" => performance.rendered_frames,

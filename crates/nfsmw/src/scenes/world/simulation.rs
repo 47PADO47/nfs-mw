@@ -26,6 +26,7 @@ fn pursuit_feed(traffic: &ai::TrafficWorld, player: Vec3) -> PursuitFeed {
 
 impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
+        let _trace = blackbox_trace::scope("World: simulation");
         let _span = bevy_log::info_span!("world::simulation").entered();
         self.prepare_traffic(renderer);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());

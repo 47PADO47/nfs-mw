@@ -1,5 +1,10 @@
 # Graphics lab prototypes
 
+**Diagnostics → Performance trace** records general CPU/frame/GPU observations.
+**F9** starts/stops recording; **F10** bookmarks a hitch. Choose a capture duration,
+copy the saved JSON path and open it in Perfetto. See [profiling.md](profiling.md)
+for measurement scope, console commands and how to interpret delayed GPU samples.
+
 Press **F8** to open the resizable graphics lab. It frees the mouse and takes
 input like the F6 garage; no modifier needs to remain held. **F8**, **Esc** or
 the close button returns to driving and restores the prior mouse capture.

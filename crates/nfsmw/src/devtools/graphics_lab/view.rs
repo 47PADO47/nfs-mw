@@ -71,7 +71,11 @@ pub(super) fn show(
                         effects::show(ui, settings);
                     }
                     profiles::Tab::Environment => environment::show(ui,lab,settings),
-                    profiles::Tab::Diagnostics => profiles::diagnostics(ui, lab, settings),
+                    profiles::Tab::Diagnostics => {
+                        lab.recorder.show(ui);
+                        ui.separator();
+                        profiles::diagnostics(ui, lab, settings);
+                    },
                 }
             });
         });

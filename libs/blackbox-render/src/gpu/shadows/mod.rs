@@ -54,6 +54,7 @@ impl Renderer {
         visible: &[Instance],
     ) {
         let start = Instant::now();
+        let _trace = blackbox_trace::scope("Renderer CPU: shadows");
         let mut stats =
             ExperimentStats { supported: self.info.api != blackbox_gfx::GraphicsApi::Gl, ..Default::default() };
         let settings = self.experiments;

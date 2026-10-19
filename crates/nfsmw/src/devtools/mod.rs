@@ -9,6 +9,7 @@ mod metrics;
 mod overlay;
 mod readout;
 mod theme_style;
+pub(crate) mod trace;
 
 use bevy_app::{App, Last, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -31,6 +32,7 @@ impl Plugin for DevToolsPlugin {
     fn build(&self, app: &mut App) {
         console::build(app);
         graphics_lab::build(app);
+        trace::build(app);
         app.init_resource::<Metrics>()
             .init_resource::<crate::garage::Overlay>()
             .add_systems(Update, run_ui.in_set(crate::app::FrameSet::Ui))
@@ -56,6 +58,7 @@ fn run_ui(
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
 ) {
+    let _trace = blackbox_trace::scope("UI: build panels");
     let (width, height) = (window.width(), window.height());
     let raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height))),
@@ -73,6 +76,7 @@ fn run_ui(
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
+        trace::indicator(ctx, &lab.recorder);
         console::show(ctx, &mut console);
         graphics_lab::show_world(ctx, &mut lab, &mut settings, &metrics, host.scene.as_mut());
         if garage.open {

@@ -9,6 +9,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-trace.workspace = true
 blackbox-hash.workspace = true
 anyhow.workspace = true
 bevy_a11y.workspace = true

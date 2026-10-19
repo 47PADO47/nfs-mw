@@ -101,6 +101,8 @@ fn worker(
     loop {
         let next = requests.lock().map(|rx| rx.recv());
         let Ok(Ok(request)) = next else { return };
+        // Idle channel waiting is excluded; scopes measure each requested read/parse/decode job.
+        let _trace = blackbox_trace::scope("Streaming worker: section job");
         let index = match request {
             Request::Collision(index) => {
                 let result = sections
@@ -116,6 +118,7 @@ fn worker(
         };
         let event = match sections.get(index).map(|s| load_section(&mut file, index, s)) {
             Some(Ok(mut data)) => {
+                let _decode = blackbox_trace::scope("Streaming worker: texture decode");
                 data.decode_for_upload(bc_supported.load(Ordering::Relaxed));
                 StreamerEvent::Loaded(Box::new(data))
             }

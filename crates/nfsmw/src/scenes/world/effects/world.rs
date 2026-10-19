@@ -11,6 +11,7 @@ const RAIN_COLOUR: [u8; 4] = [180, 200, 255, 90];
 
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
+        let _trace = blackbox_trace::scope("World: effects / uploads");
         let lens = self.gameplay_lens(self.physics_aspect);
         let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
         let Some(drive) = self.drive.as_mut() else {

@@ -120,6 +120,7 @@ pub fn update_scene(
     garage: Res<crate::garage::Overlay>,
 ) {
     let _span = bevy_log::info_span!("render::scene_update").entered();
+    let _trace = blackbox_trace::scope("Scene: update");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
@@ -155,6 +156,7 @@ pub fn draw(
     time: Res<Time>,
 ) {
     let _span = bevy_log::info_span!("render::draw").entered();
+    let _trace = blackbox_trace::scope("Render bridge: draw");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.end_latency_simulation();
@@ -212,6 +214,7 @@ pub fn draw(
         })
     } else {
         let _span = bevy_log::info_span!("render::submit").entered();
+        let _trace = blackbox_trace::scope("Render bridge: submit");
         host.cpu_update_ms = host.cpu_work_started.elapsed().as_secs_f32() * 1000.0;
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };

@@ -80,6 +80,16 @@ impl Timing {
                 }
                 self.latest = Some(sample);
                 self.completed += 1;
+                blackbox_trace::global().counter(
+                    "GPU passes (delayed readback ms)",
+                    &[
+                        ("readback_id", self.completed as f64),
+                        ("base_render", sample[0].into()),
+                        ("shadows", sample[1].into()),
+                        ("surface_prepass", sample[2].into()),
+                        ("ambient_occlusion", sample[3].into()),
+                    ],
+                );
             }
             slot.readback.unmap();
             slot.state.store(0, Ordering::Release);

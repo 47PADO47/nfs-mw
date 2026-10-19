@@ -2,6 +2,58 @@
 
 General profiling notes. The Bevy renderer's Tracy workflow is in [profiling-bevy.md](profiling-bevy.md).
 
+## In-game trace recorder
+
+Available in ordinary builds, with either renderer and no DLSS or Tracy requirement:
+
+| Control | Action |
+|---|---|
+| **F9** | Start recording; press again to stop and save early. |
+| **F10** | Add a numbered bookmark at a hitch or interesting moment. |
+| **F8 → Diagnostics → Performance trace** | Record, stop, bookmark, choose 5/15/30/60 seconds, copy the saved path. |
+| Console `trace start [seconds]` | Start a 1–60 second capture (default 15). |
+| Console `trace stop`, `trace mark [label]`, `trace status` | Save early, annotate, inspect status. |
+
+Hotkeys require the game window to be focused and work with the menus closed.
+Recording stops automatically on a frame boundary. A recording/saving indicator
+appears even with the performance overlay off. Capture data stays in a bounded
+250,000-event buffer; excess events are counted in JSON metadata and the save
+message. Normal shutdown saves an active capture; forced termination cannot.
+File export runs on a worker after recording stops. Only shutdown waits for it.
+
+Files go in the active profile's log directory, under `traces/trace-*.json`.
+F8 Diagnostics and the console show the full saved path. Open that JSON file in
+[Perfetto](https://ui.perfetto.dev); opening the viewer does not upload the file.
+The original exporter follows Perfetto's documented
+[Chrome Trace Event JSON support](https://perfetto.dev/docs/getting-started/other-formats).
+
+The trace contains nested CPU wall-time scopes for the frame, scene update, UI,
+world simulation, streaming/upload work, visibility, caster preparation,
+reflections, effects and native render recording/submission. Acquiring a surface,
+presenting/FG dispatch, Reflex pacing and the game limiter have separate scopes.
+Settings snapshots are included initially and on changes, with active backend,
+GPU/driver identity, requested settings and effective graphics. Frame observations
+include dimensions, focus, base-frame IDs, waits and cumulative SDK-reported
+presentations where supported. Presented FPS can be derived from changes in
+the presentation counter; no multiplier estimate is substituted.
+
+Native GPU base/shadow/surface/AO durations appear as **delayed readback counters**
+at CPU observation time, with readback IDs. They are not GPU execution slices or
+calibrated to the CPU clock, and exclude auxiliary queues and present-time FG.
+OS main-thread activity and busiest-process-GPU-engine activity are interval
+samples, with sample IDs and age; they include work on SDK/auxiliary queues.
+Unsupported measurements are omitted. CPU scopes include blocking/driver time:
+a long scope alone does not prove CPU saturation. Bevy's internal rendering is
+not covered by the native scopes/counters; use its existing Tracy workflow.
+
+Start in a representative scene, mark slow moments, change one setting at a time,
+and compare nested scopes alongside activity and waits. Instrumentation adds
+some overhead while recording; compare runs with identical capture settings.
+The recorder does not sample native call stacks or GPU shader instructions.
+Use a sampling profiler or PIX/Nsight for hot functions and vendor-internal queues.
+Generic instrumentation is in `libs/blackbox-trace`; additional subsystems can
+add scopes/counters without depending on Bevy or the game's devtools.
+
 ## Build profiles
 
 The root `Cargo.toml` defines these profiles. Pick by what you are measuring.

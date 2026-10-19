@@ -17,6 +17,7 @@ impl Renderer {
     ///
     /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
+        let _trace = blackbox_trace::scope("Renderer: frame");
         self.refresh_display(false);
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
@@ -24,6 +25,7 @@ impl Renderer {
             self.prepare_generation(frame);
         }
         let acquire_started = std::time::Instant::now();
+        let acquire_trace = blackbox_trace::scope("Wait: acquire surface");
         let (surface_texture, view) = match &self.output {
             #[cfg(all(windows, feature = "streamline"))]
             Output::Window { dx12: Some(native), .. } => (None, native.view()?),
@@ -48,6 +50,7 @@ impl Renderer {
             Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
         self.performance.acquire_wait_ms = acquire_started.elapsed().as_secs_f32() * 1000.0;
+        drop(acquire_trace);
         let submit_started = std::time::Instant::now();
         self.submit_frame(None, &view, self.surface_size(), frame, instances);
         self.performance.cpu_render_ms = submit_started.elapsed().as_secs_f32() * 1000.0;
@@ -57,6 +60,7 @@ impl Renderer {
             self.presentation.marker(4);
         }
         let present_started = std::time::Instant::now();
+        let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
         #[cfg(all(windows, feature = "streamline"))]
         if let Output::Window { dx12: Some(native), config, .. } = &self.output {
             native.present(
@@ -90,6 +94,7 @@ impl Renderer {
         output: &wgpu::TextureView,
         size: (u32, u32),
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext {
             device: &self.device,
@@ -117,6 +122,7 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: encode scene");
         let size = targets.unwrap_or(&self.targets).size();
         // The colour pass and camera prepass use the same instance order and transforms.
         self.instances.upload_instances(&self.device, &self.queue, instances);
@@ -158,6 +164,7 @@ impl Renderer {
         reduced: bool,
         capture: Option<&mut super::reflections::CaptureView>,
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: color view");
         let reflection = capture.is_some();
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let [r, g, b] = frame.clear_color;
