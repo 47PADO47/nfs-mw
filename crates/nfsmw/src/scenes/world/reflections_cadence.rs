@@ -5,8 +5,8 @@ pub(super) fn reuse(cached: bool, quality: ReflectionQuality, last: f32, now: f3
     let hz: f64 = match (cached, quality) {
         (_, ReflectionQuality::Off) => return false,
         (true, ReflectionQuality::High) => 60.0,
-        (true, ReflectionQuality::Medium) => 30.0,
-        (true, ReflectionQuality::Low) => 15.0,
+        (true, ReflectionQuality::Medium) => 20.0,
+        (true, ReflectionQuality::Low) => 10.0,
         (false, ReflectionQuality::High) => return false,
         (false, ReflectionQuality::Medium) => 30.0,
         (false, ReflectionQuality::Low) => 15.0,
@@ -70,7 +70,7 @@ mod tests {
         assert!(reuse(true, ReflectionQuality::High, 1.0, 1.0, 0.0), "paused capture can be reused");
         assert!(reuse(true, ReflectionQuality::High, 0.016, 0.017, 0.0), "no consecutive boundary burst");
         assert!(reuse(true, ReflectionQuality::Medium, 0.0, 0.02, 0.0));
-        assert!(!reuse(true, ReflectionQuality::Medium, 0.0, 0.04, 0.0));
+        assert!(!reuse(true, ReflectionQuality::Medium, 0.0, 0.06, 0.0));
         assert!(reuse(true, ReflectionQuality::Low, 0.0, 0.04, 0.0));
     }
 

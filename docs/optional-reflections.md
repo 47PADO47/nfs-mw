@@ -3,11 +3,11 @@
 The native renderer retains the existing local car cubemap and wet-road paths.
 F8 Materials adds two independently saved choices, both off by default:
 
-- **Cached local reflection probe** keeps all six faces from one snapshot for at
-  scheduled 15 Hz (Low), 30 Hz (Medium), or 60 Hz (High), capped by base FPS.
+- **Cached local reflection probe** refreshes all six faces together at
+  scheduled 10 Hz (Low), 20 Hz (Medium), or 60 Hz (High), capped by base FPS.
   Phase-aligned deadlines avoid rounding each interval up to a whole game frame.
-  One metre of movement,
-  streamed scenery, capture settings, and original sky/shadow-overlay changes
+  One metre of movement, streamed scenery, capture settings, and original
+  sky/shadow-overlay changes
   invalidate the snapshot immediately. It caches an image, without accumulating
   old frames or blending old and new images. Movement can refresh earlier than
   the scheduled deadline. Switching it off restores the existing quality cadence
