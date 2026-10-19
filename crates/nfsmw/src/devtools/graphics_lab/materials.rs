@@ -38,8 +38,8 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     });
     ui.small("Car environment captures; resolution and update budgets are custom.");
     ui.add_enabled_ui(lab.caps.is_some_and(|c| c.local_reflections), |ui| {
-        controls::checkbox(ui, &mut lab.options.cached_reflections, "Cached local reflection probe", defaults.appearance.lighting.cached_reflections)
-            .on_hover_text("Reuses all six faces together for up to 33-100 ms; moving two metres or streaming scenery refreshes immediately.");
+        controls::checkbox(ui, &mut lab.options.cached_reflections, "Cached car reflections (High: 60 Hz)", defaults.appearance.lighting.cached_reflections)
+            .on_hover_text("Captures all six faces together at 60 Hz (High), 30 Hz (Medium), or 15 Hz (Low), limited by base FPS. One metre of movement or streamed scenery refreshes early. Off: High captures every base frame. No image blending.");
         controls::checkbox(ui, &mut lab.options.screen_reflections, "Selective screen-space car reflections", defaults.appearance.lighting.screen_reflections)
             .on_hover_text("Reflects visible current-frame scenery on car materials. Misses and screen edges use the local probe. Can add GPU cost; HDR and frame generation keep separate UI.");
     });

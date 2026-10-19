@@ -12,6 +12,9 @@ use glam::Vec3;
 
 use super::{WorldScene, visibility};
 
+#[path = "reflections_cadence.rs"]
+mod cadence;
+
 /// Half the edge of the box a traffic car is tested in, metres: a car fits in a box this size around its origin.
 const TRAFFIC_HALF_EXTENT: f32 = 4.0;
 
@@ -49,16 +52,6 @@ impl WorldScene {
         // Cadence and resolution are rewrite choices; all faces share one snapshot. Never accumulate
         // temporal history: at high speed the previous world must not trail across the paint.
         let cached = renderer.render_experiments().cached_reflections;
-        let interval = match (cached, quality) {
-            (true, ReflectionQuality::Low) => 0.1,
-            (true, ReflectionQuality::Medium) => 0.05,
-            (true, _) => 1.0 / 30.0,
-            (false, quality) => match quality {
-                ReflectionQuality::Low => 1.0 / 15.0,
-                ReflectionQuality::Medium => 1.0 / 30.0,
-                _ => 0.0,
-            },
-        };
         let origin = drive.pose().position + Vec3::Z * 0.95;
         let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
@@ -74,8 +67,7 @@ impl WorldScene {
                 && last.scenery == scenery
                 && last.original_shadows == self.original_shadows
                 && last.original_sky == self.original_sky
-                && self.clock - last.seconds < interval
-                && last.origin.distance_squared(origin) < 4.0
+                && cadence::reuse(cached, quality, last.seconds, self.clock, last.origin.distance_squared(origin))
         }) {
             return;
         }
