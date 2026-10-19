@@ -10,7 +10,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Hard upper bound, including captures started by callers outside the UI.
-pub const MAX_EVENTS: usize = 250_000;
+pub const MAX_EVENTS: usize = 1_000_000;
 static GLOBAL: OnceLock<Recorder> = OnceLock::new();
 static NEXT_THREAD: AtomicU64 = AtomicU64::new(1);
 thread_local! { static THREAD: u64 = NEXT_THREAD.fetch_add(1, Ordering::Relaxed); }

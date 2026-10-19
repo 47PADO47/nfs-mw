@@ -29,6 +29,7 @@ pub fn execute(
     mods: Option<NonSend<crate::modding::Mods>>,
     mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
 ) {
+    let _trace = blackbox_trace::scope("Console: execute commands");
     let host = &mut *host;
     console.scene_commands = host.scene.commands();
     // Scene commands need the renderer; keep the lines for when it exists.
@@ -210,6 +211,7 @@ impl Console {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    let _trace = blackbox_trace::scope("Settings: synchronize scene");
     if applied
         .as_ref()
         .is_none_or(|before| before.always_rain != settings.always_rain || before.rain_amount != settings.rain_amount)

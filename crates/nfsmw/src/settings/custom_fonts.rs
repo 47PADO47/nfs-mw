@@ -118,6 +118,7 @@ pub fn active() -> Active {
 /// Copies the options and the tier for the window's render height to [`active`]. Runs every frame, so a console change
 /// or a window resize takes effect at once. Without a window it keeps the last values.
 pub fn publish(settings: Res<Settings>, windows: Query<&Window, With<PrimaryWindow>>) {
+    let _trace = blackbox_trace::scope("Settings: publish fonts");
     let Ok(window) = windows.single() else { return };
     let value = active_for(&settings.custom_fonts, window.physical_height());
     let Ok(mut active) = ACTIVE.write() else { return };

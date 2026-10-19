@@ -170,6 +170,7 @@ fn update(
     overlays: (ResMut<crate::garage::Overlay>, ResMut<crate::devtools::GraphicsLab>, ResMut<crate::input::UiFocus>),
     mut map: MapParams,
 ) {
+    let _trace = blackbox_trace::scope("Frontend: update");
     let (mut garage, mut lab, mut focus) = overlays;
     if fe.graphics_requested {
         fe.graphics_requested = false;
@@ -375,6 +376,7 @@ fn present(
     themes: Res<UiThemes>,
     time: Res<Time>,
 ) {
+    let _trace = blackbox_trace::scope("Frontend: present");
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     // The presenter puts what it draws below what is already there, so the top screen goes first.
     let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);

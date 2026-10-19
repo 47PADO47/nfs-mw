@@ -94,6 +94,7 @@ pub fn active() -> HdContent {
 
 /// Copies the settings' options to [`active`]. Runs every frame, so a console or config change takes effect at once.
 pub fn publish(settings: Res<Settings>) {
+    let _trace = blackbox_trace::scope("Settings: publish HD content");
     let Ok(mut active) = ACTIVE.write() else { return };
     *active = settings.hd_content;
 }

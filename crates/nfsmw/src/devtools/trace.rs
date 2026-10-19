@@ -1,4 +1,5 @@
 //! Capture lifecycle and hotkeys. Rendering never writes files or waits for the export worker.
+mod phases;
 mod samples;
 #[cfg(test)]
 mod tests;
@@ -218,6 +219,7 @@ fn save(capture: blackbox_trace::Capture, path: PathBuf) -> Result<PathBuf, Stri
 pub(crate) struct FrameScope(Option<blackbox_trace::Scope<'static>>);
 
 pub(super) fn build(app: &mut App) {
+    phases::build(app);
     app.insert_non_send(FrameScope::default())
         .add_systems(First, begin.before(bevy_time::TimeSystems))
         .add_systems(PreUpdate, hotkeys.after(InputSystems))

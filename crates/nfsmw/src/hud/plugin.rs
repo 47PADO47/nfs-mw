@@ -105,6 +105,7 @@ fn sync(
     mut state: ResMut<HudState>,
     mut hud: ResMut<Hud>,
 ) {
+    let _trace = blackbox_trace::scope("HUD: sync telemetry");
     if let Some(s) = host.scene.hud_state() {
         *state = s;
     }
@@ -140,6 +141,7 @@ fn present(
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
 ) {
+    let _trace = blackbox_trace::scope("HUD: bind / animate / compose / present");
     if !state.visible || !settings.hud {
         return;
     }

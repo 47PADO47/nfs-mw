@@ -63,6 +63,7 @@ fn change_lines(before: Option<&Resolved>, after: &Resolved) -> Vec<(Level, Stri
 /// Every frame, so the effects follow the menu, the console and the first frame after the renderer exists;
 /// a request the renderer already has costs one comparison.
 pub fn apply(mut host: NonSendMut<Host>, settings: Res<Settings>) {
+    let _trace = blackbox_trace::scope("Settings: apply graphics");
     host.apply_graphics(&settings);
 }
 

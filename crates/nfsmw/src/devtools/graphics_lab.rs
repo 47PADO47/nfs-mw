@@ -219,6 +219,7 @@ impl GraphicsLab {
 }
 
 fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSendMut<Host>) {
+    let _trace = blackbox_trace::scope("Diagnostics: apply graphics lab");
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());

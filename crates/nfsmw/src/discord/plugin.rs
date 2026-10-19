@@ -51,6 +51,7 @@ impl Plugin for DiscordPlugin {
 /// Sends the presence to the thread when the settings, the status or the presence's state change. Nothing is
 /// sent in between: the thread keeps showing the last one.
 fn sync_presence(settings: Res<Settings>, status: Res<PresenceStatus>, mut presence: ResMut<DiscordPresence>) {
+    let _trace = blackbox_trace::scope("Discord: presence update");
     if !(settings.is_changed() || status.is_changed() || presence.sent.is_none()) {
         return;
     }

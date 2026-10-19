@@ -181,6 +181,7 @@ pub fn collect(
     settings: Res<crate::settings::Settings>,
     window: Single<&bevy_window::Window, With<bevy_window::PrimaryWindow>>,
 ) {
+    let _trace = blackbox_trace::scope("Diagnostics: metrics / trace collection");
     let now = Instant::now();
     let dt = metrics.last_collect.replace(now).map_or(time.delta_secs(), |last| now.duration_since(last).as_secs_f32());
     metrics.push(dt);

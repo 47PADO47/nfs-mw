@@ -10,6 +10,7 @@ use crate::ui::assets::Image;
 /// moves about the texture for the minimap. Returns straight (not premultiplied) RGBA of the picture's size.
 /// Where the mask lies outside its texture the alpha is zero.
 pub fn compose(base: &Image, mask: &Image, pivot: [f32; 2], degrees: f32, window: [f32; 4]) -> Image {
+    let _trace = blackbox_trace::scope("HUD: CPU mask composition");
     let (bw, bh) = (base.width as usize, base.height as usize);
     if bw == 0 || bh == 0 {
         return Image { width: base.width, height: base.height, rgba: base.rgba.clone(), blend: base.blend };
@@ -103,6 +104,7 @@ fn compose_unrotated(
 
 /// Converts straight RGB to premultiplied colour, retaining alpha until upload chooses the blend encoding.
 pub fn premultiply(image: &mut Image) {
+    let _trace = blackbox_trace::scope("HUD: premultiply pixels");
     for px in image.rgba.as_chunks_mut::<4>().0 {
         let a = u32::from(px[3]);
         for c in &mut px[..3] {

@@ -1,6 +1,6 @@
 use super::*;
 
-static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(super) static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn hotkeys_require_focus_and_bookmarks_share_the_capture() {

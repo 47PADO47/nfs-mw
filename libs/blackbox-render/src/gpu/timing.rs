@@ -61,6 +61,7 @@ impl Timing {
     }
 
     pub(super) fn begin(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) {
+        let _trace = blackbox_trace::scope("GPU API: timestamp poll / readback");
         let _ = device.poll(wgpu::PollType::Poll);
         // Poll in submission order so a later sample wins when several complete together.
         for offset in 0..self.slots.len() {
@@ -121,6 +122,7 @@ impl Timing {
     }
 
     pub(super) fn submitted(&mut self) {
+        let _trace = blackbox_trace::scope("GPU API: arm asynchronous readback");
         let Some(active) = self.active.take() else { return };
         let slot = &self.slots[active];
         slot.state.store(1, Ordering::Release);

@@ -187,6 +187,7 @@ fn present(
     mut out: ResMut<UiOutput>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let _trace = blackbox_trace::scope("Movie: present fullscreen frame");
     if host.scene.finished() {
         // With the front end the flow moves on to the next scene; without it the program is over.
         if !host.flow_driven {

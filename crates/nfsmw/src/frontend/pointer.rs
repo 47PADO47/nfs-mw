@@ -66,6 +66,7 @@ pub fn apply(
     mut loaded: Local<Option<Loaded>>,
     mut applied_hd: Local<Option<bool>>,
 ) {
+    let _trace = blackbox_trace::scope("Frontend: cursor");
     let hd_cursor = settings.hd_content.cursor;
     if *applied_hd == Some(hd_cursor) {
         return;

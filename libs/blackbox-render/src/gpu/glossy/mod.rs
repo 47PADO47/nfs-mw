@@ -231,6 +231,7 @@ impl Renderer {
             && limits.max_compute_invocations_per_workgroup >= 9
     }
     pub(in crate::gpu) fn update_irradiance(&mut self) {
+        let _trace = blackbox_trace::scope("Renderer CPU: update irradiance");
         if !self.experiments.car_skylight || !self.supports_irradiance() {
             return;
         }

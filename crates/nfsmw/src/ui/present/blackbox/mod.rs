@@ -141,6 +141,7 @@ impl BlackboxPresenter {
     /// Builds the HUD meshes for `tree` and prepends them to the frame's UI layer (egui's panels stay on top);
     /// uploads the textures it has not uploaded yet.
     pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
+        let _trace = blackbox_trace::scope("HUD: mesh / texture presentation");
         let origin = [screen.width * 0.5, screen.height * 0.5];
         let scale = screen.scale();
         let mut builder = MeshBuilder { meshes: Vec::new(), clip: [0.0, 0.0, screen.width, screen.height] };
@@ -214,6 +215,7 @@ impl BlackboxPresenter {
         scale: f32,
         origin: [f32; 2],
     ) {
+        let _trace = blackbox_trace::scope("HUD: text raster / cache");
         // The Remastered text is drawn wider and heavier than the Custom text, so the two keep apart in the cache.
         let look = match font_key {
             RASTER_FONT_KEY => raster_text::REMASTERED,
@@ -322,6 +324,7 @@ impl BlackboxPresenter {
         assets: &UiAssets,
         out: &mut UiOutput,
     ) -> Option<(UiTextureId, bool)> {
+        let _trace = blackbox_trace::scope("HUD: masked texture cache");
         let (base, mask) = (assets.resolve(texture), assets.resolve(mask));
         let additive = assets.texture(base).is_some_and(|t| t.alpha_blend == 2);
         let key = MaskedKey { guid: node.guid, mask };

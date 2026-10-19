@@ -17,7 +17,7 @@ Available in ordinary builds, with either renderer and no DLSS or Tracy requirem
 Hotkeys require the game window to be focused and work with the menus closed.
 Recording stops automatically on a frame boundary. A recording/saving indicator
 appears even with the performance overlay off. Capture data stays in a bounded
-250,000-event buffer; excess events are counted in JSON metadata and the save
+1,000,000-event buffer; excess events are counted in JSON metadata and the save
 message. Normal shutdown saves an active capture; forced termination cannot.
 File export runs on a worker after recording stops. Only shutdown waits for it.
 
@@ -31,6 +31,12 @@ The trace contains nested CPU wall-time scopes for the frame, scene update, UI,
 world simulation, streaming/upload work, visibility, caster preparation,
 reflections, effects and native render recording/submission. Acquiring a surface,
 presenting/FG dispatch, Reflex pacing and the game limiter have separate scopes.
+Ordered Update phases also have enclosing scopes. Individual scopes cover HUD
+telemetry, FEng animation/theme composition, CPU image masks and text rasterization,
+audio, mod callbacks, frontend/cursor work, input, live settings and metric collection.
+Native recording separates SMAA preparation/resolve, encoder finalization, queue
+submission, temporal setup, UI encoding and timestamp polling/readback. Parent
+phase time includes scheduler/wait overhead; it is not exclusive CPU active time.
 Settings snapshots are included initially and on changes, with active backend,
 GPU/driver identity, requested settings and effective graphics. Frame observations
 include dimensions, focus, base-frame IDs, waits and cumulative SDK-reported
@@ -53,6 +59,13 @@ The recorder does not sample native call stacks or GPU shader instructions.
 Use a sampling profiler or PIX/Nsight for hot functions and vendor-internal queues.
 Generic instrumentation is in `libs/blackbox-trace`; additional subsystems can
 add scopes/counters without depending on Bevy or the game's devtools.
+
+Clipboard and browser buttons are handled by the host on a bounded platform
+worker. A toast reports success/failure; copying text does not open or upload a
+trace. Browser actions use the configured default browser. The clipboard bridge
+uses [arboard](https://docs.rs/arboard/latest/arboard/); web links use
+[open](https://docs.rs/open/latest/open/). Their native APIs are called outside
+the render loop. The clipboard object is retained for X11 ownership semantics.
 
 ## Build profiles
 

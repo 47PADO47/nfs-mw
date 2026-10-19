@@ -77,6 +77,7 @@ pub fn end_of_frame(
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let _trace = blackbox_trace::scope("Frame: title / benchmark / limiter");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
     let ready = host.scene.benchmark_ready();

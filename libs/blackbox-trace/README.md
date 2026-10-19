@@ -7,7 +7,7 @@ No game knowledge, GPU API, logging subscriber or runtime service is required.
 
 Disabled scopes perform an atomic check. Enabled scopes measure monotonic wall
 time, including blocking, rather than CPU active time. The event buffer is capped
-at 250,000 entries; overflow is counted in exported metadata. Text and thread
+at 1,000,000 entries; overflow is counted in exported metadata. Text and thread
 metadata are bounded. Old guards cannot leak into later recordings. Unfinished
 scopes at capture stop are omitted; normal frame boundaries should close them first.
 
