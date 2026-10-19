@@ -13,7 +13,10 @@ fn hierarchy_switches_restore_exact_frames_and_release_full_size_images() {
         [(319, 237), (320, 240), (1, 1)].into_iter().flat_map(|size| AoMethod::ALL.map(|method| (size, method)))
     {
         eprintln!("hierarchy live switch size={size:?}, method={method}");
-        let (frame, instances) = scene_shading(&mut r, size, true, Shading::Prelit);
+        let (mut frame, instances) = scene_shading(&mut r, size, true, Shading::Prelit);
+        // Compare cold estimators when switching depth sources. Temporal convergence
+        // is covered separately; evolving sample phases are not repeatable frames.
+        frame.camera_cut = true;
         let settings = GraphicsSettings {
             ao: AoSettings { method, quality: AoQuality::Medium, depth_mips: true, ..Default::default() },
             ..Default::default()
