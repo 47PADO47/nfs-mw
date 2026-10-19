@@ -42,9 +42,10 @@ impl WorldMapOverlay {
         };
     }
 
-    /// The frame the map's screen draws this tick.
-    pub fn frame(&self) -> WorldMapFrame {
-        WorldMapFrame { session: self.session.clone(), blips: self.blips.clone(), player: self.player }
+    /// The frame the map's screen draws this tick. `chrome_themed` says whether an alternative theme draws the map's
+    /// list, card, tab and zoom as its own overlay (so the FEng screen leaves those to it).
+    pub fn frame(&self, chrome_themed: bool) -> WorldMapFrame {
+        WorldMapFrame { session: self.session.clone(), blips: self.blips.clone(), player: self.player, chrome_themed }
     }
 }
 
@@ -94,8 +95,9 @@ mod tests {
         let mut overlay = WorldMapOverlay::default();
         overlay.open(Some(CITY));
         overlay.session.filter = Filter::Races;
-        let frame = overlay.frame();
+        let frame = overlay.frame(true);
         assert_eq!(frame.session.filter, Filter::Races);
         assert!(frame.blips.is_empty());
+        assert!(frame.chrome_themed);
     }
 }

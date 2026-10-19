@@ -11,8 +11,17 @@ use crate::hud::{
 
 /// The map's picture object (`TRACK_MAP.tga`).
 pub const PICTURE: u32 = 0xF9984;
-/// The cursor's group: the glow and the four corners. It moves to the attached blip.
+/// The cursor's group: the glow and the four corners. It moves to the attached blip or follows the mouse.
 pub const CURSOR: u32 = 0xF93EF;
+/// The round `IconSelection_Glow` inside the cursor group. Hidden on every map so only the cross/square crosshairs
+/// show (the glow is the package's "normal" round pointer, which otherwise draws on top of the cross).
+pub const CURSOR_GLOW: u32 = 0xFA209;
+/// The cursor's four corner crosshairs. The executable plays the snap animation by messaging them: `0x0342106D`
+/// draws them in onto an icon (the "square" snap), `0xE0BC0FF0` spreads them back out. The port replays it when the
+/// attached blip changes (the message hashes and the function that sends them are in `world-map-ghidra.md`).
+pub const CURSOR_CROSSHAIRS: [u32; 4] = [0xF93AF, 0xF93B2, 0xF93B5, 0xF93B8];
+pub const CURSOR_SNAP: u32 = 0x0342_106D;
+pub const CURSOR_UNSNAP: u32 = 0xE0BC_0FF0;
 /// The card under the picture: its group, the title and the distance, and the card's mode icon.
 pub const CARD: u32 = 0xF96AF;
 pub const CARD_TITLE: u32 = 0xF570E;
@@ -42,6 +51,32 @@ pub const POOLS: [(&str, &[u32]); 9] = [
 pub fn slots(style: &str) -> &'static [u32] {
     POOLS.iter().find(|(s, _)| *s == style).map_or(&[], |(_, slots)| *slots)
 }
+
+/// The screen's own legend chrome the Remastered map hides, since it draws its own legend: the list's container panel
+/// and its header strip, the visibility ("eye") icon and its two labels.
+pub const LEGEND_PANEL: u32 = 0xFAA1C;
+pub const LEGEND_HEADER: u32 = 0xFA6F9;
+pub const EYE_ICON: u32 = 0xFAA86;
+pub const TOGGLE_TEXT: u32 = 0xF9296;
+pub const HIDE_SHOW_TEXT: u32 = 0xF91FE;
+
+/// The "Move Cursor" control hint and its loading ring: the analog-stick icon, its label and the spinning ring. Removed
+/// on every map (the mouse moves the cursor on PC).
+pub const MOVE_CURSOR_TEXT: u32 = 0xF92E0;
+pub const MOVE_CURSOR_ICON: u32 = 0xF92DD;
+pub const LOADING_RING: u32 = 0xFC6B1;
+/// The "Activate GPS" button's label, greyed until a blip is selected.
+pub const ACTIVATE_TEXT: u32 = 0x122E01;
+/// The PC keyboard-prompt icons the buttons show before their label (`PC_key_esc` for Back, `PC_key_enter` for Activate
+/// GPS). The package starts them hidden for gamepad mode; the port shows them, since it is keyboard-and-mouse driven.
+pub const KEY_BACK: u32 = 0x10F8E5;
+pub const KEY_ACTIVATE: u32 = 0x122E04;
+/// The lateral background panels (far left/right and the side gradients). Every map tints them a translucent dark
+/// scrim, so no white is left and the frozen world shows through on the sides.
+pub const BG_SIDES: [u32; 4] = [0xFC8E6, 0xFC8E8, 0xE58C0, 0xE58C1];
+/// The centre background panel, behind the map content. Tinted with the same scrim as the sides, so it is not a
+/// separate, more-opaque panel.
+pub const BG_CENTRE: u32 = 0xE58C2;
 
 /// The rows of the blip list: the row's text, its icon group and the icon inside the group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

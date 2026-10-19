@@ -1,6 +1,7 @@
-//! One open map: the filter tab, the camera, the blip the cursor is attached to and the "Activate GPS?" prompt.
-//! [`WorldMap::frame`] takes one frame of input and says whether the map stays, closes, or sets a GPS route.
+//! One open map: the filter tab, the camera and the blip the cursor is focused on. [`WorldMap::frame`] takes one
+//! frame of input and says whether the map stays, closes, or asks for a GPS route on the focused blip.
 
+use super::legend::VISIBLE_ROWS;
 use super::{Camera, Filter, PICK_RADIUS, nearest};
 
 /// A blip on the map. `world` is metres in render space (x forward, y left); `map` is its place on the picture,
@@ -25,11 +26,13 @@ pub struct MapInput {
     pub zoom_all: bool,
     pub next_filter: bool,
     pub previous_filter: bool,
-    /// Enter: prompts to set GPS for the attached blip, or confirms the prompt.
+    /// A left click: asks for GPS on the blip the cursor is on (the hovered/attached blip).
+    pub click: bool,
+    /// Enter: asks for GPS on the attached blip.
     pub accept: bool,
-    /// Right click: prompts to set GPS for the attached blip (the same as Enter).
+    /// Right click: the same as Enter.
     pub secondary: bool,
-    /// Escape or the back button: cancels the prompt, or closes the map.
+    /// Escape or the back button: unfocuses the blip, or closes the map.
     pub back: bool,
 }
 
@@ -38,11 +41,11 @@ pub struct MapInput {
 pub enum Outcome {
     /// Keep the map open.
     Stay,
-    /// Close the map (back, with no prompt open).
+    /// Close the map.
     Close,
-    /// The player confirmed GPS for the blip at this index into the slice given to [`WorldMap::frame`]. The caller
-    /// sets the route (`activate_gps`, a stub) and closes the map.
-    ActivateGps(usize),
+    /// The player asked for GPS on the focused blip at this index into the slice given to [`WorldMap::frame`]. The
+    /// caller opens the game's `Dialog.fng` Yes/No confirm; Yes closes the map (setting the route is a later step).
+    AskGps(usize),
 }
 
 /// The state of an open map. A new one is [`WorldMap::new`]: the Locations tab, the whole picture, nothing attached.
@@ -50,11 +53,15 @@ pub enum Outcome {
 pub struct WorldMap {
     pub filter: Filter,
     pub camera: Camera,
-    /// The blip the cursor is on (an index into the blips given to [`WorldMap::frame`]). Frozen while the prompt is
-    /// open, so the prompt keeps naming the blip it asked about.
+    /// The blip the cursor is on (an index into the blips given to [`WorldMap::frame`]). Hovering the map over a blip
+    /// of the filter focuses it; moving away unfocuses. The cursor snaps onto it (the "square"); the GPS confirm names it.
     pub attached: Option<usize>,
-    /// The "Activate GPS?" prompt is open.
-    pub prompt: bool,
+    /// The mouse's place in the view (0..1 on each axis over the picture), for drawing the free cross cursor. `None`
+    /// off the window.
+    pub cursor: Option<[f32; 2]>,
+    /// The first row the themed legend shows: the scroll offset into the current filter's blips. Scrolling while the
+    /// cursor is off the picture moves it; switching the tab resets it.
+    pub list_scroll: usize,
 }
 
 impl Default for WorldMap {
@@ -65,7 +72,7 @@ impl Default for WorldMap {
 
 impl WorldMap {
     pub fn new() -> Self {
-        Self { filter: Filter::DEFAULT, camera: Camera::zoom_all(), attached: None, prompt: false }
+        Self { filter: Filter::DEFAULT, camera: Camera::zoom_all(), attached: None, cursor: None, list_scroll: 0 }
     }
 
     /// The indices of the blips the current filter shows, in the order given. This is the right-side list.
@@ -73,32 +80,56 @@ impl WorldMap {
         blips.iter().enumerate().filter(|(_, b)| self.filter.contains(b.style)).map(|(i, _)| i).collect()
     }
 
-    /// One frame: zoom and pan, switch the tab, attach the cursor, and handle the prompt and back.
+    /// One frame: zoom/pan or scroll the list, switch the tab, focus the blip under the cursor, and handle the GPS
+    /// press and back. Hovering the picture over a blip of the filter focuses it (the cursor snaps onto it); a left
+    /// click, Enter or a right click on the focused blip asks for GPS (the caller opens the Yes/No dialog).
     pub fn frame(&mut self, input: &MapInput, blips: &[PlacedBlip]) -> Outcome {
-        self.move_camera(input);
+        self.cursor = input.cursor;
+        let on_map = input.cursor.is_some_and(on_picture);
+        self.move_or_scroll(input, on_map, blips);
         self.switch_filter(input);
-        if let Some(cursor) = input.cursor.filter(|_| !self.prompt) {
+        // Hovering the picture focuses the nearest blip of the filter; moving off a blip (still on the picture)
+        // unfocuses. Off the picture (over the legend) the focus is left as it was.
+        if let (true, Some(cursor)) = (on_map, input.cursor) {
             self.attached = self.pick(cursor, blips);
         }
         if input.back {
             return self.back();
         }
-        if input.accept || input.secondary {
-            return self.confirm(input.accept);
+        if (input.click || input.accept || input.secondary)
+            && let Some(index) = self.attached
+        {
+            return Outcome::AskGps(index);
         }
         Outcome::Stay
     }
 
-    fn move_camera(&mut self, input: &MapInput) {
+    /// The scroll wheel zooms the map when the cursor is over the picture, and scrolls the themed legend's list when
+    /// it is off it. A drag pans the picture. Zoom All (the Z key) always resets the camera.
+    fn move_or_scroll(&mut self, input: &MapInput, on_map: bool, blips: &[PlacedBlip]) {
         if input.zoom_all {
             self.camera = Camera::zoom_all();
             return;
         }
-        self.camera.step(input.zoom_lines);
-        self.camera.pan(input.drag);
+        if on_map {
+            self.camera.step(input.zoom_lines);
+            self.camera.pan(input.drag);
+            return;
+        }
+        self.scroll_list(input.zoom_lines, blips);
     }
 
-    /// A new tab drops the prompt: it named a blip the tab may no longer show.
+    /// Scrolls the themed legend's list (the map's own FEng list is never scrolled). Wheel up shows earlier rows.
+    fn scroll_list(&mut self, lines: f32, blips: &[PlacedBlip]) {
+        let step = lines.round() as i32;
+        if step == 0 {
+            return;
+        }
+        let max = self.listed(blips).len().saturating_sub(VISIBLE_ROWS) as i32;
+        self.list_scroll = (self.list_scroll as i32 - step).clamp(0, max) as usize;
+    }
+
+    /// A new tab unfocuses (it named a blip the tab may no longer show) and resets the list scroll.
     fn switch_filter(&mut self, input: &MapInput) {
         let next = if input.next_filter {
             self.filter.next()
@@ -108,8 +139,8 @@ impl WorldMap {
             return;
         };
         self.filter = next;
-        self.prompt = false;
         self.attached = None;
+        self.list_scroll = 0;
     }
 
     /// The nearest blip of the filter to the cursor, as an index into `blips`.
@@ -119,28 +150,19 @@ impl WorldMap {
         nearest(&views, cursor, PICK_RADIUS).map(|at| shown[at])
     }
 
+    /// Back: unfocuses the blip, then closes the map.
     fn back(&mut self) -> Outcome {
-        if self.prompt {
-            self.prompt = false;
+        if self.attached.is_some() {
+            self.attached = None;
             return Outcome::Stay;
         }
         Outcome::Close
     }
+}
 
-    /// Enter or right click opens the prompt for the attached blip; Enter with the prompt open confirms it.
-    fn confirm(&mut self, accept: bool) -> Outcome {
-        if self.prompt {
-            return match (accept, self.attached) {
-                (true, Some(index)) => Outcome::ActivateGps(index),
-                _ => Outcome::Stay,
-            };
-        }
-        if self.attached.is_none() {
-            return Outcome::Stay;
-        }
-        self.prompt = true;
-        Outcome::Stay
-    }
+/// Whether a cursor (view units) is over the picture (0..1 on both axes); off it, it is over the chrome/legend.
+fn on_picture(cursor: [f32; 2]) -> bool {
+    cursor.iter().all(|v| (0.0..=1.0).contains(v))
 }
 
 /// The distance in metres from the player to `blip`, both in render space.

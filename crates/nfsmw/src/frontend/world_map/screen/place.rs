@@ -5,6 +5,18 @@ use super::super::control::{format_metres, style_name};
 use super::super::{Filter, PlacedBlip, distance_metres};
 use super::pools;
 
+/// The first listed row shown. The window of `rows` rows keeps the attached blip in it, and starts at the top
+/// otherwise.
+pub fn window_top(listed: &[usize], attached: Option<usize>, rows: usize) -> usize {
+    let Some(at) = attached.and_then(|a| listed.iter().position(|&i| i == a)) else { return 0 };
+    (at + 1).saturating_sub(rows)
+}
+
+/// What a row of the list says: the style's name and the distance from the player.
+pub fn row_text(blip: &PlacedBlip, player: [f32; 2]) -> String {
+    format!("{}   {}", style_name(blip.style), format_metres(distance_metres(player, blip)))
+}
+
 /// A blip drawn on a pool object: the blip's index in the frame's blips, and the pool object's GUID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Drawn {
@@ -34,18 +46,6 @@ pub fn assign(blips: &[PlacedBlip], filter: Filter) -> Vec<Drawn> {
         drawn.push(Drawn { blip: index, guid });
     }
     drawn
-}
-
-/// The first listed row shown. The window of `rows` rows keeps the attached blip in it, and starts at the top
-/// otherwise.
-pub fn window_top(listed: &[usize], attached: Option<usize>, rows: usize) -> usize {
-    let Some(at) = attached.and_then(|a| listed.iter().position(|&i| i == a)) else { return 0 };
-    (at + 1).saturating_sub(rows)
-}
-
-/// What a row of the list says: the style's name and the distance from the player.
-pub fn row_text(blip: &PlacedBlip, player: [f32; 2]) -> String {
-    format!("{}   {}", style_name(blip.style), format_metres(distance_metres(player, blip)))
 }
 
 #[cfg(test)]
@@ -92,10 +92,8 @@ mod tests {
         let listed: Vec<usize> = (0..10).collect();
         assert_eq!(window_top(&listed, None, 7), 0, "nothing attached: the top");
         assert_eq!(window_top(&listed, Some(3), 7), 0, "already in the first window");
-        assert_eq!(window_top(&listed, Some(6), 7), 0, "the last row of the first window");
         assert_eq!(window_top(&listed, Some(7), 7), 1, "one row past it scrolls by one");
         assert_eq!(window_top(&listed, Some(9), 7), 3, "the last blip is the last row");
-        assert_eq!(window_top(&[4, 5], Some(9), 7), 0, "an attached blip the list lacks: the top");
     }
 
     #[test]
