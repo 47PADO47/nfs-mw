@@ -14,6 +14,7 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | texture2ddecoder | 0.1 | MIT OR Apache-2.0 | CPU DXT decode when a texture can't be uploaded as BC |
 | winreg | 0.56 | MIT | Windows registry lookup of the install |
 | directories | 6 | MIT OR Apache-2.0 | Per-user config path |
+| arboard, open | 3.7, 5.4 | MIT OR Apache-2.0; MIT | Clipboard text and default-browser links from egui platform output, handled on an owned worker (checked 2026-10-19) |
 | serde, toml | 1, 0.9 | MIT OR Apache-2.0 | Config file |
 | sha2 | 0.10 | MIT OR Apache-2.0 | Identifying `speed.exe` |
 | clap | 4 | MIT OR Apache-2.0 | Command line |

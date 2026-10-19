@@ -123,17 +123,33 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             2 => 0,
             _ => coverage,
         };
-        assert_eq!(out.patches.len(), 2);
+        assert_eq!(out.patches.len(), 3);
         assert_eq!(out.patches[0].rgba, [120, 60, 30, alpha(128), 240, 120, 60, alpha(255), 240, 120, 60, alpha(255)]);
-        assert_eq!(out.patches[1].rgba, [60, 30, 15, alpha(64), 0, 0, 0, 0, 240, 120, 60, alpha(255)]);
-        let meshes = &out.layer.as_ref().unwrap().meshes;
+        // Masked pictures and masks stay straight; the GPU composes and premultiplies once.
+        assert_eq!(out.patches[1].rgba, [240, 120, 60, 128, 240, 120, 60, 255, 240, 120, 60, 255]);
+        assert_eq!(out.patches[2].rgba, [255, 255, 255, 128, 255, 255, 255, 0, 255, 255, 255, 255]);
+        let layer = out.layer.as_ref().unwrap();
+        let command = layer.compositions[0];
+        assert_eq!(command.picture, out.patches[1].id);
+        assert_eq!(command.mask, out.patches[2].id);
+        assert_eq!(command.additive, blend == 2);
+        let meshes = &layer.meshes;
         assert_eq!(meshes.len(), 2);
         assert_eq!(meshes[0].texture, out.patches[0].id);
-        assert_eq!(meshes[1].texture, out.patches[1].id);
+        assert_eq!(meshes[1].texture, command.output);
         assert!(meshes.iter().flat_map(|m| &m.vertices).all(|v| v.color_rgba == [255, 255, 255, alpha(255)]));
         let mut cached = UiOutput::default();
         presenter.present(&tree, &assets, screen, &mut cached);
         assert!(cached.patches.is_empty(), "the same composed texture must not be uploaded every frame");
+        assert!(cached.layer.as_ref().unwrap().compositions.is_empty());
+        let mut moving = tree.clone();
+        if let NodeKind::Image { mask_uv, .. } = &mut moving.nodes[1].kind {
+            *mask_uv = [0.25, -0.5, 1.25, 0.5];
+        }
+        let mut changed = UiOutput::default();
+        presenter.present(&moving, &assets, screen, &mut changed);
+        assert!(changed.patches.is_empty(), "moving masks must not rebuild or upload CPU pixels");
+        assert_eq!(changed.layer.unwrap().compositions[0].output, command.output);
     }
 }
 

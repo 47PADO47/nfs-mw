@@ -61,6 +61,7 @@ const AVERAGE_OVER: usize = 60;
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct Metrics {
+    trace: super::trace::Samples,
     /// Recent frame times in milliseconds, oldest first.
     pub frame_ms: VecDeque<f32>,
     pub adapter: String,
@@ -73,6 +74,7 @@ pub struct Metrics {
     pub render_size: [u32; 2],
     pub work: work::Work,
     pub limit: &'static str,
+    pub limit_hint: &'static str,
     pub generation_configured: bool,
     rates: rates::Rates,
     clock: Option<Instant>,
@@ -134,6 +136,7 @@ impl Metrics {
                 present_ms: performance.present_wait_ms,
                 sleep_ms: sleep,
                 gpu_ms: None,
+                activity: performance.activity,
             });
             if self.work_history.len() > AVERAGE_OVER {
                 self.work_history.pop_front();
@@ -141,6 +144,7 @@ impl Metrics {
         }
         let n = self.work_history.len().max(1) as f32;
         self.work = work::Work {
+            activity: performance.activity,
             cpu_ms: self.work_history.iter().map(|v| v.cpu_ms).sum::<f32>() / n,
             acquire_ms: self.work_history.iter().map(|v| v.acquire_ms).sum::<f32>() / n,
             present_ms: self.work_history.iter().map(|v| v.present_ms).sum::<f32>() / n,
@@ -177,6 +181,7 @@ pub fn collect(
     settings: Res<crate::settings::Settings>,
     window: Single<&bevy_window::Window, With<bevy_window::PrimaryWindow>>,
 ) {
+    let _trace = blackbox_trace::scope("Diagnostics: metrics / trace collection");
     let now = Instant::now();
     let dt = metrics.last_collect.replace(now).map_or(time.delta_secs(), |last| now.duration_since(last).as_secs_f32());
     metrics.push(dt);
@@ -184,6 +189,7 @@ pub fn collect(
     let stats = renderer.stats();
     let performance = renderer.frame_performance();
     let latency = renderer.latency_status();
+    super::trace::observe(&mut metrics.trace, renderer.as_ref(), &host, &settings, window.focused);
     let seconds = now.duration_since(*metrics.clock.get_or_insert(now)).as_secs_f64();
     let rendered = match renderer.info().renderer {
         "blackbox" => performance.rendered_frames,
@@ -197,7 +203,9 @@ pub fn collect(
     let cap_us = settings.max_fps.microseconds();
     let cap = (cap_us > 0 && !settings.vsync).then(|| 1_000_000.0 / cap_us as f32);
     let frame_ms = metrics.rates.rendered().filter(|v| *v > 0.0).map_or(0.0, |fps| 1000.0 / fps);
-    metrics.limit = metrics.work.limit(frame_ms, cap, settings.vsync, window.focused);
+    let assessment = metrics.work.limit(frame_ms, cap, settings.vsync, window.focused, latency.generation_active);
+    metrics.limit = assessment.label;
+    metrics.limit_hint = assessment.hint;
     (metrics.meshes, metrics.textures) = (stats.meshes, stats.textures);
     if metrics.adapter.is_empty() {
         metrics.adapter = renderer.info().summary();

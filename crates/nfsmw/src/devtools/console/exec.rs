@@ -27,7 +27,9 @@ pub fn execute(
     (modes, mut bindings): (Res<WindowModes>, ResMut<Bindings>),
     mut exit: MessageWriter<AppExit>,
     mods: Option<NonSend<crate::modding::Mods>>,
+    mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
 ) {
+    let _trace = blackbox_trace::scope("Console: execute commands");
     let host = &mut *host;
     console.scene_commands = host.scene.commands();
     // Scene commands need the renderer; keep the lines for when it exists.
@@ -56,6 +58,10 @@ pub fn execute(
             Ok(Some(Command::Keys)) => Ok(bindings.describe()),
             Ok(Some(Command::Mods)) => Ok(crate::modding::listing(mods.as_deref())),
             Ok(Some(Command::Help)) => Ok(help(host.scene.commands(), &crate::modding::help_entries(mods.as_deref()))),
+            Ok(Some(Command::Scene { name, args })) if name == "trace" => lab
+                .as_deref_mut()
+                .ok_or_else(|| "Trace recorder is unavailable".to_owned())
+                .and_then(|lab| lab.recorder.command(&args)),
             // A mod command is consulted after the built-ins and before the scene's own commands.
             Ok(Some(Command::Scene { name, args })) if crate::modding::has_command(mods.as_deref(), &name) => {
                 let args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -205,6 +211,7 @@ impl Console {
 
 /// Push changed settings into the parts that hold them: the frame limiter and the swapchain.
 pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut applied: Local<Option<Settings>>) {
+    let _trace = blackbox_trace::scope("Settings: synchronize scene");
     if applied
         .as_ref()
         .is_none_or(|before| before.always_rain != settings.always_rain || before.rain_amount != settings.rain_amount)

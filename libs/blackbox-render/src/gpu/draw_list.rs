@@ -61,6 +61,7 @@ impl DrawList {
         redirects: &HashMap<usize, usize>,
         textures: &Slots<wgpu::BindGroup>,
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: build draw list");
         self.fill(
             instances,
             |slot| meshes.get(slot).map(|mesh| mesh.draws.as_slice()),

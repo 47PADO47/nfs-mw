@@ -206,7 +206,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     .add_systems(Update, crate::ui::theme::sync_active_theme.in_set(FrameSet::Prepare))
     .add_systems(Update, crate::ui::theme::sync_mod_themes.in_set(FrameSet::Prepare))
     .add_systems(Update, render::draw.in_set(FrameSet::Draw))
-    .add_systems(bevy_app::First, latency::begin.before(bevy_time::TimeSystems))
+    .add_systems(bevy_app::First, latency::begin.before(bevy_time::TimeSystems).after(crate::devtools::trace::begin))
     .add_systems(bevy_app::PreUpdate, latency::input.after(bevy_input::InputSystems))
     .add_systems(Last, pacing::end_of_frame);
     if bench_seconds.is_some() {

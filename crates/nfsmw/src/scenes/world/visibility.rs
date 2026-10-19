@@ -119,6 +119,7 @@ fn collect_inner<'a>(
     out: &mut Vec<Instance>,
 ) {
     let frustum = Frustum::from_view_proj(&camera.view_proj);
+    let _trace = blackbox_trace::scope("World: visibility / caster selection");
     let caster_ray = glam::Vec3::from_array(camera.light_dir).normalize_or_zero() * 80.0;
     let view = LodView {
         position: camera.position,

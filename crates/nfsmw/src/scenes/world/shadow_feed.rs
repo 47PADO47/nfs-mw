@@ -25,6 +25,7 @@ impl WorldScene {
     }
 
     pub(super) fn update_shadow_casters(&mut self, renderer: &mut dyn RenderBackend) {
+        let _trace = blackbox_trace::scope("World: prepare shadow casters");
         let _span = bevy_log::info_span!("world::shadow_feed").entered();
         let settings = renderer.render_experiments();
         if self.car_shading.is_original() {

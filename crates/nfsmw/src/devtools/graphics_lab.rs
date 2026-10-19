@@ -31,6 +31,7 @@ use blackbox_gfx::{AoQuality, ExperimentStats, LightingDebug, ReflectionQuality,
 
 #[derive(Resource)]
 pub struct GraphicsLab {
+    pub(super) recorder: super::trace::Recorder,
     pub open: bool,
     options: RenderExperiments,
     startup_options: Option<RenderExperiments>,
@@ -73,6 +74,7 @@ impl Default for GraphicsLab {
             options.world_ambient = false;
         }
         Self {
+            recorder: super::trace::Recorder::default(),
             open: std::env::var("NFSMW_LAB_OVERLAY").as_deref() == Ok("1")
                 || (!preset.is_empty() && std::env::var("NFSMW_LAB_OVERLAY").as_deref() != Ok("0")),
             startup_options: (!preset.is_empty()
@@ -217,6 +219,7 @@ impl GraphicsLab {
 }
 
 fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSendMut<Host>) {
+    let _trace = blackbox_trace::scope("Diagnostics: apply graphics lab");
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());

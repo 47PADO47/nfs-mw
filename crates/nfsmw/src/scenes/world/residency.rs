@@ -167,6 +167,7 @@ impl Residency {
 
     /// Request, upload and drop sections for a camera at map position (x, y).
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
+        let _trace = blackbox_trace::scope("World: streaming residency / uploads");
         let _span = bevy_log::info_span!("world::residency").entered();
         self.sync_bc_support(renderer);
         self.receive();

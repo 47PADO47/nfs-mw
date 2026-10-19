@@ -45,6 +45,7 @@ impl MirrorOverlay {
     /// Collect a finished capture, then ask for the next one when the scene has a rear view.
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, scene: &mut dyn Scene) {
         let _span = bevy_log::info_span!("render::mirror").entered();
+        let _trace = blackbox_trace::scope("Render bridge: rear-view mirror");
         let tint = renderer.graphics().mirror_tint;
         let distance = renderer.graphics().reflection_distance;
         if !self.uploaded {

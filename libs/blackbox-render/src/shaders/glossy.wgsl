@@ -165,7 +165,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
-    let env = textureSample(env_map, env_sampler, reflected).rgb;
+    let env = hybrid_environment(in.world, n, reflected, textureSample(env_map, env_sampler, reflected).rgb);
 
     var out: Shaded;
     out.rgb = occlusion * light * diff.rgb * tex.rgb
@@ -271,7 +271,9 @@ fn original_environment(direction: vec3<f32>) -> vec3<f32> {
     return textureSampleLevel(env_faces, env_sampler, uv, face, 0.0).rgb;
 }
 fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
-    let env = original_environment(in.original_reflection);
+    let n = safe_unit(in.normal);
+    let direction = reflect(safe_unit(in.world - globals.camera_pos.xyz), n);
+    let env = hybrid_environment(in.world, n, direction, original_environment(in.original_reflection));
     let diff = in.original_diffuse;
     let spec = in.original_specular;
     var highlight = 2.0 * pow(clamp(dot(in.original_normal, in.original_half), 0.0, 1.0), 8.0);

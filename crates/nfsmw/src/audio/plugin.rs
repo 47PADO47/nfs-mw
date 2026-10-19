@@ -47,6 +47,7 @@ impl Plugin for AudioPlugin {
 
 /// `set volume 50` in the console and the config file reach the mixer.
 fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
+    let _trace = blackbox_trace::scope("Audio: volumes");
     if !settings.is_changed() {
         return;
     }
@@ -59,6 +60,7 @@ fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
 /// `radio = false` in the config file and `set radio off` in the console reach the radio. Only a change of the setting
 /// does: the `radio on` and `radio off` commands stay in force until the setting changes again.
 fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied: Local<Option<bool>>) {
+    let _trace = blackbox_trace::scope("Audio: radio settings");
     if *applied == Some(settings.radio) {
         return;
     }
@@ -69,6 +71,7 @@ fn sync_radio(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut applied
 /// The sound viewer's transport: what the scene asks for plays, and its playhead is reported back. A scene without one
 /// stops what it had started.
 fn play_preview(host: NonSendMut<Host>, mut audio: NonSendMut<Audio>, mut player: Local<PreviewPlayer>) {
+    let _trace = blackbox_trace::scope("Audio: previews");
     match host.scene.sound_preview() {
         Some(preview) => player.service(&mut audio, &preview),
         None => player.stop(),
@@ -77,6 +80,7 @@ fn play_preview(host: NonSendMut<Host>, mut audio: NonSendMut<Audio>, mut player
 
 /// The one-shot sounds the mods asked for (`bb.audio` `play`) since the last frame.
 fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>) {
+    let _trace = blackbox_trace::scope("Audio: one shots");
     oneshot::service(&mut audio, &mut player);
 }
 
@@ -88,6 +92,7 @@ fn drive_car(
     mut audio: NonSendMut<Audio>,
     mut seen: Local<u32>,
 ) {
+    let _trace = blackbox_trace::scope("Audio: car / traffic / music update");
     // A scene that went away takes its soundtrack with it, even when the next one has none.
     if *seen != host.scene_changes {
         *seen = host.scene_changes;

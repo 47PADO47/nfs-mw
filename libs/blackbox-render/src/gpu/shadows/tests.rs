@@ -293,6 +293,12 @@ fn pcss_softens_separated_casters_and_gpu_timings_are_read_asynchronously() {
     assert_ne!(hard, soft, "blocker separation must change the penumbra");
     assert_eq!(soft, r.capture(240, 160, &frame, &ground).unwrap(), "PCSS has no temporal seed");
     if r.timing.is_some() {
+        // Screenshot passes deliberately do not publish live-frame timings.
+        // Exercise ordinary rendering and retire asynchronous readbacks explicitly.
+        for _ in 0..3 {
+            r.render(&frame, &ground).unwrap();
+            r.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        }
         let stats = r.experiment_stats();
         assert!(stats.gpu_frame_ms.is_some_and(|ms| ms.is_finite() && ms > 0.0));
         assert!(stats.gpu_shadow_ms.is_some_and(|ms| ms.is_finite() && ms > 0.0));

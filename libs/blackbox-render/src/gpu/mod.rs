@@ -1,5 +1,6 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod activity;
 mod adapters;
 pub(crate) mod ao;
 mod backend_impl;
@@ -98,11 +99,13 @@ pub struct Renderer {
     smaa: Option<spatial_aa::SpatialAa>,
     shadow_casters: Option<Vec<blackbox_gfx::Instance>>,
     ao: Option<ao::AmbientOcclusion>,
+    effect_motion: Option<temporal::EffectMotion>,
     contact: Option<contact::Contact>,
     surfaces: Option<surface::Surfaces>,
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,
     performance: blackbox_gfx::FramePerformance,
+    activity: activity::Monitor,
     render_scale: f32,
     upscale: upscale::Upscale,
     /// The jitter, motion vectors and history of the temporal upscaler (FSR 3).
@@ -265,7 +268,7 @@ impl Renderer {
         targets::plan_scene(&SceneInputs {
             output,
             render,
-            passes: self.post.has_passes(),
+            passes: self.post.has_passes() || self.experiments.screen_reflections,
             hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
             temporal,
             surface_format: format,

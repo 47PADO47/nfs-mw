@@ -20,6 +20,9 @@ mod pyramid_tests;
 mod resolution_tests;
 #[cfg(test)]
 mod surface_tests;
+mod temporal;
+#[cfg(test)]
+mod temporal_tests;
 #[cfg(test)]
 mod tests;
 
@@ -69,12 +72,15 @@ pub(super) struct AmbientOcclusion {
     images: Option<Images>,
     inputs: Option<bindings::Inputs>,
     depth: depth::DepthPyramid,
+    temporal: Option<temporal::History>,
+    phase: u32,
     fallback_depth: wgpu::TextureView,
     pub mask: wgpu::TextureView,
     pub size: (u32, u32),
 }
 
 pub(super) struct Draw<'a> {
+    pub motion: Option<&'a crate::gpu::temporal::EffectMotion>,
     pub target: &'a wgpu::TextureView,
     pub depth: &'a wgpu::TextureView,
     pub size: (u32, u32),
@@ -94,6 +100,8 @@ impl AmbientOcclusion {
                 mapped_at_creation: false,
             }),
             images: None,
+            temporal: None,
+            phase: 0,
             inputs: None,
             depth: depth::DepthPyramid::new(device, (1, 1)),
             fallback_depth: depth::DepthPyramid::new(device, (1, 1)).view,
@@ -114,8 +122,8 @@ impl AmbientOcclusion {
         if !settings.active() {
             return;
         }
-        let (divisor, slices, steps) = match settings.method {
-            AoMethod::XeGtao => match settings.quality {
+        let (mut divisor, slices, steps) = match settings.method {
+            AoMethod::XeGtao | AoMethod::TemporalXeGtao => match settings.quality {
                 blackbox_gfx::AoQuality::Off => (1, 0, 0),
                 blackbox_gfx::AoQuality::Low => (2, 2, 3),
                 blackbox_gfx::AoQuality::Medium => (2, 3, 4),
@@ -123,6 +131,12 @@ impl AmbientOcclusion {
             },
             _ => settings.quality.sampling(),
         };
+        if settings.method.temporal() {
+            divisor = 2;
+            if draw.motion.is_none_or(|motion| motion.reset) || draw.frame.camera_cut {
+                self.phase = 0;
+            }
+        }
         let size = (draw.size.0.div_ceil(divisor).max(1), draw.size.1.div_ceil(divisor).max(1));
         if self.images.as_ref().is_none_or(|i| i.size != size) {
             self.images = Some(Images::new(device, size));
@@ -135,7 +149,15 @@ impl AmbientOcclusion {
             projection: [tan_y * aspect, tan_y, near, f32::from(u8::from(settings.depth_mips))],
             effect: [settings.radius, settings.intensity, 40.0, 100.0],
             sampling: [divisor, slices, steps, u32::from(settings.compare)],
-            fog: [fog_start, fog_end, f32::from(u8::from(settings.method == AoMethod::XeGtao)), 0.0],
+            fog: [
+                fog_start,
+                fog_end,
+                f32::from(u8::from(settings.method.is_xe())),
+                match settings.method.temporal() {
+                    true => self.phase as f32,
+                    false => 0.0,
+                },
+            ],
             view: draw.frame.view.to_cols_array(),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
@@ -143,7 +165,7 @@ impl AmbientOcclusion {
             true => draw.size,
             false => (1, 1),
         };
-        let xe = settings.method == AoMethod::XeGtao;
+        let xe = settings.method.is_xe();
         if self.depth.size != depth_size || self.depth.xe != xe {
             self.depth = depth::DepthPyramid::with_method(device, depth_size, xe);
         }
@@ -159,14 +181,15 @@ impl AmbientOcclusion {
         let generate = match settings.method {
             AoMethod::Gtao => &self.pipelines.generate,
             AoMethod::Ssao => &self.pipelines.ssao,
-            AoMethod::XeGtao => &self.pipelines.xegtao,
+            AoMethod::XeGtao | AoMethod::TemporalXeGtao => &self.pipelines.xegtao,
         };
         let filter = match settings.method {
-            AoMethod::XeGtao => &self.pipelines.xe_filter,
+            AoMethod::XeGtao | AoMethod::TemporalXeGtao => &self.pipelines.xe_filter,
             _ => &self.pipelines.filter,
         };
+        let temporal_passes = [("AO estimate", generate, &inputs[0]), ("AO spatial denoise", filter, &inputs[1])];
         let passes: &[(&str, &wgpu::ComputePipeline, &wgpu::BindGroup)] = match settings.method {
-            AoMethod::XeGtao => &[
+            AoMethod::XeGtao | AoMethod::TemporalXeGtao => &[
                 ("AO estimate", generate, &inputs[0]),
                 ("AO spatial denoise 1", &self.pipelines.xe_intermediate, &inputs[1]),
                 ("AO spatial denoise 2", &self.pipelines.xe_intermediate, &inputs[3]),
@@ -176,6 +199,10 @@ impl AmbientOcclusion {
             ],
             _ => &[("AO estimate", generate, &inputs[0]), ("AO spatial denoise", filter, &inputs[1])],
         };
+        let passes = match settings.method.temporal() {
+            true => &temporal_passes[..],
+            false => passes,
+        };
         for &(label, pipeline, inputs) in passes {
             let mut pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(label), timestamp_writes: None });
@@ -183,6 +210,31 @@ impl AmbientOcclusion {
             pass.set_bind_group(0, inputs, &[]);
             pass.dispatch_workgroups(size.0.div_ceil(8), size.1.div_ceil(8), 1);
         }
+        let temporal_group = match settings.method.temporal() {
+            true => {
+                if self.temporal.as_ref().is_none_or(|h| !h.matches(size)) {
+                    self.temporal = Some(temporal::History::new(device, size, settings));
+                }
+                let output =
+                    self.temporal.as_mut().unwrap().encode(device, encoder, &self.params, &images.filtered, &draw);
+                self.phase = self.phase.wrapping_add(1) % 64;
+                Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("temporal AO resolve"),
+                    layout: &composite.get_bind_group_layout(0),
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: self.params.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(draw.depth) },
+                        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&output) },
+                        wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(draw.normals) },
+                    ],
+                }))
+            }
+            false => {
+                self.temporal = None;
+                self.phase = 0;
+                None
+            }
+        };
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("AO ambient mask"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -197,12 +249,12 @@ impl AmbientOcclusion {
             multiview_mask: None,
         });
         pass.set_pipeline(composite);
-        pass.set_bind_group(0, &inputs[2], &[]);
+        pass.set_bind_group(0, temporal_group.as_ref().unwrap_or(&inputs[2]), &[]);
         pass.draw(0..3, 0..1);
     }
 }
 
-pub(crate) fn sources() -> [(&'static str, String); 5] {
+pub(crate) fn sources() -> [(&'static str, String); 6] {
     let common = include_str!("../../shaders/ao_common.wgsl");
     [
         ("AO horizons", include_str!("../../shaders/ao_horizon.wgsl")),
@@ -210,6 +262,7 @@ pub(crate) fn sources() -> [(&'static str, String); 5] {
         ("AO composite", include_str!("../../shaders/ao_composite.wgsl")),
         ("AO depth prefilter", include_str!("../../shaders/ao_depth.wgsl")),
         ("XeGTAO edge denoise", include_str!("../../shaders/ao_xe_filter.wgsl")),
+        ("AO temporal", include_str!("../../shaders/ao_temporal.wgsl")),
     ]
     .map(|(name, source)| {
         let extra = match name {

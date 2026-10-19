@@ -18,7 +18,9 @@ const TRAFFIC_HALF_EXTENT: f32 = 4.0;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CaptureStamp {
     seconds: f32,
+    cached: bool,
     quality: ReflectionQuality,
+    size: u32,
     origin: Vec3,
     scenery: u64,
     original_shadows: bool,
@@ -30,6 +32,7 @@ pub(super) struct CaptureStamp {
 
 impl WorldScene {
     pub(super) fn update_reflections(&mut self, renderer: &mut dyn RenderBackend) {
+        let _trace = blackbox_trace::scope("World: reflection views");
         let _span = bevy_log::info_span!("world::reflections").entered();
         let graphics = *renderer.graphics();
         let quality = graphics.reflections;
@@ -45,17 +48,26 @@ impl WorldScene {
         }
         // Cadence and resolution are rewrite choices; all faces share one snapshot. Never accumulate
         // temporal history: at high speed the previous world must not trail across the paint.
-        let interval = match quality {
-            ReflectionQuality::Low => 1.0 / 15.0,
-            ReflectionQuality::Medium => 1.0 / 30.0,
-            _ => 0.0,
+        let cached = renderer.render_experiments().cached_reflections;
+        let interval = match (cached, quality) {
+            (true, ReflectionQuality::Low) => 0.1,
+            (true, ReflectionQuality::Medium) => 0.05,
+            (true, _) => 1.0 / 30.0,
+            (false, quality) => match quality {
+                ReflectionQuality::Low => 1.0 / 15.0,
+                ReflectionQuality::Medium => 1.0 / 30.0,
+                _ => 0.0,
+            },
         };
         let origin = drive.pose().position + Vec3::Z * 0.95;
+        let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
         let (distance, lod, content) =
             (graphics.reflection_distance, graphics.reflection_lod, graphics.reflection_content);
         if self.reflection_last.is_some_and(|last| {
-            last.quality == quality
+            last.cached == cached
+                && last.quality == quality
+                && last.size == size
                 && last.distance == distance
                 && last.lod == lod
                 && last.content == content
@@ -80,8 +92,7 @@ impl WorldScene {
             shadow_tuning: None,
         };
         // The cube face size the renderer captures at, so the detail threshold follows the capture.
-        let output_height = renderer.surface_size()[1];
-        let face_size = graphics.reflection_resolution.cube_face(quality.size(), output_height, PLANAR_MAX) as f32;
+        let face_size = size as f32;
         // The traffic cars are gathered once; each face keeps the ones in its own frustum.
         let mut cars = Vec::new();
         if let Some(traffic) = self.traffic.as_ref().filter(|_| content.includes_traffic()) {
@@ -148,7 +159,9 @@ impl WorldScene {
         }));
         self.reflection_last = Some(CaptureStamp {
             seconds: self.clock,
+            cached,
             quality,
+            size,
             origin,
             scenery,
             original_shadows: self.original_shadows,

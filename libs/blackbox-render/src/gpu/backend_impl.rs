@@ -48,7 +48,11 @@ impl RenderBackend for Renderer {
         Renderer::set_sky_state(self, state);
     }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
+        let old_screen = self.experiments.screen_reflections;
         self.experiments = options.sanitized();
+        if old_screen != self.experiments.screen_reflections {
+            self.refresh_targets();
+        }
         self.experiments.shadow_resolution =
             self.experiments.shadow_resolution.min(self.device.limits().max_texture_dimension_2d);
         self.experiments.shadow_detail_resolution =
@@ -280,6 +284,7 @@ impl RenderBackend for Renderer {
 
     fn frame_performance(&self) -> blackbox_gfx::FramePerformance {
         let mut performance = self.performance;
+        performance.activity = self.activity.sample();
         if let Some(timing) = &self.timing {
             performance.gpu_render_ms = timing.latest.map(|sample| sample[0]);
             performance.gpu_sample = timing.completed;

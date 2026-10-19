@@ -56,6 +56,7 @@ pub(crate) fn update_actions(
     mut held: Local<HashSet<GamepadButton>>,
     mut logged_axes: Local<HashMap<GamepadAxis, f32>>,
 ) {
+    let _trace = blackbox_trace::scope("Input: resolve actions");
     presentation.sample_pads(&pads, &bindings);
     let key_activity = keys.get_just_pressed().any(|key| {
         bindings

@@ -1,8 +1,12 @@
 //! Prototype raster sun visibility. Separate caster lists never enter the colour pass.
+mod cache;
+#[cfg(test)]
+mod cache_tests;
 #[cfg(test)]
 mod coverage_tests;
 #[cfg(test)]
 mod density_tests;
+mod draw;
 mod fit;
 #[cfg(test)]
 mod foliage_tests;
@@ -32,6 +36,8 @@ use std::time::Instant;
 
 pub(super) struct Shadows {
     grid: grid::Grid,
+    cache: cache::Cache,
+    static_instances: Vec<InstanceBuffer>,
     bias: [f32; 2],
     opaque: wgpu::RenderPipeline,
     cutout: wgpu::RenderPipeline,
@@ -54,6 +60,7 @@ impl Renderer {
         visible: &[Instance],
     ) {
         let start = Instant::now();
+        let _trace = blackbox_trace::scope("Renderer CPU: shadows");
         let mut stats =
             ExperimentStats { supported: self.info.api != blackbox_gfx::GraphicsApi::Gl, ..Default::default() };
         let settings = self.experiments;
@@ -166,11 +173,20 @@ impl Renderer {
         }
         self.queue.write_buffer(&self.shared.shadows.buffer, 0, bytemuck::bytes_of(&params));
         let Some(fit) = fit.filter(|_| settings.sun_shadows && stats.supported) else {
+            if let Some(shadows) = &mut self.shadows {
+                shadows.cache = cache::Cache::default();
+            }
             self.experiment_stats = stats;
             return;
         };
-        let shadows = self.shadows.as_mut().expect("prepared shadow pipelines");
+        let mut shadows = self.shadows.take().expect("prepared shadow pipelines");
         let casters = self.shadow_casters.as_deref().unwrap_or(visible);
+        if settings.cached_shadows {
+            shadows.cache.prepare(casters);
+        }
+        if !settings.cached_shadows {
+            shadows.cache = cache::Cache::default();
+        }
         stats.cascades = fit.count as u32;
         for cascade in 0..fit.count {
             let mut matrix = Mat4::from_cols_array(&fit.params.matrices[cascade]);
@@ -193,81 +209,88 @@ impl Renderer {
             let selected = &shadows.selected;
             shadows.instances[cascade].upload(&self.device, &self.queue, &shadows.matrices);
             self.queue.write_buffer(&shadows.buffers[cascade], 0, bytemuck::cast_slice(&matrix.to_cols_array()));
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("spatial sun cascade"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.shared.shadows.layers[cascade],
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            let target = &self.shared.shadows.layers[cascade];
             let size = fit.params.resolutions[cascade];
-            pass.set_viewport(0.0, 0.0, size, size, 0.0, 1.0);
-            pass.set_scissor_rect(0, 0, size as u32, size as u32);
-            pass.set_bind_group(0, &shadows.groups[cascade], &[]);
-            pass.set_vertex_buffer(1, shadows.instances[cascade].buffer.slice(..));
-            let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
-            let mut bound_texture: Option<&wgpu::BindGroup> = None;
-            let mut first = 0;
-            while first < selected.len() {
-                let mesh_handle = casters[selected[first]].mesh;
-                let end =
-                    first + selected[first..].iter().take_while(|&&index| casters[index].mesh == mesh_handle).count();
-                let mesh = self.meshes.get(mesh_handle.raw()).expect("selected resident mesh");
-                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                for draw in &mesh.draws {
-                    if !casts(draw.blend, draw.shading) {
+            let projection_stable = shadows.cache.projection(cascade, matrix, frame.camera_cut);
+            if settings.cached_shadows && settings.shadow_projection.is_none() && projection_stable {
+                let (fixed, moving): (Vec<_>, Vec<_>) =
+                    selected.iter().copied().partition(|&i| shadows.cache.stable[i]);
+                if !fixed.is_empty() {
+                    let fingerprint = cache::fingerprint(self, matrix, &fixed, casters);
+                    let (view, dirty, reuse_final) = shadows.cache.image(
+                        &self.device,
+                        cascade,
+                        size as u32,
+                        fingerprint,
+                        target,
+                        !moving.is_empty(),
+                    );
+                    if dirty {
+                        let matrices: Vec<_> = fixed.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
+                        shadows.static_instances[cascade].upload(&self.device, &self.queue, &matrices);
+                        shadows.draw_selected(
+                            self,
+                            encoder,
+                            cascade,
+                            &view,
+                            size,
+                            wgpu::LoadOp::Clear(1.0),
+                            &shadows.static_instances[cascade].buffer,
+                            &fixed,
+                            casters,
+                            &mut stats,
+                        );
+                    }
+                    if !dirty {
+                        stats.shadow_cached_cascades += 1;
+                    }
+                    if reuse_final {
                         continue;
                     }
-                    let pipeline = match draw.blend {
-                        BlendMode::AlphaTest
-                            if settings.original_world_materials
-                                && matches!(draw.shading, Shading::WorldNormal(handle)
-                                if self.normal.as_ref().is_some_and(|n| n.reflective_material(handle))) =>
-                        {
-                            &shadows.opaque
-                        }
-                        BlendMode::AlphaTest
-                            if settings.original_world_materials
-                                && matches!(draw.shading, Shading::Tree | Shading::WorldWindow(_)) =>
-                        {
-                            &shadows.tree_cutout
-                        }
-                        BlendMode::AlphaTest
-                            if settings.original_world_materials && draw.shading == Shading::WorldPrelit =>
-                        {
-                            &shadows.prelit_cutout
-                        }
-                        BlendMode::AlphaTest => &shadows.cutout,
-                        _ => &shadows.opaque,
+                    let layer = match detail {
+                        Some(_) if cascade >= 2 => cascade - 2,
+                        _ => cascade,
                     };
-                    if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
-                        pass.set_pipeline(pipeline);
-                        bound_pipeline = Some(pipeline);
-                    }
-                    let slot = draw.texture.map(|t| self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
-                    let texture = slot.and_then(|s| self.textures.get(s)).or(self.textures.get(0));
-                    let Some(texture) = texture else { continue };
-                    if bound_texture.is_none_or(|bound| !std::ptr::eq(bound, texture)) {
-                        pass.set_bind_group(1, texture, &[]);
-                        bound_texture = Some(texture);
-                    }
-                    pass.draw_indexed(
-                        draw.first_index..draw.first_index + draw.index_count,
-                        draw.base_vertex,
-                        first as u32..end as u32,
+                    let mut destination = target.texture().as_image_copy();
+                    destination.origin.z = layer as u32;
+                    encoder.copy_texture_to_texture(
+                        view.texture().as_image_copy(),
+                        destination,
+                        wgpu::Extent3d { width: size as u32, height: size as u32, depth_or_array_layers: 1 },
                     );
-                    stats.shadow_draws += 1;
-                    stats.shadow_instances += (end - first) as u32;
+                    let matrices: Vec<_> = moving.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
+                    shadows.instances[cascade].upload(&self.device, &self.queue, &matrices);
+                    shadows.draw_selected(
+                        self,
+                        encoder,
+                        cascade,
+                        target,
+                        size,
+                        wgpu::LoadOp::Load,
+                        &shadows.instances[cascade].buffer,
+                        &moving,
+                        casters,
+                        &mut stats,
+                    );
+                    continue;
                 }
-                first = end;
             }
+            shadows.cache.invalidate_final(cascade);
+            shadows.draw_selected(
+                self,
+                encoder,
+                cascade,
+                target,
+                size,
+                wgpu::LoadOp::Clear(1.0),
+                &shadows.instances[cascade].buffer,
+                selected,
+                casters,
+                &mut stats,
+            );
         }
+        stats.map_mib += shadows.cache.mib();
+        self.shadows = Some(shadows);
         stats.shadow_cpu_ms = start.elapsed().as_secs_f32() * 1000.0;
         self.experiment_stats = stats;
     }

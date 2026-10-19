@@ -16,6 +16,7 @@ template<class T> static bool feature_function(sl::Feature feature, const char* 
 extern "C" void bb_sl_latency_caps(void* physical, uint32_t* caps) {
     sl::AdapterInfo info{};
     info.vkPhysicalDevice = physical;
+    if (directx) dx_adapter(info);
     if (p_slIsFeatureSupported(sl::kFeatureReflex, info) == sl::Result::eOk &&
         p_slIsFeatureSupported(sl::kFeaturePCL, info) == sl::Result::eOk) {
         PFun_slReflexGetState* get_state{};
@@ -138,6 +139,10 @@ extern "C" int bb_sl_presented(uint32_t* stats) {
     sl::DLSSGState state{};
     auto result = generation_state(viewport, state, nullptr);
     if (result == sl::Result::eOk) {
+        if (directx) {
+            const int wait = dx_inputs_consumed(state);
+            if (wait != 0) return wait;
+        }
         presented = state.numFramesActuallyPresented;
         generation_error = static_cast<uint32_t>(state.status);
     }

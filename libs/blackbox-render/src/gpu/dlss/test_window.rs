@@ -38,7 +38,7 @@ impl TestWindow {
         let window = Arc::new(Self(NonZeroIsize::new(unsafe { bb_sl_test_window_create() }).expect("test window")));
         let renderer =
             crate::Renderer::new(window.clone(), (640, 360), window.clone(), super::super::test_support::options())
-                .expect("Vulkan window renderer");
+                .expect("native window renderer");
         (window, renderer)
     }
     pub(super) fn resize(&self, size: (u32, u32)) {

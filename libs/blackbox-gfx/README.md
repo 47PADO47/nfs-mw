@@ -15,7 +15,7 @@ License: MIT OR Apache-2.0.
 | `caps` | `Capabilities`, small enum bitsets (`AaSet`, `UpscalerSet`, `TonemapSet`, `RestartSet`), and the pure `resolve(requested, caps)` |
 | `settings` | `GraphicsSettings`, `PostSettings`, `Antialiasing`, `Upscaler`, `UpscaleQuality`, `RayTracing`, render-scale and upscale helpers |
 | `mesh`, `texture`, `material`, `frame` | the 36-byte `Vertex`, `MeshDesc`, `DrawRange`, `BlendMode`, `Shading`, `TextureDesc`, glossy materials and the lighting rig, `FrameParams`, `Instance`, `FrameStatus` |
-| `effects`, `ui` | the world `EffectLayer` and the 2D `UiLayer` (textured, clipped, premultiplied-alpha triangles) |
+| `effects`, `ui` | the world `EffectLayer` and the 2D `UiLayer` (textured, clipped, premultiplied-alpha triangles, plus persistent GPU mask-composition commands) |
 | `reflection` | `ReflectionScene`: six scenery lists and a shared origin; `ReflectionQuality` and RH cube cameras |
 | `projected` | `ProjectedReflectionScene`: caller-defined 2D capture view, retained scene instances, dimensions and optional separable blur |
 | `handles`, `error`, `capture`, `stats` | opaque resource handles, `RenderError`, `RgbaImage`, `BackendInfo` and `RenderStats` |

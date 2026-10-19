@@ -29,6 +29,9 @@ impl Layouts {
             entries: &[
                 uniform(0),
                 uniform(3),
+                uniform(5),
+                sampled(6, wgpu::TextureSampleType::Float { filterable: true }),
+                sampled(7, wgpu::TextureSampleType::Depth),
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -111,5 +114,18 @@ impl Layouts {
             ],
         });
         Self { scene, material }
+    }
+}
+
+fn sampled(binding: u32, sample_type: wgpu::TextureSampleType) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type,
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
     }
 }

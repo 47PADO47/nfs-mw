@@ -39,7 +39,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
-| [ambient-occlusion.md](ambient-occlusion.md) | Spatial ambient-only GTAO: shared depth/normals, live comparison, filtering, limitations and GPU validation |
+| [ambient-occlusion.md](ambient-occlusion.md) | Spatial and temporal ambient-only AO: shared geometry, history rejection, comparison and GPU validation |
+| [optional-reflections.md](optional-reflections.md) | Optional cached local probes and selective current-frame car reflections |
+| [cached-shadows.md](cached-shadows.md) | Optional exact static shadow reuse, dynamic casters, memory costs and invalidation |
 | [vehicle-effects.md](vehicle-effects.md) | Original PC sparks, experimental restored sparks and wind trails using base-game assets |
 | [architecture.md](architecture.md) | `libs/` (engine-generic) vs `crates/` (MW), finding the install, the streamed city, graphics backends, Windows/Linux, roadmap |
 | [world-interactions.md](world-interactions.md) | Contact, dynamic scenery and frame-rate parity work, validation and remaining gaps |
@@ -53,7 +55,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
-| [native-dlss.md](native-dlss.md) | Optional Streamline DLSS Super Resolution and DLAA on the native Windows/Vulkan renderer |
+| [native-dlss.md](native-dlss.md) | Optional Streamline DLSS SR/DLAA, Reflex and Frame Generation on native Windows Vulkan/DX12 |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |
 | [reshade-shaders/](reshade-shaders/README.md) | Survey of a local ReShade effect pack (33 files): what each does, licence tiers, ideas worth taking and what the repo already has |
 | [tire-effects.md](tire-effects.md) | Tire smoke, ground-following marks, runtime controls and reproducible driving checks |

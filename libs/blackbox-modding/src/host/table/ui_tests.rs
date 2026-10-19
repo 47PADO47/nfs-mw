@@ -188,6 +188,7 @@ fn a_registry_offers_the_ui_interface_at_its_version() {
     let mut registry = InterfaceRegistry::new();
     registry.add_ui(backend);
     assert!(registry.build("example.a", IFACE_UI, 1, 0).is_some());
-    assert!(registry.build("example.a", IFACE_UI, 1, 1).is_none(), "a newer minor is not offered");
+    assert!(registry.build("example.a", IFACE_UI, 1, 1).is_some());
+    assert!(registry.build("example.a", IFACE_UI, 1, 2).is_none(), "a newer minor is not offered");
     assert!(registry.build("example.a", IFACE_UI, 2, 0).is_none(), "another major is not offered");
 }

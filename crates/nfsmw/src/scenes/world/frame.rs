@@ -6,6 +6,7 @@ use blackbox_gfx::{Fog, FrameParams, Instance};
 
 impl WorldScene {
     pub(super) fn world_frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
+        let _trace = blackbox_trace::scope("World: build render frame");
         let _span = bevy_log::info_span!("world::frame").entered();
         let lens = self.gameplay_lens(aspect);
         let fog_end = self.fog_distance;

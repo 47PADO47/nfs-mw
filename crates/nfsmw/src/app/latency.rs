@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_window::{PrimaryWindow, Window};
 
 pub(super) fn begin(mut host: NonSendMut<Host>, settings: Res<Settings>, window: Single<&Window, With<PrimaryWindow>>) {
+    let _trace = blackbox_trace::scope("Wait: Reflex / driver pacing");
     let host = &mut *host;
     let gameplay = host.screenshot.is_none()
         && host.scene.takes_camera_setting()

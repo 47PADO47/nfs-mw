@@ -197,6 +197,7 @@ fn ao_preserves_open_planes_ui_and_fully_fogged_surfaces() {
     let id = UiTextureId::from_raw(99);
     renderer.update_ui_texture(&UiTexturePatch { id, offset: None, size: [1, 1], rgba: &[255; 4] });
     renderer.set_ui_layer(UiLayer {
+        compositions: Vec::new(),
         pixels_per_point: 1.0,
         meshes: vec![UiMesh {
             vertices: [[100.0, 100.0], [200.0, 100.0], [200.0, 200.0], [100.0, 200.0]]

@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-trace.workspace = true
 anyhow.workspace = true
 blackbox-attrib.workspace = true
 blackbox-carparts.workspace = true

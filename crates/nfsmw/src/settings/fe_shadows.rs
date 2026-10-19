@@ -136,6 +136,7 @@ pub fn active() -> Snapshot {
 /// Copies the options and the world's quality to [`active`]. Runs every frame, so a menu or console change takes effect
 /// at once.
 pub fn publish(settings: Res<Settings>) {
+    let _trace = blackbox_trace::scope("Settings: publish frontend shadows");
     let value = Snapshot { options: settings.fe_shadows, world_quality: settings.shadows };
     let Ok(mut active) = ACTIVE.write() else { return };
     *active = value;

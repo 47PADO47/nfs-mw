@@ -17,6 +17,7 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: record / submit");
         self.update_irradiance();
         self.begin_temporal(scene.is_none(), frame);
         let device = self.device.clone();
@@ -47,7 +48,7 @@ impl Renderer {
             {
                 timing.finish(&mut encoder);
             }
-            queue.submit([encoder.finish()]);
+            submit(&queue, encoder);
             if scene.is_none()
                 && let Some(timing) = &mut self.timing
             {
@@ -57,6 +58,7 @@ impl Renderer {
             self.end_temporal();
             return;
         }
+        let prepare_trace = blackbox_trace::scope("Renderer CPU: prepare SMAA");
         let format = scene_output.texture().format();
         let cache = self.pipeline_cache.as_ref();
         let mut aa = self.smaa.take().filter(|aa| aa.format == format).unwrap_or_else(|| SpatialAa {
@@ -77,10 +79,14 @@ impl Renderer {
             aa.size = size;
         }
         let target = aa.target.start_frame(&device, &queue, scene_output);
+        drop(prepare_trace);
         self.encode_scene(&mut encoder, scene, &target, frame, instances);
         self.encode_post(&mut encoder, scene, &target, size);
-        queue.submit([encoder.finish()]);
-        target.resolve();
+        submit(&queue, encoder);
+        {
+            let _trace = blackbox_trace::scope("GPU API: SMAA resolve / submit");
+            target.resolve();
+        }
         self.smaa = Some(aa);
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("UI after SMAA") });
@@ -96,7 +102,7 @@ impl Renderer {
         {
             timing.finish(&mut encoder);
         }
-        queue.submit([encoder.finish()]);
+        submit(&queue, encoder);
         if scene.is_none()
             && let Some(timing) = &mut self.timing
         {
@@ -104,4 +110,14 @@ impl Renderer {
         }
         self.end_temporal();
     }
+}
+
+/// Keep command finalization separate from queue submission: both may enter the graphics driver.
+fn submit(queue: &wgpu::Queue, encoder: wgpu::CommandEncoder) {
+    let commands = {
+        let _trace = blackbox_trace::scope("GPU API: finish command encoder");
+        encoder.finish()
+    };
+    let _trace = blackbox_trace::scope("GPU API: queue submit");
+    queue.submit([commands]);
 }

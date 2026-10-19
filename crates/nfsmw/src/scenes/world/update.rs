@@ -10,6 +10,7 @@ impl WorldScene {
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.original_sky = renderer.render_experiments().original_world_materials;
         let _span = bevy_log::info_span!("world::update").entered();
+        let _trace = blackbox_trace::scope("World: update");
         self.shadow_quality = renderer.graphics().shadows;
         let idle = ActionState::default();
         let input = match self.garage_open {

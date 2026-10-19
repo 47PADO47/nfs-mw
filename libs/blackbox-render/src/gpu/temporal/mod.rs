@@ -7,7 +7,9 @@
 //! ([`Renderer::world_to_clip`]), and the motion pass writes the vectors from the unjittered matrices. Any other
 //! frame draws as before, and the next temporal frame starts from a reset.
 
+mod effects;
 mod history;
+pub(in crate::gpu) use effects::EffectMotion;
 mod motion;
 #[cfg(test)]
 mod tests;
@@ -100,6 +102,7 @@ impl Renderer {
     /// for captures (a screenshot, the rear-view mirror), which draw at the output size with no history. They
     /// are drawn between the window's frames, so they leave the history alone.
     pub(super) fn begin_temporal(&mut self, onscreen: bool, frame: &FrameParams) {
+        let _trace = blackbox_trace::scope("Renderer CPU: begin temporal frame");
         #[cfg(all(windows, feature = "streamline"))]
         if self.upscaler() == Upscaler::Dlss
             && self.dlss.as_ref().is_some_and(|runtime| runtime.failed.load(std::sync::atomic::Ordering::Acquire))
@@ -185,6 +188,7 @@ impl Renderer {
 
     /// The frame is drawn: nothing of it is a temporal frame any more.
     pub(super) fn end_temporal(&mut self) {
+        let _trace = blackbox_trace::scope("Renderer CPU: end temporal frame");
         self.temporal.frame = None;
     }
 }

@@ -17,6 +17,7 @@ impl Renderer {
     ///
     /// Instances of the same mesh should be adjacent: each run becomes one instanced draw per range.
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
+        let _trace = blackbox_trace::scope("Renderer: frame");
         self.refresh_display(false);
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
@@ -24,8 +25,11 @@ impl Renderer {
             self.prepare_generation(frame);
         }
         let acquire_started = std::time::Instant::now();
+        let acquire_trace = blackbox_trace::scope("Wait: acquire surface");
         let (surface_texture, view) = match &self.output {
-            Output::Window { surface, config } => {
+            #[cfg(all(windows, feature = "streamline"))]
+            Output::Window { dx12: Some(native), .. } => (None, native.view()?),
+            Output::Window { surface, config, .. } => {
                 let texture = match surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
                     wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
@@ -46,6 +50,7 @@ impl Renderer {
             Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
         };
         self.performance.acquire_wait_ms = acquire_started.elapsed().as_secs_f32() * 1000.0;
+        drop(acquire_trace);
         let submit_started = std::time::Instant::now();
         self.submit_frame(None, &view, self.surface_size(), frame, instances);
         self.performance.cpu_render_ms = submit_started.elapsed().as_secs_f32() * 1000.0;
@@ -55,6 +60,15 @@ impl Renderer {
             self.presentation.marker(4);
         }
         let present_started = std::time::Instant::now();
+        let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
+        #[cfg(all(windows, feature = "streamline"))]
+        if let Output::Window { dx12: Some(native), config, .. } = &self.output {
+            native.present(
+                &self.device,
+                &self.queue,
+                matches!(config.present_mode, wgpu::PresentMode::AutoVsync | wgpu::PresentMode::Fifo),
+            )?;
+        }
         match surface_texture {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
@@ -80,6 +94,7 @@ impl Renderer {
         output: &wgpu::TextureView,
         size: (u32, u32),
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext {
             device: &self.device,
@@ -107,6 +122,7 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: encode scene");
         let size = targets.unwrap_or(&self.targets).size();
         // The colour pass and camera prepass use the same instance order and transforms.
         self.instances.upload_instances(&self.device, &self.queue, instances);
@@ -115,6 +131,7 @@ impl Renderer {
         }
         let depth = targets.unwrap_or(&self.targets).depth_view().clone();
         self.encode_surfaces(encoder, size, frame, instances, &depth);
+        self.encode_effect_motion(encoder, frame, instances);
         self.encode_contact(encoder, size, frame);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 5);
@@ -148,7 +165,19 @@ impl Renderer {
         reduced: bool,
         capture: Option<&mut super::reflections::CaptureView>,
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: color view");
         let reflection = capture.is_some();
+        let screen = !reflection
+            && !reduced
+            && self.experiments.screen_reflections
+            && self.screen_lighting_active(frame)
+            && self.glossy.is_some();
+        if !screen
+            && !reflection
+            && let Some(glossy) = &self.glossy
+        {
+            glossy.screen.disable(&self.queue);
+        }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
@@ -222,10 +251,14 @@ impl Renderer {
             None => (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer),
         };
         self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
+        let bind_group = bind_group.clone();
+        let instance_buffer = instance_buffer.clone();
 
         let targets = targets.unwrap_or(&self.targets);
-        let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view);
-        let depth = targets.depth_view();
+        let target_view = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view).clone();
+        let target = &target_view;
+        let depth_view = targets.depth_view().clone();
+        let depth = &depth_view;
         let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
@@ -273,7 +306,7 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, bind_group, &[]);
+        pass.set_bind_group(0, &bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
         if let Some(sky) = &self.sky {
             sky.draw(&mut pass, format, &self.meshes, instances);
@@ -296,7 +329,10 @@ impl Renderer {
                 window.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
-                if reflection && !projected && matches!(shading, Shading::Glossy(_)) {
+                if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))
+                    || (reflection && !projected))
+                    && matches!(shading, Shading::Glossy(_))
+                {
                     continue;
                 }
                 let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
@@ -355,6 +391,13 @@ impl Renderer {
                         cmd.instances.0..cmd.instances.1,
                     );
                 }
+            }
+            if screen && mode == blackbox_gfx::BlendMode::AlphaTest {
+                drop(pass);
+                self.encode_screen_glossy(encoder, target, depth, frame, instances);
+                pass = super::glossy::screen_draw::resume(encoder, target, depth);
+                pass.set_bind_group(0, &bind_group, &[]);
+                pass.set_vertex_buffer(1, instance_buffer.slice(..));
             }
         }
         if reflection

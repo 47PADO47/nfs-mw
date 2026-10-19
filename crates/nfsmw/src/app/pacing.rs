@@ -77,12 +77,16 @@ pub fn end_of_frame(
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let _trace = blackbox_trace::scope("Frame: title / benchmark / limiter");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
     let ready = host.scene.benchmark_ready();
     if let Some(report) = host.bench.as_mut().and_then(|bench| bench.frame(ready)) {
         report.lines(renderer.info().renderer).iter().for_each(|line| println!("{line}"));
         println!("bench: backend {}", renderer.info().summary());
+        let performance = renderer.frame_performance();
+        println!("bench: OS activity {:?}; GPU base render {:?} ms", performance.activity, performance.gpu_render_ms);
+        println!("bench: presentation {:?}", renderer.latency_status());
         exit.write(AppExit::Success);
     }
     let elapsed = host.title_timer.elapsed().as_secs_f32();
@@ -94,6 +98,7 @@ pub fn end_of_frame(
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     if !host.latency_pacing {
+        let _trace = blackbox_trace::scope("Wait: game FPS limiter");
         host.limiter.wait();
     }
 }

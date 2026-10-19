@@ -86,37 +86,42 @@ fn check(backend: wgpu::Backends) {
 
     // An opaque quad covers the background; outside it stays untouched.
     let quad = rect(white, [8.0, 8.0, 24.0, 24.0], [200, 100, 50, 255], [0.0, 0.0, 32.0, 32.0]);
-    let opaque = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 1.0, meshes: vec![quad.clone()] });
+    let opaque =
+        draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 1.0, meshes: vec![quad.clone()] });
     assert_eq!(pixel(&opaque, 16, 16), [200, 100, 50, 255]);
     assert_eq!(pixel(&opaque, 2, 2), BACKGROUND);
 
     // Points scale to pixels: the same quad at 2 pixels per point covers four times the area.
-    let doubled = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 0.5, meshes: vec![quad.clone()] });
+    let doubled =
+        draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 0.5, meshes: vec![quad.clone()] });
     assert_eq!(pixel(&doubled, 6, 6), [200, 100, 50, 255], "8 points at 0.5 px per point start at pixel 4");
     assert_eq!(pixel(&doubled, 14, 14), BACKGROUND, "and end at pixel 12");
 
     // A clip rectangle cuts the quad.
     let clipped = rect(white, [8.0, 8.0, 24.0, 24.0], [200, 100, 50, 255], [0.0, 0.0, 16.0, 32.0]);
-    let cut = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 1.0, meshes: vec![clipped] });
+    let cut = draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 1.0, meshes: vec![clipped] });
     assert_eq!(pixel(&cut, 12, 16), [200, 100, 50, 255]);
     assert_eq!(pixel(&cut, 20, 16), BACKGROUND, "right of the clip rectangle");
 
     // Premultiplied alpha: half-transparent white adds half of its colour to half of the background.
     let glass = rect(white, [0.0, 0.0, 32.0, 32.0], [128, 128, 128, 128], [0.0, 0.0, 32.0, 32.0]);
-    let blended = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 1.0, meshes: vec![glass] });
+    let blended =
+        draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 1.0, meshes: vec![glass] });
     let [r, g, b, _] = pixel(&blended, 16, 16);
     assert!(r.abs_diff(133) <= 2 && g.abs_diff(138) <= 2 && b.abs_diff(143) <= 2, "{r} {g} {b}");
 
     // A textured quad samples its texture: the left half is red, the right half blue.
     let textured = rect(checker, [0.0, 0.0, 32.0, 32.0], [255; 4], [0.0, 0.0, 32.0, 32.0]);
-    let sampled = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 1.0, meshes: vec![textured] });
+    let sampled =
+        draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 1.0, meshes: vec![textured] });
     assert!(pixel(&sampled, 4, 16)[0] > 200 && pixel(&sampled, 4, 16)[2] < 50);
     assert!(pixel(&sampled, 28, 16)[2] > 200 && pixel(&sampled, 28, 16)[0] < 50);
 
     // A mesh that names a freed or unknown texture is skipped.
     pass.free_texture(white);
     let missing = rect(white, [0.0, 0.0, 32.0, 32.0], [255; 4], [0.0, 0.0, 32.0, 32.0]);
-    let skipped = draw(&gpu, &mut pass, UiLayer { pixels_per_point: 1.0, meshes: vec![missing] });
+    let skipped =
+        draw(&gpu, &mut pass, UiLayer { compositions: Vec::new(), pixels_per_point: 1.0, meshes: vec![missing] });
     assert_eq!(pixel(&skipped, 16, 16), BACKGROUND);
 }
 

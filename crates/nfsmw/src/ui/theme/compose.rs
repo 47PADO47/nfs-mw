@@ -23,6 +23,7 @@ use super::{ElementId, UiThemes};
 /// The HUD layer: every HUD slot the theme resolves, then the nodes no HUD slot takes. The composed tree is in the HUD
 /// package's object order. Reads the HUD tree from the frame cell, so the plugin must have stored it this frame.
 pub fn hud_layer(themes: &UiThemes, time_s: f32) -> UiTree {
+    let _trace = blackbox_trace::scope("HUD: theme composition");
     let mut list = DrawList::new();
     for slot in HUD_SLOTS {
         themes.build_slot(slot, time_s, &mut list);
@@ -34,6 +35,7 @@ pub fn hud_layer(themes: &UiThemes, time_s: f32) -> UiTree {
 /// The layer of one slot: the radio card, the busted overlay, or a menu screen. The composed tree of a menu slot is the
 /// screen's whole tree, in its object order.
 pub fn slot_layer(themes: &UiThemes, slot: ElementId, time_s: f32) -> UiTree {
+    let _trace = blackbox_trace::scope("UI: compose theme slot");
     let mut list = DrawList::new();
     themes.build_slot(slot, time_s, &mut list);
     finish(list)

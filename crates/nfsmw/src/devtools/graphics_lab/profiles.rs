@@ -74,12 +74,17 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.appearance.treatment_strength = None;
         }
         Tab::Lighting => {
+            let reflections = (lab.options.cached_reflections, lab.options.screen_reflections);
             lab.options = defaults.appearance.lighting;
+            lab.options.cached_reflections = reflections.0;
+            lab.options.screen_reflections = reflections.1;
             lab.options.original_world_materials = settings.appearance.lighting.original_world_materials;
             lab.options.freeze_sun = settings.appearance.lighting.freeze_sun;
             lab.options.lighting_debug = settings.appearance.lighting.lighting_debug;
         }
         Tab::Materials => {
+            lab.options.cached_reflections = defaults.appearance.lighting.cached_reflections;
+            lab.options.screen_reflections = defaults.appearance.lighting.screen_reflections;
             settings.texture_filtering = defaults.texture_filtering;
             lab.options.original_world_materials = defaults.appearance.lighting.original_world_materials;
             settings.reflections = defaults.reflections;

@@ -39,6 +39,7 @@ pub fn collect(
     mut moved: MessageReader<CursorMoved>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
+    let _trace = blackbox_trace::scope("Input: egui events");
     let ctrl = keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]);
     let modifiers = egui::Modifiers {
         alt: keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]),

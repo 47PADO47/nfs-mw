@@ -1,7 +1,7 @@
 //! Material and capture controls for the native renderer.
 use super::*;
 
-pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings) {
+pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     let defaults = profiles::defaults(settings);
     ui.horizontal(|ui| {
         egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(
@@ -37,6 +37,12 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         );
     });
     ui.small("Car environment captures; resolution and update budgets are custom.");
+    ui.add_enabled_ui(lab.caps.is_some_and(|c| c.local_reflections), |ui| {
+        controls::checkbox(ui, &mut lab.options.cached_reflections, "Cached local reflection probe", defaults.appearance.lighting.cached_reflections)
+            .on_hover_text("Reuses all six faces together for up to 33-100 ms; moving two metres or streaming scenery refreshes immediately.");
+        controls::checkbox(ui, &mut lab.options.screen_reflections, "Selective screen-space car reflections", defaults.appearance.lighting.screen_reflections)
+            .on_hover_text("Reflects visible current-frame scenery on car materials. Misses and screen edges use the local probe. Can add GPU cost; HDR and frame generation keep separate UI.");
+    });
     super::reflections::show(ui, lab, settings);
     roads::show(ui, lab, settings);
 }

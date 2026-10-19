@@ -33,6 +33,7 @@ fn frame_start(
     mut host: NonSendMut<Host>,
     mut console: ResMut<Console>,
 ) {
+    let _trace = blackbox_trace::scope("Mods: frame-start callbacks");
     let Some(mut mods) = mods else {
         return;
     };
@@ -49,6 +50,7 @@ fn scene_tick(
     time: Res<Time>,
     mut console: ResMut<Console>,
 ) {
+    let _trace = blackbox_trace::scope("Mods: scene-tick callbacks");
     // The outbox is drained even without mods, so a session that starts none does not keep its notices.
     let notices = outbox::drain_notices();
     let interior = outbox::drain_interior();

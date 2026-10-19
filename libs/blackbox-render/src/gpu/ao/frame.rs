@@ -40,6 +40,7 @@ impl Renderer {
             &self.queue,
             encoder,
             Draw {
+                motion: self.effect_motion.as_ref(),
                 target: &mask,
                 depth: &targets.depth,
                 normals: &targets.normals,

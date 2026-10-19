@@ -32,6 +32,7 @@ impl Renderer {
         target: &wgpu::TextureView,
         size: (u32, u32),
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: UI upload / encode");
         let format = target.texture().format();
         self.ui.encode(&self.device, &self.queue, encoder, target, format, size);
     }

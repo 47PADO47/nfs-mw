@@ -7,7 +7,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use blackbox_feng::{NodeKind, UiNode, UiTree, font::TextStyle};
-use blackbox_gfx::{UiLayer, UiMesh, UiTextureId, UiVertex};
+use blackbox_gfx::{UiLayer, UiMesh, UiTextureComposition, UiTextureId, UiVertex};
 use blackbox_ui::justify;
 use glam::{Vec3, Vec4};
 
@@ -32,6 +32,8 @@ const MASK_STEPS_PER_DEGREE: f32 = 4.0;
 const SOLID_TEXTURE: UiTextureId = UiTextureId(1 << 59);
 /// The first id of the strings rasterised in the Windows font (`raster_text`); each string takes the next.
 const RASTER_TEXTURE_BIT: u64 = 1 << 58;
+/// Straight source pixels for GPU masking must stay separate from ordinary premultiplied uploads.
+const MASK_SOURCE_BIT: u64 = 1 << 57;
 /// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times this.
 const RASTER_UNITS_ASPECT: f32 = 1.5 / 2.0;
 /// How far Remastered's rasterised text leans, as a fraction of its height. The upright key (Custom) does not lean.
@@ -69,9 +71,8 @@ struct MaskedSlot {
 pub struct BlackboxPresenter {
     uploaded: HashSet<u32>,
     masked: HashMap<MaskedKey, MaskedSlot>,
-    /// Pictures and masks decoded for composing, by the texture that supplied them (the minimap composes four
-    /// of them every frame).
-    decoded: HashMap<u32, Image>,
+    /// Straight pictures/masks uploaded once; scrolling/rotation updates only small GPU commands.
+    mask_sources: HashSet<u32>,
     repeated: HashMap<u32, ([u32; 2], bool)>,
     solid_uploaded: bool,
     /// Strings rasterised in the Windows font: the texture and the image's width over height, by the string.
@@ -135,12 +136,14 @@ impl MeshBuilder {
 impl BlackboxPresenter {
     #[cfg(test)]
     pub(crate) fn cache_sizes(&self) -> (usize, usize, usize) {
-        (self.uploaded.len(), self.masked.len(), self.decoded.len())
+        (self.uploaded.len(), self.masked.len(), self.mask_sources.len())
     }
 
     /// Builds the HUD meshes for `tree` and prepends them to the frame's UI layer (egui's panels stay on top);
     /// uploads the textures it has not uploaded yet.
     pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
+        let _trace = blackbox_trace::scope("HUD: mesh / texture presentation");
+        out.layer.get_or_insert_with(|| UiLayer { pixels_per_point: screen.pixels_per_point, ..Default::default() });
         let origin = [screen.width * 0.5, screen.height * 0.5];
         let scale = screen.scale();
         let mut builder = MeshBuilder { meshes: Vec::new(), clip: [0.0, 0.0, screen.width, screen.height] };
@@ -170,8 +173,11 @@ impl BlackboxPresenter {
                 NodeKind::Group | NodeKind::Other => {}
             }
         }
-        let layer =
-            out.layer.get_or_insert_with(|| UiLayer { pixels_per_point: screen.pixels_per_point, meshes: Vec::new() });
+        let layer = out.layer.get_or_insert_with(|| UiLayer {
+            compositions: Vec::new(),
+            pixels_per_point: screen.pixels_per_point,
+            meshes: Vec::new(),
+        });
         let mut meshes = builder.meshes;
         meshes.append(&mut layer.meshes);
         layer.meshes = meshes;
@@ -214,6 +220,7 @@ impl BlackboxPresenter {
         scale: f32,
         origin: [f32; 2],
     ) {
+        let _trace = blackbox_trace::scope("HUD: text raster / cache");
         // The Remastered text is drawn wider and heavier than the Custom text, so the two keep apart in the cache.
         let look = match font_key {
             RASTER_FONT_KEY => raster_text::REMASTERED,
@@ -265,12 +272,19 @@ impl BlackboxPresenter {
         builder.quad(id, corners, uvs, vertex_colour(node.world_colour, false), scale, origin);
     }
 
-    /// A texture decoded for composing, kept for the next frame.
-    fn decode(&mut self, key: u32, assets: &UiAssets) -> Option<&Image> {
-        match self.decoded.entry(key) {
-            Entry::Occupied(e) => Some(e.into_mut()),
-            Entry::Vacant(e) => Some(e.insert(assets.image(key)?)),
+    /// Upload straight source pixels once, without changing RGB or the mask's authored alpha.
+    fn mask_source(&mut self, key: u32, assets: &UiAssets, out: &mut UiOutput) -> Option<UiTextureId> {
+        let id = UiTextureId(HUD_TEXTURE_BIT | MASK_SOURCE_BIT | u64::from(key));
+        if self.mask_sources.contains(&key) {
+            return Some(id);
         }
+        let image = assets.image(key)?;
+        if image.width == 0 || image.height == 0 {
+            return None;
+        }
+        out.patches.push(OwnedPatch { id, offset: None, size: [image.width, image.height], rgba: image.rgba });
+        self.mask_sources.insert(key);
+        Some(id)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -322,6 +336,7 @@ impl BlackboxPresenter {
         assets: &UiAssets,
         out: &mut UiOutput,
     ) -> Option<(UiTextureId, bool)> {
+        let _trace = blackbox_trace::scope("HUD: masked texture cache");
         let (base, mask) = (assets.resolve(texture), assets.resolve(mask));
         let additive = assets.texture(base).is_some_and(|t| t.alpha_blend == 2);
         let key = MaskedKey { guid: node.guid, mask };
@@ -341,18 +356,24 @@ impl BlackboxPresenter {
         if slot.built == Some(built) {
             return Some((id, additive));
         }
-        self.decode(base, assets);
-        self.decode(mask, assets);
-        let (Some(picture), Some(mask_image)) = (self.decoded.get(&base), self.decoded.get(&mask)) else {
+        let picture = self.mask_source(base, assets, out);
+        let mask_image = self.mask_source(mask, assets, out);
+        let (Some(picture), Some(mask_image)) = (picture, mask_image) else {
             return self.ensure(texture, assets, out);
         };
         let degrees = step as f32 / MASK_STEPS_PER_DEGREE;
-        // Composition retains straight RGB; upload applies the combined picture/mask coverage once.
-        let composed = mask::compose(picture, mask_image, [rotation[0], rotation[1]], degrees, window);
+        out.layer.as_mut()?.compositions.push(UiTextureComposition {
+            output: id,
+            picture,
+            mask: mask_image,
+            pivot: [rotation[0], rotation[1]],
+            degrees,
+            window,
+            additive,
+        });
         if let Some(slot) = self.masked.get_mut(&key) {
             slot.built = Some(built);
         }
-        send(id, composed, out);
         Some((id, additive))
     }
 

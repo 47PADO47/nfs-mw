@@ -36,11 +36,32 @@ pub struct UiLayer {
     pub pixels_per_point: f32,
     /// Drawn in order, later ones on top.
     pub meshes: Vec<UiMesh>,
+    /// Rebuild these persistent textures before drawing. Sources contain straight RGBA8;
+    /// outputs contain gamma-space premultiplied RGBA8, ready for the ordinary UI shader.
+    pub compositions: Vec<UiTextureComposition>,
+}
+
+/// A picture through a bilinearly sampled, rotated/scrolled alpha mask, at the picture's resolution.
+/// Sources are independent straight textures, not other composition outputs; both IDs must
+/// differ from `output`. Outside the mask texture coverage is zero.
+/// The result persists until replaced/freed, so unchanged masks need no command or pixel upload.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UiTextureComposition {
+    pub output: UiTextureId,
+    pub picture: UiTextureId,
+    pub mask: UiTextureId,
+    /// Rotation pivot in fractions of the mask's size.
+    pub pivot: [f32; 2],
+    pub degrees: f32,
+    /// Mask UV rectangle seen by the picture, `[u0, v0, u1, v1]`.
+    pub window: [f32; 4],
+    /// Zero output alpha after premultiplication to retain additive UI blending/coverage.
+    pub additive: bool,
 }
 
 impl Default for UiLayer {
     fn default() -> Self {
-        Self { pixels_per_point: 1.0, meshes: Vec::new() }
+        Self { pixels_per_point: 1.0, meshes: Vec::new(), compositions: Vec::new() }
     }
 }
 

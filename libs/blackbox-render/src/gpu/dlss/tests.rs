@@ -3,7 +3,7 @@ use blackbox_gfx::{GraphicsSettings, RenderBackend, UpscaleQuality, Upscaler};
 use blackbox_gfx_testkit::SceneId;
 
 #[test]
-#[ignore = "requires signed Streamline 2.14.16 runtime and an RTX Vulkan adapter"]
+#[ignore = "requires signed Streamline 2.14.16 runtime and an RTX Vulkan or DX12 adapter"]
 fn dlss_sdk_evaluates_quality_modes_and_dlaa_on_gpu() {
     let _ =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).is_test(true).try_init();

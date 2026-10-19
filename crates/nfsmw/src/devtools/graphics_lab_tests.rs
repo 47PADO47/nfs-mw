@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn section_resets_keep_optional_render_paths_in_their_own_sections() {
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.renderer = crate::settings::RendererKind::Blackbox;
+    let mut lab = GraphicsLab { tab: profiles::Tab::Lighting, ..Default::default() };
+    lab.options.cached_reflections = true;
+    lab.options.screen_reflections = true;
+    lab.options.cached_shadows = true;
+    profiles::reset(&mut lab, &mut settings);
+    assert!(lab.options.cached_reflections && lab.options.screen_reflections);
+    assert!(!lab.options.cached_shadows);
+    lab.options.cached_shadows = true;
+    lab.tab = profiles::Tab::Materials;
+    profiles::reset(&mut lab, &mut settings);
+    assert!(!lab.options.cached_reflections && !lab.options.screen_reflections);
+    assert!(lab.options.cached_shadows);
+}
+
+#[test]
 fn traffic_tab_previews_range_and_density_independently_and_reset_restores_defaults() {
     let ctx = egui::Context::default();
     let mut lab = GraphicsLab { open: true, tab: profiles::Tab::Traffic, ..Default::default() };

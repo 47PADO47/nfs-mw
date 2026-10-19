@@ -40,7 +40,7 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
                 );
                 let gpu = m.work.gpu_ms.map(|v| format!("{v:.2} ms")).unwrap_or_else(|| "unavailable".into());
                 ui.label(
-                    RichText::new(format!("CPU update + submit {:.2} ms · GPU render {gpu}", m.work.cpu_ms))
+                    RichText::new(format!("CPU elapsed {:.2} ms · GPU base render {gpu}", m.work.cpu_ms))
                         .monospace(),
                 );
                 ui.label(
@@ -50,7 +50,13 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
                     ))
                     .monospace(),
                 );
-                ui.small("Limit is an estimate. CPU wall time; GPU render excludes FG and auxiliary views.");
+                let percent = |v: Option<f32>| v.map(|v| format!("{v:.0}%")).unwrap_or_else(|| "measuring/unavailable".into());
+                let activity = m.work.activity;
+                ui.label(RichText::new(format!("Main thread active {} · GPU engine {} ({})",
+                    percent(activity.main_thread_busy_percent), percent(activity.gpu_busy_percent), activity.gpu_engine)).monospace());
+                ui.small(m.limit_hint);
+                ui.small("OS activity: 1-second samples; GPU is this process's busiest engine, including FG/auxiliary queues.");
+                ui.small("CPU elapsed can include waits. GPU base timestamp excludes FG/presentation and auxiliary views.");
                 ui.small("Presented FPS uses SDK counts with FG; it is not the monitor's scanout rate.");
                 let [ow, oh] = m.output_size;
                 let [rw, rh] = m.render_size;

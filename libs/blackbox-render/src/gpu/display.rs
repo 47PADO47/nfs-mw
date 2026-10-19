@@ -46,7 +46,7 @@ impl Renderer {
             return;
         }
         self.display.refreshed = Some(Instant::now());
-        let Output::Window { surface, config } = &mut self.output else {
+        let Output::Window { surface, config, .. } = &mut self.output else {
             return;
         };
         let capabilities = surface.get_capabilities(&self.adapter);
@@ -114,7 +114,7 @@ impl Renderer {
             if self.dlss.is_some() {
                 self.presentation.suspend(&self.device);
             }
-            surface.configure(&self.device, config);
+            self.output.configure(&self.device);
         }
         self.display.status = status;
         self.post.set_display(

@@ -9,7 +9,9 @@ use crate::ui::assets::Image;
 /// covers the picture, `[u0, v0, u1, v1]`: `[0, 0, 1, 1]` for all of it, a window of the picture's size that
 /// moves about the texture for the minimap. Returns straight (not premultiplied) RGBA of the picture's size.
 /// Where the mask lies outside its texture the alpha is zero.
+#[cfg(test)]
 pub fn compose(base: &Image, mask: &Image, pivot: [f32; 2], degrees: f32, window: [f32; 4]) -> Image {
+    let _trace = blackbox_trace::scope("HUD: CPU mask composition");
     let (bw, bh) = (base.width as usize, base.height as usize);
     if bw == 0 || bh == 0 {
         return Image { width: base.width, height: base.height, rgba: base.rgba.clone(), blend: base.blend };
@@ -46,12 +48,14 @@ pub fn compose(base: &Image, mask: &Image, pivot: [f32; 2], degrees: f32, window
 
 /// Texel indices and interpolation weight for one sampling axis, unchanged along a row/column.
 #[derive(Clone, Copy)]
+#[cfg(test)]
 struct Axis {
     first: usize,
     next: usize,
     weight: f32,
 }
 
+#[cfg(test)]
 fn axis(position: f32, extent: usize) -> Option<Axis> {
     if !(0.0..=extent as f32).contains(&position) || extent == 0 {
         return None;
@@ -65,6 +69,7 @@ fn axis(position: f32, extent: usize) -> Option<Axis> {
 
 /// A sliding unrotated mask (the minimap): factor the bilinear coordinates by axis, skip fully empty rows.
 /// The channel arithmetic and sampling at texture edges match `alpha_at` exactly.
+#[cfg(test)]
 fn compose_unrotated(
     rgba: &mut [u8],
     mask: &Image,
@@ -103,6 +108,7 @@ fn compose_unrotated(
 
 /// Converts straight RGB to premultiplied colour, retaining alpha until upload chooses the blend encoding.
 pub fn premultiply(image: &mut Image) {
+    let _trace = blackbox_trace::scope("HUD: premultiply pixels");
     for px in image.rgba.as_chunks_mut::<4>().0 {
         let a = u32::from(px[3]);
         for c in &mut px[..3] {
@@ -112,6 +118,7 @@ pub fn premultiply(image: &mut Image) {
 }
 
 /// The mask alpha (0..1) at a position in mask pixels, bilinear between texel centres; zero outside the texture.
+#[cfg(test)]
 fn alpha_at(mask: &Image, x: f32, y: f32) -> f32 {
     let (w, h) = (mask.width as i32, mask.height as i32);
     if w == 0 || h == 0 {
