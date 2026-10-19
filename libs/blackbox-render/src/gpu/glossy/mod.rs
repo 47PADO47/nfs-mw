@@ -7,6 +7,10 @@ mod irradiance_tests;
 mod layout;
 #[cfg(test)]
 mod original_tests;
+mod screen;
+pub(in crate::gpu) mod screen_draw;
+#[cfg(test)]
+mod screen_tests;
 mod uniforms;
 #[cfg(test)]
 mod validation_tests;
@@ -21,7 +25,8 @@ use crate::{GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 use uniforms::{MaterialUniform, RigUniform};
 
 /// The WGSL source of the glossy pipelines.
-pub(super) const SHADER: &str = include_str!("../../shaders/glossy.wgsl");
+pub(super) const SHADER: &str =
+    concat!(include_str!("../../shaders/glossy.wgsl"), "\n", include_str!("../../shaders/reflection_screen.wgsl"));
 
 /// Side of the generated sky cube's faces.
 const SKY_FACE_SIZE: u32 = 64;
@@ -34,6 +39,9 @@ pub(super) struct Glossy {
     scene: wgpu::BindGroup,
     static_scene: wgpu::BindGroup,
     environment: wgpu::TextureView,
+    faces: wgpu::TextureView,
+    static_faces: wgpu::TextureView,
+    pub(in crate::gpu) screen: screen::Screen,
     static_environment: wgpu::TextureView,
     irradiance: irradiance::Irradiance,
     /// Group 3 per material.
@@ -81,7 +89,8 @@ impl Glossy {
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
         let (view, face_view) = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
         let irradiance = irradiance::Irradiance::new(device, cache);
-        let scene = scene_group(device, &layouts, &rig, &view, &face_view, &sampler, &irradiance.buffer);
+        let screen = screen::Screen::new(device);
+        let scene = scene_group(device, &layouts, &rig, &view, &face_view, &sampler, &irradiance.buffer, &screen);
         Self {
             layouts,
             rig,
@@ -89,6 +98,9 @@ impl Glossy {
             static_scene: scene.clone(),
             scene,
             environment: view.clone(),
+            faces: face_view.clone(),
+            static_faces: face_view,
+            screen,
             static_environment: view,
             irradiance,
             materials: Slots::new(),
@@ -103,15 +115,25 @@ impl Glossy {
         view: &wgpu::TextureView,
         face_view: &wgpu::TextureView,
     ) {
-        self.scene =
-            scene_group(device, &self.layouts, &self.rig, view, face_view, &self.sampler, &self.irradiance.buffer);
+        self.scene = scene_group(
+            device,
+            &self.layouts,
+            &self.rig,
+            view,
+            face_view,
+            &self.sampler,
+            &self.irradiance.buffer,
+            &self.screen,
+        );
         self.environment = view.clone();
+        self.faces = face_view.clone();
         self.irradiance.dirty = true;
     }
 
     pub(super) fn restore_environment(&mut self) {
         self.scene = self.static_scene.clone();
         self.environment = self.static_environment.clone();
+        self.faces = self.static_faces.clone();
         self.irradiance.dirty = true;
     }
 
@@ -147,6 +169,7 @@ impl Glossy {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scene_group(
     device: &wgpu::Device,
     layouts: &Layouts,
@@ -155,6 +178,7 @@ fn scene_group(
     face_view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
     irradiance: &wgpu::Buffer,
+    screen: &screen::Screen,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("glossy scene"),
@@ -165,6 +189,9 @@ fn scene_group(
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
             wgpu::BindGroupEntry { binding: 3, resource: irradiance.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(face_view) },
+            wgpu::BindGroupEntry { binding: 5, resource: screen.control.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&screen.color) },
+            wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&screen.depth) },
         ],
     })
 }
@@ -285,7 +312,10 @@ impl Renderer {
             &face_view,
             &glossy.sampler,
             &glossy.irradiance.buffer,
+            &glossy.screen,
         );
+        glossy.faces = face_view.clone();
+        glossy.static_faces = face_view;
         glossy.environment = view.clone();
         glossy.static_environment = view;
         glossy.irradiance.dirty = true;

@@ -268,7 +268,7 @@ impl Renderer {
         targets::plan_scene(&SceneInputs {
             output,
             render,
-            passes: self.post.has_passes(),
+            passes: self.post.has_passes() || self.experiments.screen_reflections,
             hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
             temporal,
             surface_format: format,

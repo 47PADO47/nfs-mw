@@ -167,6 +167,17 @@ impl Renderer {
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: color view");
         let reflection = capture.is_some();
+        let screen = !reflection
+            && !reduced
+            && self.experiments.screen_reflections
+            && self.screen_lighting_active(frame)
+            && self.glossy.is_some();
+        if !screen
+            && !reflection
+            && let Some(glossy) = &self.glossy
+        {
+            glossy.screen.disable(&self.queue);
+        }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
@@ -240,10 +251,14 @@ impl Renderer {
             None => (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer),
         };
         self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
+        let bind_group = bind_group.clone();
+        let instance_buffer = instance_buffer.clone();
 
         let targets = targets.unwrap_or(&self.targets);
-        let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view);
-        let depth = targets.depth_view();
+        let target_view = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view).clone();
+        let target = &target_view;
+        let depth_view = targets.depth_view().clone();
+        let depth = &depth_view;
         let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
@@ -291,7 +306,7 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, bind_group, &[]);
+        pass.set_bind_group(0, &bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
         if let Some(sky) = &self.sky {
             sky.draw(&mut pass, format, &self.meshes, instances);
@@ -314,7 +329,10 @@ impl Renderer {
                 window.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
-                if reflection && !projected && matches!(shading, Shading::Glossy(_)) {
+                if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))
+                    || (reflection && !projected))
+                    && matches!(shading, Shading::Glossy(_))
+                {
                     continue;
                 }
                 let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
@@ -373,6 +391,13 @@ impl Renderer {
                         cmd.instances.0..cmd.instances.1,
                     );
                 }
+            }
+            if screen && mode == blackbox_gfx::BlendMode::AlphaTest {
+                drop(pass);
+                self.encode_screen_glossy(encoder, target, depth, frame, instances);
+                pass = super::glossy::screen_draw::resume(encoder, target, depth);
+                pass.set_bind_group(0, &bind_group, &[]);
+                pass.set_vertex_buffer(1, instance_buffer.slice(..));
             }
         }
         if reflection

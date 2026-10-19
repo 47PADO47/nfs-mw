@@ -40,11 +40,14 @@ impl Renderer {
         instances: &[Instance],
         depth: &wgpu::TextureView,
     ) {
-        if !self.screen_lighting_active(frame) || !(self.experiments.contact_shadows || self.graphics.ao.active()) {
+        if !self.screen_lighting_active(frame)
+            || !(self.experiments.contact_shadows || self.graphics.ao.active() || self.experiments.screen_reflections)
+        {
             self.surfaces = None;
             return;
         }
-        let reuse_depth = self.reuse_prepass_depth && self.upscale.texture_lod_bias == 0.0;
+        let reuse_depth =
+            self.reuse_prepass_depth && self.upscale.texture_lod_bias == 0.0 && !self.experiments.screen_reflections;
         let make_targets = || match reuse_depth {
             true => targets::Targets::with_depth(&self.device, size, depth.clone()),
             false => targets::Targets::new(&self.device, size),
