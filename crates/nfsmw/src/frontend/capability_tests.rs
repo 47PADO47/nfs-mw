@@ -73,7 +73,7 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     assert_eq!(at("HD Movies"), at("HD Fonts") + 2);
     assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
     assert_eq!(
-        at("Car Reflection Size"),
+        at("Car Cubemap Resolution (Per Face)"),
         at("Road Reflection Detail") + 1,
         "the HD reflection rows follow the reflection row"
     );
