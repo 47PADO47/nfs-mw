@@ -87,13 +87,14 @@ impl Query {
             return None;
         }
         // Size and instance count can change between the two calls. Retry with a bounded allocation.
-        let (mut bytes, mut count) = (0, 0);
-        let status =
-            unsafe { PdhGetFormattedCounterArrayW(self.counter, PDH_FMT_DOUBLE, &mut bytes, &mut count, None) };
-        if status != PDH_MORE_DATA {
-            return None;
-        }
         for _ in 0..3 {
+            // After a growth race, PDH does not guarantee the returned size. Query it afresh.
+            let (mut bytes, mut count) = (0, 0);
+            let status =
+                unsafe { PdhGetFormattedCounterArrayW(self.counter, PDH_FMT_DOUBLE, &mut bytes, &mut count, None) };
+            if status != PDH_MORE_DATA {
+                return None;
+            }
             if bytes == 0 || bytes > 16 * 1024 * 1024 {
                 return None;
             }
