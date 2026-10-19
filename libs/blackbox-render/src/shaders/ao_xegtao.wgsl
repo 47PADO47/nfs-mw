@@ -57,6 +57,13 @@ fn xe_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: ve
     if distance < 1e-6 { return low; }
     // Rounded offsets can leave the analytic slice; coplanar taps are not blockers.
     if dot(delta,normal) <= 0.005 { return low; }
+    // Filtered hierarchy depths are not exact surface points on perspective slopes.
+    // Confirm potential blockers against scene depth, so a coarse footprint cannot
+    // invent occlusion on an otherwise open receiver plane.
+    if params.projection.w > 0.5 {
+        let exact = position_at(pixel);
+        if exact.z == 0.0 || dot(exact-center,normal) <= 0.005 { return low; }
+    }
     let radius = params.effect.x * 1.457;
     let weight = clamp((radius-distance)/(0.615*radius),0.0,1.0);
     return mix(low,dot(delta/distance,view),weight);

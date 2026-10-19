@@ -230,6 +230,17 @@ on Vulkan and DX12. This does not establish visual quality during a full drive.
 
 ## Spatial sample coverage and stability checks
 
+The shared normal prepass uses RGBA16F. UNORM8 cannot represent the encoded
+zero components (0.5) of an axis-aligned normal exactly; the resulting tilt can
+turn distant coplanar samples into false blockers. Half-float storage preserves
+those components exactly and reduces quantization on curved receivers, without
+increasing the horizon bias to hide the error.
+
+Potential XeGTAO blockers from the depth hierarchy are checked against the
+original scene depth. A filtered footprint on a perspective slope can otherwise
+invent occlusion above an open receiver plane. This adds a depth fetch for
+potential blockers when depth-prefiltering is enabled.
+
 The spatial XeGTAO depth search uses 2 slices x 6 steps per side at Low,
 3 x 6 at Medium and 4 x 8 at High. Low/Medium remain half resolution; High is
 full resolution. The denser radial search reduces fixed-pattern sampling error
