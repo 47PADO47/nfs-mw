@@ -20,6 +20,7 @@ pub(super) struct CaptureStamp {
     seconds: f32,
     cached: bool,
     quality: ReflectionQuality,
+    size: u32,
     origin: Vec3,
     scenery: u64,
     original_shadows: bool,
@@ -59,12 +60,14 @@ impl WorldScene {
             },
         };
         let origin = drive.pose().position + Vec3::Z * 0.95;
+        let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
         let (distance, lod, content) =
             (graphics.reflection_distance, graphics.reflection_lod, graphics.reflection_content);
         if self.reflection_last.is_some_and(|last| {
             last.cached == cached
                 && last.quality == quality
+                && last.size == size
                 && last.distance == distance
                 && last.lod == lod
                 && last.content == content
@@ -89,8 +92,7 @@ impl WorldScene {
             shadow_tuning: None,
         };
         // The cube face size the renderer captures at, so the detail threshold follows the capture.
-        let output_height = renderer.surface_size()[1];
-        let face_size = graphics.reflection_resolution.cube_face(quality.size(), output_height, PLANAR_MAX) as f32;
+        let face_size = size as f32;
         // The traffic cars are gathered once; each face keeps the ones in its own frustum.
         let mut cars = Vec::new();
         if let Some(traffic) = self.traffic.as_ref().filter(|_| content.includes_traffic()) {
@@ -159,6 +161,7 @@ impl WorldScene {
             seconds: self.clock,
             cached,
             quality,
+            size,
             origin,
             scenery,
             original_shadows: self.original_shadows,

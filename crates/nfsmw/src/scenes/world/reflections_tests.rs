@@ -78,6 +78,16 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     renderer.apply_graphics(&graphics);
     world.update(&mut renderer, &ActionState::default(), 0.0);
     assert_eq!(world.reflection_last.unwrap().quality, ReflectionQuality::High);
+    experiments.cached_reflections = true;
+    renderer.set_render_experiments(experiments);
+    graphics.reflection_resolution.cube = blackbox_gfx::reflection::ReflectionSize::Fixed(128);
+    renderer.apply_graphics(&graphics);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(world.reflection_last.unwrap().size, 128);
+    graphics.reflection_resolution.cube = blackbox_gfx::reflection::ReflectionSize::Fixed(256);
+    renderer.apply_graphics(&graphics);
+    world.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(world.reflection_last.unwrap().size, 256, "paused probe must update when its resolution changes");
     graphics.reflections = ReflectionQuality::Off;
     renderer.apply_graphics(&graphics);
     world.update(&mut renderer, &ActionState::default(), 0.0);
