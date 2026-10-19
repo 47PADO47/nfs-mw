@@ -10,6 +10,7 @@ pub(crate) mod input_icons;
 pub(crate) mod mod_icon;
 pub mod present;
 pub(crate) mod prompts;
+mod raster_text;
 mod shared;
 mod strings;
 mod text;

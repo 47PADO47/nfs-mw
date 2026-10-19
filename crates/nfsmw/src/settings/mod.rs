@@ -78,6 +78,7 @@ mod smoke_quality;
 mod smoke_quality_tests;
 mod spark_style;
 mod speed_trail_style;
+mod speed_units;
 pub mod speedbreaker;
 #[cfg(test)]
 mod speedbreaker_tests;
@@ -88,12 +89,14 @@ mod tire_tests;
 mod traffic_avoidance;
 pub mod traffic_policy;
 pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
+mod traffic_settings;
 mod transmission;
 #[cfg(test)]
 mod treatment_tests;
 mod ui_style;
 #[cfg(test)]
 mod ui_style_tests;
+mod ui_theme;
 mod upscale;
 mod upscale_quality;
 #[cfg(test)]
@@ -127,9 +130,12 @@ pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use speed_trail_style::SpeedTrailStyle;
+pub use speed_units::SpeedUnits;
 pub use speedbreaker::SpeedbreakerTuning;
+pub use traffic_settings::TrafficSettings;
 pub use transmission::Transmission;
 pub use ui_style::UiStyle;
+pub use ui_theme::UiTheme;
 pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
@@ -162,32 +168,6 @@ pub const DEFAULT_CAR_SCALE: f32 = 1.0;
 pub const DEFAULT_NO_REV_LIMITER: bool = false;
 /// The HUD stays up while looking back (Extra Options `ShowHUDOnLookBack`); off hides it, as the original does.
 pub const DEFAULT_SHOW_HUD_ON_LOOK_BACK: bool = false;
-
-/// The settings the world's traffic follows, told to the scene together so that it can see any of them change.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct TrafficSettings {
-    /// Active vehicle budget including player, police and trailers (0 stops new traffic).
-    pub cars: u32,
-    /// Share of them that are patrol cops, in percent.
-    pub cop_share: Percent,
-    /// Whether they obey traffic lights.
-    pub lights: bool,
-    /// Whether they go round a car that blocks their lane (`traffic_avoidance`).
-    pub avoidance: bool,
-    pub policy: TrafficPolicy,
-}
-
-impl From<&Settings> for TrafficSettings {
-    fn from(s: &Settings) -> Self {
-        Self {
-            cars: s.traffic,
-            cop_share: s.cop_share,
-            lights: s.traffic_lights,
-            avoidance: s.traffic_avoidance,
-            policy: s.traffic_policy,
-        }
-    }
-}
 
 /// The resolved settings.
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
@@ -283,6 +263,10 @@ pub struct Settings {
     /// The look of all HUD and menu UI: the original (default), the rewrite's Custom elements, or Remastered (not yet
     /// implemented, falls back to Original). Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
     pub ui_style: UiStyle,
+    /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
+    pub speed_units: SpeedUnits,
+    /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
+    pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
     pub post_tonemap: PostTonemap,
     pub post_bloom: PostBloom,
@@ -407,6 +391,8 @@ impl From<Partial> for Settings {
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
             ui_style: p.ui_style.unwrap_or_default(),
+            speed_units: p.speed_units.unwrap_or_default(),
+            ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),

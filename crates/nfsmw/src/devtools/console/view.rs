@@ -32,7 +32,7 @@ pub fn show(ctx: &egui::Context, console: &mut Console) {
         .movable(false)
         .anchor(Align2::LEFT_TOP, vec2(0.0, 0.0))
         .fixed_size(vec2(screen.width(), height))
-        .frame(Frame::new().fill(Color32::from_black_alpha(215)).inner_margin(6.0))
+        .frame(Frame::new().fill(ctx.global_style().visuals.window_fill).inner_margin(6.0))
         .show(ctx, |ui| {
             let input_height = 28.0;
             ScrollArea::vertical()

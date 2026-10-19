@@ -10,6 +10,7 @@ use crate::component::{Component, Empty};
 use crate::context::BuildCx;
 use crate::slot::SlotId;
 use crate::theme::{Theme, ThemeId};
+use crate::tokens::Tokens;
 
 /// Why a registry call was refused.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -61,6 +62,11 @@ impl Themes {
 
     pub fn active(&self) -> ThemeId {
         self.active
+    }
+
+    /// The tokens of the active theme. A theme that declares none gives the neutral default.
+    pub fn active_tokens(&self) -> Tokens {
+        self.find(self.active).map_or_else(Tokens::default, |theme| theme.tokens())
     }
 
     /// Every registered theme id, Original first, then in registration order.

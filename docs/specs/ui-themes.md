@@ -169,6 +169,7 @@ the T1 draft are resolved here.
 | `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
 | `TrackSelect` (24) | `Track_Select.fng` → `frontend/track_select.rs` (Quick Race, step one; the track list is not populated yet). **Confirmed** (was `?`) |
 | `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
+| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Remastered), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
 
 **Career screens (`frontend/career_screens/`):**
 
@@ -184,7 +185,7 @@ the T1 draft are resolved here.
 **Screens with no slot yet.** These exist but are not in the catalogue, because no theme needs to override them yet
 (the rule "each slot needs a consumer"): `Track_Options.fng` (`track_options.rs`), `Options_PC_Controller.fng` and
 `Pause_PC_Controller.fng` (`controls_screen.rs`), `Dialog.fng` (`confirm.rs`), `Credits.fng`, `EA_Trax_Jukebox.fng`
-(`jukebox.rs`), `WorldMapMain.fng` (`world_map/`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
+(`jukebox.rs`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
 a theme or a mod needs it, with its number from the next free block.
 
 **Slot kinds.** HUD slots receive a snapshot of `HudState` through `BuildCx`. Front-end slots receive the screen's
@@ -381,11 +382,12 @@ The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base 
 ## 11. The `UiStyle` setting
 
 Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
-(`crates/nfsmw/src/settings/ui_style.rs`).
+(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette of the token-driven HUD is the separate
+`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which applies only when the HUD is not Original (section 15).
 
 - Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
   `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
-  Labels: `Original`, `Custom`, `Remastered (incomplete)`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
+  Labels: `Original`, `Custom`, `Remastered`. `VisualStyle` defaults to `Custom`; `UiStyle` defaults to
   `Original`, because the UI look and the graphics look are separate choices (decision 6).
 - **Layers**, each read like the other settings (CLI over env over file over default):
 
@@ -397,7 +399,7 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
 | Partial | `settings/partial.rs` | `ui_style: Option<UiStyle>` |
 | Write | `settings/write.rs` | writes `ui_style` only |
 | Console | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` | `set ui_style <value>` |
-| Options | `frontend/options.rs`, `options_rows.rs` | row "UI style" cycles the three values |
+| Options | `frontend/options.rs`, `options_rows.rs` | row "HUD style" cycles the three values; row "HUD theme" cycles `remastered` and `bevy` |
 
 - **Legacy `radio_hud` (deprecated, read only).** The old key `radio_hud` (`ea_trax` or `custom`, see
   `settings/radio_hud.rs`) still loads. `ea_trax` maps to `Original`, `custom` maps to `Custom`. The mapping is per
@@ -417,6 +419,7 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
 
 ## 12. The `bb.ui` mod hook
 
+Tokens were added in `bb.ui` 1.1 (`set_tokens`, section 15).
 Mirrors `bb.menus` ([ADR 0005](../decisions/0005-native-mod-plugins.md), sections 2 and 8). Delivered in T11 as
 `bb.ui` 1.0. The catalogue for mod authors is [api-ui.md](../modding/api-ui.md).
 
@@ -489,3 +492,7 @@ These are not decided. The parent task (or the owner) decides them before the ma
    (T13).
 4. **Components across the ABI.** Resolved (T11): a declarative primitive list, not handles (section 12).
 5. **Live switch or restart.** Resolved (T10): live. `sync_active_theme` selects the theme every frame (section 11).
+
+## 15. Theme tokens
+
+The token model (colours, radius, padding, and how the registry merges them) is in [ui-themes-tokens.md](ui-themes-tokens.md).

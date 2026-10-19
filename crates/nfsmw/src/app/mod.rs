@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use bevy_a11y::AccessibilityPlugin;
-use bevy_app::{App, AppExit, Last, TaskPoolPlugin, Update};
+use bevy_app::{App, AppExit, Last, TaskPoolPlugin, TerminalCtrlCHandlerPlugin, Update};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_gilrs::GilrsPlugin;
@@ -232,13 +232,49 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(plugin) = frontend {
         app.add_plugins(plugin);
     }
+    // Ctrl+C in the terminal ends the game through the app's own exit, not by killing the process, so the run
+    // unwinds and the window closes cleanly (Windows would otherwise report STATUS_CONTROL_C_EXIT).
+    app.add_plugins(TerminalCtrlCHandlerPlugin);
     crate::devtools::start_console(&mut app, exec, open_console);
     if open_garage && !open_console {
         crate::garage::start(&mut app, garage_tab);
     }
 
-    match app.run() {
-        AppExit::Success => error.take().map_or(Ok(()), Err),
-        AppExit::Error(code) => Err(error.take().unwrap_or_else(|| anyhow!("the app exited with code {code}"))),
+    finish(app.run(), error.take())
+}
+
+/// The exit code the Ctrl+C plugin ends the app with: the player asked to stop, so it is not a failure.
+const INTERRUPTED: u8 = 130;
+
+/// Turns the app's exit into the run's result. A reported error wins; a Ctrl+C is a clean stop.
+fn finish(exit: AppExit, error: Option<anyhow::Error>) -> Result<()> {
+    match exit {
+        AppExit::Success => error.map_or(Ok(()), Err),
+        AppExit::Error(code) if code.get() == INTERRUPTED => error.map_or(Ok(()), Err),
+        AppExit::Error(code) => Err(error.unwrap_or_else(|| anyhow!("the app exited with code {code}"))),
+    }
+}
+
+#[cfg(test)]
+mod finish_tests {
+    use super::*;
+    use std::num::NonZero;
+
+    #[test]
+    fn a_ctrl_c_stop_is_a_clean_exit() {
+        let code = NonZero::new(INTERRUPTED).unwrap();
+        assert!(finish(AppExit::Error(code), None).is_ok());
+    }
+
+    #[test]
+    fn a_reported_error_still_fails_after_a_ctrl_c() {
+        let code = NonZero::new(INTERRUPTED).unwrap();
+        assert!(finish(AppExit::Error(code), Some(anyhow!("save failed"))).is_err());
+    }
+
+    #[test]
+    fn any_other_exit_code_is_a_failure() {
+        let code = NonZero::new(1).unwrap();
+        assert!(finish(AppExit::Error(code), None).is_err());
     }
 }

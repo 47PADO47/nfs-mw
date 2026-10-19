@@ -3,8 +3,9 @@
 
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, NodeKind, Rect, SlotId, Theme, UiNode};
 
+use super::palette;
 use super::radio_card::{FADE_SECS, RadioCard, SHOW_SECS};
-use super::{CustomTheme, RadioFeedCell, card_skin};
+use super::{CustomTheme, DriveFeedCell, RadioFeedCell, card_skin};
 use crate::audio::NowPlaying;
 use crate::hud::RadioHud;
 use crate::settings::HudLayout;
@@ -37,7 +38,7 @@ fn card_at(now: Option<NowPlaying>, age: f32) -> Vec<UiNode> {
     let feed = RadioFeedCell::new();
     feed.set(&hud, SCREEN, HudLayout::Pc);
     let mut card = RadioCard::new(feed);
-    let skin = card_skin();
+    let skin = card_skin().merged(palette::bevy().skin());
     card.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();
     card.build(&mut out);
@@ -49,13 +50,23 @@ fn texts(nodes: &[UiNode]) -> Vec<&str> {
 }
 
 #[test]
-fn custom_fills_only_the_radio_card_and_falls_back_for_every_other_slot() {
-    let theme = CustomTheme::default();
+fn custom_fills_the_radio_card_and_drive_readouts_and_falls_back_for_every_other_slot() {
+    let theme = CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default());
     let skin = default_skin();
     let cx = BuildCx::new(&skin);
     for element in ElementId::ALL {
         let filled = theme.element(element.slot(), &cx).is_some();
-        assert_eq!(filled, *element == ElementId::RadioCard, "{}", element.name());
+        let custom = matches!(
+            element,
+            ElementId::RadioCard
+                | ElementId::Speedometer
+                | ElementId::Tachometer
+                | ElementId::GearIndicator
+                | ElementId::Nitrous
+                | ElementId::Turbo
+                | ElementId::Speedbreaker
+        );
+        assert_eq!(filled, custom, "{}", element.name());
     }
     assert!(theme.element(SlotId::new(9999), &cx).is_none(), "an id outside the catalogue has no Custom component");
 }
@@ -66,10 +77,11 @@ fn the_card_is_a_panel_and_three_text_rows_at_full_alpha_while_up() {
     assert_eq!(nodes.len(), 4, "one background, then title, credit and time");
     assert!(matches!(nodes[0].kind, NodeKind::Image { texture: 0, .. }));
     assert_eq!(texts(&nodes), ["Title", "Artist - Album", "1:05 / 3:20"]);
-    assert_eq!(nodes[0].colour, [0, 0, 0, 150]);
+    assert_eq!(nodes[0].colour, [0, 0, 0, 170]);
     assert_eq!(nodes[1].colour, [255, 255, 255, 255]);
-    assert_eq!(nodes[2].colour, [200, 200, 200, 255]);
-    assert_eq!(nodes[3].colour, [150, 150, 150, 255]);
+    // The credit and time lines both take the palette's muted token.
+    assert_eq!(nodes[2].colour, palette::bevy().muted);
+    assert_eq!(nodes[3].colour, palette::bevy().muted);
 }
 
 #[test]
@@ -82,7 +94,7 @@ fn a_paused_song_shows_the_state_on_the_time_line() {
 fn the_card_fades_over_its_last_second() {
     let nodes = card_at(Some(song(false)), SHOW_SECS - FADE_SECS / 2.0);
     assert_eq!(nodes.len(), 4, "still up, at half alpha");
-    assert!((i32::from(nodes[0].colour[3]) - 75).abs() <= 1, "background {:?}", nodes[0].colour);
+    assert!((i32::from(nodes[0].colour[3]) - 85).abs() <= 1, "background {:?}", nodes[0].colour);
     assert!((i32::from(nodes[1].colour[3]) - 128).abs() <= 1, "title {:?}", nodes[1].colour);
 }
 
@@ -96,8 +108,10 @@ fn the_card_builds_nothing_when_idle_or_past_its_fade() {
 #[test]
 fn the_card_sits_where_the_hud_layout_puts_it() {
     // 1080p, 16:9, PC layout: the card's top-left corner is (-420, -228) in FEng units, and its box is 242 by 60
-    // units, so its background centre is at (-299, -198).
+    // units. The background is inset by the palette's padding, so its centre is at (-305, -204) plus that padding.
     let nodes = card_at(Some(song(false)), 0.0);
     let centre = nodes[0].world.w_axis;
-    assert!((centre.x - -299.0).abs() < 1e-3 && (centre.y - -198.0).abs() < 1e-3, "{centre:?}");
+    let padding = palette::bevy().padding;
+    let (x, y) = (-305.0 + padding, -204.0 + padding);
+    assert!((centre.x - x).abs() < 1e-3 && (centre.y - y).abs() < 1e-3, "{centre:?}");
 }

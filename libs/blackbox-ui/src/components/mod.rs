@@ -8,6 +8,8 @@
 mod gauge;
 mod image;
 mod panel;
+mod progress;
+mod rounded;
 mod row;
 mod stack;
 mod switch;
@@ -17,6 +19,8 @@ mod text;
 pub use gauge::Gauge;
 pub use image::Image;
 pub use panel::Panel;
+pub use progress::LinearProgress;
+pub use rounded::Rounded;
 pub use row::Row;
 pub use stack::{Stack, StackAxis};
 pub use switch::Switch;

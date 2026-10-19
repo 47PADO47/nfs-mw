@@ -11,7 +11,7 @@ use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
 use bevy_time::Time;
-use bevy_window::{PrimaryWindow, Window};
+use bevy_window::{CursorOptions, PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
 use game_install::GameDir;
 use glam::Vec2;
@@ -60,8 +60,24 @@ impl Plugin for FrontendPlugin {
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
+            .add_systems(Update, hide_cursor_on_map.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
             .add_systems(Update, pointer::apply);
+    }
+}
+
+/// Hides the OS pointer while the world map is the top screen, so only the map's own cross/square cursor shows. A
+/// dialog over the map (the GPS Yes/No) is not the map itself, so the pointer returns for it. `app::cursor::update`
+/// runs earlier (`FrameSet::Prepare`) and makes the pointer visible when the mouse is free, so this override wins for
+/// the frame; leaving the map, that system restores it.
+fn hide_cursor_on_map(fe: Res<Frontend>, window: Single<&mut CursorOptions, With<PrimaryWindow>>) {
+    let map_on_top = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
+    if !map_on_top {
+        return;
+    }
+    let mut cursor = window.into_inner();
+    if cursor.visible {
+        cursor.visible = false;
     }
 }
 
@@ -129,6 +145,8 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
 struct MapParams<'w> {
     overlay: ResMut<'w, WorldMapOverlay>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
+    /// The theme registry: whether the active theme draws the map chrome, and the feed that chrome reads.
+    themes: Res<'w, UiThemes>,
     /// The mods, for the rows of the options' Mods page (`bb.menus`); absent without mods.
     mods: Option<NonSend<'w, crate::modding::Mods>>,
 }
@@ -221,7 +239,9 @@ fn update(
     // list takes its own clicks and wheel turns, so none of them reach the screen under it.
     let (mut press_back, mut press_quit) = (false, false);
     let on_list = fe.browse.as_ref().is_some_and(Browse::over_panel);
-    if matches!(fe.stage, Stage::Menus | Stage::Paused) {
+    // The GPS Yes/No dialog is the one menu that opens over the map; it takes the menu click and pad handling too.
+    let dialog_over_map = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::DIALOG);
+    if matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map {
         if actions.just_pressed(Action::Click)
             && !on_list
             && let Some(point) = feng_point(&window)
@@ -275,6 +295,11 @@ fn update(
         // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
+            // The GPS dialog's Yes resumes the game; the map overlay it left open is cleared here.
+            if map.overlay.open {
+                map.overlay.close();
+                map.themes.world_map_legend().clear();
+            }
             fe.poll_bust(host, &mut env);
             fe.poll_career(host, &mut env);
             // An auto shop asks the garage to open on the next frame (`cursor.rs` opens it, as the start request does).
@@ -296,11 +321,23 @@ fn update(
                 control::open(fe, &mut map.overlay, host, &mut env);
             }
         }
+        Stage::Map if dialog_over_map => {
+            // The GPS Yes/No dialog is over the map: it takes the input (handled above), the map stays frozen behind.
+            let commands = fe.screens.update(dt, mask, &mut env);
+            fe.apply(commands, host, &mut env);
+        }
         Stage::Map => {
+            // Whether the active theme recolours the map (Remastered). The FEng screen then restyles itself dark and
+            // translucent in place, hides its own list, and the themed legend is drawn over it.
+            let themed = map.themes.draws_world_map_chrome();
             let side = layout::PICTURE_SIDE * window.height() / FENG_HEIGHT;
             let cursor = feng_point(&window).map(layout::view_of);
             let input = control::input(&actions, &keys, &map.mouse, cursor, side);
-            control::step(fe, &mut map.overlay, input, dt, host, &mut env);
+            control::step(fe, &mut map.overlay, input, dt, themed, host, &mut env);
+            match themed && map.overlay.open {
+                true => map.themes.world_map_legend().set(&map.overlay.frame(true)),
+                false => map.themes.world_map_legend().clear(),
+            }
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
             if (actions.just_pressed(Action::MenuQuit) || press_quit)
@@ -346,6 +383,17 @@ fn present(
         frame.clear_menu(slot.slot());
     }
     let time_s = time.elapsed_secs();
+    // The Remastered map legend draws over the recoloured FEng map. The presenter puts each call below the calls before
+    // it (`movie` inserts its backdrop at the front for the same reason), so the legend is presented FIRST to sit on top
+    // of the map screen, which the loop presents after it. A screen stacked over the map (the GPS Yes/No `Dialog.fng`)
+    // must stay on top, so the legend is skipped while the map is not the top screen; the frozen map shows behind it.
+    let map_on_top = fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
+    if matches!(fe.stage, Stage::Map) && map_on_top {
+        let legend = slot_layer(&themes, ElementId::WorldMapChrome, time_s);
+        if !legend.nodes.is_empty() {
+            presenter.0.present(&legend, &assets.0, screen, &mut out);
+        }
+    }
     let mut claimed: Vec<ElementId> = Vec::new();
     for Presented { tree, slot } in fe.screens.presented(&bindings, device).into_iter().rev() {
         let layer = match slot {

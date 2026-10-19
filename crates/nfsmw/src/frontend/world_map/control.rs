@@ -8,16 +8,19 @@ use bevy_input::mouse::MouseButton;
 use nfsmw_career::regions::MapVariant;
 
 use super::screen::WorldMapLogic;
-use super::{MapInput, Outcome, activate_gps};
+use super::{MapInput, Outcome};
 use crate::app::Host;
+use crate::frontend::confirm::{Confirm, ConfirmLogic};
 use crate::frontend::flow::{Frontend, Stage};
-use crate::frontend::logic::Env;
+use crate::frontend::ids::screen::DIALOG;
+use crate::frontend::logic::{Command, Env};
 use crate::frontend::world_map::overlay::WorldMapOverlay;
 use crate::hud::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
     RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 use crate::input::{Action, ActionState};
+use crate::ui::Text;
 
 /// This frame's map input. `cursor` is the cursor in view units (see [`super::layout::view_of`]), `side` the picture's
 /// size in points (a drag of that many points pans a full view).
@@ -37,12 +40,23 @@ pub fn input(
         zoom_all: keys.just_pressed(KeyCode::KeyZ),
         next_filter: actions.just_pressed(Action::MenuRight),
         previous_filter: actions.just_pressed(Action::MenuLeft),
-        // Enter, or a left click on a blip, asks for the GPS; a second press confirms it.
-        accept: actions.just_pressed(Action::MenuAccept) || actions.just_pressed(Action::Click),
+        // A left click focuses the blip under the cursor (or unfocuses); Enter opens the GPS prompt on the focused blip.
+        click: actions.just_pressed(Action::Click),
+        accept: actions.just_pressed(Action::MenuAccept),
         secondary: mouse.just_pressed(MouseButton::Right),
         back: actions.just_pressed(Action::MenuBack) || actions.just_pressed(Action::Map),
     }
 }
+
+/// Every icon file [`icon_name`] can return, so the themed legend can register them as textures up front.
+pub const MAP_ICON_FILES: [&str; 6] = [
+    "Minimap_Icon_Chop_Shop.tga",
+    "Minimap_Icon_Car_Lot.tga",
+    "Minimap_Icon_Safe_House.tga",
+    "Minimap_Icon_Speedtrap.tga",
+    "Minimap_Icon_Circuit.tga",
+    "Minimap_Icon_Event.tga",
+];
 
 /// The icon file of a blip style, from the map's own legend (the first screenshot's Shop, Safe House and Car Lot
 /// icons are the package's `Minimap_Icon_*` textures).
@@ -66,6 +80,14 @@ pub fn tint_of(style: &str) -> Option<[u8; 3]> {
         _ => return None,
     };
     Some([rgba[0], rgba[1], rgba[2]])
+}
+
+/// The icon colour of a blip style as the themed legend draws it: the HUD interior tints, and amber for the races.
+pub fn blip_rgba(style: &str) -> [u8; 4] {
+    match tint_of(style) {
+        Some([r, g, b]) => [r, g, b, 255],
+        None => [255, 196, 64, 255],
+    }
 }
 
 /// The name of a blip style as the list shows it.
@@ -111,7 +133,7 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
     log::info!("world map open: {} blips", overlay.blips.len());
     // The career stage picks the map; outside career mode (no career handle) it is the full map.
     let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);
-    fe.open_map(Box::new(WorldMapLogic { variant }), host, env);
+    fe.open_map(Box::new(WorldMapLogic { variant, last_attached: None }), host, env);
 }
 
 /// One frame of the open map: the input goes to the session, and its outcome closes the map, sets the GPS, or draws
@@ -121,29 +143,34 @@ pub fn step(
     overlay: &mut WorldMapOverlay,
     input: MapInput,
     dt: f32,
+    themed: bool,
     host: &mut Host,
     env: &mut Env,
 ) {
     let outcome = overlay.session.frame(&input, &overlay.blips);
     match outcome {
-        Outcome::Stay => draw(fe, overlay, dt, host, env),
+        Outcome::Stay => draw(fe, overlay, dt, themed, host, env),
         Outcome::Close => close(fe, overlay),
-        Outcome::ActivateGps(index) => {
-            if let Some(blip) = overlay.blips.get(index) {
-                activate_gps(blip);
-            }
-            close(fe, overlay);
-        }
+        Outcome::AskGps(_) => ask_gps(fe, overlay, dt, themed, host, env),
     }
+}
+
+/// Opens the game's own `Dialog.fng` Yes/No confirm over the map. Yes resumes the game (sets the route — a stub — and
+/// closes the map); No pops the dialog and the map continues with the blip still focused.
+fn ask_gps(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, themed: bool, host: &mut Host, env: &mut Env) {
+    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::Resume);
+    let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
+    fe.apply(commands, host, env);
+    draw(fe, overlay, dt, themed, host, env);
 }
 
 /// Gives the map's screen this frame's state and runs the screens one step (the package's animations and the logic
 /// that writes the state into its objects).
-fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, host: &mut Host, env: &mut Env) {
+fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, themed: bool, host: &mut Host, env: &mut Env) {
     if !matches!(fe.stage, Stage::Map) {
         return;
     }
-    fe.screens.set_world_map(Some(overlay.frame()));
+    fe.screens.set_world_map(Some(overlay.frame(themed)));
     let commands = fe.screens.update(dt, 0, env);
     fe.apply(commands, host, env);
 }

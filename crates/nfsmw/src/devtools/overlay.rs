@@ -19,7 +19,7 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
         .movable(false)
         .interactable(false)
         .anchor(Align2::LEFT_TOP, vec2(left + 8.0, 8.0))
-        .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
+        .frame(Frame::window(&ctx.global_style()))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(format!("Base / rendered: {:.0} FPS  {:.1} ms", m.fps(), m.average_ms()))
@@ -79,7 +79,7 @@ fn readout(ctx: &egui::Context, m: &Metrics) {
         .movable(false)
         .interactable(false)
         .anchor(Align2::LEFT_BOTTOM, vec2(8.0, -8.0))
-        .frame(Frame::window(&ctx.global_style()).fill(Color32::from_black_alpha(170)))
+        .frame(Frame::window(&ctx.global_style()))
         .show(ctx, |ui| {
             for line in m.hud.lines() {
                 ui.add(

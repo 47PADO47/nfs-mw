@@ -322,3 +322,42 @@ The `0xC407210` value in `FUN_00552DA0` is a send, not a receive. **[verified]**
   cams (13, 14).
 - The GPS prompt is a separate `InGameDialog.fng` popup; the port's prompt is in egui.
 - Detach at 20 px in a drag (exe); the port keeps the attachment.
+
+## Cursor snap animation, GPS dialog and button prompts (reversed for the port)
+
+### Cursor snap-to-icon animation **[verified]**
+
+The crosshair cursor (dump group `0xF93EF`, four `Corner_Crosshair` children `0xF93AF`, `0xF93B2`, `0xF93B5`,
+`0xF93B8`) plays a short "square" animation as it snaps onto a blip and spreads back out as it leaves. The pick
+`FUN_00530A60` drives it:
+
+- When the nearest blip in range (radius `controller+0x174 = 20.0`) **changes to a new one**, it moves the cursor to
+  the blip (`FUN_00525050`) and runs the cursor's script `0x1CBF71` (`FUN_005B1360(cursor, 0x1CBF71)` then
+  `FUN_005B8400`). That is the snap-**in** animation.
+- When no blip is in range but one was attached, it runs the cursor's script `0x7EFE8FF4` — the snap-**out**.
+
+The crosshair children carry these as message handlers (dump): `on 0x0342106D: script(0x1CBF71)` (snap in) and
+`on 0xE0BC0FF0: script(0x7EFE8FF4)` (snap out). So the port replays the animation by posting `0x0342106D` /
+`0xE0BC0FF0` to the four crosshairs when `WorldMap.attached` changes (`world_map/screen/mod.rs`,
+`world_map/screen/pools.rs::CURSOR_CROSSHAIRS`).
+
+### The "Activate GPS?" Yes/No dialog **[verified]**
+
+The exe asks before setting GPS with a separate popup, not an in-place prompt:
+
+- `FUN_00598C00(this, …, stringKey)` looks up the localized body (`FUN_0056BB80`, default key `0x9BB9CCC3`), then
+  `FUN_00598AE0(… InGameDialog.fng …)` opens it with a title, the body and the Yes/No answer messages. The string
+  `InGameDialog.fng` is at `0x0089736C`; `ShowGPS` at `0x008A4AEC`.
+- On Yes the exe sets the GPS target `DAT_0091CA4C` via `FUN_0051FA10` (clear is `FUN_0051FA30`), then closes the map.
+
+The port has an equivalent Yes/No dialog system (`Dialog.fng`, `frontend/confirm.rs`), so the GPS confirm can reuse
+it rather than the in-place card prompt.
+
+### Button prompt icons (keyboard vs gamepad) **[verified]**
+
+Each footer button holds both a gamepad variant group (dump alpha 40, e.g. Back `0x10F8E3`, Activate `0x122E02`) and a
+`PC_key_*` keyboard icon (Back `0x10F8E5` = `PC_key_esc`, Activate `0x122E04` = `PC_key_enter`). The keyboard icons
+start hidden (their init script `0x001744B3` sets colour keyframe 0) and are revealed on event `0xBDFD2DF9`
+(`on 0xBDFD2DF9: script(0x5079C8F8)` → visible keyframe). The exe sends that event when the active device is the
+keyboard. The port is keyboard-and-mouse driven, so it shows the `PC_key_*` icons directly
+(`world_map/screen/mod.rs::show_key_prompts`).

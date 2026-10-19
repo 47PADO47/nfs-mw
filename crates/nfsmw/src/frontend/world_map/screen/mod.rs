@@ -5,6 +5,7 @@
 
 mod place;
 mod pools;
+mod restyle;
 #[cfg(test)]
 mod tests;
 
@@ -28,14 +29,13 @@ const WHITE: [u8; 3] = [255, 255, 255];
 const YELLOW: [u8; 3] = [255, 255, 0];
 /// The text the list shows when no blip of the filter is on the map.
 const EMPTY: &str = "No blips of this type on the map.";
-/// The prompt's text on the card.
-const PROMPT_TITLE: &str = "Activate GPS?";
-const PROMPT_HINT: &str = "Enter: yes   Esc: no";
 
 /// The map's screen logic. It keeps no state of its own: the frontend hands it the frame each tick. The variant is the
 /// career stage's map (`MapVariant::of_stage`, or the full map outside career mode), chosen when the map opens.
 pub struct WorldMapLogic {
     pub variant: MapVariant,
+    /// The blip the cursor was on last tick, to replay the snap animation when it changes.
+    pub last_attached: Option<usize>,
 }
 
 impl ScreenLogic for WorldMapLogic {
@@ -44,11 +44,62 @@ impl ScreenLogic for WorldMapLogic {
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         let Some(frame) = cx.world_map else { return };
         let session = &frame.session;
+        let attached = session.attached;
         let drawn = place::assign(&frame.blips, session.filter);
         draw_picture(cx, session.camera, session.filter, self.variant);
         draw_blips(cx, frame, &drawn);
-        draw_list(cx, frame);
-        draw_cursor_and_card(cx, frame);
+        // Every map hides the stripe lines and shows the frozen world through a translucent background. Under the
+        // Remastered theme the screen is also recoloured dark in place (keeping its own fullscreen picture, filter
+        // switch, button prompts and mouse behaviour), its own list and legend chrome are hidden, and the themed legend
+        // is drawn over it; the cursor still sits on the attached blip.
+        restyle::transparency(cx);
+        if frame.chrome_themed {
+            restyle::dark(cx);
+            // The themed legend replaces the FEng list, so hide the list rows; the cursor still draws so the mouse keeps
+            // snapping onto blips (a click, Enter or right click then asks for GPS in the stock dialog).
+            for row in pools::ROWS.iter() {
+                hide(cx, row.text, true);
+                hide(cx, row.icon_group, true);
+            }
+            // The themed legend shows the focused blip's distance, so the FEng card stays hidden; the cursor still draws.
+            draw_cursor_and_card(cx, frame);
+            hide(cx, pools::CARD, true);
+        } else {
+            draw_list(cx, frame);
+            draw_cursor_and_card(cx, frame);
+        }
+        // The "Activate GPS" button is greyed until a blip is selected.
+        set_activate_enabled(cx, attached.is_some());
+        show_key_prompts(cx);
+        // Replay the cursor's snap animation when it moves onto (or off) a blip.
+        if attached != self.last_attached {
+            let message = if attached.is_some() { pools::CURSOR_SNAP } else { pools::CURSOR_UNSNAP };
+            for guid in pools::CURSOR_CROSSHAIRS {
+                if let Some(o) = cx.guid(guid) {
+                    cx.rt.post(cx.package, message, Some(o));
+                }
+            }
+            self.last_attached = attached;
+        }
+    }
+}
+
+/// Colours the "Activate GPS" button: bright when a blip is selected, muted grey when nothing is.
+fn set_activate_enabled(cx: &mut Cx, selected: bool) {
+    let colour = if selected { [226, 230, 238] } else { [110, 115, 125] };
+    if let Some(o) = cx.guid(pools::ACTIVATE_TEXT) {
+        cx.rt.set_colour(o, colour);
+    }
+}
+
+/// Shows the keyboard-prompt icons before the Back and Activate GPS labels (the package starts them hidden for gamepad
+/// mode; the port is keyboard-and-mouse driven).
+fn show_key_prompts(cx: &mut Cx) {
+    for guid in [pools::KEY_BACK, pools::KEY_ACTIVATE] {
+        if let Some(o) = cx.guid(guid) {
+            cx.rt.set_colour_rgba(o, [255, 255, 255, 255]);
+            cx.rt.set_hidden(o, false);
+        }
     }
 }
 
@@ -143,31 +194,37 @@ fn draw_row_text(cx: &mut Cx, guid: u32, y: f32, text: &str, colour: [u8; 3]) {
     cx.align_string(o, LIST_LEFT, LIST_WIDTH, y);
 }
 
-/// The cursor sits on the attached blip, and the card under the picture says which blip it is and how far. With the
-/// prompt open the card asks for the GPS instead.
+/// The cursor follows the mouse as a cross and sits on the focused blip as a square (the snap animation runs when it
+/// changes). The card under the picture names the focused blip and its distance.
 fn draw_cursor_and_card(cx: &mut Cx, frame: &WorldMapFrame) {
     let session = &frame.session;
+    // The round glow inside the cursor group is the package's "normal" pointer; hide it so only the cross/square
+    // crosshairs show.
+    hide(cx, pools::CURSOR_GLOW, true);
     let attached = session.attached.and_then(|i| frame.blips.get(i));
+    // The cursor sits on the focused blip, else it follows the free mouse pointer.
+    let view = match attached {
+        Some(blip) => Some(session.camera.to_view(blip.map)),
+        None => session.cursor,
+    };
+    match view.filter(|v| v.iter().all(|c| (0.0..=1.0).contains(c))) {
+        Some(view) => {
+            let [x, y] = layout::point_of(view);
+            if let Some(cursor) = cx.guid(pools::CURSOR) {
+                cx.rt.set_position_xy(cursor, x, y);
+                cx.rt.set_hidden(cursor, false);
+            }
+        }
+        None => hide(cx, pools::CURSOR, true),
+    }
+    // The card shows only for the focused blip.
     let Some(blip) = attached else {
-        hide(cx, pools::CURSOR, true);
         hide(cx, pools::CARD, true);
         return;
     };
-    let [x, y] = layout::point_of(session.camera.to_view(blip.map));
-    if let Some(cursor) = cx.guid(pools::CURSOR) {
-        cx.rt.set_position_xy(cursor, x, y);
-        cx.rt.set_hidden(cursor, false);
-    }
     hide(cx, pools::CARD, false);
-    let (title, detail) = match session.prompt {
-        true => (PROMPT_TITLE.to_owned(), PROMPT_HINT.to_owned()),
-        false => {
-            let metres = distance_metres(frame.player, blip);
-            (style_name(blip.style).to_owned(), format_metres(metres))
-        }
-    };
-    set_text(cx, pools::CARD_TITLE, &title);
-    set_text(cx, pools::CARD_DISTANCE, &detail);
+    set_text(cx, pools::CARD_TITLE, style_name(blip.style));
+    set_text(cx, pools::CARD_DISTANCE, &format_metres(distance_metres(frame.player, blip)));
     if let Some(icon) = cx.guid(pools::CARD_ICON) {
         show_icon(cx, icon, blip.style);
     }

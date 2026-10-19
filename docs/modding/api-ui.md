@@ -18,6 +18,11 @@ in the live game (T12). A player picks a mod theme on the Mods page (see [Select
   primitives. A second `set_slot` for the same slot replaces the first.
 - **Coordinates.** FEng units: a 640 by 480 screen whose origin is its centre. `x` and `y` are the rectangle's centre, `w`
   and `h` its size (never negative). The game does not rescale a spec, so write it for the full screen.
+- **Tokens.** `set_tokens(theme, tokens)` (`bb.ui` 1.1) declares the theme's `primary`, `secondary`, `background`,
+  `border` and `muted` colours (`[r, g, b, a]`), and its `radius` and `padding` in FEng units (never negative). While the
+  theme is active the game merges them into the skin its components read (`theme.*` keys). A theme that declares tokens
+  also gets the game's token-driven components (radio card, speedometer, tachometer, gear, meters) for each slot it does
+  not name. A theme without tokens keeps the Original look for those slots.
 
 ## Primitives
 
@@ -58,7 +63,7 @@ never reused.
 ## SDK
 
 ```rust
-use blackbox_modding::sdk::{Ctx, Prim, Rect};
+use blackbox_modding::sdk::{Ctx, Prim, Rect, Tokens};
 
 let ui = ctx.ui().expect("bb.ui is offered");
 let theme = ui.register_theme("night", "Night drive")?;
@@ -67,6 +72,8 @@ ui.set_slot(theme, 4, &[
     Prim::Text { rect: Rect { x: 0.0, y: -60.0, w: 160.0, h: 20.0 }, colour: [255; 4], justify: 1,
                  font: "FONT_MW_BODY", text: "MAP" },
 ])?;
+ui.set_tokens(theme, &Tokens { primary: [255; 4], secondary: [255, 200, 80, 255], background: [0, 0, 0, 170],
+    border: [255; 4], muted: [180, 185, 195, 255], radius: 6.0, padding: 6.0 })?;
 // ui.unregister_theme(theme)?; removes the theme and its slots. Themes left registered go when the mod unloads.
 ```
 

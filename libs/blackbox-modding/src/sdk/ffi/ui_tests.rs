@@ -7,7 +7,7 @@ use std::rc::Rc;
 use super::ui as sdk_ui;
 use crate::abi::{IFACE_UI, IFACE_UI_VERSION};
 use crate::host::test_support::callback_on_main;
-use crate::host::{Attached, BackendResult, InterfaceRegistry, UiBackend, UiPrim, UiRect, UiThemeSpec};
+use crate::host::{Attached, BackendResult, InterfaceRegistry, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
 use crate::sdk::ui::{Prim, Rect};
 use crate::sdk::{Interface, Ui};
 
@@ -16,6 +16,7 @@ struct FakeUi {
     themes: RefCell<Vec<(u64, String)>>,
     slots: RefCell<Vec<(u64, u32, Vec<UiPrim>)>>,
     removed: RefCell<Vec<u64>>,
+    tokens: RefCell<Vec<(u64, UiTokens)>>,
 }
 
 impl UiBackend for FakeUi {
@@ -32,6 +33,11 @@ impl UiBackend for FakeUi {
 
     fn unregister_theme(&self, _owner: &str, theme: u64) -> BackendResult<()> {
         self.removed.borrow_mut().push(theme);
+        Ok(())
+    }
+
+    fn set_tokens(&self, _owner: &str, theme: u64, tokens: &UiTokens) -> BackendResult<()> {
+        self.tokens.borrow_mut().push((theme, *tokens));
         Ok(())
     }
 }

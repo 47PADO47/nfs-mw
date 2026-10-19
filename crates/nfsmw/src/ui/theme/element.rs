@@ -14,8 +14,10 @@ use blackbox_ui::SlotId;
 
 impl ElementId {
     /// Whether the slot is a menu or career screen (raw 20 and up), which the menu cell feeds, rather than a HUD slot.
+    /// The world-map chrome is numbered with the frontend block but is not menu-cell-fed (it is drawn as its own overlay
+    /// layer), so it is not a menu slot.
     pub const fn is_menu(self) -> bool {
-        self.raw() >= 20
+        self.raw() >= 20 && !matches!(self, ElementId::WorldMapChrome)
     }
 }
 
@@ -78,6 +80,10 @@ catalogue! {
     OptionTable = 23,
     TrackSelect = 24,
     SafeHouseMenu = 25,
+    // The world map's themed chrome. Not a menu-cell-fed screen: it is drawn as its own overlay layer over the FEng
+    // map while the map is open (`frontend/world_map`), so the Original theme leaves it empty and the FEng screen keeps
+    // drawing the list, card, tab and zoom.
+    WorldMapChrome = 26,
     // Career screens (`frontend/career_screens/`). Numbers 40 to 45.
     Blacklist = 40,
     CarLot = 41,

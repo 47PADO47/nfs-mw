@@ -44,6 +44,15 @@ impl Skin {
         self
     }
 
+    /// Adds every key of `other` to this skin. A key both skins set takes `other`'s value. Builder style.
+    pub fn merged(mut self, other: Skin) -> Self {
+        self.colours.extend(other.colours);
+        self.fonts.extend(other.fonts);
+        self.textures.extend(other.textures);
+        self.metrics.extend(other.metrics);
+        self
+    }
+
     pub fn colour(&self, key: &str) -> Option<[u8; 4]> {
         self.colours.get(key).copied()
     }
@@ -83,6 +92,16 @@ mod tests {
         let skin = Skin::new().with_colour("text", [0, 0, 0, 255]);
         assert_eq!(skin.colour("missing"), None);
         assert_eq!(skin.font("text"), None);
+    }
+
+    #[test]
+    fn merged_adds_the_other_keys_and_the_other_value_wins() {
+        let a = Skin::new().with_colour("a", [1, 1, 1, 1]).with_colour("x", [2, 2, 2, 2]);
+        let b = Skin::new().with_colour("x", [3, 3, 3, 3]).with_font("f", 5);
+        let merged = a.merged(b);
+        assert_eq!(merged.colour("a"), Some([1, 1, 1, 1]));
+        assert_eq!(merged.colour("x"), Some([3, 3, 3, 3]));
+        assert_eq!(merged.font("f"), Some(5));
     }
 
     #[test]

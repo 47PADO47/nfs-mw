@@ -20,7 +20,7 @@ use super::viewport::HudViewport;
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
-use crate::settings::Settings;
+use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
 use crate::ui::theme::original::FengSource;
 use crate::ui::theme::{ElementId, UiThemes, hud_layer, slot_layer};
@@ -108,6 +108,8 @@ fn sync(
     if let Some(s) = host.scene.hud_state() {
         *state = s;
     }
+    // The unit is the player's setting, not the scene's: every HUD look reads it from here.
+    state.use_mph = settings.speed_units == SpeedUnits::Imperial;
     let hud = &mut *hud;
     let wanted = variant_for_stage(career.with(|c| c.stage()));
     let variant = usable_variant(wanted, |v| hud.map_variants.contains(&v));
@@ -163,6 +165,8 @@ fn present(
     let frame = themes.frame();
     // The card places itself from the HUD layout, so it takes the feed, not the viewport.
     themes.radio().set(&radio, screen, settings.hud_layout);
+    // The Custom speedometer and tachometer read the drive state the same way.
+    themes.drive().set(&state, screen);
     match (chyron_shown, hud.trax.as_ref()) {
         (true, Some(trax)) => {
             let mut chyron = hud.runtime.tree(trax.package());

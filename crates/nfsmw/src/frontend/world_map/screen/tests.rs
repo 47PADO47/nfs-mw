@@ -8,7 +8,7 @@ use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
 use super::pools;
-use super::{EMPTY, PROMPT_TITLE, WorldMapLogic};
+use super::{EMPTY, WorldMapLogic};
 use crate::frontend::ids::screen::WORLD_MAP;
 use crate::frontend::logic::{Cx, ScreenLogic};
 use crate::frontend::world_map::layout;
@@ -52,7 +52,7 @@ impl Harness {
             mods: None,
             name: WORLD_MAP,
         };
-        WorldMapLogic { variant: MapVariant::Full }.tick(&mut cx, 1.0 / 60.0);
+        WorldMapLogic { variant: MapVariant::Full, last_attached: None }.tick(&mut cx, 1.0 / 60.0);
     }
 
     fn object(&self, guid: u32) -> ObjectRef {
@@ -78,7 +78,7 @@ fn blip(style: &'static str, map: [f32; 2]) -> PlacedBlip {
 }
 
 fn frame(blips: Vec<PlacedBlip>) -> WorldMapFrame {
-    WorldMapFrame { session: WorldMap::new(), blips, player: [0.0, 0.0] }
+    WorldMapFrame { session: WorldMap::new(), blips, player: [0.0, 0.0], chrome_themed: false }
 }
 
 fn assert_close(a: [f32; 2], b: [f32; 2]) {
@@ -164,7 +164,7 @@ fn zoom_crops_the_picture_and_parks_the_blips_outside_the_view() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
-fn attaching_moves_the_cursor_and_fills_the_card_and_the_prompt_asks_for_gps() {
+fn focusing_a_blip_moves_the_cursor_onto_it_and_fills_the_card() {
     let mut h = Harness::open();
     let mut frame = frame(vec![blip(SAFE_HOUSE, [0.5, 0.5])]);
     frame.session.attached = Some(0);
@@ -173,11 +173,7 @@ fn attaching_moves_the_cursor_and_fills_the_card_and_the_prompt_asks_for_gps() {
     assert_close(h.position(pools::CURSOR), layout::PICTURE_CENTRE);
     assert!(!h.hidden(pools::CARD));
     assert_eq!(h.text(pools::CARD_TITLE), "Safe house");
-
-    frame.session.prompt = true;
-    h.tick(&frame);
-    assert_eq!(h.text(pools::CARD_TITLE), PROMPT_TITLE);
-    assert_eq!(h.text(pools::ROWS[0].text), "Safe house   0 m", "the row keeps the name while the prompt is open");
+    assert_eq!(h.text(pools::ROWS[0].text), "Safe house   0 m", "the row names the focused blip");
 }
 
 #[test]
@@ -187,4 +183,21 @@ fn an_empty_tab_says_so_in_the_first_row() {
     h.tick(&frame(Vec::new()));
     assert_eq!(h.text(pools::ROWS[0].text), EMPTY);
     assert!(h.hidden(pools::ROWS[0].icon_group));
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_remastered_map_hides_the_feng_list_and_card_for_the_themed_legend() {
+    let mut h = Harness::open();
+    let mut frame = frame(vec![blip(SAFE_HOUSE, [0.5, 0.5])]);
+    frame.chrome_themed = true;
+    frame.session.attached = Some(0);
+    h.tick(&frame);
+    // The Remastered map recolours the FEng screen dark in place and hides its own list rows and card; the themed
+    // legend (drawn by the frontend) replaces them. The picture, the blips and the cursor still draw, so the map keeps
+    // its fullscreen picture, filter switch, button prompts and mouse behaviour.
+    assert!(!h.hidden(pools::slots(SAFE_HOUSE)[0]), "the blip is still drawn");
+    assert!(!h.hidden(pools::CURSOR), "the cursor still snaps onto the focused blip");
+    assert!(h.hidden(pools::ROWS[0].text), "the FEng list row is hidden for the themed legend");
+    assert!(h.hidden(pools::CARD), "the FEng card is hidden; the themed legend shows the distance");
 }

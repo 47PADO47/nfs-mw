@@ -72,7 +72,7 @@ pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
 pub use time::TimeBackend;
-pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec};
+pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
 pub use vehicles::{VehicleState, VehiclesBackend};
 pub use world::{MAX_COP_SHARE, WorldBackend};
 

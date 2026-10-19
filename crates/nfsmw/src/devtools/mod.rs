@@ -8,6 +8,7 @@ mod logfile;
 mod metrics;
 mod overlay;
 mod readout;
+mod theme_style;
 
 use bevy_app::{App, Last, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -41,6 +42,7 @@ impl Plugin for DevToolsPlugin {
 #[allow(clippy::too_many_arguments)]
 fn run_ui(
     gui: Res<Gui>,
+    themes: Res<crate::ui::theme::UiThemes>,
     mut input: ResMut<GuiInput>,
     mut out: ResMut<UiOutput>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -65,6 +67,8 @@ fn run_ui(
         focused: window.focused,
         ..Default::default()
     };
+    // The panels draw in the active theme's palette, radius, padding and text size, as the game does.
+    gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);

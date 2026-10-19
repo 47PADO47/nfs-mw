@@ -1,4 +1,5 @@
 use super::camera::MAX_ZOOM;
+use super::legend::VISIBLE_ROWS;
 use super::*;
 use crate::hud::{AUTO_SHOP, CAR_LOT, RACE_SPRINT, SAFE_HOUSE};
 
@@ -16,6 +17,10 @@ fn hover(at: [f32; 2]) -> MapInput {
     MapInput { cursor: Some(at), ..Default::default() }
 }
 
+fn click(at: [f32; 2]) -> MapInput {
+    MapInput { cursor: Some(at), click: true, ..Default::default() }
+}
+
 fn press_accept() -> MapInput {
     MapInput { accept: true, ..Default::default() }
 }
@@ -26,7 +31,8 @@ fn the_map_opens_on_locations_zoomed_out() {
     assert_eq!(map.filter, Filter::Locations);
     assert_eq!(map.camera, Camera::zoom_all());
     assert_eq!(map.attached, None);
-    assert!(!map.prompt);
+    assert_eq!(map.cursor, None);
+    assert_eq!(map.list_scroll, 0);
 }
 
 #[test]
@@ -80,19 +86,27 @@ fn panning_cannot_leave_the_picture() {
 }
 
 #[test]
-fn the_cursor_attaches_to_the_nearest_blip_of_the_filter() {
+fn hovering_a_blip_focuses_the_nearest_of_the_filter() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    assert_eq!(map.attached, Some(0), "the race is nearer but another filter, so the safe house is taken");
+    assert_eq!(map.cursor, Some([0.2, 0.2]), "the cursor follows the mouse");
+    assert_eq!(map.attached, Some(0), "the race is nearer but another filter, so the safe house is focused");
 }
 
 #[test]
-fn nothing_attaches_outside_the_pick_radius() {
+fn hovering_off_a_blip_on_the_picture_unfocuses() {
     let mut map = WorldMap::new();
+    map.frame(&hover([0.2, 0.2]), &blips());
+    assert_eq!(map.attached, Some(0));
     map.frame(&hover([0.5, 0.5]), &blips());
-    assert_eq!(map.attached, None);
-    map.frame(&MapInput::default(), &blips());
-    assert_eq!(map.attached, None, "no cursor, nothing attached");
+    assert_eq!(map.attached, None, "moving off a blip (still on the picture) unfocuses");
+}
+
+#[test]
+fn clicking_a_blip_asks_for_gps() {
+    let mut map = WorldMap::new();
+    assert_eq!(map.frame(&click([0.2, 0.2]), &blips()), Outcome::AskGps(0), "a click on a blip asks for GPS");
+    assert_eq!(map.attached, Some(0));
 }
 
 #[test]
@@ -104,65 +118,84 @@ fn nearest_picks_the_closest_within_the_radius_and_ties_go_early() {
 }
 
 #[test]
-fn enter_asks_then_confirms_the_gps_for_the_attached_blip() {
+fn enter_asks_for_gps_for_the_focused_blip() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    assert_eq!(map.frame(&press_accept(), &blips()), Outcome::Stay);
-    assert!(map.prompt, "the first Enter opens the prompt");
-    assert_eq!(map.frame(&press_accept(), &blips()), Outcome::ActivateGps(0));
+    assert_eq!(map.frame(&press_accept(), &blips()), Outcome::AskGps(0));
 }
 
 #[test]
-fn right_click_opens_the_same_prompt() {
+fn right_click_asks_for_gps_too() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    let secondary = MapInput { secondary: true, ..hover([0.2, 0.2]) };
-    assert_eq!(map.frame(&secondary, &blips()), Outcome::Stay);
-    assert!(map.prompt);
+    let secondary = MapInput { secondary: true, ..Default::default() };
+    assert_eq!(map.frame(&secondary, &blips()), Outcome::AskGps(0));
 }
 
 #[test]
-fn the_prompt_keeps_its_blip_when_the_cursor_moves_away() {
+fn a_frame_with_no_cursor_keeps_the_focus() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    map.frame(&press_accept(), &blips());
-    map.frame(&hover([0.8, 0.8]), &blips());
-    assert_eq!(map.attached, Some(0), "the prompt still names the safe house");
-    assert_eq!(map.frame(&press_accept(), &blips()), Outcome::ActivateGps(0));
+    map.frame(&MapInput::default(), &blips());
+    assert_eq!(map.attached, Some(0), "a key frame (no cursor) keeps the focus");
+    assert_eq!(map.frame(&press_accept(), &blips()), Outcome::AskGps(0));
 }
 
 #[test]
-fn enter_with_nothing_attached_does_nothing() {
+fn enter_with_nothing_focused_does_nothing() {
     let mut map = WorldMap::new();
     assert_eq!(map.frame(&press_accept(), &blips()), Outcome::Stay);
-    assert!(!map.prompt);
+    assert_eq!(map.attached, None);
 }
 
 #[test]
-fn back_cancels_the_prompt_before_it_closes_the_map() {
+fn scrolling_zooms_over_the_picture_and_scrolls_the_list_off_it() {
+    let mut map = WorldMap::new();
+    // Off the picture (over the legend) the wheel does not zoom.
+    map.frame(&MapInput { cursor: Some([1.5, 0.5]), zoom_lines: 3.0, ..Default::default() }, &blips());
+    assert_eq!(map.camera, Camera::zoom_all(), "scrolling off the picture does not zoom");
+    // Over the picture it zooms.
+    map.frame(&MapInput { cursor: Some([0.5, 0.5]), zoom_lines: 3.0, ..Default::default() }, &blips());
+    assert!(map.camera.zoom() > 1.0, "scrolling over the picture zooms");
+}
+
+#[test]
+fn scrolling_off_the_picture_moves_the_list_within_its_bounds() {
+    let many: Vec<PlacedBlip> = (0..20).map(|i| blip(SAFE_HOUSE, [0.1, i as f32 / 20.0])).collect();
+    let mut map = WorldMap::new();
+    let off = |lines| MapInput { cursor: Some([1.5, 0.5]), zoom_lines: lines, ..Default::default() };
+    map.frame(&off(-2.0), &many);
+    assert_eq!(map.list_scroll, 2, "wheel down advances the list");
+    map.frame(&off(1.0), &many);
+    assert_eq!(map.list_scroll, 1, "wheel up goes back");
+    map.frame(&off(-100.0), &many);
+    assert_eq!(map.list_scroll, 20 - VISIBLE_ROWS, "the list stops at the last page");
+}
+
+#[test]
+fn back_unfocuses_then_closes() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    map.frame(&press_accept(), &blips());
     let back = MapInput { back: true, ..Default::default() };
     assert_eq!(map.frame(&back, &blips()), Outcome::Stay);
-    assert!(!map.prompt);
-    assert_eq!(map.frame(&back, &blips()), Outcome::Close);
+    assert_eq!(map.attached, None, "back unfocuses first");
+    assert_eq!(map.frame(&back, &blips()), Outcome::Close, "then it closes");
 }
 
 #[test]
-fn switching_the_tab_drops_the_prompt_and_the_attachment() {
+fn switching_the_tab_drops_the_focus_and_the_scroll() {
     let mut map = WorldMap::new();
     map.frame(&hover([0.2, 0.2]), &blips());
-    map.frame(&press_accept(), &blips());
-    map.frame(&MapInput { next_filter: true, ..hover([0.2, 0.2]) }, &blips());
-    assert!(!map.prompt);
-    assert_eq!(map.attached, Some(1), "the race under the cursor is now the one shown");
+    map.list_scroll = 3;
+    map.frame(&MapInput { next_filter: true, ..Default::default() }, &blips());
+    assert_eq!(map.attached, None, "switching the tab unfocuses");
+    assert_eq!(map.list_scroll, 0, "and resets the list scroll");
 }
 
 #[test]
 fn zoom_all_puts_the_camera_back() {
     let mut map = WorldMap::new();
-    map.frame(&MapInput { zoom_lines: 3.0, ..Default::default() }, &blips());
+    map.frame(&MapInput { cursor: Some([0.5, 0.5]), zoom_lines: 3.0, ..Default::default() }, &blips());
     assert!(map.camera.zoom() > 1.0);
     map.frame(&MapInput { zoom_all: true, ..Default::default() }, &blips());
     assert_eq!(map.camera, Camera::zoom_all());

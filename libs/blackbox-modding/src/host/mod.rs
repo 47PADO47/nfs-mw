@@ -47,5 +47,5 @@ pub use table::{
     Attached, AudioBackend, BackendResult, BlipSpec, CameraBackend, CameraKind, CameraState, CommandHandler,
     CommandsBackend, HotkeyHandler, HudBackend, InputBackend, MAX_CHOICES, MAX_COP_SHARE, MAX_MESSAGE_SECS,
     MAX_PRIMITIVES, MapBackend, MenuHandler, MenuKind, MenuRowSpec, MenusBackend, MessageStyle, TimeBackend, UiBackend,
-    UiPrim, UiRect, UiThemeSpec, VehicleState, VehiclesBackend, WorldBackend,
+    UiPrim, UiRect, UiThemeSpec, UiTokens, VehicleState, VehiclesBackend, WorldBackend,
 };

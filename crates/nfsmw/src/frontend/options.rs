@@ -14,8 +14,8 @@ use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, Transmission, UiStyle, UpscaleMode,
-    WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, Transmission, UiStyle,
+    UiTheme, UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -56,6 +56,8 @@ pub enum Setting {
     Renderer(RendererSetting),
     HudLayout,
     UiStyle,
+    SpeedUnits,
+    UiTheme,
     Minimap,
     RenderScale,
     Upscaler,
@@ -196,6 +198,8 @@ impl Setting {
                 .to_owned(),
             ),
             Setting::UiStyle => Data::Text(s.ui_style.label().to_owned()),
+            Setting::SpeedUnits => Data::Text(s.speed_units.label().to_owned()),
+            Setting::UiTheme => Data::Text(s.ui_theme.label().to_owned()),
             Setting::Minimap => Data::Text(
                 match s.minimap {
                     MinimapMode::Fixed => "Fixed",
@@ -327,6 +331,16 @@ impl Setting {
                 let at = UiStyle::ALL.iter().position(|style| *style == s.ui_style).unwrap_or(0);
                 s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
                 changed.ui_style = Some(s.ui_style);
+            }
+            Setting::SpeedUnits => {
+                let at = SpeedUnits::ALL.iter().position(|units| *units == s.speed_units).unwrap_or(0);
+                s.speed_units = SpeedUnits::ALL[cycle(at, SpeedUnits::ALL.len(), forward)];
+                changed.speed_units = Some(s.speed_units);
+            }
+            Setting::UiTheme => {
+                let at = UiTheme::ALL.iter().position(|theme| *theme == s.ui_theme).unwrap_or(0);
+                s.ui_theme = UiTheme::ALL[cycle(at, UiTheme::ALL.len(), forward)];
+                changed.ui_theme = Some(s.ui_theme);
             }
             Setting::Minimap => {
                 let modes = [MinimapMode::Fixed, MinimapMode::Rotating, MinimapMode::Off];

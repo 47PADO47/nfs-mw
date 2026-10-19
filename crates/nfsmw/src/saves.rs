@@ -186,6 +186,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         minimap: Some(s.minimap),
         hud_layout: Some(s.hud_layout),
         ui_style: Some(s.ui_style),
+        speed_units: Some(s.speed_units),
+        ui_theme: Some(s.ui_theme),
         post_tonemap: Some(s.post_tonemap),
         post_bloom: Some(s.post_bloom),
         post_aa: Some(s.post_aa),
