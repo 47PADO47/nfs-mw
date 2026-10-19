@@ -7,6 +7,7 @@
 mod input;
 mod keys;
 mod output;
+mod platform;
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
@@ -14,6 +15,7 @@ use bevy_input::InputSystems;
 
 pub use input::GuiInput;
 pub use output::{OwnedPatch, UiOutput};
+pub(crate) use platform::Platform;
 
 /// The egui context, shared by every panel.
 #[derive(Resource, Clone, Default)]
@@ -28,7 +30,9 @@ impl Plugin for GuiPlugin {
         app.init_resource::<Gui>()
             .init_resource::<GuiInput>()
             .init_resource::<UiOutput>()
-            .add_systems(PreUpdate, input::collect.after(InputSystems));
+            .insert_non_send(Platform::default())
+            .add_systems(PreUpdate, input::collect.after(InputSystems))
+            .add_systems(bevy_app::PostUpdate, platform::apply);
     }
 }
 

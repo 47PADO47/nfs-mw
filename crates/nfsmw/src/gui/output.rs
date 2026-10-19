@@ -21,6 +21,8 @@ impl OwnedPatch {
 /// What the UI pass produced, until the render bridge drains it.
 #[derive(Resource, Default)]
 pub struct UiOutput {
+    /// Clipboard/browser requests, handled by the platform worker after drawing the UI.
+    pub platform_commands: Vec<egui::OutputCommand>,
     pub patches: Vec<OwnedPatch>,
     pub freed: Vec<UiTextureId>,
     /// The newest layer; `None` when nothing changed since the bridge took it.
@@ -36,6 +38,8 @@ fn texture_id(id: egui::TextureId) -> UiTextureId {
 }
 
 pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut UiOutput) {
+    let _trace = blackbox_trace::scope("UI: egui tessellation / conversion");
+    out.platform_commands.append(&mut full.platform_output.commands);
     for (id, deltas) in &full.textures_delta.set {
         for delta in deltas {
             let ImageData::Color(image) = &delta.image;

@@ -57,6 +57,7 @@ fn run_ui(
     mut garage: ResMut<crate::garage::Overlay>,
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
+    platform: NonSend<crate::gui::Platform>,
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
     let (width, height) = (window.width(), window.height());
@@ -77,6 +78,7 @@ fn run_ui(
         let left = host.scene.ui(ctx);
         overlay::show(ctx, settings.show_metrics, &metrics, left);
         trace::indicator(ctx, &lab.recorder);
+        platform.show(ctx);
         console::show(ctx, &mut console);
         graphics_lab::show_world(ctx, &mut lab, &mut settings, &metrics, host.scene.as_mut());
         if garage.open {

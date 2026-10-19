@@ -326,3 +326,10 @@ Performance trace format
 The original blackbox-trace exporter follows Perfetto's documented Chrome Trace
 Event JSON support (Apache-2.0 documentation; no implementation code copied):
 https://perfetto.dev/docs/getting-started/other-formats
+
+UI platform integration
+------------------------
+Clipboard/browser command handling follows the public arboard and open APIs:
+https://docs.rs/arboard/latest/arboard/
+https://docs.rs/open/latest/open/
+Used as dependencies; no third-party implementation code was copied.
