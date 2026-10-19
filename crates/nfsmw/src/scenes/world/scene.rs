@@ -42,6 +42,11 @@ impl Scene for WorldScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.update_frame(renderer, input, dt);
+        self.update_route(dt);
+    }
+
+    fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
+        self.route_to(target)
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {

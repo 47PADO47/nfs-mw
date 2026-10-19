@@ -309,8 +309,8 @@ impl Drive {
         self.previous.lerp(&self.current, self.alpha)
     }
 
-    /// The live physical pose, including contacts not yet published to the render poses.
-    #[cfg(test)]
+    /// The live physical pose, including contacts not yet published to the render poses. The GPS reads it: it must
+    /// follow the car as the physics has it, not the frame's blend.
     pub fn physics_pose(&self) -> CarPose {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }

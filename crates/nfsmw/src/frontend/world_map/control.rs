@@ -118,7 +118,7 @@ pub fn format_metres(metres: f32) -> String {
 /// reports no blips), and stay as they were while it is paused.
 pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
     let (blips, player) = match host.scene.hud_state() {
-        Some(hud) => (hud.blips.clone(), hud.minimap.as_ref().map(|m| m.position)),
+        Some(hud) => (hud.blips.clone(), hud.minimap),
         None => (Vec::new(), None),
     };
     let calibration = match nfsmw_data::minimap::open_city_calibration(&fe.dir) {
@@ -129,7 +129,7 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
         }
     };
     overlay.open(calibration);
-    overlay.refresh(&blips, player);
+    overlay.refresh(&blips, player.as_ref());
     log::info!("world map open: {} blips", overlay.blips.len());
     // The career stage picks the map; outside career mode (no career handle) it is the full map.
     let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);
@@ -151,14 +151,25 @@ pub fn step(
     match outcome {
         Outcome::Stay => draw(fe, overlay, dt, themed, host, env),
         Outcome::Close => close(fe, overlay),
-        Outcome::AskGps(_) => ask_gps(fe, overlay, dt, themed, host, env),
+        Outcome::AskGps(index) => ask_gps(fe, overlay, index, dt, themed, host, env),
     }
 }
 
-/// Opens the game's own `Dialog.fng` Yes/No confirm over the map. Yes resumes the game (sets the route — a stub — and
-/// closes the map); No pops the dialog and the map continues with the blip still focused.
-fn ask_gps(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, themed: bool, host: &mut Host, env: &mut Env) {
-    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::Resume);
+/// Opens the game's own `Dialog.fng` Yes/No confirm over the map. Yes sets the route to the focused blip, then closes
+/// the map and goes on driving; No pops the dialog and the map continues with the blip still focused.
+fn ask_gps(
+    fe: &mut Frontend,
+    overlay: &WorldMapOverlay,
+    index: usize,
+    dt: f32,
+    themed: bool,
+    host: &mut Host,
+    env: &mut Env,
+) {
+    let Some(blip) = overlay.blips.get(index) else {
+        return draw(fe, overlay, dt, themed, host, env);
+    };
+    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::SetWaypoint(blip.world));
     let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
     fe.apply(commands, host, env);
     draw(fe, overlay, dt, themed, host, env);

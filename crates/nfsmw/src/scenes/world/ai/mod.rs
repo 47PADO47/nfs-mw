@@ -293,6 +293,11 @@ impl TrafficWorld {
         self.warmup_left <= 0.0 || !self.has_work()
     }
 
+    /// The road graph the cars drive on, and its segment index: the GPS route is searched on it.
+    pub fn road_graph(&self) -> (&RoadNetwork, &SegmentIndex) {
+        (&self.network, &self.index)
+    }
+
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();

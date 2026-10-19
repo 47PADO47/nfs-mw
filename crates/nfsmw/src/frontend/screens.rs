@@ -324,6 +324,14 @@ impl Screens {
         true
     }
 
+    /// Hands the pointer's position over the top screen to its logic, so the screen can move its focus with it.
+    pub fn hover(&mut self, point: Vec2, env: &mut Env) {
+        self.on_top(env, |logic, cx| {
+            logic.hover(cx, point);
+            true
+        });
+    }
+
     /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
     pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
         let (taken, commands) = self.on_top(env, |logic, cx| logic.click(cx, point))?;

@@ -13,6 +13,7 @@ mod avoidance;
 mod bytes;
 mod curve;
 mod error;
+mod gps;
 mod heli_sheet;
 mod index;
 mod junction_crossing;
@@ -40,6 +41,10 @@ pub use avoidance::{
 };
 pub use curve::{Bezier, MIN_CHORD};
 pub use error::{Error, Result};
+pub use gps::{
+    ARRIVAL_DISTANCE, Gps, GpsEnd, GpsState, LOOK_AHEAD_CATCH_UP, LOOK_AHEAD_MAX, LOOK_AHEAD_MIN, LOOK_AHEAD_SECONDS,
+    MAX_DEVIATION,
+};
 pub use heli_sheet::{HeliSheet, Triangle as HeliTriangle};
 pub use index::SegmentIndex;
 pub use junction_crossing::{SAME_WAY, crossing_point, earliest_oncoming};

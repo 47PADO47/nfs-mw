@@ -51,6 +51,7 @@ pub fn update(
     mut garage: ResMut<crate::garage::Overlay>,
     mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
+    fe: Option<Res<crate::frontend::Frontend>>,
     mut was_focused: Local<bool>,
     mut exit: MessageWriter<AppExit>,
 ) {
@@ -96,7 +97,14 @@ pub fn update(
     }
     *was_focused = window.focused;
 
-    let (grab_mode, visible) = if capture.0 { (CursorGrabMode::Locked, false) } else { (CursorGrabMode::None, true) };
+    // The map draws its own cross over its picture; the system pointer shows everywhere else, so it can click the buttons.
+    let on_map_picture = fe.is_some_and(|fe| crate::frontend::map_pointer_on_picture(&fe, window));
+    // A scene that does not take the mouse (the map, the menus, a pause) gets the pointer back.
+    if !uses_mouse {
+        capture.0 = false;
+    }
+    let (grab_mode, visible) =
+        if capture.0 { (CursorGrabMode::Locked, false) } else { (CursorGrabMode::None, !on_map_picture) };
     if cursor.grab_mode != grab_mode || cursor.visible != visible {
         cursor.grab_mode = grab_mode;
         cursor.visible = visible;

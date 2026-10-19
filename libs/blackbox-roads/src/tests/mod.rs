@@ -1,4 +1,5 @@
 mod geometry;
+mod gps;
 mod install;
 mod nav;
 mod path;

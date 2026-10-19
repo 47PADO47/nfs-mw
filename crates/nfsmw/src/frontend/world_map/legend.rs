@@ -70,7 +70,7 @@ mod tests {
             PlacedBlip { style: AUTO_SHOP, world: [1000.0, 0.0], map: [0.0, 0.0] },
             PlacedBlip { style: RACE_SPRINT, world: [0.0, 0.0], map: [0.0, 0.0] },
         ];
-        WorldMapFrame { session, blips, player: [0.0, 0.0], chrome_themed: true }
+        WorldMapFrame { session, blips, player: [0.0, 0.0], player_mark: None, chrome_themed: true }
     }
 
     #[test]

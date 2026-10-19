@@ -36,6 +36,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "the tail-pipe flames (setting exhaust_flames): status, the engine upgrade level, fake a sputter backfire",
     ),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
+    ("gps <x> <y> | gps off", "set the GPS route to a point on the road (x y as the map shows them), or clear it"),
 ];
 
 pub(super) fn run(
@@ -51,6 +52,7 @@ pub(super) fn run(
         "damage" => damage(scene, args),
         "tp" => tp(scene, args),
         "goto" => goto(scene, args),
+        "gps" => gps(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),
@@ -164,6 +166,20 @@ fn tp(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     drive.respawn_near([x, y], None);
     scene.view = View::Chase;
     Ok(format!("looking for a road near ({x:.0}, {y:.0})"))
+}
+
+/// `gps <x> <y>` sets the route to a point on the road (render space, as the map shows it); `gps off` clears it.
+fn gps(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    const USAGE: &str = "usage: gps <x> <y> | gps off";
+    if args == ["off"] {
+        scene.route_to(None);
+        return Ok("GPS off".into());
+    }
+    let [x, y] = numbers::<2>(args, USAGE)?;
+    match scene.route_to(Some([x, y])) {
+        true => Ok(format!("GPS route to ({x:.0}, {y:.0})")),
+        false => Err(format!("no GPS route to ({x:.0}, {y:.0}): not driving, or no way to it")),
+    }
 }
 
 fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {

@@ -11,7 +11,7 @@ use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
 use bevy_time::Time;
-use bevy_window::{CursorOptions, PrimaryWindow, Window};
+use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
 use game_install::GameDir;
 use glam::Vec2;
@@ -60,25 +60,22 @@ impl Plugin for FrontendPlugin {
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .add_systems(Update, update.in_set(FrameSet::Frontend))
-            .add_systems(Update, hide_cursor_on_map.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
             .add_systems(Update, pointer::apply);
     }
 }
 
-/// Hides the OS pointer while the world map is the top screen, so only the map's own cross/square cursor shows. A
-/// dialog over the map (the GPS Yes/No) is not the map itself, so the pointer returns for it. `app::cursor::update`
-/// runs earlier (`FrameSet::Prepare`) and makes the pointer visible when the mouse is free, so this override wins for
-/// the frame; leaving the map, that system restores it.
-fn hide_cursor_on_map(fe: Res<Frontend>, window: Single<&mut CursorOptions, With<PrimaryWindow>>) {
+/// Whether the pointer is over the world map's picture, where the map draws its own cross cursor. Outside it (the
+/// buttons, the list) the system pointer shows, so it can click. `app::cursor::update` owns the pointer's visibility
+/// and asks this.
+pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
     let map_on_top = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
     if !map_on_top {
-        return;
+        return false;
     }
-    let mut cursor = window.into_inner();
-    if cursor.visible {
-        cursor.visible = false;
-    }
+    feng_point(window)
+        .map(layout::view_of)
+        .is_some_and(|view| (0.0..=1.0).contains(&view[0]) && (0.0..=1.0).contains(&view[1]))
 }
 
 /// Puts a key in a slot and writes the bindings to the config file. A missing config path only keeps the change for
@@ -242,6 +239,10 @@ fn update(
     let on_list = fe.browse.as_ref().is_some_and(Browse::over_panel);
     // The GPS Yes/No dialog is the one menu that opens over the map; it takes the menu click and pad handling too.
     let dialog_over_map = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::DIALOG);
+    // The GPS dialog follows the pointer with its focus, so the answer under it shows as selected before a click.
+    if dialog_over_map && let Some(point) = feng_point(&window) {
+        fe.screens.hover(point, &mut env);
+    }
     if matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map {
         if actions.just_pressed(Action::Click)
             && !on_list

@@ -78,7 +78,7 @@ fn blip(style: &'static str, map: [f32; 2]) -> PlacedBlip {
 }
 
 fn frame(blips: Vec<PlacedBlip>) -> WorldMapFrame {
-    WorldMapFrame { session: WorldMap::new(), blips, player: [0.0, 0.0], chrome_themed: false }
+    WorldMapFrame { session: WorldMap::new(), blips, player: [0.0, 0.0], player_mark: None, chrome_themed: false }
 }
 
 fn assert_close(a: [f32; 2], b: [f32; 2]) {
