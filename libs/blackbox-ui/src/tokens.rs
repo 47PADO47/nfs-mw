@@ -15,6 +15,7 @@ pub mod keys {
     pub const MUTED: &str = "theme.muted";
     pub const RADIUS: &str = "theme.radius";
     pub const PADDING: &str = "theme.padding";
+    pub const TEXT_SCALE: &str = "theme.text_scale";
 }
 
 /// What a theme declares: five colours (`[r, g, b, a]`) and two shape values in FEng units.
@@ -26,6 +27,7 @@ pub mod keys {
 /// - `muted`: labels and secondary text.
 /// - `radius`: the corner radius of a panel.
 /// - `padding`: the space between a panel's edge and its content.
+/// - `text_scale`: the size of the theme's text, as a multiple of the size its components set (1 keeps it).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tokens {
     pub primary: [u8; 4],
@@ -35,6 +37,7 @@ pub struct Tokens {
     pub muted: [u8; 4],
     pub radius: f32,
     pub padding: f32,
+    pub text_scale: f32,
 }
 
 impl Default for Tokens {
@@ -48,6 +51,7 @@ impl Default for Tokens {
             muted: [180, 185, 195, 255],
             radius: 0.0,
             padding: 0.0,
+            text_scale: 1.0,
         }
     }
 }
@@ -63,6 +67,7 @@ impl Tokens {
             .with_colour(keys::MUTED, self.muted)
             .with_metric(keys::RADIUS, self.radius)
             .with_metric(keys::PADDING, self.padding)
+            .with_metric(keys::TEXT_SCALE, self.text_scale)
     }
 }
 

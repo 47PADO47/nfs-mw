@@ -106,6 +106,8 @@ fn to_tokens(tokens: &UiTokens) -> Tokens {
         muted: tokens.muted,
         radius: tokens.radius,
         padding: tokens.padding,
+        // The mod ABI has no text scale, so a mod's text keeps its own size.
+        text_scale: 1.0,
     }
 }
 
