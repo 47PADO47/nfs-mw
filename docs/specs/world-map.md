@@ -66,7 +66,7 @@ Confirming GPS on the focused blip raises the game's own `Dialog.fng` Yes/No ove
 opens it with `ConfirmLogic`, `frontend/confirm.rs`; the dialog's input is routed while it is over the map,
 `plugin.rs`). **Yes** resumes the game, which closes the map (`Command::Resume`); **No** pops the dialog and the map
 goes on with the blip still focused. Setting the actual route is the pathfinder's GPS target
-(`docs/specs/ai-pathfinder.md` section 7), not yet built, so Yes only closes the map for now. The executable sets the
+(`docs/specs/ai-pathfinder.md` section 7), built: Yes sets the route to the focused blip and closes the map (`docs/specs/gps-route.md`). The executable sets the
 GPS target in its own GPS-target routine and asks through a separate dialog (`docs/provenance/world-map-ghidra.md`).
 
 ## Remastered look (themeable UI)
