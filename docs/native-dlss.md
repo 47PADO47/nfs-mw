@@ -68,9 +68,10 @@ unsupported sizes, resize and runtime errors. The SDK also suppresses interpolat
 while the window is unfocused. Reflex On is enforced whenever generation is requested.
 The overlay shows measured base/rendered FPS and actual SDK presented FPS,
 including generated frames. It does not infer presentation rate from the selected
-multiplier. Advanced metrics estimate the likely limit and distinguish caps,
-missing GPU timings and presentation waits. GPU render time excludes generation;
-CPU work is wall time, not utilization. See [graphics lab](graphics-lab.md).
+multiplier. Advanced metrics use Windows main-thread CPU activity and per-process GPU-engine
+activity to estimate pressure, including SDK/FG queues. Caps, missing/stale
+counters and waits remain distinct. GPU base-render timestamps exclude generation;
+CPU elapsed update/submission can include waits. See [graphics lab](graphics-lab.md).
 
 Reflex sleep runs before time/input sampling, with one frame token shared by
 simulation, submission, present, SR and generation. The in-game frame limit is

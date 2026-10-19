@@ -370,9 +370,34 @@ presentation counts when available, including generated frames. It never multipl
 base FPS by the requested generation mode. Missing presentation data is explicit.
 These are rolling rates, not a monitor scanout measurement.
 
-Advanced metrics separate CPU update/submission wall time, GPU render time,
-surface acquisition/presentation waits and Reflex pacing. GPU render timestamps
-exclude frame generation and auxiliary views. The likely CPU/GPU limit compares
-work with measured base cadence; caps, VSync, background operation, missing GPU
-timing and presentation waits get separate labels. This is a bottleneck estimate,
-not hardware utilization, and cannot isolate all frame-generation GPU cost.
+Advanced metrics keep base FPS separate from SDK-counted presented FPS. CPU
+elapsed update/submission time and GPU base-render timestamps remain diagnostic
+spans, not utilization: submission can block, and the GPU span omits auxiliary
+views, present-time FG and the DX12 presentation copy.
+
+On Windows, an owned background worker samples the renderer-owning thread's
+kernel/user CPU time and this process's `GPU Engine(*)\\Utilization Percentage`
+PDH counters once per second. The busiest GPU engine across adapters is shown;
+overlapping engines are not added. This includes this process's SDK and auxiliary
+queues, so frame generation is covered without assuming a multiplier or deriving
+GPU load from base-render timestamps. It is engine scheduling activity, not
+shader occupancy, and includes no other process's GPU usage. The owning thread's
+percentage includes driver CPU execution and excludes blocked/sleeping time;
+CPU worker bottlenecks can therefore remain uncertain. The worker never waits
+on a graphics fence. Headless renderers do not start it. Other platforms and
+missing counters retain unavailable status, never fabricated idle values.
+
+The bottleneck estimate uses fresh OS samples (at most 2.5 seconds old): at least
+90% on a GPU engine indicates GPU pressure; at least 85% on the main thread with
+less than 75% GPU activity indicates likely CPU-main-thread pressure. Both busy
+means mixed pressure. A reached base-frame cap takes priority. Pacing and waits
+are reported when neither processor is proven saturated; Reflex sleep alone is
+not a CPU/GPU diagnosis. Each label has a profiling hint. Let the counters settle
+for a few seconds after changing settings. No unsaturated engine or CPU worker
+is guaranteed to have unlimited throughput; use a CPU/GPU profiler for uncertain
+cases and compare FG off to isolate generation cost.
+
+API references (implementation is original): Microsoft's
+[GetThreadTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadtimes),
+[PDH formatted arrays](https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw)
+and [Task Manager busiest-engine convention](https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/).
