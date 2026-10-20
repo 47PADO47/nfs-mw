@@ -162,7 +162,7 @@ Bailout         pursuit became Inactive: a random cop says the low bail-out
 ChangeTarget    pursuit became OtherTarget: the closest cop says "focus change", dispatch escalation
 ```
 
-A hit on a cop by the player during PursuitFlow (closing speed over 25 mph, deliberate) restarts the flow with cause CopAssaulted unless an
+A hit on a cop by the player during PursuitFlow (past the closing gate of section 7, deliberate) restarts the flow with cause CopAssaulted unless an
 "assault" line has already been said; the cop that was hit calls `WasRammed`. **[decomp]**
 
 ## 6. Strategy flow, lost contact and dead air
@@ -233,8 +233,9 @@ needed) and the leader answers with "pursuit update reply" or a "location report
 ## 7. Observations: crashes, stunts and the player's driving (`Observer`)
 
 `Observer` runs only while the speech pursuit state is Active, skips when the focus is the pursuit flow and busted is near (< 0.5), and processes queued observations plus the assessments below. Collision
-observations come from `SoundAI::OnCollision` (every vehicle in the chase is a listener): closing speed above 25 mph and an impact **intensity** =
-`clamp((impulse - 10 mph) / (30 mph - 10 mph), 0, 1)` (from `PlayerSmashSpeedRange`). **[decomp]**
+observations come from `SoundAI::OnCollision` (every vehicle in the chase is a listener): a closing velocity whose *squared* length is 11.176 or more (the original compares it with 25 mph taken as metres per second, so hits closing under 3.34 m/s are dropped) and an impact **intensity** =
+`clamp((impulse - 10 mph) / (30 mph - 10 mph), 0, 1)` (from `PlayerSmashSpeedRange`; the impulse is the speed the two bodies lost between them). The world's side of every row below, with the
+thresholds and the message senders, is in [ai-pursuit-speech-world.md](ai-pursuit-speech-world.md). **[decomp]**
 
 | Trigger | Condition | Line |
 |---|---|---|
@@ -243,7 +244,7 @@ observations come from `SoundAI::OnCollision` (every vehicle in the chase is a l
 | player hits world | speed loss over 66 % (`CrashSlowdownPct`) | "collision world" family: the closest LOS cop; variants for semi/tractor trailer, train, guardrail, spike belt, gas station explosion (set by the world event `expl_gas_station`; "call for EV" from cops within 50 m for 15 s) |
 | player hits traffic | traffic hits with intensity >= 0.5 counted for 911 | "collision world civilian" |
 | cop hits world | intensity >= 0.85 | the cop bails out (bad-road variant with weather) |
-| airborne | altitude >= 0.5 m for 0.9 s, a cop has LOS | "collision world air" normal / high (speed >= 100 mph) |
+| airborne | altitude >= 0.5 m for 0.9 s, a cop has LOS (`NotifyAirborne` has no caller in the decompiled sources) | "collision world air" normal / high (speed >= 100 mph) |
 | rolled over | up vector down for 1 s | "collision world flip" |
 | u-turn (180) | heading dot road < 0.7, passes -0.7 within 12 contiguous samples and 50 m and 5 s | "suspect u-turn" |
 | hard braking | brake or handbrake full, road alignment >= 0.7, speed > 60 mph, no crash/ram within 5 s, then a speed loss over 66 % | "suspect brake" |
@@ -317,14 +318,20 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
   machine's channel), `mod` (`ChaseRadio`: runs the machine each frame and sends the lines to the speech). The world fills the feed in `scenes/world/ai/police/speech_feed.rs`; the player's car type
   (`pvehicle.VerbalType`) and stock paint (`SPEECHCOLOUR`) come from `scenes/world/speech_look.rs`. Console: `speech flow`.
 - **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
-  roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain.
-  **Inferred, not read from the game:** a cop's sight is the world's sight test applied to that cop's range and cone (no second ray cast); "in view" is that sight within 150 m (no camera test); a cop is "in
-  formation" when the formation gives it a slot; the assault infraction stands for a deliberate hit on the nearest cop (a side swipe) and the traffic-hit memory for a hard hit on traffic.
-- **Not supplied by the world, so unset:** the free-roam frames of the 911 call (the machine and adapter work; a test drives them), the speech map's off-road places, the car's brake and alignment with the road
-  (u-turn and hard-braking remarks), crashes against the world, jumps and rolls, passing a cop, tunnels, gas station blasts, a cop hitting traffic or a wall, the roadblock's dodge, hit and placement messages, the helicopter joining a
-  roadblock, the backup arrival time and the heavy support requests, AI racers. Each is a `Notice` or a `Snapshot` field the machine already handles (and tests cover); wiring them is the world's work.
+  roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's
+  arrival time, the pedals, the up vector and the direction of the road under the car, and the world's **events** ([ai-pursuit-speech-world.md](ai-pursuit-speech-world.md)): the player against a wall,
+  a prop, traffic or a cop (with the contact classified as rear-end, T-bone, head-on or side swipe, and whether the ram was deliberate), a cop against traffic or a wall, a jump (told on landing), a passing
+  cop, a tunnel, a gas station blast, a roadblock built, dodged, hit (sawhorse, car, burst tires), and the ram and leader support calls and refusals. A cop wrecked by a breaker is a destroyed, inactive
+  cop, which the machine calls in as "unit disabled". **Inferred, not read from the game:** a cop's sight is the world's sight test applied to that cop's range and cone (no second ray cast); "in view" is that sight
+  within 150 m (no camera test); a cop is "in formation" when the formation gives it a slot; the road's direction is the nearest segment's centre line turned to the way the car went; the gas station blast is
+  taken as set off by the player; a jump is told on landing.
+- **Not supplied by the world, so unset:** the free-roam frames of the 911 call (the machine and adapter work; a test drives them), the off-road places (the track's "Speech" parameter map is installed and
+  holds the place ids, but the id-to-place table of the original was not available), AI racers (this world has none), `Smashed` (the 911 cost counter). **Never raised by the original:** the helicopter
+  joining a roadblock (`ReqHeliJoin` has no sender), the guardrail, train and spin-out variants of a crash. Dispatch's "no" to a heavy or leader support request has no recording (event 184 has only the
+  "no units" version), so it is not heard, as in the original.
 - The siren state and the pursuit music (section 9, 10) are separate and unchanged. The busted level for the radio's muffling and the 911 call's `Lifetime911` leave the machine as effects and are held by `ChaseRadio` (the
-  mixer has no radio filter, and nothing models 911 calls yet).
+  speech sink plays a line at the speech volume only: the radio chirp, clarity, pan and the busted muffling go through the dynamic mixer's speech object, see
+  [ai-pursuit-speech-world.md](ai-pursuit-speech-world.md) section 5; and nothing models 911 calls yet).
 - Voices and call signs use a seeded generator; the shuffling is cosmetic.
 
 ## How to check it
@@ -342,7 +349,7 @@ Nobody has listened to the result next to the original.
 - *Answered:* the `.evt` / `.idx` / `.csi` formats and how parameters pick takes are in [formats/speech-evt.md](../formats/speech-evt.md) and [speech-sentences.md](speech-sentences.md). The values of each parameter and the argument list of each event are in `crates/nfsmw/src/audio/speech/params/`.
 - *Answered:* the road speech id (`WRoad.nSpeechId`) is the `speech_id` of each road of the road network ([formats/road-network.md](../formats/road-network.md)); the table from road id to region and location is the original's
   `GetLocation`, written down in `chase/radio/tables.rs` (ids 1 to 83, 85 and 86 have a name; 84, 87 and the off-road places 88 up do not).
-- The SPAM speech map (`MWRoadNames` off-road places, the id under the player): data layout not documented.
+- The SPAM speech map: the layer "Speech" of the track's parameter maps is installed (26 sets, integer field 1 is the id, -1 to 27); the table from id to the 24 named places (`GetSPAMLocation`) is still to be read.
 - The `kNeverVisibleRespawnTime` and `DESTROY_COPS_ON_INACTIVITY` constants (build-time) and the PC value of `SpeechFlow` display flags.
 - Whether the original's `IsCopSpeechBusy` includes requests still waiting in the queue; the port counts them (the flows then wait for the lines they asked for). **[inferred]**
 - The `std::sort` of cop pointers that the flows use to choose "the first" cop is an address order; the port takes the cop that joined first.
