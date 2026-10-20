@@ -32,6 +32,9 @@ impl Screens {
         if list.style == MenuStyle::Dialog {
             return menu_layout::dialog_row_at(point, &list);
         }
+        if list.style == MenuStyle::Blacklist {
+            return menu_layout::blacklist_row_at(point, &list);
+        }
         let shown = menu_layout::shown(list.entries.len().saturating_sub(list.first));
         menu_layout::row_at(point, shown, self.aspect, list.has_values()).map(|row| list.first + row)
     }

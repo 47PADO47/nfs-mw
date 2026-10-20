@@ -39,11 +39,13 @@ pub struct Args {
     pub category: Category,
     /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
     pub safehouse: bool,
+    /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
+    pub rival: u8,
 }
 
 impl Default for Args {
     fn default() -> Self {
-        Self { pause: false, options: false, category: Category::Audio, safehouse: false }
+        Self { pause: false, options: false, category: Category::Audio, safehouse: false, rival: 0 }
     }
 }
 

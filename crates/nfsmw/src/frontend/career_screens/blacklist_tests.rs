@@ -153,3 +153,20 @@ fn make_answers_only_the_two_rival_screens() {
     assert!(make(&screen::SAFE_HOUSE_RIVAL_BIO.to_ascii_lowercase(), Args::default()).is_some());
     assert!(make(&screen::MAIN_MENU_SUB.to_ascii_lowercase(), Args::default()).is_none());
 }
+
+#[test]
+fn a_rival_is_complete_in_progress_or_locked_by_where_the_career_is() {
+    let rows = rival_rows(&blacklist(10), Flags(0));
+    let beaten = RivalRow { state: RivalState::Beaten, ..row(&rows, 12) };
+    assert_eq!(status_of(&beaten, 10), RivalStatus::Complete, "a rival beaten is complete wherever the career is");
+    assert_eq!(status_of(&row(&rows, 10), 10), RivalStatus::InProgress, "the rival the career is at");
+    assert_eq!(status_of(&row(&rows, 9), 10), RivalStatus::Locked, "a rival further down the list");
+    let open = RivalRow { state: RivalState::Unlocked, ..row(&rows, 9) };
+    assert_eq!(status_of(&open, 10), RivalStatus::InProgress, "a rival with its gate open is in hand");
+}
+
+#[test]
+fn a_rival_entry_names_the_portrait_by_rank() {
+    assert_eq!(fe_hash_upper("RIVAL_07"), fe_hash_upper(&format!("RIVAL_{:02}", 7)));
+    assert_eq!(rival_key(7, "NAME"), "BLACKLIST_RIVAL_07_NAME");
+}

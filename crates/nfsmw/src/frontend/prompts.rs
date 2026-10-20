@@ -66,6 +66,16 @@ pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hin
             (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
         ];
     }
+    if is(screen::SAFE_HOUSE_RIVAL_CHALLENGE) {
+        hints = vec![
+            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),
+            (action(Action::MenuAccept), "View Rival", Some(Action::MenuAccept)),
+            (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+        ];
+    }
+    if is(screen::SAFE_HOUSE_RIVAL_BIO) {
+        hints = vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
+    }
     if is(screen::CREDITS) {
         hints = vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
     }

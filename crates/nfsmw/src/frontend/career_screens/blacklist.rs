@@ -14,6 +14,7 @@
 //! label hashes of `career-text.md`. The pure parts (the rows, the stepper, the leave target) are in this file's helpers
 //! and tested in `blacklist_tests.rs`.
 
+use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_LEFT, PAD_RIGHT};
 use blackbox_text::label_hash;
 use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, Counters, rival_gate_open};
@@ -26,8 +27,9 @@ use crate::career::CareerHandle;
 use crate::frontend::confirm::Alert;
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
-use crate::ui::Text;
+use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue, RivalInfo, RivalStatus};
+use crate::ui::{Text, UiAssets};
 
 /// The alpha of a disabled text (the same value the infractions screen uses).
 const DISABLED_ALPHA: u8 = 110;
@@ -158,6 +160,38 @@ fn rank_title(cx: &Cx, bin: u8) -> Option<String> {
     Some(text.replace("%d", &bin.to_string()))
 }
 
+/// A text of the game's table, empty when it is missing.
+fn game_text(assets: &UiAssets, key: &str) -> String {
+    Text::Game(label_hash(key)).resolve(assets).unwrap_or_default()
+}
+
+/// Where the player stands with the rival of `row` while `current` is the career's bin: a rival beaten is complete, the one
+/// the career is at (or one with its gate open) is in progress, and the ones further down the list are locked.
+pub fn status_of(row: &RivalRow, current: u8) -> RivalStatus {
+    if row.state == RivalState::Beaten {
+        return RivalStatus::Complete;
+    }
+    if row.state == RivalState::Unlocked || row.bin == current {
+        return RivalStatus::InProgress;
+    }
+    RivalStatus::Locked
+}
+
+/// What the Remastered look shows of one rival: the name is the entry's label, the rest is here.
+fn rival_entry(assets: &UiAssets, bin: u8, status: RivalStatus, bounty: u32) -> MenuEntry {
+    let name = game_text(assets, &rival_key(bin, "NAME"));
+    let info = RivalInfo {
+        rank: bin,
+        portrait: fe_hash_upper(&format!("RIVAL_{bin:02}")),
+        alias: game_text(assets, &rival_key(bin, "AKA")),
+        car: game_text(assets, &rival_key(bin, "CAR")),
+        strength: game_text(assets, &rival_key(bin, "STRENGTH")),
+        bounty: money(bounty),
+        status,
+    };
+    MenuEntry { label: name, enabled: true, value: MenuValue::Rival(info) }
+}
+
 /// Whether the holder with this GUID has the focus.
 fn is_focused(cx: &Cx, guid: u32) -> bool {
     let Some(focus) = cx.rt.current_button(cx.package) else { return false };
@@ -179,11 +213,19 @@ fn leave(cx: &mut Cx) {
 /// The rival challenge stepper (`SafeHouseRivalChallenge.fng`).
 struct ChallengeLogic {
     selected: u8,
+    /// Whether the Remastered look draws the list of rivals (`Cx::vertical_look`).
+    vertical: bool,
 }
 
 impl ChallengeLogic {
     fn new() -> Self {
-        Self { selected: FIRST_RIVAL_STAGE }
+        Self { selected: FIRST_RIVAL_STAGE, vertical: false }
+    }
+
+    /// Opens the bio of the selected rival.
+    fn view_rival(&self, cx: &mut Cx) {
+        let args = Args { safehouse: true, rival: self.selected, ..Args::default() };
+        cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_BIO.to_string(), args));
     }
 
     /// The row of the selected rival, when there is a career.
@@ -213,6 +255,9 @@ impl ChallengeLogic {
     /// Accept on the challenge button starts the boss race, which is not built: an alert when the button is on.
     /// Accept anywhere else is Continue, which leaves like Back.
     fn accept(&self, cx: &mut Cx) {
+        if self.vertical {
+            return self.view_rival(cx);
+        }
         if !is_focused(cx, CHALLENGE_HOLDER) {
             return leave(cx);
         }
@@ -224,11 +269,59 @@ impl ChallengeLogic {
 
 impl ScreenLogic for ChallengeLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         post_opening(cx, &[RIVAL_OPENED_CAREER, RIVAL_LIST_READY, RIVAL_CONTENT_START]);
         if let Some(bin) = current_bin() {
             self.selected = start_bin(bin);
         }
         self.fill(cx);
+    }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    /// Up and Down step the list as Left and Right step the package's stepper.
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let current = start_bin(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
+        let rows = career_rows();
+        let entries =
+            rows.iter().map(|row| rival_entry(assets, row.bin, status_of(row, current), row.bounty_needed)).collect();
+        let beaten = rows.iter().filter(|row| row.state == RivalState::Beaten).count();
+        Some(MenuList {
+            title: "Blacklist".into(),
+            message: format!("{beaten}/{}", rows.len()),
+            entries,
+            selected: rows.iter().position(|row| row.bin == self.selected).unwrap_or(0),
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Blacklist,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        let Some(picked) = career_rows().get(row).map(|row| row.bin) else { return };
+        if self.selected != picked {
+            self.selected = picked;
+            self.fill(cx);
+        }
+        if matches!(pick, Pick::Press(..)) {
+            self.view_rival(cx);
+        }
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
@@ -245,11 +338,15 @@ impl ScreenLogic for ChallengeLogic {
 /// The rival bio (`SafeHouseRivalBio.fng`): the rival of the current bin.
 struct BioLogic {
     bin: u8,
+    /// The rival the screen was opened for, or 0 for the career's current one.
+    asked: u8,
+    /// Whether the Remastered look draws the page (`Cx::vertical_look`).
+    vertical: bool,
 }
 
 impl BioLogic {
-    fn new() -> Self {
-        Self { bin: FIRST_RIVAL_STAGE }
+    fn new(args: Args) -> Self {
+        Self { bin: FIRST_RIVAL_STAGE, asked: args.rival, vertical: false }
     }
 
     fn fill(&self, cx: &mut Cx) {
@@ -266,12 +363,49 @@ impl BioLogic {
 
 impl ScreenLogic for BioLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         post_opening(cx, &[RIVAL_OPENED_PLAIN, RIVAL_OPENED_CAREER, RIVAL_BIO_CONTENT]);
         if let Some(bin) = current_bin() {
             self.bin = start_bin(bin);
         }
+        if self.asked != 0 {
+            self.bin = start_bin(self.asked);
+        }
         self.fill(cx);
     }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let row = career_rows().into_iter().find(|row| row.bin == self.bin);
+        let current = start_bin(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
+        let status = row.as_ref().map_or(RivalStatus::Locked, |row| status_of(row, current));
+        let bounty = row.map_or(0, |row| row.bounty_needed);
+        let title = game_text(assets, "TITLE_BLACKLIST_NUMBER").replace("%d", &self.bin.to_string());
+        Some(MenuList {
+            title,
+            message: game_text(assets, &rival_key(self.bin, "BIO")),
+            entries: vec![rival_entry(assets, self.bin, status, bounty)],
+            selected: 0,
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Rival,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
+    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _pick: Pick) {}
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
@@ -282,12 +416,12 @@ impl ScreenLogic for BioLogic {
 }
 
 /// The logic for `name` (lower case) when it is one of this module's screens.
-pub fn make(name: &str, _args: Args) -> Option<Box<dyn ScreenLogic>> {
+pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if name == screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_ascii_lowercase() {
         return Some(Box::new(ChallengeLogic::new()));
     }
     if name == screen::SAFE_HOUSE_RIVAL_BIO.to_ascii_lowercase() {
-        return Some(Box::new(BioLogic::new()));
+        return Some(Box::new(BioLogic::new(args)));
     }
     None
 }
