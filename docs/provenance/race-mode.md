@@ -1,28 +1,167 @@
-# Race mode (`libs/blackbox-race`, `crates/nfsmw/src/scenes/world/race`)
+# Race mode (`libs/blackbox-race`, `crates/nfsmw/src/scenes/world/race`, `ai/racer.rs`)
 
 - **Specs:** [race-mode](../specs/race-mode.md), [ai-racers](../specs/ai-racers.md),
   [ai-racers-route](../specs/ai-racers-route.md), [ai-racers-catchup](../specs/ai-racers-catchup.md); data in
   [formats/gameplay-races.md](../formats/gameplay-races.md).
-- **Restricted sources read:** `speed.exe` v1.3 in Ghidra (read only; no function was renamed or changed). The
-  decompiled class sources (`GRaceStatus.cpp` and friends) were **not** read in this pass: fetching them was refused
-  by the environment, so the specs rely on the executable and on the existing specs of the repository.
-- **What was read, with addresses (no code copied):**
-  - `FUN_0061e750`: the script-binding table. Names every `GRaceStatus` call listed in the race-mode spec section 1,
-    and the pointers they run: `NotifyCheckpointReached` `0x006117f0`, `NotifyLapFinished` `0x00611850`,
-    `NotifyRaceFinished` `0x006119f0`, `StartRace` `0x0060dbd0`, `KnockoutRacer` `0x00611440`, `SetRacerGoal`
-    `0x00611700`, `NotifySpeedTrapTriggered` `0x0060a7b0`, `AwardBonusTime` `0x005fe600`, `SetNextCheckpointPos`
-    `0x005fe660`, `CalculateRanking` `0x006058b0`.
-  - `0x005faa20`: the race type is `EventIconType` looked up in an 11-entry table (as the format doc says).
-  - `0x005facd0`, `0x005fc6e0`: the opponent count and `KnockoutsPerLap` getters used by the knockout rule.
-  - `0x00600660`, `0x00602200`: per-racer checkpoint counter (advances only to the next index), lap number and
-    times, the checkpoint counter reset on a lap.
-  - `0x005fde80`, `0x005e31d0`: the ranking sort and its comparison (finished, then eliminated flags, then laps,
-    then progress; points when the race ranks by points).
-  - `0x005fe090`, `0x005fc260`: time left = `TimeLimit` + bonus − elapsed, floored at 0.
-  - `0x0060a7b0`: a speed-trap notification multiplies the speed by 0.27778 and stores it per trap.
-  - `0x006119f0` (disassembly): a finished racer's progress is set to 100 and the racers are re-ranked.
-  - Strings: `HUD_Drag.fng`, `HUD_Drag_Player1.fng`, `HUD_Drag_Player2.fng`, `EngineDragster`, `DamageDragster`,
-    `InputPlayerDrag`, `MMICON_AIRACER_%d`, `MMICON_CHECKPOINT`, `RACERNAME_%03d`.
-- **Not read:** the Lua state graphs, the countdown timing, the post-race screens, `ComputeCatchUpSkill`.
-- **Choices where the sources are silent** are marked **[unconfirmed]** in the specs and next to the code.
+- **Restricted sources read:** `speed.exe` v1.3 in Ghidra (read only: no function was renamed, retyped or changed in the
+  project), the install's `GLOBAL/gameplay.bin` through the Rust reader (**[verified]**), and the repository's
+  existing specs. The decompiled class sources (`GRaceStatus.cpp` and friends) were **not** read in this pass:
+  fetching them was refused by the environment, so nothing below is **[decomp]** unless a spec of this repository
+  already carried it.
+- **Evidence tags:** [docs/README.md](../README.md#evidence-tags). **[exe]** = read from the machine code or data of
+  `speed.exe` (understanding only; no code or bytes are copied); **[verified]** = measured on the install.
 - **Implemented:** 2026-10-20, from the specs, without the executable's code open.
+
+## 1. How the executable was searched
+
+1. `search_strings` for `Racer`, `Checkpoint`, `Countdown`, `Staging`, `Drag` and the `MMICON_` family.
+2. The references to a string, found with a small inline Ghidra script (`ReferenceManager.getReferencesTo`), name the
+   function that uses it. The inline scripts run as Java; Python scripts fail to compile in this server.
+3. `get_functions` with `decompiled_code` for each function (only for reading; the output is not kept). The functions
+   that Ghidra has not created (`LAB_` addresses) were read with `disassemble_bytes`.
+4. The attribute-hash constants inside the functions were matched to field names by hashing candidate names with the
+   repository's own `vlt_hash` (a throwaway test, not kept).
+
+## 2. The script binding table, `FUN_0061e750` **[exe]**
+
+One function registers every Lua-callable name with its native routine. The `GRaceStatus` group (the global race status,
+`DAT_0091e000`) and the neighbouring game calls:
+
+| Name | Routine | Name | Routine |
+|---|---|---|---|
+| `NotifyCheckpointReached` | `0x006117f0` | `NotifyLapFinished` | `0x00611850` |
+| `NotifyRaceFinished` | `0x006119f0` (no function yet) | `NotifyRacePlacement` | `0x0060aa00` |
+| `NotifySpeedTrapTriggered` | `0x0060a7b0` | `KnockoutRacer` and `TotalRacer` | `0x00611440` (the same routine) |
+| `SetRacerGoal` | `0x00611700` | `SetRacerLapsLeft` | `0x00604db0` (no function) |
+| `StartRace` | `0x0060dbd0` | `StartRaceTimers` | `0x00604ef0` (no function) |
+| `SetAllStaging` | `0x0060df70` (no function) | `NotifyCountdownDone` | `0x0060e160` (no function) |
+| `InitRacers` | `0x0061dbe0` (no function) | `CalculateRanking` | `0x006058b0` (no function) |
+| `SetNextCheckpointPos` (method) | `0x005fe660` | `AwardBonusTime` (method) | `0x005fe600` |
+| `AddCheckpoint` (method) | `0x005f5c20` (no function) | `ClearCheckpoints` | `0x005eeb40` |
+| `AddRacer` | `0x00601f90` | `ClearRacers` | `0x005e30a0` |
+| `EnterSuddenDeath`, `SetActivelyRacing`, `SetTaskTime`, `DisableBarriers`, `EnableBinBarriers`, `SetHasBeenWon`, `SetRoaming`, `SetIsLoading` | small routines `0x00604030` to `0x005dbf00` | `AbandonRace`, `JumpToCarLot`, `JumpToSafeHouse` | `0x0060deb0`, `0x00605250`, `0x006052b0` |
+| `ShowRaceOverSummary` | `0x006120c0` | `EnterPostRaceFlow` | `0x00611f20` |
+| `ShowWinningPostRaceScreen` / `ShowLosingPostRaceScreen` | `0x0060e240` / `0x0060e230` | `RestoreStartPositions` / `SaveStartPositions` | `0x0060aa50` / `0x00604e90` |
+| `AllRacersDone`, `AllHumanPlayersDone`, `GetNumRacers`, `GetRacerIndex`, `GetRacerElement`, `GetRacerCharacter`, `RacerIsHuman` | `0x006051f0`, `0x0060e0a0`, `0x00604e00`, `0x0060dae0`, `0x0060db60`, `0x00604de0`, `0x00611e20` | `IsRaceCompleted`, `IsRaceUnlocked`, `UnlockRace`, `AddEngagedRace` | `0x006051b0`, `0x00605170`, `0x00612140`, `0x00604b50` |
+| `IsActiveSpeedTrap`, `IsActiveMenuGate`, `EnterGateZone`, `ExitGateZone`, `EnterEngagableTrigger`, `ExitEngagableTrigger` | `0x00611e80`, `0x00604e40`, `0x00611fb0`, `0x00611ff0`, `0x00604f80`, `0x00604fd0` | `SetCopsEnabled`, `NoNewPursuitsOrCops`, `ForcePursuitStart`, `PreventPlayerBeingBusted` | `0x00604f40`, `0x0060aab0`, `0x0060aac0`, `0x0060ae00` |
+| `SetPlayerStartPosition`, `WarpPlayerToTrigger`, `ResetTrigger`, `WarpToMarkerWhenRoaming`, `ShowTriggerIcon`, `HideTriggerIcon` | `0x00611670`, `0x00611570`, `0x00604d10`, `0x00605930`, `0x00604d20`, `0x00604d30` | `ForceAIControl` / `ClearAIControl` | `0x006123b0` / `0x00612420` |
+
+The Lua state graphs call these; the bytecode was not decompiled (open item). The race type of a collection is
+`EventIconType` looked up in the 11-entry table at `0x008f5cd8` (string pointer, type number) in this order:
+`circuit` 1, `p2p` 0, `drag` 2, `knockout` 3, `tollbooth` 4, `speedtrap` 5, `cashgrab` 7, `checkpointrace` 6, `challenge`
+8, `speedtrapjump` 9, `milestonejump` 10 (the strings sit at `0x008a3b0c` to `0x008a3b9c`) **[exe]**.
+
+## 3. The race status object `DAT_0091e000` **[exe]**
+
+Offsets inside the object (inferred from the routines above; names are this repository's):
+
+| Offset | What |
+|---|---|
+| `+0x18 + n * 0x194` | racer record `n` (404 bytes); the racer count is at `+0x1958` |
+| `+0x1960` | an event is underway (non-null while a race runs; the autosave reads it) |
+| `+0x1964` | state flag; `1` is the idle value (`CalculateRanking` does nothing then) |
+| `+0x1968` | the race parameters (`GRaceParameters`): `+4` a cached type byte (`+0x2b` of the record it points to), `+8` the attribute collection, `+0xc` and `+0x10` lazy-load stubs |
+| `+0x1970` to `+0x1978` | the race clock: start time, elapsed share and a running flag |
+| `+0x1980` | the bonus time total (`AwardBonusTime` adds to it) |
+| `+0x1990`, `+0x1994` | the next-checkpoint marker objects (`SetNextCheckpointPos` moves them to the checkpoint) |
+| `+0x19b8` | the next checkpoint's object |
+| `+0x19bc ...` | per-racer, per-lap time tables (`NotifyLapFinished` fills `(racer * 16 + lap) * 4`) |
+| `+0x1c3c ...` | per-racer, per-lap, per-checkpoint time table (`((lap * 16 + racer) * 16 + checkpoint) * 4`) |
+| `+0x454c`, `+0x4550` | traffic density and traffic pattern hash set by `StartRace` |
+
+Racer record fields used by the routines read **[exe]**: `+0x00` the vehicle key, `+0x04` an AI-control flag, `+0x10`
+rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 100 by `NotifyRaceFinished`), `+0x1c`,
+`+0x1d`, `+0x1e` the three eliminated flags (knocked out, totalled, busted), `+0x21` finished, `+0x28` laps completed,
+`+0x2c` checkpoints reached this lap, `+0x120` points (the rank-by-points key), `+0x14c` to `+0x154` the finish time,
+`+0x158` to `+0x160` the lap clock, `+0x164` to `+0x16c` the checkpoint clock, `+0x150` the stored finish time.
+
+## 4. Functions read, with what each does (own words)
+
+- `0x005fde80` (ranking): copies the racers into a pointer list, bubble sorts it with the comparison below or, when
+  the race's bit-9 flag (`RankPlayersByPoints`, attribute `0x5EC1880F`) is set, by the points float (with a special case
+  when the two points add up to at most 1), then writes each record's rank and the rank among racers that have a driver.
+- `0x005e31d0` (the comparison): finished racers by finish time; a finished racer before an unfinished one; racers with
+  an eliminated flag after the others (compared by the number `0x00565f20` returns, the time or distance of
+  elimination); otherwise more laps first, then larger percent.
+- `0x006117f0` (`NotifyCheckpointReached`): finds the racer, stores the checkpoint time and the lap clock in the tables,
+  then calls `0x00600660`, which advances the racer's checkpoint counter only when the reported number is the counter
+  plus one, restarts the checkpoint clock, and resets the intermediate flag.
+- `0x00611850` (`NotifyLapFinished`): stores the lap time, sets the completed laps with `0x00602200`, re-ranks, and for a
+  knockout race (type 3) applies the knockout rule of the spec section 7 using `0x005facd0` (the opponent count) and
+  `0x005fc6e0` (attribute `0x181462DA`, `KnockoutsPerLap`). The knocked racers go through `0x00611440`.
+- `0x006119f0` (`NotifyRaceFinished`, disassembled): sets the racer's percent to 100 (`0x42C80000`), re-ranks and, for a
+  human racer that is not AI-controlled, takes the finish path.
+- `0x0060dbd0` (`StartRace`): clears the race flag, starts the race timers, posts the `Game_StartRace` event
+  (`0x00897200`, also posted from `0x004c2340`), reads the traffic density (`ForceTrafficDensity`, attribute
+  `0x5E161BBA`; a drag race, type 2, sets it to 0), the traffic pattern name hash, sets the heat of every racer's car to at
+  least `ForceHeatLevel` (attribute `0xE4211F4F`), turns the AI-control flag off for the racers and calls the helpers that
+  place the racers.
+- `0x005fe090` (the race clock): time left = `TimeLimit` (attribute `0x7585F041`, `0x005fc260`) + the bonus total
+  (`+0x1980`) minus the elapsed time; floored at 0; 0 when the limit plus the bonus is not above 0.
+- `0x005fe600` (`AwardBonusTime`): appends the current time left to each racer's bonus list and adds the seconds to the
+  bonus total.
+- `0x005fe660` (`SetNextCheckpointPos`): stores the checkpoint object and moves the two marker objects to its position;
+  the markers are removed when the object is null or the race has no checkpoint markers.
+- `0x00611700` (`SetRacerGoal`): gives a racer's AI a goal object: it asks the racer's vehicle for its AI interface,
+  puts the goal's position and orientation into it, and, when the racer is the local player, moves the next-checkpoint marker.
+- `0x0060a7b0` (`NotifySpeedTrapTriggered`): reads the speed (km/h), the stat `speedtrap_speed`, converts with the factor
+  `0.27778` and stores the m/s value for the racer and the trap; for the human racer flashes `SPEEDTRAP_FLASHER_ICON` with
+  the text `+%0.0f %s`, using one of two unit strings by the metric setting.
+- `0x0060aa00` (`NotifyRacePlacement`): posts the event `0x20D60DBF` with the racer, rank and race.
+- `0x005faa20` (race type): returns the cached type byte, or looks `EventIconType` up in the table of section 2.
+- `0x0060dae0` (`GetRacerIndex`): the 1-based index of a vehicle in the racer list, -1 when it is not there.
+- `0x005dc260` and `0x005dc2f0`: the two time table writers named in section 3.
+- `0x005694e0` (HUD file by layout number): 2 `HUD_Drag.fng`, 3 `HUD_Player1.fng`, 4 `HUD_Player2.fng`, 5
+  `HUD_Drag_Player1.fng`, 6 `HUD_Drag_Player2.fng`, any other `HUD_SingleRace.fng`.
+- `0x0067f0d0` (vehicle behaviour names): for a human driver with the drag flag (`+0x144 == 1`) the input behaviour is
+  `InputPlayerDrag`, else `InputPlayer`; the damage behaviour is `DamageDragster` for the drag flag; the engine
+  behaviour is `EngineDragster` for the drag flag and one engine type; `SuspensionSimple` for the driver classes 3, 4
+  and 6; `RBRemote` for class 6 (remote); `InputNIS` and `EngineSpline` for scripted cars.
+- `0x00795290`: reads three comma separated lists of ten numbers, `CIRCUIT_TIER_POINTS`, `SPRINT_TIER_POINTS` and
+  `DRAG_TIER_POINTS`, from a `conf` block into `DAT_009b3e20` (the online ranking's tier points).
+
+## 5. Strings and their users **[exe]**
+
+| String | Used by |
+|---|---|
+| `MMICON_AIRACER_%d` (`0x008a1f88`) | `0x0059d500` (the minimap's blip builder, at `0x0059d8b8`) |
+| `MMICON_CHECKPOINT` (`0x008a0174`) | `0x0059d500` (at `0x0059d9bc`) |
+| `MMICON_COPCAR_%d` (`0x0089d924`) | `0x0059d500` (minimap) and `0x00531060` (world map) |
+| `MMICON_SPRINT_%d` (`0x008a0280`) | `0x0059d500` (minimap), `0x00530df0` (world map) and a table at `0x008f3ad4` |
+| `MMICON_ROADBLOCK_%d` (`0x0089d938`) | `0x00531350` (world map only) |
+| `MMICON_DRAG_%d`, `MMICON_SPEEDTRAP_%d`, the other race icons | no direct reference (built from the table at `0x008f3ad4`) |
+| `HUD_Drag.fng` (`0x0089fbdc`), `HUD_Drag_Player1.fng` | `0x005694e0` |
+| `EngineDragster`, `DamageDragster`, `InputPlayerDrag` | `0x0067f0d0` |
+| `RACERNAME_%03d` | `0x005dc829` (the racer name lookup) |
+| `scroll_racers_%d` | `0x00558b20`, `0x0055c450` (online lobby lists) |
+| `SPEEDTRAP_FLASHER_ICON`, `+%0.0f %s`, `speedtrap_speed` | `0x0060a7b0` |
+| `Checkpoint %d` (`0x008a38ec`) | no reference found |
+| `RaceResultStat` | `0x00872c36` (inside a type descriptor table) |
+
+## 6. Attribute names confirmed by hashing **[verified]**
+
+`EventIconType` = `0x0F6BCDE1`, `KnockoutsPerLap` = `0x181462DA`, `TimeLimit` = `0x7585F041`, `RankPlayersByPoints` =
+`0x5EC1880F`, `SpeedTrapList` = `0x822179D1`, `ForceTrafficDensity` = `0x5E161BBA`, `CashValue` = `0xD8BAA07B`,
+`ForceHeatLevel` = `0xE4211F4F`.
+
+## 7. Data findings that fix a rule **[verified]**
+
+- A tollbooth race's `Checkpoint[]` list holds the `time_bonus_checkpoint*` triggers in line with the plain checkpoints;
+  each carries `TimeBonus` as an `Int32` (25, 35 and 160 s in `2.4.3`).
+- A speed trap is a `speedtrap` collection of class `radiustrigger` (a sphere): `Position`, `Radius` (20 to 30 m) and
+  `ThreshholdSpeed` (88 km/h in `1.5.3`). It is not a box trigger.
+- The stored `Dimensions` of a checkpoint are half sizes: the first checkpoint of `10.2.1` stands 22 m above the road it
+  crosses with a stored height of 40, which a full-size box would miss, and the AI racers cross it as half sizes only.
+
+## 8. Dead ends and what was not read
+
+- The decompiled class sources (`GRaceStatus.cpp`, `GRace.h`, `AIVehicleRacecar.cpp`): fetch refused; the specs that
+  carry them (`ai-driver-speed-skill.md`, `ai-driver-control.md`) were used instead.
+- The Lua state graphs and their countdown timing; `InitRacers` (`0x0061dbe0`), `SetAllStaging` (`0x0060df70`),
+  `NotifyCountdownDone`, `StartRaceTimers`, `CalculateRanking` and `AddCheckpoint` have no function in the project, so
+  only their first instructions were seen.
+- The inline script for string references printed old compile errors from other scripts in the user's
+  `ghidra_scripts` folder; they are not from this work and were left alone.
+- `MMICON_ROADBLOCK_%d` is **not** an object of `HUD_SingleRace.fng` (checked by hashing the name in the package), so
+  the in-game minimap has no roadblock icon; the world map (`WorldMapMain.fng`) has `MMICON_ROADBLOCK_0` and `_1`.
+- `HUD_Drag.fng` exists in the install, but none of the minimap race icon names is an object in it.

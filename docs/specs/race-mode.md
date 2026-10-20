@@ -8,7 +8,8 @@ result is in [career-blacklist.md](career-blacklist.md) and [career-economy-flow
 The Rust rules are in `libs/blackbox-race`; the world wiring is in `crates/nfsmw/src/scenes/world/race/`.
 
 **Sources read.** `speed.exe` v1.3 through Ghidra (machine code only; nothing is copied), listed with addresses in
-[provenance/race-mode.md](../provenance/race-mode.md), and the existing specs of this repository. The decompiled
+[provenance/race-mode.md](../provenance/race-mode.md), the existing specs of this repository
+([career-scripts-events.md](career-scripts-events.md) section 1 describes what the Lua states do), and the install's data. The decompiled
 class sources (`GRaceStatus`) could not be fetched in this pass, so every rule below is either read from the
 executable (**[exe]**), measured on the install's data (**[verified]**), taken from an existing spec of this
 repository, or a choice of this rewrite (**[unconfirmed]**). Evidence tags as in
@@ -64,10 +65,11 @@ A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a f
   time, and re-ranks everybody **[exe]**. A sprint (`NumLaps 1`) has one lap, and the finish ends the race.
 - **Finish.** After the last lap, `NotifyRaceFinished(racer)` sets the racer's progress to 100 percent, ranks the
   racers again, and, for a human racer, starts the end of the race **[exe]**.
-- **The trigger test.** The rewrite crosses a gate when the racer's position is inside the checkpoint's box
-  ([world-markers.md](world-markers.md) section 3). To count as a crossing, the racer must be inside on one tick and
-  was outside on the previous tick, and the checkpoint must be the next one expected **[unconfirmed]**. Races that
-  leave out `finish` end when the last checkpoint is reached.
+- **The trigger test.** The rewrite crosses a gate when the segment a racer moves along in one tick touches the
+  checkpoint's box, and the checkpoint is the next one expected **[unconfirmed]**. The stored `Dimensions` are taken as
+  **half sizes**: the first extent along the heading, the second across, the third up (the evidence is in
+  [world-markers.md](world-markers.md) section 3). Races that leave out `finish` end when the last checkpoint is
+  reached.
 - **What the rewrite must accept.** A sprint's last checkpoint is often at the finish line; a gate the car skips
   (fast cars, 60 Hz steps) is caught by testing the segment between two positions against the box, not just the
   point **[unconfirmed]**.
@@ -104,10 +106,12 @@ route builder returns, [ai-racers-route.md](ai-racers-route.md) section 2); perc
   every racer, appends the current time left to that racer's bonus list **[exe]** (the checkpoints with extra time).
 - 181 races have no limit; the tollbooth races use 40 to 70 s and a speed-trap race uses 30 to 60 s
   ([formats/gameplay-races.md](../formats/gameplay-races.md) section 3.2).
+- **Tollbooth bonuses.** The `Checkpoint[]` of a tollbooth race holds `time_bonus_checkpoint` triggers among the plain
+  ones; each has a `TimeBonus` (an `Int32`: 25, 35 and 160 s in `2.4.3`) that the player's clock gains when it is
+  reached, through `AwardBonusTime` ([career-scripts-events.md](career-scripts-events.md) section 1.2) **[verified]**.
 - **Time out.** When the time left reaches 0 in a race with a limit, the player has lost the race (the rank list
-  puts everyone who has not finished behind). **Tollbooth** races give extra time at each tollbooth checkpoint:
-  the time bonus triggers (`time_bonus_checkpoint*`) call `AwardBonusTime`; the amount is the trigger's own value
-  **[unconfirmed]** (the rewrite reads no value yet and uses the checkpoint list as it is).
+  puts everyone who has not finished behind): time expiry ends the race like a knock-out or a destroyed car
+  ([career-scripts-events.md](career-scripts-events.md) section 1.2).
 
 ## 6. The race types
 
@@ -146,12 +150,14 @@ racers); the post-race flow decides his loss when the race ends **[unconfirmed]*
   (human drag 0.6 to 1.2 / 0.05 to 0.5 / 0.02 to 0.6), the look-ahead `[8, 40]` for a human and `[30, 100]` for AI,
   the drag speed table `[0.85, 1.0]` and the acceleration table `[0.82, 1.0]` of
   [ai-driver-speed-skill.md](ai-driver-speed-skill.md) **[decomp]**.
-- **HUD.** `HUD_Drag.fng`, with `HUD_Drag_Player1.fng` and `HUD_Drag_Player2.fng` for two players, a drag tachometer
+- **HUD.** The layout number 2 selects `HUD_Drag.fng` (3 and 4 are the split-screen `HUD_Player1/2.fng`, 5 and 6 the drag
+  split-screen files, anything else `HUD_SingleRace.fng`) **[exe]** (`0x005694e0`); the drag HUD has a drag tachometer
   (`Hud_DragTachometer`, `DRAG_RPM_%d_LINES`) and turbo lines **[exe]** strings. The package objects are not bound
   yet; the rewrite shows the race card of section 10.
-- **Vehicle behaviours.** The executable names a dragster engine and damage behaviour (`EngineDragster`,
-  `DamageDragster`) and a player input one (`InputPlayerDrag`) **[exe]** strings only. A drag car in the rewrite uses
-  the stock engine; no over-rev damage and no dragster-only transmission is modelled yet.
+- **Vehicle behaviours.** The behaviour chosen for a car depends on its driver class and its drag flag: a human
+  driver with the drag flag gets `InputPlayerDrag` (otherwise `InputPlayer`), the damage behaviour is `DamageDragster`
+  and the engine `EngineDragster` for the drag flag **[exe]** (`0x0067f0d0`). What the dragster behaviours change in
+  the physics is not read; a drag car in the rewrite uses the stock engine, damage and transmission.
 - **Traffic.** `TrafficPattern "drag"` selects a pattern with no cross traffic. The rewrite turns normal traffic
   off for the drag race and restores it after **[unconfirmed]**.
 - **Result.** First across the line wins, as a sprint. The elapsed time and the speed at the line are shown.
@@ -161,9 +167,13 @@ racers); the post-race flow decides his loss when the race ends **[unconfirmed]*
 A speed-trap race (31 races) has a `SpeedTrapList` of 4 to 10 triggers **[verified]**, ranks by points
 (`RankPlayersByPoints`), and has a time limit with overtime penalty `OvertimePenaltyPerSec 10`.
 
-- A speed trap fires when the racer enters its trigger. `NotifySpeedTrapTriggered(racer, trap, speed_kmh)` converts
+- A speed trap is a **sphere** (class `radiustrigger`: `Position`, `Radius` 20 to 30 m) with a `ThreshholdSpeed` in km/h
+  (88 in `1.5.3`), not a box **[verified]**.
+- A speed trap fires when the racer enters its sphere. `NotifySpeedTrapTriggered(racer, trap, speed_kmh)` converts
   the speed to m/s with the factor 0.27778, stores it in the racer's slot for that trap (the trap's index in the
   `SpeedTrapList`), and, for the human racer, flashes `+%0.0f` with the unit on the HUD **[exe]**.
+- A trap pays only when the speed beats both its `ThreshholdSpeed` and the racer's previous best at that trap
+  ([career-scripts-events.md](career-scripts-events.md) section 1.3).
 - A racer's points are the sum of its trap speeds; the largest sum ranks first. Points are in the unit the HUD
   prints (km/h or mph) **[unconfirmed]**.
 - Going over the time limit costs `OvertimePenaltyPerSec` points per second **[unconfirmed]**.
@@ -190,6 +200,27 @@ A won boss race in career opens the next step of the bin; the bounty and SMS glu
 `AbandonRace` ends the race for the player without a result; `RestoreStartPositions` puts every racer back on
 the grid for a restart **[exe]** names. The rewrite supports `race stop` (abandon, no result) and `race restart`.
 The player's reset key keeps working in a race.
+
+## 13. What the rewrite runs (status)
+
+| Part | Where |
+|---|---|
+| Gates, course, laps, ranking, the clock, knockout, speed-trap points, tollbooth bonus, catch-up | `libs/blackbox-race` (pure, tested) |
+| The race parameters and the opponents' characters from the install | `crates/nfsmw-data/src/gameplay/params.rs` |
+| Starting a race (from a zone, `race start`, or a quick race), the grid, loading the opponents' cars | `scenes/world/race/start.rs`, `load.rs` |
+| The running race: positions, events, goals, catch-up, far racers | `race/flow.rs`, `emulate.rs` |
+| The drag race's steering assist and lanes | `race/drag.rs`, `drive/grid.rs` |
+| The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
+| The card (place, lap, clocks, banner, result) | `hud/race_card.rs` |
+| The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
+| The console | `race list|start|status|stop` |
+| Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs` |
+
+Differences from the original that the rules above call out: the countdown is 3 s; the HUD is a stand-in card; the
+post-race flow is a result card, with no reward screens, no outro and no retry choice; a player who is busted in a race
+is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) triggers, `SharedCheckpoints`,
+`TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race
+and jump types do not occur in this install.
 
 ## Open questions
 

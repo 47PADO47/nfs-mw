@@ -186,12 +186,20 @@ zone.
 
 Race types with no icon object in the package (challenge, checkpoint race, cash grab, speed trap jump, milestone
 jump) have no blip. A race's blip sits at its start (`racestart`), heading along the grid. Race starts are not
-active, so they show with no race mode. An interior's icon does not turn, and its index is not tied to its zone
+active. They hide while a race runs and, in the career, for a race the Blacklist has not opened.
+
+**Race blips in a race (in place).** While a race runs the world adds the player's next gate as a `checkpoint` blip
+(`MMICON_CHECKPOINT`, active), one `racer` blip per opponent still running (`MMICON_AIRACER_0..7`, with the car's
+heading; an opponent that is not simulated has none), and, in a speed-trap race, a `race_speedtrap` blip at each trap
+sphere (`scenes/world/race/blips.rs`). `MMICON_ROADBLOCK_%d` is **not** an object of `HUD_SingleRace.fng`: the
+executable builds it in the world map's code (`0x00531350`) and `WorldMapMain.fng` has `MMICON_ROADBLOCK_0` and `_1`
+(`docs/provenance/race-mode.md` section 5), so the in-game minimap has no roadblock icon. An interior's icon does not turn, and its index is not tied to its zone
 (`docs/formats/gameplay-races.md` section 7), so blips take the pool's objects in order.
 
 Positions come from `nfsmw_data::gameplay` (physics space) and go to render space with `scenes/world/space.rs`; for
 these positions that is the map's own coordinates. The world builds the blips once, when it opens
-(`scenes/world/hud.rs`, `static_blips`), and `hud_frame` adds them to the minimap's list next to the traffic's. A
+(`scenes/world/hud.rs`, `interior_blips` and `race_start_blips`), and `hud_frame` adds them to the minimap's list next
+to the traffic's. A
 blip takes a pool object only when it is drawn, so a blip off the disc cannot use up the pool. The install has 213
 race starts, 8 auto shops and 4 safe houses. Open: race icons are now drawn only inside the disc (zone-gated, above), not pinned to its rim; their look and the
 shop icon's size have not been compared with a capture of the original.
