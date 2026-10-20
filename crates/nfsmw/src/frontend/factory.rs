@@ -10,6 +10,7 @@ use super::jukebox::JukeboxLogic;
 use super::loading_tips::LoadingTips;
 use super::logic::{Args, Plain, ScreenLogic, Sub};
 use super::look::{CarLook, Look};
+use super::quick_play::QuickPlay;
 use super::splash::Splash;
 use super::track_options::TrackOptions;
 use super::track_select::TrackSelect;
@@ -69,6 +70,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::TRACK_OPTIONS) {
         return Box::new(TrackOptions::default());
+    }
+    if is(screen::QUICK_RACE_BRIEF) {
+        return Box::new(QuickPlay::new());
     }
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());

@@ -36,6 +36,7 @@ mod prompt_layout;
 mod prompts;
 mod pursuit_results;
 mod quick_options;
+mod quick_play;
 mod quick_race;
 mod renderer_options;
 mod rewards;
