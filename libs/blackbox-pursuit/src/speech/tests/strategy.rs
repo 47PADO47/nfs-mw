@@ -214,6 +214,18 @@ fn a_wrecked_cop_is_called_in_as_disabled() {
 }
 
 #[test]
+fn a_cop_wrecked_and_gone_in_one_update_is_still_called_in_as_disabled() {
+    let mut chase = running(15, vec![formation_cop(10, 40.0), formation_cop(11, 70.0)]);
+    chase.run(5.0);
+    chase.snap.cops[1].destroyed = true;
+    chase.snap.cops[1].active = false;
+    chase.run(3.0);
+    let lines = chase.radio.lines();
+    assert!(lines.contains(&Line::UnitDisabled), "{lines:?}");
+    assert_eq!(chase.radio.count(Line::Bailout), 0, "a wreck does not bail out");
+}
+
+#[test]
 fn a_new_cop_in_the_chase_announces_itself() {
     let mut chase = running(14, vec![cop(10, 40.0), cop(11, 70.0)]);
     chase.run(5.0);

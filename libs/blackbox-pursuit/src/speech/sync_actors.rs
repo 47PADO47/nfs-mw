@@ -80,6 +80,12 @@ impl Cx<'_> {
     /// One cop's state, updated from the car. The activity change comes first (it may say a line from the old state).
     fn update_actor(&mut self, cop: &CopInfo) {
         let was_active = self.roster.find(cop.id).is_some_and(|a| a.active);
+        // A cop wrecked and gone in one update was destroyed first (the original lets it die, then unspawns it): its
+        // damage is known before the change of activity speaks for it.
+        if let Some(actor) = self.roster.find_mut(cop.id) {
+            actor.destroyed = cop.destroyed;
+            actor.health = cop.health;
+        }
         if cop.active != was_active {
             self.set_active(cop.id, cop.active);
         }

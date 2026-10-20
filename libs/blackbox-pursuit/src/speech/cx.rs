@@ -68,7 +68,7 @@ impl Cx<'_> {
 
     /// Seconds since a cop was rammed by the player.
     pub fn time_last_nailed_cop(&self) -> f32 {
-        self.roster.since_last_rammed(self.now)
+        self.roster.since_last_rammed(self.now).min(self.now - self.core.t_last_nailed)
     }
 
     pub fn state_is(&self, state: PursuitState) -> bool {

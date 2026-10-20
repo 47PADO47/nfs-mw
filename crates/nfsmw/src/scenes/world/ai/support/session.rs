@@ -152,6 +152,7 @@ impl TrafficWorld {
         let strategy = order.strategy();
         let wanted = order.cars_wanted() as usize;
         let big_suv = big_suv_chance(step.level, strategy);
+        let taking = session.cars.len() < wanted;
         while session.cars.len() < wanted {
             let index = session.cars.len() as u32;
             let rand = self.rng.next_f32();
@@ -159,6 +160,10 @@ impl TrafficWorld {
             if strategy == Strategy::Ram {
                 session.delay.arm();
             }
+        }
+        // The cars of a ram request are taken: the radio hears the call for the Rhino units.
+        if taking && strategy == Strategy::Ram {
+            self.note_speech(crate::audio::WorldEvent::BackupRequested(blackbox_pursuit::speech::Backup::Rhino));
         }
         if session.takes_failed_model() {
             self.drop_request(session);
@@ -216,12 +221,13 @@ impl TrafficWorld {
             });
             if placed.is_none() {
                 order.deny();
+                self.note_speech(crate::audio::WorldEvent::BackupDenied(backup_type(strategy)));
                 return;
             }
             session.placed += 1;
         }
-        if session.placed as usize == order.cars_wanted() as usize {
-            order.activate();
+        if session.placed as usize == order.cars_wanted() as usize && order.activate() && !strategy.is_heavy() {
+            self.note_speech(crate::audio::WorldEvent::BackupRequested(backup_type(strategy)));
         }
     }
 
@@ -230,6 +236,16 @@ impl TrafficWorld {
         for car in self.cars.iter_mut().filter(|c| c.support_serial() == Some(serial)) {
             car.set_support(None);
         }
+    }
+}
+
+/// What the radio calls the backup of a strategy: the heavy cars are the Rhino units, the leader's cars the super pursuit
+/// ones (the binary's backup types 16 and 64).
+fn backup_type(strategy: Strategy) -> blackbox_pursuit::speech::Backup {
+    use blackbox_pursuit::speech::Backup;
+    match strategy.is_heavy() {
+        true => Backup::Rhino,
+        false => Backup::SuperPursuit,
     }
 }
 

@@ -231,27 +231,24 @@ fn a_chase_that_starts_with_an_infraction_hands_it_to_the_machine() {
 }
 
 #[test]
-fn a_new_infraction_is_a_notice_and_an_assault_is_a_hit_on_the_nearest_cop() {
+fn a_new_infraction_is_a_notice_and_an_assault_is_no_stand_in_for_a_hit() {
     let mut prev = Prev::default();
     notices(&mut prev, &feed(|_| {}));
     let after = feed(|f| {
         f.speech.status.infractions = log_of(&[Infraction::Assault]);
-        f.speech.push_cop(CopFeed { id: 7, active: true, distance: 50.0, ..CopFeed::default() });
         f.speech.push_cop(CopFeed { id: 8, active: true, distance: 20.0, ..CopFeed::default() });
     });
     let got = notices(&mut prev, &after);
-    assert_eq!(got[0], Notice::Infraction(Infraction::Assault));
-    assert!(matches!(got[1], Notice::PlayerHitCop { cop: 8, deliberate: true, .. }), "{got:?}");
+    assert_eq!(got, vec![Notice::Infraction(Infraction::Assault)], "the hit itself comes from the world's events");
 }
 
 #[test]
-fn the_player_hitting_traffic_is_a_notice_on_the_rising_edge_only() {
+fn the_world_events_before_the_chase_are_not_the_chases() {
+    use crate::audio::WorldEvent;
     let mut prev = Prev::default();
-    assert!(notices(&mut prev, &feed(|f| f.player_hit = true)).is_empty(), "the first frame only records");
-    assert!(notices(&mut prev, &feed(|f| f.player_hit = true)).is_empty());
-    assert!(notices(&mut prev, &feed(|_| {})).is_empty());
-    let hit = notices(&mut prev, &feed(|f| f.player_hit = true));
-    assert!(matches!(hit.as_slice(), [Notice::PlayerHitTraffic { .. }]), "{hit:?}");
+    let before = feed(|f| f.speech.events.push(WorldEvent::TireBlown));
+    assert!(notices(&mut prev, &before).is_empty());
+    assert_eq!(prev.events_seen, before.speech.events.latest(), "the first feed marks what was already there");
 }
 
 #[test]
@@ -284,4 +281,20 @@ fn a_car_nobody_recorded_is_not_described() {
     });
     let snap = super::snapshot::snapshot(&f, &Default::default());
     assert!(snap.player.car.is_none() && !snap.player.commentable);
+}
+
+#[test]
+fn the_flow_readout_counts_the_notices_the_worlds_events_made() {
+    use crate::audio::WorldEvent;
+    let mut radio = super::ChaseRadio::new(1);
+    let level = nfsmw_data::speech_chase::LevelSpeech::default();
+    let first = feed(|_| {});
+    radio.run(0.1, Some(&first), blackbox_pursuit::EndReason::None, &level, None);
+    let second = feed(|f| {
+        f.speech.events = first.speech.events;
+        f.speech.events.push(WorldEvent::TireBlown);
+        f.speech.events.push(WorldEvent::RoadblockDodged);
+    });
+    radio.run(0.1, Some(&second), blackbox_pursuit::EndReason::None, &level, None);
+    assert!(radio.status().contains("2 world notices"), "{}", radio.status());
 }

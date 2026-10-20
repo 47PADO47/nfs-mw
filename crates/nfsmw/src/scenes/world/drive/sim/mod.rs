@@ -8,6 +8,8 @@
 use blackbox_collision::CollisionWorld;
 mod audio;
 mod hits;
+pub(in crate::scenes::world) mod memo;
+pub(in crate::scenes::world) mod pair_contact;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -25,47 +27,8 @@ use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
-/// What the readout shows.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Telemetry {
-    /// Speed along the car in metres per second (negative in reverse).
-    pub speed_mps: f32,
-    pub rpm: f32,
-    /// -1 reverse, 0 neutral, 1.. forward gears.
-    pub gear: i32,
-    /// Nitrous tank, 0..1.
-    pub nos: f32,
-    /// The nitrous is burning (held, in gear, on the throttle, fast enough), not just asked for.
-    pub nos_burning: bool,
-    /// The car has a nitrous system.
-    pub has_nos: bool,
-    pub wheels_on_ground: usize,
-    /// The engine's red line, rpm.
-    pub red_line: f32,
-    /// The engine's `MAX_RPM`: it picks the tachometer's scale.
-    pub max_rpm: f32,
-    /// The engine's idle speed, rpm.
-    pub idle: f32,
-    /// A gear change is in progress.
-    pub shifting: bool,
-    /// The gearbox wants the next gear (the shift light).
-    pub shift_up: bool,
-    /// The car has forced induction (a turbo or a supercharger).
-    pub has_induction: bool,
-    /// The boost gauge, psi.
-    pub boost_psi: f32,
-}
-
-impl Telemetry {
-    /// The nitrous as the high-speed effects (blur, field-of-view kick) see it: 1 while it burns, else 0. A full
-    /// tank that is not burning adds nothing.
-    pub fn nitrous_burn(&self) -> f32 {
-        match self.has_nos && self.nos_burning {
-            true => 1.0,
-            false => 0.0,
-        }
-    }
-}
+mod telemetry;
+pub use telemetry::Telemetry;
 
 /// Wheel spin (m/s) the tire sound ignores: the dead zone is a fifth of it.
 const SLIP_TOLERANCE: f32 = 0.5;
@@ -103,6 +66,8 @@ pub struct CarSim {
     sound_identity: u64,
     /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
     wall_scratch: Vec<WallContact>,
+    /// What the last step did to the car, for the police radio (`memo.rs`).
+    memo: memo::StepMemo,
 }
 
 /// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
@@ -153,6 +118,7 @@ impl CarSim {
             pending_sound_contacts: Vec::new(),
             sound_identity: next_sound_identity(),
             wall_scratch: Vec::new(),
+            memo: memo::StepMemo::default(),
         }
     }
 
@@ -293,6 +259,8 @@ impl CarSim {
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
+        let body = self.vehicle.body();
+        self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
         impact
     }
 

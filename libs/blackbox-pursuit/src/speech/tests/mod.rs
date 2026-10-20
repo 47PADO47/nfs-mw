@@ -3,6 +3,7 @@
 
 mod course;
 mod events;
+mod impacts;
 mod opening;
 mod strategy;
 mod support;

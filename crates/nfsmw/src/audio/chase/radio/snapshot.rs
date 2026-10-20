@@ -1,7 +1,7 @@
 //! The world's chase feed as the machine's snapshot, and the changes between two feeds as notices.
 
 use blackbox_pursuit::speech::{
-    Car, CopInfo, HeliInfo, Impact, Level, Notice, PlayerInfo, PursuitInfo, RoadblockInfo, Snapshot, Strategy,
+    Car, CopInfo, HeliInfo, Level, Notice, PlayerInfo, PursuitInfo, RoadblockInfo, Snapshot, Strategy,
 };
 use blackbox_pursuit::{Infraction, InfractionLog};
 use glam::Vec3;
@@ -89,7 +89,7 @@ pub fn snapshot(feed: &PursuitFeed, level: &LevelSpeech) -> Snapshot {
             collapse_active: speech.status.collapse_active,
             finisher_active: speech.status.finisher_active,
             evade_level: speech.status.evade_level,
-            backup_eta: 0.0,
+            backup_eta: feed.backup_eta,
             busted: speech.status.busted,
             cops_destroyed: feed.cops_destroyed,
             pursuits: 1,
@@ -101,14 +101,14 @@ pub fn snapshot(feed: &PursuitFeed, level: &LevelSpeech) -> Snapshot {
             velocity_dir: Vec3::from_array(player.velocity_dir),
             forward: Vec3::from_array(player.forward),
             road: player.road,
-            road_forward: None,
-            brake: 0.0,
-            handbrake: 0.0,
-            up_y: 1.0,
+            road_forward: player.road_forward.map(Vec3::from_array),
+            brake: player.brake,
+            handbrake: player.handbrake,
+            up_y: player.up_y,
             car: described.then_some(Car { kind: player.car_type, colour: player.car_colour }),
             commentable: described,
             metric: false,
-            offroad_id: None,
+            offroad_id: player.offroad,
         },
         cops: speech.cops().iter().map(cop).collect(),
         heli: speech.heli.as_ref().map(heli),
@@ -135,44 +135,30 @@ pub fn snapshot(feed: &PursuitFeed, level: &LevelSpeech) -> Snapshot {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Prev {
     infractions: InfractionLog,
-    player_hit: bool,
     seen: bool,
+    /// The number of the last world event taken (`world_notices`).
+    pub events_seen: u32,
 }
 
-/// The notices the change from the last feed to this one makes: a new infraction (an assault is also a hit on the
-/// nearest cop, the world not telling which one or how), and the player hitting traffic.
+/// The notices the change from the last feed to this one makes: a new infraction (the world's other events come from its
+/// event log, see `world_notices`). The first feed of a chase also skips the events that happened before it.
 pub fn notices(prev: &mut Prev, feed: &PursuitFeed) -> Vec<Notice> {
     let mut out = Vec::new();
     let now = feed.speech.status.infractions;
     if !prev.seen {
         // The first feed of a chase: what the log already holds is the chase's reason (the latest stands for the
-        // message the original receives); the hit memory only records.
+        // message the original receives); the world's events before it are not the chase's.
         if let Some(latest) = now.iter().last() {
             out.push(Notice::Infraction(latest));
         }
+        prev.events_seen = feed.speech.events.latest();
     } else {
         let before = prev.infractions;
         let added = Infraction::ALL.into_iter().filter(|&i| now.contains(i) && !before.contains(i));
-        for infraction in added {
-            out.push(Notice::Infraction(infraction));
-            if infraction == Infraction::Assault {
-                let nearest =
-                    feed.speech.cops().iter().filter(|c| c.active).min_by(|a, b| a.distance.total_cmp(&b.distance));
-                if let Some(cop) = nearest {
-                    out.push(Notice::PlayerHitCop {
-                        cop: cop.id,
-                        impact: Impact::SideSwipe,
-                        intensity: 0.4,
-                        deliberate: true,
-                    });
-                }
-            }
-        }
-        if feed.player_hit && !prev.player_hit {
-            out.push(Notice::PlayerHitTraffic { intensity: 0.6, semi: false });
-        }
+        out.extend(added.map(Notice::Infraction));
     }
-    *prev = Prev { infractions: now, player_hit: feed.player_hit, seen: true };
+    prev.infractions = now;
+    prev.seen = true;
     out
 }
 

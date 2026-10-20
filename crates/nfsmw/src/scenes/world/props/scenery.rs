@@ -170,6 +170,8 @@ pub struct StopArea {
     pub position: Vec3,
     pub radius: f32,
     pub duration: f32,
+    /// The breaker is a gas station's (the chase radio remarks on its blast).
+    pub gas_station: bool,
 }
 
 impl PropWorld {

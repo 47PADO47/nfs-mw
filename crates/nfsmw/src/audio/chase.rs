@@ -13,16 +13,17 @@
 //! free-roam 911 call, which the machine turns into the dispatcher's report; `Audio::take_911_call` hands the call's
 //! `Lifetime911` back to the world.
 //!
-//! Not wired, for lack of state in the world (each needs the state named; add it to [`feed::SpeechFeed`], then to the
-//! snapshot in `radio/snapshot.rs`):
-//! - Notices the world does not raise: a deliberate hit on a cop with its contact (the adapter infers one from the
-//!   assault infraction), a crash against the world, a jump or a roll (`Notice::PlayerHitWorld`, `Airborne`, the up
-//!   vector), the road alignment and brake of the car (the u-turn and hard-braking remarks), a passing cop
-//!   (`BlewByCop`), a tunnel, a gas station blast, a cop hitting traffic or a wall.
-//! - The roadblock's outcomes (`RoadblockDodged`, `RoadblockHit`, `RoadblockPosition`) and the helicopter joining one;
-//!   the roadblock and helicopter agent's work.
-//! - The backup's arrival time (`backup_eta`) and the heavy support requests (`BackupRequested`, `BackupDenied`).
-//! - The off-road places of the speech map, AI racers, the weather's effect on bail-outs beyond the rain edge.
+//! What the world supplies and what it does not (new state goes in [`feed::SpeechFeed`], then the snapshot in
+//! `radio/snapshot.rs`):
+//! - The world's events reach the radio through the feed's event log (`chase/events.rs`, filled by
+//!   `scenes/world/ai/police/speech_events.rs` and `speech_hits.rs`, turned into notices by `radio/world_notices.rs`):
+//!   crashes, hits on cops (classified) and traffic, a cop against traffic or a wall, jumps, a passing cop, tunnels, a
+//!   gas station blast, the roadblock's placement, dodge, hits and burst tires, and the ram and leader support calls.
+//!   Never raised by the original: the guardrail, train and spin-out variants, and a helicopter joining a roadblock.
+//! - Still not supplied: the off-road places (the track's "Speech" parameter map is installed; the table from its ids
+//!   to the places is not read), AI racers (the world has none).
+//! - No radio chirp, clarity filter, pan, per-speaker volume or busted muffling: they go through the dynamic mixer's
+//!   speech object and the static stitch bank, neither integrated (`docs/specs/ai-pursuit-speech-world.md` section 5).
 //! - `RainFlag` (the radio's rain line): no speech collection of that name is in `/speed.exe`, so no event to ask for.
 //! - `NoSpeechDropoff`: the speech dispatcher's own drop rule (`speech/dispatcher.rs`), not a chase cue.
 //! - The helicopter's `HoldOn`, `DeadHeliSilence`, `AttackMissed`: no event the machine asks for.
@@ -32,6 +33,7 @@ mod air_support;
 mod air_support_tests;
 mod cues;
 mod data;
+pub mod events;
 pub mod feed;
 #[cfg(test)]
 mod line_tests;

@@ -59,6 +59,8 @@ pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 pub(super) use sim::CarSim;
 use sim::Telemetry;
+pub(super) use sim::memo::{StepMemo, SurfaceHit};
+pub(super) use sim::pair_contact::PairContact;
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]

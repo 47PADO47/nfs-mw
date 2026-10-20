@@ -7,7 +7,7 @@ use super::TrafficWorld;
 
 use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
-use crate::scenes::world::drive::{CarSim, STEP};
+use crate::scenes::world::drive::{CarSim, PairContact, STEP};
 
 /// Eye height of a cop and of the player, in metres above the body's centre.
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
@@ -46,6 +46,8 @@ pub(super) struct Hit {
     from_camera: f32,
     striker: DriverClass,
     speed: f32,
+    /// How the two cars met, for the police radio.
+    contact: PairContact,
 }
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
@@ -128,6 +130,7 @@ impl TrafficWorld {
                         from_camera,
                         striker: DriverClass::Human,
                         speed: player_speed,
+                        contact: hit.pair,
                     });
                     if part.class == DriverClass::Traffic {
                         traffic_hits.push((part.owner, closing));
@@ -162,6 +165,7 @@ impl TrafficWorld {
                         from_camera: near_a,
                         striker: other.class,
                         speed: speed_b,
+                        contact: hit.pair,
                     });
                     hits.push(Hit {
                         owner: other.owner,
@@ -171,6 +175,7 @@ impl TrafficWorld {
                         from_camera: near_b,
                         striker: part.class,
                         speed: speed_a,
+                        contact: hit.pair,
                     });
                 }
             }
@@ -183,6 +188,7 @@ impl TrafficWorld {
             }
         }
         for hit in hits.drain(..) {
+            self.note_pair_hit(hit.owner, hit.by_player, hit.striker, &hit.contact);
             let first_damage = self.cars[hit.owner].on_hit(
                 hit.impulse,
                 hit.by_player,
@@ -204,8 +210,11 @@ impl TrafficWorld {
             let smacked = player.take_smacked();
             self.note_smacked(&smacked);
             self.spike_player(player);
+            self.watch_player(player);
         }
+        self.tick_speech_watch(STEP);
         for pass in passes.drain(..) {
+            self.note_pass(pass.owner, pass.relative_speed);
             let car = &mut self.cars[pass.owner];
             if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
                 car.sounded(events.cooldown);

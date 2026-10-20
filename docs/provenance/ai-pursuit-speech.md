@@ -31,6 +31,13 @@ Planned module: a `pursuit_speech` layer of milestone 7 that emits speech reques
   `AnytimeEvents_HeatJump` (Ghidra strings, base `0x400000`). Second pass: `HeliSpecific_HeliLostVisual`, `AnytimeEvents_Spotted`,
   `AnytimeEvents_UnitDisabled`, `AnytimeEvents_CollisionWorld`, `StaticRoadblock_CallForRB`, plus the `CollWorld_*` variants. No
   rain-flag, been-hit or kill-shot string under those names.
+- **World-events pass (2026-10-21):** the thresholds and senders of the world's messages to the machine ([spec](../specs/ai-pursuit-speech-world.md)) were
+  read in `Speech/SoundAI.cpp` (`OnCollision`), `Speech/Observer.cpp`, `Speech/EAXCop.cpp`, `Speech/RoadblockFlow.cpp`, `Speech/StrategyFlow.cpp`,
+  `AI/Activities/AICopManager.cpp` (the `MReqBackup`/`MReqRoadBlock` senders), `EAXSound/EAXAITunerCar.cpp` (`BlewByCop`), `EAXSound/sfxctl/SFXCTL_Tunnel.cpp`
+  (`TunnelUpdate`) and `EAXSound/Stream/GameSpeech.cpp` (clarity, pan, chirp, per-speaker volume, busted input). Ghidra, in `speed.exe`: the strings `ReqHeliJoin`
+  (one reference: the handler), `Dodged` and `BlewByCop` (a sender and a handler each). A search for the 25 mph constant found no literal, so the closing gate is the
+  decompiled source's reading, not a binary check. Install: the track's parameter-map layer "Speech" (26 sets, ids -1 to 27) and the one "no" version of dispatch's
+  backup reply. Not read: `MiscSpeech.cpp`'s `GetSPAMLocation` table (the decompiled copy was no longer on disk when the off-road moment was reached).
 - **Checked against the game by:** pending (the spec lists a play-through checklist: opening line, stop branch, assault restart, lost-contact sequence, arrest
   bullhorn, 911 call).
 - **Known differences from the original:** none yet.

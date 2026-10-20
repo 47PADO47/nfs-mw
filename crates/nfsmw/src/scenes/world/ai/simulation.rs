@@ -14,6 +14,11 @@ impl TrafficWorld {
     /// Takes the zones the scenery events opened this tick (`EBreakerStopCops`).
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
         for area in areas {
+            if area.gas_station {
+                // The breaker's own sequence blew it up: the player's chase set it off.
+                let at = area.position.to_array();
+                self.note_speech(crate::audio::WorldEvent::GasStation { by_player: true, at });
+            }
             self.breaker_zones.push(Vec2::new(area.position.x, area.position.z), area.radius, area.duration);
         }
     }
@@ -39,6 +44,7 @@ impl TrafficWorld {
         bodies.clear();
         bodies.extend(self.cars.iter().map(|c| (c.avoidable(), c.is_cop())));
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
+        self.watch_ground(focus.body.map(|b| b.position), collision);
         let target = self.pursuit_target(focus.body);
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
         let mut aims = std::mem::take(&mut self.aims);
@@ -85,6 +91,7 @@ impl TrafficWorld {
             }
             car.step_lights();
         }
+        self.watch_cops_against_walls();
         self.bodies = bodies;
         self.aims = aims;
         self.signal_time += STEP;

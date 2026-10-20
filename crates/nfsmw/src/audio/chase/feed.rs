@@ -5,6 +5,8 @@
 
 use blackbox_pursuit::InfractionLog;
 
+pub use super::events::EventLog;
+
 /// The most cops the feed carries (the speech has six voices besides dispatch and the helicopter).
 pub const MAX_COPS: usize = 12;
 
@@ -86,7 +88,7 @@ pub enum Formation {
 }
 
 /// The player's car.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerFeed {
     /// Physics-space position, velocity direction (unit, zero when still) and forward.
     pub position: [f32; 3],
@@ -97,6 +99,34 @@ pub struct PlayerFeed {
     /// The speech class numbers of the car's type and colour (0 when the game cannot say); see `radio::tables`.
     pub car_type: u32,
     pub car_colour: u32,
+    /// The direction the road runs at the car, held to the way the car first went (so it stays put through a U-turn);
+    /// `None` off every road.
+    pub road_forward: Option<[f32; 3]>,
+    /// The brake and handbrake pedals, 0 to 1.
+    pub brake: f32,
+    pub handbrake: f32,
+    /// The y component of the car's up vector: negative on its roof.
+    pub up_y: f32,
+    /// The id of the place under the car on the speech map (an off-road moment), when the track has one.
+    pub offroad: Option<u8>,
+}
+
+impl Default for PlayerFeed {
+    fn default() -> Self {
+        Self {
+            position: [0.0; 3],
+            velocity_dir: [0.0; 3],
+            forward: [0.0, 0.0, 1.0],
+            road: None,
+            car_type: 0,
+            car_colour: 0,
+            road_forward: None,
+            brake: 0.0,
+            handbrake: 0.0,
+            up_y: 1.0,
+            offroad: None,
+        }
+    }
 }
 
 /// The state of the pursuit the speech machine reads.
@@ -123,6 +153,8 @@ pub struct SpeechFeed {
     pub roadblock: Option<RoadblockFeed>,
     pub player: PlayerFeed,
     pub status: StatusFeed,
+    /// What happened in the world lately that the cops remark on.
+    pub events: EventLog,
 }
 
 impl SpeechFeed {

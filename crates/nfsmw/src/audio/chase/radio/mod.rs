@@ -14,6 +14,7 @@ mod snapshot;
 pub mod tables;
 #[cfg(test)]
 mod tests;
+mod world_notices;
 
 use std::collections::HashMap;
 
@@ -75,6 +76,7 @@ pub fn tune_of(t: &ChaseTune) -> Tune {
 /// The machine, what it asked for and what it remembers of the last frame.
 pub struct ChaseRadio {
     machine: Machine,
+    tune: Tune,
     ids: Option<LineIds>,
     sent: Sent,
     last: Option<(Line, blackbox_pursuit::speech::Speaker)>,
@@ -95,12 +97,15 @@ pub struct ChaseRadio {
     roam_heat: u32,
     /// Seconds a 911 report asked for has to be said before the machine stops being stepped for it.
     awaiting_911: f32,
+    /// The notices the world's events have made (`world_notices`).
+    world_notices: u32,
 }
 
 impl ChaseRadio {
     pub fn new(seed: u64) -> Self {
         Self {
             machine: Machine::new(tables::layout(), tune_of(&ChaseTune::default()), seed),
+            tune: tune_of(&ChaseTune::default()),
             ids: None,
             sent: HashMap::new(),
             last: None,
@@ -116,12 +121,14 @@ impl ChaseRadio {
             roam: None,
             roam_heat: 1,
             awaiting_911: 0.0,
+            world_notices: 0,
         }
     }
 
     /// Replaces the machine's thresholds with the database's.
     pub fn set_tune(&mut self, tune: &ChaseTune) {
-        self.machine.set_tune(tune_of(tune));
+        self.tune = tune_of(tune);
+        self.machine.set_tune(self.tune);
     }
 
     /// The free-roam frame of this update: what the player did since the last one (the 911 logic's inputs). It is used
@@ -150,12 +157,13 @@ impl ChaseRadio {
             .as_ref()
             .map_or("not loaded".to_owned(), |ids| format!("{} lines without an event", ids.missing().len()));
         format!(
-            "chase radio: {}\n  asked {} lines, {} said; busted level {:.2}; 911 call {}; events: {missing}",
+            "chase radio: {}\n  asked {} lines, {} said; busted level {:.2}; 911 call {}; {} world notices; events: {missing}",
             self.machine.status(),
             self.asked,
             self.said,
             self.busted_level,
             self.call_911.map_or("none".to_owned(), |s| format!("{s:.0} s")),
+            self.world_notices,
         )
     }
 
@@ -192,6 +200,9 @@ impl ChaseRadio {
         self.running = true;
         self.last_ended = EndReason::None;
         notices.extend(snapshot::notices(&mut self.prev, feed));
+        let world = world_notices::notices(&mut self.prev.events_seen, &feed.speech.events, &self.tune, &feed.speech);
+        self.world_notices += world.len() as u32;
+        notices.extend(world);
         let snap = snapshot::snapshot(feed, level);
         self.last_snapshot = Some(snap.clone());
         (snap, notices)

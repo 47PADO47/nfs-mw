@@ -162,6 +162,8 @@ pub struct Core {
     pub t_los: f32,
     pub t_low_speed: f32,
     pub t_last_crashed: f32,
+    /// When the player last rammed a cop, whoever the cop was (the original's global, not the roster's).
+    pub t_last_nailed: f32,
     pub t_last_cop_nailed: f32,
     /// Seconds the pursuit has lasted, or -1 when none runs.
     pub duration: f32,
@@ -198,6 +200,7 @@ impl Core {
             t_los: f32::NEG_INFINITY,
             t_low_speed: f32::NEG_INFINITY,
             t_last_crashed: f32::NEG_INFINITY,
+            t_last_nailed: f32::NEG_INFINITY,
             t_last_cop_nailed: f32::NEG_INFINITY,
             duration: -1.0,
             time_since_last_chase: 0.0,

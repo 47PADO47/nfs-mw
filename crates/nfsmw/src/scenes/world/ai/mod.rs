@@ -184,6 +184,8 @@ pub struct TrafficWorld {
     passes: Vec<collide::Pass>,
     /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
     speech_view: Option<PlayerView>,
+    /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
+    speech_watch: police::SpeechWatch,
 }
 
 impl TrafficWorld {
@@ -249,6 +251,7 @@ impl TrafficWorld {
             hits: Vec::new(),
             passes: Vec::new(),
             speech_view: None,
+            speech_watch: Default::default(),
         }
     }
 
