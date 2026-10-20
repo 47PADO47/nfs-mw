@@ -220,8 +220,9 @@ says the same).
   data), so the pursuit's own update was not found.
 - **Q2** `ReqDenied` is sent each tick while placement fails, and the cars stay in the request. Confirm by a run or by
   finding the caller that clears the list.
-- **Q3** The roadblock branch of the executor reads the builder's return value the opposite way to the manager's tick
-  (the manager treats 1 as success). One of the two reads is wrong; the roadblock spec should settle it.
+- **Q3** Settled: the builder returns non-zero on success and both the executor and the manager tick read it that way
+  (checked in the PC binary, [../provenance/ai-pursuit-roadblocks.md](../provenance/ai-pursuit-roadblocks.md)). On success the request
+  is active for the option's duration and no cars are given back to the chase when it ends.
 - **Q4** The budget check in the car finder (`manager+0x54`) and the `k` reset rule of the spawn search need a run to
   confirm.
 - **Q5** The spawn manager's minimum and maximum distances (fields `+4`, `+8`) are not located; the 150 and 400 m values
@@ -266,8 +267,12 @@ says the same).
   for both its priority check and its base roll (the binary draws one each): a deviation, unconfirmed in effect.
 - **Formation exclusion (`ai/cop_aims.rs`):** support cars are left out of the formation, finisher and collapse cop list
   (section 3 of the formations spec), so they keep the chase's aim or their own drive.
-- **Not built:** the flee of the support cars when the perpetrator is lost or a collapse begins (formations spec section 6),
-  and the roadblock's request path (it stays with `ai/roadblock.rs`).
+- **Not built:** the flee of the support cars when the perpetrator is lost or a collapse begins (formations spec section 6).
+- **Heavy roadblock (built in `ai/roadblock/`):** a `HEAVY_ROADBLOCK` roll is retried on every manager run (0.5 s) until it
+  stands, for at most 60 s (the original retries without end); its cars are the SUV models (`copsuv` with `ChanceBigSUV`,
+  otherwise `copsuvl`), laid out by the same builder as the lottery's roadblock; while it is active (the option's duration)
+  the support roll is not made. The original passes exactly four SUVs and steals out-of-view cops for any further car;
+  the rewrite creates the cars the layout needs.
 - **Unconfirmed, chosen in the port:** (a) the ram's start gate reads "start only while the target is below 26.82 m/s"; the
   spec gives 26.82 only as the start speed cap. (b) The try counter stops at `k = 7` for every later try of a request. (c) A
   ram that finds no target goes back to the start gate; the spec never finishes it while the target exists. (d) The

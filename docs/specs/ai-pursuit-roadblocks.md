@@ -49,7 +49,8 @@ Per-level probabilities **[verified]** (`roadblockprobability` / `roadblockspike
 percent; `roadblockhelichance` is 0 on every level): heat 1: 0/0/0; heat 2: 10/0/3; heat 3: 25/0/5; heat 4: 30/70/7;
 heat 5: 40/80/10; heat 6: 50/85/12; heat 7: 35/85/12; heat 8: 50/0/60; heat 9: 100/100/0; heat 10: 80/0/80. Race levels:
 race 1 to 7: 0/0/0 except race 8 (35/0/50), race 9 (40/0/50), race 10 (50/0/50); `default`: 0/0/50.
-`SearchModeRoadblockRadius` is 1000 m on every level.
+`SearchModeRoadblockRadius` is 1000 m at heat 1 and 2, then 2000, 5000, 10 000, 10 000, 10 000, 3500, 4000, 5000 m for heat 3 to 10 [verified]
+(race levels were not compared).
 
 ## 2. Building the roadblock (`CreateRoadBlock`)
 
@@ -225,7 +226,11 @@ if swept_box_overlap(strip box, tire box): Puncture(i)
 ```
 
 The box-versus-box intersection routine is not in the sources read (it is empty in the decompilation); a swept
-oriented-box test (separating axes with the sweep) is the intended behaviour. [decomp][unconfirmed]
+oriented-box test (separating axes with the sweep) is the intended behaviour. [decomp][unconfirmed] The strip box is the
+prop's collision geometry: the install's `XO_SpikeBelt_1b_DW_00` has one box, half extents 0.378 (along its facing), 3.265
+(across it) and 0.254 (up) m, centred 0.013 m above the prop's origin, so the strip is 6.53 m wide. [verified] (track prop
+bounds, `installed_roadblock_props_have_bounds_and_models`). The sawhorse `XO_Sawhorse_1b_00` has four boxes: a 1.0 x 2.77 x
+1.4 m body and a 0.12 x 3.16 x 0.59 m top rail between two 1.26 x 0.07 x 1.0 m legs. [verified]
 
 ### 6.3 Tire damage (`DamageRacer`)
 
@@ -304,84 +309,67 @@ wrecked, stops nearby cops. In the sources the whole mechanism is one message an
 ## Open questions
 
 - **Q1** The rotation sign of `RotateInXZ` and the handedness of the layout `x` axis (which side of the road is the near
-  edge for the player) are unverified; a first implementation should confirm with a screenshot of a roadblock.
-- **Q2** The trigger-to-simulated hand-over of placeables (flag values 0x20, 4, 8, 0x20000) is partially understood; a
-  simpler "test the strip every tick against nearby racers" gives the same result.
-- **Q3** `IPursuit::SpikesHit` has no caller in the sources read.
-- **Q4** `AIGoalHeliRoadBlock` is requested for a helicopter but has no definition; `roadblockhelichance` is 0 everywhere.
+  edge for the player) are unverified; the rewrite follows the lib's convention (side = forward turned clockwise) and has
+  not been compared with the running original.
+- **Q2** The trigger-to-simulated hand-over of placeables (flag values 0x20, 4, 8, 0x20000) is partially understood; the
+  rewrite tests every strip against the player's tires on each step, which gives the same result.
+- **Q3** `IPursuit::SpikesHit` has no caller in the sources read (nor in the PC binary's roadblock code). It is not run.
+- **Q4** `AIGoalHeliRoadBlock` is requested for a helicopter but has no definition; `roadblockhelichance` is 0 everywhere. The
+  "helicopter spike strip" counter (225 cost to state each) exists only as a statistic: the helicopter never drops spikes.
 - **Q5** `Place(matrix, true)`: the meaning of the boolean (probably "snap/activate") is unknown.
 - **Q6** That only racer-class cars carry the spikeable interface is read from the `pvehicle` damage-behaviour names (the
-  racer, player and challenge-series cars listed use `DamageRacer`; cops and traffic do not). Spot-checked, not exhaustive.
+  racer, player and challenge-series cars use `DamageRacer`; cops and traffic do not). Spot-checked, not exhaustive. So the
+  original does **not** puncture cops or traffic; the rewrite has no AI racers in free roam, so only the player is spiked.
+- **Q8** `SearchModeRoadblockRadius` is not 1000 m on every heat row, as this spec first said: 1000, 1000, 2000, 5000, 10 000,
+  10 000, 10 000, 3500, 4000, 5000 m for heat 1 to 10 **[verified]**. The helicopter's search reads the same field.
+- **Q7** The return convention of the builder (the support spec's Q3) is settled: success is non-zero in both callers
+  ([../provenance/ai-pursuit-roadblocks.md](../provenance/ai-pursuit-roadblocks.md)).
 
 ## Rust implementation notes
 
-- `RoadblockSetup` tables as `const` arrays; angle in turns; `PickRoadblockSetup` is a pure function and easy to test.
-- A `Roadblock` struct: cars `Vec<VehicleId>`, props `Vec<PropId>`, centre, dir, dodged, cheat timer, counters; release props
-  when `cars.is_empty()`.
-- Keep `pending_next` and the 8 to 12 s timer in the pursuit; keep the latched request in the cop manager, as the cop
-  spawner depends on the latch.
-- Spike strip: no need for a trigger/simulated swap; a per-tick query of the road props near each racer-class car is
-  enough. Use the swept box test with the tire box (0.15 m half width).
+- `blackbox_pursuit::roadblock`: `NORMAL` and `SPIKES` tables, `cars_asked`, `pick`, `place` and `centre` (pure).
+  `roadblock::request` is the lottery and the latch (`Requester`, `Dispatcher`, the per-level `odds`).
+  `roadblock::standing` is a standing roadblock's rules (`Standing`, `reach`). `blackbox_pursuit::spikes` is the strip box and
+  the tire box test.
+- The world side is `crates/nfsmw/src/scenes/world/ai/roadblock/`: `site` (the original's site checks), `build` (the layout,
+  cars and props, whole or not at all), `director` (the manager's run every 0.5 s), `props` (installed models and bodies),
+  `state` (the standing roadblocks).
 
 ## Rewrite status
 
-- **Layouts, the car count, the pick and the placement** (sections 2.1 to 4 as geometry): implemented in
-  `libs/blackbox-pursuit/src/roadblock.rs`, with the 15 normal and 9 spike layouts. A test checks that every layout's
-  cars match its required count. The facing rotation's sign is unconfirmed (see section 2.4).
-- **Not built:** the request and the finding of the spot on the road (sections 1 and 2.1 need the road nav), getting the
-  cars from the pool or stealing out-of-view cops (2.2), spawning the cars and props (2.5), the lifetime, dodging and
-  clean-up (5), the spike-strip test and tire damage (6), and the pursuit breakers' use of the layouts (7).
+Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic world tests, **[unseen]** not run in a live game.
 
-## Rewrite status (world placement)
-
-- **Placement in the world:** `crates/nfsmw/src/scenes/world/ai/roadblock.rs` places the cop cars of a roadblock: the road
-  spot 250 m ahead of the player (`RoadNav::init_at_point`), a two-lane road (a 3.5 m half width, **[unconfirmed]**), the
-  layout from `blackbox_pursuit::roadblock` (`cars_asked`, `pick`, `place`), and each car through `AiCar::place` at its
-  point and heading. Each car holds its place with the brakes on (the static roadblock goal; the `roadblock` flag, which
-  the simulation keeps braking). Roadblock cars are not in the pursuit's cop list.
-- **Trigger:** the `roadblock` console command only. The support request that asks for one in a chase (section 6 of the
-  formations spec) is not built.
-- **Spike layouts** (section 2.3, roll by `roadblockspikechance`): `blackbox_pursuit::roadblock::takes_spikes` rolls the
-  heat's chance; a successful roll picks from `SPIKES` with no fallback to the plain list, as the spec says. The strips
-  are kept as `blackbox_pursuit::spikes::Strip` and cleared when the chase ends. **[unconfirmed]** The strip's size (2 m
-  across, 0.5 m deep) is a design value, since the prop's collision box is not read.
-- **Spike puncture** (section 6): a grounded tire whose patch overlaps a strip is punctured through the tire model
-  (`CarSim::puncture_wheel`, the blow-out follows the tire model's fuse). Only the player's car is spiked; racers are not.
-  The wheel's patch is taken from the vehicle's contact patch, assumed to be in physics space.
-- **Not built:** barriers (sawhorses need their props), the overlap check against other cars, and the lifetime, dodging
-  and clean-up of section 5. The spike strips therefore last until the chase ends, not 120 s.
-- **Not verified in the game:** the placement compiles, but it has not been run yet. The game binary currently fails to
-  build because of unrelated uncommitted changes in `frontend/flow.rs` and `saves.rs`.
-
-## Run result (headless, install, `pursuit 5` then `roadblock`)
-
-- The spot is found and the layout is picked (two cars), but **no car is placed**: both `AiCar::place` calls return
-  `None`. The log shows `roadblock: the car does not fit at (34, 318)` and `(40, 322)` (physics x and z).
-- `AiCar::place` fails in `CarSim::place_moving`, which needs the ground under the spawn point. Placing the cars at the road
-  centre's height instead of the player's did not change the result, so the likely cause is the ground query at that spot
-  (the collision tiles there may not be loaded, or the ray is outside them). Not yet confirmed.
-- Next step: read the ground query used by `place_on_ground_moving` and check it at a point 250 m ahead; compare with the
-  traffic spawn, which places cars 150 to 400 m ahead and works.
-
-## Diagnosis so far (headless, same run)
-
-- At 250 m the cop road is found, but the car is still refused by `place_on_ground_moving`, which fails only when
-  `WorldGround::hit` finds nothing 100 m below the spawn point. Snapping each car to the nav's road point (as the traffic
-  spawn does) did not change it, so the collision under that road point is not hit by the ray.
-- At 120 m the cop-road search finds no road at all (the search uses `SegmentFilter { cop, no_decision }`, which skips junction
-  segments; the spot may be a junction).
-- Open: whether the collision tiles at the 250 m spot are loaded (`residency.simulation_ready` only covers the drive's focus
-  area), and whether `SURFACE_NO_GROUND` or `GROUP_EXCLUSION` excludes that road's faces. The next check is to log
-  `collision` coverage at the spot and the ray's first hit.
-
-## Diagnosis, update (player position)
-
-- The roadblock took its player point from `Focus.body`, which is zero, so every search began at the origin. It now
-  uses the drive's player view (`PlayerView`, converted to physics space).
-- The drive's `player_view` now reads the interpolated pose (`pose().position`), not the raw `current` pose. The police
-  used the same view, so their position (helicopter spawn and sight, the speed effects' input) was also zero before.
-- `--exec` commands run when the window opens, before the drive's car is on the road. A `roadblock` at that point is
-  refused with "the car is not on the road yet". So the headless check needs a delayed trigger, which the console does not
-  have yet. The next step is a way to run the command once the drive has started (for example a delay option for `--exec`,
-  or running it from the drive's first frame).
-- The cause of the earlier "no car fits" lines was the origin-based point, not the ground: those results are superseded.
+- **Dispatch [headless].** `RequestRoadBlock`'s two-step lottery (8 to 12 s timer, the armed flag, the percentage roll, the
+  out-of-sight chance falling with the distance from the last known place), the manager's latch and the retry on every run
+  are `roadblock::request` and `ai/roadblock/director.rs`. While a request is latched no pursuit cops are spawned
+  (`ai/pursuit.rs`). The per-level odds are the install's rows (a test compares the spike column with the layout picker;
+  an installed test compares all columns with the attribute database).
+- **Heavy support [headless].** A `HEAVY_ROADBLOCK` roll hands the request to the same builder with SUV cars (the big SUV with
+  the option's `ChanceBigSUV`), retries each run for up to 60 s (the original retries without end), holds the lottery for 15 s
+  and keeps the support roll silent for the option's duration once built.
+- **Site [headless].** 250 m ahead on the cop road; refused on a decision segment, a no-traffic segment, a segment under 40 m or
+  a road without lane zones (the original's checks), then the rewrite's: the layout must lie within the road's edges, no other
+  vehicle within 4.5 m of any element, the player not within 14 m. The original has **no** view test: a roadblock is placed in
+  full view of the player (that is how the player sees it ahead), so none is added.
+- **Layout [headless].** Width is the road's width plus one metre (as the PC binary computes it; the earlier port passed the bare
+  width). Cars are placed whole or not at all: a car that cannot stand fails the build and leaves nothing behind.
+- **Props [unseen].** Sawhorses are rigid bodies in the prop world (`PropWorld::spawn_placed`) with the installed collision
+  boxes and the `sawhorse` smackable's dynamics, drawn from the installed model; they live as long as the roadblock. Spike
+  strips are drawn from the installed model, tilted to the ground normal, with the installed collision box; the tire box is the
+  original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Not seen in a running game.
+- **Behaviour [headless].** Cars hold the brake (`AIGoalStaticRoadBlock`). A roadblock car does not look for the player; the roadblock
+  sees the player within 60 m (3-D) unless a hiding spot hides it from cars, which resets the pursuit's unseen clock. Passing
+  the centre marks the roadblock dodged once (the dodged and strip counts are kept for the statistics). The cheat rule (a car
+  within 500 m horizontally, the player within 300 m of the centre for 20 s, at once in cool-down) takes the nearest car into the
+  chase once. A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
+  formation unless it is FOLLOW or its finisher runs. The cost to state is 500 per roadblock and 250 per prop, sawhorses included.
+- **Release and repeat [headless].** A roadblock with no live car is released and its props go with it; the lottery may then build
+  another. An escape leaves roadblocks standing (their cars are retired by the traffic rule for unseen cars); ending the chase by
+  hand or by the arrest takes them away.
+- **Not built.** Stealing out-of-view cop cars to make up the car count (the rewrite creates the cars it needs); the sawhorse
+  breaking into its four fragments; the pursuit statistics reaching the rap sheet (`Roadblocks::stats` holds them); the
+  "cops needed to evade + 1" count; a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
+  cop, racer, checkpoint and helicopter objects and **no** roadblock object, so the minimap has no roadblock blip. The
+  `MMICON_ROADBLOCK_%d` pool belongs to the full-screen map's legend builder (`FUN_00531350`, listed in
+  [../provenance/world-map-ghidra.md](../provenance/world-map-ghidra.md)); whether the map screen draws standing
+  roadblocks was not examined. The pursuit board has a `PursuitAddsRoadblock` string (a HUD/tip hook) that was not traced.
