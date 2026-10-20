@@ -49,10 +49,71 @@ insufficient outward point velocity using mass and simulation delta; positive
 when an attached body cannot move. Exact broad-phase shell selection, damage,
 causality, world occlusion and cinematic slowdown still need validation.
 
-`EBreakerStopCops` carries radius and duration at 4/8. Track an expiring area on
-the fixed clock and brake pursuing cops inside it, including later entrants.
-Cinematic events, authored visual effects, dynamic regions, music/speech and
-pursuit score notifications remain separate integrations; report their absence.
+## Cop zones (`EBreakerStopCops`)
+
+The event carries radius and duration at 4/8; the emitting model's position is the centre. **[decomp]** The cop
+manager keeps a list of zones `{centre, radius, end = now + duration}`. On every manager run, before it updates
+patrols and pursuits, each police vehicle that is not already destroyed and has pursuit AI is tested: when its
+horizontal distance to any zone's centre is below the radius, its damage behaviour **destroys** it (total damage to 1,
+every damage zone to the top level, the vehicle-destroyed notification). Then the zones whose end time has passed are
+dropped. Nothing brakes the cops. No pursuit has to be active, and the test covers every police car (patrol,
+pursuing, roadblock) and anyone who enters while the zone lives. The helicopter is in the same list in the original;
+the rewrite does not destroy it yet. **[open]**
+
+The first rewrite braked the cops inside the zone for its duration. That contradicted this behaviour (and
+`ai-pursuit-roadblocks.md` section 7) and left the cops alive, so the breakers produced no visible result in a chase.
+Zones now destroy: a car wrecked this way is counted once as a wreck of the chase (rep points, cost to state, the
+destroyed counter), keeps its wreck and stops sensing, like one wrecked by damage.
+
+## Which models carry breakers, and how one fires
+
+The track holds 16 event engines that open a zone (radius 5 to 24 m, always 5 s) **[verified]**: gas station roof,
+donut-shop roof, donut sign, drive-in, gazebo, greenhouse, scaffold support, wooden scaffold, heavy concrete, hill base
+sign, radio tower and its supports, sailboat, seafood patio, water tower support. The roofs and towers are triggered
+models themselves (`no_trigger`): the supports and pillars next to them send the area stimulus, and a roof counts
+several before it collapses. The track places 116 such models in 48 of its streaming sections **[verified]**: 9 gas
+stations, 3 donut/tyre shop roofs, 4 gazebos, 57 scaffold supports, 17 radio-tower pieces, 8 heavy-concrete pieces and
+the rest (the installed census test counts them; `pursuit breakers` in the console lists the resident ones with their
+distance, zone, supports and scene). The structure falls under any vehicle, pursuit or not, and the cops need not be
+near for it to open its zone.
+
+What triggers a breaker differs by structure, and is read from each engine's responses **[verified]**. The gas
+station's pillars have a permanent attachment (`DETACH_FORCE` -1): ramming one never detaches it and nothing happens
+(installed test). Its two **pumps** detach at an impulse of 10 000 N s; the detach (`WORLD_DETACHED`) and the
+`EXPLOSION` it causes run the pump's sequence, which sends an area stimulus (30 m) to the roof; the roof's first such
+stimulus runs its collapse, with the zone and the moment at 0.067 s, and the pillars hide on the explosion. The player
+driving an Elise into a pump at 14 m/s fires it (installed test). Roofs (`no_trigger`) never react to a hit
+themselves. Other structures react to `IMPACT_1` on their supports (the wooden scaffold) or to the supports'
+detachment (donut/tyre shop posts, scaffolds).
+
+## Cinematic moment (`EPlayRaceNIS`)
+
+Every breaker engine except the gazebo issues, at the same time as the zone, an `EPlayRaceNIS` event (`0x66666DC8`)
+whose scene type is "Moment" and whose scene names the structure (`WMGasStation`, `WMBoat`, `WMWaterTower`...)
+**[verified]**. The original plays that scripted scene (a short camera cut of the collapse) while the world goes on
+**[inferred]**; the pursuit HUD and the camera blur of the original's visual treatment follow the game-breaker or
+cinematic-moment state **[decomp]**. The rewrite names the scene in the breaker history but plays nothing: the NIS
+animation codec is open (`docs/formats/animation.md`). **[open]**
+
+## `EPursuitBreaker`
+
+No installed event engine carries `EPursuitBreaker` (`0x47C1D36D`) **[verified]**. The original posts it from the
+local player when the speedbreaker ability toggles and uses it for the speedbreaker music and sound modes. It has no
+link to scenery breakers; the scenery handler for it never receives an event from installed data.
+
+## Not reproduced
+
+Authored visual effects of the collapse beyond fragments, breaker music/speech and the destroyed-cop speech, the
+helicopter's destruction in a zone, the cinematic moment, and the map icon that disappears once a breaker is used.
+A loading tip or HUD text for breakers is not found in the sources read.
+
+## Checks
+
+Installed, run with `NFSMW_GAME_DIR`: the profiles of all 75 engines (`nfsmw-data`), the census of placements per
+section, the streamed gas station (resident site with its zone, supports and scene; a pump hit opens the zone, wrecks
+the patrol car inside and not the one outside, counts one wreck in the chase; pillars alone do nothing; the player's
+car fires it), and the console listing. The console command `pursuit breakers` prints the resident breakers nearest
+the player, the open zones and the last events.
 
 Checks: parse every installed hierarchy; exercise real support-to-roof chains,
 fragment meshes/bounds and repeated gas-station counts; compare complete event,
