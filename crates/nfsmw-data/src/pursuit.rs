@@ -45,7 +45,7 @@ pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
 
 /// The `pursuitlevels` collection of heat level `heat` (1…10, clamped) in the escalation table `table`
 /// (`heattable` or `racetable`), from the `default` collection of `pursuitescalation`.
-fn level_collection<'a>(db: &'a Database, table: &str, heat: u32) -> Option<CollectionRef<'a>> {
+pub(crate) fn level_collection<'a>(db: &'a Database, table: &str, heat: u32) -> Option<CollectionRef<'a>> {
     let level = heat.clamp(1, HEAT_LEVELS) as usize - 1;
     let escalation = db.collections_of("pursuitescalation").find(|c| c.name() == Some("default"))?;
     let Value::Array(rows) = escalation.get(table)? else { return None };

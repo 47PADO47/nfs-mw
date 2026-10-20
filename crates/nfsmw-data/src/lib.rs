@@ -27,6 +27,7 @@ pub mod gameplay;
 pub mod minimap;
 pub mod music;
 pub mod pursuit;
+pub mod pursuit_siren;
 pub mod rank_thresholds;
 pub mod shared;
 pub mod sound;
