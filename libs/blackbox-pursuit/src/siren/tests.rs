@@ -21,10 +21,7 @@ fn run(machine: &mut Machine, gap: &mut OpeningGap, from: f64, seconds: f64, inp
 
 #[test]
 fn state_words_are_the_originals() {
-    assert_eq!(
-        [State::Off, State::Wail, State::Yelp, State::Scream, State::Die].map(State::word),
-        [-1, 0, 1, 2, 3]
-    );
+    assert_eq!([State::Off, State::Wail, State::Yelp, State::Scream, State::Die].map(State::word), [-1, 0, 1, 2, 3]);
 }
 
 #[test]

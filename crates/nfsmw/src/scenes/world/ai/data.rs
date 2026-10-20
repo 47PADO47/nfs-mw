@@ -68,5 +68,6 @@ impl TrafficWorld {
             self.set_patrol(plan);
         }
         self.police.set_rep_table(nfsmw_data::pursuit::rep_table(db));
+        self.sirens.set_data(nfsmw_data::pursuit_siren::siren_data(db));
     }
 }

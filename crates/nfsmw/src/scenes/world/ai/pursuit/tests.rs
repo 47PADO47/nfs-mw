@@ -28,6 +28,7 @@ mod free_roam;
 mod installed;
 mod installed_arrest;
 mod installed_route;
+mod sirens;
 
 /// The frames the model is still loading for, and the length of each frame in simulated seconds.
 const LOADING_FRAMES: u32 = 30;

@@ -483,6 +483,7 @@ mod original_camera;
 mod patrol;
 mod rep;
 mod roll;
+mod siren_feed;
 mod world;
 
 use helpers::{horizontal, render_rotation};

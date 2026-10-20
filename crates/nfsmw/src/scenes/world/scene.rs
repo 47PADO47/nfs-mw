@@ -318,4 +318,7 @@ impl Scene for WorldScene {
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         self.rotor_frame_now(dt)
     }
+    fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
+        self.traffic.as_mut()?.siren_frame(dt)
+    }
 }
