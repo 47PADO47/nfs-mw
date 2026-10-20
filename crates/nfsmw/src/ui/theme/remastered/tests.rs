@@ -1,7 +1,7 @@
 //! Tests for the Remastered cluster: what each part builds from the drive feed. They run on a `HudState` set by hand, with
 //! no game data and no GPU.
 
-use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode, token_keys};
+use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode};
 
 use super::RemasteredTheme;
 use super::skin::{keys, palette_skin, skin};

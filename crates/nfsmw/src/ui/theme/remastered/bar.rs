@@ -1,8 +1,8 @@
 //! The Remastered gauges under the dial: nitrous (N2O) and the speedbreaker (SPEEDBREAKER) are a label and a pill-shaped
-//! track with a gradient fill that starts in a point, filled from the left by its amount. The supercharger
+//! `PillBar` (a track with a gradient fill that starts in a point), filled from the left by its amount. The supercharger
 //! (SUPERCHARGER) is a label and a row of segments, lit from the left, so it reads apart from the bars.
 
-use blackbox_ui::{Component, DrawList, LayoutCx, Outline, Rect, Rounded, Slant, Text, justify, token_keys};
+use blackbox_ui::{Component, DrawList, LayoutCx, PillBar, PillStyle, Rect, Rounded, Text, justify, token_keys};
 
 use super::layout::{at, rect, size};
 use super::skin::keys;
@@ -12,9 +12,6 @@ use crate::ui::theme::custom::DriveFeedCell;
 const BAR_LEFT_PX: f32 = 130.0;
 const BAR_RIGHT_PX: f32 = 552.0;
 const BAR_HEIGHT_PX: f32 = 28.0;
-/// The fill sits this far inside the track, and its point is this long.
-const FILL_INSET_PX: f32 = 4.0;
-const POINT_PX: f32 = 14.0;
 /// The labels end here, left of the track, and sit in a box this big.
 const LABEL_RIGHT_PX: f32 = 120.0;
 const LABEL_BOX_PX: (f32, f32) = (160.0, 22.0);
@@ -26,9 +23,6 @@ const SUPERCHARGER_FULL_PSI: f32 = 15.0;
 /// The supercharger is a row of segments, not a bar: this many, with this gap between them.
 const SEGMENTS: usize = 5;
 const SEGMENT_GAP_PX: f32 = 6.0;
-/// How the fill brightens from its point to its end: `(position, opacity)`.
-const FILL_STOPS: [(f32, f32); 3] = [(0.0, 0.55), (0.6, 0.9), (1.0, 1.0)];
-const BORDER: f32 = 1.4;
 
 #[derive(Clone, Copy)]
 pub enum Gauge {
@@ -113,33 +107,11 @@ fn parts(gauge: Gauge, amount: f32, cx: &LayoutCx<'_>) -> Vec<Box<dyn Component>
     parts
 }
 
-/// The pill: a dark inside and a light border, and the fill with its point at the left, shorter than the track by its
-/// inset on each side, up to the amount.
+/// The pill: a dark inside and a light border, with the fill up to the amount, starting in a point.
 fn track(parts: &mut Vec<Box<dyn Component>>, amount: f32, y: f32, cx: &LayoutCx<'_>) {
     let half = BAR_HEIGHT_PX / 2.0;
-    let outer = rect(BAR_LEFT_PX, y - half, BAR_RIGHT_PX, y + half);
-    let radius = outer.h / 2.0;
-    parts.push(Box::new(Rounded::new(keys::CLUSTER_BG, outer, radius, cx)));
-    parts.push(Box::new(Outline::new(keys::BAR_BORDER, outer, radius, BORDER, cx)));
-    if amount <= 0.0 {
-        return;
-    }
-    let (top, bottom) = (y - half + FILL_INSET_PX, y + half - FILL_INSET_PX);
-    let left = BAR_LEFT_PX + FILL_INSET_PX;
-    let right = left + (BAR_RIGHT_PX - FILL_INSET_PX - left) * amount.clamp(0.0, 1.0);
-    let point = POINT_PX.min((right - left).max(0.0));
-    // The point: two halves, the upper leaning right at the top and the lower leaning right at the bottom, meeting at the
-    // fill's left edge.
-    let middle = (top + bottom) / 2.0;
-    for (from, to, lean_sign) in [(top, middle, 1.0), (middle, bottom, -1.0)] {
-        let half_rect = rect(left, from, left + point, to);
-        let lean = (half_rect.w) * lean_sign;
-        parts.push(Box::new(Slant::at_default_depth(keys::BAR_FILL, half_rect, lean, &[(0.0, 0.55)], cx)));
-    }
-    if right > left + point {
-        let body = rect(left + point, top, right, bottom);
-        parts.push(Box::new(Slant::at_default_depth(keys::BAR_FILL, body, 0.0, &FILL_STOPS, cx)));
-    }
+    let style = PillStyle { track: keys::CLUSTER_BG, border: keys::BAR_BORDER, fill: keys::BAR_FILL };
+    parts.push(Box::new(PillBar::new(style, rect(BAR_LEFT_PX, y - half, BAR_RIGHT_PX, y + half), amount, true, cx)));
 }
 
 /// The segments across the row, from the left edge of the track, centred on `y`. A segment is lit while the amount reaches
