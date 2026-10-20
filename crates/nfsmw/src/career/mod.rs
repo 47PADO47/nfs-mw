@@ -54,6 +54,8 @@ pub struct CareerHandle(Arc<Mutex<Profile>>);
 struct Profile {
     career: Option<Career>,
     playing: bool,
+    /// The safe house menu stands before the world exists (Resume Career): the menus offer less there.
+    prelude: bool,
 }
 
 impl CareerHandle {
@@ -66,12 +68,12 @@ impl CareerHandle {
 
     /// Loads `career` as the player's profile, replacing the one before. It is not played yet ([`Self::begin_play`]).
     pub fn load(&self, career: Career) {
-        *self.lock() = Profile { career: Some(career), playing: false };
+        *self.lock() = Profile { career: Some(career), ..Profile::default() };
     }
 
     /// Starts playing `career`, replacing the one before.
     pub fn set(&self, career: Career) {
-        *self.lock() = Profile { career: Some(career), playing: true };
+        *self.lock() = Profile { career: Some(career), playing: true, prelude: false };
     }
 
     /// Plays the loaded profile. Nothing happens when none is loaded.
@@ -82,7 +84,19 @@ impl CareerHandle {
 
     /// Leaves career mode; the profile stays loaded.
     pub fn end_play(&self) {
-        self.lock().playing = false;
+        let mut profile = self.lock();
+        profile.playing = false;
+        profile.prelude = false;
+    }
+
+    /// Marks the safe house menu as standing before the world (or not).
+    pub fn set_prelude(&self, prelude: bool) {
+        self.lock().prelude = prelude;
+    }
+
+    /// True while the safe house menu stands before the world exists.
+    pub fn is_prelude(&self) -> bool {
+        self.lock().prelude
     }
 
     /// Unloads the profile.

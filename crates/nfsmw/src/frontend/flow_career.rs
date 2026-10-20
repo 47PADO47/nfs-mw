@@ -29,7 +29,7 @@ impl Frontend {
             return self.start_free_roam(LoadingScreen::Tips, host, env);
         }
         log::info!("career: resuming at the safe house");
-        self.prelude = true;
+        self.career.set_prelude(true);
         self.in_safe_house = true;
         self.latch = true;
         self.screens.clear();
@@ -38,7 +38,7 @@ impl Frontend {
 
     /// Resume Free Roam in the safe house menu that stands before the world: the roaming-start autosave, then the world.
     pub(super) fn leave_prelude(&mut self, host: &mut Host, env: &mut Env) {
-        if !self.prelude {
+        if !self.career.is_prelude() {
             return;
         }
         self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::Career, ..Args::default() }, host, env);
@@ -48,7 +48,7 @@ impl Frontend {
     /// screen. The roaming-start autosave is asked for first, as leaving the safe house does in the world.
     pub(super) fn start_from_safe_house(&mut self, host: &mut Host, env: &mut Env) {
         self.save_settings(env.changed);
-        self.prelude = false;
+        self.career.set_prelude(false);
         self.leave_safe_house();
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }

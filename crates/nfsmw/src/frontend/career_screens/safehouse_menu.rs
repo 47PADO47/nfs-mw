@@ -27,6 +27,8 @@ const MEMORY_CARD_LAYER: bool = true;
 struct Totals {
     bounty: u64,
     cash: u32,
+    /// The career completion percentage (`CAREER_DATA`).
+    career: u8,
 }
 
 /// The safe house menu's logic: the icon row, with the two totals filled in when it starts.
@@ -39,20 +41,23 @@ struct SafeHouseMenu {
 pub fn make(args: Args) -> Box<dyn ScreenLogic> {
     let Some((items, totals)) = CareerHandle::shared().with(|career| {
         let items = visible_items(&career.settings, MEMORY_CARD_LAYER);
-        let totals = Totals { bounty: career.stable.total_bounty(), cash: career.settings.cash };
+        let totals =
+            Totals { bounty: career.stable.total_bounty(), cash: career.settings.cash, career: career.card().career };
         (items, totals)
     }) else {
         return Box::new(Plain);
     };
-    let menu = IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items));
+    let menu =
+        IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items, CareerHandle::shared().is_prelude()));
     Box::new(SafeHouseMenu { menu, totals })
 }
 
 impl ScreenLogic for SafeHouseMenu {
     fn start(&mut self, cx: &mut Cx) {
         self.menu.start(cx);
-        // The career completion percentage (`CAREER_DATA`) is left as the package has it: it needs the rap sheet's
-        // counts, which no builder in the career code produces yet.
+        if let Some(o) = cx.named("CAREER_DATA") {
+            cx.rt.set_text(o, format!("{}%", self.totals.career));
+        }
         set_text(cx, BOUNTY_DATA, &money_text(self.totals.bounty));
         set_text(cx, CASH_DATA, &money(self.totals.cash));
     }
@@ -81,6 +86,10 @@ impl ScreenLogic for SafeHouseMenu {
 /// Runs the selected icon: its item decides the screen, and every screen it opens stays in the safe house.
 pub fn press(cx: &mut Cx, args: Args, id: Id) {
     let Some(item) = item_of(id) else { return };
+    // The Rap Sheet does nothing before the world exists.
+    if item == MenuItem::RapSheet && CareerHandle::shared().is_prelude() {
+        return;
+    }
     let target = select(item);
     cx.send(command_for(target, Args { safehouse: true, ..args }));
 }

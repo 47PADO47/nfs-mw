@@ -134,9 +134,6 @@ pub struct Frontend {
     pub(super) profiles: Option<ProfileDir>,
     /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
     pub(super) in_safe_house: bool,
-    /// The safe house menu stands before the world exists (Resume Career): Resume Free Roam starts the world and Back goes
-    /// to the career menu (`flow_career.rs`).
-    pub(super) prelude: bool,
     /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
     pub(super) origin: QuitTo,
     /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
@@ -180,7 +177,6 @@ impl Frontend {
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
-            prelude: false,
             origin: QuitTo::MainMenu,
             look: Look::Main,
             auto_shop_requested: false,
@@ -306,7 +302,6 @@ impl Frontend {
         self.paused.set(false);
         self.screens.clear();
         self.career.end_play();
-        self.prelude = false;
         self.in_safe_house = false;
         self.open_menu(name, args, host, env);
     }
@@ -433,7 +428,7 @@ impl Frontend {
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
                 Command::RestartRace => self.restart_race(host),
-                Command::Resume if self.prelude => self.start_from_safe_house(host, env),
+                Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
