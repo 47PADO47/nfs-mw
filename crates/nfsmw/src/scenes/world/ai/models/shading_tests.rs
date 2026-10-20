@@ -33,6 +33,8 @@ fn installed_shared_traffic_rigs_switch_mode_without_actor_reset() {
     pump(&mut scene, &mut renderer, true);
     load_cop_models(&mut scene, &mut renderer, &["copmidsize".to_owned()]).unwrap();
     load_helicopter_model(&mut scene, &mut renderer).unwrap();
+    // Outside a warm-up both only queue their request, so install what the loader finishes.
+    pump(&mut scene, &mut renderer, true);
     let traffic = scene.traffic.as_mut().unwrap();
     let live: Vec<Rc<CarRig>> = vec![
         traffic.models[0].rig.clone(),
