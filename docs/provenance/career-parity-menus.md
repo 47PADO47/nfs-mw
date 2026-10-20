@@ -166,6 +166,17 @@ and 9.2): no alias asks to create one, one alias loads at once, two or more show
 (library id 10) follows a successful load. The rewrite always shows the list when there is at least one alias, at the
 user's request **[ours]**.
 
+## Safe house menu items (`FUN_00532220`, `0x00532220`)
+
+Built when the safe house front end opens (the caller is the screen setup). Items in order, `(texture, label)`: Resume Free
+Roam `(0x12BB5EA2, 0x01BD185C)`; Blacklist `(0x2C14AC23` `MAIN_ICON_TOP_15`, `0x80B9FF9B)`; Car Select `(0xC6A1A6E0`
+`MAIN_ICON_CAR_SELECT`, `0x00D5F627)`; Rap Sheet `(0x2FD8B206` `MAIN_ICON_RAP_SHEET`, `0xAC22F27E)` only when profile flag bit 4
+is set; Save `(0x228B7E32` `GENERIC_ICON_SAVE`, `0x001C8ACE)` only when the memory-card layer flag `DAT_008F8708` is set. The title
+strings get label `0xE596C4A3` ("safe house"). After the items it writes `CAREER_DATA` (`0x0089DA2C`, the career percentage
+from `FUN_005A8780` byte 1, format `%d%s` with the percent suffix `0x0089CEE4`), `BOUNTY_DATA` (`0x0089DA20`, the stable's bounty,
+`FUN_00590500`) and `CASH_DATA` (`0x0089DA14`, `profile + 0xB4`). Earlier passes used the Car Select (My Cars) picture and the
+alias manager's disk for Car Select and Save and no picture for Blacklist and Rap Sheet; these are replaced **[exe]**.
+
 ## Dead ends
 
 - `UIQRBrief` and the other class names (`0x008A0834`, `0x008A0864`, `0x008A07B0`) are only referenced from unwind records,
