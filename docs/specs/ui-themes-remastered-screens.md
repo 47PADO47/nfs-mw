@@ -54,12 +54,12 @@ as before). The Remastered `Minimap` (`ui/theme/remastered/minimap/`) reads the 
   turn of the map group (`Window::of`);
 - the game's own map pieces, multiplied by a dark tint (`MINIMAP_MAP`), over a dark disc; the player's arrow in the accent colour
   (`Tinted::recoloured`); the blips stay the game's own and draw over it (the Blips slot is Original);
-- a dark bezel with a gold hairline just inside it and a faint rim outside it; the north marker, a small dark badge with an N on
-  the bezel at the direction of north;
+- a dark bezel with a gold hairline just inside it; the north marker, a small dark badge with an N on the bezel at the
+  direction of north;
 - the heat ring: ten segments outside the bezel, as many lit (accent colour) as whole heat levels reached (`lit_segments`); a
   flame (the package's own `Heat_Icon`) and the multiplier "x5" at the top left (`multiplier`, 1 to 10);
-- while the cool-down bar is on, the evade progress as an arc inside the window (`MINIMAP_EVADE`).
 
+The minimap has one ring, for the heat. The chase's own state (busted, escaping, cool-down) is the pursuit panel's (section 4).
 The ring is the generic `blackbox_ui::Ring` (an arc as a row of short quads); `DriveFeed::heat` carries the car's heat.
 
 ## 4. The radio card and the pursuit timer
@@ -68,8 +68,21 @@ The ring is the generic `blackbox_ui::Ring` (an arc as a row of short quads); `D
   left edge, the title in bold capitals, the artist and album, and the time played in the accent colour. It sits where the HUD puts
   the card (`custom::radio_placement`) and has the Custom card's timing (up for six seconds, fading over the last). A string wider
   than the plate is cut with "..." (`fitted`), because the renderer does not clip text.
-- **Pursuit timer** (`remastered/pursuit.rs`): see [ui-themes-remastered-menus.md](ui-themes-remastered-menus.md) and the drive
-  cluster; it also carries the evade bar and the count of wrecked cars.
+- **Pursuit panel** (`remastered/pursuit.rs`, the `PursuitMeter` slot): a right trapezoid (the generic `blackbox_ui::Trapezoid`,
+  its left edge slanting in from the top) at the top right with the chase's time, the minutes and seconds in the accent colour.
+  Under it the cop cars the chase has **called** (`HudState::cops_engaged`), how many are **damaged** and how many are
+  **wrecked** (`PursuitHud::cops_destroyed`). Then the bars of the chase's end, shown only while they apply: the signed meter
+  (`PursuitHud::busted`: above zero the red **BUSTED** bar, below zero the accent **ESCAPING** bar, hidden at rest) and the
+  **COOLDOWN** bar once the player has got away (`cooldown_shown`, filled by `evade`). A bar has its share in percent beside its
+  label, and the plate's side bar turns red while the player is being busted.
+- **Police detector** (`remastered/radar.rs`, the new `PoliceRadar` slot, number 12). It takes the detector's package objects
+  (`hud::roots::police_radar`: its group with the laser, the arrow and the two LED rows, and the backing in either layout), so the
+  Original look draws them as before. The Remastered look is a slim dark pill at the top centre with a row of fourteen dashes
+  each side and a small dial with the detector's 45 degree cone. With a cop in range the dashes light outward from the dial in
+  the original's sweep (it starts at 30 percent and grows over a period of 1.5 times the range, so a near cop sweeps faster; the
+  look keeps no state, it takes the phase from the clock), the arrow (the package's own) turns to the cop, and the dashes are
+  red when the cop is under a third of the range away. With no cop the pill is dimmed. It hides while a chase runs and is back
+  during the cool-down, as the original's detector (`hud-pursuit-state.md`).
 
 ## 5. Not done, and open
 
@@ -82,5 +95,5 @@ The ring is the generic `blackbox_ui::Ring` (an arc as a row of short quads); `D
 ## 6. Tests
 
 `remastered/menu/blacklist.rs` (rows, the hit test, the card, the bio), `remastered/minimap/` (the window, the heat segments, the
-evade arc, the tint, the fade), `remastered/radio.rs`, `frontend/career_screens/blacklist_tests.rs` (`status_of`),
-`libs/blackbox-ui` (`Ring`).
+evade arc, the tint, the fade), `remastered/radio.rs`, `remastered/pursuit.rs`, `remastered/radar.rs`, `frontend/career_screens/blacklist_tests.rs`
+(`status_of`), `libs/blackbox-ui` (`Ring`, `Trapezoid`, `Tokens`).

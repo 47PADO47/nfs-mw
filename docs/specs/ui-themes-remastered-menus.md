@@ -86,6 +86,14 @@ Under Original nothing reads the cell.
   `Choice` (a value between two chevrons), `Chevron` (the mirrored, nudged double arrow), `PillBar` (a track with a gradient
   fill that can start in a point, also used by the drive cluster's gauges), with `Slant` and `Outline` from before.
 
+## 5a. Pictures beside the entries
+
+A palette can ask for the pictures of the entries: `Tokens::icons` (`blackbox-ui`, off by default, a metric under
+`token_keys::ICONS`). The Bevy palette turns it on and the Remastered palette leaves it off. An icon menu publishes each entry's
+own picture (`MenuEntry::icon`: the package's texture, or the controller glyph for the control options), and when the palette
+asks, the list draws it 22 units tall left of the text and moves every entry's text right to make room. An entry with no picture
+(and a disabled one, dimmed) keeps its place. A mod theme declares no icons flag, so its menus show none.
+
 ## 6. Not done, and open
 
 - The track select and the other career screens (`TrackSelect`, `CarLot`, `RapSheet`, `MemoryCard`, `Sms`) are still
