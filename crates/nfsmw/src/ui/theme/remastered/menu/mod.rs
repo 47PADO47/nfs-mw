@@ -72,9 +72,9 @@ impl<'a, 'b> Parts<'a, 'b> {
             self.logo(left);
         }
         self.text(
-            keys::FONT_MENU_WIDE,
+            keys::FONT_MENU_TITLE,
             &list.title.to_uppercase(),
-            keys::MENU_TEXT,
+            keys::MENU_TITLE,
             place::TITLE_SCALE,
             (left + place::TEXT_LEFT, place::TITLE_Y),
             false,
@@ -83,7 +83,6 @@ impl<'a, 'b> Parts<'a, 'b> {
         for (i, entry) in list.entries.iter().skip(list.first).take(shown).enumerate() {
             self.entry(entry, list.first + i == list.selected, place::row_y(i), left);
         }
-        self.scroll_bar(list, left);
         self.footer(list, left);
         if list.style == MenuStyle::Main {
             self.tagline(place::right_edge(list.aspect));
@@ -121,16 +120,6 @@ impl<'a, 'b> Parts<'a, 'b> {
         };
         let text = Text::new(font, text).with_colour_key(colour).with_scale(scale).with_justification(flags);
         self.push(text, Rect::new(x, at.1, width, 20.0));
-    }
-
-    /// A slim bar right of the list when it scrolls: a faint track with a thumb for the entries in view.
-    fn scroll_bar(&mut self, list: &MenuList, left: f32) {
-        let Some((x, top, height, thumb_top, thumb)) = place::scroll_bar(list.first, list.entries.len()) else {
-            return;
-        };
-        let (x, w) = (left + x, place::SCROLL_WIDTH);
-        self.push(Panel::new(keys::MENU_TEXT_DISABLED), Rect::new(x, top + height / 2.0, w, height));
-        self.push(Panel::new(keys::MENU_RULE), Rect::new(x, thumb_top + thumb / 2.0, w, thumb));
     }
 
     fn entry(&mut self, entry: &MenuEntry, selected: bool, y: f32, left: f32) {

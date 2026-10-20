@@ -21,6 +21,8 @@ pub const RASTER_MONO_FONT_KEY: u32 = 0x5241_5357;
 pub const RASTER_MENU_FONT_KEY: u32 = 0x5241_5358;
 /// The same face spaced wide. The menus' title and tagline.
 pub const RASTER_MENU_WIDE_FONT_KEY: u32 = 0x5241_5359;
+/// The menus' title: the wide face, bold.
+pub const RASTER_MENU_TITLE_FONT_KEY: u32 = 0x5241_535A;
 /// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times
 /// this (`ui/present/blackbox`).
 pub const UNITS_ASPECT: f32 = 1.5 / 2.0;
@@ -31,24 +33,29 @@ pub const UNITS_PER_SCALE: f32 = 10.0;
 const RASTER_HEIGHT_PX: f32 = 128.0;
 /// How a string is drawn: its width is stretched by `widen`, and its coverage is raised to `weight`. A weight below 1
 /// makes the strokes heavier; 1 keeps them as the font draws them. `tracking` adds space after each glyph, as a fraction
-/// of the font's height (before the stretch).
+/// of the font's height (before the stretch). `bold` thickens every stroke by that many pixels of the glyph image, which is
+/// `RASTER_HEIGHT_PX` tall.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Look {
     pub widen: f32,
     pub weight: f32,
     pub tracking: f32,
+    pub bold: u32,
 }
 
 /// The font as it is drawn: no stretch, no added weight. The Custom theme's text.
-pub const PLAIN: Look = Look { widen: 1.0, weight: 1.0, tracking: 0.0 };
+pub const PLAIN: Look = Look { widen: 1.0, weight: 1.0, tracking: 0.0, bold: 0 };
 /// The Remastered theme's text: wider and heavier than the font's own proportions.
-pub const REMASTERED: Look = Look { widen: 1.6, weight: 0.6, tracking: 0.0 };
+pub const REMASTERED: Look = Look { widen: 1.6, weight: 0.6, tracking: 0.0, bold: 0 };
 /// The Remastered theme's numbers: as wide as its text, and heavier still.
-pub const NUMBERS: Look = Look { widen: 1.6, weight: 0.4, tracking: 0.0 };
+pub const NUMBERS: Look = Look { widen: 1.6, weight: 0.4, tracking: 0.0, bold: 0 };
 /// The Remastered menus' text: heavier than the font's own strokes, a little spaced.
-pub const MENU: Look = Look { widen: 1.23, weight: 0.28, tracking: 0.05 };
+pub const MENU: Look = Look { widen: 1.23, weight: 0.28, tracking: 0.05, bold: 0 };
 /// The Remastered menus' title and tagline: the menu face spaced wide.
-pub const MENU_WIDE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.3 };
+pub const MENU_WIDE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.3, bold: 0 };
+
+/// The menus' title: spaced, and bold.
+pub const MENU_TITLE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.2, bold: 4 };
 
 /// How a font key is drawn.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -69,6 +76,7 @@ pub fn face(key: u32) -> Option<Face> {
         RASTER_MONO_FONT_KEY => (PLAIN, true, true),
         RASTER_MENU_FONT_KEY => (MENU, false, true),
         RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, false, true),
+        RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, false, true),
         _ => return None,
     };
     Some(Face { look, mono, upright })
@@ -156,7 +164,31 @@ fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
             rgba[at..at + 4].copy_from_slice(&[255, 255, 255, kept]);
         });
     }
+    embolden(&mut rgba, width as usize, height as usize, look.bold as usize);
     Some(stretch(Image { width, height, rgba, blend: 1 }, look.widen))
+}
+
+/// Thickens every stroke by `radius` pixels in all directions: each pixel takes the largest coverage within the radius.
+/// Done in two passes, along the rows and then along the columns.
+fn embolden(rgba: &mut [u8], width: usize, height: usize, radius: usize) {
+    if radius == 0 {
+        return;
+    }
+    spread(rgba, height, width, (width, 1), radius);
+    spread(rgba, width, height, (1, width), radius);
+}
+
+/// One pass of [`embolden`]: `lines` lines of `len` pixels, a line `stride.0` apart and a pixel `stride.1` apart.
+fn spread(rgba: &mut [u8], lines: usize, len: usize, stride: (usize, usize), radius: usize) {
+    let coverage: Vec<u8> = rgba.iter().skip(3).step_by(4).copied().collect();
+    for line in 0..lines {
+        for at in 0..len {
+            let (lo, hi) = (at.saturating_sub(radius), (at + radius).min(len - 1));
+            let best = (lo..=hi).map(|k| coverage[line * stride.0 + k * stride.1]).max().unwrap_or(0);
+            let index = line * stride.0 + at * stride.1;
+            rgba[index * 4..index * 4 + 4].copy_from_slice(&[255, 255, 255, best]);
+        }
+    }
 }
 
 /// The image stretched horizontally to `factor` times its width, with the alpha interpolated between the source columns.
@@ -211,6 +243,15 @@ mod tests {
             let measured = super::width_units(key, "QUICK RACE", 1.0).expect("a measurable key");
             assert!((measured - from_image).abs() < 1e-3, "{key:#x}: {measured} against {from_image}");
         }
+    }
+
+    #[test]
+    fn bold_thickens_the_strokes_and_keeps_the_size() {
+        let plain = super::render("I", super::PLAIN).expect("the bundled font loads");
+        let bold = super::render("I", super::Look { bold: 3, ..super::PLAIN }).expect("the bundled font loads");
+        assert_eq!((bold.width, bold.height), (plain.width, plain.height));
+        let covered = |image: &super::Image| image.rgba.as_chunks::<4>().0.iter().filter(|px| px[3] > 128).count();
+        assert!(covered(&bold) > covered(&plain) * 3 / 2, "a bold stroke covers clearly more");
     }
 
     #[test]

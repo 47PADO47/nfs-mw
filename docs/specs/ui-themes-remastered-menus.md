@@ -13,7 +13,7 @@ Original these are a row of FEng icons; under Remastered they are a list down th
 ## 1. What is drawn
 
 From the top: a dark shade over the left of the screen; the game's logo (`MW_Logo.tga`, from the install's own textures);
-the title in wide-spaced capitals; the entries, the selected one on a slanted gold bar with a lightning bolt; the footer
+the title in wide-spaced bold capitals, larger than the entries and in the palette's accent colour; the entries, the selected one on a slanted gold bar with a lightning bolt; the footer
 (two thin rules with the key hints between them); and, on the main menu only, the tagline at the bottom right. The
 in-game menus (pause) have no logo, and only the main menu has the tagline ([`MenuStyle`](#3-the-data)).
 
@@ -29,8 +29,7 @@ edge, `-aspect * 240`, so the list stays at the left in any window shape; the fr
 - **Rows.** The first entry sits at the reference's first row and the spacing is the reference's. At most eight entries
   show (`MAX_ROWS`), so the list always ends above the footer. A longer list scrolls: the window keeps its place while the
   selection moves inside it and slides by one entry when the selection passes either end, so the first entry goes and the
-  next becomes the first (`layout::window_start`, kept by `IconMenu::follow` and published as `MenuList::first`). A slim
-  scroll bar right of the list shows where the window is. Keys, pad, wheel and the pointer all move the same selection.
+  next becomes the first (`layout::window_start`, kept by `IconMenu::follow` and published as `MenuList::first`). There is no scroll bar. Keys, pad, wheel and the pointer all move the same selection.
 - **Bar.** A parallelogram, 55 reference pixels high, leaning 23 pixels. Its opacity ramps from almost clear at the left
   to near solid gold at the slanted right end (`BAR_STOPS`, read from the reference). It is drawn as 32 thin strips
   (`blackbox_ui::Slant`).

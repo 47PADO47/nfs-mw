@@ -37,7 +37,7 @@ const fn y_of(pixel: f32) -> f32 {
 /// Where the title and the entries start, from the left edge.
 pub const TEXT_LEFT: f32 = 67.0 * PX;
 pub const ENTRY_SCALE: f32 = 1.88;
-pub const TITLE_SCALE: f32 = 1.72;
+pub const TITLE_SCALE: f32 = 2.15;
 pub const TITLE_Y: f32 = (294.0 - CENTRE_Y_PX) * PX;
 pub const TAGLINE_SCALE: f32 = 1.65;
 /// The tagline's right edge, from the right screen edge, and the y of its two lines.
@@ -90,24 +90,6 @@ pub fn row_at(point: Vec2, shown: usize, aspect: f32) -> Option<usize> {
     }
     (0..shown).find(|&i| (point.y - row_y(i)).abs() <= ROW_PITCH / 2.0)
 }
-
-/// The scroll bar of a list longer than [`MAX_ROWS`]: its x from the left edge, the track's top and height, and the thumb's
-/// top and height for the entry shown first.
-pub fn scroll_bar(first: usize, count: usize) -> Option<(f32, f32, f32, f32, f32)> {
-    if count <= MAX_ROWS {
-        return None;
-    }
-    let top = row_y(0) - ROW_PITCH / 2.0;
-    let height = ROW_PITCH * MAX_ROWS as f32;
-    let thumb = height * MAX_ROWS as f32 / count as f32;
-    let travel = height - thumb;
-    let at = travel * first as f32 / (count - MAX_ROWS) as f32;
-    Some((BAR_RIGHT + SCROLL_GAP, top, height, top + at, thumb))
-}
-
-/// How far the scroll bar sits right of the highlight bar's end, and its width.
-const SCROLL_GAP: f32 = 5.0;
-pub const SCROLL_WIDTH: f32 = 2.0;
 
 /// The logo: from the left edge, the top, and the width. Its height follows the picture's own proportions.
 pub const LOGO_LEFT: f32 = 50.0 * PX;
@@ -233,15 +215,6 @@ mod tests {
         assert_eq!(window_start(4, 3, 12), 3, "past the top: the window slides back");
         assert_eq!(window_start(2, 11, 12), 4, "a jump to the end shows the last entries");
         assert_eq!(window_start(3, 1, 5), 0, "a list that fits never scrolls");
-    }
-
-    #[test]
-    fn the_scroll_bar_shows_only_for_a_long_list_and_its_thumb_follows_the_window() {
-        assert!(scroll_bar(0, MAX_ROWS).is_none());
-        let (_, top, height, thumb_top, thumb) = scroll_bar(0, 16).expect("a long list");
-        assert!((thumb_top - top).abs() < 1e-4 && (thumb - height / 2.0).abs() < 1e-3, "half the list shows");
-        let (_, _, _, end_top, _) = scroll_bar(8, 16).expect("a long list");
-        assert!((end_top + thumb - (top + height)).abs() < 1e-3, "the thumb reaches the bottom at the end");
     }
 
     #[test]

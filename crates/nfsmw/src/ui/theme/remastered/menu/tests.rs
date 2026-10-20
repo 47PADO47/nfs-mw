@@ -147,7 +147,7 @@ fn a_menu_is_placed_from_the_left_edge_of_the_screen() {
 }
 
 #[test]
-fn a_long_list_shows_a_window_of_it_with_a_scroll_bar() {
+fn a_long_list_shows_a_window_of_it_and_no_scroll_bar() {
     let cell = MenuListCell::new();
     let mut long = list(MenuStyle::Sub, 5);
     long.entries = (0..12).map(|i| entry(&format!("Item {i}"), true)).collect();
@@ -161,29 +161,20 @@ fn a_long_list_shows_a_window_of_it_with_a_scroll_bar() {
         (text_at(&nodes, "ITEM 3").world.w_axis.y - row_y(0)).abs() < 1e-3,
         "the window's first entry is the first row"
     );
-    let (_, bar_top, bar_height, _, _) = super::layout::scroll_bar(3, 12).expect("a long list scrolls");
-    let on_bar = nodes
-        .iter()
-        .filter(|n| {
-            matches!(n.kind, NodeKind::Image { texture: 0, .. })
-                && (n.world.x_axis.x - super::layout::SCROLL_WIDTH).abs() < 1e-3
-        })
-        .count();
-    assert_eq!(on_bar, 2, "a track and a thumb");
-    assert!(bar_top < row_y(0) && bar_height > 0.0);
+    let thin = nodes.iter().filter(|n| matches!(n.kind, NodeKind::Image { texture: 0, .. }) && n.world.x_axis.x < 3.0);
+    assert_eq!(thin.filter(|n| n.world.y_axis.y > 100.0).count(), 0, "no tall thin bar beside the list");
 }
 
 #[test]
-fn a_list_that_fits_has_no_scroll_bar() {
+fn the_title_is_bigger_and_bold_in_the_accent_colour() {
     let cell = MenuListCell::new();
     cell.set(ElementId::MainMenu.slot(), list(MenuStyle::Main, 0));
     let nodes = built(ElementId::MainMenu, &cell);
-    let thin = nodes
-        .iter()
-        .filter(|n| {
-            matches!(n.kind, NodeKind::Image { texture: 0, .. })
-                && (n.world.x_axis.x - super::layout::SCROLL_WIDTH).abs() < 1e-3
-        })
-        .count();
-    assert_eq!(thin, 0);
+    let title = text_at(&nodes, "MAIN MENU");
+    let entry = text_at(&nodes, "CAREER");
+    assert!(title.world.y_axis.y > entry.world.y_axis.y, "the title is set larger than the entries");
+    let NodeKind::Text { font, .. } = title.kind else { panic!("the title is text") };
+    assert_eq!(font, crate::ui::raster_text::RASTER_MENU_TITLE_FONT_KEY, "in the bold face");
+    let accent = palette::remastered().secondary;
+    assert_eq!(title.colour, accent, "and in the palette's accent");
 }

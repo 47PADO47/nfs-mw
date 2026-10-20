@@ -8,7 +8,8 @@ use blackbox_ui::{Skin, Tokens};
 use crate::frontend::world_map::control::MAP_ICON_FILES;
 use crate::ui::input_icons;
 use crate::ui::raster_text::{
-    RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY,
+    RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_TITLE_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_MONO_FONT_KEY,
+    RASTER_NUMBER_FONT_KEY,
 };
 
 /// The skin keys the cluster reads. Token-backed keys point directly at `token_keys::*`; custom keys are namespaced
@@ -53,6 +54,9 @@ pub(super) mod keys {
     pub const MENU_TAGLINE: &str = "remastered.menu.tagline";
     pub const FONT_MENU: &str = "remastered.font.menu";
     pub const FONT_MENU_WIDE: &str = "remastered.font.menu_wide";
+    pub const FONT_MENU_TITLE: &str = "remastered.font.menu_title";
+    /// The menu title's colour: the palette's accent.
+    pub const MENU_TITLE: &str = "remastered.menu.title";
     /// The game's logo, and the controller glyph atlas the footer hints draw from.
     pub const LOGO: &str = "remastered.menu.logo";
     pub const ATLAS: &str = "remastered.menu.atlas";
@@ -72,6 +76,7 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_metric(keys::SCALE_BAR_LABEL, 0.7 * scale)
         .with_colour(keys::MENU_BAR, scaled(tokens.secondary, 0.84))
         .with_colour(keys::MENU_BOLT, tokens.secondary)
+        .with_colour(keys::MENU_TITLE, tokens.secondary)
         .with_colour(keys::MENU_TEXT, scaled(tokens.primary, 0.9))
         .with_colour(keys::MENU_TEXT_SELECTED, tokens.primary)
         .with_colour(keys::MENU_TEXT_DISABLED, with_alpha(tokens.primary, 95))
@@ -99,6 +104,7 @@ pub fn skin() -> Skin {
         .with_font(keys::FONT_LEGEND, RASTER_MONO_FONT_KEY)
         .with_font(keys::FONT_MENU, RASTER_MENU_FONT_KEY)
         .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
+        .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
         .with_texture(keys::LOGO, resource_handle("MW_Logo.tga"))
         .with_texture(keys::ATLAS, input_icons::ATLAS);
