@@ -37,6 +37,7 @@ impl WorldScene {
         });
         let mut index = index?;
         let override_groups = std::mem::take(&mut index.override_groups);
+        let group_table = std::mem::take(&mut index.scenery_groups);
         let mut physics = physics?;
         physics.set_sequences(index.sequences.clone());
         let globals = globals?;
@@ -123,7 +124,7 @@ impl WorldScene {
                 speed: 40.0,
             };
             log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
-            Self {
+            let mut scene = Self {
                 detail: Default::default(),
                 garage: garage_catalog,
                 garage_parts: None,
@@ -193,7 +194,7 @@ impl WorldScene {
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 career: Default::default(),
-                scenery_groups: Default::default(),
+                scenery_groups: scenery_groups::SceneryGroups::new(group_table),
                 entry: entry::Entry {
                     zones: entry_zones,
                     popup: Default::default(),
@@ -228,7 +229,9 @@ impl WorldScene {
                 waiting_since: None,
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
-            }
+            };
+            scene.switch_default_scenery_groups();
+            scene
         })))
     }
 }
