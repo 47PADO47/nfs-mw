@@ -77,6 +77,9 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
   bottom edge. `stops` are `(position, opacity)` pairs that multiply the colour's alpha. Laid out in `new`, like `Rounded`.
 - **`Outline::new(colour_key, rect, radius, thickness, cx)`** is the border of a rounded rectangle, built from the same
   thin strips as `Rounded`. Laid out in `new`.
+- **`Ring::new(colour_key, centre, radius, thickness, from, to, cx)`** is an arc of a circle, `from` to `to` degrees
+  clockwise from up (a full ring is 0 to 360), drawn as a quad every 3 degrees along the tangent. A bezel, a gauge sweep
+  or a row of heat segments. Laid out in `new`.
 - **`PillBar::new(style, rect, value, point, cx)`** is a rounded track with a border and a gradient fill from the left up to
   `value` (0 to 1); with `point` the fill starts in a point. `PillStyle` names the three skin colours (`track`, `border`,
   `fill`). A gauge or a slider.
