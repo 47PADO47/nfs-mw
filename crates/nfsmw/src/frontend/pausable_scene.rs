@@ -310,6 +310,14 @@ impl Scene for Pausable {
         frame
     }
 
+    fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
+        let frame = self.inner.siren_frame(dt);
+        if self.concealed() {
+            return None;
+        }
+        frame
+    }
+
     fn take_explosions(&mut self) -> u32 {
         self.inner.take_explosions()
     }
