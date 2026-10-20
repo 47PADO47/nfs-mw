@@ -153,6 +153,9 @@ struct MapParams<'w> {
     mods: Option<NonSend<'w, crate::modding::Mods>>,
 }
 
+/// How long a menu step may take before it is logged as a stall.
+const SLOW_MENU_STEP: std::time::Duration = std::time::Duration::from_millis(250);
+
 #[allow(clippy::too_many_arguments)]
 fn update(
     mut fe: ResMut<Frontend>,
@@ -373,8 +376,15 @@ fn update(
             {
                 fe.screens.post_to_top(super::ids::QUIT_BUTTON, super::ids::MOUSE_LEFT_RELEASED);
             }
+            let started = std::time::Instant::now();
+            let top = fe.screens.top().map(str::to_owned);
             let commands = fe.screens.update(dt, mask, &mut env);
             fe.apply(commands, host, &mut env);
+            // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
+            let took = started.elapsed();
+            if took >= SLOW_MENU_STEP {
+                log::warn!("a menu step took {} ms (on {})", took.as_millis(), top.as_deref().unwrap_or("no screen"));
+            }
         }
     }
 
