@@ -5,6 +5,20 @@ fn no_cast(_: Vec3, _: Vec3) -> Option<Hit> {
     None
 }
 
+#[test]
+fn wall_damage_uses_normal_speed_while_keeping_incoming_linear_velocity() {
+    let mut car = Vehicle::new(VehicleSpec::example());
+    let incoming = Vec3::new(30.0, 0.0, 0.5);
+    car.body_mut().linear_velocity = incoming;
+    let props = |_: Vec3, _: Mat3, _: Vec3| vec![contact(Vec3::Z * 2.0, 0.1, None)];
+    let impact = resolve(&mut car, &no_cast, &props, &WallSpec::default());
+    assert!(impact.impulse > 0.0, "the wall still constrains the scrape");
+    let damage = impact.damage.first().expect("successful world reaction retains its callback");
+    assert!((damage.closing_speed - 0.5).abs() < 1e-6);
+    assert!(damage.closing_speed < 1.0, "fast sliding must not bypass the damage gate");
+    assert_eq!(damage.before_velocity, incoming);
+}
+
 fn contact(point: Vec3, depth: f32, prop: Option<(u32, Option<f32>)>) -> WallContact {
     WallContact {
         point,

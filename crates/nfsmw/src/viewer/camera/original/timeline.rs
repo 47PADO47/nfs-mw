@@ -9,6 +9,9 @@ use super::follow::{BodyInput, Follow, Sample};
 use super::obstruction::{CameraHit, Obstruction};
 use super::{anchor, impacts, noise, projection, underpass, vehicle_avoidance};
 
+#[cfg(test)]
+mod shake_tests;
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoiseControls {
     pub terrain: [f32; 2],
@@ -26,6 +29,7 @@ pub struct PhysicsFrame {
     pub vehicles: Vec<underpass::VehicleBounds>,
     pub noise: NoiseControls,
     pub chopper_positions: Vec<Vec3>,
+    pub explosions: Vec<super::Explosion>,
     pub impacts: Vec<(impacts::Kind, f32)>,
 }
 
@@ -66,6 +70,7 @@ pub struct Timeline {
     underpass: underpass::Underpass,
     anchor: anchor::History,
     impacts: impacts::Impacts,
+    shake: super::shake::Shake,
     consumed_time: f64,
     bodies: VecDeque<BodyKey>,
     real_time: f64,
@@ -104,6 +109,7 @@ impl Timeline {
         self.underpass.reset();
         self.anchor = anchor::History::default();
         self.impacts = impacts::Impacts::default();
+        self.shake = super::shake::Shake::default();
         self.consumed_time = self.simulation_time;
         self.previous = None;
         self.current = None;
@@ -152,6 +158,12 @@ impl Timeline {
             self.consumed_time = time;
             body.collision_damping = self.impacts.advance(STEP as f32)[0];
             body.acceleration = self.anchor.acceleration(body.position, body.forward, body.velocity, STEP as f32);
+            let previous_eye = self.current.map_or(body.position, |key| key.sample.eye);
+            if !frame.custom {
+                self.shake.request(body.acceleration);
+                self.shake.advance(STEP as f32);
+                self.shake.explosions(&input.explosions, previous_eye, STEP as f32);
+            }
             body.zoom = (1.0 - 0.4 * self.zoom) as f32;
             body.look_back = frame.look_back;
             body.up_influence = vehicle_avoidance::up_influence(body.position, body.velocity, &input.avoidables);
@@ -163,7 +175,6 @@ impl Timeline {
                 .map_or(body.forward, |key| (key.sample.target - key.sample.eye).normalize_or(body.forward));
             let under = underpass::under_vehicle(0, body.position, body.velocity, previous_forward, &input.vehicles);
             self.underpass.advance(under, STEP as f32);
-            let previous_eye = self.current.map_or(body.position, |key| key.sample.eye);
             let covered = frame.regions.is_some_and(|zones| super::covered(zones, previous_eye, body.position));
             let chopper_distances: Vec<f32> = input
                 .chopper_positions
@@ -180,6 +191,7 @@ impl Timeline {
                     let Some((_, view)) = frame.view else { continue };
                     let sample = projection::finalize_sample(self.follow.update(mode, view, body, STEP as f32));
                     let (sample, suppress) = self.underpass.apply(mode, sample);
+                    let sample = self.shake.apply(sample);
                     let sample = self.noise.apply(
                         mode,
                         sample,

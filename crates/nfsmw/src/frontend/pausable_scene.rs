@@ -335,7 +335,7 @@ impl Scene for Pausable {
         frame
     }
 
-    fn take_explosions(&mut self) -> u32 {
+    fn take_explosions(&mut self) -> Vec<glam::Vec3> {
         self.inner.take_explosions()
     }
 

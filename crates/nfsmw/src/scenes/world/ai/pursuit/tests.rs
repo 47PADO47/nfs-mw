@@ -24,7 +24,9 @@ use crate::scenes::world::{keys, sun};
 use crate::settings::CarShading;
 
 mod arrest;
+mod destruction;
 mod free_roam;
+mod heat_progress;
 mod installed;
 mod installed_arrest;
 mod installed_route;

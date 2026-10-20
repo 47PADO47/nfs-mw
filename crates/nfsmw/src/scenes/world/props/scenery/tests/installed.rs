@@ -4,6 +4,7 @@ use super::*;
 use crate::scenes::world::{
     drive::{FixedClock, STEP},
     resident::Placed,
+    space,
 };
 use blackbox_scenery::{layout::MOST_WANTED, read_object_spawners, read_scenery_sections};
 use blackbox_vehicle::{FlatGround, Vehicle, VehicleSpec};
@@ -259,13 +260,32 @@ fn installed_gas_pump_explosion_reports_a_petrol_blast() {
     let ground = FlatGround::new(centre.y - 0.5);
     let mut clock = FixedClock::default();
     let mut blasts = Vec::new();
+    let mut audio = crate::scenes::world::explosion_fx::ExplosionFx::default();
+    let mut authored_count = 0;
     for _ in 0..600 {
         for _ in 0..clock.advance(1.0 / 60.0) {
             world.step(&ground, STEP);
             world.update_scenery(&install.data);
-            blasts.extend(world.take_blasts());
+            let fallback = world.take_blasts();
+            let authored = world.take_authored_blasts();
+            assert!(
+                authored.iter().all(|point| !fallback.contains(point)),
+                "an authored blast must not also request the fallback visual/audio path"
+            );
+            authored_count += authored.len();
+            let expected = fallback.len() + authored.len();
+            // Mirror both production channels: authored particles suppress the
+            // fallback visuals, while each physical blast still announces its audio.
+            audio.request(fallback.into_iter().map(|point| space::to_render(point.to_array())));
+            audio.announce_authored(authored.into_iter().map(|point| space::to_render(point.to_array())));
+            let announced = audio.take_started();
+            assert_eq!(announced.len(), expected, "each blast is announced once independently of visual loading");
+            assert!(audio.take_started().is_empty(), "audio announcements drain once");
+            blasts.extend(announced);
         }
     }
     assert!(!blasts.is_empty(), "a gas pump explosion must report a blast point");
-    assert!(blasts.iter().all(|p| p.distance(centre) < 20.0), "the blast starts at the pump, not far away");
+    assert!(authored_count > 0, "installed authored gas-station particles must retain their audio notification");
+    let rendered_centre = space::to_render(centre.to_array());
+    assert!(blasts.iter().all(|p| p.distance(rendered_centre) < 20.0), "the blast starts at the pump, not far away");
 }

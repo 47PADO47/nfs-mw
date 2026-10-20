@@ -9,6 +9,8 @@ pub struct OtherBody {
     pub player: bool,
     pub cop: bool,
     pub no_car_effect: bool,
+    /// Source smackable mass and immobility, independent of temporary contact scaling.
+    pub smackable: Option<(f32, bool)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -18,6 +20,7 @@ pub struct DamageHit {
     pub half: Vec3,
     pub closing_speed: f32,
     pub force: f32,
+    pub shock_force: f32,
     pub before_velocity: Vec3,
     pub other: OtherBody,
 }
@@ -31,17 +34,24 @@ impl DamageHit {
             half: body.dimension(),
             closing_speed,
             force: 0.0,
+            shock_force: 0.0,
             before_velocity: body.linear_velocity,
             other,
         }
     }
 
-    pub fn resolved(mut self, body: &RigidBody, object: bool) -> Self {
-        self.force = (body.linear_velocity - self.before_velocity).length() * body.mass();
+    /// Original normal-impulse callback, excluding restitution and tangential friction.
+    pub fn resolved(mut self, body: &RigidBody, normal_delta_v: f32, object: bool) -> Self {
+        self.force = normal_delta_v * body.mass();
         if object {
             self.force *= 2.0;
         }
         self
+    }
+
+    /// Cop OnImpact eligibility for health and visuals; object shock is applied before this filter.
+    pub fn allows_cop(&self) -> bool {
+        !self.other.no_car_effect && !self.other.smackable.is_some_and(|(mass, immobile)| !immobile && mass <= 2000.0)
     }
 
     /// Order matches DAMAGE_ZONES, including strict half-extent/direction thresholds.

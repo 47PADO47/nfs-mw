@@ -18,9 +18,11 @@ impl Drive {
                 sim.events.as_ref().map(|e| &e.hidden_slots),
                 &revealed,
                 DrawOptions {
+                    damage: sim.events.as_ref().map(|e| e.source_levels()),
                     car: crate::scenes::world::keys::PLAYER_CAR,
                     lamps: [self.headlights, self.brake_lamp > 0.0],
                     detail,
+                    glass: 0,
                 },
                 out,
             );

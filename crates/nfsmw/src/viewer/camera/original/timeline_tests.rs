@@ -45,6 +45,7 @@ fn physical(time: f32) -> PhysicsFrame {
         vehicles: vec![],
         noise: NoiseControls::default(),
         chopper_positions: vec![],
+        explosions: vec![],
         impacts: vec![],
     }
 }

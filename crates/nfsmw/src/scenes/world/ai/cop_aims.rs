@@ -42,7 +42,7 @@ impl super::TrafficWorld {
             out.clear();
             out.resize(self.cars.len(), None);
             for car in &self.cars {
-                car.set_goal_drive(None);
+                car.set_goal_drive(None, None);
             }
             return;
         }
@@ -51,6 +51,10 @@ impl super::TrafficWorld {
         out.clear();
         out.resize(self.cars.len(), None);
         for (me, order) in plans.into_iter().enumerate() {
+            let kind = match order {
+                Plan::Goal(goal) => Some(goal.kind()),
+                _ => None,
+            };
             let (aim, step) = match order {
                 Plan::Chase(aim) => (aim, None),
                 Plan::Goal(goal) => match self.goal_step(me, goal, player, &tuning) {
@@ -58,7 +62,7 @@ impl super::TrafficWorld {
                     None => (None, None),
                 },
             };
-            self.cars[me].set_goal_drive(step);
+            self.cars[me].set_goal_drive(step, kind);
             out[me] = aim.map(|a| Vec3::new(a.x, player.position.y, a.y));
         }
     }

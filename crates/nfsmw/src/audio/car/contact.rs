@@ -14,6 +14,8 @@ pub enum ContactSource {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarContact {
     pub sound_profile: u32,
+    /// None means no owning orientation was available: select AudioFX_DEFAULT.
+    pub audio_zone: Option<nfsmw_data::sound::CollisionZone>,
     pub detached: bool,
     pub source: ContactSource,
     pub identity: u64,

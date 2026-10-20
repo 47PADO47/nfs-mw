@@ -1,6 +1,24 @@
 use super::*;
 use blackbox_vehicle::rigid_body::RigidBodySpec;
 
+#[test]
+fn native_camera_explosions_keep_event_values_axes_and_ignore_physical_target_flags() {
+    let mut world = PropWorld::default();
+    let mut source = wave();
+    source.position = Vec3::new(1.0, 2.0, 3.0);
+    source.spec.include_players = false;
+    source.spec.exclude_vehicles = true;
+    source.spec.exclude_smackables = true;
+    world.scenery.waves.push(source);
+    let snapshots = world.camera_explosions();
+    assert_eq!(snapshots.len(), 1);
+    assert_eq!(snapshots[0].position, Vec3::new(3.0, -1.0, 2.0));
+    assert_eq!(snapshots[0].expansion_speed, 4.0);
+    assert_eq!(snapshots[0].maximum_radius, 16.0);
+    world.scenery.waves[0].complete = true;
+    assert!(world.camera_explosions().is_empty());
+}
+
 fn wave() -> Wave {
     Wave {
         source: 7,

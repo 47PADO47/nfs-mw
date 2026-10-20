@@ -73,10 +73,12 @@ struct Active {
     nitrous: bool,
     /// Live particles after the latest step.
     live: usize,
-    order: Vec<(f32, [Vec3; 4], [u8; 4])>,
+    order: Vec<OrderedSprite>,
     /// The batches handed to the layer by the latest `geometry`: the lane, the texture and the layer's index.
     handed: Vec<(usize, TextureHandle, usize)>,
 }
+
+type OrderedSprite = (f32, [Vec3; 4], [u8; 4], [[f32; 2]; 2]);
 
 enum State {
     /// Nothing is loaded (the setting is off, or the car is new and the next frame loads it).
@@ -216,15 +218,15 @@ impl Active {
                 color = tint_blue(color);
             }
             color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
-            self.order.push(((sprite.position - camera).dot(forward), corners, color));
+            self.order.push(((sprite.position - camera).dot(forward), corners, color, sprite.uv));
         }
         if self.order.is_empty() {
             return false;
         }
         self.order.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
-        for &(_, c, color) in &self.order {
+        for &(_, c, color, uv) in &self.order {
             // The texture's top edge is v = 0: start from the upper-left corner.
-            EffectLayer::particle_quad(&mut lane.vertices, [c[3], c[2], c[1], c[0]], color, [0.0; 2]);
+            EffectLayer::particle_quad_uv(&mut lane.vertices, [c[3], c[2], c[1], c[0]], color, [0.0; 2], uv);
         }
         true
     }

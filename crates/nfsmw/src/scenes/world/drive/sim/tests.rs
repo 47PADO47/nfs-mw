@@ -5,9 +5,11 @@ use nfsmw_data::car::physics::CarBounds;
 use super::*;
 
 mod contact_order;
+mod damage_callbacks;
 mod frame_rate;
 mod geometry;
 mod reactions;
+mod simple_chassis;
 mod traffic_placement;
 
 fn sim() -> CarSim {

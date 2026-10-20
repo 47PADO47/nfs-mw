@@ -28,12 +28,13 @@ pub(super) fn upload_solids(
     let variants: [_; 4] =
         std::array::from_fn(|state| swaps.clone().with_lamp_state(state & 1 != 0, state & 2 != 0, &model.textures));
     let mut parts = Vec::new();
-    let levels = std::iter::once((0, model.placements.as_slice()))
-        .chain(model.driving_lods.levels.iter().map(|l| (l.level, l.placements.as_slice())));
-    for (lod, placements) in levels {
+    let levels = std::iter::once((0, model.placements.as_slice(), false))
+        .chain(model.driving_lods.levels.iter().map(|l| (l.level, l.placements.as_slice(), false)))
+        .chain(model.driving_lods.damage.levels.iter().map(|l| (l.level, l.placements.as_slice(), true)));
+    for (lod, placements, damaged) in levels {
         for (index, p) in placements.iter().enumerate() {
             let key = match lod {
-                0 => index,
+                0 if !damaged => index,
                 _ => model
                     .placements
                     .iter()
@@ -56,7 +57,7 @@ pub(super) fn upload_solids(
                 })
             });
             let Some(mesh) = lamps[1] else { continue };
-            parts.push(Part { mesh, lamps: lamps.map(|m| m.unwrap_or(mesh)), placement: p.clone(), key, lod });
+            parts.push(Part { mesh, lamps: lamps.map(|m| m.unwrap_or(mesh)), placement: p.clone(), key, lod, damaged });
         }
     }
     parts.sort_by_key(|p| p.mesh);

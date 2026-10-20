@@ -301,9 +301,9 @@ pub trait Scene {
     fn rotor_frame(&mut self, _dt: f32) -> Option<crate::audio::HeliFrame> {
         None
     }
-    /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
-    fn take_explosions(&mut self) -> u32 {
-        0
+    /// Positions of petrol-station blasts since the last call, in render space.
+    fn take_explosions(&mut self) -> Vec<glam::Vec3> {
+        Vec::new()
     }
     /// The sound viewer's transport, when the scene has one: the audio plugin plays what it asks for.
     fn sound_preview(&self) -> Option<crate::audio::preview::Preview> {

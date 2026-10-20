@@ -22,6 +22,8 @@ impl CarSim {
     /// otherwise rolls free, with no idle braking and no reversing by itself.
     pub fn configure_trailer(&mut self) {
         self.configure_ai();
+        // Trailers use their separate suspension behavior in the original.
+        self.vehicle.set_simple_chassis(None);
         self.vehicle.config.auto_brake = false;
         self.vehicle.config.auto_reverse = false;
     }

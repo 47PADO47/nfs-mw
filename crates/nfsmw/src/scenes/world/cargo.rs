@@ -9,6 +9,7 @@ use nfsmw_data::world::sequences::WorldEvent;
 
 use super::drive::{CarRig, CarSim};
 use super::props::{FragmentSpawn, PropWorld};
+mod particles;
 
 pub fn update(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld, data: &PhysicsData, view: Vec3) {
     update_with(sim, props, data, view, |slot| {
@@ -34,6 +35,20 @@ fn update_with(
     for effect in events.tick(distance) {
         let fragment = match effect.event {
             WorldEvent::Fragment(fragment) => fragment,
+            WorldEvent::ObjectEffect(particle) => {
+                particles::play(
+                    props,
+                    &geometry,
+                    particles::Context {
+                        parent,
+                        velocity: effect.velocity.unwrap_or(velocity.0),
+                        model,
+                        owner: Rc::downgrade(&events.owner),
+                    },
+                    particle,
+                );
+                continue;
+            }
             other => {
                 log::debug!("vehicle event effect not yet implemented: {other:?}");
                 continue;

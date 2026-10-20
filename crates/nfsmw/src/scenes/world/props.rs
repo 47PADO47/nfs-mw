@@ -2,14 +2,19 @@
 
 mod body;
 mod contact;
+mod effects;
 mod fragments;
 mod ground;
 mod lifetime;
 mod obb;
 mod original_camera;
+mod pairs;
+mod phases;
 pub(super) mod scenery;
+mod sounds;
 #[cfg(test)]
 mod tests;
+mod world_contacts;
 
 use body::PropBody;
 pub use fragments::FragmentSpawn;
@@ -44,9 +49,22 @@ struct Collider {
     original_bounds: Aabb,
     body: Option<PropBody>,
     cells: Vec<Cell>,
+    effect_owner: u64,
+    effect_lifetime: std::rc::Rc<()>,
 }
 
 impl Collider {
+    /// Source object eligibility is independent of ground and world collision channels.
+    fn can_collide_with_objects(&self) -> bool {
+        self.collidable
+            && self.body.as_ref().is_none_or(|body| {
+                !body.lifetime.sinking
+                    && body.rigid.state != BodyState::Frozen
+                    && !body.geometry.primitives.is_empty()
+                    && !self.shape.dynamics.as_ref().is_some_and(|spec| spec.no_object_collisions)
+            })
+    }
+
     /// Broad phase covers the collision geometry even when visual bounds are smaller.
     fn physics_bounds(&self) -> Aabb {
         let Some(body) = &self.body else {
@@ -101,6 +119,10 @@ pub struct PropWorld {
     lifetime_scratch: Vec<u32>,
     candidate_scratch: Vec<u32>,
     contact_scratch: Vec<GroundContact>,
+    barrier_scratch: Vec<blackbox_collision::WorldBarrier>,
+    /// Prop-owned callbacks awaiting their completed fixed-tick audio record.
+    sound_contacts: Vec<CarContact>,
+    effect_contacts: Vec<super::impact_effects::Contact>,
 }
 
 /// The grid cells under `bounds`, x-major, without allocating.
@@ -144,6 +166,8 @@ impl PropWorld {
                     original_bounds: p.bounds,
                     body,
                     cells: Vec::new(),
+                    effect_owner: super::impact_effects::next_owner(),
+                    effect_lifetime: std::rc::Rc::new(()),
                 },
             );
             self.regrid(id);
@@ -175,7 +199,7 @@ impl PropWorld {
 
     fn regrid(&mut self, id: u32) {
         let Some(c) = self.colliders.get(&id) else { return };
-        let bounds = match !c.collidable || c.body.as_ref().is_some_and(|b| b.lifetime.sinking) {
+        let bounds = match !c.can_collide_with_objects() {
             true => None,
             false => Some(c.physics_bounds()),
         };
@@ -293,92 +317,6 @@ impl PropWorld {
         Some(PropOverlap { id, kind: c.shape.kind, normal, depth })
     }
 
-    /// One world tick; fallen props keep their render/collision identity.
-    pub fn step(&mut self, ground: &dyn Ground, dt: f32) {
-        let _span = bevy_log::info_span!("world::props_step").entered();
-        self.knocked.retain(|_, left| {
-            *left -= dt;
-            *left > 0.0
-        });
-        self.remove_orphaned_fragments();
-        self.advance_explosions(dt);
-        let mut active = std::mem::take(&mut self.active_scratch);
-        active.clear();
-        for (&id, c) in &mut self.colliders {
-            let Some(b) = c.body.as_mut() else { continue };
-            b.previous = (b.rigid.position, b.rigid.orientation);
-            b.object_contact = false;
-            if b.rigid.state != BodyState::Awake || b.attached || b.lifetime.sinking {
-                continue;
-            }
-            ground::step(b, ground, dt, &mut self.contact_scratch);
-            active.push(id);
-        }
-        active.sort_unstable();
-        for &id in &active {
-            self.regrid(id);
-        }
-        self.collide_props(&active);
-        self.active_scratch = active;
-    }
-
-    fn collide_props(&mut self, active: &[u32]) {
-        // Sorted and deduplicated, so the pair order is the same as the BTreeSet it replaces.
-        let mut pairs = std::mem::take(&mut self.pair_scratch);
-        let mut others = std::mem::take(&mut self.candidate_scratch);
-        pairs.clear();
-        for &id in active {
-            let bounds = self.colliders[&id].physics_bounds();
-            self.candidates(&bounds, &mut others);
-            for &other in &others {
-                if id == other {
-                    continue;
-                }
-                pairs.push((id.min(other), id.max(other)));
-            }
-        }
-        self.candidate_scratch = others;
-        pairs.sort_unstable();
-        pairs.dedup();
-        for &(a, b) in &pairs {
-            let (Some(pa), Some(pb)) = (&self.colliders[&a].body, &self.colliders[&b].body) else { continue };
-            let counts =
-                [contact::shape_count(Some(pa.geometry_frame())), contact::shape_count(Some(pb.geometry_frame()))];
-            for i in 0..counts[0] {
-                for j in 0..counts[1] {
-                    let [Some(ca), Some(cb)] = self.colliders.get_disjoint_mut([&a, &b]) else { continue };
-                    let (Some(pa), Some(pb)) = (&mut ca.body, &mut cb.body) else { continue };
-                    let (Some(sa), Some(sb)) = (&ca.shape.dynamics, &cb.shape.dynamics) else { continue };
-                    let first = contact::shape(&pa.rigid, Some(pa.geometry_frame()), i).unwrap();
-                    let second = contact::shape(&pb.rigid, Some(pb.geometry_frame()), j).unwrap();
-                    let Some(c) = first.contact(&second) else { continue };
-                    let attached = [pa.attached, pb.attached];
-                    let closing = (pa.rigid.point_velocity(c.point) - pb.rigid.point_velocity(c.point)).length();
-                    let ha = contact::parameters(&pa.rigid, c.normal, sa, pa.attached);
-                    let hb = contact::parameters(&pb.rigid, -c.normal, sb, pb.attached);
-                    let response = contact::resolve(&mut pa.rigid, &mut pb.rigid, c, ha, hb, Separation::NormalSpeed);
-                    let Some(response) = response else { continue };
-                    pa.lifetime.activate(sa);
-                    pb.lifetime.activate(sb);
-                    lifetime::track_lifetime(&mut self.live_lifetimes, a);
-                    lifetime::track_lifetime(&mut self.live_lifetimes, b);
-                    pa.object_contact = true;
-                    pb.object_contact = true;
-                    let [ia, ib] = response.immobile;
-                    pa.attached &= ia;
-                    pb.attached &= ib;
-                    pa.moved |= !ia;
-                    pb.moved |= !ib;
-                    self.contact_event(a, attached[0], closing);
-                    self.contact_event(b, attached[1], closing);
-                }
-            }
-            self.regrid(a);
-            self.regrid(b);
-        }
-        self.pair_scratch = pairs;
-    }
-
     /// A vehicle transfers impulses to resident bodies, including previously fallen ones.
     pub fn collide_vehicle(
         &mut self,
@@ -410,21 +348,29 @@ impl PropWorld {
                     let velocity = vehicle.body().point_velocity(hit.point);
                     let was_attached = p.attached;
                     let closing = (velocity - p.rigid.point_velocity(hit.point)).length();
-                    let damage = DamageHit::capture(
+                    let mut damage = DamageHit::capture(
                         vehicle.body(),
                         hit.point,
                         hit.normal,
                         closing,
-                        OtherBody { no_car_effect: spec.no_car_effect, ..Default::default() },
+                        OtherBody {
+                            no_car_effect: spec.no_car_effect,
+                            smackable: Some((spec.mass, spec.immobile)),
+                            ..Default::default()
+                        },
                     );
                     let mut car = contact::material(vehicle.body(), hit.normal);
-                    car.immobile = spec.no_car_effect && !p.attached && !spec.immobile;
+                    let vehicle_immobile = vehicle.body().spec().objects.immobile;
+                    car.immobile = vehicle_immobile || (spec.no_car_effect && !p.attached && !spec.immobile);
                     vehicle.modify_object_hit(&mut car);
-                    let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached);
+                    let prop = contact::parameters(&p.rigid, -hit.normal, spec, p.attached, vehicle_immobile);
                     let relative = vehicle.body().point_velocity(hit.point) - p.rigid.point_velocity(hit.point);
                     let rot = vehicle.body().rotation();
                     let sound = CarContact {
                         sound_profile: 0,
+                        audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
+                            rot.transpose() * hit.normal,
+                        )),
                         detached: false,
                         source: ContactSource::Object,
                         identity: u64::from(id),
@@ -442,19 +388,53 @@ impl PropWorld {
                     lifetime::track_lifetime(&mut self.live_lifetimes, id);
                     p.object_contact = true;
                     let prop_immobile = response.immobile[1];
-                    impact.damage.push(damage.resolved(vehicle.body(), true));
+                    damage.arm = vehicle.body().rotation().transpose() * (hit.point - vehicle.body().position);
+                    damage.closing_speed = response.reaction.closing_speed.abs();
+                    damage.shock_force = response.reaction.impulse;
+                    damage.other.smackable = Some((spec.mass, spec.immobile || (p.attached && prop_immobile)));
+                    impact.damage.push(damage.resolved(vehicle.body(), response.notification_delta_v[0], true));
                     p.attached &= prop_immobile;
                     p.moved |= !prop_immobile;
-                    let delta_v = response.impulse_delta_v[0];
+                    impact.effects.push(super::impact_effects::RawContact::new(
+                        super::impact_effects::Kind::Object,
+                        second.surface,
+                        hit.point,
+                        hit.normal,
+                        relative,
+                        response.notification_delta_v[0],
+                        vehicle.body().linear_velocity,
+                    ));
+                    let mut raw = super::impact_effects::RawContact::new(
+                        super::impact_effects::Kind::Object,
+                        first.surface,
+                        hit.point,
+                        -hit.normal,
+                        -relative,
+                        response.notification_delta_v[1],
+                        p.rigid.linear_velocity,
+                    );
+                    raw.detached = was_attached && !p.attached;
+                    raw.detached_normal = hit.normal;
+                    effects::push(
+                        &mut self.effect_contacts,
+                        spec.sound_profile,
+                        c.effect_owner,
+                        &c.effect_lifetime,
+                        raw,
+                    );
+                    let delta_v = response.notification_delta_v[0];
                     impact.sounds.push(CarContact { delta_v, ..sound });
                     if spec.sound_profile != 0 {
                         impact.sounds.push(CarContact {
                             sound_profile: spec.sound_profile,
+                            audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
+                                p.rigid.rotation().transpose() * -hit.normal,
+                            )),
                             detached: was_attached && !p.attached,
                             surface: first.surface,
                             normal: -hit.normal,
                             velocity: -relative,
-                            delta_v: response.impulse_delta_v[1],
+                            delta_v: response.notification_delta_v[1],
                             front: false,
                             ..sound
                         });
@@ -465,8 +445,8 @@ impl PropWorld {
                     };
                     impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
                     impact.contacts.push(ContactPoint { point: hit.point, normal: hit.normal, kind });
-                    if delta_v > 0.0 {
-                        vehicle.notify_collision(delta_v);
+                    if response.impulse_delta_v[0] > 0.0 {
+                        vehicle.notify_collision(response.impulse_delta_v[0]);
                     }
                     self.contact_event(id, was_attached, closing);
                 }

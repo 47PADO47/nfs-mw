@@ -1,6 +1,6 @@
 //! Ordinary textured particles; implementation of `pc-collision-particles.md`.
 
-use glam::{EulerRot, Quat, Vec3};
+use glam::{EulerRot, Mat3, Quat, Vec3};
 use nfsmw_data::vehicle_effects::PcEmitter;
 
 use super::particle::uniform;
@@ -20,7 +20,11 @@ pub(super) struct PcParticle {
 }
 
 impl PcParticle {
+    #[cfg(test)]
     pub fn spawn(p: PcEmitter, point: Vec3, rotation: Quat, owner: Vec3, seed: u64) -> Self {
+        Self::spawn_frame(p, point, Mat3::from_quat(rotation), owner, seed)
+    }
+    pub fn spawn_frame(p: PcEmitter, point: Vec3, rotation: Mat3, owner: Vec3, seed: u64) -> Self {
         let u = |slot| uniform(seed, slot);
         let sample = |value: f32, variance: f32, slot| value * (1.0 - variance + variance * u(slot));
         let vector = |slot| Vec3::new(u(slot), u(slot + 1), u(slot + 2));

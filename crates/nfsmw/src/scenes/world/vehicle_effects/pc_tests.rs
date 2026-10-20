@@ -146,3 +146,33 @@ fn pc_delay_and_off_cycle_stop_emitting_without_birth_debt() {
     assert_eq!(s.births(0.01), 0);
     assert_eq!(s.births(0.01), 0);
 }
+
+#[test]
+fn source_contact_zero_intensity_holds_native_delay_and_does_not_create_one_shot_clocks() {
+    let mut p = profile();
+    p.delay = 0.03;
+    p.rate = 200.0;
+    let link = nfsmw_data::vehicle_effects::PcSparkLink {
+        min: 0.0,
+        max: 1.0,
+        emitters: std::array::from_fn(|i| (i == 0).then_some(p)),
+        quadratic: [0.0, 1.0, 0.0, 0.0],
+        inherit_velocity: 0.25,
+    };
+    let mut particles = super::pc_sparks::PcSparks::default();
+    particles.submit(Vec3::ZERO, Vec3::Y, link, Vec3::X * 4.0, 0.0, true);
+    assert!(!particles.pending(), "zero mapped one-shot intensity creates no native group");
+    particles.submit(Vec3::ZERO, Vec3::Y, link, Vec3::X * 4.0, 0.0, false);
+    for _ in 0..10 {
+        particles.update(0.01);
+    }
+    assert_eq!(particles.emitted, 0);
+    particles.submit(Vec3::ZERO, Vec3::Y, link, Vec3::X * 4.0, 1.0, false);
+    particles.update(0.01);
+    particles.update(0.01);
+    assert_eq!(particles.emitted, 0, "disabled time cannot advance the authored start delay");
+    for _ in 0..2 {
+        particles.update(0.01);
+    }
+    assert!(particles.emitted > 0, "the native clock resumes after its unchanged delay");
+}
