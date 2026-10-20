@@ -1,10 +1,10 @@
 //! The `speech` console command.
 
-use super::{Outcome, Speech};
+use super::{Outcome, Param, Speech, SpeechParams};
 use crate::audio::Audio;
 
 /// Usage line, for the error of a mistyped command.
-const USAGE: &str = "speech [status|list|say <event> [speaker]|play <event> [speaker]|bank <n> [take]|stop|reset]";
+const USAGE: &str = "speech [status|list|say <event> [speaker] [param=n ...]|play <event> [speaker] [param=n ...]|     bank <n> [take]|stop|reset]; params are named as in the game (car_color, direction, ...), n a bit value";
 
 /// Run `speech <args>`.
 pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
@@ -13,11 +13,11 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
     match args {
         [] | ["status"] => Ok(status(speech, device)),
         ["list"] => Ok(list(speech)),
-        ["say", event] | ["say", event, _] => {
+        ["say", event, rest @ ..] => {
             let id = resolve(speech, event)?;
-            let speaker = speaker_of(args.get(2))?;
+            let (speaker, params) = request_of(rest)?;
             let name = speech.dispatcher().event(id).map(|e| e.name.clone()).unwrap_or_default();
-            Ok(match speech.request(id, speaker) {
+            Ok(match speech.request_with(id, speaker, params) {
                 Outcome::Queued => format!("{name} is queued{device}"),
                 Outcome::Refreshed => format!("{name} was waiting already: its wait starts over"),
                 Outcome::Unknown => format!("no speech event {id}"),
@@ -25,9 +25,10 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
                 Outcome::Thinned => format!("{name} was dropped at random (pursuit thinning)"),
             })
         }
-        ["play", event] | ["play", event, _] => {
+        ["play", event, rest @ ..] => {
             let id = resolve(speech, event)?;
-            let secs = speech.play_now(id, speaker_of(args.get(2))?)?;
+            let (speaker, params) = request_of(rest)?;
+            let secs = speech.play_now(id, speaker, &params)?;
             Ok(format!("playing {event} ({secs:.2} s){device}"))
         }
         ["bank", bank] | ["bank", bank, _] => bank_command(speech, bank, args.get(2), device),
@@ -43,9 +44,23 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
     }
 }
 
-fn speaker_of(arg: Option<&&str>) -> Result<u16, String> {
-    let Some(arg) = arg else { return Ok(0) };
-    arg.parse().map_err(|_| format!("{arg:?} is not a speaker number (1 to 9)"))
+/// The speaker (a bare number) and parameters (`name=value`, value decimal or `0x` hex) after an event.
+fn request_of(args: &[&str]) -> Result<(u16, SpeechParams), String> {
+    let mut speaker = 0;
+    let mut params = SpeechParams::new();
+    for arg in args {
+        let Some((name, value)) = arg.split_once('=') else {
+            speaker = arg.parse().map_err(|_| format!("{arg:?} is not a speaker number (1 to 9) or name=value"))?;
+            continue;
+        };
+        let param = Param::from_name(name).ok_or_else(|| format!("{name:?} is not a speech parameter"))?;
+        let parsed = match value.strip_prefix("0x") {
+            Some(hex) => u32::from_str_radix(hex, 16),
+            None => value.parse(),
+        };
+        params.set(param, parsed.map_err(|_| format!("{value:?} is not a number"))?);
+    }
+    Ok((speaker, params))
 }
 
 /// An event by name or number.
@@ -88,7 +103,7 @@ fn list(speech: &Speech) -> String {
     d.events()
         .iter()
         .map(|e| {
-            let voice = if speech.lines().has(e.id) { "voice" } else { "     " };
+            let voice = if speech.lines().says(e.id) { "voice" } else { "     " };
             let how = if e.interrupt { "interrupt" } else { "         " };
             format!("{:4} {voice} {how} p{:<3} {}", e.id, e.priority, e.name)
         })

@@ -5,11 +5,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use ea_audio::Pcm;
+use ea_audio::speech::Params;
 use nfsmw_data::speech::SpeechTune;
 
 use super::event;
+use crate::audio::speech::params::values::{pursuit_type, speaker_battalion};
 use crate::audio::speech::random::Rng;
-use crate::audio::speech::{Lines, Outcome, Sink, Speech};
+use crate::audio::speech::{Lines, Outcome, Param, Sink, Speech, SpeechParams};
 
 /// What the fake output was asked to do.
 #[derive(Default)]
@@ -46,15 +48,19 @@ impl Sink for FakeSink {
     }
 }
 
+/// What the recordings were asked for: (event, speaker, numbered parameters).
+type Asked = Rc<RefCell<Vec<(u32, u16, Params)>>>;
+
 /// Recordings by event: the marker sample of the line.
-struct FakeLines(HashMap<u32, i16>);
+struct FakeLines(HashMap<u32, i16>, Asked);
 
 impl Lines for FakeLines {
     fn has(&self, event: u32) -> bool {
         self.0.contains_key(&event)
     }
 
-    fn take(&mut self, event: u32, _speaker: u16) -> Result<Pcm, String> {
+    fn take(&mut self, event: u32, speaker: u16, params: &Params) -> Result<Pcm, String> {
+        self.1.borrow_mut().push((event, speaker, *params));
         let marker = self.0.get(&event).ok_or("no recording")?;
         Ok(Pcm { sample_rate: 1000, channels: 1, samples: vec![*marker; 500], loop_range: None })
     }
@@ -78,7 +84,7 @@ fn speech() -> (Speech, Rc<RefCell<Log>>) {
         }),
         event(3, |_| {}),
     ];
-    let lines = FakeLines(HashMap::from([(1, 11), (2, 22)]));
+    let lines = FakeLines(HashMap::from([(1, 11), (2, 22)]), Asked::default());
     let speech =
         Speech::new(events, SpeechTune::default(), Box::new(lines), Box::new(FakeSink(log.clone())), Rng::new(1));
     (speech, log)
@@ -141,11 +147,34 @@ fn a_line_can_be_played_by_hand_over_the_one_in_progress() {
     let (mut speech, log) = speech();
     speech.request(1, 0);
     run(&mut speech, 0.5);
-    let secs = speech.play_now(2, 0).unwrap();
+    let secs = speech.play_now(2, 0, &SpeechParams::new()).unwrap();
     assert!((secs - 0.5).abs() < 1e-6);
     assert_eq!(log.borrow().started, [11, 22]);
-    assert!(speech.play_now(3, 0).is_err());
+    assert!(speech.play_now(3, 0, &SpeechParams::new()).is_err());
     let secs = speech.play_take(4, 2).unwrap();
     assert!((secs - 0.25).abs() < 1e-6);
     assert_eq!(log.borrow().started.last(), Some(&42));
+}
+
+#[test]
+fn the_parameters_of_a_request_reach_the_recordings_numbered_for_the_event() {
+    let asked = Asked::default();
+    let log = Rc::new(RefCell::new(Log::default()));
+    let attempt = event(154, |e| {
+        e.name = "setup_attmptvehstp".into();
+        e.enforce_dead_air = 0.0;
+    });
+    let lines = FakeLines(HashMap::from([(154, 5)]), asked.clone());
+    let mut speech =
+        Speech::new(vec![attempt], SpeechTune::default(), Box::new(lines), Box::new(FakeSink(log)), Rng::new(1));
+    let params = SpeechParams::new()
+        .with(Param::PursuitType, pursuit_type::RECKLESS)
+        .with(Param::SpeakerBattalion, speaker_battalion::CITY);
+    assert_eq!(speech.request_with(154, 4, params), Outcome::Queued);
+    run(&mut speech, 0.5);
+    let asked = asked.borrow();
+    let (event, speaker, numbered) = &asked[0];
+    // Argument order of the event: speaker, pursuit_type, num_suspects, speaker_battalion, speaker_call_sign_id.
+    assert_eq!((*event, *speaker), (154, 4));
+    assert_eq!([1, 2, 3, 4, 5].map(|n| numbered.get(n)), [Some(4), Some(8), None, Some(4), None]);
 }

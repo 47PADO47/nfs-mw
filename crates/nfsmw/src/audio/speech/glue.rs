@@ -3,7 +3,7 @@
 use kira::track::TrackBuilder;
 
 use super::random::Rng;
-use super::{Context, Files, KiraSink, Outcome, Speech};
+use super::{Context, Files, KiraSink, Outcome, Speech, SpeechParams};
 use crate::audio::Audio;
 
 /// The speech of an [`Audio`]: not loaded yet, failed to load, or ready; and the volume it will have.
@@ -86,12 +86,28 @@ impl Audio {
         }
     }
 
-    /// Ask for a speech event (by its `SpeechID`) to be said by `speaker` (1 to 9; 0 for any).
+    /// Ask for a speech event (by its `SpeechID`) to be said by `speaker` (1 to 9; 0 for any), in any variant of its
+    /// wording. Use [`Audio::say_with`] when the situation is known.
     pub fn say(&mut self, event: u32, speaker: u16) -> Result<Outcome, String> {
         if self.speech.volume <= super::AUDIBLE {
             return Ok(Outcome::Muted);
         }
         Ok(self.speech()?.request(event, speaker))
+    }
+
+    /// Ask for a speech event (by its `SpeechID`) to be said by `speaker` (1 to 9; 0 for any), worded for the
+    /// situation `params` describes: the entry point for the flows that watch the pursuit.
+    ///
+    /// `params` names the event's parameters as the game's speech interface does (`Param::CarColor`,
+    /// `Param::Direction`, ...; the values are in [`super::params::values`] and the argument list of each event in
+    /// [`super::params::signature`]). A parameter left out lets any variant through; the speaker is not a parameter,
+    /// it is the second argument. The request is then queued and judged like any other (`docs/specs/speech.md`).
+    #[allow(dead_code)] // The pursuit flows that call it come in a later change; the console uses `request_with`.
+    pub fn say_with(&mut self, event: u32, speaker: u16, params: SpeechParams) -> Result<Outcome, String> {
+        if self.speech.volume <= super::AUDIBLE {
+            return Ok(Outcome::Muted);
+        }
+        Ok(self.speech()?.request_with(event, speaker, params))
     }
 
     /// The state of the pursuit the speech rules look at: the wanted level, the player's speed in miles per hour

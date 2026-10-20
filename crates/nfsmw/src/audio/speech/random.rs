@@ -36,3 +36,9 @@ impl Rng {
         (self.next_u64() % n as u64) as usize
     }
 }
+
+impl ea_audio::speech::Random for Rng {
+    fn below(&mut self, n: usize) -> usize {
+        Rng::below(self, n)
+    }
+}
