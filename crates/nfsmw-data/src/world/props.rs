@@ -84,6 +84,11 @@ impl PropCatalog {
         self.hierarchies.get(&key).cloned()
     }
 
+    /// The hierarchy of the model called `name` (the scenery info's hierarchy hash is the hash of the upper-case name).
+    pub fn hierarchy_of(&self, name: &str) -> Option<Arc<blackbox_scenery::ModelHierarchy>> {
+        self.hierarchy(blackbox_hash::bstring_hash(&name.to_ascii_uppercase()))
+    }
+
     pub fn len(&self) -> usize {
         self.sets.len()
     }

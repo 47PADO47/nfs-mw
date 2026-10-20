@@ -23,6 +23,8 @@ pub struct PlacedSpawn {
     pub instances: Vec<Instance>,
     /// The prop lives while this handle's owner does.
     pub owner: Weak<()>,
+    /// The model's hierarchy and the meshes of its parts, when its event sequence releases fragments (a sawhorse).
+    pub parts: Option<Arc<super::scenery::ModelParts>>,
 }
 
 /// The spawner record a map would hold for a model standing at `model` (render space): physics-space position and the
@@ -51,7 +53,14 @@ impl PropWorld {
     pub fn spawn_placed(&mut self, spawn: PlacedSpawn) -> Option<u32> {
         let spawner = spawner_for(&spawn.model);
         let body = PropBody::new(&spawner, &spawn.bounds, &spawn.spec, spawn.model)?;
-        self.insert_fragment_with(body, spawn.spec, spawn.instances, spawn.owner, true)
+        let model = spawn.parts.map(|parts| {
+            super::scenery::SceneryModel::runtime(parts, spawn.bounds.clone(), &spawn.spec, spawn.owner.clone())
+        });
+        let id = self.insert_fragment_with(body, spawn.spec, spawn.instances, spawn.owner, true)?;
+        if let Some(model) = model {
+            self.scenery.models.insert(id, model);
+        }
+        Some(id)
     }
 }
 

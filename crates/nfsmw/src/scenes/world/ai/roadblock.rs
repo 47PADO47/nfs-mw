@@ -77,6 +77,16 @@ impl TrafficWorld {
         self.roadblocks.kit = Some(props::Kit::new(spike, sawhorse));
     }
 
+    /// The parts a sawhorse's sequence releases when it breaks (from the shared scenery).
+    pub(in crate::scenes::world) fn set_sawhorse_parts(
+        &mut self,
+        parts: Option<std::sync::Arc<crate::scenes::world::props::scenery::ModelParts>>,
+    ) {
+        if let Some(kit) = self.roadblocks.kit.as_mut() {
+            kit.set_sawhorse_parts(parts);
+        }
+    }
+
     /// The strips of the roadblocks drawn from their model; the strips of a world without the model are drawn by
     /// `spike_geometry`.
     pub fn roadblock_instances(&self, out: &mut Vec<blackbox_render::Instance>) {

@@ -14,6 +14,7 @@ use glam::{Mat4, Vec3};
 use nfsmw_data::world::{PropCatalog, PropDynamics};
 
 use crate::scenes::world::drive::{CarPose, CarRig};
+use crate::scenes::world::props::scenery::ModelParts;
 use crate::scenes::world::props::{PlacedSpawn, PropWorld};
 use crate::scenes::world::space;
 
@@ -28,13 +29,20 @@ pub(in crate::scenes::world::ai) struct Kit {
     spike: Rc<CarRig>,
     /// The sawhorse's meshes in its own frame, as the prop world draws a body.
     sawhorse_local: Vec<Instance>,
+    /// The sawhorse's fragments, for its event sequence (the hierarchy of `SAWHORSE_MODEL`).
+    sawhorse_parts: Option<Arc<ModelParts>>,
 }
 
 impl Kit {
     pub fn new(spike: Rc<CarRig>, sawhorse: Rc<CarRig>) -> Self {
         let mut sawhorse_local = Vec::new();
         sawhorse.instances(&pose(Mat4::IDENTITY), None, &BTreeSet::new(), &mut sawhorse_local);
-        Self { spike, sawhorse_local }
+        Self { spike, sawhorse_local, sawhorse_parts: None }
+    }
+
+    /// The parts the sawhorse's sequence releases when it breaks.
+    pub fn set_sawhorse_parts(&mut self, parts: Option<Arc<ModelParts>>) {
+        self.sawhorse_parts = parts;
     }
 
     /// The spike strip drawn at `frame` (render space).
@@ -89,7 +97,14 @@ impl Kit {
         owner: Weak<()>,
     ) -> Option<u32> {
         let (bounds, spec) = physics.sawhorse.clone()?;
-        props.spawn_placed(PlacedSpawn { bounds, spec, model: frame, instances: self.sawhorse_local.clone(), owner })
+        props.spawn_placed(PlacedSpawn {
+            bounds,
+            spec,
+            model: frame,
+            instances: self.sawhorse_local.clone(),
+            owner,
+            parts: self.sawhorse_parts.clone(),
+        })
     }
 }
 

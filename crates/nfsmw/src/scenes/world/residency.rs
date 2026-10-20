@@ -12,6 +12,7 @@ use super::props::PropWorld;
 use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
 use super::zone::Zones;
 mod loading;
+mod parts;
 mod shadow_support;
 mod texture_detail;
 mod traffic_support;
