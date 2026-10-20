@@ -1,18 +1,12 @@
 //! The icon menu as a list: what a theme that draws it vertically (the Remastered menus) reads and does. The package
 //! still supplies the order of the entries and the messages; this is the part that is not its icons.
 
-use super::{Category, Cx, IconMenu, Id, Kind};
-use crate::settings::UiStyle;
+use super::{Category, Cx, IconMenu, Id, Kind, Pick};
 use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
 impl IconMenu {
-    /// Whether the Remastered theme draws this menu: the setting names it and no mod theme took over.
-    pub(super) fn themed(cx: &Cx) -> bool {
-        cx.settings.ui_style == UiStyle::Remastered && cx.mods.is_none_or(|mods| mods.ui_theme_choice().is_none())
-    }
-
     /// The label of the menu's title, as the package's title object shows it.
     pub(super) fn title_label(&self) -> u32 {
         match self.kind {
@@ -36,7 +30,7 @@ impl IconMenu {
     }
 
     /// The pointer is over (`activate` false) or pressed (`activate` true) the entry `row` of the vertical list.
-    pub(super) fn pick(&mut self, cx: &mut Cx, row: usize, activate: bool) {
+    pub(super) fn pick(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         if !self.reacts || row >= self.icons.len() {
             return;
         }
@@ -44,7 +38,7 @@ impl IconMenu {
         if strip != self.selected {
             self.select(cx, strip);
         }
-        if activate {
+        if matches!(pick, Pick::Press(_)) {
             self.press(cx);
         }
     }
@@ -67,7 +61,7 @@ impl IconMenu {
             .map(|icon| {
                 let label =
                     Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve(assets)).unwrap_or_default();
-                MenuEntry { label, enabled: icon.enabled }
+                MenuEntry::plain(label, icon.enabled)
             })
             .collect();
         let style = match self.kind {
@@ -82,6 +76,7 @@ impl IconMenu {
             first: self.top,
             hints: Vec::new(),
             style,
+            nudge: None,
             aspect: DEFAULT_ASPECT,
         })
     }

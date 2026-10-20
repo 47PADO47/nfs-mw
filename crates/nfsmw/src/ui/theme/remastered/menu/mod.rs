@@ -6,6 +6,7 @@
 //! [`layout`] holds the places, shared with the frontend's hit tests.
 
 pub mod layout;
+mod value;
 
 use blackbox_ui::{Component, DrawList, Image, LayoutCx, Outline, Panel, Rect, Slant, SlotId, Text, justify};
 
@@ -14,7 +15,8 @@ use self::layout::HintSpot;
 use super::skin::keys;
 use crate::ui::input_icons::Glyph;
 use crate::ui::prompts::Prompt;
-use crate::ui::theme::{MenuEntry, MenuHint, MenuList, MenuListCell, MenuStyle};
+use crate::ui::raster_text::{RASTER_MENU_FONT_KEY, width_units};
+use crate::ui::theme::{MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle};
 
 const TAGLINE: [&str; 2] = ["RACE YOUR WAY", "TO THE TOP"];
 
@@ -82,6 +84,9 @@ impl<'a, 'b> Parts<'a, 'b> {
 
     fn of(mut self, list: &MenuList) -> Vec<Box<dyn Component>> {
         let left = place::left_edge(list.aspect);
+        if list.style == MenuStyle::Pause {
+            self.scrim(list.aspect);
+        }
         self.shade(left);
         if list.style != MenuStyle::Pause {
             self.logo(left);
@@ -95,8 +100,11 @@ impl<'a, 'b> Parts<'a, 'b> {
             false,
         );
         let shown = place::shown(list.entries.len());
+        let wide = list.has_values();
         for (i, entry) in list.entries.iter().skip(list.first).take(shown).enumerate() {
-            self.entry(entry, list.first + i == list.selected, place::row_y(i), left);
+            let row = list.first + i;
+            let nudge = list.nudge.filter(|nudge| nudge.row == row);
+            self.entry(entry, row == list.selected, place::row_y(i), left, wide, nudge);
         }
         self.footer(&list.hints, left);
         if list.style == MenuStyle::Main {
@@ -108,6 +116,12 @@ impl<'a, 'b> Parts<'a, 'b> {
     pub(super) fn push(&mut self, mut part: impl Component + 'static, bounds: Rect) {
         part.layout(self.cx, bounds);
         self.parts.push(Box::new(part));
+    }
+
+    /// The in-game menus dim the whole frozen world behind them, as the map does.
+    fn scrim(&mut self, aspect: f32) {
+        let rect = Rect::new(0.0, 0.0, aspect * 480.0 + 4.0, 484.0);
+        self.push(Panel::new(keys::MENU_SCRIM), rect);
     }
 
     fn shade(&mut self, left: f32) {
@@ -137,19 +151,27 @@ impl<'a, 'b> Parts<'a, 'b> {
         self.push(text, Rect::new(x, at.1, width, 20.0));
     }
 
-    fn entry(&mut self, entry: &MenuEntry, selected: bool, y: f32, left: f32) {
+    fn entry(&mut self, entry: &MenuEntry, selected: bool, y: f32, left: f32, wide: bool, nudge: Option<MenuNudge>) {
         let colour = match (entry.enabled, selected) {
             (false, _) => keys::MENU_TEXT_DISABLED,
             (true, true) => keys::MENU_TEXT_SELECTED,
             (true, false) => keys::MENU_TEXT,
         };
         if selected {
-            let (rect, lean) = place::bar(y, left);
+            let (rect, lean) = place::bar(y, left, wide);
             self.parts.push(Box::new(Slant::at_default_depth(keys::MENU_BAR, rect, lean, &BAR_STOPS, self.cx)));
             self.bolt(left + 17.0, y + 1.5);
         }
         let at = (left + place::TEXT_LEFT, y);
-        self.text(keys::FONT_MENU, &entry.label.to_uppercase(), colour, place::ENTRY_SCALE, at, false);
+        let label = entry.label.to_uppercase();
+        // A long label shrinks to stop short of the values.
+        let scale = match wide {
+            true => fitted(&label, place::ENTRY_SCALE, place::LABEL_LIMIT),
+            false => place::ENTRY_SCALE,
+        };
+        self.text(keys::FONT_MENU, &label, colour, scale, at, false);
+        let pressed = nudge.map(|nudge| (nudge.forward, nudge.age));
+        self.value(entry, selected, y, left, pressed);
     }
 
     /// The lightning bolt at the selected entry: a leaning upper block, a wider middle and a thin tail.
@@ -218,6 +240,14 @@ impl<'a, 'b> Parts<'a, 'b> {
                 true,
             );
         }
+    }
+}
+
+/// `scale`, or less when the string at that scale is longer than `limit` units.
+fn fitted(text: &str, scale: f32, limit: f32) -> f32 {
+    match width_units(RASTER_MENU_FONT_KEY, text, scale) {
+        Some(width) if width > limit => scale * limit / width,
+        _ => scale,
     }
 }
 

@@ -9,7 +9,7 @@ use glam::Vec2;
 use super::confirm::{Alert, Confirm};
 use super::world_map::WorldMapFrame;
 use crate::input::Control;
-use crate::settings::{Partial, Settings};
+use crate::settings::{Partial, Settings, UiStyle};
 use crate::ui::UiAssets;
 use crate::ui::theme::MenuList;
 
@@ -133,6 +133,11 @@ pub struct Cx<'a> {
 }
 
 impl Cx<'_> {
+    /// Whether the Remastered look draws the menus as vertical lists: the setting names it and no mod theme took over.
+    pub fn vertical_look(&self) -> bool {
+        self.settings.ui_style == UiStyle::Remastered && self.mods.is_none_or(|mods| mods.ui_theme_choice().is_none())
+    }
+
     /// Sets host-authored text on every string directly inside a group, including its shadow.
     pub fn text_group(&mut self, group_hash: u32, text: &str) {
         let Some(group) = self.object(group_hash) else { return };
@@ -255,6 +260,23 @@ fn anchor_offset(justification: u32, length: f32, centre: u32, far: u32) -> f32 
     0.0
 }
 
+/// Which way a click on a row of a vertical list presses: back (the left chevron), forward (the right one), or just the row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Way {
+    Back,
+    Stay,
+    Forward,
+}
+
+/// What the pointer does to a row of a vertical list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pick {
+    /// It moved over the row.
+    Hover,
+    /// It pressed the row.
+    Press(Way),
+}
+
 pub trait ScreenLogic: Send + Sync {
     /// Called once after the package is loaded.
     fn start(&mut self, _cx: &mut Cx) {}
@@ -291,8 +313,13 @@ pub trait ScreenLogic: Send + Sync {
         false
     }
 
-    /// The pointer is over (`activate` false) or pressed (`activate` true) the entry `row` of the vertical list.
-    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _activate: bool) {}
+    /// Whether Up and Down are turned into Left and Right for the package: the icon row's package knows no Up and Down.
+    fn rotate_pad(&self) -> bool {
+        false
+    }
+
+    /// The pointer is over, or pressed, the entry `row` of the vertical list.
+    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _pick: Pick) {}
 }
 
 /// A screen without behaviour of its own: its package runs its scripts and nothing answers the game.

@@ -47,6 +47,10 @@ pub(super) mod keys {
     pub const MENU_TEXT_SELECTED: &str = "remastered.menu.text_selected";
     pub const MENU_TEXT_DISABLED: &str = "remastered.menu.text_disabled";
     pub const MENU_SHADE: &str = "remastered.menu.shade";
+    /// The dim over the frozen world behind an in-game menu, the dark inside a slider's track, and the double arrow.
+    pub const MENU_SCRIM: &str = "remastered.menu.scrim";
+    pub const MENU_TRACK: &str = "remastered.menu.track";
+    pub const MENU_ARROW: &str = "remastered.menu.arrow";
     pub const MENU_RULE: &str = "remastered.menu.rule";
     pub const MENU_BOLT: &str = "remastered.menu.bolt";
     pub const MENU_TAGLINE: &str = "remastered.menu.tagline";
@@ -108,6 +112,9 @@ pub fn skin() -> Skin {
         .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
         .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
+        .with_colour(keys::MENU_SCRIM, [3, 4, 7, 150])
+        .with_colour(keys::MENU_TRACK, [0, 0, 0, 130])
+        .with_texture(keys::MENU_ARROW, resource_handle("ARROW_SKINNIER.tga"))
         .with_colour(keys::MAP_GROUND, [6, 7, 9, 238])
         .with_colour(keys::MAP_BAND, [0, 0, 0, 150])
         .with_colour(keys::MAP_VEIL, [4, 5, 8, 60])

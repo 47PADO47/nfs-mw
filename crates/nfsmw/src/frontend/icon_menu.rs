@@ -11,7 +11,7 @@ use super::confirm::Confirm;
 use super::icon_items::{Icon, Id, draw_scale, icons};
 use super::icon_window;
 use super::ids::{self, screen};
-use super::logic::{Args, Category, Command, Cx, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
 use super::scroller::{self, Fade, Scroll};
 use crate::ui::UiAssets;
 use crate::ui::theme::MenuList;
@@ -281,7 +281,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = Self::themed(cx);
+        self.vertical = cx.vertical_look();
         // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
         // Keep it transparent until that fade takes over, just like the incoming icons and brackets.
         if self.pause()
@@ -340,8 +340,12 @@ impl ScreenLogic for IconMenu {
         self.vertical
     }
 
-    fn pick_row(&mut self, cx: &mut Cx, row: usize, activate: bool) {
-        self.pick(cx, row, activate);
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        self.pick(cx, row, pick);
     }
 
     fn list(&self, assets: &UiAssets) -> Option<MenuList> {
@@ -380,7 +384,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = Self::themed(cx);
+        self.vertical = cx.vertical_look();
         if self.slots.is_empty() || self.icons.is_empty() {
             return;
         }

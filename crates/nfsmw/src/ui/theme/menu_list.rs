@@ -13,12 +13,42 @@ use blackbox_ui::SlotId;
 use crate::input::Action;
 use crate::ui::prompts::Prompt;
 
+/// What an entry of a settings page shows to the right of its label.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum MenuValue {
+    /// Nothing: the entries of an icon menu.
+    #[default]
+    None,
+    /// A value that left and right cycle through, between two chevrons. A row that only does something when pressed has
+    /// no `arrows`.
+    Choice { text: String, arrows: bool },
+    /// A level from 0 to 100.
+    Slider(u8),
+}
+
 /// One entry of the list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuEntry {
     pub label: String,
     /// A disabled entry can be selected and is drawn dimmed; pressing it does nothing.
     pub enabled: bool,
+    pub value: MenuValue,
+}
+
+impl MenuEntry {
+    /// An entry with no value, as an icon menu has.
+    pub fn plain(label: impl Into<String>, enabled: bool) -> Self {
+        Self { label: label.into(), enabled, value: MenuValue::None }
+    }
+}
+
+/// The last press on a row of a settings page: which row, which way, and how many seconds ago. The chevron it pressed is
+/// nudged for a moment.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MenuNudge {
+    pub row: usize,
+    pub forward: bool,
+    pub age: f32,
 }
 
 /// One footer hint: the keys that do something, what they do, and the action a click on it presses.
@@ -49,9 +79,18 @@ pub struct MenuList {
     pub first: usize,
     pub hints: Vec<MenuHint>,
     pub style: MenuStyle,
+    /// The last press on a row, for the chevron's nudge.
+    pub nudge: Option<MenuNudge>,
     /// The screen's width over its height, which sets how far left the screen's edge lies in FEng units. The frontend
     /// sets it from the window; a menu that does not know it leaves 16:9.
     pub aspect: f32,
+}
+
+impl MenuList {
+    /// Whether the entries carry values, as a settings page's do: the rows are wider and the values sit in a column.
+    pub fn has_values(&self) -> bool {
+        self.entries.iter().any(|entry| entry.value != MenuValue::None)
+    }
 }
 
 /// The aspect a list has until the frontend knows the window's.
@@ -96,11 +135,12 @@ mod tests {
     fn list(title: &str) -> MenuList {
         MenuList {
             title: title.into(),
-            entries: vec![MenuEntry { label: "Career".into(), enabled: true }],
+            entries: vec![MenuEntry::plain("Career", true)],
             selected: 0,
             first: 0,
             hints: Vec::new(),
             style: MenuStyle::Main,
+            nudge: None,
             aspect: DEFAULT_ASPECT,
         }
     }

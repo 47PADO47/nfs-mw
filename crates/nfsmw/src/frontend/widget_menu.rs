@@ -7,10 +7,14 @@ use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
 use glam::{Vec2, Vec3};
 
 use super::ids::{self, screen};
-use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::logic::{Args, Command, Cx, Pick, ScreenLogic, Way};
 use super::mod_options;
 use super::options::{self, Control, Data, Row, Title};
 use super::widget_layout::{Layout, RowObjects};
+use crate::ui::theme::MenuEntry;
+
+mod vertical;
+use vertical::{control_of, data_of};
 
 /// Rows the screen shows at once (ten from the pause menu).
 const ROWS_ON_SCREEN: usize = 9;
@@ -31,6 +35,14 @@ pub struct WidgetMenu {
     top: usize,
     on_screen: usize,
     leaving: bool,
+    /// Whether the Remastered look draws this page as a list, and the rows as it shows them (`vertical.rs`).
+    vertical: bool,
+    entries: Vec<MenuEntry>,
+    /// The page's heading, for the list.
+    heading: String,
+    /// Seconds since the page opened, and the last press on a row: its index, its way and the time it was made.
+    clock: f32,
+    nudge: Option<(usize, bool, f32)>,
 }
 
 fn top_left(cx: &Cx, o: ObjectRef) -> Option<(Vec2, Vec2)> {
@@ -52,6 +64,11 @@ impl WidgetMenu {
             top: 0,
             on_screen,
             leaving: false,
+            vertical: false,
+            entries: Vec::new(),
+            heading: String::new(),
+            clock: 0.0,
+            nudge: None,
         }
     }
 
@@ -109,7 +126,7 @@ impl WidgetMenu {
 
     /// Shows the rows in view and hides the rest, positions them and refreshes their values.
     fn layout_rows(&mut self, cx: &mut Cx) {
-        let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
+        let (first, last) = (self.top, (self.top + self.window()).min(self.rows.len()));
         for slot in 0..self.objects.len() {
             let visible = slot < last - first;
             for o in Self::each_object(&self.objects[slot]) {
@@ -175,7 +192,7 @@ impl WidgetMenu {
 
     /// Redraws every row in view, so a change that alters another row's state (vsync and the frame limit) shows.
     fn draw_visible(&self, cx: &mut Cx) {
-        let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
+        let (first, last) = (self.top, (self.top + self.window()).min(self.rows.len()));
         for index in first..last {
             self.draw_row(cx, index, index - first);
         }
@@ -231,15 +248,15 @@ impl WidgetMenu {
     /// Selects the previous or next row, wrapping round, and scrolls the list when it must.
     fn move_selection(&mut self, cx: &mut Cx, forward: bool) {
         let n = self.rows.len();
-        if n == 0 || self.on_screen == 0 || self.leaving {
+        if n == 0 || self.window() == 0 || self.leaving {
             return;
         }
         self.selected = if forward { (self.selected + 1) % n } else { (self.selected + n - 1) % n };
         if self.selected < self.top {
             self.top = self.selected;
         }
-        if self.selected >= self.top + self.on_screen {
-            self.top = self.selected + 1 - self.on_screen;
+        if self.selected >= self.top + self.window() {
+            self.top = self.selected + 1 - self.window();
         }
         self.layout_rows(cx);
     }
@@ -261,7 +278,7 @@ impl WidgetMenu {
             return None;
         }
         let slot = row as usize;
-        (self.top + slot < (self.top + self.on_screen).min(self.rows.len())).then_some(slot)
+        (self.top + slot < (self.top + self.window()).min(self.rows.len())).then_some(slot)
     }
 
     /// Selects a row as if the arrows moved there one row at a time, down or up, whichever way is shorter.
@@ -302,6 +319,7 @@ impl WidgetMenu {
         if self.leaving {
             return;
         }
+        self.nudge = Some((self.selected, forward, self.clock));
         if row.setting == options::Setting::AdvancedGraphics {
             cx.send(Command::OpenGraphics);
             return;
@@ -326,6 +344,10 @@ impl WidgetMenu {
             return;
         }
         self.leaving = true;
+        // A page drawn as a list has no package animation to wait for.
+        if self.vertical {
+            return self.finish(cx);
+        }
         cx.rt.post_to_package(cx.package, ids::LEAVE_SCREEN);
     }
 
@@ -344,16 +366,6 @@ impl WidgetMenu {
 
 /// The group whose scripts `POS1` .. `POSn` move the cursor to a row slot (its name is only known as a hash).
 const CURSOR: u32 = 0x0674_5352;
-
-/// The control of a row: a Mods row's from the bridge, any other row's from the settings.
-fn control_of(cx: &Cx<'_>, setting: options::Setting) -> Control {
-    mod_options::shown(cx.mods, setting).map_or_else(|| setting.control(&*cx.settings), |shown| shown.control)
-}
-
-/// The data of a row: a Mods row's from the bridge, any other row's from the settings.
-fn data_of(cx: &Cx<'_>, setting: options::Setting) -> Data {
-    mod_options::shown(cx.mods, setting).map_or_else(|| setting.data_in(&*cx.settings, &cx.caps), |shown| shown.data)
-}
 
 impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
@@ -381,6 +393,7 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
             (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
         };
+        self.heading = vertical::heading(cx, self.args.category, title);
         cx.label_group(ids::HEADER_TEXT, title);
         if self.args.category == super::logic::Category::Player
             && let Some(icon) = cx.object(0x0800_7B4C)
@@ -394,6 +407,7 @@ impl ScreenLogic for WidgetMenu {
             super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, "Mods"),
             _ => {}
         }
+        self.refresh(cx);
         self.layout_rows(cx);
     }
 
@@ -415,6 +429,7 @@ impl ScreenLogic for WidgetMenu {
             {
                 self.change(cx, true)
             }
+            PAD_ACCEPT if self.vertical => self.leave(cx),
             PAD_ACCEPT => self.leaving = true,
             PAD_BACK => self.leave(cx),
             PAD_START if self.args.pause => cx.send(Command::Resume),
@@ -427,6 +442,18 @@ impl ScreenLogic for WidgetMenu {
         self.click_row(cx, point)
     }
 
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        self.pick(cx, row, pick);
+    }
+
+    fn list(&self, _assets: &crate::ui::UiAssets) -> Option<crate::ui::theme::MenuList> {
+        self.menu_list()
+    }
+
     /// The wheel moves the selection, as the up and down arrows do.
     fn scroll(&mut self, cx: &mut Cx, steps: i32) {
         for _ in 0..steps.unsigned_abs() {
@@ -436,8 +463,10 @@ impl ScreenLogic for WidgetMenu {
 
     /// The package's scripts write positions (the arrows' scripts hold their placeholder place); the rows are put
     /// back where the layout wants them after every update.
-    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        let (first, last) = (self.top, (self.top + self.on_screen).min(self.rows.len()));
+    fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.clock += dt;
+        self.refresh(cx);
+        let (first, last) = (self.top, (self.top + self.window()).min(self.rows.len()));
         for index in first..last {
             let slot = index - first;
             self.place(cx, slot);

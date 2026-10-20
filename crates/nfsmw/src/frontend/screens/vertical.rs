@@ -3,7 +3,8 @@
 
 use glam::Vec2;
 
-use super::{Env, Screen, Screens};
+use super::{Env, Pick, Screen, Screens};
+use crate::frontend::logic::Way;
 use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{MenuHint, MenuList};
 
@@ -29,7 +30,16 @@ impl Screens {
         let top = self.stack.last().filter(|top| top.logic.vertical())?;
         let list = top.logic.list(&self.assets)?;
         let shown = menu_layout::shown(list.entries.len().saturating_sub(list.first));
-        menu_layout::row_at(point, shown, self.aspect).map(|row| list.first + row)
+        menu_layout::row_at(point, shown, self.aspect, list.has_values()).map(|row| list.first + row)
+    }
+
+    /// Which way a click at `point` presses a row of the top screen's list: back on the left chevron, forward on the right.
+    pub(super) fn way_at(&self, point: Vec2) -> Way {
+        match menu_layout::side_at(point.x - menu_layout::left_edge(self.aspect)) {
+            menu_layout::Side::Left => Way::Back,
+            menu_layout::Side::Right => Way::Forward,
+            menu_layout::Side::Middle => Way::Stay,
+        }
     }
 
     /// Whether the top screen is a vertical list: the package's own icons are not on screen then, so they take no clicks.
@@ -45,7 +55,7 @@ impl Screens {
         }
         let Some(row) = point.and_then(|p| self.row_at(p)) else { return };
         self.on_top(env, |logic, cx| {
-            logic.pick_row(cx, row, false);
+            logic.pick_row(cx, row, Pick::Hover);
             true
         });
     }

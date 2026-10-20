@@ -12,7 +12,7 @@ use glam::Vec2;
 use super::confirm::{AlertLogic, ConfirmLogic};
 use super::factory;
 use super::ids::screen::DIALOG;
-use super::logic::{Args, Command, Cx, Env, ScreenLogic};
+use super::logic::{Args, Command, Cx, Env, Pick, ScreenLogic};
 use super::world_map::WorldMapFrame;
 use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
@@ -206,7 +206,7 @@ impl Screens {
             self.await_release = false;
             self.give_control();
         }
-        let mask = match self.stack.last().is_some_and(|top| top.logic.vertical()) {
+        let mask = match self.stack.last().is_some_and(|top| top.logic.rotate_pad()) {
             true => vertical::vertical_pad(mask),
             false => mask,
         };
@@ -372,8 +372,9 @@ impl Screens {
     /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
     pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
         if let Some(row) = self.row_at(point) {
+            let way = self.way_at(point);
             let (_, commands) = self.on_top(env, |logic, cx| {
-                logic.pick_row(cx, row, true);
+                logic.pick_row(cx, row, Pick::Press(way));
                 true
             })?;
             return Some(self.apply_stack_commands(commands, env));

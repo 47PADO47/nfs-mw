@@ -70,9 +70,11 @@ impl Theme for RemasteredTheme {
             // The cluster draws the gear inside the dial, so the original gear digit stays hidden.
             ElementId::GearIndicator => Some(Box::new(Empty)),
             // The icon menus are drawn as vertical lists from the entries the frontend publishes.
-            menu @ (ElementId::MainMenu | ElementId::Categories | ElementId::PauseMenu | ElementId::SafeHouseMenu) => {
-                Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone())))
-            }
+            menu @ (ElementId::MainMenu
+            | ElementId::Categories
+            | ElementId::PauseMenu
+            | ElementId::SafeHouseMenu
+            | ElementId::OptionTable) => Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone()))),
             // The whole map is drawn here, over the FEng screen the frontend leaves unpresented.
             ElementId::WorldMapChrome => Some(Box::new(WorldMapView::new(self.map.clone()))),
             _ => None,

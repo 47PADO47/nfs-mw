@@ -81,7 +81,7 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
   `value` (0 to 1); with `point` the fill starts in a point. `PillStyle` names the three skin colours (`track`, `border`,
   `fill`). A gauge or a slider.
 - **`Chevron::new(texture_key, facing, rect, tint, nudge, cx)`** is the double arrow of a control that changes with left and
-  right: one picture, mirrored for `Facing::Left`, moved `nudge` units outward. `bounce(age)` is the nudge over the 0.28 s
+  right: one picture (it points left), mirrored for `Facing::Right`, moved `nudge` units outward. `bounce(age)` is the nudge over the 0.28 s
   after a press.
 - **`Choice::new(style, column, value, arrows, nudge, cx)`** is the control of a row that cycles through values: the value
   centred in its column with a `Chevron` at each end when `arrows` is set, and the one the player pressed nudged.

@@ -52,6 +52,12 @@ pub const MAX_ROWS: usize = 8;
 /// The highlight bar: its middle-height span from the left edge, its height, and how far its top leans right of its bottom.
 const BAR_LEFT: f32 = 33.5 * PX;
 pub const BAR_RIGHT: f32 = 693.5 * PX;
+/// The settings pages' bar is wider, to hold the values: its right end, and the value column inside it.
+pub const WIDE_BAR_RIGHT: f32 = 500.0;
+const VALUE_LEFT: f32 = 322.0;
+const VALUE_RIGHT: f32 = 484.0;
+/// How wide the chevron zone at each end of the value column is, for a click.
+const CHEVRON_ZONE: f32 = 26.0;
 const BAR_HEIGHT: f32 = 55.0 * PX;
 const BAR_LEAN: f32 = 23.0 * PX;
 
@@ -60,10 +66,47 @@ pub fn row_y(i: usize) -> f32 {
     FIRST_ROW_Y + ROW_PITCH * i as f32
 }
 
-/// The highlight bar of the entry at `y`, as the middle-height rectangle and the lean of its edges.
-pub fn bar(y: f32, left: f32) -> (Rect, f32) {
-    let rect = Rect::new(left + (BAR_LEFT + BAR_RIGHT) / 2.0, y, BAR_RIGHT - BAR_LEFT, BAR_HEIGHT);
+/// The highlight bar of the entry at `y`, as the middle-height rectangle and the lean of its edges. A settings page's bar
+/// (`wide`) runs on to hold the values.
+pub fn bar(y: f32, left: f32, wide: bool) -> (Rect, f32) {
+    let right = bar_right(wide);
+    let rect = Rect::new(left + (BAR_LEFT + right) / 2.0, y, right - BAR_LEFT, BAR_HEIGHT);
     (rect, BAR_LEAN)
+}
+
+fn bar_right(wide: bool) -> f32 {
+    match wide {
+        true => WIDE_BAR_RIGHT,
+        false => BAR_RIGHT,
+    }
+}
+
+/// The column of a settings row's value, at `y`.
+pub fn value_column(y: f32, left: f32) -> Rect {
+    Rect::new(left + (VALUE_LEFT + VALUE_RIGHT) / 2.0, y, VALUE_RIGHT - VALUE_LEFT, BAR_HEIGHT)
+}
+
+/// How far a label may run before it meets the value column, from the label's left.
+pub const LABEL_LIMIT: f32 = VALUE_LEFT - TEXT_LEFT - 8.0;
+
+/// Where a click on a settings row lands, by its place along the row from the left edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    /// On the left chevron.
+    Left,
+    /// Anywhere else on the row.
+    Middle,
+    /// On the right chevron.
+    Right,
+}
+
+/// The side of a settings row a point `from_left` units from the screen's left edge is on.
+pub fn side_at(from_left: f32) -> Side {
+    match from_left {
+        x if (VALUE_LEFT..VALUE_LEFT + CHEVRON_ZONE).contains(&x) => Side::Left,
+        x if (VALUE_RIGHT - CHEVRON_ZONE..=VALUE_RIGHT).contains(&x) => Side::Right,
+        _ => Side::Middle,
+    }
 }
 
 /// How many of `count` entries show: all of them up to [`MAX_ROWS`].
@@ -84,8 +127,8 @@ pub fn window_start(first: usize, selected: usize, count: usize) -> usize {
 
 /// The entry (an index into the shown ones) under a point of the screen (FEng units), for a list that shows `shown` entries
 /// on a screen of this aspect. The whole band of a row answers, from the left edge to the end of the bar.
-pub fn row_at(point: Vec2, shown: usize, aspect: f32) -> Option<usize> {
-    if point.x > left_edge(aspect) + BAR_RIGHT {
+pub fn row_at(point: Vec2, shown: usize, aspect: f32, wide: bool) -> Option<usize> {
+    if point.x > left_edge(aspect) + bar_right(wide) {
         return None;
     }
     (0..shown).find(|&i| (point.y - row_y(i)).abs() <= ROW_PITCH / 2.0)
@@ -221,12 +264,23 @@ mod tests {
     fn a_row_answers_across_its_band_up_to_the_end_of_the_bar() {
         let aspect = 16.0 / 9.0;
         let left = left_edge(aspect);
-        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(3)), 8, aspect), Some(3));
-        assert_eq!(row_at(Vec2::new(left + 5.0, row_y(0) + ROW_PITCH * 0.49), 8, aspect), Some(0));
-        assert_eq!(row_at(Vec2::new(left + BAR_RIGHT + 1.0, row_y(3)), 8, aspect), None, "right of the bar");
-        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(7) + ROW_PITCH), 8, aspect), None, "below the list");
-        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(4)), 3, aspect), None, "only the shown entries answer");
-        assert_eq!(row_at(Vec2::new(left + 100.0, -200.0), 8, aspect), None, "above the list");
+        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(3)), 8, aspect, false), Some(3));
+        assert_eq!(row_at(Vec2::new(left + 5.0, row_y(0) + ROW_PITCH * 0.49), 8, aspect, false), Some(0));
+        assert_eq!(row_at(Vec2::new(left + BAR_RIGHT + 1.0, row_y(3)), 8, aspect, false), None, "right of the bar");
+        let past = Vec2::new(left + BAR_RIGHT + 1.0, row_y(3));
+        assert_eq!(row_at(past, 8, aspect, true), Some(3), "a settings row's bar runs on");
+        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(7) + ROW_PITCH), 8, aspect, false), None, "below the list");
+        assert_eq!(row_at(Vec2::new(left + 100.0, row_y(4)), 3, aspect, false), None, "only the shown entries answer");
+        assert_eq!(row_at(Vec2::new(left + 100.0, -200.0), 8, aspect, false), None, "above the list");
+    }
+
+    #[test]
+    fn a_click_on_a_settings_row_lands_on_a_chevron_or_the_middle() {
+        assert_eq!(side_at(100.0), Side::Middle, "on the label");
+        assert_eq!(side_at(VALUE_LEFT + 5.0), Side::Left);
+        assert_eq!(side_at(VALUE_RIGHT - 5.0), Side::Right);
+        assert_eq!(side_at((VALUE_LEFT + VALUE_RIGHT) / 2.0), Side::Middle, "on the value");
+        assert!(LABEL_LIMIT > 200.0, "a long label still fits before the values");
     }
 
     #[test]

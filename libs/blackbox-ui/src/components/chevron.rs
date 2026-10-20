@@ -1,4 +1,4 @@
-//! `Chevron`: the double arrow that says a control changes with left and right. One picture serves both ways (the left one
+//! `Chevron`: the double arrow that says a control changes with left and right. One picture serves both ways (the right one
 //! is the picture mirrored), and it can be nudged outward, which a control does for a moment after the player presses
 //! that way. [`bounce`] is the nudge over time.
 
@@ -12,7 +12,7 @@ use crate::geom::Rect;
 const BOUNCE_SECONDS: f32 = 0.28;
 const BOUNCE_REACH: f32 = 4.0;
 
-/// Which way the chevron points. The skin's picture points right.
+/// Which way the chevron points. The skin's picture points left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Facing {
     Left,
@@ -38,8 +38,8 @@ impl Chevron {
     /// The chevron of the skin texture `texture_key` in `rect`, tinted `tint`, nudged by `nudge` units outward.
     pub fn new(texture_key: &str, facing: Facing, rect: Rect, tint: [u8; 4], nudge: f32, cx: &LayoutCx<'_>) -> Self {
         let (uv, shift) = match facing {
-            Facing::Right => ([0.0, 0.0, 1.0, 1.0], nudge),
-            Facing::Left => ([1.0, 0.0, 0.0, 1.0], -nudge),
+            Facing::Left => ([0.0, 0.0, 1.0, 1.0], -nudge),
+            Facing::Right => ([1.0, 0.0, 0.0, 1.0], nudge),
         };
         let mut image = Image::new(texture_key).with_uv(uv).with_tint(tint);
         image.layout(cx, Rect::new(rect.x + shift, rect.y, rect.w, rect.h));
@@ -78,8 +78,8 @@ mod tests {
             NodeKind::Image { uv, .. } => uv,
             _ => panic!("an image"),
         };
-        assert_eq!(uv(&right), [0.0, 0.0, 1.0, 1.0]);
-        assert_eq!(uv(&left), [1.0, 0.0, 0.0, 1.0], "mirrored");
+        assert_eq!(uv(&left), [0.0, 0.0, 1.0, 1.0]);
+        assert_eq!(uv(&right), [1.0, 0.0, 0.0, 1.0], "mirrored");
         assert_eq!(right.world.w_axis.x, 13.0);
         assert_eq!(left.world.w_axis.x, 7.0);
     }

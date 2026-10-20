@@ -13,7 +13,7 @@ use crate::ui::theme::{ElementId, MenuEntry, MenuHint, MenuList, MenuListCell, M
 const ASPECT: f32 = 16.0 / 9.0;
 
 fn entry(label: &str, enabled: bool) -> MenuEntry {
-    MenuEntry { label: label.into(), enabled }
+    MenuEntry::plain(label, enabled)
 }
 
 fn list(style: MenuStyle, selected: usize) -> MenuList {
@@ -27,6 +27,7 @@ fn list(style: MenuStyle, selected: usize) -> MenuList {
             MenuHint { keys: vec![Prompt::Icon(Glyph::B)], label: "Back", action: Some(Action::MenuBack) },
         ],
         style,
+        nudge: None,
         aspect: ASPECT,
     }
 }
@@ -54,14 +55,20 @@ fn images_with(nodes: &[UiNode], wanted: u32) -> usize {
 }
 
 #[test]
-fn the_four_icon_menus_are_vertical_and_the_rest_fall_back() {
+fn the_icon_menus_and_the_settings_pages_are_vertical_and_the_rest_fall_back() {
     let theme = RemasteredTheme::default();
     let skin = skin();
     let cx = BuildCx::new(&skin);
-    for slot in [ElementId::MainMenu, ElementId::Categories, ElementId::PauseMenu, ElementId::SafeHouseMenu] {
+    for slot in [
+        ElementId::MainMenu,
+        ElementId::Categories,
+        ElementId::PauseMenu,
+        ElementId::SafeHouseMenu,
+        ElementId::OptionTable,
+    ] {
         assert!(theme.element(slot.slot(), &cx).is_some(), "{} is vertical", slot.name());
     }
-    for slot in [ElementId::OptionTable, ElementId::TrackSelect, ElementId::Blacklist] {
+    for slot in [ElementId::TrackSelect, ElementId::Blacklist, ElementId::CarLot] {
         assert!(theme.element(slot.slot(), &cx).is_none(), "{} stays Original", slot.name());
     }
 }
@@ -177,4 +184,100 @@ fn the_title_is_bigger_and_bold_in_the_accent_colour() {
     assert_eq!(font, crate::ui::raster_text::RASTER_MENU_TITLE_FONT_KEY, "in the bold face");
     let accent = palette::remastered().secondary;
     assert_eq!(title.colour, accent, "and in the palette's accent");
+}
+
+fn settings(selected: usize) -> MenuList {
+    use crate::ui::theme::MenuValue;
+    let row = |label: &str, value: MenuValue, enabled: bool| MenuEntry { label: label.into(), enabled, value };
+    MenuList {
+        entries: vec![
+            row("Window Mode", MenuValue::Choice { text: "Borderless".into(), arrows: true }, true),
+            row("Master Volume", MenuValue::Slider(75), true),
+            row("Advanced Graphics", MenuValue::Choice { text: "Open".into(), arrows: false }, true),
+            row("Ray Tracing", MenuValue::Choice { text: "Unavailable".into(), arrows: true }, false),
+        ],
+        ..list(MenuStyle::Sub, selected)
+    }
+}
+
+fn arrows(nodes: &[UiNode]) -> Vec<&UiNode> {
+    let arrow = blackbox_feng::resource_handle("ARROW_SKINNIER.tga");
+    nodes.iter().filter(|n| matches!(n.kind, NodeKind::Image { texture, .. } if texture == arrow)).collect()
+}
+
+#[test]
+fn a_settings_row_shows_its_value_in_a_column_and_only_the_selected_row_has_chevrons() {
+    let cell = MenuListCell::new();
+    cell.set(ElementId::OptionTable.slot(), settings(0));
+    let nodes = built(ElementId::OptionTable, &cell);
+    let all = texts(&nodes);
+    assert!(all.contains(&"WINDOW MODE") && all.contains(&"BORDERLESS") && all.contains(&"75"), "{all:?}");
+    assert_eq!(arrows(&nodes).len(), 2, "one pair, on the selected row");
+    let (label, value) = (text_at(&nodes, "WINDOW MODE"), text_at(&nodes, "BORDERLESS"));
+    assert!(value.world.w_axis.x > label.world.w_axis.x + 150.0, "the value is in a column to the right");
+}
+
+#[test]
+fn a_row_that_acts_or_is_disabled_has_no_chevrons_and_a_disabled_value_is_dim() {
+    let cell = MenuListCell::new();
+    cell.set(ElementId::OptionTable.slot(), settings(2));
+    assert!(arrows(&built(ElementId::OptionTable, &cell)).is_empty(), "a row that only opens something");
+    cell.set(ElementId::OptionTable.slot(), settings(3));
+    let nodes = built(ElementId::OptionTable, &cell);
+    assert!(arrows(&nodes).is_empty(), "a disabled row");
+    assert!(text_at(&nodes, "UNAVAILABLE").colour[3] < 150, "its value is faint");
+}
+
+#[test]
+fn a_slider_row_draws_a_bar_and_a_press_nudges_the_chevron_it_pressed() {
+    let cell = MenuListCell::new();
+    cell.set(ElementId::OptionTable.slot(), settings(1));
+    let rest = built(ElementId::OptionTable, &cell);
+    assert_eq!(arrows(&rest).len(), 2);
+    let mut pressed = settings(1);
+    pressed.nudge = Some(crate::ui::theme::MenuNudge { row: 1, forward: true, age: 0.0 });
+    cell.set(ElementId::OptionTable.slot(), pressed);
+    let nudged = built(ElementId::OptionTable, &cell);
+    let xs = |nodes: &[UiNode]| arrows(nodes).iter().map(|n| n.world.w_axis.x).collect::<Vec<_>>();
+    let (before, after) = (xs(&rest), xs(&nudged));
+    assert_eq!(before[0], after[0], "the left chevron stays");
+    assert!(after[1] > before[1] + 3.0, "the right one is out");
+}
+
+#[test]
+fn a_settings_bar_runs_wider_than_an_icon_menus_and_a_long_label_shrinks_to_fit() {
+    let cell = MenuListCell::new();
+    let right_edge = |list: MenuList| {
+        cell.set(ElementId::OptionTable.slot(), list);
+        built(ElementId::OptionTable, &cell)
+            .iter()
+            .filter(|n| {
+                matches!(n.kind, NodeKind::Image { texture: 0, .. }) && n.colour[3] > 100 && n.world.y_axis.y > 20.0
+            })
+            .map(|n| n.world.w_axis.x + n.world.x_axis.x / 2.0)
+            .fold(f32::MIN, f32::max)
+    };
+    let narrow = right_edge(list(MenuStyle::Sub, 0));
+    let wide = right_edge(settings(0));
+    assert!(wide > narrow + 80.0, "{wide} against {narrow}");
+
+    let mut long = settings(0);
+    long.entries[0].label = "An Extremely Long Setting Name That Cannot Fit".into();
+    cell.set(ElementId::OptionTable.slot(), long);
+    let nodes = built(ElementId::OptionTable, &cell);
+    let shrunk = text_at(&nodes, "AN EXTREMELY LONG SETTING NAME THAT CANNOT FIT").world.y_axis.y;
+    assert!(shrunk < text_at(&nodes, "MASTER VOLUME").world.y_axis.y, "set smaller than the others");
+}
+
+#[test]
+fn the_in_game_menu_dims_the_whole_screen_and_the_main_menu_does_not() {
+    let cell = MenuListCell::new();
+    let scrim = |style| {
+        cell.set(ElementId::PauseMenu.slot(), list(style, 0));
+        built(ElementId::PauseMenu, &cell)
+            .iter()
+            .any(|n| n.world.x_axis.x > 800.0 && n.world.y_axis.y > 480.0 && n.colour[3] > 100)
+    };
+    assert!(scrim(MenuStyle::Pause), "the frozen world is dimmed");
+    assert!(!scrim(MenuStyle::Main), "the title screen's menu is not");
 }
