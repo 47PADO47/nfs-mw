@@ -38,6 +38,7 @@ mod focus;
 mod focus_feed;
 mod object_geometry;
 mod open;
+pub use open::WorldLoad;
 #[cfg(test)]
 mod performance_tests;
 mod props;

@@ -16,6 +16,7 @@ use crate::frontend::logic::Env;
 use crate::ui::Text;
 
 use super::Frontend;
+use super::flow_loading::LoadingScreen;
 
 /// The notice when there is no per-user folder to keep profiles in.
 const NO_FOLDER: &str = "There is no per-user folder for the careers.";
@@ -49,7 +50,7 @@ impl Frontend {
         };
         log::info!("career: loaded {alias}");
         self.career.set(career);
-        self.start_free_roam(host, env);
+        self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
     /// Makes a new career under `alias`, saves it and plays it.
@@ -66,7 +67,7 @@ impl Frontend {
         };
         log::info!("career: new career {alias}");
         self.career.set(career);
-        self.start_free_roam(host, env);
+        self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
     /// Deletes the profile of `alias`. The career being played is left when it is the one deleted.

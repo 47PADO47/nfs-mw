@@ -18,6 +18,7 @@ use nfsmw_data::shared_unwrapped;
 
 use super::fonts::CustomFontSet;
 use super::fonts::tier::Tier;
+use super::tips;
 use crate::settings::custom_fonts;
 use crate::settings::hd_content;
 
@@ -42,6 +43,9 @@ const TEXTURE_FILES: [&str; 8] = [
 /// the menus do not use). They are not in [`TEXTURE_FILES`]: the pack has its own file, and the career screens name its
 /// textures by rival (`career-regions.md` section 8).
 const RIVALS_FILE: &str = "GLOBAL/RIVALS.BIN";
+
+/// The pack with the pictures of the loading tips (`ui::tips`).
+const TIPS_FILE: &str = "GLOBAL/DYNTEX.BIN";
 
 /// Files with fonts.
 const FONT_FILES: [&str; 3] = ["GLOBAL/GLOBALA.BUN", "GLOBAL/InGameB.bun", "FRONTEND/FrontB.lzc"];
@@ -147,6 +151,21 @@ fn add_rivals(dir: &GameDir, textures: &mut HashMap<u32, Texture>) {
     }
 }
 
+/// Adds the loading tips' pictures (`TIP_*`) of `GLOBAL/DYNTEX.BIN`, the pack of textures the original loads on demand,
+/// to `textures`, first name wins. Only the tips are decoded: the pack holds 278 other textures.
+fn add_tips(dir: &GameDir, textures: &mut HashMap<u32, Texture>) {
+    let Ok(data) = read_unwrapped(dir, TIPS_FILE) else { return };
+    let wanted: HashSet<u32> = tips::TIPS.iter().map(|key| fe_hash_upper(&tips::picture_name(key))).collect();
+    match read_texture_packs_filtered(&data, |hash| wanted.contains(&hash)) {
+        Ok(packs) => {
+            for t in packs.into_iter().flat_map(|p| p.textures) {
+                textures.entry(t.name_hash).or_insert(t);
+            }
+        }
+        Err(e) => log::warn!("{TIPS_FILE}: texture packs do not read: {e}"),
+    }
+}
+
 pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
@@ -205,6 +224,7 @@ impl UiAssets {
             }
         }
         add_rivals(dir, &mut textures);
+        add_tips(dir, &mut textures);
 
         // The minimap's tiles are textures too: the HUD swaps them into its pieces by name. Every variant's map is read,
         // since the career stage picks one (`nfsmw_career::regions::MapVariant`).

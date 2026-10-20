@@ -6,6 +6,8 @@ use std::collections::VecDeque;
 use bevy_ecs::prelude::*;
 use game_install::GameDir;
 
+use flow_loading::{Load, LoadingScreen};
+
 use super::browse::Browse;
 use super::loading;
 use super::logic::{Args, Command, Env, ScreenLogic};
@@ -15,12 +17,14 @@ use super::script::UiScript;
 use crate::app::Host;
 use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
-use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
+use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_loading.rs"]
+mod flow_loading;
 #[path = "flow_save.rs"]
 mod flow_save;
 
@@ -67,7 +71,9 @@ pub enum Stage {
 }
 
 use super::confirm::{Alert, AlertLogic};
-use super::ids::screen::{DIALOG, INFRACTIONS, LOADING, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
+use super::ids::screen::{
+    DIALOG, INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP,
+};
 use super::infractions::{InfractionsLogic, Ticket};
 use crate::ui::Text;
 
@@ -99,6 +105,8 @@ pub struct Frontend {
     pub(super) paused: PauseFlag,
     /// Hides the world while the loading screen is up (`loading.rs`).
     pub(super) conceal: ConcealFlag,
+    /// Where the start of free roam is while the loading screen is up (`flow_loading.rs`).
+    load: Option<Load>,
     /// Settings changed in the menus and not yet written to the config file.
     pub(super) changed: Partial,
     /// A transition just happened: no screen listens until every pad button is let go.
@@ -148,6 +156,7 @@ impl Frontend {
             script,
             paused: PauseFlag::default(),
             conceal: ConcealFlag::default(),
+            load: None,
             changed: Partial::default(),
             latch: true,
             console_was_open: false,
@@ -188,7 +197,7 @@ impl Frontend {
                 self.stage = Stage::Menus;
             }
             Start::Browse(name) => self.show_browsed(&name, host, env),
-            Start::Drive => self.start_free_roam(host, env),
+            Start::Drive => self.start_free_roam(LoadingScreen::Plain, host, env),
         }
     }
 
@@ -283,49 +292,6 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    /// Starts free roam behind the loading screen: the world is built and streams, but is not shown or heard until
-    /// it reports ready (`loading_frame`).
-    fn start_free_roam(&mut self, host: &mut Host, env: &mut Env) {
-        self.latch = true;
-        self.screens.clear();
-        log::info!("starting free roam");
-        let mut world = match WorldScene::open(&self.dir, free_roam_options()) {
-            Ok(w) => w,
-            Err(e) => {
-                log::error!("cannot start free roam: {e:#}");
-                return;
-            }
-        };
-        world.set_career(self.career.clone(), self.profiles.clone());
-        if let Some(race) = self.quick_race.take() {
-            world.queue_race(race, super::quick_options::Choice::of(env.settings).race_options());
-        }
-        self.paused.set(false);
-        self.conceal.set(true);
-        let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());
-        // The menu backdrop is parked, not freed: the menus that come back after the race reuse it.
-        if !self.replace_scene(host, Box::new(scene), true) {
-            return;
-        }
-        self.stage = Stage::Loading;
-        let commands = self.screens.open(LOADING, Args::default(), true, env);
-        self.apply(commands, host, env);
-    }
-
-    /// One frame of the loading stage: the loading screen animates, and once the scene reports ready the world is
-    /// revealed and the stage goes on to driving.
-    pub(super) fn loading_frame(&mut self, dt: f32, host: &mut Host, env: &mut Env) {
-        let commands = self.screens.update(dt, 0, env);
-        self.apply(commands, host, env);
-        if !loading::step(&self.conceal, host.scene.ready()) {
-            return;
-        }
-        self.latch = true;
-        self.screens.clear();
-        self.stage = Stage::Playing;
-        log::info!("loaded: free roam starts");
-    }
-
     /// Opens the pause menu over the frozen game.
     pub(super) fn pause(&mut self, host: &mut Host, env: &mut Env) {
         log::info!("paused");
@@ -392,12 +358,12 @@ impl Frontend {
             match command {
                 Command::StartFreeRoam => {
                     self.career.clear();
-                    self.start_free_roam(host, env);
+                    self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickRace(race) => {
                     self.career.clear();
                     self.quick_race = Some(race);
-                    self.start_free_roam(host, env);
+                    self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartCareer => self.start_career(host, env),
                 Command::Resume => self.resume_driving(env),

@@ -277,3 +277,33 @@ fn hidden_window_never_receives_interactive_preferences() {
     assert_eq!(window.mode, BevyMode::Windowed);
     assert_eq!([window.physical_width(), window.physical_height()], [1280, 720]);
 }
+
+fn fullscreen_window(focused: bool) -> Window {
+    Window {
+        mode: BevyMode::Fullscreen(MonitorSelection::Primary, VideoModeSelection::Current),
+        focused,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn an_exclusive_window_is_minimised_when_it_loses_focus() {
+    let mut window = fullscreen_window(false);
+    let mut was_focused = true;
+    minimise_on_focus_loss(&mut window, &mut was_focused, true);
+    assert_eq!(window.internal.take_minimize_request(), Some(true));
+    assert!(!was_focused);
+    // Still unfocused on the next frame: nothing more to do.
+    minimise_on_focus_loss(&mut window, &mut was_focused, true);
+    assert_eq!(window.internal.take_minimize_request(), None);
+}
+
+#[test]
+fn other_modes_and_settling_windows_are_left_alone() {
+    let mut windowed = Window { focused: false, ..Default::default() };
+    minimise_on_focus_loss(&mut windowed, &mut true, true);
+    assert_eq!(windowed.internal.take_minimize_request(), None);
+    let mut settling = fullscreen_window(false);
+    minimise_on_focus_loss(&mut settling, &mut true, false);
+    assert_eq!(settling.internal.take_minimize_request(), None);
+}
