@@ -158,3 +158,32 @@ fn the_dial_draws_over_the_gauge_bars_and_the_card_under_them() {
     assert!(arch_z < bar_z, "the arch draws over the bars");
     assert!(card_z > bar_z, "the card draws under the bars");
 }
+
+#[test]
+fn the_pursuit_timer_has_the_minutes_and_seconds_in_the_accent_and_the_hundredths_in_white() {
+    let pursuit = crate::hud::PursuitHud { secs: 137.43, ..Default::default() };
+    let state = HudState { pursuit: Some(pursuit), ..Default::default() };
+    let nodes = built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered");
+    assert_eq!(texts(&nodes), ["43", "2:17.", "PURSUIT TIME"]);
+    let colour_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).colour;
+    let skin = test_skin();
+    assert_eq!(colour_of("2:17."), skin.colour(keys::UNIT_HIGHLIGHT).expect("gold"));
+    assert_eq!(colour_of("43"), skin.colour(keys::VALUE).expect("white"));
+    // The two parts meet: the minutes end where the hundredths start.
+    let x_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).world.w_axis.x;
+    assert!(x_of("2:17.") < x_of("43"));
+}
+
+#[test]
+fn no_chase_draws_no_timer_and_the_evade_bar_and_the_wrecked_count_appear_with_them() {
+    assert!(built(ElementId::PursuitMeter, &HudState::default()).expect("the pursuit board is Remastered").is_empty());
+    let calm = crate::hud::PursuitHud { secs: 5.0, ..Default::default() };
+    let evading = crate::hud::PursuitHud { secs: 5.0, evade: 0.5, cooldown: true, cops_destroyed: 3, ..calm };
+    let count = |pursuit| {
+        let state = HudState { pursuit: Some(pursuit), ..Default::default() };
+        built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered")
+    };
+    let (calm, evading) = (count(calm), count(evading));
+    assert!(evading.len() > calm.len(), "the bar and the count add nodes");
+    assert!(texts(&evading).contains(&"3 WRECKED") && !texts(&calm).iter().any(|t| t.contains("WRECKED")));
+}

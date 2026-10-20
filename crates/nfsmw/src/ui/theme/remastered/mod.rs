@@ -5,6 +5,7 @@
 //! - [`layout`]: where the cluster sits, from points of the reference picture.
 //! - [`dial`]: the tachometer, a solid arc with the rpm numbered on it. Gold past the red line.
 //! - [`readout`]: the speed, the unit with the H of MPH in gold, and the gear.
+//! - [`pursuit`]: the pursuit timer, top right.
 //! - [`bar`]: the gauge bars under the dial: N2O, the speed breaker and the boost.
 //! - [`map`]: the full-screen world map (the `WorldMapChrome` slot), read from the map view cell.
 //! - [`menu`]: the vertical menus (main menu, option categories, pause menu, safe house), read from the menu list cell.
@@ -17,6 +18,7 @@ mod dial;
 mod layout;
 mod map;
 pub mod menu;
+mod pursuit;
 mod readout;
 mod skin;
 #[cfg(test)]
@@ -26,6 +28,7 @@ pub use bar::{Bar, Gauge};
 pub use dial::Dial;
 pub use map::{MapSnapshot, WorldMapView, WorldMapViewCell};
 pub use menu::VerticalMenu;
+pub use pursuit::PursuitTimer;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
 
@@ -58,6 +61,7 @@ impl Theme for RemasteredTheme {
         match ElementId::from_slot(slot)? {
             ElementId::Tachometer => Some(Box::new(Dial::new(self.drive.clone()))),
             ElementId::Speedometer => Some(Box::new(Readout::new(self.drive.clone()))),
+            ElementId::PursuitMeter => Some(Box::new(PursuitTimer::new(self.drive.clone()))),
             ElementId::Nitrous => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Nitrous))),
             ElementId::Speedbreaker => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Speedbreaker))),
             ElementId::Turbo => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Supercharger))),

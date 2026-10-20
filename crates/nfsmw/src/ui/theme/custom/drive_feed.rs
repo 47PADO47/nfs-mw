@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use crate::hud::HudState;
+use crate::hud::{HudState, PursuitHud};
 use crate::ui::present::Screen;
 
 use super::drive_layout::Corner;
@@ -38,6 +38,8 @@ pub(in crate::ui::theme) struct DriveFeed {
     /// The speed breaker meter, 0 to 1 (`HudState::speedbreaker`), and whether the mode is active.
     pub speedbreaker: f32,
     pub speedbreaker_active: bool,
+    /// The chase the pursuit board shows, or `None` while no cop chases the player (`HudState::pursuit`).
+    pub pursuit: Option<PursuitHud>,
 }
 
 /// The shared cell. Clones share one feed.
@@ -70,6 +72,7 @@ impl DriveFeedCell {
             boost_psi: state.boost_psi,
             speedbreaker: state.speedbreaker,
             speedbreaker_active: state.speedbreaker_active,
+            pursuit: state.pursuit,
         };
         *self.lock() = feed;
     }
