@@ -3,9 +3,10 @@
 use blackbox_pursuit::speech::{self as m, Line, Notice};
 use blackbox_pursuit::{Infraction, InfractionLog};
 
+use super::params::event_name;
 use super::snapshot::{Prev, notices};
+use super::speech_params;
 use super::tables::{self, Place};
-use super::{event_name, speech_params};
 use crate::audio::speech::params::{Param, signature, values};
 use crate::audio::{CopFeed, PursuitFeed};
 

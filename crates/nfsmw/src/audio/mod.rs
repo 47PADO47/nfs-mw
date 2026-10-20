@@ -10,7 +10,9 @@ mod capture;
 mod car;
 mod chase;
 pub mod common_effects;
-pub use chase::feed::{CopFeed, Formation, HeliFeed, PlayerFeed, RoadblockFeed, SpeechFeed, StatusFeed, Vehicle};
+#[cfg(test)]
+pub use chase::feed::Vehicle;
+pub use chase::feed::{CopFeed, Formation, HeliFeed, PlayerFeed, RoadblockFeed, SpeechFeed, StatusFeed};
 pub use chase::radio::tables as radio_tables;
 pub use common_effects::CommonEvent;
 pub use heli::HeliFrame;

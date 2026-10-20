@@ -17,7 +17,8 @@ use ea_audio::Pcm;
 use game_install::GameDir;
 use nfsmw_data::speech_chase::{chase_tune, level_speech};
 
-use super::{ChaseRadio, LineIds, event_name, speech_params};
+use super::params::event_name;
+use super::{ChaseRadio, LineIds, speech_params};
 use crate::audio::chase::AirSupport;
 use crate::audio::speech::params::{lib_params, values};
 use crate::audio::speech::random::Rng;

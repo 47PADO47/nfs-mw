@@ -1,6 +1,6 @@
 //! How the cops describe the player's car: its type and its colour, as the speech interface names them. The type is the
 //! `VerbalType` of the car's `pvehicle` collection and the colour the `SPEECHCOLOUR` of its stock paint. A repaint with a
-//! custom colour has no speech colour (the original describes only the stock paints), and a car the tables do not know
+//! custom colour (a rewrite extension: the original's paints are parts, each with its speech colour) has none, and a car the tables do not know
 //! has neither. Cached per car, since reading the tables is not for every frame.
 
 use std::cell::RefCell;

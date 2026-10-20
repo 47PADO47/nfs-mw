@@ -22,7 +22,7 @@ use blackbox_pursuit::speech::{Effect, Line, Machine, Notice, Output, Snapshot, 
 use nfsmw_data::speech_chase::{ChaseTune, LevelSpeech};
 
 pub use channel::{DispatcherChannel, LineIds, Sent, Silent};
-pub use params::{event_name, speech_params};
+pub use params::speech_params;
 
 use super::AirSupport;
 use crate::audio::PursuitFeed;
