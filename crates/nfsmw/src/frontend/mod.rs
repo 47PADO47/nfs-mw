@@ -2,7 +2,7 @@
 //! main menu, free roam, the pause menu) and the screens' own logic. The packages are run by `blackbox-feng` and
 //! drawn by the shared presenter in `ui`. Spec: `docs/specs/frontend-menus.md`.
 
-mod alias_options;
+mod alias_menu;
 mod browse;
 mod career_screens;
 mod confirm;
@@ -24,6 +24,7 @@ mod jukebox;
 mod loading;
 mod loading_tips;
 mod logic;
+mod look;
 mod mod_options;
 mod options;
 mod photo;
@@ -62,6 +63,8 @@ mod disabled_rows_tests;
 mod exhaust_flames_tests;
 #[cfg(test)]
 mod hud_layout_tests;
+#[cfg(test)]
+mod menu_rows_tests;
 #[cfg(test)]
 mod speed_units_tests;
 #[cfg(test)]

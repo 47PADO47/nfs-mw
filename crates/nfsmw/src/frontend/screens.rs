@@ -13,6 +13,7 @@ use super::confirm::{AlertLogic, ConfirmLogic};
 use super::factory;
 use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, Pick, ScreenLogic};
+use super::look::Look;
 use super::world_map::WorldMapFrame;
 use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
@@ -26,6 +27,8 @@ struct Screen {
     logic: Box<dyn ScreenLogic>,
     /// The menu slot the screen is drawn for, or `None` when no slot takes it (dialogs, notices). Set once, in `open`.
     slot: Option<ElementId>,
+    /// The backdrop the screen wants behind it, or `None` when it keeps whatever is there (`look.rs`).
+    look: Option<Look>,
 }
 
 /// One stack screen's tree for the frame, with the menu slot it is drawn for.
@@ -95,6 +98,11 @@ impl Screens {
         self.stack.last().map(|s| s.name.as_str())
     }
 
+    /// The backdrop the stack wants: the look of the topmost screen that names one.
+    pub fn look(&self) -> Option<Look> {
+        self.stack.iter().rev().find_map(|s| s.look.clone())
+    }
+
     /// Unloads every screen.
     pub fn clear(&mut self) {
         while let Some(s) = self.stack.pop() {
@@ -107,15 +115,16 @@ impl Screens {
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
         let mod_rows = env.mods.is_some_and(crate::modding::Mods::has_mods_page);
         let slot = factory::slot_for(name, &args);
+        let look = factory::look_for(name, &args);
         let logic = factory::make(name, args, mod_rows);
-        self.open_as(name, logic, slot, replace, env)
+        self.open_as(name, logic, slot, look, replace, env)
     }
 
     /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question). Its menu slot is
     /// the one its package has by name (`factory::slot_for`), with no `Args`.
     pub fn open_with(&mut self, name: &str, logic: Box<dyn ScreenLogic>, replace: bool, env: &mut Env) -> Vec<Command> {
         let slot = factory::slot_for(name, &Args::default());
-        self.open_as(name, logic, slot, replace, env)
+        self.open_as(name, logic, slot, None, replace, env)
     }
 
     fn open_as(
@@ -123,6 +132,7 @@ impl Screens {
         name: &str,
         mut logic: Box<dyn ScreenLogic>,
         slot: Option<ElementId>,
+        look: Option<Look>,
         replace: bool,
         env: &mut Env,
     ) -> Vec<Command> {
@@ -155,7 +165,7 @@ impl Screens {
             name: &file_name,
         };
         logic.start(&mut cx);
-        self.stack.push(Screen { id, name: file_name, logic, slot });
+        self.stack.push(Screen { id, name: file_name, logic, slot, look });
         self.await_release = true;
         self.give_control();
         commands

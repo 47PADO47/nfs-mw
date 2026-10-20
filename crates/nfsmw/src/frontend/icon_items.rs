@@ -4,7 +4,7 @@
 use nfsmw_career::safehouse::menu::MenuItem;
 
 use super::icon_menu::Kind;
-use super::logic::Category;
+use super::logic::{Category, PauseCtx, QuitTo};
 
 /// What an icon does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,8 +16,22 @@ pub enum Id {
     /// The online and LAN entries have no screen here yet, so they are greyed out in the main menu.
     Online,
     LanPlay,
+    /// Opens the alias manager's row (`alias_menu.rs`).
     AliasManager,
     Options,
+    /// The alias manager's row: make, load, save and delete an alias (`alias_menu.rs`).
+    AliasCreate,
+    AliasLoad,
+    AliasSave,
+    AliasDelete,
+    /// The career menu's row (`career_screens/career_menu.rs`).
+    CareerResume,
+    CareerNew,
+    CareerLoad,
+    /// The Quick Race menu's row (`race_menu.rs`): Custom Race and Split Screen are listed and greyed out.
+    QuickPlay,
+    CustomRace,
+    SplitScreen,
     /// The key list (`controls_screen.rs`).
     Controls,
     /// The sensitivity and camera rows (`widget_menu.rs`).
@@ -26,7 +40,11 @@ pub enum Id {
     Credits,
     Category(Category),
     Resume,
-    QuitToMenu,
+    /// The pause menu's items in a race: Resume Race and Restart.
+    ResumeRace,
+    RestartRace,
+    /// Quit to the menu the game was started from; the name and the question follow [`QuitTo`].
+    Quit(QuitTo),
     /// The safe house menu's items (`career_screens/safehouse_menu.rs`); Blacklist carries the stage it opens.
     SafeHouseResume,
     SafeHouseBlacklist(u8),
@@ -107,14 +125,64 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             }
             list
         }
-        Kind::Pause => vec![
-            icon(Id::Resume, 0x12BB_5EA2, 0x01BD_185C, true),
-            icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true),
-            icon(Id::QuitToMenu, 0x4C9E_34E6, 0xE950_B7AF, true),
+        Kind::Pause => pause_icons(PauseCtx::default()),
+        // The alias manager: Create, Load, Save, Delete, each with its own picture
+        // (docs/specs/career-parity-menus.md, section 3).
+        Kind::AliasManager => vec![
+            icon(Id::AliasCreate, 0x4379_8644, 0x5542_3473, true),
+            icon(Id::AliasLoad, 0x2287_E063, 0x0018_ECFF, true),
+            icon(Id::AliasSave, 0x228B_7E32, 0x001C_8ACE, true),
+            icon(Id::AliasDelete, 0x0D90_35CE, 0x56B0_0632, true),
         ],
-        // The safe house row depends on the career: see `safehouse_icons`.
-        Kind::SafeHouse => Vec::new(),
+        // The Quick Race menu: Quick Play and Custom Race, and the Split Screen picture of the install.
+        // Custom Race and Split Screen are not built yet, so they are greyed out (section 4).
+        Kind::QuickRace => vec![
+            icon(Id::QuickPlay, 0xE631_3967, 0xB5E8_F82F, true),
+            icon(Id::CustomRace, 0x2A49_B5E2, 0x25BB_D4C3, false),
+            icon(Id::SplitScreen, 0xF365_B5F5, 0x841D_518A, false),
+        ],
+        // The career menu and the safe house row depend on the career: see `career_icons` and `safehouse_icons`.
+        Kind::Career | Kind::SafeHouse => Vec::new(),
     }
+}
+
+/// The picture of Resume Race, Resume Free Roam and Resume Career's pause counterpart (`INGAME_ICON_RESUME_RACE`).
+const RESUME_TEXTURE: u32 = 0x12BB_5EA2;
+const QUIT_TEXTURE: u32 = 0x4C9E_34E6;
+
+/// The pause menu's items: resume, restart (a race only), options, quit. The original puts quit before options; the
+/// rewrite keeps its own order, with the new items first (docs/specs/career-parity-menus.md, section 5).
+pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
+    let mut list = Vec::new();
+    match ctx.race {
+        true => {
+            list.push(icon(Id::ResumeRace, RESUME_TEXTURE, 0xDED3_57E7, true));
+            list.push(icon(Id::RestartRace, 0xB295_A6B6, 0xF893_AFA1, true));
+        }
+        false => list.push(icon(Id::Resume, RESUME_TEXTURE, 0x01BD_185C, true)),
+    }
+    list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
+    let quit = match ctx.quit {
+        QuitTo::MainMenu => 0xE950_B7AF,
+        QuitTo::QuickRaceMenu => 0x4349_998B,
+        QuitTo::CareerMenu => 0x690E_9B7C,
+    };
+    list.push(icon(Id::Quit(ctx.quit), QUIT_TEXTURE, quit, true));
+    list
+}
+
+/// The icons of the career menu: Resume Career when the profile's career has started and was not won,
+/// Start New Career (Start Career for a profile whose career has not started), and Load. With no profile loaded the
+/// row is Start New Career and Load (docs/specs/career-parity-menus.md, section 6).
+pub fn career_icons(started: bool, won: bool) -> Vec<Icon> {
+    const NEW_CAREER: u32 = 0xE735_3BE7;
+    let mut list = Vec::new();
+    if started && !won {
+        list.push(icon(Id::CareerResume, 0xC1C0_89CE, 0xE072_DB21, true));
+    }
+    list.push(icon(Id::CareerNew, NEW_CAREER, 0x17E1_8F87, true));
+    list.push(icon(Id::CareerLoad, 0x2287_E063, 0x0018_ECFF, true));
+    list
 }
 
 /// The icons of the safe house menu, one per item in menu order (`career-safehouse-2.md`). Textures are the

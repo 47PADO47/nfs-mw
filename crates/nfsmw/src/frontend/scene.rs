@@ -11,6 +11,7 @@ use glam::{Mat4, Vec3};
 use game_install::GameDir;
 use nfsmw_data::car::LoadOptions;
 
+use super::look::Look;
 use super::room::Room;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
@@ -37,6 +38,8 @@ const INTRO_DISTANCE_SCALE: f32 = 1.5;
 #[derive(Default)]
 pub struct MenuScene {
     dir: Option<GameDir>,
+    /// What the backdrop shows (`look.rs`).
+    look: Look,
     car: Option<CarScene>,
     shading: CarShading,
     /// The stage's room, when the install has it (`room.rs`).
@@ -51,7 +54,12 @@ pub struct MenuScene {
 
 impl MenuScene {
     pub fn new(dir: Option<GameDir>) -> Self {
-        Self { dir, intro: INTRO_SECONDS, ..Default::default() }
+        Self::with_look(dir, Look::Main)
+    }
+
+    /// The backdrop of a menu (`look.rs`).
+    pub fn with_look(dir: Option<GameDir>, look: Look) -> Self {
+        Self { dir, look, intro: INTRO_SECONDS, ..Default::default() }
     }
 }
 

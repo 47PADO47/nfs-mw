@@ -63,9 +63,15 @@ pub(crate) enum ListMode {
 /// The mode the next list opened shows. Set just before `MC_List.fng` is pushed.
 static LIST_MODE: Mutex<ListMode> = Mutex::new(ListMode::Load);
 
-/// Sets the mode the next list opened shows (`alias_options.rs` opens the list in load or delete mode).
+/// Sets the mode the next list opened shows (the alias menu and the career menu open the list in load or delete mode).
 pub(crate) fn set_list_mode(mode: ListMode) {
     *LIST_MODE.lock().unwrap_or_else(|e| e.into_inner()) = mode;
+}
+
+/// Pushes the profile list over the screen that is up, in `mode`.
+pub(crate) fn open_list(cx: &mut Cx, mode: ListMode) {
+    set_list_mode(mode);
+    cx.send(Command::Push(screen::MC_LIST.into(), Args::default()));
 }
 
 fn list_mode() -> ListMode {

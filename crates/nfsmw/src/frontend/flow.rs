@@ -9,8 +9,10 @@ use game_install::GameDir;
 use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
+use super::career_screens::save::{ListMode, list_aliases, set_list_mode};
 use super::loading;
-use super::logic::{Args, Command, Env, ScreenLogic};
+use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
+use super::look::Look;
 use super::scene::{ConcealFlag, MenuScene, Pausable, PauseFlag};
 use super::screens::Screens;
 use super::script::UiScript;
@@ -70,19 +72,15 @@ pub enum Stage {
     Map,
 }
 
-use super::confirm::{Alert, AlertLogic};
-use super::ids::screen::{
-    DIALOG, INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP,
-};
+use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
 use super::infractions::{InfractionsLogic, Ticket};
-use crate::ui::Text;
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
 const WIDE_ASPECT: f32 = 1.4;
 
 /// How free roam starts: the stock car on the start of the track, and the world waits for its load so the
 /// loading screen covers it (`wait_for_load`).
-pub(super) fn free_roam_options() -> Options {
+pub(super) fn free_roam_options(car: &str) -> Options {
     Options {
         at: None,
         height: 40.0,
@@ -90,7 +88,7 @@ pub(super) fn free_roam_options() -> Options {
         pitch: -20.0,
         fog_distance: 3000.0,
         wait_for_load: true,
-        drive: Some(DriveOptions { car: DEFAULT_CAR.to_owned(), script: None }),
+        drive: Some(DriveOptions { car: car.to_owned(), script: None }),
     }
 }
 
@@ -134,10 +132,19 @@ pub struct Frontend {
     pub(super) profiles: Option<ProfileDir>,
     /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
     pub(super) in_safe_house: bool,
+    /// The safe house menu stands before the world exists (Resume Career): Resume Free Roam starts the world and Back goes
+    /// to the career menu (`flow_career.rs`).
+    pub(super) prelude: bool,
+    /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
+    pub(super) origin: QuitTo,
+    /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
+    look: Look,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
+    /// The car Quick Play picked for the world to drive (`start_free_roam`).
+    quick_car: Option<String>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -171,8 +178,12 @@ impl Frontend {
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
+            prelude: false,
+            origin: QuitTo::MainMenu,
+            look: Look::Main,
             auto_shop_requested: false,
             quick_race: None,
+            quick_car: None,
             map_chrome: Default::default(),
         }
     }
@@ -241,7 +252,7 @@ impl Frontend {
             self.menu_in_window = true;
             return;
         }
-        if !self.replace_scene(host, Box::new(MenuScene::new(Some(self.dir.clone()))), false) {
+        if !self.replace_scene(host, Box::new(MenuScene::with_look(Some(self.dir.clone()), self.look.clone())), false) {
             return;
         }
         self.menu_in_window = true;
@@ -252,7 +263,7 @@ impl Frontend {
         self.latch = true;
         self.screens.clear();
         let Some(step) = self.boot.pop_front() else {
-            self.show_menu(host, env);
+            self.after_boot(host, env);
             return;
         };
         self.stage = Stage::Boot(step);
@@ -283,11 +294,57 @@ impl Frontend {
     /// The main menu over the empty backdrop.
     pub(super) fn show_menu(&mut self, host: &mut Host, env: &mut Env) {
         log::info!("main menu");
+        self.show_menu_at(MAIN_MENU, Args::default(), host, env);
+    }
+
+    /// A menu screen over the backdrop it wants (`look_for`), with nothing else up and no game running.
+    pub(super) fn show_menu_at(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
         self.latch = true;
         self.paused.set(false);
         self.screens.clear();
+        self.career.end_play();
+        self.prelude = false;
+        self.in_safe_house = false;
+        self.open_menu(name, args, host, env);
+    }
+
+    /// Opens a menu screen over the backdrop it wants, with the menu stage on.
+    pub(super) fn open_menu(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
+        if let Some(look) = super::factory::look_for(name, &args) {
+            self.look = look;
+        }
         self.show_backdrop(host);
-        let commands = self.screens.open(MAIN_MENU, Args::default(), true, env);
+        let commands = self.screens.open(name, args, true, env);
+        self.stage = Stage::Menus;
+        self.apply(commands, host, env);
+    }
+
+    /// Swaps the backdrop when the screen on top wants another look (`look.rs`). Nothing happens while the world has the
+    /// window, or a viewer runs the front end over its own scene.
+    pub(super) fn sync_backdrop(&mut self, host: &mut Host) {
+        if self.stage != Stage::Menus || !self.menu_in_window {
+            return;
+        }
+        let Some(look) = self.screens.look().filter(|look| *look != self.look) else { return };
+        log::info!("menu backdrop: {look:?}");
+        self.look = look;
+        let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
+        self.replace_scene(host, Box::new(scene), false);
+        self.menu_in_window = true;
+    }
+
+    /// After the boot flow: the list of saved aliases to load one from, or the main menu when there are none
+    /// (`docs/specs/career-parity-menus.md`, section 2).
+    fn after_boot(&mut self, host: &mut Host, env: &mut Env) {
+        if self.career.is_loaded() || list_aliases().is_empty() {
+            return self.show_menu(host, env);
+        }
+        log::info!("boot: the alias list");
+        set_list_mode(ListMode::Load);
+        self.latch = true;
+        self.screens.clear();
+        self.show_backdrop(host);
+        let commands = self.screens.open(super::ids::screen::MC_LIST, Args::default(), true, env);
         self.stage = Stage::Menus;
         self.apply(commands, host, env);
     }
@@ -298,7 +355,9 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
-        let commands = self.screens.open(PAUSE_MENU, Args { pause: true, ..Args::default() }, true, env);
+        let race = host.scene.race_active();
+        let pause_ctx = PauseCtx { race, quit: self.origin };
+        let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
 
@@ -357,23 +416,29 @@ impl Frontend {
         for command in commands {
             match command {
                 Command::StartFreeRoam => {
-                    self.career.clear();
+                    self.career.end_play();
+                    self.origin = QuitTo::MainMenu;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickRace(race) => {
-                    self.career.clear();
+                    self.career.end_play();
+                    self.origin = QuitTo::QuickRaceMenu;
                     self.quick_race = Some(race);
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
-                Command::StartCareer => self.start_career(host, env),
+                Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
+                Command::ResumeCareer => self.resume_career(host, env),
+                Command::LeaveSafeHouse => self.leave_prelude(host, env),
+                Command::RestartRace => self.restart_race(host),
+                Command::Resume if self.prelude => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
                     self.resume_driving(env);
                 }
-                Command::QuitToMenu => {
+                Command::QuitTo(to) => {
                     self.save_settings(env.changed);
-                    self.show_menu(host, env);
+                    self.quit_to(to, host, env);
                 }
                 Command::QuitGame => {
                     self.save_settings(env.changed);
@@ -391,51 +456,13 @@ impl Frontend {
                     log::info!("remap: waiting for a key for {control:?} slot {slot}");
                     self.remap = Some((control, slot));
                 }
-                Command::SaveAlias => self.save_alias(host, env),
-                Command::LoadAlias => self.load_alias(host, env),
+                Command::AliasCreate(alias) => self.alias_create(&alias, host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }
-    }
-
-    /// Loads the latest alias's settings (`saves::load_latest_alias`) and makes them the current settings. The loaded
-    /// values are marked changed, so they go to the config file as any change does. Shows the outcome in an alert.
-    fn load_alias(&mut self, host: &mut Host, env: &mut Env) {
-        let message = match crate::saves::store().map(|store| crate::saves::load_latest_alias(&store)) {
-            None => "There is no per-user folder to load from.".to_owned(),
-            Some(Ok(Some((name, settings)))) => {
-                *env.settings = settings;
-                *env.changed = crate::saves::partial_of(env.settings);
-                format!("{name} loaded.")
-            }
-            Some(Ok(None)) => "No alias is saved yet.".to_owned(),
-            Some(Err(e)) => {
-                log::warn!("the alias could not be loaded: {e}");
-                format!("The alias could not be loaded: {e}")
-            }
-        };
-        let alert = AlertLogic::new(Alert::new(Text::Custom(message)));
-        let commands = self.screens.open_with(DIALOG, Box::new(alert), false, env);
-        self.apply(commands, host, env);
-    }
-
-    /// Saves the current settings as a new named alias (`saves::save_new_alias`) and shows what happened in an alert.
-    fn save_alias(&mut self, host: &mut Host, env: &mut Env) {
-        let settings = *env.settings;
-        let message = match crate::saves::store().map(|store| crate::saves::save_new_alias(&store, &settings)) {
-            Some(Ok(name)) => format!("{name} saved."),
-            Some(Err(e)) => {
-                log::warn!("the alias could not be saved: {e}");
-                format!("The alias could not be saved: {e}")
-            }
-            None => "There is no per-user folder to save to.".to_owned(),
-        };
-        let alert = AlertLogic::new(Alert::new(Text::Custom(message)));
-        let commands = self.screens.open_with(DIALOG, Box::new(alert), false, env);
-        self.apply(commands, host, env);
     }
 
     pub(super) fn save_settings(&self, changed: &mut Partial) {

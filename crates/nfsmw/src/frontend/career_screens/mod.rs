@@ -4,6 +4,7 @@
 
 pub mod blacklist;
 pub mod car_lot;
+pub mod career_menu;
 pub mod rap_sheet;
 pub mod region_unlock;
 pub mod safehouse_menu;

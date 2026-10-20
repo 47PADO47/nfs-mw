@@ -31,7 +31,10 @@ mod tests {
 
     #[test]
     fn free_roam_waits_for_its_start_area_to_load() {
-        assert!(free_roam_options().wait_for_load, "without it the world is shown before it has streamed");
+        assert!(
+            free_roam_options(crate::scenes::world::DEFAULT_CAR).wait_for_load,
+            "without it the world is shown before it has streamed"
+        );
     }
 
     #[test]

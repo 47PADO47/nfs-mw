@@ -6,12 +6,17 @@ use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::{PAD_BACK, PAD_LEFT, PAD_RIGHT};
 
 use super::ids;
-use super::logic::{Command, Cx, Pick, ScreenLogic};
+use super::logic::{Command, Cx, Pick, QuitTo, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
 /// The original quit question (English table `0x075CAC3B`).
 pub const QUIT_MESSAGE: u32 = 0x075c_ac3b;
+/// The quit and restart questions of the pause menu in a race (English table).
+const QUIT_MAIN_MENU_RACE: u32 = 0xa2e9_b449;
+const QUIT_QUICK_RACE_MENU: u32 = 0x1db1_cde5;
+const QUIT_CAREER_MENU: u32 = 0xecd9_2696;
+const RESTART_RACE: u32 = 0x4d33_99a8;
 /// The answers the original dialogs use (English table `0x70E01038` "Yes", `0x417B25E4` "No").
 pub const YES: u32 = 0x70e0_1038;
 pub const NO: u32 = 0x417b_25e4;
@@ -35,7 +40,24 @@ impl Confirm {
 
     /// The question the original asks before quitting to the main menu.
     pub fn quit_to_menu() -> Self {
-        Self::new(Text::Game(QUIT_MESSAGE), Command::QuitToMenu)
+        Self::new(Text::Game(QUIT_MESSAGE), Command::QuitTo(QuitTo::MainMenu))
+    }
+
+    /// The question before quitting to `to`. A race in progress adds that its progress will be lost (the labels
+    /// `0xA2E9B449`, `0x1DB1CDE5` and `0xECD92696`; free roam has no progress, so the main menu keeps the plain question).
+    pub fn quit_to(to: QuitTo, race: bool) -> Self {
+        let message = match (to, race) {
+            (QuitTo::MainMenu, false) => QUIT_MESSAGE,
+            (QuitTo::MainMenu, true) => QUIT_MAIN_MENU_RACE,
+            (QuitTo::QuickRaceMenu, _) => QUIT_QUICK_RACE_MENU,
+            (QuitTo::CareerMenu, _) => QUIT_CAREER_MENU,
+        };
+        Self::new(Text::Game(message), Command::QuitTo(to))
+    }
+
+    /// The question before running the race again (`0x4D3399A8`).
+    pub fn restart_race() -> Self {
+        Self::new(Text::Game(RESTART_RACE), Command::RestartRace)
     }
 }
 
@@ -227,7 +249,6 @@ impl Alert {
     }
 
     /// A notice that runs `then` when it is closed.
-    #[allow(dead_code)] // no caller needs a follow-up yet
     pub fn then(message: Text, then: Command) -> Self {
         Self { title: Text::Game(SAVE_LOAD_TITLE), message, on_close: Some(Box::new(then)) }
     }
@@ -338,7 +359,7 @@ mod tests {
         assert_eq!(c.message, Text::Game(QUIT_MESSAGE));
         assert_eq!(c.yes, Text::Game(YES));
         assert_eq!(c.no, Text::Game(NO));
-        assert_eq!(*c.on_yes, Command::QuitToMenu);
+        assert_eq!(*c.on_yes, Command::QuitTo(QuitTo::MainMenu));
     }
 
     #[test]

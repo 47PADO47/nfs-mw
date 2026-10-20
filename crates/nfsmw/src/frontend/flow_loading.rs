@@ -43,9 +43,10 @@ impl Frontend {
         self.screens.clear();
         log::info!("starting free roam");
         let dir = self.dir.clone();
+        let car = self.quick_car.take().unwrap_or_else(|| DEFAULT_CAR.to_owned());
         let spawned = std::thread::Builder::new()
             .name("world-load".to_owned())
-            .spawn(move || WorldScene::load(&dir, free_roam_options()));
+            .spawn(move || WorldScene::load(&dir, free_roam_options(&car)));
         let world = match spawned {
             Ok(world) => world,
             Err(e) => {

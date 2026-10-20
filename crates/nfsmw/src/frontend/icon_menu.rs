@@ -8,7 +8,7 @@ use glam::Vec2;
 
 use super::career_screens::safehouse_menu;
 use super::confirm::Confirm;
-use super::icon_items::{Icon, Id, draw_scale, icons};
+use super::icon_items::{Icon, Id, draw_scale, icons, pause_icons};
 use super::icon_window;
 use super::ids::{self, screen};
 use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
@@ -29,6 +29,12 @@ pub enum Kind {
     Pause,
     /// The safe house menu (`MainMenu_Sub.fng` with `Args::safehouse`): its row is built from the career's items.
     SafeHouse,
+    /// The career menu (`MainMenu_Sub.fng` with `Sub::Career`): its row is built from the loaded profile.
+    Career,
+    /// The Quick Race menu (`MainMenu_Sub.fng` with `Sub::QuickRace`).
+    QuickRace,
+    /// The alias manager (`MC_ProfileManager.fng`).
+    AliasManager,
 }
 
 /// An icon object of the package and the place it takes on the strip.
@@ -84,16 +90,15 @@ pub struct IconMenu {
 
 impl IconMenu {
     pub fn new(kind: Kind, args: Args) -> Self {
-        Self::with_icons(kind, args, icons(kind))
+        match kind {
+            Kind::Pause => Self::with_icons(kind, args, pause_icons(args.pause_ctx)),
+            _ => Self::with_icons(kind, args, icons(kind)),
+        }
     }
 
     /// A menu over icons the caller built (the safe house row, `icon_items::safehouse_icons`).
     pub fn with_icons(kind: Kind, args: Args, icons: Vec<Icon>) -> Self {
-        let colours = if matches!(kind, Kind::Main | Kind::SafeHouse | Kind::Categories { pause: false, .. }) {
-            WHITE
-        } else {
-            ORANGE
-        };
+        let colours = if !matches!(kind, Kind::Pause | Kind::Categories { pause: true, .. }) { WHITE } else { ORANGE };
         Self {
             kind,
             args,
@@ -313,7 +318,11 @@ impl ScreenLogic for IconMenu {
                 cx.hide(ids::NAME_GROUP, true);
                 cx.hide(ids::GAME_STATS_GROUP, true);
             }
-            Kind::Categories { pause: false, .. } | Kind::SafeHouse => cx.label_group(ids::TITLE_GROUP, title),
+            Kind::Categories { pause: false, .. }
+            | Kind::SafeHouse
+            | Kind::Career
+            | Kind::QuickRace
+            | Kind::AliasManager => cx.label_group(ids::TITLE_GROUP, title),
             Kind::Categories { pause: true, .. } | Kind::Pause => cx.label_group(ids::PAUSE_HEADER, title),
         }
         let remembered = cx.memory.get(&self.memory_key(cx)).copied().unwrap_or(0);
@@ -359,8 +368,14 @@ impl ScreenLogic for IconMenu {
             BUTTON_PRESSED => self.press(cx),
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
             PAD_BACK => match self.kind {
-                // The safe house's Back leaves to the main menu outside this menu's scope: nothing happens here.
-                Kind::Main | Kind::SafeHouse => {}
+                Kind::Main => {}
+                // The safe house menu that stands before the world goes back to the career menu; in the world it stays.
+                Kind::SafeHouse => cx.send(Command::LeaveSafeHouse),
+                Kind::Career | Kind::QuickRace | Kind::AliasManager if self.vertical => self.act(cx, Pending::Back),
+                Kind::Career | Kind::QuickRace | Kind::AliasManager => {
+                    self.pending = Some(Pending::Back);
+                    self.reacts = false;
+                }
                 Kind::Categories { pause: false, .. } if self.vertical => self.act(cx, Pending::Back),
                 Kind::Categories { pause: false, .. } => {
                     self.pending = Some(Pending::Back);

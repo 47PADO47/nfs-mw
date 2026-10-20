@@ -387,6 +387,7 @@ fn update(
             let top = fe.screens.top().map(str::to_owned);
             let commands = fe.screens.update(dt, mask, &mut env);
             fe.apply(commands, host, &mut env);
+            fe.sync_backdrop(host);
             // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
             let took = started.elapsed();
             if took >= SLOW_MENU_STEP {

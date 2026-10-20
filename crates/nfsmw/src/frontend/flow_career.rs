@@ -2,35 +2,85 @@
 //! (`career-flow.md` sections 2 to 4). The start itself is `career::start_or_resume`.
 
 use crate::app::Host;
-use crate::career::{AutosaveInputs, CareerRequest, handle_autosave, start_or_resume};
+use crate::career::{AutosaveInputs, CareerRequest, handle_autosave};
 use crate::frontend::career_screens::car_lot::{self, CarLotAction};
 use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::flow::Stage;
 use crate::frontend::ids::screen::{CAR_SELECT, DIALOG, MAIN_MENU_SUB, SAFEHOUSE_REGION_UNLOCK};
-use crate::frontend::logic::Args;
-use crate::frontend::logic::Env;
-use crate::ui::Text;
+use crate::frontend::logic::{Args, Env, QuitTo, Sub};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
+use nfsmw_career::settings::PROLOGUE_STAGE;
 
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
 
 impl Frontend {
-    /// Career on the main menu. On success the career is the one being played and free roam starts. On failure the
-    /// reason is logged and shown in an alert, and the main menu stays up.
-    pub(super) fn start_career(&mut self, host: &mut Host, env: &mut Env) {
-        let started = match self.profiles.as_ref() {
-            Some(profiles) => start_or_resume(&self.dir, profiles),
-            None => Err(anyhow::anyhow!("there is no per-user folder for the profiles")),
-        };
-        let career = match started {
-            Ok(career) => career,
-            Err(e) => return self.career_failed(e, host, env),
-        };
-        log::info!("career: playing {}", career.alias);
-        self.career.set(career);
+    /// Career menu, Resume Career: the loaded profile is played. A career still in its prologue starts the world at once (the
+    /// opening race restarts from the beginning); any other goes to the safe house menu, which stands before the world until
+    /// Resume Free Roam (`career-flow.md` section 4).
+    pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
+        self.career.begin_play();
+        self.origin = QuitTo::CareerMenu;
+        let prologue = self.career.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false);
+        if prologue {
+            log::info!("career: resuming in the prologue");
+            self.save_settings(env.changed);
+            return self.start_free_roam(LoadingScreen::Tips, host, env);
+        }
+        log::info!("career: resuming at the safe house");
+        self.prelude = true;
+        self.in_safe_house = true;
+        self.latch = true;
+        self.screens.clear();
+        self.open_menu(MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() }, host, env);
+    }
+
+    /// Resume Free Roam in the safe house menu that stands before the world: the roaming-start autosave, then the world.
+    pub(super) fn leave_prelude(&mut self, host: &mut Host, env: &mut Env) {
+        if !self.prelude {
+            return;
+        }
+        self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::Career, ..Args::default() }, host, env);
+    }
+
+    /// The safe house menu's Resume Free Roam was confirmed before the world exists: the world starts behind the loading
+    /// screen. The roaming-start autosave is asked for first, as leaving the safe house does in the world.
+    pub(super) fn start_from_safe_house(&mut self, host: &mut Host, env: &mut Env) {
+        self.save_settings(env.changed);
+        self.prelude = false;
+        self.leave_safe_house();
         self.start_free_roam(LoadingScreen::Tips, host, env);
+    }
+
+    /// Quick Play, Accept: the world starts the race with the car the brief picked.
+    pub(super) fn start_quick_play(&mut self, race: String, car: String, host: &mut Host, env: &mut Env) {
+        self.career.end_play();
+        self.origin = QuitTo::QuickRaceMenu;
+        self.quick_race = Some(race);
+        self.quick_car = Some(car);
+        self.start_free_roam(LoadingScreen::Plain, host, env);
+    }
+
+    /// Leaves the game in progress for the menu it was started from (the pause menu's Quit).
+    pub(super) fn quit_to(&mut self, to: QuitTo, host: &mut Host, env: &mut Env) {
+        match to {
+            QuitTo::MainMenu => self.show_menu(host, env),
+            QuitTo::QuickRaceMenu => {
+                self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::QuickRace, ..Args::default() }, host, env)
+            }
+            QuitTo::CareerMenu => {
+                self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::Career, ..Args::default() }, host, env)
+            }
+        }
+    }
+
+    /// The pause menu's Restart: the race in progress starts again from its grid, and the game goes on.
+    pub(super) fn restart_race(&mut self, host: &mut Host) {
+        if !host.scene.restart_race() {
+            return;
+        }
+        self.resume();
     }
 
     /// Carries out what the career in the world asks for (`career::CareerRequest`), while driving: the safe house
@@ -81,14 +131,6 @@ impl Frontend {
     pub(super) fn car_lot_action(&mut self, action: CarLotAction, host: &mut Host, env: &mut Env) {
         let Some(Err(text)) = self.career.with(|career| car_lot::apply(career, &action)) else { return };
         let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);
-        self.apply(commands, host, env);
-    }
-
-    /// Shows why the career could not start, over the main menu.
-    fn career_failed(&mut self, e: anyhow::Error, host: &mut Host, env: &mut Env) {
-        log::warn!("the career could not be started: {e:#}");
-        let alert = AlertLogic::new(Alert::new(Text::Custom(format!("The career could not be started. {e}"))));
-        let commands = self.screens.open_with(DIALOG, Box::new(alert), false, env);
         self.apply(commands, host, env);
     }
 }

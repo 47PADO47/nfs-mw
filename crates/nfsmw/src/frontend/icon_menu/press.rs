@@ -1,6 +1,7 @@
 //! What a press on an icon does: the package's leave (or none, in a vertical menu), then the screen the icon opens.
 
 use super::{Args, Category, Command, Confirm, Cx, IconMenu, Id, Kind, Pending, ids, safehouse_menu, screen};
+use crate::frontend::logic::Sub;
 
 impl IconMenu {
     /// Posts the leave message: the package plays its leave scripts and sends `EXIT_COMPLETE` when they are done.
@@ -26,17 +27,27 @@ impl IconMenu {
     /// The screen has left: do what was pressed.
     pub(super) fn act(&mut self, cx: &mut Cx, pending: Pending) {
         let pause = self.pause();
+        let race = self.args.pause_ctx.race;
         match (self.kind, pending) {
-            (Kind::Main, Pending::Pressed(Id::Career)) => cx.send(Command::StartCareer),
+            (Kind::Main, Pending::Pressed(Id::Career)) => {
+                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::Career, ..self.args }));
+            }
             (Kind::Main, Pending::Pressed(Id::QuickRace)) => {
-                cx.send(Command::Switch(screen::TRACK_SELECT.into(), Args::default()));
+                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::QuickRace, ..self.args }));
             }
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
             (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
-                let args = Args { category: Category::AliasManager, options: true, ..self.args };
-                cx.send(Command::Switch(screen::OPTIONS.into(), args));
+                cx.send(Command::Switch(screen::MC_PROFILE_MANAGER.into(), self.args));
+            }
+            (Kind::Career, Pending::Pressed(id)) => crate::frontend::career_screens::career_menu::press(cx, id),
+            (Kind::QuickRace, Pending::Pressed(Id::QuickPlay)) => {
+                cx.send(Command::Switch(screen::QUICK_RACE_BRIEF.into(), self.args));
+            }
+            (Kind::AliasManager, Pending::Pressed(id)) => crate::frontend::alias_menu::press(cx, id),
+            (Kind::Career | Kind::QuickRace | Kind::AliasManager, Pending::Back) => {
+                cx.send(Command::Switch(screen::MAIN_MENU.into(), Args::default()));
             }
             (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
             (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
@@ -55,7 +66,11 @@ impl IconMenu {
                 cx.send(Command::Resume);
             }
             (Kind::SafeHouse, Pending::Pressed(id)) => safehouse_menu::press(cx, self.args, id),
-            (Kind::Pause, Pending::Pressed(Id::Resume)) => cx.send(Command::Resume),
+            (Kind::Pause, Pending::Pressed(Id::Resume | Id::ResumeRace)) => cx.send(Command::Resume),
+            (Kind::Pause, Pending::Pressed(Id::RestartRace)) => {
+                cx.send(Command::Confirm(Confirm::restart_race()));
+            }
+            (Kind::Pause, Pending::Pressed(Id::Quit(to))) => cx.send(Command::Confirm(Confirm::quit_to(to, race))),
             (Kind::Pause, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }));
             }
@@ -76,10 +91,10 @@ impl IconMenu {
         }
         cx.memory.insert(self.memory_key(cx), i);
         let id = self.icons[i].id;
-        // Quit asks at once, without the pause menu leaving: its icons stay as they are, so the menu still
+        // Quit and Restart ask at once, without the pause menu leaving: its icons stay as they are, so the menu still
         // reacts when the question is answered No or dismissed.
-        if self.pause() && matches!(id, Id::QuitToMenu) {
-            cx.send(Command::Confirm(Confirm::quit_to_menu()));
+        if self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace) {
+            self.act(cx, Pending::Pressed(id));
             return;
         }
         // The pause package has no leave message: its screens run the event handler's script themselves.

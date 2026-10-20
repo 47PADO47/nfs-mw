@@ -324,12 +324,6 @@ impl WidgetMenu {
             cx.send(Command::OpenGraphics);
             return;
         }
-        if let options::Setting::Alias(alias) = row.setting {
-            for command in alias.commands() {
-                cx.send(command);
-            }
-            return;
-        }
         if let options::Setting::Mod(_) | options::Setting::ModManaged(_) = row.setting {
             mod_options::change(cx.mods, row.setting, forward);
             self.draw_visible(cx);
@@ -356,8 +350,6 @@ impl WidgetMenu {
         cx.send(Command::SaveSettings);
         let next = match (self.args.pause, self.args.category) {
             (true, _) => Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }),
-            // The alias manager is a main menu icon of its own, so it returns to the main menu, not the categories.
-            (false, super::logic::Category::AliasManager) => Command::Switch(screen::MAIN_MENU.into(), Args::default()),
             (false, _) => Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }),
         };
         cx.send(next);
@@ -389,8 +381,6 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
-            // The original's profile manager title ("alias manager", docs/specs/save-alias-manager.md, section 1).
-            (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
             (
                 super::logic::Category::Controls
                 | super::logic::Category::Discord
