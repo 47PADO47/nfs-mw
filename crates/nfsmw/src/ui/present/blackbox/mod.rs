@@ -16,9 +16,7 @@ use super::{Screen, mask, repeat};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::ui::UiAssets;
 use crate::ui::assets::Image;
-use crate::ui::raster_text::{
-    self, RASTER_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY, RASTER_UPRIGHT_FONT_KEY,
-};
+use crate::ui::raster_text::{self, UNITS_ASPECT, UNITS_PER_SCALE};
 
 /// UI texture ids of the HUD carry this bit so they never meet egui's small ones.
 const HUD_TEXTURE_BIT: u64 = 1 << 62;
@@ -34,12 +32,8 @@ const SOLID_TEXTURE: UiTextureId = UiTextureId(1 << 59);
 const RASTER_TEXTURE_BIT: u64 = 1 << 58;
 /// Straight source pixels for GPU masking must stay separate from ordinary premultiplied uploads.
 const MASK_SOURCE_BIT: u64 = 1 << 57;
-/// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times this.
-const RASTER_UNITS_ASPECT: f32 = 1.5 / 2.0;
 /// How far Remastered's rasterised text leans, as a fraction of its height. The upright key (Custom) does not lean.
 const RASTER_ITALIC: f32 = 0.18;
-/// Canvas units of text height per unit of text scale.
-const RASTER_UNITS_PER_SCALE: f32 = 10.0;
 /// The rear-view mirror's picture, uploaded by the app (`app::mirror`). Drawn under the bezel.
 pub const MIRROR_TEXTURE: UiTextureId = UiTextureId(0x4D49_5252_4F52);
 
@@ -221,19 +215,16 @@ impl BlackboxPresenter {
         origin: [f32; 2],
     ) {
         let _trace = blackbox_trace::scope("HUD: text raster / cache");
-        // The Remastered text is drawn wider and heavier than the Custom text, so the two keep apart in the cache.
-        let look = match font_key {
-            RASTER_FONT_KEY => raster_text::REMASTERED,
-            RASTER_NUMBER_FONT_KEY => raster_text::NUMBERS,
-            _ => raster_text::PLAIN,
-        };
+        // Each font key has its own look (the Remastered text is wider and heavier than the Custom text), so the keys keep
+        // apart in the cache.
+        let Some(face) = raster_text::face(font_key) else { return };
         let key = (text.to_owned(), font_key);
         let (id, aspect) = match self.raster.get(&key) {
             Some(entry) => *entry,
             None => {
-                let rendered = match font_key {
-                    RASTER_MONO_FONT_KEY => raster_text::render_mono(text, look),
-                    _ => raster_text::render(text, look),
+                let rendered = match face.mono {
+                    true => raster_text::render_mono(text, face.look),
+                    false => raster_text::render(text, face.look),
                 };
                 let Some(image) = rendered else { return };
                 let aspect = image.width as f32 / image.height as f32;
@@ -243,13 +234,13 @@ impl BlackboxPresenter {
                 (id, aspect)
             }
         };
-        // The node's scale is the text's size: its height in canvas units is the scale times `RASTER_UNITS_PER_SCALE`.
+        // The node's scale is the text's size: its height in canvas units is the scale times `UNITS_PER_SCALE`.
         // Its origin is the centre of the text, as the layout places it.
-        let height = node.world.y_axis.y * RASTER_UNITS_PER_SCALE;
+        let height = node.world.y_axis.y * UNITS_PER_SCALE;
         if height <= 0.0 {
             return;
         }
-        let width = height * aspect * RASTER_UNITS_ASPECT;
+        let width = height * aspect * UNITS_ASPECT;
         // The node's point is the text's left, centre or right edge, as its justification says, so the text is drawn
         // from that edge.
         let shift = if justification & justify::H_RIGHT != 0 {
@@ -411,10 +402,8 @@ impl BlackboxPresenter {
         scale: f32,
         origin: [f32; 2],
     ) {
-        if [RASTER_FONT_KEY, RASTER_NUMBER_FONT_KEY, RASTER_UPRIGHT_FONT_KEY, RASTER_MONO_FONT_KEY].contains(&font_key)
-        {
-            let upright = font_key == RASTER_UPRIGHT_FONT_KEY || font_key == RASTER_MONO_FONT_KEY;
-            let lean = if upright { 0.0 } else { RASTER_ITALIC };
+        if let Some(face) = raster_text::face(font_key) {
+            let lean = if face.upright { 0.0 } else { RASTER_ITALIC };
             if let Some(text) = node.text.as_deref() {
                 self.raster_text(node, text, font_key, style.justification, lean, out, builder, scale, origin);
             }

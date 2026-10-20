@@ -17,23 +17,89 @@ pub const RASTER_UPRIGHT_FONT_KEY: u32 = 0x5241_5355;
 /// The monospace font the egui overlay (the FPS counter) draws in, upright. The Remastered map legend uses it so its
 /// text matches that overlay instead of the game's leaned font.
 pub const RASTER_MONO_FONT_KEY: u32 = 0x5241_5357;
+/// The Remastered menus' text: upright, a little spaced. The entries of the vertical menus and their footer hints.
+pub const RASTER_MENU_FONT_KEY: u32 = 0x5241_5358;
+/// The same face spaced wide. The menus' title and tagline.
+pub const RASTER_MENU_WIDE_FONT_KEY: u32 = 0x5241_5359;
+/// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times
+/// this (`ui/present/blackbox`).
+pub const UNITS_ASPECT: f32 = 1.5 / 2.0;
+/// Canvas units of text height per unit of text scale.
+pub const UNITS_PER_SCALE: f32 = 10.0;
 
 /// The pixel height a string is rasterised at. It is downscaled to the size it is drawn at, so it stays sharp.
 const RASTER_HEIGHT_PX: f32 = 128.0;
 /// How a string is drawn: its width is stretched by `widen`, and its coverage is raised to `weight`. A weight below 1
-/// makes the strokes heavier; 1 keeps them as the font draws them.
+/// makes the strokes heavier; 1 keeps them as the font draws them. `tracking` adds space after each glyph, as a fraction
+/// of the font's height (before the stretch).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Look {
     pub widen: f32,
     pub weight: f32,
+    pub tracking: f32,
 }
 
 /// The font as it is drawn: no stretch, no added weight. The Custom theme's text.
-pub const PLAIN: Look = Look { widen: 1.0, weight: 1.0 };
+pub const PLAIN: Look = Look { widen: 1.0, weight: 1.0, tracking: 0.0 };
 /// The Remastered theme's text: wider and heavier than the font's own proportions.
-pub const REMASTERED: Look = Look { widen: 1.6, weight: 0.6 };
+pub const REMASTERED: Look = Look { widen: 1.6, weight: 0.6, tracking: 0.0 };
 /// The Remastered theme's numbers: as wide as its text, and heavier still.
-pub const NUMBERS: Look = Look { widen: 1.6, weight: 0.4 };
+pub const NUMBERS: Look = Look { widen: 1.6, weight: 0.4, tracking: 0.0 };
+/// The Remastered menus' text: heavier than the font's own strokes, a little spaced.
+pub const MENU: Look = Look { widen: 1.23, weight: 0.28, tracking: 0.05 };
+/// The Remastered menus' title and tagline: the menu face spaced wide.
+pub const MENU_WIDE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.3 };
+
+/// How a font key is drawn.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Face {
+    pub look: Look,
+    /// The egui monospace font instead of the proportional one.
+    pub mono: bool,
+    /// Drawn upright; the Remastered cluster's text leans.
+    pub upright: bool,
+}
+
+/// The face a skin font key names, or `None` for a key that is not rasterised text (a FEng font hash).
+pub fn face(key: u32) -> Option<Face> {
+    let (look, mono, upright) = match key {
+        RASTER_FONT_KEY => (REMASTERED, false, false),
+        RASTER_NUMBER_FONT_KEY => (NUMBERS, false, false),
+        RASTER_UPRIGHT_FONT_KEY => (PLAIN, false, true),
+        RASTER_MONO_FONT_KEY => (PLAIN, true, true),
+        RASTER_MENU_FONT_KEY => (MENU, false, true),
+        RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, false, true),
+        _ => return None,
+    };
+    Some(Face { look, mono, upright })
+}
+
+/// The width of a string drawn in the face `key` at text scale `scale`, in FEng units, as the presenter draws it. `None`
+/// for a key that is not rasterised text, or when the font does not load.
+pub fn width_units(key: u32, text: &str, scale: f32) -> Option<f32> {
+    let face = face(key)?;
+    let font = if face.mono { mono_font()? } else { font()? };
+    let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
+    let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0);
+    let width = advance(font, text, face.look).ceil().max(1.0) * face.look.widen;
+    Some(scale * UNITS_PER_SCALE * width.ceil() / height * UNITS_ASPECT)
+}
+
+/// The pen position after `text`: the sum of the glyph advances, each but the last followed by the look's tracking.
+fn advance(font: &FontArc, text: &str, look: Look) -> f32 {
+    let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
+    let last = text.chars().count().saturating_sub(1);
+    text.chars().enumerate().map(|(k, ch)| scaled.h_advance(font.glyph_id(ch)) + gap(look, k, last)).sum()
+}
+
+/// The space after the glyph `k` of a string whose last glyph is `last`: the tracking, and none after the last one, so a
+/// right-aligned string ends on its edge.
+fn gap(look: Look, k: usize, last: usize) -> f32 {
+    if k == last {
+        return 0.0;
+    }
+    look.tracking * RASTER_HEIGHT_PX
+}
 
 /// The font, once: the egui default proportional font, bundled with egui.
 static FONT: OnceLock<Option<FontArc>> = OnceLock::new();
@@ -67,10 +133,11 @@ fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
     let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0) as u32;
     let mut glyphs = Vec::new();
     let mut pen = 0.0_f32;
-    for ch in text.chars() {
+    let last = text.chars().count().saturating_sub(1);
+    for (k, ch) in text.chars().enumerate() {
         let id = font.glyph_id(ch);
         glyphs.push(id.with_scale_and_position(scaled.scale(), ab_glyph::point(pen, ascent)));
-        pen += scaled.h_advance(id);
+        pen += scaled.h_advance(id) + gap(look, k, last);
     }
     let width = pen.ceil().max(1.0) as u32;
     let mut rgba = vec![0u8; (width * height * 4) as usize];
@@ -117,11 +184,39 @@ fn stretch(image: Image, factor: f32) -> Image {
 
 #[cfg(test)]
 mod tests {
+    use super::{RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY};
+
     #[test]
     fn a_string_rasterises_with_coverage() {
         let image = super::render("186", super::PLAIN).expect("the bundled font loads");
         assert!(image.width > 0 && image.height > 0);
         assert!(image.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 200), "some glyph pixel is solid");
+    }
+
+    #[test]
+    fn tracking_spaces_the_glyphs_but_not_the_end() {
+        let plain = super::render("MENU", super::PLAIN).expect("the bundled font loads");
+        let spaced = super::render("MENU", super::Look { tracking: 0.25, ..super::PLAIN }).expect("the font loads");
+        let extra = (0.25 * super::RASTER_HEIGHT_PX * 3.0) as u32;
+        assert!(spaced.width.abs_diff(plain.width + extra) <= 1, "three gaps in four glyphs");
+    }
+
+    #[test]
+    fn the_measured_width_matches_the_rendered_image() {
+        for key in [RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_FONT_KEY] {
+            let face = super::face(key).expect("a raster key");
+            let image = super::render("QUICK RACE", face.look).expect("the bundled font loads");
+            let from_image =
+                1.0 * super::UNITS_PER_SCALE * image.width as f32 / image.height as f32 * super::UNITS_ASPECT;
+            let measured = super::width_units(key, "QUICK RACE", 1.0).expect("a measurable key");
+            assert!((measured - from_image).abs() < 1e-3, "{key:#x}: {measured} against {from_image}");
+        }
+    }
+
+    #[test]
+    fn a_fengs_font_hash_is_not_rasterised_text() {
+        assert!(super::face(0x5455_70c6).is_none());
+        assert!(super::width_units(0x5455_70c6, "x", 1.0).is_none());
     }
 
     #[test]
