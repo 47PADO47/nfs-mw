@@ -61,7 +61,7 @@ macro_rules! catalogue {
 }
 
 catalogue! {
-    // HUD (state-fed, `hud/`). Numbers 1 to 11.
+    // HUD (state-fed, `hud/`). Numbers 1 to 12.
     Tachometer = 1,
     Speedometer = 2,
     GearIndicator = 3,
@@ -73,6 +73,7 @@ catalogue! {
     Speedbreaker = 9,
     RadioCard = 10,
     BustedOverlay = 11,
+    PoliceRadar = 12,
     // Front end (screen-fed, `frontend/`). Numbers 20 to 25.
     MainMenu = 20,
     Categories = 21,

@@ -19,9 +19,9 @@ use super::{ElementId, UiThemes, hud_layer, slot_layer};
 use crate::hud::roots;
 use crate::settings::UiStyle;
 
-/// The rear-view mirror's bezel and the radar's group: nodes no HUD slot takes (`hud_slots` module docs).
+/// The rear-view mirror's bezel and another object: nodes no HUD slot takes (`hud_slots` module docs).
 const MIRROR_BEZEL: u32 = 0x7FAC_287B;
-const RADAR_GROUP: u32 = 0x839E_7D77;
+const RADAR_GROUP: u32 = 0x7FAC_9999;
 
 /// A node of a synthetic tree. Its world transform carries its index, so a moved node shows in the comparison.
 fn node(index: usize, name: u32, parent: Option<usize>, kind: NodeKind, z: f32, visible: bool) -> UiNode {

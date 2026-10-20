@@ -23,6 +23,7 @@ mod map;
 pub mod menu;
 mod minimap;
 mod pursuit;
+mod radar;
 mod radio;
 mod readout;
 mod skin;
@@ -35,6 +36,7 @@ pub use map::{MapSnapshot, WorldMapView, WorldMapViewCell};
 pub use menu::VerticalMenu;
 pub use minimap::Minimap;
 pub use pursuit::PursuitTimer;
+pub use radar::PoliceRadar;
 pub use radio::RadioCard;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
@@ -79,6 +81,7 @@ impl Theme for RemasteredTheme {
             ElementId::Tachometer => Some(Box::new(Dial::new(self.drive.clone()))),
             ElementId::Speedometer => Some(Box::new(Readout::new(self.drive.clone()))),
             ElementId::Minimap => Some(Box::new(Minimap::new(self.frame.clone(), self.drive.clone()))),
+            ElementId::PoliceRadar => Some(Box::new(PoliceRadar::new(self.frame.clone(), self.drive.clone()))),
             ElementId::RadioCard => Some(Box::new(RadioCard::new(self.radio.clone()))),
             ElementId::PursuitMeter => Some(Box::new(PursuitTimer::new(self.drive.clone()))),
             ElementId::Nitrous => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Nitrous))),

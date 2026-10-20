@@ -23,6 +23,7 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::Speedbreaker, 9),
     (ElementId::RadioCard, 10),
     (ElementId::BustedOverlay, 11),
+    (ElementId::PoliceRadar, 12),
     (ElementId::MainMenu, 20),
     (ElementId::Categories, 21),
     (ElementId::PauseMenu, 22),

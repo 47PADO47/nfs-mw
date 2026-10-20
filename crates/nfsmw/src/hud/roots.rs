@@ -69,6 +69,12 @@ pub(crate) fn minimap_arrow() -> Roots {
     Roots::new([name(ARROW)], [])
 }
 
+/// The police detector: its group (the green laser, the direction arrow and the two LED rows), and the backing it stands on
+/// in either layout (on its own, or in the rear-view mirror). The cool-down bar is not in this group.
+pub(crate) fn police_radar() -> Roots {
+    Roots::new([0x0627_43F5, 0x839E_7D77, 0x9EE0_6631], [])
+}
+
 /// The map blips: the pool objects of every style the HUD registers.
 pub(crate) fn blips() -> Roots {
     Roots::new(blip_icons(), [])

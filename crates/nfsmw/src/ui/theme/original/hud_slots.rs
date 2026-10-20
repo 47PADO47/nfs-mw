@@ -13,9 +13,9 @@
 //!   chase runs, so a split would add a slot with no consumer.
 //! - **RadioCard and BustedOverlay.** Their packages have no HUD root, so each emits its whole package.
 //!
-//! Nodes in no slot: the rear-view mirror, the police radar and its laser, the heat arcs and the bounty row (not
-//! confirmed under the board). They are not lost. [`emit_unclaimed`] appends every node of the HUD package that no HUD
-//! slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
+//! Nodes in no slot: the rear-view mirror and the bounty row (not confirmed under the board). The police radar is the
+//! `PoliceRadar` slot, with its laser; the heat arcs belong to the minimap. They are not lost. [`emit_unclaimed`] appends
+//! every node of the HUD package that no HUD slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
 
 use std::collections::HashMap;
 
@@ -28,7 +28,7 @@ use super::frame::{FengSource, FrameCell};
 use super::subtree::{FengSubtree, Scope, keep_flags};
 
 /// The slots that read the HUD package, in catalogue order. The composer builds them in this order.
-pub(crate) const HUD_SLOTS: [ElementId; 9] = [
+pub(crate) const HUD_SLOTS: [ElementId; 10] = [
     ElementId::Tachometer,
     ElementId::Speedometer,
     ElementId::GearIndicator,
@@ -38,6 +38,7 @@ pub(crate) const HUD_SLOTS: [ElementId; 9] = [
     ElementId::Nitrous,
     ElementId::Turbo,
     ElementId::Speedbreaker,
+    ElementId::PoliceRadar,
 ];
 
 /// The scope of a slot in the HUD package, or `None` for a slot that reads another package.
@@ -53,6 +54,7 @@ fn hud_scope(slot: ElementId) -> Option<Scope> {
         ElementId::Nitrous => scope(roots::nitrous()),
         ElementId::Turbo => scope(roots::turbo()),
         ElementId::Speedbreaker => scope(roots::speedbreaker()),
+        ElementId::PoliceRadar => scope(roots::police_radar()),
         _ => return None,
     })
 }
