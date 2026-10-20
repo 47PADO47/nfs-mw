@@ -40,8 +40,12 @@ pub struct Geometry {
 
 /// The message cut into lines no wider than the panel's inside. `^` is the language table's line break.
 fn wrap(message: &str) -> Vec<String> {
-    let room = WIDTH - 2.0 * PAD;
-    let fits = |text: &str| width_units(RASTER_MENU_FONT_KEY, text, MESSAGE_SCALE).is_none_or(|width| width <= room);
+    wrap_text(message, WIDTH - 2.0 * PAD, MESSAGE_SCALE)
+}
+
+/// `message` cut into lines no wider than `room` units at `scale`. `^` is the language table's line break.
+pub(super) fn wrap_text(message: &str, room: f32, scale: f32) -> Vec<String> {
+    let fits = |text: &str| width_units(RASTER_MENU_FONT_KEY, text, scale).is_none_or(|width| width <= room);
     let mut lines = Vec::new();
     for paragraph in message.split('^') {
         let mut line = String::new();

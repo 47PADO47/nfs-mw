@@ -13,6 +13,7 @@ use crate::ui::prompts::Prompt;
 use crate::ui::raster_text::{RASTER_MENU_FONT_KEY, width_units};
 use crate::ui::theme::MenuHint;
 
+pub use super::blacklist::row_at as blacklist_row_at;
 pub use super::dialog::row_at as dialog_row_at;
 
 /// FEng units per pixel of the reference picture.

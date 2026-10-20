@@ -5,9 +5,11 @@
 //!
 //! [`layout`] holds the places, shared with the frontend's hit tests.
 
+mod blacklist;
 mod credits;
 mod dialog;
 pub mod layout;
+mod rival;
 mod value;
 
 use blackbox_ui::{Component, DrawList, Image, LayoutCx, Outline, Panel, Rect, Slant, SlotId, Text, justify};
@@ -92,6 +94,14 @@ impl<'a, 'b> Parts<'a, 'b> {
             }
             MenuStyle::Credits => {
                 self.credits(list);
+                return self.parts;
+            }
+            MenuStyle::Blacklist => {
+                self.blacklist(list);
+                return self.parts;
+            }
+            MenuStyle::Rival => {
+                self.rival_bio(list);
                 return self.parts;
             }
             _ => {}

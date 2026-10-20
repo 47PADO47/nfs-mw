@@ -73,10 +73,11 @@ fn the_icon_menus_and_the_settings_pages_are_vertical_and_the_rest_fall_back() {
         ElementId::PauseMenu,
         ElementId::SafeHouseMenu,
         ElementId::OptionTable,
+        ElementId::Blacklist,
     ] {
         assert!(theme.element(slot.slot(), &cx).is_some(), "{} is vertical", slot.name());
     }
-    for slot in [ElementId::TrackSelect, ElementId::Blacklist, ElementId::CarLot] {
+    for slot in [ElementId::TrackSelect, ElementId::CarLot] {
         assert!(theme.element(slot.slot(), &cx).is_none(), "{} stays Original", slot.name());
     }
 }

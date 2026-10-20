@@ -34,7 +34,7 @@ impl Parts<'_, '_> {
         let live = selected && entry.enabled;
         let facing = nudge.map(|(forward, age)| (if forward { Facing::Right } else { Facing::Left }, age));
         match &entry.value {
-            MenuValue::None => {}
+            MenuValue::None | MenuValue::Rival(_) => {}
             MenuValue::Choice { text, arrows } => {
                 let style = ChoiceStyle {
                     font: keys::FONT_MENU,
