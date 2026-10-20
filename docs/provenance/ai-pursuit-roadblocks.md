@@ -51,5 +51,6 @@ The prop bounds of `XO_SpikeBelt_1b_DW_00` (one box, half extents 0.378 / 3.265 
   checks are the rewrite's.
 - The cars of a heavy roadblock are ordinary cop cars of the SUV models, not pooled vehicles that were un-spawned first.
 - "Cops needed to evade + 1" when a car is recruited has no effect: the rewrite's escape is a timer, not a count of cops.
-- A sawhorse is a body in the prop world that sleeps until reached; it does not break into its four fragments (the
-  smackable's event sequence is not run for runtime props).
+- A sawhorse is a body in the prop world that sleeps until reached, with a scenery model that runs the smackable's event
+  sequence (`genericsmackable`) and releases its four pieces (2026-10-21; installed test). The cars of a lottery roadblock
+  come first from roaming cops out of view (`roadblock/steal.rs`), then are created: the original's pool is not built.

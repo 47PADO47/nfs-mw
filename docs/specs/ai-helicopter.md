@@ -463,12 +463,20 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   `TimeBetweenHeliActive`. The ground cops are the breaker agent's: they are braked, not wrecked (see the pursuit-breakers spec).
 - **No spotlight, gun or spike drop** exist in the original (checked: no such code or strings beyond statistics), so none is
   built. `HELICOPTER_LINE_OF_SIGHT` and `HELICOPTER_ICON_GROUP` are minimap package objects the minimap constructor loads
-  (`FUN_0059d500`); the icon group is the helicopter blip. The line-of-sight object's placement and scale is not reversed, so
-  the minimap shows the blip but not the sight cone. The `heliwash` rotor-wash particle (spec section 7) is not built.
+  (`FUN_0059d500`); the icon group is the helicopter blip. The line-of-sight object (a 64 x 64 image, tint
+  `144, 184, 255, 160`) stands at the icon group's own place in the package **[verified]**; the code that scales and turns
+  it was not re-read, so the minimap shows the blip but not the sight cone **[open]**.
+- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three emitters. The effect
+  is placed once a second on the ground under the helicopter, turned to the ground normal, with the intensity
+  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground (`scenes/world/heli_wash.rs`).
+- **AvoidCamera [headless].** Section 4.1 is in `helicopter/camera.rs`; the world gives the controller the game camera
+  (the cut's camera during a breaker moment) each physics step.
 - **Mod options.** Spawn and despawn distance, speed cap, fly and search speed, attack time, sight distances and the
-  switches are applied (section 10). `Leading`, `ClosingSpeed`, `SearchRadius`, `Turning`, `Acceleration` and `Brake` take
-  two to three comma-separated values in the mod and are not read: the keys map onto the spec's constants (lead 30 and 45,
-  closing 20, 30 and 50, yaw gain and clamp, acceleration 80 and 30, braking 1.55 and 0.4) but the file reader takes one number
-  per line. `DespawnDistance` (600 m) is the mod's default for a vanilla distance whose code was not found.
-- **Not done.** The controller's `AvoidCamera` (no camera in the police state), the skid-hit's collision-abort counter from
-  real body collisions, and the rotor word meanings (section 7). A live-play comparison has not been made.
+  switches are applied (section 10). `Leading`, `ClosingSpeed`, `Turning`, `Acceleration` and `Brake` take two or three
+  comma-separated values; the reader takes each part with its own range (`ini-tuning::read_numbers`) and they reach the
+  controller as `Gains` (lead 30 and 45, closing 20, 30 and 50, yaw limit 1.3 and gain 8, acceleration 80 and 30, braking
+  1.55 and 0.4). The meaning of each part is mapped by value, since the mod's defaults equal the vanilla constants
+  **[inferred]**; the mod's `-8` gain is used by its size. `SearchRadius` (80, 250) is read and held: no constant of the
+  controller matches it. `DespawnDistance` (600 m) is the mod's default for a vanilla distance whose code was not found.
+- **Not done.** The sight cone, the skid-hit's collision-abort counter from real body collisions, and the rotor word
+  meanings (section 7). A live-play comparison has not been made.

@@ -31,7 +31,7 @@ constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use
 | Work lead | 0.45 s | 0x890840 | `work` and `dest` lead (section 4) | `control.rs` `WORK_LEAD` |
 | Look-ahead lead | 0.65 s | 0x890844 | the `ahead` point of `CheckHeliSheet` | `control.rs` `ahead_point` |
 | Sheet steer gains | 0.3, 0.4 | 0x890848, 0x89084C (also 0x8905D0) | sliding around a roof and a wall | `control.rs` `ahead_roof`, `lead_roof` |
-| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | not ported (no camera) |
+| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | `helicopter/camera.rs` |
 | Response ratio | 2 | 0x890628 | desired accel = 2 x velocity error | `flight.rs` |
 | Accel limit | `min(80, 0.6 v + 30)` | 0x89062C (0.6), 0x890620 (80), 0x890820 (30) | section 5 | `flight.rs` |
 | Closing / brake | closing > 3; speed cut 0.4; brake at 15 m | 0x8905DC, 0x890690 (3); 0x8905D0 (0.4); 0x890668 (15) | section 4 | `control.rs` |
@@ -54,6 +54,6 @@ constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use
 1.3 (yaw clamp), 1.8 and 4.8 (skid lift), 1.9 (strike across), 0.7, 1.14, 35 (skid window), 75 (visual sphere), 85 (exit
 seek), 600 (despawn). They may be immediate operands in code. Their values are the spec's, not confirmed in `speed.exe`.
 
-**Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` stays unported, since the port has
-no camera. Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
+**Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` is ported (the world gives the
+helicopter the game camera each step). Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
 

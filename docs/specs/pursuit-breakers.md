@@ -58,7 +58,7 @@ horizontal distance to any zone's centre is below the radius, its damage behavio
 every damage zone to the top level, the vehicle-destroyed notification). Then the zones whose end time has passed are
 dropped. Nothing brakes the cops. No pursuit has to be active, and the test covers every police car (patrol,
 pursuing, roadblock) and anyone who enters while the zone lives. The helicopter is in the same list in the original;
-the rewrite does not destroy it yet. **[open]**
+the rewrite destroys it too (horizontal test, height ignored).
 
 The first rewrite braked the cops inside the zone for its duration. That contradicted this behaviour (and
 `ai-pursuit-roadblocks.md` section 7) and left the cops alive, so the breakers produced no visible result in a chase.
@@ -90,10 +90,24 @@ detachment (donut/tyre shop posts, scaffolds).
 
 Every breaker engine except the gazebo issues, at the same time as the zone, an `EPlayRaceNIS` event (`0x66666DC8`)
 whose scene type is "Moment" and whose scene names the structure (`WMGasStation`, `WMBoat`, `WMWaterTower`...)
-**[verified]**. The original plays that scripted scene (a short camera cut of the collapse) while the world goes on
-**[inferred]**; the pursuit HUD and the camera blur of the original's visual treatment follow the game-breaker or
-cinematic-moment state **[decomp]**. The rewrite names the scene in the breaker history but plays nothing: the NIS
-animation codec is open (`docs/formats/animation.md`). **[open]**
+**[verified]**. The original does not play an animation for it: the NIS activity treats a Moment apart and only runs an
+ICE camera track while the world goes on, gated by a player-touch window and a close chasing cop **[decomp]**. The
+rewrite plays that cut: [pursuit-breaker-moment](pursuit-breaker-moment.md) (gate, marker, camera track, what the world
+does during it, what is not reproduced). The NIS animation codec is not needed for it.
+
+## Map icons
+
+The loading tip says the breaker objects are marked with icons on the map during a pursuit and that hitting one uses
+it **[text: `TIP_PURSUIT_BREAKERS`, English.bin]**. The HUD package holds the pool `PURSUIT_BREAKER_0..7` (8 objects,
+`Minimap_Icon_Pursuit_Breaker`) **[verified]**. When `EBreakerStopCops` fires, the event also hides every map icon of
+kind 12 within 20 m of the breaker (it clears the icon's shown bit) **[decomp]**; the original's icon records are
+separate gameplay records placed near the structures, whose source table was not located, and kind 12 was not
+identified beyond that.
+
+The rewrite marks each resident breaker that has not fired, while a chase runs, with the pool's icons (drawn only
+where the minimap view covers them, at most eight), and a fired breaker takes every icon within 20 m of it with it
+(`scenes/world/breaker_icons.rs`). The icon places are the structures' own, not the original's icon records
+**[approximation]**. The full-screen map is a front-end screen outside the chase and shows none.
 
 ## `EPursuitBreaker`
 
@@ -103,16 +117,22 @@ link to scenery breakers; the scenery handler for it never receives an event fro
 
 ## Not reproduced
 
-Authored visual effects of the collapse beyond fragments, breaker music/speech and the destroyed-cop speech, the
-helicopter's destruction in a zone, the cinematic moment, and the map icon that disappears once a breaker is used.
-A loading tip or HUD text for breakers is not found in the sources read.
+Authored visual effects of the collapse beyond fragments, the original's own map icon records, and the player
+autopilot, traffic stop and camera noise of the moment (see its spec). **No pursuit music, speech or statistic is
+raised by a breaker itself**: the kind of `MBreakerStopCops` is used at four places in `speed.exe`: the event's two
+constructors, its make-callback and one function (`0x41CD10`, not decompiled) that is the cop manager's handler
+registration by the CC0 source; no other listener (speech, sound, HUD) exists in that source **[decomp, inferred]**. The destroyed cops reach the rest the way any wreck does: the speech machine says "unit disabled"
+for a wrecked cop, and the chase's destroyed counter, rep points, cost to state and the career's cops-destroyed
+statistics count it once (`pursuit-system.md`). There is no breaker statistic in the rap sheet or the milestones. The
+loading tip exists (`ui/tips.rs`, `PURSUIT_BREAKERS`, `HIDING_SPOTS`).
 
 ## Checks
 
 Installed, run with `NFSMW_GAME_DIR`: the profiles of all 75 engines (`nfsmw-data`), the census of placements per
 section, the streamed gas station (resident site with its zone, supports and scene; a pump hit opens the zone, wrecks
 the patrol car inside and not the one outside, counts one wreck in the chase; pillars alone do nothing; the player's
-car fires it), and the console listing. The console command `pursuit breakers` prints the resident breakers nearest
+car fires it; its moment is answered and its map icon is gone), the moment data and the framing of the gas station's cut
+(`moment_tests`), the pool of eight breaker icons in the HUD package, and the console listing. The console command `pursuit breakers` prints the resident breakers nearest
 the player, the open zones and the last events.
 
 Checks: parse every installed hierarchy; exercise real support-to-roof chains,
