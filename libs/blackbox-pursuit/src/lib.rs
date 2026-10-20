@@ -21,6 +21,7 @@ pub mod health_bar;
 pub mod heat;
 pub mod helicopter;
 pub mod infraction;
+pub mod respawn;
 pub mod roadblock;
 pub mod rules;
 pub mod sight;

@@ -29,8 +29,6 @@ const MAX_DISTANCE: f32 = 400.0;
 const SPREAD: f32 = std::f32::consts::FRAC_PI_3;
 /// No cop starts nearer than this to another car.
 const MIN_GAP: f32 = 40.0;
-/// A cop this far from the player is taken out and spawned again closer.
-const LOST_DISTANCE: f32 = 500.0;
 /// A cop starts rolling at this speed, m/s.
 pub(super) const START_SPEED: f32 = 15.0;
 /// A cop car model with what limits how fast an AI drives it.
@@ -220,10 +218,6 @@ impl TrafficWorld {
         if !self.police.can_begin() {
             return;
         }
-        self.cars.retain(|car| {
-            let p = car.position();
-            !car.is_cop() || (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < LOST_DISTANCE
-        });
         match self.police.is_perp_in_sight() {
             true => self.update_support(sim_dt, focus, collision, surfaces),
             false => self.age_search_support(sim_dt),
