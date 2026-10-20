@@ -10,7 +10,7 @@ use crate::modding::cop_rows::{with_heat_overrides, without_models};
 use crate::scenes::world::WorldScene;
 
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
+    const USAGE: &str = "usage: traffic <count>|off|status|sirens|warmup <seconds>";
     let focus = scene.traffic_focus();
     if scene.traffic.is_none() {
         return Err("this track has no road network".into());
@@ -31,6 +31,10 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
         ["status"] => {
             let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
             Ok(format!("models: {}\n{}", traffic.model_names().join(" "), traffic.status(focus)))
+        }
+        ["sirens"] => {
+            let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
+            Ok(traffic.siren_status())
         }
         [count] => {
             let count: usize = count.parse().map_err(|_| format!("{count:?} is not a number ({USAGE})"))?;

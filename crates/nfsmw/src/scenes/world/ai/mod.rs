@@ -33,6 +33,7 @@ mod search;
 mod shading;
 pub(super) mod signal_props;
 mod simulation;
+mod sirens;
 mod spawn;
 mod spikes;
 mod stop;
@@ -140,6 +141,8 @@ pub struct TrafficWorld {
     events: traffic_events::EventTuning,
     /// Sounds the cars asked for since the scene last took them (`collide.rs`).
     sounds: Vec<crate::audio::traffic::TrafficSound>,
+    /// The sirens of the police cars (`sirens.rs`).
+    sirens: sirens::Sirens,
     /// Seconds left in which a hit by the player counts as recent.
     hit_timer: f32,
     /// The player's speed (m/s) and whether a patrol cop can see the player, as of the last collision step.
@@ -211,6 +214,7 @@ impl TrafficWorld {
             breaker_areas: Vec::new(),
             events: traffic_events::EventTuning::default(),
             sounds: Vec::new(),
+            sirens: sirens::Sirens::default(),
             hit_timer: 0.0,
             player_speed: 0.0,
             player_position: None,

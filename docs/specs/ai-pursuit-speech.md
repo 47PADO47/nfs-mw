@@ -280,6 +280,8 @@ seconds; when contact is lost the siren turns off; afterwards: for the first 6 s
 (6 s) every `SirenWailPeriod + SirenMaxYelpTime` (11 + 6 s); while a formation is collapsing, a finisher is running, or the re-initiate / spotted / bullhorn lines play, a cop in formation screams
 (high intensity) for up to 3 s every 60 s, or yelps. A cop in a roadblock always wails; a cop whose lights are off is off, or "die" when destroyed. **[decomp]**
 
+(The sound side, the voice limits and the data are in [cop-siren-audio.md](cop-siren-audio.md).)
+
 ## Rust implementation notes
 
 - Split into `pursuit` (game logic, no audio) and `pursuit_speech` (a resource that reads `PursuitView` and emits `SpeechRequest { event, params, speaker }`). The audio layer owns the queue of

@@ -12,6 +12,7 @@ mod chase;
 pub mod common_effects;
 pub use common_effects::CommonEvent;
 pub use heli::HeliFrame;
+pub use siren::{SirenFrame, SirenSource};
 pub mod environment;
 pub mod environment_context;
 mod filter;
@@ -37,6 +38,7 @@ pub mod preview;
 pub mod preview_play;
 mod radio;
 mod refs;
+mod siren;
 mod speech;
 mod trace;
 pub mod traffic;
@@ -100,6 +102,7 @@ pub struct Audio {
     trace: trace::Trace,
     traffic: traffic::TrafficAudio,
     heli: heli::Slot,
+    sirens: siren::Slot,
     common: common_effects::CommonPlayback,
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
@@ -180,6 +183,7 @@ impl Audio {
             trace: trace::Trace::default(),
             traffic: traffic::TrafficAudio::default(),
             heli: heli::Slot::default(),
+            sirens: siren::Slot::default(),
             common: common_effects::CommonPlayback::default(),
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),

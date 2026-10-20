@@ -116,6 +116,12 @@ fn drive_car(
         Some(state) => audio.update_heli(heli, state.view),
         None => audio.stop_heli(),
     }
+    // The police sirens follow the same car and stop with it.
+    let sirens = host.scene.siren_frame(time.delta_secs());
+    match &car {
+        Some(state) => audio.update_sirens(sirens, state.view),
+        None => audio.stop_sirens(),
+    }
     // Each petrol-station blast of this frame plays its explosion.
     for _ in 0..host.scene.take_explosions() {
         audio.play_explosion();

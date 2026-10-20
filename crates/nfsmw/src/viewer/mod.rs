@@ -281,6 +281,10 @@ pub trait Scene {
     fn rotor_frame(&mut self, _dt: f32) -> Option<crate::audio::HeliFrame> {
         None
     }
+    /// The police cars' sirens for this frame (`dt` seconds since the last one), or `None` without any police.
+    fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
+        None
+    }
     /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
     fn take_explosions(&mut self) -> u32 {
         0
