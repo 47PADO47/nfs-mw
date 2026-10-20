@@ -16,8 +16,7 @@
   read from the database. `nfsmw`'s real-install tests: the 28 events with banks of their own decode for several
   speakers, and the dispatcher says one of them and holds back a sentence. The unit tests check each rule of the spec
   on synthetic events. No comparison with the running original, and nobody has listened to the output.
-- **Known differences from the original:** sentences (the `.evt` rules) are not resolved, so only the 28 events
-  with banks of their own can be said; the four-list pipeline is one queue; the sort order of equal priorities is arrival order (the
-  original's comparators are not in the readable decomp); take choice avoids the last half of the bank instead of
-  SPCH's repeat rule; no radio click, low-pass, panning or per-speaker volume; no track-streamer gating; the
+- **Known differences from the original:** sentences are built by the rules of [speech-sentences.md](speech-sentences.md)
+  (provenance [speech-sentences.md](speech-sentences.md)); the four-list pipeline is one queue; the sort order of equal priorities is arrival order (the
+  original's comparators are not in the readable decomp); a bank's takes are chosen by the bank's own repeat memory; no radio click, low-pass, panning or per-speaker volume; no track-streamer gating; the
   dispatcher's clock stops while the pause menu is up.

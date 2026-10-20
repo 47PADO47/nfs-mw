@@ -86,22 +86,25 @@ behaviour:
 ## 5. Recordings
 
 `copspeech.idx` is a table of 579 *banks*; a bank holds the takes of one phrase by one speaker (voices 1 to 9, or
-`0xFFFF` for any), 13,562 takes in all, each a stream of the `.big`. A phrase is named by an event number. Of the 139
-events, 28 have banks of their own (`cellcall`, `arrest_disparrestreply`, `anytimeevents_bailoutdeny`,
-`anytimeevents_weatherreport`, ...); those can be said as they are by choosing a bank of the requested speaker (any
-bank when that speaker did not record it) and a take that was not said lately. The other events are *sentences*: their records in `copspeech.evt` list the phrases (other event numbers, with banks of
-their own). The phrases are joined in file order; the parameter tests that choose among variants are not read yet (the
-format notes). Pursuit lines (`chase/cues.rs`) are sentences, so they are said this way.
-The SPCH library's rule for avoiding repeated takes is not in the decomp (header only).
+`0xFFFF` for any), 13,562 takes in all, each a stream of the `.big`. A phrase is named by an event number. Almost every
+event is a *sentence*: its record in `copspeech.evt` lists the phrases it says, in order, and tests that pick, in each
+phrase's bank, the take recorded for the request's parameters (the car's colour, the direction, the unit calling). The
+rules are in [speech-sentences.md](speech-sentences.md). Of the 139 events, 28 also have banks under their own number
+(`cellcall`, `arrest_disparrestreply`, `anytimeevents_bailoutdeny`, `anytimeevents_weatherreport`, ...); when such a number
+is requested it is still the record that is followed (the number of a bank and of a record are different namespaces), and
+the rewrite says a bank directly only when the number has no record. Takes of a bank are kept from repeating by the bank's
+own memory of the last takes said.
 
 ## 6. This rewrite
 
 Implemented (`crates/nfsmw/src/audio/speech/`): the request, the checks of section 3, the order and the single voice
-of section 4 (as one queue, not four lists), the thinning, the history, the speech volume, recordings of the 28 events
-with banks of their own. Implemented too: sentences, joined from their phrases (`ea_audio::speech::Sentences`). Not implemented: the parameter tests of the sentences, the radio click, the filter, panning,
-the per-speaker volumes, the cut-scene module, the track-streamer gating of the original, and every gameplay trigger
-(there is no pursuit yet: `Audio::say` is the entry point a pursuit would call, `speech say <event>` the console's).
-`speech_volume` (the original's *Speech Volume* row, `0x9E5FB82A`) is a setting and a row of the audio options.
+of section 4 (as one queue, not four lists), the thinning, the history, the speech volume, and the sentences:
+`Audio::say_with(event, speaker, params)` takes the parameters by name and the event's recordings are chosen for them
+(`ea_audio::speech::Assembler`, spec [speech-sentences.md](speech-sentences.md)). Not implemented: the radio click, the
+filter, panning, the per-speaker volumes, the cut-scene module, the track-streamer gating of the original, and every
+gameplay trigger (there is no pursuit flow yet: `Audio::say` and `Audio::say_with` are the entry points a pursuit would call,
+`speech say <event> [speaker] [param=n ...]` the console's). `speech_volume` (the original's *Speech Volume* row,
+`0x9E5FB82A`) is a setting and a row of the audio options.
 
 ## 7. How to check it
 

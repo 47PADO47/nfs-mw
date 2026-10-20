@@ -303,45 +303,42 @@ A bank header is the SPCH bank header, which the library reads itself; this is w
 |---|---|---|
 | 0 | u16 LE | event number: the phrase the bank's takes say (152 distinct values, 8 to 430) |
 | 2 | u16 LE | speaker: 1 to 9, or `0xFFFF` for any (the cop voices; the game's per-speaker volumes are numbered the same) |
-| 4 | u8 | `flags`, 0 to 3: the table entries are `2 + flags` bytes |
+| 4 | u8 | selector count `s`, 0 to 3: how many selector bytes label each take (the table entries are `2 + s` bytes) |
 | 5 | u8 | number of takes `n` (1 to 211) |
-| 6 | u8 | sample repeat-history count |
+| 6 | u8 | repeat memory: how many of the takes said last are kept out of the choice (0 to 100) |
 | 7 | u8 | alignment multiplier: sample offset unit is `0x100 * (1 + value)` |
 | 8 | u16 LE | bank length in sample offset units |
 | 10 | 4 | padding and first sample start (zero in these banks) |
-| 14 | `(n-1) * (2 + flags)` | each current sample's selector bit indices followed by the next sample's **big-endian** u16 start in the bank's offset units |
-| after | rest | 0 to 122 bytes, mostly `0x70` and `0xFF`: unknown |
+| 14 | `(n-1) * (2 + s) + s` | per take: its `s` **selector bit indices**, then (except for the last take) the next take's **big-endian** u16 start in the bank's offset units |
+| after | rest | one u32 mask per selector (the OR of `1 << selector` over the takes), then `memory + 1` bytes of repeat ring (0x70/0xFF fill) |
 
 Check: all 579 headers parse, the sum of the take counts is 13,562 (the number of streams in the `.big`), and every
-take start lies on a stream start. Banks per phrase: 1 to 9 (one per voice that recorded it, more for variants).
+take start lies on a stream start. Banks per phrase: 1 to 9 (one per voice that recorded it, more for variants). The
+masks equal the OR of the selectors in all 579 banks. What the selectors mean (take *i* is the recording for the choice
+`1 << selector` of the *j*th parameter the sentence tests) is in [speech-evt.md](speech-evt.md) **[verified]**: asking for
+the parameters of each take of each tested phrase finds that take in 21,137 of 21,162 cases.
 
 The original PC sample getter confirms the alignment byte **[decomp]**. The
 NISAudio moment bank uses512-byte units; both Speedbreaker start recordings
 decode at that alignment **[verified]**. Its two selector fields choose stream
 type and parameter masks; see `docs/specs/speedbreaker-moment-audio.md`.
 
-### `.evt`: the event database **[verified bytes; sentence rules not decoded]**
+### `.evt`: the event database **[verified]**
 
-```
-03 12 3C 07   u32 0x1DF8 (unknown)   u32 0   u32 0xC14705FD (a hash)   u32 139   u16 100   u16 500
-139 × u16: record position / 4, ascending, from 0x18
-139 records, 4-byte aligned, from 0x130; the file ends at 0x3CBB
-```
-
-Each record starts with a u16 event number (all 139 distinct, 57 to 263), then `C8 00 F4 01` (200 and 500, the same
-in the records read), a u16 of 1 or 2, `00 64 00`, a u8 count (0 to 5) and blocks that start `39 64 <u16 length>`.
-Inside the blocks, 4-byte groups `<u16 event> 01 01` or `<u16 event> 00 00` name other events (phrases) and are
-followed by parameter tests such as `03 00 00 00 | 02 FF FF 00`. Example: event 57 (`acknowledge`) names 216; 216
-names 417, which is a phrase with banks. These are the sentences. All the event numbers of the `speech` class
-(130 of the 139) are records here; 28 records have banks of their own with the same number. The 9 records
-without a collection (81, 82, 120, 144, 197, 211, 242, 255, 256) are never requested directly.
-Nothing reads the parameter tests yet.
+139 records, one per event (57 to 263): the phrases a sentence says in order and, for each, the tests that choose among
+the phrase's takes by the request's parameters. Records have one or two blocks (versions of the wording), a block has up
+to 12 entries (phrase, voice, tests). Every entry names a phrase that has banks: a sentence is never made of other
+sentences. All the event numbers of the `speech` class (130 of the 139) are records here; 28 numbers are also the number
+of a bank (the phrase 216 is said by banks 22 to 30 and is also the event `spotterwanted`, whose record says phrase 417).
+The 9 records without a collection (81, 82, 120, 144, 197, 211, 242, 255, 256) are never requested directly. Layout:
+[speech-evt.md](speech-evt.md); how a line is built: [specs/speech-sentences.md](../specs/speech-sentences.md).
 
 ### `.csi`: the CSIS interface list **[verified bytes]**
 
-`copspeech.csi` (5,136 B): `MOIR 00 02 00 01`, then `8B 00` = 139 interfaces, then tables. The names and 16-bit ids of the
-139 interfaces (`Setup_Spotter` is `0x5BA7, 0x17C9`) are in the decomp's `COPSPEECH.cpp` **[decomp]**; the parameter
-types (`Type_position_Right_Side = 1`, bit flags) are in `COPSPEECH.hpp`. The file's own layout is not decoded.
+`copspeech.csi` (5,136 B): `MOIR 00 02 00 01`, `8B 00` = 139 interfaces, 12-byte entries (name position, interface CRC,
+0) sorted by CRC, then the names. It holds no parameter types: the types (`Type_position_Right_Side = 1`, bit flags) and the
+argument order of each event are the structures of the decomp's `COPSPEECH.hpp` **[decomp]**; the 16-bit CRCs
+(`Setup_Spotter` is `0x5BA7, 0x17C9`) are in `COPSPEECH.cpp`. See [speech-evt.md](speech-evt.md#copspeechcsi-verified).
 
 ## `EVT_SYS/*.csi` (`MOIR`)
 

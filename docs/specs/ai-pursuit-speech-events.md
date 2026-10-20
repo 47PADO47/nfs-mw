@@ -318,8 +318,10 @@ drop-out roll; **los** needs line of sight; **onscr** needs the speaker on scree
 |---|---|---|---|---|---|---|---|---|
 | day | 260 | 100 | 20 | 5 |  |  |  | INT noint nodrop hold-1 |
 
-Notes on the table: two collections share id 98 (`collisionworld` and `collworld_spin`): the sentence tables pick the variant from
-the event's parameters. The prefix of a collection name is the game's grouping of the sentence tables (`setup`, `backup`,
+Notes on the table: two collections share id 98 (`collisionworld` and `collworld_spin`). The one record 98 in `copspeech.evt` has the three arguments of
+`collisionworld` (speaker, world object type, units) and tests the world object type, so it is that event's sentence;
+`collworld_spin` (intensity) has no record of its own in the file ([speech-sentences.md](speech-sentences.md)). The names in this table
+are shortened: the collection names in the database carry the group (`setup_attmptvehstp`, `backup_callforbu`, ...). The prefix of a collection name is the game's grouping of the sentence tables (`setup`, `backup`,
 `anytimeevents`, `staticroadblock`, `rollingstrategy`, `outcome`, `arrest`, `interrupts`, `helispecific`, `extracops`, `cross`). The last
 group is the collection `d_day` (the scripted "D-Day" race, priority 100, interrupt). The event `heatjump` (220) and
 `dispjurisshift` (223) are the radio's reaction to the heat reaching 2, 3, 4 and 5 (speech spec section 6).
