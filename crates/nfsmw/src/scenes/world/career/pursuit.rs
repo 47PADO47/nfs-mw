@@ -7,7 +7,8 @@
 
 use blackbox_pursuit::{EndReason, Infraction, InfractionLog};
 use nfsmw_career::economy::{InfractionKind, InfractionMask, PursuitResult, end_player_pursuit};
-use nfsmw_career::milestones::{StatType, pay_banked};
+use nfsmw_career::milestones::{Banked, StatType, pay_banked};
+use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::rapsheet::{PursuitStats, case_id_text};
 use nfsmw_career::safehouse::finish_cooldown_pursuit_default;
 use nfsmw_career::safehouse::{FrontEndContext, spawn_heat};
@@ -122,6 +123,7 @@ impl WorldScene {
         let driven_kept = std::mem::take(&mut self.career.pursuit.safe_house_unloaded);
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
+        let phone = &mut self.career.phone;
         let bins = self.career.handle.with(|career| {
             let handle = career.settings.car_handle;
             let kept = driven_kept.then(|| career.stable.career_for_handle(handle).map(|r| r.heat)).flatten();
@@ -143,6 +145,14 @@ impl WorldScene {
             let milestones = career.milestones.on_pursuit_end(&result, FREE_ROAM, chase.secs, escapes);
             if let Some(record) = career.stable.career_for_handle_mut(handle) {
                 pay_banked(record, &milestones.banked);
+            }
+            // A banked milestone is a challenge passed in its bin: the Blacklist counts it, and the bin's challenge
+            // messages follow its count (`docs/specs/career-phone.md` section 7).
+            for (bin, key) in passed_challenges(&career.milestones, &milestones.banked) {
+                career.blacklist.challenge_passed(bin, &key);
+                let count = career.blacklist.bin(bin).map_or(0, |record| record.challenges.len());
+                let count = u8::try_from(count).unwrap_or(u8::MAX);
+                phone.queue_bin_messages(&mut career.settings.sms, bin_messages(bin, BinMoment::Challenges(count)));
             }
             let total = u32::try_from(career.stable.total_bounty()).unwrap_or(u32::MAX);
             career.blacklist.bounty_changed(total)
@@ -188,6 +198,16 @@ impl WorldScene {
         };
         traffic.set_carried_heat(heat);
     }
+}
+
+/// The bin and the challenge name of each banked milestone, in the order they were banked. A key the set does not know is
+/// skipped.
+fn passed_challenges(set: &nfsmw_career::milestones::MilestoneSet, banked: &[Banked]) -> Vec<(u8, String)> {
+    banked
+        .iter()
+        .filter_map(|b| set.milestones().iter().find(|m| m.def.key == b.key))
+        .map(|m| (m.def.bin, m.def.key.to_string()))
+        .collect()
 }
 
 /// The rule crate's result of a chase that ended `reason` with `infractions`, banking the world's rep points: the

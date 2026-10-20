@@ -52,6 +52,8 @@ What the career still lacks. The rules and the wiring listed in the table above 
 - **Race wins and the Blacklist:** done: a career race result goes to `apply_event_result` (the Blacklist counts the race,
   the rival opens, the next bins are entered, cash is paid on a win, impounded cars become releasable), the bin's
   race-win messages are queued, and the roaming-start autosave runs after the race (`scenes/world/career/events.rs`).
+  A milestone banked at the end of an evaded pursuit now counts as a passed challenge of its bin, and the bin's challenge
+  messages follow its count (`scenes/world/career/pursuit.rs`); the speed traps of free roam are not played yet.
   Not done: the pursuit challenges and the side bins 18 to 21 as races of their own (a challenge race runs as a plain
   race, and `challenge_series_complete` is not computed), and the region unlock screen after a race (it is reported in
   the log only).
