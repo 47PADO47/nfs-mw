@@ -259,6 +259,32 @@ duration or `StaggerFormationTime`), only while no finisher runs, the pursuit is
 "pursuit flow" focus (skipped in pursuit races and with speech off); a roadblock that is up, undodged and undamaged forces FOLLOW; `IsCollapseActive` and
 `IsFinisherActive` are read by the HUD and the speech.
 
+## Implemented in the rewrite
+
+Written after the code, to say what exists and what is approximated. Evidence tags as above.
+
+- **Lockout** (`scenes/world/ai/cop_manager.rs`): 60 s at session start, 120 s after an evade or a paid ticket
+  (`TimeInactiveFor911`, free roam); a chase start clears it. While it runs no patrol spawns and every active cop is
+  removed, as the original's patrol pass does for a despawn check. **[decomp]** The original removes every active cop at an
+  evade too, so the rewrite's instant removal of ground units at an evade is the original's, not a gap.
+- **Spawn window and zones**: wave, search and patrol cops must land 150 to 400 m (horizontally) from the player after the
+  road snap and outside `NO_COP_SPAWN` zones. A patrol's probe is a point of the disc around the player (uniform by area,
+  shifted by the player's velocity, at most 100 m), on either lane direction. **[decomp]** for the window and zones;
+  **[inferred]** for the disc, which stands for the random candidate segment of 3.1. The camera is the player here.
+- **Recycle** (`blackbox_pursuit::respawn`, `population/cops.rs`): section 2's rule with the camera eye and forward of the
+  simulation lens; a car's age is its steps since placement. Applies to patrols, chase cops, support cars, roadblock cars
+  and wrecks. A fall-off-the-map rule (no wheel down for 4 s, out of sight) stays as a rewrite extension. The old 500 m
+  removal is gone.
+- **Budget and backup** (`blackbox_pursuit::backup`, `ai/pursuit_budget.rs`): section 4 and the heat spec's
+  `FullEngagementCopCount`, `FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`. A cop counts as evaded when it
+  has stood within the radius (not in cool-down, not support) and later leaves the chase by any route. **[decomp]**
+- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop leaves the chase
+  logic, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. **[decomp]**
+  A cop's own line of sight is not kept per car, so "sees the player" is the chase's contact within the front range.
+  **[inferred]**
+- Not built: the inactive cop pool, the over-budget priority removal, 911 dispatch, breaker zones, queued script spawn
+  requests, and the `SpawnPursuitIVehicle` seek-ahead path walk (the wave probe is a wedge ahead of the player).
+
 ## Rust implementation notes
 
 - A `CopManager` resource with the limits and timers of section 1, a `Pursuit` per target (ai-pursuit.md), and a small `CopPool` of

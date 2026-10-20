@@ -27,14 +27,14 @@ below do not override these integrated gameplay observations.
 
 | Area | Outstanding issue |
 | --- | --- |
-| Cooldown | The cooldown starts above zero rather than at the expected empty starting state. Its state/animation entry needs investigation. |
-| Arrest/payment | Paying after being busted can leave gameplay broken. The isolated control-release fixture passes, but the full front-end return-to-driving sequence is not validated. |
+| Cooldown | **Cause found and fixed, not replayed live.** The HUD bar was fed the escape meter (`progress / required`), which already holds the 7 s grace, so it opened about a third full. The board's bar is `1 - remaining / (required - grace)` and opens empty. Unit and world tests cover it; no live comparison. |
+| Arrest/payment | **Cause found and fixed, not replayed live.** The ticket screen took the two pad-direction messages its package forwards for the payment presses, so accept did nothing and the world stayed frozen under the ticket (the package posts nothing on a payment press). The payment now follows the pressed button. An installed test drives the arrest hold, the ticket, accept on the real `Infractions.fng`, the resume and driving off. The original also continues to the car select screen, which the rewrite does not have. |
 | Police radio | No audible chase radio in the playtest. ID lookup is corrected, but composite sentence playback is missing; cue lookup/queue tests do not prove audible speech. |
 | Police driving | Poor pursuit decisions and incorrect police vehicle physics/damage remain. The short single-unit fixture does not establish competitive AI or collision/damage parity. |
 | Pursuit breakers | No working pursuit breakers were available in the playable test. Existing event-system code is not evidence that the complete pursuit interaction works. |
 | Hiding spots | No working hiding spots were available in the playable test. The existing hiding/cooldown state does not establish authored spot discovery, presentation or gameplay integration. |
 | Sirens | Ground police siren playback is not implemented. |
-| Spawning | Police spawn/roam placement still looks wrong. Forced chase/test setup may contribute, but that cause has not been established. |
+| Spawning | Several causes found and corrected, not replayed live: patrols were only probed in a wedge ahead of the player and never checked after the road snap; wave cops were never recycled except 500 m away; there was no lockout, no finite wave and no surplus removal. See the Patrol population, Search and Backup rows. Forced chase/test setup may still contribute; no live comparison was made. |
 
 ## Implementation changes and isolated regressions
 
@@ -65,13 +65,13 @@ below do not override these integrated gameplay observations.
 
 | Area | Implemented | Missing or approximate |
 | --- | --- | --- |
-| Patrol population | Installed wave models, independent heat-specific patrol target and traffic lane driving | Exact original spawn placement/visibility budget, inactive pool, patrol lockout and 911 dispatch. `cop_share` is a rewrite enable switch. Traffic must be enabled. |
-| Heat | Floating-point growth outside cooldown, heat-selected waves/formations/support, 0.95 escape retention by default, paid-ticket reset | Career bucket bounds and scaling, separate heat for each owned car, paint cooling and persistence. Free roam permits special heat levels up to 10; this exceeds normal career access. |
+| Patrol population | Installed wave models, independent heat-specific patrol target and traffic lane driving; patrols probed on any side of the player in the 150 to 400 m window, rejected inside no-cop-spawn zones; the out-of-play recycle rule (8 s / 10 s settling, beyond 275 m or outside the forward cone, 3 s for wrecks, 375 m protection for a chase); the 60 s session lockout and 120 s lockout after an evade or a paid ticket | Inactive cop pool (cars are created and dropped, not pooled), 911 dispatch, the over-budget priority removal and the exact camera base (the chase camera eye stands in). The 40 m spacing is applied; the original's 15 m/5 m same-lane rules are not. `cop_share` is a rewrite enable switch. Traffic must be enabled. The session lockout means no patrols for the first 60 s of free roam (decomp, not seen live). |
+| Heat | Floating-point growth outside cooldown, heat-selected waves/formations/support, 0.95 escape retention by default, paid-ticket reset; the career bin caps the chase heat (bins 15/14: 2 ... bins 4-1: 5) and scales the level 1 to 5 climb by `ScaleEscalationPerBucket`; a Bartender `TimePerLevel` still wins | Paint cooling (`fecooling`, not read anywhere). Per-car heat persistence exists in `nfsmw-career` (record heat, unload cap 5, spawn floor 1) and is fed to the chase; the rewrite has no multi-car garage flow to exercise it. Free roam without a career permits heat up to 10, which exceeds normal career access. |
 | Detection | Speeding threshold 65 mph; recent hit; heat 4 recognition; patrol 150/50 m front/rear limits, pursuit-row ranges, world obstruction and per-cop hiding latch | Complete offence detection, 911 reports, description matching and individual unit knowledge. Hit/throttle and road-edge rules contain documented approximations. |
 | Driving AI | Road paths, adaptive PID, player-performance matching, avoidance, reverse recovery, formations, collapse, pit/box-in/rolling-block aims and support vehicles | Original driving/action arbitration, pursuit competitiveness and recovery tuning have not been validated on matched routes. Several tactic gates remain inferred. |
-| Search | Tracked grace, traffic-lane searches, replacement cap and physical-unit reacquisition | Original search coverage, sector dispatch, individual observations, surplus-unit flee/despawn and matched-route recovery tuning. Existing surplus units remain during search. |
-| Escape and bust | Signed pursuit meter, cooldown/hiding, near/slow bust, control lock, stopped cops, fallback ticket and payment cleanup | Authored arrest NIS, impound/strikes, career money and saves. The fallback is a three-second hold then ticket. Escape still removes ground units; original disengagement is missing. |
-| Backup | Heat-selected wave types, engagement cap and inter-spawn delays | Finite evaded-cop wave budget, stock backup countdown, HUD ETA and dispatch callouts. Replacements during visible contact remain an approximation. |
+| Search | Tracked grace, traffic-lane searches, replacement cap, physical-unit reacquisition, and surplus cops (over the cool-down's `NumPatrolCars`) sent away two at a time to drive off with lights out until recycled | Original search coverage, sector dispatch, individual observations and matched-route recovery tuning. Per-cop sight for the flee rule is approximated by the chase's contact plus the front range. |
+| Escape and bust | Signed pursuit meter, cooldown/hiding, near/slow bust, control lock, stopped cops, fallback ticket (payable from the real ticket screen) and payment cleanup | Authored arrest NIS, impound/strikes, career money and saves. The fallback is a three-second hold then ticket. On an evade the original locks the cops out, which removes every active cop on its next pass; the rewrite does the same (decomp), so there is no visible disengagement to add for an evade. Other ends (the console `pursuit off`) also remove ground units at once. |
+| Backup | Heat-selected wave types, inter-spawn delays, a finite cops-to-evade budget (`FullEngagementCopCount`, engaged cops that leave count as evaded, never fewer than one to evade, never fewer than the cops engaged), the backup called at `NumCopsToTriggerBackup` and arriving after `BackupCallTimer` while the player is seen, `backup_eta` in the audio feed and the status line | A backup ETA element in the pursuit board (the stock board has none; only the speech reads it), dispatch callouts, and roadblock cops recruited into the chase. Replacements during visible contact remain an approximation. |
 | Roadblocks/support | Installed layout tables, on-road placement, spike layouts, SUV/leader support requests and timers | Sawhorse/barrier props, site visibility/occupancy checks, full dispatch scheduling and repeated roadblocks. The current director permits one successful heavy roadblock per chase. Partial layouts can remain when some cars cannot stand. |
 | Spikes | Visible footprint, swept tire/deck test, puncture/blowout handling and repair | Installed prop model, exact prop collision shape, strip animation, AI tire punctures and exact original swept-box equivalence. Tooth mesh and box dimensions are procedural. |
 | Radar | Authored layout/opacity/state transitions, arrow/LEDs/laser; native 300 m cone selection, range normalization, 0.1 floor and per-update ramp | Speed cameras, sweep click, original full-body roll-dependent bearing basis and live rendered calibration against the original. Radar remains available without the rear-view mirror. |
@@ -114,8 +114,10 @@ player dynamics, full-route robustness or a matched original comparison.
 The installed arrest fixture uses the real player/cop physics and world clock,
 holds throttle/steering/NOS/reset during arrest, consumes the fallback ticket,
 pays it and verifies that the player can move again.
-It does not exercise the complete front-end ticket screen and resume path, which
-is still reported broken in the playable build.
+`frontend::bust_resume_tests` goes further: it wraps the world in the paused
+scene, polls the ticket as the front end does, presses accept on the real
+`Infractions.fng`, and checks the world, HUD, chase and car afterwards. It was
+red before the ticket fix. It is a headless test, not a play session.
 
 Relevant modules/tests:
 
@@ -127,6 +129,8 @@ Relevant modules/tests:
 - `installed_pursuit_hud_drives_heat_counts_and_radar_without_template_numbers`
 - `installed_police_drive_stop_search_and_reacquire_on_real_roads`
 - `installed_arrest_locks_player_input_until_the_ticket_is_paid`
+- `installed_bust_ticket_and_payment_return_to_driving_through_the_front_end`
+- `scenes::world::ai::pursuit::tests::{lockout, placement, recycling, budget}`
 - `every_pursuit_set_can_be_entered_and_its_first_bar_decodes`
 
 For original-game acceptance, compare the same car, route, heat, traffic and
