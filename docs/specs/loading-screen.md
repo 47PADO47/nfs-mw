@@ -19,7 +19,7 @@ packages are described in [formats/frontend.md](../formats/frontend.md), the flo
 | `loading_boot.fng` | `GLOBAL/GLOBALA.BUN` | 5 | The boot-time logo card (`MW_Logo.tga` on `BasePoly.tga`). Not used by free roam. |
 | `WS_Loading.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 34 | The loading screen: a dark panel, the word `LOADING` twice, a pair of cop-light and headlight glow groups that sweep across, and a stripe (`BaseStripe.tga`) whose UVs scroll on a looping script. |
 | `WS_Loading_Controller.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 74 | The same screen with a controller hint. Not used yet. |
-| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | A loading tip (`Tip_Safehouse.tga`) with `Press` / `To Continue` and a key glyph (`PC_key_enter.tga`). Not used yet. |
+| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | The career's loading screen: `LOADING...` with cop-light glows at the bottom left, a tip (title, text, picture) in the middle, and a `Press (key) To Continue` prompt that replaces `LOADING...` once the load is over. Used by the career (section 5). |
 | `FadeScreen.fng`, `FadeScreenNoLoadingBar.fng` | `GLOBAL/GlobalB.lzc` | 18, 1 | A fade with and without a loading bar (the executable has the `EFadeScreen*LoadingBar*` event names). Not used yet. |
 
 There is **no** 4:3 loading package in the install (`Loading.fng` is named in the executable but not present), so
@@ -73,8 +73,15 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
 - **Screen logic.** `WS_Loading.fng` has no logic of its own (`factory.rs` runs it as `Plain`). The loading screen
   takes no input: the stage ticks the screens with pad mask 0, so Start and Escape do not pause during loading.
 - **Not done [ours]:** `LOADED` is not sent (its send site is unknown, and the package's exit is not traced); the
-  overlay is removed at once rather than animated out; `Loading_Tips` is not shown; there is no timeout, so a
-  scene that never reports ready keeps the loading screen up.
+  overlay is removed at once rather than animated out; there is no timeout, so a scene that never reports ready keeps
+  the loading screen up.
+- **Which screen.** Free roam and Quick Race use `WS_Loading.fng`; the career (Career on the main menu, a loaded
+  profile, a new career) uses `Loading_Tips.fng` (section 5). The choice is `LoadingScreen` in `flow_loading.rs`.
+- **No freeze.** The screen opens in the frame the player pressed Career. The world is read from the install on a
+  thread (`WorldScene::load`, which holds nothing of the renderer) while the screen animates; the main thread only
+  puts the world together (`WorldLoad::build`, the scene holds `Rc`s and cannot cross threads) and puts it in the
+  window. Before this, `WorldScene::open` ran inside the menu's frame: the window did not repaint for the 0.4 s (warm
+  disk cache) to 4 s (cold) the load took. A load that fails returns to the main menu. [ours]
 
 ## 4. How to check it
 
@@ -83,3 +90,23 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
 2. With the install set by `NFSMW_GAME_DIR`, `nfsmw play --screenshot out.png` (offscreen, no focus) should show
    `WS_Loading` while the start area streams and the world with the car after it. Earlier frames show no world
    geometry and no car.
+
+## 5. The career's loading screen (`Loading_Tips.fng`) [verified in the install and `speed.exe`]
+
+- **Layout.** `LOADING...` and the three cop-light glows sit at the bottom left; the tip group is a title string, a
+  body string, a stripe and a picture (`Tip_Safehouse.tga` is only the package's placeholder), faded in by the
+  package's message `0xB23748F4` (name unknown). Two prompt groups exist, the keyboard's (`PC_key_enter.tga`) and the
+  console's (`Cross.tga`); the console one is hidden here. The package's message `0x9938A38F` (name unknown) hides
+  `LOADING...` and starts the prompt flashing.
+- **The tip's content.** The state of the original (`FUN_005A3400`, `FUN_0057DFA0`) takes a tip index (1 to 26; any
+  other value falls back to `TIP_HIDING_SPOTS`) into a table of 16-byte entries (key pointer, context mask word, 0x10,
+  0x200), hashes the key, and sets the title to the label `TIP_<KEY>_HEADER`, the body to `TIP_<KEY>_DESC` and the
+  picture to the texture `TIP_<KEY>` (`0xC5FBC710`, `0x0D555245` and `0xC9D77CB6` are the objects). The 24 pictures
+  are in `GLOBAL/DYNTEX.BIN`, the pack the original loads on demand (302 textures; only the tips are decoded here,
+  `ui::assets::add_tips`). The key list is `ui/tips.rs`; the keys and subjects are in
+  [career-text-2.md](career-text-2.md) section 2.1. A test checks that every key has its picture and both labels.
+- **Which tip [ours].** The context mask word is not decoded (career-text-2.md), so no tip is held back by the career's
+  state: the first tip of a run is picked by the clock and the next loads follow in table order.
+- **The prompt [ours].** When the world reports ready, the screen is sent `0x9938A38F`, the world is held paused and
+  concealed, and the next accept (key, pad or click) reveals it. A screenshot run has nobody to press a key, so it
+  reveals at once.
