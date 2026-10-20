@@ -117,7 +117,13 @@ mod tests {
     }
 
     fn board() -> Board {
-        Board { entries: vec![entry(1, "19.8.1", true, &[2]), entry(2, "19.8.2", false, &[3]), entry(3, "19.8.3", false, &[])] }
+        Board {
+            entries: vec![
+                entry(1, "19.8.1", true, &[2]),
+                entry(2, "19.8.2", false, &[3]),
+                entry(3, "19.8.3", false, &[]),
+            ],
+        }
     }
 
     #[test]

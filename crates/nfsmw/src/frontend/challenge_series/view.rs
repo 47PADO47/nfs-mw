@@ -43,7 +43,10 @@ impl Crop {
 
     fn lerp(self, to: Crop, t: f32) -> Crop {
         let mix = |a: f32, b: f32| a + (b - a) * t;
-        Crop { centre: [mix(self.centre[0], to.centre[0]), mix(self.centre[1], to.centre[1])], half: mix(self.half, to.half) }
+        Crop {
+            centre: [mix(self.centre[0], to.centre[0]), mix(self.centre[1], to.centre[1])],
+            half: mix(self.half, to.half),
+        }
     }
 }
 
@@ -80,11 +83,6 @@ impl Zoom {
         let t = (self.elapsed / EASE_SECS).clamp(0.0, 1.0);
         self.from.lerp(self.to, t * t * (3.0 - 2.0 * t))
     }
-
-    /// Whether the view still moves.
-    pub fn moving(&self) -> bool {
-        self.elapsed < EASE_SECS
-    }
 }
 
 #[cfg(test)]
@@ -117,7 +115,6 @@ mod tests {
     fn the_view_eases_from_the_old_crop_to_the_new_one_in_a_second() {
         let target = Crop { centre: [0.25, 0.25], half: 0.125 };
         let mut zoom = Zoom::at(Crop::WHOLE);
-        assert!(!zoom.moving());
         zoom.go_to(target);
         assert_eq!(zoom.now(), Crop::WHOLE);
         zoom.tick(0.5);
@@ -125,7 +122,6 @@ mod tests {
         assert!((mid.half - 0.3125).abs() < 1e-6, "half way is the midpoint of a symmetric ease: {mid:?}");
         zoom.tick(0.6);
         assert_eq!(zoom.now(), target);
-        assert!(!zoom.moving());
     }
 
     #[test]

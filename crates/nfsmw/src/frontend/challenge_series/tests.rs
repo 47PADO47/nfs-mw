@@ -24,10 +24,3 @@ fn the_scripts_are_the_packages() {
     assert_eq!(fe_hash_upper("INIT"), INIT);
     assert_eq!(fe_hash_upper("APPEAR"), APPEAR);
 }
-
-#[test]
-fn the_dialog_labels_are_the_language_tables() {
-    use blackbox_text::label_hash;
-    assert_eq!(MANUAL, label_hash("MANUAL"));
-    assert_eq!(AUTO, label_hash("AUTO"));
-}

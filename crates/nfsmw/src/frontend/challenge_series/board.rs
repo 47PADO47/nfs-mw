@@ -94,10 +94,6 @@ impl Board {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
 }
 
 fn entry_of(data: &GameplayData, race: &Race, map: &Calibration) -> Entry {
@@ -201,7 +197,7 @@ mod tests {
 
     #[test]
     fn a_data_without_the_bin_has_no_entries() {
-        assert!(Board::from_data(&GameplayData::default(), &CITY).is_empty());
+        assert_eq!(Board::from_data(&GameplayData::default(), &CITY).len(), 0);
     }
 
     #[test]

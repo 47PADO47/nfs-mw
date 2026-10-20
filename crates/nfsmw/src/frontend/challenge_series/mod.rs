@@ -11,6 +11,8 @@ mod texts;
 mod view;
 
 #[cfg(test)]
+mod screen_tests;
+#[cfg(test)]
 mod tests;
 
 use std::sync::Arc;
@@ -280,7 +282,8 @@ impl ChallengeSeries {
         let shown = bar.rows > bar.view_rows;
         cx.rt.set_hidden(backing, !shown);
         cx.rt.set_hidden(handle, !shown);
-        let (Some(at), Some(size), Some(width)) = (cx.rt.position(backing), cx.rt.size(backing), cx.rt.size(handle)) else {
+        let (Some(at), Some(size), Some(width)) = (cx.rt.position(backing), cx.rt.size(backing), cx.rt.size(handle))
+        else {
             return;
         };
         if !shown {
@@ -309,8 +312,9 @@ impl ChallengeSeries {
         if self.locked(entry) {
             return;
         }
-        let question = Confirm::new(Text::Game(LAUNCH_QUESTION), Command::Confirm(self.transmission_question(cx, entry)))
-            .looking(Look::Attention);
+        let question =
+            Confirm::new(Text::Game(LAUNCH_QUESTION), Command::Confirm(self.transmission_question(cx, entry)))
+                .looking(Look::Attention);
         cx.send(Command::Confirm(question));
     }
 

@@ -121,7 +121,11 @@ mod tests {
 
     #[test]
     fn the_lock_lines_follow_the_laid_out_ladder() {
-        assert_eq!(locked_line(1).numbers, [0], "the first block's second entry names a place 0 (never shown: it starts open)");
+        assert_eq!(
+            locked_line(1).numbers,
+            [0],
+            "the first block's second entry names a place 0 (never shown: it starts open)"
+        );
         let third = locked_line(2);
         assert_eq!((third.label, third.numbers), (label_hash(UNLOCK_EITHER), vec![1, 2]));
         assert_eq!(locked_line(4).numbers, [3, 4], "the fifth entry is opened by the third or fourth");

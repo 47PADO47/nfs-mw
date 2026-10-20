@@ -80,12 +80,11 @@ impl Grid {
 
     /// The scrollbar's numbers for the window.
     pub fn bar(&self) -> Bar {
-        Bar { view_rows: self.height, rows: self.count.div_ceil(self.width.max(1)), top_row: self.start / self.width + 1 }
-    }
-
-    /// The row the selection is on, counted from 1 (the scrollbar's selected item).
-    pub fn selected_row(&self) -> usize {
-        self.current / self.width + 1
+        Bar {
+            view_rows: self.height,
+            rows: self.count.div_ceil(self.width.max(1)),
+            top_row: self.start / self.width + 1,
+        }
     }
 
     /// Left and right wrap inside the row; the last row wraps over the items it has.
@@ -220,7 +219,6 @@ mod tests {
         assert_eq!(g.bar(), Bar { view_rows: 3, rows: 18, top_row: 1 });
         g.select(40);
         assert_eq!(g.bar().top_row, 9);
-        assert_eq!(g.selected_row(), 11);
     }
 
     #[test]
