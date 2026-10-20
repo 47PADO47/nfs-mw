@@ -1,15 +1,12 @@
 //! Starting free roam behind a loading screen (docs/specs/loading-screen.md). The screen is up at once: the world is
 //! built on a thread (the install's tables, the physics, the car, the streaming index take seconds) while the screen
 //! animates, then it is put in the window concealed and streams until it reports ready, and the front end reveals it.
-//! The career's screen waits for a press before it does.
 
 use std::thread::JoinHandle;
 
 use anyhow::Result;
-use blackbox_feng::runtime::pad;
 
 use super::*;
-use crate::frontend::loading_tips::LOADED;
 use crate::scenes::world::{WorldLoad, WorldScene};
 
 /// The loading screen a start shows.
@@ -17,7 +14,7 @@ use crate::scenes::world::{WorldLoad, WorldScene};
 pub(super) enum LoadingScreen {
     /// `WS_Loading.fng`: free roam and Quick Race.
     Plain,
-    /// `Loading_Tips.fng`: the career, with a tip and a prompt to continue.
+    /// `Loading_Tips.fng`: the career, with a tip and its picture.
     Tips,
 }
 
@@ -33,11 +30,9 @@ impl LoadingScreen {
 /// Where a start is. The state is the front end's; the world is the scene's.
 pub(super) enum Load {
     /// The world is being built on a thread.
-    Building(JoinHandle<Result<WorldLoad>>, LoadingScreen),
+    Building(JoinHandle<Result<WorldLoad>>),
     /// The world is in the window, concealed, and streaming.
-    Streaming(LoadingScreen),
-    /// The world is ready and the prompt is up: the next accept reveals it.
-    Prompt,
+    Streaming,
 }
 
 impl Frontend {
@@ -58,41 +53,29 @@ impl Frontend {
                 return;
             }
         };
-        self.load = Some(Load::Building(world, screen));
+        self.load = Some(Load::Building(world));
         self.stage = Stage::Loading;
         let commands = self.screens.open(screen.file(), Args::default(), true, env);
         self.apply(commands, host, env);
     }
 
-    /// One frame of the loading stage: the screen animates, and the start goes on a step when its state allows.
-    pub(in crate::frontend) fn loading_frame(&mut self, dt: f32, mask: u32, host: &mut Host, env: &mut Env) {
-        let commands = self.screens.update(dt, mask, env);
+    /// One frame of the loading stage: the screen animates, and the start goes on a step when its state allows. Nothing
+    /// pauses or skips it, so the pad is not read.
+    pub(in crate::frontend) fn loading_frame(&mut self, dt: f32, host: &mut Host, env: &mut Env) {
+        let commands = self.screens.update(dt, 0, env);
         self.apply(commands, host, env);
         let Some(load) = self.load.take() else { return self.reveal() };
         match load {
-            Load::Building(world, screen) => {
+            Load::Building(world) => {
                 if !world.is_finished() {
-                    self.load = Some(Load::Building(world, screen));
+                    self.load = Some(Load::Building(world));
                     return;
                 }
-                self.world_built(world, screen, host, env);
+                self.world_built(world, host, env);
             }
-            Load::Streaming(screen) => {
+            Load::Streaming => {
                 if !host.scene.ready() {
-                    self.load = Some(Load::Streaming(screen));
-                    return;
-                }
-                // A screenshot run has nobody to press a key.
-                if screen == LoadingScreen::Plain || host.screenshot.is_some() {
-                    return self.reveal();
-                }
-                self.screens.post_to_top(0, LOADED);
-                self.paused.set(true);
-                self.load = Some(Load::Prompt);
-            }
-            Load::Prompt => {
-                if mask & pad::ACCEPT == 0 {
-                    self.load = Some(Load::Prompt);
+                    self.load = Some(Load::Streaming);
                     return;
                 }
                 self.reveal();
@@ -102,13 +85,7 @@ impl Frontend {
 
     /// The world is built: it goes in the window, concealed, to stream. A world that could not be built takes the
     /// player back to the main menu.
-    fn world_built(
-        &mut self,
-        world: JoinHandle<Result<WorldLoad>>,
-        screen: LoadingScreen,
-        host: &mut Host,
-        env: &mut Env,
-    ) {
+    fn world_built(&mut self, world: JoinHandle<Result<WorldLoad>>, host: &mut Host, env: &mut Env) {
         let mut world = match world.join() {
             Ok(Ok(load)) => load.build(),
             Ok(Err(e)) => return self.loading_failed(&format!("{e:#}"), host, env),
@@ -122,7 +99,7 @@ impl Frontend {
         if !self.replace_scene(host, Box::new(scene), true) {
             return self.loading_failed("the world could not be put in the window", host, env);
         }
-        self.load = Some(Load::Streaming(screen));
+        self.load = Some(Load::Streaming);
     }
 
     fn loading_failed(&mut self, reason: &str, host: &mut Host, env: &mut Env) {
@@ -134,7 +111,6 @@ impl Frontend {
     /// Loading is over: the world is shown and the stage goes on to driving.
     fn reveal(&mut self) {
         loading::step(&self.conceal, true);
-        self.paused.set(false);
         self.latch = true;
         self.screens.clear();
         self.stage = Stage::Playing;

@@ -19,7 +19,7 @@ packages are described in [formats/frontend.md](../formats/frontend.md), the flo
 | `loading_boot.fng` | `GLOBAL/GLOBALA.BUN` | 5 | The boot-time logo card (`MW_Logo.tga` on `BasePoly.tga`). Not used by free roam. |
 | `WS_Loading.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 34 | The loading screen: a dark panel, the word `LOADING` twice, a pair of cop-light and headlight glow groups that sweep across, and a stripe (`BaseStripe.tga`) whose UVs scroll on a looping script. |
 | `WS_Loading_Controller.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 74 | The same screen with a controller hint. Not used yet. |
-| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | The career's loading screen: `LOADING...` with cop-light glows at the bottom left, a tip (title, text, picture) in the middle, and a `Press (key) To Continue` prompt that replaces `LOADING...` once the load is over. Used by the career (section 5). |
+| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | The career's loading screen: `LOADING...` with cop-light glows at the bottom left, a tip (title, text, picture) in the middle, and a `Press (key) To Continue` prompt that is not used. Used by the career (section 5). |
 | `FadeScreen.fng`, `FadeScreenNoLoadingBar.fng` | `GLOBAL/GlobalB.lzc` | 18, 1 | A fade with and without a loading bar (the executable has the `EFadeScreen*LoadingBar*` event names). Not used yet. |
 
 There is **no** 4:3 loading package in the install (`Loading.fng` is named in the executable but not present), so
@@ -96,8 +96,7 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
 - **Layout.** `LOADING...` and the three cop-light glows sit at the bottom left; the tip group is a title string, a
   body string, a stripe and a picture (`Tip_Safehouse.tga` is only the package's placeholder), faded in by the
   package's message `0xB23748F4` (name unknown). Two prompt groups exist, the keyboard's (`PC_key_enter.tga`) and the
-  console's (`Cross.tga`); the console one is hidden here. The package's message `0x9938A38F` (name unknown) hides
-  `LOADING...` and starts the prompt flashing.
+  console's (`Cross.tga`); both stay hidden until the package's message `0x9938A38F` arrives.
 - **The tip's content.** The state of the original (`FUN_005A3400`, `FUN_0057DFA0`) takes a tip index (1 to 26; any
   other value falls back to `TIP_HIDING_SPOTS`) into a table of 16-byte entries (key pointer, context mask word, 0x10,
   0x200), hashes the key, and sets the title to the label `TIP_<KEY>_HEADER`, the body to `TIP_<KEY>_DESC` and the
@@ -107,6 +106,6 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
   [career-text-2.md](career-text-2.md) section 2.1. A test checks that every key has its picture and both labels.
 - **Which tip [ours].** The context mask word is not decoded (career-text-2.md), so no tip is held back by the career's
   state: the first tip of a run is picked by the clock and the next loads follow in table order.
-- **The prompt [ours].** When the world reports ready, the screen is sent `0x9938A38F`, the world is held paused and
-  concealed, and the next accept (key, pad or click) reveals it. A screenshot run has nobody to press a key, so it
-  reveals at once.
+- **No prompt [ours].** The package has a `Press (key) To Continue` prompt (message `0x9938A38F`, name unknown, hides
+  `LOADING...` and flashes the prompt). The career does not send it: the world is revealed as soon as it reports
+  ready, as free roam is.

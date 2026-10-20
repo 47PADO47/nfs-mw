@@ -243,7 +243,7 @@ fn update(
     fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings, fe.remap));
     let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
     // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
-    if matches!(fe.stage, Stage::Boot(_) | Stage::Loading) && actions.pressed(Action::Click) {
+    if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
         mask |= pad::ACCEPT;
     }
     // On the menus a click presses what is under the pointer and holds accept while a button is held. A sidebar's
@@ -311,7 +311,7 @@ fn update(
             }
         }
         // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
-        Stage::Loading => fe.loading_frame(dt, mask, host, &mut env),
+        Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
             // The GPS dialog's Yes resumes the game; the map overlay it left open is cleared here.
             if map.overlay.open {
