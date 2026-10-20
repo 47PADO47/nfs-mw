@@ -19,6 +19,8 @@ pub struct WorldIndex {
     pub road_network: Option<blackbox_roads::RoadNetwork>,
     /// The typed polygons of the track (traffic patterns, tunnels...) (`docs/formats/road-network.md`).
     pub track_zones: Option<blackbox_roads::TrackZones>,
+    /// The barrier lines AI routes may not cross while their scenery group is on (`docs/specs/race-barriers.md`).
+    pub track_barriers: Vec<blackbox_roads::TrackBarrier>,
     /// The bounds of the props (cones, bins, poles...), keyed by an object name hash.
     pub prop_bounds: Vec<blackbox_collision::BoundsSet>,
     /// Original event engines, including breakables and truck cargo.
@@ -49,6 +51,8 @@ impl WorldIndex {
             .map_err(|e| anyhow::anyhow!("reading the road network in {meta_file}: {e}"))?;
         let track_zones = blackbox_roads::TrackZones::read(&meta)
             .map_err(|e| anyhow::anyhow!("reading the track path zones in {meta_file}: {e}"))?;
+        let track_barriers = blackbox_roads::read_track_barriers(&meta)
+            .map_err(|e| anyhow::anyhow!("reading the track path barriers in {meta_file}: {e}"))?;
         let prop_bounds = blackbox_collision::read_bounds_sets(&meta)
             .map_err(|e| anyhow::anyhow!("reading the prop bounds in {meta_file}: {e}"))?;
         let sequences = super::sequences::SequenceCatalog::read(&meta)?;
@@ -76,6 +80,7 @@ impl WorldIndex {
             collision_grid,
             road_network,
             track_zones,
+            track_barriers,
             prop_bounds,
             sequences,
             model_hierarchies,

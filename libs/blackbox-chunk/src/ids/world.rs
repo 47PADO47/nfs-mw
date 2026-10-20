@@ -30,6 +30,8 @@ pub const TRACK_INFOS: u32 = 0x0003_4201;
 pub const TRACK_PATH_MANAGER: u32 = 0x8003_4147;
 /// `TrackPathZones`: the polygons that tag areas of the track (traffic patterns, tunnels, no-spawn...).
 pub const TRACK_PATH_ZONES: u32 = 0x0003_414A;
+/// `TrackPathBarriers`: the lines AI routes may not cross while their scenery group is on (`docs/formats/road-network.md`).
+pub const TRACK_PATH_BARRIERS: u32 = 0x0003_414D;
 /// `HeliSheet`: one per drivable section in `STREAM<track>.BUN` (the helicopter's height floor; `docs/formats/pursuit-data.md` §1).
 pub const HELI_SHEET: u32 = 0x0003_4159;
 /// `CarpWGrid` (`UWorld`): the world map tree: collision grid and road network.
