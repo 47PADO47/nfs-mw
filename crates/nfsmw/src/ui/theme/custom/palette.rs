@@ -8,7 +8,7 @@ use crate::settings::UiTheme;
 /// The corner radius of a palette's panels and bars, in FEng units.
 pub const DEFAULT_RADIUS: f32 = 14.0;
 
-/// The Bevy palette: a black panel at 170/255 alpha (the FPS counter's background), white digits and title, a cyan
+/// The Bevy palette (the one palette that shows the pictures of menu entries): a black panel at 170/255 alpha (the FPS counter's background), white digits and title, a cyan
 /// accent for the rev gauge, the nitrous and the speed breaker, grey labels, and a dim rule.
 pub fn bevy() -> Tokens {
     Tokens {
@@ -20,6 +20,7 @@ pub fn bevy() -> Tokens {
         radius: DEFAULT_RADIUS,
         padding: 3.0,
         text_scale: 1.0,
+        icons: true,
     }
 }
 
@@ -34,6 +35,7 @@ pub fn remastered() -> Tokens {
         radius: DEFAULT_RADIUS,
         padding: 3.0,
         text_scale: 1.0,
+        icons: false,
     }
 }
 

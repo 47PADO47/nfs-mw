@@ -11,7 +11,6 @@ use super::pools;
 use super::{EMPTY, WorldMapLogic};
 use crate::frontend::ids::screen::WORLD_MAP;
 use crate::frontend::logic::{Cx, ScreenLogic};
-use crate::frontend::world_map::layout;
 use crate::frontend::world_map::{Camera, Filter, PlacedBlip, WorldMap, WorldMapFrame};
 use crate::hud::{AUTO_SHOP, CAR_LOT, RACE_SPRINT, SAFE_HOUSE};
 use crate::settings::{Partial, Settings};
@@ -78,7 +77,7 @@ fn blip(style: &'static str, map: [f32; 2]) -> PlacedBlip {
 }
 
 fn frame(blips: Vec<PlacedBlip>) -> WorldMapFrame {
-    WorldMapFrame { session: WorldMap::new(), blips, player: [0.0, 0.0], player_mark: None, chrome_themed: false }
+    WorldMapFrame { session: WorldMap::new(), blips, ..Default::default() }
 }
 
 fn assert_close(a: [f32; 2], b: [f32; 2]) {
@@ -120,7 +119,7 @@ fn a_safe_house_is_drawn_on_the_picture_and_the_other_pools_are_parked() {
     h.tick(&frame(vec![blip(SAFE_HOUSE, [0.5, 0.5])]));
     let first = pools::slots(SAFE_HOUSE)[0];
     assert!(!h.hidden(first));
-    assert_close(h.position(first), layout::PICTURE_CENTRE);
+    assert_close(h.position(first), [-111.0, 11.0]);
     assert!(h.hidden(pools::slots(SAFE_HOUSE)[1]), "the second safe house pool has no blip");
     assert!(h.hidden(pools::slots(AUTO_SHOP)[0]), "no auto shop blip, so its pool is parked");
     assert!(h.hidden(pools::CARD), "nothing attached: no card");
@@ -183,7 +182,7 @@ fn focusing_a_blip_moves_the_cursor_onto_it_and_fills_the_card() {
     frame.session.attached = Some(0);
     h.tick(&frame);
     assert!(!h.hidden(pools::CURSOR));
-    assert_close(h.position(pools::CURSOR), layout::PICTURE_CENTRE);
+    assert_close(h.position(pools::CURSOR), [-111.0, 11.0]);
     assert!(!h.hidden(pools::CARD));
     assert_eq!(h.text(pools::CARD_TITLE), "Safe house");
     assert_eq!(h.text(pools::ROWS[0].text), "Safe house   0 m", "the row names the focused blip");
@@ -203,7 +202,7 @@ fn an_empty_tab_says_so_in_the_first_row() {
 fn the_remastered_map_hides_the_feng_list_and_card_for_the_themed_legend() {
     let mut h = Harness::open();
     let mut frame = frame(vec![blip(SAFE_HOUSE, [0.5, 0.5])]);
-    frame.chrome_themed = true;
+    frame.chrome = crate::frontend::world_map::Chrome::Recoloured;
     frame.session.attached = Some(0);
     h.tick(&frame);
     // The Remastered map recolours the FEng screen dark in place and hides its own list rows and card; the themed

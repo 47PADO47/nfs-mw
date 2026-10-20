@@ -55,7 +55,9 @@ fn motion_vector(in: Out) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     let motion = in.previous.xy / in.previous.w - in.current.xy / in.current.w;
-    return vec4<f32>(motion, 0.0, 0.0);
+    // RG motion targets discard Z/W. AO's RGBA target also needs the old object-space
+    // point's view depth, rather than predicting its depth from camera motion alone.
+    return vec4<f32>(motion, in.previous.w, 1.0);
 }
 
 @fragment

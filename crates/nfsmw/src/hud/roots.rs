@@ -10,7 +10,7 @@ use blackbox_feng::fe_hash_upper;
 use super::bind::GEAR;
 use super::blip_styles;
 use super::elements::{COOLDOWN, NITROUS, PURSUIT_BOARD, PURSUIT_COPS, SPEEDOMETER, TACHOMETER, TURBO_GROUP};
-use super::minimap::{ARROW, BACKING, GROUP as MINIMAP_GROUP};
+use super::minimap::{ARROW, BACKING, GROUP as MINIMAP_GROUP, PIECES as MINIMAP_PIECES};
 use super::speedbreaker;
 
 /// The name hashes one HUD element's adapter takes: the roots of its subtrees, and the subtrees that belong to
@@ -48,10 +48,31 @@ pub(crate) fn gear() -> Roots {
     Roots::new([name(GEAR)], [])
 }
 
+/// The vehicle heat group: the flame and the multiplier (`Heat_Meter_Group`), and the group of the two heat arcs that ring
+/// the minimap.
+const HEAT_GROUP: u32 = 0xC46A_80A9;
+const HEAT_ARCS_GROUP: u32 = 0xB0F6_3386;
+
 /// The minimap: the track group (the four tile pieces, and the blips, which the game draws inside it), the backing
-/// disc and the player's arrow. The blips are left out here and belong to [`blips`].
+/// disc, the player's arrow and the heat group and arcs around it. The blips are left out here and belong to [`blips`].
 pub(crate) fn minimap() -> Roots {
-    Roots::new([name(MINIMAP_GROUP), name(BACKING), name(ARROW)], blip_icons())
+    Roots::new([name(MINIMAP_GROUP), name(BACKING), name(ARROW), HEAT_GROUP, HEAT_ARCS_GROUP], blip_icons())
+}
+
+/// The four tile pieces of the minimap on their own, for a theme that draws the rest of the minimap itself.
+pub(crate) fn minimap_tiles() -> Roots {
+    Roots::new(MINIMAP_PIECES.map(name), [])
+}
+
+/// The player's arrow on its own.
+pub(crate) fn minimap_arrow() -> Roots {
+    Roots::new([name(ARROW)], [])
+}
+
+/// The police detector: its group (the green laser, the direction arrow and the two LED rows), and the backing it stands on
+/// in either layout (on its own, or in the rear-view mirror). The cool-down bar is not in this group.
+pub(crate) fn police_radar() -> Roots {
+    Roots::new([0x0627_43F5, 0x839E_7D77, 0x9EE0_6631], [])
 }
 
 /// The map blips: the pool objects of every style the HUD registers.

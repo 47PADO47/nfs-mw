@@ -1,30 +1,43 @@
 //! Where the map's picture sits on the FEng screen, in FEng units: the origin is the middle of the screen, y points
 //! down and the screen is 480 units tall. The picture is the package's map object (`WorldMapMain.fng`, guid 0xF9984),
-//! centred on [`PICTURE_CENTRE`] and [`PICTURE_SIDE`] wide.
+//! centred on (-111, 11) and 340 wide ([`Picture::CLASSIC`]).
 
 use glam::Vec2;
 
-/// The centre of the picture, in FEng units (`docs/provenance/world-map-screen.md`).
-pub const PICTURE_CENTRE: [f32; 2] = [-111.0, 11.0];
-/// The picture's side, in FEng units.
-pub const PICTURE_SIDE: f32 = 340.0;
-
-/// The top left corner of the picture, in FEng units.
-pub fn picture_origin() -> [f32; 2] {
-    [PICTURE_CENTRE[0] - PICTURE_SIDE * 0.5, PICTURE_CENTRE[1] - PICTURE_SIDE * 0.5]
+/// A square picture on the screen: its top left corner and its side, in FEng units.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Picture {
+    pub origin: [f32; 2],
+    pub side: f32,
 }
 
-/// A screen point (FEng units) as a view position of the picture: `(0, 0)` its top left, `(1, 1)` its bottom right.
-/// Outside the picture the values are below 0 or above 1.
+impl Picture {
+    /// The package's own map object (`docs/provenance/world-map-screen.md`): 340 units wide, centred on (-111, 11).
+    pub const CLASSIC: Picture = Picture { origin: [-111.0 - 170.0, 11.0 - 170.0], side: 340.0 };
+    /// The themed full-screen map: the picture is the screen's height, centred. The view square is that picture, and the
+    /// rest of the window shows the map beyond it.
+    pub const FULL: Picture = Picture { origin: [-240.0, -240.0], side: 480.0 };
+
+    /// A screen point (FEng units) as a view position of the picture: `(0, 0)` its top left, `(1, 1)` its bottom
+    /// right. Outside the picture the values are below 0 or above 1.
+    pub fn view_of(self, point: Vec2) -> [f32; 2] {
+        [(point.x - self.origin[0]) / self.side, (point.y - self.origin[1]) / self.side]
+    }
+
+    /// A view position of the picture as a screen point (FEng units).
+    pub fn point_of(self, view: [f32; 2]) -> [f32; 2] {
+        [self.origin[0] + view[0] * self.side, self.origin[1] + view[1] * self.side]
+    }
+}
+
+/// A screen point as a view position of the package's picture.
 pub fn view_of(point: Vec2) -> [f32; 2] {
-    let origin = picture_origin();
-    [(point.x - origin[0]) / PICTURE_SIDE, (point.y - origin[1]) / PICTURE_SIDE]
+    Picture::CLASSIC.view_of(point)
 }
 
-/// A view position of the picture as a screen point (FEng units).
+/// A view position of the package's picture as a screen point.
 pub fn point_of(view: [f32; 2]) -> [f32; 2] {
-    let origin = picture_origin();
-    [origin[0] + view[0] * PICTURE_SIDE, origin[1] + view[1] * PICTURE_SIDE]
+    Picture::CLASSIC.point_of(view)
 }
 
 #[cfg(test)]
@@ -33,9 +46,16 @@ mod tests {
 
     #[test]
     fn the_picture_is_centred_on_its_object() {
-        assert_eq!(point_of([0.5, 0.5]), PICTURE_CENTRE);
-        assert_eq!(point_of([0.0, 0.0]), picture_origin());
-        assert_eq!(point_of([1.0, 1.0]), [PICTURE_CENTRE[0] + 170.0, PICTURE_CENTRE[1] + 170.0]);
+        assert_eq!(point_of([0.5, 0.5]), [-111.0, 11.0]);
+        assert_eq!(point_of([0.0, 0.0]), Picture::CLASSIC.origin);
+        assert_eq!(point_of([1.0, 1.0]), [-111.0 + 170.0, 11.0 + 170.0]);
+    }
+
+    #[test]
+    fn the_full_screen_picture_is_the_screens_height_and_centred() {
+        assert_eq!(Picture::FULL.point_of([0.5, 0.5]), [0.0, 0.0]);
+        assert_eq!(Picture::FULL.view_of(Vec2::new(240.0, -240.0)), [1.0, 0.0]);
+        assert!(Picture::FULL.view_of(Vec2::new(400.0, 0.0))[0] > 1.0, "the window runs beyond the picture");
     }
 
     #[test]

@@ -123,3 +123,31 @@ fn pavement_receives_ambient_contacts_without_darkening_sun_specular_or_reflecti
         }
     }
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn a_flat_receiver_keeps_exact_zero_normal_components_in_the_prepass() {
+    let _serial = test_support::serial();
+    let size = (319, 237);
+    let mut r = test_support::headless(size).expect("GPU adapter required");
+    let (frame, instances) = super::tests::scene_shading(&mut r, size, false, blackbox_gfx::Shading::Lit);
+    r.apply_graphics(&blackbox_gfx::GraphicsSettings {
+        ao: blackbox_gfx::AoSettings { quality: blackbox_gfx::AoQuality::Low, ..Default::default() },
+        ..Default::default()
+    });
+    r.render(&frame, &instances).unwrap();
+    let normals = r.surfaces.as_ref().unwrap().targets.normals.clone();
+    let bytes = r.read_raw_texture(normals.texture(), size, 8).unwrap();
+    let mut receivers = 0;
+    for pixel in bytes.as_chunks::<8>().0 {
+        let n: [f32; 4] = std::array::from_fn(|channel| {
+            half::f16::from_le_bytes([pixel[channel * 2], pixel[channel * 2 + 1]]).to_f32()
+        });
+        if n[3] < 0.5 {
+            continue;
+        }
+        assert_eq!(n, [0.5, 0.5, 1.0, 1.0], "a flat normal must not acquire a quantization tilt");
+        receivers += 1;
+    }
+    assert!(receivers > 1000, "fixture must cover the flat receiver");
+}

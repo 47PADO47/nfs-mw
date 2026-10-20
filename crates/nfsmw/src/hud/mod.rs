@@ -27,7 +27,7 @@ mod interact_prompt_tests;
 mod message;
 #[cfg(test)]
 mod message_tests;
-mod minimap;
+pub(crate) mod minimap;
 #[cfg(test)]
 mod minimap_tests;
 mod plugin;

@@ -16,6 +16,7 @@ pub mod keys {
     pub const RADIUS: &str = "theme.radius";
     pub const PADDING: &str = "theme.padding";
     pub const TEXT_SCALE: &str = "theme.text_scale";
+    pub const ICONS: &str = "theme.icons";
 }
 
 /// What a theme declares: five colours (`[r, g, b, a]`) and two shape values in FEng units.
@@ -28,6 +29,7 @@ pub mod keys {
 /// - `radius`: the corner radius of a panel.
 /// - `padding`: the space between a panel's edge and its content.
 /// - `text_scale`: the size of the theme's text, as a multiple of the size its components set (1 keeps it).
+/// - `icons`: whether a menu shows the picture of an entry beside its text, where the entry has one (off by default).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tokens {
     pub primary: [u8; 4],
@@ -38,6 +40,7 @@ pub struct Tokens {
     pub radius: f32,
     pub padding: f32,
     pub text_scale: f32,
+    pub icons: bool,
 }
 
 impl Default for Tokens {
@@ -52,6 +55,7 @@ impl Default for Tokens {
             radius: 0.0,
             padding: 0.0,
             text_scale: 1.0,
+            icons: false,
         }
     }
 }
@@ -68,6 +72,7 @@ impl Tokens {
             .with_metric(keys::RADIUS, self.radius)
             .with_metric(keys::PADDING, self.padding)
             .with_metric(keys::TEXT_SCALE, self.text_scale)
+            .with_metric(keys::ICONS, if self.icons { 1.0 } else { 0.0 })
     }
 }
 
@@ -83,5 +88,11 @@ mod tests {
         assert_eq!(skin.colour(keys::PRIMARY), Some(tokens.primary));
         assert_eq!(skin.metric(keys::RADIUS), Some(6.0));
         assert_eq!(skin.metric(keys::PADDING), Some(2.5));
+    }
+
+    #[test]
+    fn the_icons_flag_is_off_by_default_and_reads_back_as_a_metric() {
+        assert_eq!(Tokens::default().skin().metric(keys::ICONS), Some(0.0));
+        assert_eq!(Tokens { icons: true, ..Tokens::default() }.skin().metric(keys::ICONS), Some(1.0));
     }
 }

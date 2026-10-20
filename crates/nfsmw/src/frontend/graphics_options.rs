@@ -4,7 +4,7 @@ use blackbox_gfx::Capabilities;
 
 use super::options::{Data, Title};
 use crate::settings::reflection_extra::{content_label, cycle, distance_label, lod_label, step_brightness};
-use crate::settings::reflection_res::{size_label, step_size, step_tint, tint_label};
+use crate::settings::reflection_res::{cube_menu_label, size_label, step_cube, step_size, step_tint, tint_label};
 use crate::settings::{
     AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings, VisualTreatment,
 };
@@ -136,7 +136,7 @@ impl GraphicsSetting {
             Self::RoadReflections => "Road Reflection Detail",
             Self::TextureFiltering => "Texture Filtering",
             Self::Shadows => "Enhanced Sun Shadows",
-            Self::CubeSize => "Car Reflection Size",
+            Self::CubeSize => "Car Cubemap Resolution (Per Face)",
             Self::Pow2 => "Power-of-Two Cube Size",
             Self::VehicleBrightness => "Vehicle Reflection Brightness",
             Self::ReflectionDetail => "Reflection Detail",
@@ -164,7 +164,7 @@ impl GraphicsSetting {
             return Data::Text(format!("{}%", s.ao_intensity.0));
         }
         if self == Self::CubeSize {
-            return Data::Text(size_label(s.reflection_cube_size));
+            return Data::Text(cube_menu_label(s));
         }
         if self == Self::MirrorSize {
             return Data::Text(size_label(s.reflection_mirror_size));
@@ -301,7 +301,7 @@ impl GraphicsSetting {
                 changed.road_reflections = Some(s.road_reflections);
             }
             Self::CubeSize => {
-                s.reflection_cube_size = step_size(s.reflection_cube_size, forward);
+                s.reflection_cube_size = step_cube(s, forward);
                 changed.reflection_cube_size = Some(s.reflection_cube_size);
             }
             Self::MirrorSize => {

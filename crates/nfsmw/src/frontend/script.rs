@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 
 use bevy_input::keyboard::KeyCode;
 use blackbox_feng::runtime::pad;
+use glam::Vec2;
 
 /// The clock step of a scripted frame.
 pub const STEP: f32 = 1.0 / 60.0;
@@ -18,6 +19,8 @@ struct Step {
     frames: u32,
     /// A key press for the frame this step starts on (`key NAME`), for the remap screen.
     key: Option<KeyCode>,
+    /// Where the pointer is from this step on (`pointer X Y`, FEng units).
+    pointer: Option<Vec2>,
 }
 
 /// The keys a script can press: the letters, Space and Escape.
@@ -67,6 +70,8 @@ pub struct UiScript {
     steps: VecDeque<Step>,
     /// The key the last frame's step pressed, until the frontend takes it (`take_key`).
     key: Option<KeyCode>,
+    /// Where the scripted pointer is, once a `pointer` step has run.
+    pointer: Option<Vec2>,
     /// Deterministic prompt device for screenshots, not a gameplay preference.
     pub device: Option<crate::input::InputDevice>,
 }
@@ -91,6 +96,10 @@ fn button(name: &str) -> Result<u32, String> {
     })
 }
 
+fn number(text: &str) -> Result<f32, String> {
+    text.parse().map_err(|_| format!("expected a number, got {text:?}"))
+}
+
 fn frames(seconds: &str) -> Result<u32, String> {
     let s: f32 = seconds.parse().map_err(|_| format!("expected seconds, got {seconds:?}"))?;
     Ok((s / STEP).round().max(0.0) as u32)
@@ -105,22 +114,33 @@ impl UiScript {
             match words[..] {
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
-                ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)?, key: None }),
-                ["hold", name, s] => steps.push_back(Step { mask: button(name)?, frames: frames(s)?, key: None }),
-                ["key", name] => steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?) }),
+                ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None }),
+                ["hold", name, s] => {
+                    steps.push_back(Step { mask: button(name)?, frames: frames(s)?, key: None, pointer: None })
+                }
+                ["key", name] => steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None }),
+                ["pointer", x, y] => {
+                    let at = Vec2::new(number(x)?, number(y)?);
+                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at) });
+                }
                 [name] => {
-                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None });
-                    steps.push_back(Step { mask: 0, frames: 4, key: None });
+                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None });
+                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device, key: None })
+        Ok(Self { steps, device, key: None, pointer: None })
     }
 
     /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
     pub fn take_key(&mut self) -> Option<KeyCode> {
         self.key.take()
+    }
+
+    /// Where a `pointer` step put the pointer, in FEng units; `None` until one has run.
+    pub fn pointer(&self) -> Option<Vec2> {
+        self.pointer
     }
 
     /// The pad mask of the next frame, or none when the script is over.
@@ -129,6 +149,9 @@ impl UiScript {
         let mask = step.mask;
         if let Some(key) = step.key {
             self.key = Some(key);
+        }
+        if step.pointer.is_some() {
+            self.pointer = step.pointer;
         }
         step.frames = step.frames.saturating_sub(1);
         if step.frames == 0 {
@@ -166,6 +189,17 @@ mod tests {
         assert_eq!(s.next_mask(), Some(0));
         assert_eq!(s.take_key(), None, "a wait presses nothing");
         assert!(UiScript::parse("key Tab").unwrap_err().contains("Tab"));
+    }
+
+    #[test]
+    fn a_pointer_step_moves_the_scripted_pointer_and_it_stays() {
+        let mut s = UiScript::parse("pointer -20 35.5; wait 0.05").unwrap();
+        assert_eq!(s.pointer(), None, "nothing before the step runs");
+        s.next_mask();
+        assert_eq!(s.pointer(), Some(Vec2::new(-20.0, 35.5)));
+        while s.next_mask().is_some() {}
+        assert_eq!(s.pointer(), Some(Vec2::new(-20.0, 35.5)), "it stays where it was put");
+        assert!(UiScript::parse("pointer left 3").is_err());
     }
 
     #[test]

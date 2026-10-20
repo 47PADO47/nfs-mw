@@ -5,7 +5,7 @@ pub(super) fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
         s.split(',').map(|v| v.trim().parse::<f32>().map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
     let [speed, rpm, max_rpm, gear, rest @ ..] = &n[..] else { return Err(HUD_DEMO_FORMAT.into()) };
     let (speed, rpm, max_rpm, gear) = (*speed, *rpm, *max_rpm, *gear);
-    if rest.len() > 4 {
+    if rest.len() > 8 {
         return Err(HUD_DEMO_FORMAT.into());
     }
     let red_line = max_rpm - 500.0;
@@ -22,9 +22,21 @@ pub(super) fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
         boost_psi: rest.get(1).copied().unwrap_or(0.0),
         speedbreaker: rest.get(2).map_or(0.0, |percent| (percent / 100.0).clamp(0.0, 1.0)),
         speedbreaker_active: rest.get(3).is_some_and(|active| *active > 0.0),
+        // A chase of this many seconds (none at 0), with this share of the evade done (the board's cool-down bar shows from 0).
+        pursuit: rest.get(4).filter(|secs| **secs > 0.0).map(|secs| crate::hud::PursuitHud {
+            secs: *secs,
+            evade: rest.get(5).map_or(0.0, |share| (share / 100.0).clamp(0.0, 1.0)),
+            cops_destroyed: 2,
+            busted: rest.get(6).map_or(0.0, |percent| (percent / 100.0).clamp(-1.0, 1.0)),
+            cooldown: rest.get(5).is_some_and(|share| *share > 0.0),
+        }),
+        // A cop this many metres away, up the road a little to the left.
+        radar: rest.get(7).map(|metres| crate::hud::RadarHud { angle: 0.35, distance: *metres }),
+        // A chase has called five cars, two of them damaged.
+        cops_engaged: if rest.get(4).is_some_and(|secs| *secs > 0.0) { 5 } else { 0 },
+        cops_damaged: if rest.get(4).is_some_and(|secs| *secs > 0.0) { 2 } else { 0 },
         ..Default::default()
     })
 }
 
-pub(super) const HUD_DEMO_FORMAT: &str =
-    "expected SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI[,SPEEDBREAKER_PERCENT[,SPEEDBREAKER_ACTIVE]]]]";
+pub(super) const HUD_DEMO_FORMAT: &str = "expected SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI[,SPEEDBREAKER_PERCENT[,SPEEDBREAKER_ACTIVE[,PURSUIT_SECONDS[,EVADE_PERCENT[,BUSTED_PERCENT[,RADAR_METRES]]]]]]]]";

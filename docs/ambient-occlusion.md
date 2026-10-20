@@ -2,7 +2,8 @@
 
 Spatial GTAO, XeGTAO, temporal half-resolution XeGTAO and a hemisphere-kernel SSAO reference in the native `blackbox-render` backend. AO and contact shadows share
 a reverse-Z depth/world-normal prepass. AO produces an ambient visibility mask
-before colour shading, with no motion vectors or temporal history. It is off by
+before colour shading. Spatial methods use no history; temporal XeGTAO uses an
+independent camera/object motion pass. It is off by
 default in normal settings; the Graphics Lab launcher selects Medium. Other backends
 and adapters without compute support report an unsupported-setting downgrade.
 
@@ -35,7 +36,7 @@ AO remains opt-in without an appearance preset. Enhanced and Black Box High/Very
 use the depth prefilter; explicit saved overrides are preserved on startup.
 Reducing strength changes ambient composition, not the sampling budget.
 
-All three methods use a single depth layer. Thin foreground pipes can over-occlude
+All methods use a single depth layer. Thin foreground pipes can over-occlude
 ceilings behind them; stronger AO also compounds baked shading. These limitations
 remain and are not fixed by the depth prefilter or changing methods.
 
@@ -61,6 +62,8 @@ ao off
 Config keys are `ao = "medium"`, `ao_intensity = 75`, `ao_compare = false`.
 Environment equivalents are `NFSMW_AO`, `NFSMW_AO_INTENSITY` and
 `NFSMW_AO_COMPARE`. CLI settings take precedence. No addon assets are required.
+
+GTAO reference budget:
 
 | Quality | AO resolution | Slices | Depth samples per slice |
 |---|---|---|---|
@@ -170,8 +173,8 @@ visibility power (2.2), slope-adjusted packed edges, symmetric edge rejection an
 the nine-tap spatial denoiser (four intermediate passes with beta 0.24, final beta 1.2).
 Five spatial passes suppress undersampling noise without temporal history or extra
 images: the existing two images alternate as input and output. High uses four slices
-and four steps on both sides: 32 depth samples at full resolution. Medium uses 24
-and Low uses 12 at half width/height. These budgets trade some fine detail for camera
+and eight steps on both sides: 64 depth samples at full resolution. Medium uses 36
+and Low uses 24 at half width/height. These budgets trade some fine detail for camera
 stability without Intel's host TAA; they differ from its reference 18-sample High preset.
 
 The optional depth hierarchy uses four half-resolution-and-smaller R32F levels for
@@ -182,7 +185,7 @@ are reconstructed at their selected texel centers to avoid false slopes.
 
 Integration differences from Intel's complete implementation: FP32 shader arithmetic,
 RGBA16F intermediates instead of integer working-term textures, exact `acos`, shared
-authored normals and reverse-Z geometry, fixed Hilbert/R2 noise, normalization against
+authored normals and reverse-Z geometry, decorrelated per-pixel sample phases, normalization against
 each unobstructed slice and a small coplanar rejection bias to preserve open slopes,
 engine distance fade and common R8
 ambient composition. There are no bent
@@ -204,18 +207,74 @@ and denoising. None of these methods can compensate for a material omitting AO.
 ## Optional temporal half-resolution method
 
 `xegtao-temporal` in F8 Effects always estimates visibility at half resolution.
-It rotates sampling over frames, uses one edge-aware spatial denoise, then
+It changes sampling over frames, uses three edge-aware spatial denoise passes, then
 reprojects AO-only history using independent camera/object motion. This works
 without a temporal upscaler and does not read presented frames or UI. Existing
 spatial methods and defaults retain their paths.
 
 History rejects camera cuts, projection/size changes, long frame gaps, changed AO
 settings, out-of-view samples, depth discontinuities and normal disagreement.
-Accepted history is clamped to the current local visibility range. Moving
-surfaces whose old depth cannot be established conservatively use current AO.
+Independent motion retains previous view depth for each visible surface, so a
+following camera can reuse a moving car's history. Four validated bilinear taps
+use a surface-plane depth check, including sloping roads and odd-sized targets.
+A bounded neighborhood margin prevents current sample noise from erasing the
+accumulated estimate. Fully open surfaces clear immediately; invalid coverage
+uses current AO. AO's RGBA motion/depth target is separate from the existing RG
+motion targets consumed by FSR/DLSS and frame generation.
 The approach builds on the temporal sampling discussion in the GTAO research
 already cited above; the reprojection and rejection shader is a custom implementation.
 
 Synthetic GPU coverage checks contact visibility, newly exposed open planes,
 camera-cut cold starts, odd-size resizing, and exact spatial-method round trips
 on Vulkan and DX12. This does not establish visual quality during a full drive.
+
+## Spatial sample coverage and stability checks
+
+The shared normal prepass uses RGBA16F. UNORM8 cannot represent the encoded
+zero components (0.5) of an axis-aligned normal exactly; the resulting tilt can
+turn distant coplanar samples into false blockers. Half-float storage preserves
+those components exactly and reduces quantization on curved receivers, without
+increasing the horizon bias to hide the error.
+
+Potential XeGTAO blockers from the depth hierarchy are checked against the
+original scene depth. A filtered footprint on a perspective slope can otherwise
+invent occlusion above an open receiver plane. This adds a depth fetch for
+potential blockers when depth-prefiltering is enabled.
+
+The spatial XeGTAO depth search uses 2 slices x 6 steps per side at Low,
+3 x 6 at Medium and 4 x 8 at High. Low/Medium remain half resolution; High is
+full resolution. The denser radial search reduces fixed-pattern sampling error
+without depending on a host TAA pass. It costs more than the previous 2 x 3,
+3 x 4 and 4 x 4 budgets; decreasing intensity does not recover that cost.
+Temporal XeGTAO retains the cheaper 2 x 3, 3 x 4 and 4 x 4 estimator, always
+at half resolution, and accumulates its coverage over time.
+
+A dense 24 x 24 sample reference checks spatial contact error against the former
+budgets. A static/following-camera sequence measures actual temporal mask variation,
+not just the presence of AO contacts. Jittered FSR/DLSS combinations, occluder
+removal, camera cuts and odd-sized resize coverage remain separate checks.
+These synthetic metrics do not establish in-game visual quality; inspect fine
+car geometry and moving contacts in a driving test. Single-layer depth limitations
+and thin-geometry over-occlusion still apply.
+
+## Sampling pattern regression at 4K
+
+XeGTAO uses independent hashed angular/radial phases instead of the shared
+Hilbert/R2 pair retained by `gtao`. The former correlated pair produced coherent
+vertical blocks in a 4K raised-body/road fixture, including after temporal warmup.
+Pixel/frame seeding changes the temporal samples without rotating the same
+structured pattern. Spatial phases remain deterministic and time independent.
+Sample counts, radius, filter passes, history weight and intensity are unchanged.
+
+The integer permutation is Chris Wellons' `lowbias32` from
+[Hash Function Prospector](https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c)
+(Unlicense/public domain; credited in NOTICE). The pixel/frame seeding is custom.
+The 4K regression compares each quality against the former noise and a dense
+24-by-24 reference using the same filtering/resolution. It requires coherent
+column error below 1.4/255 RMS without materially increasing contact-shape error.
+A slow-camera sequence samples fixed ground points and requires mean temporal
+variation below 0.25/255, independently of screen movement. The former sequence
+is already quieter in the DX12 fixture; percentage improvements measured on
+Vulkan are not universal API guarantees. Optional diagnostic exports
+separate raw estimates, filtered estimates and resolved history. These checks
+do not replace driving and fine-geometry review; residual grain can remain.

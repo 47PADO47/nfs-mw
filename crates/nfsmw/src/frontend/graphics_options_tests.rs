@@ -73,10 +73,13 @@ fn the_preset_row_applies_a_preset_and_records_all_its_keys() {
 fn the_reflection_rows_step_and_follow_car_reflections() {
     let mut s = Settings::from(Partial::default());
     let mut changed = Partial::default();
-    assert_eq!(GraphicsSetting::CubeSize.data(&s), Data::Text("100%".into()));
+    assert_eq!(
+        GraphicsSetting::CubeSize.data(&s),
+        Data::Text("128 × 128 per face (saved: 100% of quality size)".into())
+    );
     assert!(GraphicsSetting::CubeSize.step(&mut s, &mut changed, true));
-    assert_eq!(s.reflection_cube_size, ReflectionSize::Scale(1.5));
-    assert_eq!(changed.reflection_cube_size, Some(ReflectionSize::Scale(1.5)));
+    assert_eq!(s.reflection_cube_size, ReflectionSize::Fixed(256));
+    assert_eq!(changed.reflection_cube_size, Some(ReflectionSize::Fixed(256)));
     assert!(GraphicsSetting::MirrorTint.step(&mut s, &mut changed, true));
     assert_eq!(GraphicsSetting::MirrorTint.data(&s), Data::Text("Stock".into()));
     s.reflections = ReflectionQuality::Off;

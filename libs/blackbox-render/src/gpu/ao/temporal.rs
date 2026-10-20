@@ -60,7 +60,7 @@ impl History {
         let jitter = motion.map_or(glam::Vec2::ZERO, |m| m.jitter_delta);
         let control = Reprojection {
             previous_from_current: transform.to_cols_array(),
-            control: [u8::from(valid) as f32, 0.85, jitter.x, jitter.y],
+            control: [u8::from(valid) as f32, 0.9, jitter.x, jitter.y],
         };
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("AO history rejection"),

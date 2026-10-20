@@ -333,3 +333,10 @@ Clipboard/browser command handling follows the public arboard and open APIs:
 https://docs.rs/arboard/latest/arboard/
 https://docs.rs/open/latest/open/
 Used as dependencies; no third-party implementation code was copied.
+
+AO sampling decorrelation
+------------------------
+The lowbias32 integer hash in ao_xegtao.wgsl is adapted from Chris Wellons'
+Hash Function Prospector (Unlicense/public domain), README.md lowbias32:
+https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c
+Pixel/frame seeding and the two AO sample phases are independently implemented.

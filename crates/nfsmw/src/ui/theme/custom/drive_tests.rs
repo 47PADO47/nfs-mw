@@ -35,7 +35,7 @@ fn built(element: ElementId, state: &HudState) -> Vec<UiNode> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = card_skin().merged(palette::bevy().skin());
-    let mut component = CustomTheme::new(Default::default(), feed)
+    let mut component = CustomTheme::new(Default::default(), feed, Default::default())
         .element(element.slot(), &BuildCx::new(&skin))
         .expect("the drive cluster is Custom components");
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);

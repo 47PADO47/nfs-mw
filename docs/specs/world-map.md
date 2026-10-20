@@ -69,23 +69,50 @@ goes on with the blip still focused. Setting the actual route is the pathfinder'
 (`docs/specs/ai-pathfinder.md` section 7), built: Yes sets the route to the focused blip and closes the map (`docs/specs/gps-route.md`). The executable sets the
 GPS target in its own GPS-target routine and asks through a separate dialog (`docs/provenance/world-map-ghidra.md`).
 
-## Remastered look (themeable UI)
+## Custom look (themeable UI)
 
-Under the **Remastered** theme the live `WorldMapMain.fng` screen is **recoloured in place**, not replaced, so it keeps
+Under the **Custom** theme the live `WorldMapMain.fng` screen is **recoloured in place**, not replaced, so it keeps
 its fullscreen picture, its filter switch, its button prompts (`PC_key_*`, `R1`/`L1`) and all of its mouse behaviour
 (drag, zoom, pin-click). `world_map/screen/restyle.rs` hides the decorative stripe and makes the one background layer
 (`BasePoly.tga`, and the big side/centre panels) less transparent — a single dark scrim, no separate panel behind the
-map content — so the frozen world still shows through; under Remastered it also tints the panels dark and the static
+map content — so the frozen world still shows through; under Custom it also tints the panels dark and the static
 text light. The screen then hides its own list and card, and the themed legend is drawn in their place.
 
-- **The flag + legend.** `ElementId::WorldMapChrome` (26) resolves to `MapLegend` (`ui/theme/remastered/map_legend.rs`)
-  under Remastered and `Empty` under Original. Providing it also tells the frontend to recolour: the plugin reads
+- **The flag + legend.** `ElementId::WorldMapChrome` (26) resolves to `MapLegend` (`ui/theme/custom/map_legend.rs`)
+  under Custom and `Empty` under Original. Providing it also tells the frontend to recolour: the plugin reads
   `UiThemes::draws_world_map_chrome`, passes `themed` into `control::step` (which sets `WorldMapFrame.chrome_themed`, so
   the screen recolours and hides its list), fills the legend from the open map (`world_map/legend.rs`, the same data the
   FEng list shows), and presents the legend over the map. Under Original the flag is off and the screen is untouched.
 - **The legend panel** shows up to `VISIBLE_ROWS` of the filter's blips (icon, name, distance), the focused row in the
   accent colour. When the filter has more, the wheel (cursor off the picture) scrolls the list and a slim scrollbar in
   the right gutter shows the position.
+
+## Remastered look (themeable UI)
+
+Under the **Remastered** theme the whole map is drawn by the theme (`ui/theme/remastered/map/`); the FEng screen
+`WorldMapMain.fng` still runs underneath, for its logic and the dialog stack, but is not presented. The session, the input
+and the GPS prompt are the same as every other look's.
+
+- **The flag.** `ElementId::WorldMapChrome` (26) resolves to `WorldMapView` under Remastered, to `MapLegend` under Custom and
+  to `Empty` under Original. `UiThemes::world_map_chrome` turns that into a `Chrome` (`Original`, `Recoloured`, `Drawn`),
+  which the plugin passes to `control::input` and `control::step` and stores in `WorldMapFrame::chrome`.
+- **The picture** is the career stage's map texture (`WorldMapFrame::texture`, from `MapVariant::world_map_texture`). It is
+  square and is drawn as high as the window (`Picture::FULL`, 480 units), centred, so Zoom All shows the whole map and the
+  rest of the window is dark ground; zoom and pan move and scale the same square (`camera.to_view`). A dark veil lies over
+  it and its left and right edges fade into the ground.
+- **Blips** are the game's own `Minimap_Icon_*` textures at the HUD's tints, every blip of the current tab (no pool cap),
+  with the player's car turned to its bearing.
+- **Cursor.** A cross at the pointer; over a blip the session focuses it and the cursor becomes four corner brackets that close
+  from 46 to 27 units over 0.18 s (`WorldMapFrame::snap_age`, from `WorldMapOverlay::tick`), with a label of the blip's style and
+  distance beside it. A click, Enter or a right click asks for GPS, as before. The system pointer is hidden over the whole
+  window (`map_pointer_on_picture`).
+- **Chrome.** Title "MAP" (bold) with the tab under it, a compass and the zoom readout top right, a legend at the right (the
+  player and each icon of the tab, with how many are on the map; the focused blip's icon is lit; **L** hides it), and the
+  footer hints of the menus: Back, Legend, Filter. The whole map fades in over 0.3 s and the legend slides in after it.
+- **Input.** Over the window the wheel zooms and a drag pans (`MapInput::full_screen`: the cursor is on the map wherever it is);
+  A/D or the arrows switch the tab.
+- **Screenshots.** `--ui-script "wait 8;key M;wait 2;pointer -18 38"` opens the map in a `play --drive` run and puts the pointer at
+  a point of the screen (FEng units); `key L` hides the legend.
 
 ## Differences from the executable
 

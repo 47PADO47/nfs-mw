@@ -67,8 +67,8 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     Box::new(Plain)
 }
 
-/// The menu slot the package called `name` is drawn for, or `None` when no slot takes it (dialogs, notices, the splash,
-/// the controls, the credits, the jukebox). It tests the same names and `Args` as [`make`], in the same order, so a
+/// The menu slot the package called `name` is drawn for, or `None` when no slot takes it (the splash, the track options,
+/// the loading screen). It tests the same names and `Args` as [`make`], in the same order, so a
 /// package is never drawn by two slots. The screen's logic does not matter: a career screen with no career still has
 /// its slot (`docs/specs/ui-themes-menus.md`, section 3).
 pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
@@ -94,6 +94,18 @@ pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
     }
     if is(screen::TRACK_SELECT) {
         return Some(ElementId::TrackSelect);
+    }
+    if is(screen::DIALOG) {
+        return Some(ElementId::Dialog);
+    }
+    if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
+        return Some(ElementId::ControlsList);
+    }
+    if is(screen::EA_TRAX_JUKEBOX) {
+        return Some(ElementId::Jukebox);
+    }
+    if is(screen::CREDITS) {
+        return Some(ElementId::Credits);
     }
     None
 }

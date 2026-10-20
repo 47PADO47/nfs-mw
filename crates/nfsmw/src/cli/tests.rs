@@ -16,7 +16,14 @@ fn the_hud_demo_takes_optional_gauges() {
     let breaker = parse_hud_demo("140,5000,8000,3,0,0,70,1").unwrap();
     assert_eq!(breaker.speedbreaker, 0.7);
     assert!(breaker.speedbreaker_active);
-    assert!(parse_hud_demo("1,2,3,4,5,6,7,8,9").is_err());
+    assert!(parse_hud_demo("1,2,3,4,5,6,7,8,9,10,11,12,13").is_err());
+    assert!(plain.pursuit.is_none(), "no chase unless the demo names one");
+    let chase = parse_hud_demo("140,5000,8000,3,0,0,0,0,137.5,40").unwrap();
+    let pursuit = chase.pursuit.expect("a chase of 137.5 s");
+    assert_eq!(pursuit.secs, 137.5);
+    assert!((pursuit.evade - 0.4).abs() < 1e-6 && pursuit.cooldown, "40% of the evade done is the cool-down");
+    let busting = parse_hud_demo("140,5000,8000,3,0,0,0,0,10,0,-60").unwrap().pursuit.expect("a chase");
+    assert!((busting.busted + 0.6).abs() < 1e-6, "the last value is the signed meter in percent");
 }
 
 #[test]

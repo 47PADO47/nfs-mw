@@ -130,6 +130,8 @@ pub struct Frontend {
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
+    /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
+    pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
 
 impl Frontend {
@@ -162,6 +164,7 @@ impl Frontend {
             in_safe_house: false,
             auto_shop_requested: false,
             quick_race: None,
+            map_chrome: Default::default(),
         }
     }
 

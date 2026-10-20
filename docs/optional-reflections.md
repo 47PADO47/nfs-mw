@@ -3,11 +3,15 @@
 The native renderer retains the existing local car cubemap and wet-road paths.
 F8 Materials adds two independently saved choices, both off by default:
 
-- **Cached local reflection probe** keeps all six faces from one snapshot for at
-  most 100 ms (Low), 50 ms (Medium), or 33 ms (High). Two metres of movement,
-  streamed scenery, capture settings, and original sky/shadow-overlay changes
+- **Cached local reflection probe** refreshes all six faces together at
+  scheduled 10 Hz (Low), 20 Hz (Medium), or 60 Hz (High), capped by base FPS.
+  Phase-aligned deadlines avoid rounding each interval up to a whole game frame.
+  One metre of movement, streamed scenery, capture settings, and original
+  sky/shadow-overlay changes
   invalidate the snapshot immediately. It caches an image, without accumulating
-  old frames. Switching it off restores the existing quality cadence.
+  old frames or blending old and new images. Movement can refresh earlier than
+  the scheduled deadline. Switching it off restores the existing quality cadence
+  (High captures every base frame). Frame generation does not advance probes.
 - **Selective screen-space car reflections** substitutes current visible scenery
   for a probe sample when a glossy-material ray hits. It traces only car-material
   pixels, with bounded steps, hit refinement and an edge/distance fade. Misses
@@ -30,3 +34,11 @@ preparation and rendering cost, while selective rays improve local detail.
 
 Synthetic GPU tests exercise a visible coloured wall reflecting in a mirror,
 exact probe fallback without a hit, and switching back to the original path.
+
+Car cubemap resolution uses explicit square pixel dimensions per face in F8
+Materials and the Video menu. The six faces use the same edge length (16 to 1024);
+changing output resolution or upscaling does not change a selected fixed size.
+Legacy percentage/Auto configs still load without changing their appearance.
+F8 displays their resolved dimensions, including old power-of-two rounding;
+selecting an explicit size replaces the legacy rule. Rear-view mirror sizing is
+independent and retains its existing options.

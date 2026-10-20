@@ -18,7 +18,7 @@ mod tests;
 
 pub use camera::Camera;
 pub use filter::Filter;
-pub use frame::{PlayerMark, WorldMapFrame};
+pub use frame::{Chrome, PlayerMark, WorldMapFrame};
 pub use overlay::WorldMapOverlay;
 pub use pick::{PICK_RADIUS, nearest};
 pub use session::{MapInput, Outcome, PlacedBlip, WorldMap, distance_metres};

@@ -10,13 +10,17 @@ use crate::ui::theme::ElementId;
 use super::{FengSource, FrameCell, OriginalTheme};
 
 /// The menu and career slots, the ones the menu cell feeds (raw 20 and up).
-const MENU_SLOTS: [ElementId; 12] = [
+const MENU_SLOTS: [ElementId; 16] = [
     ElementId::MainMenu,
     ElementId::Categories,
     ElementId::PauseMenu,
     ElementId::OptionTable,
     ElementId::TrackSelect,
     ElementId::SafeHouseMenu,
+    ElementId::Dialog,
+    ElementId::ControlsList,
+    ElementId::Jukebox,
+    ElementId::Credits,
     ElementId::Blacklist,
     ElementId::CarLot,
     ElementId::RapSheet,
@@ -153,6 +157,17 @@ fn the_two_cells_do_not_feed_each_other() {
     }
     frame.set_menu(ElementId::MainMenu.slot(), Arc::new(menu_tree(0x5000)));
     assert!(emitted(&frame, ElementId::Speedometer).is_empty(), "a HUD slot read the menu cell");
+}
+
+#[test]
+fn a_hidden_node_of_a_menu_tree_is_not_emitted() {
+    // The footer hints the prompt layer hides (the legacy "Accept" and "Back") are invisible, not just out of the draw
+    // order, so the whole-tree copy must leave them out too.
+    let mut tree = menu_tree(0x1000);
+    tree.nodes[1].visible = false;
+    let frame = FrameCell::new();
+    frame.set_menu(ElementId::MainMenu.slot(), Arc::new(tree));
+    assert_eq!(names(&emitted(&frame, ElementId::MainMenu)), vec![0x1000, 0x1002]);
 }
 
 #[test]
