@@ -5,10 +5,12 @@
 //! frame after the simulation and the entry zones.
 
 mod bust;
+mod cooling;
 mod events;
 mod hud;
 mod phone;
 mod pursuit;
+mod rap_tally;
 mod regions;
 mod safehouse;
 
@@ -32,6 +34,8 @@ pub(super) struct WorldCareer {
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
+    /// The paint cooling table of the install, read when the garage first fits a part (`None` inside: not readable).
+    pub cooling: Option<Option<nfsmw_career::economy::cooling::CoolingTable>>,
 }
 
 impl WorldScene {

@@ -186,6 +186,8 @@ impl WorldScene {
     }
 
     fn commit_garage_selection(&mut self, selection: Selection, tunings: blackbox_vehicle::Tunings) {
+        // The parts this fits cool the career car's heat (`career/cooling.rs`), compared with what was applied before.
+        self.career_garage_cooling(&selection);
         if let Some(drive) = self.drive.as_mut() {
             drive.set_tuning(selection.tuning, tunings);
         }

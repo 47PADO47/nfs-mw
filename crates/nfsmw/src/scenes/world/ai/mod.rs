@@ -44,6 +44,7 @@ mod spawn;
 mod spikes;
 mod stop;
 mod support;
+mod tally;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md §4)
 mod traffic_events;
@@ -70,6 +71,7 @@ pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
+pub use tally::RoadblockTally;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
