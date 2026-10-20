@@ -56,6 +56,12 @@ pub fn renders_car(mode: CameraMode, look_back: bool) -> bool {
     }
 }
 
+/// The lens of a camera that is given its eye, target, up vector and field of view directly (a scripted cut), through
+/// the same angle finalisation and optical axes as the follow cameras.
+pub fn native_lens(sample: Sample, aspect: f32) -> Lens {
+    projection::lens_finalized(projection::finalize_sample(sample), aspect)
+}
+
 impl Timeline {
     pub fn lens(&self, body: BodyInput, aspect: f32, interpolate: bool) -> Option<Lens> {
         let sample = self.sample(body, interpolate)?;

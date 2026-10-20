@@ -84,10 +84,13 @@ impl PropWorld {
                 let (scene, kind) = (text(scene), text(kind));
                 let name = self.model_name(id);
                 self.note_breaker(format!(
-                    "{name} names the {} scene {} (the scripted scene is not played)",
+                    "{name} names the {} scene {} (the world decides whether the cut plays)",
                     kind.as_deref().unwrap_or("?"),
                     scene.as_deref().unwrap_or("?")
                 ));
+                if let (Some("Moment"), Some(scene)) = (kind.as_deref(), scene) {
+                    self.scenery.moments.push(scene);
+                }
             }
             WorldEvent::PursuitBreaker { begin } => {
                 let event = match begin {

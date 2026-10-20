@@ -4,6 +4,7 @@ use super::*;
 mod census;
 mod installed;
 mod poles;
+mod sawhorse;
 
 #[test]
 fn offscreen_release_resets_hidden_parts_and_invalidates_fragment_owners() {

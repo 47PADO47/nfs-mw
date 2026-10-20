@@ -24,6 +24,7 @@ mod installed_tests;
 pub(super) mod props;
 mod site;
 mod state;
+mod steal;
 
 pub use build::Cause;
 pub use state::Roadblocks;
@@ -75,6 +76,16 @@ impl TrafficWorld {
     /// The models of the props are uploaded.
     pub(in crate::scenes::world) fn set_roadblock_models(&mut self, spike: Rc<CarRig>, sawhorse: Rc<CarRig>) {
         self.roadblocks.kit = Some(props::Kit::new(spike, sawhorse));
+    }
+
+    /// The parts a sawhorse's sequence releases when it breaks (from the shared scenery).
+    pub(in crate::scenes::world) fn set_sawhorse_parts(
+        &mut self,
+        parts: Option<std::sync::Arc<crate::scenes::world::props::scenery::ModelParts>>,
+    ) {
+        if let Some(kit) = self.roadblocks.kit.as_mut() {
+            kit.set_sawhorse_parts(parts);
+        }
     }
 
     /// The strips of the roadblocks drawn from their model; the strips of a world without the model are drawn by

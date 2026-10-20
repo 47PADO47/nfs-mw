@@ -228,4 +228,13 @@ fn the_players_car_driving_into_a_gas_pump_opens_the_breaker() {
     }
     eprintln!("{results:#?}");
     assert!(fixture.fired(), "the player's Elise opens the gas station breaker by driving into a pump: {results:?}");
+    // The structure's map icon is gone, and its cinematic moment was asked for and answered.
+    let at = fixture.scene.residency.props().breaker_sites(&fixture.scene.physics, flat(fixture.roof))[0].position;
+    assert!(
+        fixture.scene.breaker_icons.shown_near(at, 20.0) == 0,
+        "no map icon is left within 20 m of a fired breaker"
+    );
+    let status = fixture.scene.moment_status();
+    eprintln!("{status}");
+    assert!(status.contains("WMGasStation"), "the breaker asked for its moment: {status}");
 }

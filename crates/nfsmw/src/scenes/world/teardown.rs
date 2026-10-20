@@ -31,6 +31,7 @@ impl WorldScene {
         }
         self.cop_health.release(renderer);
         self.explosions.release(renderer);
+        self.heli_wash.release(renderer);
     }
 }
 

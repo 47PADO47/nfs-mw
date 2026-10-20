@@ -33,6 +33,7 @@ mod simulation;
 mod sound;
 mod speedbreaker;
 mod time_scale;
+mod touch;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -153,6 +154,8 @@ pub struct Drive {
     markers: ContactMarkers,
     /// Props the car knocked over this tick, hidden by the world's next `update_events`.
     pending_knocks: Vec<u32>,
+    /// How long ago the car last touched a prop (`touch.rs`).
+    prop_touch: touch::PropTouch,
 }
 
 impl Drive {
@@ -213,6 +216,7 @@ impl Drive {
             wheel: WheelOptions::default(),
             markers: ContactMarkers::default(),
             pending_knocks: Vec::new(),
+            prop_touch: Default::default(),
         }
     }
 

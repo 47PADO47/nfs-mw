@@ -12,6 +12,7 @@ pub mod explosion_fx;
 mod globals;
 pub mod heli_sheet;
 mod index;
+pub mod moment;
 mod props;
 mod section;
 pub mod sequences;

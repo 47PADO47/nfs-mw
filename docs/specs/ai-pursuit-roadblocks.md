@@ -205,7 +205,9 @@ All on the cop manager's 0.5 s run (`UpdateRoadBlocks`) or the pursuit's 0.25 s 
 
 `smackable/spikestrip` **[verified]**: parent `placeables`, `MASS` 100, `NO_CAR_EFFECT` false, `SimplePhysics` true,
 `RESPAWN_TIME` 120 s, `KILL_OFF_SCREEN` 0, behaviour list `SpikeStrip`, no event sequencer, hit effects only. `sawhorse`:
-parent `lightwoodenobject`, `MASS` 100, `NO_CAR_EFFECT` true (cars take no damage from it), `COST_TO_STATE` 50, flies apart.
+parent `lightwoodenobject`, `MASS` 100, `NO_CAR_EFFECT` true (cars take no damage from it), `COST_TO_STATE` 50, flies apart: its `EventSequencer` is the shared engine `genericsmackable` **[verified]**, whose fragment events name six parts,
+four of which the sawhorse's hierarchy (`XO_SAWHORSE_1B_00`: `SAWHORSE_FRAG01..04`, collision children `863C2522`,
+`8395A1C1`, `4832AE9D`, `4C1B1E37`) and its bounds hold; the last event hides the parent **[verified]**.
 The roadblock props are created already positioned; a placeable starts as a trigger volume and is turned into a simulated
 object when a body reaches it (the `RBVehicle` trigger flags: 0x20 for every vehicle, plus 4 for the player or 8 for
 others, plus 0x20000 for cops). The spike strip behaviour, each simulation step while it is simulated: if its collision
@@ -354,7 +356,9 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
 - **Layout [headless].** Width is the road's width plus one metre (as the PC binary computes it; the earlier port passed the bare
   width). Cars are placed whole or not at all: a car that cannot stand fails the build and leaves nothing behind.
 - **Props [unseen].** Sawhorses are rigid bodies in the prop world (`PropWorld::spawn_placed`) with the installed collision
-  boxes and the `sawhorse` smackable's dynamics, drawn from the installed model; they live as long as the roadblock. Spike
+  boxes and the `sawhorse` smackable's dynamics, drawn from the installed model; they live as long as the roadblock. A sawhorse also has a scenery model: a first substantial contact sends `IMPACT_1`,
+  the `genericsmackable` sequence releases the four pieces and hides the whole [headless: installed test
+  `installed_sawhorse_breaks_into_its_four_pieces_when_a_car_hits_it`; the pieces' meshes are the shared sections']. Spike
   strips are drawn from the installed model, tilted to the ground normal, with the installed collision box; the tire box is the
   original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Not seen in a running game.
 - **Behaviour [headless].** Cars hold the brake (`AIGoalStaticRoadBlock`). A roadblock car does not look for the player; the roadblock
@@ -364,10 +368,14 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   chase once. A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
   formation unless it is FOLLOW or its finisher runs. The cost to state is 500 per roadblock and 250 per prop, sawhorses included.
 - **Release and repeat [headless].** A roadblock with no live car is released and its props go with it; the lottery may then build
-  another. An escape leaves roadblocks standing (their cars are retired by the traffic rule for unseen cars); ending the chase by
+  another. An escape leaves roadblocks standing (their cars are retired by the cop manager's out-of-play rule: a roadblock car
+  is never "in a chase", so only the settling and the window apply, `ai/population/cops.rs`); ending the chase by
   hand or by the arrest takes them away.
-- **Not built.** Stealing out-of-view cop cars to make up the car count (the rewrite creates the cars it needs); the sawhorse
-  breaking into its four fragments; the pursuit statistics reaching the rap sheet (`Roadblocks::stats` holds them); the
+- **Cars from cops out of view [headless].** A lottery roadblock first takes roaming cops (patrols and fleeing cops, not the
+  chase's) that have been out of view more than 5 s and are over 100 m from the player, the farthest first, and removes
+  them; the cars it still lacks are created (`roadblock/steal.rs`). The original asks its pool of inactive cars first;
+  the rewrite has no pool yet, so the order is reversed until the cop manager's pool lands.
+- **Not built.** The pursuit statistics reaching the rap sheet (`Roadblocks::stats` holds them); the
   "cops needed to evade + 1" count; a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
   cop, racer, checkpoint and helicopter objects and **no** roadblock object, so the minimap has no roadblock blip. The
   `MMICON_ROADBLOCK_%d` pool belongs to the full-screen map's legend builder (`FUN_00531350`, listed in

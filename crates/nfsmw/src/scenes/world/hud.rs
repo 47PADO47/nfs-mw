@@ -22,6 +22,9 @@ fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
 impl WorldScene {
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
     pub(super) fn hud_shown(&self) -> bool {
+        if self.moment.hides_hud() {
+            return false;
+        }
         if self.view == View::Fly {
             return false;
         }
@@ -46,6 +49,7 @@ impl WorldScene {
             }
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
+                self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
                 let mut meter = 0.0;
                 if let Some(drive) = &self.drive {
                     let player = drive.player_view();

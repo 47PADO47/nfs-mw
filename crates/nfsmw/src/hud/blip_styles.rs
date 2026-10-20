@@ -19,6 +19,7 @@ pub const RACE_SPEEDTRAP: &str = "race_speedtrap";
 pub const AUTO_SHOP: &str = "auto_shop";
 pub const CAR_LOT: &str = "car_lot";
 pub const SAFE_HOUSE: &str = "safe_house";
+pub const PURSUIT_BREAKER: &str = "pursuit_breaker";
 
 /// The objects of one race type's pool: `MMICON_<TYPE>_0..7`.
 const RACE_POOL: usize = 8;
@@ -28,6 +29,9 @@ const AUTO_SHOP_POOL: usize = 8;
 const SAFE_HOUSE_POOL: usize = 4;
 /// The car lots' pool: `CAR_LOT_0..3`, one per car lot.
 const CAR_LOT_POOL: usize = 4;
+
+/// The pursuit breakers' pool: `PURSUIT_BREAKER_0..N`, one object per breaker icon on the map.
+pub const PURSUIT_BREAKER_POOL: usize = 8;
 
 /// The tints of the interiors where the package object is plain white. The shop's yellow and the car lot's blue are
 /// the game's own colours (the roadblock's yellow, the cop's blue). The safe house's green is from the first
@@ -191,6 +195,7 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
         Box::new(IconPool::new(AUTO_SHOP, "SHOP_", AUTO_SHOP_POOL).nearest_only().tinted(AUTO_SHOP_TINT)),
         Box::new(IconPool::new(CAR_LOT, "CAR_LOT_", CAR_LOT_POOL).nearest_only().tinted(CAR_LOT_TINT)),
         Box::new(IconPool::new(SAFE_HOUSE, "SAFEHOUSEINDICATOR_", SAFE_HOUSE_POOL).tinted(SAFE_HOUSE_TINT)),
+        Box::new(IconPool::new(PURSUIT_BREAKER, "PURSUIT_BREAKER_", PURSUIT_BREAKER_POOL).in_zone()),
     ]
 }
 

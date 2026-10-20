@@ -103,6 +103,8 @@ pub struct HeliSettings {
     pub hiding_spots: bool,
     /// Whether the track's height sheet floors the helicopter (`HeliSheet`); off, it keeps a flat floor.
     pub heli_sheet: bool,
+    /// The options that take several numbers (`helicopter_lists.rs`).
+    pub lists: super::helicopter_lists::HeliLists,
 }
 
 impl Default for HeliSettings {
@@ -122,6 +124,7 @@ impl Default for HeliSettings {
             front_sight_only: true,
             hiding_spots: true,
             heli_sheet: true,
+            lists: Default::default(),
         }
     }
 }
@@ -144,6 +147,7 @@ impl HeliSettings {
             front_sight_only: self.front_sight_only,
             hiding_spots: self.hiding_spots,
             search_radius: blackbox_pursuit::roadblock::request::odds(level).search_radius,
+            gains: self.lists.gains(level, racing),
         }
     }
 
@@ -197,6 +201,7 @@ pub fn parse(text: &str) -> HeliSettings {
         front_sight_only: flag(&e, "Helicopter:FrontSightOnly", d.front_sight_only),
         hiding_spots: flag(&e, "Helicopter:HidingSpots", d.hiding_spots),
         heli_sheet: flag(&e, "Helicopter:HeliSheet", d.heli_sheet),
+        lists: super::helicopter_lists::HeliLists::parse(&e),
     }
 }
 

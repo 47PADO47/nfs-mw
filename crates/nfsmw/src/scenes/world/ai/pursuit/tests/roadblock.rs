@@ -189,3 +189,36 @@ fn roadblock_cars_do_not_look_for_the_player_themselves() {
     world.update_sight(0.25, &|_, _| None);
     assert!(!world.sighting(9).seen, "a roadblock car is not a sighting cop; the roadblock's own rule sees");
 }
+
+/// A chase with a roaming patrol 330 m down the road from the player, unseen for `unseen` seconds.
+fn chase_with_a_far_patrol(unseen: f32) -> TrafficWorld {
+    let mut world = chase(5);
+    let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
+    super::free_roam::patrol(&mut world, &mut renderer, Vec3::new(2.0, 0.0, 180.0));
+    for _ in 0..(unseen * 60.0) as usize {
+        world.cars[0].note_views(1.0 / 60.0, |_, _| false);
+    }
+    world
+}
+
+#[test]
+fn a_lottery_roadblock_takes_a_cop_that_has_been_out_of_view_and_far_away() {
+    let mut world = chase_with_a_far_patrol(6.0);
+    let patrol_key = world.cars[0].key();
+    let before = world.cars.len();
+    let placed = build(&mut world, Cause::Lottery).unwrap();
+    assert!(!world.cars.iter().any(|car| car.key() == patrol_key), "the patrol was taken for the roadblock");
+    assert_eq!(world.cars.len(), before - 1 + placed, "one of the roadblock's cars is the stolen one");
+}
+
+#[test]
+fn a_cop_seen_a_moment_ago_or_a_console_roadblock_takes_nothing() {
+    let mut world = chase_with_a_far_patrol(2.0);
+    let before = world.cars.len();
+    let placed = build(&mut world, Cause::Lottery).unwrap();
+    assert_eq!(world.cars.len(), before + placed, "a cop out of view for 2 s stays");
+    let mut world = chase_with_a_far_patrol(6.0);
+    let before = world.cars.len();
+    let placed = build(&mut world, Cause::Console).unwrap();
+    assert_eq!(world.cars.len(), before + placed, "the console builds new cars");
+}

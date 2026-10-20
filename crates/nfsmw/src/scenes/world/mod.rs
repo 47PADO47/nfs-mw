@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
+mod breaker_icons;
 mod breaker_visuals;
 mod camera_choice;
 mod camera_cycle;
@@ -27,11 +28,14 @@ mod frame;
 mod garage;
 mod gps;
 mod ground;
+mod heli_wash;
 mod hud;
 mod keys;
 mod lighting;
 mod materials;
 mod mod_hooks;
+mod moment;
+mod moment_world;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -196,6 +200,8 @@ pub struct WorldScene {
     rain: crate::weather::rain::Rain,
     /// The petrol station's explosion effect, started by the scenery physics.
     explosions: explosion_fx::ExplosionFx,
+    /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
+    heli_wash: heli_wash::HeliWash,
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
@@ -214,6 +220,10 @@ pub struct WorldScene {
     camera_mode: CameraMode,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
     cop_health: effects::cop_health::CopHealthBars,
+    /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
+    moment: moment::Moment,
+    /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
+    breaker_icons: breaker_icons::BreakerIcons,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

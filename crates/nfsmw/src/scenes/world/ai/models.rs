@@ -313,8 +313,10 @@ fn install_roadblock_props(scene: &mut WorldScene, renderer: &mut dyn RenderBack
     };
     let spike = rig(scene, renderer, models.spike);
     let sawhorse = rig(scene, renderer, models.sawhorse);
+    let parts = scene.residency.fragment_parts(crate::scenes::world::ai::roadblock::props::SAWHORSE_MODEL);
     if let Some(traffic) = scene.traffic.as_mut() {
         traffic.set_roadblock_models(spike, sawhorse);
+        traffic.set_sawhorse_parts(parts);
     }
 }
 

@@ -9,6 +9,9 @@
 
 use glam::{Vec2, Vec3};
 
+use super::camera::{self, Camera};
+use super::gains::Gains;
+
 /// The lowest height the helicopter may fly at above `x, z`, as a trait so the game can supply the heli sheet.
 pub trait Heights {
     /// The floor elevation under `(x, z)`, or `None` where no sheet covers the point (no floor there).
@@ -72,10 +75,6 @@ const SHEET_STEER_AHEAD: f32 = 0.4;
 const SHEET_STEER_LEAD: f32 = 0.3;
 /// Closing speed (m/s) above which the approach may brake hard. [decomp] 3, pool and.
 const CLOSING_BRAKE: f32 = 3.0;
-/// Divisor of the braking distance `closing^2 / (1.55 * used)`. [unconfirmed]: spec value, not found in the pool.
-const BRAKE_DIVISOR: f32 = 1.55;
-/// Speed kept when braking hard at the goal. [decomp] 0.4, pool.
-const BRAKE_SPEED_CUT: f32 = 0.4;
 /// Horizontal distance (m) under which a body moving against the goal brakes at its maximum. [decomp] 15, pool.
 const REVERSE_BRAKE_RANGE: f32 = 15.0;
 /// Horizontal move (m) under which the speed is not applied to the move. [decomp] 2 (spec pseudocode; no pool word found).
@@ -97,13 +96,27 @@ const SINK_GAIN: f32 = 3.0;
 const TARGET_CLIMB_GAIN: f32 = 2.0;
 
 /// The desired velocity for a goal, from the body's position and velocity.
-pub fn desired(position: Vec3, velocity: Vec3, goal: &Goal, heights: &dyn Heights) -> Desired {
+pub fn desired(
+    position: Vec3,
+    velocity: Vec3,
+    goal: &Goal,
+    heights: &dyn Heights,
+    gains: &Gains,
+    camera: Option<Camera>,
+) -> Desired {
+    let mut velocity = velocity;
     let mut work = position + velocity * WORK_LEAD;
     let dest_velocity_h = Vec3::new(goal.dest_velocity.x, 0.0, goal.dest_velocity.z);
     let mut dest = goal.drive + dest_velocity_h * WORK_LEAD;
+    // Keep out of the camera's sphere before anything else moves the destination.
+    let kicked = camera.and_then(|camera| camera::avoid(position, velocity, work, camera));
+    if let Some(avoided) = kicked {
+        dest = avoided.dest;
+        velocity = avoided.velocity;
+    }
     floor_point(&mut dest, heights);
     let roof_steer = ahead_roof(position, ahead_point(position, velocity), heights);
-    let body_velocity = lead_roof(position, velocity, &mut work, &mut dest, heights);
+    let body_velocity = lead_roof(position, velocity, &mut work, &mut dest, heights).or(kicked.map(|a| a.velocity));
 
     let to = dest - work;
     let len = to.length();
@@ -112,7 +125,7 @@ pub fn desired(position: Vec3, velocity: Vec3, goal: &Goal, heights: &dyn Height
     let dir = move_h.normalize_or_zero();
     let speed_h = Vec2::new(velocity.x, velocity.z).length();
     let closing = (velocity - dest_velocity_h).dot(dir);
-    let (vmax, max_decel) = brake(goal.speed, closing, len, speed_h, velocity, dir);
+    let (vmax, max_decel) = brake(goal.speed, closing, len, speed_h, velocity, dir, gains);
     if len > SPEED_SCALE_MIN {
         move_h *= vmax / len;
     }
@@ -179,9 +192,9 @@ fn side_push(normal: Vec3, dir: Vec3, gain: f32) -> Vec3 {
 
 /// Whether the approach brakes, and the speed it may use: braking hard at the goal cuts the speed, and a body moving
 /// against a near goal brakes at its maximum. Returns the speed and the max-deceleration flag.
-fn brake(speed: f32, closing: f32, len: f32, speed_h: f32, velocity: Vec3, dir: Vec3) -> (f32, bool) {
-    if closing > CLOSING_BRAKE && len <= braking_distance(closing, speed_h) {
-        return (speed * BRAKE_SPEED_CUT, true);
+fn brake(speed: f32, closing: f32, len: f32, speed_h: f32, velocity: Vec3, dir: Vec3, gains: &Gains) -> (f32, bool) {
+    if closing > CLOSING_BRAKE && len <= braking_distance(closing, speed_h, gains) {
+        return (speed * gains.brake[1], true);
     }
     if closing <= CLOSING_BRAKE && velocity.dot(dir) < -1.0 && len < REVERSE_BRAKE_RANGE {
         return (speed, true);
@@ -190,10 +203,10 @@ fn brake(speed: f32, closing: f32, len: f32, speed_h: f32, velocity: Vec3, dir: 
 }
 
 /// The distance needed to stop from `closing` m/s, with the acceleration the flight model allows.
-fn braking_distance(closing: f32, speed_h: f32) -> f32 {
-    let avail = (speed_h * 0.2 + 30.0).min(80.0);
+fn braking_distance(closing: f32, speed_h: f32, gains: &Gains) -> f32 {
+    let avail = (speed_h * 0.2 + gains.acceleration[1]).min(gains.acceleration[0]);
     let used = (closing * 2.0).min(avail);
-    closing * closing / (BRAKE_DIVISOR * used)
+    closing * closing / (gains.brake[0] * used)
 }
 
 /// Blends a steering direction into the move: a longer steer than `STEER_MIN` takes `STEER_BLEND` of the speed.
@@ -219,6 +232,23 @@ fn vertical(dy: f32, target_vy: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_camera_sphere_kicks_the_body_velocity() {
+        let camera = Camera { position: Vec3::ZERO, forward: Vec3::X };
+        let goal = goal(Vec3::new(-100.0, 5.0, 0.0));
+        let flying = Vec3::new(-40.0, 0.0, 0.0);
+        let at = Vec3::new(14.0, 5.0, 0.0);
+        let free = super::desired(at, flying, &goal, &Flat(0.0), &Gains::default(), None);
+        assert!(free.body_velocity.is_none());
+        let near = super::desired(at, flying, &goal, &Flat(0.0), &Gains::default(), Some(camera));
+        assert!(near.body_velocity.is_some_and(|v| v.x > flying.x), "{:?}", near.body_velocity);
+    }
+
+    /// The desired velocity with the game's own gains.
+    fn desired(position: Vec3, velocity: Vec3, goal: &Goal, heights: &dyn Heights) -> Desired {
+        super::desired(position, velocity, goal, heights, &Gains::default(), None)
+    }
 
     fn goal(drive: Vec3) -> Goal {
         Goal { drive, speed: 50.0, dest_velocity: Vec3::ZERO, look_at: drive }

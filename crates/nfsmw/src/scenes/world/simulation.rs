@@ -57,7 +57,7 @@ impl WorldScene {
         let active = loaded && self.drive.as_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
         let sim_dt = match loaded {
             false => 0.0,
-            true => self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed,
+            true => self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed * self.moment.sim_speed(),
         };
         if loaded && let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.finish_time(input, sim_dt, real_dt);
@@ -72,6 +72,7 @@ impl WorldScene {
         for _ in 0..steps {
             self.physics_step(driving, look);
         }
+        self.step_moment(sim_dt);
         // The speeding trigger reads the sighting the collision step just made, checked against the walls.
         if self.drive.is_some() {
             let (collision, _) = self.residency.world_parts();
@@ -172,6 +173,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
+            traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {
@@ -179,15 +181,24 @@ impl WorldScene {
             drive.finish_step(collision, surfaces, step);
         }
         let stops = props.update_scenery(&self.physics);
+        let moments = props.take_moments();
+        let fired: Vec<Vec3> = stops.iter().map(|stop| stop.position).collect();
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.breaker_stops(stops);
         }
         if let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.follow(collision, look, STEP);
         }
+        let helicopter = self.traffic.as_ref().and_then(|t| t.helicopter_motion());
+        let helicopter = helicopter.map(|(at, _, _)| Vec3::from_array(space::to_physics(at)));
+        self.heli_wash.step(STEP, helicopter, self.residency.collision());
         self.record_original_camera();
         let view = self.simulation_lens(self.physics_aspect).view_proj();
         let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces: &self.physics.surfaces }, view, STEP);
+        self.play_moments(moments);
+        self.breaker_icons.fired(&fired);
+        let (_, props) = self.residency.world_parts();
+        self.breaker_icons.step(STEP, props, &self.physics);
     }
 }
