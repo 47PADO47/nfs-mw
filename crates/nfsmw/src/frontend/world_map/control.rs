@@ -17,7 +17,7 @@ use crate::frontend::logic::{Command, Env};
 use crate::frontend::world_map::overlay::WorldMapOverlay;
 use crate::hud::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
-    RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
+    RACE_SPRINT, RACE_TOLLBOOTH, ROADBLOCK, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 use crate::input::{Action, ActionState};
 use crate::ui::Text;
@@ -84,6 +84,10 @@ pub fn tint_of(style: &str) -> Option<[u8; 3]> {
 
 /// The icon colour of a blip style as the themed legend draws it: the HUD interior tints, and amber for the races.
 pub fn blip_rgba(style: &str) -> [u8; 4] {
+    // The roadblock's icon is tinted `0xffffed00` by the original's icon builder (`docs/specs/hud-minimap.md` section 7).
+    if style == ROADBLOCK {
+        return [0xff, 0xed, 0x00, 0xff];
+    }
     match tint_of(style) {
         Some([r, g, b]) => [r, g, b, 255],
         None => [255, 196, 64, 255],
@@ -102,6 +106,7 @@ pub fn style_name(style: &str) -> &'static str {
         RACE_KNOCKOUT => "Knockout",
         RACE_TOLLBOOTH => "Tollbooth",
         RACE_SPEEDTRAP => "Speed trap",
+        ROADBLOCK => "Roadblock",
         _ => "Blip",
     }
 }

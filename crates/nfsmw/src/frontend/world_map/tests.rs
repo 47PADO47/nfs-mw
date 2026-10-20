@@ -38,8 +38,9 @@ fn the_map_opens_on_locations_zoomed_out() {
 #[test]
 fn the_filter_tabs_cycle_and_wrap_both_ways() {
     assert_eq!(Filter::Locations.next(), Filter::Races);
-    assert_eq!(Filter::Races.next(), Filter::Locations);
-    assert_eq!(Filter::Locations.previous(), Filter::Races);
+    assert_eq!(Filter::Races.next(), Filter::Pursuit);
+    assert_eq!(Filter::Pursuit.next(), Filter::Locations);
+    assert_eq!(Filter::Locations.previous(), Filter::Pursuit);
     assert_eq!(Filter::Races.previous(), Filter::Locations);
 }
 
@@ -51,6 +52,8 @@ fn each_filter_shows_only_its_own_styles() {
     assert!(!Filter::Locations.contains(RACE_SPRINT));
     assert!(Filter::Races.contains(RACE_SPRINT));
     assert!(!Filter::Races.contains(SAFE_HOUSE));
+    assert!(Filter::Pursuit.contains(crate::hud::ROADBLOCK));
+    assert!(!Filter::Races.contains(crate::hud::ROADBLOCK));
 }
 
 #[test]

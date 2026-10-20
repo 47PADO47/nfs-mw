@@ -60,6 +60,7 @@ impl TrafficWorld {
     /// Takes the spike strips away: the chase that laid them is over.
     pub(super) fn clear_spikes(&mut self) {
         self.spikes.clear();
+        self.roadblock_sites.clear();
         self.spike_patches = None;
     }
 }

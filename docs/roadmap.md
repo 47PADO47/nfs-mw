@@ -72,6 +72,7 @@ What races still lack. The rules and the wiring are done ([race-mode.md](specs/r
 - **Drag:** the steering assist and lanes exist; the dragster engine, damage and input behaviours of the original
   (`EngineDragster`, `DamageDragster`, `InputPlayerDrag`) and the drag HUD are not modelled.
 - **Wrong-way trigger** (`ResetsPlayer`), `SharedCheckpoints`, cash grabs and the busted-in-a-race flow are not used.
+- **Roadblock icon:** on the world map's new Pursuit tab only; the in-game HUD package has no roadblock icon object.
 - **Quick Race options:** the laps, opponents, difficulty and traffic rows are not bound.
 - **Mods:** the `nfsmw.races` interface still answers unsupported.
 - **Auto shop prices:** in career mode an auto shop opens the garage without charging: no price rule for the

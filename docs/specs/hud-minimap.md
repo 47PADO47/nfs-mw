@@ -193,7 +193,7 @@ active. They hide while a race runs and, in the career, for a race the Blacklist
 heading; an opponent that is not simulated has none), and, in a speed-trap race, a `race_speedtrap` blip at each trap
 sphere (`scenes/world/race/blips.rs`). `MMICON_ROADBLOCK_%d` is **not** an object of `HUD_SingleRace.fng`: the
 executable builds it in the world map's code (`0x00531350`) and `WorldMapMain.fng` has `MMICON_ROADBLOCK_0` and `_1`
-(`docs/provenance/race-mode.md` section 5), so the in-game minimap has no roadblock icon. An interior's icon does not turn, and its index is not tied to its zone
+(`docs/provenance/race-mode.md` section 5), so the in-game minimap has no roadblock icon. The world map draws it: the traffic reports each standing roadblock as a `roadblock` blip (`MapBlip` style `ROADBLOCK`, cleared with the chase's spikes), `WorldMapMain.fng`'s five `MMICON_ROADBLOCK_%d` objects are its pool, and a third tab, `Pursuit`, lists them, tinted `0xffffed00` **[exe]** (`FUN_00530df0`). The cops are not on that tab: their world map pool is not mapped **[unconfirmed]**. An interior's icon does not turn, and its index is not tied to its zone
 (`docs/formats/gameplay-races.md` section 7), so blips take the pool's objects in order.
 
 Positions come from `nfsmw_data::gameplay` (physics space) and go to render space with `scenes/world/space.rs`; for

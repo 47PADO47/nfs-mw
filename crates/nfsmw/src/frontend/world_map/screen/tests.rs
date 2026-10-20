@@ -150,6 +150,19 @@ fn the_list_names_the_blips_and_the_tab_and_zoom_read_out() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_roadblock_is_drawn_on_the_pursuit_tab_with_the_roadblock_icon_objects() {
+    let mut h = Harness::open();
+    let mut frame = frame(vec![blip(crate::hud::ROADBLOCK, [0.5, 0.5])]);
+    frame.session.filter = Filter::Pursuit;
+    h.tick(&frame);
+    assert_eq!(h.text(pools::TAB), "PURSUIT");
+    assert!(!h.hidden(pools::slots(crate::hud::ROADBLOCK)[0]), "the roadblock sits on its first pool object");
+    assert!(h.hidden(pools::slots(crate::hud::ROADBLOCK)[1]), "the others stay parked");
+    assert_eq!(h.text(pools::ROWS[0].text), "Roadblock   0 m");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn zoom_crops_the_picture_and_parks_the_blips_outside_the_view() {
     let mut h = Harness::open();
     let mut frame = frame(vec![blip(SAFE_HOUSE, [0.5, 0.5]), blip(CAR_LOT, [0.1, 0.1])]);

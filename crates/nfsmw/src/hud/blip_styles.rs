@@ -19,9 +19,14 @@ pub const RACE_SPEEDTRAP: &str = "race_speedtrap";
 pub const AUTO_SHOP: &str = "auto_shop";
 pub const CAR_LOT: &str = "car_lot";
 pub const SAFE_HOUSE: &str = "safe_house";
+/// A police roadblock site (`MMICON_ROADBLOCK_%d`).
+pub const ROADBLOCK: &str = "roadblock";
 
 /// The objects of one race type's pool: `MMICON_<TYPE>_0..7`.
 const RACE_POOL: usize = 8;
+/// The roadblocks' pool: `MMICON_ROADBLOCK_0..4`. The objects are in `WorldMapMain.fng` only; the in-game HUD package has
+/// none (`docs/provenance/race-mode.md` section 5), so its minimap draws no roadblock.
+const ROADBLOCK_POOL: usize = 5;
 /// The auto shops' pool: `SHOP_0..7`, one per shop zone.
 const AUTO_SHOP_POOL: usize = 8;
 /// The safe houses' pool: `SAFEHOUSEINDICATOR_0..3`, one per safe house.
@@ -188,6 +193,7 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
         Box::new(IconPool::new(RACE_KNOCKOUT, "MMICON_KNOCKOUT_", RACE_POOL).in_zone()),
         Box::new(IconPool::new(RACE_TOLLBOOTH, "MMICON_TOLLBOOTH_", RACE_POOL).in_zone()),
         Box::new(IconPool::new(RACE_SPEEDTRAP, "MMICON_SPEEDTRAP_", RACE_POOL).in_zone()),
+        Box::new(IconPool::new(ROADBLOCK, "MMICON_ROADBLOCK_", ROADBLOCK_POOL)),
         Box::new(IconPool::new(AUTO_SHOP, "SHOP_", AUTO_SHOP_POOL).nearest_only().tinted(AUTO_SHOP_TINT)),
         Box::new(IconPool::new(CAR_LOT, "CAR_LOT_", CAR_LOT_POOL).nearest_only().tinted(CAR_LOT_TINT)),
         Box::new(IconPool::new(SAFE_HOUSE, "SAFEHOUSEINDICATOR_", SAFE_HOUSE_POOL).tinted(SAFE_HOUSE_TINT)),

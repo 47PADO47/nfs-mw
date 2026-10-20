@@ -159,6 +159,8 @@ pub struct TrafficWorld {
     strikes: collide::Strikes,
     /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
     spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    /// Where the standing roadblocks are, in render space, for the map's roadblock icons. Cleared with the spikes.
+    roadblock_sites: Vec<[f32; 2]>,
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
@@ -224,6 +226,7 @@ impl TrafficWorld {
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
             spikes: Vec::new(),
+            roadblock_sites: Vec::new(),
             spike_patches: None,
             bodies: Vec::new(),
             aims: Vec::new(),
@@ -308,6 +311,9 @@ impl TrafficWorld {
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
         self.helicopter_blips(pursuing, out);
+        for at in &self.roadblock_sites {
+            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: *at, active: false, heading: None });
+        }
         for car in self.cars.iter().filter(|c| c.is_live_police()) {
             let at = car.position();
             out.push(crate::hud::MapBlip {

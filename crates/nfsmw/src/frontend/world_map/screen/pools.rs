@@ -6,7 +6,8 @@
 //! The blip's icon is set from its style, so the pool decides only where the blip is drawn.
 
 use crate::hud::{
-    AUTO_SHOP, CAR_LOT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, CAR_LOT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, ROADBLOCK,
+    SAFE_HOUSE,
 };
 
 /// The map's picture object (`TRACK_MAP.tga`).
@@ -35,7 +36,7 @@ pub const ZOOM: u32 = 0xF5707;
 /// The pools of each blip style, in the order the blips take them. The executable finds each pool by the hash of its
 /// name (`SHOP_%d`, `MMICON_SPRINT_%d`, ...; `docs/provenance/world-map-ghidra.md`), so the order is the order of the
 /// names: the locations' pools are listed by their name's hash, the races' by their index.
-pub const POOLS: [(&str, &[u32]); 9] = [
+pub const POOLS: [(&str, &[u32]); 10] = [
     (AUTO_SHOP, &[0xFA072, 0xFA073, 0xFA070, 0xFA071, 0x122C16, 0x122C1B, 0x122C20, 0x122C25]),
     (SAFE_HOUSE, &[0xF54A4, 0xF54A1, 0xF54A2, 0xF54A3]),
     (CAR_LOT, &[0xFA07C, 0xFA07D, 0xFA07A, 0xFA07B]),
@@ -45,6 +46,8 @@ pub const POOLS: [(&str, &[u32]); 9] = [
     (RACE_KNOCKOUT, &[0xF51B9, 0xF51C2, 0xF51C7, 0xF51CC, 0xF51D1, 0xF51D6]),
     (RACE_TOLLBOOTH, &[0xF51FA, 0xF5201, 0xF5206]),
     (RACE_SPEEDTRAP, &[0x10502E, 0x10502F, 0x105030, 0x105031, 0x105032, 0x105033]),
+    // `MMICON_ROADBLOCK_%d` (name hashes `0xCBD81AE1..0xCBD81AE5`), 24 px `Minimap_Icon_Roadblock.tga` images.
+    (ROADBLOCK, &[0xFD07A, 0x10FAA3, 0x10FAA8, 0x10FAAD, 0x10FAB2]),
 ];
 
 /// The pools of a style (none for a style the map does not draw).
