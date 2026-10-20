@@ -127,6 +127,11 @@ impl AiCar {
         true
     }
 
+    /// The damage a cop car has taken (0 for none and for traffic), as its wreck state counts it.
+    pub fn cop_damage(&self) -> f32 {
+        self.damage.as_ref().map_or(0.0, |d| d.wreck.damage())
+    }
+
     /// Whether the car was wrecked since the last call. The world counts each wreck once.
     pub fn take_wreck(&mut self) -> bool {
         self.damage.as_mut().is_some_and(|d| std::mem::take(&mut d.pending))

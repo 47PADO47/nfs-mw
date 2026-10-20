@@ -29,7 +29,7 @@ pub struct HeliFrame {
     /// Seconds since the last frame.
     pub dt: f32,
     pub position: Vec3,
-    /// The direction the helicopter moves in, flat (the scene has no heading accessor yet).
+    /// The direction the helicopter's nose points (the chopper body's own heading).
     pub forward: Vec3,
     pub velocity: Vec3,
 }

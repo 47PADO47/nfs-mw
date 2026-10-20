@@ -43,6 +43,9 @@ pub struct Tuning {
     pub front_sight_only: bool,
     /// Whether a hiding spot hides the player from it (the mod's `HidingSpots`). Off, the spots are ignored.
     pub hiding_spots: bool,
+    /// Metres the search spreads around the last known place: the level's `SearchModeRoadblockRadius` (spec 6.1: the search
+    /// reads the same field as the roadblock request; it is 1000 m only at heat 1 and 2).
+    pub search_radius: f32,
 }
 
 impl Default for Tuning {
@@ -60,6 +63,7 @@ impl Default for Tuning {
             all_around_sight: sight::VISUAL_SPHERE,
             front_sight_only: true,
             hiding_spots: true,
+            search_radius: 1000.0,
         }
     }
 }
@@ -92,12 +96,16 @@ pub struct Target {
     pub in_tunnel: bool,
 }
 
-/// The floor and the random numbers the search needs, supplied by the caller so the helicopter stays pure.
+/// What the helicopter takes from the pursuit: whether the pursuit has the player in sight (any cop within the grace, this
+/// helicopter's own sight included), the last known place, and a random number for the search.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SearchInput {
-    /// Which way round the search circles the last known place, in turns (0 to 1).
-    pub angle_turns: f32,
-    /// A uniform random number in `0..=1` picking the search distance.
+    /// The pursuit says the player is in sight (`IsPerpInSight`). Out of sight the helicopter searches, whatever its own
+    /// line to the player is.
+    pub perp_in_sight: bool,
+    /// The place the player was last seen (`GetLastKnownLocation`), which the search circles.
+    pub last_known: Vec3,
+    /// A uniform random number in `0..=1` picking the next search distance.
     pub unit_random: f32,
 }
 
@@ -112,6 +120,8 @@ pub struct Helicopter {
     /// Above zero while a skid hit runs; below zero the skid cooldown counts down.
     pub skid_timer: f32,
     pub tuning: Tuning,
+    /// Where the search is on its circle, in turns; it advances an eighth of a turn at each new search point.
+    pub search_angle: f32,
 }
 
 impl Helicopter {
@@ -124,6 +134,7 @@ impl Helicopter {
             fuel: tuning.fuel_time,
             skid_timer: 0.0,
             tuning,
+            search_angle: 0.0,
         }
     }
 
@@ -171,10 +182,11 @@ impl Helicopter {
             hidden: target.hidden && self.tuning.hiding_spots,
             in_tunnel: target.in_tunnel,
         };
-        let seen = self.sight.can_see(&look, || clear(player.position));
-        let goal = match seen {
+        // Its own sight feeds the pursuit's (the caller reads `sight.visible()`); what it does follows the pursuit's.
+        self.sight.can_see(&look, || clear(player.position));
+        let goal = match search.perp_in_sight {
             true => self.pursue(player),
-            false => self.search(player, heights, search),
+            false => self.search(heights, search),
         };
         self.step(dt, goal, heights, &specs);
         false
@@ -224,10 +236,25 @@ impl Helicopter {
         self.mode = Mode::Follow;
     }
 
-    /// The goal while the player is out of sight: fly to a search point around its last known place.
-    fn search(&mut self, player: &Player, heights: &dyn Heights, search: SearchInput) -> Goal {
-        let floor = heights.elevation(player.position.x, player.position.z);
-        let point = behaviour::search_point(player.position, search.angle_turns, search.unit_random, 1000.0, floor);
+    /// The goal while the pursuit has lost the player: fly to a point around the last known place, and choose the next one
+    /// when within 30 m of it (`SearchForPerp`, `SetNextPerpSearchDest`).
+    fn search(&mut self, heights: &dyn Heights, search: SearchInput) -> Goal {
+        let point = match self.mode {
+            Mode::Search { point } if horizontal_distance(self.body.position, point) >= behaviour::SEARCH_ARRIVAL => {
+                point
+            }
+            _ => {
+                self.search_angle = (self.search_angle + behaviour::SEARCH_STEP_TURNS).fract();
+                let floor = heights.elevation(search.last_known.x, search.last_known.z);
+                behaviour::search_point(
+                    search.last_known,
+                    self.search_angle,
+                    search.unit_random,
+                    self.tuning.search_radius,
+                    floor,
+                )
+            }
+        };
         self.mode = Mode::Search { point };
         behaviour::search(point, self.body.velocity, self.tuning.search_speed)
     }
@@ -249,17 +276,28 @@ mod tests {
     }
 
     const OPEN: Target = Target { hidden: false, in_tunnel: false };
-    const SEARCH: SearchInput = SearchInput { angle_turns: 0.0, unit_random: 0.5 };
+    const SEARCH: SearchInput = SearchInput { perp_in_sight: true, last_known: Vec3::ZERO, unit_random: 0.5 };
+    const LOST: SearchInput = SearchInput { perp_in_sight: false, last_known: Vec3::ZERO, unit_random: 0.5 };
 
     fn clear(_: Vec3) -> bool {
         true
     }
 
     fn run(heli: &mut Helicopter, seconds: f32, target: Target, line: &dyn Fn(Vec3) -> bool) -> bool {
+        run_in(heli, seconds, target, line, SEARCH)
+    }
+
+    fn run_in(
+        heli: &mut Helicopter,
+        seconds: f32,
+        target: Target,
+        line: &dyn Fn(Vec3) -> bool,
+        input: SearchInput,
+    ) -> bool {
         let steps = (seconds / THINK_PERIOD) as usize;
         let mut done = false;
         for _ in 0..steps {
-            done |= heli.think(THINK_PERIOD, &player(), target, line, &Flat(0.0), SEARCH);
+            done |= heli.think(THINK_PERIOD, &player(), target, line, &Flat(0.0), input);
         }
         done
     }
@@ -290,11 +328,43 @@ mod tests {
     }
 
     #[test]
-    fn a_lost_player_sends_it_to_search() {
+    fn a_player_the_pursuit_has_lost_sends_it_to_search() {
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+        run_in(&mut heli, 0.5, OPEN, &clear, LOST);
+        assert!(matches!(heli.mode, Mode::Search { .. }));
+    }
+
+    #[test]
+    fn its_own_blocked_line_does_not_send_it_to_search_while_the_pursuit_has_the_player() {
         let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
         let blocked = |_: Vec3| false;
-        run(&mut heli, 0.5, OPEN, &blocked);
-        assert!(matches!(heli.mode, Mode::Search { .. }));
+        run(&mut heli, 1.0, OPEN, &blocked);
+        assert!(!heli.sight.visible(), "the helicopter itself has lost the line");
+        assert_eq!(heli.mode, Mode::Follow, "but another cop sees the player, so it keeps flying to it");
+    }
+
+    #[test]
+    fn the_search_keeps_its_point_until_it_is_within_thirty_metres() {
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+        run_in(&mut heli, THINK_PERIOD, OPEN, &clear, LOST);
+        let Mode::Search { point } = heli.mode else { panic!("{:?}", heli.mode) };
+        run_in(&mut heli, 2.0, OPEN, &clear, SearchInput { unit_random: 0.9, ..LOST });
+        assert_eq!(heli.mode, Mode::Search { point }, "a new random number does not move the point");
+        heli.body.position = Vec3::new(point.x, point.y, point.z + 10.0);
+        run_in(&mut heli, THINK_PERIOD, OPEN, &clear, SearchInput { unit_random: 0.9, ..LOST });
+        let Mode::Search { point: next } = heli.mode else { panic!("{:?}", heli.mode) };
+        assert_ne!(next, point, "within 30 m the next point is chosen");
+    }
+
+    #[test]
+    fn the_search_spreads_over_the_levels_radius_around_the_last_known_place() {
+        let tuning = Tuning { search_radius: 10_000.0, ..Tuning::default() };
+        let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, tuning);
+        let input = SearchInput { last_known: Vec3::new(500.0, 0.0, 0.0), unit_random: 0.0, ..LOST };
+        run_in(&mut heli, THINK_PERIOD, OPEN, &clear, input);
+        let Mode::Search { point } = heli.mode else { panic!("{:?}", heli.mode) };
+        let from_centre = horizontal_distance(point, input.last_known);
+        assert!((from_centre - 2000.0).abs() < 1.0, "0.2 of the radius at the smallest roll: {from_centre}");
     }
 
     #[test]
@@ -303,7 +373,7 @@ mod tests {
         let blocked = |_: Vec3| false;
         let hidden = Target { hidden: true, in_tunnel: false };
         run(&mut heli, 0.25, hidden, &blocked);
-        assert!(matches!(heli.mode, Mode::Search { .. }));
+        assert!(!heli.sight.visible());
     }
 
     #[test]
@@ -314,7 +384,7 @@ mod tests {
         let blocked = |_: Vec3| false;
         let hidden = Target { hidden: true, in_tunnel: false };
         run(&mut heli, 0.25, hidden, &blocked);
-        assert_eq!(heli.mode, Mode::Follow, "the zone is ignored, so the player near its last seen place is followed");
+        assert!(heli.sight.visible(), "the zone is ignored, so the player near its last seen place is still seen");
     }
 
     #[test]

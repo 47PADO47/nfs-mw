@@ -359,8 +359,11 @@ Details in [ai-helicopter.md](ai-helicopter.md). [decomp]
 
 - **The chase rolls support** (`ai/police.rs`, `tick_support`): every 10 s after the level's minimum delay (`ai/support.rs`,
   `pursuitsupport` rows 1 to 10, install-verified), and only while the cops see the player, the heavy options of the level
-  are rolled with `blackbox_pursuit::support::roll`. The heavy roadblock is placed by the world (`ai/roadblock.rs`) and no
-  second one is rolled for the same chase.
+  are rolled with `blackbox_pursuit::support::roll`. The heavy roadblock is built by the world (`ai/roadblock/`) with SUVs, no
+  heavy option is rolled while a roadblock stands (a released roadblock lets the next one be rolled), and the support roll
+  stays silent for the option's duration once the roadblock is built. A standing roadblock that is whole and not passed makes
+  the picker choose FOLLOW (`Police::set_roadblock_follow`), and a new roadblock ends the current formation unless it is FOLLOW
+  or its finisher runs (`roadblock_added`). [headless]
 - **Not built:** RAM (`AIGoalHeadOnRam` and its two SUVs; the roll is logged), the leader options (the cross cars and the
   priority check, which is not yet done per heat), the SUV spawns, the request duration and its reset, and the speech.
 - **Unconfirmed:** the support check's 10 s period is the spec's `support_check_timer`; the roll uses the same random

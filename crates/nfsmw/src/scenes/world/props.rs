@@ -7,6 +7,7 @@ mod ground;
 mod lifetime;
 mod obb;
 mod original_camera;
+mod placed;
 pub(super) mod scenery;
 #[cfg(test)]
 mod tests;
@@ -15,6 +16,7 @@ use body::PropBody;
 pub use fragments::FragmentSpawn;
 use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
+pub use placed::PlacedSpawn;
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
 use super::events::{DamageHit, OtherBody};

@@ -120,6 +120,11 @@ impl SharedAssets {
         self.assets[index].anims.clone()
     }
 
+    /// The index of the model called `name` (ASCII case does not matter), for [`model`](Self::model).
+    pub fn find(&self, name: &str) -> Option<usize> {
+        self.assets.iter().position(|a| a.solid.name.eq_ignore_ascii_case(name))
+    }
+
     /// Model `index` as a car-viewer model: its one solid at the origin, with its textures and no car around it.
     pub fn model(&self, index: usize) -> CarModel {
         let asset = &self.assets[index];

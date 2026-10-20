@@ -36,16 +36,6 @@ impl super::super::TrafficWorld {
         Some((gaps.len() as u32, gaps.iter().sum::<f32>() / gaps.len() as f32))
     }
 
-    /// Whether a support roll asked for a roadblock this frame; the world places it and calls `roadblock_placed`.
-    pub fn take_roadblock_request(&mut self) -> bool {
-        self.police.take_roadblock_request()
-    }
-
-    /// The roadblock was placed: no second heavy roadblock this chase.
-    pub fn roadblock_placed(&mut self) {
-        self.police.roadblock_placed();
-    }
-
     /// The player pressed the reset key: the post-reset blink starts (the reset penalty applies while it runs).
     pub fn note_manual_reset(&mut self) {
         self.spike_patches = None;
@@ -90,6 +80,7 @@ impl super::super::TrafficWorld {
             flashing: self.police.flashing(),
         };
         self.police.set_rig(self.helicopter_rig.clone());
+        self.police.set_last_known(self.pursuit.as_ref().and_then(|p| p.last_seen).map(|seen| seen.position));
         self.police.note_cops_damaged(self.cops_damaged());
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
         let busted = self.police.tick_busted(dt, pursuing, bust);
@@ -196,6 +187,9 @@ impl super::super::TrafficWorld {
             secs_to_evade: self.police.secs_to_evade(),
             player_mph: self.player_speed / super::super::traffic::MPH,
             heli_present: self.police.helicopter_present(),
+            heli_in_sight: self.police.helicopter_status().is_some_and(|status| status.in_sight),
+            heli_fuel: self.police.helicopter_status().map_or(0.0, |status| status.fuel_fraction),
+            heli_search_call: self.police.heli_search_call(),
             rain_intensity: 0.0,
             roadblock_active: self.police.roadblock_standing(),
             player_hit: self.sighting(level).recent_hit,

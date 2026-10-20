@@ -82,8 +82,10 @@ impl WorldScene {
             ai::speeding_pursuit(self, renderer);
             // The helicopter's sight asks the world whether the line to the player is clear.
             let (collision, _) = self.residency.world_parts();
+            let mut roadblock_view = None;
             if let (Some(drive), Some(traffic)) = (self.drive.as_mut(), self.traffic.as_mut()) {
                 let view = drive.player_view();
+                roadblock_view = Some(view);
                 // The reset key starts the post-reset blink, which the busted timer reads this frame.
                 if drive.take_manual_resets() > 0 {
                     traffic.note_manual_reset();
@@ -96,16 +98,12 @@ impl WorldScene {
                 traffic.update_police(steps as f32 * STEP, &view, &clear);
                 // The pursuit camera reads the bust after the police's tick, on the same clock.
                 drive.update_pursuit(steps as f32 * STEP, pursuit_feed(traffic, view.position));
-                // A support roll asked for a roadblock: the world places it, and the chase keeps no second one.
-                if traffic.take_roadblock_request() {
-                    match traffic.place_roadblock(view, collision, &self.physics.surfaces) {
-                        Ok(cars) => {
-                            log::info!("support: a roadblock of {cars} cop cars");
-                            traffic.roadblock_placed();
-                        }
-                        Err(e) => log::warn!("support: no roadblock: {e}"),
-                    }
-                }
+            }
+            // The cop manager's roadblock work on the same clock: the request lottery and the latch, the heavy support
+            // request, and for each standing roadblock the dodge, the cheat rule and the release.
+            if let (Some(view), Some(traffic)) = (roadblock_view, self.traffic.as_mut()) {
+                let (collision, props) = self.residency.world_parts();
+                traffic.update_roadblocks(steps as f32 * STEP, view, collision, Some(props), &self.physics.surfaces);
             }
             // The cop health bars step on the same clock as the police, after its tick (`effects/cop_health.rs`). The
             // traffic reads the chase gate itself, so `pursuing` here is not used.

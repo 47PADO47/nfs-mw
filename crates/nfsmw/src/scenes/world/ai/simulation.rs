@@ -115,6 +115,7 @@ impl TrafficWorld {
         let finishing = self.warmup_left > 0.0 && self.warmup_left <= STEP;
         self.warmup_left = (self.warmup_left - STEP).max(0.0);
         self.update_pursuit(STEP, focus, collision, surfaces);
+        self.apply_breakers_to_helicopter();
         self.log_timer += STEP;
         if self.log_timer >= 5.0 && log::log_enabled!(log::Level::Debug) {
             self.log_timer = 0.0;

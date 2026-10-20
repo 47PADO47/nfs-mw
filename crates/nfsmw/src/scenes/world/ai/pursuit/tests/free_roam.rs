@@ -20,7 +20,7 @@ fn patrol(world: &mut TrafficWorld, renderer: &mut NullBackend, at: Vec3) {
     world.add_cop_model(model);
 }
 
-fn see(world: &mut TrafficWorld, seen: bool) {
+pub(super) fn see(world: &mut TrafficWorld, seen: bool) {
     world.seen_by_cops = seen;
     world.update_police(
         0.25,

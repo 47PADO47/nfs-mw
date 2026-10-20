@@ -9,18 +9,21 @@ use super::TrafficWorld;
 use crate::scenes::world::drive::CarSim;
 
 impl TrafficWorld {
-    /// Visible strip geometry shares the exact footprint used for tire contact.
-    /// Procedural presentation until the installed spike prop is assembled.
+    /// Procedural strip geometry on the exact footprint used for tire contact, for a world whose installed spike-strip
+    /// model is not loaded (the model is drawn by `roadblock_instances`).
     pub fn spike_geometry(&self, out: &mut Vec<blackbox_gfx::EffectVertex>) {
-        for strip in &self.spikes {
+        if self.roadblocks.has_models() {
+            return;
+        }
+        for strip in &self.roadblocks.strips() {
             let facing = glam::Vec2::new(strip.heading.cos(), strip.heading.sin());
             let across = glam::Vec2::new(-facing.y, facing.x);
             let point = |along: f32, side: f32, height: f32| {
                 let p = strip.position + facing * along + across * side;
                 crate::scenes::world::space::to_render([p.x, strip.elevation + height, p.y])
             };
-            let a = spikes::HALF_ALONG;
-            let b = spikes::HALF_ACROSS;
+            let a = strip.half[0];
+            let b = strip.half[1];
             blackbox_gfx::EffectLayer::quad(
                 out,
                 [point(-a, -b, 0.04), point(a, -b, 0.04), point(a, b, 0.04), point(-a, b, 0.04)],
@@ -43,12 +46,13 @@ impl TrafficWorld {
     pub(super) fn spike_player(&mut self, player: &mut CarSim) {
         let wheels = player.wheel_patches();
         let previous = self.spike_patches.replace(wheels);
-        if self.spikes.is_empty() {
+        let strips = self.roadblocks.strips();
+        if strips.is_empty() {
             return;
         }
         let punctured = match previous.filter(|old| old[0].position.distance(wheels[0].position) < 50.0) {
-            Some(previous) => spikes::punctured_sweep(&self.spikes, &previous, &wheels),
-            None => spikes::punctured(&self.spikes, &wheels),
+            Some(previous) => spikes::punctured_sweep(&strips, &previous, &wheels),
+            None => spikes::punctured(&strips, &wheels),
         };
         for (wheel, hit) in punctured.into_iter().enumerate() {
             if hit && player.puncture_wheel(wheel) {
@@ -57,9 +61,9 @@ impl TrafficWorld {
         }
     }
 
-    /// Takes the spike strips away: the chase that laid them is over.
+    /// Takes the roadblocks, and so their spike strips, away: the chase was ended by hand or by the arrest.
     pub(super) fn clear_spikes(&mut self) {
-        self.spikes.clear();
+        self.roadblocks.clear();
         self.spike_patches = None;
     }
 }

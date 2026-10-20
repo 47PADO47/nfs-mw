@@ -3,6 +3,7 @@
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
 mod activation;
+mod air;
 mod car;
 mod collide;
 mod commands;
@@ -159,8 +160,8 @@ pub struct TrafficWorld {
     sight_clock: f32,
     /// What the player struck since the police last read it (`collide.rs`).
     strikes: collide::Strikes,
-    /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
-    spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    /// The standing roadblocks with their spike strips and sawhorses, and the request lottery (`roadblock.rs`).
+    roadblocks: roadblock::Roadblocks,
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
@@ -227,7 +228,7 @@ impl TrafficWorld {
             seen_by_cops: false,
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
-            spikes: Vec::new(),
+            roadblocks: Default::default(),
             spike_patches: None,
             bodies: Vec::new(),
             aims: Vec::new(),
@@ -354,6 +355,7 @@ impl TrafficWorld {
             car.instances_with_detail(alpha, detail, out);
         }
         self.police.instances(out);
+        self.roadblock_instances(out);
     }
 
     /// Removes every car (the models stay loaded).

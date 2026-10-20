@@ -16,6 +16,43 @@ impl AiCar {
         self.roadblock
     }
 
+    /// Puts this roadblock car in the standing roadblock `group`.
+    pub fn set_roadblock_group(&mut self, group: u32) {
+        self.roadblock_group = group;
+    }
+
+    /// The standing roadblock this car belongs to, if any.
+    pub fn roadblock_group(&self) -> Option<u32> {
+        (self.roadblock && self.roadblock_group != 0).then_some(self.roadblock_group)
+    }
+
+    /// The car's identity for the roadblock and the pursuit: stable for the car's life.
+    pub fn key(&self) -> u32 {
+        self.render_id
+    }
+
+    /// A roadblock car joins the chase as an ordinary pursuit cop, as the cheat rule recruits it (`AIPursuit` takes the
+    /// nearest car of the roadblock into its own list). It keeps its place, speed and damage and is driven by the
+    /// pursuit from the next step. Returns whether it was a roadblock car that could join.
+    pub(in crate::scenes::world::ai) fn recruit_to_pursuit(
+        &mut self,
+        car: super::cop::CopCar,
+        player: blackbox_vehicle::performance::Performance,
+        net: &blackbox_roads::RoadNetwork,
+        index: &blackbox_roads::SegmentIndex,
+    ) -> bool {
+        if !self.roadblock || self.is_wrecked() {
+            return false;
+        }
+        self.roadblock = false;
+        self.roadblock_group = 0;
+        self.breaker_stop = false;
+        self.patrol = true;
+        let joined = self.join_pursuit(car, player, net, index);
+        self.patrol = false;
+        joined
+    }
+
     pub fn set_breaker_stop(&mut self, stop: bool) {
         self.breaker_stop = stop;
     }

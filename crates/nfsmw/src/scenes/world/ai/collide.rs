@@ -228,7 +228,7 @@ impl TrafficWorld {
     }
 
     /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
-    /// section 4.1). Every cop car counts: patrol cars, the chase's cops and the roadblock's. A cop sees the player when
+    /// section 4.1). Every cop car counts: patrol cars and the chase's cops (a roadblock sees by its own rule). A cop sees the player when
     /// the heat's range and rear cone allow it and the world's faces do not block the line from its eyes to the
     /// player's. Between tests the last answer holds.
     pub fn update_sight(&mut self, dt: f32, cast: Cast<'_>) {
@@ -244,15 +244,17 @@ impl TrafficWorld {
         let level = self.police.patrol_heat();
         let hidden = self.hidden_from_cars();
         let eye = player + EYE;
-        self.seen_by_cops = self.cars.iter_mut().fold(false, |seen, car| {
-            if !car.is_live_police() {
+        // A roadblock car does not look for the player: the roadblock sees it within 60 m (`roadblock/director.rs`).
+        let roadblock_sees = self.roadblocks.sees_player();
+        self.seen_by_cops = self.cars.iter_mut().fold(roadblock_sees, |seen, car| {
+            if !car.is_live_police() || car.is_roadblock() {
                 return seen;
             }
             let cop = car.physics_position();
             let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
             let facing = car.physics_forward().dot(to_player);
             let distance = cop.distance(player);
-            let out_of_range = match car.is_cop() || car.is_roadblock() {
+            let out_of_range = match car.is_cop() {
                 true => sight::out_of_range(level, distance, facing),
                 false => sight::patrol_out_of_range(distance, facing),
             };

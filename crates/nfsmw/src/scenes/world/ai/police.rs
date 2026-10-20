@@ -117,10 +117,10 @@ pub struct Police {
     heli_wait: f32,
     /// Seconds of think time not yet spent on the helicopter.
     heli_clock: f32,
+    /// The helicopter's spawn plan: the search-mode roll and the spawn the cop manager queued (`heli.rs`).
+    heli_plan: heli::Plan,
     seen: bool,
     speed_fx: SpeedFx,
-    /// Where the helicopter's search circles, in turns.
-    search_turns: f32,
     /// The helicopter's model, when it is loaded (`COPHELI`).
     rig: Option<Rc<CarRig>>,
     /// The escape: the grace, the cool-down meter and EVADED (`blackbox_pursuit::Cooldown`).
@@ -145,6 +145,8 @@ pub struct Police {
     roadblock_requested: bool,
     /// A roadblock of this chase stands (a heavy roadblock is then not rolled again).
     roadblock_standing: bool,
+    /// The roadblock's formation rule and its heavy request's active time (`roadblock.rs`).
+    roadblock: roadblock::State,
     /// A ram or leader request was rolled and waits for the chase to take it (`take_support_request`).
     support_requested: Option<blackbox_pursuit::support::Request>,
     /// The heat the priority check of the leader options was last run for, and whether it has run (once per heat).
@@ -180,9 +182,9 @@ impl Default for Police {
             reset_blink: 0.0,
             heli_wait: 0.0,
             heli_clock: 0.0,
+            heli_plan: Default::default(),
             seen: false,
             speed_fx: SpeedFx::new(SpeedTuning::default()),
-            search_turns: 0.0,
             rig: None,
             cooldown: Cooldown::default(),
             end_reason: EndReason::None,
@@ -196,6 +198,7 @@ impl Default for Police {
             support_timer: SUPPORT_CHECK,
             roadblock_requested: false,
             roadblock_standing: false,
+            roadblock: Default::default(),
             support_requested: None,
             priority_heat: 0,
             priority_done: false,
@@ -244,6 +247,7 @@ impl Police {
         self.infractions.clear();
         self.bust.reset();
         self.heli_wait = FIRST_JOIN;
+        self.heli_plan = Default::default();
         self.seen = true;
         self.cooldown = Cooldown::default();
         self.end_reason = EndReason::None;
@@ -252,6 +256,7 @@ impl Police {
         self.support_timer = SUPPORT_CHECK;
         self.roadblock_requested = false;
         self.roadblock_standing = false;
+        self.roadblock = Default::default();
         self.support_requested = None;
         self.priority_heat = 0;
         self.priority_done = false;
@@ -366,6 +371,7 @@ impl Police {
             self.tick_finisher(dt, sensed.formation_gap);
             self.tick_support(dt, sensed.seen, level, sensed.support_random);
             evaded = self.tick_cooldown(dt, sensed, level);
+            self.note_heli_cooldown();
             if let (true, Some(heat)) = (evaded, self.heat) {
                 self.carried_heat = heat.value() * self.settings.evade_heat_adjust;
             }
@@ -385,6 +391,7 @@ impl Police {
     pub fn roadblock_placed(&mut self) {
         self.roadblock_standing = true;
         self.on_roadblock();
+        self.roadblock_added();
     }
 
     /// A roadblock of this chase stands.
@@ -416,7 +423,7 @@ impl Police {
             self.last_level = level;
             self.formations.heat_changed();
         }
-        if let Some(choice) = self.formations.tick(dt, level, true, false, random) {
+        if let Some(choice) = self.formations.tick(dt, level, true, self.roadblock.follow, random) {
             log::debug!("cop formation: {:?} for {:.0} s", choice.formation, choice.duration);
             self.last_formation = Some(choice.formation);
             self.finisher = Finisher::default();
@@ -477,13 +484,14 @@ mod tests;
 
 mod busted;
 mod escape;
-mod heli;
+pub(super) mod heli;
 mod helpers;
 mod hiding;
 mod mod_feed;
 mod original_camera;
 mod patrol;
 mod rep;
+mod roadblock;
 mod roll;
 mod siren_feed;
 mod speech_feed;

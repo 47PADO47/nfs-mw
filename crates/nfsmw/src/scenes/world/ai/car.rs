@@ -113,6 +113,8 @@ pub struct AiCar {
     goal: Cell<GoalDrive>,
     /// A roadblock car: it holds its place with the brakes on whatever the chase does (`AIGoalStaticRoadBlock`).
     roadblock: bool,
+    /// The standing roadblock this car belongs to (`roadblock/state.rs`), 0 for none.
+    roadblock_group: u32,
     /// The light bars of a cop car, when it has them.
     cop_lights: Option<super::cop_lights::CopLightRun>,
     /// Installed authored traffic sound class IDs.
@@ -199,6 +201,7 @@ impl AiCar {
             arrived: false,
             goal: Cell::new(GoalDrive::default()),
             roadblock: false,
+            roadblock_group: 0,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
             quiet: 0.0,

@@ -104,6 +104,7 @@ impl WorldScene {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
             if let Some(world) = traffic.as_mut() {
                 world.load_data(physics.database(), index.track_zones.clone());
+                world.set_roadblock_physics(&props);
                 if let Some(sheet) = heli_sheet.flatten() {
                     world.set_heli_sheet(sheet);
                 }
@@ -125,7 +126,6 @@ impl WorldScene {
                 garage_open: false,
                 audio_environment,
                 common_sounds: Vec::new(),
-                rotor_previous: None,
                 sound_speedbreaker_active: false,
                 dir,
                 track: index.track.clone(),
