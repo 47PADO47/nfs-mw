@@ -44,7 +44,8 @@ fn installed_breaker_profiles_match_the_documented_zones_and_name_their_moments(
     let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
     let dir = game_install::GameDir::open(path).unwrap();
     let index = crate::world::WorldIndex::open(&dir, crate::world::DEFAULT_TRACK).unwrap();
-    let profile = |name: &str| index.sequences.get(vlt_hash(name)).unwrap_or_else(|| panic!("{name}")).breaker_profile();
+    let profile =
+        |name: &str| index.sequences.get(vlt_hash(name)).unwrap_or_else(|| panic!("{name}")).breaker_profile();
     // `docs/formats/pursuit-data.md` section 4: (radius, duration) of each zone.
     assert_eq!(profile("gasstationroof_seq").stops, vec![(16.0, 5.0)]);
     assert_eq!(profile("donutshoproof_seq").stops, vec![(16.0, 5.0)]);
