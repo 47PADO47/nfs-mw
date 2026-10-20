@@ -73,6 +73,7 @@ impl super::super::TrafficWorld {
             road: self.road_speech_id(at, forward),
             car_type: 0,
             car_colour: 0,
+            ..Default::default()
         };
         let events = self
             .cops
