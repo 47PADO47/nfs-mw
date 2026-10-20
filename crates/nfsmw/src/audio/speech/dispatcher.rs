@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use nfsmw_data::speech::{SpeechEvent, SpeechTune};
 
 use super::history::History;
+use super::params::SpeechParams;
 use super::random::Rng;
 use super::rules::{Actor, Asked, Context, Env, Verdict, judge};
 
@@ -24,9 +25,10 @@ pub trait Voice {
     /// Whether a line is sounding.
     fn busy(&self) -> bool;
 
-    /// Start the line for `event`, said by `speaker` (0 for any), cutting the line in progress when `cut`. False
-    /// when there is nothing to say (no recording): the request is then dropped.
-    fn play(&mut self, event: &SpeechEvent, speaker: u16, cut: bool) -> bool;
+    /// Start the line for `event` as `request` asks (the speaker, 0 for any, and the parameters that choose the
+    /// wording), cutting the line in progress when `cut`. False when there is nothing to say (no recording that
+    /// fits): the request is then dropped.
+    fn play(&mut self, event: &SpeechEvent, request: &Request, cut: bool) -> bool;
 }
 
 /// What a request asks for besides the event.
@@ -35,6 +37,9 @@ pub struct Request {
     /// The voice that should say it (1 to 9), or 0 for any.
     pub speaker: u16,
     pub actor: Option<Actor>,
+    /// The situation the line describes (car colour, direction, ...): which variant of the sentence is said. Left
+    /// empty, the wording is chosen at random among the variants the event has.
+    pub params: SpeechParams,
 }
 
 /// What became of a request.
@@ -214,7 +219,7 @@ impl Dispatcher {
         let Some(cut) = self.may_start(self.events[&event].interrupt, priority, busy) else { return };
         let waiting = self.pending.remove(index);
         let data = &self.events[&event];
-        if !voice.play(data, waiting.request.speaker, cut) {
+        if !voice.play(data, &waiting.request, cut) {
             return;
         }
         self.current = Some(Current {

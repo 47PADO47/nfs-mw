@@ -1,15 +1,15 @@
 //! The recordings: `copspeech.big` and its index, read with positioned reads (the file is 190 MB).
 //!
-//! A phrase of the speech database (an event number) is recorded by several speakers, several takes each. A phrase
-//! with banks of its own is said as it is. An event with no banks is a sentence: `copspeech.evt` names the phrases it
-//! says, and they are joined in file order (the parameter tests that choose variants are not read yet; spec
-//! `docs/specs/speech.md` §5).
+//! A line is an event of the speech database. Almost every event is a *sentence*: `copspeech.evt` lists the phrases
+//! it says in order, and which take of each phrase fits the request's parameters (the car's colour, the direction,
+//! the unit calling); `ea_audio::speech::Assembler` chooses them and they are joined into one sound. An event with
+//! recordings but no sentence is said as it is: a bank of the requested speaker and a take that was not said lately.
+//! Spec `docs/specs/speech-sentences.md`.
 
-use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::path::Path;
 
-use ea_audio::speech::{Sentences, SpeechBank, SpeechIndex};
+use ea_audio::speech::{Assembler, Chosen, Params, Repeats, Sentences, SpeechBank, SpeechIndex};
 use ea_audio::{Pcm, ReadAt};
 
 use super::random::Rng;
@@ -19,11 +19,17 @@ const ANY_SPEAKER: u16 = 0xFFFF;
 
 /// Where lines come from.
 pub trait Lines {
-    /// Whether `event` has recordings of its own.
+    /// Whether `event` has recordings of its own (a bank with its number).
     fn has(&self, event: u32) -> bool;
 
-    /// A take of `event` said by `speaker` (0 for any speaker, or when that speaker did not record it).
-    fn take(&mut self, event: u32, speaker: u16) -> Result<Pcm, String>;
+    /// Whether `event` can be said at all: it has a sentence, or recordings of its own.
+    fn says(&self, event: u32) -> bool {
+        self.has(event)
+    }
+
+    /// The line of `event` said by `speaker` (0 for any speaker, or when that speaker did not record it), for the
+    /// situation `params` describes (numbered as the speech database tests them; see `params::lib_params`).
+    fn take(&mut self, event: u32, speaker: u16, params: &Params) -> Result<Pcm, String>;
 
     /// Take `take` of bank `bank` (numbers of the index), for listening to recordings one by one.
     fn bank_take(&self, bank: usize, take: usize) -> Result<Pcm, String>;
@@ -67,45 +73,39 @@ impl ReadAt for FileSource {
     }
 }
 
-/// The install's `copspeech.idx` and `copspeech.big`.
+/// The install's `copspeech.idx`, `copspeech.evt` and `copspeech.big`.
 pub struct Files {
     index: SpeechIndex,
     sentences: Sentences,
     big: FileSource,
-    /// The takes said last, per bank, newest first.
-    recent: HashMap<u32, VecDeque<usize>>,
+    /// The takes said last, per bank.
+    repeats: Repeats,
     rng: Rng,
 }
-
-/// How deep a sentence may name sentences (a phrase of a phrase): the database's own nesting is shallow.
-const MAX_NESTING: usize = 4;
 
 impl Files {
     pub fn open(index: &[u8], evt: &[u8], big: &Path, rng: Rng) -> Result<Self, String> {
         let index = SpeechIndex::parse(index).map_err(|e| format!("copspeech.idx: {e}"))?;
         let sentences = Sentences::parse(evt).map_err(|e| format!("copspeech.evt: {e}"))?;
         let big = FileSource::open(big).map_err(|e| format!("{}: {e}", big.display()))?;
-        Ok(Self { index, sentences, big, recent: HashMap::new(), rng })
+        Ok(Self { index, sentences, big, repeats: Repeats::default(), rng })
     }
 
-    /// Takes the phrases of `event` into `parts`: a phrase with banks gives one take, a sentence gives the takes of
-    /// its phrases. Phrases with no recording are skipped. Returns how many takes were added.
-    fn gather(&mut self, event: u32, speaker: u16, depth: usize, parts: &mut Vec<Pcm>) -> usize {
-        let Ok(wanted) = u16::try_from(event) else { return 0 };
-        let banks: Vec<&SpeechBank> = self.index.banks_for(wanted).collect();
-        if !banks.is_empty() {
-            let Some(bank) = choose_bank(&banks, speaker, &mut self.rng) else { return 0 };
-            let recent = self.recent.entry(bank.number).or_default();
-            let take = choose_take(bank.header.takes(), recent, &mut self.rng);
-            let Ok(pcm) = bank.decode(&self.big, take) else { return 0 };
-            parts.push(pcm);
-            return 1;
+    /// The takes that say `event`: its sentence under `params`, or (no sentence) one take of a bank of its own.
+    fn parts(&mut self, event: u16, speaker: u16, params: &Params) -> Result<Vec<Chosen>, String> {
+        if self.sentences.sentence(event).is_some() {
+            let assembler = Assembler::new(&self.sentences, &self.index);
+            let parts = assembler.assemble(event, params, &mut self.repeats, &mut self.rng);
+            return parts.ok_or_else(|| format!("event {event}: no version of the sentence fits its parameters"));
         }
-        if depth >= MAX_NESTING {
-            return 0;
-        }
-        let phrases = self.sentences.phrases(wanted).to_vec();
-        phrases.into_iter().map(|phrase| self.gather(phrase as u32, speaker, depth + 1, parts)).sum()
+        let banks: Vec<&SpeechBank> = self.index.banks_for(event).collect();
+        let Some(bank) = choose_bank(&banks, speaker, &mut self.rng) else {
+            return Err(format!("event {event} has no sentence and no recording"));
+        };
+        let at = bank.number as usize;
+        let take = choose_take(&bank.header, at, &self.repeats, &mut self.rng);
+        self.repeats.remember(at, take, usize::from(bank.header.memory));
+        Ok(vec![Chosen { bank: at, take }])
     }
 }
 
@@ -135,16 +135,14 @@ pub fn choose_bank<'a>(banks: &[&'a SpeechBank], speaker: u16, rng: &mut Rng) ->
     banks.get(rng.below(banks.len())).copied()
 }
 
-/// Choose a take of a bank of `count` takes that was not said lately: the ones said last are left out, as many as
-/// half the bank (the original's repeat rule is not known; this keeps a speaker from saying one line twice running).
-pub fn choose_take(count: usize, recent: &mut VecDeque<usize>, rng: &mut Rng) -> usize {
-    let memory = count / 2;
-    recent.truncate(memory);
-    let fresh: Vec<usize> = (0..count).filter(|t| !recent.contains(t)).collect();
-    let take = fresh.get(rng.below(fresh.len())).copied().unwrap_or(0);
-    recent.push_front(take);
-    recent.truncate(memory);
-    take
+/// Choose a take of a bank that was not said lately (the bank's own repeat memory decides what is lately); when
+/// every take was, the one said longest ago.
+pub fn choose_take(header: &ea_audio::speech::BankHeader, bank: usize, repeats: &Repeats, rng: &mut Rng) -> usize {
+    let fresh: Vec<usize> = (0..header.takes()).filter(|&t| repeats.age(bank, t) == 0).collect();
+    if let Some(&take) = fresh.get(rng.below(fresh.len())) {
+        return take;
+    }
+    (0..header.takes()).max_by_key(|&t| (repeats.age(bank, t), std::cmp::Reverse(t))).unwrap_or(0)
 }
 
 impl Lines for Files {
@@ -152,12 +150,21 @@ impl Lines for Files {
         u16::try_from(event).is_ok_and(|e| self.index.banks_for(e).next().is_some())
     }
 
-    fn take(&mut self, event: u32, speaker: u16) -> Result<Pcm, String> {
-        let mut parts = Vec::new();
-        if self.gather(event, speaker, 0, &mut parts) == 0 {
-            return Err(format!("event {event} has no recording, and no phrase of it does"));
+    fn says(&self, event: u32) -> bool {
+        self.has(event) || u16::try_from(event).is_ok_and(|e| self.sentences.sentence(e).is_some())
+    }
+
+    fn take(&mut self, event: u32, speaker: u16, params: &Params) -> Result<Pcm, String> {
+        let wanted = u16::try_from(event).map_err(|_| format!("event {event} is not a speech event"))?;
+        let mut pcms = Vec::new();
+        for part in self.parts(wanted, speaker, params)? {
+            let bank = &self.index.banks()[part.bank];
+            let pcm = bank
+                .decode(&self.big, part.take)
+                .map_err(|e| format!("bank {} take {}: {e}", bank.number, part.take))?;
+            pcms.push(pcm);
         }
-        join(parts)
+        join(pcms)
     }
 
     fn bank_take(&self, bank: usize, take: usize) -> Result<Pcm, String> {
@@ -167,6 +174,11 @@ impl Lines for Files {
     }
 
     fn summary(&self) -> String {
-        format!("{} banks, {} takes", self.index.banks().len(), self.index.take_count())
+        format!(
+            "{} banks, {} takes, {} sentences",
+            self.index.banks().len(),
+            self.index.take_count(),
+            self.sentences.len()
+        )
     }
 }

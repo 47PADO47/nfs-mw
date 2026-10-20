@@ -287,7 +287,7 @@ seconds; when contact is lost the siren turns off; afterwards: for the first 6 s
 - Needed from the pursuit: status, `IsPerpInSight`, `GetEvadeLevel`, `TimeUntilBusted`, `IsCollapseActive`, `IsFinisherActive`, `GetFormationType`, `GetBackupETA`, `GetNumCopsDestroyed`, cops list with
   LOS flag, distance, formation flags, roadblock presence and cop membership, the 911 timer and lockout hooks. Needed from the world: road speech ids (not documented yet), the SPAM map for off-road moments,
   car colour and verbal type, the camera view test.
-- Without the `.evt` / `.idx` / `.csi` decoders, a rewrite can log the requests or use the event name only; the siren state, the 911 call, the music state and the busted-mixer level can be implemented
+- A request is `Audio::say_with(event, speaker, SpeechParams)`: name the parameters of section 4 (`Param::PursuitType`, `Param::CarColor`, ...) and the library picks the takes; a parameter left out lets any variant through. The siren state, the 911 call, the music state and the busted-mixer level can be implemented
   without speech samples.
 - Voices and call signs: keep a seeded RNG; the shuffling is cosmetic.
 
@@ -299,7 +299,7 @@ busted bar is above 0.8; (6) free roam: smash property to the 911 threshold with
 
 ## Open questions
 
-- The `.evt` / `.idx` / `.csi` formats and the SPCH sentence selection (how parameters pick samples).
+- *Answered:* the `.evt` / `.idx` / `.csi` formats and how parameters pick takes are in [formats/speech-evt.md](../formats/speech-evt.md) and [speech-sentences.md](speech-sentences.md). The values of each parameter and the argument list of each event are in `crates/nfsmw/src/audio/speech/params/`.
 - The road speech id table (`MWRoadNames`) and the SPAM speech map for off-road moments: data layouts not documented.
 - The `kNeverVisibleRespawnTime` and `DESTROY_COPS_ON_INACTIVITY` constants (build-time) and the PC value of `SpeechFlow` display flags.
 - Behaviour of the helicopter actor lines (`EAXAirSupport.cpp`) beyond the event list of the events file.
