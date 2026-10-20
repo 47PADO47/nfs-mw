@@ -228,7 +228,7 @@ fn image(cx: &LayoutCx<'_>, key: &str, tint: [u8; 4], rect: Rect) -> Box<dyn Com
 mod tests {
     use super::*;
     use crate::frontend::world_map::control::blip_rgba;
-    use crate::frontend::world_map::{Filter, PlacedBlip, WorldMap, WorldMapFrame};
+    use crate::frontend::world_map::{Chrome, Filter, PlacedBlip, WorldMap, WorldMapFrame};
     use blackbox_ui::{DrawList, NodeKind, Skin, UiNode};
 
     fn test_skin() -> Skin {
@@ -244,7 +244,7 @@ mod tests {
             PlacedBlip { style: crate::hud::SAFE_HOUSE, world: [0.0, 0.0], map: [0.0, 0.0] },
             PlacedBlip { style: crate::hud::AUTO_SHOP, world: [1000.0, 0.0], map: [0.0, 0.0] },
         ];
-        WorldMapFrame { session, blips, player: [0.0, 0.0], player_mark: None, chrome_themed: true }
+        WorldMapFrame { session, blips, chrome: Chrome::Recoloured, ..Default::default() }
     }
 
     fn built(cell: &WorldMapLegendCell) -> Vec<UiNode> {

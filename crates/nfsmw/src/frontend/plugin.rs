@@ -22,13 +22,14 @@ use super::logic::{Command, Env};
 use super::pointer::{self, feng_point};
 use super::screens::{Presented, Screens};
 use super::script::{self, UiScript};
-use super::world_map::{WorldMapOverlay, control, layout};
+use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
+use crate::ui::theme::remastered::MapSnapshot;
 use crate::ui::theme::{ElementId, UiThemes, slot_layer};
 use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
 
@@ -72,6 +73,10 @@ pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
     let map_on_top = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
     if !map_on_top {
         return false;
+    }
+    // The themed full-screen map draws its own cursor over the whole window.
+    if fe.map_chrome == Chrome::Drawn {
+        return true;
     }
     feng_point(window)
         .map(layout::view_of)
@@ -220,6 +225,9 @@ fn update(
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };
     // A slot waiting for its key takes the next key pressed; Escape cancels the wait.
     let script_key = fe.script.as_mut().and_then(UiScript::take_key);
+    // The pointer on the screen (FEng units): a scripted run sets it (`pointer X Y`), else it is the window's.
+    let pointer = fe.script.as_ref().and_then(UiScript::pointer).or_else(|| feng_point(&window));
+    let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
     if let Some((control, slot)) = fe.remap
         && let Some(key) = script_key.or_else(|| keys.get_just_pressed().next().copied())
     {
@@ -241,19 +249,18 @@ fn update(
     // The GPS Yes/No dialog is the one menu that opens over the map; it takes the menu click and pad handling too.
     let dialog_over_map = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::DIALOG);
     // The GPS dialog follows the pointer with its focus, so the answer under it shows as selected before a click.
-    if dialog_over_map && let Some(point) = feng_point(&window) {
+    if dialog_over_map && let Some(point) = pointer {
         fe.screens.hover(point, &mut env);
     }
     if matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map {
         // A vertical menu follows the pointer's movement: the row under it is selected, as the keys would.
         if !on_list {
-            fe.screens.hover_row(feng_point(&window), &mut env);
+            fe.screens.hover_row(pointer, &mut env);
         }
         if actions.just_pressed(Action::Click)
             && !on_list
-            && let Some(point) = feng_point(&window)
+            && let Some(point) = pointer
         {
-            let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
             match press_at(fe, point, &bindings, device, &mut env) {
                 Press::Accept => *clicking = true,
                 Press::Back => press_back = true,
@@ -306,6 +313,7 @@ fn update(
             if map.overlay.open {
                 map.overlay.close();
                 map.themes.world_map_legend().clear();
+                map.themes.world_map_view().clear();
             }
             fe.poll_bust(host, &mut env);
             fe.poll_career(host, &mut env);
@@ -324,7 +332,7 @@ fn update(
                 capture.0 = false;
                 fe.pause(host, &mut env);
             }
-            if !pause && !console_had_it && actions.just_pressed(Action::Map) {
+            if !pause && !console_had_it && (actions.just_pressed(Action::Map) || script_key == Some(KeyCode::KeyM)) {
                 control::open(fe, &mut map.overlay, host, &mut env);
             }
         }
@@ -334,16 +342,29 @@ fn update(
             fe.apply(commands, host, &mut env);
         }
         Stage::Map => {
-            // Whether the active theme recolours the map (Remastered). The FEng screen then restyles itself dark and
-            // translucent in place, hides its own list, and the themed legend is drawn over it.
-            let themed = map.themes.draws_world_map_chrome();
-            let side = layout::PICTURE_SIDE * window.height() / FENG_HEIGHT;
-            let cursor = feng_point(&window).map(layout::view_of);
-            let input = control::input(&actions, &keys, &map.mouse, cursor, side);
-            control::step(fe, &mut map.overlay, input, dt, themed, host, &mut env);
-            match themed && map.overlay.open {
-                true => map.themes.world_map_legend().set(&map.overlay.frame(true)),
-                false => map.themes.world_map_legend().clear(),
+            // How the active theme dresses the map: Custom recolours the FEng screen dark in place (and draws a legend
+            // over it), Remastered draws the whole map itself and the FEng screen only runs underneath.
+            let chrome = map.themes.world_map_chrome();
+            fe.map_chrome = chrome;
+            let picture = chrome.picture();
+            let side = picture.side * window.height() / FENG_HEIGHT;
+            let cursor = pointer.map(|point| picture.view_of(point));
+            let map_input = control::input(&actions, &keys, script_key, &map.mouse, cursor, side, chrome);
+            control::step(fe, &mut map.overlay, map_input, dt, chrome, host, &mut env);
+            let (legend, view) = (map.themes.world_map_legend(), map.themes.world_map_view());
+            match (chrome, map.overlay.open) {
+                (Chrome::Recoloured, true) => legend.set(&map.overlay.frame(chrome)),
+                (Chrome::Drawn, true) => {
+                    let (hints, aspect) = (control::hints(&bindings, device), window.width() / window.height());
+                    view.set(MapSnapshot { frame: map.overlay.frame(chrome), hints, aspect });
+                }
+                _ => {}
+            }
+            if chrome != Chrome::Recoloured || !map.overlay.open {
+                legend.clear();
+            }
+            if chrome != Chrome::Drawn || !map.overlay.open {
+                view.clear();
             }
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
@@ -398,14 +419,20 @@ fn present(
     // of the map screen, which the loop presents after it. A screen stacked over the map (the GPS Yes/No `Dialog.fng`)
     // must stay on top, so the legend is skipped while the map is not the top screen; the frozen map shows behind it.
     let map_on_top = fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
-    if matches!(fe.stage, Stage::Map) && map_on_top {
+    let chrome = themes.world_map_chrome();
+    if chrome == Chrome::Recoloured && matches!(fe.stage, Stage::Map) && map_on_top {
         let legend = slot_layer(&themes, ElementId::WorldMapChrome, time_s);
         if !legend.nodes.is_empty() {
             presenter.0.present(&legend, &assets.0, screen, &mut out);
         }
     }
     let mut claimed: Vec<ElementId> = Vec::new();
-    for Presented { tree, slot, list } in fe.screens.presented(&bindings, device).into_iter().rev() {
+    for Presented { tree, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
+        // The themed full-screen map replaces the FEng map screen, in its place in the stack (a dialog over it stays on top).
+        if chrome == Chrome::Drawn && name.eq_ignore_ascii_case(super::ids::screen::WORLD_MAP) {
+            presenter.0.present(&slot_layer(&themes, ElementId::WorldMapChrome, time_s), &assets.0, screen, &mut out);
+            continue;
+        }
         let layer = match slot {
             // The topmost screen on a slot takes it. A screen under it on the same slot is drawn as its own tree.
             Some(slot) if !claimed.contains(&slot) => {

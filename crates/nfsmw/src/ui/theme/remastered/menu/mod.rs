@@ -14,7 +14,7 @@ use self::layout::HintSpot;
 use super::skin::keys;
 use crate::ui::input_icons::Glyph;
 use crate::ui::prompts::Prompt;
-use crate::ui::theme::{MenuEntry, MenuList, MenuListCell, MenuStyle};
+use crate::ui::theme::{MenuEntry, MenuHint, MenuList, MenuListCell, MenuStyle};
 
 const TAGLINE: [&str; 2] = ["RACE YOUR WAY", "TO THE TOP"];
 
@@ -54,15 +54,30 @@ impl Component for VerticalMenu {
     }
 }
 
-/// Builds the parts of one list, back to front.
-struct Parts<'a, 'b> {
+/// Builds the parts of a screen of the vertical look, back to front. The map shares it for its text and footer.
+pub(super) struct Parts<'a, 'b> {
     cx: &'a LayoutCx<'b>,
     parts: Vec<Box<dyn Component>>,
 }
 
 impl<'a, 'b> Parts<'a, 'b> {
-    fn new(cx: &'a LayoutCx<'b>) -> Self {
+    pub(super) fn new(cx: &'a LayoutCx<'b>) -> Self {
         Self { cx, parts: Vec::new() }
+    }
+
+    /// The layout context the parts are made against.
+    pub(super) fn cx(&self) -> &'a LayoutCx<'b> {
+        self.cx
+    }
+
+    /// Adds a part that was laid out when it was made.
+    pub(super) fn add(&mut self, part: impl Component + 'static) {
+        self.parts.push(Box::new(part));
+    }
+
+    /// The parts made so far, back to front.
+    pub(super) fn finish(self) -> Vec<Box<dyn Component>> {
+        self.parts
     }
 
     fn of(mut self, list: &MenuList) -> Vec<Box<dyn Component>> {
@@ -83,14 +98,14 @@ impl<'a, 'b> Parts<'a, 'b> {
         for (i, entry) in list.entries.iter().skip(list.first).take(shown).enumerate() {
             self.entry(entry, list.first + i == list.selected, place::row_y(i), left);
         }
-        self.footer(list, left);
+        self.footer(&list.hints, left);
         if list.style == MenuStyle::Main {
             self.tagline(place::right_edge(list.aspect));
         }
         self.parts
     }
 
-    fn push(&mut self, mut part: impl Component + 'static, bounds: Rect) {
+    pub(super) fn push(&mut self, mut part: impl Component + 'static, bounds: Rect) {
         part.layout(self.cx, bounds);
         self.parts.push(Box::new(part));
     }
@@ -112,7 +127,7 @@ impl<'a, 'b> Parts<'a, 'b> {
     }
 
     /// A string whose left (or, for `right`, right) edge is at `at.0`, centred on `at.1`.
-    fn text(&mut self, font: &str, text: &str, colour: &str, scale: f32, at: (f32, f32), right: bool) {
+    pub(super) fn text(&mut self, font: &str, text: &str, colour: &str, scale: f32, at: (f32, f32), right: bool) {
         let width = 400.0;
         let (x, flags) = match right {
             true => (at.0 - width / 2.0, justify::H_RIGHT | justify::V_CENTRE),
@@ -149,8 +164,8 @@ impl<'a, 'b> Parts<'a, 'b> {
         part(&mut self.parts, self.cx, -3.0, 7.0, 2.6, 10.0, 6.0);
     }
 
-    fn footer(&mut self, list: &MenuList, left: f32) {
-        let spots = place::hint_spots(&list.hints, left);
+    pub(super) fn footer(&mut self, hints: &[MenuHint], left: f32) {
+        let spots = place::hint_spots(hints, left);
         let Some(right) = place::rule_right(&spots) else { return };
         let from = left + place::RULE_LEFT;
         for y in [place::RULE_TOP_Y, place::RULE_BOTTOM_Y] {
@@ -164,7 +179,7 @@ impl<'a, 'b> Parts<'a, 'b> {
             place::RULE_TICK,
         );
         self.push(Panel::new(keys::MENU_RULE), tick);
-        for (hint, spot) in list.hints.iter().zip(&spots) {
+        for (hint, spot) in hints.iter().zip(&spots) {
             self.hint(hint.label, spot);
         }
     }

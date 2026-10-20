@@ -54,7 +54,7 @@ impl ScreenLogic for WorldMapLogic {
         // switch, button prompts and mouse behaviour), its own list and legend chrome are hidden, and the themed legend
         // is drawn over it; the cursor still sits on the attached blip.
         restyle::transparency(cx);
-        if frame.chrome_themed {
+        if frame.chrome.themed() {
             restyle::dark(cx);
             // The themed legend replaces the FEng list, so hide the list rows; the cursor still draws so the mouse keeps
             // snapping onto blips (a click, Enter or right click then asks for GPS in the stock dialog).

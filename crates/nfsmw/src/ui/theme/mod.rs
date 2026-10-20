@@ -40,11 +40,12 @@ pub use menu_list::{DEFAULT_ASPECT, MenuEntry, MenuHint, MenuList, MenuListCell,
 use bevy_ecs::prelude::*;
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, ThemeError, ThemeId, Themes};
 
+use crate::frontend::world_map::Chrome;
 use crate::settings::{Settings, UiStyle, UiTheme};
 use custom::{CustomTheme, DriveFeedCell, RadioFeedCell, WorldMapLegendCell, palette};
 use modded::{ModHud, ModTheme};
 use original::{FrameCell, OriginalTheme};
-use remastered::RemasteredTheme;
+use remastered::{RemasteredTheme, WorldMapViewCell};
 
 /// The theme a UI style selects. A theme that is not registered leaves Original active ([`UiThemes::select`]).
 pub fn theme_of(style: UiStyle) -> ThemeId {
@@ -90,6 +91,7 @@ pub fn build_themes(
     drive: DriveFeedCell,
     legend: WorldMapLegendCell,
     menus: MenuListCell,
+    map: WorldMapViewCell,
 ) -> Themes {
     check_floor_fills_every_slot(&frame);
     let mut themes = Themes::new(Box::new(OriginalTheme::new(frame))).expect("OriginalTheme reports ThemeId::Original");
@@ -97,7 +99,7 @@ pub fn build_themes(
         .register(Box::new(CustomTheme::new(radio.clone(), drive.clone(), legend)))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
-        .register(Box::new(RemasteredTheme::new(drive, menus)))
+        .register(Box::new(RemasteredTheme::new(drive, menus, map)))
         .expect("RemasteredTheme is registered once, and is not Original");
     themes
 }
@@ -141,6 +143,8 @@ pub struct UiThemes {
     legend: WorldMapLegendCell,
     /// The icon menus' lists, read by the Remastered vertical menus. Filled by the frontend plugin each frame.
     menus: MenuListCell,
+    /// The open map as the Remastered theme draws it. Filled by the frontend plugin while the map is open.
+    map: WorldMapViewCell,
     /// The style the settings chose. A chosen mod theme wins over it.
     style: UiStyle,
     /// The mod theme the player chose (see [`UiThemes::set_mod_choice`]), or `None` to follow `style`.
@@ -157,8 +161,16 @@ impl UiThemes {
         let drive = DriveFeedCell::new();
         let legend = WorldMapLegendCell::new();
         let menus = MenuListCell::new();
+        let map = WorldMapViewCell::new();
         let mut registry = Self {
-            themes: build_themes(frame.clone(), radio.clone(), drive.clone(), legend.clone(), menus.clone()),
+            themes: build_themes(
+                frame.clone(),
+                radio.clone(),
+                drive.clone(),
+                legend.clone(),
+                menus.clone(),
+                map.clone(),
+            ),
             base: default_skin(),
             skin: default_skin(),
             skin_of: None,
@@ -168,6 +180,7 @@ impl UiThemes {
             drive,
             legend,
             menus,
+            map,
             style: UiStyle::Original,
             mod_choice: None,
             mods: Vec::new(),
@@ -231,6 +244,7 @@ impl UiThemes {
             self.drive.clone(),
             self.legend.clone(),
             self.menus.clone(),
+            self.map.clone(),
         );
         for theme in &self.mods {
             let hud = ModHud::new(theme.clone(), self.radio.clone(), self.drive.clone());
@@ -287,10 +301,15 @@ impl UiThemes {
         self.themes.provider(slot.slot(), &BuildCx::new(&self.skin))
     }
 
-    /// Whether the active theme draws the world map's chrome itself (an alternative to Original). When it does, the FEng
-    /// map screen leaves the list, card, tab and zoom to the themed overlay, and the plugin draws that overlay.
-    pub fn draws_world_map_chrome(&self) -> bool {
-        self.provided_by(ElementId::WorldMapChrome).is_some_and(|theme| theme != ThemeId::Original)
+    /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered draws the whole map
+    /// itself, and any other theme that provides the slot (Custom) recolours the FEng screen in place and draws a legend
+    /// over it.
+    pub fn world_map_chrome(&self) -> Chrome {
+        match self.provided_by(ElementId::WorldMapChrome) {
+            None | Some(ThemeId::Original) => Chrome::Original,
+            Some(ThemeId::Remastered) => Chrome::Drawn,
+            Some(_) => Chrome::Recoloured,
+        }
     }
 
     /// Resolves `slot` and draws it into `out`: the component is laid out at the screen's bounds, at `time_s` on the
@@ -325,7 +344,13 @@ impl UiThemes {
         self.menus.clone()
     }
 
-    /// The legend the Remastered map draws. The frontend plugin keeps this clone and calls `set` while the map is open
+    /// The map the Remastered theme draws. The frontend plugin keeps this clone and calls `set` each frame the map is open,
+    /// and `clear` when it is closed.
+    pub fn world_map_view(&self) -> WorldMapViewCell {
+        self.map.clone()
+    }
+
+    /// The legend the Custom map draws. The frontend plugin keeps this clone and calls `set` while the map is open
     /// under a theme that recolours it, or `clear` otherwise.
     pub fn world_map_legend(&self) -> WorldMapLegendCell {
         self.legend.clone()

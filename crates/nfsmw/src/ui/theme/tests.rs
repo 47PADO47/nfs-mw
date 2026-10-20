@@ -8,6 +8,7 @@ use super::custom::WorldMapLegendCell;
 use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
 use super::{ElementId, MenuListCell, build_themes, default_skin};
+use crate::frontend::world_map::Chrome;
 
 /// The numbers are part of the mod ABI. Pinning them here means a reorder or a renumber fails a test.
 const PINNED: &[(ElementId, u32)] = &[
@@ -91,6 +92,7 @@ fn registry_has_original_then_custom_and_remastered_with_original_active() {
         DriveFeedCell::new(),
         WorldMapLegendCell::new(),
         MenuListCell::new(),
+        Default::default(),
     );
     let ids: Vec<ThemeId> = themes.ids().collect();
     assert_eq!(ids, vec![ThemeId::Original, ThemeId::Custom, ThemeId::Remastered]);
@@ -105,6 +107,7 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
         DriveFeedCell::new(),
         WorldMapLegendCell::new(),
         MenuListCell::new(),
+        Default::default(),
     );
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
@@ -132,11 +135,11 @@ fn custom_recolours_the_world_map_and_original_does_not() {
     let mut themes = super::UiThemes::build();
 
     // Original (the default) leaves the FEng map screen as it is.
-    assert!(!themes.draws_world_map_chrome(), "Original does not recolour the map");
+    assert_eq!(themes.world_map_chrome(), Chrome::Original, "Original does not dress the map");
 
     // Custom provides the slot (the legend over the recoloured FEng map): that is the flag the plugin reads.
     themes.select(UiStyle::Custom);
-    assert!(themes.draws_world_map_chrome(), "Custom recolours the map");
+    assert_eq!(themes.world_map_chrome(), Chrome::Recoloured, "Custom recolours the map");
     assert!(
         super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
         "no legend until a map is open"
@@ -144,7 +147,19 @@ fn custom_recolours_the_world_map_and_original_does_not() {
 
     // Back to Original: the map is left alone again.
     themes.select(UiStyle::Original);
-    assert!(!themes.draws_world_map_chrome());
+    assert_eq!(themes.world_map_chrome(), Chrome::Original);
+}
+
+#[test]
+fn remastered_draws_the_whole_world_map() {
+    use crate::settings::UiStyle;
+    let mut themes = super::UiThemes::build();
+    themes.select(UiStyle::Remastered);
+    assert_eq!(themes.world_map_chrome(), Chrome::Drawn);
+    assert!(
+        super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
+        "no map is drawn until one is open"
+    );
 }
 
 #[test]

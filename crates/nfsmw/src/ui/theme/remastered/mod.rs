@@ -6,6 +6,7 @@
 //! - [`dial`]: the tachometer, a solid arc with the rpm numbered on it. Gold past the red line.
 //! - [`readout`]: the speed, the unit with the H of MPH in gold, and the gear.
 //! - [`bar`]: the gauge bars under the dial: N2O, the speed breaker and the boost.
+//! - [`map`]: the full-screen world map (the `WorldMapChrome` slot), read from the map view cell.
 //! - [`menu`]: the vertical menus (main menu, option categories, pause menu, safe house), read from the menu list cell.
 //! - [`skin`]: the colours and fonts the components read, by key.
 //!
@@ -14,6 +15,7 @@
 mod bar;
 mod dial;
 mod layout;
+mod map;
 pub mod menu;
 mod readout;
 mod skin;
@@ -22,6 +24,7 @@ mod tests;
 
 pub use bar::{Bar, Gauge};
 pub use dial::Dial;
+pub use map::{MapSnapshot, WorldMapView, WorldMapViewCell};
 pub use menu::VerticalMenu;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
@@ -36,12 +39,13 @@ use crate::ui::theme::{ElementId, MenuListCell};
 pub struct RemasteredTheme {
     drive: DriveFeedCell,
     menus: MenuListCell,
+    map: WorldMapViewCell,
 }
 
 impl RemasteredTheme {
-    /// The Remastered theme whose cluster reads `drive` and whose menus read `menus`.
-    pub fn new(drive: DriveFeedCell, menus: MenuListCell) -> Self {
-        Self { drive, menus }
+    /// The Remastered theme whose cluster reads `drive`, whose menus read `menus` and whose map reads `map`.
+    pub fn new(drive: DriveFeedCell, menus: MenuListCell, map: WorldMapViewCell) -> Self {
+        Self { drive, menus, map }
     }
 }
 
@@ -63,6 +67,8 @@ impl Theme for RemasteredTheme {
             menu @ (ElementId::MainMenu | ElementId::Categories | ElementId::PauseMenu | ElementId::SafeHouseMenu) => {
                 Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone())))
             }
+            // The whole map is drawn here, over the FEng screen the frontend leaves unpresented.
+            ElementId::WorldMapChrome => Some(Box::new(WorldMapView::new(self.map.clone()))),
             _ => None,
         }
     }

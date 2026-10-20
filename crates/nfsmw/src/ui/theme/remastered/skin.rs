@@ -52,6 +52,11 @@ pub(super) mod keys {
     pub const FONT_MENU: &str = "remastered.font.menu";
     pub const FONT_MENU_WIDE: &str = "remastered.font.menu_wide";
     pub const FONT_MENU_TITLE: &str = "remastered.font.menu_title";
+    /// The full-screen map: the ground behind the picture, the dark band under its footer and the plate behind a label.
+    pub const MAP_GROUND: &str = "remastered.map.ground";
+    pub const MAP_BAND: &str = "remastered.map.band";
+    pub const MAP_VEIL: &str = "remastered.map.veil";
+    pub const MAP_TIP: &str = "remastered.map.tip";
     /// The menu title's colour: the palette's accent.
     pub const MENU_TITLE: &str = "remastered.menu.title";
     /// The game's logo, and the controller glyph atlas the footer hints draw from.
@@ -101,6 +106,10 @@ pub fn skin() -> Skin {
         .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
         .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
+        .with_colour(keys::MAP_GROUND, [6, 7, 9, 238])
+        .with_colour(keys::MAP_BAND, [0, 0, 0, 150])
+        .with_colour(keys::MAP_VEIL, [4, 5, 8, 60])
+        .with_colour(keys::MAP_TIP, [10, 11, 14, 225])
         .with_texture(keys::LOGO, resource_handle("MW_Logo.tga"))
         .with_texture(keys::ATLAS, input_icons::ATLAS)
 }

@@ -8,7 +8,7 @@ use bevy_input::mouse::MouseButton;
 use nfsmw_career::regions::MapVariant;
 
 use super::screen::WorldMapLogic;
-use super::{MapInput, Outcome};
+use super::{Chrome, MapInput, Outcome};
 use crate::app::Host;
 use crate::frontend::confirm::{Confirm, ConfirmLogic};
 use crate::frontend::flow::{Frontend, Stage};
@@ -19,25 +19,33 @@ use crate::hud::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
     RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
-use crate::input::{Action, ActionState};
+use crate::input::{Action, ActionState, Bindings, InputDevice};
 use crate::ui::Text;
+use crate::ui::prompts::{self, Prompt};
+use crate::ui::theme::MenuHint;
 
-/// This frame's map input. `cursor` is the cursor in view units (see [`super::layout::view_of`]), `side` the picture's
-/// size in points (a drag of that many points pans a full view).
+/// This frame's map input. `cursor` is the cursor in view units (see [`super::layout::Picture::view_of`]), `side` the
+/// picture's size in points (a drag of that many points pans a full view). `script_key` is a key a scripted run pressed
+/// this frame (`--ui-script "key L"`), which counts as that key being pressed.
 pub fn input(
     actions: &ActionState,
     keys: &ButtonInput<KeyCode>,
+    script_key: Option<KeyCode>,
     mouse: &ButtonInput<MouseButton>,
     cursor: Option<[f32; 2]>,
     side: f32,
+    chrome: Chrome,
 ) -> MapInput {
+    let pressed = |key: KeyCode| keys.just_pressed(key) || script_key == Some(key);
     // A drag moves the picture with the pointer, so the view moves the other way.
     let drag = [-actions.value(Action::OrbitX) / side, -actions.value(Action::OrbitY) / side];
     MapInput {
         cursor,
         drag,
         zoom_lines: actions.value(Action::Zoom),
-        zoom_all: keys.just_pressed(KeyCode::KeyZ),
+        zoom_all: pressed(KeyCode::KeyZ),
+        toggle_legend: pressed(KeyCode::KeyL),
+        full_screen: chrome == Chrome::Drawn,
         next_filter: actions.just_pressed(Action::MenuRight),
         previous_filter: actions.just_pressed(Action::MenuLeft),
         // A left click focuses the blip under the cursor (or unfocuses); Enter opens the GPS prompt on the focused blip.
@@ -48,8 +56,26 @@ pub fn input(
     }
 }
 
+/// The footer hints of the themed full-screen map: back, the legend key, and the tab keys, with the player's bindings.
+pub fn hints(bindings: &Bindings, device: InputDevice) -> Vec<MenuHint> {
+    vec![
+        MenuHint {
+            keys: vec![prompts::for_action(bindings, Action::MenuBack, device)],
+            label: "Back",
+            action: Some(Action::MenuBack),
+        },
+        MenuHint { keys: vec![Prompt::Key("L".into())], label: "Legend", action: None },
+        MenuHint {
+            keys: prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device),
+            label: "Filter",
+            action: None,
+        },
+    ]
+}
+
 /// Every icon file [`icon_name`] can return, so the themed legend can register them as textures up front.
-pub const MAP_ICON_FILES: [&str; 6] = [
+pub const MAP_ICON_FILES: [&str; 7] = [
+    "Minimap_Icon_Car.tga",
     "Minimap_Icon_Chop_Shop.tga",
     "Minimap_Icon_Car_Lot.tga",
     "Minimap_Icon_Safe_House.tga",
@@ -133,6 +159,7 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
     log::info!("world map open: {} blips", overlay.blips.len());
     // The career stage picks the map; outside career mode (no career handle) it is the full map.
     let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);
+    overlay.texture = variant.world_map_texture();
     fe.open_map(Box::new(WorldMapLogic { variant, last_attached: None }), host, env);
 }
 
@@ -143,15 +170,16 @@ pub fn step(
     overlay: &mut WorldMapOverlay,
     input: MapInput,
     dt: f32,
-    themed: bool,
+    chrome: Chrome,
     host: &mut Host,
     env: &mut Env,
 ) {
+    overlay.tick(dt);
     let outcome = overlay.session.frame(&input, &overlay.blips);
     match outcome {
-        Outcome::Stay => draw(fe, overlay, dt, themed, host, env),
+        Outcome::Stay => draw(fe, overlay, dt, chrome, host, env),
         Outcome::Close => close(fe, overlay),
-        Outcome::AskGps(index) => ask_gps(fe, overlay, index, dt, themed, host, env),
+        Outcome::AskGps(index) => ask_gps(fe, overlay, index, dt, chrome, host, env),
     }
 }
 
@@ -162,26 +190,26 @@ fn ask_gps(
     overlay: &WorldMapOverlay,
     index: usize,
     dt: f32,
-    themed: bool,
+    chrome: Chrome,
     host: &mut Host,
     env: &mut Env,
 ) {
     let Some(blip) = overlay.blips.get(index) else {
-        return draw(fe, overlay, dt, themed, host, env);
+        return draw(fe, overlay, dt, chrome, host, env);
     };
     let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::SetWaypoint(blip.world));
     let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
     fe.apply(commands, host, env);
-    draw(fe, overlay, dt, themed, host, env);
+    draw(fe, overlay, dt, chrome, host, env);
 }
 
 /// Gives the map's screen this frame's state and runs the screens one step (the package's animations and the logic
 /// that writes the state into its objects).
-fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, themed: bool, host: &mut Host, env: &mut Env) {
+fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, chrome: Chrome, host: &mut Host, env: &mut Env) {
     if !matches!(fe.stage, Stage::Map) {
         return;
     }
-    fe.screens.set_world_map(Some(overlay.frame(themed)));
+    fe.screens.set_world_map(Some(overlay.frame(chrome)));
     let commands = fe.screens.update(dt, 0, env);
     fe.apply(commands, host, env);
 }

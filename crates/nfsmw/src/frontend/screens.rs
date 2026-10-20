@@ -34,6 +34,8 @@ pub struct Presented {
     pub slot: Option<ElementId>,
     /// The screen's entries, for a theme that lays them out itself (icon menus only).
     pub list: Option<MenuList>,
+    /// The screen's file name.
+    pub name: String,
 }
 
 pub struct Screens {
@@ -313,7 +315,12 @@ impl Screens {
         trees
             .into_iter()
             .zip(&self.stack)
-            .map(|(tree, screen)| Presented { tree, slot: screen.slot, list: self.list_of(screen, bindings, device) })
+            .map(|(tree, screen)| Presented {
+                tree,
+                slot: screen.slot,
+                list: self.list_of(screen, bindings, device),
+                name: screen.name.clone(),
+            })
             .collect()
     }
 
