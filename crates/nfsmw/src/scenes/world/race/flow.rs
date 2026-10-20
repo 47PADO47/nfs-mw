@@ -229,7 +229,7 @@ impl WorldScene {
 }
 
 fn flash(banner: &mut Banner, text: String, secs: f32) {
-    *banner = Banner { text, left: secs };
+    *banner = Banner { text, left: secs, serial: banner.serial.wrapping_add(1) };
 }
 
 /// How far past a gate's centre an opponent aims, metres. A path that ends at the gate would stop the car short of it

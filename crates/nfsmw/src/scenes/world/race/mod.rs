@@ -68,6 +68,8 @@ pub(super) struct RaceResult {
 pub(super) struct Banner {
     pub text: String,
     pub left: f32,
+    /// Counts the lines, so the HUD plays a repeated text again.
+    pub serial: u32,
 }
 
 pub(super) struct RaceSession {

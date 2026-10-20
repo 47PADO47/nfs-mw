@@ -227,7 +227,11 @@ impl WorldScene {
         let was_reached = challenge.reached;
         let verdict = challenge.judge(value, reason);
         if challenge.reached && !was_reached {
-            session.banner = Banner { text: "Challenge complete: now get away".into(), left: BANNER_SECS };
+            session.banner = Banner {
+                text: "Challenge complete: now get away".into(),
+                left: BANNER_SECS,
+                serial: session.banner.serial.wrapping_add(1),
+            };
             log::info!("race: {}: the challenge value is reached ({value})", session.name);
         }
         let Some(won) = verdict else { return true };

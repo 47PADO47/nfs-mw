@@ -59,6 +59,8 @@ pub struct Shown {
     pub race_laps: bool,
     /// A countdown step is up: the `321_GO_GROUP` shows.
     pub countdown: bool,
+    /// A line of the generic message group is up.
+    pub message: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -88,6 +90,7 @@ pub struct Layout {
     race_lap: Vec<usize>,
     race_progress: Vec<usize>,
     countdown: Vec<usize>,
+    message: Vec<usize>,
     applied: Option<Shown>,
 }
 
@@ -131,6 +134,7 @@ impl Layout {
             race_lap: find(&[super::race::lap_hash()]),
             race_progress: find(&[super::race::progress_hash()]),
             countdown: find(&[super::race::count_hash()]),
+            message: find(&[super::race::message_hash()]),
             applied: None,
         }
     }
@@ -162,6 +166,9 @@ impl Layout {
         }
         if want.countdown {
             roots.extend(&self.countdown);
+        }
+        if want.message {
+            roots.extend(&self.message);
         }
         if want.nitrous {
             roots.extend(&self.nitrous);

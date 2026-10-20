@@ -369,6 +369,44 @@ fn the_race_and_interior_map_icons_are_objects_of_the_single_race_hud() {
     }
 }
 
+/// The group names of the executable's race code are objects of the photo screen `InGamePhotoMaster.fng` and of no other
+/// package; the other names are Lua and message names, objects of none (`docs/provenance/race-mode.md` section 10).
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_race_group_names_are_objects_of_the_photo_screen_only() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN", "FRONTEND/FrontB.lzc"]);
+    let photo = ["TOLL_BOOTH_GROUP", "SPRINT_GROUP", "SPEEDTRAP_GROUP", "RIVAL_GROUP"];
+    let absent = [
+        "TollboothStat",
+        "SpeedStat",
+        "StageStat",
+        "RaceResultStat",
+        "LapStat",
+        "TimerStat",
+        "Hud_RaceOverMessage",
+        "Hud_TimeExtension",
+        "Hud_WrongWIndi",
+        "Hud_GenericMessage",
+        "Hud_Coundown",
+        "Hud_LeaderBoard",
+    ];
+    let mut checked = 0;
+    for entry in catalog.entries() {
+        let Some(package) = catalog.find(&entry.name) else { continue };
+        checked += 1;
+        let has = |name: &str| package.objects.iter().any(|o| o.name_hash == fe_hash_upper(name));
+        for name in photo {
+            assert_eq!(has(name), entry.name == "InGamePhotoMaster.fng", "{name} in {}", entry.name);
+        }
+        for name in absent {
+            assert!(!has(name), "{name} is an object of {}", entry.name);
+        }
+    }
+    assert!(checked > 100, "{checked} packages");
+}
+
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_race_readout_binds_the_single_race_hud_objects() {
@@ -439,4 +477,16 @@ fn the_drag_hud_shows_the_race_readout_and_turns_its_needle() {
     assert!(node(fe_hash_upper("321_GO_GROUP")).visible, "the countdown group shows");
     let angle = node(fe_hash_upper("3rdPersonNeedle")).local_rotation.to_euler(glam::EulerRot::XYZ).2.to_degrees();
     assert!((angle - (42.0 + 0.5 * 228.0)).abs() < 0.1, "the drag needle at 5000 rpm of 10000: {angle}");
+    // A shift near the red line plays "Perfect Shift!"; the generic message takes a line.
+    let perfect = rt.find(id, 0x2579_C809).unwrap();
+    let up = |gear, rpm| HudState { gear, rpm, red_line: 8000.0, drag: true, ..Default::default() };
+    binding.apply(&mut rt, &up(1, 7900.0));
+    binding.apply(&mut rt, &up(2, 5000.0));
+    assert_eq!(rt.script_of(perfect), Some(0xC8D8_8528), "a shift at the red line is perfect");
+    let message = super::race::Message { serial: 1, text: "Checkpoint 2/3".into() };
+    binding.apply(&mut rt, &HudState { message: Some(message), drag: true, ..Default::default() });
+    let tree = rt.tree(id);
+    let lines: Vec<_> = tree.nodes.iter().filter(|n| n.name_hash == 0xDA76_8EA6).collect();
+    assert_eq!(lines.len(), 2, "the shadow and the face");
+    assert!(lines.iter().all(|n| n.text.as_deref() == Some("Checkpoint 2/3")), "the generic message text");
 }

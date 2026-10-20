@@ -1,37 +1,47 @@
 //! The race card for the HUD: the place, the lap, the clocks and the banner, built from the race each frame.
 
-use super::{RaceSession, Stage};
-use crate::hud::{Count, RaceCard, RaceHud, ResultCard};
+use super::Stage;
+use crate::hud::{Count, Message, RaceCard, RaceHud, ResultCard};
 use crate::scenes::world::WorldScene;
 
-/// The banner fades out over its last half second.
-const BANNER_FADE: f32 = 0.5;
+/// The serial of the race-over line: past any banner's.
+const RESULT_SERIAL: u32 = 1 << 30;
 
 impl WorldScene {
-    /// The card of the race being run, if any. Nothing while the grid is still loading.
+    /// The card of the race being run: what the HUD package has no object for (the points of a speed-trap race).
     pub(in crate::scenes::world) fn race_card(&self) -> Option<RaceCard> {
         let session = self.race.as_ref()?;
-        let engine = session.engine.as_ref();
-        // A pursuit challenge has no engine: its card is the banner and the result.
-        if engine.is_none() && session.challenge.is_none() {
+        let engine = session.engine.as_ref()?;
+        let points = engine.config().rank_by_points.then(|| engine.standings()[0].points)?;
+        matches!(session.stage, Stage::Running).then_some(RaceCard { points: Some(points) })
+    }
+
+    /// The line the HUD's generic message group shows: the banner (a checkpoint, a lap, a bonus), or the race-over message
+    /// while it runs. The countdown numbers are the countdown group's.
+    pub(in crate::scenes::world) fn race_message(&self) -> Option<Message> {
+        let session = self.race.as_ref()?;
+        if let (Stage::Results { .. }, Some(result)) = (session.stage, session.result) {
+            let card = ResultCard {
+                place: result.place,
+                racers: result.racers,
+                time: result.time,
+                challenge: session.challenge.is_some(),
+            };
+            // One line for the whole message: its serial is past every banner's.
+            return Some(Message { serial: RESULT_SERIAL, text: card.title() });
+        }
+        let banner = &session.banner;
+        let counting = Count::from_banner(&banner.text).is_some();
+        if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) || banner.left <= 0.0 || counting {
             return None;
         }
-        Some(RaceCard {
-            banner: banner(session),
-            points: engine.and_then(|e| e.config().rank_by_points.then(|| e.standings()[0].points)),
-            result: session.result.filter(|_| matches!(session.stage, Stage::Results { .. })).map(|r| ResultCard {
-                place: r.place,
-                racers: r.racers,
-                time: r.time,
-                challenge: session.challenge.is_some(),
-            }),
-        })
+        Some(Message { serial: banner.serial, text: banner.text.clone() })
     }
 
     /// What the HUD package shows of the race: the place, lap, clock, progress and the countdown step.
     pub(in crate::scenes::world) fn race_hud(&self) -> Option<RaceHud> {
         let session = self.race.as_ref()?;
-        if session.result.is_some() {
+        if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
         }
         let engine = session.engine.as_ref()?;
@@ -58,15 +68,4 @@ impl WorldScene {
             crate::hud::show_race_card(ctx, &card);
         }
     }
-}
-
-/// The banner's text and opacity.
-fn banner(session: &RaceSession) -> Option<(String, f32)> {
-    // The countdown is the HUD package's own group (`race_hud`); the card keeps the other lines.
-    let counting = Count::from_banner(&session.banner.text).is_some();
-    if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) || session.banner.left <= 0.0 || counting
-    {
-        return None;
-    }
-    Some((session.banner.text.clone(), (session.banner.left / BANNER_FADE).min(1.0)))
 }

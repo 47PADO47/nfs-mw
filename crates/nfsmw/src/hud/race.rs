@@ -64,6 +64,24 @@ impl Count {
     }
 }
 
+/// A line the HUD shows for a few seconds (the generic message group, `Hud_GenericMessage`): a checkpoint, a lap, a bonus,
+/// the race-over message. A new `serial` starts the line again.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Message {
+    pub serial: u32,
+    pub text: String,
+}
+
+/// The generic message group (`0xE0BA07EC`, its child `0x32A7A521` plays the scripts) and its two strings, the shadow and
+/// the face, both named `0xDA768EA6` (so all objects of the name are taken).
+const MESSAGE_GROUP: u32 = 0xE0BA_07EC;
+const MESSAGE_PLAYER: u32 = 0x32A7_A521;
+const MESSAGE_TEXT: u32 = 0xDA76_8EA6;
+/// The script of the group that fades the line in and out: 3200 ms, four colour keys (the length of the others is 2400,
+/// 3200, 3600 and 1200; which one the game picks for a kind of line is not read) **[unconfirmed]**.
+const MESSAGE_SCRIPT: u32 = 0xA19B_B14C;
+const MESSAGE_SECS: f32 = 3.2;
+
 /// What the race part of the HUD shows. `None` in `HudState` means no race.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaceHud {
@@ -86,6 +104,10 @@ pub(super) fn root_hashes() -> [u32; 4] {
 }
 
 /// The countdown group's name hash: it shows only while a step is up.
+pub(super) fn message_hash() -> u32 {
+    MESSAGE_GROUP
+}
+
 pub(super) fn count_hash() -> u32 {
     fe_hash_upper(COUNT_GROUP)
 }
@@ -97,6 +119,13 @@ pub(super) fn lap_hash() -> u32 {
 
 pub(super) fn progress_hash() -> u32 {
     PROGRESS_GROUP
+}
+
+/// Every object of the package with this name hash: two strings can share a name (a shadow and its face).
+fn named_all(rt: &Runtime, package: PackageId, name_hash: u32) -> Vec<ObjectRef> {
+    let Some(def) = rt.package(package) else { return Vec::new() };
+    let guids = def.objects.iter().filter(|o| o.name_hash == name_hash).map(|o| o.guid);
+    guids.filter_map(|guid| rt.find_guid(package, guid)).collect()
 }
 
 /// The objects of the race part, found once.
@@ -113,6 +142,12 @@ pub(super) struct Binding {
     count_group: Option<ObjectRef>,
     count_text: Vec<ObjectRef>,
     shown_count: Option<Count>,
+    message_group: Option<ObjectRef>,
+    message_player: Option<ObjectRef>,
+    /// The strings of the line (the object table keeps one per name, so both are found by their guid in the package).
+    message_text: Vec<ObjectRef>,
+    shown_serial: Option<u32>,
+    message_left: f32,
 }
 
 impl Binding {
@@ -128,6 +163,40 @@ impl Binding {
             count_group: rt.find(package, fe_hash_upper(COUNT_GROUP)),
             count_text: COUNT_TEXT.iter().filter_map(|h| rt.find(package, *h)).collect(),
             shown_count: None,
+            message_group: rt.find(package, MESSAGE_GROUP),
+            message_player: rt.find(package, MESSAGE_PLAYER),
+            message_text: named_all(rt, package, MESSAGE_TEXT),
+            shown_serial: None,
+            message_left: 0.0,
+        }
+    }
+
+    /// Counts the line's time down.
+    pub fn advance(&mut self, dt: f32) {
+        self.message_left = (self.message_left - dt).max(0.0);
+    }
+
+    /// The line is on: its group has to show.
+    pub fn message_active(&self) -> bool {
+        self.message_left > 0.0
+    }
+
+    /// Puts a line up when its serial is new, and keeps the group at full alpha while it plays.
+    pub fn show_message(&mut self, rt: &mut Runtime, message: Option<&Message>) {
+        let Some(message) = message else { return };
+        if let Some(group) = self.message_group {
+            rt.set_alpha(group, 255);
+        }
+        if self.shown_serial == Some(message.serial) {
+            return;
+        }
+        self.shown_serial = Some(message.serial);
+        self.message_left = MESSAGE_SECS;
+        for text in &self.message_text {
+            rt.set_text(*text, &message.text);
+        }
+        if let Some(player) = self.message_player {
+            rt.run_script(player, MESSAGE_SCRIPT);
         }
     }
 

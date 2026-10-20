@@ -195,14 +195,25 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
   unit, gear (`3rdPersonGear`), needle (`3rdPersonNeedle`, which is `Drag_RPM_Needle`), shift light, redline mask, turbo
   dial, nitrous group and speed breaker, and the same place, clock and countdown objects **[install]**, so the same
   bindings drive them. The needle rests at its authored 42 degrees and runs over the 10000 rpm lines with the main
-  needle's 228 degree sweep **[unconfirmed]**: the package has no key for the sweep and the Lua graph that moves it
-  was not read. The redline mask uses the race HUD's table, which does not fit the drag face **[unconfirmed]**. Not
-  bound in the drag HUD: the second `TAC_NUMBERS` string (`0xA48393EA`, role not confirmed) and `Perfect Shift!`
-  (the shift-timing rule is not read).
-- Not bound, because the package has no object of that name: `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`,
-  `RIVAL_GROUP`, the `*Stat` strings and the generic message item (`Hud_GenericMessage` is a message-queue item of the
-  executable, not an FEng object). The checkpoint, lap, bonus and speed trap lines, the points of a points race and the
-  result stay on the egui race card (`hud/race_card.rs`).
+  needle's 228 degree sweep **[unconfirmed]** (below).
+- The generic message group (`Hud_GenericMessage`: group `0xE0BA07EC`, player `0x32A7A521`, two strings named `0xDA768EA6`)
+  carries every line the HUD says outside the countdown: the checkpoint, lap, bonus and speed-trap lines, the race-over
+  message ("You won", "You finished 3rd", "Race lost", "Challenge complete") and the challenge line. It plays the group's
+  3200 ms script `0xA19BB14C`; the game's choice among the group's seven scripts (1200 to 3600 ms) is not read
+  **[unconfirmed]**. The egui card keeps only the points of a speed-trap race.
+- Not in the package, so not bound (every name was hashed against every object of `HUD_SingleRace.fng` and `HUD_Drag.fng`,
+  `docs/provenance/race-mode.md` section 9): `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`, `RIVAL_GROUP`, the
+  `*Stat` strings, `Hud_RaceOverMessage`, `Hud_TimeExtension` and `Hud_WrongWIndi` are strings of the executable's Lua
+  and message tables, not FEng object names. The tollbooth icon (`Tollbooth_Icon.tga`) sits in the lap group and shows with
+  it; the speed-trap points have no object.
+- The drag tachometer's face is `DRAG_RPM_<scale>_LINES` and its redline mask angle comes from the executable's drag
+  table **[exe]** (`FUN_0057c000`; `hud/state.rs` `redline_rotation_drag`). The needle's sweep is the one value still
+  not read: the gauge class registers its update as a callback that the decompiler does not resolve, and `228.0`,
+  `66.0` do not occur as constants in the HUD code range **[unconfirmed]**. `Perfect Shift!` plays for an upshift made at
+  0.95 of the red line or more **[unconfirmed]**: the shift rating is not read. The second `TAC_NUMBERS` string
+  (`0xA48393EA`) is the gear digit's unlit ghost: the race HUD has the same pair, the gear (`0xB84589BE`, alpha 230) and a
+  `8` at the same place (`0x07091622`, alpha 80), so it stays as authored.
+
 
 ## 11. Results
 
