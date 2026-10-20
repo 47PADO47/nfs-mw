@@ -41,8 +41,6 @@ pub const TUNNEL_ZONE: u32 = 3;
 
 /// The track path zone kind of a hiding spot (`pursuit-data.md` §5: type 8 HIDDEN).
 pub const HIDDEN_ZONE: u32 = 8;
-/// How far (metres) the player's height may be from a hiding zone's elevation to count as inside it (spec §5).
-const HIDDEN_HEIGHT: f32 = 1.25;
 
 /// The throttle above which a hit counts as deliberate (unconfirmed).
 const DELIBERATE_THROTTLE: f32 = 0.5;
@@ -156,6 +154,8 @@ pub struct Police {
     hidden_zones: Vec<TrackZone>,
     /// The TUNNEL track zones of the track (kind `TUNNEL_ZONE`), read once per track.
     tunnel_zones: Vec<TrackZone>,
+    /// The player's hiding latch (`hiding.rs`).
+    hiding: hiding::HidingState,
     /// The helicopter's height sheet of the track, when it was read (`nfsmw_data::world::heli_sheet`).
     heli_sheet: Option<HeliSheet>,
     /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
@@ -201,6 +201,7 @@ impl Default for Police {
             priority_done: false,
             hidden_zones: Vec::new(),
             tunnel_zones: Vec::new(),
+            hiding: Default::default(),
             heli_sheet: None,
             busted: Busted::default(),
             rep: rep::RepState::default(),
@@ -478,6 +479,7 @@ mod busted;
 mod escape;
 mod heli;
 mod helpers;
+mod hiding;
 mod mod_feed;
 mod original_camera;
 mod patrol;

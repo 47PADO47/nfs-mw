@@ -64,6 +64,7 @@ impl super::super::TrafficWorld {
         let level = self.police.level().unwrap_or(1);
         let at = Vec3::from_array(space::to_physics(player.position));
         let strikes = self.take_strikes();
+        self.update_hiding(dt, at);
         let sensed = Sensed {
             seen: self.sighting(level).seen,
             unit_random: self.rng.next_f32(),
@@ -72,8 +73,8 @@ impl super::super::TrafficWorld {
             hit_traffic: self.sighting(level).recent_hit,
             struck_cop: strikes.cop,
             struck_property: strikes.property,
-            hidden: self.hidden_from_cars(at),
-            hidden_from_heli: self.hidden_from_helicopters(at),
+            hidden: self.police.hiding.latch.hidden(),
+            hidden_from_heli: self.police.hiding.latch.from_helicopters(),
             in_tunnel: self.in_tunnel(at),
             formation_random: [self.rng.next_f32(), self.rng.next_f32()],
             formation_gap: self.formation_gap(at, player.forward),
@@ -131,25 +132,6 @@ impl super::super::TrafficWorld {
             secs: self.police.pursuit_time,
             since_end: self.police.since_end(),
         })
-    }
-
-    /// Whether a physics-space point is in a HIDDEN zone that hides it from cars: any zone but one flagged `Heli`.
-    pub(in crate::scenes::world::ai) fn hidden_from_cars(&self, at: Vec3) -> bool {
-        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != HELI_HASH)
-    }
-
-    /// Whether a physics-space point is in a HIDDEN zone that hides it from helicopters: any zone but one flagged `Car`.
-    fn hidden_from_helicopters(&self, at: Vec3) -> bool {
-        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != CAR_HASH)
-    }
-
-    /// Whether `at` is inside a HIDDEN zone at its height (`HIDDEN_HEIGHT`) that `hides` accepts.
-    fn in_hidden_zone(&self, at: Vec3, hides: impl Fn(&TrackZone) -> bool) -> bool {
-        let zone_point = to_zone_space(at);
-        self.police
-            .hidden_zones
-            .iter()
-            .any(|z| hides(z) && z.contains(zone_point) && (at.y - z.elevation).abs() < HIDDEN_HEIGHT)
     }
 
     /// Whether a physics-space point is inside a tunnel zone. The zones have no height test: a tunnel is its outline.

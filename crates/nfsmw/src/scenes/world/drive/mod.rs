@@ -294,6 +294,11 @@ impl Drive {
         (half.x, half.z)
     }
 
+    /// Half the height of the car's body, metres: the body origin is its middle, so the feet are this far below it.
+    pub fn half_height(&self) -> f32 {
+        self.physics.spec.dimension.y
+    }
+
     /// Speed along the car, m/s (negative in reverse).
     pub fn speed(&self) -> f32 {
         self.telemetry.speed_mps
