@@ -311,14 +311,11 @@ impl Frontend {
 
     /// Opens a menu screen over the backdrop it wants, with the menu stage on.
     pub(super) fn open_menu(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
-        if self.look_override.is_none()
-            && let Some(look) = super::factory::look_for(name, &args)
-        {
-            self.look = look;
-        }
         self.show_backdrop(host);
         let commands = self.screens.open(name, args, true, env);
         self.stage = Stage::Menus;
+        // The screen may want another look than the backdrop that is up: the swap happens before the first frame.
+        self.sync_backdrop(host);
         self.apply(commands, host, env);
     }
 
