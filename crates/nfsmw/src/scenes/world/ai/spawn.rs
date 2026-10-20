@@ -24,6 +24,11 @@ const MIN_GAP: f32 = 20.0;
 const START_LOOK_AHEAD: f32 = 30.0;
 /// A new car starts at this fraction of the lower of its two cruising speeds.
 const START_SPEED_FACTOR: f32 = 0.75;
+/// The cop manager's spawn window around the player, metres (`docs/specs/ai-pursuit-cops.md` section 3.1).
+const COP_MIN_DISTANCE: f32 = 150.0;
+const COP_MAX_DISTANCE: f32 = 400.0;
+/// The most the player's velocity shifts the patrol probe's disc, metres.
+const COP_MAX_SHIFT: f32 = 100.0;
 /// A standing player always gets oncoming traffic; at this speed (m/s) half of it comes the same way.
 const SAME_WAY_SPEED: f32 = 50.0;
 /// Which car to put on the road.
@@ -72,17 +77,11 @@ impl TrafficWorld {
         };
         let occupied = self.population_slots(focus);
         let rng = &mut self.rng;
-        let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * WEDGE;
-        let projected = projected_speed(focus, angle);
-        let distance = self.policy.spawn_min as f32
-            + rng.next_f32() * (self.policy.spawn_max - self.policy.spawn_min) as f32
-            + projected.max(0.0);
-        let at = probe_point(focus, distance, angle);
-        let oncoming = rng.next_f32() <= 1.0 - 0.5 * (projected / SAME_WAY_SPEED).clamp(0.0, 1.0);
-        let dir = match oncoming {
-            true => angle + std::f32::consts::PI,
-            false => angle,
+        let probe = match pick {
+            Pick::Traffic(_) => traffic_probe(rng, focus, &self.policy),
+            Pick::Patrol(_) => patrol_probe(rng, focus),
         };
+        let Probe { distance, at, dir } = probe;
         let heading = space::to_physics(Vec3::new(dir.cos(), dir.sin(), 0.0));
         let physics_at = Vec3::from(space::to_physics(at));
 
@@ -107,7 +106,14 @@ impl TrafficWorld {
         }
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
         let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
-        if !clear_spawn(nav.position, focus, self.policy.spawn_min as f32, length, others) {
+        let minimum = match pick {
+            Pick::Traffic(_) => self.policy.spawn_min as f32,
+            Pick::Patrol(_) => COP_MIN_DISTANCE,
+        };
+        if !clear_spawn(nav.position, focus, minimum, length, others) {
+            return Err(Rejection::Spacing);
+        }
+        if matches!(pick, Pick::Patrol(_)) && !cop_spawn_point_valid(&self.cops, nav.position, focus) {
             return Err(Rejection::Spacing);
         }
         let render = space::to_render(nav.position.to_array());
@@ -130,6 +136,53 @@ impl TrafficWorld {
         self.cars.push(car);
         Ok(())
     }
+}
+
+/// Where one spawn attempt probes the road: the distance from the player it aims for, the point (render space) and the
+/// direction the lane is picked in (radians from +X).
+struct Probe {
+    distance: f32,
+    at: Vec3,
+    dir: f32,
+}
+
+/// The traffic probe: a wedge ahead of the player, pushed out by the speed along it (`docs/specs/ai-traffic-spawning.md`).
+fn traffic_probe(rng: &mut impl RandomSource, focus: Focus, policy: &crate::settings::TrafficPolicy) -> Probe {
+    let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * WEDGE;
+    let projected = projected_speed(focus, angle);
+    let distance =
+        policy.spawn_min as f32 + rng.next_f32() * (policy.spawn_max - policy.spawn_min) as f32 + projected.max(0.0);
+    let oncoming = rng.next_f32() <= 1.0 - 0.5 * (projected / SAME_WAY_SPEED).clamp(0.0, 1.0);
+    let dir = match oncoming {
+        true => angle + std::f32::consts::PI,
+        false => angle,
+    };
+    Probe { distance, at: probe_point(focus, distance, angle), dir }
+}
+
+/// The patrol probe: the cop manager picks a random road segment of the ring around the player (a segment qualifies when
+/// an end lies within `COP_MAX_DISTANCE + 50` of the player shifted by their velocity) and a random point along it, so a
+/// patrol can appear on any side, not only ahead (`docs/specs/ai-pursuit-cops.md` section 3.1). The probe is a random
+/// point of that disc, uniform by area, on either lane direction; the spawn window is then tested on the road point.
+fn patrol_probe(rng: &mut impl RandomSource, focus: Focus) -> Probe {
+    let angle = rng.next_f32() * std::f32::consts::TAU;
+    let (near, far) = (COP_MIN_DISTANCE, COP_MAX_DISTANCE);
+    let distance = (near * near + rng.next_f32() * (far * far - near * near)).sqrt();
+    let shift = focus.body.map_or(Vec3::ZERO, |body| Vec3::new(body.velocity.x, 0.0, body.velocity.z));
+    let shift = space::to_render(shift.to_array());
+    let mut at = probe_point(focus, distance, angle);
+    at.x += shift.x.clamp(-COP_MAX_SHIFT, COP_MAX_SHIFT);
+    at.y += shift.y.clamp(-COP_MAX_SHIFT, COP_MAX_SHIFT);
+    let dir = angle + std::f32::consts::PI * f32::from(rng.next_f32() < 0.5);
+    Probe { distance, at, dir }
+}
+
+/// The cop spawn window and zone rule (`CheckSpawnPosition` with the cop manager's 150 to 400 m): the point on the road
+/// is between the two distances from the player horizontally and outside the no-cop-spawn zones.
+fn cop_spawn_point_valid(cops: &super::cop_manager::CopManager, position: Vec3, focus: Focus) -> bool {
+    let centre = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
+    let gap = planar_distance(position, centre);
+    (COP_MIN_DISTANCE..=COP_MAX_DISTANCE).contains(&gap) && !cops.bars_spawn(position)
 }
 
 impl TrafficWorld {

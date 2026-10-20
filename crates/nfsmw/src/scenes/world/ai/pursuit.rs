@@ -47,6 +47,9 @@ pub(super) struct CopSpot {
     pub target: Vec3,
     pub speed: f32,
     pub player: Performance,
+    /// The distance from `target` the spot must land in once it is on the road, metres, horizontally: the cop spawn
+    /// window of `docs/specs/ai-pursuit-cops.md` section 3.2. `None` for the cars that have their own placement.
+    pub band: Option<(f32, f32)>,
 }
 
 /// The chase: the heat rows of all levels, the heat it is at, and the spawn bookkeeping. The wave is the row of the
@@ -290,7 +293,8 @@ impl TrafficWorld {
         let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * SPREAD;
         let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
         let physics_at = Vec3::from(space::to_physics(at));
-        let spot = CopSpot { at: physics_at, target, speed: START_SPEED, player };
+        let spot =
+            CopSpot { at: physics_at, target, speed: START_SPEED, player, band: Some((MIN_DISTANCE, MAX_DISTANCE)) };
         self.spawn_cop_at(name, spot, collision, surfaces)
     }
 
@@ -303,7 +307,7 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
-        let CopSpot { at: physics_at, target, speed, player } = spot;
+        let CopSpot { at: physics_at, target, speed, player, band } = spot;
         let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
             return false;
         };
@@ -311,6 +315,13 @@ impl TrafficWorld {
         let filter = SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() };
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
         if !nav.init_at_point(&self.network, &self.index, physics_at, toward, false) {
+            return false;
+        }
+        if self.cops.bars_spawn(nav.position) {
+            return false;
+        }
+        let gap = Vec3::new(nav.position.x - target.x, 0.0, nav.position.z - target.z).length();
+        if band.is_some_and(|(near, far)| !(near..=far).contains(&gap)) {
             return false;
         }
         if self.cars.iter().any(|c| c.physics_position().distance(nav.position) < MIN_GAP) {
@@ -334,13 +345,7 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        log::info!(
-            "pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player",
-            car.name,
-            render.x,
-            render.y,
-            toward.length()
-        );
+        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player", car.name, render.x, render.y, gap);
         self.cars.push(car);
         true
     }

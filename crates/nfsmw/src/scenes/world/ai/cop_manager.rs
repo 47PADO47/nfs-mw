@@ -67,29 +67,29 @@ impl CopManager {
     }
 }
 
+/// A square no-cop-spawn zone of half side `half` around the zone-space origin, for the tests that bar a spawn.
+#[cfg(test)]
+pub(super) fn square_zone(half: f32) -> TrackZone {
+    use glam::Vec2;
+    TrackZone {
+        kind: NO_COP_SPAWN_ZONE,
+        position: Vec2::ZERO,
+        direction: Vec2::ZERO,
+        elevation: 0.0,
+        visit_info: 0,
+        data: [0; 4],
+        bbox_min: Vec2::splat(-half),
+        bbox_max: Vec2::splat(half),
+        polygon: vec![Vec2::new(-half, -half), Vec2::new(half, -half), Vec2::new(half, half), Vec2::new(-half, half)],
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use glam::Vec2;
-
     use super::*;
 
     fn square_around_zone_origin() -> TrackZone {
-        TrackZone {
-            kind: NO_COP_SPAWN_ZONE,
-            position: Vec2::ZERO,
-            direction: Vec2::ZERO,
-            elevation: 0.0,
-            visit_info: 0,
-            data: [0; 4],
-            bbox_min: Vec2::splat(-10.0),
-            bbox_max: Vec2::splat(10.0),
-            polygon: vec![
-                Vec2::new(-10.0, -10.0),
-                Vec2::new(10.0, -10.0),
-                Vec2::new(10.0, 10.0),
-                Vec2::new(-10.0, 10.0),
-            ],
-        }
+        square_zone(10.0)
     }
 
     #[test]

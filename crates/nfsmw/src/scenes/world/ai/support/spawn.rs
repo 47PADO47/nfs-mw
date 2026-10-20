@@ -62,7 +62,7 @@ impl TrafficWorld {
         let at = Vec3::new(point.x, target.position.y, point.y);
         let target_speed = Vec2::new(target.velocity.x, target.velocity.z).length();
         let speed = start_speed(spot.strategy, spot.distance, target_speed);
-        let cop = CopSpot { at, target: target.position, speed, player: spot.performance };
+        let cop = CopSpot { at, target: target.position, speed, player: spot.performance, band: None };
         if !self.spawn_cop_at(car_model(spot.car), cop, collision, surfaces) {
             return false;
         }

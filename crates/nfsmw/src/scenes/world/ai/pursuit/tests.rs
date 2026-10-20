@@ -30,6 +30,7 @@ mod installed;
 mod installed_arrest;
 mod installed_route;
 mod lockout;
+mod placement;
 
 /// The frames the model is still loading for, and the length of each frame in simulated seconds.
 const LOADING_FRAMES: u32 = 30;
@@ -208,7 +209,7 @@ fn a_wave_row_whose_model_is_still_loading_spawns_once_the_model_arrives() {
 
     // The model arrives: the same row spawns.
     world.add_cop_model(cop_model(&mut renderer, "copx", player));
-    let spot = CopSpot { at: Vec3::ZERO, target: Vec3::new(0.0, 0.0, 70.0), speed: START_SPEED, player };
+    let spot = CopSpot { at: Vec3::ZERO, target: Vec3::new(0.0, 0.0, 70.0), speed: START_SPEED, player, band: None };
     assert!(world.spawn_cop_at("copx", spot, &collision, &surfaces));
     assert_eq!(cop_count(&world), 1);
 }
