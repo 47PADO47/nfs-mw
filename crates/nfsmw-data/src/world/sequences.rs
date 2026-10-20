@@ -8,8 +8,11 @@ use anyhow::{Context, Result, bail};
 use blackbox_attrib::vlt_hash;
 use blackbox_chunk::{find_all, ids};
 use blackbox_sequence::{Event, Package, Tags};
+mod profile;
 #[cfg(test)]
 mod tests;
+
+pub use profile::BreakerProfile;
 
 pub const TAGS: Tags = Tags { start: vlt_hash("start"), end: vlt_hash("end"), stop: vlt_hash("stop") };
 
@@ -42,6 +45,11 @@ impl SequenceCatalog {
 
     pub fn get(&self, hash: u32) -> Option<&Sequence> {
         self.engines.get(&hash)
+    }
+
+    /// Every engine with its name hash, in hash order.
+    pub fn iter(&self) -> impl Iterator<Item = (u32, &Sequence)> + '_ {
+        self.engines.iter().map(|(&hash, sequence)| (hash, sequence))
     }
 
     pub fn len(&self) -> usize {
@@ -112,6 +120,12 @@ pub enum WorldEvent {
     PursuitBreaker {
         begin: bool,
     },
+    /// `EPlayRaceNIS`: a scripted scene. The breaker sequences play the cinematic "Moment" of their structure with it.
+    /// Both fields are string-table hashes of the package.
+    PlayNis {
+        scene: u32,
+        kind: u32,
+    },
     /// The host can report unsupported effects explicitly.
     Other(u32),
 }
@@ -142,6 +156,7 @@ impl WorldEvent {
             0xEFFE_CDD6 => Ok(Self::HidePart(word(4)?)),
             0xDDA7_829B => Ok(Self::StopCops { radius: number(4)?, duration: number(8)? }),
             0x47C1_D36D => Ok(Self::PursuitBreaker { begin: word(4)? != 0 }),
+            0x6666_6DC8 => Ok(Self::PlayNis { scene: word(8)?, kind: word(12)? }),
             0xA3CF_BFEC => {
                 let _verbose = word(12)?;
                 Ok(Self::FireList { list: word(4)?, delayed: word(8)? != 0 })

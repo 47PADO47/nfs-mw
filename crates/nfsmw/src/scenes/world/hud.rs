@@ -63,6 +63,7 @@ impl WorldScene {
                     evade: traffic.evade_level(),
                     busted: meter,
                     cooldown: traffic.cooldown_shown(),
+                    hiding: traffic.hiding_fill(),
                     ..pursuit_hud(feed, wrecked)
                 });
                 if traffic.arrest_active() {
@@ -72,6 +73,7 @@ impl WorldScene {
                         cops_destroyed: wrecked,
                         busted: 1.0,
                         cooldown: false,
+                        hiding: None,
                     });
                     state.radar = None;
                 }

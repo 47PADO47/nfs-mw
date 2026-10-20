@@ -19,6 +19,7 @@ mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;
 mod elements;
+mod hiding_mark;
 #[cfg(test)]
 mod install_tests;
 mod interact_prompt;

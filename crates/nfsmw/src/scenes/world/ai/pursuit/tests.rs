@@ -27,6 +27,8 @@ mod arrest;
 mod free_roam;
 mod installed;
 mod installed_arrest;
+mod installed_breaker;
+mod installed_hiding;
 mod installed_route;
 mod sirens;
 

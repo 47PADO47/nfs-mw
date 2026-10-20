@@ -242,7 +242,7 @@ impl TrafficWorld {
             return;
         };
         let level = self.police.patrol_heat();
-        let hidden = self.hidden_from_cars(player);
+        let hidden = self.hidden_from_cars();
         let eye = player + EYE;
         self.seen_by_cops = self.cars.iter_mut().fold(false, |seen, car| {
             if !car.is_live_police() {

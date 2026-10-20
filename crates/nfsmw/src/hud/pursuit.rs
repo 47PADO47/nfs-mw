@@ -14,6 +14,9 @@ pub struct PursuitHud {
     pub busted: f32,
     /// The pursuit is in its actual cooldown phase, independently of the fill fraction.
     pub cooldown: bool,
+    /// How far the hiding spot the player is in has latched, 0 to 1, once it has started to; `None` when no spot is
+    /// hiding the player (`docs/specs/pursuit-hiding.md`). The "hiding" mark shows while this is `Some`.
+    pub hiding: Option<f32>,
 }
 
 impl PursuitHud {
@@ -30,6 +33,11 @@ impl PursuitHud {
     /// Whether the cool-down bar is on the screen.
     pub fn cooldown_shown(&self) -> bool {
         self.cooldown
+    }
+
+    /// Whether the hiding mark is on the screen.
+    pub fn hiding_shown(&self) -> bool {
+        self.hiding.is_some()
     }
 }
 

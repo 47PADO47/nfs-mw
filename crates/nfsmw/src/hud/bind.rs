@@ -53,6 +53,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 pub struct HudBinding {
     police: super::police::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
+    hiding_mark: super::hiding_mark::HidingMark,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
@@ -105,6 +106,7 @@ impl HudBinding {
         let mut b = Self {
             police: super::police::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
+            hiding_mark: super::hiding_mark::HidingMark::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
             mirror_shown: true,
@@ -216,6 +218,7 @@ impl HudBinding {
         self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
         self.pursuit_meter.apply(rt, s.pursuit);
+        self.hiding_mark.apply(rt, s.pursuit.is_some_and(|p| p.hiding_shown()));
         self.police.apply(rt, s, self.mirror_shown);
         if s.has_nos {
             self.nitrous(rt, s);

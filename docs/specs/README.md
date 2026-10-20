@@ -62,6 +62,8 @@ cover measured plane response, world probes, sinking and model cleanup.
 
 [Pursuit breakers](pursuit-breakers.md) covers named scenery fragments, area
 stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.
+[Pursuit hiding spots](pursuit-hiding.md) covers the HIDDEN track zones, the latch that turns a spot into
+"hidden", its effect on cops and the evade meter, and the HUD mark.
 [Trailer constraints](trailer-constraints.md) covers named angular limits,
 mass-weighted geometry correction and measured point-moment response.
 

@@ -92,6 +92,7 @@ impl WorldScene {
                 let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
                 // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
                 // a per-frame dt would stop the police clock offscreen.
+                traffic.note_player_height(drive.half_height());
                 traffic.update_police(steps as f32 * STEP, &view, &clear);
                 // The pursuit camera reads the bust after the police's tick, on the same clock.
                 drive.update_pursuit(steps as f32 * STEP, pursuit_feed(traffic, view.position));

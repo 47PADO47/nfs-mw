@@ -237,3 +237,32 @@ fn real_install_track_zones_match_the_documented_counts() {
         assert!(z.polygon.iter().all(|p| p.cmpge(z.bbox_min - 1e-3).all() && p.cmple(z.bbox_max + 1e-3).all()));
     }
 }
+
+/// `docs/formats/pursuit-data.md` section 5: a HIDDEN zone's elevation is the physics height of the ground (metres) it
+/// hides, so it agrees with the road surface where a road runs through the zone.
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn real_install_hidden_zone_elevations_are_ground_heights() {
+    let Some(net) = network() else { return };
+    let dir = std::env::var_os("NFSMW_GAME_DIR").unwrap();
+    let raw = std::fs::read(std::path::Path::new(&dir).join("TRACKS/L2RA.BUN")).unwrap();
+    let data = ea_compress::unwrap(&raw).unwrap();
+    let zones = crate::TrackZones::read(&data).unwrap().unwrap();
+    let index = SegmentIndex::build(&net);
+    let hidden: Vec<_> = zones.zones.iter().filter(|z| z.kind == 8).collect();
+    assert_eq!(hidden.len(), 34);
+    let mut differences = Vec::new();
+    for z in &hidden {
+        assert!(z.elevation > 0.0, "every installed hiding spot has an elevation");
+        let centre = z.polygon.iter().copied().sum::<glam::Vec2>() / z.polygon.len() as f32;
+        let at = crate::from_zone_space(centre, z.elevation);
+        let Some(hit) = closest_segment(&net, &index, at, Vec3::ZERO, 0.0, SegmentFilter::default()) else { continue };
+        if (hit.point - at).with_y(0.0).length() <= 3.0 {
+            differences.push((hit.point.y - z.elevation).abs());
+        }
+    }
+    differences.sort_by(f32::total_cmp);
+    assert!(differences.len() >= 10, "{} zones have a road through their centre", differences.len());
+    let median = differences[differences.len() / 2];
+    assert!(median < 0.5, "median elevation difference {median} m: {differences:?}");
+}

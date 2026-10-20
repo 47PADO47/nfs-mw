@@ -30,6 +30,10 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>, size:
     for word in words.iter_mut().take(4) {
         *word = 255;
     }
+    // The hiding mark rests at zero alpha, as in the package; its scripts fade it in and out.
+    if matches!(name_hash, 0x60B4_5523 | 0x3807_4901) {
+        words[3] = 0;
+    }
     words[10 + 3] = 1.0f32.to_bits();
     words[14] = size.x.to_bits();
     words[15] = size.y.to_bits();
@@ -46,10 +50,31 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>, size:
         multi: None,
         scripts: match name_hash {
             0x84A2_26EC | 0x839E_7D77 => visibility_scripts(),
+            0x60B4_5523 | 0x3807_4901 => fade_scripts(),
             _ => Vec::new(),
         },
         responses: Vec::new(),
     }
+}
+
+/// The mark's fade-in and fade-out: the installed script ids, setting the alpha outright.
+fn fade_scripts() -> Vec<Script> {
+    [(1_350_158_584, 255), (53_547_948, 0)]
+        .into_iter()
+        .map(|(id, alpha)| Script {
+            id,
+            tracks: vec![Track {
+                param: ParamType::Colour,
+                interp: Interp::Linear,
+                action: 0,
+                length: 0,
+                offset: 0,
+                base: Key { time: -1, value: [255, 255, 255, alpha] },
+                keys: Vec::new(),
+            }],
+            ..Default::default()
+        })
+        .collect()
 }
 
 pub(super) fn visibility_scripts() -> Vec<Script> {
@@ -257,7 +282,26 @@ fn the_cooldown_bar_shows_on_its_own_flag_without_the_mirror() {
     step(&mut rt, &mut b, &chase(3.0, 0.5));
     assert!(visible(&rt, id, RADAR_BACKING), "cooldown radar remains available without the mirror");
     assert!(visible(&rt, id, COOLDOWN), "the bar is its own part, not the radar's");
-    assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON), "the hiding part is held hidden");
+    assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON), "no spot hides the player: the mark rests");
+}
+
+#[test]
+fn the_hiding_mark_fades_in_while_a_spot_latches_the_player_and_out_when_it_lets_go() {
+    let (mut rt, id, mut b) = setup();
+    b.set_mirror_shown(false);
+    let mut state = chase(3.0, 0.5);
+    step(&mut rt, &mut b, &state);
+    state.pursuit.as_mut().unwrap().hiding = Some(1.0);
+    step(&mut rt, &mut b, &state);
+    step(&mut rt, &mut b, &state);
+    assert!(
+        visible(&rt, id, HIDING) && visible(&rt, id, HIDING_ICON),
+        "the mark shows while the spot hides the player"
+    );
+    state.pursuit.as_mut().unwrap().hiding = None;
+    step(&mut rt, &mut b, &state);
+    step(&mut rt, &mut b, &state);
+    assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON), "and goes when the spot lets go");
 }
 
 #[test]

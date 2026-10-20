@@ -1,7 +1,6 @@
 //! Traffic participates in the world's physics tick, including its spawning and pursuit timers.
 
 use blackbox_collision::CollisionWorld;
-use blackbox_pursuit::breaker;
 use glam::Vec2;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -12,9 +11,18 @@ use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
 impl TrafficWorld {
+    /// Takes the zones the scenery events opened this tick (`EBreakerStopCops`).
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
-        self.breaker_areas.extend(areas);
+        for area in areas {
+            self.breaker_zones.push(Vec2::new(area.position.x, area.position.z), area.radius, area.duration);
+        }
     }
+
+    /// The live pursuit breaker zones as (centre x, centre z, radius, seconds left), physics space.
+    pub fn breaker_zone_list(&self) -> Vec<(f32, f32, f32, f32)> {
+        self.breaker_zones.iter().map(|z| (z.centre.x, z.centre.y, z.radius, z.remaining)).collect()
+    }
+
     pub(super) fn has_work(&self) -> bool {
         !self.cars.is_empty() || self.target > 0 || self.pursuit.is_some() || self.patrol_enabled()
     }
@@ -45,13 +53,13 @@ impl TrafficWorld {
             car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
-            let stop = car.is_roadblock()
-                || (car.is_cop()
-                    && self.breaker_areas.iter().any(|area| {
-                        area.duration > 0.0
-                            && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
-                    }));
-            car.set_breaker_stop(stop);
+            // A police car inside a breaker zone is destroyed, however it got there (`ApplyBreakerZones`); it is counted
+            // as a wreck below, like one from damage. A roadblock car holds its place with the brakes on.
+            if car.is_police() && !car.is_wrecked() && self.breaker_zones.covers(point) {
+                log::info!("pursuit breaker: {} destroyed at {:?}", car.name, point);
+                car.destroy_by_breaker();
+            }
+            car.set_breaker_stop(car.is_roadblock());
             car.set_avoidance(self.avoidance);
             car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
             let mut ctx = Ctx {
@@ -80,10 +88,7 @@ impl TrafficWorld {
         self.bodies = bodies;
         self.aims = aims;
         self.signal_time += STEP;
-        for area in &mut self.breaker_areas {
-            area.duration -= STEP;
-        }
-        self.breaker_areas.retain(|a| a.duration > 0.0);
+        self.breaker_zones.step(STEP);
     }
 
     /// Commit contact poses and advance every gameplay timer by exactly one tick. `camera` is the lens the

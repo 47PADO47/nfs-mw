@@ -31,3 +31,45 @@ fn truncated_and_nonfinite_area_parameters_are_rejected() {
     assert!(WorldEvent::decode(&event(0x7624_42F3, &[1, 2, 3, f32::NAN.to_bits()])).is_err());
     assert!(WorldEvent::decode(&event(0xDDA7_829B, &[1])).is_err());
 }
+
+#[test]
+fn a_nis_event_decodes_its_scene_and_kind_hashes() {
+    let e = event(0x6666_6DC8, &[0, 0x6353_0007, 0x6353_0008, 0, 0, 0x6353_0006, 0x6353_0006]);
+    assert_eq!(WorldEvent::decode(&e).unwrap(), WorldEvent::PlayNis { scene: 0x6353_0007, kind: 0x6353_0008 });
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_breaker_profiles_match_the_documented_zones_and_name_their_moments() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(path).unwrap();
+    let index = crate::world::WorldIndex::open(&dir, crate::world::DEFAULT_TRACK).unwrap();
+    let profile =
+        |name: &str| index.sequences.get(vlt_hash(name)).unwrap_or_else(|| panic!("{name}")).breaker_profile();
+    // `docs/formats/pursuit-data.md` section 4: (radius, duration) of each zone.
+    assert_eq!(profile("gasstationroof_seq").stops, vec![(16.0, 5.0)]);
+    assert_eq!(profile("donutshoproof_seq").stops, vec![(16.0, 5.0)]);
+    assert_eq!(profile("woodenscaffold_seq").stops, vec![(10.0, 5.0)]);
+    assert_eq!(profile("hinkleybase_seq").stops, vec![(24.0, 5.0)]);
+    assert_eq!(profile("gasstationroof_seq").moments, vec!["WMGasStation".to_owned()]);
+    assert_eq!(profile("sailboat_seq").moments, vec!["WMBoat".to_owned()]);
+    // Supports only pass the collapse on.
+    let support = profile("gasstationsupport_seq");
+    assert!(support.is_trigger() && !support.is_breaker(), "{support:?}");
+    // Every zone lasts five seconds and nearly every breaker plays a cinematic moment.
+    let mut breakers = 0;
+    let mut with_moment = 0;
+    for (hash, sequence) in index.sequences.iter() {
+        let profile = sequence.breaker_profile();
+        if !profile.is_breaker() {
+            continue;
+        }
+        breakers += 1;
+        let name = &sequence.package.engines[sequence.engine].name;
+        assert!(profile.stops.iter().all(|s| s.1 == 5.0), "{name} {hash:08X}: {profile:?}");
+        with_moment += usize::from(!profile.moments.is_empty());
+        eprintln!("breaker {name}: zones {:?}, moments {:?}", profile.stops, profile.moments);
+    }
+    assert!(breakers >= 14, "found {breakers} breaker engines");
+    assert!(with_moment * 10 >= breakers * 8, "only {with_moment} of {breakers} breakers name a cinematic moment");
+}

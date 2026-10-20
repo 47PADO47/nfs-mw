@@ -96,6 +96,14 @@ impl VehicleEvents {
         self.wear(&hit);
     }
 
+    /// Destroys the car's body: every zone takes the worst impact (`DamageVehicle::Destroy` sets all zones to the top
+    /// level). The sequencer is not told, as the original does not stimulate it either.
+    pub fn wreck_all(&mut self) {
+        for (zone, glazed) in ZONE_HAS_GLASS.iter().enumerate().take(DAMAGE_ZONES.len()) {
+            self.damage.impact(zone, blackbox_damage::MAX_SEVERITY, *glazed);
+        }
+    }
+
     /// Applies `hit` to the visible damage: its zone and the impact level it reached. `None` when it does nothing
     /// (no strength, or a force that is not finite).
     fn wear(&mut self, hit: &DamageHit) -> Option<(usize, usize)> {

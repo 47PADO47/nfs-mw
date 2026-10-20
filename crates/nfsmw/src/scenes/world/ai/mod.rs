@@ -13,6 +13,9 @@ mod cop_lights;
 mod data;
 mod goal_aims;
 mod hitch;
+mod inspect;
+#[cfg(test)]
+pub(in crate::scenes::world) mod installed_support;
 mod lamps;
 mod manager;
 mod model_loader;
@@ -136,7 +139,8 @@ pub struct TrafficWorld {
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
     log_timer: f32,
-    breaker_areas: Vec<super::props::scenery::StopArea>,
+    /// The live pursuit breaker zones: a police car inside one is destroyed (`blackbox_pursuit::breaker`).
+    breaker_zones: blackbox_pursuit::breaker::Zones,
     /// The thresholds of the sound and pursuit rules (`traffic_events.rs`).
     events: traffic_events::EventTuning,
     /// Sounds the cars asked for since the scene last took them (`collide.rs`).
@@ -211,7 +215,7 @@ impl TrafficWorld {
             population_stats: Default::default(),
             warmup_left: 0.0,
             log_timer: 0.0,
-            breaker_areas: Vec::new(),
+            breaker_zones: Default::default(),
             events: traffic_events::EventTuning::default(),
             sounds: Vec::new(),
             sirens: sirens::Sirens::default(),

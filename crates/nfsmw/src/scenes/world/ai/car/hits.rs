@@ -108,6 +108,25 @@ impl AiCar {
         self.damage.as_ref().is_some_and(|d| d.wreck.is_destroyed())
     }
 
+    /// A pursuit breaker zone destroys the car (`docs/specs/pursuit-breakers.md`, "Cop zones"). Only a police car is
+    /// destroyed; the wreck is counted once, through [`AiCar::take_wreck`], like a wreck from damage. Returns whether
+    /// the car was newly wrecked.
+    pub(in crate::scenes::world::ai) fn destroy_by_breaker(&mut self) -> bool {
+        if !self.is_police() {
+            return false;
+        }
+        let name = self.name.clone();
+        let damage = self.damage.get_or_insert_with(|| CopDamage::for_model(&name));
+        if !damage.wreck.destroy() {
+            return false;
+        }
+        damage.pending = true;
+        if let Some(events) = self.sim.events.as_mut() {
+            events.wreck_all();
+        }
+        true
+    }
+
     /// Whether the car was wrecked since the last call. The world counts each wreck once.
     pub fn take_wreck(&mut self) -> bool {
         self.damage.as_mut().is_some_and(|d| std::mem::take(&mut d.pending))
