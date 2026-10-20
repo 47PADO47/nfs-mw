@@ -87,6 +87,33 @@ text light. The screen then hides its own list and card, and the themed legend i
   accent colour. When the filter has more, the wheel (cursor off the picture) scrolls the list and a slim scrollbar in
   the right gutter shows the position.
 
+## Remastered look (themeable UI)
+
+Under the **Remastered** theme the whole map is drawn by the theme (`ui/theme/remastered/map/`); the FEng screen
+`WorldMapMain.fng` still runs underneath, for its logic and the dialog stack, but is not presented. The session, the input
+and the GPS prompt are the same as every other look's.
+
+- **The flag.** `ElementId::WorldMapChrome` (26) resolves to `WorldMapView` under Remastered, to `MapLegend` under Custom and
+  to `Empty` under Original. `UiThemes::world_map_chrome` turns that into a `Chrome` (`Original`, `Recoloured`, `Drawn`),
+  which the plugin passes to `control::input` and `control::step` and stores in `WorldMapFrame::chrome`.
+- **The picture** is the career stage's map texture (`WorldMapFrame::texture`, from `MapVariant::world_map_texture`). It is
+  square and is drawn as high as the window (`Picture::FULL`, 480 units), centred, so Zoom All shows the whole map and the
+  rest of the window is dark ground; zoom and pan move and scale the same square (`camera.to_view`). A dark veil lies over
+  it and its left and right edges fade into the ground.
+- **Blips** are the game's own `Minimap_Icon_*` textures at the HUD's tints, every blip of the current tab (no pool cap),
+  with the player's car turned to its bearing.
+- **Cursor.** A cross at the pointer; over a blip the session focuses it and the cursor becomes four corner brackets that close
+  from 46 to 27 units over 0.18 s (`WorldMapFrame::snap_age`, from `WorldMapOverlay::tick`), with a label of the blip's style and
+  distance beside it. A click, Enter or a right click asks for GPS, as before. The system pointer is hidden over the whole
+  window (`map_pointer_on_picture`).
+- **Chrome.** Title "MAP" (bold) with the tab under it, a compass and the zoom readout top right, a legend at the right (the
+  player and each icon of the tab, with how many are on the map; the focused blip's icon is lit; **L** hides it), and the
+  footer hints of the menus: Back, Legend, Filter. The whole map fades in over 0.3 s and the legend slides in after it.
+- **Input.** Over the window the wheel zooms and a drag pans (`MapInput::full_screen`: the cursor is on the map wherever it is);
+  A/D or the arrows switch the tab.
+- **Screenshots.** `--ui-script "wait 8;key M;wait 2;pointer -18 38"` opens the map in a `play --drive` run and puts the pointer at
+  a point of the screen (FEng units); `key L` hides the legend.
+
 ## Differences from the executable
 
 - **Zoom All** is the Z key. The executable has no Zoom-All message; it reaches zoom 1 by zooming out.
