@@ -374,9 +374,8 @@ runs were allowed in this pass); its parts have unit tests.
   already gives the name.
 - **The arrest spot** (section 4.2). The spot search is not built. The NIS path needs it; the flow always takes the
   free-roam or race route.
-- **Career state.** The port has no cash, markers, unserved infractions, impound strikes or impound flag. So Pay with
-  Cash does not deduct a fine, and the strike and impound rules of section 7 are not done. The marker's effect on the
-  strikes is open (section 7).
+- **Career state.** Done in a career: see [busted-aftermath.md](busted-aftermath.md) (cash, strikes, impound, markers,
+  the notices, the car select and the respawn). Free roam without a career has none of it and resumes driving.
 - **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and
   the end card stays) is not reached yet. The request object the original makes for a race is not decoded and not built.
 

@@ -135,14 +135,23 @@ patrol cars, support vehicles and property damage (slots stay 0). The history's 
 
 - **Rules** (`nfsmw-career`, `economy/aftermath.rs`, `economy/cooling.rs`): the notice and the car select argument for a
   payment, the car select numbers, the back rule, the release choice and release, the strike marker, the heat meter.
-- **Front end** (`frontend/flow_bust.rs`, `career_screens/car_select.rs`): in a career the payment opens the notice (when
-  impounded) and the car select; leaving the car select goes to the safe house menu, whose Resume Free Roam drives again at
-  the respawn marker. Free roam without a career resumes driving at once.
-- **World:** the bust settles the record (existing); the chase's tally is written to the history; the respawn marker is
-  the last zone the player engaged (safe house, car lot or auto shop).
-- **Not done:** the arrest NIS; the impound stamp's language variants (the English texture is the package's); the
-  game over's career-manager mode (it returns to the main menu); the car select's 3D showcase and carousel loading; the
-  world is not rebuilt on resume (the player car model is the free-roam car, whatever the career car is).
+  A release marker frees a car in any impound state (`stable/impound.rs` `release_by_marker`).
+- **Front end** (`frontend/flow_bust.rs`, `career_screens/car_select.rs`, `car_select_view.rs`): in a career the payment
+  opens the notice (when impounded) and the car select; the car select draws the pips, stamp, value lines, markers and
+  heat meter, moves the current car, asks to release, offers the strike marker and the sale (button 5, the lot's sale
+  rules), and raises the game-over notice (which leaves for the main menu). Leaving goes to the safe house menu, whose
+  Resume Free Roam drives again. The safe house menu's own Car Select opens the same mode. Free roam without a career
+  resumes driving at once. Installed tests: `installed_career_bust_cash_payment_*` and `installed_career_bust_third_strike_*`.
+- **World** (`scenes/world/career`): the bust settles the record (existing, `bust.rs`); `rap_tally.rs` writes cops
+  involved, damaged, helicopters, roadblocks deployed and dodged and spike strips dodged into the history; `respawn.rs`
+  remembers the respawn marker of each zone the player engaged and, after a paid bust, places the car on the road nearest
+  the last safe house's marker (else the last zone's) when the game runs again (installed test
+  `installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker`).
+- **Not done:** the arrest NIS; the stamp's language variants; the game over's career-manager mode (it returns to the main
+  menu); the carousel's 3D car and loading bar; rebuilding the world on resume (the player car model is the free-roam car,
+  whatever the career car is); saving the respawn keys; the `career_start_<region>` fallback (the car stays where it is);
+  the Extra Impound Strike marker's and the heat meter's rendered look (no screenshot was taken: only the data and the
+  scripts are checked); the stamp and pips were not compared with the original.
 
 ## 9. Open questions
 

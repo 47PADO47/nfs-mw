@@ -175,8 +175,9 @@ priority check and re-reads `RepPointsPerMinute`.
   collection = **0.95**; and `TimesBusted` handling of section 6. **[decomp + verified]**
 - **Event win:** stable heat x `EventWinHeatAdjust` (default 0.94); **milestone complete:** x 0.93. **[decomp + verified]**
 - **Paying the bust fine:** the car's heat is set to 1.0. A quick-race car select sets the car's heat to 0.
-- A new decal/paint on a car multiplies its heat by `fecooling.NewDecal * extra` (class `fecooling`, one collection;
-  values not read here). **[decomp]**
+- A visual part fitted in a career garage multiplies the car's record heat by its `fecooling` factor times `extra`
+  (1.0, or 0.75 in the backroom); values 0.69 to 0.99 read from the install in [career-cooling.md](career-cooling.md).
+  **[decomp]** + **[verified]**
 - Heat is not reduced during a chase. There is no decay of the perpetrator's heat except the above.
 - Speech/music hear the heat crossing 2, 3, 4, 5 (ai-pursuit-speech.md section 5).
 
@@ -314,7 +315,7 @@ car select screen (x0.95); get busted three times and confirm the impound.
 - Where the player's starting heat is loaded and how `RacePreparationInfo.HeatLevel` is filled.
 - Detection rules for speeding, racing and reckless driving infractions (stripped from the decomp).
 - Whether `RepPointsPerMinute` is truly added every 10 s (`kSecondsPerRepUpdate`) as the code reads.
-- The `fecooling` values and the rule that applies `NewDecal`.
+- (Answered in [career-cooling.md](career-cooling.md): the `fecooling` values and the rule that applies them.)
 - The HUD feeder (pursuit values to elements) and the radar detector's target source.
 
 ## Rewrite status
@@ -342,7 +343,7 @@ car select screen (x0.95); get busted three times and confirm the impound.
   forced chase raises the cap to its level. The `race_bin_NN` records are not read; the table is the one verified above.
 - **Backup values** (`FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`): read per level
   (`nfsmw_data::pursuit::backup_rows`) and checked against the table in 2.1 and 2.2 by an installed test.
-- **Paint cooling** (`fecooling.NewDecal`): not read or built.
+- **Paint cooling** (`fecooling`): read, and applied to the career car when a garage part is fitted (not a chase effect); see [career-cooling.md](career-cooling.md).
 - **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
   start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
   (`Police::carried_heat`). **[unconfirmed]** The install's career rule (every car of the stable) is not modelled.

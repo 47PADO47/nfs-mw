@@ -56,10 +56,15 @@ fn installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker() {
     assert!(fixture.scene.pay_bust(false), "cash pays the ticket");
     assert!(fixture.scene.career.respawn.pending, "the respawn waits for the game to run");
 
-    for _ in 0..240 {
+    // The road search can take a few frames while the area streams in: wait for the car to arrive.
+    let mut end = start;
+    for _ in 0..900 {
         fixture.scene.update(&mut fixture.renderer, &stopped, STEP);
+        end = Vec3::from_array(fixture.scene.player_car().expect("the player car").position);
+        if !fixture.scene.career.respawn.pending && end.distance(start) > 30.0 {
+            break;
+        }
     }
-    let end = Vec3::from_array(fixture.scene.player_car().expect("the player car").position);
     assert!(!fixture.scene.career.respawn.pending, "the respawn was carried out");
     assert!(end.distance(start) > 30.0, "the car left the bust spot: {start} -> {end}");
     assert!(end.distance(marker) < 40.0, "the car stands near the marker: {end} vs {marker}");
