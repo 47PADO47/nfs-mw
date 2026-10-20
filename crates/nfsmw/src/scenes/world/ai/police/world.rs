@@ -110,11 +110,6 @@ impl super::super::TrafficWorld {
         self.police.end_reason()
     }
 
-    /// The cool-down meter, 0 to 1, for the pursuit board's bar.
-    pub fn evade_level(&self) -> f32 {
-        self.police.evade_level()
-    }
-
     /// The pursuit board's cool-down bar fill, 0 to 1: empty when the cool-down opens.
     pub fn cooldown_bar(&self) -> f32 {
         self.police.cooldown_bar()

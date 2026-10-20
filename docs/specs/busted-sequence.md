@@ -355,8 +355,14 @@ runs were allowed in this pass); its parts have unit tests.
 - **The infractions ticket** (`frontend/infractions.rs`, `Infractions.fng`). It shows this chase's count and fines, the
   unserved count and fines (0, the port has no career state), and the total due. The package has no row per infraction,
   so the offences are listed on the "Violation:" line (layout unverified). Pay with Cash and Pay with Marker send
-  `PayBust`. Pay with Marker is dimmed and refused with no marker. Which of the two package messages is which button is
-  inferred from the button positions and focus, not checked in game.
+  `PayBust`. Pay with Marker is dimmed and refused with no marker. **[verified]** (package dump): the package posts
+  nothing to the game when a payment button is pressed. Its only two game responses (`0x9120409e`, `0xb5971bf1`) are
+  the pad's left and right moves, not payments. An earlier version took them for the two payments, so the ticket could
+  never be paid and the game stayed frozen under it. The press is the pressed button's own `BUTTON_PRESSED` answer
+  (the runtime reports it with the button's GUID, `ScreenLogic::pressed`): holder `0xf72c2` (object `0xb8a7c6cd`, on
+  the right) is Pay with Cash and holder `0xf70e8` (object `0xb8a7c6cc`, on the left) is Pay with Marker. **[decomp]**
+  The original's handler tells the two apart by those object name hashes. The press also disables the package's input
+  until its own timed script re-enables it (response `button 0x101`).
 
 ### 10.3 Missing
 

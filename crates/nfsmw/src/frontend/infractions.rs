@@ -28,9 +28,10 @@ const MARKER_TEXT: u32 = 0xf936_3f30;
 /// left (the package's left and right moves).
 const CASH_HOLDER: u32 = 0x000f_72c2;
 const MARKER_HOLDER: u32 = 0x000f_70e8;
-/// The two messages the package sends to the game when a payment button is pressed. Which one is which button is not
-/// decoded; the press takes whichever button has the focus.
-const PRESSED: [u32; 2] = [0x9120_409e, 0xb597_1bf1];
+// The package posts nothing to the game when a payment button is pressed: its two game responses only forward the
+// pad's left and right moves (`PAD_LEFT`, `PAD_RIGHT`). The press is the button's own `BUTTON_PRESSED` (the original
+// handler tells the buttons apart by their name hashes `0xb8a7c6cc` for Marker and `0xb8a7c6cd` for Cash, which belong
+// to the holders above), so the logic listens for it through `ScreenLogic::pressed`.
 
 /// The alpha a disabled text is capped at (the option rows use the same value).
 const DISABLED_ALPHA: u8 = 110;
@@ -151,9 +152,8 @@ impl InfractionsLogic {
         focus(cx, MARKER_HOLDER);
     }
 
-    /// A payment: the focused button. A marker with none in stock does nothing.
-    fn pay(&self, cx: &mut Cx) {
-        let marker = marker_focused(cx);
+    /// A payment with the pressed button. A marker with none in stock does nothing.
+    fn pay(&self, cx: &mut Cx, marker: bool) {
         if marker && self.ticket.markers == 0 {
             return;
         }
@@ -170,13 +170,6 @@ fn set_text(cx: &mut Cx, name: u32, text: &str) {
 fn focus(cx: &mut Cx, guid: u32) {
     let Some(o) = cx.guid(guid) else { return };
     cx.rt.focus_button(o);
-}
-
-fn marker_focused(cx: &Cx) -> bool {
-    let (Some(marker), Some(focus)) = (cx.guid(MARKER_HOLDER), cx.rt.current_button(cx.package)) else {
-        return false;
-    };
-    marker == focus
 }
 
 /// Caps the alpha of a disabled text. The package's scripts set the alpha every frame, so this runs each tick.
@@ -197,7 +190,14 @@ impl ScreenLogic for InfractionsLogic {
             INIT_COMPLETE => focus(cx, CASH_HOLDER),
             PAD_LEFT => self.focus_marker(cx),
             PAD_RIGHT => focus(cx, CASH_HOLDER),
-            _ if PRESSED.contains(&message) => self.pay(cx),
+            _ => {}
+        }
+    }
+
+    fn pressed(&mut self, cx: &mut Cx, button: u32) {
+        match button {
+            CASH_HOLDER => self.pay(cx, false),
+            MARKER_HOLDER => self.pay(cx, true),
             _ => {}
         }
     }
