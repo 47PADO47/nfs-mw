@@ -379,6 +379,8 @@ Worked design note, to show the component set is enough. The example is a fullsc
 
 The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
 
+Built since: the Remastered cluster, the map legend, and the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components.
+
 ## 11. The `UiStyle` setting
 
 Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
