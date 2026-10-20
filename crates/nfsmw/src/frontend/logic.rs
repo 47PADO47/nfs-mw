@@ -11,6 +11,7 @@ use super::world_map::WorldMapFrame;
 use crate::input::Control;
 use crate::settings::{Partial, Settings};
 use crate::ui::UiAssets;
+use crate::ui::theme::MenuList;
 
 /// The option categories the option screens show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -277,6 +278,21 @@ pub trait ScreenLogic: Send + Sync {
 
     /// The mouse wheel turned `steps` notches, positive is up.
     fn scroll(&mut self, _cx: &mut Cx, _steps: i32) {}
+
+    /// The screen's entries as a list, for a theme that draws them its own way (the Remastered vertical menus). Only the
+    /// icon menus have one. The hints and the aspect are filled in by [`Screens`](super::screens::Screens).
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
+        None
+    }
+
+    /// Whether the screen is laid out as a vertical list now. Up and Down then move the selection, and a click or the
+    /// pointer picks a row ([`ScreenLogic::pick_row`]) instead of an icon of the package.
+    fn vertical(&self) -> bool {
+        false
+    }
+
+    /// The pointer is over (`activate` false) or pressed (`activate` true) the entry `row` of the vertical list.
+    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _activate: bool) {}
 }
 
 /// A screen without behaviour of its own: its package runs its scripts and nothing answers the game.

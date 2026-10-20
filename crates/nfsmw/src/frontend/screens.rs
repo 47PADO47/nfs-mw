@@ -14,8 +14,11 @@ use super::factory;
 use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, ScreenLogic};
 use super::world_map::WorldMapFrame;
-use crate::ui::theme::ElementId;
+use crate::ui::theme::remastered::menu::layout as menu_layout;
+use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
+
+mod vertical;
 
 struct Screen {
     id: PackageId,
@@ -29,6 +32,8 @@ struct Screen {
 pub struct Presented {
     pub tree: UiTree,
     pub slot: Option<ElementId>,
+    /// The screen's entries, for a theme that lays them out itself (icon menus only).
+    pub list: Option<MenuList>,
 }
 
 pub struct Screens {
@@ -43,6 +48,10 @@ pub struct Screens {
     key_texts: Vec<[String; 2]>,
     /// The world map's frame while the map is open (`set_world_map`).
     world_map: Option<WorldMapFrame>,
+    /// The window's width over its height (`set_aspect`): where the left screen edge lies for the vertical menus.
+    aspect: f32,
+    /// Where the pointer was last frame, so a hover follows its movement and not its rest (`hover_row`).
+    pointer: Option<Vec2>,
 }
 
 impl Screens {
@@ -59,7 +68,14 @@ impl Screens {
             await_release: false,
             key_texts: Vec::new(),
             world_map: None,
+            aspect: DEFAULT_ASPECT,
+            pointer: None,
         }
+    }
+
+    /// Sets the window's width over its height, for the vertical menus' places.
+    pub fn set_aspect(&mut self, aspect: f32) {
+        self.aspect = aspect;
     }
 
     /// Sets the key names the controls list shows this frame (`controls_screen::key_texts`).
@@ -188,6 +204,10 @@ impl Screens {
             self.await_release = false;
             self.give_control();
         }
+        let mask = match self.stack.last().is_some_and(|top| top.logic.vertical()) {
+            true => vertical::vertical_pad(mask),
+            false => mask,
+        };
         self.runtime.set_pad_mask(match self.await_release {
             true => 0,
             false => mask,
@@ -290,7 +310,11 @@ impl Screens {
         for (tree, screen) in trees.iter_mut().zip(&self.stack) {
             super::prompts::decorate(tree, &screen.name, bindings, device, &self.assets);
         }
-        trees.into_iter().zip(&self.stack).map(|(tree, screen)| Presented { tree, slot: screen.slot }).collect()
+        trees
+            .into_iter()
+            .zip(&self.stack)
+            .map(|(tree, screen)| Presented { tree, slot: screen.slot, list: self.list_of(screen, bindings, device) })
+            .collect()
     }
 
     /// The trees alone, lowest first (the tests read them; the presenter takes [`Self::presented`]).
@@ -309,6 +333,9 @@ impl Screens {
     /// Focuses the button of the top screen under a point of the FEng screen (640 x 480, origin at the centre).
     /// Returns false when no button is there.
     pub fn focus_button_at(&mut self, point: Vec2) -> bool {
+        if self.top_is_vertical() {
+            return false;
+        }
         let Some(top) = self.stack.last() else { return false };
         let Some(button) = self.runtime.button_at(top.id, point) else { return false };
         self.runtime.focus_button(button);
@@ -318,6 +345,9 @@ impl Screens {
     /// Sends a mouse release of `message` to the object of the top screen under a point, when one answers it.
     /// Returns whether a message was sent.
     pub fn release_at(&mut self, point: Vec2, message: u32) -> bool {
+        if self.top_is_vertical() {
+            return false;
+        }
         let Some(top) = self.stack.last() else { return false };
         let Some(target) = self.runtime.mouse_target_at(top.id, point, message) else { return false };
         self.runtime.post(top.id, message, Some(target));
@@ -334,6 +364,13 @@ impl Screens {
 
     /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
     pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
+        if let Some(row) = self.row_at(point) {
+            let (_, commands) = self.on_top(env, |logic, cx| {
+                logic.pick_row(cx, row, true);
+                true
+            })?;
+            return Some(self.apply_stack_commands(commands, env));
+        }
         let (taken, commands) = self.on_top(env, |logic, cx| logic.click(cx, point))?;
         taken.then(|| self.apply_stack_commands(commands, env))
     }
@@ -357,6 +394,10 @@ impl Screens {
         device: crate::input::InputDevice,
     ) -> Option<crate::input::Action> {
         let top = self.stack.last()?;
+        if top.logic.vertical() {
+            let list = self.list_of(top, bindings, device)?;
+            return menu_layout::hint_at(&list.hints, point, self.aspect);
+        }
         let mut tree = self.runtime.tree(top.id);
         let hints = super::prompts::decorate(&mut tree, &top.name, bindings, device, &self.assets);
         hints.iter().find(|h| h.covers(point)).map(|h| h.action)

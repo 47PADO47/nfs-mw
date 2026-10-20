@@ -28,23 +28,16 @@ impl HintArea {
     }
 }
 
-/// Draws the footer hints of a screen and returns the ones that a click can press.
-pub fn decorate(
-    tree: &mut UiTree,
-    name: &str,
-    bindings: &Bindings,
-    device: InputDevice,
-    assets: &UiAssets,
-) -> Vec<HintArea> {
-    let (pause, rows, main, splash) = (
-        name.eq_ignore_ascii_case(screen::PAUSE_MENU),
+/// One footer hint: its keys, its label, and the action a click on it presses (none for a pair of arrows).
+pub type Hint = (Vec<Prompt>, &'static str, Option<Action>);
+
+/// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
+pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
+    let (rows, main, splash) = (
         [screen::OPTIONS, screen::PAUSE_OPTIONS].iter().any(|s| name.eq_ignore_ascii_case(s)),
         name.eq_ignore_ascii_case(screen::MAIN_MENU),
         [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)),
     );
-    let Some(frame) = Frame::find(tree, name) else { return Vec::new() };
-    hide_legacy_hints(tree, splash);
-    let first_hint = tree.nodes.len();
     let action = |a| vec![prompts::for_action(bindings, a, device)];
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), "Accept", Some(Action::MenuAccept))];
@@ -64,6 +57,23 @@ pub fn decorate(
             (action(Action::MenuBack), "Done", Some(Action::MenuBack)),
         ];
     }
+    hints
+}
+
+/// Draws the footer hints of a screen and returns the ones that a click can press.
+pub fn decorate(
+    tree: &mut UiTree,
+    name: &str,
+    bindings: &Bindings,
+    device: InputDevice,
+    assets: &UiAssets,
+) -> Vec<HintArea> {
+    let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
+    let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
+    let Some(frame) = Frame::find(tree, name) else { return Vec::new() };
+    hide_legacy_hints(tree, splash);
+    let first_hint = tree.nodes.len();
+    let hints = hint_set(name, bindings, device);
     let colour = match pause || name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
         true => [255, 174, 64, 255],
         false => [255; 4],

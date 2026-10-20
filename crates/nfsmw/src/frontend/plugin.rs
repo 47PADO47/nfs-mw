@@ -195,6 +195,7 @@ fn update(
         return;
     }
     let (fe, host) = (&mut *fe, &mut *host);
+    fe.screens.set_aspect(window.width() / window.height());
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
@@ -244,6 +245,10 @@ fn update(
         fe.screens.hover(point, &mut env);
     }
     if matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map {
+        // A vertical menu follows the pointer's movement: the row under it is selected, as the keys would.
+        if !on_list {
+            fe.screens.hover_row(feng_point(&window), &mut env);
+        }
         if actions.just_pressed(Action::Click)
             && !on_list
             && let Some(point) = feng_point(&window)
@@ -385,6 +390,8 @@ fn present(
     for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu()) {
         frame.clear_menu(slot.slot());
     }
+    let lists = themes.menu_lists();
+    lists.clear();
     let time_s = time.elapsed_secs();
     // The Remastered map legend draws over the recoloured FEng map. The presenter puts each call below the calls before
     // it (`movie` inserts its backdrop at the front for the same reason), so the legend is presented FIRST to sit on top
@@ -398,11 +405,14 @@ fn present(
         }
     }
     let mut claimed: Vec<ElementId> = Vec::new();
-    for Presented { tree, slot } in fe.screens.presented(&bindings, device).into_iter().rev() {
+    for Presented { tree, slot, list } in fe.screens.presented(&bindings, device).into_iter().rev() {
         let layer = match slot {
             // The topmost screen on a slot takes it. A screen under it on the same slot is drawn as its own tree.
             Some(slot) if !claimed.contains(&slot) => {
                 claimed.push(slot);
+                if let Some(list) = list {
+                    lists.set(slot.slot(), list);
+                }
                 frame.set_menu(slot.slot(), Arc::new(tree));
                 slot_layer(&themes, slot, time_s)
             }
