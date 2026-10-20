@@ -207,6 +207,11 @@ impl TrafficWorld {
         }
     }
 
+    /// The Blacklist's current bin while a career is on (`None` without one): the heat range and growth time of a chase.
+    pub fn set_career_bin(&mut self, bin: Option<u8>) {
+        self.police.set_career_bin(bin);
+    }
+
     /// Seconds the cops are still locked out (no patrols, no spawns): 0 when they may appear.
     pub fn cop_lockout_left(&self) -> f32 {
         self.cops.lockout_left()

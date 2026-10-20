@@ -164,6 +164,8 @@ pub struct Police {
     rep: rep::RepState,
     /// The bust sequence after the meter fills (`police/busted/flow.rs`); reset when a chase starts.
     bust: busted::BustFlow,
+    /// The career's bin and the install's growth tables: the heat range and growth time of the bin.
+    heat_model: heat_model::HeatModel,
 }
 
 impl Default for Police {
@@ -204,6 +206,7 @@ impl Default for Police {
             heli_sheet: None,
             busted: Busted::default(),
             rep: rep::RepState::default(),
+            heat_model: Default::default(),
         }
     }
 }
@@ -234,8 +237,9 @@ impl Police {
     /// A chase starts at `level`: the heat is at least the base and at least `level`, the infraction log empties and
     /// the helicopter's first join is set.
     pub fn begin(&mut self, level: u32) {
-        let bounds = extra_options::active().heat_bounds().unwrap_or_default();
-        let mut heat = Heat::new(bounds.min, bounds.max);
+        let config = extra_options::active().heat_bounds().map(|bounds| (bounds.min, bounds.max));
+        let (min, max) = self.heat_model.range_for(config, level);
+        let mut heat = Heat::new(min, max);
         heat.begin();
         heat.raise_to(self.carried_heat);
         heat.raise_to(level as f32);
@@ -358,7 +362,7 @@ impl Police {
             if self.cooldown.status() == blackbox_pursuit::CooldownStatus::InitialChase
                 && let Some(heat) = self.heat.as_mut()
             {
-                heat.grow(dt, self.settings.time_per_level(heat.level()));
+                heat.grow(dt, self.heat_model.growth_seconds(&self.settings, heat.level()));
             }
             let level = self.level().unwrap_or(1);
             self.tick_formations(dt, level, sensed.formation_random);
@@ -476,6 +480,7 @@ mod tests;
 
 mod busted;
 mod escape;
+mod heat_model;
 mod heli;
 mod helpers;
 mod mod_feed;
