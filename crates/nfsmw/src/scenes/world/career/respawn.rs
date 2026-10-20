@@ -89,3 +89,7 @@ mod tests {
         assert_eq!(respawns, Respawns::default());
     }
 }
+
+#[cfg(test)]
+#[path = "respawn_installed_tests.rs"]
+mod installed_tests;
