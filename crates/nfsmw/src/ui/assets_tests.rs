@@ -109,6 +109,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             aliases: HashMap::new(),
             font_native: HashMap::new(),
             custom: CustomFontSet::default(),
+            late: LateTextures::default(),
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
@@ -196,6 +197,7 @@ fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
         aliases: HashMap::new(),
         font_native: HashMap::new(),
         custom: CustomFontSet::default(),
+        late: LateTextures::default(),
         input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
@@ -258,4 +260,22 @@ fn every_loading_tip_has_its_picture_and_text() {
             assert!(strings.get(blackbox_text::label_hash(&label)).is_some(), "{label} in the language table");
         }
     }
+}
+
+#[test]
+fn late_textures_are_found_after_the_stock_ones_and_can_be_dropped() {
+    let mut assets = UiAssets::empty();
+    let stock = texture(1, [[1, 2, 3, 255]; 3], 1);
+    assets.textures.insert(1, stock);
+    assert!(assets.texture(2).is_none());
+    assets.add_textures([texture(1, [[9, 9, 9, 255]; 3], 2), texture(2, [[4, 5, 6, 255]; 3], 2)]);
+    assert_eq!(assets.late_count(), 2);
+    assert_eq!(assets.texture(2).map(|t| t.alpha_blend), Some(2), "a late texture is found");
+    assert_eq!(assets.resolve(2), 2);
+    assert_eq!(assets.texture(1).map(|t| t.alpha_blend), Some(1), "the stock texture of the same name wins");
+    assert!(assets.image(2).is_some(), "a late texture decodes like a stock one");
+    assets.remove_textures(&[1, 2]);
+    assert_eq!(assets.late_count(), 0);
+    assert!(assets.texture(2).is_none());
+    assert!(assets.texture(1).is_some(), "the stock texture stays");
 }
