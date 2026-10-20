@@ -7,10 +7,12 @@
 
 mod gauge;
 mod image;
+mod outline;
 mod panel;
 mod progress;
 mod rounded;
 mod row;
+mod slant;
 mod stack;
 mod switch;
 mod table;
@@ -18,10 +20,12 @@ mod text;
 
 pub use gauge::Gauge;
 pub use image::Image;
+pub use outline::Outline;
 pub use panel::Panel;
 pub use progress::LinearProgress;
 pub use rounded::Rounded;
 pub use row::Row;
+pub use slant::Slant;
 pub use stack::{Stack, StackAxis};
 pub use switch::Switch;
 pub use table::Table;

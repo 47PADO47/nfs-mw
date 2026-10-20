@@ -72,6 +72,11 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
   rectangle, turned about the rectangle's centre by the same angle. Its rotation is
   `Quat::from_rotation_z(angle)`. The sign convention is not yet checked against the presenter (see the
   T7/T12 screenshots).
+- **`Slant::new(colour_key, rect, lean, stops, z, cx)`** is a parallelogram whose opacity ramps along its width,
+  drawn as 32 thin strips of the same lean so the slanted ends meet. `lean` is how far the top edge sits right of the
+  bottom edge. `stops` are `(position, opacity)` pairs that multiply the colour's alpha. Laid out in `new`, like `Rounded`.
+- **`Outline::new(colour_key, rect, radius, thickness, cx)`** is the border of a rounded rectangle, built from the same
+  thin strips as `Rounded`. Laid out in `new`.
 
 Each component has unit tests that build it into a `DrawList` and check the node count, the `NodeKind`,
 the placement and the field values. The shared test helpers are in `src/components/mod.rs` (`testing`).
