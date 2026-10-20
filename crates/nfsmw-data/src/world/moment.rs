@@ -116,7 +116,7 @@ impl MomentData {
     fn read_markers(&mut self, payload: &[u8]) {
         let wanted: BTreeMap<u32, &str> = MARKER_NAMES.iter().map(|name| (bstring_hash(name), *name)).collect();
         let float = |record: &[u8], at: usize| f32::from_le_bytes(record[at..at + 4].try_into().expect("four bytes"));
-        for record in payload.chunks_exact(MARKER_LEN) {
+        for record in payload.as_chunks::<MARKER_LEN>().0 {
             let name = u32::from_le_bytes(record[8..12].try_into().expect("four bytes"));
             if !wanted.contains_key(&name) {
                 continue;

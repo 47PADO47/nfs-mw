@@ -30,7 +30,7 @@ const REACH: f32 = 300.0;
 /// The wash's intensity at `altitude` metres above the ground: 1 up to 5 m, fading to 0 at 30 m. `None` above 30 m:
 /// the effect is paused there.
 pub fn intensity(altitude: f32) -> Option<f32> {
-    if !(altitude <= GONE) {
+    if altitude.is_nan() || altitude > GONE {
         return None;
     }
     let ramp = ((altitude - FULL) / (GONE - FULL)).clamp(0.0, 1.0);

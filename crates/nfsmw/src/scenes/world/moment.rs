@@ -192,6 +192,7 @@ impl Moment {
         }
     }
 
+    #[cfg(test)]
     pub fn is_playing(&self) -> bool {
         self.play.is_some()
     }

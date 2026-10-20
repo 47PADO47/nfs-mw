@@ -67,6 +67,7 @@ impl BreakerIcons {
         self.shown.iter().filter(|p| p.distance(place) <= radius).count()
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.shown.len()
     }
