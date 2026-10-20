@@ -97,6 +97,10 @@ impl CollisionWorld {
         self.packs.values()
     }
 
+    pub(crate) fn ungridded_packs(&self) -> impl Iterator<Item = &CollisionPack> {
+        self.ungridded.iter()
+    }
+
     pub(crate) fn revision(&self) -> u64 {
         self.revision
     }

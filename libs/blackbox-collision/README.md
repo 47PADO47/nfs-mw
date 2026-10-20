@@ -16,6 +16,13 @@ Reader for the **collision data** of EA Black Box games (Need for Speed: Most Wa
 - `world.ray_cast_filtered(from, to, &options, predicate)` selects the nearest accepted candidate.
   Rejected hits cannot hide another hit in the same article or a different instance. The predicate sees
   world-space hit data, including its section and instance; ordinary `ray_cast` remains unfiltered.
+- `world.barriers_near_into(center, radius, &options, &mut output)` collects actual
+  nearby wall segments for body/primitive collision, sorted by authored local
+  segment distance. It preserves world endpoints, inverse-length normal scaling,
+  surface/flag and instance identity, and tests square grid candidates plus
+  supplemental ungridded packs. Scenery-group membership always applies. Radius
+  policy and narrow-phase response belong to the caller. Its behavior contract is
+  `docs/specs/world-barrier-list.md`.
 - `carp`: the generic `UGroup` tree the packs and the grid are made of.
 - `world.camera_ray_cast(from, to, group_enabled)` preserves the original
   camera's barrier-only segment contract, raw determinant endpoint tolerance,
