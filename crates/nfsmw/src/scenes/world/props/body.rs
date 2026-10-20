@@ -130,7 +130,7 @@ impl PropBody {
     }
 }
 
-fn pose_matrix(pose: (Vec3, Quat)) -> Mat4 {
+pub(super) fn pose_matrix(pose: (Vec3, Quat)) -> Mat4 {
     let r = Mat3::from_quat(pose.1);
     let convert = |v: Vec3| space::to_render(v.to_array());
     let rotation = Mat3::from_cols(convert(r.z_axis), convert(-r.x_axis), convert(r.y_axis));
