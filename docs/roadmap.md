@@ -62,10 +62,10 @@ What the career still lacks. The rules and the wiring listed in the table above 
 
 What races still lack. The rules and the wiring are done ([race-mode.md](specs/race-mode.md) section 13).
 
-- **HUD:** the race card is a stand-in; the `HUD_SingleRace.fng` race objects and `HUD_Drag.fng` are not bound.
+- **HUD:** the `HUD_SingleRace.fng` race objects (place, lap, clock, progress, 3-2-1-GO) are bound; the banner lines, the points and the result stay on an egui card; `HUD_Drag.fng` is not bound.
 - **Post-race flow:** a result card only; no reward screens, outro, retry or quit choices.
-- **Countdown, `InitialPlayerSpeed` unit, tollbooth and knockout details:** read from the Lua graphs, which are not
-  decompiled.
+- **Tollbooth and knockout details:** read from the Lua graphs, which are not decompiled. The countdown, the
+  `InitialPlayerSpeed` unit and the gate size are recorded in [the provenance](provenance/race-mode.md) section 9.
 - **Gate size:** the stored extents are read as half sizes on evidence, not from the trigger code.
 - **AI racers:** shortcuts (`Shortcuts[]` markers) are not taken; the catch-up is the rewrite's own controller; the
   stock cars of the street rivals are a stable pick, not the game's; racers far from the player are emulated.

@@ -153,7 +153,7 @@ racers); the post-race flow decides his loss when the race ends **[unconfirmed]*
 - **HUD.** The layout number 2 selects `HUD_Drag.fng` (3 and 4 are the split-screen `HUD_Player1/2.fng`, 5 and 6 the drag
   split-screen files, anything else `HUD_SingleRace.fng`) **[exe]** (`0x005694e0`); the drag HUD has a drag tachometer
   (`Hud_DragTachometer`, `DRAG_RPM_%d_LINES`) and turbo lines **[exe]** strings. The package objects are not bound
-  yet; the rewrite shows the race card of section 10.
+  yet (`HUD_Drag.fng` is loaded in a drag race only through the same readout); see section 10.
 - **Vehicle behaviours.** The behaviour chosen for a car depends on its driver class and its drag flag: a human
   driver with the drag flag gets `InputPlayerDrag` (otherwise `InputPlayer`), the damage behaviour is `DamageDragster`
   and the engine `EngineDragster` for the drag flag **[exe]** (`0x0067f0d0`). What the dragster behaviours change in
@@ -182,9 +182,19 @@ A speed-trap race (31 races) has a `SpeedTrapList` of 4 to 10 triggers **[verifi
 
 ## 10. What the player sees (rewrite)
 
-The original HUD reads the race through `HUD_SingleRace.fng` objects; this pass has not bound them. The rewrite
-draws a race card with egui (position `n/N`, lap `l/L`, race time, time left when limited, the countdown number and
-a results card when the race is over), clearly a stand-in until the package objects are bound **[unconfirmed]**.
+The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** names and **[install]** objects
+(`docs/provenance/race-mode.md` section 9):
+
+- `POSITION_GROUP` shows the place and the number of racers (two strings), `CurrentLapTime` the clock (`mm:ss.cc`: the
+  time left under a time limit, else the time since GO **[unconfirmed]** for which one the original shows), the lap group
+  the lap now and the laps in all for a lapped race, the progress group (`100% COMPLETE`) the share of the gates done
+  for a sprint **[unconfirmed]** (which race kinds use it).
+- `321_GO_GROUP` plays its `THREE`, `TWO`, `ONE` and `GO` scripts when the countdown step changes; its two strings take
+  the digit or `Go!`.
+- Not bound, because the package has no object of that name: `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`,
+  `RIVAL_GROUP`, the `*Stat` strings and the generic message item (`Hud_GenericMessage` is a message-queue item of the
+  executable, not an FEng object). The checkpoint, lap, bonus and speed trap lines, the points of a points race and the
+  result stay on the egui race card (`hud/race_card.rs`).
 
 ## 11. Results
 
@@ -216,7 +226,7 @@ The player's reset key keeps working in a race.
 | The console | `race list|start|status|stop`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
 | Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs` |
 
-Differences from the original that the rules above call out: the countdown is 3 s; the HUD is a stand-in card; the
+Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
 post-race flow is a result card, with no reward screens, no outro and no retry choice; a player who is busted in a race
 is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) triggers, `SharedCheckpoints`,
 `TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race

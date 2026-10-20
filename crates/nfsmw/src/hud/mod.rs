@@ -40,6 +40,7 @@ pub use police::RadarHud;
 mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
+mod race;
 mod race_card;
 mod radar;
 mod radio;
@@ -66,6 +67,7 @@ pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_m
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
+pub use race::{Count, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
 pub use state::{HudState, MapPosition};

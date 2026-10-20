@@ -52,6 +52,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
     police: super::police::Binding,
+    race: super::race::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
@@ -104,6 +105,7 @@ impl HudBinding {
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
             police: super::police::Binding::new(rt, package),
+            race: super::race::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
@@ -196,6 +198,9 @@ impl HudBinding {
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
             career: s.career_bounty.is_some(),
+            race: s.race.is_some(),
+            race_laps: s.race.is_some_and(|r| r.lap.is_some()),
+            countdown: s.race.is_some_and(|r| r.count.is_some()),
         };
         self.layout.update(rt, shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
@@ -215,6 +220,7 @@ impl HudBinding {
         self.tachometer(rt, s);
         self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
+        self.race.apply(rt, s.race);
         self.pursuit_meter.apply(rt, s.pursuit);
         self.police.apply(rt, s, self.mirror_shown);
         if s.has_nos {

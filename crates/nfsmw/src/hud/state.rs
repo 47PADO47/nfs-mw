@@ -71,6 +71,8 @@ pub struct HudState {
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
+    /// The race the player runs: the place, lap, clock and countdown. `None` outside a race.
+    pub race: Option<super::race::RaceHud>,
 }
 
 impl Default for HudState {
@@ -84,6 +86,7 @@ impl Default for HudState {
             busted: 0.0,
             busted_overlay: false,
             career_bounty: None,
+            race: None,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

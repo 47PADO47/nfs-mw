@@ -9,6 +9,8 @@ use crate::scenes::world::{WorldScene, space};
 
 /// Seconds the banner of a checkpoint or lap stays.
 const BANNER_SECS: f32 = 1.5;
+/// Seconds the GO stays: the length of the HUD's `GO` script (3200 ms, `docs/provenance/race-mode.md` section 9).
+const GO_SECS: f32 = 3.0;
 
 impl WorldScene {
     /// One frame of the race: loading, running or the result card. `sim_dt` is the simulated time of the frame and
@@ -141,7 +143,7 @@ impl WorldScene {
             match event {
                 RaceEvent::Count(n) => flash(&mut session.banner, n.to_string(), 1.0),
                 RaceEvent::Go => {
-                    flash(&mut session.banner, "GO".into(), BANNER_SECS);
+                    flash(&mut session.banner, "GO".into(), GO_SECS);
                     self.release_grid();
                 }
                 RaceEvent::TimeUp => flash(&mut session.banner, "Time is up".into(), BANNER_SECS * 2.0),

@@ -368,3 +368,47 @@ fn the_race_and_interior_map_icons_are_objects_of_the_single_race_hud() {
         }
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_race_readout_binds_the_single_race_hud_objects() {
+    use super::race::{Count, RaceHud};
+    use super::state::HudState;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    // The countdown group sits under the mirror's group, which fades in in its first second.
+    binding.advance_mirror_fade(1.0);
+    let race = RaceHud { place: 3, racers: 6, lap: Some((2, 4)), clock: 75.5, progress: 0.5, count: Some(Count::Two) };
+    let state = HudState { race: Some(race), ..Default::default() };
+    for _ in 0..10 {
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 60.0);
+    }
+    let tree = rt.tree(id);
+    let node = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+    let text = |hash: u32| node(hash).text.clone().unwrap_or_default();
+    assert_eq!(text(0x9C18_3BF8), "3", "place");
+    assert_eq!(text(0x3BBD_6268), "6", "racers");
+    assert_eq!((text(0x1CDD_D8D0).as_str(), text(0x18A7_ACD2).as_str()), ("2", "4"), "lap");
+    assert_eq!(text(fe_hash_upper("CurrentLapTime")), "01:15.50", "clock");
+    assert_eq!(text(0xB969_E9EF), "2", "countdown step");
+    assert!(node(fe_hash_upper("CurrentLapTime")).visible, "clock");
+    assert!(node(0x1A09_1045).visible, "lap group");
+    assert!(!node(0xE3DD_CD09).visible, "a lapped race shows the lap group, not the progress");
+    let g = node(fe_hash_upper("321_GO_GROUP"));
+    assert!(
+        g.visible,
+        "countdown group: colour {:?} script {:?}",
+        g.colour,
+        rt.script_of(rt.find(id, fe_hash_upper("321_GO_GROUP")).unwrap())
+    );
+    assert_eq!(rt.script_of(rt.find(id, fe_hash_upper("321_GO_GROUP")).unwrap()), Some(fe_hash_upper("TWO")));
+    // Out of the race the group goes away again.
+    let idle = HudState::default();
+    binding.apply(&mut rt, &idle);
+    assert!(!rt.tree(id).nodes.iter().find(|n| n.name_hash == fe_hash_upper("CurrentLapTime")).unwrap().visible);
+}

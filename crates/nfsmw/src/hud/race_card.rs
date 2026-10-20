@@ -1,22 +1,14 @@
-//! The race card: the place, the lap, the clock and the banner of a race, and the result when it is over. A stand-in
-//! for the original's `HUD_SingleRace.fng` race objects, which are not bound yet (`docs/specs/race-mode.md` section 10).
+//! The race card: the banner, the speed-trap points and the result of a race. The place, lap, clock
+//! and countdown are the HUD package's (`hud/race.rs`); this keeps what it has no object for.
 //! [`RaceCard`] is plain data; [`show`] is the thin egui view.
 
 use egui::{Align2, Color32, RichText};
 
-/// The place and the clock of a running race.
+/// The lines the race card keeps over the frame: the banner (the HUD package has no object for it), the points and
+/// the result.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RaceCard {
-    /// The player's place, 1 for first, among `racers`.
-    pub place: u32,
-    pub racers: usize,
-    /// The lap now and the laps in all; `None` for a sprint.
-    pub lap: Option<(u32, u32)>,
-    /// Seconds since GO.
-    pub elapsed: f32,
-    /// Seconds left of a time limit; `None` without one.
-    pub time_left: Option<f32>,
-    /// The banner (3, 2, 1, GO, a checkpoint) and its opacity, 0 to 1.
+    /// The banner (a checkpoint, a lap, a bonus) and its opacity, 0 to 1.
     pub banner: Option<(String, f32)>,
     /// Speed-trap points, when the race ranks by points.
     pub points: Option<f32>,
@@ -81,6 +73,7 @@ pub fn show(ctx: &egui::Context, card: &RaceCard) {
 }
 
 fn show_status(ctx: &egui::Context, card: &RaceCard) {
+    let Some(points) = card.points else { return };
     egui::Area::new(egui::Id::new("race_status")).anchor(Align2::RIGHT_TOP, [-24.0, 96.0]).interactable(false).show(
         ctx,
         |ui| {
@@ -89,24 +82,7 @@ fn show_status(ctx: &egui::Context, card: &RaceCard) {
                 .corner_radius(6.0)
                 .inner_margin(egui::Margin::same(10))
                 .show(ui, |ui| {
-                    let white = Color32::WHITE;
-                    ui.label(
-                        RichText::new(format!("{} / {}", ordinal(card.place), card.racers))
-                            .size(26.0)
-                            .strong()
-                            .color(white),
-                    );
-                    if let Some((lap, laps)) = card.lap {
-                        ui.label(RichText::new(format!("Lap {lap}/{laps}")).size(18.0).color(white));
-                    }
-                    ui.label(RichText::new(clock_text(card.elapsed)).size(18.0).color(white));
-                    if let Some(left) = card.time_left {
-                        let colour = if left < 10.0 { Color32::from_rgb(255, 90, 70) } else { white };
-                        ui.label(RichText::new(format!("Time left {}", clock_text(left))).size(18.0).color(colour));
-                    }
-                    if let Some(points) = card.points {
-                        ui.label(RichText::new(format!("Speed {points:.0}")).size(18.0).color(white));
-                    }
+                    ui.label(RichText::new(format!("Speed {points:.0}")).size(18.0).color(Color32::WHITE));
                 });
         },
     );
