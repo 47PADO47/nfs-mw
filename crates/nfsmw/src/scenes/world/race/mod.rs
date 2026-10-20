@@ -77,6 +77,9 @@ pub(super) struct RaceSession {
     pub name: String,
     /// The career event id, for example `10.2.1`.
     pub event: String,
+    /// The minimap's map file while this race runs: the event's own tiles, or the region's variant for a pursuit race
+    /// (`docs/specs/race-minimap.md`).
+    pub map: crate::hud::MapSource,
     pub kind: RaceType,
     pub options: RaceOptions,
     pub stage: Stage,

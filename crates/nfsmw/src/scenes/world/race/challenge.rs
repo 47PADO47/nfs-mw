@@ -192,6 +192,11 @@ impl WorldScene {
         let previous_traffic = self.traffic_manual;
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(race),
+            map: crate::hud::MapSource::of_race(
+                &crate::career::race_event_id(race),
+                params.pursuit_race,
+                race.region.as_deref(),
+            ),
             name: race.name.clone(),
             kind: nfsmw_data::gameplay::RaceType::Challenge,
             options,

@@ -12,7 +12,9 @@ use nfsmw_career::regions::MapVariant;
 use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
-use super::minimap::{MinimapBinding, usable_variant, variant_for_stage};
+use super::event_tiles::{EventTiles, install_loader};
+use super::map_source::{MapSource, resolve_stem};
+use super::minimap::MinimapBinding;
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
@@ -49,6 +51,8 @@ struct Hud {
     viewport: HudViewport,
     /// The map variants whose tiles are loaded: the minimap switches only among these (`minimap::usable_variant`).
     map_variants: Vec<MapVariant>,
+    /// The tiles of the running race's event, read on demand (`docs/specs/race-minimap.md`).
+    event_tiles: EventTiles,
     /// The original EA Trax chyron, when the install has it.
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
@@ -104,35 +108,54 @@ impl Plugin for HudPlugin {
             let viewport = HudViewport::new(&runtime.tree(package), &[]);
             DragHud { package, binding, viewport }
         });
-        app.insert_resource(Hud { runtime, package, binding, viewport, map_variants, trax, overlay, drag })
-            .insert_non_send(self.career.clone())
-            .insert_resource(self.initial.clone())
-            .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
-            .add_systems(Update, present.in_set(FrameSet::Hud));
+        let event_tiles = EventTiles::new(install_loader(self.dir.clone()));
+        app.insert_resource(Hud {
+            runtime,
+            package,
+            binding,
+            viewport,
+            map_variants,
+            event_tiles,
+            trax,
+            overlay,
+            drag,
+        })
+        .insert_non_send(self.career.clone())
+        .insert_resource(self.initial.clone())
+        .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
+        .add_systems(Update, present.in_set(FrameSet::Hud));
     }
 }
 
 /// Take the state the scene wants shown. A scene without telemetry leaves the idle HUD (`--hud` in a viewer).
 /// The minimap setting decides whether the scene's map position is shown and how the picture is turned. The career
-/// stage decides which map the minimap shows.
+/// stage decides which map the minimap shows, and a running race's own tiles take its place (`hud/map_source.rs`).
 fn sync(
     host: NonSend<Host>,
     career: NonSend<CareerHandle>,
     settings: Res<Settings>,
+    assets: Res<SharedAssets>,
     mut state: ResMut<HudState>,
     mut hud: ResMut<Hud>,
 ) {
     let _trace = blackbox_trace::scope("HUD: sync telemetry");
-    if let Some(s) = host.scene.hud_state() {
-        *state = s;
+    match host.scene.hud_state() {
+        Some(s) => *state = s,
+        // A scene without a HUD (a menu after the player quit the world): no race decides the map any more.
+        None => state.map_source = MapSource::Stage,
     }
     // The unit is the player's setting, not the scene's: every HUD look reads it from here.
     state.use_mph = settings.speed_units == SpeedUnits::Imperial;
     let hud = &mut *hud;
-    let wanted = variant_for_stage(career.with(|c| c.stage()));
-    let variant = usable_variant(wanted, |v| hud.map_variants.contains(&v));
+    hud.event_tiles.update(state.map_source.event(), &assets.0);
+    let stem = resolve_stem(
+        &state.map_source,
+        career.with(|c| c.stage()),
+        |v| hud.map_variants.contains(&v),
+        hud.event_tiles.ready_stem(),
+    );
     if let Some(minimap) = hud.binding.minimap_mut() {
-        minimap.set_variant(variant);
+        minimap.set_stem(stem);
     }
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
