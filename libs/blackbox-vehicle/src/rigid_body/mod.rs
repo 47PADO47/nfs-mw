@@ -2,6 +2,7 @@
 //! impulse routine. Spec: `docs/specs/vehicle-rigid-body.md`.
 
 mod angular_limit;
+mod arithmetic;
 mod bodies;
 mod body;
 mod contact;
@@ -16,6 +17,7 @@ mod spec;
 mod sphere;
 
 pub use angular_limit::{AngularLimit, LimitMode};
+pub use arithmetic::{inverse_world_inertia, transform_vector};
 pub use bodies::{BodyContact, BodyHit, BodyReaction, Separation, react_bodies, resolve_bodies, separate};
 pub use body::{BodyState, MAX_ANGULAR_SPEED, MAX_LINEAR_SPEED, RigidBody};
 pub use contact::{ContactParams, FrictionState, PlaneContact, Reaction};

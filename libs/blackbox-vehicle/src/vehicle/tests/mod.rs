@@ -10,6 +10,7 @@ mod parity_audit;
 mod puncture;
 mod rev_limit;
 mod robustness;
+mod simple_chassis;
 mod tuning;
 mod wheel;
 
