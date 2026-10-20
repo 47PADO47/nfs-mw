@@ -77,6 +77,9 @@ pub enum Command {
         /// Start driving at once (free roam with the stock car).
         #[arg(long, conflicts_with = "skip_boot")]
         drive: bool,
+        /// Start where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+        #[arg(long, hide = true, conflicts_with_all = ["skip_boot", "drive"])]
+        aliases: bool,
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
         #[arg(long, hide = true, value_name = "SCRIPT")]
         ui_script: Option<String>,

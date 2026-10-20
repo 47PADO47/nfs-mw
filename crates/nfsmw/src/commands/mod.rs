@@ -86,13 +86,14 @@ pub fn run(cli: Cli) -> Result<()> {
             print!("{}", crate::frontend::dump::dump(package));
             Ok(())
         }
-        Command::Play { skip_boot, drive, ui_script, view } => {
+        Command::Play { skip_boot, drive, aliases, ui_script, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
-            let start = match (drive, skip_boot || skip_intro || ui_script.is_some()) {
-                (true, _) => crate::frontend::Start::Drive,
-                (false, true) => crate::frontend::Start::Menu,
-                (false, false) => crate::frontend::Start::Boot,
+            let start = match (drive, aliases, skip_boot || skip_intro || ui_script.is_some()) {
+                (true, ..) => crate::frontend::Start::Drive,
+                (false, true, _) => crate::frontend::Start::Aliases,
+                (false, false, true) => crate::frontend::Start::Menu,
+                (false, false, false) => crate::frontend::Start::Boot,
             };
             run_front_end(&dir, mods, start, ui_script.as_deref(), &view)
         }

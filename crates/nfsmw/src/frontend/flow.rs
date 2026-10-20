@@ -44,6 +44,8 @@ pub enum Start {
     Browse(String),
     /// Straight into free roam.
     Drive,
+    /// Where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+    Aliases,
 }
 
 /// A step of the boot flow (the original `BootFlowManager`).
@@ -201,6 +203,7 @@ impl Frontend {
                 self.next_boot(host, env);
             }
             Start::Menu => self.show_menu(host, env),
+            Start::Aliases => self.after_boot(host, env),
             Start::Screen(name, args) => {
                 self.show_backdrop(host);
                 let commands = self.screens.open(&name, args, true, env);
@@ -460,7 +463,12 @@ impl Frontend {
                 Command::PayBust { marker } => self.pay_bust(marker, host),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host),
                 Command::ShowResults(report) => self.show_results(report, host, env),
-                Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
+                Command::Switch(..)
+                | Command::Push(..)
+                | Command::Pop
+                | Command::Confirm(_)
+                | Command::Alert(_)
+                | Command::EnterName(_) => {}
             }
         }
     }

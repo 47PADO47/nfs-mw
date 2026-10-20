@@ -11,7 +11,7 @@ use crate::frontend::icon_items::{Id, safehouse_icons};
 use crate::frontend::icon_menu::{IconMenu, Kind};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
-use crate::frontend::logic::{Args, Command, Cx, Plain, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, Plain, ScreenLogic};
 use crate::ui::Text;
 
 /// The label of the confirmation question (`CONFIRM_RESUME_FREE_ROAM`).
@@ -71,6 +71,10 @@ impl ScreenLogic for SafeHouseMenu {
 
     fn scroll(&mut self, cx: &mut Cx, steps: i32) {
         self.menu.scroll(cx, steps);
+    }
+
+    fn footer(&self) -> Footer {
+        self.menu.footer()
     }
 }
 

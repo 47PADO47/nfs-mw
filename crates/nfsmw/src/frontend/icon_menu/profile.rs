@@ -15,6 +15,8 @@ const SHOW: u32 = 0x001C_A7C0;
 const GAME: u32 = 0xAAEC_91EE;
 const CAREER: u32 = 0x6A5E_95C6;
 const RAP: u32 = 0x4AA3_2965;
+/// `RAP_SHEET_ITEMS_DATA_1`: the original hides it and gives it no value.
+const RAP_ITEMS: u32 = 0x4AA3_2964;
 const SERIES_COUNT: u32 = 0xD3C8_4175;
 const SERIES_PERCENT: u32 = 0xD3C8_4176;
 /// The package's messages that show and hide the card, and the one the Game Stats button sends the game (key 1).
@@ -39,6 +41,7 @@ impl IconMenu {
                 cx.text_object(GAME, &percent(card.game));
                 cx.text_object(CAREER, &percent(card.career));
                 cx.text_object(RAP, &percent(card.rap));
+                cx.hide(RAP_ITEMS, true);
                 cx.text_object(SERIES_COUNT, &format!("{}/{}", card.series_done, card.series_total));
                 cx.text_object(SERIES_PERCENT, &percent(card.series));
             }

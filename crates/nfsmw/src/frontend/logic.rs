@@ -62,6 +62,16 @@ pub struct PauseCtx {
     pub quit: QuitTo,
 }
 
+/// What the footer of a screen offers besides what its package name gives (`prompts.rs`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Footer {
+    #[default]
+    Standard,
+    /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
+    /// Race menu, the safe house menu, the profile list).
+    BackOnly,
+}
+
 /// What a screen is opened with (the original passes an argument and reads the game mode).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Args {
@@ -133,6 +143,8 @@ pub enum Command {
     ResumeCareer,
     /// Leave the safe house menu that stands before the world for the career menu (its Back).
     LeaveSafeHouse,
+    /// Ask for an alias name over the screen that is up (`name_entry.rs`); the answer is the command the purpose names.
+    EnterName(super::name_entry::NameFor),
     /// Alias manager, Create: make a new alias, load it and say so (`flow_save.rs`).
     AliasCreate(String),
     /// Quick Play, Accept: start this race (a gameplay collection name) with this car (`quick_play.rs`).
@@ -383,6 +395,20 @@ pub trait ScreenLogic: Send + Sync {
     /// Whether Up and Down are turned into Left and Right for the package: the icon row's package knows no Up and Down.
     fn rotate_pad(&self) -> bool {
         false
+    }
+
+    /// Whether the screen takes typed text (`typed`): the keyboard then feeds it characters, and the pad's letter and
+    /// Backspace bindings stay out of the way.
+    fn wants_text(&self) -> bool {
+        false
+    }
+
+    /// A key typed while the screen takes text.
+    fn typed(&mut self, _cx: &mut Cx, _key: super::name_entry::TextKey) {}
+
+    /// The footer hints of the screen (`prompts::hint_set`).
+    fn footer(&self) -> Footer {
+        Footer::Standard
     }
 
     /// The backdrop this screen wants right now, when it depends on what the screen shows (the Quick Play brief shows the car it

@@ -3,16 +3,15 @@
 //!
 //! The milestones count when banked. The events are the free races and boss races of the Blacklist bins 1 to 15, counted
 //! from what the bins record as won (the original reads a race record's "completed in career" flag, which this build keeps
-//! as the bins' won lists: **[ours]**). The challenge series are the races of bin 19 other than `19.8.31`, none of which
-//! the build records as completed outside career yet, so the series reads `0/total` **[ours]**.
+//! as the bins' won lists: **[ours]**). The challenge series are the 70 races of bin 19, none of which the build records as
+//! completed outside career yet, so the series reads `0/70` **[ours]**. The exe skips an event named `19.8.31`, but the
+//! original's own card shows 70 for this install (the user's reference screenshot, a fresh profile), and the install's bin 19
+//! holds 70 events including `19.8.31` (`challenge_burgerking`), so the skip does not apply to this data **[verified]**.
 
 use nfsmw_career::milestones::MilestoneState;
 use nfsmw_career::rapsheet::{CardCounts, ProfileCard, lifetime_ranks};
 
 use super::Career;
-
-/// The event of the challenge series the card skips (`career-rapsheet-2.md` section 4).
-const SKIPPED_SERIES_EVENT: &str = "19.8.31";
 
 impl Career {
     /// The card of this career.
@@ -40,9 +39,9 @@ impl Career {
     }
 }
 
-/// Whether an event id is a challenge series event: bin 19, but not the one the card skips.
+/// Whether an event id is a challenge series event: bin 19.
 fn is_series(event: Option<&str>) -> bool {
-    event.is_some_and(|id| id.starts_with("19.") && id != SKIPPED_SERIES_EVENT)
+    event.is_some_and(|id| id.starts_with("19."))
 }
 
 fn count(n: usize) -> u32 {
@@ -54,9 +53,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_series_are_the_events_of_bin_19_but_the_skipped_one() {
+    fn the_series_are_the_events_of_bin_19() {
         assert!(is_series(Some("19.8.18")));
-        assert!(!is_series(Some("19.8.31")));
+        assert!(is_series(Some("19.8.31")));
         assert!(!is_series(Some("10.2.1")));
         assert!(!is_series(None));
     }

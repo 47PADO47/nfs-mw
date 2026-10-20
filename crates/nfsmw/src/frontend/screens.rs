@@ -19,6 +19,7 @@ use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
 
+mod text;
 mod vertical;
 
 struct Screen {
@@ -300,6 +301,10 @@ impl Screens {
                         let logic = Box::new(ConfirmLogic::new(confirm));
                         commands.extend(self.open_with(DIALOG, logic, false, env));
                     }
+                    Command::EnterName(purpose) => {
+                        let logic = Box::new(super::name_entry::NameEntry::new(purpose));
+                        commands.extend(self.open_with(DIALOG, logic, false, env));
+                    }
                     Command::Alert(alert) => {
                         let logic = Box::new(AlertLogic::new(alert));
                         commands.extend(self.open_with(DIALOG, logic, false, env));
@@ -321,7 +326,7 @@ impl Screens {
     pub fn presented(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<Presented> {
         let mut trees = self.trees();
         for (tree, screen) in trees.iter_mut().zip(&self.stack) {
-            super::prompts::decorate(tree, &screen.name, bindings, device, &self.assets);
+            super::prompts::decorate(tree, &screen.name, screen.logic.footer(), bindings, device, &self.assets);
         }
         trees
             .into_iter()
@@ -425,7 +430,7 @@ impl Screens {
             return menu_layout::hint_at(&list.hints, point, self.aspect);
         }
         let mut tree = self.runtime.tree(top.id);
-        let hints = super::prompts::decorate(&mut tree, &top.name, bindings, device, &self.assets);
+        let hints = super::prompts::decorate(&mut tree, &top.name, top.logic.footer(), bindings, device, &self.assets);
         hints.iter().find(|h| h.covers(point)).map(|h| h.action)
     }
 

@@ -13,7 +13,7 @@ use glam::Vec2;
 /// The clock step of a scripted frame.
 pub const STEP: f32 = 1.0 / 60.0;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Step {
     mask: u32,
     frames: u32,
@@ -21,6 +21,8 @@ struct Step {
     key: Option<KeyCode>,
     /// Where the pointer is from this step on (`pointer X Y`, FEng units).
     pointer: Option<Vec2>,
+    /// Text typed on the frame this step starts on (`type TEXT`), for the alias name prompt.
+    text: Option<String>,
 }
 
 /// The keys a script can press: the letters, Space and Escape.
@@ -72,6 +74,8 @@ pub struct UiScript {
     key: Option<KeyCode>,
     /// Where the scripted pointer is, once a `pointer` step has run.
     pointer: Option<Vec2>,
+    /// The text the last frame's step typed, until the front end takes it (`take_text`).
+    text: Option<String>,
     /// Deterministic prompt device for screenshots, not a gameplay preference.
     pub device: Option<crate::input::InputDevice>,
 }
@@ -115,28 +119,44 @@ impl UiScript {
             match words[..] {
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
-                ["wait", s] => steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None }),
-                ["hold", name, s] => {
-                    steps.push_back(Step { mask: button(name)?, frames: frames(s)?, key: None, pointer: None })
+                ["wait", s] => {
+                    steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None, text: None })
                 }
-                ["key", name] => steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None }),
+                ["hold", name, s] => steps.push_back(Step {
+                    mask: button(name)?,
+                    frames: frames(s)?,
+                    key: None,
+                    pointer: None,
+                    text: None,
+                }),
+                ["key", name] => {
+                    steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None, text: None })
+                }
                 ["pointer", x, y] => {
                     let at = Vec2::new(number(x)?, number(y)?);
-                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at) });
+                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at), text: None });
+                }
+                ["type", text] => {
+                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: None, text: Some(text.to_owned()) });
                 }
                 [name] => {
-                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None });
-                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None });
+                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None, text: None });
+                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device, key: None, pointer: None })
+        Ok(Self { steps, device, key: None, pointer: None, text: None })
     }
 
     /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
     pub fn take_key(&mut self) -> Option<KeyCode> {
         self.key.take()
+    }
+
+    /// The text the script typed on the frame just stepped, if any. The front end takes it once per frame.
+    pub fn take_text(&mut self) -> Option<String> {
+        self.text.take()
     }
 
     /// Where a `pointer` step put the pointer, in FEng units; `None` until one has run.
@@ -153,6 +173,9 @@ impl UiScript {
         }
         if step.pointer.is_some() {
             self.pointer = step.pointer;
+        }
+        if let Some(text) = step.text.take() {
+            self.text = Some(text);
         }
         step.frames = step.frames.saturating_sub(1);
         if step.frames == 0 {

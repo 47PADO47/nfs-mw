@@ -11,7 +11,7 @@ use super::confirm::Confirm;
 use super::icon_items::{Icon, Id, draw_scale, icons, pause_icons};
 use super::icon_window;
 use super::ids::{self, screen};
-use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Footer, Pick, ScreenLogic};
 use super::scroller::{self, Fade, Scroll};
 use crate::ui::UiAssets;
 use crate::ui::theme::MenuList;
@@ -352,6 +352,13 @@ impl ScreenLogic for IconMenu {
 
     fn vertical(&self) -> bool {
         self.vertical
+    }
+
+    fn footer(&self) -> Footer {
+        match self.kind {
+            Kind::Career | Kind::QuickRace | Kind::AliasManager | Kind::SafeHouse => Footer::BackOnly,
+            _ => Footer::Standard,
+        }
     }
 
     fn rotate_pad(&self) -> bool {
