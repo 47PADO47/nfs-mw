@@ -69,6 +69,15 @@ pub struct CarScene {
     /// Whether the plain placeholder floor is drawn under a car. A scene with its own floor turns it off, since
     /// two coplanar floors flicker where they overlap.
     pub(crate) placeholder_floor: bool,
+    /// How the car is turned on its floor and how far its tyres sink into it (`CarScene::stand_on`).
+    stand: CarStand,
+}
+
+/// A car's turn about the vertical axis and how far it is lowered from resting on the floor.
+#[derive(Clone, Copy, Default)]
+struct CarStand {
+    yaw: f32,
+    sink: f32,
 }
 
 impl CarScene {
@@ -91,7 +100,14 @@ impl CarScene {
             solid_shading: Shading::Lit,
             texture_anims: Vec::new(),
             placeholder_floor: true,
+            stand: CarStand::default(),
         }
+    }
+
+    /// Turn the car `yaw_degrees` about the vertical axis and lower it `sink` metres into the floor, as a front-end stage
+    /// stands it. Takes effect when the car is uploaded.
+    pub(crate) fn stand_on(&mut self, yaw_degrees: f32, sink: f32) {
+        self.stand = CarStand { yaw: yaw_degrees.to_radians(), sink };
     }
 
     /// The orbit camera, for a scene that moves it (the menus' camera move).
@@ -122,9 +138,10 @@ impl CarScene {
         renderer.set_lighting_rig(&original_lighting::frontend(scale));
     }
 
-    /// Car space to world: the car stands on the floor at z = 0.
+    /// Car space to world: the car stands on the floor at z = 0, less what it sinks in, turned by its stand.
     fn to_world(&self) -> Mat4 {
-        Mat4::from_translation(Vec3::Z * self.model.floor_height)
+        Mat4::from_translation(Vec3::Z * (self.model.floor_height - self.stand.sink))
+            * Mat4::from_rotation_z(self.stand.yaw)
     }
 
     /// Free what the current car uploaded.
