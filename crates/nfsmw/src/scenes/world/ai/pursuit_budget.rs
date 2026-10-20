@@ -23,7 +23,8 @@ impl TrafficWorld {
         self.pursuit.as_ref()?.budget.eta()
     }
 
-    /// The cops still to evade before the wave is over (at least 1), for the status line.
+    /// The cops still to evade before the wave is over (at least 1).
+    #[cfg(test)]
     pub fn cops_to_evade(&self) -> u32 {
         self.pursuit.as_ref().map_or(0, |pursuit| pursuit.budget.remaining())
     }

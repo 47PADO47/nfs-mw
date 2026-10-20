@@ -14,7 +14,7 @@ fn camera_at(z: f32, along: bool) -> Lens {
         true => [0.0, 0.0, z + 10.0],
         false => [10.0, 0.0, z],
     });
-    Lens::look_at(Vec3::from(eye), Vec3::from(ahead), 70.0, 0.1, 1.0)
+    Lens::look_at(eye, ahead, 70.0, 0.1, 1.0)
 }
 
 fn player_at(z: f32, speed: f32) -> Focus {
