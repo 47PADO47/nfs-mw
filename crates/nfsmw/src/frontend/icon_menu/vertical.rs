@@ -71,6 +71,7 @@ impl IconMenu {
         };
         Some(MenuList {
             title: Text::Game(self.title_label()).resolve(assets).unwrap_or_default(),
+            message: String::new(),
             entries,
             selected: self.current_icon().unwrap_or(0),
             first: self.top,

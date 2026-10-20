@@ -13,6 +13,8 @@ use crate::ui::prompts::Prompt;
 use crate::ui::raster_text::{RASTER_MENU_FONT_KEY, width_units};
 use crate::ui::theme::MenuHint;
 
+pub use super::dialog::row_at as dialog_row_at;
+
 /// FEng units per pixel of the reference picture.
 const PX: f32 = 480.0 / 915.0;
 /// The picture's vertical centre, in pixels: the screen's y origin.

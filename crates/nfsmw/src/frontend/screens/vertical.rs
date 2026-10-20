@@ -6,7 +6,7 @@ use glam::Vec2;
 use super::{Env, Pick, Screen, Screens};
 use crate::frontend::logic::Way;
 use crate::ui::theme::remastered::menu::layout as menu_layout;
-use crate::ui::theme::{MenuHint, MenuList};
+use crate::ui::theme::{MenuHint, MenuList, MenuStyle};
 
 impl Screens {
     /// The screen's list with the footer hints and the window's aspect filled in.
@@ -29,6 +29,9 @@ impl Screens {
     pub(super) fn row_at(&self, point: Vec2) -> Option<usize> {
         let top = self.stack.last().filter(|top| top.logic.vertical())?;
         let list = top.logic.list(&self.assets)?;
+        if list.style == MenuStyle::Dialog {
+            return menu_layout::dialog_row_at(point, &list);
+        }
         let shown = menu_layout::shown(list.entries.len().saturating_sub(list.first));
         menu_layout::row_at(point, shown, self.aspect, list.has_values()).map(|row| list.first + row)
     }

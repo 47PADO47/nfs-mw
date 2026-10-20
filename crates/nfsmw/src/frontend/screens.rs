@@ -111,10 +111,11 @@ impl Screens {
         self.open_as(name, logic, slot, replace, env)
     }
 
-    /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question). Such a screen
-    /// has no menu slot.
+    /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question). Its menu slot is
+    /// the one its package has by name (`factory::slot_for`), with no `Args`.
     pub fn open_with(&mut self, name: &str, logic: Box<dyn ScreenLogic>, replace: bool, env: &mut Env) -> Vec<Command> {
-        self.open_as(name, logic, None, replace, env)
+        let slot = factory::slot_for(name, &Args::default());
+        self.open_as(name, logic, slot, replace, env)
     }
 
     fn open_as(
@@ -363,6 +364,13 @@ impl Screens {
 
     /// Hands the pointer's position over the top screen to its logic, so the screen can move its focus with it.
     pub fn hover(&mut self, point: Vec2, env: &mut Env) {
+        if let Some(row) = self.row_at(point) {
+            self.on_top(env, |logic, cx| {
+                logic.pick_row(cx, row, Pick::Hover);
+                true
+            });
+            return;
+        }
         self.on_top(env, |logic, cx| {
             logic.hover(cx, point);
             true

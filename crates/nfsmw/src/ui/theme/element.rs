@@ -84,6 +84,12 @@ catalogue! {
     // map while the map is open (`frontend/world_map`), so the Original theme leaves it empty and the FEng screen keeps
     // drawing the list, card, tab and zoom.
     WorldMapChrome = 26,
+    // The other front-end screens a theme may dress: the question and notice dialog, the key list, the EA Trax playlist and
+    // the credits roll.
+    Dialog = 27,
+    ControlsList = 28,
+    Jukebox = 29,
+    Credits = 30,
     // Career screens (`frontend/career_screens/`). Numbers 40 to 45.
     Blacklist = 40,
     CarLot = 41,

@@ -5,6 +5,7 @@
 //!
 //! [`layout`] holds the places, shared with the frontend's hit tests.
 
+mod dialog;
 pub mod layout;
 mod value;
 
@@ -83,6 +84,10 @@ impl<'a, 'b> Parts<'a, 'b> {
     }
 
     fn of(mut self, list: &MenuList) -> Vec<Box<dyn Component>> {
+        if list.style == MenuStyle::Dialog {
+            self.dialog(list);
+            return self.parts;
+        }
         let left = place::left_edge(list.aspect);
         if list.style == MenuStyle::Pause {
             self.scrim(list.aspect);

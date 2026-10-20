@@ -19,6 +19,7 @@ fn entry(label: &str, enabled: bool) -> MenuEntry {
 fn list(style: MenuStyle, selected: usize) -> MenuList {
     MenuList {
         title: "Main menu".into(),
+        message: String::new(),
         entries: vec![entry("Career", true), entry("Challenge Series", false), entry("Quick Race", true)],
         selected,
         first: 0,
@@ -280,4 +281,56 @@ fn the_in_game_menu_dims_the_whole_screen_and_the_main_menu_does_not() {
     };
     assert!(scrim(MenuStyle::Pause), "the frozen world is dimmed");
     assert!(!scrim(MenuStyle::Main), "the title screen's menu is not");
+}
+
+fn dialog(selected: usize, answers: &[&str]) -> MenuList {
+    MenuList {
+        title: "Save/Load".into(),
+        message: "Are you sure you want to delete this profile? This cannot be undone.".into(),
+        entries: answers.iter().map(|a| entry(a, true)).collect(),
+        selected,
+        ..list(MenuStyle::Dialog, selected)
+    }
+}
+
+#[test]
+fn a_dialog_is_a_scrim_and_a_panel_with_the_title_the_wrapped_message_and_the_answers_one_under_the_other() {
+    let cell = MenuListCell::new();
+    cell.set(ElementId::Dialog.slot(), dialog(1, &["Yes", "No"]));
+    let nodes = built(ElementId::Dialog, &cell);
+    let all = texts(&nodes);
+    assert!(all.contains(&"SAVE/LOAD") && all.contains(&"YES") && all.contains(&"NO"), "{all:?}");
+    assert!(all.iter().filter(|t| t.contains("profile") || t.contains("undone")).count() >= 1, "the message is drawn");
+    assert!(nodes.iter().any(|n| n.world.x_axis.x > 800.0 && n.world.y_axis.y > 480.0), "the scrim covers the screen");
+    let (yes, no) = (text_at(&nodes, "YES"), text_at(&nodes, "NO"));
+    assert!(no.world.w_axis.y > yes.world.w_axis.y + 20.0, "No is under Yes");
+    assert_eq!(yes.world.w_axis.x, no.world.w_axis.x, "in one column");
+    assert!(yes.colour[0] <= no.colour[0] && yes.colour != no.colour, "the selected answer is the brighter");
+}
+
+#[test]
+fn a_notice_has_one_answer_and_a_longer_message_makes_a_taller_panel() {
+    let cell = MenuListCell::new();
+    cell.set(ElementId::Dialog.slot(), dialog(0, &["Continue"]));
+    let nodes = built(ElementId::Dialog, &cell);
+    assert!(texts(&nodes).contains(&"CONTINUE"));
+    let height_of = |message: &str| {
+        let mut list = dialog(0, &["Continue"]);
+        list.message = message.into();
+        cell.set(ElementId::Dialog.slot(), list);
+        let ys: Vec<f32> =
+            built(ElementId::Dialog, &cell).iter().filter(|n| n.text.is_some()).map(|n| n.world.w_axis.y).collect();
+        ys.iter().cloned().fold(f32::MIN, f32::max) - ys.iter().cloned().fold(f32::MAX, f32::min)
+    };
+    assert!(height_of("One line^two^three^four") > height_of("One line"));
+}
+
+#[test]
+fn a_click_on_an_answer_of_a_dialog_is_found_by_the_panels_own_geometry() {
+    let list = dialog(0, &["Yes", "No"]);
+    let geometry = super::dialog::Geometry::of(&list.title, &list.message, 2);
+    let on = |i: usize| glam::Vec2::new(0.0, geometry.rows_y[i]);
+    assert_eq!(super::dialog::row_at(on(0), &list), Some(0));
+    assert_eq!(super::dialog::row_at(on(1), &list), Some(1));
+    assert_eq!(super::dialog::row_at(glam::Vec2::new(0.0, -230.0), &list), None, "outside the panel");
 }

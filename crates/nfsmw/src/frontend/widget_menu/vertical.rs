@@ -41,6 +41,7 @@ impl WidgetMenu {
         };
         Some(MenuList {
             title: self.heading.clone(),
+            message: String::new(),
             entries: self.entries.clone(),
             selected: self.selected,
             first: self.top,

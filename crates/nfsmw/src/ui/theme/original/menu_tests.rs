@@ -10,13 +10,17 @@ use crate::ui::theme::ElementId;
 use super::{FengSource, FrameCell, OriginalTheme};
 
 /// The menu and career slots, the ones the menu cell feeds (raw 20 and up).
-const MENU_SLOTS: [ElementId; 12] = [
+const MENU_SLOTS: [ElementId; 16] = [
     ElementId::MainMenu,
     ElementId::Categories,
     ElementId::PauseMenu,
     ElementId::OptionTable,
     ElementId::TrackSelect,
     ElementId::SafeHouseMenu,
+    ElementId::Dialog,
+    ElementId::ControlsList,
+    ElementId::Jukebox,
+    ElementId::Credits,
     ElementId::Blacklist,
     ElementId::CarLot,
     ElementId::RapSheet,

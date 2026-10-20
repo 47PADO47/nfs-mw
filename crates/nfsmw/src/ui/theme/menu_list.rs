@@ -66,12 +66,16 @@ pub enum MenuStyle {
     Main,
     Sub,
     Pause,
+    /// A question or a notice in a panel over the screen: `title`, `message`, and the answers as the entries.
+    Dialog,
 }
 
 /// A menu as a theme draws it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuList {
     pub title: String,
+    /// The body of a dialog; empty for every other list.
+    pub message: String,
     pub entries: Vec<MenuEntry>,
     /// The index of the selected entry.
     pub selected: usize,
@@ -135,6 +139,7 @@ mod tests {
     fn list(title: &str) -> MenuList {
         MenuList {
             title: title.into(),
+            message: String::new(),
             entries: vec![MenuEntry::plain("Career", true)],
             selected: 0,
             first: 0,

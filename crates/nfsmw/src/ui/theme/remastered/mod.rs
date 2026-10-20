@@ -74,7 +74,8 @@ impl Theme for RemasteredTheme {
             | ElementId::Categories
             | ElementId::PauseMenu
             | ElementId::SafeHouseMenu
-            | ElementId::OptionTable) => Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone()))),
+            | ElementId::OptionTable
+            | ElementId::Dialog) => Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone()))),
             // The whole map is drawn here, over the FEng screen the frontend leaves unpresented.
             ElementId::WorldMapChrome => Some(Box::new(WorldMapView::new(self.map.clone()))),
             _ => None,
