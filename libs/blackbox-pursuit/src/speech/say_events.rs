@@ -78,7 +78,7 @@ impl Cx<'_> {
             Impact::TBone => Line::RamTBone,
             Impact::HeadOn => Line::RamHeadOn,
             Impact::SideSwipe => Line::RamSideSwipe,
-            Impact::None => return,
+            Impact::Other | Impact::None => return,
         };
         self.say(line, id, Params { intensity: Some(intensity), ..Params::default() });
     }

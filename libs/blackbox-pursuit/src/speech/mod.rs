@@ -13,6 +13,7 @@ mod actors;
 mod config;
 mod cx;
 mod flows;
+pub mod impact;
 mod input;
 mod line;
 mod machine;

@@ -46,6 +46,7 @@ impl Cx<'_> {
             Notice::CopHitTraffic { cop } => self.cop_hit_traffic(flows, cop),
             Notice::PlayerHitWorld { intensity, crash } => self.player_hit_world(flows, intensity, crash),
             Notice::PlayerHitTraffic { intensity, semi } => self.player_hit_traffic(flows, intensity, semi),
+            Notice::Crashed => self.core.t_last_crashed = self.now,
             Notice::PlayerHitSuspect => flows.observer.observe(self, Observation::SuspectHitSuspect, 0, 1.0),
             Notice::PlayerHitSpikeBelt { intensity } => self.player_hit_spike_belt(flows, intensity),
             Notice::CopHitWorld { cop, intensity, visible } => self.cop_hit_world(flows, cop, intensity, visible),
@@ -113,13 +114,19 @@ impl Cx<'_> {
                 actor.last_rammed = self.now;
             }
             flows.pursuit.restart_assaulted(self);
+            self.core.t_last_nailed = self.now;
             self.core.flags.setup_restarted = true;
         }
         let in_roadblock = self.roster.find(cop).is_some_and(|a| a.roadblock);
         if !in_roadblock {
             flows.observer.observe(self, Observation::CopHitSuspect(impact), 0, intensity);
         }
-        if impact == Impact::None || !deliberate || self.core.flags.cops_immune {
+        if impact == Impact::None {
+            return;
+        }
+        // The original stamps the time of the last ram before it asks whose car it was.
+        self.core.t_last_nailed = self.now;
+        if !deliberate || self.core.flags.cops_immune {
             return;
         }
         let Some(actor) = self.roster.find_mut(cop) else { return };

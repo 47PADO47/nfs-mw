@@ -233,6 +233,8 @@ pub enum Impact {
     TBone,
     HeadOn,
     SideSwipe,
+    /// A ram the original has no wording for (both noses in): nothing is said at normal intensity.
+    Other,
     /// A hit that is no ram (the cop hit the player).
     None,
 }
@@ -291,6 +293,9 @@ pub enum Notice {
         intensity: f32,
         crash: bool,
     },
+    /// The player's car lost most of its speed against a car or a prop (the crash rule that `PlayerHitWorld` carries for
+    /// the static world): it only marks the time of the last crash.
+    Crashed,
     /// The player hit traffic; `semi` for a tractor or trailer.
     PlayerHitTraffic {
         intensity: f32,
