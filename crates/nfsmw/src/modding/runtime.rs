@@ -19,6 +19,7 @@ use super::manager::ModManager;
 use super::mw_events;
 use super::outbox::InteriorNotice;
 use super::pursuit_feed::Notice;
+use super::races_feed;
 use crate::devtools::Console;
 use crate::viewer::Scene;
 
@@ -134,6 +135,15 @@ impl Mods {
         let frame = self.frame;
         let runtime = &mut self.runtime;
         mw_events::send_all(notices, frame, &mut |event| {
+            runtime.dispatch_event(event);
+        });
+    }
+
+    /// Send the race notices of this frame to every loaded mod, in order (the `ModsPost` set).
+    pub fn dispatch_race_notices(&mut self, notices: &[races_feed::Notice]) {
+        let frame = self.frame;
+        let runtime = &mut self.runtime;
+        mw_events::send_races(notices, frame, &mut |event| {
             runtime.dispatch_event(event);
         });
     }

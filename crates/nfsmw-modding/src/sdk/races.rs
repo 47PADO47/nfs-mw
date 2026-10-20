@@ -92,6 +92,8 @@ pub struct RaceDef {
     pub start: [f32; 3],
     /// Start heading, radians.
     pub start_heading: f32,
+    /// Opponents on the grid besides the player, 0 to 7.
+    pub opponents: u32,
 }
 
 impl RaceDef {
@@ -105,6 +107,7 @@ impl RaceDef {
             start_heading: self.start_heading,
             key: name_abi(&self.key)?,
             name: name_abi(&self.name)?,
+            opponents: self.opponents,
         })
     }
 }

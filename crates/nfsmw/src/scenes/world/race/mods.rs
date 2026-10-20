@@ -35,6 +35,7 @@ impl RaceMods {
     fn options(&self, id: u32, career: bool) -> setup::RaceOptions {
         setup::RaceOptions {
             // The quick race's three difficulty classes take the skill (`docs/specs/race-mode.md` section 11).
+            opponents: self.custom(id).map(|custom| custom.opponents as usize),
             difficulty: self.skill.get(&id).map(|skill| (skill.clamp(0.0, 1.0) * 100.0).round() as i32),
             cash: self.reward.get(&id).map(|cash| *cash as f32),
             career,
@@ -74,6 +75,7 @@ impl WorldScene {
             kind: RaceType::Sprint as u32,
             laps: 1,
             reward: 1000,
+            opponents: if demo { 0 } else { 3 },
             start: [at.x, at.y, at.z],
             heading,
             checkpoints: vec![ahead(150.0), ahead(300.0), ahead(450.0)],
@@ -274,6 +276,7 @@ mod tests {
             kind: 1,
             laps: 2,
             reward: 750,
+            opponents: 2,
             start: [0.0, 0.0, 0.0],
             heading: 0.0,
             checkpoints: points.to_vec(),

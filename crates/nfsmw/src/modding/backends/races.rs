@@ -14,6 +14,8 @@ pub struct RacesPort;
 
 /// The numbers of `RaceType` a race can have (`nfsmw_data::gameplay::RaceType`).
 const KINDS: u32 = 11;
+/// Most opponents a custom race takes: the Quick Race's largest choice.
+const MAX_OPPONENTS: u32 = 7;
 
 fn name_of(text: &str) -> BbName {
     BbName::new(text).unwrap_or(BbName::EMPTY)
@@ -110,7 +112,7 @@ impl RacesBackend for RacesPort {
             return Err(BB_ERR_ARG);
         }
         let name = def.name.text().filter(|name| !name.is_empty()).unwrap_or(key);
-        let valid = def.kind < KINDS && def.laps >= 1 && !checkpoints.is_empty();
+        let valid = def.kind < KINDS && def.laps >= 1 && def.opponents <= MAX_OPPONENTS && !checkpoints.is_empty();
         let finite = [def.start.x, def.start.y, def.start.z, def.start_heading]
             .into_iter()
             .chain(checkpoints.iter().flat_map(|p| [p.x, p.y, p.z]))
@@ -125,6 +127,7 @@ impl RacesBackend for RacesPort {
             kind: def.kind,
             laps: def.laps,
             reward: def.reward_cash,
+            opponents: def.opponents,
             start: [def.start.x, def.start.y, def.start.z],
             heading: def.start_heading,
             checkpoints: checkpoints.iter().map(|p| [p.x, p.y, p.z]).collect(),

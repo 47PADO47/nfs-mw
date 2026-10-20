@@ -12,6 +12,8 @@ use std::cell::RefCell;
 pub const CUSTOM_BASE: u32 = 0x1000_0000;
 /// Most requests kept while the world is not applying them.
 const MAX_REQUESTS: usize = 64;
+/// Most notices kept while nothing drains them.
+const MAX_NOTICES: usize = 64;
 
 /// One race of the list.
 #[derive(Debug, Clone, PartialEq)]
@@ -58,6 +60,33 @@ pub struct Snapshot {
     pub results: Vec<(u32, Outcome)>,
 }
 
+/// A change of the races the mods hear: what a new snapshot says against the one before it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Notice {
+    /// A race began.
+    Started { race: u32, kind: u32, racers: u32, laps: u32 },
+    /// The player finished a race (a new result, or a better or worse one than the race had).
+    Finished { race: u32, outcome: Outcome },
+}
+
+/// The notices of the change from `before` to `after`, in order: a race that began, then the results that are new.
+pub fn observe(before: &Snapshot, after: &Snapshot) -> Vec<Notice> {
+    let mut notices = Vec::new();
+    let began = after.now.filter(|now| before.now.is_none_or(|was| was.id != now.id));
+    if let Some(now) = began {
+        let row = after.rows.iter().find(|row| row.id == now.id);
+        let (kind, racers, laps) = row.map_or((0, 0, 0), |row| (row.kind, row.racers, row.laps));
+        notices.push(Notice::Started { race: now.id, kind, racers, laps });
+    }
+    for (race, outcome) in &after.results {
+        let known = before.results.iter().any(|(id, was)| id == race && was == outcome);
+        if !known {
+            notices.push(Notice::Finished { race: *race, outcome: *outcome });
+        }
+    }
+    notices
+}
+
 /// What a mod asks of the races.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Request {
@@ -78,6 +107,8 @@ pub struct Custom {
     pub kind: u32,
     pub laps: u32,
     pub reward: u32,
+    /// Opponents on the grid besides the player.
+    pub opponents: u32,
     pub start: [f32; 3],
     /// Radians from +x towards +y.
     pub heading: f32,
@@ -88,6 +119,7 @@ pub struct Custom {
 struct State {
     snapshot: Snapshot,
     requests: Vec<Request>,
+    notices: Vec<Notice>,
     /// Every race registered, in order.
     customs: Vec<Custom>,
 }
@@ -98,7 +130,20 @@ thread_local! {
 
 /// Publish the races as they are now.
 pub fn publish(snapshot: Snapshot) {
-    STATE.with(|state| state.borrow_mut().snapshot = snapshot);
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let changes = observe(&state.snapshot, &snapshot);
+        state.snapshot = snapshot;
+        state.notices.extend(changes);
+        // Nothing drains them in a session without mods: the oldest go first.
+        let excess = state.notices.len().saturating_sub(MAX_NOTICES);
+        state.notices.drain(..excess);
+    });
+}
+
+/// The notices queued since the last call, in order. The `ModsPost` system sends them to the mods.
+pub fn drain_notices() -> Vec<Notice> {
+    STATE.with(|state| std::mem::take(&mut state.borrow_mut().notices))
 }
 
 /// Look at the last snapshot. Nothing was published before the first world frame, so the lists are empty then.
@@ -137,7 +182,7 @@ pub fn register(mut custom: Custom) -> Option<u32> {
             name: custom.name.clone(),
             kind: custom.kind,
             laps: custom.laps,
-            racers: 1,
+            racers: 1 + custom.opponents,
             start: custom.start,
             checkpoints: custom.checkpoints.clone(),
             done: false,
@@ -171,6 +216,7 @@ mod tests {
             kind: 0,
             laps: 1,
             reward: 0,
+            opponents: 0,
             start: [0.0; 3],
             heading: 0.0,
             checkpoints: vec![[1.0, 0.0, 0.0]],
@@ -188,6 +234,40 @@ mod tests {
         assert_eq!(register(custom("m:c")), Some(CUSTOM_BASE + 2));
         assert_eq!(customs_after(2)[0].key, "m:c");
         assert_eq!(customs_after(0).len(), 3, "a world opened later gets them all");
+    }
+
+    fn row(id: u32) -> RaceRow {
+        RaceRow {
+            id,
+            name: String::new(),
+            kind: 2,
+            laps: 3,
+            racers: 4,
+            start: [0.0; 3],
+            checkpoints: Vec::new(),
+            done: false,
+        }
+    }
+
+    fn now(id: u32) -> Now {
+        Now { id, lap: 1, checkpoint: 0, position: 1, elapsed: 0.0 }
+    }
+
+    #[test]
+    fn a_race_that_begins_and_a_new_result_are_noticed_once() {
+        clear();
+        let idle = Snapshot { rows: vec![row(7)], ..Snapshot::default() };
+        let running = Snapshot { now: Some(now(7)), ..idle.clone() };
+        let outcome = Outcome { position: 1, time: 80.0, won: true, winnings: 500 };
+        let done = Snapshot { results: vec![(7, outcome)], ..idle.clone() };
+        publish(idle);
+        assert!(drain_notices().is_empty());
+        publish(running.clone());
+        publish(running);
+        assert_eq!(drain_notices(), vec![Notice::Started { race: 7, kind: 2, racers: 4, laps: 3 }]);
+        publish(done.clone());
+        publish(done);
+        assert_eq!(drain_notices(), vec![Notice::Finished { race: 7, outcome }]);
     }
 
     #[test]

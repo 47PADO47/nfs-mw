@@ -18,6 +18,10 @@ pub const MW_EVENT_BUSTED: u32 = MW_EVENT_RANGE_START + 3;
 pub const MW_EVENT_ESCAPED: u32 = MW_EVENT_RANGE_START + 4;
 /// `BbMwInfraction`: an infraction was recorded.
 pub const MW_EVENT_INFRACTION_RECORDED: u32 = MW_EVENT_RANGE_START + 5;
+/// `BbMwRaceStarted`: a race began (its countdown ended and the racers are off).
+pub const MW_EVENT_RACE_STARTED: u32 = MW_EVENT_RANGE_START + 6;
+/// `BbMwRaceFinished`: the player finished a race, or lost it.
+pub const MW_EVENT_RACE_FINISHED: u32 = MW_EVENT_RANGE_START + 7;
 
 /// Payload of `MW_EVENT_PURSUIT_STARTED`.
 #[repr(C)]
@@ -97,4 +101,38 @@ pub struct BbMwInfraction {
     pub infraction: u32,
     /// Fine for the infraction, in cash.
     pub fine: u32,
+}
+
+/// Payload of `MW_EVENT_RACE_STARTED`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BbMwRaceStarted {
+    /// Bytes the host filled in.
+    pub size: u32,
+    /// The race id, as `nfsmw.races` lists it.
+    pub race: u32,
+    /// `RaceType` number.
+    pub kind: u32,
+    /// Racers on the grid, the player included.
+    pub racers: u32,
+    /// Laps.
+    pub laps: u32,
+}
+
+/// Payload of `MW_EVENT_RACE_FINISHED`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BbMwRaceFinished {
+    /// Bytes the host filled in.
+    pub size: u32,
+    /// The race id, as `nfsmw.races` lists it.
+    pub race: u32,
+    /// The player's place, 1 for first.
+    pub position: u32,
+    /// 1 when the player won, else 0.
+    pub won: u32,
+    /// The player's race time, seconds.
+    pub time: f32,
+    /// Cash paid for the finish.
+    pub winnings: u32,
 }

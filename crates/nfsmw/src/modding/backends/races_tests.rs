@@ -28,6 +28,7 @@ fn def(key: &str) -> BbRaceDef {
         start_heading: 0.5,
         key: BbName::new(key).unwrap(),
         name: BbName::new("A race").unwrap(),
+        opponents: 3,
     }
 }
 

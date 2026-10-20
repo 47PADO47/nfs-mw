@@ -114,10 +114,10 @@ Delivered like the generic events ([api.md](api.md#events)).
 | `Purchased` | `shop`, `item`, `price` | no | same |
 | `CareerLoaded`, `CareerSaved` | `slot` | no | `saves.rs`, `save_format.rs` |
 | `RaceStartRequested` | `race`, `kind` | **yes** | race module (new) |
-| `RaceStarted` | `race`, `kind: RaceType`, `racers`, `laps` | no | same |
+| `RaceStarted` | `race`, `kind: RaceType`, `racers`, `laps` | no | `modding/races_feed.rs` (`observe`), kind `0x1006` |
 | `CheckpointPassed` | `race`, `index`, `time`, `position` | no | same |
 | `LapCompleted` | `race`, `lap`, `time` | no | same |
-| `RaceFinished` | `race`, `position`, `time`, `won`, `winnings` | no | same |
+| `RaceFinished` | `race`, `position`, `won`, `time`, `winnings` | no | same, kind `0x1007` |
 | `RaceAborted` | `race`, `reason` | no | same |
 
 ## Career (`nfsmw.career`)
@@ -405,8 +405,8 @@ update:
 | 88 | `race_set_reward` | `id: u32, cash: u32` | yes | `set_reward(id, cash)` |
 | 96 | `race_results` | `id: u32, out: *mut BbRaceResult` (`BB_ERR_NOT_FOUND` when none) | no | `results(id)` |
 
-Race kinds are numbers; the list is [unconfirmed] against `nfsmw-data/src/gameplay/races.rs`. The opponents of a custom
-race and the race events are not in 0.1. The console's `race mod [demo]` registers a race and starts it the way a mod
+Race kinds are numbers; the list is [unconfirmed] against `nfsmw-data/src/gameplay/races.rs`. `BbRaceDef.opponents` (appended, 0 to 7, 0 when a definition ends before it) puts that many generic opponents on a
+custom race's grid. `RaceStarted` and `RaceFinished` are sent; `RaceStartRequested` (vetoable) is not, as no vetoable event exists yet. The console's `race mod [demo]` registers a race and starts it the way a mod
 would.
 
 ### Events (0.1)
