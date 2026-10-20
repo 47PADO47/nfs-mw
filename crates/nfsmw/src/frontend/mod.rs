@@ -22,6 +22,7 @@ mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
 mod loading;
+mod loading_tips;
 mod logic;
 mod mod_options;
 mod options;

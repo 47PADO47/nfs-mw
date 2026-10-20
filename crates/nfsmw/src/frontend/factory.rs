@@ -7,6 +7,7 @@ use super::credits::CreditsLogic;
 use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::jukebox::JukeboxLogic;
+use super::loading_tips::LoadingTips;
 use super::logic::{Args, Plain, ScreenLogic};
 use super::splash::Splash;
 use super::track_options::TrackOptions;
@@ -22,6 +23,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     let is = |file: &str| name == file.to_ascii_lowercase();
     if is(screen::SPLASH) || is("WS_MW_LS_Splash.fng") {
         return Box::new(Splash::default());
+    }
+    if is(screen::LOADING_TIPS) {
+        return Box::new(LoadingTips::new());
     }
     if is(screen::MAIN_MENU) {
         return Box::new(IconMenu::new(Kind::Main, args));

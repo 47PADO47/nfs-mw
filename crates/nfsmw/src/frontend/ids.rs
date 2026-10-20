@@ -19,6 +19,9 @@ pub mod screen {
     pub const PAUSE_CONTROLS: &str = "Pause_PC_Controller.fng";
     /// The loading screen shown while free roam streams in (`loading.rs`). Widescreen only in the install.
     pub const LOADING: &str = "WS_Loading.fng";
+    /// The career's loading screen: `LOADING...` at the bottom left, a tip with its picture, a prompt to continue
+    /// (`loading_tips.rs`). Widescreen only in the install.
+    pub const LOADING_TIPS: &str = "Loading_Tips.fng";
     /// Quick Race: the track list (`track_select.rs`) and the track's options (`track_options.rs`).
     pub const TRACK_SELECT: &str = "Track_Select.fng";
     pub const TRACK_OPTIONS: &str = "Track_Options.fng";

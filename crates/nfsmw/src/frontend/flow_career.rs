@@ -14,6 +14,7 @@ use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
 
 use super::Frontend;
+use super::flow_loading::LoadingScreen;
 
 impl Frontend {
     /// Career on the main menu. On success the career is the one being played and free roam starts. On failure the
@@ -29,7 +30,7 @@ impl Frontend {
         };
         log::info!("career: playing {}", career.alias);
         self.career.set(career);
-        self.start_free_roam(host, env);
+        self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
     /// Carries out what the career in the world asks for (`career::CareerRequest`), while driving: the safe house
