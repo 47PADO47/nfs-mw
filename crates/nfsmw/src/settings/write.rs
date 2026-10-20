@@ -150,6 +150,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.turn_signals {
         put("turn_signals", Value::Boolean(v));
     }
+    if let Some(v) = changes.quick_race {
+        put("quick_race", Value::Array(v.iter().map(|n| Value::Integer(i64::from(*n))).collect()));
+    }
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }
@@ -407,10 +410,18 @@ mod tests {
             paddle_down: Some(6),
             manual_clutch: Some(true),
             h_shifter: Some(true),
+            quick_race: Some([2, 3, 1, 4]),
             ..Partial::default()
         };
         let text = merge("", &changes).unwrap();
         assert_eq!(file::parse(&text, "test"), changes);
+    }
+
+    #[test]
+    fn a_bad_quick_race_is_ignored() {
+        assert_eq!(file::parse("quick_race = [1, 2, 3]", "test").quick_race, None, "three numbers");
+        assert_eq!(file::parse("quick_race = [1, 2, 3, 12]", "test").quick_race, None, "past 9");
+        assert_eq!(file::parse("quick_race = [0, 0, 0, 0]", "test").quick_race, Some([0; 4]));
     }
 
     #[test]

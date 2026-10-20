@@ -183,7 +183,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::AdvancedGraphics => Data::Text("Open F8".into()),
-            Setting::Quick(row) => Data::Text(super::quick_options::text(row)),
+            Setting::Quick(row) => Data::Text(super::quick_options::text(s, row)),
             Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
@@ -319,7 +319,7 @@ impl Setting {
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
             Setting::Quick(row) => {
-                super::quick_options::step(row, forward);
+                super::quick_options::step(s, changed, row, forward);
                 return true;
             }
             Setting::Input(setting) => return setting.step(s, changed, forward),

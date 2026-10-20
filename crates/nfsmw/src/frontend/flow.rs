@@ -298,7 +298,7 @@ impl Frontend {
         };
         world.set_career(self.career.clone(), self.profiles.clone());
         if let Some(race) = self.quick_race.take() {
-            world.queue_race(race, super::quick_options::choice().race_options());
+            world.queue_race(race, super::quick_options::Choice::of(env.settings).race_options());
         }
         self.paused.set(false);
         self.conceal.set(true);

@@ -337,7 +337,8 @@ Packages `Track_Select.fng` (classes `UIQRTrackSelect`) and `Track_Options.fng` 
   the settings list logic (`track_options.rs`, `quick_options.rs`): each steps through "Default" (the race's own value)
   and a few set ones, and the choice goes to the race as `RaceOptions` (laps 1 to 9, opponents 1 to 7, difficulty
   Easy, Medium or Hard as 33, 66 and 100, traffic None, Light, Medium or Heavy as 0, 25, 50 and 100 percent of the
-  budget). The choice is kept for the session; it is not written to the config file **[rewrite choice]**.
+  budget). The choice is a setting: the config key `quick_race = [laps, opponents, difficulty, traffic]` (four numbers from 0 to 9,
+  0 for the race's own value) keeps it, written as the other options are **[rewrite choice]**.
 - The track list is this repository's own: the original's track source (`UIQRTrackSelect`, the track table behind
   `cFrontendDatabase`) was not read, so the order and the names are not the original's.
 

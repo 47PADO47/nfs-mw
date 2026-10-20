@@ -108,6 +108,7 @@ pub struct Partial {
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
     pub rear_view_mirror: Option<bool>,
+    pub quick_race: Option<[u8; 4]>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
     /// Which mods may load (`mods`).
@@ -229,6 +230,7 @@ impl Partial {
             exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
             turn_signals: self.turn_signals.or(lower.turn_signals),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
+            quick_race: self.quick_race.or(lower.quick_race),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),
             mods: self.mods.or(lower.mods),
