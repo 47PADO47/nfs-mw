@@ -43,8 +43,10 @@ impl WorldScene {
         }
     }
 
-    /// Takes the race down: the racers leave, the traffic count is given back and the car is let go.
-    pub(super) fn end_race(&mut self, session: RaceSession) {
+    /// Takes the race down: the racers leave, the race's walls come down, the traffic count is given back and the car is
+    /// let go.
+    pub(super) fn end_race(&mut self, mut session: RaceSession) {
+        self.lower_race_walls(std::mem::take(&mut session.walls));
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_racers();
         }

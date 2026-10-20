@@ -135,6 +135,7 @@ impl WorldScene {
             cars
         );
         let racers = plan.len();
+        let walls = self.raise_race_walls(&race.barriers);
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
             name: race.name.clone(),
@@ -162,6 +163,7 @@ impl WorldScene {
             cash_value: options.cash.unwrap_or(p.cash_value),
             pool,
             challenge: None,
+            walls,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }

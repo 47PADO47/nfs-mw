@@ -3,6 +3,7 @@
 //! computer-driven racers, the minimap, the card and the career. Specs: `docs/specs/race-mode.md`,
 //! `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-racers-catchup.md`.
 
+mod barriers;
 mod blips;
 mod card;
 mod challenge;
@@ -110,4 +111,6 @@ pub(super) struct RaceSession {
     pub pool: Vec<String>,
     /// The pursuit challenge being run, for a `challenge` race: it has no engine (`challenge.rs`).
     pub challenge: Option<challenge::Challenge>,
+    /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
+    pub walls: barriers::RaceWalls,
 }
