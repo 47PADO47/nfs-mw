@@ -239,6 +239,36 @@ This is implemented in [`blackbox-streaming`](../../libs/blackbox-streaming),
 [NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (`Common/Scenery/MostWantedScenery.cs`, no
 license) has a C# reader.
 
+## Scenery overrides and groups **[decomp + verified]**
+
+Two chunks of `L2RA.BUN` say which instances can be switched on and off together (race walls, region gates, the
+junkyard door; rules in [../specs/race-barriers.md](../specs/race-barriers.md)).
+
+`00034108 SceneryOverrideInfos`: 22,340 records of 6 bytes, no header. The record's position is its **global
+override index**, the number the section hooks (`0x34106`) and the groups refer to.
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x00 | i16 | section number: the drivable section's; the instance lies in it or in its far tile (number + 40) |
+| 0x02 | i16 | instance index in that section's scenery instance list |
+| 0x04 | u16 | flags written into the low 16 bits of the instance's flag word; on disk equal to the instance's own |
+
+`00034109 SceneryGroups`: 754 records back to back, each `(2n + 0x17) & ~3` bytes:
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x00 | u32 ×2 | runtime list links (junk on disk) |
+| 0x08 | u32 | `bStringHash` of the group name (`BARRIER_SPLINE_516`, `BARRIER_LOCKED_10`, `SCENERY_GROUP_DOOR`) |
+| 0x0C | u16 | group number, the number the collision instances store at `+0x18` |
+| 0x0E | u16 | `n`, the number of override indexes |
+| 0x10 | u8 | 1 for 751 groups, meaning unknown |
+| 0x11 | u8 | drive-through: set for the 126 groups of `XO_TrackBarrierTraffic_*` pieces |
+| 0x14 | u16 × n | global override indexes |
+
+Override flag bits: `0x10` hidden (the visibility rule), `0x400` turned. Instance flag bit `0x800000` marks an
+instance the engine mirrors along its local x axis when an override changes `0x400`. Readers:
+`blackbox_scenery::read_scenery_overrides`, `read_scenery_groups`, `find_group`.
+
 ## Inspecting it yourself
 
 ```bash

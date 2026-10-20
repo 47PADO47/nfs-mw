@@ -38,7 +38,8 @@ or bit `0x02` set.
 **Scenery overrides.** When a race or event starts, `SceneryOverrideInfo` records replace the low 16 bits
 of chosen instances' flags (the high 16 bits are kept). That is how race barriers are switched on (their
 `0x10` bit is cleared). One more detail: if an instance has bit `0x800000` and the override flips bit
-`0x400`, the instance is mirrored along its local x axis. Not implemented yet.
+`0x400`, the instance is mirrored along its local x axis ([race-barriers.md](race-barriers.md) section 3; the rewrite
+draws turned race walls that way).
 
 Other bits seen in the culling code: `0x80` and `0x1000100` choose which LOD slot is used in special
 modes; `0x2000000` biases the LOD choice. Bits 16–31 are kept through overrides.

@@ -116,3 +116,10 @@ fn override_numbers_skip_group_zero() {
     assert_eq!(map.get(&13601), Some(&389));
     assert_eq!(map.get(&99), None);
 }
+
+#[test]
+fn a_group_is_found_by_its_name_hash() {
+    let groups = parse_groups(&[record(0x2D9C_192E, 2, 0, &[5]), record(0x87DE_8337, 71, 0, &[7])].concat()).unwrap();
+    assert_eq!(crate::find_group(&groups, 0x87DE_8337).map(|g| g.number), Some(71));
+    assert!(crate::find_group(&groups, 0x1234_5678).is_none());
+}

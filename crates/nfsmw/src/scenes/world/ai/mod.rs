@@ -28,6 +28,7 @@ mod racer;
 mod racers;
 mod radar;
 mod release;
+mod road_barriers;
 mod road_reflection;
 mod roadblock;
 mod scene;
@@ -96,6 +97,8 @@ pub struct TrafficModel {
 pub struct TrafficWorld {
     network: RoadNetwork,
     index: SegmentIndex,
+    /// The track barrier lines (`road_barriers.rs`).
+    track_barriers: Vec<blackbox_roads::TrackBarrier>,
     /// The signals of the junctions and the simulated seconds on their clock.
     signals: SignalController,
     signal_time: f32,
@@ -195,6 +198,7 @@ impl TrafficWorld {
             avoidance: false,
             network,
             index,
+            track_barriers: Vec::new(),
             models: Vec::new(),
             cop_models: Vec::new(),
             model_loader: None,

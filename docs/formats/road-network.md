@@ -251,6 +251,10 @@ last query **[decomp]**. Which gameplay code reads which zone type is in the AI 
 
 ## Track path barriers (`0x3414D`) **[decomp + verified]**
 
+A top-level chunk of `L2RA.BUN`, beside (not inside) the track path manager. Reader:
+`blackbox_roads::read_track_barriers`; `mark_barrier_crossings` sets the segment flags
+([../specs/race-barriers.md](../specs/race-barriers.md) section 5).
+
 24-byte records: two 2D points (`f32[4]`), `i8 enabled`, `i8 pad`, `i8 player barrier` ("drive-through"),
 `i8 left handed`, `u32 group hash` (bStringHash of a scenery group name). In the file `enabled` and `player
 barrier` are 0 for all 1,376 barriers; the game enables the barriers of a scenery group when an event turns

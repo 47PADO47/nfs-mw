@@ -5,6 +5,6 @@ mod nav;
 mod path;
 mod signal;
 mod signal_props;
-mod synth;
+pub(crate) mod synth;
 mod trail;
 mod zones;
