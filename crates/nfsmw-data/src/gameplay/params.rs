@@ -64,6 +64,11 @@ pub struct RaceParams {
     pub initially_unlocked: bool,
     /// `UnlockRaces`: the keys of the races a win opens (the challenge ladders).
     pub unlock_races: Vec<u32>,
+    /// `LocalizationTag`: the number the challenge series' texts are named by (`CHALLENGE_SERIES_DESC_<tag>`); 0 for
+    /// a race with none (`docs/specs/challenge-series.md`).
+    pub localization_tag: i32,
+    /// `ChallengeSeriesRace`: the event belongs to the challenge series (its money is not paid in a career).
+    pub challenge_series: bool,
     /// `OutroNIS`: the cutscene the career plays after the race, when it has one.
     pub outro_nis: Option<String>,
 }
@@ -98,6 +103,8 @@ impl Default for RaceParams {
             outro_nis: None,
             initially_unlocked: false,
             unlock_races: Vec::new(),
+            localization_tag: 0,
+            challenge_series: false,
         }
     }
 }
@@ -131,6 +138,8 @@ impl RaceParams {
             post_race_activity: key_field(c, "PostRaceActivity"),
             initially_unlocked: c.get_bool("InitiallyUnlocked").unwrap_or(false),
             unlock_races: key_array(c, "UnlockRaces"),
+            localization_tag: c.get_i32("LocalizationTag").unwrap_or(0),
+            challenge_series: c.get_bool("ChallengeSeriesRace").unwrap_or(false),
             outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
         }
     }
