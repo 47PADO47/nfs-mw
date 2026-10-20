@@ -50,6 +50,12 @@ pub(super) fn resolve<'a>(data: &'a GameplayData, query: &str) -> Result<&'a Rac
 }
 
 impl WorldScene {
+    /// Asks for a race to start as soon as the player's car exists: the front end uses it for a quick race, which opens
+    /// the world and the race in one go.
+    pub fn queue_race(&mut self, query: String, options: RaceOptions) {
+        self.queued_race = Some((query, options));
+    }
+
     /// Starts the race `query` names. The player's car is put on the grid and the opponents are loaded; the countdown
     /// starts when everything stands. Quick race and the console use this; the career's race entry too.
     pub(in crate::scenes::world) fn start_race(&mut self, query: &str, options: RaceOptions) -> Result<String, String> {

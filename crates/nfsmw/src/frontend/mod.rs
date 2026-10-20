@@ -30,6 +30,7 @@ mod pointer;
 pub(crate) mod post_options;
 mod prompt_layout;
 mod prompts;
+mod quick_race;
 mod renderer_options;
 mod room;
 mod scene;

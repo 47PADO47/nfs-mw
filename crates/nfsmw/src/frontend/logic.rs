@@ -61,6 +61,9 @@ pub enum Command {
     /// Leave the menus and drive, outside career mode.
     #[allow(dead_code)] // nothing sends it since Career starts a career; Quick Race will
     StartFreeRoam,
+    /// Quick Race: leave the menus and start this race (a gameplay collection name) in the world, outside career mode
+    /// (`quick_race.rs`, `track_options.rs`).
+    StartQuickRace(String),
     /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
     StartCareer,
     /// Close the pause menu and go on driving.
@@ -148,6 +151,12 @@ impl Cx<'_> {
             self.rt.set_text(ObjectRef { package: self.package, index }, text);
         }
     }
+    /// Sets the text of the string object with this name hash (and nothing else). Nothing when the screen has none.
+    pub fn text_object(&mut self, name_hash: u32, text: &str) {
+        let Some(object) = self.object(name_hash) else { return };
+        self.rt.set_text(object, text);
+    }
+
     /// The object with this GUID in the screen's package.
     pub fn guid(&self, guid: u32) -> Option<ObjectRef> {
         self.rt.find_guid(self.package, guid)

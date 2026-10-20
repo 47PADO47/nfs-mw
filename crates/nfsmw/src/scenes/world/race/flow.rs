@@ -14,6 +14,7 @@ impl WorldScene {
     /// One frame of the race: loading, running or the result card. `sim_dt` is the simulated time of the frame and
     /// `frame_dt` the real one (the result card and the loading wait use real time).
     pub(in crate::scenes::world) fn update_race(&mut self, input: &ActionState, sim_dt: f32, frame_dt: f32) {
+        self.start_queued_race();
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
@@ -24,6 +25,18 @@ impl WorldScene {
         match keep {
             true => self.race = Some(session),
             false => self.end_race(session),
+        }
+    }
+
+    /// Starts the race a quick race asked for, as soon as the car exists and no race is running.
+    fn start_queued_race(&mut self) {
+        if self.race.is_some() || self.drive.is_none() {
+            return;
+        }
+        let Some((query, options)) = self.queued_race.take() else { return };
+        match self.start_race(&query, options) {
+            Ok(line) => log::info!("race: {line}"),
+            Err(why) => log::warn!("race {query}: {why}"),
         }
     }
 

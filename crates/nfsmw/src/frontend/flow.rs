@@ -15,7 +15,7 @@ use super::script::UiScript;
 use crate::app::Host;
 use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
-use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
+use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, RaceOptions, WorldScene};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
@@ -128,12 +128,15 @@ pub struct Frontend {
     pub(super) in_safe_house: bool,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
+    /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
+    quick_race: Option<String>,
 }
 
 impl Frontend {
     pub fn new(screens: Screens, dir: GameDir, start: Start, script: Option<UiScript>) -> Self {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
+        super::quick_race::load_in_background(&dir);
         Self {
             screens,
             dir,
@@ -158,6 +161,7 @@ impl Frontend {
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
             auto_shop_requested: false,
+            quick_race: None,
         }
     }
 
@@ -290,6 +294,9 @@ impl Frontend {
             }
         };
         world.set_career(self.career.clone(), self.profiles.clone());
+        if let Some(race) = self.quick_race.take() {
+            world.queue_race(race, RaceOptions::default());
+        }
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());
@@ -382,6 +389,11 @@ impl Frontend {
             match command {
                 Command::StartFreeRoam => {
                     self.career.clear();
+                    self.start_free_roam(host, env);
+                }
+                Command::StartQuickRace(race) => {
+                    self.career.clear();
+                    self.quick_race = Some(race);
                     self.start_free_roam(host, env);
                 }
                 Command::StartCareer => self.start_career(host, env),

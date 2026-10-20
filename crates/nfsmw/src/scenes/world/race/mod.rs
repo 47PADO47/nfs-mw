@@ -15,7 +15,7 @@ mod setup;
 mod start;
 
 pub(super) use command::race_command;
-pub(super) use setup::RaceOptions;
+pub use setup::RaceOptions;
 
 use blackbox_race::{CatchUp, Race};
 use nfsmw_data::gameplay::RaceType;

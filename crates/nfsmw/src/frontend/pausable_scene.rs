@@ -318,6 +318,15 @@ impl Scene for Pausable {
         self.inner.finished()
     }
 
+    /// The world's panels (the entry card, the race card, the end-of-pursuit card), unless the loading screen hides the
+    /// world.
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        if self.concealed() {
+            return 0.0;
+        }
+        self.inner.ui(ctx)
+    }
+
     fn commands(&self) -> &'static [(&'static str, &'static str)] {
         self.inner.commands()
     }

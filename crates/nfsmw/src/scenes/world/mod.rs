@@ -172,6 +172,8 @@ pub struct WorldScene {
     gameplay: Option<std::sync::Arc<nfsmw_data::gameplay::GameplayData>>,
     /// The race being run, if any (`race/`).
     race: Option<race::RaceSession>,
+    /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
+    queued_race: Option<(String, race::RaceOptions)>,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
     pub mod_blips: Vec<crate::hud::MapBlip>,
     /// The career being played, if any, and what it asks of the front end (`career/`).
@@ -223,4 +225,6 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
+pub use race::RaceOptions;
+
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
