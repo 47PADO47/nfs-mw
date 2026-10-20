@@ -15,7 +15,7 @@ use super::script::UiScript;
 use crate::app::Host;
 use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
-use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, RaceOptions, WorldScene};
+use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options, WorldScene};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
@@ -298,7 +298,7 @@ impl Frontend {
         };
         world.set_career(self.career.clone(), self.profiles.clone());
         if let Some(race) = self.quick_race.take() {
-            world.queue_race(race, RaceOptions::default());
+            world.queue_race(race, super::quick_options::choice().race_options());
         }
         self.paused.set(false);
         self.conceal.set(true);

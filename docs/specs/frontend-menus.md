@@ -333,8 +333,11 @@ Packages `Track_Select.fng` (classes `UIQRTrackSelect`) and `Track_Options.fng` 
   the game at its end, so the screen returns to Track_Select at once.
   **Accept starts the race**: the logic answers `PAD_ACCEPT` with `Command::StartQuickRace(<race name>)`; the front end
   opens free roam as usual and hands the race to the world (`WorldScene::queue_race`), which puts the car on the grid
-  and runs the countdown ([race-mode.md](race-mode.md)). The option rows (laps, opponents, difficulty, traffic) are not
-  bound: the race runs with its stored values.
+  and runs the countdown ([race-mode.md](race-mode.md)). The option rows (laps, opponents, difficulty, traffic) run on
+  the settings list logic (`track_options.rs`, `quick_options.rs`): each steps through "Default" (the race's own value)
+  and a few set ones, and the choice goes to the race as `RaceOptions` (laps 1 to 9, opponents 1 to 7, difficulty
+  Easy, Medium or Hard as 33, 66 and 100, traffic None, Light, Medium or Heavy as 0, 25, 50 and 100 percent of the
+  budget). The choice is kept for the session; it is not written to the config file **[rewrite choice]**.
 - The track list is this repository's own: the original's track source (`UIQRTrackSelect`, the track table behind
   `cFrontendDatabase`) was not read, so the order and the names are not the original's.
 

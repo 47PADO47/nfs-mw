@@ -25,6 +25,8 @@ pub enum Category {
     Discord,
     /// The alias manager, opened from the main menu's Alias Manager icon: save and load (`alias_options.rs`).
     AliasManager,
+    /// The rows of Quick Race's track options (`quick_options.rs`).
+    QuickRace,
     /// The rows the mods registered (`bb.menus`): listed on the page only when a mod has rows (`mod_options.rs`).
     Mods,
 }
