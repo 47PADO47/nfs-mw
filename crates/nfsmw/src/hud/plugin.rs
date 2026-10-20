@@ -28,6 +28,8 @@ use crate::ui::{Catalog, Presenter, SharedAssets};
 
 /// The package that is the in-game HUD, and the files that hold it.
 const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
+/// The HUD of a drag race (layout number 2, `docs/specs/race-mode.md` section 6).
+const DRAG_PACKAGE: &str = "HUD_Drag.fng";
 const HUD_FILES: [&str; 2] = ["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"];
 
 pub struct HudPlugin {
@@ -51,6 +53,15 @@ struct Hud {
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
     overlay: Option<BustedOverlay>,
+    /// The drag race HUD, when the install has it: it takes the place of the race HUD while a drag race runs.
+    drag: Option<DragHud>,
+}
+
+/// `HUD_Drag.fng` with its own binding and viewport, in the same runtime.
+struct DragHud {
+    package: PackageId,
+    binding: HudBinding,
+    viewport: HudViewport,
 }
 
 impl Plugin for HudPlugin {
@@ -87,7 +98,13 @@ impl Plugin for HudPlugin {
         let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
         let trax = trax::load(&self.dir, &mut runtime);
         let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
-        app.insert_resource(Hud { runtime, package, binding, viewport, map_variants, trax, overlay })
+        let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
+            let package = runtime.load(drag);
+            let binding = HudBinding::new(&mut runtime, package);
+            let viewport = HudViewport::new(&runtime.tree(package), &[]);
+            DragHud { package, binding, viewport }
+        });
+        app.insert_resource(Hud { runtime, package, binding, viewport, map_variants, trax, overlay, drag })
             .insert_non_send(self.career.clone())
             .insert_resource(self.initial.clone())
             .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
@@ -149,16 +166,22 @@ fn present(
     // The RadioCard slot decides the radio look. The EA Trax chyron plays and is drawn only where the active theme
     // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.
     let chyron_shown = themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
-    hud.binding.set_mirror_shown(settings.rear_view_mirror);
-    hud.binding.advance_mirror_fade(time.delta_secs());
-    hud.binding.advance_blips(time.delta_secs());
-    hud.binding.apply(&mut hud.runtime, &state);
+    // A drag race shows its own package; the other package rests (its objects are not updated or drawn).
+    let drag = hud.drag.as_mut().filter(|_| state.drag);
+    let (package, binding, viewport) = match drag {
+        Some(drag) => (drag.package, &mut drag.binding, &drag.viewport),
+        None => (hud.package, &mut hud.binding, &hud.viewport),
+    };
+    binding.set_mirror_shown(settings.rear_view_mirror);
+    binding.advance_mirror_fade(time.delta_secs());
+    binding.advance_blips(time.delta_secs());
+    binding.apply(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_mut() {
         let song = chyron_shown.then(|| radio.song().zip(radio.serial())).flatten();
         trax.apply(&mut hud.runtime, song);
     }
     hud.runtime.update(time.delta_secs());
-    hud.binding.finish_frame(&mut hud.runtime, &state);
+    binding.finish_frame(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_ref() {
         trax.keep_text(&mut hud.runtime);
     }
@@ -178,8 +201,8 @@ fn present(
         _ => frame.clear(FengSource::Chyron),
     }
     // The viewport is applied to the source tree (its `index` is the position), never to the composed tree.
-    let mut tree = hud.runtime.tree(hud.package);
-    hud.viewport.apply(&mut tree, screen, settings.hud_layout);
+    let mut tree = hud.runtime.tree(package);
+    viewport.apply(&mut tree, screen, settings.hud_layout);
     frame.set(FengSource::Hud, tree);
     match hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
         Some(overlay) => frame.set(FengSource::BustedOverlay, overlay),

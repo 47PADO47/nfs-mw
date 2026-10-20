@@ -11,6 +11,8 @@ use super::minimap::{ARROW, BACKING, GROUP};
 /// The speedometer group and the group of the tachometer (needle, face, gear, shift light, redline).
 pub(super) const SPEEDOMETER: [u32; 1] = [0x941f_ff09];
 pub(super) const TACHOMETER: [u32; 1] = [0x5164_d4ea];
+/// The drag tachometer of `HUD_Drag.fng` (the needle, the 10000 rpm lines, the gear digit). Not in the race HUD.
+const DRAG_TACHOMETER: [u32; 1] = [0x157c_5b37];
 /// The turbo gauge's group: its needle sits inside it. The name is the one the package uses.
 pub(super) const TURBO_GROUP: &str = "TURBO_GROUP";
 /// The nitrous gauge: its group (frame and icon) and the bar, a multi image next to the group.
@@ -106,7 +108,7 @@ impl Layout {
             package,
             parent,
             speedometer: find(&SPEEDOMETER),
-            tachometer: find(&TACHOMETER),
+            tachometer: find(&[TACHOMETER[0], DRAG_TACHOMETER[0]]),
             speedbreaker: find(&[
                 fe_hash_upper(super::speedbreaker::GROUP),
                 fe_hash_upper(super::speedbreaker::ICON),

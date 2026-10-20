@@ -62,7 +62,7 @@ What the career still lacks. The rules and the wiring listed in the table above 
 
 What races still lack. The rules and the wiring are done ([race-mode.md](specs/race-mode.md) section 13).
 
-- **HUD:** the `HUD_SingleRace.fng` race objects (place, lap, clock, progress, 3-2-1-GO) are bound; the banner lines, the points and the result stay on an egui card; `HUD_Drag.fng` is not bound.
+- **HUD:** the `HUD_SingleRace.fng` race objects (place, lap, clock, progress, 3-2-1-GO) are bound; the banner lines, the points and the result stay on an egui card; `HUD_Drag.fng` shows in drag races through the same bindings (its needle sweep and redline are unconfirmed; `Perfect Shift!` and one rpm string are not bound) (see [race-mode](specs/race-mode.md) section 10).
 - **Post-race flow:** a result card only; no reward screens, outro, retry or quit choices.
 - **Tollbooth and knockout details:** read from the Lua graphs, which are not decompiled. The countdown, the
   `InitialPlayerSpeed` unit and the gate size are recorded in [the provenance](provenance/race-mode.md) section 9.

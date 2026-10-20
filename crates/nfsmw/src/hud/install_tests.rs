@@ -412,3 +412,31 @@ fn the_race_readout_binds_the_single_race_hud_objects() {
     binding.apply(&mut rt, &idle);
     assert!(!rt.tree(id).nodes.iter().find(|n| n.name_hash == fe_hash_upper("CurrentLapTime")).unwrap().visible);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_drag_hud_shows_the_race_readout_and_turns_its_needle() {
+    use super::race::{Count, RaceHud};
+    use super::state::HudState;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_Drag.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    binding.advance_mirror_fade(1.0);
+    let race = RaceHud { place: 1, racers: 2, lap: None, clock: 12.25, progress: 0.4, count: Some(Count::Go) };
+    let state = HudState { race: Some(race), drag: true, rpm: 5000.0, ..Default::default() };
+    for _ in 0..10 {
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 60.0);
+    }
+    let tree = rt.tree(id);
+    let node = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+    assert_eq!(node(0x9C18_3BF8).text.as_deref(), Some("1"), "place");
+    assert_eq!(node(fe_hash_upper("CurrentLapTime")).text.as_deref(), Some("00:12.25"), "clock");
+    assert!(node(fe_hash_upper("3rdPersonNeedle")).visible, "the drag needle shows");
+    assert!(node(fe_hash_upper("321_GO_GROUP")).visible, "the countdown group shows");
+    let angle = node(fe_hash_upper("3rdPersonNeedle")).local_rotation.to_euler(glam::EulerRot::XYZ).2.to_degrees();
+    assert!((angle - (42.0 + 0.5 * 228.0)).abs() < 0.1, "the drag needle at 5000 rpm of 10000: {angle}");
+}

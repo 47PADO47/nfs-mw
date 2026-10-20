@@ -39,6 +39,10 @@ const NOS_BAR_EMPTY_DEG: f32 = 175.0;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
+/// The drag needle (`Drag_RPM_Needle` is named `3rdPersonNeedle` as well) rests at its authored 42 degrees and runs over
+/// the `Drag_RPM_10000_Lines` face; the sweep is the main needle's **[unconfirmed]**.
+const DRAG_NEEDLE_START_DEG: f32 = 42.0;
+const DRAG_SCALE_RPM: f32 = 10000.0;
 /// The gear digit's alpha while a gear change is in progress.
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The pursuit board's group (`PursuitBoardGroup`).
@@ -65,6 +69,8 @@ pub struct HudBinding {
     units: Option<ObjectRef>,
     gear: Option<ObjectRef>,
     needle: Option<ObjectRef>,
+    /// The package is `HUD_Drag.fng`: its needle rests at 42 degrees and runs over a 10000 rpm face.
+    drag: bool,
     fill: Option<ObjectRef>,
     face: Option<ObjectRef>,
     redline: Option<ObjectRef>,
@@ -119,6 +125,7 @@ impl HudBinding {
             units: find(rt, package, "3rdPersonSpeedUnits"),
             gear: find(rt, package, GEAR),
             needle: find(rt, package, "3rdPersonNeedle"),
+            drag: rt.package(package).is_some_and(|p| p.name.eq_ignore_ascii_case("HUD_Drag.fng")),
             fill: rt.find_guid(package, 0x456e),
             face: find(rt, package, "TAC_Lines_7500"),
             redline: find(rt, package, "RPM_REDLINE"),
@@ -263,7 +270,10 @@ impl HudBinding {
             rt.set_colour_rgba(o, [0, 0, 0, alpha]);
         }
         if let Some(o) = self.needle {
-            let angle = NEEDLE_START_DEG + s.rpm_fraction() * NEEDLE_SWEEP_DEG;
+            let angle = match self.drag {
+                true => DRAG_NEEDLE_START_DEG + (s.rpm / DRAG_SCALE_RPM).clamp(0.0, 1.0) * NEEDLE_SWEEP_DEG,
+                false => NEEDLE_START_DEG + s.rpm_fraction() * NEEDLE_SWEEP_DEG,
+            };
             rt.set_rotation_z(o, angle.to_radians());
         }
         if let Some(o) = self.shift_light

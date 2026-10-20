@@ -73,6 +73,9 @@ pub struct HudState {
     pub career_bounty: Option<u32>,
     /// The race the player runs: the place, lap, clock and countdown. `None` outside a race.
     pub race: Option<super::race::RaceHud>,
+    /// The race is a drag race: the HUD shows `HUD_Drag.fng` instead of `HUD_SingleRace.fng` (the layout number 2 of
+    /// `docs/specs/race-mode.md` section 6).
+    pub drag: bool,
 }
 
 impl Default for HudState {
@@ -87,6 +90,7 @@ impl Default for HudState {
             busted_overlay: false,
             career_bounty: None,
             race: None,
+            drag: false,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

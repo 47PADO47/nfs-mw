@@ -153,7 +153,7 @@ racers); the post-race flow decides his loss when the race ends **[unconfirmed]*
 - **HUD.** The layout number 2 selects `HUD_Drag.fng` (3 and 4 are the split-screen `HUD_Player1/2.fng`, 5 and 6 the drag
   split-screen files, anything else `HUD_SingleRace.fng`) **[exe]** (`0x005694e0`); the drag HUD has a drag tachometer
   (`Hud_DragTachometer`, `DRAG_RPM_%d_LINES`) and turbo lines **[exe]** strings. The package objects are not bound
-  yet (`HUD_Drag.fng` is loaded in a drag race only through the same readout); see section 10.
+  yet except as section 10 says.
 - **Vehicle behaviours.** The behaviour chosen for a car depends on its driver class and its drag flag: a human
   driver with the drag flag gets `InputPlayerDrag` (otherwise `InputPlayer`), the damage behaviour is `DamageDragster`
   and the engine `EngineDragster` for the drag flag **[exe]** (`0x0067f0d0`). What the dragster behaviours change in
@@ -191,6 +191,14 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
   for a sprint **[unconfirmed]** (which race kinds use it).
 - `321_GO_GROUP` plays its `THREE`, `TWO`, `ONE` and `GO` scripts when the countdown step changes; its two strings take
   the digit or `Go!`.
+- A drag race shows `HUD_Drag.fng` (`HudState::drag`). It reuses the names of the race HUD for its speed digits and
+  unit, gear (`3rdPersonGear`), needle (`3rdPersonNeedle`, which is `Drag_RPM_Needle`), shift light, redline mask, turbo
+  dial, nitrous group and speed breaker, and the same place, clock and countdown objects **[install]**, so the same
+  bindings drive them. The needle rests at its authored 42 degrees and runs over the 10000 rpm lines with the main
+  needle's 228 degree sweep **[unconfirmed]**: the package has no key for the sweep and the Lua graph that moves it
+  was not read. The redline mask uses the race HUD's table, which does not fit the drag face **[unconfirmed]**. Not
+  bound in the drag HUD: the second `TAC_NUMBERS` string (`0xA48393EA`, role not confirmed) and `Perfect Shift!`
+  (the shift-timing rule is not read).
 - Not bound, because the package has no object of that name: `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`,
   `RIVAL_GROUP`, the `*Stat` strings and the generic message item (`Hud_GenericMessage` is a message-queue item of the
   executable, not an FEng object). The checkpoint, lap, bonus and speed trap lines, the points of a points race and the
