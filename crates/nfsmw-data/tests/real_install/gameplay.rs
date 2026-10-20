@@ -161,3 +161,23 @@ fn post_race_activities_and_outros_are_read() {
     }
     assert!(!chained.is_empty(), "races chain through PostRaceActivity");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_challenge_ladders_have_their_unlock_lists_and_starts() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let id = |r: &gameplay::Race| r.event.clone().unwrap_or_else(|| r.name.clone());
+    let side = |r: &&gameplay::Race| ["18.", "19.", "21."].iter().any(|bin| id(r).starts_with(bin));
+    let mut open: Vec<String> =
+        data.races.iter().filter(side).filter(|r| r.params.initially_unlocked).map(id).collect();
+    open.sort();
+    println!("OPEN {open:?}");
+    for race in data.races.iter().filter(side).filter(|r| !r.params.unlock_races.is_empty()).take(4) {
+        let next: Vec<String> =
+            race.params.unlock_races.iter().filter_map(|k| data.races.iter().find(|r| r.key == *k)).map(id).collect();
+        println!("UNLOCKS {} -> {next:?}", id(race));
+    }
+    assert!(open.contains(&"19.8.1".to_owned()), "the first pursuit challenge starts open: {open:?}");
+    assert!(data.races.iter().filter(side).any(|r| !r.params.unlock_races.is_empty()), "a win opens races");
+}

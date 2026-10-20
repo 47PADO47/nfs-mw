@@ -41,6 +41,7 @@ impl WorldScene {
         let Some(entry) = self.career.handle.with(|career| race_entry(&career.blacklist, &event)) else {
             return RaceEntry::NotCareer;
         };
+        let entry = if entry == RaceEntry::NotCareer { self.side_entry(&event) } else { entry };
         if entry == RaceEntry::Open {
             self.autosave_event_start(&event);
         }
@@ -124,7 +125,12 @@ impl WorldScene {
     /// Whether a race is one the Blacklist lists and has not opened yet: its start icon stays off the map.
     pub(in crate::scenes::world) fn career_race_locked(&self, name: &str) -> bool {
         let event = event_id(name);
-        self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked).unwrap_or(false)
+        let Some(blacklisted) =
+            self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked)
+        else {
+            return false;
+        };
+        blacklisted || self.side_race_locked(&event)
     }
 
     /// The event-start autosave for an open race: the node is the race's event id. A boss race is flagged as one for

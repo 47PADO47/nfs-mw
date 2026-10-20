@@ -7,6 +7,7 @@
 mod bust;
 mod events;
 mod hud;
+mod ladder;
 mod phone;
 mod pursuit;
 mod regions;

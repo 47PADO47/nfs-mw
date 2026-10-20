@@ -60,6 +60,10 @@ pub struct RaceParams {
     pub threshold: f32,
     /// `PostRaceActivity`: the key of the race the career runs after this one (prologue and boss races chain this way).
     pub post_race_activity: Option<u32>,
+    /// `InitiallyUnlocked`: the race is open from the start of a career (the side bins' ladders start from these).
+    pub initially_unlocked: bool,
+    /// `UnlockRaces`: the keys of the races a win opens (the challenge ladders).
+    pub unlock_races: Vec<u32>,
     /// `OutroNIS`: the cutscene the career plays after the race, when it has one.
     pub outro_nis: Option<String>,
 }
@@ -92,6 +96,8 @@ impl Default for RaceParams {
             threshold: 0.0,
             post_race_activity: None,
             outro_nis: None,
+            initially_unlocked: false,
+            unlock_races: Vec::new(),
         }
     }
 }
@@ -123,6 +129,8 @@ impl RaceParams {
             milestone: text(c, "MilestoneName").filter(|name| !name.is_empty()),
             threshold: c.get_f32("ThreshholdValue").unwrap_or(d.threshold),
             post_race_activity: key_field(c, "PostRaceActivity"),
+            initially_unlocked: c.get_bool("InitiallyUnlocked").unwrap_or(false),
+            unlock_races: key_array(c, "UnlockRaces"),
             outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
         }
     }

@@ -276,5 +276,7 @@ The 36 `challenge` races (event icon `challenge`) carry these fields, read by `R
 `total_infractions`, `roadblocks_dodged`, `pursuit_evasion_time` or `tire_spikes_dodged`), `ThreshholdValue`
 (`0x4E90219D`), `ForceHeatLevel`, `PlayerCarType`, `Reputation` (`0x477EC5AA`) and `CopSpawnPoints` (`0xF124B151`, the
 keys of the cop car markers). The event id the Blacklist and the side bins use, `19.8.18`, is the text field
-`0xA78403EC` (name unknown): the data names of these races (`challenge_18_cops_hit`) do not hold it. No field of the
-race records holds an unlock list.
+`0xA78403EC` (name unknown): the data names of these races (`challenge_18_cops_hit`) do not hold it. The ladder fields
+are `InitiallyUnlocked` (`0xEA855EAF`, a bool, set on `19.8.1`, `19.8.32` and `19.9.70` among the side bins) and
+`UnlockRaces` (`0xFC8995C8`, the keys of the races a win opens, for example `19.8.11` opens `19.8.12` and `19.8.43`),
+read by `RaceParams`.

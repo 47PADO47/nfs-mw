@@ -300,12 +300,14 @@ as [career-scripts-events.md](career-scripts-events.md) section 6.1 says **[veri
 - The challenge is won by escaping once the value is reached. A bust, or an escape short of the value, loses it.
 - Statistics the world has: pursuit length, cops damaged, cost to state, bounty, infractions, evasion time. Roadblocks
   dodged counts a roadblock the car came within 40 m of and then went 90 m past **[unconfirmed]**. Spike strips
-  dodged are not counted, so those two challenges (`19.8.8`, `19.8.31`... the ones with `tire_spikes_dodged`) cannot be
-  completed.
+  dodged count when a car came within 40 m of a laid strip and went 90 m past it without driving onto it
+  (`ai/spikes.rs`, `Dodges::track_spikes`) **[unconfirmed]**, so the `tire_spikes_dodged` challenges can be completed.
 - A win in a career is passed to the Blacklist like a race win (cash 0). Every event of bin 19 but `19.8.31` won in
   the session sets the challenge series flag **[unconfirmed]**; the won events are not saved.
-- Not done: the unlock ladder (every challenge is open; the unlock lists are not in the race records read here), the
-  final pursuit `1.8.1` (its win trigger), and the result screens (`PostRace_Pursuit.fng` is not bound; the race card
+- The unlock ladder: a side-bin race (events `18.*`, `19.*`, `21.*`) is open when its record has `InitiallyUnlocked`
+  (`19.8.1`, `19.8.32`, `19.9.70`) or a race won in the session lists it in `UnlockRaces` (`scenes/world/career/ladder.rs`).
+  A locked one has no start icon and refuses entry. The won events are not saved, so a new run starts the ladder again.
+- Not done: the final pursuit `1.8.1` (its win trigger), and the result screens (`PostRace_Pursuit.fng` is not bound; the race card
   says "Challenge complete" or "Challenge failed").
 
 ## Open questions
