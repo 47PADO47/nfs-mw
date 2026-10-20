@@ -101,6 +101,20 @@ impl CareerRecord {
         self.impound_state() == ImpoundState::Releasable
     }
 
+    /// Frees an impounded car with an Impound Release marker, at any point of the impound: the car-select handler
+    /// that applies the marker does not test the state (`docs/specs/busted-aftermath.md` section 5, decomp). The
+    /// same reset as [`CareerRecord::release`]. Returns false and changes nothing for a car that is free to drive.
+    pub fn release_by_marker(&mut self) -> bool {
+        if self.is_free_to_drive() {
+            return false;
+        }
+        self.set_impound_state(ImpoundState::Free);
+        self.strikes = 0;
+        self.countdown = 0;
+        self.heat = 0.0;
+        true
+    }
+
     /// Frees a releasable car (by fee or by marker, which the caller has paid or consumed): state 0, strikes 0,
     /// countdown 0, heat 0. Returns false and changes nothing when the car is not in state 4.
     pub fn release(&mut self) -> bool {
