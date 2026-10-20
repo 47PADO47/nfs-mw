@@ -99,24 +99,26 @@ fn the_arc_lights_up_to_the_revs_and_turns_gold_past_the_red_line() {
 }
 
 #[test]
-fn the_card_has_rounded_corners_from_the_theme_radius() {
+fn the_card_follows_the_arc_so_its_top_left_is_cut_away() {
     let skin = test_skin();
-    assert_eq!(
-        skin.metric(token_keys::RADIUS),
-        Some(palette::remastered().radius),
-        "the radius is the palette's token"
-    );
     let nodes = built(ElementId::Tachometer, &HudState::default()).expect("the tachometer is Remastered");
-    let card: Vec<&UiNode> =
-        nodes.iter().filter(|node| node.colour == skin.colour(keys::CLUSTER_BG).expect("the card colour")).collect();
-    let top = card.iter().map(|node| node.position.y - node.size.y / 2.0).fold(f32::MAX, f32::min);
-    let full = card.iter().map(|node| node.size.x).fold(0.0, f32::max);
-    let top_edge = card
-        .iter()
-        .filter(|node| (node.position.y - node.size.y / 2.0 - top).abs() < 1e-3)
-        .map(|node| node.size.x)
-        .fold(f32::MAX, f32::min);
-    assert!(top_edge < full - 1.0, "the top edge is inset, so the corners are rounded");
+    let card_colour = skin.colour(keys::CLUSTER_BG).expect("the card colour");
+    let card: Vec<&UiNode> = nodes.iter().filter(|node| node.colour == card_colour).collect();
+    let left_of = |node: &&UiNode| node.world.w_axis.x - node.world.x_axis.x / 2.0;
+    let top = card.iter().min_by(|a, b| a.world.w_axis.y.total_cmp(&b.world.w_axis.y)).expect("a top strip");
+    let bottom = card.iter().max_by(|a, b| a.world.w_axis.y.total_cmp(&b.world.w_axis.y)).expect("a bottom strip");
+    assert!(left_of(top) > left_of(bottom) + 20.0, "the top strip starts well right of the bottom one");
+    let right_of = |node: &&UiNode| node.world.w_axis.x + node.world.x_axis.x / 2.0;
+    assert!((right_of(top) - right_of(bottom)).abs() < 1e-3, "and they end together at the card's right edge");
+}
+
+#[test]
+fn the_gear_has_a_lighter_panel_and_the_dial_a_light_line_under_it() {
+    let skin = test_skin();
+    let nodes = built(ElementId::Tachometer, &HudState::default()).expect("the tachometer is Remastered");
+    let panel = skin.colour(keys::GEAR_PANEL).expect("the gear panel colour");
+    assert_eq!(nodes.iter().filter(|node| node.colour == panel).count(), 1, "one gear panel");
+    assert!(texts(&nodes).len() >= 8, "and the numbers of the scale");
 }
 
 #[test]
@@ -126,7 +128,7 @@ fn the_nitrous_bar_shows_only_on_a_car_with_nitrous() {
     assert!(built(ElementId::Nitrous, &without).expect("the bar is Remastered").is_empty());
     let nodes = built(ElementId::Nitrous, &with).expect("the bar is Remastered");
     assert_eq!(texts(&nodes), ["N2O"]);
-    assert!(nodes.len() > 5, "the rounded bar strips and the label");
+    assert!(nodes.len() > 20, "the pill, its border, the fill with its point, and the label");
 }
 
 #[test]

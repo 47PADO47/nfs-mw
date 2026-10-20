@@ -11,7 +11,6 @@ use super::pools;
 use super::{EMPTY, WorldMapLogic};
 use crate::frontend::ids::screen::WORLD_MAP;
 use crate::frontend::logic::{Cx, ScreenLogic};
-use crate::frontend::world_map::layout;
 use crate::frontend::world_map::{Camera, Filter, PlacedBlip, WorldMap, WorldMapFrame};
 use crate::hud::{AUTO_SHOP, CAR_LOT, RACE_SPRINT, SAFE_HOUSE};
 use crate::settings::{Partial, Settings};

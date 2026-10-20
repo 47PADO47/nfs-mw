@@ -25,11 +25,12 @@ pub(super) mod keys {
     pub const VALUE: &str = token_keys::PRIMARY;
     pub const UNIT: &str = token_keys::MUTED;
     pub const UNIT_HIGHLIGHT: &str = token_keys::SECONDARY;
-    pub const GEAR: &str = token_keys::MUTED;
+    pub const GEAR: &str = token_keys::PRIMARY;
+    /// The lighter panel behind the gear digit.
+    pub const GEAR_PANEL: &str = "remastered.gear.panel";
     pub const BAR_TRACK: &str = token_keys::BORDER;
     pub const BAR_FILL: &str = token_keys::SECONDARY;
     pub const BAR_BORDER: &str = token_keys::BORDER;
-    pub const BAR_LABEL: &str = token_keys::SECONDARY;
     pub const CLUSTER_BG: &str = token_keys::BACKGROUND;
     pub const FONT_NUMBERS: &str = "remastered.font.numbers";
     pub const FONT_TEXT: &str = "remastered.font.text";
@@ -71,11 +72,12 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
     let scale = tokens.text_scale;
     Skin::new()
         .with_colour(keys::ARC_REDLINE_DIM, [r, g, b, 100])
-        .with_metric(keys::SCALE_SPEED, 3.4 * scale)
-        .with_metric(keys::SCALE_UNIT, 1.6 * scale)
-        .with_metric(keys::SCALE_GEAR, 2.4 * scale)
-        .with_metric(keys::SCALE_TICK, 1.4 * scale)
-        .with_metric(keys::SCALE_BAR_LABEL, 0.7 * scale)
+        .with_colour(keys::GEAR_PANEL, [tokens.primary[0], tokens.primary[1], tokens.primary[2], 20])
+        .with_metric(keys::SCALE_SPEED, 3.25 * scale)
+        .with_metric(keys::SCALE_UNIT, 1.3 * scale)
+        .with_metric(keys::SCALE_GEAR, 2.9 * scale)
+        .with_metric(keys::SCALE_TICK, 1.2 * scale)
+        .with_metric(keys::SCALE_BAR_LABEL, 0.8 * scale)
         .with_colour(keys::MENU_BAR, scaled(tokens.secondary, 0.84))
         .with_colour(keys::MENU_BOLT, tokens.secondary)
         .with_colour(keys::MENU_TITLE, tokens.secondary)

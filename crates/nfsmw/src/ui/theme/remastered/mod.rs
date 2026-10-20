@@ -3,7 +3,8 @@
 //! Original.
 //!
 //! - [`layout`]: where the cluster sits, from points of the reference picture.
-//! - [`dial`]: the tachometer, a solid arc with the rpm numbered on it. Gold past the red line.
+//! - [`dial`]: the tachometer, a quarter-ellipse arc with the rpm numbered on it. The accent colour past the red line.
+//! - [`arc`]: the arc's path, which the dial draws along.
 //! - [`readout`]: the speed, the unit with the H of MPH in gold, and the gear.
 //! - [`pursuit`]: the pursuit timer, top right.
 //! - [`bar`]: the gauge bars under the dial: N2O, the speed breaker and the boost.
@@ -13,6 +14,7 @@
 //!
 //! State comes from the same drive feed the Custom theme reads (`custom::DriveFeedCell`), filled once per frame by the HUD.
 
+mod arc;
 mod bar;
 mod dial;
 mod layout;
