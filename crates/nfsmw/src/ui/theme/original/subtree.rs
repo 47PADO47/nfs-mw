@@ -51,6 +51,12 @@ impl FengSubtree {
         Self { frame: frame.clone(), source, scope: Scope::Package }
     }
 
+    /// The subtree of `source`'s HUD package under `roots` (`hud::roots`), for a theme that draws part of a HUD element
+    /// with the game's own pieces.
+    pub(crate) fn hud(frame: &FrameCell, roots: crate::hud::roots::Roots) -> Self {
+        Self::with_scope(frame, FengSource::Hud, Scope::Under { roots: roots.roots, excluded: roots.excluded })
+    }
+
     /// The subtree under the roots of `scope`, in `source`'s tree (the HUD slots pass the roots of their element). A name
     /// in both the roots and the excluded names counts as excluded: a node under it belongs to another element.
     pub(super) fn with_scope(frame: &FrameCell, source: FengSource, scope: Scope) -> Self {

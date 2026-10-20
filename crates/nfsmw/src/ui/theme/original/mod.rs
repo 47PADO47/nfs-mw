@@ -30,6 +30,7 @@ pub use frame::{FengSource, FrameCell};
 #[cfg(test)]
 pub(crate) use hud_slots::claim_counts;
 pub(crate) use hud_slots::{HUD_SLOTS, emit_unclaimed};
+pub(crate) use subtree::FengSubtree;
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 

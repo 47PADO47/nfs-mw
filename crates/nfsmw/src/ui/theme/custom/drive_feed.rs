@@ -40,6 +40,8 @@ pub(in crate::ui::theme) struct DriveFeed {
     pub speedbreaker_active: bool,
     /// The chase the pursuit board shows, or `None` while no cop chases the player (`HudState::pursuit`).
     pub pursuit: Option<PursuitHud>,
+    /// The car's retained heat (`HudState::vehicle_heat`): 1.0 and up, shown as a whole multiplier.
+    pub heat: f32,
 }
 
 /// The shared cell. Clones share one feed.
@@ -73,6 +75,7 @@ impl DriveFeedCell {
             speedbreaker: state.speedbreaker,
             speedbreaker_active: state.speedbreaker_active,
             pursuit: state.pursuit,
+            heat: state.vehicle_heat,
         };
         *self.lock() = feed;
     }
