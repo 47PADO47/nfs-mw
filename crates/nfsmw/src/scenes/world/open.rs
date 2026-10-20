@@ -210,6 +210,7 @@ impl WorldScene {
                 rain: crate::weather::rain::Rain::new(),
                 wet_road: Default::default(),
                 explosions: Default::default(),
+                heli_wash: Default::default(),
                 tuning: crate::settings::WorldTuning::default(),
                 car_shading: crate::settings::CarShading::default(),
                 markers_on: false,

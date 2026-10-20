@@ -21,9 +21,22 @@ pub fn is_petrol_station_sequence(key: u32) -> bool {
     PETROL_STATION_SEQUENCES.iter().any(|name| vlt_hash(name) == key)
 }
 
+/// The `effects` record of the helicopter's rotor wash (three emitters).
+pub const HELI_WASH_EFFECT: &str = "heliwash";
+
 /// The emitters of the petrol station's explosion (empty when the record or its group is missing).
 pub fn petrol_station_emitters(db: &Database) -> Vec<GroupEmitter> {
-    let Some(effect) = db.collection("effects", PETROL_STATION_EFFECT) else {
+    effect_emitters(db, PETROL_STATION_EFFECT)
+}
+
+/// The emitters of the helicopter's rotor wash (empty when the record or its group is missing).
+pub fn heli_wash_emitters(db: &Database) -> Vec<GroupEmitter> {
+    effect_emitters(db, HELI_WASH_EFFECT)
+}
+
+/// The emitters of the `effects` record `name`: the group its `emittergroup` field names.
+fn effect_emitters(db: &Database, name: &str) -> Vec<GroupEmitter> {
+    let Some(effect) = db.collection("effects", name) else {
         return Vec::new();
     };
     let Some(group) = effect.get_by_key(GROUP_FIELD).and_then(|v| v.as_ref_spec()).and_then(|r| db.resolve(r)) else {
@@ -44,5 +57,15 @@ mod tests {
         assert_eq!(vlt_hash("gasstationsupport_seq"), 503_242_438);
         assert!(is_petrol_station_sequence(vlt_hash("gasstationroof_seq")));
         assert!(!is_petrol_station_sequence(vlt_hash("metalexplosion_seq")));
+    }
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn installed_effects_have_their_emitters() {
+        let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+        let dir = game_install::GameDir::open(path).unwrap();
+        let db = crate::shared::attributes(&dir).unwrap();
+        assert_eq!(petrol_station_emitters(&db).len(), 4);
+        assert_eq!(heli_wash_emitters(&db).len(), 3, "the rotor wash has three emitters");
     }
 }

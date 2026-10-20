@@ -28,6 +28,7 @@ mod frame;
 mod garage;
 mod gps;
 mod ground;
+mod heli_wash;
 mod hud;
 mod keys;
 mod lighting;
@@ -199,6 +200,8 @@ pub struct WorldScene {
     rain: crate::weather::rain::Rain,
     /// The petrol station's explosion effect, started by the scenery physics.
     explosions: explosion_fx::ExplosionFx,
+    /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
+    heli_wash: heli_wash::HeliWash,
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,
