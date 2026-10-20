@@ -74,7 +74,7 @@ impl Slant {
 }
 
 /// The opacity at `t` along the stops, linear between them and flat outside them.
-fn opacity_at(stops: &[(f32, f32)], t: f32) -> f32 {
+pub(super) fn opacity_at(stops: &[(f32, f32)], t: f32) -> f32 {
     let (Some(first), Some(last)) = (stops.first(), stops.last()) else { return 1.0 };
     if t <= first.0 {
         return first.1;

@@ -21,6 +21,7 @@ mod stack;
 mod switch;
 mod table;
 mod text;
+mod trapezoid;
 
 pub use chevron::{Chevron, Facing, bounce};
 pub use choice::{Choice, ChoiceStyle};
@@ -38,6 +39,7 @@ pub use stack::{Stack, StackAxis};
 pub use switch::Switch;
 pub use table::Table;
 pub use text::{Text, justify};
+pub use trapezoid::Trapezoid;
 
 use glam::{Mat4, Vec3};
 

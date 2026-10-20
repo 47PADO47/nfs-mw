@@ -80,6 +80,9 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
 - **`Ring::new(colour_key, centre, radius, thickness, from, to, cx)`** is an arc of a circle, `from` to `to` degrees
   clockwise from up (a full ring is 0 to 360), drawn as a quad every 3 degrees along the tangent. A bezel, a gauge sweep
   or a row of heat segments. Laid out in `new`.
+- **`Trapezoid::new(colour_key, rect, slant, stops, z, cx)`** is a right trapezoid: a horizontal top and bottom, a vertical right
+  edge and a left edge that slants in by `slant` units (a negative `slant` cuts the top instead). `stops` ramp its opacity, as for
+  `Slant`. Drawn as thin upright columns. Laid out in `new`.
 - **`PillBar::new(style, rect, value, point, cx)`** is a rounded track with a border and a gradient fill from the left up to
   `value` (0 to 1); with `point` the fill starts in a point. `PillStyle` names the three skin colours (`track`, `border`,
   `fill`). A gauge or a slider.
