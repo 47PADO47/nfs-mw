@@ -46,7 +46,7 @@ impl WorldScene {
         let (Some(engine), Some(traffic)) = (session.engine.as_mut(), self.traffic.as_mut()) else { return events };
         let racing = engine.phase() == Phase::Racing;
         let cars: Vec<(usize, Vec3, f32)> = traffic.racers().collect();
-        for (id, car_at, _) in cars {
+        for (id, car_at, car_speed) in cars {
             if !engine.racers()[id].racing() {
                 continue;
             }
@@ -56,6 +56,7 @@ impl WorldScene {
             };
             let at = session.emu[id].unwrap_or(car_at);
             let far = wants_emulation(session.emu[id].is_some(), flat_distance(at, player));
+            engine.set_speed(id, car_speed);
             if !far {
                 if session.emu[id].is_some() {
                     let forward = heading_to(engine.course(), engine.racers()[id].progress.reached, at);
@@ -71,6 +72,7 @@ impl WorldScene {
             let Some(state) = traffic.racer_mut(id) else { continue };
             state.emulated = true;
             let speed = state.emulated_speed();
+            engine.set_speed(id, speed);
             let reached = engine.racers()[id].progress.reached;
             let moved = match next_gate(engine.course(), reached) {
                 Some(centre) => advance(at, centre, speed * dt),
@@ -113,7 +115,7 @@ mod tests {
     #[test]
     fn an_emulated_racer_faces_its_gate() {
         let gate = blackbox_race::Gate::new(Vec3::new(0.0, 0.0, 500.0), Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0]);
-        let course = Course { start: Vec3::ZERO, checkpoints: vec![gate], finish: None, laps: 1 };
+        let course = Course::new(Vec3::ZERO, vec![gate], None, 1);
         let facing = heading_to(&course, 0, Vec3::new(0.0, 0.0, 100.0));
         assert!((facing - Vec3::Z).length() < 1e-5);
     }

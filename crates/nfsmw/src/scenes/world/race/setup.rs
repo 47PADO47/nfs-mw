@@ -1,7 +1,7 @@
 //! Building a race from the stored data: the course, the grid and the opponents.
 //! Specs: `docs/specs/race-mode.md`, `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`.
 
-use blackbox_race::{Course, Gate, RaceConfig};
+use blackbox_race::{Course, Gate, RaceConfig, Sphere, Trap};
 use glam::Vec3;
 use nfsmw_data::gameplay::{BoxTrigger, Character, GameplayData, Placement, Race, RaceType, world_heading};
 
@@ -44,7 +44,17 @@ pub fn course_of(data: &GameplayData, race: &Race, options: &RaceOptions) -> Res
     if checkpoints.is_empty() && finish.is_none() {
         return Err(format!("{} has no checkpoints and no finish line", race.name));
     }
-    Ok(Course { start: start.position, checkpoints, finish, laps: laps_of(race, options) })
+    let mut course = Course::new(start.position, checkpoints, finish, laps_of(race, options));
+    // The time bonuses follow the checkpoints that were read, in order (a missing trigger is skipped in both).
+    course.bonuses = race.checkpoints.iter().filter_map(|k| data.trigger(*k)).map(|t| t.time_bonus).collect();
+    course.traps = race
+        .params
+        .speed_traps
+        .iter()
+        .filter_map(|k| data.sphere(*k))
+        .map(|s| Trap { zone: Sphere { centre: s.position, radius: s.radius }, threshold_kmh: s.threshold_speed })
+        .collect();
+    Ok(course)
 }
 
 /// The laps of the run: the option, else the race's, at least one.
@@ -203,6 +213,8 @@ mod tests {
             fire_on_exit: false,
             particle_effect: None,
             flare_spacing: None,
+            time_bonus: 0.0,
+            resets_player: false,
         }
     }
 
@@ -266,6 +278,27 @@ mod tests {
         let gate = gate_of(&trigger(1, Vec3::ZERO));
         assert!(gate.contains(Vec3::new(39.0, 30.0, 1.9)));
         assert!(!gate.contains(Vec3::new(0.0, 0.0, 2.1)));
+    }
+
+    #[test]
+    fn the_course_carries_the_time_bonuses_and_the_speed_traps() {
+        let mut d = data();
+        d.triggers[1].time_bonus = 25.0;
+        d.spheres = vec![nfsmw_data::gameplay::SphereTrigger {
+            key: 50,
+            name: "trap".into(),
+            position: Vec3::new(1.0, 2.0, 3.0),
+            radius: 20.0,
+            threshold_speed: 88.0,
+        }];
+        let mut r = race(Vec::new());
+        r.params.speed_traps = vec![50, 51];
+        let course = course_of(&d, &r, &RaceOptions::default()).unwrap();
+        assert_eq!(course.bonus(1), 25.0);
+        assert_eq!(course.bonus(2), 0.0);
+        assert_eq!(course.traps.len(), 1, "a trap that was not read is skipped");
+        assert_eq!(course.traps[0].threshold_kmh, 88.0);
+        assert_eq!(config_of(&r).speed_traps, 2);
     }
 
     #[test]

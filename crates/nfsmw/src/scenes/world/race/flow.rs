@@ -38,9 +38,11 @@ impl WorldScene {
         let mut events = engine.tick(dt);
         let player = self.player_physics();
         if let Some(position) = player {
+            engine.set_speed(0, self.drive.as_ref().map_or(0.0, |d| d.speed().abs()));
             events.extend(engine.move_racer(0, position));
         }
         events.extend(self.step_racers(session, player, dt));
+        self.drag_assist(session);
         self.race_goals(session);
         self.race_glue(session, dt);
         self.race_log(session, dt);
@@ -141,6 +143,12 @@ impl WorldScene {
                 RaceEvent::KnockedOut { racer: 0 } => {
                     flash(&mut session.banner, "Knocked out".into(), BANNER_SECS * 2.0)
                 }
+                RaceEvent::Bonus { racer: 0, seconds } => {
+                    flash(&mut session.banner, format!("+{seconds:.0} s"), BANNER_SECS)
+                }
+                RaceEvent::SpeedTrap { racer: 0, kmh, .. } => {
+                    flash(&mut session.banner, format!("+{kmh:.0} km/h"), BANNER_SECS)
+                }
                 RaceEvent::KnockedOut { racer } => {
                     if let Some(traffic) = self.traffic.as_mut() {
                         traffic.remove_racer(racer);
@@ -148,7 +156,10 @@ impl WorldScene {
                 }
                 RaceEvent::Over => self.finish_race(session),
                 RaceEvent::Finished { racer, time } => log::info!("race: racer {racer} finished in {time:.1} s"),
-                RaceEvent::Checkpoint { .. } | RaceEvent::Lap { .. } => {}
+                RaceEvent::Checkpoint { .. }
+                | RaceEvent::Lap { .. }
+                | RaceEvent::Bonus { .. }
+                | RaceEvent::SpeedTrap { .. } => {}
             }
         }
     }
@@ -202,8 +213,7 @@ mod tests {
 
     #[test]
     fn the_next_gate_is_the_next_checkpoint_then_the_finish() {
-        let course =
-            Course { start: Vec3::ZERO, checkpoints: vec![gate(10.0), gate(20.0)], finish: Some(gate(30.0)), laps: 1 };
+        let course = Course::new(Vec3::ZERO, vec![gate(10.0), gate(20.0)], Some(gate(30.0)), 1);
         assert_eq!(next_gate(&course, 0).unwrap().z, 10.0);
         assert_eq!(next_gate(&course, 1).unwrap().z, 20.0);
         assert_eq!(next_gate(&course, 2).unwrap().z, 30.0);
@@ -213,7 +223,7 @@ mod tests {
 
     #[test]
     fn an_opponent_aims_past_the_gate_along_its_heading() {
-        let course = Course { start: Vec3::ZERO, checkpoints: vec![gate(10.0)], finish: Some(gate(30.0)), laps: 1 };
+        let course = Course::new(Vec3::ZERO, vec![gate(10.0)], Some(gate(30.0)), 1);
         assert_eq!(next_aim(&course, 0).unwrap(), Vec3::new(0.0, 0.0, 10.0 + OVERSHOOT));
         assert_eq!(next_aim(&course, 1).unwrap().z, 30.0 + OVERSHOOT);
         assert_eq!(next_aim(&course, 2).unwrap().z, 30.0 + OVERSHOOT, "past the last checkpoint it aims at the finish");

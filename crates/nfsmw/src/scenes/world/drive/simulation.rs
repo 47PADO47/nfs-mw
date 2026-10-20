@@ -63,6 +63,7 @@ impl Drive {
         }
         .during_arrest(self.arrested)
         .on_grid(self.gridded);
+        let input = Self::assisted(self.assist_aim, sim, input);
         if input.pop {
             self.flames.pop();
         }

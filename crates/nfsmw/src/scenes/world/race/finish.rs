@@ -25,6 +25,7 @@ impl WorldScene {
         );
         if let Some(drive) = self.drive.as_mut() {
             drive.hold_on_grid(false);
+            drive.set_steer_assist(None);
         }
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.release_racers();
@@ -48,6 +49,7 @@ impl WorldScene {
         self.traffic_manual = session.previous_traffic;
         if let Some(drive) = self.drive.as_mut() {
             drive.hold_on_grid(false);
+            drive.set_steer_assist(None);
         }
         log::info!("race: {} ended", session.name);
         if session.options.career {

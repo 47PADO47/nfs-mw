@@ -124,6 +124,7 @@ impl WorldScene {
             glue: Vec::new(),
             catch_up: prepared_catch_up,
             glue_clock: 0.0,
+            lane: Default::default(),
             emu: Vec::new(),
             log_clock: 0.0,
             banner: Banner::default(),

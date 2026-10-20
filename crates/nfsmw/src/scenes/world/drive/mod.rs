@@ -113,6 +113,9 @@ pub struct Drive {
     arrested: bool,
     /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
     gridded: bool,
+    /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
+    /// `grid.rs`).
+    assist_aim: Option<glam::Vec3>,
     /// The speed the next placement gives the car, m/s (a rolling start); taken by the placement.
     pending_speed: f32,
     previous: CarPose,
@@ -193,6 +196,7 @@ impl Drive {
             frame_input: DriveInput::default(),
             arrested: false,
             gridded: false,
+            assist_aim: None,
             pending_speed: 0.0,
             previous: pose,
             current: pose,

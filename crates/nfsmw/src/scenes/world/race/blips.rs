@@ -4,7 +4,7 @@ use blackbox_race::Phase;
 use glam::Vec3;
 
 use super::flow::next_gate;
-use crate::hud::{CHECKPOINT, MapBlip, RACER};
+use crate::hud::{CHECKPOINT, MapBlip, RACE_SPEEDTRAP, RACER};
 use crate::scenes::world::{WorldScene, space};
 
 impl WorldScene {
@@ -19,6 +19,10 @@ impl WorldScene {
         }
         if let Some(gate) = next_gate(engine.course(), me.progress.reached) {
             out.push(gate_blip(gate));
+        }
+        for trap in &engine.course().traps {
+            let at = space::to_render(trap.zone.centre.to_array());
+            out.push(MapBlip { style: RACE_SPEEDTRAP, position: [at.x, at.y], active: false, heading: None });
         }
         let Some(traffic) = self.traffic.as_ref() else { return };
         for (id, racer) in racers.iter().enumerate().skip(1).filter(|(_, r)| !r.done()) {
