@@ -1,6 +1,7 @@
 //! Optional collision streaks and contrails, selected from the installed attribute database.
 //! Spec and evidence: `docs/specs/vehicle-visual-effects.md`.
 
+pub mod contacts;
 #[cfg(test)]
 #[allow(dead_code)]
 mod fixture;

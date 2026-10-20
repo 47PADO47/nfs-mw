@@ -45,6 +45,11 @@ fn engine() -> VehicleEvents {
         strength: 20_000.0,
         suppress_distance: 50.0,
         visual_scale: [1.0; 10],
+        hit_points: 5.0,
+        hit_point_threshold: 0.75,
+        hit_point_scale: [1.0; 10],
+        shock_force: 40.0,
+        shock_time: 3.0,
     }))
     .unwrap()
 }

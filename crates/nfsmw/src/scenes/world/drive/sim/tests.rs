@@ -15,6 +15,7 @@ fn sim() -> CarSim {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };
     CarSim::new(
         CarPhysics {
+            effect_source: 0,
             tire_integration: Default::default(),
             jump_config: Default::default(),
             spec,

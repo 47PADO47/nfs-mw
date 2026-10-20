@@ -30,6 +30,9 @@ fn attached_pole() -> Placed {
         point_clouds: vec![],
     });
     let dynamics = Arc::new(PropDynamics {
+        no_object_collisions: false,
+        no_world_collisions: false,
+        walls: Default::default(),
         sound_profile: 0,
         camera_avoidable: false,
         mass: 200.0,

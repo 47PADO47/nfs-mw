@@ -5,7 +5,7 @@ use blackbox_collision::Shape;
 use blackbox_vehicle::rigid_body::RigidBodySpec;
 use glam::Vec3;
 
-use crate::car::physics::{Fields, rigid_body_spec};
+use crate::car::physics::{Fields, WallSpec, rigid_body_spec, wall_spec};
 
 #[derive(Debug, Clone)]
 pub struct PropDynamics {
@@ -13,6 +13,9 @@ pub struct PropDynamics {
     pub mass: f32,
     pub tensor_scale: Vec3,
     pub body: RigidBodySpec,
+    pub walls: WallSpec,
+    pub no_world_collisions: bool,
+    pub no_object_collisions: bool,
     pub fallback_shape: Shape,
     pub base_surface: u32,
     pub detach_impulse: f32,
@@ -48,6 +51,9 @@ impl PropDynamics {
             mass,
             tensor_scale,
             body: rigid_body_spec(body),
+            walls: wall_spec(body),
+            no_world_collisions: body.bool("NO_WORLD_COLLISIONS"),
+            no_object_collisions: body.bool("NO_OBJ_COLLISIONS"),
             fallback_shape: match body.0.get_str("DEFAULT_COL_BOX") {
                 Some("SPHERE") => Shape::Sphere,
                 _ => Shape::Box,

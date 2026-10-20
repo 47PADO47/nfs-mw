@@ -16,6 +16,15 @@ impl MomentSound {
             true => "purs_break_start_music",
             false => "purs_break_start_fx",
         };
+        Self::named(db, name)
+    }
+
+    /// The authored gas-station blast, independent of generic collision events.
+    pub fn petrol_explosion(db: &Database) -> Option<Self> {
+        Self::named(db, "expl_gas_station")
+    }
+
+    fn named(db: &Database, name: &str) -> Option<Self> {
         let c = db.collection("aud_moment_strm", name)?;
         Some(Self {
             stream: word(c, "stream")?,

@@ -28,6 +28,9 @@ pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detac
         name_hash: 0,
     };
     let dynamics = PropDynamics {
+        no_object_collisions: false,
+        no_world_collisions: false,
+        walls: Default::default(),
         sound_profile: 0,
         camera_avoidable: false,
         mass,

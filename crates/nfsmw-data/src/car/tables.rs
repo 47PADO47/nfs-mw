@@ -21,6 +21,7 @@ pub mod slot {
 
     pub const BASE: usize = 0;
     pub const DAMAGE_PANELS: RangeInclusive<usize> = 1..=22;
+    pub const DAMAGE_BODY: usize = 2;
     pub const BODY: usize = 23;
     pub const FRONT_BRAKE: usize = 24;
     pub const REAR_BRAKE: usize = 34;
