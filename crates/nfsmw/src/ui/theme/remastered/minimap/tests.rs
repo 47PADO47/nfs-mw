@@ -67,7 +67,7 @@ fn built(tree: UiTree, state: &HudState) -> Vec<UiNode> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = test_skin();
-    let mut component = RemasteredTheme::new(frame, feed, MenuListCell::new(), Default::default())
+    let mut component = RemasteredTheme::new(frame, feed, Default::default(), MenuListCell::new(), Default::default())
         .element(ElementId::Minimap.slot(), &BuildCx::new(&skin))
         .expect("the minimap is Remastered");
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);

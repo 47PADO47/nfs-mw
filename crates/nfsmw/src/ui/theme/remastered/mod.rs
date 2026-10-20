@@ -23,6 +23,7 @@ mod map;
 pub mod menu;
 mod minimap;
 mod pursuit;
+mod radio;
 mod readout;
 mod skin;
 #[cfg(test)]
@@ -34,12 +35,13 @@ pub use map::{MapSnapshot, WorldMapView, WorldMapViewCell};
 pub use menu::VerticalMenu;
 pub use minimap::Minimap;
 pub use pursuit::PursuitTimer;
+pub use radio::RadioCard;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
-use crate::ui::theme::custom::DriveFeedCell;
+use crate::ui::theme::custom::{DriveFeedCell, RadioFeedCell};
 use crate::ui::theme::original::FrameCell;
 use crate::ui::theme::{ElementId, MenuListCell};
 
@@ -48,15 +50,22 @@ use crate::ui::theme::{ElementId, MenuListCell};
 pub struct RemasteredTheme {
     frame: FrameCell,
     drive: DriveFeedCell,
+    radio: RadioFeedCell,
     menus: MenuListCell,
     map: WorldMapViewCell,
 }
 
 impl RemasteredTheme {
-    /// The Remastered theme whose cluster reads `drive`, whose menus read `menus` and whose map reads `map`. The minimap
-    /// reads the game's own map pieces from `frame`.
-    pub fn new(frame: FrameCell, drive: DriveFeedCell, menus: MenuListCell, map: WorldMapViewCell) -> Self {
-        Self { frame, drive, menus, map }
+    /// The Remastered theme whose cluster reads `drive`, whose radio card reads `radio`, whose menus read `menus` and whose
+    /// map reads `map`. The minimap reads the game's own map pieces from `frame`.
+    pub fn new(
+        frame: FrameCell,
+        drive: DriveFeedCell,
+        radio: RadioFeedCell,
+        menus: MenuListCell,
+        map: WorldMapViewCell,
+    ) -> Self {
+        Self { frame, drive, radio, menus, map }
     }
 }
 
@@ -70,6 +79,7 @@ impl Theme for RemasteredTheme {
             ElementId::Tachometer => Some(Box::new(Dial::new(self.drive.clone()))),
             ElementId::Speedometer => Some(Box::new(Readout::new(self.drive.clone()))),
             ElementId::Minimap => Some(Box::new(Minimap::new(self.frame.clone(), self.drive.clone()))),
+            ElementId::RadioCard => Some(Box::new(RadioCard::new(self.radio.clone()))),
             ElementId::PursuitMeter => Some(Box::new(PursuitTimer::new(self.drive.clone()))),
             ElementId::Nitrous => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Nitrous))),
             ElementId::Speedbreaker => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Speedbreaker))),

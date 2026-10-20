@@ -22,8 +22,9 @@ fn built(element: ElementId, state: &HudState) -> Option<Vec<UiNode>> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = test_skin();
-    let mut component = RemasteredTheme::new(Default::default(), feed, MenuListCell::new(), Default::default())
-        .element(element.slot(), &BuildCx::new(&skin))?;
+    let mut component =
+        RemasteredTheme::new(Default::default(), feed, Default::default(), MenuListCell::new(), Default::default())
+            .element(element.slot(), &BuildCx::new(&skin))?;
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();
     component.build(&mut out);
@@ -39,10 +40,17 @@ fn the_theme_fills_the_cluster_and_hides_the_speed_breaker_and_falls_back_for_th
     let theme = RemasteredTheme::default();
     let skin = test_skin();
     let cx = BuildCx::new(&skin);
-    for element in [ElementId::Tachometer, ElementId::Speedometer, ElementId::Nitrous, ElementId::Speedbreaker] {
+    for element in [
+        ElementId::Tachometer,
+        ElementId::Speedometer,
+        ElementId::Nitrous,
+        ElementId::Speedbreaker,
+        ElementId::RadioCard,
+        ElementId::Minimap,
+    ] {
         assert!(theme.element(element.slot(), &cx).is_some(), "{} is Remastered", element.name());
     }
-    assert!(theme.element(ElementId::RadioCard.slot(), &cx).is_none(), "the rest falls back to Original");
+    assert!(theme.element(ElementId::Blips.slot(), &cx).is_none(), "the rest falls back to Original");
 }
 
 #[test]

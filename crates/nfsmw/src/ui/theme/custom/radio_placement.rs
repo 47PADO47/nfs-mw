@@ -16,7 +16,7 @@ const EDGE: f32 = 4.0;
 /// The card's top-left corner and the viewport scale it is drawn at. `left` and `top` already include the scale: they
 /// are the FEng units the component lays out in, which the presenter maps to points.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct Anchor {
+pub(in crate::ui::theme) struct Anchor {
     pub left: f32,
     pub top: f32,
     pub scale: f32,

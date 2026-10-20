@@ -43,7 +43,8 @@ fn built(snapshot: Option<MapSnapshot>) -> Vec<UiNode> {
     }
     let skin = palette::remastered().skin().merged(crate::ui::theme::custom::card_skin()).merged(skin());
     let skin = skin.merged(palette_skin(&palette::remastered()));
-    let theme = RemasteredTheme::new(Default::default(), DriveFeedCell::new(), MenuListCell::new(), cell);
+    let theme =
+        RemasteredTheme::new(Default::default(), DriveFeedCell::new(), Default::default(), MenuListCell::new(), cell);
     let mut map =
         theme.element(ElementId::WorldMapChrome.slot(), &BuildCx::new(&skin)).expect("Remastered draws the map");
     map.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);

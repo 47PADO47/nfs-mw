@@ -18,13 +18,23 @@ use super::radio_placement::{Anchor, anchor};
 
 /// One frame's copy of the radio state. Empty (no card) draws nothing.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(super) struct RadioFeed {
+pub(in crate::ui::theme) struct RadioFeed {
     /// The song on the air, or `None` when the radio is idle.
     pub card: Option<Card>,
     /// Seconds since the card was announced (`RadioHud::age`).
     pub age: f32,
     /// Where the card sits (see `radio_placement`).
     pub anchor: Anchor,
+}
+
+impl RadioFeed {
+    /// How opaque the card is now: 1 while it is up, falling to 0 over its last second, and 0 with no card on the air.
+    pub(in crate::ui::theme) fn opacity(&self) -> f32 {
+        match self.card {
+            Some(_) => super::radio_card::opacity(self.age),
+            None => 0.0,
+        }
+    }
 }
 
 /// The shared cell. Clones share one feed.
@@ -48,7 +58,7 @@ impl RadioFeedCell {
     }
 
     /// This frame's copy, as the component reads it.
-    pub(super) fn snapshot(&self) -> RadioFeed {
+    pub(in crate::ui::theme) fn snapshot(&self) -> RadioFeed {
         self.lock().clone()
     }
 

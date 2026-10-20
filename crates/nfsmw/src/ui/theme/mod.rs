@@ -100,7 +100,7 @@ pub fn build_themes(
         .register(Box::new(CustomTheme::new(radio.clone(), drive.clone(), legend)))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
-        .register(Box::new(RemasteredTheme::new(frame.clone(), drive, menus, map)))
+        .register(Box::new(RemasteredTheme::new(frame.clone(), drive, radio, menus, map)))
         .expect("RemasteredTheme is registered once, and is not Original");
     themes
 }
