@@ -1,5 +1,5 @@
 //! The Remastered minimap: the game's own map pieces in a dark round window, a thin bezel with a gold hairline, the north
-//! marker on it, one ring of ten segments around it for the heat, and a flame with the heat multiplier at its top left. The
+//! marker on it, one ring of ten segments inside it for the heat, and a flame with the heat multiplier at its top left. The
 //! chase's own state (busted, escaping, cool-down) is the pursuit panel's, not the minimap's. The map pieces, the player's
 //! arrow and the position and turn of the window come from the HUD package (the same objects the Original look draws); the
 //! rest is drawn here.
@@ -28,18 +28,18 @@ const MAP_RADIUS: f32 = 64.0;
 /// The bezel: a dark ring on the edge of the window and a gold hairline inside it.
 const BEZEL_WIDTH: f32 = 2.0;
 const HAIRLINE_WIDTH: f32 = 0.7;
-/// The heat ring: ten segments, each a little shorter than its tenth of the circle, outside the bezel.
+/// The heat ring: ten segments, each a little shorter than its tenth of the circle, inside the window, just in from the hairline.
 const HEAT_SEGMENTS: u32 = 10;
 const HEAT_GAP: f32 = 7.0;
-const HEAT_OFFSET: f32 = 9.0;
-const HEAT_WIDTH: f32 = 2.4;
+const HEAT_OFFSET: f32 = -4.5;
+const HEAT_WIDTH: f32 = 1.8;
 /// The north marker's badge and text.
 const NORTH_BADGE: f32 = 12.0;
 const NORTH_SCALE: f32 = 1.25;
 /// The flame and the multiplier: up and to the left of the window, at this angle (clockwise from up) and this far from
 /// its edge.
 const FLAME_ANGLE: f32 = 315.0;
-const FLAME_OFFSET: f32 = 21.0;
+const FLAME_OFFSET: f32 = 14.0;
 const FLAME_SIZE: f32 = 17.0;
 const HEAT_TEXT_SCALE: f32 = 1.5;
 const HEAT_TEXT_WIDTH: f32 = 60.0;
