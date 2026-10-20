@@ -6,7 +6,7 @@
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0, PAD_LTRIGGER, PAD_RTRIGGER};
 
 use super::flow::{Frontend, Stage};
-use super::ids::screen::{MILESTONE_REWARDS, POST_RACE_RESULTS};
+use super::ids::screen::{MILESTONE_REWARDS, PHOTO, POST_RACE_PURSUIT, POST_RACE_RESULTS};
 use super::logic::{Command, Cx, Env, ScreenLogic};
 use crate::app::Host;
 use crate::viewer::{RaceAnswer, RaceReport, ReportRacer};
@@ -53,13 +53,44 @@ impl Frontend {
             self.apply(commands, host, env);
             return;
         }
+        if let Some(photo) = host.scene.take_trap_photo() {
+            log::info!("career: the speed trap photo is up");
+            self.open_over_game(PHOTO, Box::new(super::photo::PhotoLogic::for_trap(photo)), host, env);
+            return;
+        }
         let Some(report) = host.scene.take_race_report() else { return };
+        if let Some(pursuit) = report.pursuit {
+            log::info!("race: the pursuit result is up");
+            let logic = super::pursuit_results::PursuitResultsLogic::new(pursuit);
+            self.open_over_game(POST_RACE_PURSUIT, Box::new(logic), host, env);
+            return;
+        }
+        if let Some(photo) = report.photo {
+            log::info!("race: the win photo is up");
+            self.open_over_game(PHOTO, Box::new(super::photo::PhotoLogic::for_race(photo, report)), host, env);
+            return;
+        }
         log::info!("race: the results screen is up ({} racers)", report.racers.len());
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
         let logic = PostRaceLogic::new(report);
         let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(logic), true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// Freezes the game and puts a screen over it.
+    fn open_over_game(&mut self, name: &str, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
+        self.latch = true;
+        self.paused.set(true);
+        self.stage = Stage::Paused;
+        let commands = self.screens.open_with(name, logic, true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// The lap table, from the photo's Race Stats button.
+    pub(super) fn show_results(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
+        let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(PostRaceLogic::new(report)), true, env);
         self.apply(commands, host, env);
     }
 

@@ -4,13 +4,15 @@ use blackbox_race::Race;
 
 use super::{RaceSession, Stage};
 use crate::scenes::world::WorldScene;
-use crate::viewer::{RaceAnswer, RaceReport, ReportLap, ReportRacer};
+use nfsmw_data::gameplay::RaceType;
+
+use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport, ReportLap, ReportRacer};
 
 impl WorldScene {
     /// The report of a finished race, from the engine's lap times.
     pub(super) fn race_report(session: &RaceSession) -> Option<RaceReport> {
         let names: Vec<&str> = session.plan.iter().map(|p| p.name.as_str()).collect();
-        Some(report_of(session.engine.as_ref()?, &names))
+        Some(report_of(session.engine.as_ref()?, &names, session.kind, session.cash_value))
     }
 
     /// The report, once, for the front end to show.
@@ -32,7 +34,7 @@ impl WorldScene {
 
 /// The report of `engine`: a racer's place at the end of a lap is its rank among the racers that had crossed the same
 /// lap's line by then.
-fn report_of(engine: &Race, names: &[&str]) -> RaceReport {
+fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32) -> RaceReport {
     let outcomes = engine.outcomes();
     let racers = engine.racers();
     let report = racers
@@ -60,7 +62,33 @@ fn report_of(engine: &Race, names: &[&str]) -> RaceReport {
             }
         })
         .collect();
-    RaceReport { racers: report }
+    let photo = photo_of(engine, kind, cash);
+    RaceReport { racers: report, photo, pursuit: None }
+}
+
+/// The win photo: only for a player who finished first. The sprint's speed is the average over the course; a drag
+/// race's is the speed at the line; a tollbooth race shows the time left and the bonus time the checkpoints gave.
+fn photo_of(engine: &Race, kind: RaceType, cash: f32) -> Option<PhotoReport> {
+    let me = engine.racers().first()?;
+    let outcome = engine.outcomes().first().copied()?;
+    let time = outcome.time.filter(|_| outcome.finished && outcome.place == 1)?;
+    let course = engine.course();
+    let average = course.lap_length() * course.laps.max(1) as f32 / time.max(0.001);
+    let bonus_secs = (1..=me.progress.reached.max(course.checkpoints.len())).map(|n| course.bonus(n)).sum();
+    let (kind, speed) = match kind {
+        RaceType::Drag => (PhotoKind::Drag, me.speed),
+        RaceType::Tollbooth => (PhotoKind::Tollbooth, average),
+        _ => (PhotoKind::Sprint, average),
+    };
+    Some(PhotoReport {
+        kind,
+        cash: cash.max(0.0).round() as u32,
+        time,
+        speed,
+        time_left: engine.time_left(),
+        bonus_secs,
+        bounty: 0,
+    })
 }
 
 #[cfg(test)]
@@ -97,7 +125,7 @@ mod tests {
         lap(&mut race, 0);
         race.tick(5.0);
         lap(&mut race, 1);
-        let report = report_of(&race, &["PLAYER", "RIVAL"]);
+        let report = report_of(&race, &["PLAYER", "RIVAL"], RaceType::Circuit, 500.0);
         assert_eq!(report.racers[0].name, "PLAYER");
         let places: Vec<u32> = report.racers[0].laps.iter().map(|l| l.place).collect();
         assert_eq!(places, [2, 1]);
@@ -107,14 +135,18 @@ mod tests {
         assert_eq!(report.racers[1].laps.iter().map(|l| l.place).collect::<Vec<_>>(), [1]);
         assert_eq!((report.racers[0].place, report.racers[1].place), (1, 2));
         assert_eq!(report.racers[0].time, Some(45.0));
+        let photo = report.photo.expect("the player won");
+        assert_eq!((photo.kind, photo.cash, photo.time), (PhotoKind::Sprint, 500, 45.0));
+        assert!(photo.speed > 0.0);
     }
 
     #[test]
     fn a_racer_without_a_name_gets_one() {
         let course = Course::new(Vec3::ZERO, vec![gate(100.0)], Some(gate(300.0)), 1);
         let race = Race::new(course, RaceConfig::default(), &[(true, Vec3::ZERO), (false, Vec3::ZERO)]);
-        let report = report_of(&race, &["PLAYER"]);
+        let report = report_of(&race, &["PLAYER"], RaceType::Sprint, 0.0);
         assert_eq!(report.racers[1].name, "Racer 1");
         assert!(report.racers[0].laps.is_empty());
+        assert_eq!(report.photo, None, "no photo for a race nobody finished");
     }
 }

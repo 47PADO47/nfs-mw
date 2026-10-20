@@ -237,6 +237,13 @@ impl Scene for Pausable {
         self.inner.take_race_report()
     }
 
+    fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_trap_photo()
+    }
+
     fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
         if self.concealed() {
             return None;

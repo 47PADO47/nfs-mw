@@ -40,6 +40,8 @@ pub(super) struct WorldCareer {
     pub traps: speedtraps::TrapWatch,
     /// The milestones the last chase banked, until the front end takes them for the rewards screen.
     pub rewards: Option<crate::viewer::RewardsReport>,
+    /// The speed trap the car has just crossed, until the front end takes it for the photo.
+    pub trap_photo: Option<crate::viewer::PhotoReport>,
 }
 
 impl WorldScene {

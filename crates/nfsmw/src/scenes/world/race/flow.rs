@@ -209,11 +209,18 @@ impl WorldScene {
         if left > 0.0 && !input.just_pressed(Action::Interact) {
             return true;
         }
-        // A challenge has no lap table: its result is the card, and the race ends with it.
-        if session.challenge.is_some() {
+        // A challenge has no lap table: its report is the chase's numbers (`PostRace_Pursuit.fng`).
+        session.report = match &session.challenge {
+            Some(challenge) => challenge.last.map(|pursuit| crate::viewer::RaceReport {
+                racers: Vec::new(),
+                photo: None,
+                pursuit: Some(pursuit),
+            }),
+            None => Self::race_report(session),
+        };
+        if session.report.is_none() {
             return false;
         }
-        session.report = Self::race_report(session);
         session.stage = Stage::PostRace { left: POST_RACE_WAIT };
         true
     }

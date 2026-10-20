@@ -80,6 +80,8 @@ pub enum Action {
     MenuStart,
     /// Menu button: the second face button (`PAD_BUTTON1`): the post-race screen's Restart.
     MenuButton1,
+    /// Menu button: the fifth face button (`PAD_BUTTON4`): the win photo's Race Stats.
+    MenuButton2,
     /// Menu buttons: the left and right shoulder (`PAD_LTRIGGER`, `PAD_RTRIGGER`): the post-race screen's racer arrows.
     MenuTriggerLeft,
     MenuTriggerRight,
@@ -145,6 +147,7 @@ impl Action {
             "menu_back",
             "menu_start",
             "menu_button_1",
+            "menu_button_2",
             "menu_trigger_left",
             "menu_trigger_right",
             "menu_quit",
@@ -165,7 +168,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 52] = [
+    pub const ALL: [Action; 53] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -209,6 +212,7 @@ impl Action {
         Action::MenuBack,
         Action::MenuStart,
         Action::MenuButton1,
+        Action::MenuButton2,
         Action::MenuTriggerLeft,
         Action::MenuTriggerRight,
         Action::MenuQuit,

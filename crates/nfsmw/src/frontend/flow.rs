@@ -429,6 +429,7 @@ impl Frontend {
                 Command::LoadAlias => self.load_alias(host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host),
+                Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }

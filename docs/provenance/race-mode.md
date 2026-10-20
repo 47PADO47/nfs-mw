@@ -215,4 +215,26 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
   The strings `EnterPostRaceFlow` (`0x0061EA30`) and `ShowRaceOverSummary` (`0x006120C0`) are the native entries.
 - **Not read**: the screen classes behind these (their handlers were not decompiled), the outro's cutscene call, and
   `PostRace_Pursuit.fng` (95 objects: the pursuit statistics, read by `0x00642140` case 1).
-
+- **`InGamePhotoMaster.fng`** (91 objects): the groups the executable's race code names, `SPRINT_GROUP` (`0xE05794EB`),
+  `RIVAL_GROUP` (`0x895E5289`), `TOLL_BOOTH_GROUP` (`0xC59184C1`) and `SPEEDTRAP_GROUP` (`0xFBE65EB3`), are objects of this
+  package and of no other (`hud/install_tests.rs`). Each rests hidden and holds `WINNER`, a cash line and a time or speed
+  line (the speed trap's: `CLOCKED IN AT:`, the speed and `BOUNTY: n`, with the camera frame `ROCKPORT POLICE VID CAM 01`).
+  Its footer has Continue (accept), Race Stats (`PAD_BUTTON4`) and Restart (`PAD_BUTTON5`), with the PC keys Enter, 2 and
+  1 drawn by the package. The Lua graph's `ShowWinningPostRaceScreen` hook is this screen **[inferred]** from the names.
+  The rests-hidden groups are held at full alpha by the screen logic: their own fade script leaves the group's colour at
+  0 (probed in a run of the package alone).
+- **`PostRace_Pursuit.fng`** (95 objects): rows of a label (`0x38B136A8 + n`) and a value (`0x85AB7369 + n`) reading
+  `00:00.00 / 00:00.00`: Length, Escape Within, Cops Damaged, Cops Destroyed, Roadblocks Dodged, Cost to State
+  Achieved, Unserved Infractions, Consecutive Pursuits Evaded, Unserved Infractions. The heading says `INFRACTIONS` (the
+  package serves the infractions page too). The font has no `$` glyph (a string with one draws without its text).
+- **`GameOver.fng`** (FrontB, 44 objects) is the career's game over (`All of your vehicles have been impounded...`), not a
+  race's losing screen. **No other package** of the install is a race loss screen (the list of the 197 packages was read);
+  the loss takes `PostRace_Results.fng`, as the Lua graph's stubbed loss hook leaves it.
+- **The drag tachometer** (`0x0057C000`, called with the layout number): `DRAG_RPM_<n>_LINES` for the face and, by `MAX_RPM`
+  band and red line, the mask angle: for a band below 7000: 39.25, 32.25, 26 and 19.25 from the red lines 6500, 6000,
+  5500 and below; 7000 to 8000: 40, 34, 28.25, 22.5 and 17.25 (7500, 7000, 6500, 6000, below); 8000 to 9000: 42, 37, 32.25,
+  27 and 22 (8500, 8000, 7500, 7000, below); 9000 and over: 41.5, 37, 31.5, 27 and 22.75 (9500, 9000, 8500, 8000, below).
+  The race HUD's branch of the same function gives the angles `redline_rotation` has. The needle's update is a callback the
+  decompiler does not resolve (the class at `0x008A261C` has a destructor and property setters only), and the constants
+  `228.0` and `66.0` are in no function between `0x580000` and `0x5B0000`, so the sweep is still the race HUD's
+  **[unconfirmed]**.

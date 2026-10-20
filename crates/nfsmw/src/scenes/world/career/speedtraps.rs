@@ -76,6 +76,15 @@ impl WorldScene {
         match outcome.flatten() {
             Some((Crossing::Passed { speed_kmh, .. }, bounty)) => {
                 log::info!("career: speed trap {key:#x} passed at {speed_kmh:.0} km/h, bounty {bounty}");
+                self.career.trap_photo = Some(crate::viewer::PhotoReport {
+                    kind: crate::viewer::PhotoKind::SpeedTrap,
+                    cash: 0,
+                    time: 0.0,
+                    speed: speed_kmh / 3.6,
+                    time_left: 0.0,
+                    bonus_secs: 0.0,
+                    bounty,
+                });
                 set_mod_message(
                     &format!("Speed trap: {speed_kmh:.0} km/h  +{bounty} bounty"),
                     ModMessageTone::Big,

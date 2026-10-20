@@ -42,6 +42,8 @@ mod pursuit_end;
 mod pursuit_tests;
 mod race;
 mod race_card;
+#[cfg(test)]
+mod race_install_tests;
 mod radar;
 mod radio;
 /// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).

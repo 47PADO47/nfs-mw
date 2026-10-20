@@ -201,10 +201,11 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
   message ("You won", "You finished 3rd", "Race lost", "Challenge complete") and the challenge line. It plays the group's
   3200 ms script `0xA19BB14C`; the game's choice among the group's seven scripts (1200 to 3600 ms) is not read
   **[unconfirmed]**. The egui card keeps only the points of a speed-trap race.
-- Not in the package, so not bound (every name was hashed against every object of `HUD_SingleRace.fng` and `HUD_Drag.fng`,
-  `docs/provenance/race-mode.md` section 9): `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`, `RIVAL_GROUP`, the
-  `*Stat` strings, `Hud_RaceOverMessage`, `Hud_TimeExtension` and `Hud_WrongWIndi` are strings of the executable's Lua
-  and message tables, not FEng object names. The tollbooth icon (`Tollbooth_Icon.tga`) sits in the lap group and shows with
+- The groups `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP` and `RIVAL_GROUP` are not in the HUD packages: they
+  are objects of the photo screen `InGamePhotoMaster.fng` and of no other package (checked against every package of the
+  install, `hud/install_tests.rs`). They are the groups of the win photo, section 11. The `*Stat` strings,
+  `Hud_RaceOverMessage`, `Hud_TimeExtension`, `Hud_WrongWIndi` and `Hud_Coundown` are strings of the executable's Lua and
+  message tables, objects of no package. The tollbooth icon (`Tollbooth_Icon.tga`) sits in the lap group and shows with
   it; the speed-trap points have no object.
 - The drag tachometer's face is `DRAG_RPM_<scale>_LINES` and its redline mask angle comes from the executable's drag
   table **[exe]** (`FUN_0057c000`; `hud/state.rs` `redline_rotation_drag`). The needle's sweep is the one value still
@@ -227,20 +228,27 @@ A won boss race in career opens the next step of the bin; the bounty and SMS glu
 **The flow after the finish** follows the career's race graph ([career-scripts-events.md](career-scripts-events.md)
 section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`docs/provenance/race-mode.md` section 10):
 
-1. `raceover`: the race-over message shows for `RaceOverMessageDuration`, 3 s. The rewrite's egui card says
-   "You won", "You finished 3rd" or "Race lost" for those 3 s (Interact skips them).
-2. `postrace`: the post-race screen, `PostRace_Results.fng` (`frontend/post_race.rs`). It lists the lap, the place held
+1. `raceover`: the race-over message shows for `RaceOverMessageDuration`, 3 s: the HUD's generic message group says
+   "You won", "You finished 3rd", "Race lost" or "Challenge complete" (Interact skips the wait).
+2. `postrace` after a win: the win photo, `InGamePhotoMaster.fng` (`frontend/photo.rs`): the frozen world is the photo and
+   one group says WINNER, the cash and the time (`SPRINT_GROUP`: time `m:ss:cc` at the average speed; `RIVAL_GROUP`, used
+   for drag races: seconds at the speed at the line; `TOLL_BOOTH_GROUP`: speed, time left, cash and the bonus time)
+   **[unconfirmed]** which race kinds take which group. Its buttons are Continue (Enter), Race Stats (key 2) and
+   Restart (key 1).
+3. Race Stats, or a race that was not won, shows `PostRace_Results.fng` (`frontend/post_race.rs`). It lists the lap, the place held
    at the end of the lap and the lap time of one racer, 10 laps at most; the shoulder buttons (Page Up and Page Down,
    the pad's L1 and R1) look at the next racer. A win and a loss take the same screen: the Lua graph sends a loss to a
    "losing screen" hook that is a stub in this build, and the native summary offers retry and quit **[unconfirmed]**.
-3. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button, to free roam), or `restartrace`
+4. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button, to free roam), or `restartrace`
    (Restart: the key 1 or the pad's second button, to `prerace`, which starts the same race again). The stats page, the
    online gamer card, mute and feedback buttons are hidden.
-4. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done**. No cutscene is
+5. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done**. No cutscene is
    played anywhere in the rewrite (the bust sequence has the same fallback).
-5. `PostRaceActivity`, the chained race of the career: not done.
+6. `PostRaceActivity`, the chained race of the career: not done.
 
-A chase that banks milestones shows `PostRace_MilestoneRewards.fng` (`frontend/rewards.rs`): the milestone and its
+A pursuit challenge shows `PostRace_Pursuit.fng` (`frontend/pursuit_results.rs`): the chase's length, escape time, cops
+damaged and destroyed, roadblocks dodged and cost to state, the challenge's own row as `value / goal`. A speed trap in
+free roam shows `SPEEDTRAP_GROUP` of the photo screen (the speed and the bounty). A chase that banks milestones shows `PostRace_MilestoneRewards.fng` (`frontend/rewards.rs`): the milestone and its
 bounty one at a time (Accept steps on), and the car's bounty. The words are the rewrite's own
 (`scenes/world/career/rewards.rs`).
 

@@ -3,7 +3,9 @@
 
 pub mod camera;
 mod race_report;
-pub use race_report::{RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport};
+pub use race_report::{
+    PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
+};
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -234,6 +236,10 @@ pub trait Scene {
     }
     /// The finished race's results, once, when the front end should show the post-race screen; `None` otherwise.
     fn take_race_report(&mut self) -> Option<RaceReport> {
+        None
+    }
+    /// The photo of a speed trap the car has just crossed in free roam, once, when the front end should show it.
+    fn take_trap_photo(&mut self) -> Option<PhotoReport> {
         None
     }
     /// The milestones a finished chase banked, once, when the front end should show the rewards screen.

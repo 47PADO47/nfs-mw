@@ -313,6 +313,9 @@ impl Scene for WorldScene {
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
         self.take_race_report()
     }
+    fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {
+        self.career.trap_photo.take()
+    }
     fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
         self.career.rewards.take()
     }

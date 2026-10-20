@@ -103,7 +103,9 @@ fn pad_mask(actions: &ActionState) -> u32 {
         (Action::MenuAccept, pad::ACCEPT),
         (Action::MenuBack, pad::BACK),
         (Action::MenuStart, pad::START),
-        (Action::MenuButton1, pad::BUTTON0 << 1),
+        // Key 1 is Restart on both post-race screens: the lap table's button 1 and the photo's button 5.
+        (Action::MenuButton1, (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
+        (Action::MenuButton2, pad::BUTTON0 << 4),
         (Action::MenuTriggerLeft, pad::LTRIGGER),
         (Action::MenuTriggerRight, pad::RTRIGGER),
     ]

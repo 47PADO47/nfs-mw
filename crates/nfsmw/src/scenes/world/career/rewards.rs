@@ -15,7 +15,7 @@ pub(super) fn milestone_text(stat: StatType, threshold: f32) -> String {
         StatType::PursuitEvasionTime => format!("Escape within {}", time(n)),
         StatType::BountyInPursuit => format!("{n} bounty in one chase"),
         StatType::CopsDestroyedInPursuit | StatType::CopsDestroyed => format!("{n} police cars destroyed"),
-        StatType::CostToStateInPursuit | StatType::CostToState => format!("${n} cost to state"),
+        StatType::CostToStateInPursuit | StatType::CostToState => format!("{n} cost to state"),
         StatType::RoadblocksDodged => format!("{n} roadblocks dodged"),
         StatType::CopsDamaged => format!("{n} police cars hit"),
         StatType::TotalInfractions => format!("{n} infractions in one chase"),
@@ -64,7 +64,7 @@ mod tests {
         assert_eq!(milestone_text(StatType::CopsDestroyedInPursuit, 10.0), "10 police cars destroyed");
         assert_eq!(milestone_text(StatType::PursuitLength, 300.0), "Chase for 05:00");
         assert_eq!(milestone_text(StatType::PursuitEvasionTime, 95.0), "Escape within 01:35");
-        assert_eq!(milestone_text(StatType::CostToStateInPursuit, 25000.0), "$25000 cost to state");
+        assert_eq!(milestone_text(StatType::CostToStateInPursuit, 25000.0), "25000 cost to state");
     }
 
     #[test]

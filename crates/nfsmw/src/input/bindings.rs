@@ -256,6 +256,8 @@ fn menus() -> Vec<Binding> {
         Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
         Binding::new(MenuButton1, key(KeyCode::Digit1), 1.0),
         Binding::new(MenuButton1, button(GamepadButton::West), 1.0),
+        Binding::new(MenuButton2, key(KeyCode::Digit2), 1.0),
+        Binding::new(MenuButton2, button(GamepadButton::North), 1.0),
         Binding::new(MenuTriggerLeft, key(KeyCode::PageUp), 1.0),
         Binding::new(MenuTriggerLeft, button(GamepadButton::LeftTrigger), 1.0),
         Binding::new(MenuTriggerRight, key(KeyCode::PageDown), 1.0),

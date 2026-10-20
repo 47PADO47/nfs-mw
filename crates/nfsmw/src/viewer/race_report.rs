@@ -21,10 +21,94 @@ pub struct ReportRacer {
     pub laps: Vec<ReportLap>,
 }
 
+/// Which group of the win photo (`InGamePhotoMaster.fng`) a result takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhotoKind {
+    /// A sprint, circuit, knockout or speed-trap race: the time and the average speed (`SPRINT_GROUP`).
+    Sprint,
+    /// A drag race: the time and the speed at the line (`RIVAL_GROUP`).
+    Drag,
+    /// A tollbooth race: the time left, the bonus time and the speed (`TOLL_BOOTH_GROUP`).
+    Tollbooth,
+    /// A speed trap crossed in free roam: the speed and the bounty (`SPEEDTRAP_GROUP`).
+    SpeedTrap,
+}
+
+/// What the win photo shows.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhotoReport {
+    pub kind: PhotoKind,
+    pub cash: u32,
+    /// Seconds of the race.
+    pub time: f32,
+    /// The speed it shows, m/s.
+    pub speed: f32,
+    /// A tollbooth race: seconds left at the line, and the seconds the bonus checkpoints gave.
+    pub time_left: f32,
+    pub bonus_secs: f32,
+    /// A speed trap: the bounty paid.
+    pub bounty: u32,
+}
+
+/// The numbers of a pursuit challenge's chase, for `PostRace_Pursuit.fng`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PursuitReport {
+    /// Seconds of the chase.
+    pub secs: f32,
+    /// Seconds the escape took; `None` when the chase did not end in one.
+    pub evasion: Option<f32>,
+    pub cops_damaged: u32,
+    pub cops_destroyed: u32,
+    pub roadblocks_dodged: u32,
+    pub cost_to_state: u32,
+    pub infractions: u32,
+    /// The row the challenge asked for (`PursuitReport::ROWS` index) and the value it had to reach.
+    pub goal: Option<(usize, f32)>,
+}
+
+impl PursuitReport {
+    /// The rows of the screen, top to bottom.
+    pub const ROWS: [&'static str; 6] =
+        ["Length", "Escape Within", "Cops Damaged", "Cops Destroyed", "Roadblocks Dodged", "Cost to State Achieved"];
+
+    /// A report for `nfsmw view-screen`.
+    pub fn sample() -> Self {
+        Self {
+            secs: 95.5,
+            evasion: Some(95.5),
+            cops_damaged: 12,
+            cops_destroyed: 3,
+            roadblocks_dodged: 2,
+            cost_to_state: 25_000,
+            infractions: 4,
+            goal: Some((2, 12.0)),
+        }
+    }
+}
+
 /// The finished race, the player first.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RaceReport {
     pub racers: Vec<ReportRacer>,
+    /// The photo of a win; `None` for a race that was not won.
+    pub photo: Option<PhotoReport>,
+    /// A pursuit challenge's chase: it takes `PostRace_Pursuit.fng`, and `racers` is empty.
+    pub pursuit: Option<PursuitReport>,
+}
+
+impl PhotoReport {
+    /// A photo for `nfsmw view-screen`.
+    pub fn sample() -> Self {
+        Self {
+            kind: PhotoKind::Sprint,
+            cash: 1200,
+            time: 80.5,
+            speed: 70.0,
+            time_left: 0.0,
+            bonus_secs: 0.0,
+            bounty: 0,
+        }
+    }
 }
 
 impl RaceReport {
@@ -44,6 +128,8 @@ impl RaceReport {
                 racer("RACER 2", 3, vec![lap(63.0, 3), lap(61.5, 3), lap(62.2, 3)]),
                 racer("RACER 3", 4, vec![lap(64.8, 4), lap(63.9, 4), lap(63.3, 4)]),
             ],
+            photo: Some(PhotoReport::sample()),
+            pursuit: None,
         }
     }
 }

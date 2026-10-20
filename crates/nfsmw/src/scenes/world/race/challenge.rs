@@ -8,6 +8,7 @@ use nfsmw_data::gameplay::Race;
 
 use super::{Banner, RaceResult, RaceSession, Stage};
 use crate::scenes::world::{WorldScene, space};
+use crate::viewer::PursuitReport;
 
 /// A roadblock counts as dodged once the car has been this close to it, metres, and then gone this far past it.
 const NEAR: f32 = 40.0;
@@ -62,6 +63,8 @@ pub(in crate::scenes::world) struct Challenge {
     near: Vec<usize>,
     passed: Vec<usize>,
     pub roadblocks_dodged: u32,
+    /// The chase's numbers as of the last frame, for the result screen.
+    pub last: Option<PursuitReport>,
 }
 
 impl Challenge {
@@ -75,6 +78,7 @@ impl Challenge {
             near: Vec::new(),
             passed: Vec::new(),
             roadblocks_dodged: 0,
+            last: None,
         }
     }
 
@@ -84,6 +88,19 @@ impl Challenge {
             Stat::EvasionTime => value <= self.threshold,
             _ => value >= self.threshold,
         }
+    }
+
+    /// The row of the result screen the challenge's statistic is on, and the value it had to reach.
+    pub(super) fn goal(&self) -> Option<(usize, f32)> {
+        let row = match self.stat {
+            Stat::PursuitLength => 0,
+            Stat::EvasionTime => 1,
+            Stat::CopsDamaged => 2,
+            Stat::RoadblocksDodged => 4,
+            Stat::CostToState => 5,
+            Stat::Bounty | Stat::Infractions | Stat::SpikesDodged => return None,
+        };
+        Some((row, self.threshold))
     }
 
     /// Judges one frame: `value` is the statistic now and `reason` how the chase stands. Notes the value reached, and
@@ -224,6 +241,16 @@ impl WorldScene {
             Stat::RoadblocksDodged => challenge.roadblocks_dodged as f32,
             Stat::SpikesDodged => 0.0,
         };
+        challenge.last = Some(PursuitReport {
+            secs,
+            evasion: (reason == blackbox_pursuit::EndReason::Evaded).then_some(secs),
+            cops_damaged: traffic.cops_damaged(),
+            cops_destroyed: traffic.cops_destroyed(),
+            roadblocks_dodged: challenge.roadblocks_dodged,
+            cost_to_state: traffic.cost_to_state(),
+            infractions: traffic.infractions().count(),
+            goal: challenge.goal(),
+        });
         let was_reached = challenge.reached;
         let verdict = challenge.judge(value, reason);
         if challenge.reached && !was_reached {
