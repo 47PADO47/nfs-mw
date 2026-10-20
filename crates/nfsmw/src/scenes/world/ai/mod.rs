@@ -24,6 +24,8 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod racer;
+mod racers;
 mod radar;
 mod release;
 mod road_reflection;
@@ -61,6 +63,7 @@ pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
+pub use racers::{ModelState, RacerSpawn};
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +130,8 @@ pub struct TrafficWorld {
     requests: Vec<ModelRequest>,
     /// Names already asked for (loaded, loading or failed).
     known: HashSet<String>,
+    /// Names of the models that failed to load.
+    failed: HashSet<String>,
     /// Last applied appearance mode; live actors share these uploaded rigs.
     shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
@@ -203,6 +208,7 @@ impl TrafficWorld {
             patrol: None,
             requests: Vec::new(),
             known: HashSet::new(),
+            failed: HashSet::new(),
             shading: None,
             spawn_timer: 0.0,
             population_stats: Default::default(),
