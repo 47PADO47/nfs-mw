@@ -165,3 +165,30 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
 - `MMICON_ROADBLOCK_%d` is **not** an object of `HUD_SingleRace.fng` (checked by hashing the name in the package), so
   the in-game minimap has no roadblock icon; the world map (`WorldMapMain.fng`) has `MMICON_ROADBLOCK_0` and `_1`.
 - `HUD_Drag.fng` exists in the install, but none of the minimap race icon names is an object in it.
+
+## 9. Countdown, start speed and HUD names **[exe]** **[install]**
+
+- **`InitialPlayerSpeed`** (`vlt_hash` `0x3A0E4B19`) has one reader, `0x005fc4a0`, called only from `0x00600540`. That
+  function fills a racer record from the vehicle's own state: the position, then the live speed (a virtual call that
+  returns a float) into the same slot, and only when that speed is `0.0` it takes `InitialPlayerSpeed` instead. The
+  attribute is therefore in the unit of the vehicle layer's speed, metres per second, and there is no conversion in
+  between **[verified]** for the unit, **[inferred]** that the vehicle call is a speed in m/s (no scale factor is applied
+  in this function). Other race attribute readers (`NumLaps`, `RollingStart`, `StartPercent`, `PlayerCarType`,
+  `PlayerCarPerformance`, `PostRaceActivity`, `IsLoopingRace`, `RankPlayersByDistance`, `ThreshholdSpeed`, `StartTime`,
+  `TOD`, `BustedLives`) sit in the same table of small getters at `0x005d9840` to `0x005da6e0`; `DoCountdown`,
+  `RaceOverMessageDuration`, `TerminateRaceTime`, `SharedCheckpoints`, `TimeBonus`, `TokenValue` and `ResetsPlayer`
+  have no constant in the executable, so they are read by name in the Lua graphs.
+- **Countdown:** `StartCountdown` (used by `0x0044cc10`), `MCountdownDone` (`0x004b3a50`) and `NotifyCountdownDone`
+  exist, but the cadence is in the Lua graphs. The FEng package `HUD_SingleRace.fng` carries the group
+  `321_GO_GROUP` (fe-hash `0xA7B3AA16`) with the scripts `THREE`, `TWO` and `ONE` (1200 ms each: fade in 0 to 100 ms,
+  hold, fade out 1100 to 1200 ms) and `GO` (3200 ms). Three number scripts started a second apart give the 3 s
+  countdown **[inferred]**; `COUNTDOWN_SECS = 3.0` stays, now with this evidence.
+- **Gate half sizes:** see section 7; no executable reader of the dimensions was found, the evidence is the install.
+- **HUD objects** (fe-hash matches in `HUD_SingleRace.fng`): `321_GO_GROUP`, `POSITION_GROUP` (`0x0FC5B7A0`, two
+  strings: place and racer count), `TIMER_ICON`, `CurrentLapTime` (`0x30D9802E`), the race information group
+  (`0xB1C5ED0D`) with the lap group (`0x1A091045`, current and total lap strings) and the progress group
+  (`0xE3DDCD09`, a percentage and `COMPLETE`). `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP`, `RIVAL_GROUP`
+  and the `*Stat` names are executable strings that are not objects in this package.
+- **Post-race screens:** `PostRace_Results.fng` (`0x00642140` case 0, `0x00549460`, `0x0057ca60`),
+  `PostRace_Pursuit.fng` (case 1) and `PostRace_MilestoneRewards.fng` (`0x00641fe0`) are pushed by name through
+  `0x005257f0`; `EnterPostRaceFlow` and `ShowRaceOverSummary` (`0x006120c0`) are Lua-callable.

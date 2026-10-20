@@ -16,7 +16,7 @@ pub struct RaceParams {
     pub do_countdown: bool,
     /// `RollingStart`: no countdown; every racer starts moving.
     pub rolling_start: bool,
-    /// `InitialPlayerSpeed`: the start speed of a rolling start (assumed m/s).
+    /// `InitialPlayerSpeed`: the start speed of a rolling start (m/s, see docs/provenance/race-mode.md section 9).
     pub initial_speed: f32,
     /// `IsLoopingRace`: the laps run through the same checkpoints.
     pub looping: bool,

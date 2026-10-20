@@ -121,7 +121,7 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 |---|---|
 | `DoCountdown` | True for 217 races: the 3-2-1 countdown with the cars held (staging). False for the 38 rolling-start ones |
 | `RollingStart` | True for 38 (boss, challenge and D-Day races): no countdown; every racer is placed already moving |
-| `InitialPlayerSpeed` | 0 (217), 40 (36) or 60 (2). Used as the start speed when a saved racer speed is 0. Unit not stated in the code; the vehicle layer takes metres per second, so 40 is about 144 km/h **[unconfirmed]** |
+| `InitialPlayerSpeed` | 0 (217), 40 (36) or 60 (2). Used as the start speed when a saved racer speed is 0. The only reader falls back to it where the vehicle speed slot is 0, so it is in the vehicle layer's unit, metres per second (40 is about 144 km/h) **[verified]** |
 | `StartTime`, `TOD` | time of day: `TOD -1` (245 races) leaves it unchanged; 1 (9) and 0.5 (1) set it. `StartTime 86` in the D-Day race |
 | `StartPercent` | 0.6 in the D-Day race only; the HUD progress starts there (`pct = 100 * start + (1 - start) * pct`) **[exe]** |
 | `PlayerCarType`, `PlayerCarPerformance` | a forced player car (177 races leave it empty) and its performance 0..1 (202 races: 1) |
