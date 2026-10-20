@@ -49,8 +49,8 @@ mod tree;
 
 pub use component::{Component, Empty};
 pub use components::{
-    DEFAULT_Z, Gauge, Image, LinearProgress, Outline, Panel, Rounded, Row, Slant, Stack, StackAxis, Switch, Table,
-    Text, justify,
+    Chevron, Choice, ChoiceStyle, DEFAULT_Z, Facing, Gauge, Image, LinearProgress, Outline, Panel, PillBar, PillStyle,
+    Rounded, Row, Slant, Stack, StackAxis, Switch, Table, Text, bounce, justify,
 };
 pub use context::{BuildCx, EventCx, LayoutCx};
 pub use draw::DrawList;

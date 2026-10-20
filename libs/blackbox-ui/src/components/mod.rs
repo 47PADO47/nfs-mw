@@ -5,10 +5,13 @@
 //! Draw order: a node keeps the `z` of the component that built it (larger is farther). Among equal `z`, the
 //! later node draws on top, so a component builds its parts in back-to-front order.
 
+mod chevron;
+mod choice;
 mod gauge;
 mod image;
 mod outline;
 mod panel;
+mod pill_bar;
 mod progress;
 mod rounded;
 mod row;
@@ -18,10 +21,13 @@ mod switch;
 mod table;
 mod text;
 
+pub use chevron::{Chevron, Facing, bounce};
+pub use choice::{Choice, ChoiceStyle};
 pub use gauge::Gauge;
 pub use image::Image;
 pub use outline::Outline;
 pub use panel::Panel;
+pub use pill_bar::{PillBar, PillStyle};
 pub use progress::LinearProgress;
 pub use rounded::Rounded;
 pub use row::Row;
