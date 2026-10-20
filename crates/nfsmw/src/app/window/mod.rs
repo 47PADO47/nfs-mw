@@ -113,6 +113,7 @@ pub(super) fn update(
     query: Query<(Entity, Ref<Monitor>, Has<PrimaryMonitor>)>,
     native: Res<WinitMonitors>,
     mut screens: Local<Vec<monitors::Screen>>,
+    mut was_focused: Local<bool>,
 ) {
     let (mut window, current, raw) = window.into_inner();
     if modes.hidden {
@@ -149,6 +150,7 @@ pub(super) fn update(
         modes.applied = Some(Preference::from(&*settings));
         modes.settle = 3;
     }
+    minimise_on_focus_loss(&mut window, &mut was_focused, modes.settle == 0);
     settle(&mut window, &mut modes);
     let readout = Readout::from(&*window);
     if modes.last_status.as_ref() != Some(&readout) {
@@ -242,6 +244,17 @@ fn restore_windowed(
 fn set_placement(window: &mut Window, placement: Placement) {
     window.resolution.set_physical_resolution(placement.size[0], placement.size[1]);
     window.position = placement.position;
+}
+
+/// winit keeps an exclusive-fullscreen window above every other window and does not minimise it when focus leaves
+/// (alt+tab), so nothing else can be seen. The window is minimised when it loses focus; the system restores it when
+/// the player comes back. `steady` is false while a mode change settles, when focus may flicker.
+fn minimise_on_focus_loss(window: &mut Window, was_focused: &mut bool, steady: bool) {
+    let lost = *was_focused && !window.focused;
+    *was_focused = window.focused;
+    if lost && steady && matches!(window.mode, BevyMode::Fullscreen(..)) {
+        window.set_minimized(true);
+    }
 }
 
 fn settle(window: &mut Window, modes: &mut WindowModes) {

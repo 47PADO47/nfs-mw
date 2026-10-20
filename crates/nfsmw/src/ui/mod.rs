@@ -15,6 +15,7 @@ mod shared;
 mod strings;
 mod text;
 pub mod theme;
+pub(crate) mod tips;
 
 pub use assets::UiAssets;
 pub use catalog::{Catalog, SCREEN_FILES};

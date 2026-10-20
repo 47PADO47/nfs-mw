@@ -224,7 +224,8 @@ fn update(
 
     // A script replaces the input and the clock.
     let scripted = fe.script.as_mut().and_then(UiScript::next_mask);
-    host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over());
+    // A screenshot waits for the world while the loading screen is up (the world is not in the window until it is built).
+    host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over()) || fe.stage == Stage::Loading;
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };
     // A slot waiting for its key takes the next key pressed; Escape cancels the wait.
     let script_key = fe.script.as_mut().and_then(UiScript::take_key);
