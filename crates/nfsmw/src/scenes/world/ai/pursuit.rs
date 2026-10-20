@@ -26,10 +26,8 @@ use crate::settings::bartender::BartenderSettings;
 /// Spawn distance from the player, metres.
 const MIN_DISTANCE: f32 = 150.0;
 const MAX_DISTANCE: f32 = 400.0;
-/// The angle off the player's heading the spawn point is rotated by: 60 degrees.
-const SPREAD: f32 = std::f32::consts::FRAC_PI_3;
-/// No cop starts nearer than this to another car.
-const MIN_GAP: f32 = 40.0;
+/// No cop starts nearer than this to another car (`CheckSpawnPosition`'s 40 m for a spot that is not a traffic lane).
+const MIN_GAP: f32 = blackbox_pursuit::spawn_rules::ANY_OTHER;
 /// A cop starts rolling at this speed, m/s.
 pub(super) const START_SPEED: f32 = 15.0;
 /// A cop car model with what limits how fast an AI drives it.
@@ -62,7 +60,7 @@ pub struct Pursuit {
     rows: Vec<HeatRow>,
     player: Performance,
     spawn_timer: f32,
-    involved: u32,
+    pub(super) involved: u32,
     /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
     pub(super) budget: Budget,
     /// The backup values of every heat level, index = level - 1.
@@ -324,6 +322,10 @@ impl TrafficWorld {
         if self.pick_helicopter(&player, alive < wanted) || alive >= wanted {
             return;
         }
+        // The manager asks for a wave cop only below the active-car budget (`mNumActiveCopCars < mMaxActiveCopCars`).
+        if !self.budget_has_room() {
+            return;
+        }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         // The next type of the current wave, weighted by its chance among those the wave still needs.
         let pick = {
@@ -356,7 +358,9 @@ impl TrafficWorld {
         }
     }
 
-    /// Puts a cop car of `name` on the cop roads 150 to 400 m from the player, facing the player.
+    /// Puts a cop car of `name` on the cop roads 150 to 400 m from the camera, facing the player. The spot comes from the
+    /// walk from the player's seek-ahead point; when the roads or the checks give none, from the disc 200 m ahead
+    /// (`seek_spawn.rs`). Nothing is placed, and the timer is not reset, when neither passes.
     fn spawn_cop(
         &mut self,
         name: &str,
@@ -366,14 +370,15 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
-        let rng = &mut self.rng;
-        let distance = MIN_DISTANCE + rng.next_f32() * (MAX_DISTANCE - MIN_DISTANCE);
-        let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * SPREAD;
-        let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
-        let physics_at = Vec3::from(space::to_physics(at));
-        let spot =
-            CopSpot { at: physics_at, target, speed: START_SPEED, player, band: Some((MIN_DISTANCE, MAX_DISTANCE)) };
-        self.spawn_cop_at(name, spot, collision, surfaces)
+        let Some(body) = focus.body else { return false };
+        let band = Some((MIN_DISTANCE, MAX_DISTANCE));
+        for at in self.chase_spawn_points(&body) {
+            let spot = CopSpot { at, target, speed: START_SPEED, player, band };
+            if self.spawn_cop_at(name, spot, collision, surfaces) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Puts a cop car of `name` on the cop road at `spot.at`, rolling at `spot.speed` and facing `spot.target`. The spawn path
@@ -398,7 +403,8 @@ impl TrafficWorld {
         if self.cops.bars_spawn(nav.position) {
             return false;
         }
-        let gap = Vec3::new(nav.position.x - target.x, 0.0, nav.position.z - target.z).length();
+        // The window is measured from the camera (`AISpawnManager::GetBasePosition`), the player until the world gives it.
+        let gap = self.cops.window_gap(nav.position, target);
         if band.is_some_and(|(near, far)| !(near..=far).contains(&gap)) {
             return false;
         }
@@ -423,7 +429,7 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player", car.name, render.x, render.y, gap);
+        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the camera", car.name, render.x, render.y, gap);
         self.cars.push(car);
         true
     }
@@ -435,7 +441,7 @@ impl TrafficWorld {
                 left if left > 0.0 => format!("no pursuit; the cops are locked out for {left:.0} s"),
                 _ => "no pursuit".into(),
             };
-            return format!("{lockout}; {}", self.call_911_status());
+            return format!("{lockout}; {}; {}", self.call_911_status(), self.fleet_status());
         };
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
@@ -451,7 +457,7 @@ impl TrafficWorld {
             )
         });
         format!(
-            "heat {}: {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}; {}",
             p.heat,
             cops.len(),
             p.wanted(
@@ -467,6 +473,7 @@ impl TrafficWorld {
             infractions.len(),
             self.police.infractions().total_fines(),
             if infractions.is_empty() { String::new() } else { format!(" ({})", infractions.join(", ")) },
+            self.fleet_status(),
         )
     }
 }

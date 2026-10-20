@@ -28,6 +28,7 @@ mod arrest;
 pub(in crate::scenes::world::ai) mod arrest_fixture;
 mod budget;
 mod call_911;
+mod fleet;
 mod free_roam;
 mod installed;
 mod installed_arrest;

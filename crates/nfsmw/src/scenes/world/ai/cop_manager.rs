@@ -7,6 +7,7 @@
 use blackbox_roads::{TrackZone, to_zone_space};
 use glam::Vec3;
 
+pub(super) mod requests;
 pub(super) mod roam;
 
 /// The lockout when the session starts (`kCopLockoutTime`).
@@ -23,6 +24,10 @@ pub(super) struct CopManager {
     no_spawn: Vec<TrackZone>,
     /// The free-roam 911 call (`roam.rs`).
     pub roam: roam::Roam911,
+    /// The camera eye the spawn window is measured from, physics space (`None` until the world gives it).
+    eye: Option<Vec3>,
+    /// The cop spawn requests that wait to be placed (`requests.rs`).
+    pub requests: requests::Queue,
 }
 
 impl CopManager {
@@ -52,6 +57,23 @@ impl CopManager {
     /// Clears the lockout: a chase starts (`LockoutCops(false)`).
     pub fn unlock(&mut self) {
         self.lockout = 0.0;
+    }
+
+    /// Gives the camera eye the world's view has this tick (physics space): the spawn window of `CheckSpawnPosition` and
+    /// `RespawnAvailable` is measured from the camera (`AISpawnManager::GetBasePosition`), not from the player.
+    pub fn set_eye(&mut self, eye: Vec3) {
+        self.eye = Some(eye).filter(|eye| eye.is_finite());
+    }
+
+    /// The point the spawn window is measured from: the camera eye, or `fallback` (the player) before the world gives one.
+    pub fn base(&self, fallback: Vec3) -> Vec3 {
+        self.eye.unwrap_or(fallback)
+    }
+
+    /// The horizontal distance from the spawn window's base to `at`.
+    pub fn window_gap(&self, at: Vec3, fallback: Vec3) -> f32 {
+        let base = self.base(fallback);
+        (at.x - base.x).hypot(at.z - base.z)
     }
 
     /// Seconds of lockout left.
