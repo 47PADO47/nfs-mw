@@ -12,6 +12,7 @@ mod emulate;
 mod finish;
 mod flow;
 mod load;
+mod report;
 mod setup;
 mod start;
 
@@ -30,8 +31,11 @@ pub(super) enum Stage {
     Loading { waited: f32 },
     /// The countdown and the race itself (the engine's phase tells which).
     Running,
-    /// The result card is up for this many more seconds.
+    /// The race-over message is up for this many more seconds (`RaceOverMessageDuration`).
     Results { left: f32 },
+    /// The post-race screen has the race: it waits for the front end to take the report and answer. `left` is how long
+    /// the world waits for a front end before it ends the race itself (a run with no front end).
+    PostRace { left: f32 },
 }
 
 /// One racer's plan: who it is and where it starts. Index 0 is the player.
@@ -92,6 +96,8 @@ pub(super) struct RaceSession {
     pub log_clock: f32,
     pub banner: Banner,
     pub result: Option<RaceResult>,
+    /// The post-race report, built when the race-over message ends and taken by the front end.
+    pub report: Option<crate::viewer::RaceReport>,
     /// The cash a career win pays.
     pub cash_value: f32,
     /// The stock cars for opponents whose model fails to load.

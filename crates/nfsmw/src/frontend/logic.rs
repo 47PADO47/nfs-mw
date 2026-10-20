@@ -70,6 +70,8 @@ pub enum Command {
     Resume,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
     SetWaypoint([f32; 2]),
+    /// The post-race screen's answer: run the race again or leave it (`post_race.rs`).
+    RaceAnswer(crate::viewer::RaceAnswer),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
     /// game goes on driving when it does.
     PayBust {

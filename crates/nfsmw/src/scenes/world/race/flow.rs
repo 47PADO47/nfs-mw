@@ -7,6 +7,8 @@ use super::{Banner, RaceSession, Stage, setup};
 use crate::input::{Action, ActionState};
 use crate::scenes::world::{WorldScene, space};
 
+/// Seconds the world waits for a front end to show the post-race screen before it ends the race (a run without one).
+const POST_RACE_WAIT: f32 = 10.0;
 /// Seconds the banner of a checkpoint or lap stays.
 const BANNER_SECS: f32 = 1.5;
 /// Seconds the GO stays: the length of the HUD's `GO` script (3200 ms, `docs/provenance/race-mode.md` section 9).
@@ -22,6 +24,7 @@ impl WorldScene {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
             Stage::Running => self.race_running(&mut session, sim_dt),
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
+            Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
         match keep {
@@ -190,12 +193,26 @@ impl WorldScene {
         }
     }
 
-    /// The result card stays for a while, or until Interact.
+    /// The race-over message stays for its duration, or until Interact; then the post-race screen has the race.
     fn race_results(&mut self, session: &mut RaceSession, input: &ActionState, dt: f32) -> bool {
         let Stage::Results { left } = session.stage else { return true };
         let left = left - dt;
         session.stage = Stage::Results { left };
-        left > 0.0 && !input.just_pressed(Action::Interact)
+        if left > 0.0 && !input.just_pressed(Action::Interact) {
+            return true;
+        }
+        session.report = Self::race_report(session);
+        session.stage = Stage::PostRace { left: POST_RACE_WAIT };
+        true
+    }
+
+    /// The post-race screen is up (the world is frozen then, so this does not run), or no front end takes the report:
+    /// the race ends once the wait is over.
+    fn race_post(&mut self, session: &mut RaceSession, dt: f32) -> bool {
+        let Stage::PostRace { left } = session.stage else { return true };
+        let left = left - dt;
+        session.stage = Stage::PostRace { left };
+        left > 0.0
     }
 }
 

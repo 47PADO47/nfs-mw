@@ -3,8 +3,9 @@
 use super::{Banner, RaceResult, RaceSession, Stage};
 use crate::scenes::world::WorldScene;
 
-/// Seconds the result card stays before the world goes back to free roam.
-const RESULT_SECS: f32 = 10.0;
+/// Seconds the race-over message stays: `RaceOverMessageDuration` of a race is 3 s (`docs/specs/career-scripts-events.md`
+/// section 1.1, read from the career's Lua graph).
+const RACE_OVER_SECS: f32 = 3.0;
 
 impl WorldScene {
     /// The engine says the race is over: the player's place is fixed, the career hears of it and the card goes up.
@@ -16,7 +17,7 @@ impl WorldScene {
         // A player who did not finish (out, or the time ran out) counts as last.
         let place = if me.finished { me.place } else { racers as u32 };
         session.result = Some(RaceResult { place, racers, time: me.time });
-        session.stage = Stage::Results { left: RESULT_SECS };
+        session.stage = Stage::Results { left: RACE_OVER_SECS };
         session.banner = Banner::default();
         log::info!(
             "race: {} over: place {place}/{racers}{}",

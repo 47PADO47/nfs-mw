@@ -58,6 +58,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());
     }
+    if is(screen::POST_RACE_RESULTS) {
+        return Box::new(super::post_race::PostRaceLogic::new(crate::viewer::RaceReport::sample()));
+    }
     if is(screen::CREDITS) {
         return Box::new(CreditsLogic::default());
     }

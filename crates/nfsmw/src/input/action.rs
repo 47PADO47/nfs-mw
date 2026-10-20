@@ -78,6 +78,11 @@ pub enum Action {
     MenuBack,
     /// Menu button: start (pauses the game while driving, resumes from the pause menu).
     MenuStart,
+    /// Menu button: the second face button (`PAD_BUTTON1`): the post-race screen's Restart.
+    MenuButton1,
+    /// Menu buttons: the left and right shoulder (`PAD_LTRIGGER`, `PAD_RTRIGGER`): the post-race screen's racer arrows.
+    MenuTriggerLeft,
+    MenuTriggerRight,
     /// Menu hot key: quit from the main menu.
     MenuQuit,
     /// Button: a click, which skips a boot movie and continues from the title screen.
@@ -139,6 +144,9 @@ impl Action {
             "menu_accept",
             "menu_back",
             "menu_start",
+            "menu_button_1",
+            "menu_trigger_left",
+            "menu_trigger_right",
             "menu_quit",
             "click",
             "radio_toggle",
@@ -157,7 +165,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 49] = [
+    pub const ALL: [Action; 52] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -200,6 +208,9 @@ impl Action {
         Action::MenuAccept,
         Action::MenuBack,
         Action::MenuStart,
+        Action::MenuButton1,
+        Action::MenuTriggerLeft,
+        Action::MenuTriggerRight,
         Action::MenuQuit,
         Action::Click,
         Action::RadioToggle,

@@ -80,7 +80,14 @@ fn button(name: &str) -> Result<u32, String> {
         "accept" => pad::ACCEPT,
         "back" => pad::BACK,
         "start" => pad::START,
-        other => return Err(format!("unknown button {other:?} (up down left right accept back start)")),
+        "button1" => pad::BUTTON0 << 1,
+        "ltrigger" => pad::LTRIGGER,
+        "rtrigger" => pad::RTRIGGER,
+        other => {
+            return Err(format!(
+                "unknown button {other:?} (up down left right accept back start button1 ltrigger rtrigger)"
+            ));
+        }
     })
 }
 

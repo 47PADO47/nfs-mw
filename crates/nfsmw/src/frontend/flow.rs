@@ -425,6 +425,7 @@ impl Frontend {
                 Command::SaveAlias => self.save_alias(host, env),
                 Command::LoadAlias => self.load_alias(host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host),
+                Command::RaceAnswer(answer) => self.race_answer(answer, host),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }

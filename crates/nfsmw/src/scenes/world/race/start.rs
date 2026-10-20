@@ -138,6 +138,7 @@ impl WorldScene {
             log_clock: 0.0,
             banner: Banner::default(),
             result: None,
+            report: None,
             cash_value: p.cash_value,
             pool,
         });

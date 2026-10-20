@@ -15,7 +15,11 @@ impl WorldScene {
         Some(RaceCard {
             banner: banner(session),
             points: engine.config().rank_by_points.then(|| engine.standings()[0].points),
-            result: session.result.map(|r| ResultCard { place: r.place, racers: r.racers, time: r.time }),
+            result: session.result.filter(|_| matches!(session.stage, Stage::Results { .. })).map(|r| ResultCard {
+                place: r.place,
+                racers: r.racers,
+                time: r.time,
+            }),
         })
     }
 
@@ -55,7 +59,8 @@ impl WorldScene {
 fn banner(session: &RaceSession) -> Option<(String, f32)> {
     // The countdown is the HUD package's own group (`race_hud`); the card keeps the other lines.
     let counting = Count::from_banner(&session.banner.text).is_some();
-    if matches!(session.stage, Stage::Results { .. }) || session.banner.left <= 0.0 || counting {
+    if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) || session.banner.left <= 0.0 || counting
+    {
         return None;
     }
     Some((session.banner.text.clone(), (session.banner.left / BANNER_FADE).min(1.0)))

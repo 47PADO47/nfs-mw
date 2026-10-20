@@ -310,6 +310,12 @@ impl Scene for WorldScene {
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
         self.traffic.as_mut()?.take_bust_ticket()
     }
+    fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
+        self.take_race_report()
+    }
+    fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
+        self.answer_race(answer)
+    }
     fn pay_bust(&mut self, marker: bool) -> bool {
         self.career_pay_bust(marker)
     }

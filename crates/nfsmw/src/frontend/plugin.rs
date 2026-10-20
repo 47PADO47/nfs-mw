@@ -98,6 +98,9 @@ fn pad_mask(actions: &ActionState) -> u32 {
         (Action::MenuAccept, pad::ACCEPT),
         (Action::MenuBack, pad::BACK),
         (Action::MenuStart, pad::START),
+        (Action::MenuButton1, pad::BUTTON0 << 1),
+        (Action::MenuTriggerLeft, pad::LTRIGGER),
+        (Action::MenuTriggerRight, pad::RTRIGGER),
     ]
     .into_iter()
     .filter(|(action, _)| actions.pressed(*action))
@@ -303,6 +306,7 @@ fn update(
                 map.themes.world_map_legend().clear();
             }
             fe.poll_bust(host, &mut env);
+            fe.poll_race(host, &mut env);
             fe.poll_career(host, &mut env);
             // An auto shop asks the garage to open on the next frame (`cursor.rs` opens it, as the start request does).
             if std::mem::take(&mut fe.auto_shop_requested) {

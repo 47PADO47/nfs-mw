@@ -230,6 +230,17 @@ impl Scene for Pausable {
         self.inner.take_bust_ticket()
     }
 
+    fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_race_report()
+    }
+
+    fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
+        self.inner.answer_race(answer)
+    }
+
     fn pay_bust(&mut self, marker: bool) -> bool {
         self.inner.pay_bust(marker)
     }
