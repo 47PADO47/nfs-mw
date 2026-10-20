@@ -32,7 +32,7 @@ pub use glue::SpeechSlot;
 pub use lines::{Files, Lines};
 pub use params::{Param, SpeechParams};
 pub use plugin::add as add_systems;
-pub use rules::Context;
+pub use rules::{Actor, Context};
 pub use sink::{KiraSink, Sink};
 
 use nfsmw_data::speech::{SpeechEvent, SpeechTune};
@@ -138,6 +138,18 @@ impl Speech {
     /// Ask for an event to be said by `speaker` (1 to 9; 0 for any) in the wording `params` describes.
     pub fn request_with(&mut self, event: u32, speaker: u16, params: SpeechParams) -> Outcome {
         self.dispatcher.request(event, Request { speaker, actor: None, params })
+    }
+
+    /// Ask for an event to be said as `request` describes (the speaker, the unit that would speak, the wording).
+    pub fn request_as(&mut self, event: u32, request: Request) -> Outcome {
+        self.dispatcher.request(event, request)
+    }
+
+    /// Stop the line that sounds and withdraw every waiting request, keeping what was said (the original's
+    /// `ClearPlayback`).
+    pub fn clear_playback(&mut self) {
+        self.sink.stop();
+        self.dispatcher.clear_pending();
     }
 
     /// Once per frame, with the time since the last one.

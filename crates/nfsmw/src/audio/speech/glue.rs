@@ -31,6 +31,20 @@ const INDEX: &str = "SOUND/SPEECH/copspeech.idx";
 const BIG: &str = "SOUND/SPEECH/copspeech.big";
 const EVT: &str = "SOUND/SPEECH/copspeech.evt";
 
+impl SpeechSlot {
+    /// Whether the speech volume lets requests through.
+    pub(in crate::audio) fn audible(&self) -> bool {
+        self.volume > super::AUDIBLE
+    }
+
+    pub(in crate::audio) fn loaded_mut(&mut self) -> Option<&mut Speech> {
+        match &mut self.state {
+            State::Ready(speech) => Some(speech),
+            _ => None,
+        }
+    }
+}
+
 impl Audio {
     /// Speech, loading it the first time (the events from the attribute database, the recordings from the install).
     pub(in crate::audio) fn speech(&mut self) -> Result<&mut Speech, String> {
