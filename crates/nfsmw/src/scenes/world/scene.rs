@@ -322,6 +322,12 @@ impl Scene for WorldScene {
     fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
         self.answer_race(answer)
     }
+    fn race_active(&self) -> bool {
+        self.race_in_progress()
+    }
+    fn restart_race(&mut self) -> bool {
+        self.restart_race_now()
+    }
     fn pay_bust(&mut self, marker: bool) -> bool {
         self.career_pay_bust(marker)
     }
