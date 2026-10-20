@@ -27,7 +27,7 @@ pub(in crate::scenes::world) enum Stat {
     RoadblocksDodged,
     /// The seconds the escape took: the challenge is met when the chase ended in an escape within the threshold.
     EvasionTime,
-    /// Spike strips dodged. The world does not count them yet, so this challenge cannot be met.
+    /// Spike strips driven past with no tire punctured.
     SpikesDodged,
 }
 
@@ -60,9 +60,10 @@ pub(in crate::scenes::world) struct Challenge {
     /// The statistic reached its threshold (the HUD says so once).
     pub reached: bool,
     /// Roadblock sites the car has come near and not yet passed, by site index; and the dodges counted.
-    near: Vec<usize>,
-    passed: Vec<usize>,
+    roads: Dodges,
+    spikes: Dodges,
     pub roadblocks_dodged: u32,
+    pub spikes_dodged: u32,
     /// The chase's numbers as of the last frame, for the result screen.
     pub last: Option<PursuitReport>,
 }
@@ -75,9 +76,10 @@ impl Challenge {
             heat,
             began: false,
             reached: false,
-            near: Vec::new(),
-            passed: Vec::new(),
+            roads: Dodges::default(),
+            spikes: Dodges::default(),
             roadblocks_dodged: 0,
+            spikes_dodged: 0,
             last: None,
         }
     }
@@ -123,19 +125,43 @@ impl Challenge {
 
     /// Counts the roadblocks the car has driven past: near a site first, then well beyond it.
     pub(super) fn track_roadblocks(&mut self, sites: &[[f32; 2]], player: [f32; 2]) {
+        self.roadblocks_dodged += self.roads.track(sites, player, 0);
+    }
+
+    /// Counts the spike strips the car has driven past without a tire of it being punctured on the way: `hits` is the
+    /// number of punctures so far **[unconfirmed]** (the original's rule for a strip dodged is not read).
+    pub(super) fn track_spikes(&mut self, sites: &[[f32; 2]], player: [f32; 2], hits: u32) {
+        self.spikes_dodged += self.spikes.track(sites, player, hits);
+    }
+}
+
+/// Which sites of a kind the car has come near and passed.
+#[derive(Debug, Clone, Default)]
+struct Dodges {
+    /// The sites the car is near, with the number of punctures when it came near.
+    near: Vec<(usize, u32)>,
+    passed: Vec<usize>,
+}
+
+impl Dodges {
+    /// Moves the car among `sites`; returns how many sites it has just passed clean (no puncture since it came near).
+    fn track(&mut self, sites: &[[f32; 2]], player: [f32; 2], hits: u32) -> u32 {
+        let mut dodged = 0;
         for (i, site) in sites.iter().enumerate() {
             if self.passed.contains(&i) {
                 continue;
             }
             let distance = ((site[0] - player[0]).powi(2) + (site[1] - player[1]).powi(2)).sqrt();
-            if distance < NEAR && !self.near.contains(&i) {
-                self.near.push(i);
+            if distance < NEAR && !self.near.iter().any(|(n, _)| *n == i) {
+                self.near.push((i, hits));
             }
-            if distance > PAST && self.near.contains(&i) {
+            let Some((_, at_near)) = self.near.iter().find(|(n, _)| *n == i).copied() else { continue };
+            if distance > PAST {
                 self.passed.push(i);
-                self.roadblocks_dodged += 1;
+                dodged += u32::from(hits == at_near);
             }
         }
+        dodged
     }
 }
 
@@ -231,7 +257,9 @@ impl WorldScene {
         let player = self.drive.as_ref().map(|d| d.position());
         let (secs, reason) = (traffic.pursuit_time(), traffic.end_reason());
         if let Some(position) = player {
-            challenge.track_roadblocks(traffic.roadblock_sites(), [position[0], position[1]]);
+            let at = [position[0], position[1]];
+            challenge.track_roadblocks(traffic.roadblock_sites(), at);
+            challenge.track_spikes(&traffic.spike_sites(), at, traffic.spike_hits());
         }
         let value = match challenge.stat {
             Stat::PursuitLength | Stat::EvasionTime => secs,
@@ -240,7 +268,7 @@ impl WorldScene {
             Stat::Bounty => traffic.rep_normal_points().saturating_add(traffic.rep_destroyed_points()) as f32,
             Stat::Infractions => traffic.infractions().count() as f32,
             Stat::RoadblocksDodged => challenge.roadblocks_dodged as f32,
-            Stat::SpikesDodged => 0.0,
+            Stat::SpikesDodged => challenge.spikes_dodged as f32,
         };
         challenge.last = Some(PursuitReport {
             secs,
@@ -355,5 +383,17 @@ mod tests {
         c.track_roadblocks(&sites, [20.0, 0.0]);
         c.track_roadblocks(&sites, [-120.0, 0.0]);
         assert_eq!(c.roadblocks_dodged, 1, "counted once");
+    }
+
+    #[test]
+    fn a_spike_strip_is_dodged_only_when_no_tire_was_punctured_on_the_way() {
+        let mut c = Challenge::new(Stat::SpikesDodged, 2.0, 3);
+        let sites = [[0.0, 0.0], [500.0, 0.0]];
+        c.track_spikes(&sites, [20.0, 0.0], 0);
+        c.track_spikes(&sites, [-120.0, 0.0], 0);
+        assert_eq!(c.spikes_dodged, 1, "the first strip was passed clean");
+        c.track_spikes(&sites, [480.0, 0.0], 0);
+        c.track_spikes(&sites, [480.0, 200.0], 1);
+        assert_eq!(c.spikes_dodged, 1, "a puncture while near the second strip: not dodged");
     }
 }

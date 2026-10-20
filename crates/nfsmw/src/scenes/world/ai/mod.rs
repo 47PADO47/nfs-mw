@@ -162,6 +162,8 @@ pub struct TrafficWorld {
     /// Where the standing roadblocks are, in render space, for the map's roadblock icons. Cleared with the spikes.
     roadblock_sites: Vec<[f32; 2]>,
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
+    /// Tires punctured by the strips (`spikes.rs`).
+    spike_hits: u32,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -228,6 +230,7 @@ impl TrafficWorld {
             spikes: Vec::new(),
             roadblock_sites: Vec::new(),
             spike_patches: None,
+            spike_hits: 0,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),
