@@ -40,6 +40,11 @@ impl WorldScene {
         if session.options.career {
             let place = u8::try_from(place).unwrap_or(u8::MAX);
             self.career_race_finished(&session.event, place, session.cash_value);
+            return;
+        }
+        // Outside the career a win of the challenge series opens the events it lists.
+        if place == 1 {
+            crate::frontend::challenge_series::record_win(&session.event);
         }
     }
 

@@ -314,6 +314,10 @@ impl WorldScene {
         // Only an escape with the value reached is notified; a lost challenge changes nothing in the career.
         if session.options.career && won {
             self.career_race_finished(&session.event, 1, session.cash_value);
+            return;
+        }
+        if won {
+            crate::frontend::challenge_series::record_win(&session.event);
         }
     }
 }
