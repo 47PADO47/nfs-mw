@@ -1,6 +1,7 @@
 //! Synthetic and installed breaker verification.
 
 use super::*;
+mod census;
 mod installed;
 mod poles;
 

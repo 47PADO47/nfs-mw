@@ -1,8 +1,11 @@
 //! Named scenery models, separate from their physics body and streamed placement.
 //! Spec: `docs/specs/pursuit-breakers.md`.
 
+pub(in crate::scenes::world) mod breaker_sites;
 mod effects;
 mod explosion;
+#[cfg(test)]
+pub(in crate::scenes::world) mod ram;
 mod spawn;
 #[cfg(test)]
 mod tests;
@@ -48,6 +51,8 @@ pub(super) struct SceneryModel {
     hidden_parts: BTreeSet<u32>,
     spawned: BTreeSet<u32>,
     triggered: bool,
+    /// A pursuit breaker zone opened from this model since it was placed (`EBreakerStopCops`).
+    fired: bool,
     owner: Weak<()>,
     parent_owner: Option<Rc<()>>,
 }
@@ -68,6 +73,7 @@ impl SceneryModel {
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
+            fired: false,
             owner: Rc::downgrade(&owner),
             parent_owner: Some(owner),
         }
@@ -99,6 +105,7 @@ impl SceneryModel {
         self.failed = false;
         self.hidden = false;
         self.triggered = false;
+        self.fired = false;
         self.hidden_parts.clear();
         self.spawned.clear();
         let owner = Rc::new(());
@@ -148,6 +155,8 @@ pub(super) struct SceneryEvents {
     blasts: Vec<Vec3>,
     stops: Vec<StopArea>,
     common_sounds: Vec<crate::audio::CommonEvent>,
+    /// The last pursuit breaker events, for the console (`breaker_sites.rs`).
+    history: VecDeque<String>,
     /// Scratch for one scenery tick: events waiting for dispatch, and one model's drained output.
     ready: VecDeque<(u32, WorldEvent)>,
     drained: Vec<Effect>,

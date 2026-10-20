@@ -42,13 +42,19 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
     }
 }
 
-/// `pursuit <heat>|off|status`: cops chase the player with the wave of that heat level.
+/// `pursuit <heat>|off|status`: cops chase the player with the wave of that heat level. `pursuit breakers` and
+/// `pursuit hiding` list the pursuit breakers and the hiding spots of the resident world (`inspect.rs`).
 pub(in crate::scenes::world) fn pursuit_command(
     scene: &mut WorldScene,
     renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
-    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status";
+    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|breakers|hiding";
+    match args {
+        ["breakers"] => return super::inspect::breakers(scene),
+        ["hiding"] => return super::inspect::hiding(scene),
+        _ => {}
+    }
     if scene.traffic.is_none() {
         return Err("this track has no road network".into());
     }

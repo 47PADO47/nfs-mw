@@ -67,6 +67,7 @@ impl PropWorld {
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
+            fired: false,
             owner: owner.clone(),
             parent_owner: None,
         };

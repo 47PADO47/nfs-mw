@@ -67,7 +67,26 @@ impl PropWorld {
             WorldEvent::StopCops { radius, duration } => {
                 if radius > 0.0 && duration > 0.0 {
                     self.scenery.stops.push(StopArea { position, radius, duration });
+                    let name = self.model_name(id);
+                    if let Some(model) = self.scenery.models.get_mut(&id) {
+                        model.fired = true;
+                    }
+                    self.note_breaker(format!(
+                        "{name} opened a cop zone: {radius:.0} m for {duration:.0} s at ({:.0}, {:.0})",
+                        position.x, position.z
+                    ));
                 }
+            }
+            WorldEvent::PlayNis { scene, kind } => {
+                let package = self.scenery.models.get(&id).and_then(|m| m.sequence.as_ref()).map(|s| s.package.clone());
+                let text = |hash: u32| package.as_ref().and_then(|p| p.strings.get(&hash).cloned());
+                let (scene, kind) = (text(scene), text(kind));
+                let name = self.model_name(id);
+                self.note_breaker(format!(
+                    "{name} names the {} scene {} (the scripted scene is not played)",
+                    kind.as_deref().unwrap_or("?"),
+                    scene.as_deref().unwrap_or("?")
+                ));
             }
             WorldEvent::PursuitBreaker { begin } => {
                 let event = match begin {
@@ -81,6 +100,12 @@ impl PropWorld {
                 log::debug!("scenery {id} effect pending: {other:?}");
             }
         }
+    }
+
+    /// The engine name of a model, for the console history.
+    fn model_name(&self, id: u32) -> String {
+        let sequence = self.scenery.models.get(&id).and_then(|m| m.sequence.as_ref());
+        sequence.map_or_else(|| format!("model {id}"), |s| s.package.engines[s.engine].name.clone())
     }
 
     pub(in super::super) fn marker(&self, id: u32, hash: u32) -> Option<Vec3> {

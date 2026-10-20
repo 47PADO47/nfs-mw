@@ -1,12 +1,13 @@
 //! Installed art is checked on the CPU; GPU handles are unnecessary for solver traces.
 
+use super::super::ram::strike;
 use super::*;
 use crate::scenes::world::{
     drive::{FixedClock, STEP},
     resident::Placed,
 };
 use blackbox_scenery::{layout::MOST_WANTED, read_object_spawners, read_scenery_sections};
-use blackbox_vehicle::{FlatGround, Vehicle, VehicleSpec};
+use blackbox_vehicle::FlatGround;
 use game_install::GameDir;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, WorldIndex};
 
@@ -106,28 +107,6 @@ fn world(install: &Installed, centre: Vec3) -> (PropWorld, Vec<Placed>) {
     let mut world = PropWorld::default();
     world.add_tile(0, &mut placed);
     (world, placed)
-}
-
-fn strike(world: &mut PropWorld, id: u32) {
-    let prop = world.colliders[&id].body.as_ref().unwrap();
-    let primitive = prop
-        .geometry
-        .primitives
-        .iter()
-        .find(|p| p.collides(blackbox_collision::bounds_flags::PRIM_VS_OBJECTS))
-        .unwrap();
-    let target = prop.obb(primitive);
-    let mut car = Vehicle::new(VehicleSpec::example());
-    let direction = target.axes.z_axis;
-    car.body_mut().place(
-        target.centre - direction * (target.half.z + VehicleSpec::example().dimension.z + 0.25),
-        prop.rigid.orientation,
-    );
-    car.body_mut().linear_velocity = direction * 60.0;
-    car.step(STEP, &blackbox_vehicle::InputState::default(), &FlatGround::new(-1000.0));
-    let mut impact = crate::scenes::world::drive::walls::Impact::default();
-    world.collide_vehicle(&mut car, None, &mut impact);
-    assert!(!impact.contacts.is_empty(), "installed fixture must physically hit {id}");
 }
 
 #[derive(Debug, PartialEq)]
