@@ -5,6 +5,7 @@
 pub mod behaviour;
 pub mod control;
 pub mod flight;
+pub mod gains;
 pub mod sight;
 
 use glam::Vec3;
@@ -12,6 +13,7 @@ use glam::Vec3;
 use behaviour::{Exit, Player, horizontal_distance};
 use control::{Goal, Heights};
 use flight::{Chopper, Specs};
+pub use gains::Gains;
 use sight::{Look, Sight};
 
 /// The settings of one heat level that change how the helicopter behaves. The defaults are the game's own values.
@@ -46,6 +48,8 @@ pub struct Tuning {
     /// Metres the search spreads around the last known place: the level's `SearchModeRoadblockRadius` (spec 6.1: the search
     /// reads the same field as the roadblock request; it is 1000 m only at heat 1 and 2).
     pub search_radius: f32,
+    /// The follow, brake and flight numbers a tuning file may change.
+    pub gains: Gains,
 }
 
 impl Default for Tuning {
@@ -64,6 +68,7 @@ impl Default for Tuning {
             front_sight_only: true,
             hiding_spots: true,
             search_radius: 1000.0,
+            gains: Gains::default(),
         }
     }
 }
@@ -161,7 +166,7 @@ impl Helicopter {
     ) -> bool {
         self.fuel -= THINK_PERIOD;
         self.skid_timer -= THINK_PERIOD;
-        let specs = Specs { max_speed: self.tuning.speed_cap, ..Specs::default() };
+        let specs = Specs::with_gains(self.tuning.speed_cap, &self.tuning.gains);
         if let Mode::Exit(mut exit) = self.mode {
             let goal = exit.think(self.body.position, self.body.velocity, player, self.tuning.fly_speed);
             self.mode = Mode::Exit(exit);
@@ -203,7 +208,7 @@ impl Helicopter {
             Mode::Follow | Mode::Search { .. } | Mode::Exit(_) => {
                 self.mode = Mode::Follow;
                 let skid_ready = self.tuning.skid_hit && self.skid_timer < -5.0;
-                behaviour::follow(heli, player, self.skid_timer, skid_ready)
+                behaviour::follow(heli, player, self.skid_timer, skid_ready, &self.tuning.gains)
             }
         }
     }
@@ -260,7 +265,7 @@ impl Helicopter {
     }
 
     fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
-        let desired = control::desired(self.body.position, self.body.velocity, &goal, heights);
+        let desired = control::desired(self.body.position, self.body.velocity, &goal, heights, &self.tuning.gains);
         self.body.velocity = desired.body_velocity.unwrap_or(self.body.velocity);
         self.body.step(dt, desired.velocity, goal.look_at - self.body.position, desired.max_decel, specs);
     }
