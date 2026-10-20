@@ -20,6 +20,24 @@ fn installed_props_preserve_the_camera_avoidance_flag() {
 }
 
 #[test]
+#[ignore = "needs the base-game install selected by NFSMW_GAME_DIR"]
+fn installed_props_carry_their_cost_to_state() {
+    let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let db = blackbox_attrib::Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let (mut total, mut priced, mut most) = (0, 0, 0);
+    for collection in db.collections_of("smackable") {
+        let Some(dynamics) = PropDynamics::read(collection) else { continue };
+        let cost = collection.get_i32("COST_TO_STATE").unwrap_or(0).max(0) as u32;
+        assert_eq!(dynamics.cost_to_state, cost, "{:?}", collection.name());
+        total += 1;
+        priced += usize::from(cost > 0);
+        most = most.max(cost);
+    }
+    println!("{priced} of {total} smackables have a cost to state, the highest is {most}");
+    assert!(priced > 0, "no smackable has a cost: the 911 damage rule would never fire");
+}
+
+#[test]
 fn models_sharing_original_physics_keys_keep_their_own_identity() {
     let bounds = Arc::new(BoundsSet {
         name_hash: 1,
@@ -57,6 +75,7 @@ fn models_sharing_original_physics_keys_keep_their_own_identity() {
         start_sequencer: false,
         no_trigger: false,
         explosion_effect: 0.0,
+        cost_to_state: 0,
     });
     let catalog = PropCatalog {
         hierarchies: HashMap::new(),

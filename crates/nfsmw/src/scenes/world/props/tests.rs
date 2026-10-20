@@ -46,6 +46,7 @@ pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detac
         start_sequencer: false,
         no_trigger: false,
         explosion_effect: 0.0,
+        cost_to_state: PROP_COST,
     };
     let shape = Arc::new(PropShape {
         name: format!("test-{id}"),
@@ -69,6 +70,9 @@ pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detac
     p
 }
 
+/// The cost to state the test props carry.
+const PROP_COST: u32 = 150;
+
 fn car(speed: f32) -> Vehicle {
     let mut v = Vehicle::new(VehicleSpec::example());
     v.body_mut().place(Vec3::new(0.0, 0.6, -2.5), Quat::IDENTITY);
@@ -84,6 +88,12 @@ fn hit(no_effect: bool, detach: f32, speed: f32) -> (PropWorld, Vehicle, Impact,
     let mut impact = Impact::default();
     world.collide_vehicle(&mut v, None, &mut impact);
     (world, v, impact, p[0].prop_id)
+}
+
+#[test]
+fn hitting_a_prop_reports_its_cost_to_state_for_the_911_count() {
+    let (_, _, impact, id) = hit(false, 0.0, 20.0);
+    assert_eq!(impact.smacked, vec![(id, PROP_COST)]);
 }
 
 #[test]

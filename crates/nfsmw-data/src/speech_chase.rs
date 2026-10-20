@@ -250,4 +250,23 @@ mod tests {
         println!("{fourth:?}");
         assert!(fourth.cts_for_911 > 0 || fourth.hits_for_911 > 0 || fourth.lifetime_911 >= 0.0);
     }
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn the_installed_911_rows_match_the_heat_spec_table() {
+        let Some(dir) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(dir)).unwrap();
+        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        // docs/specs/ai-pursuit-heat.md section 2.4.
+        let cost = [400, 600, 800, 1000, 1500, 1750, 1750, 1750, 1750, 1750];
+        let hits = [3, 4, 5, 6, 7, 5, 5, 5, 5, 5];
+        for heat in 1..=10u32 {
+            let row = level_speech(&db, heat);
+            let i = heat as usize - 1;
+            assert_eq!(row.cts_for_911, cost[i], "CTSFor911 at heat {heat}");
+            assert_eq!(row.hits_for_911, hits[i], "NumCiviHitsFor911 at heat {heat}");
+            let lifetime = if heat <= 5 { 45.0 } else { 180.0 };
+            assert_eq!(row.lifetime_911, lifetime, "Lifetime911 at heat {heat}");
+        }
+    }
 }
