@@ -11,8 +11,7 @@ including the cop tables: `cop_table_get` reads a wave (a wave a mod set first, 
 `ATTRIBUTES.BIN` once the layers are in place) and `cop_table_set` keeps a wave for the session. A set wave takes effect
 on the next chase that starts; a chase that is running keeps its rows. The chase loads the cop car of every name in the
 waves it uses, the mods' cars too, before the first wave; a car that does not load is logged and its entries are left out
-of that chase. `nfsmw.races` is offered with no state behind it, so every call answers `BB_ERR_UNSUPPORTED` and a mod
-can detect it. The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
+of that chase. `nfsmw.races` runs over the world's races (see [Races](#races-nfsmwraces-01)). The roadblocks, spikes, the helicopter calls and the rest of the pursuit tables are not wired yet. The
 **career** (cash, bounty, rap sheet, blacklist, milestones, stage, garage, current car) runs over the career being
 played: a call outside career mode answers `BB_ERR_NOT_READY`. The calls with no state behind them (safe houses, shops,
 giving and taking cars, saving, milestone registration) still answer `BB_ERR_UNSUPPORTED`; see [Career](#career-nfsmwcareer).
@@ -115,10 +114,10 @@ Delivered like the generic events ([api.md](api.md#events)).
 | `Purchased` | `shop`, `item`, `price` | no | same |
 | `CareerLoaded`, `CareerSaved` | `slot` | no | `saves.rs`, `save_format.rs` |
 | `RaceStartRequested` | `race`, `kind` | **yes** | race module (new) |
-| `RaceStarted` | `race`, `kind: RaceType`, `racers`, `laps` | no | same |
+| `RaceStarted` | `race`, `kind: RaceType`, `racers`, `laps` | no | `modding/races_feed.rs` (`observe`), kind `0x1006` |
 | `CheckpointPassed` | `race`, `index`, `time`, `position` | no | same |
 | `LapCompleted` | `race`, `lap`, `time` | no | same |
-| `RaceFinished` | `race`, `position`, `time`, `won`, `winnings` | no | same |
+| `RaceFinished` | `race`, `position`, `won`, `time`, `winnings` | no | same, kind `0x1007` |
 | `RaceAborted` | `race`, `reason` | no | same |
 
 ## Career (`nfsmw.career`)
@@ -373,7 +372,24 @@ events, the save events) and the cancelable purchase request.
 
 ### Races (`nfsmw.races` 0.1)
 
-The race runtime is not built, so every slot answers `BB_ERR_UNSUPPORTED`.
+The slots run over the world's races (`modding/backends/races.rs`, `modding/races_feed.rs`, `scenes/world/race/mods.rs`).
+The world publishes the list, the running race and the results each frame; a call reads the last snapshot, so a call
+before the first world frame sees an empty list. A race id is its place in the list of the install's races (the ones the
+game runs: sprint, circuit, drag, knockout, tollbooth, speed trap and the pursuit challenges); a race a mod registers
+takes an id from `0x10000000` up and is on the list at once. A change is queued and applied in the world's next race
+update:
+
+- `race_start(id)` starts the race as the console does, with the opponents and the settings the race has, and counts in
+  the career when one is being played. It answers `BB_ERR_NOT_FOUND` for an id that is not on the list; a race that
+  cannot start (one is running, no car yet) is logged by the game.
+- `race_abort` ends the running race with no result. `race_current` has `active` zero when none runs.
+- `race_register` needs a key `modid:name` with the mod's own id (`BB_ERR_ARG` otherwise, as for a key already taken),
+  a kind below 11, at least one lap and one checkpoint, and finite numbers. The checkpoints are render space; the last
+  one is the finish; each gate faces the next point and is the same size everywhere. The race has no opponents.
+- `race_set_opponent_skill(id, skill)` takes 0 to 1 and the race's next start uses it as its difficulty (the three
+  classes of the quick race, so the effect is coarse); `race_set_reward(id, cash)` sets the cash a win pays, which is
+  paid in a career only.
+- `race_results(id)` has the player's last result of the session, `BB_ERR_NOT_FOUND` before one.
 
 | Offset | Slot | Arguments after `ctx` | Writes | SDK |
 |---|---|---|---|---|
@@ -389,8 +405,9 @@ The race runtime is not built, so every slot answers `BB_ERR_UNSUPPORTED`.
 | 88 | `race_set_reward` | `id: u32, cash: u32` | yes | `set_reward(id, cash)` |
 | 96 | `race_results` | `id: u32, out: *mut BbRaceResult` (`BB_ERR_NOT_FOUND` when none) | no | `results(id)` |
 
-Race kinds are numbers; the list is [unconfirmed] against `nfsmw-data/src/gameplay/races.rs`. The opponents of a custom
-race and the race events are not in 0.1.
+Race kinds are numbers; the list is [unconfirmed] against `nfsmw-data/src/gameplay/races.rs`. `BbRaceDef.opponents` (appended, 0 to 7, 0 when a definition ends before it) puts that many generic opponents on a
+custom race's grid. `RaceStarted` and `RaceFinished` are sent; `RaceStartRequested` (vetoable) is not, as no vetoable event exists yet. The console's `race mod [demo]` registers a race and starts it the way a mod
+would.
 
 ### Events (0.1)
 
@@ -433,4 +450,4 @@ When the events go out, and what they carry in the game:
   Open: the mod-car path is covered by tests of the selection only; no run has yet spawned a mod's cop car.
 - **Data.** `nfsmw-modding` does not depend on `nfsmw-data`, so the install stack stays out of mods. The game converts
   `nfsmw_data::pursuit::HeatRow` into `BbHeatRow` and `BbCopRecord` in its facade.
-- **Career and races.** Career is at 0.2 with state behind 19 of its slots (see Career). Races are offered with no state; their table is the contract the race work implements.
+- **Career and races.** Career is at 0.2 with state behind 19 of its slots (see Career). Races have state behind all 11 slots (see Races).

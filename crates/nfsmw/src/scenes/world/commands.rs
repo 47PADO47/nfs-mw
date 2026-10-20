@@ -36,6 +36,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "the tail-pipe flames (setting exhaust_flames): status, the engine upgrade level, fake a sputter backfire",
     ),
     ("debug collisions [on|off]", "draw the car's contact points: wall hits, tyre rays, props (no argument: toggle)"),
+    (
+        "race list [filter] | start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] | status | stop",
+        "list the races of the install, start one (a name, part of it or an event id like 1.5.2), show the race, end it",
+    ),
     ("gps <x> <y> | gps off", "set the GPS route to a point on the road (x y as the map shows them), or clear it"),
 ];
 
@@ -53,6 +57,7 @@ pub(super) fn run(
         "tp" => tp(scene, args),
         "goto" => goto(scene, args),
         "gps" => gps(scene, args),
+        "race" => super::race::race_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),

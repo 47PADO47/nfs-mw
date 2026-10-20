@@ -7,6 +7,7 @@ mod arrest;
 mod breaker_camera;
 mod car_detail;
 mod clock;
+mod grid;
 pub(super) use car_detail::{DetailView, DrawOptions};
 mod cracked;
 mod debug;
@@ -110,6 +111,13 @@ pub struct Drive {
     frame_input: DriveInput,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
+    /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
+    gridded: bool,
+    /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
+    /// `grid.rs`).
+    assist_aim: Option<glam::Vec3>,
+    /// The speed the next placement gives the car, m/s (a rolling start); taken by the placement.
+    pending_speed: f32,
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
@@ -187,6 +195,9 @@ impl Drive {
             alpha: 0.0,
             frame_input: DriveInput::default(),
             arrested: false,
+            gridded: false,
+            assist_aim: None,
+            pending_speed: 0.0,
             previous: pose,
             current: pose,
             telemetry: Telemetry::default(),

@@ -38,6 +38,12 @@ fn an_overlay_closes_the_overlay_test_and_the_flush_with_it() {
 }
 
 #[test]
+fn a_race_in_progress_holds_the_flush_back() {
+    let facts = PhoneFacts { racing: true, ..clear() };
+    assert!(!flush_context(&facts).can_show());
+}
+
+#[test]
 fn a_car_still_loading_holds_the_flush_back() {
     let facts = PhoneFacts { car_ready: false, ..PhoneFacts::default() };
     assert!(!flush_context(&facts).can_show());

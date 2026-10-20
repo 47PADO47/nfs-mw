@@ -40,6 +40,10 @@ pub use police::RadarHud;
 mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
+mod race;
+mod race_card;
+#[cfg(test)]
+mod race_install_tests;
 mod radar;
 mod radio;
 /// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).
@@ -56,7 +60,7 @@ mod viewport_tests;
 pub use blip_style::MapBlip;
 pub use blip_styles::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, CHECKPOINT, COP, GPS, HELICOPTER, RACE_CIRCUIT, RACE_DRAG,
-    RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, SAFE_HOUSE, SAFE_HOUSE_TINT,
+    RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, ROADBLOCK, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 #[cfg(test)]
@@ -65,5 +69,7 @@ pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_m
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
+pub use race::{Count, Message, RaceHud};
+pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
 pub use state::{HudState, MapPosition};

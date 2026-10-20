@@ -55,8 +55,9 @@ The car's position is its body centre (`Drive::position`), not its footprint **[
 in render space, the space the car and the effects use (x forward, y left, z up): the gameplay reader gives physics
 space, and `scenes/world/space.rs` converts it.
 
-**The box test** is implemented in `nfsmw-data` (`BoxTrigger::contains`) for the race route boxes, which the game
-does not use as entries. The rule:
+**The box test** is implemented in `nfsmw-data` (`BoxTrigger::contains`, full sizes) and, for the races, in
+`libs/blackbox-race` (`Gate`, which the race code builds with the stored extents as **half** sizes, see below). The
+boxes are the race route's, which the game does not use as entries. The rule:
 
 - The box is centred on `Position` (physics space) and turned by `Rotation` about the up axis; the heading is
   `world_heading` (`(-sin R, 0, cos R)`).
@@ -68,9 +69,13 @@ does not use as entries. The rule:
   3..40)`) **[verified]**. A checkpoint or finish line is a thin gate across a road, so its thin extent is its
   thickness along the direction of travel, which is the heading. The alternative (the thin extent across the road)
   would make a 2 m wide strip with 40 m along the road, which no checkpoint in the data is shaped like.
-- **[unconfirmed]** Whether the extents are full or half sizes: the `(40, 40, 40)` cube kind is read here as 40 m
-  across. Open question 1 of the format doc remains open until the trigger test is read from `speed.exe`
-  (`EGTriggerInternal`, no symbols in the Ghidra project).
+- **Full or half sizes.** `BoxTrigger::contains` still reads the extents as full sizes. The race code reads them as
+  **half** sizes **[unconfirmed]**, because the first checkpoint of `10.2.1` (`checkpoint1`, stored `(2, 60, 40)`) is
+  centred 22 m above the road that the AI racers drive through (the road is at y 212, the box centre at y 234):
+  a 40 m high box centred there (full size) does not reach the road, so a racer that passes it never counts; with half
+  sizes (80 m high) it does, and every checkpoint and the finish line of that race are reached in order (measured with
+  AI racers on the install). Open question 1 of the format doc remains open until the trigger test is read from
+  `speed.exe` (`EGTriggerInternal`, no symbols in the Ghidra project).
 
 ## 4. The interact card
 
@@ -124,8 +129,10 @@ Until the destinations exist, entering logs and shows a placeholder:
 - Card: the title `Entering <kind>` and the line `Not built yet` for 2 s. While it shows, the zone's own prompt does
   not change the card and a second Interact does nothing.
 
-The real handlers replace `entry::enter_stub`: a race starts its event, the safe house and the auto shop open their
-screens.
+A **race** zone is no stub any more: Interact starts the race (`entry.rs`, `enter_race_zone`; `docs/specs/race-mode.md`),
+in the career when the Blacklist has opened the race, and while a race runs every other card and zone is held. A race
+the Blacklist lists and has not opened shows no start icon on the minimap, and no start icon shows during a race. The
+safe house and the auto shop keep their own handlers.
 
 ## 7. How to check it
 

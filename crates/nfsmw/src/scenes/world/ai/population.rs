@@ -121,6 +121,12 @@ impl TrafficWorld {
     pub fn model_failed(&mut self, name: &str) {
         log::warn!("traffic: no {name} cars: the model did not load");
         self.known.insert(name.to_ascii_lowercase());
+        self.failed.insert(name.to_ascii_lowercase());
+    }
+
+    /// Asks for the traffic model `name` unless it is loaded or already asked for (a racer's car).
+    pub(super) fn request_traffic_model(&mut self, name: &str) {
+        self.request(ModelRequest::Traffic(name.to_owned()));
     }
 
     fn request(&mut self, request: ModelRequest) {
@@ -249,7 +255,7 @@ impl TrafficWorld {
         view.retire_distance = self.policy.retire_distance as f32;
         view.grace = self.policy.offscreen_seconds as f32;
         self.cars.retain_mut(|car| {
-            if car.is_cop() {
+            if car.is_cop() || car.is_racer() {
                 return car.is_finite();
             }
             car.note_views(dt, |p, radius| view.sees(p, radius));

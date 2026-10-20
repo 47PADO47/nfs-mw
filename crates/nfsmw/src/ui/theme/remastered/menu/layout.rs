@@ -289,7 +289,7 @@ mod tests {
         assert_eq!(side_at(VALUE_LEFT + 5.0), Side::Left);
         assert_eq!(side_at(VALUE_RIGHT - 5.0), Side::Right);
         assert_eq!(side_at((VALUE_LEFT + VALUE_RIGHT) / 2.0), Side::Middle, "on the value");
-        assert!(LABEL_LIMIT > 200.0, "a long label still fits before the values");
+        const { assert!(LABEL_LIMIT > 200.0, "a long label still fits before the values") };
     }
 
     #[test]

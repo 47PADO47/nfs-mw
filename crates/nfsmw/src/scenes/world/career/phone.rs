@@ -96,17 +96,19 @@ pub(super) struct PhoneFacts {
     pub card_up: bool,
     /// The player car exists and is not waiting to load.
     pub car_ready: bool,
+    /// A race is being run: messages wait for the free roam after it.
+    pub racing: bool,
 }
 
 /// Maps the world facts onto the five conditions of `career-phone.md` 3.5.
 ///
-/// The world only runs in free roam, so the race test always passes. The zone card stands in for "not in a zone
+/// The race test fails while a race is run. The zone card stands in for "not in a zone
 /// card", so it holds the flush back (`free_roam`). The speech queue is not reachable from the world yet, so it
 /// always reads idle.
 pub(super) fn flush_context(facts: &PhoneFacts) -> FlushContext {
     FlushContext {
         free_roam: !facts.card_up,
-        race_idle: true,
+        race_idle: !facts.racing,
         overlay_allowed: !facts.overlay_blocked,
         speech_idle: true,
         player_car_ok: facts.car_ready && !facts.pursuing,
@@ -184,6 +186,7 @@ impl WorldScene {
             overlay_blocked: self.garage_open,
             card_up: self.entry.popup.is_up(),
             car_ready: self.drive.is_some() && self.pending_car.is_none() && !self.wait_for_load,
+            racing: self.race.is_some(),
         }
     }
 }

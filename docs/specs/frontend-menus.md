@@ -305,8 +305,8 @@ bars at its sides. A mouse click counts as accept on the boot movies and the tit
 Career starts free roam with the stock car. Free roam starts behind the loading screen
 (`WS_Loading.fng`) and shows the world only once it is ready; see [loading-screen.md](loading-screen.md).
 
-**Quick Race [decomp, ours].** Quick Race no longer starts free roam: it opens the track list, then the track's
-options (section 5). Nothing starts a race yet.
+**Quick Race [decomp, ours].** Quick Race opens the track list, then the track's options (section 5), and Accept
+there starts the picked race in the world behind the loading screen (`Command::StartQuickRace`).
 
 ## 5. Quick Race screens
 
@@ -318,7 +318,11 @@ Packages `Track_Select.fng` (classes `UIQRTrackSelect`) and `Track_Options.fng` 
   once) runs the event handler's forward script (`0xDE6EFF34` on the `Event Handler` object, hash `0x47FF4E7C`):
   it sends `EXIT_COMPLETE` after 600 ticks, and then the screen opens `Track_Options.fng`. Back (`PAD_BACK`
   `0x911AB364`, reaches the game after the package's own 600-tick animation) returns to the main menu.
-  Left and right (`0x9120409E`, `0xB5971BF1`) reach the game and do nothing: the track list is not populated.
+  Left and right (`0x9120409E`, `0xB5971BF1`) reach the game and step through the track list (`frontend/quick_race.rs`:
+  the races of the install's gameplay data except the pursuit challenges, by event id; 212 in this install), wrapping
+  round. The screen shows the pick by setting the strings of the group `0x112038E6` (`Track 2000` and its shadow) to
+  the kind and the event id, the string `0xB5154998` (`Circuit - K.O.` in the package) to the kind and `0xB5154999`
+  (`10KM`) to the route length. The best time, the position counters and the map picture are not bound.
   Group names are hashes only: the accept group is `0x73DCB662` (label `Accepteren`), the back group is
   `0xC0A32823` (label `Back`).
 - **Track_Options** (104 objects, 9 buttons). Its event handler is the object the dump names
@@ -327,9 +331,16 @@ Packages `Track_Select.fng` (classes `UIQRTrackSelect`) and `Track_Options.fng` 
   `Back`, sends `PAD_BACK` at once), accept (`0x73DCB662`, `Accepteren`), and `Defaults` (`0xD6463100`,
   `Defaults`, sends `0xC519BFC4`). The package's own back script (`0x1335F0`, 300 ticks) sends `PAD_BACK` to
   the game at its end, so the screen returns to Track_Select at once.
-  **Accept starts nothing**: the logic ignores `PAD_ACCEPT` and `EXIT_COMPLETE`. The race needs the race engine.
-- Track list and option rows: not populated. The original's track source (`UIQRTrackSelect`, the track table
-  behind `cFrontendDatabase`) was not read. Track names in the list would be language labels once it is found.
+  **Accept starts the race**: the logic answers `PAD_ACCEPT` with `Command::StartQuickRace(<race name>)`; the front end
+  opens free roam as usual and hands the race to the world (`WorldScene::queue_race`), which puts the car on the grid
+  and runs the countdown ([race-mode.md](race-mode.md)). The option rows (laps, opponents, difficulty, traffic) run on
+  the settings list logic (`track_options.rs`, `quick_options.rs`): each steps through "Default" (the race's own value)
+  and a few set ones, and the choice goes to the race as `RaceOptions` (laps 1 to 9, opponents 1 to 7, difficulty
+  Easy, Medium or Hard as 33, 66 and 100, traffic None, Light, Medium or Heavy as 0, 25, 50 and 100 percent of the
+  budget). The choice is a setting: the config key `quick_race = [laps, opponents, difficulty, traffic]` (four numbers from 0 to 9,
+  0 for the race's own value) keeps it, written as the other options are **[rewrite choice]**.
+- The track list is this repository's own: the original's track source (`UIQRTrackSelect`, the track table behind
+  `cFrontendDatabase`) was not read, so the order and the names are not the original's.
 
 Message hashes were checked against `bStringHash` of the upper-cased names (`PAD_BACK`, `PAD_ACCEPT`,
 `LEAVE_SCREEN`, `EXIT_COMPLETE`, `MOUSE_LEFT_RELEASED`, `PAD_LEFT`, `PAD_RIGHT`, `PAD_UP`, `PAD_DOWN`).

@@ -79,6 +79,12 @@ impl WorldScene {
                 state.busted_overlay = traffic.busted_overlay();
             }
             self.career.hud.apply(state);
+            state.race = self.race_hud();
+            state.message = self.race_message();
+            state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
+            self.race_blips(&mut state.blips);
+            self.race_start_blips(&mut state.blips);
+            self.speed_trap_blips(&mut state.blips);
             state.blips.extend_from_slice(&self.map_blips);
             state.blips.extend_from_slice(&self.mod_blips);
         }
@@ -95,13 +101,28 @@ impl WorldScene {
     }
 }
 
-/// The map blips of the race starts and the interiors (auto shops, car lots, safe houses), in the minimap's render
-/// space. They do not move, so they are made once, when the world opens. A race is shown at its start, not active: race mode is
-/// not run yet.
-pub(super) fn static_blips(data: &GameplayData) -> Vec<MapBlip> {
-    let races = data.races.iter().filter_map(race_blip);
-    let interiors = data.markers.iter().map(interior_blip);
-    races.chain(interiors).collect()
+/// The map blips of the interiors (auto shops, car lots, safe houses), in the minimap's render space. They do not
+/// move, so they are made once, when the world opens.
+pub(super) fn interior_blips(data: &GameplayData) -> Vec<MapBlip> {
+    data.markers.iter().map(interior_blip).collect()
+}
+
+/// The race start icons with the name of the race each marks, made once when the world opens. Which of them show is
+/// decided each frame (`WorldScene::race_start_blips`): none during a race, and in a career only the open ones.
+pub(super) fn race_start_blips(data: &GameplayData) -> Vec<(String, MapBlip)> {
+    data.races.iter().filter_map(|race| Some((race.name.clone(), race_blip(race)?))).collect()
+}
+
+impl WorldScene {
+    /// Appends the icons of the races that can be started now: none while a race runs, and in a career only the races the
+    /// Blacklist has opened or does not list (`docs/specs/world-markers.md` section 2).
+    pub(super) fn race_start_blips(&self, out: &mut Vec<MapBlip>) {
+        if self.race.is_some() {
+            return;
+        }
+        let shown = self.race_starts.iter().filter(|(name, _)| !self.career_race_locked(name)).map(|(_, blip)| *blip);
+        out.extend(shown);
+    }
 }
 
 /// A race's icon is its type's, at its start, pointing along the grid. A race with no icon in the game's table has none.
@@ -147,6 +168,7 @@ mod tests {
         Race {
             key: 1,
             name: "race".to_string(),
+            event: None,
             event_icon: String::new(),
             race_type,
             region: None,
@@ -155,6 +177,7 @@ mod tests {
             finish: None,
             checkpoints: Vec::new(),
             barriers: Vec::new(),
+            params: Default::default(),
         }
     }
 
@@ -166,11 +189,12 @@ mod tests {
     fn a_race_start_is_a_blip_of_its_race_type_in_render_space() {
         // Physics (-4404.865, 209.6, 1511.8) is render (1511.8, 4404.9, 209.6): the map's own coordinates.
         let start = Placement { position: Vec3::new(-4404.865, 209.6045, 1511.824), heading_deg: 0.0 };
-        let blips = static_blips(&data(vec![race(Some(RaceType::Sprint), Some(start))], Vec::new()));
+        let blips = race_start_blips(&data(vec![race(Some(RaceType::Sprint), Some(start))], Vec::new()));
         assert_eq!(blips.len(), 1);
-        assert_eq!(blips[0].style, RACE_SPRINT);
-        assert_eq!(blips[0].position, [1511.824, 4404.865]);
-        assert!(!blips[0].active);
+        assert_eq!(blips[0].0, "race");
+        assert_eq!(blips[0].1.style, RACE_SPRINT);
+        assert_eq!(blips[0].1.position, [1511.824, 4404.865]);
+        assert!(!blips[0].1.active);
     }
 
     #[test]
@@ -179,7 +203,7 @@ mod tests {
         let no_type = race(None, Some(start));
         let no_start = race(Some(RaceType::Drag), None);
         let challenge = race(Some(RaceType::Challenge), Some(start));
-        assert!(static_blips(&data(vec![no_type, no_start, challenge], Vec::new())).is_empty());
+        assert!(race_start_blips(&data(vec![no_type, no_start, challenge], Vec::new())).is_empty());
     }
 
     #[test]
@@ -188,8 +212,8 @@ mod tests {
         let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
         let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
         let data = nfsmw_data::gameplay::load(&dir).unwrap();
-        let blips = static_blips(&data);
-        let races = blips.iter().filter(|b| b.style.starts_with("race_")).count();
+        let blips = interior_blips(&data);
+        let races = race_start_blips(&data).len();
         let shops = blips.iter().filter(|b| b.style == AUTO_SHOP).count();
         let houses = blips.iter().filter(|b| b.style == SAFE_HOUSE).count();
         eprintln!("blips: {races} races, {shops} auto shops, {houses} safe houses");
@@ -211,7 +235,7 @@ mod tests {
             icon_index: None,
         };
         let blips =
-            static_blips(&data(Vec::new(), vec![marker(ActivityKind::AutoShop), marker(ActivityKind::SafeHouse)]));
+            interior_blips(&data(Vec::new(), vec![marker(ActivityKind::AutoShop), marker(ActivityKind::SafeHouse)]));
         let styles: Vec<&str> = blips.iter().map(|b| b.style).collect();
         assert_eq!(styles, [AUTO_SHOP, SAFE_HOUSE]);
         // Physics (0, 0, 10) is render (10, 0, 0).

@@ -5,13 +5,14 @@ use std::mem::size_of;
 
 use blackbox_modding::abi::BbEvent;
 use nfsmw_modding::abi::{
-    BbMwBusted, BbMwEscaped, BbMwHeatChanged, BbMwInfraction, BbMwPursuitEnded, BbMwPursuitStarted, MW_EVENT_BUSTED,
-    MW_EVENT_ESCAPED, MW_EVENT_HEAT_CHANGED, MW_EVENT_INFRACTION_RECORDED, MW_EVENT_PURSUIT_ENDED,
-    MW_EVENT_PURSUIT_STARTED,
+    BbMwBusted, BbMwEscaped, BbMwHeatChanged, BbMwInfraction, BbMwPursuitEnded, BbMwPursuitStarted, BbMwRaceFinished,
+    BbMwRaceStarted, MW_EVENT_BUSTED, MW_EVENT_ESCAPED, MW_EVENT_HEAT_CHANGED, MW_EVENT_INFRACTION_RECORDED,
+    MW_EVENT_PURSUIT_ENDED, MW_EVENT_PURSUIT_STARTED, MW_EVENT_RACE_FINISHED, MW_EVENT_RACE_STARTED,
 };
 use nfsmw_modding::host::mw_event;
 
 use super::pursuit_feed::Notice;
+use super::races_feed;
 
 /// The payload of one notice: the struct the event carries, of the kind it names.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -22,6 +23,8 @@ pub enum Payload {
     Busted(BbMwBusted),
     Escaped(BbMwEscaped),
     Infraction(BbMwInfraction),
+    RaceStarted(BbMwRaceStarted),
+    RaceFinished(BbMwRaceFinished),
 }
 
 impl Payload {
@@ -34,6 +37,8 @@ impl Payload {
             Payload::Busted(payload) => mw_event(MW_EVENT_BUSTED, frame, payload),
             Payload::Escaped(payload) => mw_event(MW_EVENT_ESCAPED, frame, payload),
             Payload::Infraction(payload) => mw_event(MW_EVENT_INFRACTION_RECORDED, frame, payload),
+            Payload::RaceStarted(payload) => mw_event(MW_EVENT_RACE_STARTED, frame, payload),
+            Payload::RaceFinished(payload) => mw_event(MW_EVENT_RACE_FINISHED, frame, payload),
         }
     }
 }
@@ -68,6 +73,35 @@ pub fn payload_of(notice: &Notice) -> Payload {
             infraction: infraction as u32,
             fine,
         }),
+    }
+}
+
+/// The payload of a race notice, with the size word the host fills in.
+pub fn race_payload_of(notice: &races_feed::Notice) -> Payload {
+    match *notice {
+        races_feed::Notice::Started { race, kind, racers, laps } => Payload::RaceStarted(BbMwRaceStarted {
+            size: size_of::<BbMwRaceStarted>() as u32,
+            race,
+            kind,
+            racers,
+            laps,
+        }),
+        races_feed::Notice::Finished { race, outcome } => Payload::RaceFinished(BbMwRaceFinished {
+            size: size_of::<BbMwRaceFinished>() as u32,
+            race,
+            position: outcome.position,
+            won: u32::from(outcome.won),
+            time: outcome.time,
+            winnings: outcome.winnings,
+        }),
+    }
+}
+
+/// Send each race notice, in order, as its event of `frame`. `send` gets each event for the call only.
+pub fn send_races(notices: &[races_feed::Notice], frame: u64, send: &mut dyn FnMut(&BbEvent)) {
+    for notice in notices {
+        let payload = race_payload_of(notice);
+        send(&payload.event(frame));
     }
 }
 
@@ -107,6 +141,29 @@ mod tests {
         assert_eq!(
             fine,
             Payload::Infraction(BbMwInfraction { size: size_of::<BbMwInfraction>() as u32, infraction: 7, fine: 250 })
+        );
+    }
+
+    #[test]
+    fn a_race_notice_becomes_its_event_with_the_players_result() {
+        let outcome = races_feed::Outcome { position: 2, time: 91.5, won: false, winnings: 100 };
+        let mut received: Vec<(u32, u64)> = Vec::new();
+        let notices = [
+            races_feed::Notice::Started { race: 5, kind: 1, racers: 4, laps: 2 },
+            races_feed::Notice::Finished { race: 5, outcome },
+        ];
+        send_races(&notices, 12, &mut |event| received.push((event.kind, event.frame)));
+        assert_eq!(received, [(MW_EVENT_RACE_STARTED, 12), (MW_EVENT_RACE_FINISHED, 12)]);
+        assert_eq!(
+            race_payload_of(&notices[1]),
+            Payload::RaceFinished(BbMwRaceFinished {
+                size: size_of::<BbMwRaceFinished>() as u32,
+                race: 5,
+                position: 2,
+                won: 0,
+                time: 91.5,
+                winnings: 100
+            })
         );
     }
 

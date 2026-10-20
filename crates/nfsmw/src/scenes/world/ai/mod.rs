@@ -24,6 +24,8 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod racer;
+mod racers;
 mod radar;
 mod release;
 mod road_reflection;
@@ -61,6 +63,7 @@ pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
 pub use pursuit::{CopModel, Pursuit};
+pub use racers::{ModelState, RacerSpawn};
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +130,8 @@ pub struct TrafficWorld {
     requests: Vec<ModelRequest>,
     /// Names already asked for (loaded, loading or failed).
     known: HashSet<String>,
+    /// Names of the models that failed to load.
+    failed: HashSet<String>,
     /// Last applied appearance mode; live actors share these uploaded rigs.
     shading: Option<crate::settings::CarShading>,
     spawn_timer: f32,
@@ -154,7 +159,11 @@ pub struct TrafficWorld {
     strikes: collide::Strikes,
     /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
     spikes: Vec<blackbox_pursuit::spikes::Strip>,
+    /// Where the standing roadblocks are, in render space, for the map's roadblock icons. Cleared with the spikes.
+    roadblock_sites: Vec<[f32; 2]>,
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
+    /// Tires punctured by the strips (`spikes.rs`).
+    spike_hits: u32,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -203,6 +212,7 @@ impl TrafficWorld {
             patrol: None,
             requests: Vec::new(),
             known: HashSet::new(),
+            failed: HashSet::new(),
             shading: None,
             spawn_timer: 0.0,
             population_stats: Default::default(),
@@ -218,7 +228,9 @@ impl TrafficWorld {
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
             spikes: Vec::new(),
+            roadblock_sites: Vec::new(),
             spike_patches: None,
+            spike_hits: 0,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),
@@ -298,10 +310,18 @@ impl TrafficWorld {
         (&self.network, &self.index)
     }
 
+    /// Where the standing roadblocks are, in render space.
+    pub fn roadblock_sites(&self) -> &[[f32; 2]] {
+        &self.roadblock_sites
+    }
+
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
         self.helicopter_blips(pursuing, out);
+        for at in &self.roadblock_sites {
+            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: *at, active: false, heading: None });
+        }
         for car in self.cars.iter().filter(|c| c.is_live_police()) {
             let at = car.position();
             out.push(crate::hud::MapBlip {

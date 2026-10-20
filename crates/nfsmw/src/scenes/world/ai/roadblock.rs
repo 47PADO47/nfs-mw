@@ -80,6 +80,8 @@ impl TrafficWorld {
         }
         log::info!("roadblock: {} layout, {} spike strips", if spikes { "spike" } else { "plain" }, strips.len());
         self.spikes.extend(strips);
+        let site = space::to_render([centre.x, centre.y, centre.z]);
+        self.roadblock_sites.push([site[0], site[1]]);
         Ok(placed)
     }
 

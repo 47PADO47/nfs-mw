@@ -19,6 +19,9 @@ pub const RACE_SPEEDTRAP: &str = "race_speedtrap";
 pub const AUTO_SHOP: &str = "auto_shop";
 pub const CAR_LOT: &str = "car_lot";
 pub const SAFE_HOUSE: &str = "safe_house";
+/// A police roadblock site (`MMICON_ROADBLOCK_%d`). Only the world map has its icon objects (`WorldMapMain.fng`); the
+/// in-game HUD package has none, so the minimap draws no style of this name (`docs/provenance/race-mode.md` section 5).
+pub const ROADBLOCK: &str = "roadblock";
 
 /// The objects of one race type's pool: `MMICON_<TYPE>_0..7`.
 const RACE_POOL: usize = 8;

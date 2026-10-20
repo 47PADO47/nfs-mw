@@ -28,6 +28,11 @@ pub struct BoxTrigger {
     pub particle_effect: Option<String>,
     /// `FlareSpacing`: the distance between the flares of `particle_effect`, when set.
     pub flare_spacing: Option<f32>,
+    /// `TimeBonus` (an `Int32`): seconds the race clock gains when the player reaches the checkpoint. Set on the
+    /// `time_bonus_checkpoint` triggers of the tollbooth races (25, 35 and 160 s in `2.4.3`). 0 when unset.
+    pub time_bonus: f32,
+    /// `ResetsPlayer`: crossing it sends the player back to the grid (the wrong-way trigger).
+    pub resets_player: bool,
 }
 
 impl BoxTrigger {
@@ -43,6 +48,35 @@ impl BoxTrigger {
         let [length, width, height] = self.dimensions.map(|extent| extent * 0.5);
         offset.dot(along).abs() <= length && offset.dot(across).abs() <= width && offset.y.abs() <= height
     }
+}
+
+/// A sphere trigger (class `radiustrigger`): the speed traps are of this kind.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SphereTrigger {
+    /// The collection's key (the hash of its name); a race's `SpeedTrapList` refers to it.
+    pub key: u32,
+    /// For example `race_bin_01/1_5_3_speedtrap/speedtrap1`.
+    pub name: String,
+    /// `Position` in physics space.
+    pub position: Vec3,
+    /// `Radius`, metres.
+    pub radius: f32,
+    /// `ThreshholdSpeed` (sic): the speed in km/h a speed trap needs to pay (88 in `1.5.3`). 0 when unset.
+    pub threshold_speed: f32,
+}
+
+/// Every non-template sphere trigger, in database order.
+pub(crate) fn spheres(db: &Database) -> Vec<SphereTrigger> {
+    instances(db)
+        .filter(|c| inherits(*c, "radiustrigger"))
+        .map(|c| SphereTrigger {
+            key: c.key(),
+            name: name_of(c),
+            position: placement(c).position,
+            radius: c.get_f32("Radius").unwrap_or(0.0),
+            threshold_speed: c.get_f32("ThreshholdSpeed").unwrap_or(0.0),
+        })
+        .collect()
 }
 
 /// Every non-template box trigger, in database order.
@@ -62,6 +96,8 @@ fn trigger(c: CollectionRef<'_>) -> BoxTrigger {
         fire_on_exit: c.get_bool("FireOnExit").unwrap_or(false),
         particle_effect: text(c, "ParticleEffect"),
         flare_spacing: c.get_f32("FlareSpacing"),
+        time_bonus: c.get_i32("TimeBonus").map_or(0.0, |seconds| seconds as f32),
+        resets_player: c.get_bool("ResetsPlayer").unwrap_or(false),
     }
 }
 
@@ -80,6 +116,8 @@ mod tests {
             fire_on_exit: false,
             particle_effect: None,
             flare_spacing: None,
+            time_bonus: 0.0,
+            resets_player: false,
         }
     }
 

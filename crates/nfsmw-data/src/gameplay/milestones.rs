@@ -75,6 +75,8 @@ pub struct SpeedTrap {
     pub position: Option<Vec3>,
     /// `SpawnPoint`: key of the tagged car marker next to the trap. `None` when unset.
     pub spawn_point: Option<u32>,
+    /// `Radius`, metres, when the record or its parents set it (the trap's trigger size).
+    pub radius: Option<f32>,
     /// Field `0x39BF8002` (25 or 30 on three traps). Unconfirmed; use not found.
     pub unconfirmed_field: Option<i32>,
 }
@@ -168,6 +170,7 @@ fn speed_trap(c: CollectionRef<'_>) -> SpeedTrap {
         bounty: c.get_i32("Bounty").unwrap_or(0),
         position: c.get_vector3("Position").map(to_world),
         spawn_point: key_field(c, "SpawnPoint"),
+        radius: c.get_f32("Radius"),
         unconfirmed_field: c.get_by_key(TRAP_UNKNOWN_FIELD).and_then(Value::as_i32),
     }
 }

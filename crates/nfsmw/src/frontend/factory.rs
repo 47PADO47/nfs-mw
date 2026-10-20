@@ -57,10 +57,26 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
         return Box::new(TrackSelect::default());
     }
     if is(screen::TRACK_OPTIONS) {
-        return Box::new(TrackOptions);
+        return Box::new(TrackOptions::default());
     }
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());
+    }
+    if is(screen::POST_RACE_RESULTS) {
+        return Box::new(super::post_race::PostRaceLogic::new(crate::viewer::RaceReport::sample()));
+    }
+    if is(screen::POST_RACE_PURSUIT) {
+        return Box::new(super::pursuit_results::PursuitResultsLogic::new(crate::viewer::PursuitReport::sample()));
+    }
+    if is(screen::PHOTO) {
+        let logic = super::photo::PhotoLogic::for_race(
+            crate::viewer::PhotoReport::sample(),
+            crate::viewer::RaceReport::sample(),
+        );
+        return Box::new(logic);
+    }
+    if is(screen::MILESTONE_REWARDS) {
+        return Box::new(super::rewards::RewardsLogic::new(crate::viewer::RewardsReport::sample()));
     }
     if is(screen::CREDITS) {
         return Box::new(CreditsLogic::default());

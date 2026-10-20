@@ -39,6 +39,22 @@ impl TrafficWorld {
         }
     }
 
+    /// Where the strips lie, in render space.
+    pub fn spike_sites(&self) -> Vec<[f32; 2]> {
+        self.spikes
+            .iter()
+            .map(|strip| {
+                let at = crate::scenes::world::space::to_render([strip.position.x, strip.elevation, strip.position.y]);
+                [at.x, at.y]
+            })
+            .collect()
+    }
+
+    /// Tires of the player punctured by strips since the world opened.
+    pub fn spike_hits(&self) -> u32 {
+        self.spike_hits
+    }
+
     /// Punctures each grounded tire of the player that is over a strip. A tire already punctured is left alone.
     pub(super) fn spike_player(&mut self, player: &mut CarSim) {
         let wheels = player.wheel_patches();
@@ -52,6 +68,7 @@ impl TrafficWorld {
         };
         for (wheel, hit) in punctured.into_iter().enumerate() {
             if hit && player.puncture_wheel(wheel) {
+                self.spike_hits += 1;
                 log::info!("spike strip: tire {wheel} punctured");
             }
         }
@@ -60,6 +77,7 @@ impl TrafficWorld {
     /// Takes the spike strips away: the chase that laid them is over.
     pub(super) fn clear_spikes(&mut self) {
         self.spikes.clear();
+        self.roadblock_sites.clear();
         self.spike_patches = None;
     }
 }

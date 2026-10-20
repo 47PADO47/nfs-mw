@@ -3,6 +3,7 @@
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex};
 
 use super::cop::CopState;
+use super::racer::RacerState;
 use super::stop::Lights;
 use super::traffic::Cruise;
 
@@ -11,6 +12,8 @@ pub enum Role {
     Traffic,
     /// A cop chasing the player.
     Cop(Box<CopState>),
+    /// A racer in a race (`ai/racer.rs`).
+    Racer(Box<RacerState>),
 }
 
 /// The world a car thinks in.

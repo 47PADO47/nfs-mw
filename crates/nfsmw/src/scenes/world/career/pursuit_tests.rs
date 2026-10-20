@@ -113,3 +113,17 @@ fn the_restored_heat_only_goes_back_when_one_was_kept() {
     restore_heat(&mut stable, 99, Some(3.0));
     assert_eq!(stable.careers[0].heat, 1.5, "an unknown car keeps its record");
 }
+
+#[test]
+fn a_banked_milestone_is_a_challenge_passed_in_its_bin() {
+    use nfsmw_career::milestones::{Milestone, MilestoneDef, MilestoneSet, MilestoneState, STAT_COUNT, StatValue};
+    let def = |key, bin| MilestoneDef { key, bin, stat: StatType::PursuitLength, threshold: 60.0, bounty: 500 };
+    let milestone = |key, bin| Milestone { def: def(key, bin), state: MilestoneState::Complete, value: None };
+    let set = MilestoneSet::from_parts(
+        vec![milestone(7, 3), milestone(9, 12)],
+        [StatValue::default(); STAT_COUNT],
+        Vec::new(),
+    );
+    let banked = [Banked { key: 9, bounty: 500 }, Banked { key: 7, bounty: 500 }, Banked { key: 99, bounty: 1 }];
+    assert_eq!(passed_challenges(&set, &banked), vec![(12, "9".to_owned()), (3, "7".to_owned())]);
+}

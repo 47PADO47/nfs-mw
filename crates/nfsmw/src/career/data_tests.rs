@@ -18,6 +18,7 @@ fn race(key: u32, name: &str) -> Race {
     Race {
         key,
         name: name.to_owned(),
+        event: None,
         event_icon: String::new(),
         race_type: None,
         region: None,
@@ -26,6 +27,7 @@ fn race(key: u32, name: &str) -> Race {
         finish: None,
         checkpoints: Vec::new(),
         barriers: Vec::new(),
+        params: Default::default(),
     }
 }
 
@@ -68,6 +70,7 @@ fn trap(key: u32, bin: u8, name: &str) -> gameplay::SpeedTrap {
         bounty: 500,
         position: None,
         spawn_point: None,
+        radius: None,
         unconfirmed_field: None,
     }
 }

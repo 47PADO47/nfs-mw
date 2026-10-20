@@ -1,6 +1,6 @@
 //! The game's side of the interfaces a mod can ask for: the generic ones (`bb.commands`, `bb.input`, `bb.time`, `bb.map`,
 //! `bb.menus`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, `bb.ui`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
-//! `nfsmw.career` over the career being played, and `nfsmw.races` with no state behind it yet).
+//! `nfsmw.career` over the career being played, and `nfsmw.races` over the world's race snapshot, `races_feed`).
 //!
 //! Each interface has a backend trait in `blackbox-modding` or `nfsmw-modding` and a port here that implements it. A call
 //! from a mod runs on the main thread, inside a mod callback, and reads or writes the [`Bridge`]: the per-frame context
@@ -19,9 +19,9 @@ mod map;
 pub mod menu_store;
 pub mod menus;
 mod nfsmw_pursuit;
+mod races;
 mod time;
 pub mod ui;
-mod unsupported;
 mod vehicles;
 mod world;
 
@@ -96,7 +96,7 @@ pub fn interfaces() -> Interfaces {
             Attached::from_owned(IFACE_CAREER, IFACE_CAREER_VERSION, table.header(), Box::new(table))
         })
         .add_provider(IFACE_RACES, IFACE_RACES_VERSION, |ctx| {
-            let table = races_table(Rc::new(unsupported::Unsupported), ctx.owner());
+            let table = races_table(Rc::new(races::RacesPort), ctx.owner());
             Attached::from_owned(IFACE_RACES, IFACE_RACES_VERSION, table.header(), Box::new(table))
         });
     Interfaces { registry, bridge }

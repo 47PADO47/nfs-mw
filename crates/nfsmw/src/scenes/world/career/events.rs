@@ -4,7 +4,8 @@
 //! (sections 2.3 and 5.2), a boss race once its rival is unlocked or beaten (section 2.6). An open race raises the
 //! autosave for an event start. Races are not built yet, so an open race still reaches the stub in `entry.rs`.
 
-use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist};
+use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, EventResult, apply_event_result};
+use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
 
@@ -40,10 +41,96 @@ impl WorldScene {
         let Some(entry) = self.career.handle.with(|career| race_entry(&career.blacklist, &event)) else {
             return RaceEntry::NotCareer;
         };
+        let entry = if entry == RaceEntry::NotCareer { self.side_entry(&event) } else { entry };
         if entry == RaceEntry::Open {
             self.autosave_event_start(&event);
         }
         entry
+    }
+
+    /// A career race ended with the player in `place` (1 for first): the result goes to the Blacklist, which counts the
+    /// race, opens the rival, enters the next bins and pays the race cash on a win, and the bin's race-win messages
+    /// are queued (`docs/specs/career-blacklist.md` section 4.2, `docs/specs/career-phone.md` section 7).
+    pub(in crate::scenes::world) fn career_race_finished(&mut self, event: &str, place: u8, cash_value: f32) {
+        let series_complete = self.note_side_race(event, place);
+        let phone = &mut self.career.phone;
+        let outcome = self.career.handle.with(|career| {
+            let result = EventResult {
+                event: event.to_owned(),
+                placing: place,
+                cash_value,
+                is_challenge: false,
+                bin: 0,
+                career: true,
+                bounty_total: None,
+                challenge_series_complete: series_complete,
+            };
+            let outcome = apply_event_result(
+                &mut career.settings,
+                &mut career.blacklist,
+                &mut career.milestones,
+                &mut career.traps,
+                &mut career.stable,
+                &result,
+            );
+            let inbox = &mut career.settings.sms;
+            if place == 1
+                && let Some((bin, won)) = races_won_in_bin(&career.blacklist, event)
+            {
+                phone.queue_bin_messages(inbox, bin_messages(bin, BinMoment::RaceWins(won)));
+            }
+            if outcome.released_cars > 0 {
+                phone.add_sms(inbox, RELEASE_SMS);
+            }
+            outcome
+        });
+        let Some(outcome) = outcome else { return };
+        log::info!(
+            "career: race {event} placed {place}: cash {}, bins done {:?}, bins entered {:?}, {} car(s) releasable",
+            outcome.cash_paid,
+            outcome.bins_done,
+            outcome.bins_entered,
+            outcome.released_cars
+        );
+    }
+
+    /// Notes a won race of the challenge bin (events `19.*`) and says whether the series is complete: every event of bin 19
+    /// but `19.8.31` (the tollbooth that belongs to bin 18) has been won **[unconfirmed]**: the spec leaves the optional
+    /// races out, and this build knows none. The won events are kept for the session; they are not in the save.
+    fn note_side_race(&mut self, event: &str, place: u8) -> bool {
+        if place != 1 || !event.starts_with("19.") {
+            return false;
+        }
+        self.career.side_won.insert(event.to_owned());
+        let Some(data) = self.gameplay.as_ref() else { return false };
+        data.races
+            .iter()
+            .map(crate::career::race_event_id)
+            .filter(|id| id.starts_with("19.") && id != "19.8.31")
+            .all(|id| self.career.side_won.contains(&id))
+    }
+
+    /// The race is over and the world is free roam again: the roaming-start autosave runs, as `SetRoaming` does.
+    pub(in crate::scenes::world) fn career_race_left(&mut self) {
+        let inputs = AutosaveInputs {
+            context: FrontEndContext::CAREER,
+            node_id: None,
+            boss_race: false,
+            gameplay_idle: true,
+            profile_loaded: true,
+        };
+        handle_autosave(&self.career.handle, self.career.profiles.as_ref(), Trigger::RoamingStart, inputs);
+    }
+
+    /// Whether a race is one the Blacklist lists and has not opened yet: its start icon stays off the map.
+    pub(in crate::scenes::world) fn career_race_locked(&self, name: &str) -> bool {
+        let event = event_id(name);
+        let Some(blacklisted) =
+            self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked)
+        else {
+            return false;
+        };
+        blacklisted || self.side_race_locked(&event)
     }
 
     /// The event-start autosave for an open race: the node is the race's event id. A boss race is flagged as one for
@@ -61,6 +148,19 @@ impl WorldScene {
         let trigger = Trigger::EventStart { node: Some(event), race_flag: true };
         handle_autosave(&self.career.handle, self.career.profiles.as_ref(), trigger, inputs);
     }
+}
+
+/// The SMS that tells the player an impounded car can be released (`docs/specs/career-economy-flows.md` section 7).
+const RELEASE_SMS: u32 = 120;
+
+/// The bin that lists `event` as a free race, and how many of its free races are won (the counter after this win).
+fn races_won_in_bin(blacklist: &Blacklist, event: &str) -> Option<(u8, u8)> {
+    let (record, kind) = find_race(blacklist, event)?;
+    if kind != RaceKind::Free {
+        return None;
+    }
+    let won = u8::try_from(record.races_won.len()).unwrap_or(u8::MAX);
+    Some((record.def.number, won))
 }
 
 /// Judges a race zone's event id against the Blacklist. Pure: the caller reads the career.

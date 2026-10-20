@@ -230,6 +230,31 @@ impl Scene for Pausable {
         self.inner.take_bust_ticket()
     }
 
+    fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_race_report()
+    }
+
+    fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_trap_photo()
+    }
+
+    fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_rewards_report()
+    }
+
+    fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
+        self.inner.answer_race(answer)
+    }
+
     fn pay_bust(&mut self, marker: bool) -> bool {
         self.inner.pay_bust(marker)
     }
@@ -316,6 +341,15 @@ impl Scene for Pausable {
 
     fn finished(&self) -> bool {
         self.inner.finished()
+    }
+
+    /// The world's panels (the entry card, the race card, the end-of-pursuit card), unless the loading screen hides the
+    /// world.
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        if self.concealed() {
+            return 0.0;
+        }
+        self.inner.ui(ctx)
     }
 
     fn commands(&self) -> &'static [(&'static str, &'static str)] {

@@ -391,7 +391,13 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
             // The original's profile manager title ("alias manager", docs/specs/save-alias-manager.md, section 1).
             (super::logic::Category::AliasManager, _) => 0x1B76_F2CE,
-            (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
+            (
+                super::logic::Category::Controls
+                | super::logic::Category::Discord
+                | super::logic::Category::Mods
+                | super::logic::Category::QuickRace,
+                _,
+            ) => 0,
         };
         self.heading = vertical::heading(cx, self.args.category, title);
         cx.label_group(ids::HEADER_TEXT, title);
