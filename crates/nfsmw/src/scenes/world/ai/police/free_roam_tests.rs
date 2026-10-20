@@ -62,3 +62,22 @@ fn another_automatic_pursuit_waits_for_the_arrest_and_ticket_to_finish() {
     police.bust.pay(busted::Payment::Cash, 0).unwrap();
     assert!(police.can_begin());
 }
+
+#[test]
+fn the_cooldown_bar_opens_empty_although_the_meter_holds_the_grace() {
+    let mut police = Police::default();
+    police.begin(1);
+    let mut shown_at = None;
+    for frame in 0..600 {
+        police.update(0.05, true, &view(10.0), sensed(false));
+        if police.cooldown_status() != blackbox_pursuit::CooldownStatus::CoolDown {
+            continue;
+        }
+        shown_at = Some(frame);
+        break;
+    }
+    assert!(shown_at.is_some(), "the cool-down opens once the cops lose the player");
+    police.update(0.05, true, &view(10.0), sensed(false));
+    assert!(police.evade_level() > 0.2, "the meter already holds the grace: {}", police.evade_level());
+    assert!(police.cooldown_bar() < 0.1, "the board's bar opens empty: {}", police.cooldown_bar());
+}
