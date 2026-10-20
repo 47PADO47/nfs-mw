@@ -54,6 +54,8 @@ suspension/traction/scheduling behavior. Tracked object scrapes retain the callb
 world frame rather than rebuilding the original owner-relative tracking transform;
 between callbacks, scrape velocity and visual culling retain their previous sample.
 See each contract's limitations before claiming original-game parity.
+The model-cache fix preserves alias identity; it does not independently validate
+every alias-specific physics or AI profile selected through geometry inheritance.
 
 The high-heat loading regression covers 1000 repeated Cross requests plus stale
 completions without further mesh or texture uploads. A user playtest confirmed a

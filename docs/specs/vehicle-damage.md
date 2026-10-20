@@ -68,8 +68,8 @@ their installed successor parts and window replacements from the original
 source zone levels, per actor and driving LOD; see
 [police appearance](cop-visible-damage.md). Health also drives the installed
 engine damage/death emitter groups independently of the collision sequencer.
-Ordinary cars retain the approximate cosmetic counters described above. Original cop
-health, suppression, retirement and optional Rapier wrecks are described in
+Ordinary cars retain the approximate cosmetic counters described above. Native police
+health, suppression and retirement are described in
 [cop destruction contacts](cop-destruction-contacts.md). Installed one-shot glass
 particles now reach the shared effect layer. Jointed cop parts and complete
 source paint/deformation/presentation remain incomplete.
