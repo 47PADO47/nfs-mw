@@ -74,7 +74,7 @@ What races still lack. The rules and the wiring are done ([race-mode.md](specs/r
 - **Wrong-way trigger** (`ResetsPlayer`), `SharedCheckpoints`, cash grabs and the busted-in-a-race flow are not used.
 - **Roadblock icon:** on the world map's new Pursuit tab only; the in-game HUD package has no roadblock icon object.
 - **Quick Race options:** bound to the race's options, kept for the session only (not in the config file).
-- **Mods:** the `nfsmw.races` interface still answers unsupported.
+- **Mods:** `nfsmw.races` runs over the world's races; the race events (`RaceStartRequested`, `RaceStarted`) and a custom race's opponents are not in 0.1.
 - **Auto shop prices:** in career mode an auto shop opens the garage without charging: no price rule for the
   performance packages is documented.
 - **Car lot stat bars:** drawn from the repo's own top speed, grip and 0-100 mph estimate, normalized over the lot

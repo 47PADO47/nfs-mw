@@ -24,6 +24,7 @@ impl WorldScene {
         sim_dt: f32,
         frame_dt: f32,
     ) {
+        self.update_race_mods();
         self.start_queued_race();
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {

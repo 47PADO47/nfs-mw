@@ -164,6 +164,7 @@ impl WorldScene {
             gameplay,
             race: None,
             queued_race: None,
+            race_mods: Default::default(),
             mod_blips: Vec::new(),
             career: Default::default(),
             scenery_groups: Default::default(),

@@ -22,6 +22,8 @@ pub struct RaceOptions {
     pub opponents: Option<usize>,
     pub difficulty: Option<i32>,
     pub traffic: Option<i32>,
+    /// The cash a win pays, instead of the race's own (`nfsmw.races`' `set_reward`).
+    pub cash: Option<f32>,
     /// Count the result in the career.
     pub career: bool,
     /// A demo run: the player's car is put at each gate in turn (`demo.rs`).

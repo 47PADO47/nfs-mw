@@ -240,6 +240,7 @@ impl WorldScene {
         let place: u32 = if won { 1 } else { 2 };
         session.result = Some(RaceResult { place, racers: 2, time: won.then_some(secs) });
         session.stage = Stage::Results { left: 3.0 };
+        self.note_race_outcome(session);
         session.banner = Banner::default();
         log::info!("race: challenge {} {} after {secs:.1} s", session.name, if won { "won" } else { "lost" });
         if let Some(traffic) = self.traffic.as_mut() {

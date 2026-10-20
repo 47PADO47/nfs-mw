@@ -3,7 +3,7 @@
 use super::setup::RaceOptions;
 use crate::scenes::world::WorldScene;
 
-const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] | race status | race stop";
+const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] | race status | race stop | race mod [demo]";
 
 /// Runs `race ...`.
 pub(in crate::scenes::world) fn race_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
@@ -11,6 +11,7 @@ pub(in crate::scenes::world) fn race_command(scene: &mut WorldScene, args: &[&st
         ["list"] => list(scene, ""),
         ["list", filter] => list(scene, filter),
         ["status"] => Ok(scene.race_status()),
+        ["mod", rest @ ..] => scene.try_mod_race(rest.contains(&"demo")),
         ["stop"] => match scene.abandon_race() {
             true => Ok("the race is over".into()),
             false => Err("no race is running".into()),

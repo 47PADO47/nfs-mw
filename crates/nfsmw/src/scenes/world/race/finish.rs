@@ -18,6 +18,7 @@ impl WorldScene {
         let place = if me.finished { me.place } else { racers as u32 };
         session.result = Some(RaceResult { place, racers, time: me.time });
         session.stage = Stage::Results { left: RACE_OVER_SECS };
+        self.note_race_outcome(session);
         session.banner = Banner::default();
         log::info!(
             "race: {} over: place {place}/{racers}{}",

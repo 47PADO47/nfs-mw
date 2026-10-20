@@ -13,6 +13,7 @@ mod emulate;
 mod finish;
 mod flow;
 mod load;
+pub(super) mod mods;
 mod report;
 mod setup;
 mod start;

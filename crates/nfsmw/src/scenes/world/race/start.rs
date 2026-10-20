@@ -58,11 +58,22 @@ impl WorldScene {
     /// Starts the race `query` names. The player's car is put on the grid and the opponents are loaded; the countdown
     /// starts when everything stands. Quick race and the console use this; the career's race entry too.
     pub(in crate::scenes::world) fn start_race(&mut self, query: &str, options: RaceOptions) -> Result<String, String> {
+        let data = self.gameplay.clone().ok_or("the race data could not be read from the install")?;
+        let race = resolve(&data, query)?.clone();
+        self.begin_race(race, options, None)
+    }
+
+    /// Starts `race`, on `course` when one is given (a race a mod registered), else on the course its data makes.
+    pub(in crate::scenes::world) fn begin_race(
+        &mut self,
+        race: Race,
+        options: RaceOptions,
+        course: Option<Course>,
+    ) -> Result<String, String> {
         if self.race.is_some() {
             return Err("a race is already running (race stop ends it)".into());
         }
         let data = self.gameplay.clone().ok_or("the race data could not be read from the install")?;
-        let race = resolve(&data, query)?.clone();
         if !setup::runnable(race.race_type) {
             return Err(format!("{} is a {:?} race, which this version does not run", race.name, race.race_type));
         }
@@ -72,7 +83,10 @@ impl WorldScene {
         if race.race_type == Some(RaceType::Challenge) {
             return self.start_challenge(&race, options);
         }
-        let course = setup::course_of(&data, &race, &options)?;
+        let course = match course {
+            Some(course) => course,
+            None => setup::course_of(&data, &race, &options)?,
+        };
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
@@ -141,7 +155,7 @@ impl WorldScene {
             banner: Banner::default(),
             result: None,
             report: None,
-            cash_value: p.cash_value,
+            cash_value: options.cash.unwrap_or(p.cash_value),
             pool,
             challenge: None,
         });
