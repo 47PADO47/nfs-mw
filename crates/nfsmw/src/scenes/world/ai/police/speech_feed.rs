@@ -152,7 +152,7 @@ impl super::super::TrafficWorld {
         Some(RoadblockFeed {
             id,
             visual: cars.iter().any(|c| c.los || c.in_view),
-            spike_strips: self.spikes.len().min(255) as u8,
+            spike_strips: self.roadblocks.strip_count().min(255) as u8,
             distance: nearest,
         })
     }

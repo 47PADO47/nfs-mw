@@ -91,15 +91,7 @@ impl TrafficWorld {
     pub(super) fn apply_breakers_to_helicopter(&mut self) {
         let Some((position, _, _)) = self.police.helicopter_motion() else { return };
         let point = glam::Vec2::new(position.x, position.z);
-        let hit = self.breaker_areas.iter().any(|area| {
-            area.duration > 0.0
-                && blackbox_pursuit::breaker::inside(
-                    glam::Vec2::new(area.position.x, area.position.z),
-                    area.radius,
-                    point,
-                )
-        });
-        if hit {
+        if self.breaker_zones.covers(point) {
             log::info!("pursuit breaker: the helicopter is destroyed");
             self.police.helicopter_destroyed();
         }

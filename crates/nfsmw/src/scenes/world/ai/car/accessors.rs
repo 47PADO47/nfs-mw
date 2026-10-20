@@ -140,6 +140,18 @@ impl AiCar {
         self.offscreen
     }
 
+    /// Seconds since the car was placed.
+    pub fn age(&self) -> f32 {
+        self.steps as f32 * STEP
+    }
+
+    /// Whether the patrol pass may recycle this cop now, given whether its spot is available to recycle
+    /// (`AIVehicle::CanRespawn`). Remembers a visit to the area that is not.
+    pub fn may_respawn(&mut self, spot_available: bool) -> bool {
+        let age = self.age();
+        self.respawn.can_respawn(spot_available, age)
+    }
+
     /// Half the car's diagonal (metres): the radius of its bounding sphere.
     pub fn bounding_radius(&self) -> f32 {
         self.radius

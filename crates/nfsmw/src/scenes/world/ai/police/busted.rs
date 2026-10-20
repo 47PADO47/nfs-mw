@@ -161,6 +161,8 @@ impl super::super::TrafficWorld {
         self.police.cooldown = Cooldown::default();
         self.police.reset_blink = 0.0;
         self.cars.retain(|car| !car.is_police());
+        // The original restarts the world after the ticket, which locks the cops out again.
+        self.cops.lock_out();
         true
     }
 

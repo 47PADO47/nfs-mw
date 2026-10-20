@@ -5,12 +5,13 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::EndReason;
-use blackbox_pursuit::wave::{Slot, pick_needed};
+use blackbox_pursuit::backup::Budget;
+use blackbox_pursuit::wave::{Slot, adjusted_counts, pick_needed, want_cops};
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::pursuit::{HeatRow, ground_cops};
+use nfsmw_data::pursuit::{BackupRow, HeatRow, ground_cops};
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
@@ -29,8 +30,6 @@ const MAX_DISTANCE: f32 = 400.0;
 const SPREAD: f32 = std::f32::consts::FRAC_PI_3;
 /// No cop starts nearer than this to another car.
 const MIN_GAP: f32 = 40.0;
-/// A cop this far from the player is taken out and spawned again closer.
-const LOST_DISTANCE: f32 = 500.0;
 /// A cop starts rolling at this speed, m/s.
 pub(super) const START_SPEED: f32 = 15.0;
 /// A cop car model with what limits how fast an AI drives it.
@@ -47,6 +46,9 @@ pub(super) struct CopSpot {
     pub target: Vec3,
     pub speed: f32,
     pub player: Performance,
+    /// The distance from `target` the spot must land in once it is on the road, metres, horizontally: the cop spawn
+    /// window of `docs/specs/ai-pursuit-cops.md` section 3.2. `None` for the cars that have their own placement.
+    pub band: Option<(f32, f32)>,
 }
 
 /// The chase: the heat rows of all levels, the heat it is at, and the spawn bookkeeping. The wave is the row of the
@@ -61,13 +63,23 @@ pub struct Pursuit {
     player: Performance,
     spawn_timer: f32,
     involved: u32,
+    /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
+    pub(super) budget: Budget,
+    /// The backup values of every heat level, index = level - 1.
+    backups: Vec<BackupRow>,
+    /// The cops that have stood within the engagement radius and are still in the chase, by audio identity.
+    pub(super) engaged: std::collections::HashSet<u32>,
     /// The chase's support request and the cars it took (`support`).
     pub(super) support: super::support::Session,
 }
 
 impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
+        let required = rows.get(heat.max(1) as usize - 1).or(rows.last()).map_or(0, |row| row.full_engagement_cops);
         Self {
+            budget: Budget::new(required, BackupRow::default().trigger),
+            backups: Vec::new(),
+            engaged: Default::default(),
             heat,
             rows,
             player,
@@ -77,6 +89,20 @@ impl Pursuit {
             involved: 0,
             support: Default::default(),
         }
+    }
+
+    /// Gives the chase the backup values of the heat levels and restarts its budget from the row of the current heat.
+    pub(super) fn set_backups(&mut self, backups: Vec<BackupRow>) {
+        self.backups = backups;
+        let required = self.row().map_or(0, |row| row.full_engagement_cops);
+        self.budget.refill(required, self.backup().trigger);
+    }
+
+    /// The backup values of the heat the chase is at now.
+    pub(super) fn backup(&self) -> BackupRow {
+        let last = self.backups.len().checked_sub(1);
+        let at = (self.heat.max(1) as usize - 1).min(last.unwrap_or(0));
+        self.backups.get(at).copied().unwrap_or_default()
     }
 
     /// How the player's car performs, for the cops that chase it.
@@ -121,13 +147,42 @@ impl Pursuit {
         self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
     }
 
-    /// How many cops the chase wants now: the whole wave, but no more than the cops still to evade (the level's cap
-    /// from the Bartender file, or the install's value without one), and no more than the chase's cop limit.
-    pub fn wanted(&self, settings: &BartenderSettings) -> usize {
-        let Some(row) = self.row() else { return 0 };
+    /// The fewest and the most cops the chase may have now. Cooling down it keeps exactly the row's patrol count; otherwise
+    /// the most is the cops still to evade (`Budget::allowed`), held to the level's cap from the Bartender file and to the
+    /// chase's cop limit (`GetAdjustedCopCounts`).
+    fn limits(&self, settings: &BartenderSettings, cooldown: bool) -> (u32, u32) {
+        let Some(row) = self.row() else { return (0, 0) };
+        let limit = settings.max_cops;
+        if cooldown {
+            let patrol = row.patrol_cars.min(limit);
+            return (patrol, patrol);
+        }
+        let most = match settings.cop_cap(self.heat) {
+            Some(cap) => self.budget.allowed().min(cap.max(1)),
+            None => self.budget.allowed(),
+        };
+        (0, most.min(limit))
+    }
+
+    /// How many cops the chase wants now: the wave's total held between the limits.
+    pub fn wanted(&self, settings: &BartenderSettings, cooldown: bool) -> usize {
         let nominal: u32 = self.wave().map(|w| w.1).sum();
-        let cap = settings.cop_cap(self.heat).unwrap_or(row.full_engagement_cops).max(1);
-        (nominal.min(cap) as usize).min(settings.max_cops as usize)
+        let (least, most) = self.limits(settings, cooldown);
+        want_cops(nominal, least, most) as usize
+    }
+
+    /// The wave scaled to the cops wanted now: each car type with the count the chase may have of it and its weight. A
+    /// type scaled to nothing is left out.
+    pub fn adjusted_wave(&self, settings: &BartenderSettings, cooldown: bool) -> Vec<(&str, u32, u32)> {
+        let nominal: Vec<(&str, u32, u32)> = self.wave().collect();
+        let counts: Vec<u32> = nominal.iter().map(|w| w.1).collect();
+        let scaled = adjusted_counts(&counts, self.wanted(settings, cooldown) as u32);
+        nominal
+            .into_iter()
+            .zip(scaled)
+            .filter(|(_, n)| *n > 0)
+            .map(|((name, _, chance), n)| (name, n, chance))
+            .collect()
     }
 }
 
@@ -137,9 +192,12 @@ impl TrafficWorld {
     /// The cars of the support requests are asked for too, at every level, so they load while the chase waits for its
     /// first support (a support car whose model is not in yet waits for it, `ai/support`).
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
+        self.cops.unlock();
         self.police.begin(heat);
         self.roadblocks.begin_chase();
-        self.pursuit = Some(Pursuit::new(self.police.patrol_heat(), rows, player));
+        let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
+        pursuit.set_backups(self.backup_rows.clone());
+        self.pursuit = Some(pursuit);
         let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
         for car in &mut self.cars {
             let near = self.player_position.is_some_and(|p| car.physics_position().distance(p) < range);
@@ -160,6 +218,16 @@ impl TrafficWorld {
         }
     }
 
+    /// The Blacklist's current bin while a career is on (`None` without one): the heat range and growth time of a chase.
+    pub fn set_career_bin(&mut self, bin: Option<u8>) {
+        self.police.set_career_bin(bin);
+    }
+
+    /// Seconds the cops are still locked out (no patrols, no spawns): 0 when they may appear.
+    pub fn cop_lockout_left(&self) -> f32 {
+        self.cops.lockout_left()
+    }
+
     /// Ends the chase without a result (the `pursuit off` command) and removes the cops.
     pub fn stop_pursuit(&mut self) {
         self.end_pursuit(EndReason::None);
@@ -169,6 +237,9 @@ impl TrafficWorld {
     pub fn end_pursuit(&mut self, reason: EndReason) {
         self.pursuit = None;
         self.police.end(reason);
+        if reason == EndReason::Evaded {
+            self.cops.lock_out();
+        }
         match reason == EndReason::Busted && self.arrest_active() {
             true => {
                 for car in self.cars.iter_mut().filter(|car| car.is_police()) {
@@ -223,10 +294,6 @@ impl TrafficWorld {
         if !self.police.can_begin() {
             return;
         }
-        self.cars.retain(|car| {
-            let p = car.position();
-            !car.is_cop() || (p.x - focus.position[0]).hypot(p.y - focus.position[1]) < LOST_DISTANCE
-        });
         match self.police.is_perp_in_sight() {
             true => self.update_support(sim_dt, focus, collision, surfaces),
             false => self.age_search_support(sim_dt),
@@ -241,17 +308,15 @@ impl TrafficWorld {
             log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
         }
         pursuit.spawn_timer -= sim_dt;
+        self.update_budget(sim_dt, focus);
+        self.flee_surplus(focus, cooldown);
         // A latched roadblock request stops the manager from spawning pursuit cops until the roadblock stands.
         if self.roadblocks.dispatcher_latched() {
             return;
         }
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
-        let wanted = match cooldown {
-            true => {
-                pursuit.row().map_or(0, |row| row.patrol_cars as usize).min(self.police.settings().max_cops as usize)
-            }
-            false => pursuit.wanted(self.police.settings()),
-        };
+        let wanted = pursuit.wanted(self.police.settings(), cooldown);
         if pursuit.spawn_timer > 0.0 {
             return;
         }
@@ -262,7 +327,8 @@ impl TrafficWorld {
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         // The next type of the current wave, weighted by its chance among those the wave still needs.
         let pick = {
-            let slots: Vec<Slot> = pursuit.wave().map(|(name, count, chance)| Slot { name, count, chance }).collect();
+            let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
+            let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
                 |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
             let roll = self.rng.next_f32();
@@ -305,7 +371,8 @@ impl TrafficWorld {
         let angle = focus.heading + (rng.next_f32() * 2.0 - 1.0) * SPREAD;
         let at = Vec3::new(focus.position[0] + distance * angle.cos(), focus.position[1] + distance * angle.sin(), 0.0);
         let physics_at = Vec3::from(space::to_physics(at));
-        let spot = CopSpot { at: physics_at, target, speed: START_SPEED, player };
+        let spot =
+            CopSpot { at: physics_at, target, speed: START_SPEED, player, band: Some((MIN_DISTANCE, MAX_DISTANCE)) };
         self.spawn_cop_at(name, spot, collision, surfaces)
     }
 
@@ -318,7 +385,7 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> bool {
-        let CopSpot { at: physics_at, target, speed, player } = spot;
+        let CopSpot { at: physics_at, target, speed, player, band } = spot;
         let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
             return false;
         };
@@ -326,6 +393,13 @@ impl TrafficWorld {
         let filter = SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() };
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
         if !nav.init_at_point(&self.network, &self.index, physics_at, toward, false) {
+            return false;
+        }
+        if self.cops.bars_spawn(nav.position) {
+            return false;
+        }
+        let gap = Vec3::new(nav.position.x - target.x, 0.0, nav.position.z - target.z).length();
+        if band.is_some_and(|(near, far)| !(near..=far).contains(&gap)) {
             return false;
         }
         if self.cars.iter().any(|c| c.physics_position().distance(nav.position) < MIN_GAP) {
@@ -349,20 +423,19 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        log::info!(
-            "pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player",
-            car.name,
-            render.x,
-            render.y,
-            toward.length()
-        );
+        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the player", car.name, render.x, render.y, gap);
         self.cars.push(car);
         true
     }
 
     /// One line for the `pursuit status` command.
     pub fn pursuit_status(&self) -> String {
-        let Some(p) = &self.pursuit else { return "no pursuit".into() };
+        let Some(p) = &self.pursuit else {
+            return match self.cop_lockout_left() {
+                left if left > 0.0 => format!("no pursuit; the cops are locked out for {left:.0} s"),
+                _ => "no pursuit".into(),
+            };
+        };
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
@@ -377,11 +450,16 @@ impl TrafficWorld {
             )
         });
         format!(
-            "heat {}: {} of {} cops ({}); formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
-            p.wanted(self.police.settings()),
+            p.wanted(
+                self.police.settings(),
+                self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown
+            ),
             cops.join(", "),
+            p.budget.remaining(),
+            p.budget.eta().map_or(String::new(), |eta| format!(", backup in {eta:.0} s")),
             self.roadblocks.count(),
             roadblocks.deployed,
             roadblocks.dodged,
@@ -393,4 +471,4 @@ impl TrafficWorld {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

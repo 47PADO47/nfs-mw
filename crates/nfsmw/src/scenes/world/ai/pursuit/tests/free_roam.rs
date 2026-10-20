@@ -1,7 +1,7 @@
 use super::*;
 use crate::scenes::world::ai::PlayerView;
 
-fn patrol(world: &mut TrafficWorld, renderer: &mut NullBackend, at: Vec3) {
+pub(super) fn patrol(world: &mut TrafficWorld, renderer: &mut NullBackend, at: Vec3) {
     let model = cop_model(renderer, "copx", player());
     let mut nav = RoadNav::traffic();
     assert!(nav.init_at_point(&world.network, &world.index, at, Vec3::Z, false));
@@ -29,7 +29,7 @@ pub(super) fn see(world: &mut TrafficWorld, seen: bool) {
     );
 }
 
-fn renderer() -> NullBackend {
+pub(super) fn renderer() -> NullBackend {
     NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan))
 }
 

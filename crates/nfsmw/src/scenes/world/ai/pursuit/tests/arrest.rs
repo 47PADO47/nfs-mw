@@ -9,7 +9,7 @@ fn a_bust_keeps_stopped_cops_until_payment_then_releases_the_terminal_state() {
     let mut world = TrafficWorld::new(cop_road());
     world.add_cop_model(cop_model(&mut renderer, "copx", player()));
     world.start_pursuit(1, vec![wave()], player());
-    let spot = CopSpot { at: Vec3::new(0.0, 0.0, 8.0), target: Vec3::ZERO, speed: 0.0, player: player() };
+    let spot = CopSpot { at: Vec3::new(0.0, 0.0, 8.0), target: Vec3::ZERO, speed: 0.0, player: player(), band: None };
     assert!(world.spawn_cop_at("copx", spot, &collision, &surfaces));
     let identity = world.cars[0].audio_emitter().id;
     let view = PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 0.0, nitrous: 0.0, throttle: 0.0 };

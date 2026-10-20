@@ -53,6 +53,12 @@ impl Police {
         self.cooldown.level()
     }
 
+    /// The fill of the pursuit board's cool-down bar: empty when the cool-down opens, full at EVADED. This is not
+    /// [`evade_level`](Self::evade_level), which already holds the grace's share of the required time.
+    pub fn cooldown_bar(&self) -> f32 {
+        self.cooldown.bar(&COOLDOWN_TUNING)
+    }
+
     /// The escape's progress in seconds, for the audio feed (`time_since_any_saw` plus the hiding time).
     pub fn escape_progress(&self) -> f32 {
         self.cooldown.progress()

@@ -17,6 +17,23 @@ pub(super) struct State {
 }
 
 impl Police {
+    /// Whether a roadblock was asked for since the last call (the world places it).
+    pub fn take_roadblock_request(&mut self) -> bool {
+        std::mem::take(&mut self.roadblock_requested)
+    }
+
+    /// The world placed the roadblock: the chase does not roll another heavy roadblock.
+    pub fn roadblock_placed(&mut self) {
+        self.roadblock_standing = true;
+        self.on_roadblock();
+        self.roadblock_added();
+    }
+
+    /// A roadblock of this chase stands.
+    pub fn roadblock_standing(&self) -> bool {
+        self.roadblock_standing
+    }
+
     /// The world reports whether a roadblock stands (the pursuit has one attached): the heavy roll skips its options then.
     pub fn set_roadblock_standing(&mut self, standing: bool) {
         self.roadblock_standing = standing;

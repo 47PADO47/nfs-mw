@@ -101,10 +101,16 @@ pub struct AiCar {
     cruise: Cruise,
     patrol: bool,
     searching: bool,
+    /// The cop was sent away (`StartFlee`): lights off, driving off along the traffic lanes until it is recycled.
+    fleeing: bool,
+    /// The cop has stood within the engagement radius of the player (`WasWithinEngagementRadius`).
+    engaged: bool,
     arrested: bool,
     perp_hidden_from_me: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
+    /// Whether this cop has stood where the patrol pass may not recycle it (`blackbox_pursuit::respawn`).
+    respawn: blackbox_pursuit::respawn::Latch,
     breaker_stop: bool,
     /// A cop that has reached its slot holds the handbrake (the pull-over).
     arrived: bool,
@@ -194,9 +200,12 @@ impl AiCar {
             cruise: start.cruise,
             patrol: start.patrol,
             searching: false,
+            fleeing: false,
+            engaged: false,
             arrested: false,
             perp_hidden_from_me: false,
             offscreen: 0.0,
+            respawn: Default::default(),
             breaker_stop: false,
             arrived: false,
             goal: Cell::new(GoalDrive::default()),

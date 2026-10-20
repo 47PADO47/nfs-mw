@@ -78,6 +78,8 @@ pub struct PursuitFeed {
     /// What the chase speech reads besides the numbers above: the cops, the helicopter, the roadblock, the player's
     /// heading, road and car, and how the pursuit stands (`audio/chase/feed.rs`). Empty in a feed built without it.
     pub speech: crate::audio::SpeechFeed,
+    /// Seconds until the backup arrives while it is called (`GetBackupETA`), 0 when it was not called.
+    pub backup_eta: f32,
 }
 
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1

@@ -68,7 +68,7 @@ impl TrafficWorld {
     /// Every frame: the roadblock's damage counts, the dodge, the distance to the target and the cheat timer.
     fn roadblocks_watch(&mut self, dt: f32, target: Vec3, pursuing: bool) {
         let cooling = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
-        let hidden = self.hidden_from_cars(target);
+        let hidden = self.hidden_from_cars();
         let mut sees = false;
         let mut recruit = Vec::new();
         for index in 0..self.roadblocks.list.len() {

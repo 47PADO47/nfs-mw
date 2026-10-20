@@ -32,9 +32,92 @@ pub fn pick_needed(slots: &[Slot<'_>], have: impl Fn(&str) -> u32, roll: f32) ->
     None
 }
 
+/// The counts of a wave scaled to the cops the chase may have now (`AdjustedCopCounts`). `nominal` is the count of each
+/// ground record in order; `want` is `clamp(sum(nominal), min, max)` for the chase's limits. Each record gets
+/// `round(count * want / nominal_left)`, taken off `want` and `nominal_left` as it goes, so the counts add up to `want`.
+pub fn adjusted_counts(nominal: &[u32], want: u32) -> Vec<u32> {
+    let mut nominal_left: u32 = nominal.iter().sum();
+    let mut want_left = want;
+    let mut out = Vec::with_capacity(nominal.len());
+    for &count in nominal {
+        let scaled = match nominal_left {
+            0 => 0,
+            _ => ((count as f32 * want_left as f32) / nominal_left as f32 + 0.5) as u32,
+        };
+        let scaled = scaled.min(want_left);
+        out.push(scaled);
+        want_left -= scaled;
+        nominal_left -= count;
+    }
+    out
+}
+
+/// The cops the chase may have now: the nominal total held to `[min, max]` (`want_cops = clamp(nominal, min, max)`).
+pub fn want_cops(nominal_total: u32, min: u32, max: u32) -> u32 {
+    nominal_total.max(min).min(max.max(min))
+}
+
+/// The car type that sends cops away this run (`RemoveUnwantedVehicles`). `surplus` is, per type in the contingent's
+/// order, how many cops of it the chase has over what it wants. The pick is random weighted by surplus: type `i` is taken
+/// unless `roll < earlier / (earlier + surplus_i)`, where `earlier` is the surplus of the types passed over.
+/// Returns the index and the number to send, at most 2.
+pub fn pick_surplus(surplus: &[u32], roll: f32) -> Option<(usize, u32)> {
+    let mut passed = 0u32;
+    for (i, &over) in surplus.iter().enumerate() {
+        if over < 1 {
+            continue;
+        }
+        if roll >= passed as f32 / (passed + over) as f32 {
+            return Some((i, over.min(2)));
+        }
+        passed += over;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_wave_is_scaled_to_what_the_chase_may_have() {
+        assert_eq!(adjusted_counts(&[4], 4), [4]);
+        assert_eq!(adjusted_counts(&[4], 2), [2]);
+        assert_eq!(adjusted_counts(&[4], 0), [0]);
+        assert_eq!(adjusted_counts(&[7, 2], 9), [7, 2], "the whole wave");
+        assert_eq!(adjusted_counts(&[7, 2], 3), [2, 1], "7*3/9 rounds to 2, then 1 of the last 2");
+        assert_eq!(adjusted_counts(&[3, 3, 3], 5).iter().sum::<u32>(), 5, "the counts add up to the want");
+        assert_eq!(adjusted_counts(&[], 5), Vec::<u32>::new());
+    }
+
+    #[test]
+    fn a_want_beyond_the_wave_scales_it_up() {
+        assert_eq!(
+            adjusted_counts(&[2, 2], 10),
+            [5, 5],
+            "a cool-down that wants more cops than the row has scales it up"
+        );
+    }
+
+    #[test]
+    fn the_cops_wanted_are_held_between_the_limits() {
+        assert_eq!(want_cops(4, 0, 3), 3);
+        assert_eq!(want_cops(4, 0, 9), 4);
+        assert_eq!(want_cops(4, 6, 9), 6, "cool-down never wants fewer than its minimum");
+        assert_eq!(want_cops(4, 2, 1), 2, "the minimum wins over a smaller maximum");
+        assert_eq!(want_cops(0, 0, 0), 0);
+    }
+
+    #[test]
+    fn the_surplus_type_is_picked_by_weight() {
+        assert_eq!(pick_surplus(&[0, 0], 0.5), None, "no surplus, nobody leaves");
+        assert_eq!(pick_surplus(&[3], 0.0), Some((0, 2)), "at most two leave at a time");
+        assert_eq!(pick_surplus(&[1], 0.9), Some((0, 1)));
+        // Two types over by 1 and 3: the first is taken unless the roll is under 0 (never), the second needs roll >= 1/4.
+        assert_eq!(pick_surplus(&[1, 3], 0.0), Some((0, 1)));
+        assert_eq!(pick_surplus(&[1, 3], 0.9), Some((0, 1)), "the first type is always taken when nothing precedes it");
+        assert_eq!(pick_surplus(&[0, 3], 0.5), Some((1, 2)));
+    }
 
     fn heat_four() -> [Slot<'static>; 1] {
         [Slot { name: "copgtoghost", count: 8, chance: 100 }]

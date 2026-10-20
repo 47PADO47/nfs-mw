@@ -33,6 +33,8 @@ mod lighting;
 mod materials;
 mod mod_hooks;
 mod tail_light_trails;
+#[cfg(test)]
+pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
 use car_loader::load_car;
 mod focus;
 mod focus_feed;

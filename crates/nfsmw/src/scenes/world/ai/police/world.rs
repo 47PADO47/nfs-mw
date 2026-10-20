@@ -36,6 +36,15 @@ impl super::super::TrafficWorld {
         Some((gaps.len() as u32, gaps.iter().sum::<f32>() / gaps.len() as f32))
     }
 
+    /// While the lockout runs every active cop is removed, as the original's patrol pass does (`VehicleSpawningEnabled`
+    /// is false for a despawn too). A chase clears the lockout when it starts, so a chase never runs under it.
+    fn remove_cops_while_locked_out(&mut self) {
+        if self.cops.spawning_enabled() || self.is_pursuing() || self.police.bust.active() {
+            return;
+        }
+        self.cars.retain(|car| !car.is_police());
+    }
+
     /// The player pressed the reset key: the post-reset blink starts (the reset penalty applies while it runs).
     pub fn note_manual_reset(&mut self) {
         self.spike_patches = None;
@@ -50,6 +59,8 @@ impl super::super::TrafficWorld {
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
         self.apply_mod_requests();
         self.note_speech_view(player);
+        self.cops.tick(dt);
+        self.remove_cops_while_locked_out();
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
@@ -103,9 +114,9 @@ impl super::super::TrafficWorld {
         self.police.end_reason()
     }
 
-    /// The cool-down meter, 0 to 1, for the pursuit board's bar.
-    pub fn evade_level(&self) -> f32 {
-        self.police.evade_level()
+    /// The pursuit board's cool-down bar fill, 0 to 1: empty when the cool-down opens.
+    pub fn cooldown_bar(&self) -> f32 {
+        self.police.cooldown_bar()
     }
 
     /// The end-of-pursuit card, while a chase ended busted or evaded. `None` otherwise.
@@ -195,6 +206,7 @@ impl super::super::TrafficWorld {
             player_hit: self.sighting(level).recent_hit,
             cops_destroyed: self.police.cops_destroyed(),
             speech: Default::default(),
+            backup_eta: self.backup_eta().unwrap_or(0.0),
         }))
     }
 

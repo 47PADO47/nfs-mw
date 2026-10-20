@@ -89,6 +89,11 @@ impl Roadblocks {
         self.list.len()
     }
 
+    /// How many spike strips lie across the standing roadblocks.
+    pub fn strip_count(&self) -> usize {
+        self.list.iter().map(|rb| rb.strips.len()).sum()
+    }
+
     /// The props' models are uploaded.
     pub fn has_models(&self) -> bool {
         self.kit.is_some()

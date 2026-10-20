@@ -335,7 +335,14 @@ car select screen (x0.95); get busted three times and confirm the impound.
   ai-pursuit.md), whose formula uses `MeterDeadZoneBustedDistance` and which the code does not have, and drawing a bar
   on screen. See
   [provenance](../provenance/ai-pursuit-busted.md).
-- **Heat growth** (section 3.2): done with the bin-free times per level; the career bins are not read.
+- **Heat growth** (section 3.2): `TimePerHeatLevel` times `ScaleEscalationPerBucket[min(bin, 14)]` from the install, with the
+  Blacklist's current bin (`scenes/world/ai/police/heat_model.rs`); a world without a career uses bin 15 (600 s a level for
+  levels 1 to 5). A Bartender `TimePerLevel` that differs from the stock value overrides it. **[decomp]** The bin's maximum heat
+  (section 3.1: bins 15/14 and 13: 2, 12 to 9: 3, 8 to 5: 4, 4 to 1: 5; 16: 1) caps the chase, a config range wins, and a
+  forced chase raises the cap to its level. The `race_bin_NN` records are not read; the table is the one verified above.
+- **Backup values** (`FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`): read per level
+  (`nfsmw_data::pursuit::backup_rows`) and checked against the table in 2.1 and 2.2 by an installed test.
+- **Paint cooling** (`fecooling.NewDecal`): not read or built.
 - **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
   start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
   (`Police::carried_heat`). **[unconfirmed]** The install's career rule (every car of the stable) is not modelled.

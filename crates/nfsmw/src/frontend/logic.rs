@@ -289,6 +289,10 @@ pub trait ScreenLogic: Send + Sync {
     /// A message the package sent to the game.
     fn message(&mut self, cx: &mut Cx, message: u32);
 
+    /// A button of the package was pressed (`button` is its GUID). Only packages whose buttons answer
+    /// `BUTTON_PRESSED` report this, and it comes whether or not the package also posts a message to the game.
+    fn pressed(&mut self, _cx: &mut Cx, _button: u32) {}
+
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}
 

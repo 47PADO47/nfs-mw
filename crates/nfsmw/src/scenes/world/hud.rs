@@ -57,10 +57,10 @@ impl WorldScene {
                 state.cops_engaged = traffic.cops_engaged();
                 state.cops_damaged = traffic.cops_damaged();
                 let wrecked = traffic.cops_destroyed();
-                // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
-                // they see the player again (`docs/specs/ai-pursuit.md` section 6).
+                // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter
+                // (`evade_level`) starts at the grace's share (`docs/specs/ai-pursuit.md` section 6).
                 state.pursuit = traffic.pursuit_feed().map(|feed| PursuitHud {
-                    evade: traffic.evade_level(),
+                    evade: traffic.cooldown_bar(),
                     busted: meter,
                     cooldown: traffic.cooldown_shown(),
                     hiding: traffic.hiding_fill(),

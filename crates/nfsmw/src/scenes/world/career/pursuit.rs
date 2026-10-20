@@ -94,6 +94,7 @@ impl WorldScene {
         }
         if !pursuing {
             self.load_carried_heat();
+            self.load_career_bin();
         }
     }
 
@@ -174,6 +175,15 @@ impl WorldScene {
             Trigger::PursuitEvaded { event_underway: false },
             inputs,
         );
+    }
+
+    /// Tells the police the Blacklist's current bin (or that no career is on): the bin sets the heat range and how fast a
+    /// chase heats up, read when the next chase starts.
+    fn load_career_bin(&mut self) {
+        let bin = self.career.handle.with(|career| career.blacklist.current_bin());
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.set_career_bin(bin);
+        }
     }
 
     /// Loads the current car's heat into the police, so the next chase starts from it. Runs each frame outside a

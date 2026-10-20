@@ -51,7 +51,8 @@ impl TrafficWorld {
             return false;
         }
         let gap = Vec3::new(nav.position.x - centre.x, 0.0, nav.position.z - centre.z).length();
-        if !(150.0..=400.0).contains(&gap)
+        if self.cops.bars_spawn(nav.position)
+            || !(150.0..=400.0).contains(&gap)
             || self.cars.iter().any(|car| car.physics_position().distance(nav.position) < 20.0)
         {
             return false;

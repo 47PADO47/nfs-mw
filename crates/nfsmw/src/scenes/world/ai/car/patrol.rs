@@ -48,7 +48,48 @@ impl AiCar {
     }
 
     pub fn emergency_lights(&self) -> bool {
-        (self.is_cop() || self.roadblock) && !self.is_wrecked() && !self.arrested
+        (self.is_cop() || self.roadblock) && !self.is_wrecked() && !self.arrested && !self.fleeing
+    }
+
+    /// The cop was sent away from the chase.
+    pub fn is_fleeing(&self) -> bool {
+        self.fleeing
+    }
+
+    /// Whether the cop has been within the engagement radius of the player in this chase.
+    pub fn was_engaged(&self) -> bool {
+        self.engaged
+    }
+
+    /// Notes that the cop is within the engagement radius.
+    pub fn note_engaged(&mut self) {
+        self.engaged = true;
+    }
+
+    /// Sends the cop away (`AIVehiclePursuit::StartFlee`): its lights go off and it drives off along the traffic lanes at
+    /// the search speed, like the cops that lost the player, until the patrol pass recycles it. Support cars and roadblock
+    /// cars are not sent this way. Returns whether the cop now flees; a cop with no lane to follow keeps chasing.
+    pub(in crate::scenes::world::ai) fn start_flee(
+        &mut self,
+        cruise: Cruise,
+        net: &RoadNetwork,
+        index: &SegmentIndex,
+        rng: &mut impl RandomSource,
+    ) -> bool {
+        if !self.is_cop() || self.roadblock || self.support.is_some() || self.arrested {
+            return false;
+        }
+        if self.fleeing {
+            return true;
+        }
+        if !self.searching {
+            self.search_mode(true, cruise, net, index, rng);
+        }
+        if !self.searching {
+            return false;
+        }
+        self.fleeing = true;
+        true
     }
 
     pub fn hold_for_arrest(&mut self) {
@@ -79,7 +120,13 @@ impl AiCar {
         index: &SegmentIndex,
         rng: &mut impl RandomSource,
     ) {
-        if !self.is_cop() || self.roadblock || self.support.is_some() || self.searching == searching || self.arrested {
+        if !self.is_cop()
+            || self.roadblock
+            || self.support.is_some()
+            || self.searching == searching
+            || self.arrested
+            || self.fleeing
+        {
             return;
         }
         let (kind, lane, filter) = match searching {

@@ -11,6 +11,7 @@ mod cop;
 mod cop_aims;
 mod cop_health;
 mod cop_lights;
+mod cop_manager;
 mod data;
 mod goal_aims;
 mod hitch;
@@ -28,6 +29,7 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod pursuit_budget;
 mod radar;
 mod release;
 mod road_reflection;
@@ -65,6 +67,8 @@ pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
+#[cfg(test)]
+pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
@@ -114,7 +118,11 @@ pub struct TrafficWorld {
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
+    /// The backup values of the heat levels, from the install.
+    backup_rows: Vec<nfsmw_data::pursuit::BackupRow>,
     police: police::Police,
+    /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
+    cops: cop_manager::CopManager,
     cars: Vec<AiCar>,
     rng: SplitMix,
     alpha: f32,
@@ -201,7 +209,9 @@ impl TrafficWorld {
             model_loader: None,
             helicopter_rig: None,
             pursuit: None,
+            backup_rows: Vec::new(),
             police: police::Police::default(),
+            cops: Default::default(),
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,

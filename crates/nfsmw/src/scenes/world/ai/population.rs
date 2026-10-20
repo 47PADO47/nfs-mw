@@ -14,6 +14,7 @@ use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::space;
 use crate::viewer::camera::Lens;
 
+mod cops;
 mod visibility;
 use visibility::Viewing;
 
@@ -207,7 +208,7 @@ impl TrafficWorld {
         if self.cop_share == 0 {
             return false;
         }
-        if self.pursuit.is_some() || !self.police.can_begin() {
+        if self.pursuit.is_some() || !self.police.can_begin() || !self.cops.spawning_enabled() {
             return false;
         }
         let heat = self.police.patrol_heat();
@@ -248,11 +249,12 @@ impl TrafficWorld {
         let mut view = Viewing::new(camera, focus).also_shown_through(shown);
         view.retire_distance = self.policy.retire_distance as f32;
         view.grace = self.policy.offscreen_seconds as f32;
+        let base = cops::Base::new(camera, focus, self.pursuit.is_some());
         self.cars.retain_mut(|car| {
-            if car.is_cop() {
-                return car.is_finite();
-            }
             car.note_views(dt, |p, radius| view.sees(p, radius));
+            if car.is_police() {
+                return cops::keeps(car, &view, &base, MAX_AIRBORNE);
+            }
             if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(&view, limits)) {
                 car.drop_trailer();
             }

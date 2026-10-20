@@ -62,3 +62,53 @@ fn another_automatic_pursuit_waits_for_the_arrest_and_ticket_to_finish() {
     police.bust.pay(busted::Payment::Cash, 0).unwrap();
     assert!(police.can_begin());
 }
+
+#[test]
+fn the_cooldown_bar_opens_empty_although_the_meter_holds_the_grace() {
+    let mut police = Police::default();
+    police.begin(1);
+    let mut shown_at = None;
+    for frame in 0..600 {
+        police.update(0.05, true, &view(10.0), sensed(false));
+        if police.cooldown_status() != blackbox_pursuit::CooldownStatus::CoolDown {
+            continue;
+        }
+        shown_at = Some(frame);
+        break;
+    }
+    assert!(shown_at.is_some(), "the cool-down opens once the cops lose the player");
+    police.update(0.05, true, &view(10.0), sensed(false));
+    assert!(police.evade_level() > 0.2, "the meter already holds the grace: {}", police.evade_level());
+    assert!(police.cooldown_bar() < 0.1, "the board's bar opens empty: {}", police.cooldown_bar());
+}
+
+#[test]
+fn the_career_bin_caps_the_chase_heat_and_sets_how_fast_it_climbs() {
+    use nfsmw_data::pursuit::HeatGrowth;
+    let scale =
+        [120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 120.0, 180.0, 240.0, 360.0, 600.0];
+    let growth = vec![Some(HeatGrowth { time_per_heat_level: 1.0, scale_per_bucket: scale })];
+    let climb = |bin: Option<u8>, secs: u32| {
+        let mut police = Police::default();
+        police.set_heat_growth(growth.clone());
+        police.set_career_bin(bin);
+        police.begin(1);
+        for _ in 0..secs {
+            police.update(1.0, true, &view(10.0), sensed(true));
+        }
+        police.vehicle_heat()
+    };
+    assert!((climb(Some(10), 60) - 1.5).abs() < 0.01, "120 s a level from bin 10: {}", climb(Some(10), 60));
+    assert!((climb(Some(15), 60) - 1.1).abs() < 0.01, "600 s a level at the start of the Blacklist");
+    assert!(climb(Some(15), 5000) <= 2.0, "the start of the Blacklist never leaves heat 2");
+    assert!(climb(Some(10), 5000) <= 3.0, "bin 10 stops at heat 3");
+    assert!(climb(None, 5000) > 5.0, "free roam has the whole scale");
+}
+
+#[test]
+fn a_forced_chase_raises_the_bin_range_to_its_level() {
+    let mut police = Police::default();
+    police.set_career_bin(Some(15));
+    police.begin(6);
+    assert_eq!(police.level(), Some(6));
+}
