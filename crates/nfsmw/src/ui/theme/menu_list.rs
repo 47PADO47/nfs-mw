@@ -59,6 +59,13 @@ pub struct RivalInfo {
     pub status: RivalStatus,
 }
 
+/// The picture of an entry: a texture key, and the part of it to show.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MenuIcon {
+    pub texture: u32,
+    pub uv: [f32; 4],
+}
+
 /// One entry of the list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuEntry {
@@ -66,12 +73,14 @@ pub struct MenuEntry {
     /// A disabled entry can be selected and is drawn dimmed; pressing it does nothing.
     pub enabled: bool,
     pub value: MenuValue,
+    /// The picture the entry has beside its name, for a theme that shows pictures (`Tokens::icons`).
+    pub icon: Option<MenuIcon>,
 }
 
 impl MenuEntry {
     /// An entry with no value, as an icon menu has.
     pub fn plain(label: impl Into<String>, enabled: bool) -> Self {
-        Self { label: label.into(), enabled, value: MenuValue::None }
+        Self { label: label.into(), enabled, value: MenuValue::None, icon: None }
     }
 }
 

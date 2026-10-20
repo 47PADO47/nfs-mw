@@ -1,9 +1,9 @@
 //! The icon menu as a list: what a theme that draws it vertically (the Remastered menus) reads and does. The package
 //! still supplies the order of the entries and the messages; this is the part that is not its icons.
 
-use super::{Category, Cx, IconMenu, Id, Kind, Pick};
+use super::{Category, Cx, Icon, IconMenu, Id, Kind, Pick};
 use crate::ui::theme::remastered::menu::layout::window_start;
-use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuIcon, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
 impl IconMenu {
@@ -27,6 +27,19 @@ impl IconMenu {
             Id::SafeHouseBlacklist(stage) => Some(format!("Blacklist {stage}")),
             _ => None,
         }
+    }
+
+    /// The picture an icon gives its entry: the package's own texture, or for the control options the controller's glyph of
+    /// the input atlas. An icon with no texture has none.
+    fn picture(icon: &Icon) -> Option<MenuIcon> {
+        if icon.texture == 0 {
+            return None;
+        }
+        let uv = match icon.id {
+            Id::ControlOptions => crate::ui::input_icons::Glyph::Controller.uv(),
+            _ => [0.0, 0.0, 1.0, 1.0],
+        };
+        Some(MenuIcon { texture: icon.texture, uv })
     }
 
     /// The pointer is over (`activate` false) or pressed (`activate` true) the entry `row` of the vertical list.
@@ -61,7 +74,7 @@ impl IconMenu {
             .map(|icon| {
                 let label =
                     Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve(assets)).unwrap_or_default();
-                MenuEntry::plain(label, icon.enabled)
+                MenuEntry { icon: Self::picture(icon), ..MenuEntry::plain(label, icon.enabled) }
             })
             .collect();
         let style = match self.kind {

@@ -189,7 +189,7 @@ fn rival_entry(assets: &UiAssets, bin: u8, status: RivalStatus, bounty: u32) -> 
         bounty: money(bounty),
         status,
     };
-    MenuEntry { label: name, enabled: true, value: MenuValue::Rival(info) }
+    MenuEntry { label: name, enabled: true, value: MenuValue::Rival(info), icon: None }
 }
 
 /// Whether the holder with this GUID has the focus.

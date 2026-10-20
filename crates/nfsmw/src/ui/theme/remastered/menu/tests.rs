@@ -197,7 +197,8 @@ fn the_title_is_bigger_and_bold_in_the_accent_colour() {
 
 fn settings(selected: usize) -> MenuList {
     use crate::ui::theme::MenuValue;
-    let row = |label: &str, value: MenuValue, enabled: bool| MenuEntry { label: label.into(), enabled, value };
+    let row =
+        |label: &str, value: MenuValue, enabled: bool| MenuEntry { label: label.into(), enabled, value, icon: None };
     MenuList {
         entries: vec![
             row("Window Mode", MenuValue::Choice { text: "Borderless".into(), arrows: true }, true),
@@ -350,6 +351,7 @@ fn a_key_row_shows_two_key_caps_and_lights_the_focused_one() {
         label: "Accelerate".into(),
         enabled: true,
         value: MenuValue::Keys { primary: "W".into(), secondary: "---".into(), focus },
+        icon: None,
     };
     let cell = MenuListCell::new();
     let bars = |focus| {
@@ -400,4 +402,38 @@ fn a_page_with_a_message_shows_it_at_the_right_of_the_title() {
     let nodes = built(ElementId::Jukebox, &cell);
     let line = text_at(&nodes, "RANDOM ORDER");
     assert!(line.world.w_axis.x > text_at(&nodes, "MAIN MENU").world.w_axis.x + 100.0);
+}
+
+/// What the main menu builds under `palette`, with its first two entries carrying pictures (textures 501 and 502).
+fn with_pictures(palette: blackbox_ui::Tokens) -> Vec<UiNode> {
+    let cell = MenuListCell::new();
+    let mut main = list(MenuStyle::Main, 0);
+    for (entry, texture) in main.entries.iter_mut().zip([501, 502]) {
+        entry.icon = Some(crate::ui::theme::MenuIcon { texture, uv: [0.0, 0.0, 1.0, 1.0] });
+    }
+    cell.set(ElementId::MainMenu.slot(), main);
+    let skin = palette.skin().merged(skin()).merged(palette_skin(&palette));
+    let theme =
+        RemasteredTheme::new(Default::default(), DriveFeedCell::new(), Default::default(), cell, Default::default());
+    let mut menu = theme.element(ElementId::MainMenu.slot(), &BuildCx::new(&skin)).expect("Remastered draws it");
+    menu.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
+    let mut out = DrawList::new();
+    menu.build(&mut out);
+    out.iter().cloned().collect()
+}
+
+#[test]
+fn a_palette_with_icons_shows_the_pictures_beside_the_text_and_one_without_shows_none() {
+    let on = with_pictures(palette::bevy());
+    assert_eq!((images_with(&on, 501), images_with(&on, 502)), (1, 1));
+    let picture = on.iter().find(|n| matches!(n.kind, NodeKind::Image { texture: 501, .. })).expect("a picture");
+    let career = text_at(&on, "CAREER");
+    assert!(picture.world.w_axis.x < career.world.w_axis.x, "the picture is left of its text");
+    let off = with_pictures(palette::remastered());
+    assert_eq!(images_with(&off, 501) + images_with(&off, 502), 0);
+    let off_career = text_at(&off, "CAREER");
+    assert!(
+        off_career.world.w_axis.x < career.world.w_axis.x,
+        "the text makes room for the picture only when it is shown"
+    );
 }

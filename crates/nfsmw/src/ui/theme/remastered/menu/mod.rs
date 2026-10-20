@@ -12,7 +12,9 @@ pub mod layout;
 mod rival;
 mod value;
 
-use blackbox_ui::{Component, DrawList, Image, LayoutCx, Outline, Panel, Rect, Slant, SlotId, Text, justify};
+use blackbox_ui::{
+    Component, DrawList, Image, LayoutCx, Outline, Panel, Rect, Slant, SlotId, Text, justify, token_keys,
+};
 
 use self::layout as place;
 use self::layout::HintSpot;
@@ -23,6 +25,10 @@ use crate::ui::raster_text::{RASTER_MENU_FONT_KEY, width_units};
 use crate::ui::theme::{MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle};
 
 const TAGLINE: [&str; 2] = ["RACE YOUR WAY", "TO THE TOP"];
+
+/// The picture of an entry, when the theme shows pictures: its size, and the space between it and the text.
+const ICON_SIZE: f32 = 22.0;
+const ICON_GAP: f32 = 9.0;
 
 /// How the highlight bar fades in from its left end to its slanted gold end: `(position, opacity)`.
 const BAR_STOPS: [(f32, f32); 7] =
@@ -129,10 +135,13 @@ impl<'a, 'b> Parts<'a, 'b> {
         }
         let shown = place::shown(list.entries.len());
         let wide = list.has_values();
+        // A list shows its pictures when the palette asks for them, and then every entry's text makes room for one.
+        let pictures = self.cx.skin.metric(token_keys::ICONS).is_some_and(|on| on > 0.0)
+            && list.entries.iter().any(|entry| entry.icon.is_some());
         for (i, entry) in list.entries.iter().skip(list.first).take(shown).enumerate() {
             let row = list.first + i;
             let nudge = list.nudge.filter(|nudge| nudge.row == row);
-            self.entry(entry, row == list.selected, place::row_y(i), left, wide, nudge);
+            self.entry(entry, row == list.selected, place::row_y(i), (left, wide, pictures), nudge);
         }
         self.footer(&list.hints, left);
         if list.style == MenuStyle::Main {
@@ -188,7 +197,14 @@ impl<'a, 'b> Parts<'a, 'b> {
         self.push(text, Rect::new(x, at.1, width, 20.0));
     }
 
-    fn entry(&mut self, entry: &MenuEntry, selected: bool, y: f32, left: f32, wide: bool, nudge: Option<MenuNudge>) {
+    fn entry(
+        &mut self,
+        entry: &MenuEntry,
+        selected: bool,
+        y: f32,
+        (left, wide, pictures): (f32, bool, bool),
+        nudge: Option<MenuNudge>,
+    ) {
         let colour = match (entry.enabled, selected) {
             (false, _) => keys::MENU_TEXT_DISABLED,
             (true, true) => keys::MENU_TEXT_SELECTED,
@@ -199,7 +215,13 @@ impl<'a, 'b> Parts<'a, 'b> {
             self.parts.push(Box::new(Slant::at_default_depth(keys::MENU_BAR, rect, lean, &BAR_STOPS, self.cx)));
             self.bolt(left + 17.0, y + 1.5);
         }
-        let at = (left + place::TEXT_LEFT, y);
+        let shift = if pictures { ICON_SIZE + ICON_GAP } else { 0.0 };
+        if let (true, Some(icon)) = (pictures, entry.icon) {
+            let tint = if entry.enabled { [255; 4] } else { [255, 255, 255, 95] };
+            let rect = Rect::new(left + place::TEXT_LEFT + ICON_SIZE / 2.0, y, ICON_SIZE, ICON_SIZE);
+            self.push(Image::raw(icon.texture).with_uv(icon.uv).with_tint(tint), rect);
+        }
+        let at = (left + place::TEXT_LEFT + shift, y);
         let label = entry.label.to_uppercase();
         // A long label shrinks to stop short of the values.
         let scale = match wide {

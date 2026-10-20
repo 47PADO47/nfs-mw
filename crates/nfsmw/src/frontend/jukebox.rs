@@ -307,6 +307,7 @@ impl ScreenLogic for JukeboxLogic {
                     label,
                     enabled: true,
                     value: MenuValue::Choice { text: entry.mode.label().to_owned(), arrows: false },
+                    icon: None,
                 }
             })
             .collect();

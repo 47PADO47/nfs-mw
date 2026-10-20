@@ -207,6 +207,7 @@ impl ScreenLogic for ControlsLogic {
                 label: (*label).to_owned(),
                 enabled: true,
                 value: MenuValue::Keys { primary: key(row, 0), secondary: key(row, 1), focus: Some(self.cell.slot) },
+                icon: None,
             })
             .collect();
         let style = if self.args.pause { MenuStyle::Pause } else { MenuStyle::Sub };

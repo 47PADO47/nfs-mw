@@ -106,5 +106,5 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
             MenuValue::Choice { text, arrows: !acts }
         }
     };
-    MenuEntry { label, enabled: row.setting.enabled_in(cx.settings, &cx.caps), value }
+    MenuEntry { label, enabled: row.setting.enabled_in(cx.settings, &cx.caps), value, icon: None }
 }

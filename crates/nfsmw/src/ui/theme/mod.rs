@@ -36,7 +36,7 @@ pub use compose::{hud_layer, slot_layer};
 
 pub use element::ElementId;
 pub use menu_list::{
-    DEFAULT_ASPECT, MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, RivalInfo,
+    DEFAULT_ASPECT, MenuEntry, MenuHint, MenuIcon, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, RivalInfo,
     RivalStatus,
 };
 

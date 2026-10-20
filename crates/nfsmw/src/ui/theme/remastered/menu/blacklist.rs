@@ -169,7 +169,7 @@ mod tests {
             bounty: format!("{rank},000"),
             status,
         };
-        MenuEntry { label: format!("Rival {rank}"), enabled: true, value: MenuValue::Rival(info) }
+        MenuEntry { label: format!("Rival {rank}"), enabled: true, value: MenuValue::Rival(info), icon: None }
     }
 
     fn blacklist(selected: usize, aspect: f32) -> MenuList {
