@@ -7,7 +7,7 @@ use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
 use super::remastered::WorldMapLegendCell;
-use super::{ElementId, build_themes, default_skin};
+use super::{ElementId, MenuListCell, build_themes, default_skin};
 
 /// The numbers are part of the mod ABI. Pinning them here means a reorder or a renumber fails a test.
 const PINNED: &[(ElementId, u32)] = &[
@@ -82,7 +82,13 @@ fn theme_ids_are_original_and_custom() {
 
 #[test]
 fn registry_has_original_then_custom_and_remastered_with_original_active() {
-    let themes = build_themes(FrameCell::new(), RadioFeedCell::new(), DriveFeedCell::new(), WorldMapLegendCell::new());
+    let themes = build_themes(
+        FrameCell::new(),
+        RadioFeedCell::new(),
+        DriveFeedCell::new(),
+        WorldMapLegendCell::new(),
+        MenuListCell::new(),
+    );
     let ids: Vec<ThemeId> = themes.ids().collect();
     assert_eq!(ids, vec![ThemeId::Original, ThemeId::Custom, ThemeId::Remastered]);
     assert_eq!(themes.active(), ThemeId::Original);
@@ -90,8 +96,13 @@ fn registry_has_original_then_custom_and_remastered_with_original_active() {
 
 #[test]
 fn custom_can_be_made_active_and_resolves_every_slot() {
-    let mut themes =
-        build_themes(FrameCell::new(), RadioFeedCell::new(), DriveFeedCell::new(), WorldMapLegendCell::new());
+    let mut themes = build_themes(
+        FrameCell::new(),
+        RadioFeedCell::new(),
+        DriveFeedCell::new(),
+        WorldMapLegendCell::new(),
+        MenuListCell::new(),
+    );
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {

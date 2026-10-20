@@ -25,6 +25,7 @@ mod compose;
 mod compose_tests;
 pub mod custom;
 mod element;
+mod menu_list;
 pub mod modded;
 pub mod original;
 pub mod remastered;
@@ -34,6 +35,7 @@ mod tests;
 pub use compose::{hud_layer, slot_layer};
 
 pub use element::ElementId;
+pub use menu_list::{DEFAULT_ASPECT, MenuEntry, MenuHint, MenuList, MenuListCell, MenuStyle};
 
 use bevy_ecs::prelude::*;
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, ThemeError, ThemeId, Themes};
@@ -87,6 +89,7 @@ pub fn build_themes(
     radio: RadioFeedCell,
     drive: DriveFeedCell,
     legend: WorldMapLegendCell,
+    menus: MenuListCell,
 ) -> Themes {
     check_floor_fills_every_slot(&frame);
     let mut themes = Themes::new(Box::new(OriginalTheme::new(frame))).expect("OriginalTheme reports ThemeId::Original");
@@ -94,7 +97,7 @@ pub fn build_themes(
         .register(Box::new(CustomTheme::new(radio.clone(), drive.clone())))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
-        .register(Box::new(RemasteredTheme::new(drive, legend)))
+        .register(Box::new(RemasteredTheme::new(drive, legend, menus)))
         .expect("RemasteredTheme is registered once, and is not Original");
     themes
 }
@@ -136,6 +139,8 @@ pub struct UiThemes {
     /// The open world map's legend, read by the Remastered map legend. Filled by the frontend plugin while the map is
     /// open under a theme that recolours it, cleared otherwise.
     legend: WorldMapLegendCell,
+    /// The icon menus' lists, read by the Remastered vertical menus. Filled by the frontend plugin each frame.
+    menus: MenuListCell,
     /// The style the settings chose. A chosen mod theme wins over it.
     style: UiStyle,
     /// The mod theme the player chose (see [`UiThemes::set_mod_choice`]), or `None` to follow `style`.
@@ -151,8 +156,9 @@ impl UiThemes {
         let radio = RadioFeedCell::new();
         let drive = DriveFeedCell::new();
         let legend = WorldMapLegendCell::new();
+        let menus = MenuListCell::new();
         let mut registry = Self {
-            themes: build_themes(frame.clone(), radio.clone(), drive.clone(), legend.clone()),
+            themes: build_themes(frame.clone(), radio.clone(), drive.clone(), legend.clone(), menus.clone()),
             base: default_skin(),
             skin: default_skin(),
             skin_of: None,
@@ -161,6 +167,7 @@ impl UiThemes {
             radio,
             drive,
             legend,
+            menus,
             style: UiStyle::Original,
             mod_choice: None,
             mods: Vec::new(),
@@ -218,7 +225,13 @@ impl UiThemes {
         }
         self.mods = mods;
         self.mod_choice = self.mod_choice.filter(|id| self.mods.iter().any(|theme| theme.id() == *id));
-        self.themes = build_themes(self.frame.clone(), self.radio.clone(), self.drive.clone(), self.legend.clone());
+        self.themes = build_themes(
+            self.frame.clone(),
+            self.radio.clone(),
+            self.drive.clone(),
+            self.legend.clone(),
+            self.menus.clone(),
+        );
         for theme in &self.mods {
             let hud = ModHud::new(theme.clone(), self.radio.clone(), self.drive.clone());
             // The port gives each mod theme its own id, so a refusal here is a bug. It is logged and the theme skipped.
@@ -304,6 +317,12 @@ impl UiThemes {
     /// once per frame, after the HUD state is updated.
     pub fn drive(&self) -> DriveFeedCell {
         self.drive.clone()
+    }
+
+    /// The lists the Remastered vertical menus draw. The frontend plugin keeps this clone, clears it and sets each screen's
+    /// list once per frame.
+    pub fn menu_lists(&self) -> MenuListCell {
+        self.menus.clone()
     }
 
     /// The legend the Remastered map draws. The frontend plugin keeps this clone and calls `set` while the map is open

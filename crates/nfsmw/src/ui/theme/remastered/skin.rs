@@ -6,7 +6,10 @@ use blackbox_feng::resource_handle;
 use blackbox_ui::{Skin, Tokens};
 
 use crate::frontend::world_map::control::MAP_ICON_FILES;
-use crate::ui::raster_text::{RASTER_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY};
+use crate::ui::input_icons;
+use crate::ui::raster_text::{
+    RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_MONO_FONT_KEY, RASTER_NUMBER_FONT_KEY,
+};
 
 /// The skin keys the cluster reads. Token-backed keys point directly at `token_keys::*`; custom keys are namespaced
 /// `remastered.*` so they sit beside the Custom theme's keys in the shared skin.
@@ -37,10 +40,26 @@ pub(super) mod keys {
     pub const SCALE_GEAR: &str = "remastered.scale.gear";
     pub const SCALE_TICK: &str = "remastered.scale.tick";
     pub const SCALE_BAR_LABEL: &str = "remastered.scale.bar_label";
+    /// The vertical menus (`menu/`; their colours follow the selected palette, see [`palette_skin`]): the highlight bar,
+    /// the entries' text in its three states, the dark shade behind the left of the screen, the footer's rules, and the
+    /// lightning bolt at the selected entry.
+    pub const MENU_BAR: &str = "remastered.menu.bar";
+    pub const MENU_TEXT: &str = "remastered.menu.text";
+    pub const MENU_TEXT_SELECTED: &str = "remastered.menu.text_selected";
+    pub const MENU_TEXT_DISABLED: &str = "remastered.menu.text_disabled";
+    pub const MENU_SHADE: &str = "remastered.menu.shade";
+    pub const MENU_RULE: &str = "remastered.menu.rule";
+    pub const MENU_BOLT: &str = "remastered.menu.bolt";
+    pub const MENU_TAGLINE: &str = "remastered.menu.tagline";
+    pub const FONT_MENU: &str = "remastered.font.menu";
+    pub const FONT_MENU_WIDE: &str = "remastered.font.menu_wide";
+    /// The game's logo, and the controller glyph atlas the footer hints draw from.
+    pub const LOGO: &str = "remastered.menu.logo";
+    pub const ATLAS: &str = "remastered.menu.atlas";
 }
 
-/// The Remastered entries that follow the selected palette: the redline tint of its secondary colour, and the font sizes,
-/// which the palette's `text_scale` multiplies. The registry merges it over the palette's tokens for the Remastered HUD.
+/// The Remastered entries that follow the selected palette: the redline tint of its secondary colour, the menus' bar,
+/// text and rules, and the font sizes, which the palette's `text_scale` multiplies. The registry merges it over the palette's tokens for the Remastered HUD.
 pub fn palette_skin(tokens: &Tokens) -> Skin {
     let [r, g, b, _] = tokens.secondary;
     let scale = tokens.text_scale;
@@ -51,6 +70,23 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_metric(keys::SCALE_GEAR, 2.4 * scale)
         .with_metric(keys::SCALE_TICK, 1.4 * scale)
         .with_metric(keys::SCALE_BAR_LABEL, 0.7 * scale)
+        .with_colour(keys::MENU_BAR, scaled(tokens.secondary, 0.84))
+        .with_colour(keys::MENU_BOLT, tokens.secondary)
+        .with_colour(keys::MENU_TEXT, scaled(tokens.primary, 0.9))
+        .with_colour(keys::MENU_TEXT_SELECTED, tokens.primary)
+        .with_colour(keys::MENU_TEXT_DISABLED, with_alpha(tokens.primary, 95))
+        .with_colour(keys::MENU_RULE, with_alpha(tokens.primary, 120))
+        .with_colour(keys::MENU_TAGLINE, tokens.muted)
+}
+
+/// `colour` with its RGB scaled by `factor`.
+fn scaled([r, g, b, a]: [u8; 4], factor: f32) -> [u8; 4] {
+    let s = |v: u8| (f32::from(v) * factor).round().clamp(0.0, 255.0) as u8;
+    [s(r), s(g), s(b), a]
+}
+
+fn with_alpha([r, g, b, _]: [u8; 4], alpha: u8) -> [u8; 4] {
+    [r, g, b, alpha]
 }
 
 /// The Remastered skin. Token-backed colours are supplied by the theme's `Tokens::skin()` merge; this function provides
@@ -60,7 +96,12 @@ pub fn skin() -> Skin {
     let mut skin = Skin::new()
         .with_font(keys::FONT_NUMBERS, RASTER_NUMBER_FONT_KEY)
         .with_font(keys::FONT_TEXT, RASTER_FONT_KEY)
-        .with_font(keys::FONT_LEGEND, RASTER_MONO_FONT_KEY);
+        .with_font(keys::FONT_LEGEND, RASTER_MONO_FONT_KEY)
+        .with_font(keys::FONT_MENU, RASTER_MENU_FONT_KEY)
+        .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
+        .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
+        .with_texture(keys::LOGO, resource_handle("MW_Logo.tga"))
+        .with_texture(keys::ATLAS, input_icons::ATLAS);
     for file in MAP_ICON_FILES {
         skin = skin.with_texture(file, resource_handle(file));
     }

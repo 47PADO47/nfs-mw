@@ -1,11 +1,12 @@
 //! The Remastered theme: its own cluster for the drive readouts. It fills the tachometer, the speedometer, the gear and the
-//! nitrous bar, and it hides the speed breaker's bar, so the original ones do not draw. Every other slot falls back to
+//! nitrous bar, and it hides the speed breaker's bar, so the original ones do not draw. Its icon menus are vertical lists. Every other slot falls back to
 //! Original.
 //!
 //! - [`layout`]: where the cluster sits, from points of the reference picture.
 //! - [`dial`]: the tachometer, a solid arc with the rpm numbered on it. Gold past the red line.
 //! - [`readout`]: the speed, the unit with the H of MPH in gold, and the gear.
 //! - [`bar`]: the gauge bars under the dial: N2O, the speed breaker and the boost.
+//! - [`menu`]: the vertical menus (main menu, option categories, pause menu, safe house), read from the menu list cell.
 //! - [`skin`]: the colours and fonts the components read, by key.
 //!
 //! State comes from the same drive feed the Custom theme reads (`custom::DriveFeedCell`), filled once per frame by the HUD.
@@ -18,6 +19,7 @@ mod bar;
 mod dial;
 mod layout;
 mod map_legend;
+pub mod menu;
 mod readout;
 mod skin;
 #[cfg(test)]
@@ -26,25 +28,27 @@ mod tests;
 pub use bar::{Bar, Gauge};
 pub use dial::Dial;
 pub use map_legend::{MapLegend, WorldMapLegendCell};
+pub use menu::VerticalMenu;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
-use crate::ui::theme::ElementId;
 use crate::ui::theme::custom::DriveFeedCell;
+use crate::ui::theme::{ElementId, MenuListCell};
 
 /// The Remastered theme. It holds the drive feed the cluster reads and the legend the themed map draws.
 #[derive(Clone, Debug, Default)]
 pub struct RemasteredTheme {
     drive: DriveFeedCell,
     legend: WorldMapLegendCell,
+    menus: MenuListCell,
 }
 
 impl RemasteredTheme {
-    /// The Remastered theme whose cluster reads `drive` and whose map legend reads `legend`.
-    pub fn new(drive: DriveFeedCell, legend: WorldMapLegendCell) -> Self {
-        Self { drive, legend }
+    /// The Remastered theme whose cluster reads `drive`, whose map legend reads `legend` and whose menus read `menus`.
+    pub fn new(drive: DriveFeedCell, legend: WorldMapLegendCell, menus: MenuListCell) -> Self {
+        Self { drive, legend, menus }
     }
 }
 
@@ -64,6 +68,10 @@ impl Theme for RemasteredTheme {
             ElementId::GearIndicator => Some(Box::new(Empty)),
             // The map is recoloured in place by the frontend; this draws the themed legend over it.
             ElementId::WorldMapChrome => Some(Box::new(MapLegend::new(self.legend.clone()))),
+            // The icon menus are drawn as vertical lists from the entries the frontend publishes.
+            menu @ (ElementId::MainMenu | ElementId::Categories | ElementId::PauseMenu | ElementId::SafeHouseMenu) => {
+                Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone())))
+            }
             _ => None,
         }
     }

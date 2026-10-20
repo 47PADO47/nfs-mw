@@ -7,9 +7,9 @@ use super::skin::{keys, palette_skin, skin};
 use super::{RemasteredTheme, WorldMapLegendCell};
 use crate::hud::HudState;
 use crate::ui::present::Screen;
-use crate::ui::theme::ElementId;
 use crate::ui::theme::custom::DriveFeedCell;
 use crate::ui::theme::custom::palette;
+use crate::ui::theme::{ElementId, MenuListCell};
 
 const SCREEN: Screen = Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 };
 
@@ -22,8 +22,8 @@ fn built(element: ElementId, state: &HudState) -> Option<Vec<UiNode>> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = test_skin();
-    let mut component =
-        RemasteredTheme::new(feed, WorldMapLegendCell::new()).element(element.slot(), &BuildCx::new(&skin))?;
+    let mut component = RemasteredTheme::new(feed, WorldMapLegendCell::new(), MenuListCell::new())
+        .element(element.slot(), &BuildCx::new(&skin))?;
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();
     component.build(&mut out);
