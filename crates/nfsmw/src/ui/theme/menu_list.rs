@@ -27,6 +27,36 @@ pub enum MenuValue {
     /// Two keys, one per column, as the key list shows a control: what is bound, and which of the two has the focus (only
     /// the selected row has one). A column waiting for a key reads as the caller's prompt.
     Keys { primary: String, secondary: String, focus: Option<usize> },
+    /// A rival of the Blacklist: the entry's label is the rival's name.
+    Rival(RivalInfo),
+}
+
+/// Where a rival of the Blacklist stands.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RivalStatus {
+    /// Every boss race is won.
+    Complete,
+    /// The rival the player is working towards now.
+    InProgress,
+    /// A rival further down the list than the player has come.
+    #[default]
+    Locked,
+}
+
+/// What a theme shows of one rival of the Blacklist.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RivalInfo {
+    /// The rank, 15 down to 1.
+    pub rank: u8,
+    /// The texture key of the rival's picture in the game's files, 0 when the rank has none.
+    pub portrait: u32,
+    /// The rival's alias, car and strength, as the bio gives them; empty when the text is missing.
+    pub alias: String,
+    pub car: String,
+    pub strength: String,
+    /// The bounty the rival's gate needs, as written for the screen.
+    pub bounty: String,
+    pub status: RivalStatus,
 }
 
 /// One entry of the list.
@@ -73,6 +103,10 @@ pub enum MenuStyle {
     Credits,
     /// A question or a notice in a panel over the screen: `title`, `message`, and the answers as the entries.
     Dialog,
+    /// The Blacklist: one `MenuValue::Rival` entry per rival, with `message` the count of rivals beaten ("3/15").
+    Blacklist,
+    /// One rival's bio: a single `MenuValue::Rival` entry, with `message` the bio's text.
+    Rival,
 }
 
 /// A menu as a theme draws it.

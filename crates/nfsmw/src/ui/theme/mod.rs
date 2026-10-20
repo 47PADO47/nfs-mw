@@ -35,7 +35,10 @@ mod tests;
 pub use compose::{hud_layer, slot_layer};
 
 pub use element::ElementId;
-pub use menu_list::{DEFAULT_ASPECT, MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue};
+pub use menu_list::{
+    DEFAULT_ASPECT, MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, RivalInfo,
+    RivalStatus,
+};
 
 use bevy_ecs::prelude::*;
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, ThemeError, ThemeId, Themes};
