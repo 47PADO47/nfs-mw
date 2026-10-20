@@ -56,7 +56,7 @@ as before). The Remastered `Minimap` (`ui/theme/remastered/minimap/`) reads the 
   (`Tinted::recoloured`); the blips stay the game's own and draw over it (the Blips slot is Original);
 - a dark bezel with a gold hairline just inside it; the north marker, a small dark badge with an N on the bezel at the
   direction of north;
-- the heat ring: ten segments just inside the hairline, as many lit (accent colour) as whole heat levels reached (`lit_segments`); a
+- the heat ring: ten segments outside the bezel and touching it, as many lit (accent colour) as whole heat levels reached (`lit_segments`); a
   flame (the package's own `Heat_Icon`) and the multiplier "x5" at the top left (`multiplier`, 1 to 10);
 
 The minimap has one ring, for the heat. The chase's own state (busted, escaping, cool-down) is the pursuit panel's (section 4).

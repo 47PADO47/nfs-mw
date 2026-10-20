@@ -104,7 +104,7 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_colour(keys::MENU_TEXT_DISABLED, with_alpha(tokens.primary, 95))
         .with_colour(keys::MENU_RULE, with_alpha(tokens.primary, 120))
         .with_colour(keys::MENU_TAGLINE, tokens.muted)
-        .with_colour(keys::MINIMAP_HEAT_DIM, with_alpha(tokens.primary, 45))
+        .with_colour(keys::MINIMAP_HEAT_DIM, with_alpha(tokens.primary, 90))
 }
 
 /// `colour` with its RGB scaled by `factor`.
