@@ -96,7 +96,9 @@ impl WorldScene {
         }
         self.view = View::Chase;
         let previous_traffic = self.traffic_manual;
-        let level = options.traffic.unwrap_or(p.traffic_level).clamp(0, 100);
+        // `ForceTrafficDensity` above 0 sets the density at the start (`docs/specs/race-mode.md` section 2).
+        let stored = if p.force_traffic_density > 0 { p.force_traffic_density } else { p.traffic_level };
+        let level = options.traffic.unwrap_or(stored).clamp(0, 100);
         let drag = race.race_type == Some(RaceType::Drag);
         let cars = match drag {
             true => 0,

@@ -5,8 +5,8 @@ use blackbox_attrib::{CollectionRef, Database};
 
 use super::{Placement, collection, inherits, instances, key_array, key_field, name_of, placement, text};
 
-/// Field `0xD8BAA07B` (`Float`): the race's `CashValue`, paid on a career win. The name is not in the database, so the
-/// field is read by its hash (`docs/specs/career-economy-flows.md` section 7).
+/// `CashValue` (`Float`, hash `0xD8BAA07B`): the cash a career win pays (`docs/specs/career-economy-flows.md` section 7).
+/// Read by its hash, as the career crate documents it.
 const CASH_VALUE_FIELD: u32 = 0xD8BA_A07B;
 
 /// What a race asks of the run: the start, the clock, the opponents, the traffic and the rank rule.
@@ -30,6 +30,11 @@ pub struct RaceParams {
     pub difficulty: i32,
     /// `TrafficLevel`: 0..100 percent.
     pub traffic_level: i32,
+    /// `ForceTrafficDensity` (hash `0x5E161BBA`): when above 0 the race sets the traffic density to it at the start
+    /// (the executable's `StartRace` reads it; a drag race sets 0 instead).
+    pub force_traffic_density: i32,
+    /// `ForceHeatLevel` (hash `0xE4211F4F`): the heat the racers' cars start at, when above the current heat.
+    pub force_heat_level: i32,
     /// `CopsInRace`.
     pub cops_in_race: bool,
     /// `PursuitRace`: the challenge races.
@@ -63,6 +68,8 @@ impl Default for RaceParams {
             overtime_penalty: 0.0,
             difficulty: 100,
             traffic_level: 100,
+            force_traffic_density: 0,
+            force_heat_level: 0,
             cops_in_race: false,
             pursuit_race: false,
             catch_up: true,
@@ -89,6 +96,8 @@ impl RaceParams {
             overtime_penalty: c.get_f32("OvertimePenaltyPerSec").unwrap_or(d.overtime_penalty),
             difficulty: c.get_i32("DifficultyLevel").unwrap_or(d.difficulty),
             traffic_level: c.get_i32("TrafficLevel").unwrap_or(d.traffic_level),
+            force_traffic_density: c.get_i32("ForceTrafficDensity").unwrap_or(0),
+            force_heat_level: c.get_i32("ForceHeatLevel").unwrap_or(0),
             cops_in_race: c.get_bool("CopsInRace").unwrap_or(d.cops_in_race),
             pursuit_race: c.get_bool("PursuitRace").unwrap_or(d.pursuit_race),
             catch_up: c.get_bool("CatchUp").unwrap_or(d.catch_up),
