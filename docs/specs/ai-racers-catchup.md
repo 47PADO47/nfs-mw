@@ -42,7 +42,16 @@ glue_skill = clamp(KP * glue_error + CatchUpIntegral * integral + CatchUpDerivat
 This keeps the field close: an opponent behind the player gets a positive glue and a mild boost, one far ahead
 gets a negative glue and slows.
 
-## 3. Open questions
+## 3. What the rewrite does (status)
+
+`libs/blackbox-race/src/catchup.rs` holds the controller; `race/flow.rs` (`race_glue`) runs it once a second for every
+opponent still racing while the player has not finished, with the player rating taken as 1, and scales the result by the
+base skill ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 8.2, `race/setup.rs` `scale_glue`). The skill
+the driver uses is `clamp(base + glue, 0, 1)` (`RacerState::skill`). The race's `CatchUp` switch turns it off. The
+`CatchUpSkill`, `CatchUpSpread`, `CatchUpIntegral` and `CatchUpDerivative` values are not read from the data yet (the
+defaults of the `basicrace` template are used, which are the values of 235 of the 255 races).
+
+## 4. Open questions
 
 1. The original `ComputeCatchUpSkill` and the built-in tables used when `CatchUpOverride` is False.
 2. The unit of the error in the gains.

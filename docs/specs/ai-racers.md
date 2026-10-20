@@ -65,6 +65,18 @@ Racers appear on the minimap with the `MMICON_AIRACER_0..7` icons **[exe]** stri
 one per racer (`hud/blip_styles.rs`). The rewrite fills one blip per opponent from the race state each frame,
 with the car's heading. Racers that have been knocked out or have finished are not drawn **[unconfirmed]**.
 
+## 6. What the rewrite does (status)
+
+- The opponents come from the race's `Opponents` (or the generic `character_smart` for a quick race or a race with none
+  when a count is asked for): `race/setup.rs` (`opponents_of`), with the car from the preset ride (`CarTables::preset`),
+  the `CarType`, or a stable pick from the cars the car lot sells (`stock_car`). A car whose model does not load (the
+  generic character's `trueno` has no physics in this install) is replaced by the next stock car.
+- Skill: `base_skill` of section 3; matching: `racer.rs` (`matched_limits`) with the character's `MinimumAIPerformance`
+  as the bias between the weaker of the two cars and the racer's own numbers.
+- Spawn on the grid: `ai/racers.rs`; the cars are held with the brakes until GO (rolling starts are not held and start
+  at `InitialPlayerSpeed`, unit assumed m/s). They are exempt from the traffic's removal rules and count in its budget.
+- Far racers are emulated: [ai-racers-route.md](ai-racers-route.md) section 6.
+
 ## Open questions
 
 1. How the game picks the stock cars of the street rivals.
