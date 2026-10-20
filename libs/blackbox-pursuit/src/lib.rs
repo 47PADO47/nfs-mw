@@ -20,6 +20,7 @@ pub mod goals;
 pub mod health_bar;
 pub mod heat;
 pub mod helicopter;
+pub mod hiding;
 pub mod infraction;
 pub mod roadblock;
 pub mod rules;
