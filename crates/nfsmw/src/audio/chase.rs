@@ -9,11 +9,12 @@
 //! battalions, road names) and the mapping of each line to its speech event and parameters. Spec:
 //! `docs/specs/ai-pursuit-speech.md`; the rows that are wired are in `docs/pursuit-system.md`, "Police radio".
 //!
+//! With no chase the world still gives the machine a free-roam frame (`roam.rs`): the damage and the hard traffic hits of the
+//! free-roam 911 call, which the machine turns into the dispatcher's report; `Audio::take_911_call` hands the call's
+//! `Lifetime911` back to the world.
+//!
 //! Not wired, for lack of state in the world (each needs the state named; add it to [`feed::SpeechFeed`], then to the
 //! snapshot in `radio/snapshot.rs`):
-//! - The free-roam 911 call (`disp911report`): the machine and the adapter work (a test drives them), but the world
-//!   gives no feed outside a chase, so no free-roam frame reaches them; `Audio::take_911_call` hands the call's
-//!   `Lifetime911` to the world once something calls it.
 //! - Notices the world does not raise: a deliberate hit on a cop with its contact (the adapter infers one from the
 //!   assault infraction), a crash against the world, a jump or a roll (`Notice::PlayerHitWorld`, `Airborne`, the up
 //!   vector), the road alignment and brake of the car (the u-turn and hard-braking remarks), a passing cop
@@ -35,6 +36,7 @@ pub mod feed;
 #[cfg(test)]
 mod line_tests;
 pub mod radio;
+pub mod roam;
 
 use cues::Cue;
 pub(crate) use cues::Cues;
@@ -94,7 +96,8 @@ impl Audio {
     /// Runs the speech machine for one frame and sends what it asks for to the speech, loading the speech when there is
     /// something to say.
     fn run_chase_radio(&mut self, chase: Option<&PursuitFeed>, ended: EndReason, dt: f32) {
-        let level = self.chase_level(chase.map_or(1, |c| c.heat));
+        let heat = chase.map_or_else(|| self.chase_radio.roam_heat(), |c| c.heat);
+        let level = self.chase_level(heat);
         let out = {
             let dispatcher = self.speech.loaded_mut().map(|speech| speech.dispatcher_mut());
             self.chase_radio.run(dt, chase, ended, &level, dispatcher)
@@ -126,8 +129,13 @@ impl Audio {
         self.chase_data.level(&db, heat)
     }
 
-    /// The 911 call that ended: the seconds the cops must keep away, once. The world takes it when it models 911 calls.
-    #[allow(dead_code)] // the world has no 911 calls yet
+    /// What the world tells the speech machine this frame while no cop chases (the 911 logic's inputs); `None` with a
+    /// chase on or no world.
+    pub fn follow_roam(&mut self, roam: Option<roam::RoamFeed>) {
+        self.chase_radio.set_roam(roam);
+    }
+
+    /// The 911 call that ended: the seconds the cops must keep away, once. The world starts the call with them.
     pub fn take_911_call(&mut self) -> Option<f32> {
         self.chase_radio.take_911_call()
     }

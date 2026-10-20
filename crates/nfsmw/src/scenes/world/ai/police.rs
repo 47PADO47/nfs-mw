@@ -480,6 +480,7 @@ mod original_camera;
 mod patrol;
 mod rep;
 mod roadblock;
+mod roam_911;
 mod roll;
 mod siren_feed;
 mod speech_feed;

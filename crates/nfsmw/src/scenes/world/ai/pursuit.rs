@@ -431,10 +431,11 @@ impl TrafficWorld {
     /// One line for the `pursuit status` command.
     pub fn pursuit_status(&self) -> String {
         let Some(p) = &self.pursuit else {
-            return match self.cop_lockout_left() {
+            let lockout = match self.cop_lockout_left() {
                 left if left > 0.0 => format!("no pursuit; the cops are locked out for {left:.0} s"),
                 _ => "no pursuit".into(),
             };
+            return format!("{lockout}; {}", self.call_911_status());
         };
         let cops: Vec<String> = self.cars.iter().filter(|c| c.is_cop()).map(|c| c.name.clone()).collect();
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();

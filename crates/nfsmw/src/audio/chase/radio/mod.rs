@@ -25,9 +25,14 @@ pub use channel::{DispatcherChannel, LineIds, Sent, Silent};
 pub use params::speech_params;
 
 use super::AirSupport;
+use super::roam::{self, RoamFeed};
 use crate::audio::PursuitFeed;
 use crate::audio::speech::Actor;
 use crate::audio::speech::{Dispatcher, Request, Speech};
+
+/// Seconds a 911 report that was asked for may take to be said before the machine is left idle again (it also waits
+/// while its counters hold something).
+const AWAIT_911: f32 = 30.0;
 
 /// The machine's tune from the database's `speechtune` values.
 pub fn tune_of(t: &ChaseTune) -> Tune {
@@ -82,6 +87,14 @@ pub struct ChaseRadio {
     busted_level: f32,
     asked: u32,
     said: u32,
+    /// The free-roam frame held something that keeps the machine running.
+    roam_armed: bool,
+    /// The free-roam frame the world gave this frame, until the machine takes it.
+    roam: Option<RoamFeed>,
+    /// The session heat of the last free-roam frame, which picks the level row of the 911 figures.
+    roam_heat: u32,
+    /// Seconds a 911 report asked for has to be said before the machine stops being stepped for it.
+    awaiting_911: f32,
 }
 
 impl ChaseRadio {
@@ -99,6 +112,10 @@ impl ChaseRadio {
             busted_level: 0.0,
             asked: 0,
             said: 0,
+            roam_armed: false,
+            roam: None,
+            roam_heat: 1,
+            awaiting_911: 0.0,
         }
     }
 
@@ -107,8 +124,21 @@ impl ChaseRadio {
         self.machine.set_tune(tune_of(tune));
     }
 
+    /// The free-roam frame of this update: what the player did since the last one (the 911 logic's inputs). It is used
+    /// when no chase runs; `None` clears it.
+    pub fn set_roam(&mut self, roam: Option<RoamFeed>) {
+        if let Some(feed) = &roam {
+            self.roam_heat = feed.heat.max(1);
+        }
+        self.roam = roam;
+    }
+
+    /// The heat of the free-roam frame, which picks the row of the 911 figures.
+    pub fn roam_heat(&self) -> u32 {
+        self.roam_heat
+    }
+
     /// The pending 911 call, if one ended since the last call.
-    #[allow(dead_code)] // the world has no 911 calls yet
     pub fn take_911_call(&mut self) -> Option<f32> {
         self.call_911.take()
     }
@@ -138,6 +168,10 @@ impl ChaseRadio {
                 notices.push(Notice::Busted);
             }
             self.last_ended = ended;
+            let roam = self.roam.take();
+            if let Some(feed) = &roam {
+                notices.extend(roam::notices(feed));
+            }
             let snap = match (self.running, self.last_snapshot.take()) {
                 // The frame the chase ended: the pursuit is evaded (or gone), once.
                 (true, Some(mut last)) => {
@@ -145,9 +179,10 @@ impl ChaseRadio {
                     last.pursuit.evaded = ended == EndReason::Evaded;
                     last
                 }
-                _ => Snapshot::default(),
+                _ => roam.as_ref().map_or_else(Snapshot::default, |feed| roam::snapshot(feed, level)),
             };
             self.running = false;
+            self.roam_armed = roam.as_ref().is_some_and(|feed| feed.armed);
             return (snap, notices);
         };
         let mut notices = Vec::new();
@@ -172,7 +207,9 @@ impl ChaseRadio {
         mut dispatcher: Option<&mut Dispatcher>,
     ) -> Output {
         let (snap, mut notices) = self.frame(chase, ended, level);
-        if chase.is_none() && !self.running && self.machine.is_idle() && notices.is_empty() {
+        self.awaiting_911 = (self.awaiting_911 - dt).max(0.0);
+        let waiting = self.roam_armed || self.awaiting_911 > 0.0;
+        if chase.is_none() && !self.running && self.machine.is_idle() && notices.is_empty() && !waiting {
             return Output::default();
         }
         if let (Some(d), Some(ids)) = (dispatcher.as_deref_mut(), self.ids.as_ref()) {
@@ -183,6 +220,9 @@ impl ChaseRadio {
                 }
                 self.last = Some((line, speaker));
                 self.said += 1;
+                if line == Line::Disp911Report {
+                    self.awaiting_911 = 0.0;
+                }
                 notices.push(Notice::Said { line, speaker, params });
             }
         }
@@ -221,6 +261,13 @@ impl ChaseRadio {
             };
             if !air.allows_line(request.line) {
                 continue;
+            }
+            if request.line == Line::Disp911Report {
+                // The machine asks again every update until the report has been said; one request is enough.
+                if self.awaiting_911 > 0.0 {
+                    continue;
+                }
+                self.awaiting_911 = AWAIT_911;
             }
             self.asked += 1;
             self.sent.insert(id, (request.line, request.speaker, request.params));

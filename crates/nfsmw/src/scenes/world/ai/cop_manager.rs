@@ -7,6 +7,8 @@
 use blackbox_roads::{TrackZone, to_zone_space};
 use glam::Vec3;
 
+pub(super) mod roam;
+
 /// The lockout when the session starts (`kCopLockoutTime`).
 pub(super) const LOCKOUT_START: f32 = 60.0;
 /// The lockout after an evade or a restart in free roam (`TimeInactiveFor911` of the `default` pursuit level row).
@@ -19,6 +21,8 @@ pub(super) const NO_COP_SPAWN_ZONE: u32 = 13;
 pub(super) struct CopManager {
     lockout: f32,
     no_spawn: Vec<TrackZone>,
+    /// The free-roam 911 call (`roam.rs`).
+    pub roam: roam::Roam911,
 }
 
 impl CopManager {
@@ -42,6 +46,7 @@ impl CopManager {
     /// Locks the cops out for the free-roam time after an evade, or a ticket paid (`LockoutCops(true)`).
     pub fn lock_out(&mut self) {
         self.lockout = LOCKOUT_FREE_ROAM;
+        self.roam.restart();
     }
 
     /// Clears the lockout: a chase starts (`LockoutCops(false)`).
