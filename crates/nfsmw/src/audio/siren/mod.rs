@@ -19,6 +19,11 @@ use super::aems::{DelayedSampler, EffectModule};
 const BANK: &str = "IG_GLOBAL/SIREN_MB.abk";
 const CLASS: &str = "SIREN";
 
+/// Where each slot's siren is and how it moves, when its voice is on.
+type Placed = [Option<(Vec3, Vec3)>; SLOTS];
+/// The type word each slot's voice plays, when it is on.
+type Kinds = [Option<i32>; SLOTS];
+
 /// One police car as the siren sound sees it, in render space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SirenSource {
@@ -62,6 +67,8 @@ pub(in crate::audio) struct Slot {
     random: u32,
     /// Where the car and the camera were last frame, for their velocities (the Doppler inputs).
     previous: Option<(Vec3, Vec3)>,
+    /// A voice was on last frame.
+    sounding: bool,
 }
 
 impl Audio {
@@ -79,6 +86,7 @@ impl Audio {
     }
 
     /// The cars that hold a siren voice, with the type word each plays (`None` while its voice is switched off).
+    #[cfg(test)]
     pub fn siren_status(&self) -> Vec<(u32, Option<i32>)> {
         self.sirens.status()
     }
@@ -90,6 +98,7 @@ impl Slot {
         self.previous = None;
     }
 
+    #[cfg(test)]
     fn status(&self) -> Vec<(u32, Option<i32>)> {
         self.voices.iter().flatten().map(|v| (v.id, v.module.as_ref().map(|_| v.voice.held().word().max(0)))).collect()
     }
@@ -119,6 +128,12 @@ impl Slot {
         };
         self.attach(&frame, view);
         let (placed, kinds) = self.follow(&frame);
+        // Nothing sounds and nothing did last frame: the map has nothing to run.
+        let any = placed.iter().any(Option::is_some);
+        if !any && !self.sounding {
+            return;
+        }
+        self.sounding = any;
         let Some(mixer) = self.mixer.as_mut() else { return };
         for (index, siren) in placed.iter().enumerate() {
             mixer.place(index, *siren, view, velocities);
@@ -165,7 +180,7 @@ impl Slot {
 
     /// Runs every attached voice against its car's state. Returns where the voices that are on are, and the type word
     /// each plays. A voice that switches off loses its sound.
-    fn follow(&mut self, frame: &SirenFrame) -> ([Option<(Vec3, Vec3)>; SLOTS], [Option<i32>; SLOTS]) {
+    fn follow(&mut self, frame: &SirenFrame) -> (Placed, Kinds) {
         let mut placed = [None; SLOTS];
         let mut kinds = [None; SLOTS];
         for index in 0..SLOTS {
