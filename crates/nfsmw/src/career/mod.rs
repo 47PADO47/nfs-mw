@@ -14,6 +14,7 @@
 #![allow(dead_code)]
 
 mod autosave;
+mod card;
 mod data;
 mod io;
 mod start;

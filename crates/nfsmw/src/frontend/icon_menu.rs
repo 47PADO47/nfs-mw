@@ -64,6 +64,7 @@ const ORANGE: (u32, u32) = (0xFFFF_AE40, 0x00FF_AE40);
 const WHOLE_IMAGE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
 mod press;
+mod profile;
 mod vertical;
 
 pub struct IconMenu {
@@ -86,6 +87,8 @@ pub struct IconMenu {
     vertical: bool,
     /// The entry a vertical list shows first (`follow`).
     top: usize,
+    /// The main menu's statistics card is showing (`profile.rs`).
+    stats_open: bool,
 }
 
 impl IconMenu {
@@ -114,6 +117,7 @@ impl IconMenu {
             pending: None,
             vertical: false,
             top: 0,
+            stats_open: false,
         }
     }
 
@@ -279,10 +283,15 @@ impl IconMenu {
 }
 
 impl ScreenLogic for IconMenu {
-    fn resume(&mut self, _cx: &mut Cx) {
+    fn resume(&mut self, cx: &mut Cx) {
         // Quit starts the package's leave animation before the question opens; answering No keeps this menu, so
         // its icons come back to full size.
         self.fade.restore();
+        // A load over this menu may have changed the profile.
+        match self.kind {
+            Kind::Career => cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), self.args)),
+            _ => self.show_profile(cx),
+        }
     }
 
     fn start(&mut self, cx: &mut Cx) {
@@ -312,12 +321,7 @@ impl ScreenLogic for IconMenu {
         }
         let title = self.title_label();
         match self.kind {
-            Kind::Main => {
-                cx.label_group(ids::TITLE_GROUP, title);
-                // No profile is loaded: no player name and no game statistics.
-                cx.hide(ids::NAME_GROUP, true);
-                cx.hide(ids::GAME_STATS_GROUP, true);
-            }
+            Kind::Main => cx.label_group(ids::TITLE_GROUP, title),
             Kind::Categories { pause: false, .. }
             | Kind::SafeHouse
             | Kind::Career
@@ -325,6 +329,7 @@ impl ScreenLogic for IconMenu {
             | Kind::AliasManager => cx.label_group(ids::TITLE_GROUP, title),
             Kind::Categories { pause: true, .. } | Kind::Pause => cx.label_group(ids::PAUSE_HEADER, title),
         }
+        self.show_profile(cx);
         let remembered = cx.memory.get(&self.memory_key(cx)).copied().unwrap_or(0);
         let strip = (self.first_slot() + remembered).min(self.last_slot());
         let strip = if self.enabled_at(strip) { strip } else { self.neighbour_from(strip) };
@@ -367,6 +372,7 @@ impl ScreenLogic for IconMenu {
             PAD_RIGHT => self.scroll_by(cx, 1),
             BUTTON_PRESSED => self.press(cx),
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
+            profile::GAME_STATS_BUTTON => self.toggle_stats(cx),
             PAD_BACK => match self.kind {
                 Kind::Main => {}
                 // The safe house menu that stands before the world goes back to the career menu; in the world it stays.
