@@ -68,7 +68,8 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
 }
 
 /// The rate lines of the panel: the base (rendered) rate and frame time alone while nothing is generated, both rates and
-/// frame times when the presented rate differs from the base (frame generation), and a line for frame generation. The presented rate is `None` while it is being measured: nothing is said about it then.
+/// frame times when the presented rate differs from the base (frame generation), and a line for frame generation only
+/// when it is configured. The presented rate is `None` while it is being measured: nothing is said about it then.
 fn rate_lines(base_fps: f32, base_ms: f32, presented_fps: Option<f32>, generation_configured: bool) -> Vec<String> {
     let presented = presented_fps.filter(|p| *p > 0.0 && p.round() != base_fps.round());
     let mut lines = match presented {
@@ -78,10 +79,9 @@ fn rate_lines(base_fps: f32, base_ms: f32, presented_fps: Option<f32>, generatio
             format!("Frame time: {base_ms:.1} base / {:.1} presented ms", 1000.0 / p),
         ],
     };
-    lines.push(match generation_configured {
-        true => "FG configured".to_owned(),
-        false => "FG off / suspended".to_owned(),
-    });
+    if generation_configured {
+        lines.push("Frame generation: configured".to_owned());
+    }
     lines
 }
 
@@ -114,17 +114,27 @@ mod tests {
 
     #[test]
     fn without_frame_generation_only_the_base_rate_and_time_show() {
-        assert_eq!(rate_lines(144.0, 6.94, None, false), ["Base: 144 FPS  6.9 ms", "FG off / suspended"]);
+        assert_eq!(rate_lines(144.0, 6.94, None, false), ["Base: 144 FPS  6.9 ms"]);
         // A presented rate equal to the base (after rounding) adds nothing.
-        assert_eq!(rate_lines(144.0, 6.94, Some(144.2), false), ["Base: 144 FPS  6.9 ms", "FG off / suspended"]);
+        assert_eq!(rate_lines(144.0, 6.94, Some(144.2), false), ["Base: 144 FPS  6.9 ms"]);
     }
 
     #[test]
     fn a_different_presented_rate_shows_both_rates_and_times() {
         assert_eq!(
             rate_lines(100.0, 10.0, Some(200.0), true),
-            ["FPS: 100 base / 200 presented", "Frame time: 10.0 base / 5.0 presented ms", "FG configured"]
+            [
+                "FPS: 100 base / 200 presented",
+                "Frame time: 10.0 base / 5.0 presented ms",
+                "Frame generation: configured"
+            ]
         );
+    }
+
+    #[test]
+    fn frame_generation_shows_only_when_configured() {
+        assert_eq!(rate_lines(60.0, 16.7, None, true).last().unwrap(), "Frame generation: configured");
+        assert!(!rate_lines(60.0, 16.7, Some(120.0), false).iter().any(|l| l.contains("Frame generation")));
     }
 }
 
