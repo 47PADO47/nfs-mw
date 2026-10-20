@@ -188,6 +188,17 @@ impl Wreck {
         false
     }
 
+    /// Wrecks the car outright (`IDamageable::Destroy`, used by the breaker zones): the damage becomes the full total
+    /// and the car is destroyed. Returns `true` when the car was not wrecked before, so it is counted once.
+    pub fn destroy(&mut self) -> bool {
+        if self.destroyed {
+            return false;
+        }
+        self.damage = self.damage.max(1.0 + DAMAGE_EPS);
+        self.destroyed = true;
+        true
+    }
+
     /// One physics step of the flipped check: `dt` seconds have passed; `flipped_now` is [`is_flipped`] this step, and
     /// `by_player` whether the player's car last moved the car. A flipped car is wrecked at once when the player did it,
     /// else after [`FLIP_TIME`] of flipped checks. Returns `true` on the step that wrecks it.
@@ -371,6 +382,18 @@ mod tests {
         assert!(w.in_shock(), "a third of the shock is left after half a second");
         w.step_shock(1.1);
         assert!(!w.in_shock());
+    }
+
+    #[test]
+    fn destroying_a_car_wrecks_it_once_and_fills_its_damage() {
+        let mut w = Wreck::default();
+        assert!(w.destroy());
+        assert!(w.is_destroyed());
+        assert!(w.damage() > 1.0, "the health bar reads a full wreck");
+        assert!(!w.destroy(), "a wreck is counted once");
+        let mut hit = Wreck::default();
+        assert!(hit.impact(&MID, 60_000.0, 5.0, 1.0, 10.0), "wrecked by a hit");
+        assert!(!hit.destroy(), "already wrecked: not counted again");
     }
 
     #[test]
