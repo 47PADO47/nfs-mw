@@ -99,8 +99,26 @@ impl TrafficWorld {
         self.check_clear(&placed, &site, target)?;
         let ground = WorldGround { collision, surfaces };
         let mut cars = Vec::new();
+        let car_slots = placed.iter().filter(|slot| slot.kind == Element::Car).count();
+        // The lottery's cars come from cops out of view first (the cop manager's steal rule), then are created.
+        let mut thieves = match cause {
+            Cause::Lottery => self.steal_candidates(view.position, car_slots),
+            Cause::Heavy { .. } | Cause::Console => Vec::new(),
+        }
+        .into_iter();
+        let mut taken = Vec::new();
         for slot in placed.iter().filter(|slot| slot.kind == Element::Car) {
-            let model = pick_model(self, cause).ok_or("no cop model for the roadblock")?;
+            let stolen = thieves.next().and_then(|thief| {
+                let index = self.cop_models.iter().position(|m| m.model.name.eq_ignore_ascii_case(&thief.model))?;
+                Some((index, thief.key))
+            });
+            let model = match stolen {
+                Some((index, key)) => {
+                    taken.push(key);
+                    index
+                }
+                None => pick_model(self, cause).ok_or("no cop model for the roadblock")?,
+            };
             let car = self.roadblock_car(model, slot, &ground).ok_or_else(|| {
                 format!("a roadblock car cannot stand at ({:.0}, {:.0})", slot.position.x, slot.position.z)
             })?;
@@ -118,6 +136,10 @@ impl TrafficWorld {
             recruited: 0,
         };
         let count = cars.len();
+        if !taken.is_empty() {
+            log::info!("roadblock {id}: {} of its {count} cars were cops out of view", taken.len());
+            self.cars.retain(|car| !taken.contains(&car.key()));
+        }
         for mut car in cars {
             car.set_roadblock();
             car.set_roadblock_group(id);

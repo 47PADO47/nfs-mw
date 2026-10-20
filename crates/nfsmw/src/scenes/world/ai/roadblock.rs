@@ -24,6 +24,7 @@ mod installed_tests;
 pub(super) mod props;
 mod site;
 mod state;
+mod steal;
 
 pub use build::Cause;
 pub use state::Roadblocks;
