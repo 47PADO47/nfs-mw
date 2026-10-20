@@ -2,8 +2,27 @@
 
 use super::*;
 
+/// A world read from the install and not yet put together: [`WorldScene::load`] does the slow part (the tables, the
+/// physics, the car, the streaming index) and holds nothing of the renderer, so it can run on a thread; [`build`] runs
+/// on the thread that owns the scene (the scene holds `Rc`s, so it cannot move between threads).
+///
+/// [`build`]: WorldLoad::build
+pub struct WorldLoad(Box<dyn FnOnce() -> WorldScene + Send>);
+
+impl WorldLoad {
+    /// Puts the world together: starts its streaming threads and makes the scene.
+    pub fn build(self) -> WorldScene {
+        (self.0)()
+    }
+}
+
 impl WorldScene {
     pub fn open(dir: &GameDir, options: Options) -> Result<Self> {
+        Ok(Self::load(dir, options)?.build())
+    }
+
+    /// Reads the world from the install (see [`WorldLoad`]).
+    pub fn load(dir: &GameDir, options: Options) -> Result<WorldLoad> {
         let drive = options.drive;
         // These loads need nothing another one produces, so they run at once. Every thread is joined before
         // any result is used, and errors are reported in the order the steps used to run.
@@ -21,7 +40,8 @@ impl WorldScene {
         let mut physics = physics?;
         physics.set_sequences(index.sequences.clone());
         let globals = globals?;
-        let stream = dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?;
+        let stream =
+            dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?.to_path_buf();
         let pending_car = car?;
         if let Some(environment) = &audio_environment {
             log::info!(
@@ -45,17 +65,14 @@ impl WorldScene {
             nfsmw_data::visual_treatment::speedbreaker::load(physics.database()),
             nfsmw_data::visual_treatment::speedbreaker::mask(&globals.textures),
         );
-        let mut traffic = index.road_network.clone().map(ai::TrafficWorld::new);
-        if let Some(world) = traffic.as_mut() {
-            world.load_data(physics.database(), index.track_zones.clone());
-            match nfsmw_data::world::heli_sheet::read(dir, &index.stream_file) {
-                Ok(sheet) => {
-                    log::info!("helicopter sheet: {} triangles", sheet.len());
-                    world.set_heli_sheet(sheet);
-                }
-                Err(e) => log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"),
-            }
-        }
+        // The traffic world holds `Rc`s, so it is made in `build`; the road network and the helicopter sheet are read here.
+        let road_network = index.road_network.clone();
+        let heli_sheet = road_network.is_some().then(|| {
+            nfsmw_data::world::heli_sheet::read(dir, &index.stream_file)
+                .inspect(|sheet| log::info!("helicopter sheet: {} triangles", sheet.len()))
+                .map_err(|e| log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"))
+                .ok()
+        });
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
             .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
@@ -82,117 +99,127 @@ impl WorldScene {
             }
         };
         let entry_zones = entry_zones.with_interiors(interiors);
-        let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
-        let streamer = Streamer::spawn(stream.to_path_buf(), index.sections.clone(), threads);
-        let start = options.at.unwrap_or_else(|| index.centre());
-        let camera = FlyCamera {
-            position: Vec3::new(start[0], start[1], options.height),
-            yaw: options.heading.to_radians(),
-            pitch: options.pitch.to_radians(),
-            speed: 40.0,
-        };
-        log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
-        Ok(Self {
-            detail: Default::default(),
-            garage: garage_catalog,
-            garage_parts: None,
-            garage_open: false,
-            audio_environment,
-            common_sounds: Vec::new(),
-            rotor_previous: None,
-            sound_speedbreaker_active: false,
-            dir: dir.clone(),
-            track: index.track.clone(),
-            camera,
-            residency: {
-                let mut residency = Residency::new(
-                    index.sections,
-                    index.visible,
-                    streamer,
-                    globals,
-                    index.collision_grid,
-                    props,
-                    map_packs,
-                );
-                residency.set_override_groups(override_groups);
-                residency
-            },
-            start,
-            start_height: options.height,
-            // The car is placed on a road, not the camera on the ground.
-            grounded: pending_car.is_some(),
-            wait_for_load: options.wait_for_load,
-            fog_distance: options.fog_distance,
-            visible: Vec::new(),
-            rear_visible: Vec::new(),
-            shadow_quality: blackbox_gfx::ShadowQuality::Off,
-            shadow_feed: Default::default(),
-            original_shadows: true,
-            original_sky: false,
-            colour_treatment,
-            time_of_day,
-            atmosphere,
-            camera_environment: camera_original::Environment::new(
-                camera_views,
-                index.track_zones.clone().unwrap_or_default(),
-            ),
-            original_camera: Default::default(),
-            camera_ground: Default::default(),
-            original_player_step: None,
-            gain_map,
-            breaker_visuals,
-            reflection_faces: std::array::from_fn(|_| Vec::new()),
-            reflection_last: None,
-            clock: 0.0,
-            sun: sun::Sun::new(),
-            day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
-            physics_aspect: 16.0 / 9.0,
-            physics_clock: drive::FixedClock::default(),
-            speedbreaker_clock: drive::SpeedbreakerClock::default(),
-            view: if pending_car.is_some() { View::Chase } else { View::Fly },
-            last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
-            pending_car,
-            drive: None,
-            traffic,
-            map_blips,
-            mod_blips: Vec::new(),
-            career: Default::default(),
-            scenery_groups: Default::default(),
-            entry: entry::Entry {
-                zones: entry_zones,
-                popup: Default::default(),
-                interior: Default::default(),
-                current: None,
-            },
-            traffic_setting: crate::settings::TrafficSettings {
-                cars: 0,
-                cop_share: crate::settings::Percent(0),
-                lights: false,
-                avoidance: false,
-                policy: Default::default(),
-            },
-            lamp_meshes: None,
-            traffic_manual: None,
-            physics,
-            tire_effects: [true; 2],
-            vehicle_effects: [false; 2],
-            speed_trail_style: crate::settings::SpeedTrailStyle::default(),
-            exhaust_flames: false,
-            spark_style: crate::settings::SparkStyle::OriginalPc,
-            smoke_quality: crate::settings::SmokeQuality::Standard,
-            rain: crate::weather::rain::Rain::new(),
-            wet_road: Default::default(),
-            explosions: Default::default(),
-            tuning: crate::settings::WorldTuning::default(),
-            car_shading: crate::settings::CarShading::default(),
-            markers_on: false,
-            marker_meshes: None,
-            guide: Default::default(),
-            cut: CameraCut::default(),
-            waiting_since: None,
-            camera_mode: CameraMode::default(),
-            cop_health: Default::default(),
-        })
+        let dir = dir.clone();
+        Ok(WorldLoad(Box::new(move || {
+            let mut traffic = road_network.map(ai::TrafficWorld::new);
+            if let Some(world) = traffic.as_mut() {
+                world.load_data(physics.database(), index.track_zones.clone());
+                if let Some(sheet) = heli_sheet.flatten() {
+                    world.set_heli_sheet(sheet);
+                }
+            }
+            let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
+            let streamer = Streamer::spawn(stream, index.sections.clone(), threads);
+            let start = options.at.unwrap_or_else(|| index.centre());
+            let camera = FlyCamera {
+                position: Vec3::new(start[0], start[1], options.height),
+                yaw: options.heading.to_radians(),
+                pitch: options.pitch.to_radians(),
+                speed: 40.0,
+            };
+            log::info!("camera starts at ({:.0}, {:.0}), {:.0} m above the ground", start[0], start[1], options.height);
+            Self {
+                detail: Default::default(),
+                garage: garage_catalog,
+                garage_parts: None,
+                garage_open: false,
+                audio_environment,
+                common_sounds: Vec::new(),
+                rotor_previous: None,
+                sound_speedbreaker_active: false,
+                dir,
+                track: index.track.clone(),
+                camera,
+                residency: {
+                    let mut residency = Residency::new(
+                        index.sections,
+                        index.visible,
+                        streamer,
+                        globals,
+                        index.collision_grid,
+                        props,
+                        map_packs,
+                    );
+                    residency.set_override_groups(override_groups);
+                    residency
+                },
+                start,
+                start_height: options.height,
+                // The car is placed on a road, not the camera on the ground.
+                grounded: pending_car.is_some(),
+                wait_for_load: options.wait_for_load,
+                fog_distance: options.fog_distance,
+                visible: Vec::new(),
+                rear_visible: Vec::new(),
+                shadow_quality: blackbox_gfx::ShadowQuality::Off,
+                shadow_feed: Default::default(),
+                original_shadows: true,
+                original_sky: false,
+                colour_treatment,
+                time_of_day,
+                atmosphere,
+                camera_environment: camera_original::Environment::new(
+                    camera_views,
+                    index.track_zones.clone().unwrap_or_default(),
+                ),
+                original_camera: Default::default(),
+                camera_ground: Default::default(),
+                original_player_step: None,
+                gain_map,
+                breaker_visuals,
+                reflection_faces: std::array::from_fn(|_| Vec::new()),
+                reflection_last: None,
+                clock: 0.0,
+                sun: sun::Sun::new(),
+                day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
+                physics_aspect: 16.0 / 9.0,
+                physics_clock: drive::FixedClock::default(),
+                speedbreaker_clock: drive::SpeedbreakerClock::default(),
+                view: if pending_car.is_some() { View::Chase } else { View::Fly },
+                last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
+                pending_car,
+                drive: None,
+                traffic,
+                map_blips,
+                mod_blips: Vec::new(),
+                career: Default::default(),
+                scenery_groups: Default::default(),
+                entry: entry::Entry {
+                    zones: entry_zones,
+                    popup: Default::default(),
+                    interior: Default::default(),
+                    current: None,
+                },
+                traffic_setting: crate::settings::TrafficSettings {
+                    cars: 0,
+                    cop_share: crate::settings::Percent(0),
+                    lights: false,
+                    avoidance: false,
+                    policy: Default::default(),
+                },
+                lamp_meshes: None,
+                traffic_manual: None,
+                physics,
+                tire_effects: [true; 2],
+                vehicle_effects: [false; 2],
+                speed_trail_style: crate::settings::SpeedTrailStyle::default(),
+                exhaust_flames: false,
+                spark_style: crate::settings::SparkStyle::OriginalPc,
+                smoke_quality: crate::settings::SmokeQuality::Standard,
+                rain: crate::weather::rain::Rain::new(),
+                wet_road: Default::default(),
+                explosions: Default::default(),
+                tuning: crate::settings::WorldTuning::default(),
+                car_shading: crate::settings::CarShading::default(),
+                markers_on: false,
+                marker_meshes: None,
+                guide: Default::default(),
+                cut: CameraCut::default(),
+                waiting_since: None,
+                camera_mode: CameraMode::default(),
+                cop_health: Default::default(),
+            }
+        })))
     }
 }
 
