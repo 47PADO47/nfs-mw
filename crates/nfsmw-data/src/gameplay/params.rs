@@ -53,6 +53,11 @@ pub struct RaceParams {
     pub shortcuts: Vec<u32>,
     /// `CashValue` (field `0xD8BAA07B`): the career win's cash.
     pub cash_value: f32,
+    /// `MilestoneName`: the statistic a pursuit challenge must reach (`pursuit_length`, `cops_hit`, ...); empty for a
+    /// race that is not one.
+    pub milestone: Option<String>,
+    /// `ThreshholdValue` (the field's spelling): the value the statistic must reach.
+    pub threshold: f32,
 }
 
 impl Default for RaceParams {
@@ -79,6 +84,8 @@ impl Default for RaceParams {
             speed_traps: Vec::new(),
             shortcuts: Vec::new(),
             cash_value: 0.0,
+            milestone: None,
+            threshold: 0.0,
         }
     }
 }
@@ -107,6 +114,8 @@ impl RaceParams {
             speed_traps: key_array(c, "SpeedTrapList"),
             shortcuts: key_array(c, "Shortcuts"),
             cash_value: c.get_by_key(CASH_VALUE_FIELD).and_then(|v| v.as_f32()).unwrap_or(d.cash_value),
+            milestone: text(c, "MilestoneName").filter(|name| !name.is_empty()),
+            threshold: c.get_f32("ThreshholdValue").unwrap_or(d.threshold),
         }
     }
 

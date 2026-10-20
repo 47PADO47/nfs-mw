@@ -5,6 +5,7 @@
 
 mod blips;
 mod card;
+mod challenge;
 mod command;
 mod demo;
 mod drag;
@@ -102,4 +103,6 @@ pub(super) struct RaceSession {
     pub cash_value: f32,
     /// The stock cars for opponents whose model fails to load.
     pub pool: Vec<String>,
+    /// The pursuit challenge being run, for a `challenge` race: it has no engine (`challenge.rs`).
+    pub challenge: Option<challenge::Challenge>,
 }

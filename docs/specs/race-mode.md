@@ -123,7 +123,7 @@ route builder returns, [ai-racers-route.md](ai-racers-route.md) section 2); perc
 | Knockout (`knockout`, 3) | circuit laps; at the end of each lap the last racer is knocked out, [section 7](#7-lap-knockout) |
 | Tollbooth (`tollbooth`, 4) | a sprint against the clock with time bonuses; opponents none or few |
 | Speed trap (`speedtrap`, 5) | ranked by points, [section 9](#9-speed-traps) |
-| Challenge (`challenge`, 8) | pursuit challenge: rolling start, cops on; its own result flow ([career-blacklist.md](career-blacklist.md) section 6) |
+| Challenge (`challenge`, 8) | pursuit challenge, [section 12](#12-pursuit-challenges) |
 | `checkpointrace`, `cashgrab`, jump types | in no race of this install; not implemented |
 
 ## 7. Lap knockout
@@ -247,3 +247,24 @@ and jump types do not occur in this install.
 3. The exact progress formula (`+0x18` is written by the AI routing code, not read here).
 4. Whether the player's loss on a knockout is decided at the end of the race.
 5. The trigger test's axes ([formats/gameplay-races.md](../formats/gameplay-races.md) open question 1).
+
+## 12. Pursuit challenges
+
+A `challenge` race has no checkpoints, no finish and no opponents (`rewrite/scenes/world/race/challenge.rs`). It runs
+as [career-scripts-events.md](career-scripts-events.md) section 6.1 says **[verified]**:
+
+- The car goes to the race's start at `InitialPlayerSpeed` (a rolling start) and a chase begins at `ForceHeatLevel`
+  once the car stands; the cops are the heat's wave, not the race's `CopSpawnPoints` **[unconfirmed]**.
+- The race's statistic (`MilestoneName`) is compared with `ThreshholdValue` every frame: the value must reach it,
+  except the evasion time, which must be at or under it when the chase ends in an escape. Reaching it shows
+  "Challenge complete" once.
+- The challenge is won by escaping once the value is reached. A bust, or an escape short of the value, loses it.
+- Statistics the world has: pursuit length, cops damaged, cost to state, bounty, infractions, evasion time. Roadblocks
+  dodged counts a roadblock the car came within 40 m of and then went 90 m past **[unconfirmed]**. Spike strips
+  dodged are not counted, so those two challenges (`19.8.8`, `19.8.31`... the ones with `tire_spikes_dodged`) cannot be
+  completed.
+- A win in a career is passed to the Blacklist like a race win (cash 0). Every event of bin 19 but `19.8.31` won in
+  the session sets the challenge series flag **[unconfirmed]**; the won events are not saved.
+- Not done: the unlock ladder (every challenge is open; the unlock lists are not in the race records read here), the
+  final pursuit `1.8.1` (its win trigger), and the result screens (`PostRace_Pursuit.fng` is not bound; the race card
+  says "Challenge complete" or "Challenge failed").

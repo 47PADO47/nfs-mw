@@ -51,6 +51,7 @@ impl WorldScene {
     /// race, opens the rival, enters the next bins and pays the race cash on a win, and the bin's race-win messages
     /// are queued (`docs/specs/career-blacklist.md` section 4.2, `docs/specs/career-phone.md` section 7).
     pub(in crate::scenes::world) fn career_race_finished(&mut self, event: &str, place: u8, cash_value: f32) {
+        let series_complete = self.note_side_race(event, place);
         let phone = &mut self.career.phone;
         let outcome = self.career.handle.with(|career| {
             let result = EventResult {
@@ -61,7 +62,7 @@ impl WorldScene {
                 bin: 0,
                 career: true,
                 bounty_total: None,
-                challenge_series_complete: false,
+                challenge_series_complete: series_complete,
             };
             let outcome = apply_event_result(
                 &mut career.settings,
@@ -90,6 +91,22 @@ impl WorldScene {
             outcome.bins_entered,
             outcome.released_cars
         );
+    }
+
+    /// Notes a won race of the challenge bin (events `19.*`) and says whether the series is complete: every event of bin 19
+    /// but `19.8.31` (the tollbooth that belongs to bin 18) has been won **[unconfirmed]**: the spec leaves the optional
+    /// races out, and this build knows none. The won events are kept for the session; they are not in the save.
+    fn note_side_race(&mut self, event: &str, place: u8) -> bool {
+        if place != 1 || !event.starts_with("19.") {
+            return false;
+        }
+        self.career.side_won.insert(event.to_owned());
+        let Some(data) = self.gameplay.as_ref() else { return false };
+        data.races
+            .iter()
+            .map(|race| event_id(&race.name))
+            .filter(|id| id.starts_with("19.") && id != "19.8.31")
+            .all(|id| self.career.side_won.contains(&id))
     }
 
     /// The race is over and the world is free roam again: the roaming-start autosave runs, as `SetRoaming` does.

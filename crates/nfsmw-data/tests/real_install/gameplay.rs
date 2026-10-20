@@ -123,3 +123,21 @@ fn tollbooth_bonuses_and_speed_trap_spheres_are_read() {
         data.races.iter().flat_map(|r| r.params.speed_traps.iter()).all(|k| data.sphere(*k).is_some());
     assert!(every_trap_resolves, "every speed trap of every race is a sphere");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn pursuit_challenges_carry_their_milestone_and_threshold() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let challenges: Vec<_> = data.races.iter().filter(|r| r.race_type == Some(RaceType::Challenge)).collect();
+    assert_eq!(challenges.len(), 36, "36 challenge events");
+    let mut names: Vec<&str> = challenges.iter().filter_map(|r| r.params.milestone.as_deref()).collect();
+    names.sort_unstable();
+    names.dedup();
+    println!("MILESTONES {names:?}");
+    let epic = data.race_named("race_bin_01/epic_pursuit").expect("the final race");
+    assert_eq!(epic.params.milestone.as_deref(), Some("pursuit_length"));
+    let hit = data.race_named("race_bin_challenge/challenge_18_cops_hit").expect("challenge 18");
+    assert_eq!(hit.params.threshold, 12.0);
+    assert_eq!(hit.params.force_heat_level, 4);
+}

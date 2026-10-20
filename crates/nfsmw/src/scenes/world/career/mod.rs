@@ -32,6 +32,8 @@ pub(super) struct WorldCareer {
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
+    /// The events of the challenge bin the player has won this session (`events.rs`).
+    pub side_won: std::collections::BTreeSet<String>,
 }
 
 impl WorldScene {

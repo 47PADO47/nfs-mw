@@ -307,6 +307,11 @@ impl TrafficWorld {
         (&self.network, &self.index)
     }
 
+    /// Where the standing roadblocks are, in render space.
+    pub fn roadblock_sites(&self) -> &[[f32; 2]] {
+        &self.roadblock_sites
+    }
+
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();

@@ -22,6 +22,8 @@ pub struct ResultCard {
     pub place: u32,
     pub racers: usize,
     pub time: Option<f32>,
+    /// A pursuit challenge: the heading says whether it was completed, not the place.
+    pub challenge: bool,
 }
 
 /// `1st`, `2nd`, `3rd`, `4th` ... `11th`, `12th`, `21st`.
@@ -45,6 +47,12 @@ pub fn clock_text(secs: f32) -> String {
 impl ResultCard {
     /// The heading: the place, or that the race was lost without a finish.
     pub fn title(&self) -> String {
+        if self.challenge {
+            return match self.time {
+                Some(_) => "Challenge complete".to_owned(),
+                None => "Challenge failed".to_owned(),
+            };
+        }
         match (self.time, self.place) {
             (Some(_), 1) => "You won".to_owned(),
             (Some(_), place) => format!("You finished {}", ordinal(place)),
@@ -136,9 +144,12 @@ mod tests {
 
     #[test]
     fn the_result_title_says_won_placed_or_lost() {
-        let card = |place, time| ResultCard { place, racers: 4, time };
+        let card = |place, time| ResultCard { place, racers: 4, time, challenge: false };
         assert_eq!(card(1, Some(50.0)).title(), "You won");
         assert_eq!(card(3, Some(50.0)).title(), "You finished 3rd");
         assert_eq!(card(4, None).title(), "Race lost");
+        let challenge = |time| ResultCard { place: 1, racers: 2, time, challenge: true };
+        assert_eq!(challenge(Some(90.0)).title(), "Challenge complete");
+        assert_eq!(challenge(None).title(), "Challenge failed");
     }
 }

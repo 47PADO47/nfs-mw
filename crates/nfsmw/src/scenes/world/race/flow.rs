@@ -17,11 +17,18 @@ const GO_SECS: f32 = 3.0;
 impl WorldScene {
     /// One frame of the race: loading, running or the result card. `sim_dt` is the simulated time of the frame and
     /// `frame_dt` the real one (the result card and the loading wait use real time).
-    pub(in crate::scenes::world) fn update_race(&mut self, input: &ActionState, sim_dt: f32, frame_dt: f32) {
+    pub(in crate::scenes::world) fn update_race(
+        &mut self,
+        renderer: &mut dyn blackbox_gfx::RenderBackend,
+        input: &ActionState,
+        sim_dt: f32,
+        frame_dt: f32,
+    ) {
         self.start_queued_race();
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
+            Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session),
             Stage::Running => self.race_running(&mut session, sim_dt),
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
             Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),
@@ -200,6 +207,10 @@ impl WorldScene {
         session.stage = Stage::Results { left };
         if left > 0.0 && !input.just_pressed(Action::Interact) {
             return true;
+        }
+        // A challenge has no lap table: its result is the card, and the race ends with it.
+        if session.challenge.is_some() {
+            return false;
         }
         session.report = Self::race_report(session);
         session.stage = Stage::PostRace { left: POST_RACE_WAIT };

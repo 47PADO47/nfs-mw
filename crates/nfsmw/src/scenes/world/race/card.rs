@@ -11,14 +11,19 @@ impl WorldScene {
     /// The card of the race being run, if any. Nothing while the grid is still loading.
     pub(in crate::scenes::world) fn race_card(&self) -> Option<RaceCard> {
         let session = self.race.as_ref()?;
-        let engine = session.engine.as_ref()?;
+        let engine = session.engine.as_ref();
+        // A pursuit challenge has no engine: its card is the banner and the result.
+        if engine.is_none() && session.challenge.is_none() {
+            return None;
+        }
         Some(RaceCard {
             banner: banner(session),
-            points: engine.config().rank_by_points.then(|| engine.standings()[0].points),
+            points: engine.and_then(|e| e.config().rank_by_points.then(|| e.standings()[0].points)),
             result: session.result.filter(|_| matches!(session.stage, Stage::Results { .. })).map(|r| ResultCard {
                 place: r.place,
                 racers: r.racers,
                 time: r.time,
+                challenge: session.challenge.is_some(),
             }),
         })
     }

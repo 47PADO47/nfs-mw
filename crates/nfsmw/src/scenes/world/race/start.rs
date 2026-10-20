@@ -70,6 +70,9 @@ impl WorldScene {
         if self.drive.is_none() {
             return Err("not driving (use the drive command first)".into());
         }
+        if race.race_type == Some(RaceType::Challenge) {
+            return self.start_challenge(&race, options);
+        }
         let course = setup::course_of(&data, &race, &options)?;
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
@@ -141,6 +144,7 @@ impl WorldScene {
             report: None,
             cash_value: p.cash_value,
             pool,
+            challenge: None,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
