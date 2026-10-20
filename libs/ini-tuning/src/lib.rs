@@ -95,6 +95,24 @@ pub fn read_number(entries: &[Entry], section: &str, key: &str, range: Range) ->
     }
 }
 
+/// Reads `section.key` as a comma-separated list of up to `N` numbers, part `i` clamped to `ranges[i]`. A key that is
+/// absent gives [`Read::Absent`] in every slot. A list shorter than `N` leaves its last slots [`Read::Absent`], so the
+/// caller keeps its default for them; parts past the `N`th are ignored. An empty or non-numeric part is
+/// [`Read::Malformed`] for its slot only.
+pub fn read_numbers<const N: usize>(entries: &[Entry], section: &str, key: &str, ranges: [Range; N]) -> [Read; N] {
+    let Some(entry) = last(entries, section, key) else { return [Read::Absent; N] };
+    let mut parts = entry.value.split(',').map(str::trim);
+    std::array::from_fn(|i| {
+        let Some(part) = parts.next() else { return Read::Absent };
+        let Some(value) = number(part) else { return Read::Malformed };
+        let clamped = value.clamp(ranges[i].min, ranges[i].max);
+        match clamped == value {
+            true => Read::Value(value),
+            false => Read::Clamped(clamped),
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +166,28 @@ mod tests {
         assert_eq!(read_number(&got, "S", "Low", UNIT), Read::Clamped(0.0));
         assert_eq!(read_number(&got, "S", "Bad", UNIT), Read::Malformed);
         assert_eq!(read_number(&got, "S", "Missing", UNIT), Read::Absent);
+    }
+
+    #[test]
+    fn a_list_reads_each_part_with_its_own_range() {
+        let ranges = [UNIT, Range { min: -5.0, max: 5.0 }, UNIT];
+        let got = entries(
+            "[S]
+L = 4, -9 ,x
+Short = 1
+One = 1,2,3,4,5
+Empty =
+",
+        );
+        assert_eq!(read_numbers(&got, "S", "L", ranges), [Read::Value(4.0), Read::Clamped(-5.0), Read::Malformed]);
+        assert_eq!(read_numbers(&got, "S", "Short", ranges), [Read::Value(1.0), Read::Absent, Read::Absent]);
+        assert_eq!(
+            read_numbers(&got, "S", "One", [UNIT, UNIT]),
+            [Read::Value(1.0), Read::Value(2.0)],
+            "parts past the last slot are ignored"
+        );
+        assert_eq!(read_numbers(&got, "S", "Empty", [UNIT]), [Read::Malformed]);
+        assert_eq!(read_numbers(&got, "S", "Missing", ranges), [Read::Absent; 3]);
     }
 
     #[test]
