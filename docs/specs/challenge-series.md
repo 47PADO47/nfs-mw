@@ -51,13 +51,15 @@ stored as the transmission setting and the event starts. Back leaves for the mai
 The tutorial button (`PAD_BUTTON4`, key 2): the executable plays `tollbooth_tutorial` only for events with no statistic;
 this build also offers `pursuit_tutorial` (length, evasion time) and `bounty_tutorial` **[ours]**.
 
-## 6. Wins and what is open
+## 6. Wins and the way back
 
-A won event outside the career (a race finished first, or a pursuit challenge escaped with its goal reached) is written by
-`challenge_series::record_win` (`scenes/world/race/finish.rs`, `challenge.rs`). The screen does not yet reopen after a race;
-the pause menu's Quit to Main Menu is the way back **[open]**.
+A first-place finish of a race the player completed, or a pursuit challenge escaped with its goal reached, outside the career, is
+written by `challenge_series::record_win` (`scenes/world/race/finish.rs`, `challenge.rs`). A race started from the screen ends
+on it again: the results screen's Exit, or Quit to Main Menu from the pause menu, opens `ChallengeSeries.fng` with the
+selection kept (`Frontend::from_series`) **[ours]**. A click on an icon selects and presses it. Checked offscreen end to end:
+dialogs, race start (16 wall groups, the event's minimap tiles), results, back to the screen, and the tutorial movie.
 
 ## 7. Open
 
-- Wrong-answer sound on a locked event; mouse clicks on icons untested; the launch and the tutorial movie not run end to end.
-- The route minimap and the barriers during a race: [race-minimap.md](race-minimap.md), [race-barriers.md](race-barriers.md).
+- The wrong-answer sound on a locked event: the front end plays no menu sounds yet ([menu-sound-investigation.md](../menu-sound-investigation.md)).
+- Road-graph barrier flags during a race, and the route minimap/barrier details: [race-minimap.md](race-minimap.md), [race-barriers.md](race-barriers.md).
