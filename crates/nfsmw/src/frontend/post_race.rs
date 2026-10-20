@@ -95,11 +95,15 @@ impl Frontend {
     }
 
     /// The answer on the results screen: the race runs again or ends, and the game goes on driving.
-    pub(super) fn race_answer(&mut self, answer: crate::viewer::RaceAnswer, host: &mut Host) {
+    pub(super) fn race_answer(&mut self, answer: crate::viewer::RaceAnswer, host: &mut Host, env: &mut Env) {
         if !host.scene.answer_race(answer) {
             return;
         }
         log::info!("race: the results screen answered {answer:?}");
+        // An event of the challenge series ends on the series screen.
+        if self.from_series && matches!(answer, crate::viewer::RaceAnswer::Exit) {
+            return self.show_series(host, env);
+        }
         self.resume();
     }
 }

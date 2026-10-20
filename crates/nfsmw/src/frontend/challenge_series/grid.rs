@@ -56,6 +56,13 @@ impl Grid {
         (slot < self.width * self.height).then_some(slot)
     }
 
+    /// Selects the item a slot of the window shows, leaving the window where it is. Returns whether the slot has one.
+    pub fn pick(&mut self, slot: usize) -> bool {
+        let Some(index) = self.index_of(slot) else { return false };
+        self.current = index;
+        true
+    }
+
     /// The list index a slot of the window shows, or none past the end of the list.
     pub fn index_of(&self, slot: usize) -> Option<usize> {
         let index = self.start + slot;

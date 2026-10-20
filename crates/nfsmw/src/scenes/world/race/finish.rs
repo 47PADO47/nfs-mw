@@ -42,8 +42,9 @@ impl WorldScene {
             self.career_race_finished(&session.event, place, session.cash_value);
             return;
         }
-        // Outside the career a win of the challenge series opens the events it lists.
-        if place == 1 {
+        // Outside the career a win of the challenge series opens the events it lists. Running out of time alone on
+        // the road is last place of one racer, not a win.
+        if me.finished && place == 1 {
             crate::frontend::challenge_series::record_win(&session.event);
         }
     }

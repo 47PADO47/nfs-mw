@@ -338,6 +338,22 @@ impl ChallengeSeries {
         cx.send(Command::PlayTutorial(movie.to_owned()));
     }
 
+    /// A click on an icon selects it and presses it (the package's mouse-down message is `BUTTON_PRESSED`).
+    fn click_icon(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        let icons: Vec<Option<blackbox_feng::ObjectRef>> =
+            (1..=SLOTS).map(|n| cx.object(fe_hash_upper(&format!("EVENT_ICON_{n}")))).collect();
+        let found = icons.iter().flatten().copied().collect::<Vec<_>>();
+        let Some(hit) = cx.rt.object_at(&found, point) else { return false };
+        let Some(slot) = icons.iter().position(|o| *o == Some(hit)) else { return false };
+        if !self.grid.pick(slot) {
+            return false;
+        }
+        cx.memory.insert(Self::memory_key(), self.grid.current);
+        self.refresh(cx);
+        self.press(cx);
+        true
+    }
+
     fn leave(&mut self, cx: &mut Cx) {
         if self.leaving {
             return;
@@ -372,6 +388,10 @@ impl ScreenLogic for ChallengeSeries {
         self.zoom.tick(dt);
         let Some(entry) = self.entry().cloned() else { return };
         self.place_map(cx, &entry);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        !self.leaving && self.click_icon(cx, point)
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

@@ -27,6 +27,8 @@ mod flow_career;
 mod flow_loading;
 #[path = "flow_save.rs"]
 mod flow_save;
+#[path = "flow_series.rs"]
+mod flow_series;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -143,6 +145,8 @@ pub struct Frontend {
     quick_race: Option<String>,
     /// The race starts with these options instead of the quick race rows (the challenge series sets its own).
     race_options: Option<crate::scenes::world::RaceOptions>,
+    /// The race in progress was started from the challenge series: leaving it opens that screen again.
+    pub(super) from_series: bool,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -180,6 +184,7 @@ impl Frontend {
             auto_shop_requested: false,
             quick_race: None,
             race_options: None,
+            from_series: false,
             map_chrome: Default::default(),
         }
     }
@@ -287,39 +292,10 @@ impl Frontend {
         }
     }
 
-    /// Plays a tutorial movie full screen over the parked menu backdrop; `end_tutorial` brings the screen back.
-    fn play_tutorial(&mut self, name: &str, host: &mut Host) {
-        let scene = match crate::movie::MovieScene::open(&self.dir, name, 0.0) {
-            Ok(scene) => scene,
-            Err(e) => return log::warn!("the tutorial {name} is not played: {e:#}"),
-        };
-        self.latch = true;
-        self.screens.clear();
-        self.stage = Stage::Tutorial;
-        self.replace_scene(host, Box::new(scene), true);
-    }
-
-    /// The tutorial is over (or skipped): the challenge series screen opens again where it was left.
-    pub(super) fn end_tutorial(&mut self, host: &mut Host, env: &mut Env) {
-        log::info!("tutorial over");
-        self.latch = true;
-        self.paused.set(false);
-        self.show_backdrop(host);
-        let commands = self.screens.open(super::ids::screen::CHALLENGE_SERIES, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
-    }
-
     /// The main menu over the empty backdrop.
     pub(super) fn show_menu(&mut self, host: &mut Host, env: &mut Env) {
-        log::info!("main menu");
-        self.latch = true;
-        self.paused.set(false);
-        self.screens.clear();
-        self.show_backdrop(host);
-        let commands = self.screens.open(MAIN_MENU, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
+        self.from_series = false;
+        self.show_screen(MAIN_MENU, host, env);
     }
 
     /// Opens the pause menu over the frozen game.
@@ -391,6 +367,7 @@ impl Frontend {
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickRace(race) => {
+                    self.from_series = false;
                     self.career.clear();
                     self.quick_race = Some(race);
                     self.start_free_roam(LoadingScreen::Plain, host, env);
@@ -402,6 +379,7 @@ impl Frontend {
                     self.career.clear();
                     self.quick_race = Some(race);
                     self.race_options = Some(Default::default());
+                    self.from_series = true;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::PlayTutorial(name) => self.play_tutorial(&name, host),
@@ -413,7 +391,10 @@ impl Frontend {
                 }
                 Command::QuitToMenu => {
                     self.save_settings(env.changed);
-                    self.show_menu(host, env);
+                    match self.from_series {
+                        true => self.show_series(host, env),
+                        false => self.show_menu(host, env),
+                    }
                 }
                 Command::QuitGame => {
                     self.save_settings(env.changed);
@@ -434,7 +415,7 @@ impl Frontend {
                 Command::SaveAlias => self.save_alias(host, env),
                 Command::LoadAlias => self.load_alias(host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host),
-                Command::RaceAnswer(answer) => self.race_answer(answer, host),
+                Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }

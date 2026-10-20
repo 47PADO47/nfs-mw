@@ -145,3 +145,34 @@ fn the_tutorial_button_plays_the_tollbooth_movie_only_on_a_tollbooth_event() {
     h.press(pad::BUTTON0 << 4);
     assert!(h.commands.contains(&Command::PlayTutorial("pursuit_tutorial".into())), "{:?}", h.commands);
 }
+
+impl Harness {
+    /// The centre of the named object on the top screen.
+    fn centre(&self, name: &str) -> glam::Vec2 {
+        let tree = self.screens.trees().pop().unwrap();
+        let hash = blackbox_feng::fe_hash_upper(name);
+        let node = tree.nodes.iter().find(|n| n.name_hash == hash).unwrap_or_else(|| panic!("no {name}"));
+        node.world.transform_point3(glam::Vec3::ZERO).truncate()
+    }
+
+    fn click(&mut self, point: glam::Vec2) -> bool {
+        let mut env =
+            Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
+        let Some(commands) = self.screens.click(point, &mut env) else { return false };
+        self.commands.extend(commands);
+        true
+    }
+}
+
+#[test]
+fn a_click_on_an_open_event_asks_to_launch_it_and_on_a_locked_one_does_nothing() {
+    let Some(mut h) = Harness::open() else { return };
+    let locked = h.centre("EVENT_ICON_3");
+    assert!(h.click(locked), "the screen takes a click on an icon");
+    h.run(0, 60);
+    assert_eq!(h.screens.top(), Some(screen::CHALLENGE_SERIES), "a locked event asks nothing: {:?}", h.commands);
+    let open = h.centre("EVENT_ICON_2");
+    assert!(h.click(open));
+    h.run(0, 60);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "an open event asks to launch: {:?}", h.commands);
+}
