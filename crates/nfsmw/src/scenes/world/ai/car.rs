@@ -107,6 +107,8 @@ pub struct AiCar {
     engaged: bool,
     arrested: bool,
     perp_hidden_from_me: bool,
+    /// The car saw the player at its last sight test (`GetTimeSinceTargetSeen() <= 0`).
+    sees_player: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     /// Whether this cop has stood where the patrol pass may not recycle it (`blackbox_pursuit::respawn`).
@@ -204,6 +206,7 @@ impl AiCar {
             engaged: false,
             arrested: false,
             perp_hidden_from_me: false,
+            sees_player: false,
             offscreen: 0.0,
             respawn: Default::default(),
             breaker_stop: false,

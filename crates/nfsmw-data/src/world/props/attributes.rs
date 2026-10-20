@@ -28,6 +28,9 @@ pub struct PropDynamics {
     pub start_sequencer: bool,
     pub no_trigger: bool,
     pub explosion_effect: f32,
+    /// `COST_TO_STATE`: what hitting the object adds to the damage bill (0 when the collection has none). The free-roam
+    /// 911 logic sums it (`docs/specs/ai-pursuit-heat.md` section 5.3).
+    pub cost_to_state: u32,
 }
 
 impl PropDynamics {
@@ -65,6 +68,7 @@ impl PropDynamics {
             start_sequencer: fields.bool("start_sequencer"),
             no_trigger: fields.bool("no_trigger"),
             explosion_effect: fields.f32("ExplosionEffect"),
+            cost_to_state: collection.get_i32("COST_TO_STATE").map_or(0, |cost| cost.max(0) as u32),
         })
     }
 }

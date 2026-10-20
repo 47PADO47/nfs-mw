@@ -247,6 +247,22 @@ impl Scene for WorldScene {
         Some(feed)
     }
 
+    fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
+        let look = self.player_look(&self.speech_look).unwrap_or_default();
+        let traffic = self.traffic.as_mut()?;
+        let tuning = traffic.roam_tuning();
+        let mut feed = traffic.roam_feed(&tuning)?;
+        feed.player.car_type = look.car_type;
+        feed.player.car_colour = look.colour;
+        Some(feed)
+    }
+
+    fn start_911_call(&mut self, secs: f32) {
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.start_911_call(secs);
+        }
+    }
+
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
         self.traffic.as_ref().map_or(blackbox_pursuit::EndReason::None, |traffic| traffic.end_reason())
     }

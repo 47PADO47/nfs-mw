@@ -60,6 +60,7 @@ impl super::super::TrafficWorld {
         self.apply_mod_requests();
         self.note_speech_view(player);
         self.cops.tick(dt);
+        self.update_911(dt);
         self.remove_cops_while_locked_out();
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);

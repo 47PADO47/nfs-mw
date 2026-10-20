@@ -79,7 +79,7 @@ impl super::super::TrafficWorld {
     }
 
     /// The speech id of the road nearest to `at` (0 for an unnamed road), `None` off every road.
-    fn road_speech_id(&self, at: Vec3, heading: Vec3) -> Option<u16> {
+    pub(super) fn road_speech_id(&self, at: Vec3, heading: Vec3) -> Option<u16> {
         let near = closest_segment(&self.network, &self.index, at, heading, 0.0, SegmentFilter::default())?;
         let road = self.network.segment(near.segment).road?;
         Some(self.network.roads.get(usize::from(road))?.speech_id)

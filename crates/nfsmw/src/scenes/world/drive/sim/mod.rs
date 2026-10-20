@@ -7,6 +7,7 @@
 
 use blackbox_collision::CollisionWorld;
 mod audio;
+mod hits;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -96,6 +97,8 @@ pub struct CarSim {
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
     /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
     prop_struck: bool,
+    /// The props the car hit with their cost to state, until the traffic takes them (`take_smacked`).
+    smacked: Vec<(u32, u32)>,
     pending_sound_contacts: Vec<crate::audio::CarContact>,
     sound_identity: u64,
     /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
@@ -125,6 +128,7 @@ impl CarSim {
         Self {
             vehicle,
             prop_struck: false,
+            smacked: Vec::new(),
             pivot: physics.bounds.pivot,
             rest_height,
             spin: [0.0; 4],
@@ -257,6 +261,7 @@ impl CarSim {
             None => Impact::default(),
         };
 
+        self.smacked.append(&mut impact.smacked);
         self.prop_struck |=
             impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
 
@@ -342,11 +347,6 @@ impl CarSim {
     /// Punctures tire `wheel` (physics order) on the tire model. Returns whether it was intact.
     pub fn puncture_wheel(&mut self, wheel: usize) -> bool {
         self.vehicle.tire_damage.puncture(wheel)
-    }
-
-    /// Whether the car touched a prop since the last call.
-    pub fn take_prop_struck(&mut self) -> bool {
-        std::mem::take(&mut self.prop_struck)
     }
 
     pub fn tyre_hits(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {

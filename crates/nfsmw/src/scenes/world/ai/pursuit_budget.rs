@@ -102,8 +102,6 @@ impl TrafficWorld {
         let roll = self.rng.next_f32();
         let Some((index, count)) = pick_surplus(&surplus, roll) else { return };
         let kind = types[index].0.clone();
-        let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
-        let contact = self.police.has_contact();
         let cruise = self.search_cruise();
         let count = count.min(MOST_PER_RUN);
         let Self { cars, network, index: lanes, rng, .. } = self;
@@ -115,8 +113,8 @@ impl TrafficWorld {
                 continue;
             }
             let distance = car.physics_position().distance(player.position);
-            // A cop's own sight is not kept per car: it sees the player while the chase has contact and is in range.
-            let sees = contact && distance < range;
+            // Each cop keeps its own answer of the last sight test (`GetTimeSinceTargetSeen() <= 0`).
+            let sees = car.sees_player();
             watching += u32::from(sees);
             if car.name.eq_ignore_ascii_case(&kind) {
                 candidates.push((i, distance + if sees { 0.0 } else { UNSEEN_PENALTY }, sees));

@@ -79,7 +79,7 @@ impl TrafficWorld {
         let rng = &mut self.rng;
         let probe = match pick {
             Pick::Traffic(_) => traffic_probe(rng, focus, &self.policy),
-            Pick::Patrol(_) => patrol_probe(rng, focus),
+            Pick::Patrol(_) => patrol_probe(rng, cop_probe_focus(&self.cops, focus)),
         };
         let Probe { distance, at, dir } = probe;
         let heading = space::to_physics(Vec3::new(dir.cos(), dir.sin(), 0.0));
@@ -106,14 +106,14 @@ impl TrafficWorld {
         }
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
         let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
-        let minimum = match pick {
-            Pick::Traffic(_) => self.policy.spawn_min as f32,
-            Pick::Patrol(_) => COP_MIN_DISTANCE,
+        let spaced = match pick {
+            Pick::Traffic(_) => clear_spawn(nav.position, focus, self.policy.spawn_min as f32, length, others),
+            // A patrol keeps the cop manager's lane spacing and window, measured from the camera.
+            Pick::Patrol(_) => {
+                cop_spawn_point_valid(&self.cops, nav.position, focus) && cop_lane_clear(&self.cars, &nav)
+            }
         };
-        if !clear_spawn(nav.position, focus, minimum, length, others) {
-            return Err(Rejection::Spacing);
-        }
-        if matches!(pick, Pick::Patrol(_)) && !cop_spawn_point_valid(&self.cops, nav.position, focus) {
+        if !spaced {
             return Err(Rejection::Spacing);
         }
         let render = space::to_render(nav.position.to_array());
@@ -181,8 +181,22 @@ fn patrol_probe(rng: &mut impl RandomSource, focus: Focus) -> Probe {
 /// is between the two distances from the player horizontally and outside the no-cop-spawn zones.
 fn cop_spawn_point_valid(cops: &super::cop_manager::CopManager, position: Vec3, focus: Focus) -> bool {
     let centre = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
-    let gap = planar_distance(position, centre);
+    let gap = cops.window_gap(position, centre);
     (COP_MIN_DISTANCE..=COP_MAX_DISTANCE).contains(&gap) && !cops.bars_spawn(position)
+}
+
+/// The lane spacing of `CheckSpawnPosition` for a cop put on the traffic lanes at `nav`: 15 m from a car in the same lane
+/// heading the same way (or a wreck), 5 m from a car in another lane, 40 m from a car off the traffic lanes.
+pub(super) fn cop_lane_clear(cars: &[AiCar], nav: &RoadNav) -> bool {
+    let others = cars.iter().map(|car| (car.physics_position().distance(nav.position), car.spacing_neighbour()));
+    blackbox_pursuit::spawn_rules::clear(true, nav.lane, nav.node_ind, others)
+}
+
+/// The focus a patrol's probe is drawn around: the camera's place when the world gives it, else the player's.
+fn cop_probe_focus(cops: &super::cop_manager::CopManager, focus: Focus) -> Focus {
+    let player = Vec3::from(space::to_physics(Vec3::new(focus.position[0], focus.position[1], 0.0)));
+    let base = space::to_render(cops.base(player).to_array());
+    Focus { position: [base.x, base.y], ..focus }
 }
 
 impl TrafficWorld {

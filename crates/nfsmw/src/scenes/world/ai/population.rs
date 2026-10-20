@@ -208,7 +208,12 @@ impl TrafficWorld {
         if self.cop_share == 0 {
             return false;
         }
-        if self.pursuit.is_some() || !self.police.can_begin() || !self.cops.spawning_enabled() {
+        // No new patrol while a spawn request waits to be placed (`wantpatrolcars = 0`).
+        if self.pursuit.is_some()
+            || !self.police.can_begin()
+            || !self.cops.spawning_enabled()
+            || !self.cops.requests.is_empty()
+        {
             return false;
         }
         let heat = self.police.patrol_heat();

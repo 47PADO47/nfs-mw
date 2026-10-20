@@ -105,10 +105,31 @@ impl AiCar {
     /// Entering a hiding zone while watched does not erase sight; losing sight there latches per cop until exit.
     pub(in crate::scenes::world::ai) fn report_sight(&mut self, hidden: bool, visible: bool) -> bool {
         if hidden && self.perp_hidden_from_me {
+            self.sees_player = false;
             return false;
         }
         self.perp_hidden_from_me = hidden && !visible;
+        self.sees_player = visible;
         visible
+    }
+
+    /// Whether this cop saw the player at the last sight test (the per-car answer behind the flee rule's "can see you").
+    pub fn sees_player(&self) -> bool {
+        self.sees_player
+    }
+
+    /// How this car stands to a cop about to be put on the traffic lanes (`CheckSpawnPosition`'s lane test): a car that
+    /// follows the traffic lanes gives its lane and the end it heads for, a wreck of one blocks its lane, any other car
+    /// is only held off by the general distance.
+    pub fn spacing_neighbour(&self) -> blackbox_pursuit::spawn_rules::Neighbour {
+        use blackbox_pursuit::spawn_rules::Neighbour;
+        if self.nav.kind != NavKind::Traffic {
+            return Neighbour::Other;
+        }
+        match self.is_wrecked() {
+            true => Neighbour::Wreck,
+            false => Neighbour::Traffic { lane: self.nav.lane, node: self.nav.node_ind },
+        }
     }
 
     /// Switch actions without moving or replacing the physical vehicle.

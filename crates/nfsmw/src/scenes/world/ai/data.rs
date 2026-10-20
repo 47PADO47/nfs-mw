@@ -60,6 +60,7 @@ impl TrafficWorld {
         self.police.set_tunnel_zones(of_kind(super::police::TUNNEL_ZONE));
         self.cops.set_no_spawn_zones(of_kind(super::cop_manager::NO_COP_SPAWN_ZONE));
         self.cops.start_session();
+        self.load_911_data(db);
         self.backup_rows = nfsmw_data::pursuit::backup_rows(db);
         if let Some(heat) = nfsmw_data::pursuit::career_heat(db) {
             self.police.set_heat_growth(heat.growth.to_vec());

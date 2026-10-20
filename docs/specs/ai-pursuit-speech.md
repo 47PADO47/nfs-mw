@@ -320,11 +320,15 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
   roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain.
   **Inferred, not read from the game:** a cop's sight is the world's sight test applied to that cop's range and cone (no second ray cast); "in view" is that sight within 150 m (no camera test); a cop is "in
   formation" when the formation gives it a slot; the assault infraction stands for a deliberate hit on the nearest cop (a side swipe) and the traffic-hit memory for a hard hit on traffic.
-- **Not supplied by the world, so unset:** the free-roam frames of the 911 call (the machine and adapter work; a test drives them), the speech map's off-road places, the car's brake and alignment with the road
+- **The free-roam 911 call is supplied** (`audio/chase/roam.rs`, `scenes/world/ai/police/roam_911.rs`): with no chase the world gives the
+  machine a free-roam frame (the player, the heat, the lockout, the props smashed and the traffic hits since the last frame, a restart
+  after a lockout); the machine says the report and `Audio::take_911_call` returns `Lifetime911` to the world. See
+  [ai-pursuit-heat.md](ai-pursuit-heat.md) section 5.3.
+- **Not supplied by the world, so unset:** the speech map's off-road places, the car's brake and alignment with the road
   (u-turn and hard-braking remarks), crashes against the world, jumps and rolls, passing a cop, tunnels, gas station blasts, a cop hitting traffic or a wall, the roadblock's dodge, hit and placement messages, the helicopter joining a
   roadblock, the backup arrival time and the heavy support requests, AI racers. Each is a `Notice` or a `Snapshot` field the machine already handles (and tests cover); wiring them is the world's work.
 - The siren state and the pursuit music (section 9, 10) are separate and unchanged. The busted level for the radio's muffling and the 911 call's `Lifetime911` leave the machine as effects and are held by `ChaseRadio` (the
-  mixer has no radio filter, and nothing models 911 calls yet).
+  mixer has no radio filter; the 911 call's timer is the world's, see above).
 - Voices and call signs use a seeded generator; the shuffling is cosmetic.
 
 ## How to check it

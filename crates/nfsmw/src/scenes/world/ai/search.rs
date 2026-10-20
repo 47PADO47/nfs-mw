@@ -39,7 +39,8 @@ impl TrafficWorld {
         let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
             return false;
         };
-        let centre = focus.body.map_or(Vec3::ZERO, |body| body.position);
+        let player = focus.body.map_or(Vec3::ZERO, |body| body.position);
+        let centre = self.cops.base(player);
         let distance = 150.0 + 250.0 * self.rng.next_f32();
         let angle = std::f32::consts::TAU * self.rng.next_f32();
         let at = centre + Vec3::new(angle.cos() * distance, 0.0, angle.sin() * distance);
@@ -50,10 +51,10 @@ impl TrafficWorld {
         {
             return false;
         }
-        let gap = Vec3::new(nav.position.x - centre.x, 0.0, nav.position.z - centre.z).length();
+        let gap = self.cops.window_gap(nav.position, player);
         if self.cops.bars_spawn(nav.position)
             || !(150.0..=400.0).contains(&gap)
-            || self.cars.iter().any(|car| car.physics_position().distance(nav.position) < 20.0)
+            || !super::spawn::cop_lane_clear(&self.cars, &nav)
         {
             return false;
         }

@@ -102,6 +102,8 @@ impl TrafficWorld {
         hits.clear();
         let mut passes = std::mem::take(&mut self.passes);
         passes.clear();
+        // The traffic cars the player hit this step and how fast they closed: the free-roam 911 counts the hard ones.
+        let mut traffic_hits: Vec<(usize, f32)> = Vec::new();
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
@@ -113,6 +115,7 @@ impl TrafficWorld {
                 // A pass is judged on the centres, which can be further apart than the bounding spheres touch.
                 let distance = player.body().position.distance(part.sim.body().position);
                 let player_speed = player.body().linear_velocity.length();
+                let closing = (player.body().linear_velocity - part.sim.body().linear_velocity).length();
                 if near(player, part.sim)
                     && let Some(hit) = player.collide_with(part.sim)
                 {
@@ -126,6 +129,9 @@ impl TrafficWorld {
                         striker: DriverClass::Human,
                         speed: player_speed,
                     });
+                    if part.class == DriverClass::Traffic {
+                        traffic_hits.push((part.owner, closing));
+                    }
                 } else if distance < events.near_miss_distance {
                     passes.push(Pass {
                         owner: part.owner,
@@ -170,6 +176,7 @@ impl TrafficWorld {
             }
         }
         drop(parts);
+        self.note_traffic_hits(&traffic_hits);
         for hit in &hits {
             if hit.by_player {
                 self.hit_timer = events.hit_memory;
@@ -194,6 +201,8 @@ impl TrafficWorld {
         }
         if let Some(player) = player.as_deref_mut() {
             self.strikes.property |= player.take_prop_struck();
+            let smacked = player.take_smacked();
+            self.note_smacked(&smacked);
             self.spike_player(player);
         }
         for pass in passes.drain(..) {

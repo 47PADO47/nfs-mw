@@ -445,6 +445,7 @@ impl PropWorld {
                     p.object_contact = true;
                     let prop_immobile = response.immobile[1];
                     impact.damage.push(damage.resolved(vehicle.body(), true));
+                    impact.smacked.push((id, spec.cost_to_state));
                     p.attached &= prop_immobile;
                     p.moved |= !prop_immobile;
                     let delta_v = response.impulse_delta_v[0];

@@ -248,6 +248,15 @@ timer to `Lifetime911`, and clears the cop lockout so patrol cars can spawn. A p
 timer starts a pursuit regardless of speed (ai-pursuit.md section 4.2). Both counters reset whenever a pursuit is active or
 searching.
 
+**Implemented in the rewrite** (`scenes/world/ai/cop_manager/roam.rs`, `ai/police/roam_911.rs`, `audio/chase/roam.rs`;
+[provenance](../provenance/ai-pursuit-911.md)): the world counts the `COST_TO_STATE` of the props the player's car hits
+(read from the `smackable` collection) and the traffic hits closing hard enough, clears both while a chase or the arrest
+runs, and tells the speech machine each one as a `Smashed` or `PlayerHitTraffic` notice in a free-roam frame. The machine
+decides and says the report; when it has been said the world sets the 911 timer to `Lifetime911` and clears the lockout.
+A patrol that sees the player then starts a chase at any speed. A rewrite fallback makes the call itself after 20 s when
+the speech does not answer. **[decomp]** for the rule, **[inferred]** for the one-touch-per-second debounce and the
+fallback. Console: `pursuit status` shows the call and the counters, `pursuit 911` makes a call now.
+
 ### 5.4 Totals at the end
 
 `CalcTotalCostToState` (the post-pursuit summary value) = 5000 x cops destroyed + 2000 x helicopters spawned + 500 x

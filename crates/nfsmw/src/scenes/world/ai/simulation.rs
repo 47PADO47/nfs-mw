@@ -103,6 +103,7 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) {
+        self.cops.set_eye(glam::Vec3::from(crate::scenes::world::space::to_physics(camera.position)));
         for car in &mut self.cars {
             car.sync_contacts();
             if car.is_damaged_cop()
@@ -125,6 +126,7 @@ impl TrafficWorld {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
         self.recycle(STEP, focus, camera, shown, props);
+        self.service_spawn_requests(focus, collision, surfaces);
         let enabled = self.target > 0 || self.patrol_enabled();
         if activation::due(&mut self.spawn_timer, STEP, enabled) {
             self.manage(activation::PERIOD, focus, collision, surfaces);

@@ -36,11 +36,13 @@ mod road_reflection;
 mod roadblock;
 mod scene;
 mod search;
+mod seek_spawn;
 mod shading;
 pub(super) mod signal_props;
 mod simulation;
 mod sirens;
 mod spawn;
+mod spawn_requests;
 mod spikes;
 mod stop;
 mod support;
@@ -277,8 +279,7 @@ impl TrafficWorld {
             player_speed: self.player_speed,
             seen: self.seen_by_cops,
             recent_hit: self.hit_timer > 0.0,
-            // No 911 calls in the rewrite yet.
-            has_911: false,
+            has_911: self.cops.roam.active(),
         }
     }
 

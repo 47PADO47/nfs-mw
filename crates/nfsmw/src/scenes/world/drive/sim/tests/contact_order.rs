@@ -48,6 +48,7 @@ fn attached_pole() -> Placed {
         start_sequencer: false,
         no_trigger: false,
         explosion_effect: 0.0,
+        cost_to_state: 0,
     });
     let shape = Arc::new(PropShape {
         name: "authored-pole".into(),
