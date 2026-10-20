@@ -9,40 +9,44 @@ use crate::hud::PursuitHud;
 use crate::ui::raster_text::{RASTER_TIMER_FONT_KEY, width_units};
 use crate::ui::theme::custom::DriveFeed;
 
-/// The plate's right edge, in FEng units, which is also where the cluster's card ends, its width and its top, and how far its
+/// Shrinks (or grows) the whole panel about its top-right corner: every size, offset and text scale below is in terms of it,
+/// while the anchor (`RIGHT`, `PLATE_TOP`) and the gradient ratios stay put. One at the design size; lower for a smaller panel.
+const SCALE: f32 = 0.75;
+
+/// The plate's right edge, in FEng units (just past the cluster card's right edge), its width and its top, and how far its
 /// left edge slants in towards the top (the plate stands on its longer bottom edge).
-const RIGHT: f32 = 370.0;
-const PLATE_WIDTH: f32 = 220.0;
+const RIGHT: f32 = 385.0;
+const PLATE_WIDTH: f32 = 220.0 * SCALE;
 const PLATE_TOP: f32 = -232.0;
-const SLANT: f32 = 24.0;
+const SLANT: f32 = 24.0 * SCALE;
 /// The plate fades from clear at its left to dark at its right.
 const PLATE_STOPS: [(f32, f32); 3] = [(0.0, 0.3), (0.4, 0.78), (1.0, 0.93)];
 /// The thin lines along the plate's top and bottom, and the accent bar down its right edge.
-const EDGE_LINE: f32 = 0.8;
-const SIDE_BAR: f32 = 2.5;
+const EDGE_LINE: f32 = 0.8 * SCALE;
+const SIDE_BAR: f32 = 2.5 * SCALE;
 /// The inset of the content from the plate's right edge, and from the slanted edge's foot.
-const INSET: f32 = 14.0;
-const FOOT_INSET: f32 = 10.0;
+const INSET: f32 = 14.0 * SCALE;
+const FOOT_INSET: f32 = 10.0 * SCALE;
 /// The timer's and its label's heights below the plate's top, and their sizes.
-const TIMER_Y: f32 = 22.0;
-const LABEL_Y: f32 = 50.0;
-const TIMER_SCALE: f32 = 3.5;
-const LABEL_SCALE: f32 = 1.45;
+const TIMER_Y: f32 = 22.0 * SCALE;
+const LABEL_Y: f32 = 50.0 * SCALE;
+const TIMER_SCALE: f32 = 3.5 * SCALE;
+const LABEL_SCALE: f32 = 1.45 * SCALE;
 /// The head of the plate, down to the cop counts; the counts' row, and the labels and numbers in it.
-const HEAD: f32 = 62.0;
-const COUNTS_HEIGHT: f32 = 34.0;
-const COUNT_LABEL_Y: f32 = 6.0;
-const COUNT_VALUE_Y: f32 = 21.0;
-const COUNT_LABEL_SCALE: f32 = 1.05;
-const COUNT_VALUE_SCALE: f32 = 2.3;
+const HEAD: f32 = 62.0 * SCALE;
+const COUNTS_HEIGHT: f32 = 34.0 * SCALE;
+const COUNT_LABEL_Y: f32 = 6.0 * SCALE;
+const COUNT_VALUE_Y: f32 = 21.0 * SCALE;
+const COUNT_LABEL_SCALE: f32 = 1.05 * SCALE;
+const COUNT_VALUE_SCALE: f32 = 2.3 * SCALE;
 /// A bar's row: its height, and the label above its bar and the bar's place in it.
-const BAR_ROW: f32 = 24.0;
-const BAR_LABEL_Y: f32 = 7.0;
-const BAR_Y: f32 = 17.0;
-const BAR_HEIGHT: f32 = 6.0;
-const BAR_LABEL_SCALE: f32 = 1.2;
+const BAR_ROW: f32 = 24.0 * SCALE;
+const BAR_LABEL_Y: f32 = 7.0 * SCALE;
+const BAR_Y: f32 = 17.0 * SCALE;
+const BAR_HEIGHT: f32 = 6.0 * SCALE;
+const BAR_LABEL_SCALE: f32 = 1.2 * SCALE;
 /// The room under the last row.
-const FOOT: f32 = 6.0;
+const FOOT: f32 = 6.0 * SCALE;
 
 /// How tall the plate is for what the chase shows: the head, the counts, and a row for each bar that is up.
 fn plate_height(meter: bool, cooldown: bool) -> f32 {
