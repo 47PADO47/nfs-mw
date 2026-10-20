@@ -51,9 +51,13 @@ stored as the transmission setting and the event starts. Back leaves for the mai
 The tutorial button (`PAD_BUTTON4`, key 2): the executable plays `tollbooth_tutorial` only for events with no statistic;
 this build also offers `pursuit_tutorial` (length, evasion time) and `bounty_tutorial` **[ours]**.
 
-## 6. Open
+## 6. Wins and what is open
 
-- Recording a win from the world (`challenge_series::record_win` exists, nothing calls it yet) and returning to this
-  screen after the race.
-- Wrong-answer sound on a locked event; mouse clicks on icons untested.
-- Race barriers and the in-race route minimap: see `race-minimap.md` (done) and the barrier agent's work (pending).
+A won event outside the career (a race finished first, or a pursuit challenge escaped with its goal reached) is written by
+`challenge_series::record_win` (`scenes/world/race/finish.rs`, `challenge.rs`). The screen does not yet reopen after a race;
+the pause menu's Quit to Main Menu is the way back **[open]**.
+
+## 7. Open
+
+- Wrong-answer sound on a locked event; mouse clicks on icons untested; the launch and the tutorial movie not run end to end.
+- The route minimap and the barriers during a race: [race-minimap.md](race-minimap.md), [race-barriers.md](race-barriers.md).
