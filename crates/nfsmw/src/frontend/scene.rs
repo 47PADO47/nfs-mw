@@ -9,9 +9,10 @@ use blackbox_gfx::{FrameParams, Instance, Projection, RenderBackend};
 use glam::{Mat4, Vec3};
 
 use game_install::GameDir;
-use nfsmw_data::car::LoadOptions;
+use nfsmw_data::car::{CarModel, LoadOptions};
 
-use super::look::Look;
+use super::camera_pose::CameraPose;
+use super::look::{CarLook, Look};
 use super::room::Room;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
@@ -48,6 +49,8 @@ pub struct MenuScene {
     parts: Vec<Instance>,
     /// The camera's rest pose (yaw, distance), which the intro settles onto.
     rest: (f32, f32),
+    /// The stage's own camera, when it has one: the safe house holds it still instead of the car viewer's orbit camera.
+    pose: Option<CameraPose>,
     /// Seconds since the menus came up, until the intro is over.
     intro: f32,
 }
@@ -60,6 +63,27 @@ impl MenuScene {
     /// The backdrop of a menu (`look.rs`).
     pub fn with_look(dir: Option<GameDir>, look: Look) -> Self {
         Self { dir, look, intro: INTRO_SECONDS, ..Default::default() }
+    }
+}
+
+impl MenuScene {
+    /// The car the look shows, assembled from the install: the main look's career-start GTR, or the look's own car. A car
+    /// that cannot be loaded gives way to the default car; with that missing too, `None` leaves the flat backdrop.
+    fn load_car(&self, dir: &GameDir) -> Option<(CarModel, LoadOptions)> {
+        let (car, preset) = match &self.look {
+            Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
+            Look::Car(look) | Look::SafeHouse(look) => look.resolve(dir),
+        };
+        let default = CarLook::default_car();
+        let attempts = [(car, preset), (default.car, default.preset)];
+        for (car, preset) in attempts {
+            let options = LoadOptions { lod: 'A', all_parts: false, preset };
+            match nfsmw_data::car::load(dir, &car, &options) {
+                Ok(model) => return Some((model, options)),
+                Err(e) => log::warn!("the menu backdrop has no car ({car}): {e:#}"),
+            }
+        }
+        None
     }
 }
 
@@ -98,30 +122,29 @@ impl Scene for MenuScene {
     }
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
-        let Some(dir) = &self.dir else { return Ok(()) };
-        let options = LoadOptions { lod: 'A', all_parts: false, preset: Some(MENU_PRESET.to_owned()) };
-        let model = match nfsmw_data::car::load(dir, MENU_CAR, &options) {
-            Ok(model) => model,
-            Err(e) => {
-                log::warn!("the menu backdrop has no car ({MENU_CAR}): {e:#}");
-                return Ok(());
-            }
-        };
-        let room = match Room::load(renderer, dir) {
+        let Some(dir) = self.dir.clone() else { return Ok(()) };
+        let Some((model, options)) = self.load_car(&dir) else { return Ok(()) };
+        let stage = self.look.stage();
+        let room = match Room::load(renderer, &dir, stage) {
             Ok(room) => Some(room),
             Err(e) => {
                 log::warn!("the menu room is not drawn: {e:#}");
                 None
             }
         };
-        let mut car = CarScene::new(model, 0.0).with_source(dir.clone(), options);
+        let mut car = CarScene::new(model, 0.0).with_source(dir, options);
         car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = room.is_none();
+        if let Some(stand) = stage.car_stand() {
+            car.stand_on(stand.yaw, stand.sink);
+        }
         car.init(renderer)?;
         let camera = car.camera_mut();
         self.rest = (camera.yaw, camera.distance);
-        self.intro = 0.0;
+        self.pose = stage.camera();
+        // A stage with its own camera has no intro: the pose is where the camera is.
+        self.intro = if self.pose.is_some() { INTRO_SECONDS } else { 0.0 };
         self.car = Some(car);
         self.room = room;
         Ok(())
@@ -144,6 +167,9 @@ impl Scene for MenuScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
+        if self.pose.is_some() {
+            return car.update(renderer, &ActionState::default(), dt);
+        }
         // The backdrop takes no input and the car stands still: only the camera moves, once, into its rest pose.
         self.intro = (self.intro + dt).min(INTRO_SECONDS);
         let (rest_yaw, rest_distance) = self.rest;
@@ -165,11 +191,15 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let options = fe_shadows::active();
-        let Self { car, room, parts, .. } = self;
+        let Self { car, room, parts, pose, .. } = self;
         let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
+        if let Some(pose) = pose {
+            let lens = pose.lens(aspect);
+            (params.view, params.projection, params.camera_position) = (lens.view, lens.projection, lens.position);
+        }
         params.shadow_tuning = fe_shadows::tuning(options);
         parts.clear();
         parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
@@ -250,3 +280,7 @@ mod forwarding;
 #[cfg(test)]
 #[path = "scene_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "backdrop_tests.rs"]
+mod backdrop_tests;

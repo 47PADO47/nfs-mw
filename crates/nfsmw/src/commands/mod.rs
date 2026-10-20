@@ -17,6 +17,7 @@ fn run_front_end(
     mods: crate::modding::Mods,
     start: crate::frontend::Start,
     script: Option<&str>,
+    look: Option<crate::frontend::Look>,
     view: &crate::cli::ViewArgs,
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
@@ -27,9 +28,10 @@ fn run_front_end(
         script,
         browse: None,
         career: crate::career::CareerHandle::shared(),
+        look: look.clone(),
     });
     crate::app::run(
-        Box::new(crate::frontend::MenuScene::new(Some(dir.clone()))),
+        Box::new(crate::frontend::MenuScene::with_look(Some(dir.clone()), look.unwrap_or_default())),
         &Settings::load(view.settings_layer()),
         options,
     )
@@ -95,9 +97,9 @@ pub fn run(cli: Cli) -> Result<()> {
                 (false, false, true) => crate::frontend::Start::Menu,
                 (false, false, false) => crate::frontend::Start::Boot,
             };
-            run_front_end(&dir, mods, start, ui_script.as_deref(), &view)
+            run_front_end(&dir, mods, start, ui_script.as_deref(), None, &view)
         }
-        Command::ViewScreen { name, pause, options, category, ui_script, view } => {
+        Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let category = match category.to_ascii_lowercase().as_str() {
                 "audio" => crate::frontend::Category::Audio,
@@ -118,7 +120,8 @@ pub fn run(cli: Cli) -> Result<()> {
                 crate::frontend::Args { pause, options, category, ..Default::default() },
             );
             let settle = view.screenshot.is_some().then_some("wait 2");
-            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), &view)
+            let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;
+            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), look, &view)
         }
         Command::FengViewer { name, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -133,6 +136,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 script,
                 browse: Some(scene.browse()),
                 career: crate::career::CareerHandle::shared(),
+                look: None,
             };
             let mut options = view.run_options(&dir, true).with_mods(mods);
             options.frontend = Some(plugin);
