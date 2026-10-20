@@ -15,13 +15,14 @@ mod flow;
 mod load;
 pub(super) mod mods;
 mod report;
+mod restart;
 mod setup;
 mod start;
 
 pub(super) use command::race_command;
 pub use setup::RaceOptions;
 
-use blackbox_race::{CatchUp, Race};
+use blackbox_race::{CatchUp, Course, Race};
 use nfsmw_data::gameplay::RaceType;
 
 use crate::scenes::world::road::Spawn;
@@ -38,6 +39,22 @@ pub(super) enum Stage {
     /// The post-race screen has the race: it waits for the front end to take the report and answer. `left` is how long
     /// the world waits for a front end before it ends the race itself (a run with no front end).
     PostRace { left: f32 },
+}
+
+impl Stage {
+    /// The race is staged or on: loading, counting down or running. Once the result is fixed (`Results`, `PostRace`) the
+    /// career has been told and the post-race screen owns the race (`docs/specs/race-restart.md` section 1).
+    pub(super) fn is_live(self) -> bool {
+        matches!(self, Stage::Loading { .. } | Stage::Running)
+    }
+}
+
+/// What a race was started from, kept so a restart runs exactly the same race again (a race a mod registered has no
+/// name in the install's data, and its course is not made from it).
+pub(super) struct Origin {
+    pub race: nfsmw_data::gameplay::Race,
+    /// The course a mod gave, when it gave one.
+    pub course: Option<Course>,
 }
 
 /// One racer's plan: who it is and where it starts. Index 0 is the player.
@@ -110,4 +127,6 @@ pub(super) struct RaceSession {
     pub pool: Vec<String>,
     /// The pursuit challenge being run, for a `challenge` race: it has no engine (`challenge.rs`).
     pub challenge: Option<challenge::Challenge>,
+    /// The race and course this session was started from, for a restart.
+    pub origin: Origin,
 }

@@ -153,3 +153,5 @@ remaining clock, geometry, context and live-comparison limits.
 - [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap
   races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
   [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up.
+- [race-restart.md](race-restart.md): when the pause menu counts a race as in progress, and what Restart resets (the clock, the
+  racers, the checkpoints, the cops) without touching the career.
