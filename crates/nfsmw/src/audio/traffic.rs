@@ -1,7 +1,7 @@
 //! Ordered traffic producers and their authored modules. Spec: authored-traffic-audio.md.
 mod controller;
 mod emitter;
-mod mixer;
+pub(in crate::audio) mod mixer;
 mod selection;
 #[cfg(test)]
 mod tests;
