@@ -28,6 +28,9 @@ impl IconMenu {
         let pause = self.pause();
         match (self.kind, pending) {
             (Kind::Main, Pending::Pressed(Id::Career)) => cx.send(Command::StartCareer),
+            (Kind::Main, Pending::Pressed(Id::Challenge)) => {
+                cx.send(Command::Switch(screen::CHALLENGE_SERIES.into(), Args::default()));
+            }
             (Kind::Main, Pending::Pressed(Id::QuickRace)) => {
                 cx.send(Command::Switch(screen::TRACK_SELECT.into(), Args::default()));
             }

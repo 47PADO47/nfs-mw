@@ -25,6 +25,8 @@ pub mod screen {
     /// Quick Race: the track list (`track_select.rs`) and the track's options (`track_options.rs`).
     pub const TRACK_SELECT: &str = "Track_Select.fng";
     pub const TRACK_OPTIONS: &str = "Track_Options.fng";
+    /// The challenge series: a grid of the bin 19 events with a map (`challenge_series/`).
+    pub const CHALLENGE_SERIES: &str = "ChallengeSeries.fng";
     /// The world map (M in free roam): its logic is `world_map/screen`, opened by `world_map/control.rs`.
     pub const WORLD_MAP: &str = "WorldMapMain.fng";
     /// The ticket after a bust in free roam (`infractions.rs`). Opened by the bust sequence, not by a menu.

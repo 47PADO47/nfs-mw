@@ -68,6 +68,9 @@ pub enum Stage {
     Paused,
     /// The world map is open over the frozen game (`world_map/control.rs`).
     Map,
+    /// A tutorial movie plays full screen over the menus; the challenge series comes back when it ends
+    /// (`challenge_series/`).
+    Tutorial,
 }
 
 use super::confirm::{Alert, AlertLogic};
@@ -138,6 +141,8 @@ pub struct Frontend {
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
+    /// The race starts with these options instead of the quick race rows (the challenge series sets its own).
+    race_options: Option<crate::scenes::world::RaceOptions>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -147,6 +152,7 @@ impl Frontend {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
         super::quick_race::load_in_background(&dir);
+        super::challenge_series::load_in_background(&dir);
         Self {
             screens,
             dir,
@@ -173,6 +179,7 @@ impl Frontend {
             in_safe_house: false,
             auto_shop_requested: false,
             quick_race: None,
+            race_options: None,
             map_chrome: Default::default(),
         }
     }
@@ -280,6 +287,29 @@ impl Frontend {
         }
     }
 
+    /// Plays a tutorial movie full screen over the parked menu backdrop; `end_tutorial` brings the screen back.
+    fn play_tutorial(&mut self, name: &str, host: &mut Host) {
+        let scene = match crate::movie::MovieScene::open(&self.dir, name, 0.0) {
+            Ok(scene) => scene,
+            Err(e) => return log::warn!("the tutorial {name} is not played: {e:#}"),
+        };
+        self.latch = true;
+        self.screens.clear();
+        self.stage = Stage::Tutorial;
+        self.replace_scene(host, Box::new(scene), true);
+    }
+
+    /// The tutorial is over (or skipped): the challenge series screen opens again where it was left.
+    pub(super) fn end_tutorial(&mut self, host: &mut Host, env: &mut Env) {
+        log::info!("tutorial over");
+        self.latch = true;
+        self.paused.set(false);
+        self.show_backdrop(host);
+        let commands = self.screens.open(super::ids::screen::CHALLENGE_SERIES, Args::default(), true, env);
+        self.stage = Stage::Menus;
+        self.apply(commands, host, env);
+    }
+
     /// The main menu over the empty backdrop.
     pub(super) fn show_menu(&mut self, host: &mut Host, env: &mut Env) {
         log::info!("main menu");
@@ -365,6 +395,16 @@ impl Frontend {
                     self.quick_race = Some(race);
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
+                Command::StartChallenge { race, transmission } => {
+                    // The original stores the choice with the player's settings.
+                    env.settings.transmission = transmission;
+                    env.changed.transmission = Some(transmission);
+                    self.career.clear();
+                    self.quick_race = Some(race);
+                    self.race_options = Some(Default::default());
+                    self.start_free_roam(LoadingScreen::Plain, host, env);
+                }
+                Command::PlayTutorial(name) => self.play_tutorial(&name, host),
                 Command::StartCareer => self.start_career(host, env),
                 Command::Resume => self.resume_driving(env),
                 Command::SetWaypoint(target) => {

@@ -93,7 +93,11 @@ impl Frontend {
         };
         world.set_career(self.career.clone(), self.profiles.clone());
         if let Some(race) = self.quick_race.take() {
-            world.queue_race(race, crate::frontend::quick_options::Choice::of(env.settings).race_options());
+            let options = self
+                .race_options
+                .take()
+                .unwrap_or_else(|| crate::frontend::quick_options::Choice::of(env.settings).race_options());
+            world.queue_race(race, options);
         }
         self.paused.set(false);
         self.conceal.set(true);

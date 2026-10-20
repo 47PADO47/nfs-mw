@@ -5,6 +5,8 @@
 mod alias_options;
 mod browse;
 mod career_screens;
+// The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.
+pub(crate) mod challenge_series;
 mod confirm;
 mod controls_layout;
 mod controls_screen;

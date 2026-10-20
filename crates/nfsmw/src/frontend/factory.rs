@@ -59,6 +59,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     if is(screen::TRACK_OPTIONS) {
         return Box::new(TrackOptions::default());
     }
+    if is(screen::CHALLENGE_SERIES) {
+        return Box::new(super::challenge_series::ChallengeSeries::new());
+    }
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());
     }

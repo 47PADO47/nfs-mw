@@ -69,6 +69,14 @@ pub enum Command {
     /// Quick Race: leave the menus and start this race (a gameplay collection name) in the world, outside career mode
     /// (`quick_race.rs`, `track_options.rs`).
     StartQuickRace(String),
+    /// The challenge series: leave the menus and start this event (a gameplay collection name) with the transmission
+    /// the player chose, outside career mode (`challenge_series/`).
+    StartChallenge {
+        race: String,
+        transmission: crate::settings::Transmission,
+    },
+    /// Play a tutorial movie (`MOVIES/<name>`) full screen, then come back to the screen that asked.
+    PlayTutorial(String),
     /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
     StartCareer,
     /// Close the pause menu and go on driving.
