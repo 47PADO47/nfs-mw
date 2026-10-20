@@ -32,6 +32,7 @@ blackbox-collision.workspace = true
 blackbox-damage.workspace = true
 blackbox-driver.workspace = true
 blackbox-pursuit.workspace = true
+blackbox-race.workspace = true
 blackbox-speedfx.workspace = true
 blackbox-feng.workspace = true
 blackbox-gfx.workspace = true

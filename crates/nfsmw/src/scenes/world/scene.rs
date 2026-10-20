@@ -53,6 +53,7 @@ impl Scene for WorldScene {
         crate::hud::show_interact_prompt(ctx, &self.entry.popup);
         crate::hud::show_mod_message(ctx);
         self.show_pursuit_end(ctx);
+        self.show_race_card(ctx);
         0.0
     }
 

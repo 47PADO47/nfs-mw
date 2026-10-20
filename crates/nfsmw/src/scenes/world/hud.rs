@@ -79,6 +79,7 @@ impl WorldScene {
                 state.busted_overlay = traffic.busted_overlay();
             }
             self.career.hud.apply(state);
+            self.race_blips(&mut state.blips);
             state.blips.extend_from_slice(&self.map_blips);
             state.blips.extend_from_slice(&self.mod_blips);
         }

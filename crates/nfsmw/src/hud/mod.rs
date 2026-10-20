@@ -40,6 +40,7 @@ pub use police::RadarHud;
 mod pursuit_end;
 #[cfg(test)]
 mod pursuit_tests;
+mod race_card;
 mod radar;
 mod radio;
 /// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).
@@ -65,5 +66,6 @@ pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_m
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
+pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
 pub use state::{HudState, MapPosition};

@@ -41,6 +41,7 @@ mod open;
 #[cfg(test)]
 mod performance_tests;
 mod props;
+mod race;
 mod readiness;
 mod rear_view;
 mod reflections;
@@ -167,6 +168,10 @@ pub struct WorldScene {
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The races, their triggers and their opponents, when the install's gameplay data could be read.
+    gameplay: Option<std::sync::Arc<nfsmw_data::gameplay::GameplayData>>,
+    /// The race being run, if any (`race/`).
+    race: Option<race::RaceSession>,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
     pub mod_blips: Vec<crate::hud::MapBlip>,
     /// The career being played, if any, and what it asks of the front end (`career/`).

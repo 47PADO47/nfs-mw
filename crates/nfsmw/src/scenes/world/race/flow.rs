@@ -1,0 +1,228 @@
+//! The running stage: the clock, the racers' positions, the checkpoints, the goals of the opponents and the catch-up.
+
+use blackbox_race::{Phase, RaceEvent};
+use glam::Vec3;
+
+use super::{Banner, RaceSession, Stage, setup};
+use crate::input::{Action, ActionState};
+use crate::scenes::world::{WorldScene, space};
+
+/// Seconds the banner of a checkpoint or lap stays.
+const BANNER_SECS: f32 = 1.5;
+
+impl WorldScene {
+    /// One frame of the race: loading, running or the result card. `sim_dt` is the simulated time of the frame and
+    /// `frame_dt` the real one (the result card and the loading wait use real time).
+    pub(in crate::scenes::world) fn update_race(&mut self, input: &ActionState, sim_dt: f32, frame_dt: f32) {
+        let Some(mut session) = self.race.take() else { return };
+        let keep = match session.stage {
+            Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
+            Stage::Running => self.race_running(&mut session, sim_dt),
+            Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
+        };
+        session.banner.left = (session.banner.left - frame_dt).max(0.0);
+        match keep {
+            true => self.race = Some(session),
+            false => self.end_race(session),
+        }
+    }
+
+    /// The player's place in physics space, once the car stands.
+    fn player_physics(&self) -> Option<Vec3> {
+        let drive = self.drive.as_ref().filter(|d| d.has_sim() && d.waiting_for_road().is_none())?;
+        Some(Vec3::from(space::to_physics(drive.position())))
+    }
+
+    fn race_running(&mut self, session: &mut RaceSession, dt: f32) -> bool {
+        let Some(engine) = session.engine.as_mut() else { return false };
+        let mut events = engine.tick(dt);
+        let player = self.player_physics();
+        if let Some(position) = player {
+            events.extend(engine.move_racer(0, position));
+        }
+        events.extend(self.step_racers(session, player, dt));
+        self.race_goals(session);
+        self.race_glue(session, dt);
+        self.race_log(session, dt);
+        self.race_events(session, events);
+        true
+    }
+
+    /// A line per racer every ten seconds at the debug level: where it is, how fast, and how far from its next gate.
+    fn race_log(&self, session: &mut RaceSession, dt: f32) {
+        session.log_clock += dt;
+        if session.log_clock < 10.0 || !log::log_enabled!(log::Level::Debug) {
+            return;
+        }
+        session.log_clock = 0.0;
+        let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_ref()) else { return };
+        for (id, position, speed) in traffic.racers() {
+            let position = session.emu.get(id).copied().flatten().unwrap_or(position);
+            let racer = &engine.racers()[id];
+            let gate = next_gate(engine.course(), racer.progress.reached);
+            let away = gate.map_or(-1.0, |g| g.distance(position));
+            let at = gate.unwrap_or_default();
+            log::debug!(
+                "race: racer {id} at ({:.0}, {:.0}, {:.0}) {speed:.0} m/s, {:.0}% done, {away:.0} m from its next gate at ({:.0}, {:.0}, {:.0}), {} checkpoint(s)",
+                position.x,
+                position.y,
+                position.z,
+                racer.percent,
+                at.x,
+                at.y,
+                at.z,
+                racer.progress.reached
+            );
+        }
+    }
+
+    /// Each opponent drives to the next gate of its own progress; a racer that is done has no goal and cruises on.
+    fn race_goals(&mut self, session: &RaceSession) {
+        let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_mut()) else { return };
+        for (id, racer) in engine.racers().iter().enumerate().skip(1) {
+            let goal = match racer.done() {
+                true => None,
+                false => next_aim(engine.course(), racer.progress.reached),
+            };
+            if let Some(state) = traffic.racer_mut(id) {
+                state.set_goal(goal);
+            }
+        }
+    }
+
+    /// The catch-up, once a second while the race runs and the player has not finished.
+    fn race_glue(&mut self, session: &mut RaceSession, dt: f32) {
+        if !session.catch_up {
+            return;
+        }
+        session.glue_clock += dt;
+        if session.glue_clock < 1.0 {
+            return;
+        }
+        session.glue_clock = 0.0;
+        let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_mut()) else { return };
+        let racers = engine.racers();
+        if engine.phase() != Phase::Racing || racers[0].done() {
+            return;
+        }
+        let length = engine.course().length();
+        let player = racers[0].percent;
+        let half = session.kind == nfsmw_data::gameplay::RaceType::SpeedTrap;
+        for (id, racer) in racers.iter().enumerate().skip(1).filter(|(_, r)| !r.done()) {
+            let error = blackbox_race::CatchUp::error(length, player, racer.percent, 1.0);
+            let skill = session.glue[id].update(error, 1.0);
+            let Some(state) = traffic.racer_mut(id) else { continue };
+            state.glue = setup::scale_glue(skill, state.base_skill, half);
+        }
+    }
+
+    /// Carries out what the engine raised, in order.
+    pub(super) fn race_events(&mut self, session: &mut RaceSession, events: Vec<RaceEvent>) {
+        let total_checkpoints = session.engine.as_ref().map_or(0, |e| e.course().checkpoints.len());
+        let laps = session.engine.as_ref().map_or(1, |e| e.course().laps);
+        for event in events {
+            log::debug!("race: {event:?}");
+            match event {
+                RaceEvent::Count(n) => flash(&mut session.banner, n.to_string(), 1.0),
+                RaceEvent::Go => {
+                    flash(&mut session.banner, "GO".into(), BANNER_SECS);
+                    self.release_grid();
+                }
+                RaceEvent::TimeUp => flash(&mut session.banner, "Time is up".into(), BANNER_SECS * 2.0),
+                RaceEvent::Checkpoint { racer: 0, number } => {
+                    flash(&mut session.banner, format!("Checkpoint {number}/{total_checkpoints}"), BANNER_SECS)
+                }
+                RaceEvent::Lap { racer: 0, lap } => {
+                    flash(&mut session.banner, format!("Lap {}/{laps}", lap + 1), BANNER_SECS)
+                }
+                RaceEvent::Finished { racer: 0, .. } => {
+                    flash(&mut session.banner, "Finished".into(), BANNER_SECS * 2.0)
+                }
+                RaceEvent::KnockedOut { racer: 0 } => {
+                    flash(&mut session.banner, "Knocked out".into(), BANNER_SECS * 2.0)
+                }
+                RaceEvent::KnockedOut { racer } => {
+                    if let Some(traffic) = self.traffic.as_mut() {
+                        traffic.remove_racer(racer);
+                    }
+                }
+                RaceEvent::Over => self.finish_race(session),
+                RaceEvent::Finished { racer, time } => log::info!("race: racer {racer} finished in {time:.1} s"),
+                RaceEvent::Checkpoint { .. } | RaceEvent::Lap { .. } => {}
+            }
+        }
+    }
+
+    /// GO: the player's car and the racers' cars are let go.
+    fn release_grid(&mut self) {
+        if let Some(drive) = self.drive.as_mut() {
+            drive.hold_on_grid(false);
+        }
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.release_racers();
+        }
+    }
+
+    /// The result card stays for a while, or until Interact.
+    fn race_results(&mut self, session: &mut RaceSession, input: &ActionState, dt: f32) -> bool {
+        let Stage::Results { left } = session.stage else { return true };
+        let left = left - dt;
+        session.stage = Stage::Results { left };
+        left > 0.0 && !input.just_pressed(Action::Interact)
+    }
+}
+
+fn flash(banner: &mut Banner, text: String, secs: f32) {
+    *banner = Banner { text, left: secs };
+}
+
+/// How far past a gate's centre an opponent aims, metres. A path that ends at the gate would stop the car short of it
+/// (a path's end is a dead end), so the racer aims beyond it and crosses it on the way **[unconfirmed]**.
+const OVERSHOOT: f32 = 40.0;
+
+/// Where an opponent drives to for the next gate: a point `OVERSHOOT` beyond its centre, along its heading.
+pub(super) fn next_aim(course: &blackbox_race::Course, reached: usize) -> Option<Vec3> {
+    let gate = course.checkpoints.get(reached).or(course.finish.as_ref())?;
+    Some(gate.centre + gate.forward * OVERSHOOT)
+}
+
+/// The centre of the next gate in physics space: checkpoint `reached` (0-based), else the finish line.
+pub(super) fn next_gate(course: &blackbox_race::Course, reached: usize) -> Option<Vec3> {
+    course.checkpoints.get(reached).map(|g| g.centre).or_else(|| course.finish.as_ref().map(|g| g.centre))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blackbox_race::{Course, Gate};
+
+    fn gate(z: f32) -> Gate {
+        Gate::new(Vec3::new(0.0, 0.0, z), Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0])
+    }
+
+    #[test]
+    fn the_next_gate_is_the_next_checkpoint_then_the_finish() {
+        let course =
+            Course { start: Vec3::ZERO, checkpoints: vec![gate(10.0), gate(20.0)], finish: Some(gate(30.0)), laps: 1 };
+        assert_eq!(next_gate(&course, 0).unwrap().z, 10.0);
+        assert_eq!(next_gate(&course, 1).unwrap().z, 20.0);
+        assert_eq!(next_gate(&course, 2).unwrap().z, 30.0);
+        let open = Course { finish: None, ..course };
+        assert_eq!(next_gate(&open, 2), None);
+    }
+
+    #[test]
+    fn an_opponent_aims_past_the_gate_along_its_heading() {
+        let course = Course { start: Vec3::ZERO, checkpoints: vec![gate(10.0)], finish: Some(gate(30.0)), laps: 1 };
+        assert_eq!(next_aim(&course, 0).unwrap(), Vec3::new(0.0, 0.0, 10.0 + OVERSHOOT));
+        assert_eq!(next_aim(&course, 1).unwrap().z, 30.0 + OVERSHOOT);
+        assert_eq!(next_aim(&course, 2).unwrap().z, 30.0 + OVERSHOOT, "past the last checkpoint it aims at the finish");
+    }
+
+    #[test]
+    fn a_flash_replaces_the_banner() {
+        let mut banner = Banner::default();
+        flash(&mut banner, "GO".into(), 1.5);
+        assert_eq!((banner.text.as_str(), banner.left), ("GO", 1.5));
+    }
+}
