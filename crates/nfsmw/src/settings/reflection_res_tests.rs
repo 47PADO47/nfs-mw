@@ -87,3 +87,24 @@ fn the_environment_overrides_the_file_and_a_bad_value_falls_through() {
     assert_eq!(s.reflection_mirror_size, ReflectionSize::Auto, "a bad environment value falls through");
     assert_eq!(s.mirror_tint, MirrorTint::STOCK);
 }
+
+#[test]
+fn cube_labels_resolve_legacy_sizes_and_steps_select_exact_pixels() {
+    use super::reflection_res::{cube_label, cube_pixels, step_cube};
+    let mut s = Settings::from(Partial::default());
+    s.reflections = blackbox_gfx::ReflectionQuality::High;
+    s.reflection_cube_size = ReflectionSize::Scale(1.5);
+    s.reflection_pow2 = true;
+    assert_eq!(cube_pixels(&s, 2160), 256, "old 150% with power-of-two actually captured 256");
+    assert!(cube_label(&s, 2160).starts_with("256 × 256 per face"));
+    assert_eq!(step_cube(&s, true), ReflectionSize::Fixed(512));
+    s.reflection_cube_size = ReflectionSize::Fixed(512);
+    assert_eq!(cube_label(&s, 2160), "512 × 512 per face");
+    assert_eq!(cube_pixels(&s, 720), cube_pixels(&s, 2160));
+    s.reflection_cube_size = ReflectionSize::Auto;
+    assert_eq!(cube_pixels(&s, 2160), 1024);
+    assert!(cube_label(&s, 2160).contains("follow output height"));
+    assert_eq!(step_cube(&s, true), ReflectionSize::Fixed(16));
+    s.reflection_cube_size = ReflectionSize::Fixed(16);
+    assert_eq!(step_cube(&s, false), ReflectionSize::Fixed(1024));
+}

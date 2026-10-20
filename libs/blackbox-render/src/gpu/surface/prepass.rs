@@ -1,5 +1,5 @@
 //! Camera-space depth and world normals, excluding sky and blended surfaces.
-use super::targets::Targets;
+use super::targets::{NORMAL_FORMAT, Targets};
 use crate::gpu::{Renderer, instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES};
 use blackbox_gfx::{BlendMode, FrameParams, Instance, Shading};
 
@@ -83,7 +83,7 @@ impl Prepass {
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: NORMAL_FORMAT,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],

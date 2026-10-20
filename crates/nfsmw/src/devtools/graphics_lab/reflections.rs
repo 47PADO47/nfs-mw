@@ -6,8 +6,7 @@ use blackbox_gfx::reflection::{content::ReflectionContent, distance::ReflectionD
 pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings) {
     ui.add_enabled_ui(lab.caps.is_some_and(|c| c.local_reflections), |ui| {
         ui.collapsing("Reflection capture settings", |ui| {
-            size(ui, "Car cubemap size", &mut settings.reflection_cube_size);
-            ui.checkbox(&mut settings.reflection_pow2, "Power-of-two cubemap faces");
+            cube_size(ui, settings, lab.output_size[1]);
             choice(ui, "Reflection detail", &mut settings.reflection_extra.lod, &ReflectionLod::ALL);
             choice(ui, "Reflection content", &mut settings.reflection_extra.content, &ReflectionContent::ALL);
             choice(ui, "Reflection distance", &mut settings.reflection_extra.distance, &ReflectionDistance::ALL);
@@ -33,4 +32,28 @@ fn size(ui: &mut egui::Ui, label: &str, value: &mut ReflectionSize) {
             ui.selectable_value(value, size, reflection_res::size_label(size));
         }
     });
+}
+
+fn cube_size(ui: &mut egui::Ui, settings: &mut Settings, output_height: u32) {
+    let edge = reflection_res::cube_pixels(settings, output_height);
+    egui::ComboBox::from_label("Car cubemap resolution").selected_text(format!("{edge} × {edge} per face")).show_ui(
+        ui,
+        |ui| {
+            for edge in reflection_res::CUBE_SIZES {
+                ui.selectable_value(
+                    &mut settings.reflection_cube_size,
+                    ReflectionSize::Fixed(edge),
+                    format!("{edge} × {edge} per face"),
+                );
+            }
+        },
+    );
+    if !matches!(settings.reflection_cube_size, ReflectionSize::Fixed(_)) {
+        ui.small(reflection_res::cube_label(settings, output_height));
+    }
+    ui.small(format!("Six square faces at {edge} × {edge} pixels each. Resolution controls sharpness; High / Medium / Low also controls update rate."));
+    ui.small("Fixed face sizes stay the same when game resolution or DLSS quality changes. Old percentage/Auto settings remain effective until you select a size.");
+    if settings.reflections == blackbox_gfx::ReflectionQuality::Off {
+        ui.small("Car reflections are off; no cubemap is captured.");
+    }
 }
