@@ -31,7 +31,7 @@ use super::frame::{FengSource, FrameCell};
 pub(super) enum Scope {
     /// The nodes under one of `roots` (name hashes), except those under an `excluded` name.
     Under { roots: Vec<u32>, excluded: Vec<u32> },
-    /// Every node of the package.
+    /// Every visible node of the package. A hidden node is left out, as the presenter leaves it out of the draw order.
     Package,
 }
 
@@ -96,7 +96,7 @@ pub(super) fn emit(tree: &UiTree, scope: &Scope, out: &mut DrawList) {
 /// Which positions of `tree` `scope` takes.
 pub(super) fn keep_flags(tree: &UiTree, by_index: &HashMap<usize, usize>, scope: &Scope) -> Vec<bool> {
     match scope {
-        Scope::Package => vec![true; tree.nodes.len()],
+        Scope::Package => tree.nodes.iter().map(|node| node.visible).collect(),
         Scope::Under { roots, excluded } => (0..tree.nodes.len())
             .map(|pos| {
                 let owner = owner(tree, by_index, roots, excluded, pos);

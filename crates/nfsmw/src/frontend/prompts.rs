@@ -172,6 +172,11 @@ fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
             parent = tree.nodes[p].parent;
         }
     }
+    // The composed menu slot copies whole trees (`ui/theme/original/menu.rs`) and reads `visible`, not `draw_order`,
+    // so a hidden node is marked invisible as well as dropped from the draw order.
+    for (node, hidden) in tree.nodes.iter_mut().zip(&hidden) {
+        node.visible &= !hidden;
+    }
     tree.draw_order.retain(|i| !hidden[*i]);
 }
 
