@@ -169,6 +169,8 @@ pub struct WorldScene {
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
     /// The races, their triggers and their opponents, when the install's gameplay data could be read.
+    /// The icons of the race starts with the race each marks; which show is decided each frame (`hud.rs`).
+    race_starts: Vec<(String, crate::hud::MapBlip)>,
     gameplay: Option<std::sync::Arc<nfsmw_data::gameplay::GameplayData>>,
     /// The race being run, if any (`race/`).
     race: Option<race::RaceSession>,

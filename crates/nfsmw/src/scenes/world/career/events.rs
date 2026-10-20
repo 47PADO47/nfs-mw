@@ -104,6 +104,12 @@ impl WorldScene {
         handle_autosave(&self.career.handle, self.career.profiles.as_ref(), Trigger::RoamingStart, inputs);
     }
 
+    /// Whether a race is one the Blacklist lists and has not opened yet: its start icon stays off the map.
+    pub(in crate::scenes::world) fn career_race_locked(&self, name: &str) -> bool {
+        let event = event_id(name);
+        self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked).unwrap_or(false)
+    }
+
     /// The event-start autosave for an open race: the node is the race's event id. A boss race is flagged as one for
     /// the gate, which refuses it.
     fn autosave_event_start(&self, event: &str) {
