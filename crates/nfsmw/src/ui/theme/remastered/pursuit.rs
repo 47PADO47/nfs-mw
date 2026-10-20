@@ -11,7 +11,7 @@ use crate::ui::raster_text::{RASTER_TIMER_FONT_KEY, width_units};
 use crate::ui::theme::custom::{DriveFeed, DriveFeedCell};
 
 /// The plate's right edge, in FEng units, which is also where the cluster's card ends, its width and its top, and how far its
-/// left edge slants in from top to bottom.
+/// left edge slants in towards the top (the plate stands on its longer bottom edge).
 const RIGHT: f32 = 370.0;
 const PLATE_WIDTH: f32 = 220.0;
 const PLATE_TOP: f32 = -232.0;
@@ -105,17 +105,18 @@ fn parts(feed: &DriveFeed, pursuit: &PursuitHud, cx: &LayoutCx<'_>) -> Vec<Box<d
     let height = plate_height(signed.is_some(), cooling);
     let plate = Rect::new(RIGHT - PLATE_WIDTH / 2.0, PLATE_TOP + height / 2.0, PLATE_WIDTH, height);
     let mut parts: Vec<Box<dyn Component>> =
-        vec![Box::new(Trapezoid::at_default_depth(keys::CLUSTER_BG, plate, SLANT, &PLATE_STOPS, cx))];
+        vec![Box::new(Trapezoid::at_default_depth(keys::CLUSTER_BG, plate, -SLANT, &PLATE_STOPS, cx))];
     let mut line = |key: &str, rect: Rect| {
         let mut panel = Panel::new(key.to_owned());
         panel.layout(cx, rect);
         parts.push(Box::new(panel));
     };
-    line(keys::BAR_BORDER, Rect::new(plate.x, plate.min_y() + EDGE_LINE / 2.0, plate.w, EDGE_LINE));
+    // The plate stands on its bottom edge: the top edge is the shorter, from the slanted edge's foot to the right edge.
+    line(keys::BAR_BORDER, Rect::new(plate.x, plate.max_y() - EDGE_LINE / 2.0, plate.w, EDGE_LINE));
     let foot = plate.min_x() + SLANT;
     line(
         keys::BAR_BORDER,
-        Rect::new((foot + plate.max_x()) / 2.0, plate.max_y() - EDGE_LINE / 2.0, plate.max_x() - foot, EDGE_LINE),
+        Rect::new((foot + plate.max_x()) / 2.0, plate.min_y() + EDGE_LINE / 2.0, plate.max_x() - foot, EDGE_LINE),
     );
     let side =
         if signed.is_some_and(|(label, _)| label == "BUSTED") { keys::PURSUIT_BUSTED } else { keys::UNIT_HIGHLIGHT };

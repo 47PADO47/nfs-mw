@@ -69,7 +69,7 @@ The ring is the generic `blackbox_ui::Ring` (an arc as a row of short quads); `D
   the card (`custom::radio_placement`) and has the Custom card's timing (up for six seconds, fading over the last). A string wider
   than the plate is cut with "..." (`fitted`), because the renderer does not clip text.
 - **Pursuit panel** (`remastered/pursuit.rs`, the `PursuitMeter` slot): a right trapezoid (the generic `blackbox_ui::Trapezoid`,
-  its left edge slanting in from the top) at the top right with the chase's time, the minutes and seconds in the accent colour.
+  its left edge slanting in towards the top) at the top right with the chase's time, the minutes and seconds in the accent colour.
   Under it the cop cars the chase has **called** (`HudState::cops_engaged`), how many are **damaged** and how many are
   **wrecked** (`PursuitHud::cops_destroyed`). Then the bars of the chase's end, shown only while they apply: the signed meter
   (`PursuitHud::busted`: above zero the red **BUSTED** bar, below zero the accent **ESCAPING** bar, hidden at rest) and the
