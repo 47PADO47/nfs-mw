@@ -21,17 +21,11 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
         .anchor(Align2::LEFT_TOP, vec2(left + 8.0, 8.0))
         .frame(Frame::window(&ctx.global_style()))
         .show(ctx, |ui| {
-            ui.label(
-                RichText::new(format!("Base / rendered: {:.0} FPS  {:.1} ms", m.fps(), m.average_ms()))
-                    .monospace()
-                    .strong(),
-            );
-            let presented = m.presented_fps().map(|fps| format!("{fps:.0} FPS")).unwrap_or_else(|| "measuring…".into());
-            let mode = match m.generation_configured {
-                true => "FG configured",
-                false => "FG off / suspended",
-            };
-            ui.label(RichText::new(format!("Presented: {presented} · {mode}")).monospace());
+            let lines = rate_lines(m.fps(), m.average_ms(), m.presented_fps(), m.generation_configured);
+            for (i, line) in lines.into_iter().enumerate() {
+                let text = RichText::new(line).monospace();
+                ui.label(if i == 0 { text.strong() } else { text });
+            }
             ui.label(RichText::new(m.limit).color(Color32::LIGHT_BLUE));
             if level == ShowMetrics::Advanced {
                 ui.label(
@@ -73,6 +67,24 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
         });
 }
 
+/// The rate lines of the panel: the base (rendered) rate and frame time alone while nothing is generated, both rates and
+/// frame times when the presented rate differs from the base (frame generation), and a line for frame generation. The presented rate is `None` while it is being measured: nothing is said about it then.
+fn rate_lines(base_fps: f32, base_ms: f32, presented_fps: Option<f32>, generation_configured: bool) -> Vec<String> {
+    let presented = presented_fps.filter(|p| *p > 0.0 && p.round() != base_fps.round());
+    let mut lines = match presented {
+        None => vec![format!("Base: {base_fps:.0} FPS  {base_ms:.1} ms")],
+        Some(p) => vec![
+            format!("FPS: {base_fps:.0} base / {p:.0} presented"),
+            format!("Frame time: {base_ms:.1} base / {:.1} presented ms", 1000.0 / p),
+        ],
+    };
+    lines.push(match generation_configured {
+        true => "FG configured".to_owned(),
+        false => "FG off / suspended".to_owned(),
+    });
+    lines
+}
+
 /// The scene's own readout (speed, rpm and gear when driving), bottom left.
 fn readout(ctx: &egui::Context, m: &Metrics) {
     if m.hud.is_empty() {
@@ -94,6 +106,26 @@ fn readout(ctx: &egui::Context, m: &Metrics) {
                 );
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rate_lines;
+
+    #[test]
+    fn without_frame_generation_only_the_base_rate_and_time_show() {
+        assert_eq!(rate_lines(144.0, 6.94, None, false), ["Base: 144 FPS  6.9 ms", "FG off / suspended"]);
+        // A presented rate equal to the base (after rounding) adds nothing.
+        assert_eq!(rate_lines(144.0, 6.94, Some(144.2), false), ["Base: 144 FPS  6.9 ms", "FG off / suspended"]);
+    }
+
+    #[test]
+    fn a_different_presented_rate_shows_both_rates_and_times() {
+        assert_eq!(
+            rate_lines(100.0, 10.0, Some(200.0), true),
+            ["FPS: 100 base / 200 presented", "Frame time: 10.0 base / 5.0 presented ms", "FG configured"]
+        );
+    }
 }
 
 /// Frame times as a line, with a mark at 60 fps.
