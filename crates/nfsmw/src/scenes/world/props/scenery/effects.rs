@@ -66,8 +66,9 @@ impl PropWorld {
             }
             WorldEvent::StopCops { radius, duration } => {
                 if radius > 0.0 && duration > 0.0 {
-                    self.scenery.stops.push(StopArea { position, radius, duration });
                     let name = self.model_name(id);
+                    let gas_station = name.to_ascii_lowercase().contains("gasstation");
+                    self.scenery.stops.push(StopArea { position, radius, duration, gas_station });
                     if let Some(model) = self.scenery.models.get_mut(&id) {
                         model.fired = true;
                     }

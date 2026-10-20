@@ -40,12 +40,16 @@ impl super::super::TrafficWorld {
     /// The feed with the speech's part filled in from the world.
     pub(super) fn with_speech_feed(&self, mut feed: crate::audio::PursuitFeed) -> crate::audio::PursuitFeed {
         feed.speech = self.speech_feed(feed.secs_to_evade);
+        feed.speech.events = self.speech_watch.log;
         feed
     }
 
     /// Remembers the player's view of this frame for the radio.
     pub(super) fn note_speech_view(&mut self, player: &PlayerView) {
         self.speech_view = Some(*player);
+        let at = Vec3::from_array(space::to_physics(player.position));
+        let heading = Vec3::from_array(space::to_physics(player.forward)).normalize_or_zero();
+        self.watch_view(at, heading);
     }
 
     fn speech_feed(&self, _secs_to_evade: f32) -> SpeechFeed {
@@ -63,6 +67,11 @@ impl super::super::TrafficWorld {
             road: self.road_speech_id(at, forward),
             car_type: 0,
             car_colour: 0,
+            road_forward: self.speech_watch.road_forward.map(|v| v.to_array()),
+            brake: self.speech_watch.driving.brake,
+            handbrake: self.speech_watch.driving.handbrake,
+            up_y: self.speech_watch.driving.up_y,
+            offroad: None,
         };
         out.status = StatusFeed {
             cooling_down: self.police.cooldown_status() == CooldownStatus::CoolDown,
@@ -117,10 +126,9 @@ impl super::super::TrafficWorld {
                 let d = aim - Vec2::new(at.x, at.z);
                 [d.dot(right), d.dot(ahead)]
             });
-            let sample = car.cop_health_sample();
-            let damage = sample.map_or(0.0, |s| s.damage);
+            let damage = car.cop_health_sample().map_or(0.0, |s| s.damage);
             out.push_cop(CopFeed {
-                id: sample.map_or_else(|| car.render_key(), |s| s.key),
+                id: car.speech_id(),
                 active: !car.is_wrecked(),
                 destroyed: car.is_wrecked(),
                 health: (1.0 - damage).clamp(0.0, 1.0),

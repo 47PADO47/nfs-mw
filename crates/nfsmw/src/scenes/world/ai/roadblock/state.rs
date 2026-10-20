@@ -130,6 +130,11 @@ impl Roadblocks {
         self.sees_player = false;
     }
 
+    /// A prop of the prop world is a sawhorse of a standing roadblock.
+    pub fn owns_sawhorse(&self, id: u32) -> bool {
+        self.list.iter().any(|block| block.sawhorses.contains(&id))
+    }
+
     /// A roadblock car is close enough to see the player (`kRoadBlockLOS`), as of the last frame.
     pub fn sees_player(&self) -> bool {
         self.sees_player

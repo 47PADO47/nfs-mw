@@ -91,6 +91,7 @@ impl TrafficWorld {
             sees |= !hidden && reach.min < SEES_YOU;
             if let Some(dodged) = block.standing.dodge(target) {
                 self.roadblocks.stats.dodged += 1;
+                self.note_speech(crate::audio::WorldEvent::RoadblockDodged);
                 self.roadblocks.stats.spike_strips_dodged += dodged.spike_strips;
                 log::info!("roadblock {id}: dodged ({} spike strips)", dodged.spike_strips);
             }

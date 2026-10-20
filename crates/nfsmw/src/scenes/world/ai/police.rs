@@ -482,7 +482,10 @@ mod rep;
 mod roadblock;
 mod roll;
 mod siren_feed;
+mod speech_events;
 mod speech_feed;
+mod speech_hits;
 mod world;
 
 use helpers::{horizontal, render_rotation};
+pub(super) use speech_events::SpeechWatch;

@@ -29,6 +29,7 @@ mod original_camera;
 mod patrol;
 mod setup;
 mod sound;
+mod speech;
 pub(super) mod support_drive;
 mod towing;
 

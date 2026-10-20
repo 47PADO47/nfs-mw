@@ -144,6 +144,9 @@ impl TrafficWorld {
         self.roadblocks.list.push(block);
         self.police.roadblock_placed();
         self.police.roadblock_props(deployed);
+        // The radio hears where the spike strip lies (the layout's offset of its last strip), when there is one.
+        let spike_offset = layout.slots.iter().rev().find(|slot| slot.kind == Element::Spike).map(|slot| slot.x as i32);
+        self.note_speech(crate::audio::WorldEvent::RoadblockBuilt { spike_offset });
         Ok(count)
     }
 

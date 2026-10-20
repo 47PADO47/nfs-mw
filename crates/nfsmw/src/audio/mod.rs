@@ -11,6 +11,7 @@ mod car;
 mod chase;
 pub mod common_effects;
 #[cfg(test)]
+pub use chase::events::{Crash, EventLog, WorldEvent};
 pub use chase::feed::Vehicle;
 pub use chase::feed::{CopFeed, Formation, HeliFeed, PlayerFeed, RoadblockFeed, SpeechFeed, StatusFeed};
 pub use chase::radio::tables as radio_tables;

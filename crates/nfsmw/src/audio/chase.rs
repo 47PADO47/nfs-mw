@@ -31,6 +31,7 @@ mod air_support;
 mod air_support_tests;
 mod cues;
 mod data;
+pub mod events;
 pub mod feed;
 #[cfg(test)]
 mod line_tests;

@@ -14,6 +14,7 @@ mod snapshot;
 pub mod tables;
 #[cfg(test)]
 mod tests;
+mod world_notices;
 
 use std::collections::HashMap;
 
@@ -70,6 +71,7 @@ pub fn tune_of(t: &ChaseTune) -> Tune {
 /// The machine, what it asked for and what it remembers of the last frame.
 pub struct ChaseRadio {
     machine: Machine,
+    tune: Tune,
     ids: Option<LineIds>,
     sent: Sent,
     last: Option<(Line, blackbox_pursuit::speech::Speaker)>,
@@ -88,6 +90,7 @@ impl ChaseRadio {
     pub fn new(seed: u64) -> Self {
         Self {
             machine: Machine::new(tables::layout(), tune_of(&ChaseTune::default()), seed),
+            tune: tune_of(&ChaseTune::default()),
             ids: None,
             sent: HashMap::new(),
             last: None,
@@ -104,7 +107,8 @@ impl ChaseRadio {
 
     /// Replaces the machine's thresholds with the database's.
     pub fn set_tune(&mut self, tune: &ChaseTune) {
-        self.machine.set_tune(tune_of(tune));
+        self.tune = tune_of(tune);
+        self.machine.set_tune(self.tune);
     }
 
     /// The pending 911 call, if one ended since the last call.
@@ -157,6 +161,12 @@ impl ChaseRadio {
         self.running = true;
         self.last_ended = EndReason::None;
         notices.extend(snapshot::notices(&mut self.prev, feed));
+        notices.extend(world_notices::notices(
+            &mut self.prev.events_seen,
+            &feed.speech.events,
+            &self.tune,
+            &feed.speech,
+        ));
         let snap = snapshot::snapshot(feed, level);
         self.last_snapshot = Some(snap.clone());
         (snap, notices)

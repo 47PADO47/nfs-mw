@@ -57,6 +57,7 @@ impl TrafficWorld {
         for (wheel, hit) in punctured.into_iter().enumerate() {
             if hit && player.puncture_wheel(wheel) {
                 log::info!("spike strip: tire {wheel} punctured");
+                self.note_speech(crate::audio::WorldEvent::TireBlown);
             }
         }
     }
