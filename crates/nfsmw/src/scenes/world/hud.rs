@@ -155,6 +155,7 @@ mod tests {
             finish: None,
             checkpoints: Vec::new(),
             barriers: Vec::new(),
+            params: Default::default(),
         }
     }
 

@@ -26,6 +26,7 @@ fn race(key: u32, name: &str) -> Race {
         finish: None,
         checkpoints: Vec::new(),
         barriers: Vec::new(),
+        params: Default::default(),
     }
 }
 

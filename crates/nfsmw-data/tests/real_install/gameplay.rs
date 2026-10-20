@@ -70,3 +70,35 @@ fn races_triggers_and_activity_zones_match_documented_numbers() {
     let respawn = zone.respawn.expect("respawn marker");
     assert!(close(respawn.heading_deg, 82.59451));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn race_parameters_and_characters_match_documented_numbers() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+
+    let sprint = data.race_named("race_bin_10/10_2_1_sprint").expect("10.2.1 sprint");
+    assert!(sprint.params.do_countdown && !sprint.params.rolling_start, "{:?}", sprint.params);
+    assert_eq!(sprint.params.difficulty, 100);
+    assert!(!sprint.params.opponents.is_empty(), "a rival");
+
+    let races = &data.races;
+    let with = |f: &dyn Fn(&gameplay::RaceParams) -> bool| races.iter().filter(|r| f(&r.params)).count();
+    assert_eq!(with(&|p| p.opponents.is_empty()), 108, "races without opponents");
+    assert_eq!(with(&|p| p.opponents.len() == 3), 101, "street races");
+    assert_eq!(with(&|p| p.rolling_start), 38, "rolling starts");
+    assert_eq!(with(&|p| p.do_countdown), 217, "countdown races");
+    assert_eq!(with(&|p| p.looping), 53, "looping races");
+    assert_eq!(with(&|p| p.knockouts_per_lap == 1), 20, "knockout races");
+    assert_eq!(with(&|p| p.rank_by_points), 32, "speed-trap ranking");
+    assert_eq!(with(&|p| p.traffic_pattern.as_deref() == Some("drag")), 11, "drag traffic");
+
+    for race in races {
+        for key in &race.params.opponents {
+            assert!(data.character(*key).is_some(), "{} names an unread opponent {key:08X}", race.name);
+        }
+    }
+    let street = data.character(sprint.params.opponents[0]).expect("an opponent");
+    assert!(street.skill_level > 0 && street.min_performance >= 0.0, "{street:?}");
+    assert!(data.characters.len() >= 300, "314 characters in the install, got {}", data.characters.len());
+}

@@ -2,6 +2,7 @@
 
 use blackbox_attrib::{CollectionRef, Database, Value};
 
+use super::params::RaceParams;
 use super::{collection, instances, key_array, key_field, name_of, placement, text};
 
 /// Where something stands: a position in physics space and the heading in degrees (see [`super::world_heading`]).
@@ -84,6 +85,8 @@ pub struct Race {
     /// `Barriers[]`: the track-path barrier names this race enables, as written (a leading `*` is kept, and
     /// entries are not trimmed). Spec: `docs/specs/career-regions.md` section 3.4. The career crate parses them.
     pub barriers: Vec<String>,
+    /// The start, clock, opponent and rank rules of the run (`docs/specs/race-mode.md`).
+    pub params: RaceParams,
 }
 
 /// The races of a database, in database order. Empty when the database has no `gameplay` class.
@@ -106,6 +109,7 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         finish: key_field(c, "racefinish"),
         checkpoints: key_array(c, "Checkpoint"),
         barriers: text_items(c.get("Barriers")),
+        params: RaceParams::read(c),
     })
 }
 
