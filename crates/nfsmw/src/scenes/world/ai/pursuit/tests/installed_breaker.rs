@@ -99,8 +99,9 @@ impl Fixture {
         world.cars.push(inside);
         world.cars.push(outside);
         let mut rows = nfsmw_data::pursuit::heat_rows(scene.physics.database());
+        // The wave wants both patrol cars, so the manager keeps them: cops over the wave's count are sent away.
         for row in &mut rows {
-            row.cops.clear();
+            row.cops = vec![nfsmw_data::pursuit::CopRecord { name: "copmidsize".into(), count: 2, chance: 100 }];
         }
         world.player_position = Some(player);
         world.start_pursuit(1, rows, performance);
