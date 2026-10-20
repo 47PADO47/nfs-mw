@@ -169,6 +169,8 @@ pub struct TrafficWorld {
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
+    /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
+    speech_view: Option<PlayerView>,
 }
 
 impl TrafficWorld {
@@ -231,6 +233,7 @@ impl TrafficWorld {
             aims: Vec::new(),
             hits: Vec::new(),
             passes: Vec::new(),
+            speech_view: None,
         }
     }
 

@@ -10,6 +10,8 @@ mod capture;
 mod car;
 mod chase;
 pub mod common_effects;
+pub use chase::feed::{CopFeed, Formation, HeliFeed, PlayerFeed, RoadblockFeed, SpeechFeed, StatusFeed, Vehicle};
+pub use chase::radio::tables as radio_tables;
 pub use common_effects::CommonEvent;
 pub use heli::HeliFrame;
 pub use siren::{SirenFrame, SirenSource};
@@ -127,8 +129,12 @@ pub struct Audio {
     radio_wanted: bool,
     /// The police dispatch's speech, loaded when first needed.
     speech: speech::SpeechSlot,
-    /// The mid-chase cues the speech reacts to: a sighting lost or regained, the heat jumping.
+    /// The weather edge of a chase, the one cue the speech machine does not own.
     chase_cues: chase::Cues,
+    /// The speech machine of the chase: what the cops and dispatch say, when, and with which parameters.
+    chase_radio: chase::ChaseRadio,
+    /// The chase tuning read from the database, with the roadblock and 911 fields of each heat level seen.
+    chase_data: chase::ChaseData,
     /// Which air-support line groups the chase may say (the RevisedAirSupport switches).
     air_support: chase::AirSupport,
     /// The pursuit music, which takes the songs' place while a chase is on.
@@ -200,7 +206,9 @@ impl Audio {
             radio: radio::RadioSlot::default(),
             radio_wanted: true,
             speech: speech::SpeechSlot::default(),
-            chase_cues: chase::Cues::new(speech::random::Rng::from_clock()),
+            chase_cues: chase::Cues::new(),
+            chase_radio: chase::ChaseRadio::new(speech::random::Rng::from_clock().next_seed()),
+            chase_data: chase::ChaseData::default(),
             air_support: chase::AirSupport::default(),
             interactive: interactive::Interactive::default(),
             missing: HashSet::new(),

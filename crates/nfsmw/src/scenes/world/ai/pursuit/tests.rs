@@ -31,6 +31,7 @@ mod installed_breaker;
 mod installed_hiding;
 mod installed_route;
 mod sirens;
+mod speech_feed;
 
 /// The frames the model is still loading for, and the length of each frame in simulated seconds.
 const LOADING_FRAMES: u32 = 30;

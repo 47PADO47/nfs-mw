@@ -486,6 +486,7 @@ mod patrol;
 mod rep;
 mod roll;
 mod siren_feed;
+mod speech_feed;
 mod world;
 
 use helpers::{horizontal, render_rotation};

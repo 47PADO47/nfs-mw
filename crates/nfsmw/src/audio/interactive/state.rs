@@ -69,6 +69,9 @@ pub struct PursuitFeed {
     pub player_hit: bool,
     /// The cop cars wrecked in the chase.
     pub cops_destroyed: u32,
+    /// What the chase speech reads besides the numbers above: the cops, the helicopter, the roadblock, the player's
+    /// heading, road and car, and how the pursuit stands (`audio/chase/feed.rs`). Empty in a feed built without it.
+    pub speech: crate::audio::SpeechFeed,
 }
 
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1

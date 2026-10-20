@@ -59,6 +59,7 @@ impl super::super::TrafficWorld {
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
         self.apply_mod_requests();
+        self.note_speech_view(player);
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
@@ -188,7 +189,7 @@ impl super::super::TrafficWorld {
         let heat = self.police.level().unwrap_or(pursuit.heat);
         let limit = blackbox_pursuit::evade::timeout(heat);
         let level = self.police.level().unwrap_or(1);
-        Some(crate::audio::PursuitFeed {
+        Some(self.with_speech_feed(crate::audio::PursuitFeed {
             heat,
             intensity: chase_intensity(self.police.seen, self.police.escape_progress(), limit),
             secs: self.police.pursuit_time,
@@ -199,7 +200,8 @@ impl super::super::TrafficWorld {
             roadblock_active: self.police.roadblock_standing(),
             player_hit: self.sighting(level).recent_hit,
             cops_destroyed: self.police.cops_destroyed(),
-        })
+            speech: Default::default(),
+        }))
     }
 
     /// The horizontal distance from a physics-space point to the nearest cop on its level; infinite with none. A cop

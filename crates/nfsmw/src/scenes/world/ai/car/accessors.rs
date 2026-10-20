@@ -76,6 +76,11 @@ impl AiCar {
         self.controls
     }
 
+    /// An identity of the car that holds for its life (the radio keys its cops by it).
+    pub(in crate::scenes::world::ai) fn render_key(&self) -> u32 {
+        self.render_id
+    }
+
     /// A cop chasing the player.
     pub fn is_cop(&self) -> bool {
         matches!(self.role, Role::Cop(_)) && !self.is_wrecked()
