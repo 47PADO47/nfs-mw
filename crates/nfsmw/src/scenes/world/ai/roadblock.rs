@@ -19,11 +19,11 @@ use crate::scenes::world::props::PropWorld;
 
 mod build;
 mod director;
+#[cfg(test)]
+mod installed_tests;
 pub(super) mod props;
 mod site;
 mod state;
-#[cfg(test)]
-mod installed_tests;
 
 pub use build::Cause;
 pub use state::Roadblocks;
@@ -31,6 +31,7 @@ pub use state::Roadblocks;
 impl TrafficWorld {
     /// Lays a roadblock 250 m ahead of the player with no prop world (the sawhorses are left out). Returns the number
     /// of cop cars placed. The headless tests use it.
+    #[cfg(test)]
     pub(in crate::scenes::world) fn place_roadblock(
         &mut self,
         view: PlayerView,

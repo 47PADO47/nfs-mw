@@ -16,7 +16,8 @@ use super::{PlayerView, Police, Sensed};
 const SKID_LEVELS: [u32; 5] = [5, 6, 7, 9, 10];
 /// `SearchModeHeliSpawnChance` by heat level 1 to 10, percent: the chance, when the cool-down meter first shows, that the
 /// helicopter is forced as the next cop (spec section 2.1, [verified] in the install; zero elsewhere).
-pub(in crate::scenes::world::ai) const SEARCH_SPAWN_CHANCE: [f32; 10] = [0.0, 0.0, 0.0, 2.0, 4.0, 5.0, 0.0, 0.0, 0.0, 0.0];
+pub(in crate::scenes::world::ai) const SEARCH_SPAWN_CHANCE: [f32; 10] =
+    [0.0, 0.0, 0.0, 2.0, 4.0, 5.0, 0.0, 0.0, 0.0, 0.0];
 /// How high above the player it spawns when no cop road is found.
 const SPAWN_HEIGHT: f32 = 20.0;
 /// The race table is not used yet: no race code calls the police, so the chase always reads the heat table.
@@ -256,8 +257,8 @@ impl Police {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::{sensed, view};
+    use super::*;
 
     fn chase(level: u32) -> Police {
         let mut police = Police::default();
@@ -288,7 +289,13 @@ mod tests {
         let mut police = ready(5);
         police.queue_helicopter(Spawn { position: Vec3::ZERO, heading: 0.0 });
         assert_eq!(police.heli_ask(5, 0.9), Ask::No);
-        police.try_join(&PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 0.0, nitrous: 0.0, throttle: 0.0 });
+        police.try_join(&PlayerView {
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 0.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        });
         assert!(police.helicopter_present());
         assert_eq!(police.heli_ask(5, 0.9), Ask::No);
     }
@@ -348,7 +355,13 @@ mod tests {
     fn a_breaker_destroys_the_helicopter_and_the_next_one_waits() {
         let mut police = ready(5);
         police.queue_helicopter(Spawn { position: Vec3::ZERO, heading: 0.0 });
-        police.try_join(&PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 0.0, nitrous: 0.0, throttle: 0.0 });
+        police.try_join(&PlayerView {
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 0.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        });
         police.helicopter_destroyed();
         assert!(!police.helicopter_present());
         assert_eq!(police.heli_wait, 180.0, "heat 5 waits 180 s");
@@ -360,7 +373,13 @@ mod tests {
         let mut police = ready(5);
         assert!(police.helicopter_status().is_none());
         police.queue_helicopter(Spawn { position: Vec3::ZERO, heading: 0.0 });
-        police.try_join(&PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 0.0, nitrous: 0.0, throttle: 0.0 });
+        police.try_join(&PlayerView {
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 0.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        });
         let status = police.helicopter_status().expect("flying");
         assert_eq!(status.mode, HeliMode::Following);
         assert_eq!(status.fuel_secs, 90.0, "heat 5's tank");

@@ -145,8 +145,7 @@ mod tests {
 
     #[test]
     fn a_failed_load_is_not_asked_for_again() {
-        let mut roadblocks = Roadblocks::default();
-        roadblocks.failed = true;
+        let roadblocks = Roadblocks { failed: true, ..Roadblocks::default() };
         assert!(!roadblocks.wants_models());
     }
 }

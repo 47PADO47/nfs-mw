@@ -101,9 +101,9 @@ impl TrafficWorld {
         let mut cars = Vec::new();
         for slot in placed.iter().filter(|slot| slot.kind == Element::Car) {
             let model = pick_model(self, cause).ok_or("no cop model for the roadblock")?;
-            let car = self
-                .roadblock_car(model, slot, &ground)
-                .ok_or_else(|| format!("a roadblock car cannot stand at ({:.0}, {:.0})", slot.position.x, slot.position.z))?;
+            let car = self.roadblock_car(model, slot, &ground).ok_or_else(|| {
+                format!("a roadblock car cannot stand at ({:.0}, {:.0})", slot.position.x, slot.position.z)
+            })?;
             cars.push(car);
         }
         let id = self.roadblocks.next_id + 1;

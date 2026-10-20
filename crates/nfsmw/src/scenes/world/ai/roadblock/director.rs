@@ -30,7 +30,7 @@ impl TrafficWorld {
         dt: f32,
         view: PlayerView,
         collision: &CollisionWorld,
-        mut props: Option<&mut PropWorld>,
+        props: Option<&mut PropWorld>,
         surfaces: &SurfaceTable,
     ) {
         let target = Vec3::from_array(space::to_physics(view.position));
@@ -49,7 +49,7 @@ impl TrafficWorld {
             self.roadblocks.clock = 0.0;
             self.roadblocks_release();
             if pursuing {
-                self.roadblocks_request(step, view, collision, props.as_deref_mut(), surfaces);
+                self.roadblocks_request(step, view, collision, props, surfaces);
             }
         }
         self.police.set_roadblock_standing(self.roadblocks.any());
@@ -75,7 +75,9 @@ impl TrafficWorld {
             let id = self.roadblocks.list[index].id;
             let (damaged, wrecked) = self.cars.iter().filter(|car| car.roadblock_group() == Some(id)).fold(
                 (0, 0),
-                |(damaged, wrecked), car| (damaged + u32::from(car.cop_damage() > 0.0), wrecked + u32::from(car.is_wrecked())),
+                |(damaged, wrecked), car| {
+                    (damaged + u32::from(car.cop_damage() > 0.0), wrecked + u32::from(car.is_wrecked()))
+                },
             );
             let cars = self.roadblock_cars(id);
             let reach = standing::reach(cars.iter().copied(), target);
@@ -112,7 +114,8 @@ impl TrafficWorld {
         let Some(index) = self.cars.iter().position(|car| car.key() == key && car.roadblock_group() == Some(id)) else {
             return;
         };
-        let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(&self.cars[index].name)) else {
+        let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(&self.cars[index].name))
+        else {
             return;
         };
         let cop = model.car;

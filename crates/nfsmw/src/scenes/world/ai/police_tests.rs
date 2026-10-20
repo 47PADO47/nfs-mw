@@ -93,7 +93,11 @@ fn a_helicopter_the_cop_manager_queued_joins_on_the_next_step_at_its_spawn_point
     police.queue_helicopter(spawn);
     police.update(0.1, true, &view(5.0), sensed(true));
     let heli = police.heli.expect("joined");
-    assert!((heli.body.position.z - -240.0).abs() < 5.0, "it appears where the manager put it: {:?}", heli.body.position);
+    assert!(
+        (heli.body.position.z - -240.0).abs() < 5.0,
+        "it appears where the manager put it: {:?}",
+        heli.body.position
+    );
 }
 
 #[test]

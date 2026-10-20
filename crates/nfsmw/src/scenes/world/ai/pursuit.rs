@@ -369,7 +369,12 @@ impl TrafficWorld {
         let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
         let roadblocks = self.roadblocks.stats();
         let helicopter = self.helicopter_status().map_or("no helicopter".to_owned(), |h| {
-            format!("helicopter {:?}, {:.0} s of fuel{}", h.mode, h.fuel_secs, if h.in_sight { ", sees you" } else { "" })
+            format!(
+                "helicopter {:?}, {:.0} s of fuel{}",
+                h.mode,
+                h.fuel_secs,
+                if h.in_sight { ", sees you" } else { "" }
+            )
         });
         format!(
             "heat {}: {} of {} cops ({}); formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}",

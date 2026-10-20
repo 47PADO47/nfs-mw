@@ -6,7 +6,7 @@
 //! (10 s at the start of the chase, then `TimeBetweenHeliActive` after one left) and the support row's minimum delay has
 //! passed; the search-mode roll can force it. `Police::heli_ask` holds those rules; this file holds the wave's side.
 
-use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter, Body};
+use blackbox_roads::{Body, LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use glam::Vec3;
 use nfsmw_data::pursuit::HELICOPTER;
 
@@ -23,10 +23,14 @@ impl TrafficWorld {
     pub(super) fn pick_helicopter(&mut self, player: &Body, ground_wanted: bool) -> bool {
         let Some(pursuit) = self.pursuit.as_ref() else { return false };
         let Some(level) = self.police.level() else { return false };
-        let weight = pursuit.row().and_then(|row| row.cops.iter().find(|c| c.name == HELICOPTER)).map(|c| c.chance.max(1));
-        let have = |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count() as u32;
+        let weight =
+            pursuit.row().and_then(|row| row.cops.iter().find(|c| c.name == HELICOPTER)).map(|c| c.chance.max(1));
+        let have =
+            |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count() as u32;
         let ground: u32 = match ground_wanted {
-            true => pursuit.wave().filter(|&(name, count, _)| have(name) < count).map(|(_, _, chance)| chance.max(1)).sum(),
+            true => {
+                pursuit.wave().filter(|&(name, count, _)| have(name) < count).map(|(_, _, chance)| chance.max(1)).sum()
+            }
             false => 0,
         };
         let search_roll = self.rng.next_f32();
@@ -44,7 +48,10 @@ impl TrafficWorld {
         if let Some(pursuit) = self.pursuit.as_mut() {
             pursuit.sent_helicopter();
         }
-        log::info!("pursuit: the helicopter is sent, {:.0} m behind the player", self.police.heli_spawn_distance(level));
+        log::info!(
+            "pursuit: the helicopter is sent, {:.0} m behind the player",
+            self.police.heli_spawn_distance(level)
+        );
         true
     }
 
@@ -53,7 +60,8 @@ impl TrafficWorld {
     fn heli_spawn_point(&mut self, player: &Body, distance: f32) -> Spawn {
         let forward = Vec3::new(player.forward.x, 0.0, player.forward.y).normalize_or_zero();
         let back = -forward;
-        let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter { cop: true, ..SegmentFilter::default() });
+        let mut nav =
+            RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter { cop: true, ..SegmentFilter::default() });
         let (mut position, facing) = match nav.init_at_point(&self.network, &self.index, player.position, back, false) {
             true => {
                 nav.advance(&self.network, distance, back, &mut self.rng);
@@ -85,7 +93,11 @@ impl TrafficWorld {
         let point = glam::Vec2::new(position.x, position.z);
         let hit = self.breaker_areas.iter().any(|area| {
             area.duration > 0.0
-                && blackbox_pursuit::breaker::inside(glam::Vec2::new(area.position.x, area.position.z), area.radius, point)
+                && blackbox_pursuit::breaker::inside(
+                    glam::Vec2::new(area.position.x, area.position.z),
+                    area.radius,
+                    point,
+                )
         });
         if hit {
             log::info!("pursuit breaker: the helicopter is destroyed");

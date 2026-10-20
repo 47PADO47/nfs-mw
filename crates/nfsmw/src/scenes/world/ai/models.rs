@@ -198,7 +198,9 @@ fn handle(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, done: Done) 
         (Request::Cop(name), Err(error)) => fail_cop(scene, &name, &error),
         (Request::Helicopter, Ok(Loaded::Helicopter(model))) => install_helicopter(scene, renderer, *model),
         (Request::Helicopter, Err(error)) => log::warn!("the police helicopter has no model: {error}"),
-        (Request::RoadblockProps, Ok(Loaded::RoadblockProps(models))) => install_roadblock_props(scene, renderer, *models),
+        (Request::RoadblockProps, Ok(Loaded::RoadblockProps(models))) => {
+            install_roadblock_props(scene, renderer, *models)
+        }
         (Request::RoadblockProps, Err(error)) => {
             log::warn!("the roadblock props have no models: {error}");
             if let Some(traffic) = scene.traffic.as_mut() {

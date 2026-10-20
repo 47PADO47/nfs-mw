@@ -286,9 +286,15 @@ impl Worker {
         let shared = nfsmw_data::world::SharedAssets::load(&self.dir, nfsmw_data::world::DEFAULT_TRACK)
             .map_err(|e| format!("the shared scenery: {e:#}"))?;
         let model = |name: &str| {
-            shared.find(name).map(|index| shared.model(index)).ok_or_else(|| format!("{name} is not in the shared scenery"))
+            shared
+                .find(name)
+                .map(|index| shared.model(index))
+                .ok_or_else(|| format!("{name} is not in the shared scenery"))
         };
-        Ok(Loaded::RoadblockProps(Box::new(RoadblockModels { spike: model(SPIKE_MODEL)?, sawhorse: model(SAWHORSE_MODEL)? })))
+        Ok(Loaded::RoadblockProps(Box::new(RoadblockModels {
+            spike: model(SPIKE_MODEL)?,
+            sawhorse: model(SAWHORSE_MODEL)?,
+        })))
     }
 
     /// The helicopter is not a car: only its model is read (`docs/specs/ai-helicopter.md`).

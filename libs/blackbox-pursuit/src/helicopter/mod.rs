@@ -240,7 +240,9 @@ impl Helicopter {
     /// when within 30 m of it (`SearchForPerp`, `SetNextPerpSearchDest`).
     fn search(&mut self, heights: &dyn Heights, search: SearchInput) -> Goal {
         let point = match self.mode {
-            Mode::Search { point } if horizontal_distance(self.body.position, point) >= behaviour::SEARCH_ARRIVAL => point,
+            Mode::Search { point } if horizontal_distance(self.body.position, point) >= behaviour::SEARCH_ARRIVAL => {
+                point
+            }
             _ => {
                 self.search_angle = (self.search_angle + behaviour::SEARCH_STEP_TURNS).fract();
                 let floor = heights.elevation(search.last_known.x, search.last_known.z);
@@ -285,7 +287,13 @@ mod tests {
         run_in(heli, seconds, target, line, SEARCH)
     }
 
-    fn run_in(heli: &mut Helicopter, seconds: f32, target: Target, line: &dyn Fn(Vec3) -> bool, input: SearchInput) -> bool {
+    fn run_in(
+        heli: &mut Helicopter,
+        seconds: f32,
+        target: Target,
+        line: &dyn Fn(Vec3) -> bool,
+        input: SearchInput,
+    ) -> bool {
         let steps = (seconds / THINK_PERIOD) as usize;
         let mut done = false;
         for _ in 0..steps {

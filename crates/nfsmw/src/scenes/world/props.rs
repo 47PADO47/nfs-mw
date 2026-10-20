@@ -14,9 +14,9 @@ mod tests;
 
 use body::PropBody;
 pub use fragments::FragmentSpawn;
-pub use placed::PlacedSpawn;
 use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
+pub use placed::PlacedSpawn;
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
 use super::events::{DamageHit, OtherBody};
