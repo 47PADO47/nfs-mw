@@ -63,7 +63,7 @@ What the career still lacks. The rules and the wiring listed in the table above 
 What races still lack. The rules and the wiring are done ([race-mode.md](specs/race-mode.md) section 13).
 
 - **HUD:** the `HUD_SingleRace.fng` race objects (place, lap, clock, progress, 3-2-1-GO) are bound; the banner lines, the points and the result stay on an egui card; `HUD_Drag.fng` shows in drag races through the same bindings (its needle sweep and redline are unconfirmed; `Perfect Shift!` and one rpm string are not bound) (see [race-mode](specs/race-mode.md) section 10).
-- **Post-race flow:** `PostRace_Results.fng` (laps, places, times, restart and exit) and `PostRace_MilestoneRewards.fng` run; the outro cutscene, the chained `PostRaceActivity` race, a losing screen of its own and `PostRace_Pursuit.fng` do not.
+- **Post-race flow:** the win photo, `PostRace_Results.fng`, `PostRace_Pursuit.fng`, `PostRace_MilestoneRewards.fng` and the chained `PostRaceActivity` race run; the outro cutscene does not (blocked: no NIS player; only two outros exist), and the install has no losing screen of its own.
 - **Tollbooth and knockout details:** read from the Lua graphs, which are not decompiled. The countdown, the
   `InitialPlayerSpeed` unit and the gate size are recorded in [the provenance](provenance/race-mode.md) section 9.
 - **Gate size:** the stored extents are read as half sizes on evidence, not from the trigger code.

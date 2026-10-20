@@ -184,6 +184,7 @@ impl WorldScene {
             banner: Banner::default(),
             result: None,
             report: None,
+            chain: None,
             cash_value: params.cash_value,
             pool: Vec::new(),
             challenge: Some(Challenge::new(stat, params.threshold, heat)),

@@ -102,6 +102,8 @@ pub(super) struct RaceSession {
     pub result: Option<RaceResult>,
     /// The post-race report, built when the race-over message ends and taken by the front end.
     pub report: Option<crate::viewer::RaceReport>,
+    /// The race the career runs after this one (`PostRaceActivity`), by name.
+    pub chain: Option<String>,
     /// The cash a career win pays.
     pub cash_value: f32,
     /// The stock cars for opponents whose model fails to load.

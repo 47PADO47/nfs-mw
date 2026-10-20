@@ -58,6 +58,10 @@ pub struct RaceParams {
     pub milestone: Option<String>,
     /// `ThreshholdValue` (the field's spelling): the value the statistic must reach.
     pub threshold: f32,
+    /// `PostRaceActivity`: the key of the race the career runs after this one (prologue and boss races chain this way).
+    pub post_race_activity: Option<u32>,
+    /// `OutroNIS`: the cutscene the career plays after the race, when it has one.
+    pub outro_nis: Option<String>,
 }
 
 impl Default for RaceParams {
@@ -86,6 +90,8 @@ impl Default for RaceParams {
             cash_value: 0.0,
             milestone: None,
             threshold: 0.0,
+            post_race_activity: None,
+            outro_nis: None,
         }
     }
 }
@@ -116,6 +122,8 @@ impl RaceParams {
             cash_value: c.get_by_key(CASH_VALUE_FIELD).and_then(|v| v.as_f32()).unwrap_or(d.cash_value),
             milestone: text(c, "MilestoneName").filter(|name| !name.is_empty()),
             threshold: c.get_f32("ThreshholdValue").unwrap_or(d.threshold),
+            post_race_activity: key_field(c, "PostRaceActivity"),
+            outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
         }
     }
 

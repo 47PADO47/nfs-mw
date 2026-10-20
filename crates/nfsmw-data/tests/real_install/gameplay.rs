@@ -141,3 +141,23 @@ fn pursuit_challenges_carry_their_milestone_and_threshold() {
     assert_eq!(hit.params.threshold, 12.0);
     assert_eq!(hit.params.force_heat_level, 4);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn post_race_activities_and_outros_are_read() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let chained: Vec<_> = data.races.iter().filter(|r| r.params.post_race_activity.is_some()).collect();
+    let outros: Vec<(String, &str)> =
+        data.races.iter().filter_map(|r| r.params.outro_nis.as_deref().map(|nis| (r.name.clone(), nis))).collect();
+    println!("CHAINED {} OUTROS {outros:?}", chained.len());
+    for race in &chained {
+        let next = race.params.post_race_activity.unwrap();
+        println!(
+            "CHAIN {} -> {}",
+            race.name,
+            data.races.iter().find(|r| r.key == next).map_or("?", |r| r.name.as_str())
+        );
+    }
+    assert!(!chained.is_empty(), "races chain through PostRaceActivity");
+}

@@ -238,3 +238,8 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
   decompiler does not resolve (the class at `0x008A261C` has a destructor and property setters only), and the constants
   `228.0` and `66.0` are in no function between `0x580000` and `0x5B0000`, so the sweep is still the race HUD's
   **[unconfirmed]**.
+- **Chains and outros** (install, `nfsmw-data` test `post_race_activities_and_outros_are_read`): 29 races set
+  `PostRaceActivity` (the five prologue races, and one or two races of each bin: `1_7_3_drag` goes to `4_2_1_sprint`, the
+  last one of bin 20 names no race that exists); exactly one race sets `OutroNIS`, `16_nis_rog_razor` with `EndingNis03`.
+  The NIS bundles are `NIS/Scene_*` (87 files: 26 arrests, `EndingNis03` and `EndingNis04`, 27 intros, replays, world
+  map and FMV scenes). No code of the rewrite plays one.

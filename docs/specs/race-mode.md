@@ -242,9 +242,14 @@ section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`do
 4. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button, to free roam), or `restartrace`
    (Restart: the key 1 or the pad's second button, to `prerace`, which starts the same race again). The stats page, the
    online gamer card, mute and feedback buttons are hidden.
-5. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done**. No cutscene is
-   played anywhere in the rewrite (the bust sequence has the same fallback).
-6. `PostRaceActivity`, the chained race of the career: not done.
+5. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done, blocked**. Only
+   one race of the install sets `OutroNIS` (`16_nis_rog_razor`, `EndingNis03`) and the final pursuit uses `EndingNis04`
+   (the Lua graph); the install has no other outro. The rewrite has no NIS player: the cutscene bundles
+   (`NIS/Scene_*_BundleB.bun`, 87 files) are read only as far as `docs/formats/animation.md` says, and the bust sequence
+   falls back the same way.
+6. `PostRaceActivity`: a won career race (or a prologue race) goes on to the race its `PostRaceActivity` names, which
+   starts at once (29 races of the install chain this way: the prologue, the boss approaches); a loss leaves the chain
+   **[unconfirmed]**. Tested by `race start 1_7_3_drag demo career`, which went to `4_2_1_sprint` on Continue.
 
 A pursuit challenge shows `PostRace_Pursuit.fng` (`frontend/pursuit_results.rs`): the chase's length, escape time, cops
 damaged and destroyed, roadblocks dodged and cost to state, the challenge's own row as `value / goal`. A speed trap in
