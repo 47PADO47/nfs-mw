@@ -219,6 +219,7 @@ impl WorldScene {
                 waiting_since: None,
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
+                moment: Default::default(),
             }
         })))
     }

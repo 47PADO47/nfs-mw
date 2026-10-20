@@ -12,6 +12,8 @@ is NOT covered; see [formats/animation.md](../formats/animation.md#ice-chunk-dis
 - **Record layout:** decoded from the handler bodies at `0x004787C0`, `0x00478890` and `0x004786E0`, plus
   the consumers `0x0046E760`, `0x0046D2E0`, `0x00477EE0`, `0x004789C0` and the teardown `0x0047F9F0`.
   Offsets are in `docs/formats/animation.md` ("ICE camera records").
-- **Known gaps:** position, target and FOV inside the `0x84`-byte camera element are not pinned.
-  The 24-byte shake element is not decoded. `0x0047FB6F` (the second site's shake branch) is not read,
+- **Key fields (2026-10-20):** the `0x84`-byte camera element is decoded in `docs/formats/animation.md` ("ICE camera
+  keys") from the playback routines (`0x482160`, `0x482EC0`, `0x47F490`, `0x46D5E0`..) and the CC0 `ICEData` header, and
+  read into `blackbox_chunk::ice::Track`. See [pursuit-breaker-moment](pursuit-breaker-moment.md).
+- **Known gaps:** the 24-byte shake element is not decoded. `0x0047FB6F` (the second site's shake branch) is not read,
   and `0x0047FB40` is not a function start in the Ghidra database.

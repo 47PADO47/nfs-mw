@@ -32,6 +32,8 @@ mod keys;
 mod lighting;
 mod materials;
 mod mod_hooks;
+mod moment;
+mod moment_world;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -214,6 +216,8 @@ pub struct WorldScene {
     camera_mode: CameraMode,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
     cop_health: effects::cop_health::CopHealthBars,
+    /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
+    moment: moment::Moment,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

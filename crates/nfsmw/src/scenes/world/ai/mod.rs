@@ -22,6 +22,7 @@ mod lamps;
 mod manager;
 mod model_loader;
 mod models;
+mod moment_feed;
 mod original_camera;
 mod pattern;
 mod police;

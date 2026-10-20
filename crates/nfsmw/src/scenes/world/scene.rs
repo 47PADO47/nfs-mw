@@ -222,6 +222,9 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        if self.moment.hides_hud() {
+            return None;
+        }
         let looking_back = self.drive.as_ref().is_some_and(|d| d.camera_looking_back(self.camera_mode));
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;

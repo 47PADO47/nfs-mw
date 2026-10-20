@@ -154,6 +154,8 @@ pub(super) struct SceneryEvents {
     /// Points where a petrol-station explosion started since the world last drained them.
     blasts: Vec<Vec3>,
     stops: Vec<StopArea>,
+    /// The cinematic moments the sequences asked for since the world last drained them: the scene names.
+    moments: Vec<String>,
     common_sounds: Vec<crate::audio::CommonEvent>,
     /// The last pursuit breaker events, for the console (`breaker_sites.rs`).
     history: VecDeque<String>,
@@ -175,6 +177,11 @@ pub struct StopArea {
 impl PropWorld {
     pub fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         std::mem::take(&mut self.scenery.common_sounds)
+    }
+
+    /// The scenes of the cinematic moments the breaker sequences asked for since the last call, oldest first.
+    pub fn take_moments(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.scenery.moments)
     }
 
     pub fn model_instances(&self, id: u32, transform: Mat4, out: &mut Vec<Instance>) -> bool {

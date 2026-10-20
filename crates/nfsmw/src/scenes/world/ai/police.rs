@@ -113,6 +113,8 @@ pub struct Police {
     reset_penalty: ResetPenalty,
     /// Seconds of the post-reset blink left (`busted::RESET_BLINK` after a manual reset); 0 when not flashing.
     reset_blink: f32,
+    /// A cinematic moment plays: the busted meter holds its value (`moment_feed.rs`).
+    busted_hold: bool,
     /// Seconds until the next helicopter may join.
     heli_wait: f32,
     /// Seconds of think time not yet spent on the helicopter.
@@ -182,6 +184,7 @@ impl Default for Police {
             settings: BartenderSettings::default(),
             reset_penalty: FairBustsSettings::default().penalty(BartenderSettings::default().busted.reach),
             reset_blink: 0.0,
+            busted_hold: false,
             heli_wait: 0.0,
             heli_clock: 0.0,
             heli_plan: Default::default(),
