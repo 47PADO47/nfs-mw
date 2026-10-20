@@ -175,7 +175,7 @@ fn the_pursuit_timer_has_the_minutes_and_seconds_in_the_accent_and_the_hundredth
     let pursuit = crate::hud::PursuitHud { secs: 137.43, ..Default::default() };
     let state = HudState { pursuit: Some(pursuit), ..Default::default() };
     let nodes = built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered");
-    assert_eq!(texts(&nodes), ["43", "2:17.", "PURSUIT TIME"]);
+    assert!(texts(&nodes).starts_with(&["43", "2:17.", "PURSUIT TIME"]), "{:?}", texts(&nodes));
     let colour_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).colour;
     let skin = test_skin();
     assert_eq!(colour_of("2:17."), skin.colour(keys::UNIT_HIGHLIGHT).expect("gold"));
@@ -186,15 +186,44 @@ fn the_pursuit_timer_has_the_minutes_and_seconds_in_the_accent_and_the_hundredth
 }
 
 #[test]
-fn no_chase_draws_no_timer_and_the_evade_bar_and_the_wrecked_count_appear_with_them() {
+fn the_panel_counts_the_cops_called_damaged_and_wrecked() {
+    let chase = crate::hud::PursuitHud { secs: 5.0, cops_destroyed: 3, ..Default::default() };
+    let state = HudState { pursuit: Some(chase), cops_engaged: 6, cops_damaged: 2, ..Default::default() };
+    let nodes = built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered");
+    let drawn = texts(&nodes);
+    for label in ["CALLED", "DAMAGED", "WRECKED", "6", "2", "3"] {
+        assert!(drawn.contains(&label), "{label} in {drawn:?}");
+    }
+    // A count of nothing reads dim, a count of something in its own colour.
+    let skin = test_skin();
+    let colour_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).colour;
+    assert_eq!(colour_of("2"), skin.colour(keys::PURSUIT_DAMAGED).expect("amber"));
+    let none = built(ElementId::PursuitMeter, &HudState { pursuit: Some(chase), ..Default::default() }).expect("board");
+    let zero = none.iter().find(|n| n.text.as_deref() == Some("0")).expect("a zero count");
+    assert_eq!(zero.colour, skin.colour(keys::UNIT).expect("muted"));
+}
+
+#[test]
+fn no_chase_draws_nothing_and_the_bars_appear_with_the_meter_and_the_cooldown() {
     assert!(built(ElementId::PursuitMeter, &HudState::default()).expect("the pursuit board is Remastered").is_empty());
     let calm = crate::hud::PursuitHud { secs: 5.0, ..Default::default() };
-    let evading = crate::hud::PursuitHud { secs: 5.0, evade: 0.5, cooldown: true, cops_destroyed: 3, ..calm };
     let count = |pursuit| {
         let state = HudState { pursuit: Some(pursuit), ..Default::default() };
         built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered")
     };
-    let (calm, evading) = (count(calm), count(evading));
-    assert!(evading.len() > calm.len(), "the bar and the count add nodes");
-    assert!(texts(&evading).contains(&"3 WRECKED") && !texts(&calm).iter().any(|t| t.contains("WRECKED")));
+    let rest = count(calm);
+    assert!(!texts(&rest).iter().any(|t| ["BUSTED", "ESCAPING", "COOLDOWN"].contains(t)));
+    let busting = count(crate::hud::PursuitHud { busted: 0.4, ..calm });
+    assert!(texts(&busting).contains(&"BUSTED") && texts(&busting).contains(&"40%"), "{:?}", texts(&busting));
+    let escaping = count(crate::hud::PursuitHud { busted: -0.25, ..calm });
+    assert!(texts(&escaping).contains(&"ESCAPING") && texts(&escaping).contains(&"25%"));
+    let cooling = count(crate::hud::PursuitHud { evade: 0.5, cooldown: true, ..calm });
+    assert!(texts(&cooling).contains(&"COOLDOWN") && texts(&cooling).contains(&"50%"));
+    let both = count(crate::hud::PursuitHud { busted: -1.0, evade: 0.5, cooldown: true, ..calm });
+    assert!(texts(&both).contains(&"ESCAPING") && texts(&both).contains(&"COOLDOWN"));
+    assert!(both.len() > cooling.len() && cooling.len() > rest.len(), "each bar adds nodes");
+    // Busted turns the plate's side bar red and the bar red.
+    let red = test_skin().colour(keys::PURSUIT_BUSTED).expect("red");
+    assert!(busting.iter().any(|n| n.text.is_none() && n.colour == red));
+    assert!(!escaping.iter().any(|n| n.text.is_none() && n.colour == red));
 }

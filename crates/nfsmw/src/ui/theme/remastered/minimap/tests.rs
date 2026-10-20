@@ -131,17 +131,11 @@ fn the_package_pieces_are_darkened_and_the_arrow_takes_the_accent() {
 }
 
 #[test]
-fn the_evade_arc_shows_only_while_the_cops_give_up() {
-    let skin = test_skin();
-    let evade = skin.colour(keys::MINIMAP_EVADE).expect("the evade colour");
+fn the_minimap_has_one_ring_for_the_heat_and_shows_nothing_of_the_chase() {
     let calm = built(package(0.0, true, 255), &HudState::default());
-    let giving_up = PursuitHud { secs: 9.0, evade: 0.5, cooldown: true, ..Default::default() };
+    let giving_up = PursuitHud { secs: 9.0, evade: 0.5, cooldown: true, busted: -0.5, ..Default::default() };
     let chase = built(package(0.0, true, 255), &HudState { pursuit: Some(giving_up), ..Default::default() });
-    let half = quads_of(&chase, evade) - quads_of(&calm, evade);
-    assert_eq!(half, 60, "half the circle at a quad every three degrees");
-    let hunted = PursuitHud { secs: 9.0, evade: 0.5, cooldown: false, ..Default::default() };
-    let chased = built(package(0.0, true, 255), &HudState { pursuit: Some(hunted), ..Default::default() });
-    assert_eq!(quads_of(&chased, evade), quads_of(&calm, evade), "no arc before the cool-down");
+    assert_eq!(chase.len(), calm.len(), "the cool-down and the meter are the pursuit panel's, not the minimap's");
 }
 
 #[test]

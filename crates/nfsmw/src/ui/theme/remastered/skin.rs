@@ -65,15 +65,17 @@ pub(super) mod keys {
     pub const MAP_BAND: &str = "remastered.map.band";
     pub const MAP_VEIL: &str = "remastered.map.veil";
     pub const MAP_TIP: &str = "remastered.map.tip";
-    /// The minimap: the tint over the map, the dark disc under it, the dark bezel, the faint rim outside it, and the heat ring's lit and unlit
-    /// segments and the evade arc.
+    /// The minimap: the tint over the map, the dark disc under it, the dark bezel, and the heat ring's lit and unlit segments.
     pub const MINIMAP_MAP: &str = "remastered.minimap.map";
     pub const MINIMAP_DISC: &str = "remastered.minimap.disc";
     pub const MINIMAP_BEZEL: &str = "remastered.minimap.bezel";
-    pub const MINIMAP_RIM: &str = "remastered.minimap.rim";
     pub const MINIMAP_HEAT: &str = token_keys::SECONDARY;
     pub const MINIMAP_HEAT_DIM: &str = "remastered.minimap.heat_dim";
-    pub const MINIMAP_EVADE: &str = token_keys::PRIMARY;
+    /// The pursuit panel: the cop cars called, damaged and wrecked, and the bar of being busted.
+    pub const PURSUIT_CALLED: &str = token_keys::PRIMARY;
+    pub const PURSUIT_DAMAGED: &str = "remastered.pursuit.damaged";
+    pub const PURSUIT_WRECKED: &str = token_keys::SECONDARY;
+    pub const PURSUIT_BUSTED: &str = "remastered.pursuit.busted";
     /// The menu title's colour: the palette's accent.
     pub const MENU_TITLE: &str = "remastered.menu.title";
     /// The game's logo, and the controller glyph atlas the footer hints draw from.
@@ -102,7 +104,6 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_colour(keys::MENU_TEXT_DISABLED, with_alpha(tokens.primary, 95))
         .with_colour(keys::MENU_RULE, with_alpha(tokens.primary, 120))
         .with_colour(keys::MENU_TAGLINE, tokens.muted)
-        .with_colour(keys::MINIMAP_RIM, with_alpha(tokens.primary, 70))
         .with_colour(keys::MINIMAP_HEAT_DIM, with_alpha(tokens.primary, 45))
 }
 
@@ -130,6 +131,8 @@ pub fn skin() -> Skin {
         .with_colour(keys::MINIMAP_MAP, [128, 138, 158, 255])
         .with_colour(keys::MINIMAP_DISC, [6, 9, 16, 245])
         .with_colour(keys::MINIMAP_BEZEL, [6, 8, 12, 235])
+        .with_colour(keys::PURSUIT_DAMAGED, [255, 176, 60, 255])
+        .with_colour(keys::PURSUIT_BUSTED, [235, 64, 52, 255])
         .with_colour(keys::GEAR_BAND, [0, 0, 0, 110])
         .with_colour(keys::MENU_SCRIM, [3, 4, 7, 150])
         .with_colour(keys::MENU_TRACK, [0, 0, 0, 130])

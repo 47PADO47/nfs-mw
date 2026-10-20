@@ -318,7 +318,7 @@ pub struct ViewArgs {
     pub camera_mode: Option<crate::settings::CameraMode>,
     /// Numbers for a HUD that has no car behind it: "speed_kmh,rpm,max_rpm,gear[,nos_percent[,boost_psi[,speedbreaker_percent[,speedbreaker_active[,pursuit_seconds[,evade_percent]]]]]]" (for
     /// reference screenshots; a nitrous or boost value shows that gauge).
-    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE[,PURSUIT[,EVADE]]]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
+    #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE[,PURSUIT[,EVADE[,BUSTED]]]]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
     /// Load no mods, native ones included: the same as `mods = off` (ADR 0005 section 6) [env NFSMW_MODS].
     #[arg(long)]

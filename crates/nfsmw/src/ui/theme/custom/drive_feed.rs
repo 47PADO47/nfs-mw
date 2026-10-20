@@ -42,6 +42,9 @@ pub(in crate::ui::theme) struct DriveFeed {
     pub pursuit: Option<PursuitHud>,
     /// The car's retained heat (`HudState::vehicle_heat`): 1.0 and up, shown as a whole multiplier.
     pub heat: f32,
+    /// The cop cars the chase has called, and how many of them are damaged now (`HudState::cops_engaged`, `cops_damaged`).
+    pub cops_engaged: u32,
+    pub cops_damaged: u32,
 }
 
 /// The shared cell. Clones share one feed.
@@ -76,6 +79,8 @@ impl DriveFeedCell {
             speedbreaker_active: state.speedbreaker_active,
             pursuit: state.pursuit,
             heat: state.vehicle_heat,
+            cops_engaged: state.cops_engaged,
+            cops_damaged: state.cops_damaged,
         };
         *self.lock() = feed;
     }

@@ -33,6 +33,7 @@ mod tachometer;
 #[cfg(test)]
 mod tests;
 
+pub(in crate::ui::theme) use drive_feed::DriveFeed;
 pub use drive_feed::DriveFeedCell;
 pub use gear::GearCard;
 pub use map_legend::{MapLegend, WorldMapLegendCell};

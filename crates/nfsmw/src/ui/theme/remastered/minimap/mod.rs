@@ -1,7 +1,8 @@
-//! The Remastered minimap: the game's own map pieces in a dark round window, a thin double bezel with a gold hairline, the
-//! north marker on it, a heat ring of ten segments around it, a flame and the heat multiplier at its top left, and the
-//! evade bar as an arc inside the window while the cops give up. The map pieces, the player's arrow and the position and
-//! turn of the window come from the HUD package (the same objects the Original look draws); the rest is drawn here.
+//! The Remastered minimap: the game's own map pieces in a dark round window, a thin bezel with a gold hairline, the north
+//! marker on it, one ring of ten segments around it for the heat, and a flame with the heat multiplier at its top left. The
+//! chase's own state (busted, escaping, cool-down) is the pursuit panel's, not the minimap's. The map pieces, the player's
+//! arrow and the position and turn of the window come from the HUD package (the same objects the Original look draws); the
+//! rest is drawn here.
 //!
 //! It fills the `Minimap` slot, and claims the package's heat group with it (`hud::roots::minimap`), so the original
 //! flame, multiplier and arcs do not draw beside it.
@@ -24,19 +25,14 @@ use crate::ui::theme::original::{FengSource, FengSubtree, FrameCell};
 
 /// The window's radius in FEng units: the mask texture covers 128 units, and the circle in it is as wide.
 const MAP_RADIUS: f32 = 64.0;
-/// The bezel: a dark ring on the edge of the window, a gold hairline inside it, and a faint thin ring outside.
+/// The bezel: a dark ring on the edge of the window and a gold hairline inside it.
 const BEZEL_WIDTH: f32 = 2.0;
 const HAIRLINE_WIDTH: f32 = 0.7;
-const OUTER_WIDTH: f32 = 0.6;
-const OUTER_GAP: f32 = 3.8;
 /// The heat ring: ten segments, each a little shorter than its tenth of the circle, outside the bezel.
 const HEAT_SEGMENTS: u32 = 10;
 const HEAT_GAP: f32 = 7.0;
 const HEAT_OFFSET: f32 = 9.0;
 const HEAT_WIDTH: f32 = 2.4;
-/// The evade arc inside the window, and how far in.
-const EVADE_INSET: f32 = 4.0;
-const EVADE_WIDTH: f32 = 1.6;
 /// The north marker's badge and text.
 const NORTH_BADGE: f32 = 12.0;
 const NORTH_SCALE: f32 = 1.25;
@@ -156,7 +152,6 @@ fn parts(
     };
     parts.push(ring(keys::MINIMAP_BEZEL, r + BEZEL_WIDTH / 2.0, BEZEL_WIDTH, 0.0, 360.0));
     parts.push(ring(keys::UNIT_HIGHLIGHT, r - HAIRLINE_WIDTH / 2.0, HAIRLINE_WIDTH, 0.0, 360.0));
-    parts.push(ring(keys::MINIMAP_RIM, r + BEZEL_WIDTH + OUTER_GAP, OUTER_WIDTH, 0.0, 360.0));
 
     // The heat ring.
     let lit = lit_segments(feed.heat);
@@ -165,12 +160,6 @@ fn parts(
         let key = if k < lit { keys::MINIMAP_HEAT } else { keys::MINIMAP_HEAT_DIM };
         let from = step * k as f32 + HEAT_GAP / 2.0;
         parts.push(ring(key, r + HEAT_OFFSET, HEAT_WIDTH, from, from + step - HEAT_GAP));
-    }
-
-    // The evade bar, as an arc inside the window.
-    if let Some(pursuit) = feed.pursuit.filter(|pursuit| pursuit.cooldown_shown()) {
-        let sweep = 360.0 * pursuit.evade.clamp(0.0, 1.0);
-        parts.push(ring(keys::MINIMAP_EVADE, r - EVADE_INSET, EVADE_WIDTH, 0.0, sweep));
     }
 
     // North on the bezel.
