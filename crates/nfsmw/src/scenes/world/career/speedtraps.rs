@@ -10,9 +10,9 @@ use nfsmw_career::phone::{BinMoment, bin_messages};
 use crate::hud::{MapBlip, ModMessageTone, RACE_SPEEDTRAP, set_mod_message};
 use crate::scenes::world::{WorldScene, space};
 
-/// How close the car has to come to a trap's place to be inside it, metres **[unconfirmed]**: the trigger's size is
-/// not in the trap's record.
-const TRAP_RADIUS: f32 = 30.0;
+/// How close the car has to come to a speed trap's place to be inside it when the record states no `Radius`. It does on
+/// all 39: 20 m, 25 m on one and 30 m on two (`docs/formats/gameplay-races.md`).
+const DEFAULT_RADIUS: f32 = 20.0;
 /// Seconds a trap's message stays on the screen.
 const MESSAGE_SECS: f32 = 3.0;
 
@@ -45,7 +45,10 @@ impl WorldScene {
         let near: Vec<u32> = data
             .speed_traps
             .iter()
-            .filter(|trap| trap.position.is_some_and(|p| p.with_y(0.0).distance(at.with_y(0.0)) < TRAP_RADIUS))
+            .filter(|trap| {
+                let radius = trap.radius.unwrap_or(DEFAULT_RADIUS);
+                trap.position.is_some_and(|p| p.with_y(0.0).distance(at.with_y(0.0)) < radius)
+            })
             .map(|trap| trap.key)
             .collect();
         for key in self.career.traps.entered(near) {

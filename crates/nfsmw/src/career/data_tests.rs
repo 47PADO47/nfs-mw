@@ -70,6 +70,7 @@ fn trap(key: u32, bin: u8, name: &str) -> gameplay::SpeedTrap {
         bounty: 500,
         position: None,
         spawn_point: None,
+        radius: None,
         unconfirmed_field: None,
     }
 }

@@ -122,7 +122,8 @@ in the collection (reads as 0).
 
 Thresholds in km/h (`ThreshholdSpeed`) in trap order 1 to 3; the bounty is the same for all traps of a bin. The trap
 must be crossed faster than the threshold. Three traps of the data carry an extra field `0x39BF8002` (25 or 30)
-whose use was not found.
+whose use was not found. Every trap states its trigger size in `Radius` (20 m; 25 m on one trap, 30 m on two), which the
+rewrite uses for the free-roam trigger **[verified]** (install).
 
 | Bin | Traps | Thresholds (km/h) | Bounty per trap |
 |---|---|---|---|

@@ -53,7 +53,7 @@ What the career still lacks. The rules and the wiring listed in the table above 
   the rival opens, the next bins are entered, cash is paid on a win, impounded cars become releasable), the bin's
   race-win messages are queued, and the roaming-start autosave runs after the race (`scenes/world/career/events.rs`).
   A milestone banked at the end of an evaded pursuit now counts as a passed challenge of its bin, and the bin's challenge
-  messages follow its count (`scenes/world/career/pursuit.rs`); the speed traps of free roam are played (`scenes/world/career/speedtraps.rs`): driving into an armed trap above its threshold pays its bounty and passes a challenge of its bin, slower says "Too slow", and an armed trap is on the minimap; the trap's size (30 m) is a guess and the photo screen is not shown.
+  messages follow its count (`scenes/world/career/pursuit.rs`); the speed traps of free roam are played (`scenes/world/career/speedtraps.rs`): driving into an armed trap above its threshold pays its bounty and passes a challenge of its bin, slower says "Too slow", and an armed trap is on the minimap; the trap's size is its record's `Radius` (20 m, 25 m on one and 30 m on two; read by `SpeedTrap::radius`) and its photo screen is shown.
   Pursuit challenges run as chases with a goal ([race-mode.md](specs/race-mode.md) section 12) and set the series flag
   from the events won in the session. The challenge unlock ladder (`InitiallyUnlocked`, `UnlockRaces`) and the spike-strip
   challenges are played; the ladder's wins are not saved. Not done: the final pursuit, and the region unlock screen after a race (it is reported in the log only).
