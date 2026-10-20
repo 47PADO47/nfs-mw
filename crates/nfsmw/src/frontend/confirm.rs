@@ -42,10 +42,10 @@ impl Confirm {
     /// `0xA2E9B449`, `0x1DB1CDE5` and `0xECD92696`; free roam has no progress, so the main menu keeps the plain question).
     pub fn quit_to(to: QuitTo, race: bool) -> Self {
         let message = match (to, race) {
-            (QuitTo::MainMenu, false) => QUIT_MESSAGE,
-            (QuitTo::MainMenu, true) => QUIT_MAIN_MENU_RACE,
-            (QuitTo::QuickRaceMenu, _) => QUIT_QUICK_RACE_MENU,
-            (QuitTo::CareerMenu, _) => QUIT_CAREER_MENU,
+            (QuitTo::Main, false) => QUIT_MESSAGE,
+            (QuitTo::Main, true) => QUIT_MAIN_MENU_RACE,
+            (QuitTo::QuickRace, _) => QUIT_QUICK_RACE_MENU,
+            (QuitTo::Career, _) => QUIT_CAREER_MENU,
         };
         Self::new(Text::Game(message), Command::QuitTo(to))
     }
@@ -355,11 +355,11 @@ mod tests {
 
     #[test]
     fn game_answers_are_the_original_labels() {
-        let c = Confirm::quit_to(QuitTo::MainMenu, false);
+        let c = Confirm::quit_to(QuitTo::Main, false);
         assert_eq!(c.message, Text::Game(QUIT_MESSAGE));
         assert_eq!(c.yes, Text::Game(YES));
         assert_eq!(c.no, Text::Game(NO));
-        assert_eq!(*c.on_yes, Command::QuitTo(QuitTo::MainMenu));
+        assert_eq!(*c.on_yes, Command::QuitTo(QuitTo::Main));
     }
 
     #[test]

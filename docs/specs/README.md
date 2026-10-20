@@ -115,6 +115,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
+- [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
 

@@ -177,7 +177,7 @@ impl Frontend {
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
-            origin: QuitTo::MainMenu,
+            origin: QuitTo::Main,
             look: Look::Main,
             auto_shop_requested: false,
             quick_race: None,
@@ -415,12 +415,12 @@ impl Frontend {
             match command {
                 Command::StartFreeRoam => {
                     self.career.end_play();
-                    self.origin = QuitTo::MainMenu;
+                    self.origin = QuitTo::Main;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickRace(race) => {
                     self.career.end_play();
-                    self.origin = QuitTo::QuickRaceMenu;
+                    self.origin = QuitTo::QuickRace;
                     self.quick_race = Some(race);
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }

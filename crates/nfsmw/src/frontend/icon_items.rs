@@ -163,9 +163,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
     let quit = match ctx.quit {
-        QuitTo::MainMenu => 0xE950_B7AF,
-        QuitTo::QuickRaceMenu => 0x4349_998B,
-        QuitTo::CareerMenu => 0x690E_9B7C,
+        QuitTo::Main => 0xE950_B7AF,
+        QuitTo::QuickRace => 0x4349_998B,
+        QuitTo::Career => 0x690E_9B7C,
     };
     list.push(icon(Id::Quit(ctx.quit), QUIT_TEXTURE, quit, true));
     list

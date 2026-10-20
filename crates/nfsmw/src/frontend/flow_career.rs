@@ -21,7 +21,7 @@ impl Frontend {
     /// Resume Free Roam (`career-flow.md` section 4).
     pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
         self.career.begin_play();
-        self.origin = QuitTo::CareerMenu;
+        self.origin = QuitTo::Career;
         let prologue = self.career.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false);
         if prologue {
             log::info!("career: resuming in the prologue");
@@ -56,7 +56,7 @@ impl Frontend {
     /// Quick Play, Accept: the world starts the race with the car the brief picked.
     pub(super) fn start_quick_play(&mut self, race: String, car: String, host: &mut Host, env: &mut Env) {
         self.career.end_play();
-        self.origin = QuitTo::QuickRaceMenu;
+        self.origin = QuitTo::QuickRace;
         self.quick_race = Some(race);
         self.quick_car = Some(car);
         self.start_free_roam(LoadingScreen::Plain, host, env);
@@ -65,13 +65,11 @@ impl Frontend {
     /// Leaves the game in progress for the menu it was started from (the pause menu's Quit).
     pub(super) fn quit_to(&mut self, to: QuitTo, host: &mut Host, env: &mut Env) {
         match to {
-            QuitTo::MainMenu => self.show_menu(host, env),
-            QuitTo::QuickRaceMenu => {
+            QuitTo::Main => self.show_menu(host, env),
+            QuitTo::QuickRace => {
                 self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::QuickRace, ..Args::default() }, host, env)
             }
-            QuitTo::CareerMenu => {
-                self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::Career, ..Args::default() }, host, env)
-            }
+            QuitTo::Career => self.show_menu_at(MAIN_MENU_SUB, Args { sub: Sub::Career, ..Args::default() }, host, env),
         }
     }
 

@@ -48,11 +48,11 @@ pub enum Sub {
 pub enum QuitTo {
     /// Free roam or a race started from the main menu: Quit to Main Menu.
     #[default]
-    MainMenu,
+    Main,
     /// A Quick Race started from the Quick Race menu: Quit to Quick Race Menu.
-    QuickRaceMenu,
+    QuickRace,
     /// The career: Quit to Career Main Menu.
-    CareerMenu,
+    Career,
 }
 
 /// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam) and where Quit goes.
@@ -99,7 +99,7 @@ impl Default for Args {
             safehouse: false,
             rival: 0,
             sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::MainMenu },
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
         }
     }
 }
