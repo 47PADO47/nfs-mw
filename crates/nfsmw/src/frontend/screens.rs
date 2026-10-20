@@ -98,9 +98,9 @@ impl Screens {
         self.stack.last().map(|s| s.name.as_str())
     }
 
-    /// The backdrop the stack wants: the look of the topmost screen that names one.
+    /// The backdrop the stack wants: the look of the topmost screen that names one (its own, or the one its file name has).
     pub fn look(&self) -> Option<Look> {
-        self.stack.iter().rev().find_map(|s| s.look.clone())
+        self.stack.iter().rev().find_map(|s| s.logic.look().or_else(|| s.look.clone()))
     }
 
     /// Unloads every screen.

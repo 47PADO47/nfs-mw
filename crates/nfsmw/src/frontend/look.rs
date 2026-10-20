@@ -19,8 +19,8 @@ pub enum Look {
     /// The career-start GTR in the stage room: the main menu, the options, the Quick Race menus, the alias manager.
     #[default]
     Main,
-    /// The career car in the stage room: the career menu.
-    Career(CarLook),
+    /// A car in the stage room: the career menu (the profile's car) and the Quick Play brief (the car it picked).
+    Car(CarLook),
     /// The career car in the safe house interior: the safe house menu and the screens it opens.
     SafeHouse(CarLook),
 }

@@ -385,6 +385,12 @@ pub trait ScreenLogic: Send + Sync {
         false
     }
 
+    /// The backdrop this screen wants right now, when it depends on what the screen shows (the Quick Play brief shows the car it
+    /// picked). `None` leaves it to the screen's look by name (`factory::look_for`).
+    fn look(&self) -> Option<super::look::Look> {
+        None
+    }
+
     /// The pointer is over, or pressed, the entry `row` of the vertical list.
     fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _pick: Pick) {}
 }

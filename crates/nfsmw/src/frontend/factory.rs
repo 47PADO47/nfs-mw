@@ -143,14 +143,14 @@ pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
 pub fn look_for(name: &str, args: &Args) -> Option<Look> {
     let name = name.to_ascii_lowercase();
     let is = |file: &str| name == file.to_ascii_lowercase();
-    if is(screen::MAIN_MENU) || is(screen::MC_PROFILE_MANAGER) || is(screen::QUICK_RACE_BRIEF) {
+    if is(screen::MAIN_MENU) || is(screen::MC_PROFILE_MANAGER) {
         return Some(Look::Main);
     }
     if is(screen::MAIN_MENU_SUB) && args.safehouse {
         return Some(Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())));
     }
     if is(screen::MAIN_MENU_SUB) && args.sub == Sub::Career {
-        return Some(Look::Career(CarLook::of_profile(&CareerHandle::shared())));
+        return Some(Look::Car(CarLook::of_profile(&CareerHandle::shared())));
     }
     if is(screen::MAIN_MENU_SUB) && !args.pause {
         return Some(Look::Main);
