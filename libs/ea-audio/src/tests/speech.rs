@@ -2,8 +2,9 @@ use crate::error::Error;
 use crate::speech::{BankHeader, SAMPLE_UNIT, SpeechIndex};
 use crate::tests::build::*;
 
-/// A bank header: event, speaker, flags, `starts` in units (the first take starts at 0 and is not listed), `extra`.
-fn header(event: u16, speaker: u16, flags: u8, units: &[u16], extra: &[u8]) -> Vec<u8> {
+/// A bank header: event, speaker, flags (selectors per take), `starts` in units (the first take starts at 0 and is not
+/// listed), `extra`. Every selector byte is 0xAA.
+pub(super) fn header(event: u16, speaker: u16, flags: u8, units: &[u16], extra: &[u8]) -> Vec<u8> {
     let count = units.len() as u8 + 1;
     let mut out = event.to_le_bytes().to_vec();
     out.extend(speaker.to_le_bytes());
@@ -12,12 +13,13 @@ fn header(event: u16, speaker: u16, flags: u8, units: &[u16], extra: &[u8]) -> V
         out.extend(std::iter::repeat_n(0xAA, usize::from(flags)));
         out.extend(u.to_be_bytes());
     }
+    out.extend(std::iter::repeat_n(0xAA, usize::from(flags)));
     out.extend(extra);
     out
 }
 
 /// An index file: `banks` are (header, position of the takes in the `.big`).
-fn index(banks: &[(Vec<u8>, u32)]) -> Vec<u8> {
+pub(super) fn index(banks: &[(Vec<u8>, u32)]) -> Vec<u8> {
     let mut out = vec![0u8; 0x58];
     out[0] = 1;
     out[4..8].copy_from_slice(&(banks.len() as u32).to_le_bytes());

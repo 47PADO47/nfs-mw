@@ -12,4 +12,5 @@ mod header;
 mod mus;
 mod play;
 mod speech;
+mod speech_sentence;
 mod stream;
