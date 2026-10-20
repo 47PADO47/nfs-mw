@@ -19,6 +19,8 @@ const PRICE_KEY: u32 = 0xE616_73E9;
 const UNLOCK_RANK_KEY: u32 = 0x60F9_9F57;
 const FOR_SALE_KEY: u32 = 0xFBCF_1A48;
 const CAR_CLASS_KEY: u32 = 0x0DE0_09BE;
+/// The manufacturer index (layout offset 0x40, `docs/specs/quick-play.md` section 4): 1 BMW up to 25 Corvette.
+const MANUFACTURER_KEY: u32 = 0xBAF4_AB4C;
 
 /// The car classes of the car lot (layout offset 0x38).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +60,9 @@ pub struct CatalogueCar {
     pub unlock_rank: Option<u8>,
     /// `None` when the field is unset or the code is unknown.
     pub class: Option<CarClass>,
+    /// The manufacturer index (`MANUFACTURER_KEY`, layout offset `0x40`): 1 BMW, 2 Ford, 3 Subaru ... 25 Corvette
+    /// (`docs/specs/quick-play.md` section 4). `None` when the field is unset or past a byte.
+    pub manufacturer: Option<u8>,
 }
 
 /// Every `frontend` collection that has a price, in database order. Cars that are not for sale are included, with
@@ -92,6 +97,7 @@ fn car(c: CollectionRef<'_>) -> Option<CatalogueCar> {
         for_sale: c.get_by_key(FOR_SALE_KEY).and_then(Value::as_bool).unwrap_or(false),
         unlock_rank: c.get_by_key(UNLOCK_RANK_KEY).and_then(Value::as_i64).and_then(|r| u8::try_from(r).ok()),
         class: c.get_by_key(CAR_CLASS_KEY).and_then(Value::as_u32).and_then(CarClass::from_code),
+        manufacturer: c.get_by_key(MANUFACTURER_KEY).and_then(Value::as_u32).and_then(|m| u8::try_from(m).ok()),
     })
 }
 
