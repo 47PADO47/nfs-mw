@@ -60,6 +60,9 @@ impl RaceType {
     }
 }
 
+/// The field of a race that holds its event id, `19.8.18` (name unknown).
+const EVENT_FIELD: u32 = 0xA784_03EC;
+
 /// One race or challenge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Race {
@@ -71,6 +74,9 @@ pub struct Race {
     pub event_icon: String,
     /// The type of `event_icon`; `None` when the icon is empty or not in the game's table.
     pub race_type: Option<RaceType>,
+    /// The event id the race stores (`19.8.18`), field `0xA78403EC` (name not known). The pursuit challenges and the
+    /// side bins carry it; their data names do not hold it.
+    pub event: Option<String>,
     /// `Region` (`college`, `coastal`, `city`).
     pub region: Option<String>,
     /// `NumLaps`.
@@ -103,6 +109,7 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         name: name_of(c),
         race_type: RaceType::from_icon(&event_icon),
         event_icon,
+        event: c.get_by_key(EVENT_FIELD).and_then(Value::as_str).filter(|id| !id.is_empty()).map(str::to_owned),
         region: text(c, "Region"),
         laps: c.get_i32("NumLaps").unwrap_or(0),
         start: collection(db, start_key).map(placement),

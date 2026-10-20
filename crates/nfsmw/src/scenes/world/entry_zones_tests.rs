@@ -16,6 +16,7 @@ fn race(name: &str, start: Option<Placement>) -> Race {
     Race {
         key: 1,
         name: name.to_string(),
+        event: None,
         event_icon: String::new(),
         race_type: Some(RaceType::Sprint),
         region: None,

@@ -18,6 +18,7 @@ fn race(key: u32, name: &str) -> Race {
     Race {
         key,
         name: name.to_owned(),
+        event: None,
         event_icon: String::new(),
         race_type: None,
         region: None,

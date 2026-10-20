@@ -237,6 +237,7 @@ mod tests {
         Race {
             key: 1,
             name: "race_bin_1/1_1_1_sprint".into(),
+            event: None,
             event_icon: "p2p".into(),
             race_type: Some(RaceType::Sprint),
             region: None,
@@ -411,6 +412,35 @@ mod tests {
         assert!(runnable(Some(RaceType::Drag)));
         assert!(!runnable(Some(RaceType::CashGrab)));
         assert!(!runnable(None));
+    }
+
+    /// The side bins 18 to 21 (tollbooth challenges, the challenge series, the collectors; the OPM test bin 20 is a developer bin nothing enters): every race
+    /// of them is one of the runnable types, and has a course or is a pursuit challenge with a statistic to reach.
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn every_race_of_the_side_bins_can_be_started() {
+        let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
+        let data = nfsmw_data::gameplay::load(&dir).unwrap();
+        let side: Vec<_> = data
+            .races
+            .iter()
+            .filter(|r| ["18.", "19.", "21."].iter().any(|bin| crate::career::race_event_id(r).starts_with(bin)))
+            .collect();
+        assert!(side.len() > 50, "{} side bin races", side.len());
+        for race in side {
+            assert!(runnable(race.race_type), "{} is {:?}", race.name, race.race_type);
+            let challenge = race.race_type == Some(RaceType::Challenge);
+            let ok = match challenge {
+                true => {
+                    race.params.milestone.is_some()
+                        && crate::scenes::world::race::challenge::Stat::of(race.params.milestone.as_deref().unwrap())
+                            .is_some()
+                }
+                false => course_of(&data, race, &RaceOptions::default()).is_ok(),
+            };
+            assert!(ok, "{} cannot start", race.name);
+        }
     }
 
     /// Walks a straight line through every gate of every race of the install and checks that the race ends with the

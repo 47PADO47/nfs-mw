@@ -166,6 +166,7 @@ mod tests {
         Race {
             key: 1,
             name: "race".to_string(),
+            event: None,
             event_icon: String::new(),
             race_type,
             region: None,

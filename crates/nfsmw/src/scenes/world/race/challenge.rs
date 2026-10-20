@@ -148,7 +148,7 @@ impl WorldScene {
         self.view = crate::scenes::world::View::Chase;
         let previous_traffic = self.traffic_manual;
         self.race = Some(RaceSession {
-            event: crate::career::event_id(&race.name),
+            event: crate::career::race_event_id(race),
             name: race.name.clone(),
             kind: nfsmw_data::gameplay::RaceType::Challenge,
             options,

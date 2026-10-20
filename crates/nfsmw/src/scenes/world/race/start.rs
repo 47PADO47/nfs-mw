@@ -6,7 +6,6 @@ use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::setup::{self, RaceOptions};
 use super::{Banner, RaceSession, RacerPlan, Stage};
-use crate::career::event_id;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{View, WorldScene, space};
 
@@ -34,7 +33,7 @@ pub(super) fn resolve<'a>(data: &'a GameplayData, query: &str) -> Result<&'a Rac
         data.races.iter().filter(|r| test(&r.name.to_ascii_lowercase())).collect()
     };
     let by_leaf = matches(&|name| name.rsplit('/').next() == Some(lower.as_str()));
-    let by_event = data.races.iter().filter(|r| event_id(&r.name) == query).collect::<Vec<_>>();
+    let by_event = data.races.iter().filter(|r| crate::career::race_event_id(r) == query).collect::<Vec<_>>();
     let by_part = matches(&|name| name.contains(&lower));
     for found in [by_leaf, by_event, by_part] {
         match found.as_slice() {
@@ -123,7 +122,7 @@ impl WorldScene {
         );
         let racers = plan.len();
         self.race = Some(RaceSession {
-            event: event_id(&race.name),
+            event: crate::career::race_event_id(&race),
             name: race.name.clone(),
             kind: race.race_type.unwrap_or(RaceType::Sprint),
             options,
@@ -207,6 +206,7 @@ mod tests {
         Race {
             key: name.len() as u32,
             name: name.to_owned(),
+            event: None,
             event_icon: "p2p".into(),
             race_type: Some(RaceType::Sprint),
             region: None,

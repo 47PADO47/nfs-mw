@@ -145,6 +145,7 @@ mod tests {
         Race {
             key: 1,
             name: name.into(),
+            event: None,
             event_icon: String::new(),
             race_type: Some(kind),
             region: None,

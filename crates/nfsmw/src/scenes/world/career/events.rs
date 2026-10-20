@@ -104,7 +104,7 @@ impl WorldScene {
         let Some(data) = self.gameplay.as_ref() else { return false };
         data.races
             .iter()
-            .map(|race| event_id(&race.name))
+            .map(crate::career::race_event_id)
             .filter(|id| id.starts_with("19.") && id != "19.8.31")
             .all(|id| self.career.side_won.contains(&id))
     }

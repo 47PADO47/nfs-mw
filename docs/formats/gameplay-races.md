@@ -268,3 +268,13 @@ Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`
 5. The meaning of the zone field `0x6CE23062` (Int32, 8..16) and of `0x883C65E3` (Bool), and the field name of
    the respawn key `0x2241F4CD`. The field names are not in the database; they are matched by their hashes only.
 6. Whether the auto shop and safe house map icons are chosen by `ZoneType` alone or by the zone's index.
+
+## 9. Challenge fields **[verified]** (install)
+
+The 36 `challenge` races (event icon `challenge`) carry these fields, read by `RaceParams` and `Race::event`:
+`MilestoneName` (`0x704F72E8`: `pursuit_length`, `cops_damaged`, `cost_to_state_in_pursuit`, `bounty_in_pursuit`,
+`total_infractions`, `roadblocks_dodged`, `pursuit_evasion_time` or `tire_spikes_dodged`), `ThreshholdValue`
+(`0x4E90219D`), `ForceHeatLevel`, `PlayerCarType`, `Reputation` (`0x477EC5AA`) and `CopSpawnPoints` (`0xF124B151`, the
+keys of the cop car markers). The event id the Blacklist and the side bins use, `19.8.18`, is the text field
+`0xA78403EC` (name unknown): the data names of these races (`challenge_18_cops_hit`) do not hold it. No field of the
+race records holds an unlock list.
