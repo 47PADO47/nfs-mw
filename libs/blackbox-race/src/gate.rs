@@ -60,6 +60,31 @@ impl Gate {
     }
 }
 
+/// A sphere across the road (a speed trap): a point and a segment test.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Sphere {
+    pub centre: Vec3,
+    pub radius: f32,
+}
+
+impl Sphere {
+    /// Whether `point` is inside (the surface counts as inside).
+    pub fn contains(&self, point: Vec3) -> bool {
+        point.distance_squared(self.centre) <= self.radius * self.radius
+    }
+
+    /// Whether the segment from `from` to `to` touches the sphere.
+    pub fn touches(&self, from: Vec3, to: Vec3) -> bool {
+        let segment = to - from;
+        let length_squared = segment.length_squared();
+        let t = match length_squared > 1e-12 {
+            true => ((self.centre - from).dot(segment) / length_squared).clamp(0.0, 1.0),
+            false => 0.0,
+        };
+        self.contains(from + segment * t)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +124,18 @@ mod tests {
     fn a_segment_that_starts_inside_touches() {
         let g = gate();
         assert!(g.touches(Vec3::new(10.0, 0.0, 100.0), Vec3::new(10.0, 0.0, 99.0)));
+    }
+
+    #[test]
+    fn a_sphere_catches_a_segment_that_passes_through_it() {
+        let sphere = Sphere { centre: Vec3::new(0.0, 0.0, 100.0), radius: 20.0 };
+        assert!(sphere.contains(Vec3::new(0.0, 0.0, 119.0)));
+        assert!(!sphere.contains(Vec3::new(0.0, 0.0, 121.0)));
+        assert!(sphere.touches(Vec3::new(0.0, 0.0, 50.0), Vec3::new(0.0, 0.0, 150.0)), "jumps clean over the centre");
+        assert!(sphere.touches(Vec3::new(15.0, 0.0, 50.0), Vec3::new(15.0, 0.0, 150.0)), "inside the radius");
+        assert!(!sphere.touches(Vec3::new(25.0, 0.0, 50.0), Vec3::new(25.0, 0.0, 150.0)), "beside it");
+        assert!(!sphere.touches(Vec3::new(0.0, 0.0, 50.0), Vec3::new(0.0, 0.0, 70.0)), "stops short");
+        assert!(sphere.touches(Vec3::new(0.0, 0.0, 100.0), Vec3::new(0.0, 0.0, 100.0)), "a point inside");
     }
 
     #[test]

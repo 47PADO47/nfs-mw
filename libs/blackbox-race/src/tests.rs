@@ -9,7 +9,7 @@ fn gate(z: f32) -> Gate {
 }
 
 fn course(laps: u32) -> Course {
-    Course { start: Vec3::ZERO, checkpoints: vec![gate(100.0), gate(200.0)], finish: Some(gate(300.0)), laps }
+    Course::new(Vec3::ZERO, vec![gate(100.0), gate(200.0)], Some(gate(300.0)), laps)
 }
 
 /// Drives racer `index` straight along z through `zs` (x offset `x`), returning every event.
@@ -119,6 +119,43 @@ fn a_speed_trap_race_ranks_by_points() {
     race.speed_trap(1, 1, 150.0);
     let places = race.places();
     assert_eq!(places, [2, 1]);
+}
+
+fn trap_course() -> Course {
+    let mut course = course(1);
+    let zone = Sphere { centre: Vec3::new(0.0, 0.0, 150.0), radius: 20.0 };
+    course.traps = vec![Trap { zone, threshold_kmh: 88.0 }];
+    course
+}
+
+#[test]
+fn a_fast_pass_through_a_speed_trap_pays_and_a_slow_one_does_not() {
+    let config = RaceConfig { rank_by_points: true, ..Default::default() };
+    let grid = [(true, Vec3::ZERO), (false, Vec3::ZERO)];
+    let mut race = Race::new(trap_course(), config, &grid);
+    race.start_now();
+    race.set_speed(0, 100.0 * KMH_TO_MS);
+    race.set_speed(1, 60.0 * KMH_TO_MS);
+    let fast = drive(&mut race, 0, 0.0, &[10.0, 140.0, 160.0]);
+    let slow = drive(&mut race, 1, 0.0, &[10.0, 140.0, 160.0]);
+    assert!(fast.iter().any(|e| matches!(e, RaceEvent::SpeedTrap { racer: 0, slot: 0, .. })), "{fast:?}");
+    assert!(!slow.iter().any(|e| matches!(e, RaceEvent::SpeedTrap { .. })), "{slow:?}");
+    assert_eq!(race.places(), [1, 2]);
+}
+
+#[test]
+fn a_tollbooth_checkpoint_adds_time_for_the_human_only() {
+    let mut course = course(1);
+    course.bonuses = vec![25.0, 0.0];
+    let config = RaceConfig { time_limit: 30.0, ..Default::default() };
+    let grid = [(true, Vec3::ZERO), (false, Vec3::ZERO)];
+    let mut race = Race::new(course, config, &grid);
+    race.start_now();
+    let ai = drive(&mut race, 1, 0.0, &[10.0, 140.0]);
+    assert!(!ai.iter().any(|e| matches!(e, RaceEvent::Bonus { .. })));
+    let human = drive(&mut race, 0, 0.0, &[10.0, 140.0]);
+    assert!(human.contains(&RaceEvent::Bonus { racer: 0, seconds: 25.0 }), "{human:?}");
+    assert!((race.time_left() - 55.0).abs() < 1e-3);
 }
 
 #[test]

@@ -102,3 +102,24 @@ fn race_parameters_and_characters_match_documented_numbers() {
     assert!(street.skill_level > 0 && street.min_performance >= 0.0, "{street:?}");
     assert!(data.characters.len() >= 300, "314 characters in the install, got {}", data.characters.len());
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn tollbooth_bonuses_and_speed_trap_spheres_are_read() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let toll = data.race_named("race_bin_01/2_4_3_r_tollbooth").expect("tollbooth race");
+    let bonus: Vec<f32> = toll.checkpoints.iter().filter_map(|k| data.trigger(*k)).map(|t| t.time_bonus).collect();
+    assert_eq!(bonus.len(), 15, "every checkpoint reads");
+    assert_eq!(bonus.iter().filter(|b| **b > 0.0).count(), 4, "four time bonus checkpoints: {bonus:?}");
+    assert!(bonus.contains(&160.0) && bonus.contains(&35.0) && bonus.contains(&25.0), "{bonus:?}");
+    let trap = data.race_named("race_bin_01/1_5_3_speedtrap").expect("speed trap race");
+    assert_eq!(trap.params.speed_traps.len(), 9);
+    for key in &trap.params.speed_traps {
+        let sphere = data.sphere(*key).expect("every trap is a sphere trigger");
+        assert!(sphere.radius >= 20.0 && sphere.threshold_speed == 88.0, "{sphere:?}");
+    }
+    let every_trap_resolves =
+        data.races.iter().flat_map(|r| r.params.speed_traps.iter()).all(|k| data.sphere(*k).is_some());
+    assert!(every_trap_resolves, "every speed trap of every race is a sphere");
+}

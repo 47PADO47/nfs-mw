@@ -24,8 +24,8 @@ mod tests;
 
 pub use catchup::{CatchUp, CatchUpGains, HISTORY};
 pub use clock::{Clock, ClockEvent, Phase};
-pub use course::{Course, Event, Progress};
-pub use gate::Gate;
+pub use course::{Course, Event, Progress, Trap};
+pub use gate::{Gate, Sphere};
 pub use knockout::knockout_due;
 pub use points::{KMH_TO_MS, SpeedTraps, overtime_loss};
 pub use race::{Outcome, Race, RaceConfig, RaceEvent, Racer};

@@ -5,7 +5,7 @@ use glam::Vec3;
 use crate::clock::{Clock, ClockEvent, Phase};
 use crate::course::{Course, Event, Progress};
 use crate::knockout::knockout_due;
-use crate::points::{SpeedTraps, overtime_loss};
+use crate::points::{KMH_TO_MS, SpeedTraps, overtime_loss};
 use crate::ranking::{Standing, places};
 
 /// What the race needs besides the course.
@@ -48,6 +48,8 @@ pub struct Racer {
     pub percent: f32,
     pub finished_at: Option<f32>,
     pub out_at: Option<f32>,
+    /// The racer's speed, m/s, as the caller last told it ([`Race::set_speed`]).
+    pub speed: f32,
     pub traps: SpeedTraps,
     /// The race time of each checkpoint reached, this lap and earlier.
     pub checkpoint_times: Vec<f32>,
@@ -64,6 +66,7 @@ impl Racer {
             percent: 0.0,
             finished_at: None,
             out_at: None,
+            speed: 0.0,
             traps: SpeedTraps::new(traps),
             checkpoint_times: Vec::new(),
             lap_times: Vec::new(),
@@ -90,6 +93,17 @@ pub enum RaceEvent {
     Checkpoint {
         racer: usize,
         number: usize,
+    },
+    /// A human racer's checkpoint added seconds to the clock.
+    Bonus {
+        racer: usize,
+        seconds: f32,
+    },
+    /// A racer passed speed trap `slot` fast enough to pay, at `kmh`.
+    SpeedTrap {
+        racer: usize,
+        slot: usize,
+        kmh: f32,
     },
     Lap {
         racer: usize,
@@ -128,6 +142,8 @@ pub struct Race {
 impl Race {
     /// A race on the grid. `grid` has one `(is_human, position)` per racer.
     pub fn new(course: Course, config: RaceConfig, grid: &[(bool, Vec3)]) -> Self {
+        let mut config = config;
+        config.speed_traps = course.traps.len().max(config.speed_traps);
         let clock = Clock::new(config.time_limit, config.countdown);
         let racers = grid.iter().map(|&(human, at)| Racer::new(human, at, config.speed_traps)).collect();
         Self { course, config, clock, racers, over: false }
@@ -195,6 +211,13 @@ impl Race {
         events
     }
 
+    /// Tells the race how fast racer `index` is going now, m/s: the speed traps read it on the next move.
+    pub fn set_speed(&mut self, index: usize, mps: f32) {
+        if let Some(racer) = self.racers.get_mut(index) {
+            racer.speed = mps;
+        }
+    }
+
     /// Puts racer `index` at `at` without raising anything (the grid, a reset or a teleport).
     pub fn place_racer(&mut self, index: usize, at: Vec3) {
         if let Some(racer) = self.racers.get_mut(index) {
@@ -220,10 +243,25 @@ impl Race {
         for event in raised {
             self.apply(index, event, time, &mut events);
         }
+        self.pass_traps(index, from, to, &mut events);
         if !events.is_empty() {
             self.check_over(&mut events);
         }
         events
+    }
+
+    /// A move through a speed trap: entering its sphere pays when the speed beats the threshold and the best so far.
+    fn pass_traps(&mut self, index: usize, from: Vec3, to: Vec3, out: &mut Vec<RaceEvent>) {
+        let speed = self.racers[index].speed;
+        for (slot, trap) in self.course.traps.iter().enumerate() {
+            if trap.zone.contains(from) || !trap.zone.touches(from, to) {
+                continue;
+            }
+            let kmh = speed / KMH_TO_MS;
+            if self.racers[index].traps.record_pass(slot, kmh, trap.threshold_kmh).is_some() {
+                out.push(RaceEvent::SpeedTrap { racer: index, slot, kmh });
+            }
+        }
     }
 
     fn apply(&mut self, index: usize, event: Event, time: f32, out: &mut Vec<RaceEvent>) {
@@ -231,6 +269,11 @@ impl Race {
             Event::Checkpoint(number) => {
                 self.racers[index].checkpoint_times.push(time);
                 out.push(RaceEvent::Checkpoint { racer: index, number });
+                let seconds = self.course.bonus(number);
+                if self.racers[index].human && seconds > 0.0 {
+                    self.clock.award_bonus(seconds);
+                    out.push(RaceEvent::Bonus { racer: index, seconds });
+                }
             }
             Event::Lap(lap) => {
                 self.racers[index].lap_times.push(time);

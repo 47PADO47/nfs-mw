@@ -2,7 +2,7 @@
 
 use glam::Vec3;
 
-use crate::gate::Gate;
+use crate::gate::{Gate, Sphere};
 
 /// What a racer's movement raised.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +15,13 @@ pub enum Event {
     Finished,
 }
 
+/// A speed trap: a sphere and the speed in km/h a pass needs to pay.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Trap {
+    pub zone: Sphere,
+    pub threshold_kmh: f32,
+}
+
 /// The route: where the racers start, the checkpoints in order, the finish line and the number of laps.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Course {
@@ -24,9 +31,24 @@ pub struct Course {
     /// The finish line. Without one, the last checkpoint finishes the lap.
     pub finish: Option<Gate>,
     pub laps: u32,
+    /// Seconds the human racer's clock gains at each checkpoint (the same order as `checkpoints`; missing entries are
+    /// 0).
+    pub bonuses: Vec<f32>,
+    /// The speed traps of the race.
+    pub traps: Vec<Trap>,
 }
 
 impl Course {
+    /// A course with no time bonuses and no speed traps.
+    pub fn new(start: Vec3, checkpoints: Vec<Gate>, finish: Option<Gate>, laps: u32) -> Self {
+        Self { start, checkpoints, finish, laps, bonuses: Vec::new(), traps: Vec::new() }
+    }
+
+    /// The time bonus of checkpoint `number` (numbered from 1), 0 when it has none.
+    pub fn bonus(&self, number: usize) -> f32 {
+        number.checked_sub(1).and_then(|i| self.bonuses.get(i)).copied().unwrap_or(0.0)
+    }
+
     /// The route as points: the start, the checkpoint centres and the finish centre.
     fn route(&self) -> Vec<Vec3> {
         let mut points = vec![self.start];
@@ -134,7 +156,7 @@ mod tests {
     }
 
     fn sprint() -> Course {
-        Course { start: Vec3::ZERO, checkpoints: vec![gate(100.0), gate(200.0)], finish: Some(gate(300.0)), laps: 1 }
+        Course::new(Vec3::ZERO, vec![gate(100.0), gate(200.0)], Some(gate(300.0)), 1)
     }
 
     fn drive(course: &Course, progress: &mut Progress, zs: &[f32]) -> Vec<Event> {

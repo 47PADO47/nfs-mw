@@ -21,7 +21,7 @@ pub use milestones::{
 };
 pub use params::{Character, RaceParams};
 pub use races::{Placement, Race, RaceType};
-pub use triggers::BoxTrigger;
+pub use triggers::{BoxTrigger, SphereTrigger};
 
 use anyhow::{Context, Result};
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
@@ -43,6 +43,8 @@ pub struct GameplayData {
     pub races: Vec<Race>,
     /// Every box trigger (collections that inherit `boxtrigger`): race finish lines and checkpoints, among others.
     pub triggers: Vec<BoxTrigger>,
+    /// Every sphere trigger (collections that inherit `radiustrigger`): the speed traps of the races.
+    pub spheres: Vec<SphereTrigger>,
     /// The auto shop and safe house zones, in database order.
     pub markers: Vec<ActivityMarker>,
     /// Every opponent driver (`character`, `boss`, `character_smart`), in database order.
@@ -63,6 +65,11 @@ impl GameplayData {
         self.triggers.iter().find(|t| t.key == key)
     }
 
+    /// The sphere trigger with this collection key (an entry of a race's `SpeedTrapList`).
+    pub fn sphere(&self, key: u32) -> Option<&SphereTrigger> {
+        self.spheres.iter().find(|t| t.key == key)
+    }
+
     /// The opponent character with this collection key (an entry of a race's `Opponents`).
     pub fn character(&self, key: u32) -> Option<&Character> {
         self.characters.iter().find(|c| c.key == key)
@@ -78,6 +85,7 @@ impl GameplayData {
         Self {
             races: races::races(db),
             triggers: triggers::triggers(db),
+            spheres: triggers::spheres(db),
             markers: markers::markers(db),
             characters: params::characters(db),
             bins: bins::bins(db),

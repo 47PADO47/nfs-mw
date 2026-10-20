@@ -25,6 +25,18 @@ impl SpeedTraps {
         Some(speed)
     }
 
+    /// A pass through trap `slot` at `kmh`: it pays only when the speed beats the trap's threshold and the racer's
+    /// best at that trap (`docs/specs/career-scripts-events.md` section 1.3). Returns the stored speed in m/s when it
+    /// paid.
+    pub fn record_pass(&mut self, slot: usize, kmh: f32, threshold_kmh: f32) -> Option<f32> {
+        let speed = kmh * KMH_TO_MS;
+        let previous = (*self.slots.get(slot)?).unwrap_or(0.0);
+        if kmh <= threshold_kmh || speed <= previous {
+            return None;
+        }
+        self.record(slot, kmh)
+    }
+
     /// How many traps the racer has passed.
     pub fn passed(&self) -> usize {
         self.slots.iter().flatten().count()
@@ -60,6 +72,17 @@ mod tests {
         traps.record(0, 200.0);
         assert!((traps.total() - 200.0 * KMH_TO_MS).abs() < 1e-3);
         assert_eq!(traps.passed(), 1);
+    }
+
+    #[test]
+    fn a_pass_pays_only_above_the_threshold_and_the_previous_best() {
+        let mut traps = SpeedTraps::new(1);
+        assert_eq!(traps.record_pass(0, 80.0, 88.0), None, "under the threshold");
+        assert!(traps.record_pass(0, 100.0, 88.0).is_some());
+        assert_eq!(traps.record_pass(0, 95.0, 88.0), None, "not better than the best");
+        assert!(traps.record_pass(0, 120.0, 88.0).is_some());
+        assert!((traps.total() - 120.0 * KMH_TO_MS).abs() < 1e-3);
+        assert_eq!(traps.record_pass(3, 200.0, 88.0), None, "no such trap");
     }
 
     #[test]
