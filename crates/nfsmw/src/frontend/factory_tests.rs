@@ -63,20 +63,19 @@ fn names_match_in_any_case() {
 
 #[test]
 fn screens_outside_the_catalogue_take_no_slot() {
-    let names = [
-        "Dialog.fng",
-        "Track_Options.fng",
-        "Options_PC_Controller.fng",
-        "Pause_PC_Controller.fng",
-        "Credits.fng",
-        "EA_Trax_Jukebox.fng",
-        "WorldMapMain.fng",
-        "MW_LS_Splash.fng",
-        "WS_MW_LS_Splash.fng",
-    ];
+    let names = ["Track_Options.fng", "WorldMapMain.fng", "MW_LS_Splash.fng", "WS_MW_LS_Splash.fng"];
     for name in names {
         assert_eq!(slot_for(name, &plain()), None, "{name}");
     }
+}
+
+#[test]
+fn the_dialog_the_key_list_the_playlist_and_the_credits_have_their_own_slots() {
+    assert_eq!(slot_for("Dialog.fng", &plain()), Some(ElementId::Dialog));
+    assert_eq!(slot_for("Options_PC_Controller.fng", &plain()), Some(ElementId::ControlsList));
+    assert_eq!(slot_for("Pause_PC_Controller.fng", &plain()), Some(ElementId::ControlsList));
+    assert_eq!(slot_for("EA_Trax_Jukebox.fng", &plain()), Some(ElementId::Jukebox));
+    assert_eq!(slot_for("Credits.fng", &plain()), Some(ElementId::Credits));
 }
 
 #[test]

@@ -49,9 +49,8 @@ Nothing else changes: `ScreenLogic`, `Cx`, `Command`, the stack, the input path 
   package's order. Sorting by index does.
 - **Unclaimed nodes (`hud_slots::emit_unclaimed`).** A node is claimed when some HUD slot's scope takes it
   (`hud_slots::claim_counts`). Every node that no slot claims is appended, in the package's order, with its `parent`
-  remapped by object index. Those are the rear-view mirror (`0x9EE06631`, bezel `0x7FAC287B`), the radar and its laser
-  (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`), the heat arcs (`0xC46A80A9`), and whatever no root covers. They are
-  drawn with the rest of the HUD. Visibility decides the claim: a node under a hidden root is unclaimed, so it stays in
+  remapped by object index. Those are the rear-view mirror bezel (`0x7FAC287B`) and whatever no root covers (the radar, its
+  laser and the heat arcs are the `PoliceRadar` and `Minimap` slots'). They are drawn with the rest of the HUD. Visibility decides the claim: a node under a hidden root is unclaimed, so it stays in
   the tree (invisible, so not drawn).
 - **Components that draw in the HUD layer.** Base components leave `index` at 0. Their nodes sort before the FEng nodes
   that share their depth, and keep their own build order. A theme that wants a node after the package's nodes at equal
@@ -86,7 +85,7 @@ Nothing else changes: `ScreenLogic`, `Cx`, `Command`, the stack, the input path 
 Under the Original theme the composed layer equals the stored tree, node for node (every `UiNode` field, through its
 `Debug` form) and in the same `draw_order`. Tested for:
 
-- the HUD: nine slots, the gear nested in the tachometer, the mirror, the radar, a blip under the minimap, a hidden
+- the HUD: ten slots, the gear nested in the tachometer, the mirror, the radar, a blip under the minimap, a hidden
   root, and an object the runtime does not draw;
 - the radio layer (the chyron package) and the busted overlay (the package);
 - each of the twelve menu slots (the whole tree, parents included);

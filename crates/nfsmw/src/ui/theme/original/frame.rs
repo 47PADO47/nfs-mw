@@ -60,6 +60,12 @@ pub struct FrameCell {
     menus: Arc<Mutex<HashMap<SlotId, Arc<UiTree>>>>,
 }
 
+impl std::fmt::Debug for FrameCell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FrameCell").finish_non_exhaustive()
+    }
+}
+
 impl FrameCell {
     /// An empty cell: every source and every menu slot is absent until the plugin sets it.
     pub fn new() -> Self {
@@ -96,7 +102,7 @@ impl FrameCell {
     }
 
     /// This frame's tree for `source`, if the plugin set one.
-    pub(super) fn get(&self, source: FengSource) -> Option<Arc<UiTree>> {
+    pub(crate) fn get(&self, source: FengSource) -> Option<Arc<UiTree>> {
         self.slots()[source.index()].clone()
     }
 

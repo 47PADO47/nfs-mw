@@ -46,6 +46,10 @@ pub(super) fn adapter(frame: &FrameCell, slot: ElementId) -> Option<MenuTree> {
         | ElementId::OptionTable
         | ElementId::TrackSelect
         | ElementId::SafeHouseMenu
+        | ElementId::Dialog
+        | ElementId::ControlsList
+        | ElementId::Jukebox
+        | ElementId::Credits
         | ElementId::Blacklist
         | ElementId::CarLot
         | ElementId::RapSheet

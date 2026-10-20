@@ -6,8 +6,9 @@ use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::{PAD_BACK, PAD_LEFT, PAD_RIGHT};
 
 use super::ids;
-use super::logic::{Command, Cx, ScreenLogic};
-use crate::ui::Text;
+use super::logic::{Command, Cx, Pick, ScreenLogic};
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
+use crate::ui::{Text, UiAssets};
 
 /// The original quit question (English table `0x075CAC3B`).
 pub const QUIT_MESSAGE: u32 = 0x075c_ac3b;
@@ -59,11 +60,14 @@ const ANSWERED: u32 = 0x1b91_ebf4;
 /// left and right, a press answers with the focused button, and back answers no.
 pub struct ConfirmLogic {
     confirm: Confirm,
+    /// Whether the Remastered look draws this dialog as a panel (`Cx::vertical_look`), and whether Yes has the focus.
+    vertical: bool,
+    yes: bool,
 }
 
 impl ConfirmLogic {
     pub fn new(confirm: Confirm) -> Self {
-        Self { confirm }
+        Self { confirm, vertical: false, yes: false }
     }
 
     fn answer(&self, cx: &mut Cx, yes: bool) {
@@ -101,6 +105,7 @@ fn focus(cx: &mut Cx, guid: u32) {
 
 impl ScreenLogic for ConfirmLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         cx.hide(UNUSED_BUTTON, true);
         match &self.confirm.title {
             Some(title) => set_text(cx, TITLE, title),
@@ -119,8 +124,52 @@ impl ScreenLogic for ConfirmLogic {
         focus(cx, NO_HOLDER);
     }
 
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+        self.yes = yes_is_focused(cx);
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    /// The answers are one above the other, so Up and Down are the package's Left and Right.
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        match pick {
+            Pick::Hover => focus(cx, if row == 0 { YES_HOLDER } else { NO_HOLDER }),
+            Pick::Press(..) => self.answer(cx, row == 0),
+        }
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        let c = &self.confirm;
+        Some(MenuList {
+            title: c.title.as_ref().map(resolve).unwrap_or_default(),
+            message: resolve(&c.message),
+            entries: vec![MenuEntry::plain(resolve(&c.yes), true), MenuEntry::plain(resolve(&c.no), true)],
+            selected: if self.yes { 0 } else { 1 },
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Dialog,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
     /// The focus follows the pointer over the two answers, so the one under it shows as selected before a click.
     fn hover(&mut self, cx: &mut Cx, point: glam::Vec2) {
+        if self.vertical {
+            return;
+        }
         let (Some(yes), Some(no)) = (by_guid(cx, YES_HOLDER), by_guid(cx, NO_HOLDER)) else { return };
         if let Some(hit) = cx.rt.object_at(&[yes, no], point) {
             cx.rt.focus_button(hit);
@@ -130,6 +179,9 @@ impl ScreenLogic for ConfirmLogic {
     /// A click answers the dialog only on Yes or No. The dialog takes every click, so one that misses both does nothing
     /// and does not reach the screen or the map under it.
     fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        if self.vertical {
+            return true;
+        }
         let (Some(yes), Some(no)) = (by_guid(cx, YES_HOLDER), by_guid(cx, NO_HOLDER)) else { return true };
         if let Some(hit) = cx.rt.object_at(&[yes, no], point) {
             cx.rt.focus_button(hit);
@@ -185,11 +237,12 @@ impl Alert {
 /// holder hidden. The package's left and right have nothing to move to, so the one answer keeps the focus.
 pub struct AlertLogic {
     alert: Alert,
+    vertical: bool,
 }
 
 impl AlertLogic {
     pub fn new(alert: Alert) -> Self {
-        Self { alert }
+        Self { alert, vertical: false }
     }
 
     fn close(&self, cx: &mut Cx) {
@@ -202,6 +255,7 @@ impl AlertLogic {
 
 impl ScreenLogic for AlertLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         cx.hide(UNUSED_BUTTON, true);
         cx.hide(NO_BUTTON, true);
         set_text(cx, MESSAGE, &self.alert.message);
@@ -213,6 +267,44 @@ impl ScreenLogic for AlertLogic {
             }
         }
         focus(cx, YES_HOLDER);
+    }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn click(&mut self, _cx: &mut Cx, _point: glam::Vec2) -> bool {
+        // The notice takes every click, so none reaches the screen under it.
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, _row: usize, pick: Pick) {
+        if matches!(pick, Pick::Press(..)) {
+            self.close(cx);
+        }
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        Some(MenuList {
+            title: resolve(&self.alert.title),
+            message: resolve(&self.alert.message),
+            entries: vec![MenuEntry::plain(resolve(&Text::Game(CONTINUE)), true)],
+            selected: 0,
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Dialog,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

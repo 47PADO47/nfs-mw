@@ -58,7 +58,7 @@ fn row(blip: &PlacedBlip, player: [f32; 2], attached: bool) -> LegendRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::world_map::{Filter, WorldMap};
+    use crate::frontend::world_map::{Chrome, Filter, WorldMap};
     use crate::hud::{AUTO_SHOP, RACE_SPRINT, SAFE_HOUSE};
 
     fn frame(attached: Option<usize>) -> WorldMapFrame {
@@ -70,7 +70,7 @@ mod tests {
             PlacedBlip { style: AUTO_SHOP, world: [1000.0, 0.0], map: [0.0, 0.0] },
             PlacedBlip { style: RACE_SPRINT, world: [0.0, 0.0], map: [0.0, 0.0] },
         ];
-        WorldMapFrame { session, blips, player: [0.0, 0.0], player_mark: None, chrome_themed: true }
+        WorldMapFrame { session, blips, player: [0.0, 0.0], chrome: Chrome::Recoloured, ..Default::default() }
     }
 
     #[test]

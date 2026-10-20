@@ -51,7 +51,7 @@ fn texts(nodes: &[UiNode]) -> Vec<&str> {
 
 #[test]
 fn custom_fills_the_radio_card_and_drive_readouts_and_falls_back_for_every_other_slot() {
-    let theme = CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default());
+    let theme = CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default(), Default::default());
     let skin = default_skin();
     let cx = BuildCx::new(&skin);
     for element in ElementId::ALL {
@@ -65,6 +65,7 @@ fn custom_fills_the_radio_card_and_drive_readouts_and_falls_back_for_every_other
                 | ElementId::Nitrous
                 | ElementId::Turbo
                 | ElementId::Speedbreaker
+                | ElementId::WorldMapChrome
         );
         assert_eq!(filled, custom, "{}", element.name());
     }

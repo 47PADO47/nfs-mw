@@ -30,9 +30,9 @@ impl Readout {
 impl Component for Readout {
     fn layout(&mut self, cx: &LayoutCx<'_>, _bounds: Rect) {
         let feed = self.feed.snapshot();
-        let speed_scale = cx.skin.metric(keys::SCALE_SPEED).unwrap_or(4.5);
-        let unit_scale = cx.skin.metric(keys::SCALE_UNIT).unwrap_or(1.6);
-        let gear_scale = cx.skin.metric(keys::SCALE_GEAR).unwrap_or(3.2);
+        let speed_scale = cx.skin.metric(keys::SCALE_SPEED).unwrap_or(3.25);
+        let unit_scale = cx.skin.metric(keys::SCALE_UNIT).unwrap_or(1.3);
+        let gear_scale = cx.skin.metric(keys::SCALE_GEAR).unwrap_or(2.9);
 
         let mut texts = vec![
             placed(

@@ -108,6 +108,8 @@ fn to_tokens(tokens: &UiTokens) -> Tokens {
         padding: tokens.padding,
         // The mod ABI has no text scale, so a mod's text keeps its own size.
         text_scale: 1.0,
+        // The mod ABI has no icons flag either: a mod theme's menus show no pictures.
+        icons: false,
     }
 }
 

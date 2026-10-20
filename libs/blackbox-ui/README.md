@@ -72,6 +72,25 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
   rectangle, turned about the rectangle's centre by the same angle. Its rotation is
   `Quat::from_rotation_z(angle)`. The sign convention is not yet checked against the presenter (see the
   T7/T12 screenshots).
+- **`Slant::new(colour_key, rect, lean, stops, z, cx)`** is a parallelogram whose opacity ramps along its width,
+  drawn as 32 thin strips of the same lean so the slanted ends meet. `lean` is how far the top edge sits right of the
+  bottom edge. `stops` are `(position, opacity)` pairs that multiply the colour's alpha. Laid out in `new`, like `Rounded`.
+- **`Outline::new(colour_key, rect, radius, thickness, cx)`** is the border of a rounded rectangle, built from the same
+  thin strips as `Rounded`. Laid out in `new`.
+- **`Ring::new(colour_key, centre, radius, thickness, from, to, cx)`** is an arc of a circle, `from` to `to` degrees
+  clockwise from up (a full ring is 0 to 360), drawn as a quad every 3 degrees along the tangent. A bezel, a gauge sweep
+  or a row of heat segments. Laid out in `new`.
+- **`Trapezoid::new(colour_key, rect, slant, stops, z, cx)`** is a right trapezoid: a horizontal top and bottom, a vertical right
+  edge and a left edge that slants in by `slant` units (a negative `slant` cuts the top instead). `stops` ramp its opacity, as for
+  `Slant`. Drawn as thin upright columns. Laid out in `new`.
+- **`PillBar::new(style, rect, value, point, cx)`** is a rounded track with a border and a gradient fill from the left up to
+  `value` (0 to 1); with `point` the fill starts in a point. `PillStyle` names the three skin colours (`track`, `border`,
+  `fill`). A gauge or a slider.
+- **`Chevron::new(texture_key, facing, rect, tint, nudge, cx)`** is the double arrow of a control that changes with left and
+  right: one picture (it points left), mirrored for `Facing::Right`, moved `nudge` units outward. `bounce(age)` is the nudge over the 0.28 s
+  after a press.
+- **`Choice::new(style, column, value, arrows, nudge, cx)`** is the control of a row that cycles through values: the value
+  centred in its column with a `Chevron` at each end when `arrows` is set, and the one the player pressed nudged.
 
 Each component has unit tests that build it into a `DrawList` and check the node count, the `NodeKind`,
 the placement and the field values. The shared test helpers are in `src/components/mod.rs` (`testing`).

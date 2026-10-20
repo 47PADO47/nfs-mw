@@ -19,7 +19,7 @@ pub const GROUP: &str = "TRACK_MAP";
 pub const BACKING: &str = "TRACKMAPTARGETRING";
 pub const ARROW: &str = "PLAYERCARINDICATOR";
 /// The pieces, top left, top right, bottom left, bottom right (the order of the view's tiles).
-const PIECES: [&str; 4] = ["TRACK_MAP1", "TRACK_MAP2", "TRACK_MAP3", "TRACK_MAP4"];
+pub const PIECES: [&str; 4] = ["TRACK_MAP1", "TRACK_MAP2", "TRACK_MAP3", "TRACK_MAP4"];
 /// The game's `MinimapPivotX` and `MinimapPivotY`: zero for the 4:3 HUD (they move with the widescreen layout).
 const PIVOT_SHIFT: [f32; 2] = [0.0, 0.0];
 /// The width of the whole picture on the HUD, in HUD units (`docs/specs/hud-minimap.md` section 7).

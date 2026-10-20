@@ -10,7 +10,7 @@ use crate::ui::theme::ElementId;
 use super::{FengSource, FrameCell, OriginalTheme};
 
 /// The HUD slots, and the menu slots, which T8 fills.
-const HUD_SLOTS: [ElementId; 9] = [
+const HUD_SLOTS: [ElementId; 10] = [
     ElementId::Tachometer,
     ElementId::Speedometer,
     ElementId::GearIndicator,
@@ -20,6 +20,7 @@ const HUD_SLOTS: [ElementId; 9] = [
     ElementId::Nitrous,
     ElementId::Turbo,
     ElementId::Speedbreaker,
+    ElementId::PoliceRadar,
 ];
 
 fn h(name: &str) -> u32 {
@@ -97,7 +98,7 @@ fn drawn(node: &UiNode) -> bool {
 /// - 11 nitrous group, 12 nitrous bar (child).
 /// - 13 turbo group, 14 turbo needle (child).
 /// - 15 speed breaker group, 16 speed breaker bar (child).
-/// - 17 radar group, 18 radar child. No slot claims the radar.
+/// - 17 radar group, 18 radar child. The police radar slot claims them.
 fn hud_nodes() -> Vec<UiNode> {
     let blip = roots::blip_icons()[0];
     vec![
@@ -295,10 +296,10 @@ fn slots_composed_into_one_list_repeat_no_node_and_keep_their_links() {
     unique.sort_unstable();
     unique.dedup();
     assert_eq!(unique.len(), all.len(), "a node was emitted by two slots");
-    // The radar is in no slot, so no slot emits it.
-    assert!(!all.contains(&17) && !all.contains(&18), "the unclaimed radar was emitted");
-    // Every HUD object except the radar appears exactly once.
-    assert_eq!(unique, (0..17).collect::<Vec<usize>>());
+    // The radar is the police radar slot's, so a slot emits it.
+    assert!(all.contains(&17) && all.contains(&18), "the radar was not emitted");
+    // Every HUD object appears exactly once.
+    assert_eq!(unique, (0..19).collect::<Vec<usize>>());
     assert_links(&out, &source);
 }
 

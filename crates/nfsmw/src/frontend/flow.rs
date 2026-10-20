@@ -128,6 +128,8 @@ pub struct Frontend {
     pub(super) in_safe_house: bool,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
+    /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
+    pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
 
 impl Frontend {
@@ -158,6 +160,7 @@ impl Frontend {
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
             auto_shop_requested: false,
+            map_chrome: Default::default(),
         }
     }
 

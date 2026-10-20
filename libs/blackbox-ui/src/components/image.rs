@@ -1,5 +1,7 @@
 //! `Image`: one textured quad over a UV rectangle, filling its `Rect`. It emits one `Image` node.
 
+use glam::{Mat4, Vec3};
+
 use super::{DEFAULT_Z, FALLBACK_COLOUR, FULL_UV, UNROTATED, node_at};
 use crate::component::Component;
 use crate::context::LayoutCx;
@@ -17,6 +19,10 @@ pub struct Image {
     z: f32,
     rect: Rect,
     texture: u32,
+    /// A texture key the caller knows, which wins over the skin's (`Image::raw`).
+    fixed: Option<u32>,
+    /// The turn about the rectangle's centre, in radians, clockwise on the screen (y points down).
+    rotation: f32,
 }
 
 impl Image {
@@ -29,7 +35,21 @@ impl Image {
             z: DEFAULT_Z,
             rect: Rect::ZERO,
             texture: 0,
+            fixed: None,
+            rotation: 0.0,
         }
+    }
+
+    /// The texture `texture` (a key in the host's texture packs), showing all of it. For a picture the host picks at run
+    /// time, such as a map that depends on the game's progress, that no fixed skin key can name.
+    pub fn raw(texture: u32) -> Self {
+        Self { fixed: Some(texture), ..Self::new("") }
+    }
+
+    /// Turns the image about its centre by `radians`, clockwise on the screen.
+    pub fn with_rotation(mut self, radians: f32) -> Self {
+        self.rotation = radians;
+        self
     }
 
     /// Shows only the part of the texture `[u0, v0, u1, v1]`.
@@ -53,7 +73,7 @@ impl Image {
 impl Component for Image {
     fn layout(&mut self, cx: &LayoutCx<'_>, bounds: Rect) {
         self.rect = bounds;
-        self.texture = cx.skin.texture(&self.texture_key).unwrap_or(0);
+        self.texture = self.fixed.or_else(|| cx.skin.texture(&self.texture_key)).unwrap_or(0);
     }
 
     fn build(&self, out: &mut DrawList) {
@@ -64,7 +84,15 @@ impl Component for Image {
             mask_rotation: UNROTATED,
             mask_uv: FULL_UV,
         };
-        out.push(node_at(self.rect.world(self.z), self.z, self.tint, kind));
+        let world = match self.rotation {
+            0.0 => self.rect.world(self.z),
+            angle => {
+                Mat4::from_translation(Vec3::new(self.rect.x, self.rect.y, self.z))
+                    * Mat4::from_rotation_z(angle)
+                    * Mat4::from_scale(Vec3::new(self.rect.w, self.rect.h, 1.0))
+            }
+        };
+        out.push(node_at(world, self.z, self.tint, kind));
     }
 }
 
@@ -98,6 +126,18 @@ mod tests {
         assert_eq!((node.colour, node.world_colour), ([200, 100, 50, 128], [200, 100, 50, 128]));
         assert_eq!(node.world.w_axis.truncate(), Vec3::new(-30.0, 40.0, 1.0));
         assert_eq!((node.world.x_axis.x, node.world.y_axis.y), (64.0, 32.0));
+    }
+
+    #[test]
+    fn a_raw_texture_needs_no_skin_key_and_a_rotation_turns_the_quad_about_its_centre() {
+        let mut i = Image::raw(77).with_rotation(std::f32::consts::FRAC_PI_2);
+        lay_out(&mut i, &Skin::new(), Rect::new(10.0, 20.0, 8.0, 4.0));
+        let out = drawn(&i);
+        let node = out.iter().next().expect("one node");
+        assert!(matches!(node.kind, NodeKind::Image { texture: 77, .. }));
+        assert_eq!(node.world.w_axis.truncate(), Vec3::new(10.0, 20.0, 1.0), "the centre stays");
+        // The quad's x edge (8 wide) now runs down the screen.
+        assert!((node.world.x_axis.y - 8.0).abs() < 1e-4 && node.world.x_axis.x.abs() < 1e-4);
     }
 
     #[test]

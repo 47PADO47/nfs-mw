@@ -1,15 +1,15 @@
 //! Tests for the Remastered cluster: what each part builds from the drive feed. They run on a `HudState` set by hand, with
 //! no game data and no GPU.
 
-use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode, token_keys};
+use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode};
 
+use super::RemasteredTheme;
 use super::skin::{keys, palette_skin, skin};
-use super::{RemasteredTheme, WorldMapLegendCell};
 use crate::hud::HudState;
 use crate::ui::present::Screen;
-use crate::ui::theme::ElementId;
 use crate::ui::theme::custom::DriveFeedCell;
 use crate::ui::theme::custom::palette;
+use crate::ui::theme::{ElementId, MenuListCell};
 
 const SCREEN: Screen = Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 };
 
@@ -23,7 +23,8 @@ fn built(element: ElementId, state: &HudState) -> Option<Vec<UiNode>> {
     feed.set(state, SCREEN);
     let skin = test_skin();
     let mut component =
-        RemasteredTheme::new(feed, WorldMapLegendCell::new()).element(element.slot(), &BuildCx::new(&skin))?;
+        RemasteredTheme::new(Default::default(), feed, Default::default(), MenuListCell::new(), Default::default())
+            .element(element.slot(), &BuildCx::new(&skin))?;
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();
     component.build(&mut out);
@@ -39,10 +40,17 @@ fn the_theme_fills_the_cluster_and_hides_the_speed_breaker_and_falls_back_for_th
     let theme = RemasteredTheme::default();
     let skin = test_skin();
     let cx = BuildCx::new(&skin);
-    for element in [ElementId::Tachometer, ElementId::Speedometer, ElementId::Nitrous, ElementId::Speedbreaker] {
+    for element in [
+        ElementId::Tachometer,
+        ElementId::Speedometer,
+        ElementId::Nitrous,
+        ElementId::Speedbreaker,
+        ElementId::RadioCard,
+        ElementId::Minimap,
+    ] {
         assert!(theme.element(element.slot(), &cx).is_some(), "{} is Remastered", element.name());
     }
-    assert!(theme.element(ElementId::RadioCard.slot(), &cx).is_none(), "the rest falls back to Original");
+    assert!(theme.element(ElementId::Blips.slot(), &cx).is_none(), "the rest falls back to Original");
 }
 
 #[test]
@@ -99,24 +107,27 @@ fn the_arc_lights_up_to_the_revs_and_turns_gold_past_the_red_line() {
 }
 
 #[test]
-fn the_card_has_rounded_corners_from_the_theme_radius() {
+fn the_card_follows_the_arc_so_its_top_left_is_cut_away() {
     let skin = test_skin();
-    assert_eq!(
-        skin.metric(token_keys::RADIUS),
-        Some(palette::remastered().radius),
-        "the radius is the palette's token"
-    );
     let nodes = built(ElementId::Tachometer, &HudState::default()).expect("the tachometer is Remastered");
-    let card: Vec<&UiNode> =
-        nodes.iter().filter(|node| node.colour == skin.colour(keys::CLUSTER_BG).expect("the card colour")).collect();
-    let top = card.iter().map(|node| node.position.y - node.size.y / 2.0).fold(f32::MAX, f32::min);
-    let full = card.iter().map(|node| node.size.x).fold(0.0, f32::max);
-    let top_edge = card
-        .iter()
-        .filter(|node| (node.position.y - node.size.y / 2.0 - top).abs() < 1e-3)
-        .map(|node| node.size.x)
-        .fold(f32::MAX, f32::min);
-    assert!(top_edge < full - 1.0, "the top edge is inset, so the corners are rounded");
+    let card_colour = skin.colour(keys::CLUSTER_BG).expect("the card colour");
+    let card: Vec<&UiNode> = nodes.iter().filter(|node| node.colour == card_colour).collect();
+    let left_of = |node: &&UiNode| node.world.w_axis.x - node.world.x_axis.x / 2.0;
+    let top = card.iter().min_by(|a, b| a.world.w_axis.y.total_cmp(&b.world.w_axis.y)).expect("a top strip");
+    let bottom = card.iter().max_by(|a, b| a.world.w_axis.y.total_cmp(&b.world.w_axis.y)).expect("a bottom strip");
+    assert!(left_of(top) > left_of(bottom) + 20.0, "the top strip starts well right of the bottom one");
+    let right_of = |node: &&UiNode| node.world.w_axis.x + node.world.x_axis.x / 2.0;
+    assert!(right_of(top) > right_of(bottom) + 5.0, "and the right side leans out at the top");
+}
+
+#[test]
+fn the_gear_has_a_lighter_panel_and_the_dial_a_light_line_under_it() {
+    let skin = test_skin();
+    let nodes = built(ElementId::Tachometer, &HudState::default()).expect("the tachometer is Remastered");
+    let panel = skin.colour(keys::GEAR_PANEL).expect("the gear panel colour");
+    let panels = nodes.iter().filter(|node| node.colour == panel);
+    assert!(panels.count() > 10, "the gear panel, in strips that follow the card's leaning side");
+    assert!(texts(&nodes).len() >= 8, "and the numbers of the scale");
 }
 
 #[test]
@@ -126,7 +137,7 @@ fn the_nitrous_bar_shows_only_on_a_car_with_nitrous() {
     assert!(built(ElementId::Nitrous, &without).expect("the bar is Remastered").is_empty());
     let nodes = built(ElementId::Nitrous, &with).expect("the bar is Remastered");
     assert_eq!(texts(&nodes), ["N2O"]);
-    assert!(nodes.len() > 5, "the rounded bar strips and the label");
+    assert!(nodes.len() > 20, "the pill, its border, the fill with its point, and the label");
 }
 
 #[test]
@@ -157,4 +168,62 @@ fn the_dial_draws_over_the_gauge_bars_and_the_card_under_them() {
     let card_z = dial.iter().filter(|node| node.colour == card_colour).map(|node| node.z).fold(f32::MIN, f32::max);
     assert!(arch_z < bar_z, "the arch draws over the bars");
     assert!(card_z > bar_z, "the card draws under the bars");
+}
+
+#[test]
+fn the_pursuit_timer_has_the_minutes_and_seconds_in_the_accent_and_the_hundredths_in_white() {
+    let pursuit = crate::hud::PursuitHud { secs: 137.43, ..Default::default() };
+    let state = HudState { pursuit: Some(pursuit), ..Default::default() };
+    let nodes = built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered");
+    assert!(texts(&nodes).starts_with(&["43", "2:17.", "PURSUIT TIME"]), "{:?}", texts(&nodes));
+    let colour_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).colour;
+    let skin = test_skin();
+    assert_eq!(colour_of("2:17."), skin.colour(keys::UNIT_HIGHLIGHT).expect("gold"));
+    assert_eq!(colour_of("43"), skin.colour(keys::VALUE).expect("white"));
+    // The two parts meet: the minutes end where the hundredths start.
+    let x_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).world.w_axis.x;
+    assert!(x_of("2:17.") < x_of("43"));
+}
+
+#[test]
+fn the_panel_counts_the_cops_called_damaged_and_wrecked() {
+    let chase = crate::hud::PursuitHud { secs: 5.0, cops_destroyed: 3, ..Default::default() };
+    let state = HudState { pursuit: Some(chase), cops_engaged: 6, cops_damaged: 2, ..Default::default() };
+    let nodes = built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered");
+    let drawn = texts(&nodes);
+    for label in ["CALLED", "DAMAGED", "WRECKED", "6", "2", "3"] {
+        assert!(drawn.contains(&label), "{label} in {drawn:?}");
+    }
+    // A count of nothing reads dim, a count of something in its own colour.
+    let skin = test_skin();
+    let colour_of = |text: &str| nodes.iter().find(|n| n.text.as_deref() == Some(text)).expect(text).colour;
+    assert_eq!(colour_of("2"), skin.colour(keys::PURSUIT_DAMAGED).expect("amber"));
+    let none = built(ElementId::PursuitMeter, &HudState { pursuit: Some(chase), ..Default::default() }).expect("board");
+    let zero = none.iter().find(|n| n.text.as_deref() == Some("0")).expect("a zero count");
+    assert_eq!(zero.colour, skin.colour(keys::UNIT).expect("muted"));
+}
+
+#[test]
+fn no_chase_draws_nothing_and_the_bars_appear_with_the_meter_and_the_cooldown() {
+    assert!(built(ElementId::PursuitMeter, &HudState::default()).expect("the pursuit board is Remastered").is_empty());
+    let calm = crate::hud::PursuitHud { secs: 5.0, ..Default::default() };
+    let count = |pursuit| {
+        let state = HudState { pursuit: Some(pursuit), ..Default::default() };
+        built(ElementId::PursuitMeter, &state).expect("the pursuit board is Remastered")
+    };
+    let rest = count(calm);
+    assert!(!texts(&rest).iter().any(|t| ["BUSTED", "ESCAPING", "COOLDOWN"].contains(t)));
+    let busting = count(crate::hud::PursuitHud { busted: 0.4, ..calm });
+    assert!(texts(&busting).contains(&"BUSTED") && texts(&busting).contains(&"40%"), "{:?}", texts(&busting));
+    let escaping = count(crate::hud::PursuitHud { busted: -0.25, ..calm });
+    assert!(texts(&escaping).contains(&"ESCAPING") && texts(&escaping).contains(&"25%"));
+    let cooling = count(crate::hud::PursuitHud { evade: 0.5, cooldown: true, ..calm });
+    assert!(texts(&cooling).contains(&"COOLDOWN") && texts(&cooling).contains(&"50%"));
+    let both = count(crate::hud::PursuitHud { busted: -1.0, evade: 0.5, cooldown: true, ..calm });
+    assert!(texts(&both).contains(&"ESCAPING") && texts(&both).contains(&"COOLDOWN"));
+    assert!(both.len() > cooling.len() && cooling.len() > rest.len(), "each bar adds nodes");
+    // Busted turns the plate's side bar red and the bar red.
+    let red = test_skin().colour(keys::PURSUIT_BUSTED).expect("red");
+    assert!(busting.iter().any(|n| n.text.is_none() && n.colour == red));
+    assert!(!escaping.iter().any(|n| n.text.is_none() && n.colour == red));
 }

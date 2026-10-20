@@ -4,10 +4,11 @@ use std::collections::HashSet;
 
 use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 
+use super::custom::WorldMapLegendCell;
 use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
-use super::remastered::WorldMapLegendCell;
-use super::{ElementId, build_themes, default_skin};
+use super::{ElementId, MenuListCell, build_themes, default_skin};
+use crate::frontend::world_map::Chrome;
 
 /// The numbers are part of the mod ABI. Pinning them here means a reorder or a renumber fails a test.
 const PINNED: &[(ElementId, u32)] = &[
@@ -22,6 +23,7 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::Speedbreaker, 9),
     (ElementId::RadioCard, 10),
     (ElementId::BustedOverlay, 11),
+    (ElementId::PoliceRadar, 12),
     (ElementId::MainMenu, 20),
     (ElementId::Categories, 21),
     (ElementId::PauseMenu, 22),
@@ -29,6 +31,10 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::TrackSelect, 24),
     (ElementId::SafeHouseMenu, 25),
     (ElementId::WorldMapChrome, 26),
+    (ElementId::Dialog, 27),
+    (ElementId::ControlsList, 28),
+    (ElementId::Jukebox, 29),
+    (ElementId::Credits, 30),
     (ElementId::Blacklist, 40),
     (ElementId::CarLot, 41),
     (ElementId::RapSheet, 42),
@@ -77,12 +83,22 @@ fn name_is_the_variant_name() {
 #[test]
 fn theme_ids_are_original_and_custom() {
     assert_eq!(OriginalTheme::new(FrameCell::new()).id(), ThemeId::Original);
-    assert_eq!(CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default()).id(), ThemeId::Custom);
+    assert_eq!(
+        CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default(), WorldMapLegendCell::default()).id(),
+        ThemeId::Custom
+    );
 }
 
 #[test]
 fn registry_has_original_then_custom_and_remastered_with_original_active() {
-    let themes = build_themes(FrameCell::new(), RadioFeedCell::new(), DriveFeedCell::new(), WorldMapLegendCell::new());
+    let themes = build_themes(
+        FrameCell::new(),
+        RadioFeedCell::new(),
+        DriveFeedCell::new(),
+        WorldMapLegendCell::new(),
+        MenuListCell::new(),
+        Default::default(),
+    );
     let ids: Vec<ThemeId> = themes.ids().collect();
     assert_eq!(ids, vec![ThemeId::Original, ThemeId::Custom, ThemeId::Remastered]);
     assert_eq!(themes.active(), ThemeId::Original);
@@ -90,8 +106,14 @@ fn registry_has_original_then_custom_and_remastered_with_original_active() {
 
 #[test]
 fn custom_can_be_made_active_and_resolves_every_slot() {
-    let mut themes =
-        build_themes(FrameCell::new(), RadioFeedCell::new(), DriveFeedCell::new(), WorldMapLegendCell::new());
+    let mut themes = build_themes(
+        FrameCell::new(),
+        RadioFeedCell::new(),
+        DriveFeedCell::new(),
+        WorldMapLegendCell::new(),
+        MenuListCell::new(),
+        Default::default(),
+    );
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {
@@ -113,21 +135,36 @@ fn ui_style_maps_onto_its_theme_id() {
 }
 
 #[test]
-fn remastered_recolours_the_world_map_and_original_does_not() {
+fn custom_recolours_the_world_map_and_original_does_not() {
     use crate::settings::UiStyle;
     let mut themes = super::UiThemes::build();
 
     // Original (the default) leaves the FEng map screen as it is.
-    assert!(!themes.draws_world_map_chrome(), "Original does not recolour the map");
+    assert_eq!(themes.world_map_chrome(), Chrome::Original, "Original does not dress the map");
 
-    // Remastered provides the slot (as Empty): that is the flag the plugin reads to recolour the FEng map in place.
-    themes.select(UiStyle::Remastered);
-    assert!(themes.draws_world_map_chrome(), "Remastered recolours the map");
-    assert!(super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(), "the slot draws nothing");
+    // Custom provides the slot (the legend over the recoloured FEng map): that is the flag the plugin reads.
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.world_map_chrome(), Chrome::Recoloured, "Custom recolours the map");
+    assert!(
+        super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
+        "no legend until a map is open"
+    );
 
     // Back to Original: the map is left alone again.
     themes.select(UiStyle::Original);
-    assert!(!themes.draws_world_map_chrome());
+    assert_eq!(themes.world_map_chrome(), Chrome::Original);
+}
+
+#[test]
+fn remastered_draws_the_whole_world_map() {
+    use crate::settings::UiStyle;
+    let mut themes = super::UiThemes::build();
+    themes.select(UiStyle::Remastered);
+    assert_eq!(themes.world_map_chrome(), Chrome::Drawn);
+    assert!(
+        super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
+        "no map is drawn until one is open"
+    );
 }
 
 #[test]

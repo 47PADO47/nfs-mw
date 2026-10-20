@@ -157,6 +157,7 @@ the T1 draft are resolved here.
 | `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
 | `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
 | `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: `ui/theme/custom/radio_card.rs`, fed by `hud/radio.rs` data (built in T9, [ui-themes-custom.md](ui-themes-custom.md)) |
+| `PoliceRadar` (12) | `hud/radar.rs`, `hud/roots.rs::police_radar`: the detector group (laser, arrow, two LED rows) and its backing in either layout. Original: the package's objects. Remastered: a pill with dashes and a dial ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)) |
 | `BustedOverlay` (11) | `hud/busted_overlay.rs`, package `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), loaded by the HUD while `HudState::busted_overlay` is set. **Confirmed** (was `?`) |
 
 **Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
@@ -169,7 +170,7 @@ the T1 draft are resolved here.
 | `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
 | `TrackSelect` (24) | `Track_Select.fng` → `frontend/track_select.rs` (Quick Race, step one; the track list is not populated yet). **Confirmed** (was `?`) |
 | `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
-| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Remastered), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
+| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Custom), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
 
 **Career screens (`frontend/career_screens/`):**
 
@@ -341,11 +342,10 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
 - **Pursuit board in `PursuitMeter`.** The board (`PURSUIT_BOARD`, timer and cops count) and the meter and cool-down
   bar are one slot. They are bound together, and show only during a chase. A split would add a slot with no consumer.
   The bounty row is in neither the catalogue nor this slot, unless it sits under the board group. Not checked.
-- **Radar cool-down.** The cool-down bar (`0x84A226EC`) sits inside the radar's group in the package, but it is a root
-  of `PursuitMeter`. Its membership is decided by its own root, so it is not lost.
-- **Not in any slot (decided in T12).** The rear-view mirror (`0x9EE06631`, `0x7FAC287B`), the police radar and its laser
-  (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`), the heat arcs (`0xC46A80A9`), and the bounty row. No slot takes them, so the
-  composer appends every node no slot claims (`hud_slots::emit_unclaimed`). No new slot is needed yet.
+- **Radar cool-down.** The cool-down bar (`0x84A226EC`) is a root of `PursuitMeter`, so its membership is its own.
+- **Not in any slot.** The rear-view mirror's bezel (`0x7FAC287B`) and the bounty row; the composer appends every node no slot
+  claims (`hud_slots::emit_unclaimed`). The police radar and its laser (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`, with the mirror
+  backing `0x9EE06631`) are the `PoliceRadar` slot (12), and the heat group and arcs (`0xC46A80A9`, `0xB0F63386`) the `Minimap` slot's.
 - **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer), and the blip icons
   sit under the minimap. The synthetic tests check that no node is claimed twice. The real-package check is owed
   ([ui-themes-compose.md](ui-themes-compose.md) section 7).
@@ -378,6 +378,8 @@ Worked design note, to show the component set is enough. The example is a fullsc
   original blips draw on the new map, or it can return a component of its own.
 
 The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
+
+Built since: the Remastered cluster, the map legend, the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components, and the dialogs, Blacklist, minimap with its heat ring and radio card ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)), which added `Ring`.
 
 ## 11. The `UiStyle` setting
 

@@ -34,6 +34,11 @@ pub struct MapInput {
     pub secondary: bool,
     /// Escape or the back button: unfocuses the blip, or closes the map.
     pub back: bool,
+    /// The legend key: shows or hides the themed map's legend.
+    pub toggle_legend: bool,
+    /// The picture is the whole screen (the themed full-screen map): the cursor is over it wherever it is in the window,
+    /// not only inside the square view.
+    pub full_screen: bool,
 }
 
 /// What the map does after a frame.
@@ -62,6 +67,8 @@ pub struct WorldMap {
     /// The first row the themed legend shows: the scroll offset into the current filter's blips. Scrolling while the
     /// cursor is off the picture moves it; switching the tab resets it.
     pub list_scroll: usize,
+    /// Whether the themed full-screen map shows its legend of icons.
+    pub legend_open: bool,
 }
 
 impl Default for WorldMap {
@@ -72,7 +79,14 @@ impl Default for WorldMap {
 
 impl WorldMap {
     pub fn new() -> Self {
-        Self { filter: Filter::DEFAULT, camera: Camera::zoom_all(), attached: None, cursor: None, list_scroll: 0 }
+        Self {
+            filter: Filter::DEFAULT,
+            camera: Camera::zoom_all(),
+            attached: None,
+            cursor: None,
+            list_scroll: 0,
+            legend_open: true,
+        }
     }
 
     /// The indices of the blips the current filter shows, in the order given. This is the right-side list.
@@ -85,7 +99,13 @@ impl WorldMap {
     /// click, Enter or a right click on the focused blip asks for GPS (the caller opens the Yes/No dialog).
     pub fn frame(&mut self, input: &MapInput, blips: &[PlacedBlip]) -> Outcome {
         self.cursor = input.cursor;
-        let on_map = input.cursor.is_some_and(on_picture);
+        let on_map = match input.full_screen {
+            true => input.cursor.is_some(),
+            false => input.cursor.is_some_and(on_picture),
+        };
+        if input.toggle_legend {
+            self.legend_open = !self.legend_open;
+        }
         self.move_or_scroll(input, on_map, blips);
         self.switch_filter(input);
         // Hovering the picture focuses the nearest blip of the filter; moving off a blip (still on the picture)

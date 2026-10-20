@@ -11,8 +11,10 @@ use super::confirm::Confirm;
 use super::icon_items::{Icon, Id, draw_scale, icons};
 use super::icon_window;
 use super::ids::{self, screen};
-use super::logic::{Args, Category, Command, Cx, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
 use super::scroller::{self, Fade, Scroll};
+use crate::ui::UiAssets;
+use crate::ui::theme::MenuList;
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_LEFT, PAD_RIGHT, PAD_START};
 
 /// Which icon menu a package is.
@@ -55,6 +57,9 @@ const ORANGE: (u32, u32) = (0xFFFF_AE40, 0x00FF_AE40);
 /// The picture rectangle of a bundled image that is drawn whole.
 const WHOLE_IMAGE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
+mod press;
+mod vertical;
+
 pub struct IconMenu {
     kind: Kind,
     args: Args,
@@ -70,6 +75,11 @@ pub struct IconMenu {
     fade: Fade,
     reacts: bool,
     pending: Option<Pending>,
+    /// Whether the active theme lays the menu out as a vertical list (`themed`). The package then only supplies the
+    /// order of the entries and the messages: it draws nothing, so the menu acts at once instead of playing its leave.
+    vertical: bool,
+    /// The entry a vertical list shows first (`follow`).
+    top: usize,
 }
 
 impl IconMenu {
@@ -97,6 +107,8 @@ impl IconMenu {
             fade: Fade::default(),
             reacts: true,
             pending: None,
+            vertical: false,
+            top: 0,
         }
     }
 
@@ -155,6 +167,7 @@ impl IconMenu {
             self.slide(cx, base);
         }
         self.selected = strip;
+        self.follow();
         let slot = self.slot_of(strip);
         cx.rt.set_focus(cx.package, self.slots[slot].guid);
         self.scroll.seek(-self.slots[slot].offset);
@@ -188,13 +201,7 @@ impl IconMenu {
     fn refresh_header(&self, cx: &mut Cx) {
         let Some(i) = self.current_icon() else { return };
         let name = self.icons[i].name;
-        let text: Option<String> = match self.icons[i].id {
-            Id::ControlOptions => Some("Control Options".into()),
-            Id::Category(Category::Discord) => Some("Discord".into()),
-            Id::Category(Category::Mods) => Some("Mods".into()),
-            Id::SafeHouseBlacklist(stage) => Some(format!("Blacklist {stage}")),
-            _ => None,
-        };
+        let text = Self::special_text(self.icons[i].id);
         for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
             let Some(o) = cx.object(hash) else { continue };
             match &text {
@@ -224,82 +231,6 @@ impl IconMenu {
         if let Some(strip) = self.neighbour(step) {
             self.select(cx, strip);
         }
-    }
-
-    /// Posts the leave message: the package plays its leave scripts and sends `EXIT_COMPLETE` when they are done.
-    fn leave(&mut self, cx: &mut Cx, pending: Pending) {
-        self.pending = Some(pending);
-        self.reacts = false;
-        cx.rt.post_to_package(cx.package, ids::LEAVE_SCREEN);
-    }
-
-    /// Plays the package's own leave timing (the event handler's forward script) instead of the leave message.
-    fn leave_by_script(&mut self, cx: &mut Cx, pending: Pending) {
-        self.pending = Some(pending);
-        self.reacts = false;
-        cx.script(ids::EVENT_HANDLER, ids::SCRIPT_FORWARD);
-    }
-
-    /// The screen has left: do what was pressed.
-    fn act(&mut self, cx: &mut Cx, pending: Pending) {
-        let pause = self.pause();
-        match (self.kind, pending) {
-            (Kind::Main, Pending::Pressed(Id::Career)) => cx.send(Command::StartCareer),
-            (Kind::Main, Pending::Pressed(Id::QuickRace)) => {
-                cx.send(Command::Switch(screen::TRACK_SELECT.into(), Args::default()));
-            }
-            (Kind::Main, Pending::Pressed(Id::Options)) => {
-                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
-            }
-            (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
-                let args = Args { category: Category::AliasManager, options: true, ..self.args };
-                cx.send(Command::Switch(screen::OPTIONS.into(), args));
-            }
-            (Kind::Categories { .. }, Pending::Pressed(Id::Category(category))) => self.open_options(cx, category),
-            (Kind::Categories { .. }, Pending::Pressed(Id::Controls)) => self.open_controls(cx),
-            (Kind::Categories { .. }, Pending::Pressed(Id::EaTrax)) => self.open_jukebox(cx),
-            (Kind::Categories { .. }, Pending::Pressed(Id::Credits)) => self.open_credits(cx),
-            (Kind::Categories { .. }, Pending::Pressed(Id::ControlOptions)) => {
-                self.open_options(cx, Category::Controls)
-            }
-            (Kind::Categories { .. }, Pending::Back) if pause => {
-                cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: false, ..self.args }));
-            }
-            (Kind::Categories { .. }, Pending::Back) => {
-                cx.send(Command::Switch(screen::MAIN_MENU.into(), Args::default()));
-            }
-            (Kind::Categories { .. } | Kind::Pause, Pending::Start) | (Kind::Pause, Pending::Back) => {
-                cx.send(Command::Resume);
-            }
-            (Kind::SafeHouse, Pending::Pressed(id)) => safehouse_menu::press(cx, self.args, id),
-            (Kind::Pause, Pending::Pressed(Id::Resume)) => cx.send(Command::Resume),
-            (Kind::Pause, Pending::Pressed(Id::Options)) => {
-                cx.send(Command::Switch(screen::PAUSE_MENU.into(), Args { pause: true, options: true, ..self.args }));
-            }
-            _ => {}
-        }
-    }
-
-    /// The option list of a category: the pause menu's in game, the main menu's otherwise.
-    fn open_options(&self, cx: &mut Cx, category: Category) {
-        let name = if self.pause() { screen::PAUSE_OPTIONS } else { screen::OPTIONS };
-        cx.send(Command::Switch(name.into(), Args { category, options: true, ..self.args }));
-    }
-
-    /// The key list (`controls_screen.rs`), which goes back to these categories when it is left.
-    fn open_controls(&self, cx: &mut Cx) {
-        let name = if self.pause() { screen::PAUSE_CONTROLS } else { screen::CONTROLS };
-        cx.send(Command::Switch(name.into(), Args { options: true, ..self.args }));
-    }
-
-    /// The EA Trax jukebox (`jukebox.rs`), which goes back to these categories when it is left.
-    fn open_jukebox(&self, cx: &mut Cx) {
-        cx.send(Command::Switch(screen::EA_TRAX_JUKEBOX.into(), Args { options: true, ..self.args }));
-    }
-
-    /// The credits roll (`credits.rs`), which goes back to these categories when it is left.
-    fn open_credits(&self, cx: &mut Cx) {
-        cx.send(Command::Switch(screen::CREDITS.into(), Args { options: true, ..self.args }));
     }
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
@@ -350,6 +281,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
         // Keep it transparent until that fade takes over, just like the incoming icons and brackets.
         if self.pause()
@@ -373,23 +305,23 @@ impl ScreenLogic for IconMenu {
         if self.icons.is_empty() || self.slots.is_empty() {
             return;
         }
+        let title = self.title_label();
         match self.kind {
             Kind::Main => {
-                cx.label_group(ids::TITLE_GROUP, 0xB24A_AE58);
+                cx.label_group(ids::TITLE_GROUP, title);
                 // No profile is loaded: no player name and no game statistics.
                 cx.hide(ids::NAME_GROUP, true);
                 cx.hide(ids::GAME_STATS_GROUP, true);
             }
-            Kind::Categories { pause: false, .. } => cx.label_group(ids::TITLE_GROUP, 0x4ECA_678C),
-            Kind::Categories { pause: true, .. } => cx.label_group(ids::PAUSE_HEADER, 0x1D7B_B6C9),
-            Kind::Pause => cx.label_group(ids::PAUSE_HEADER, 0x6C83_9FBE),
-            Kind::SafeHouse => cx.label_group(ids::TITLE_GROUP, 0xE596_C4A3),
+            Kind::Categories { pause: false, .. } | Kind::SafeHouse => cx.label_group(ids::TITLE_GROUP, title),
+            Kind::Categories { pause: true, .. } | Kind::Pause => cx.label_group(ids::PAUSE_HEADER, title),
         }
         let remembered = cx.memory.get(&self.memory_key(cx)).copied().unwrap_or(0);
         let strip = (self.first_slot() + remembered).min(self.last_slot());
         let strip = if self.enabled_at(strip) { strip } else { self.neighbour_from(strip) };
         self.base = icon_window::base_for(strip, self.slots.len(), self.strip_len());
         self.selected = strip;
+        self.follow();
         self.bind(cx);
         let slot = self.slot_of(strip);
         cx.rt.set_focus(cx.package, self.slots[slot].guid);
@@ -404,39 +336,32 @@ impl ScreenLogic for IconMenu {
         }
     }
 
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        self.pick(cx, row, pick);
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        self.menu_list(assets)
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_LEFT => self.scroll_by(cx, -1),
             PAD_RIGHT => self.scroll_by(cx, 1),
-            BUTTON_PRESSED => {
-                if !self.reacts {
-                    return;
-                }
-                let Some(i) = self.current_icon() else { return };
-                if !self.icons[i].enabled {
-                    // The package switched its buttons off for the leave animation that will not come.
-                    cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
-                    return;
-                }
-                cx.memory.insert(self.memory_key(cx), i);
-                let id = self.icons[i].id;
-                // Quit asks at once, without the pause menu leaving: its icons stay as they are, so the menu still
-                // reacts when the question is answered No or dismissed.
-                if self.pause() && matches!(id, Id::QuitToMenu) {
-                    cx.send(Command::Confirm(Confirm::quit_to_menu()));
-                    return;
-                }
-                // The pause package has no leave message: its screens run the event handler's script themselves.
-                if self.pause() {
-                    self.leave_by_script(cx, Pending::Pressed(id));
-                    return;
-                }
-                self.leave(cx, Pending::Pressed(id));
-            }
+            BUTTON_PRESSED => self.press(cx),
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
             PAD_BACK => match self.kind {
                 // The safe house's Back leaves to the main menu outside this menu's scope: nothing happens here.
                 Kind::Main | Kind::SafeHouse => {}
+                Kind::Categories { pause: false, .. } if self.vertical => self.act(cx, Pending::Back),
                 Kind::Categories { pause: false, .. } => {
                     self.pending = Some(Pending::Back);
                     self.reacts = false;
@@ -459,6 +384,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.vertical = cx.vertical_look();
         if self.slots.is_empty() || self.icons.is_empty() {
             return;
         }

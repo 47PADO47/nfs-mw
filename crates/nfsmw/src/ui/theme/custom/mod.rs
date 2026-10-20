@@ -8,6 +8,7 @@
 //! from `blackbox-ui`, emitted as neutral nodes through the presenter. Its state is fed by the plugin through
 //! [`RadioFeedCell`], and the card draws nothing until then (`docs/specs/ui-themes-custom.md`).
 //!
+//! - [`map_legend`]: the world map's legend, drawn over the recoloured FEng map (the `WorldMapChrome` slot).
 //! - [`radio_card`]: the radio card and its fade.
 //! - [`radio_feed`]: the shared cell the plugin fills each frame.
 //! - [`radio_placement`]: where the card sits on the window.
@@ -20,6 +21,7 @@ mod drive_layout;
 #[cfg(test)]
 mod drive_tests;
 mod gear;
+mod map_legend;
 mod meters;
 pub mod palette;
 mod radio_card;
@@ -31,8 +33,10 @@ mod tachometer;
 #[cfg(test)]
 mod tests;
 
+pub(in crate::ui::theme) use drive_feed::DriveFeed;
 pub use drive_feed::DriveFeedCell;
 pub use gear::GearCard;
+pub use map_legend::{MapLegend, WorldMapLegendCell};
 pub use radio_card::RadioCard;
 pub use radio_feed::RadioFeedCell;
 pub use skin::card_skin;
@@ -51,12 +55,14 @@ pub struct CustomTheme {
     tokens: Tokens,
     radio: RadioFeedCell,
     drive: DriveFeedCell,
+    legend: WorldMapLegendCell,
 }
 
 impl CustomTheme {
-    /// The Bevy theme (`ThemeId::Custom`), whose radio card reads `radio` and whose drive cluster reads `drive`.
-    pub fn new(radio: RadioFeedCell, drive: DriveFeedCell) -> Self {
-        Self { id: ThemeId::Custom, tokens: palette::bevy(), radio, drive }
+    /// The token-driven theme (`ThemeId::Custom`), whose radio card reads `radio`, whose drive cluster reads `drive` and
+    /// whose map legend reads `legend`.
+    pub fn new(radio: RadioFeedCell, drive: DriveFeedCell, legend: WorldMapLegendCell) -> Self {
+        Self { id: ThemeId::Custom, tokens: palette::bevy(), radio, drive, legend }
     }
 }
 
@@ -66,6 +72,11 @@ impl Theme for CustomTheme {
     }
 
     fn element(&self, slot: SlotId, _cx: &BuildCx<'_>) -> Option<Box<dyn Component>> {
+        // The map: the FEng screen is recoloured in place by the frontend, and this legend is drawn over it. Providing the
+        // slot is also what tells the frontend to recolour.
+        if ElementId::from_slot(slot) == Some(ElementId::WorldMapChrome) {
+            return Some(Box::new(MapLegend::new(self.legend.clone())));
+        }
         hud_component(slot, &self.radio, &self.drive)
     }
 

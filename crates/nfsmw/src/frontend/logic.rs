@@ -9,8 +9,9 @@ use glam::Vec2;
 use super::confirm::{Alert, Confirm};
 use super::world_map::WorldMapFrame;
 use crate::input::Control;
-use crate::settings::{Partial, Settings};
+use crate::settings::{Partial, Settings, UiStyle};
 use crate::ui::UiAssets;
+use crate::ui::theme::MenuList;
 
 /// The option categories the option screens show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,11 +39,13 @@ pub struct Args {
     pub category: Category,
     /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
     pub safehouse: bool,
+    /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
+    pub rival: u8,
 }
 
 impl Default for Args {
     fn default() -> Self {
-        Self { pause: false, options: false, category: Category::Audio, safehouse: false }
+        Self { pause: false, options: false, category: Category::Audio, safehouse: false, rival: 0 }
     }
 }
 
@@ -132,6 +135,11 @@ pub struct Cx<'a> {
 }
 
 impl Cx<'_> {
+    /// Whether the Remastered look draws the menus as vertical lists: the setting names it and no mod theme took over.
+    pub fn vertical_look(&self) -> bool {
+        self.settings.ui_style == UiStyle::Remastered && self.mods.is_none_or(|mods| mods.ui_theme_choice().is_none())
+    }
+
     /// Sets host-authored text on every string directly inside a group, including its shadow.
     pub fn text_group(&mut self, group_hash: u32, text: &str) {
         let Some(group) = self.object(group_hash) else { return };
@@ -254,6 +262,23 @@ fn anchor_offset(justification: u32, length: f32, centre: u32, far: u32) -> f32 
     0.0
 }
 
+/// Which way a click on a row of a vertical list presses: back (the left chevron), forward (the right one), or just the row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Way {
+    Back,
+    Stay,
+    Forward,
+}
+
+/// What the pointer does to a row of a vertical list.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Pick {
+    /// It moved over the row.
+    Hover,
+    /// It pressed the row: toward which chevron, and how far along the row's value column, from 0 at its left to 1 at its right.
+    Press(Way, f32),
+}
+
 pub trait ScreenLogic: Send + Sync {
     /// Called once after the package is loaded.
     fn start(&mut self, _cx: &mut Cx) {}
@@ -277,6 +302,26 @@ pub trait ScreenLogic: Send + Sync {
 
     /// The mouse wheel turned `steps` notches, positive is up.
     fn scroll(&mut self, _cx: &mut Cx, _steps: i32) {}
+
+    /// The screen's entries as a list, for a theme that draws them its own way (the Remastered vertical menus). Only the
+    /// icon menus have one. The hints and the aspect are filled in by [`Screens`](super::screens::Screens).
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
+        None
+    }
+
+    /// Whether the screen is laid out as a vertical list now. Up and Down then move the selection, and a click or the
+    /// pointer picks a row ([`ScreenLogic::pick_row`]) instead of an icon of the package.
+    fn vertical(&self) -> bool {
+        false
+    }
+
+    /// Whether Up and Down are turned into Left and Right for the package: the icon row's package knows no Up and Down.
+    fn rotate_pad(&self) -> bool {
+        false
+    }
+
+    /// The pointer is over, or pressed, the entry `row` of the vertical list.
+    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _pick: Pick) {}
 }
 
 /// A screen without behaviour of its own: its package runs its scripts and nothing answers the game.

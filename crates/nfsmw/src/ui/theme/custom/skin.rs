@@ -3,10 +3,11 @@
 //! the skin of the active theme. `ui/theme/mod.rs` hands the base skin to every component, so the keys are namespaced
 //! (`radio.*`, `drive.*`); the Original components never read them.
 
-use blackbox_feng::fe_hash_upper;
+use blackbox_feng::{fe_hash_upper, resource_handle};
 use blackbox_ui::Skin;
 
-use crate::ui::raster_text::RASTER_UPRIGHT_FONT_KEY;
+use crate::frontend::world_map::control::MAP_ICON_FILES;
+use crate::ui::raster_text::{RASTER_MONO_FONT_KEY, RASTER_UPRIGHT_FONT_KEY};
 
 /// The skin keys the radio card reads. Its colours are tokens; only the font is the card's own.
 pub(super) mod keys {
@@ -17,6 +18,8 @@ pub(super) mod keys {
     pub const CREDIT: &str = token_keys::MUTED;
     pub const STATUS: &str = token_keys::MUTED;
     pub const FONT: &str = "radio.font";
+    /// The map legend's font: the upright monospace the FPS overlay uses, so the legend is not leaned like the cluster.
+    pub const LEGEND_FONT: &str = "legend.font";
 }
 
 /// The skin keys the drive cluster reads: the card, the rev gauge, the gear, and the three meters. The card's panel is
@@ -49,12 +52,18 @@ pub(super) mod drive {
 /// theme's tokens are merged into it.
 pub fn card_skin() -> Skin {
     let body = fe_hash_upper("FONT_MW_BODY");
-    Skin::new()
+    let mut skin = Skin::new()
         .with_font(keys::FONT, body)
+        .with_font(keys::LEGEND_FONT, RASTER_MONO_FONT_KEY)
         .with_colour(drive::REV_WARN, [255, 190, 60, 255])
         .with_colour(drive::REV_REDLINE, [255, 80, 90, 255])
         .with_colour(drive::GEAR_SHIFT, [255, 80, 90, 255])
-        .with_font(drive::FONT, RASTER_UPRIGHT_FONT_KEY)
+        .with_font(drive::FONT, RASTER_UPRIGHT_FONT_KEY);
+    // The map's blip icons, keyed by their file name, so a map draws an icon by the file `icon_name` returns.
+    for file in MAP_ICON_FILES {
+        skin = skin.with_texture(file, resource_handle(file));
+    }
+    skin
 }
 
 /// A copy of `skin` with the card's colours' alpha multiplied by `opacity`, so the card's components draw it fading.
