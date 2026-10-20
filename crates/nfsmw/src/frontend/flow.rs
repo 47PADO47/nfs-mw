@@ -138,7 +138,9 @@ pub struct Frontend {
     /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
     pub(super) origin: QuitTo,
     /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
-    look: Look,
+    pub(super) look: Look,
+    /// A look the command line fixed (`view-screen --look`): the screens do not change it.
+    pub(super) look_override: Option<Look>,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
@@ -181,6 +183,7 @@ impl Frontend {
             prelude: false,
             origin: QuitTo::MainMenu,
             look: Look::Main,
+            look_override: None,
             auto_shop_requested: false,
             quick_race: None,
             quick_car: None,
@@ -310,7 +313,9 @@ impl Frontend {
 
     /// Opens a menu screen over the backdrop it wants, with the menu stage on.
     pub(super) fn open_menu(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
-        if let Some(look) = super::factory::look_for(name, &args) {
+        if self.look_override.is_none()
+            && let Some(look) = super::factory::look_for(name, &args)
+        {
             self.look = look;
         }
         self.show_backdrop(host);
@@ -325,7 +330,8 @@ impl Frontend {
         if self.stage != Stage::Menus || !self.menu_in_window {
             return;
         }
-        let Some(look) = self.screens.look().filter(|look| *look != self.look) else { return };
+        let wanted = self.look_override.clone().or_else(|| self.screens.look());
+        let Some(look) = wanted.filter(|look| *look != self.look) else { return };
         log::info!("menu backdrop: {look:?}");
         self.look = look;
         let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());

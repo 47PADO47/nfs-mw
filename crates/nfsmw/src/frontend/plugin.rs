@@ -45,6 +45,8 @@ pub struct FrontendPlugin {
     pub browse: Option<Browse>,
     /// The career being played: the same handle the HUD and the world hold.
     pub career: crate::career::CareerHandle,
+    /// A backdrop look that stays whatever the screens ask for (`view-screen --look`, for checking the looks offscreen).
+    pub look: Option<super::look::Look>,
 }
 
 impl Plugin for FrontendPlugin {
@@ -57,6 +59,10 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();
+        if let Some(look) = &self.look {
+            frontend.look = look.clone();
+            frontend.look_override = Some(look.clone());
+        }
         app.insert_resource(frontend)
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()

@@ -99,6 +99,12 @@ pub enum Command {
         /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".
         #[arg(long, value_name = "SCRIPT")]
         ui_script: Option<String>,
+        /// Fix the 3D backdrop whatever the screen asks for, to check a look offscreen: main, car or safehouse.
+        #[arg(long, hide = true, value_name = "LOOK")]
+        look: Option<String>,
+        /// For --look car or safehouse: the car folder under CARS/ and optionally a preset, as BMWM3GTRE46:M3GTRCAREERSTART.
+        #[arg(long, hide = true, value_name = "CAR[:PRESET]", requires = "look")]
+        car: Option<String>,
         #[command(flatten)]
         view: ViewArgs,
     },
