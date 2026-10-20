@@ -12,7 +12,9 @@ use crate::input::{Action, Bindings, Control};
 
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
-use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::logic::{Args, Command, Cx, Pick, ScreenLogic};
+use crate::ui::UiAssets;
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 
 /// The control each row changes, from the top. Steering is one axis, so its two rows are its two directions.
 ///
@@ -99,18 +101,36 @@ fn step(from: Cell, message: u32) -> Option<Cell> {
     })
 }
 
-/// The name a key shows as on the list: the code's name without its `Key` prefix (`KeyW` is `W`, `Space` is `SPACE`).
+/// The name a key shows as on the list: the code's name without its `Key` prefix (`KeyW` is `W`, `Space` is `SPACE`), with
+/// the long ones shortened (`ArrowDown` is `DOWN`, `ControlLeft` is `L CTRL`) so they fit a key cap.
 fn key_name(key: KeyCode) -> String {
     let code = format!("{key:?}");
-    code.strip_prefix("Key").unwrap_or(&code).to_uppercase()
+    let name = code.strip_prefix("Key").unwrap_or(&code);
+    let name = match name.strip_prefix("Arrow") {
+        Some(arrow) => arrow.to_owned(),
+        None => name.to_owned(),
+    };
+    for (long, short) in [("Control", "CTRL"), ("Shift", "SHIFT"), ("Alt", "ALT")] {
+        if let Some(side) = name.strip_prefix(long) {
+            return format!("{} {short}", &side.to_uppercase()[..1]);
+        }
+    }
+    name.to_uppercase()
 }
 
-/// The key names of each row, primary then secondary, from the bindings. A slot with no key shows the placeholder.
-pub fn key_texts(bindings: &Bindings) -> Vec<[String; 2]> {
+/// What a slot says while the next key pressed will be bound to it.
+const WAITING: &str = "PRESS KEY";
+
+/// The key names of each row, primary then secondary, from the bindings. A slot with no key shows the placeholder, and the
+/// slot `waiting` for its key says so.
+pub fn key_texts(bindings: &Bindings, waiting: Option<(Control, usize)>) -> Vec<[String; 2]> {
     ROWS.iter()
         .map(|control| {
             let keys = bindings.keyboard_keys(*control);
-            let text = |slot: usize| keys.get(slot).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |k| key_name(*k));
+            let text = |slot: usize| match waiting {
+                Some((wanted, at)) if wanted == *control && at == slot => WAITING.to_owned(),
+                _ => keys.get(slot).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |k| key_name(*k)),
+            };
             [text(0), text(1)]
         })
         .collect()
@@ -122,12 +142,21 @@ pub struct ControlsLogic {
     args: Args,
     layout: &'static Layout,
     shown: Vec<[String; 2]>,
+    /// Whether the Remastered look draws this list (`Cx::vertical_look`), and the cell that has the focus.
+    vertical: bool,
+    cell: Cell,
 }
 
 impl ControlsLogic {
     /// The list for the package called `name` (`Options_PC_Controller.fng` or `Pause_PC_Controller.fng`).
     pub fn new(name: &str, args: Args) -> Self {
-        Self { args, layout: controls_layout::for_package(name), shown: Vec::new() }
+        Self {
+            args,
+            layout: controls_layout::for_package(name),
+            shown: Vec::new(),
+            vertical: false,
+            cell: Cell { row: 0, slot: 0 },
+        }
     }
 
     fn back(&self) -> Command {
@@ -140,6 +169,7 @@ impl ControlsLogic {
 
 impl ScreenLogic for ControlsLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         let layout = self.layout;
         for (row, label) in LABELS.iter().enumerate() {
             set_text(cx, layout.title[row], label);
@@ -147,7 +177,58 @@ impl ScreenLogic for ControlsLogic {
         focus(cx, layout, Cell { row: 0, slot: 0 });
     }
 
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        let slot = match pick {
+            Pick::Hover => self.cell.slot,
+            Pick::Press(_, along) => usize::from(along >= 0.5),
+        };
+        self.cell = Cell { row: row.min(ROW_COUNT - 1), slot };
+        focus(cx, self.layout, self.cell);
+        if matches!(pick, Pick::Press(..)) {
+            cx.send(Command::Remap(ROWS[self.cell.row], self.cell.slot));
+        }
+    }
+
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let key = |row: usize, slot: usize| {
+            self.shown.get(row).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |texts| texts[slot].clone())
+        };
+        let entries = LABELS
+            .iter()
+            .enumerate()
+            .map(|(row, label)| MenuEntry {
+                label: (*label).to_owned(),
+                enabled: true,
+                value: MenuValue::Keys { primary: key(row, 0), secondary: key(row, 1), focus: Some(self.cell.slot) },
+            })
+            .collect();
+        let style = if self.args.pause { MenuStyle::Pause } else { MenuStyle::Sub };
+        Some(MenuList {
+            title: "Controls".into(),
+            message: String::new(),
+            entries,
+            selected: self.cell.row,
+            first: 0,
+            hints: Vec::new(),
+            style,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+        if let Some(cell) = focused(cx, self.layout) {
+            self.cell = cell;
+        }
         if self.shown.as_slice() == cx.key_texts {
             return;
         }
@@ -233,11 +314,21 @@ mod tests {
     fn a_key_shows_its_name_without_the_key_prefix() {
         assert_eq!(key_name(KeyCode::KeyW), "W");
         assert_eq!(key_name(KeyCode::Space), "SPACE");
+        assert_eq!(key_name(KeyCode::ArrowDown), "DOWN");
+        assert_eq!(key_name(KeyCode::ControlLeft), "L CTRL");
+        assert_eq!(key_name(KeyCode::ShiftRight), "R SHIFT");
+    }
+
+    #[test]
+    fn a_slot_waiting_for_its_key_says_so() {
+        let texts = key_texts(&Bindings(Vec::new()), Some((ROWS[1], 1)));
+        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), WAITING.to_owned()]);
+        assert_eq!(texts[0][1], KEY_PLACEHOLDER, "the others are as they were");
     }
 
     #[test]
     fn an_unbound_control_shows_the_placeholder() {
-        let texts = key_texts(&Bindings(Vec::new()));
+        let texts = key_texts(&Bindings(Vec::new()), None);
         assert_eq!(texts.len(), ROW_COUNT);
         assert!(texts.iter().all(|t| t[0] == KEY_PLACEHOLDER && t[1] == KEY_PLACEHOLDER));
     }

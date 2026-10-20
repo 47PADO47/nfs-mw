@@ -48,6 +48,7 @@ impl WidgetMenu {
             hints: Vec::new(),
             style,
             nudge,
+            scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         })
     }
@@ -59,7 +60,7 @@ impl WidgetMenu {
             return;
         }
         self.select(cx, row);
-        let Pick::Press(way) = pick else { return };
+        let Pick::Press(way, _) = pick else { return };
         self.change(cx, way != Way::Back);
     }
 }

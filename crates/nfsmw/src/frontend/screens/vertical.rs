@@ -45,6 +45,11 @@ impl Screens {
         }
     }
 
+    /// How far along the value column of a row a point is, from 0 at its left edge to 1 at its right.
+    pub(super) fn along_at(&self, point: Vec2) -> f32 {
+        menu_layout::along_value(point.x - menu_layout::left_edge(self.aspect))
+    }
+
     /// Whether the top screen is a vertical list: the package's own icons are not on screen then, so they take no clicks.
     pub(super) fn top_is_vertical(&self) -> bool {
         self.stack.last().is_some_and(|top| top.logic.vertical())

@@ -17,8 +17,11 @@ use glam::{Vec2, Vec3};
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use super::logic::{Args, Category, Command, Cx, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
 use crate::settings::eatrax::{Jukebox, Mode};
+use crate::ui::UiAssets;
+use crate::ui::theme::remastered::menu::layout::window_start;
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 
 /// The songs of the install's list, read once when the front end starts (`prime`). Empty when the install has none.
 static SONGS: OnceLock<Vec<Song>> = OnceLock::new();
@@ -195,6 +198,9 @@ pub fn order_word(random: bool) -> &'static str {
 pub struct JukeboxLogic {
     songs: &'static [Song],
     state: State,
+    /// Whether the Remastered look draws the playlist (`Cx::vertical_look`), and the song its window starts at.
+    vertical: bool,
+    top: usize,
 }
 
 impl JukeboxLogic {
@@ -202,7 +208,7 @@ impl JukeboxLogic {
     pub fn new() -> Self {
         let songs: &'static [Song] = SONGS.get().map_or(&[], Vec::as_slice);
         let defaults = Jukebox::defaults_for(songs);
-        Self { songs, state: State::new(Jukebox::load(&defaults)) }
+        Self { songs, state: State::new(Jukebox::load(&defaults)), vertical: false, top: 0 }
     }
 
     fn fill(&self, cx: &mut Cx) {
@@ -259,7 +265,67 @@ fn script(cx: &mut Cx, name: u32, which: u32) {
 
 impl ScreenLogic for JukeboxLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         self.fill(cx);
+    }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+        self.top = window_start(self.top, self.state.selected, self.state.jukebox.len());
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        if self.state.reorder || self.state.jukebox.is_empty() {
+            return;
+        }
+        self.state.selected = row.min(self.state.jukebox.len() - 1);
+        match pick {
+            Pick::Hover => self.fill(cx),
+            Pick::Press(..) => self.act(cx, PAD_ACCEPT),
+        }
+    }
+
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let entries = self
+            .state
+            .jukebox
+            .entries()
+            .iter()
+            .map(|entry| {
+                let label = self
+                    .songs
+                    .get(entry.song)
+                    .map_or_else(String::new, |song| format!("{} - {}", song.artist, song.title));
+                MenuEntry {
+                    label,
+                    enabled: true,
+                    value: MenuValue::Choice { text: entry.mode.label().to_owned(), arrows: false },
+                }
+            })
+            .collect();
+        let mut order = format!("{} order", order_word(self.state.jukebox.random));
+        if self.state.reorder {
+            order.push_str(", re-order on");
+        }
+        Some(MenuList {
+            title: "EA Trax".into(),
+            message: order,
+            entries,
+            selected: self.state.selected,
+            first: self.top,
+            hints: Vec::new(),
+            style: MenuStyle::Sub,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
@@ -267,6 +333,9 @@ impl ScreenLogic for JukeboxLogic {
     }
 
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if self.vertical {
+            return false;
+        }
         let tree = cx.rt.tree(cx.package);
         for (name, message) in FOOTER {
             let Some(label) = tree.nodes.iter().find(|n| n.name_hash == name) else { continue };

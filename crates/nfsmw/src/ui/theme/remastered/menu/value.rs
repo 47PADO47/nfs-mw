@@ -1,7 +1,9 @@
 //! The value of a settings row, to the right of its label: a value between two chevrons, or a slider. Both are the shared
 //! base components (`Choice`, `PillBar`, `Chevron`), read from the Remastered skin.
 
-use blackbox_ui::{Chevron, Choice, ChoiceStyle, Facing, PillBar, PillStyle, Rect, Text, bounce, justify};
+use blackbox_ui::{
+    Chevron, Choice, ChoiceStyle, Facing, Outline, PillBar, PillStyle, Rect, Slant, Text, bounce, justify,
+};
 
 use super::Parts;
 use super::layout as place;
@@ -11,6 +13,10 @@ use crate::ui::theme::{MenuEntry, MenuValue};
 /// The value's text size, and the chevrons' size at a slider's ends.
 const VALUE_SCALE: f32 = 1.7;
 const CHEVRON: f32 = 14.0;
+/// A key cap's height and text size, and the gap between the two caps.
+const KEY_HEIGHT: f32 = 21.0;
+const KEY_SCALE: f32 = 1.45;
+const KEY_GAP: f32 = 8.0;
 /// A slider's bar: its height, and the room kept left of it for the chevron and right of it for the number.
 const BAR_HEIGHT: f32 = 9.0;
 const BAR_LEFT_ROOM: f32 = 20.0;
@@ -41,6 +47,41 @@ impl Parts<'_, '_> {
                 self.add(choice);
             }
             MenuValue::Slider(percent) => self.slider(*percent, column, colour, live, facing),
+            MenuValue::Keys { primary, secondary, focus } => {
+                self.keys([primary, secondary], column, entry.enabled, selected.then_some(*focus).flatten());
+            }
+        }
+    }
+
+    /// Two key caps, one per half of the column: an outlined box with the key's name, and under the focused one a bar in the
+    /// accent colour. An unbound key reads dim.
+    fn keys(&mut self, names: [&String; 2], column: Rect, enabled: bool, focus: Option<usize>) {
+        let width = (column.w - KEY_GAP) / 2.0;
+        for (slot, name) in names.into_iter().enumerate() {
+            let x = match slot {
+                0 => column.min_x() + width / 2.0,
+                _ => column.max_x() - width / 2.0,
+            };
+            let cap = Rect::new(x, column.y, width, KEY_HEIGHT);
+            let lit = focus == Some(slot) && enabled;
+            if lit {
+                self.add(Slant::at_default_depth(keys::MENU_BAR, cap, 0.0, &[(0.0, 0.55)], self.cx));
+            }
+            let unbound = name.chars().all(|c| c == '-');
+            let colour = match (enabled, unbound, lit) {
+                (false, ..) | (_, true, false) => keys::MENU_TEXT_DISABLED,
+                (_, _, true) => keys::MENU_TEXT_SELECTED,
+                _ => keys::MENU_TEXT,
+            };
+            let outline = if lit { keys::MENU_TITLE } else { keys::MENU_RULE };
+            self.add(Outline::new(outline, cap, 3.0, 1.1, self.cx));
+            let name = name.to_uppercase();
+            let scale = super::fitted(&name, KEY_SCALE, width - 8.0);
+            let text = Text::new(keys::FONT_MENU, name)
+                .with_colour_key(colour)
+                .with_scale(scale)
+                .with_justification(justify::H_CENTRE | justify::V_CENTRE);
+            self.push(text, Rect::new(x, column.y, width - 4.0, 12.0));
         }
     }
 

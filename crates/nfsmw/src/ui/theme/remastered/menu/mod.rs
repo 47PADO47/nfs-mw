@@ -5,6 +5,7 @@
 //!
 //! [`layout`] holds the places, shared with the frontend's hit tests.
 
+mod credits;
 mod dialog;
 pub mod layout;
 mod value;
@@ -84,9 +85,16 @@ impl<'a, 'b> Parts<'a, 'b> {
     }
 
     fn of(mut self, list: &MenuList) -> Vec<Box<dyn Component>> {
-        if list.style == MenuStyle::Dialog {
-            self.dialog(list);
-            return self.parts;
+        match list.style {
+            MenuStyle::Dialog => {
+                self.dialog(list);
+                return self.parts;
+            }
+            MenuStyle::Credits => {
+                self.credits(list);
+                return self.parts;
+            }
+            _ => {}
         }
         let left = place::left_edge(list.aspect);
         if list.style == MenuStyle::Pause {
@@ -104,6 +112,11 @@ impl<'a, 'b> Parts<'a, 'b> {
             (left + place::TEXT_LEFT, place::TITLE_Y),
             false,
         );
+        if !list.message.is_empty() {
+            // A line about the page, at the right of the title: the playlist's order, say.
+            let right = (left + place::BAR_RIGHT, place::TITLE_Y);
+            self.text(keys::FONT_MENU, &list.message.to_uppercase(), keys::MENU_TAGLINE, 1.3, right, true);
+        }
         let shown = place::shown(list.entries.len());
         let wide = list.has_values();
         for (i, entry) in list.entries.iter().skip(list.first).take(shown).enumerate() {
@@ -143,6 +156,15 @@ impl<'a, 'b> Parts<'a, 'b> {
             height,
         );
         self.push(Image::new(keys::LOGO), rect);
+    }
+
+    /// A string centred on the screen's middle, at height `y`.
+    pub(super) fn centred(&mut self, font: &str, text: &str, colour: &str, scale: f32, y: f32) {
+        let part = Text::new(font, text)
+            .with_colour_key(colour)
+            .with_scale(scale)
+            .with_justification(justify::H_CENTRE | justify::V_CENTRE);
+        self.push(part, Rect::new(0.0, y, 600.0, 20.0));
     }
 
     /// A string whose left (or, for `right`, right) edge is at `at.0`, centred on `at.1`.

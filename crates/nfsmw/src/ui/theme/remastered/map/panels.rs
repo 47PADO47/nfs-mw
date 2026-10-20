@@ -6,9 +6,9 @@ use blackbox_ui::{Outline, Panel, Rect, Slant, Text, justify};
 use super::super::menu::Parts;
 use super::super::skin::keys;
 use super::ease_out;
-use super::group::Group;
 use crate::frontend::world_map::WorldMapFrame;
 use crate::frontend::world_map::control::{blip_rgba, icon_name, style_name};
+use crate::ui::theme::remastered::group::Group;
 use crate::ui::theme::remastered::menu::layout as menu;
 
 /// The shade behind the title: dark at the left edge, clear at its end.

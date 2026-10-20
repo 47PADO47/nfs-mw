@@ -141,7 +141,7 @@ impl ScreenLogic for ConfirmLogic {
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         match pick {
             Pick::Hover => focus(cx, if row == 0 { YES_HOLDER } else { NO_HOLDER }),
-            Pick::Press(_) => self.answer(cx, row == 0),
+            Pick::Press(..) => self.answer(cx, row == 0),
         }
     }
 
@@ -160,6 +160,7 @@ impl ScreenLogic for ConfirmLogic {
             hints: Vec::new(),
             style: MenuStyle::Dialog,
             nudge: None,
+            scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         })
     }
@@ -282,7 +283,7 @@ impl ScreenLogic for AlertLogic {
     }
 
     fn pick_row(&mut self, cx: &mut Cx, _row: usize, pick: Pick) {
-        if matches!(pick, Pick::Press(_)) {
+        if matches!(pick, Pick::Press(..)) {
             self.close(cx);
         }
     }
@@ -301,6 +302,7 @@ impl ScreenLogic for AlertLogic {
             hints: Vec::new(),
             style: MenuStyle::Dialog,
             nudge: None,
+            scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         })
     }

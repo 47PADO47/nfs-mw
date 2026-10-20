@@ -10,7 +10,6 @@
 //! - [`panels`]: the title, the compass, the legend and the dark bands.
 
 mod draw;
-mod group;
 mod panels;
 #[cfg(test)]
 mod tests;
@@ -19,7 +18,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect};
 
-use self::group::Group;
+use super::group::Group;
 use super::menu::Parts;
 use super::skin::keys;
 use crate::frontend::world_map::WorldMapFrame;

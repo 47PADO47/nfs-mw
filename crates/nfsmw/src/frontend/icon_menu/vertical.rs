@@ -38,7 +38,7 @@ impl IconMenu {
         if strip != self.selected {
             self.select(cx, strip);
         }
-        if matches!(pick, Pick::Press(_)) {
+        if matches!(pick, Pick::Press(..)) {
             self.press(cx);
         }
     }
@@ -78,6 +78,7 @@ impl IconMenu {
             hints: Vec::new(),
             style,
             nudge: None,
+            scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         })
     }

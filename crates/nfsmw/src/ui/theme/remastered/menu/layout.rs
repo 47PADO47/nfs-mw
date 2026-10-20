@@ -102,6 +102,12 @@ pub enum Side {
     Right,
 }
 
+/// How far along the value column a point `from_left` units from the screen's left edge is, 0 at the column's left and 1 at
+/// its right, clamped.
+pub fn along_value(from_left: f32) -> f32 {
+    ((from_left - VALUE_LEFT) / (VALUE_RIGHT - VALUE_LEFT)).clamp(0.0, 1.0)
+}
+
 /// The side of a settings row a point `from_left` units from the screen's left edge is on.
 pub fn side_at(from_left: f32) -> Side {
     match from_left {

@@ -10,12 +10,16 @@ use game_install::GameDir;
 use glam::Vec2;
 
 use super::ids::{self, screen};
-use super::logic::{Args, Category, Command, Cx, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
+use crate::ui::UiAssets;
+use crate::ui::theme::{DEFAULT_ASPECT, MenuList, MenuStyle};
 
 /// The roll's text object in the package: `CreditsArea` (`fe_hash_upper`).
 const ROLL: u32 = 0xE609_3486;
 /// Lines shown in the box at once.
 const WINDOW: usize = 12;
+/// Lines of the roll the Remastered look shows at once, one more than fits so the roll can slide in and out.
+const LIST_WINDOW: usize = 16;
 /// How fast the roll moves, in lines per second.
 const LINES_PER_SECOND: f32 = 2.0;
 /// The visible Back button: its centre and half size on the screen (FEng units). Its picture is the package's footer
@@ -65,6 +69,8 @@ pub struct CreditsLogic {
     elapsed: f32,
     /// The first line the window shows, once the text was set.
     shown: Option<usize>,
+    /// Whether the Remastered look draws the roll (`Cx::vertical_look`).
+    vertical: bool,
 }
 
 impl CreditsLogic {
@@ -78,6 +84,7 @@ impl CreditsLogic {
 
 impl ScreenLogic for CreditsLogic {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         self.lines = LINES.get().cloned().unwrap_or_default();
         self.set_window(cx, 0);
         // The package starts with its buttons off, so Back does nothing until it is told to switch them on.
@@ -92,8 +99,36 @@ impl ScreenLogic for CreditsLogic {
         cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), args));
     }
 
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    fn pick_row(&mut self, _cx: &mut Cx, _row: usize, _pick: Pick) {}
+
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let position = self.elapsed * LINES_PER_SECOND;
+        let first = position as usize;
+        let end = (first + LIST_WINDOW).min(self.lines.len());
+        let message = self.lines.get(first..end).map_or_else(String::new, |lines| lines.join("\n"));
+        Some(MenuList {
+            title: "Credits".into(),
+            message,
+            entries: Vec::new(),
+            selected: 0,
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Credits,
+            nudge: None,
+            scroll: position.fract(),
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
-        if !(point - BACK_CENTRE).abs().cmple(BACK_HALF).all() {
+        if self.vertical || !(point - BACK_CENTRE).abs().cmple(BACK_HALF).all() {
             return false;
         }
         let args = Args { options: true, category: Category::Audio, ..Args::default() };
@@ -102,6 +137,7 @@ impl ScreenLogic for CreditsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.vertical = cx.vertical_look();
         self.elapsed += dt;
         let first = (self.elapsed * LINES_PER_SECOND) as usize;
         if self.shown != Some(first) {

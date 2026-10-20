@@ -29,6 +29,7 @@ fn list(style: MenuStyle, selected: usize) -> MenuList {
         ],
         style,
         nudge: None,
+        scroll: 0.0,
         aspect: ASPECT,
     }
 }
@@ -333,4 +334,63 @@ fn a_click_on_an_answer_of_a_dialog_is_found_by_the_panels_own_geometry() {
     assert_eq!(super::dialog::row_at(on(0), &list), Some(0));
     assert_eq!(super::dialog::row_at(on(1), &list), Some(1));
     assert_eq!(super::dialog::row_at(glam::Vec2::new(0.0, -230.0), &list), None, "outside the panel");
+}
+
+#[test]
+fn a_key_row_shows_two_key_caps_and_lights_the_focused_one() {
+    use crate::ui::theme::MenuValue;
+    let row = |focus| MenuEntry {
+        label: "Accelerate".into(),
+        enabled: true,
+        value: MenuValue::Keys { primary: "W".into(), secondary: "---".into(), focus },
+    };
+    let cell = MenuListCell::new();
+    let bars = |focus| {
+        let mut keys = list(MenuStyle::Sub, 0);
+        keys.entries = vec![row(focus)];
+        cell.set(ElementId::ControlsList.slot(), keys);
+        let nodes = built(ElementId::ControlsList, &cell);
+        assert!(texts(&nodes).contains(&"W") && texts(&nodes).contains(&"---"), "{:?}", texts(&nodes));
+        let (w, dash) = (text_at(&nodes, "W"), text_at(&nodes, "---"));
+        assert!(dash.world.w_axis.x > w.world.w_axis.x + 40.0, "the secondary cap is the right one");
+        if focus != Some(1) {
+            assert!(dash.colour[3] < w.colour[3], "an unbound key is dim");
+        }
+        nodes.len()
+    };
+    assert!(bars(Some(1)) > 0 && bars(None) > 0);
+}
+
+#[test]
+fn the_credits_roll_scrolls_fades_at_its_ends_and_sets_headings_apart() {
+    let cell = MenuListCell::new();
+    let roll = |scroll: f32| MenuList {
+        title: "Credits".into(),
+        message: "\n\nEXECUTIVE PRODUCER\nJane Q. Public\nJohn Smith\n\nMUSIC\nSome Band".into(),
+        style: MenuStyle::Credits,
+        entries: Vec::new(),
+        scroll,
+        ..list(MenuStyle::Credits, 0)
+    };
+    cell.set(ElementId::Credits.slot(), roll(0.0));
+    let nodes = built(ElementId::Credits, &cell);
+    assert!(texts(&nodes).contains(&"CREDITS"));
+    let heading = text_at(&nodes, "EXECUTIVE PRODUCER");
+    let name = text_at(&nodes, "John Smith");
+    assert_ne!(heading.colour[..3], name.colour[..3], "a heading is in the accent colour");
+    assert!(name.world.w_axis.y > heading.world.w_axis.y, "the roll runs down the page");
+    cell.set(ElementId::Credits.slot(), roll(0.5));
+    let moved = built(ElementId::Credits, &cell);
+    assert!(text_at(&moved, "John Smith").world.w_axis.y < name.world.w_axis.y, "a later scroll is further up");
+}
+
+#[test]
+fn a_page_with_a_message_shows_it_at_the_right_of_the_title() {
+    let cell = MenuListCell::new();
+    let mut page = list(MenuStyle::Sub, 0);
+    page.message = "Random order".into();
+    cell.set(ElementId::Jukebox.slot(), page);
+    let nodes = built(ElementId::Jukebox, &cell);
+    let line = text_at(&nodes, "RANDOM ORDER");
+    assert!(line.world.w_axis.x > text_at(&nodes, "MAIN MENU").world.w_axis.x + 100.0);
 }

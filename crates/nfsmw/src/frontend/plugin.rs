@@ -236,7 +236,7 @@ fn update(
             remember_key(&mut bindings, control, slot, key);
         }
     }
-    fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings));
+    fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings, fe.remap));
     let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
     // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {

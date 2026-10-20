@@ -380,9 +380,9 @@ impl Screens {
     /// Hands a click at a point of the top screen to its logic. `None` when the screen does not take it.
     pub fn click(&mut self, point: Vec2, env: &mut Env) -> Option<Vec<Command>> {
         if let Some(row) = self.row_at(point) {
-            let way = self.way_at(point);
+            let (way, along) = (self.way_at(point), self.along_at(point));
             let (_, commands) = self.on_top(env, |logic, cx| {
-                logic.pick_row(cx, row, Pick::Press(way));
+                logic.pick_row(cx, row, Pick::Press(way, along));
                 true
             })?;
             return Some(self.apply_stack_commands(commands, env));

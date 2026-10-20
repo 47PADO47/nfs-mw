@@ -50,6 +50,25 @@ pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hin
     if main {
         hints[1] = (action(Action::MenuQuit), "Quit", Some(Action::MenuQuit));
     }
+    let is = |file: &str| name.eq_ignore_ascii_case(file);
+    if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
+        hints = vec![
+            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),
+            (prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device), "Column", None),
+            (action(Action::MenuAccept), "Remap", Some(Action::MenuAccept)),
+            (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+        ];
+    }
+    if is(screen::EA_TRAX_JUKEBOX) {
+        hints = vec![
+            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),
+            (action(Action::MenuAccept), "Change mode", Some(Action::MenuAccept)),
+            (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+        ];
+    }
+    if is(screen::CREDITS) {
+        hints = vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
+    }
     if rows {
         hints = vec![
             (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),

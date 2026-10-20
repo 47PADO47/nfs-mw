@@ -17,6 +17,7 @@
 mod arc;
 mod bar;
 mod dial;
+mod group;
 mod layout;
 mod map;
 pub mod menu;
@@ -75,7 +76,10 @@ impl Theme for RemasteredTheme {
             | ElementId::PauseMenu
             | ElementId::SafeHouseMenu
             | ElementId::OptionTable
-            | ElementId::Dialog) => Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone()))),
+            | ElementId::Dialog
+            | ElementId::ControlsList
+            | ElementId::Jukebox
+            | ElementId::Credits) => Some(Box::new(VerticalMenu::new(menu.slot(), self.menus.clone()))),
             // The whole map is drawn here, over the FEng screen the frontend leaves unpresented.
             ElementId::WorldMapChrome => Some(Box::new(WorldMapView::new(self.map.clone()))),
             _ => None,

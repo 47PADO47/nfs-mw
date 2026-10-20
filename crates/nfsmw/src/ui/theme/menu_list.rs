@@ -24,6 +24,9 @@ pub enum MenuValue {
     Choice { text: String, arrows: bool },
     /// A level from 0 to 100.
     Slider(u8),
+    /// Two keys, one per column, as the key list shows a control: what is bound, and which of the two has the focus (only
+    /// the selected row has one). A column waiting for a key reads as the caller's prompt.
+    Keys { primary: String, secondary: String, focus: Option<usize> },
 }
 
 /// One entry of the list.
@@ -66,6 +69,8 @@ pub enum MenuStyle {
     Main,
     Sub,
     Pause,
+    /// The credits roll: the lines of `message`, one to a line of text, scrolled by `scroll`.
+    Credits,
     /// A question or a notice in a panel over the screen: `title`, `message`, and the answers as the entries.
     Dialog,
 }
@@ -85,6 +90,8 @@ pub struct MenuList {
     pub style: MenuStyle,
     /// The last press on a row, for the chevron's nudge.
     pub nudge: Option<MenuNudge>,
+    /// How far the roll of a credits list has scrolled past its first line, as a fraction of a line.
+    pub scroll: f32,
     /// The screen's width over its height, which sets how far left the screen's edge lies in FEng units. The frontend
     /// sets it from the window; a menu that does not know it leaves 16:9.
     pub aspect: f32,
@@ -146,6 +153,7 @@ mod tests {
             hints: Vec::new(),
             style: MenuStyle::Main,
             nudge: None,
+            scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         }
     }

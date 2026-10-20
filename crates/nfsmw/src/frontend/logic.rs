@@ -269,12 +269,12 @@ pub enum Way {
 }
 
 /// What the pointer does to a row of a vertical list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Pick {
     /// It moved over the row.
     Hover,
-    /// It pressed the row.
-    Press(Way),
+    /// It pressed the row: toward which chevron, and how far along the row's value column, from 0 at its left to 1 at its right.
+    Press(Way, f32),
 }
 
 pub trait ScreenLogic: Send + Sync {
