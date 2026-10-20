@@ -177,6 +177,7 @@ impl WorldScene {
                 speedbreaker_clock: drive::SpeedbreakerClock::default(),
                 view: if pending_car.is_some() { View::Chase } else { View::Fly },
                 last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
+                speech_look: Default::default(),
                 pending_car,
                 drive: None,
                 traffic,

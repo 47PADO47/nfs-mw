@@ -4,7 +4,11 @@
 //! The values below are the install's; they are the fallback when the database lacks the collection.
 
 use blackbox_attrib::{CollectionRef, Database};
+use blackbox_hash::bstring_hash;
 
+use blackbox_carparts::CarTypeInfo;
+
+use crate::car::{CarTables, slot, stock_parts};
 use crate::pursuit::level_collection;
 
 /// The thresholds of the `speechtune` collection (seconds, metres, miles per hour).
@@ -170,6 +174,28 @@ pub fn level_speech(db: &Database, heat: u32) -> LevelSpeech {
     }
 }
 
+/// The names a paint's `SPEECHCOLOUR` can hold, each the bit of the speech interface's `car_color` (red 1, black 2, ...).
+const SPEECH_COLOURS: [&str; 13] = [
+    "RED", "BLACK", "WHITE", "BLUE", "GREEN", "ORANGE", "SILVER", "GOLD", "PURPLE", "BROWN", "YELLOW", "PINK", "BEIGE",
+];
+
+/// The `car_color` bit of a paint's `SPEECHCOLOUR` value (the hash of the colour's name); 0 for any other value.
+pub fn speech_colour_bit(hash: u32) -> u32 {
+    SPEECH_COLOURS.iter().position(|name| bstring_hash(name) == hash).map_or(0, |i| 1 << i)
+}
+
+/// The `car_color` bit of the car's stock paint; 0 when the car has none or it has no speech colour.
+pub fn stock_speech_colour(tables: &CarTables, car: &CarTypeInfo) -> u32 {
+    let Some(part) = stock_parts(tables, car)[slot::BASE_PAINT] else { return 0 };
+    tables.parts.attribute(&part, "SPEECHCOLOUR").map_or(0, speech_colour_bit)
+}
+
+/// The `car_type` bit the cops name a car by: the `VerbalType` of its `pvehicle` collection; 0 when it has none.
+pub fn verbal_type(db: &Database, pvehicle: &str) -> u32 {
+    let Some(c) = db.collection("pvehicle", &pvehicle.to_ascii_lowercase()) else { return 0 };
+    c.get_u32("VerbalType").unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,6 +206,37 @@ mod tests {
         assert_eq!(tune.pursuit_inactivity_timer, [2.0, 150.0]);
         assert_eq!(tune.player_smash_speed_range, [10.0, 30.0]);
         assert_eq!(tune.min_contig_frames_for_180, 12);
+    }
+
+    #[test]
+    fn a_speech_colour_is_the_bit_of_its_name() {
+        assert_eq!(speech_colour_bit(bstring_hash("RED")), 1);
+        assert_eq!(speech_colour_bit(bstring_hash("SILVER")), 1 << 6);
+        assert_eq!(speech_colour_bit(bstring_hash("BEIGE")), 1 << 12);
+        assert_eq!(speech_colour_bit(bstring_hash("TEAL")), 0);
+        assert_eq!(speech_colour_bit(0), 0);
+    }
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn every_stock_paint_has_a_speech_colour_and_every_player_car_a_verbal_type() {
+        let Some(dir) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(dir)).unwrap();
+        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        let tables = CarTables::load(&dir).unwrap();
+        let (mut coloured, mut typed, mut total) = (0, 0, 0);
+        for car in &tables.types {
+            total += 1;
+            let colour = stock_speech_colour(&tables, car);
+            let verbal = verbal_type(&db, &car.type_name);
+            println!("{}: colour {colour:#x}, verbal type {verbal:#x}", car.type_name);
+            assert!(colour == 0 || colour.is_power_of_two(), "{}: {colour:#x}", car.type_name);
+            assert!(verbal == 0 || verbal.is_power_of_two(), "{}: {verbal:#x}", car.type_name);
+            coloured += usize::from(colour != 0);
+            typed += usize::from(verbal != 0);
+        }
+        println!("{coloured} of {total} car types have a speech colour, {typed} a verbal type");
+        assert!(coloured > 10 && typed > 10);
     }
 
     #[test]

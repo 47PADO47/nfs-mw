@@ -57,6 +57,7 @@ mod simulation;
 mod sky;
 mod sound;
 mod space;
+mod speech_look;
 mod speed_trails;
 mod start;
 mod sun;
@@ -182,6 +183,8 @@ pub struct WorldScene {
     traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
+    /// How the cops describe the car being driven (`speech_look.rs`).
+    speech_look: std::cell::RefCell<speech_look::Cache>,
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
     tire_effects: [bool; 2],

@@ -239,7 +239,12 @@ impl Scene for WorldScene {
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let rain = self.rain.intensity();
-        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
+        let look = self.player_look(&self.speech_look).unwrap_or_default();
+        let mut feed = self.traffic.as_ref()?.pursuit_feed()?;
+        feed.rain_intensity = rain;
+        feed.speech.player.car_type = look.car_type;
+        feed.speech.player.car_colour = look.colour;
+        Some(feed)
     }
 
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
