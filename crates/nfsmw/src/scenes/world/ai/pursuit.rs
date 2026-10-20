@@ -357,4 +357,4 @@ impl TrafficWorld {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

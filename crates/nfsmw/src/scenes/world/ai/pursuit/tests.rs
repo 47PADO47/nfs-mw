@@ -24,6 +24,7 @@ use crate::scenes::world::{keys, sun};
 use crate::settings::CarShading;
 
 mod arrest;
+pub(in crate::scenes::world::ai) mod arrest_fixture;
 mod free_roam;
 mod installed;
 mod installed_arrest;

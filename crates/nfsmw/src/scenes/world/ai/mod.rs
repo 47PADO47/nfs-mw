@@ -60,6 +60,8 @@ pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
+#[cfg(test)]
+pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
