@@ -28,6 +28,7 @@ default-members = [
     "libs/blackbox-fxedit",
     "libs/blackbox-playlist",
     "libs/blackbox-pursuit",
+    "libs/blackbox-race",
     "libs/blackbox-speedfx",
     "libs/blackbox-movie",
     "libs/blackbox-render",
@@ -81,6 +82,7 @@ blackbox-mixmap = { path = "libs/blackbox-mixmap" }
 blackbox-paramap = { path = "libs/blackbox-paramap" }
 blackbox-fxedit = { path = "libs/blackbox-fxedit" }
 blackbox-pursuit = { path = "libs/blackbox-pursuit" }
+blackbox-race = { path = "libs/blackbox-race" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
 blackbox-particles = { path = "libs/blackbox-particles" }
