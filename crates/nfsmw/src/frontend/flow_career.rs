@@ -59,6 +59,7 @@ impl Frontend {
         self.origin = QuitTo::QuickRaceMenu;
         self.quick_race = Some(race);
         self.quick_car = Some(car);
+        self.quick_play = true;
         self.start_free_roam(LoadingScreen::Plain, host, env);
     }
 
