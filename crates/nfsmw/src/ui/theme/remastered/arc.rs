@@ -3,11 +3,11 @@
 //! apart, and the arc is drawn along it. [`Path::at`] gives a point of it by the share of its length.
 
 /// The ellipse: its centre, which is where the quarter ends and the top run begins, and its two radii.
-const CENTRE: (f32, f32) = (440.0, 265.0);
-const RX: f32 = 335.0;
-const RY: f32 = 220.0;
+const CENTRE: (f32, f32) = (448.0, 267.0);
+const RX: f32 = 349.0;
+const RY: f32 = 228.0;
 /// Where the top run ends, along the top of the ellipse.
-const TAIL_END_X: f32 = 548.0;
+const TAIL_END_X: f32 = 541.0;
 /// Samples along the quarter: enough that the lengths between them are almost straight.
 const SAMPLES: usize = 400;
 
@@ -73,15 +73,31 @@ fn normalised((x, y): (f32, f32)) -> (f32, f32) {
     (x / length, y / length)
 }
 
-/// The left edge of the dark card at picture height `y`: it follows the ellipse up to the top, and below the ellipse's
-/// centre line it is the card's own left edge.
-pub(super) fn card_left(y: f32, card_edge: f32) -> f32 {
+/// How far the card's lower left corner is cut: it leans out this many pixels to the left for each one it drops below the
+/// arc's foot.
+const FOOT_SLOPE: f32 = 1.36;
+/// The card's right side leans: this many pixels further right for each one it rises, and where it stands at the bottom.
+const RIGHT_SLOPE: f32 = 0.188;
+
+/// The left edge of the dark card at picture height `y`: it follows the ellipse up to the top, and below the arc's foot it
+/// leans out to the left.
+pub(super) fn card_left(y: f32) -> f32 {
     if y > CENTRE.1 {
-        return card_edge;
+        return CENTRE.0 - RX - (y - CENTRE.1) * FOOT_SLOPE;
     }
     let up = ((CENTRE.1 - y) / RY).min(1.0);
     CENTRE.0 - RX * (1.0 - up * up).sqrt()
 }
+
+/// The right edge of the card at picture height `y`, given where it stands at `bottom`.
+pub(super) fn card_right(y: f32, bottom: f32, edge: f32) -> f32 {
+    edge + (bottom - y) * RIGHT_SLOPE
+}
+
+/// The picture height of the arc's foot, where the arc starts.
+pub(super) const FOOT_Y: f32 = CENTRE.1;
+/// The picture x of the arc's foot.
+pub(super) const FOOT_X: f32 = CENTRE.0 - RX;
 
 /// The top of the card: the ellipse's top.
 pub(super) const TOP: f32 = CENTRE.1 - RY;
@@ -123,9 +139,10 @@ mod tests {
 
     #[test]
     fn the_card_follows_the_ellipse_above_its_centre_line_and_its_edge_below() {
-        assert_eq!(card_left(CENTRE.1 + 10.0, 65.0), 65.0);
-        assert!((card_left(CENTRE.1, 65.0) - (CENTRE.0 - RX)).abs() < 1e-3);
-        assert!(card_left(TOP, 65.0) > card_left(TOP + 100.0, 65.0), "narrower toward the top");
-        assert!((card_left(TOP - 50.0, 65.0) - CENTRE.0).abs() < 1e-3, "above the top it stays at the top's point");
+        assert!(card_left(CENTRE.1 + 10.0) < CENTRE.0 - RX, "below the foot the corner leans out");
+        assert!((card_left(CENTRE.1) - (CENTRE.0 - RX)).abs() < 1e-3);
+        assert!(card_left(TOP) > card_left(TOP + 100.0), "narrower toward the top");
+        assert!((card_left(TOP - 50.0) - CENTRE.0).abs() < 1e-3, "above the top it stays at the top's point");
+        assert!(card_right(TOP, 289.0, 526.0) > card_right(289.0, 289.0, 526.0), "the right side leans out at the top");
     }
 }

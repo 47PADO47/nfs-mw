@@ -1,7 +1,7 @@
-//! The Remastered tachometer: a quarter-ellipse arc from the bottom left of the card up and over its top, with a short run
-//! along the top, the rev numbers set along it one thousand rpm apart with a tick for each, and a dark card inside the arc
-//! with a lighter panel at its right for the gear. The arc lights up as the revs rise and turns to the accent colour from
-//! the red line. A thin light line under the card stands on the gauges.
+//! The Remastered tachometer: a quarter-ellipse arc from its foot at the bottom left up and over the top of the card, with a
+//! short run along the top, the rev numbers set along it one thousand rpm apart with a tick for each, and a dark card inside
+//! the arc whose sides lean, with a lighter panel at its right for the gear. The arc lights up as the revs rise and turns to
+//! the accent colour from the red line. A thin light line under the card stands on the gauges' band.
 
 use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, Slant, Text, justify};
 
@@ -15,22 +15,25 @@ use crate::ui::theme::custom::DriveFeedCell;
 const CARD_Z: f32 = 2.0;
 const PANEL_Z: f32 = 1.9;
 const DIAL_Z: f32 = 0.5;
-/// The card's rows: left of its lower part, right edge, and bottom, in picture pixels, and the height of one strip.
-const CARD_LEFT: f32 = 65.0;
-const CARD_RIGHT: f32 = 580.0;
-const CARD_BOTTOM: f32 = 298.0;
-const STRIP_PX: f32 = 3.0;
-/// The gear panel at the card's right.
-const GEAR_PANEL: (f32, f32, f32, f32) = (470.0, 100.0, 576.0, 280.0);
-/// The light line under the card: its span and height.
-const BASE_LINE: (f32, f32, f32, f32) = (245.0, 303.0, 392.0, 305.5);
-/// The arc's stroke and the steps it is drawn in, in picture pixels.
-const STROKE_PX: f32 = 3.4;
-const STEP_PX: f32 = 1.3;
+/// Where the card's right side stands at its bottom, and the card's bottom, in picture pixels, and the height of a strip.
+const CARD_RIGHT: f32 = 526.0;
+const CARD_BOTTOM: f32 = 289.0;
+const STRIP_PX: f32 = 2.0;
+/// The gear panel: its left edge and top. It runs to the card's bottom and its leaning right side.
+const GEAR_LEFT: f32 = 478.0;
+const GEAR_TOP: f32 = 108.0;
+/// The band under the card that the gauges stand on: its span and height.
+const BAND: (f32, f32, f32, f32) = (15.0, 293.0, 585.0, 358.0);
+/// The light line under the card.
+const BASE_LINE: (f32, f32, f32, f32) = (211.0, 298.0, 338.0, 300.0);
+/// How long the arc's foot is, the arc's stroke and the steps it is drawn in, in picture pixels.
+const FOOT_LENGTH: f32 = 13.0;
+const STROKE_PX: f32 = 2.6;
+const STEP_PX: f32 = 1.1;
 /// A tick starts this far outside the arc and is this long, in dots of `TICK_PX`.
 const TICK_FROM_PX: f32 = 3.0;
 const TICK_DOTS: usize = 4;
-const TICK_PX: f32 = 2.4;
+const TICK_PX: f32 = 2.2;
 /// The tick numbers sit this far inside the arc.
 const LABEL_IN_PX: f32 = 30.0;
 const LABEL_BOX_PX: (f32, f32) = (30.0, 24.0);
@@ -75,25 +78,23 @@ impl Body {
         let (lit_to, red_from) = (share_of(rpm), share_of(red_line));
 
         let mut parts: Vec<Box<dyn Component>> = Vec::new();
+        let mut band = Panel::new(keys::GEAR_BAND).with_z(CARD_Z + 0.1);
+        band.layout(cx, rect(BAND.0, BAND.1, BAND.2, BAND.3));
+        parts.push(Box::new(band));
         card(&mut parts, cx);
-        let mut panel = Panel::new(keys::GEAR_PANEL).with_z(PANEL_Z);
-        panel.layout(cx, rect(GEAR_PANEL.0, GEAR_PANEL.1, GEAR_PANEL.2, GEAR_PANEL.3));
-        parts.push(Box::new(panel));
         let line = rect(BASE_LINE.0, BASE_LINE.1, BASE_LINE.2, BASE_LINE.3);
-        parts.push(Box::new(Slant::new(
-            keys::TICK,
-            line,
-            0.0,
-            &[(0.0, 0.0), (0.2, 0.8), (0.8, 0.8), (1.0, 0.0)],
-            DIAL_Z,
-            cx,
-        )));
+        let ramp = [(0.0, 0.0), (0.2, 0.8), (0.8, 0.8), (1.0, 0.0)];
+        parts.push(Box::new(Slant::new(keys::TICK, line, 0.0, &ramp, DIAL_Z, cx)));
 
+        // The foot: the arc turns right at its start, so it stands on a short line.
+        for index in 0..(FOOT_LENGTH / STEP_PX) as usize {
+            let x = arc::FOOT_X + index as f32 * STEP_PX;
+            parts.push(dot(x, arc::FOOT_Y + STROKE_PX / 2.0, STROKE_PX, arc_colour(0.0, lit_to, red_from), cx));
+        }
         let steps = (path.length() / STEP_PX).round() as usize;
         for index in 0..steps {
             let point = path.at((index as f32 + 0.5) / steps as f32);
-            let colour = arc_colour(point.share, lit_to, red_from);
-            parts.push(dot(point.x, point.y, STROKE_PX, colour, cx));
+            parts.push(dot(point.x, point.y, STROKE_PX, arc_colour(point.share, lit_to, red_from), cx));
         }
         for number in 1..=top {
             let share = (number - 1) as f32 / (top - 1) as f32;
@@ -106,16 +107,22 @@ impl Body {
     }
 }
 
-/// The dark card: strips as tall as `STRIP_PX`, each starting where the arc is at its height and running to the card's
-/// right edge, so the card's top left is the arc.
+/// The dark card and the gear panel on it: strips as tall as `STRIP_PX`, each running from the arc (or the leaning corner)
+/// to the card's leaning right side. The gear panel is the strips' right part, from its left edge down to the card's bottom.
 fn card(parts: &mut Vec<Box<dyn Component>>, cx: &LayoutCx<'_>) {
     let mut top = arc::TOP;
     while top < CARD_BOTTOM {
         let bottom = (top + STRIP_PX).min(CARD_BOTTOM);
-        let left = arc::card_left((top + bottom) / 2.0, CARD_LEFT);
+        let middle = (top + bottom) / 2.0;
+        let (left, right) = (arc::card_left(middle), arc::card_right(middle, CARD_BOTTOM, CARD_RIGHT));
         let mut strip = Panel::new(keys::CLUSTER_BG).with_z(CARD_Z);
-        strip.layout(cx, rect(left, top, CARD_RIGHT, bottom));
+        strip.layout(cx, rect(left, top, right, bottom));
         parts.push(Box::new(strip));
+        if top >= GEAR_TOP {
+            let mut panel = Panel::new(keys::GEAR_PANEL).with_z(PANEL_Z);
+            panel.layout(cx, rect(GEAR_LEFT, top, right, bottom));
+            parts.push(Box::new(panel));
+        }
         top = bottom;
     }
 }

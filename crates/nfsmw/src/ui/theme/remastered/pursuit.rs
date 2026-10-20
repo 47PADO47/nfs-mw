@@ -2,24 +2,27 @@
 //! accent colour and the hundredths in white, and "PURSUIT TIME" under it on a dark plate. While the cops give up the
 //! plate grows a slim bar for the evade; the cop cars wrecked so far are counted beside the label.
 
-use blackbox_ui::{Component, DrawList, LayoutCx, LinearProgress, Rect, Rounded, Text, justify};
+use blackbox_ui::{Component, DrawList, LayoutCx, LinearProgress, Panel, Rect, Slant, Text, justify};
 
 use super::skin::keys;
 use crate::hud::PursuitHud;
-use crate::ui::raster_text::{RASTER_NUMBER_FONT_KEY, width_units};
+use crate::ui::raster_text::{RASTER_TIMER_FONT_KEY, width_units};
 use crate::ui::theme::custom::DriveFeedCell;
 
 /// The plate's right edge, in FEng units, which is also where the cluster's card ends, and its width and top.
 const RIGHT: f32 = 370.0;
-const PLATE_WIDTH: f32 = 168.0;
-const PLATE_TOP: f32 = -228.0;
-const PLATE_HEIGHT: f32 = 56.0;
+const PLATE_WIDTH: f32 = 196.0;
+const PLATE_TOP: f32 = -232.0;
+const PLATE_HEIGHT: f32 = 62.0;
+/// The plate fades from clear at its left to dark at its right, and has a thin light line along its top and bottom.
+const PLATE_STOPS: [(f32, f32); 3] = [(0.0, 0.25), (0.45, 0.75), (1.0, 0.92)];
+const EDGE_LINE: f32 = 0.8;
 /// The inset of the text from the plate's right edge.
 const INSET: f32 = 14.0;
-const TIMER_Y: f32 = -208.0;
-const LABEL_Y: f32 = -183.0;
-const TIMER_SCALE: f32 = 2.9;
-const LABEL_SCALE: f32 = 1.2;
+const TIMER_Y: f32 = -210.0;
+const LABEL_Y: f32 = -182.0;
+const TIMER_SCALE: f32 = 3.5;
+const LABEL_SCALE: f32 = 1.45;
 /// The evade bar sits under the plate's text and the plate grows to hold it.
 /// The row for the wrecked cop cars, under the label.
 const WRECKED_ROW: f32 = 14.0;
@@ -63,25 +66,30 @@ pub(super) fn time_parts(secs: f32) -> (String, String) {
 }
 
 fn parts(pursuit: &PursuitHud, cx: &LayoutCx<'_>) -> Vec<Box<dyn Component>> {
-    let radius = cx.skin.metric(blackbox_ui::token_keys::RADIUS).unwrap_or(6.0);
     let evading = pursuit.cooldown_shown();
     let wrecked = pursuit.cops_destroyed > 0;
     let height =
         PLATE_HEIGHT + if wrecked { WRECKED_ROW } else { 0.0 } + if evading { BAR_HEIGHT + BAR_GAP } else { 0.0 };
     let plate = Rect::new(RIGHT - PLATE_WIDTH / 2.0, PLATE_TOP + height / 2.0, PLATE_WIDTH, height);
-    let mut parts: Vec<Box<dyn Component>> = vec![Box::new(Rounded::new(keys::CLUSTER_BG, plate, radius, cx))];
+    let mut parts: Vec<Box<dyn Component>> =
+        vec![Box::new(Slant::at_default_depth(keys::CLUSTER_BG, plate, 0.0, &PLATE_STOPS, cx))];
+    for y in [plate.min_y(), plate.max_y() - EDGE_LINE] {
+        let mut line = Panel::new(keys::BAR_BORDER);
+        line.layout(cx, Rect::new(plate.x, y + EDGE_LINE / 2.0, plate.w, EDGE_LINE));
+        parts.push(Box::new(line));
+    }
 
     // The timer's right edge is the plate's less the inset; the hundredths take their width from it and the rest ends where
     // they begin, so the two colours meet.
     let edge = RIGHT - INSET;
     let (main, hundredths) = time_parts(pursuit.secs);
-    let cents_width = width_units(RASTER_NUMBER_FONT_KEY, &hundredths, TIMER_SCALE).unwrap_or(30.0);
-    parts.push(text(cx, &hundredths, keys::VALUE, keys::FONT_NUMBERS, TIMER_SCALE, edge, TIMER_Y));
-    parts.push(text(cx, &main, keys::UNIT_HIGHLIGHT, keys::FONT_NUMBERS, TIMER_SCALE, edge - cents_width, TIMER_Y));
-    parts.push(text(cx, "PURSUIT TIME", keys::VALUE, keys::FONT_TEXT, LABEL_SCALE, edge, LABEL_Y));
+    let cents_width = width_units(RASTER_TIMER_FONT_KEY, &hundredths, TIMER_SCALE).unwrap_or(30.0);
+    parts.push(text(cx, &hundredths, keys::VALUE, keys::FONT_TIMER, TIMER_SCALE, edge, TIMER_Y));
+    parts.push(text(cx, &main, keys::UNIT_HIGHLIGHT, keys::FONT_TIMER, TIMER_SCALE, edge - cents_width, TIMER_Y));
+    parts.push(text(cx, "PURSUIT TIME", keys::VALUE, keys::FONT_MENU, LABEL_SCALE, edge, LABEL_Y));
     if wrecked {
         let wrecked = format!("{} WRECKED", pursuit.cops_destroyed);
-        parts.push(text(cx, &wrecked, keys::UNIT, keys::FONT_TEXT, LABEL_SCALE, edge, LABEL_Y + WRECKED_ROW));
+        parts.push(text(cx, &wrecked, keys::UNIT, keys::FONT_MENU, LABEL_SCALE, edge, LABEL_Y + WRECKED_ROW));
     }
     if evading {
         let width = PLATE_WIDTH - 2.0 * BAR_INSET;

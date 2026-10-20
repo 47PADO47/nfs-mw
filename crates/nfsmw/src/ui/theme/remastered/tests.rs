@@ -109,7 +109,7 @@ fn the_card_follows_the_arc_so_its_top_left_is_cut_away() {
     let bottom = card.iter().max_by(|a, b| a.world.w_axis.y.total_cmp(&b.world.w_axis.y)).expect("a bottom strip");
     assert!(left_of(top) > left_of(bottom) + 20.0, "the top strip starts well right of the bottom one");
     let right_of = |node: &&UiNode| node.world.w_axis.x + node.world.x_axis.x / 2.0;
-    assert!((right_of(top) - right_of(bottom)).abs() < 1e-3, "and they end together at the card's right edge");
+    assert!(right_of(top) > right_of(bottom) + 5.0, "and the right side leans out at the top");
 }
 
 #[test]
@@ -117,7 +117,8 @@ fn the_gear_has_a_lighter_panel_and_the_dial_a_light_line_under_it() {
     let skin = test_skin();
     let nodes = built(ElementId::Tachometer, &HudState::default()).expect("the tachometer is Remastered");
     let panel = skin.colour(keys::GEAR_PANEL).expect("the gear panel colour");
-    assert_eq!(nodes.iter().filter(|node| node.colour == panel).count(), 1, "one gear panel");
+    let panels = nodes.iter().filter(|node| node.colour == panel);
+    assert!(panels.count() > 10, "the gear panel, in strips that follow the card's leaning side");
     assert!(texts(&nodes).len() >= 8, "and the numbers of the scale");
 }
 

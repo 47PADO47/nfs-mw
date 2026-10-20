@@ -8,7 +8,7 @@ use blackbox_ui::{Skin, Tokens};
 use crate::ui::input_icons;
 use crate::ui::raster_text::{
     RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_TITLE_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY,
-    RASTER_NUMBER_FONT_KEY,
+    RASTER_NUMBER_FONT_KEY, RASTER_TIMER_FONT_KEY,
 };
 
 /// The skin keys the cluster reads. Token-backed keys point directly at `token_keys::*`; custom keys are namespaced
@@ -28,6 +28,8 @@ pub(super) mod keys {
     pub const GEAR: &str = token_keys::PRIMARY;
     /// The lighter panel behind the gear digit.
     pub const GEAR_PANEL: &str = "remastered.gear.panel";
+    /// The dark band the gauges stand on, under the card.
+    pub const GEAR_BAND: &str = "remastered.gear.band";
     pub const BAR_TRACK: &str = token_keys::BORDER;
     pub const BAR_FILL: &str = token_keys::SECONDARY;
     pub const BAR_BORDER: &str = token_keys::BORDER;
@@ -57,6 +59,7 @@ pub(super) mod keys {
     pub const FONT_MENU: &str = "remastered.font.menu";
     pub const FONT_MENU_WIDE: &str = "remastered.font.menu_wide";
     pub const FONT_MENU_TITLE: &str = "remastered.font.menu_title";
+    pub const FONT_TIMER: &str = "remastered.font.timer";
     /// The full-screen map: the ground behind the picture, the dark band under its footer and the plate behind a label.
     pub const MAP_GROUND: &str = "remastered.map.ground";
     pub const MAP_BAND: &str = "remastered.map.band";
@@ -78,9 +81,9 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_colour(keys::ARC_REDLINE_DIM, [r, g, b, 100])
         .with_colour(keys::GEAR_PANEL, [tokens.primary[0], tokens.primary[1], tokens.primary[2], 20])
         .with_metric(keys::SCALE_SPEED, 3.25 * scale)
-        .with_metric(keys::SCALE_UNIT, 1.3 * scale)
+        .with_metric(keys::SCALE_UNIT, 1.15 * scale)
         .with_metric(keys::SCALE_GEAR, 2.9 * scale)
-        .with_metric(keys::SCALE_TICK, 1.2 * scale)
+        .with_metric(keys::SCALE_TICK, 1.0 * scale)
         .with_metric(keys::SCALE_BAR_LABEL, 0.8 * scale)
         .with_colour(keys::MENU_BAR, scaled(tokens.secondary, 0.84))
         .with_colour(keys::MENU_BOLT, tokens.secondary)
@@ -111,7 +114,9 @@ pub fn skin() -> Skin {
         .with_font(keys::FONT_MENU, RASTER_MENU_FONT_KEY)
         .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
         .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
+        .with_font(keys::FONT_TIMER, RASTER_TIMER_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
+        .with_colour(keys::GEAR_BAND, [0, 0, 0, 110])
         .with_colour(keys::MENU_SCRIM, [3, 4, 7, 150])
         .with_colour(keys::MENU_TRACK, [0, 0, 0, 130])
         .with_texture(keys::MENU_ARROW, resource_handle("ARROW_SKINNIER.tga"))

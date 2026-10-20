@@ -23,6 +23,8 @@ pub const RASTER_MENU_FONT_KEY: u32 = 0x5241_5358;
 pub const RASTER_MENU_WIDE_FONT_KEY: u32 = 0x5241_5359;
 /// The menus' title: the wide face, bold.
 pub const RASTER_MENU_TITLE_FONT_KEY: u32 = 0x5241_535A;
+/// The pursuit timer's digits: upright and semi-bold.
+pub const RASTER_TIMER_FONT_KEY: u32 = 0x5241_535B;
 /// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times
 /// this (`ui/present/blackbox`).
 pub const UNITS_ASPECT: f32 = 1.5 / 2.0;
@@ -46,13 +48,16 @@ pub struct Look {
 /// The font as it is drawn: no stretch, no added weight. The Custom theme's text.
 pub const PLAIN: Look = Look { widen: 1.0, weight: 1.0, tracking: 0.0, bold: 0 };
 /// The Remastered theme's text: wider and heavier than the font's own proportions.
-pub const REMASTERED: Look = Look { widen: 1.6, weight: 0.6, tracking: 0.0, bold: 0 };
+pub const REMASTERED: Look = Look { widen: 1.5, weight: 0.6, tracking: 0.08, bold: 0 };
 /// The Remastered theme's numbers: as wide as its text, and heavier still.
-pub const NUMBERS: Look = Look { widen: 1.6, weight: 0.4, tracking: 0.0, bold: 0 };
+pub const NUMBERS: Look = Look { widen: 1.3, weight: 0.4, tracking: 0.0, bold: 0 };
 /// The Remastered menus' text: heavier than the font's own strokes, a little spaced.
 pub const MENU: Look = Look { widen: 1.23, weight: 0.28, tracking: 0.05, bold: 0 };
 /// The Remastered menus' title and tagline: the menu face spaced wide.
 pub const MENU_WIDE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.3, bold: 0 };
+
+/// The pursuit timer's digits: upright, a little wider than the font's own and a little bold.
+pub const TIMER: Look = Look { widen: 1.2, weight: 0.45, tracking: 0.02, bold: 2 };
 
 /// The menus' title: spaced, and bold.
 pub const MENU_TITLE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.2, bold: 4 };
@@ -77,6 +82,7 @@ pub fn face(key: u32) -> Option<Face> {
         RASTER_MENU_FONT_KEY => (MENU, false, true),
         RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, false, true),
         RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, false, true),
+        RASTER_TIMER_FONT_KEY => (TIMER, false, true),
         _ => return None,
     };
     Some(Face { look, mono, upright })
@@ -263,8 +269,9 @@ mod tests {
     #[test]
     fn widening_stretches_the_string_and_keeps_its_height() {
         let plain = super::render("186", super::PLAIN).expect("the bundled font loads");
-        let wide = super::render("186", super::REMASTERED).expect("the bundled font loads");
+        let look = super::Look { tracking: 0.0, ..super::REMASTERED };
+        let wide = super::render("186", look).expect("the bundled font loads");
         assert_eq!(wide.height, plain.height);
-        assert_eq!(wide.width, (plain.width as f32 * super::REMASTERED.widen).ceil() as u32);
+        assert_eq!(wide.width, (plain.width as f32 * look.widen).ceil() as u32);
     }
 }
