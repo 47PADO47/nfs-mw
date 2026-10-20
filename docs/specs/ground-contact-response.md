@@ -27,7 +27,7 @@ For root half dimensions h and body rotation R, define vertical extent
 At world arm r, rotated centre c, angular velocity w and linear velocity v,
 query tolerance is horizontal speed times fixed dt, plus
 `max(w.x*(r.z-c.z) - w.z*(r.x-c.x) - v.y, 0) * dt + depth`.
-Clamp first to at least 0.25, then to at most ceiling minus point height.
+Clamp first to at most ceiling minus point height, then to at least 0.25.
 Query beneath that ceiling; a negative or zero tolerance supplies no contact.
 Penetration must exceed 0.000001. Sort contacts by penetration, attempt the
 deepest first and stop after the first successful response. Correct position

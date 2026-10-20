@@ -4,6 +4,8 @@ Plain-language specifications of game behaviour (physics, AI, pursuit, streaming
 before the Rust implementation. Required wherever the only source is decompiled code; see
 [licensing.md § Spec-first](../licensing.md#spec-first).
 
+Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
+
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
@@ -59,6 +61,9 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
+
+[Native impact parity](native-impact-parity.md) covers the original contact
+pipeline, authored prop attributes and the limits of installed-data coverage.
 
 [Pursuit breakers](pursuit-breakers.md) covers named scenery fragments, area
 stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.

@@ -1,15 +1,19 @@
-# Collision sparks and speed trails
+# Collision particles and speed trails
 
 Options > Video offers **Collision Sparks: Off / Original PC / Restored
 (Experimental)** and a separate **Speed Trails (Experimental)** switch with a **Speed Trail Style**
 row: **Speed Streaks** (default) or **Car Only**. Both effects default off; enabling
 sparks selects Original PC unless another style was saved. Changes appear
 immediately and save when leaving Options.
+F8 labels the shared switch **Collision particles**, because it also controls
+authored prop dust and vehicle impact debris.
 
 These modes work with an unmodified PC install. No ASI plugin, replacement
 texture pack or Xbox addon is required. Only your installed game supplies assets.
 
-**Original PC** reads the ordinary per-car, per-surface emitter groups. It uses
+**Original PC** reads each vehicle or prop owner's per-surface emitter groups.
+World, object, ground, bottom and detachment callbacks select their authored
+hit and scrape actions independently of sound. It uses
 their spark/glow textures, animated contact sprite, emitter cycles, intensity,
 velocity inheritance, gravity, drag and cubic color/size curves. Hit bursts and
 continuing scrapes have independent emitter clocks. It adds no restored streaks,
@@ -19,12 +23,14 @@ stone groups retain their own effects; missing profiles do not become metal spar
 The original particle behavior is the baseline, rather than a promise of identical
 final pixels. The port's camera, collision solver, lighting and postprocessing
 still differ. Effects run with its fixed 60 Hz simulation; the original count
-rounding is frame-dependent. Non-live collision emitters are supported; live
-motion inheritance, ground-body scraping and prop debris remain outside this
-implementation. Transparent particles are not globally depth-sorted.
+rounding is frame-dependent. The shared path supports the installed ordinary PC
+profiles and rejects unsupported controls. Tracked object scrape transforms
+and complete original collision geometry remain limitations. Transparent
+particles are not globally depth-sorted.
 
-**Restored (Experimental)** uses the stock install's extra Xenon definitions as
-a restoration reference. It renders two moving spark populations with curved
+**Restored (Experimental)** supplements the authored contact particles with the
+stock install's extra Xenon definitions as a restoration reference. It renders
+two moving spark populations with curved
 motion, swept world bounces, time-based streak length and constant lifetime
 opacity. Procedural masks replace the restoration's atlas. Narrow cores, head
 glows, a short contact flash, distributed births and car-box exclusion are host
@@ -41,8 +47,9 @@ threshold.
 - **Car Only**: the wind contrail around the body. It appears in chase camera,
   stops emitting when slowing down, and disconnects on entering free camera.
 
-Stationary wall overlap does not keep emitting sparks. The PC budget is 1024
-particles; restored sparks retain at most 2048 and trails 256. GPU vertex buffers
+Stationary wall overlap does not keep emitting sparks. The shared PC budget is
+256 particles per owner across at most 64 owners; restored sparks retain at most
+2048 and trails 256. GPU vertex buffers
 are reused. Particles test opaque depth without writing it. Pause freezes them;
 disable, reset and style changes clear spark state and refresh paused buffers.
 These are resource bounds, not measured performance improvements.
@@ -63,6 +70,7 @@ F12 console: `set collision_sparks on`, `set spark_style restored-experimental`,
 CLI > environment > file > defaults is the usual priority.
 
 Behavior and evidence: [PC particles](specs/pc-collision-particles.md),
+[source-owned contact effects](specs/source-contact-effects.md),
 [effect inventory](specs/vehicle-visual-effects.md),
 [restored motion](specs/xenon-particle-motion.md) and
 [source credits / validation](provenance/vehicle-visual-effects.md).

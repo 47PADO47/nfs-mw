@@ -6,6 +6,8 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 ## Records
 
+Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
+
 | Module | Spec | Restricted sources read |
 |---|---|---|
 | [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |

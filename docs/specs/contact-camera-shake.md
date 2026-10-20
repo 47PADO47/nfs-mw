@@ -36,11 +36,30 @@ rotations to the entire view matrix, including its translation row.
 
 ## Integration and checks
 
-Measure acceleration from velocity before integration to velocity after all
-world and car-pair responses, divided by the fixed tick duration. Triggers and
-lifetimes advance on the shared 60 Hz clock. Drawing evaluates the waveform at
-the same interpolated time as the car and chase camera. Sampling cannot change
-the follow pose, collision probes or cleanup view. A teleport resets the pulse.
+For the independent custom chase controller, measure acceleration from velocity
+before integration to velocity after all world and car-pair responses, divided
+by the fixed tick duration. Drawing evaluates the waveform at the same
+interpolated time as the car and custom chase camera.
+
+Native gameplay views use the camera action's anchor acceleration instead:
+the derivative of scalar speed along the body's forward axis, with the anchor's
+300 m/s placement gate. The PC camera action calls the same shaker selector
+after updating this anchor. Both its inside and outside movers apply the shaker;
+it is not restricted to custom chase. The outside mover applies it after its
+follow/transient and under-vehicle offsets, before noise and clearance.
+
+Native triggers, lifetimes and posed samples advance on the existing real-time
+60 Hz camera clock. This follows the native follow clock adaptation, including
+Speedbreaker inputs sampled on simulation time. Transform the posed sample's
+view, including eye, forward and up; leave the follow spline state untouched.
+Subsequent noise/clearance use that posed sample, and presentation interpolates
+the resulting native camera keys. Custom views already carry their own shake
+and must not receive a second native pulse. A teleport resets the pulse.
+
+Read-only PC call-site inspection: camera action `0x472740`, anchor update
+`0x468FA0`, inside mover `0x476690`, outside mover `0x47D3C0`. These call sites
+establish the native producer and application order; they are static evidence,
+not a live driving comparison.
 
 Synthetic inputs executed by the original PC sampler provide thirteen reference
 vectors. An isolated PC matrix application fixture uses documented D3DX math
@@ -48,6 +67,26 @@ for external DLL calls. Tests check those vectors, the matrix, thresholds,
 retrigger rules, interpolation before a contact, fixed-tick follow equivalence
 across frame rates and reset behavior.
 
-Explosion camera events and cinematic shakes are separate authored paths and
-remain outside this contact feedback pass. A full original/remake gameplay
-capture comparison is still required to establish perceptual parity.
+## Explosion admission
+
+The same PC camera action additionally visits active `IExplosion` instances
+after the body-acceleration request. The CC0 interface identifies the getters
+as origin, expansion speed and maximum radius; the derived PC getter instructions
+confirm their event-backed fields. The camera does not use the current expanding
+shell, damage bit or player target flags for this visual response.
+
+Use the previous camera eye in render coordinates. When its distance from the
+explosion origin is strictly positive and strictly less than maximum radius
+plus 2 m, request outward acceleration with magnitude expansion speed divided
+by the supplied real camera elapsed seconds. There is no distance attenuation.
+Then run the existing biased selection and waveform. Body and explosion requests
+are selected immediately in that order, preserving source registration order:
+a newly admitted pulse starts at envelope one, which can suppress later requests
+on the same tick. Do not replace these calls with a strongest-request batch.
+
+The host snapshots active world explosions alongside fixed-physics camera
+inputs, converts their position to render axes and visits them on its real-time
+60 Hz camera clock. Completed waves are absent. These snapshots use the same
+simulation timestamps as the native body inputs, including Speedbreaker.
+Independent custom chase behavior remains separate. Cinematic/ICE shake tracks
+and a full original/remake gameplay capture comparison remain outside this pass.

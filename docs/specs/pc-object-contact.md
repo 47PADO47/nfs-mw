@@ -29,6 +29,17 @@ Inertia is multiplied componentwise by its scale, inverted and rotated into worl
 space. The contact arm is the contact point minus the world centre of gravity.
 The normal is normalized. Restitution belongs to each body separately.
 
+Preserve single-precision construction order before iteration. A rotated vector
+sums its z and y axis contributions before x. The inverse world tensor retains
+the two original products: scale each orientation axis by its inverse principal
+moment, then multiply by the transposed orientation. For an output component x,
+sum contributions y, z, x; for output components y/z, sum x, z, y. Scaling a
+different factor first or using one uniform sum order changes low bits. These
+differences can change a near-tangent reaction branch and amplify in repeated
+angular response. Synthetic original-helper measurements and captured-input
+intermediate substitutions verify both constructions; no material retuning or
+comparison-tolerance changes are involved.
+
 Reduced mass is `a.mass * b.mass / (a.mass + b.mass)` when both are mobile;
 when exactly one is immobile it is the mobile body's mass. Both immobile inputs
 are treated as mobile by this low-level routine, although the higher-level
@@ -43,6 +54,13 @@ the temporary velocities used to decide the next impulse.
 At each iteration, find relative contact velocity from temporary linear velocity
 plus `angular velocity cross contact arm`. Multiply by reduced mass to obtain
 relative momentum. If its projection on the normal is nonnegative, finish.
+The PC iterative projection sums the x and z products before the y product.
+Retain this single-precision order separately from initial closing telemetry;
+near-tangential momentum can cancel differently when a generic vector dot
+operation sums x and y first. Original-machine-code execution on 2026-10-20
+confirms synthetic near-tangent cancellation controls return no reaction.
+The exact x87 instruction stack establishes this order; a prior interpretation
+of the decompiler's reassociated expression as y/z before x was incorrect.
 
 The normal impulse cancels the negative projection. Tangential momentum is the
 remaining vector. Within `static friction * normal impulse`, friction cancels it
@@ -55,14 +73,23 @@ An immobile body with a positive breaking threshold releases when the initial
 normal impulse strictly exceeds it. Recompute reduced mass after release. Apply
 no velocity increment on this iteration.
 
-For iteration `i > 0`, multiply both impulses by `i / iteration_count`. For each
+For iteration `i > 0`, form the full normal impulse vector before multiplying
+both impulse vectors by `i / iteration_count`. Multiplying the normal by an
+already scaled scalar changes rounding in repeated shallow contacts. For each
 mobile body, use the appropriately signed impulse to compute:
 
 - Linear increment: impulse divided by that body's effective mass.
-- Angular increment: world inverse inertia times `arm cross impulse`.
+- Angular increment: world inverse inertia times `arm cross impulse`, retaining
+  the ordered vector transform above.
 
 Temporary velocities receive normal and friction increments. Output increments
-receive friction plus `(1 + body.elasticity)` times the normal increment. A
+receive friction plus `(1 + body.elasticity)` times the normal increment. In
+single precision, retain the original operation order: convert normal and
+friction impulses to separate velocity increments before adding them, then add
+`elasticity * normal_increment` to their sum for the output increment. Combining
+impulses before conversion or distributing `(1 + elasticity)` changes rounding
+in shallow, sliding contacts. This ordering was checked against captured original
+moments and the PC increment helper on 2026-10-20. A
 fixed-centre body receives angular increments only. Sum the scaled normal impulse
 magnitudes for the reported force. Finally add output increments to the original
 velocities. Return no reaction if iteration zero was already separating, including
@@ -100,6 +127,28 @@ friction, unequal elasticities, immobility, attachment release, fixed centre,
 rotated inertia, separating and stationary pairs. Compare both bodies' velocities,
 impulse, telemetry and release state with tolerances for x87 versus Rust `f32`.
 Reference numbers are measured results of synthetic inputs, not extracted assets.
+
+## Collision notifications
+
+**[decomp]** The PC object-response dispatcher reports a scalar impact to each
+body after a successful reaction. For a mobile moment this is normal impulse
+divided by its own effective contact mass. For an immobile moment it instead
+uses the other moment's effective mass. This notification can therefore be
+positive while that body's velocities are unchanged, including a vehicle's
+temporary `NO_CAR_EFFECT` override. Preserve both the notification and the
+physical response: collision callbacks, damage filtering and audio retain it;
+an immobile body still receives no physical velocity or steering correction.
+The callback arm uses the original narrow-phase point relative to the separated
+body origin. Its closing magnitude is the solver's initial normal component,
+measured with the modified moments at the corrected solver point. The sliding
+component remains separate and does not contribute to the damage eligibility
+gate. Keep incoming linear velocity separately for inherited damage events.
+
+Read-only PC dispatcher inspection on 2026-10-20 confirms both reciprocal-mass
+branches and the helper's positive-mass guard. This is static executable evidence,
+not a matched live camera or sound trace. A synthetic regression distinguishes
+the stationary body's positive notification from its zero physical response,
+including contact mass overrides and both body orders.
 
 Collision geometry, swept contacts, world/ground response, damage, visuals, sounds,
 scene timing, props and scripted set pieces require separate validation.
