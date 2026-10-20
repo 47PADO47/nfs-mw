@@ -7,7 +7,7 @@ use crate::input::Action;
 use crate::ui::input_icons::{ATLAS, Glyph};
 use crate::ui::prompts::Prompt;
 use crate::ui::theme::custom::{DriveFeedCell, palette};
-use crate::ui::theme::remastered::{RemasteredTheme, WorldMapLegendCell, palette_skin, skin};
+use crate::ui::theme::remastered::{RemasteredTheme, palette_skin, skin};
 use crate::ui::theme::{ElementId, MenuEntry, MenuHint, MenuList, MenuListCell, MenuStyle};
 
 const ASPECT: f32 = 16.0 / 9.0;
@@ -33,7 +33,7 @@ fn list(style: MenuStyle, selected: usize) -> MenuList {
 
 fn built(slot: ElementId, cell: &MenuListCell) -> Vec<UiNode> {
     let skin = palette::remastered().skin().merged(skin()).merged(palette_skin(&palette::remastered()));
-    let theme = RemasteredTheme::new(DriveFeedCell::new(), WorldMapLegendCell::new(), cell.clone());
+    let theme = RemasteredTheme::new(DriveFeedCell::new(), cell.clone());
     let mut menu = theme.element(slot.slot(), &BuildCx::new(&skin)).expect("Remastered draws this menu");
     menu.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();

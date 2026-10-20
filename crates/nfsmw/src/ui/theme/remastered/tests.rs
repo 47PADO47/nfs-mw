@@ -3,8 +3,8 @@
 
 use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode, token_keys};
 
+use super::RemasteredTheme;
 use super::skin::{keys, palette_skin, skin};
-use super::{RemasteredTheme, WorldMapLegendCell};
 use crate::hud::HudState;
 use crate::ui::present::Screen;
 use crate::ui::theme::custom::DriveFeedCell;
@@ -22,8 +22,8 @@ fn built(element: ElementId, state: &HudState) -> Option<Vec<UiNode>> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = test_skin();
-    let mut component = RemasteredTheme::new(feed, WorldMapLegendCell::new(), MenuListCell::new())
-        .element(element.slot(), &BuildCx::new(&skin))?;
+    let mut component =
+        RemasteredTheme::new(feed, MenuListCell::new()).element(element.slot(), &BuildCx::new(&skin))?;
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();
     component.build(&mut out);

@@ -41,10 +41,10 @@ use bevy_ecs::prelude::*;
 use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, ThemeError, ThemeId, Themes};
 
 use crate::settings::{Settings, UiStyle, UiTheme};
-use custom::{CustomTheme, DriveFeedCell, RadioFeedCell, palette};
+use custom::{CustomTheme, DriveFeedCell, RadioFeedCell, WorldMapLegendCell, palette};
 use modded::{ModHud, ModTheme};
 use original::{FrameCell, OriginalTheme};
-use remastered::{RemasteredTheme, WorldMapLegendCell};
+use remastered::RemasteredTheme;
 
 /// The theme a UI style selects. A theme that is not registered leaves Original active ([`UiThemes::select`]).
 pub fn theme_of(style: UiStyle) -> ThemeId {
@@ -94,10 +94,10 @@ pub fn build_themes(
     check_floor_fills_every_slot(&frame);
     let mut themes = Themes::new(Box::new(OriginalTheme::new(frame))).expect("OriginalTheme reports ThemeId::Original");
     themes
-        .register(Box::new(CustomTheme::new(radio.clone(), drive.clone())))
+        .register(Box::new(CustomTheme::new(radio.clone(), drive.clone(), legend)))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
-        .register(Box::new(RemasteredTheme::new(drive, legend, menus)))
+        .register(Box::new(RemasteredTheme::new(drive, menus)))
         .expect("RemasteredTheme is registered once, and is not Original");
     themes
 }

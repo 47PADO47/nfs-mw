@@ -4,9 +4,9 @@ use std::collections::HashSet;
 
 use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 
+use super::custom::WorldMapLegendCell;
 use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
-use super::remastered::WorldMapLegendCell;
 use super::{ElementId, MenuListCell, build_themes, default_skin};
 
 /// The numbers are part of the mod ABI. Pinning them here means a reorder or a renumber fails a test.
@@ -77,7 +77,10 @@ fn name_is_the_variant_name() {
 #[test]
 fn theme_ids_are_original_and_custom() {
     assert_eq!(OriginalTheme::new(FrameCell::new()).id(), ThemeId::Original);
-    assert_eq!(CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default()).id(), ThemeId::Custom);
+    assert_eq!(
+        CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default(), WorldMapLegendCell::default()).id(),
+        ThemeId::Custom
+    );
 }
 
 #[test]
@@ -124,17 +127,20 @@ fn ui_style_maps_onto_its_theme_id() {
 }
 
 #[test]
-fn remastered_recolours_the_world_map_and_original_does_not() {
+fn custom_recolours_the_world_map_and_original_does_not() {
     use crate::settings::UiStyle;
     let mut themes = super::UiThemes::build();
 
     // Original (the default) leaves the FEng map screen as it is.
     assert!(!themes.draws_world_map_chrome(), "Original does not recolour the map");
 
-    // Remastered provides the slot (as Empty): that is the flag the plugin reads to recolour the FEng map in place.
-    themes.select(UiStyle::Remastered);
-    assert!(themes.draws_world_map_chrome(), "Remastered recolours the map");
-    assert!(super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(), "the slot draws nothing");
+    // Custom provides the slot (the legend over the recoloured FEng map): that is the flag the plugin reads.
+    themes.select(UiStyle::Custom);
+    assert!(themes.draws_world_map_chrome(), "Custom recolours the map");
+    assert!(
+        super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
+        "no legend until a map is open"
+    );
 
     // Back to Original: the map is left alone again.
     themes.select(UiStyle::Original);

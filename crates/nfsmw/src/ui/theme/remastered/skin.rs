@@ -5,10 +5,9 @@
 use blackbox_feng::resource_handle;
 use blackbox_ui::{Skin, Tokens};
 
-use crate::frontend::world_map::control::MAP_ICON_FILES;
 use crate::ui::input_icons;
 use crate::ui::raster_text::{
-    RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_TITLE_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_MONO_FONT_KEY,
+    RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_TITLE_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY,
     RASTER_NUMBER_FONT_KEY,
 };
 
@@ -34,8 +33,6 @@ pub(super) mod keys {
     pub const CLUSTER_BG: &str = token_keys::BACKGROUND;
     pub const FONT_NUMBERS: &str = "remastered.font.numbers";
     pub const FONT_TEXT: &str = "remastered.font.text";
-    /// The map legend's font: the upright monospace the FPS overlay uses, so the legend is not leaned like the cluster.
-    pub const FONT_LEGEND: &str = "remastered.font.legend";
     pub const SCALE_SPEED: &str = "remastered.scale.speed";
     pub const SCALE_UNIT: &str = "remastered.scale.unit";
     pub const SCALE_GEAR: &str = "remastered.scale.gear";
@@ -95,21 +92,15 @@ fn with_alpha([r, g, b, _]: [u8; 4], alpha: u8) -> [u8; 4] {
 }
 
 /// The Remastered skin. Token-backed colours are supplied by the theme's `Tokens::skin()` merge; this function provides
-/// the custom entries, the fonts, and the map legend's blip-icon textures (keyed by their file name, so the legend
-/// draws an icon by the file [`icon_name`](crate::frontend::world_map::control::icon_name) returns).
+/// the custom entries, the fonts, the menus' logo and the controller glyph atlas.
 pub fn skin() -> Skin {
-    let mut skin = Skin::new()
+    Skin::new()
         .with_font(keys::FONT_NUMBERS, RASTER_NUMBER_FONT_KEY)
         .with_font(keys::FONT_TEXT, RASTER_FONT_KEY)
-        .with_font(keys::FONT_LEGEND, RASTER_MONO_FONT_KEY)
         .with_font(keys::FONT_MENU, RASTER_MENU_FONT_KEY)
         .with_font(keys::FONT_MENU_WIDE, RASTER_MENU_WIDE_FONT_KEY)
         .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
         .with_texture(keys::LOGO, resource_handle("MW_Logo.tga"))
-        .with_texture(keys::ATLAS, input_icons::ATLAS);
-    for file in MAP_ICON_FILES {
-        skin = skin.with_texture(file, resource_handle(file));
-    }
-    skin
+        .with_texture(keys::ATLAS, input_icons::ATLAS)
 }

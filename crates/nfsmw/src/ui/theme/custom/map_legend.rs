@@ -1,4 +1,4 @@
-//! The Remastered map legend: a token-styled panel of the current filter's blips (icon, name, distance), drawn over the
+//! The Custom map legend: a token-styled panel of the current filter's blips (icon, name, distance), drawn over the
 //! recoloured FEng map in place of the screen's own list (which the frontend hides while this is up). It reads the open
 //! map from the cell the plugin fills ([`WorldMapLegendCell`]) and draws nothing when the map is closed.
 
@@ -80,7 +80,7 @@ impl WorldMapLegendCell {
     }
 }
 
-/// The Remastered map legend component. Built per resolve from the shared cell; it holds no state of its own.
+/// The Custom map legend component. Built per resolve from the shared cell; it holds no state of its own.
 pub struct MapLegend {
     cell: WorldMapLegendCell,
     body: Option<Body>,
@@ -114,7 +114,7 @@ impl Body {
     fn of(legend: &Legend, cx: &LayoutCx<'_>) -> Self {
         let radius = cx.skin.metric(token_keys::RADIUS).unwrap_or(6.0);
         let pad = cx.skin.metric(token_keys::PADDING).unwrap_or(10.0);
-        let font = skin_keys::FONT_LEGEND;
+        let font = skin_keys::LEGEND_FONT;
         let panel = Rect::new(PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
         let mut parts: Vec<Box<dyn Component>> = Vec::new();
 
@@ -229,12 +229,11 @@ mod tests {
     use super::*;
     use crate::frontend::world_map::control::blip_rgba;
     use crate::frontend::world_map::{Filter, PlacedBlip, WorldMap, WorldMapFrame};
-    use crate::ui::theme::remastered::skin;
     use blackbox_ui::{DrawList, NodeKind, Skin, UiNode};
 
     fn test_skin() -> Skin {
-        use crate::ui::theme::custom::palette;
-        palette::remastered().skin().merged(skin())
+        use crate::ui::theme::custom::{card_skin, palette};
+        palette::remastered().skin().merged(card_skin())
     }
 
     fn frame() -> WorldMapFrame {
