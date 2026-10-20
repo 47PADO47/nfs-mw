@@ -11,6 +11,7 @@ mod phone;
 mod pursuit;
 mod regions;
 mod safehouse;
+mod speedtraps;
 
 use std::collections::VecDeque;
 
@@ -34,6 +35,8 @@ pub(super) struct WorldCareer {
     pub hud: hud::CareerHud,
     /// The events of the challenge bin the player has won this session (`events.rs`).
     pub side_won: std::collections::BTreeSet<String>,
+    /// The speed traps the car is inside (`speedtraps.rs`).
+    pub traps: speedtraps::TrapWatch,
 }
 
 impl WorldScene {
@@ -49,6 +52,7 @@ impl WorldScene {
             return;
         }
         self.career_pursuit(dt);
+        self.career_speed_traps();
         self.career_regions();
         self.career_hud();
         self.career_phone(dt);

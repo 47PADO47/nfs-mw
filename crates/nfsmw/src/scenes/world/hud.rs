@@ -83,6 +83,7 @@ impl WorldScene {
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             self.race_blips(&mut state.blips);
             self.race_start_blips(&mut state.blips);
+            self.speed_trap_blips(&mut state.blips);
             state.blips.extend_from_slice(&self.map_blips);
             state.blips.extend_from_slice(&self.mod_blips);
         }
