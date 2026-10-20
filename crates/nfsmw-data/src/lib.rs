@@ -20,6 +20,7 @@
 pub mod camera;
 pub mod car;
 pub mod career_cars;
+pub mod cooling;
 pub mod day_night;
 mod files;
 pub mod fog;
