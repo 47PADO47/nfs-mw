@@ -88,8 +88,9 @@ Under Original nothing reads the cell.
 
 ## 6. Not done, and open
 
-- The track select and the career screens (`TrackSelect`, `Blacklist`, `CarLot`, `RapSheet`, `MemoryCard`, `Sms`) are still
-  Original, and so are the key list and the jukebox, which have no slot.
+- The track select and the other career screens (`TrackSelect`, `CarLot`, `RapSheet`, `MemoryCard`, `Sms`) are still
+  Original. The dialogs, the key list, the EA Trax playlist, the credits and the Blacklist are drawn as menu lists too
+  ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)).
 - The logo is the texture alone; the reference's black splatter behind it is not drawn.
 - Hover also follows the pointer on a stack screen under a dialog only when it is the top screen.
 - Checked on one aspect (16:9) by screenshot. Other aspects are covered by the layout tests (the left edge moves with the

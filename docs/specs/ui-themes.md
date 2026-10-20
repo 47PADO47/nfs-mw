@@ -379,7 +379,7 @@ Worked design note, to show the component set is enough. The example is a fullsc
 
 The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
 
-Built since: the Remastered cluster, the map legend, and the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components.
+Built since: the Remastered cluster, the map legend, the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components, and the dialogs, Blacklist, minimap with its heat ring and radio card ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)), which added `Ring`.
 
 ## 11. The `UiStyle` setting
 
