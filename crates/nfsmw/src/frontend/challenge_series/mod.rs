@@ -131,6 +131,11 @@ impl ChallengeSeries {
         }
         let Some(board) = board::board() else { return };
         self.progress = progress::current();
+        self.adopt(cx, board);
+    }
+
+    /// Starts on a list of events: the selection the screen was left on, the map's first move and the map pictures.
+    fn adopt(&mut self, cx: &mut Cx, board: Arc<Board>) {
         self.grid = Grid::new(WIDTH, HEIGHT, board.len());
         let remembered = cx.memory.get(&Self::memory_key()).copied().unwrap_or(0);
         self.grid.select(remembered);
@@ -141,6 +146,12 @@ impl ChallengeSeries {
         self.board = Some(board);
         self.shown = None;
         self.refresh(cx);
+    }
+
+    /// A screen over the given events and wins, for the tests (the real one reads them from the install).
+    #[cfg(test)]
+    fn with(board: Arc<Board>, progress: Progress) -> Self {
+        Self { board: Some(board), progress, ..Self::new() }
     }
 
     fn entry(&self) -> Option<&Entry> {
@@ -337,7 +348,10 @@ impl ScreenLogic for ChallengeSeries {
     fn start(&mut self, cx: &mut Cx) {
         cx.hide(CONSOLE_FOOTER, true);
         cx.rt.post_to_package(cx.package, SHOW_HELP);
-        self.take_board(cx);
+        match self.board.clone() {
+            Some(board) => self.adopt(cx, board),
+            None => self.take_board(cx),
+        }
     }
 
     fn resume(&mut self, cx: &mut Cx) {
