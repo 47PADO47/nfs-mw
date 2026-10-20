@@ -307,21 +307,35 @@ pub struct Placed {
     pub heading: f32,
 }
 
+/// The centre of `layout` on `road`: against the road's edge nearer the target, half the layout's minimum width along
+/// the road's width (spec section 2.4). The roadblock keeps it for the dodge test.
+pub fn centre(layout: &Layout, road: &Road) -> Vec3 {
+    let at = layout_centre(layout, road);
+    Vec3::new(at.x, road.target.y, at.y)
+}
+
+fn layout_centre(layout: &Layout, road: &Road) -> Vec2 {
+    let left = Vec2::new(road.left.x, road.left.z);
+    let right = Vec2::new(road.right.x, road.right.z);
+    let target = Vec2::new(road.target.x, road.target.z);
+    let crw = (left - right).length().max(1e-3);
+    let (across, anchor) = if (left - target).length_squared() > (right - target).length_squared() {
+        (left - right, right)
+    } else {
+        (right - left, left)
+    };
+    anchor + across * (layout.min_width / 2.0) / crw
+}
+
 /// Places `layout` on `road` (spec section 2.4). The layout sits against the edge nearer the target and spreads across
 /// the road; its `x` offsets stretch by up to 14 percent on wider roads. The sign convention of the facing rotation is
 /// `[unconfirmed]` (the spec's note: the game's `RotateInXZ`).
 pub fn place(layout: &Layout, road: &Road) -> Vec<Placed> {
     let left = Vec2::new(road.left.x, road.left.z);
     let right = Vec2::new(road.right.x, road.right.z);
-    let target = Vec2::new(road.target.x, road.target.z);
     let crw = (left - right).length().max(1e-3);
     let cr_width = crw + 1.0;
-    let (across, anchor) = if (left - target).length_squared() > (right - target).length_squared() {
-        (left - right, right)
-    } else {
-        (right - left, left)
-    };
-    let centre = anchor + across * (layout.min_width / 2.0) / crw;
+    let centre = layout_centre(layout, road);
     let x_scale = (cr_width / layout.min_width).clamp(1.0, 1.14);
     let forward = Vec2::new(road.forward.x, road.forward.z).normalize_or_zero();
     let side = Vec2::new(forward.y, -forward.x);
