@@ -128,6 +128,8 @@ remaining clock, geometry, context and live-comparison limits.
 - [ai-traffic-obstacles.md](ai-traffic-obstacles.md): what an ordinary traffic car does when a car, wreck, roadblock or the
   player is in its lane, and how it recovers when stuck.
 - [busted-sequence.md](busted-sequence.md): from the busted meter filling to the career screen (arrest scene, packages, choices).
+- [busted-aftermath.md](busted-aftermath.md): after the ticket: the impound notices, the career car select, the release, the game over and the return to free roam.
+- [career-cooling.md](career-cooling.md): the `fecooling` table, paint cooling of the car's heat and the heat meter.
 - [cop-health-bars.md](cop-health-bars.md): an optional health bar above each police car that is chasing the player.
 
 ## Vehicles
