@@ -56,3 +56,35 @@ pub enum RaceAnswer {
     /// Leave the race and go on in free roam.
     Exit,
 }
+
+/// One milestone a finished chase banked, as the rewards screen lists it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RewardLine {
+    /// What was achieved, for example `10 police cars destroyed`.
+    pub text: String,
+    /// The bounty it paid.
+    pub bounty: u32,
+    /// The texture of its icon in `PostRace_MilestoneRewards.fng`.
+    pub icon: &'static str,
+}
+
+/// What `PostRace_MilestoneRewards.fng` shows after a chase that banked milestones.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RewardsReport {
+    pub lines: Vec<RewardLine>,
+    /// The car's bounty after the rewards.
+    pub total_bounty: u32,
+}
+
+impl RewardsReport {
+    /// A report for `nfsmw view-screen`.
+    pub fn sample() -> Self {
+        Self {
+            lines: vec![
+                RewardLine { text: "10 police cars destroyed".into(), bounty: 5000, icon: "Cops_TakenOut_Icon" },
+                RewardLine { text: "Chase for 05:00".into(), bounty: 5000, icon: "Milestone_Pursuit_MaxTime" },
+            ],
+            total_bounty: 1_000_000,
+        }
+    }
+}

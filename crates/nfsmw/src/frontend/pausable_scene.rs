@@ -237,6 +237,13 @@ impl Scene for Pausable {
         self.inner.take_race_report()
     }
 
+    fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.take_rewards_report()
+    }
+
     fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
         self.inner.answer_race(answer)
     }

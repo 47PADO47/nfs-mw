@@ -3,7 +3,7 @@
 
 pub mod camera;
 mod race_report;
-pub use race_report::{RaceAnswer, RaceReport, ReportLap, ReportRacer};
+pub use race_report::{RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport};
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -234,6 +234,10 @@ pub trait Scene {
     }
     /// The finished race's results, once, when the front end should show the post-race screen; `None` otherwise.
     fn take_race_report(&mut self) -> Option<RaceReport> {
+        None
+    }
+    /// The milestones a finished chase banked, once, when the front end should show the rewards screen.
+    fn take_rewards_report(&mut self) -> Option<RewardsReport> {
         None
     }
     /// The post-race screen's answer. `true` when a race was waiting on it.

@@ -124,6 +124,7 @@ impl WorldScene {
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
         let phone = &mut self.career.phone;
+        let mut rewards = None;
         let bins = self.career.handle.with(|career| {
             let handle = career.settings.car_handle;
             let kept = driven_kept.then(|| career.stable.career_for_handle(handle).map(|r| r.heat)).flatten();
@@ -146,6 +147,8 @@ impl WorldScene {
             if let Some(record) = career.stable.career_for_handle_mut(handle) {
                 pay_banked(record, &milestones.banked);
             }
+            let bounty = career.stable.career_for_handle(handle).map_or(0, |record| record.bounty);
+            rewards = super::rewards::report_of(&career.milestones, &milestones.banked, bounty);
             // A banked milestone is a challenge passed in its bin: the Blacklist counts it, and the bin's challenge
             // messages follow its count (`docs/specs/career-phone.md` section 7).
             for (bin, key) in passed_challenges(&career.milestones, &milestones.banked) {
@@ -161,6 +164,9 @@ impl WorldScene {
             && !bins.is_empty()
         {
             bevy_log::info!("the bounty completed the bins {bins:?}");
+        }
+        if let Some(report) = rewards {
+            self.career.rewards = Some(report);
         }
         self.career.pursuit.escapes_in_a_row = escapes;
         self.career.pursuit.finished = self.career.pursuit.finished.saturating_add(1);

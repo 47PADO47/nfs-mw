@@ -6,7 +6,7 @@
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0, PAD_LTRIGGER, PAD_RTRIGGER};
 
 use super::flow::{Frontend, Stage};
-use super::ids::screen::POST_RACE_RESULTS;
+use super::ids::screen::{MILESTONE_REWARDS, POST_RACE_RESULTS};
 use super::logic::{Command, Cx, Env, ScreenLogic};
 use crate::app::Host;
 use crate::viewer::{RaceAnswer, RaceReport, ReportRacer};
@@ -41,6 +41,16 @@ impl Frontend {
     /// Opens the post-race results when the world's race reaches them: over the frozen game, as the ticket is.
     pub(super) fn poll_race(&mut self, host: &mut Host, env: &mut Env) {
         if self.stage != Stage::Playing {
+            return;
+        }
+        if let Some(rewards) = host.scene.take_rewards_report() {
+            log::info!("chase: the rewards screen is up ({} milestones)", rewards.lines.len());
+            self.latch = true;
+            self.paused.set(true);
+            self.stage = Stage::Paused;
+            let logic = super::rewards::RewardsLogic::new(rewards);
+            let commands = self.screens.open_with(MILESTONE_REWARDS, Box::new(logic), true, env);
+            self.apply(commands, host, env);
             return;
         }
         let Some(report) = host.scene.take_race_report() else { return };

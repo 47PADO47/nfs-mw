@@ -313,6 +313,9 @@ impl Scene for WorldScene {
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
         self.take_race_report()
     }
+    fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
+        self.career.rewards.take()
+    }
     fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
         self.answer_race(answer)
     }

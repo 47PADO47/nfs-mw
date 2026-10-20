@@ -192,3 +192,27 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
 - **Post-race screens:** `PostRace_Results.fng` (`0x00642140` case 0, `0x00549460`, `0x0057ca60`),
   `PostRace_Pursuit.fng` (case 1) and `PostRace_MilestoneRewards.fng` (`0x00641fe0`) are pushed by name through
   `0x005257f0`; `EnterPostRaceFlow` and `ShowRaceOverSummary` (`0x006120c0`) are Lua-callable.
+
+## 10. The post-race screens **[exe]** **[install]**
+
+- **Packages** (`GLOBAL/InGameB.bun`): `PostRace_Results.fng` (149 objects), `PostRace_Pursuit.fng` (95),
+  `PostRace_MilestoneRewards.fng` (51). `0x00642140` pushes the first or the second by its argument (0 or 1);
+  `0x00641fe0` (`EShowMilestones`) pushes the third; both go through `0x005257f0`, which pushes a screen by name.
+- **`PostRace_Results.fng`**: a title (`RACE RESULTS`), the racer's name between two arrows (`PLAYER`, with the shoulder
+  glyphs `L1.tga` and `R1.tga`), a header (`Lap`, `Pos.`, `Time`) and 10 rows of three strings (the row `n` strings are
+  the name hashes `0x38B136A7 + n`, `0x85AB7368 + n` and `0xD2A5B029 + n` for 1 to 9, and `0x4ED80BD8`, `0x3B19E0B9`,
+  `0x275BB59A` for the tenth). The footer has Exit (Enter, `Cross.tga`), Restart (key 1, `Circle.tga`) and Stats (key 2,
+  `Square.tga`). The package answers these to the game: `PAD_ACCEPT` (`0x406415E3`), `PAD_BUTTON0` (`0xC519BFBF`),
+  `PAD_BUTTON4` and `PAD_BUTTON5`, `PAD_LTRIGGER` (`0x5073EF13`) and `PAD_RTRIGGER` (`0xD9FEEC59`); the roles of Exit,
+  Restart and the arrows follow the glyphs and the labels, not a read of the screen class **[unconfirmed]**. What the
+  columns count (a lap table of one racer, the arrows switching racer) follows the headers **[unconfirmed]**.
+- **`PostRace_MilestoneRewards.fng`**: a milestone line (`0xE526D0D2`), a bounty line (`0xE1045A4F`), the total
+  (`0x324F7792`), a big icon (`0xFCC8A`) whose script `0x5079C8F8` posts the messages that bring the lines in, and a row
+  of ten small icons by milestone type. Its Continue button leaves through the package's own script, which ends with
+  `EXIT_COMPLETE` to the game.
+- **The flow** is the Lua graph's (`docs/specs/career-scripts-events.md` section 1.1): `raceover` (3 s), `postrace`
+  (the native call that opens the result and reward screens), then `restartrace`, `enterfreeroam` or `flowreadyforoutro`.
+  The strings `EnterPostRaceFlow` (`0x0061EA30`) and `ShowRaceOverSummary` (`0x006120C0`) are the native entries.
+- **Not read**: the screen classes behind these (their handlers were not decompiled), the outro's cutscene call, and
+  `PostRace_Pursuit.fng` (95 objects: the pursuit statistics, read by `0x00642140` case 1).
+

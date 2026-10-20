@@ -34,6 +34,7 @@ mod prompts;
 mod quick_options;
 mod quick_race;
 mod renderer_options;
+mod rewards;
 mod room;
 mod scene;
 mod screens;

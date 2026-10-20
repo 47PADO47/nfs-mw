@@ -123,7 +123,7 @@ route builder returns, [ai-racers-route.md](ai-racers-route.md) section 2); perc
 | Knockout (`knockout`, 3) | circuit laps; at the end of each lap the last racer is knocked out, [section 7](#7-lap-knockout) |
 | Tollbooth (`tollbooth`, 4) | a sprint against the clock with time bonuses; opponents none or few |
 | Speed trap (`speedtrap`, 5) | ranked by points, [section 9](#9-speed-traps) |
-| Challenge (`challenge`, 8) | pursuit challenge, [section 12](#12-pursuit-challenges) |
+| Challenge (`challenge`, 8) | pursuit challenge, [section 14](#14-pursuit-challenges) |
 | `checkpointrace`, `cashgrab`, jump types | in no race of this install; not implemented |
 
 ## 7. Lap knockout
@@ -213,10 +213,30 @@ out of the race, or whose time ran out, counts as last), and cash is paid on a f
 ([career-economy-flows.md](career-economy-flows.md) section 7). Quick race has no career effect.
 A won boss race in career opens the next step of the bin; the bounty and SMS glue is in the career crate.
 
+**The flow after the finish** follows the career's race graph ([career-scripts-events.md](career-scripts-events.md)
+section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`docs/provenance/race-mode.md` section 10):
+
+1. `raceover`: the race-over message shows for `RaceOverMessageDuration`, 3 s. The rewrite's egui card says
+   "You won", "You finished 3rd" or "Race lost" for those 3 s (Interact skips them).
+2. `postrace`: the post-race screen, `PostRace_Results.fng` (`frontend/post_race.rs`). It lists the lap, the place held
+   at the end of the lap and the lap time of one racer, 10 laps at most; the shoulder buttons (Page Up and Page Down,
+   the pad's L1 and R1) look at the next racer. A win and a loss take the same screen: the Lua graph sends a loss to a
+   "losing screen" hook that is a stub in this build, and the native summary offers retry and quit **[unconfirmed]**.
+3. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button, to free roam), or `restartrace`
+   (Restart: the key 1 or the pad's second button, to `prerace`, which starts the same race again). The stats page, the
+   online gamer card, mute and feedback buttons are hidden.
+4. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done**. No cutscene is
+   played anywhere in the rewrite (the bust sequence has the same fallback).
+5. `PostRaceActivity`, the chained race of the career: not done.
+
+A chase that banks milestones shows `PostRace_MilestoneRewards.fng` (`frontend/rewards.rs`): the milestone and its
+bounty one at a time (Accept steps on), and the car's bounty. The words are the rewrite's own
+(`scenes/world/career/rewards.rs`).
+
 ## 12. Abandoning and restarting
 
 `AbandonRace` ends the race for the player without a result; `RestoreStartPositions` puts every racer back on
-the grid for a restart **[exe]** names. The rewrite supports `race stop` (abandon, no result) and `race restart`.
+the grid for a restart **[exe]** names. The rewrite supports `race stop` (abandon, no result) and, on the post-race screen, Restart.
 The player's reset key keeps working in a race.
 
 ## 13. What the rewrite runs (status)
@@ -229,26 +249,21 @@ The player's reset key keeps working in a race.
 | The running race: positions, events, goals, catch-up, far racers | `race/flow.rs`, `emulate.rs` |
 | The drag race's steering assist and lanes | `race/drag.rs`, `drive/grid.rs` |
 | The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
-| The card (place, lap, clocks, banner, result) | `hud/race_card.rs` |
+| The place, lap, clock, progress and 3-2-1-GO | `hud/race.rs` (the HUD package's objects) |
+| The banner, the points and the race-over message | `hud/race_card.rs` (egui) |
+| The post-race screen, the rewards screen | `frontend/post_race.rs`, `frontend/rewards.rs`, `race/report.rs` |
+| The mods' view of the races | `modding/races_feed.rs`, `backends/races.rs`, `race/mods.rs` |
 | The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
-| The console | `race list|start|status|stop`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
-| Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs` |
+| The console | `race list|start|status|stop|mod`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
+| Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs`, `quick_options.rs` |
 
 Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
-post-race flow is a result card, with no reward screens, no outro and no retry choice; a player who is busted in a race
+post-race flow has no outro and no losing screen of its own; a player who is busted in a race
 is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) triggers, `SharedCheckpoints`,
 `TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race
 and jump types do not occur in this install.
 
-## Open questions
-
-1. The countdown board's timing and the exact post-race flow (the Lua graphs).
-2. The unit of `InitialPlayerSpeed` and the amount of a tollbooth time bonus.
-3. The exact progress formula (`+0x18` is written by the AI routing code, not read here).
-4. Whether the player's loss on a knockout is decided at the end of the race.
-5. The trigger test's axes ([formats/gameplay-races.md](../formats/gameplay-races.md) open question 1).
-
-## 12. Pursuit challenges
+## 14. Pursuit challenges
 
 A `challenge` race has no checkpoints, no finish and no opponents (`rewrite/scenes/world/race/challenge.rs`). It runs
 as [career-scripts-events.md](career-scripts-events.md) section 6.1 says **[verified]**:
@@ -268,3 +283,11 @@ as [career-scripts-events.md](career-scripts-events.md) section 6.1 says **[veri
 - Not done: the unlock ladder (every challenge is open; the unlock lists are not in the race records read here), the
   final pursuit `1.8.1` (its win trigger), and the result screens (`PostRace_Pursuit.fng` is not bound; the race card
   says "Challenge complete" or "Challenge failed").
+
+## Open questions
+
+1. The countdown board's cadence (three numbers a second apart is read from the package's scripts, not from the Lua graph).
+2. The amount of a tollbooth time bonus.
+3. The exact progress formula (`+0x18` is written by the AI routing code, not read here).
+4. Whether the player's loss on a knockout is decided at the end of the race.
+5. The trigger test's axes ([formats/gameplay-races.md](../formats/gameplay-races.md) open question 1).

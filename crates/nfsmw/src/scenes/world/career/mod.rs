@@ -10,6 +10,7 @@ mod hud;
 mod phone;
 mod pursuit;
 mod regions;
+mod rewards;
 mod safehouse;
 mod speedtraps;
 
@@ -37,6 +38,8 @@ pub(super) struct WorldCareer {
     pub side_won: std::collections::BTreeSet<String>,
     /// The speed traps the car is inside (`speedtraps.rs`).
     pub traps: speedtraps::TrapWatch,
+    /// The milestones the last chase banked, until the front end takes them for the rewards screen.
+    pub rewards: Option<crate::viewer::RewardsReport>,
 }
 
 impl WorldScene {
