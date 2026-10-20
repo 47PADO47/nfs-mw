@@ -110,6 +110,7 @@ impl WorldScene {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
             if let Some(world) = traffic.as_mut() {
                 world.load_data(physics.database(), index.track_zones.clone());
+                world.set_track_barriers(std::mem::take(&mut index.track_barriers));
                 if let Some(sheet) = heli_sheet.flatten() {
                     world.set_heli_sheet(sheet);
                 }

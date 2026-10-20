@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 
+use blackbox_roads::{ActiveBarrier, TrackBarrier};
 use blackbox_scenery::{SceneryGroup, find_group};
 
 use super::WorldScene;
@@ -81,6 +82,19 @@ impl SceneryGroups {
     pub fn named(&self, name: &str) -> Option<&SceneryGroup> {
         find_group(&self.table, blackbox_hash::bstring_hash(name))
     }
+
+    /// The barrier lines that are on: those whose group (by name hash) is switched on, each with its group's
+    /// drive-through byte.
+    pub fn active_barriers(&self, lines: &[TrackBarrier]) -> Vec<ActiveBarrier> {
+        lines
+            .iter()
+            .filter_map(|line| {
+                let group = find_group(&self.table, line.group_hash)?;
+                let on = group.number != 0 && self.enabled.contains_key(&group.number);
+                on.then_some(ActiveBarrier { a: line.a, b: line.b, drive_through: group.drive_through })
+            })
+            .collect()
+    }
 }
 
 impl WorldScene {
@@ -101,5 +115,20 @@ impl WorldScene {
     pub(super) fn switch_default_scenery_groups(&mut self) {
         let Some(door) = self.scenery_groups.named(DOOR_GROUP).map(|g| g.number) else { return };
         self.switch_scenery_group(door, Some(false));
+        self.refresh_road_barriers();
+    }
+
+    /// Flags the road segments that cross a barrier line of a switched-on group (the region gates, the door), so the
+    /// GPS routes around closed roads. Called after each batch of switches, as the engine recomputes after each enable
+    /// pass. While a race runs the flags stay clear (`race/barriers.rs` says why).
+    pub(super) fn refresh_road_barriers(&mut self) {
+        let racing = self.race.is_some();
+        let Some(traffic) = self.traffic.as_mut() else { return };
+        let active = match racing {
+            true => Vec::new(),
+            false => self.scenery_groups.active_barriers(traffic.track_barriers()),
+        };
+        let marked = traffic.mark_road_barriers(&active);
+        log::debug!("road barriers: {} line(s) on, {marked} segment(s) closed to routes", active.len());
     }
 }

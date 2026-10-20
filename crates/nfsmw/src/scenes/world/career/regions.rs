@@ -100,6 +100,7 @@ impl WorldScene {
         for group in change.opened.numbers().into_iter().filter_map(group_of) {
             self.set_scenery_group(group, false);
         }
+        self.refresh_road_barriers();
     }
 }
 

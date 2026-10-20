@@ -68,6 +68,10 @@ fn raise(switches: &[Switch], groups: &SceneryGroups, mut switch: impl FnMut(u16
 
 impl WorldScene {
     /// Switches on the groups of a race's `Barriers` list, on top of what is on (the region gates stay closed).
+    ///
+    /// The engine also flags the roads that cross the barrier lines, sparing the roads at the race's start. The
+    /// rewrite clears the road flags for the race instead: with its crossing test 15 of 215 race courses lose their
+    /// racer route, so the exact test is open (`docs/specs/race-barriers.md` section 5).
     pub(super) fn raise_race_walls(&mut self, list: &[String]) -> RaceWalls {
         let switches = switches(list.iter().map(String::as_str), &self.scenery_groups);
         let mut applied = Vec::with_capacity(switches.len());
@@ -75,17 +79,21 @@ impl WorldScene {
         for (group, state) in applied {
             self.switch_scenery_group(group, state);
         }
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.mark_road_barriers(&[]);
+        }
         if !walls.is_empty() {
             log::info!("race: {} scenery group(s) of walls switched on", walls.len());
         }
         walls
     }
 
-    /// Puts every group a race switched back as it was before the race.
+    /// Puts every group a race switched back as it was before the race, and the free-roam road flags with them.
     pub(super) fn lower_race_walls(&mut self, walls: RaceWalls) {
         for (group, state) in walls.before.into_iter().rev() {
             self.switch_scenery_group(group, state);
         }
+        self.refresh_road_barriers();
     }
 }
 
