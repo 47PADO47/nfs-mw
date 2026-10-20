@@ -116,6 +116,8 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
+- [race-barriers.md](race-barriers.md): the walls a race's `Barriers` list switches on (scenery groups, the star's
+  mirror, collision, the door) and the road barrier flags.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
 
 ## Pursuit, traffic and the busted sequence
