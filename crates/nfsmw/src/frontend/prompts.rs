@@ -88,6 +88,13 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
     if is(screen::CREDITS) {
         hints = vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
     }
+    if is(screen::QUICK_RACE_BRIEF) {
+        hints = vec![
+            (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+            (action(Action::MenuAccept), "Accept", Some(Action::MenuAccept)),
+            (action(Action::MenuButton1), "Randomize", Some(Action::MenuButton1)),
+        ];
+    }
     if rows {
         hints = vec![
             (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),

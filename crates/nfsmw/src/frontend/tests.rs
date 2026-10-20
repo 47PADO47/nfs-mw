@@ -14,17 +14,16 @@ use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 const FRAME: f32 = 1.0 / 60.0;
 
-#[path = "prompt_tests.rs"]
-mod prompt_tests;
-
 #[path = "click_tests.rs"]
 mod click_tests;
-
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
-
 #[path = "player_options_tests.rs"]
 mod player_options_tests;
+#[path = "prompt_tests.rs"]
+mod prompt_tests;
+#[path = "quick_play_screen_tests.rs"]
+mod quick_play_screen_tests;
 
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {

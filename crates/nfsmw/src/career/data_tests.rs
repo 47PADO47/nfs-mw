@@ -77,7 +77,7 @@ fn trap(key: u32, bin: u8, name: &str) -> gameplay::SpeedTrap {
 
 /// A car of the lot with every field the rules read.
 fn car(key: u32, name: Option<&str>, price: i32, unlock_rank: Option<u8>, class: Option<CarClass>) -> CatalogueCar {
-    CatalogueCar { key, name: name.map(str::to_owned), price, for_sale: true, unlock_rank, class }
+    CatalogueCar { key, name: name.map(str::to_owned), price, for_sale: true, unlock_rank, class, manufacturer: None }
 }
 
 fn heat() -> CareerHeat {

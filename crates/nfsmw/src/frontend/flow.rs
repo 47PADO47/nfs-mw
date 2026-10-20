@@ -146,6 +146,8 @@ pub struct Frontend {
     quick_race: Option<String>,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
+    /// The race above is Quick Play's: it runs with its own laps and opponents, not the Custom Race options (`world_built`).
+    quick_play: bool,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -155,6 +157,7 @@ impl Frontend {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
         super::quick_race::load_in_background(&dir);
+        super::quick_play::load_in_background(&dir);
         Self {
             screens,
             dir,
@@ -185,6 +188,7 @@ impl Frontend {
             auto_shop_requested: false,
             quick_race: None,
             quick_car: None,
+            quick_play: false,
             map_chrome: Default::default(),
         }
     }
@@ -425,6 +429,7 @@ impl Frontend {
                     self.career.end_play();
                     self.origin = QuitTo::QuickRace;
                     self.quick_race = Some(race);
+                    self.quick_play = false;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
