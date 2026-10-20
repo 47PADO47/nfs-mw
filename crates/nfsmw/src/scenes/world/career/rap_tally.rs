@@ -58,7 +58,8 @@ mod tests {
 
     #[test]
     fn the_counts_land_in_the_chase_stats() {
-        let tally = ChaseTally { involved: [1, 2, 3].into_iter().collect(), damaged: 4, helicopters: 1, heli_present: true };
+        let tally =
+            ChaseTally { involved: [1, 2, 3].into_iter().collect(), damaged: 4, helicopters: 1, heli_present: true };
         let roadblocks = RoadblockTally { deployed: 5, dodged: 3, props_deployed: 12, spike_strips_dodged: 2 };
         let mut stats = PursuitStats::default();
         tally.write(roadblocks, &mut stats);

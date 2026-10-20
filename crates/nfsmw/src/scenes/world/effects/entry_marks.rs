@@ -81,7 +81,13 @@ mod tests {
 
     #[test]
     fn the_disc_is_brightest_at_its_centre_and_clear_at_its_rim() {
-        let zone = Zone { kind: ZoneKind::SafeHouse, name: "zone".to_string(), centre: Vec3::ZERO, radius: 6.0 };
+        let zone = Zone {
+            kind: ZoneKind::SafeHouse,
+            name: "zone".to_string(),
+            centre: Vec3::ZERO,
+            radius: 6.0,
+            respawn: None,
+        };
         let mut out = Vec::new();
         push_disc(&zone, 0.5, &mut out);
         assert_eq!(out.len(), SEGMENTS * 3, "one triangle per segment");
@@ -101,6 +107,7 @@ mod tests {
             name: "zone".to_string(),
             centre: Vec3::new(3.0, -2.0, 10.0),
             radius: 7.0,
+            respawn: None,
         };
         let mut out = Vec::new();
         push_disc(&zone, 0.6, &mut out);

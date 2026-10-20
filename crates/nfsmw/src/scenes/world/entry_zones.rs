@@ -43,6 +43,8 @@ pub struct Zone {
     pub name: String,
     pub centre: Vec3,
     pub radius: f32,
+    /// Where the car is put after the zone (its `respawn` marker), in render space; races have none.
+    pub respawn: Option<Vec3>,
 }
 
 /// Every entry zone of the world, in data order, and the mods' interiors (their own zones, tested after the stock ones).
@@ -62,11 +64,22 @@ impl EntryZones {
                 ActivityKind::SafeHouse => ZoneKind::SafeHouse,
                 ActivityKind::CarLot => ZoneKind::CarLot,
             };
-            Zone { kind, name: m.name.clone(), centre: render(m.position), radius: m.radius }
+            Zone {
+                kind,
+                name: m.name.clone(),
+                centre: render(m.position),
+                radius: m.radius,
+                respawn: m.respawn.map(|placement| render(placement.position)),
+            }
         });
-        let races = data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| {
-            Zone { kind: ZoneKind::Race, name: race.name.clone(), centre: render(start.position), radius: RACE_RADIUS }
-        });
+        let races =
+            data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| Zone {
+                kind: ZoneKind::Race,
+                name: race.name.clone(),
+                centre: render(start.position),
+                radius: RACE_RADIUS,
+                respawn: None,
+            });
         Self { zones: interiors.chain(races).collect(), interiors: Vec::new() }
     }
 

@@ -21,6 +21,7 @@ impl WorldScene {
         if !self.career.handle.is_active() {
             return false;
         }
+        self.career_visit_zone(kind, name);
         match kind {
             ZoneKind::SafeHouse => self.career_enter_safe_house(name),
             ZoneKind::CarLot => self.career_enter_car_lot(name),

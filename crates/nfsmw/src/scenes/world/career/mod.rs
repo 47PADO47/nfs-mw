@@ -12,6 +12,7 @@ mod phone;
 mod pursuit;
 mod rap_tally;
 mod regions;
+mod respawn;
 mod safehouse;
 
 use std::collections::VecDeque;
@@ -35,6 +36,8 @@ pub(super) struct WorldCareer {
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
     /// The paint cooling table of the install, read when the garage first fits a part (`None` inside: not readable).
+    /// The respawn markers visited, and a respawn waiting for the game to run again after a bust.
+    pub respawn: respawn::Respawns,
     pub cooling: Option<Option<nfsmw_career::economy::cooling::CoolingTable>>,
 }
 
@@ -50,6 +53,7 @@ impl WorldScene {
         if !self.career.handle.is_active() {
             return;
         }
+        self.career_respawn();
         self.career_pursuit(dt);
         self.career_regions();
         self.career_hud();
