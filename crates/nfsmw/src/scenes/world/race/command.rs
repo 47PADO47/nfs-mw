@@ -38,6 +38,7 @@ fn parse_options(args: &[&str]) -> Result<RaceOptions, String> {
             "difficulty" => options.difficulty = Some(number("difficulty")?.clamp(0, 100)),
             "traffic" => options.traffic = Some(number("traffic")?.clamp(0, 100)),
             "career" => options.career = true,
+            "demo" => options.demo = true,
             _ => return Err(format!("unknown option {arg:?}; {USAGE}")),
         }
     }
@@ -101,6 +102,7 @@ mod tests {
         assert_eq!(options.difficulty, Some(100), "clamped");
         assert_eq!(options.traffic, Some(0));
         assert!(options.career);
+        assert!(parse_options(&["demo"]).unwrap().demo);
     }
 
     #[test]

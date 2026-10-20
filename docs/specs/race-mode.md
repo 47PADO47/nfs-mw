@@ -213,7 +213,7 @@ The player's reset key keeps working in a race.
 | The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
 | The card (place, lap, clocks, banner, result) | `hud/race_card.rs` |
 | The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
-| The console | `race list|start|status|stop` |
+| The console | `race list|start|status|stop`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
 | Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs` |
 
 Differences from the original that the rules above call out: the countdown is 3 s; the HUD is a stand-in card; the

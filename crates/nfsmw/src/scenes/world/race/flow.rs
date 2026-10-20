@@ -56,6 +56,7 @@ impl WorldScene {
         }
         events.extend(self.step_racers(session, player, dt));
         self.drag_assist(session);
+        self.demo_step(session, dt);
         self.race_goals(session);
         self.race_glue(session, dt);
         self.race_log(session, dt);

@@ -6,6 +6,7 @@
 mod blips;
 mod card;
 mod command;
+mod demo;
 mod drag;
 mod emulate;
 mod finish;
@@ -81,6 +82,8 @@ pub(super) struct RaceSession {
     /// The rubber band is on (`CatchUp`).
     pub catch_up: bool,
     pub glue_clock: f32,
+    /// Seconds since the demo run's last jump.
+    pub demo_clock: f32,
     /// The lane of the player's car in a drag race (`drag.rs`).
     pub lane: drag::Lane,
     /// Where each emulated racer is on its route (physics space); `None` for a racer that is simulated.

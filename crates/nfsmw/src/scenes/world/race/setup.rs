@@ -24,6 +24,8 @@ pub struct RaceOptions {
     pub traffic: Option<i32>,
     /// Count the result in the career.
     pub career: bool,
+    /// A demo run: the player's car is put at each gate in turn (`demo.rs`).
+    pub demo: bool,
 }
 
 /// The gate of a stored box trigger (physics space, y up): its first extent lies along its heading. The stored extents
@@ -409,5 +411,49 @@ mod tests {
         assert!(runnable(Some(RaceType::Drag)));
         assert!(!runnable(Some(RaceType::CashGrab)));
         assert!(!runnable(None));
+    }
+
+    /// Walks a straight line through every gate of every race of the install and checks that the race ends with the
+    /// walker first, with the laps counted.
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn every_install_course_can_be_finished_by_walking_through_its_gates() {
+        let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
+        let data = nfsmw_data::gameplay::load(&dir).unwrap();
+        let (mut ran, mut skipped) = (0, 0);
+        for race in data.races.iter().filter(|r| runnable(r.race_type)) {
+            let options = RaceOptions::default();
+            let Ok(course) = course_of(&data, race, &options) else {
+                skipped += 1;
+                continue;
+            };
+            let start = course.start;
+            let mut engine =
+                blackbox_race::Race::new(course.clone(), config_of(race), &[(true, start), (false, start)]);
+            engine.start_now();
+            let mut at = start;
+            let mut finished = false;
+            let mut gates: Vec<Vec3> = course.checkpoints.iter().map(|g| g.centre).collect();
+            gates.extend(course.finish.iter().map(|g| g.centre));
+            for _ in 0..course.laps {
+                for centre in &gates {
+                    let steps = (at.distance(*centre) / 4.0).ceil().max(1.0) as u32;
+                    for step in 1..=steps {
+                        let to = at.lerp(*centre, step as f32 / steps as f32);
+                        finished |= engine
+                            .move_racer(0, to)
+                            .iter()
+                            .any(|e| matches!(e, blackbox_race::RaceEvent::Finished { .. }));
+                    }
+                    at = *centre;
+                }
+            }
+            assert!(finished, "{} was not finished: {:?}", race.name, engine.racers()[0].progress);
+            assert_eq!(engine.places()[0], 1, "{}", race.name);
+            ran += 1;
+        }
+        eprintln!("{ran} courses finished, {skipped} races without a course");
+        assert!(ran > 200, "{ran}");
     }
 }
