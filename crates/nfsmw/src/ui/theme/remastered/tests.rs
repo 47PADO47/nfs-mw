@@ -22,7 +22,7 @@ fn built(element: ElementId, state: &HudState) -> Option<Vec<UiNode>> {
     let feed = DriveFeedCell::new();
     feed.set(state, SCREEN);
     let skin = test_skin();
-    let mut component = RemasteredTheme::new(feed, MenuListCell::new(), Default::default())
+    let mut component = RemasteredTheme::new(Default::default(), feed, MenuListCell::new(), Default::default())
         .element(element.slot(), &BuildCx::new(&skin))?;
     component.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();

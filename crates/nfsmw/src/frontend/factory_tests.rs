@@ -63,12 +63,7 @@ fn names_match_in_any_case() {
 
 #[test]
 fn screens_outside_the_catalogue_take_no_slot() {
-    let names = [
-        "Track_Options.fng",
-        "WorldMapMain.fng",
-        "MW_LS_Splash.fng",
-        "WS_MW_LS_Splash.fng",
-    ];
+    let names = ["Track_Options.fng", "WorldMapMain.fng", "MW_LS_Splash.fng", "WS_MW_LS_Splash.fng"];
     for name in names {
         assert_eq!(slot_for(name, &plain()), None, "{name}");
     }

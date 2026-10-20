@@ -36,7 +36,7 @@ fn list(style: MenuStyle, selected: usize) -> MenuList {
 
 fn built(slot: ElementId, cell: &MenuListCell) -> Vec<UiNode> {
     let skin = palette::remastered().skin().merged(skin()).merged(palette_skin(&palette::remastered()));
-    let theme = RemasteredTheme::new(DriveFeedCell::new(), cell.clone(), Default::default());
+    let theme = RemasteredTheme::new(Default::default(), DriveFeedCell::new(), cell.clone(), Default::default());
     let mut menu = theme.element(slot.slot(), &BuildCx::new(&skin)).expect("Remastered draws this menu");
     menu.layout(&LayoutCx::new(&skin, 0.0), Rect::SCREEN);
     let mut out = DrawList::new();

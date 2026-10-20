@@ -94,12 +94,13 @@ pub fn build_themes(
     map: WorldMapViewCell,
 ) -> Themes {
     check_floor_fills_every_slot(&frame);
-    let mut themes = Themes::new(Box::new(OriginalTheme::new(frame))).expect("OriginalTheme reports ThemeId::Original");
+    let mut themes =
+        Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
         .register(Box::new(CustomTheme::new(radio.clone(), drive.clone(), legend)))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
-        .register(Box::new(RemasteredTheme::new(drive, menus, map)))
+        .register(Box::new(RemasteredTheme::new(frame.clone(), drive, menus, map)))
         .expect("RemasteredTheme is registered once, and is not Original");
     themes
 }

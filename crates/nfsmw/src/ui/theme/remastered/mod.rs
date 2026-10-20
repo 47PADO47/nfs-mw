@@ -21,6 +21,7 @@ mod group;
 mod layout;
 mod map;
 pub mod menu;
+mod minimap;
 mod pursuit;
 mod readout;
 mod skin;
@@ -31,6 +32,7 @@ pub use bar::{Bar, Gauge};
 pub use dial::Dial;
 pub use map::{MapSnapshot, WorldMapView, WorldMapViewCell};
 pub use menu::VerticalMenu;
+pub use minimap::Minimap;
 pub use pursuit::PursuitTimer;
 pub use readout::Readout;
 pub use skin::{palette_skin, skin};
@@ -38,20 +40,23 @@ pub use skin::{palette_skin, skin};
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
 use crate::ui::theme::custom::DriveFeedCell;
+use crate::ui::theme::original::FrameCell;
 use crate::ui::theme::{ElementId, MenuListCell};
 
 /// The Remastered theme. It holds the drive feed the cluster reads and the legend the themed map draws.
 #[derive(Clone, Debug, Default)]
 pub struct RemasteredTheme {
+    frame: FrameCell,
     drive: DriveFeedCell,
     menus: MenuListCell,
     map: WorldMapViewCell,
 }
 
 impl RemasteredTheme {
-    /// The Remastered theme whose cluster reads `drive`, whose menus read `menus` and whose map reads `map`.
-    pub fn new(drive: DriveFeedCell, menus: MenuListCell, map: WorldMapViewCell) -> Self {
-        Self { drive, menus, map }
+    /// The Remastered theme whose cluster reads `drive`, whose menus read `menus` and whose map reads `map`. The minimap
+    /// reads the game's own map pieces from `frame`.
+    pub fn new(frame: FrameCell, drive: DriveFeedCell, menus: MenuListCell, map: WorldMapViewCell) -> Self {
+        Self { frame, drive, menus, map }
     }
 }
 
@@ -64,6 +69,7 @@ impl Theme for RemasteredTheme {
         match ElementId::from_slot(slot)? {
             ElementId::Tachometer => Some(Box::new(Dial::new(self.drive.clone()))),
             ElementId::Speedometer => Some(Box::new(Readout::new(self.drive.clone()))),
+            ElementId::Minimap => Some(Box::new(Minimap::new(self.frame.clone(), self.drive.clone()))),
             ElementId::PursuitMeter => Some(Box::new(PursuitTimer::new(self.drive.clone()))),
             ElementId::Nitrous => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Nitrous))),
             ElementId::Speedbreaker => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Speedbreaker))),
