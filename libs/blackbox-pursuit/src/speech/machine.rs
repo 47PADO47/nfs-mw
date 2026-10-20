@@ -43,6 +43,11 @@ impl Machine {
         }
     }
 
+    /// Replaces the thresholds (the game reads them from its data after the machine is made).
+    pub fn set_tune(&mut self, tune: Tune) {
+        self.tune = tune;
+    }
+
     /// Advances the machine by `dt` seconds. The notices are applied first, in order; the main update and the observation
     /// update run when their periods have passed.
     pub fn step(&mut self, dt: f32, snap: &Snapshot, notices: &[Notice], chan: &dyn Channel) -> Output {

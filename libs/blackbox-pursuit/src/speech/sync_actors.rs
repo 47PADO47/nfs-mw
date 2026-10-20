@@ -46,16 +46,17 @@ impl Cx<'_> {
         for cop in fresh {
             self.add_new_cop(cop);
         }
+        // A car that is no longer listed has gone from the world (unspawned): its actor goes with it, and its voice is free.
         let gone: Vec<u32> = self
             .roster
             .actors
             .iter()
-            .filter(|a| a.active && !a.heli)
+            .filter(|a| !a.heli)
             .map(|a| a.id)
             .filter(|id| !snapshot.cops.iter().any(|c| c.id == *id))
             .collect();
-        if let Some(&first) = gone.first() {
-            self.remove_cop(first);
+        for id in gone {
+            self.remove_cop(id);
         }
         let heli_gone = snapshot.heli.is_none();
         let stale: Vec<u32> = self.roster.actors.iter().filter(|a| a.heli && heli_gone).map(|a| a.id).collect();

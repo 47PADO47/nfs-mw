@@ -193,3 +193,34 @@ fn call_signs_are_not_repeated_within_a_battalion() {
     signs.dedup();
     assert_eq!(signs.len(), all);
 }
+
+#[test]
+fn a_cop_that_leaves_the_world_frees_its_voice_for_the_next() {
+    let mut chase = Chase::new(17);
+    chase.snap.cops = (0..6).map(|i| cop(10 + i, 40.0 + 10.0 * i as f32)).collect();
+    chase.run(3.0);
+    assert_eq!(chase.machine.cops().len(), 6, "six voices besides the cross car's, six cops");
+    // Three drive away for good and three more arrive farther out than the rest.
+    chase.snap.cops.drain(0..3);
+    chase.run(1.0);
+    assert_eq!(chase.machine.cops().len(), 3);
+    chase.snap.cops.extend((0..3).map(|i| cop(30 + i, 200.0 + 10.0 * i as f32)));
+    chase.run(1.0);
+    let mut voices: Vec<u8> = chase.machine.cops().iter().map(|a| a.voice).collect();
+    voices.sort_unstable();
+    voices.dedup();
+    assert_eq!(voices.len(), 6, "every cop has a voice of its own again: {voices:?}");
+}
+
+#[test]
+fn a_nearer_cop_takes_the_place_of_a_farther_one_when_the_voices_run_out() {
+    let mut chase = Chase::new(18);
+    chase.snap.cops = (0..6).map(|i| cop(10 + i, 100.0 + 10.0 * i as f32)).collect();
+    chase.run(3.0);
+    let farthest = chase.machine.cops().iter().max_by(|a, b| a.distance.total_cmp(&b.distance)).copied().unwrap();
+    chase.snap.cops.push(cop(50, 20.0));
+    chase.run(1.0);
+    assert_eq!(chase.machine.cops().len(), 6, "no seventh voice");
+    let newcomer = chase.machine.cops().iter().find(|a| a.id == 50).expect("the nearer cop has an actor");
+    assert!(newcomer.distance < farthest.distance);
+}

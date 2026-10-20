@@ -2,6 +2,7 @@
 
 use super::air_support::{AirSupport, parse};
 use super::cues::Cue;
+use blackbox_pursuit::speech::Line;
 
 #[test]
 fn an_empty_file_is_every_switch_on() {
@@ -47,39 +48,104 @@ fn a_malformed_value_is_on() {
 #[test]
 fn the_base_chase_lines_are_never_switched_off() {
     let off = parse(
-        "[Pilot]\nSearchPattern = false\nSpottedAgain = false\n[Radio]\nRainFlag = false\nNoSpeechDropoff = false\n",
+        "[Pilot]
+SearchPattern = false
+SpottedAgain = false
+[Radio]
+RainFlag = false
+NoSpeechDropoff = false
+",
     );
-    assert!(off.allows(Cue::Lost));
-    assert!(off.allows(Cue::Regained));
-    assert!(off.allows(Cue::HeatJump));
+    for line in [Line::LostVisual, Line::RegainVisual, Line::HeatJump, Line::AttemptVehicleStop, Line::DispBreakAway] {
+        assert!(off.allows_line(line), "{line:?}");
+    }
 }
 
 #[test]
 fn a_switched_off_search_pattern_suppresses_the_time_expired_line() {
-    let off = parse("[Pilot]\nSearchPattern = false\n");
-    assert!(!off.allows(Cue::TimeExpired));
-    assert!(AirSupport::default().allows(Cue::TimeExpired));
+    let off = parse(
+        "[Pilot]
+SearchPattern = false
+",
+    );
+    assert!(!off.allows_line(Line::DispTimeExpired));
+    assert!(AirSupport::default().allows_line(Line::DispTimeExpired));
 }
 
 #[test]
 fn each_air_support_switch_suppresses_only_its_own_line() {
     let cases = [
-        ("[Pilot]\nWeatherReport = false\n", Cue::Rain),
-        ("[Pilot]\nRoadblockCall = false\n", Cue::RoadblockCalled),
-        ("[Pilot]\nBeenHit = false\n", Cue::BeenHit),
-        ("[Pilot]\nReacquire = false\n", Cue::HeliLost),
-        ("[Pilot]\nSpottedAgain = false\n", Cue::HeliSpotted),
-        ("[Pilot]\nKillShot = false\n", Cue::CopDown),
+        (
+            "[Pilot]
+RoadblockCall = false
+",
+            Line::CallForRoadblock,
+        ),
+        (
+            "[Pilot]
+BeenHit = false
+",
+            Line::CollisionWorld,
+        ),
+        (
+            "[Pilot]
+BeenHit = false
+",
+            Line::CollWorldCivi,
+        ),
+        (
+            "[Pilot]
+Reacquire = false
+",
+            Line::HeliLostVisual,
+        ),
+        (
+            "[Pilot]
+SpottedAgain = false
+",
+            Line::Spotted,
+        ),
+        (
+            "[Pilot]
+KillShot = false
+",
+            Line::UnitDisabled,
+        ),
+        (
+            "[Pilot]
+RamLines = false
+",
+            Line::IntentToRam,
+        ),
+        (
+            "[Pilot]
+WeatherReport = false
+",
+            Line::WeatherReport,
+        ),
     ];
-    for (text, cue) in cases {
+    for (text, line) in cases {
         let air = parse(text);
-        assert!(!air.allows(cue), "{text:?} should switch off {cue:?}");
-        assert!(AirSupport::default().allows(cue), "{cue:?} is on by default");
+        assert!(!air.allows_line(line), "{text:?} should switch off {line:?}");
+        assert!(AirSupport::default().allows_line(line), "{line:?} is on by default");
     }
+    assert!(
+        !parse(
+            "[Pilot]
+WeatherReport = false
+"
+        )
+        .allows(Cue::Rain),
+        "the weather cue obeys its switch"
+    );
 }
 
 #[test]
 fn a_switched_off_air_support_line_leaves_the_others_on() {
-    let air = parse("[Pilot]\nBeenHit = false\n");
-    assert!(air.allows(Cue::Rain) && air.allows(Cue::CopDown) && air.allows(Cue::HeliLost));
+    let air = parse(
+        "[Pilot]
+BeenHit = false
+",
+    );
+    assert!(air.allows(Cue::Rain) && air.allows_line(Line::UnitDisabled) && air.allows_line(Line::HeliLostVisual));
 }

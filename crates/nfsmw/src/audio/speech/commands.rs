@@ -4,11 +4,14 @@ use super::{Outcome, Param, Speech, SpeechParams};
 use crate::audio::Audio;
 
 /// Usage line, for the error of a mistyped command.
-const USAGE: &str = "speech [status|list|say <event> [speaker] [param=n ...]|play <event> [speaker] [param=n ...]|     bank <n> [take]|stop|reset]; params are named as in the game (car_color, direction, ...), n a bit value";
+const USAGE: &str = "speech [status|flow|list|say <event> [speaker] [param=n ...]|play <event> [speaker] [param=n ...]|     bank <n> [take]|stop|reset]; params are named as in the game (car_color, direction, ...), n a bit value";
 
 /// Run `speech <args>`.
 pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
     let device = if audio.available() { "" } else { " (no sound device)" };
+    if let ["flow"] = args {
+        return Ok(audio.chase_flow_status());
+    }
     let speech = audio.speech()?;
     match args {
         [] | ["status"] => Ok(status(speech, device)),
