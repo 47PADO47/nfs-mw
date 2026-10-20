@@ -57,3 +57,18 @@ fn the_patrol_speeds_are_the_documented_defaults() {
     let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
     assert_eq!(patrol_speeds_mph(&db), (50.0, 71.0));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_backup_rows_match_the_documented_table() {
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    let rows = nfsmw_data::pursuit::backup_rows(&db);
+    assert_eq!(rows.len(), 10);
+    let radius: Vec<f32> = rows.iter().map(|r| r.engagement_radius).collect();
+    let trigger: Vec<u32> = rows.iter().map(|r| r.trigger).collect();
+    let timer: Vec<f32> = rows.iter().map(|r| r.call_timer).collect();
+    assert_eq!(radius, [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 200.0, 50.0, 200.0]);
+    assert_eq!(trigger, [2, 2, 2, 2, 2, 2, 2, 3, 5, 5]);
+    assert_eq!(timer, [180.0, 120.0, 120.0, 120.0, 90.0, 90.0, 90.0, 60.0, 45.0, 60.0]);
+}

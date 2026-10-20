@@ -10,6 +10,7 @@
 //!
 //! Specs: `docs/specs/ai-pursuit.md` sections 4 to 6, `docs/specs/ai-pursuit-heat.md`, `docs/specs/ai-pursuit-tactics.md`, `docs/specs/ai-helicopter.md`.
 
+pub mod backup;
 pub mod breaker;
 pub mod busted;
 pub mod cooldown;

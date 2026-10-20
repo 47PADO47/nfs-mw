@@ -69,6 +69,8 @@ pub struct PursuitFeed {
     pub player_hit: bool,
     /// The cop cars wrecked in the chase.
     pub cops_destroyed: u32,
+    /// Seconds until the backup arrives while it is called (`GetBackupETA`), 0 when it was not called.
+    pub backup_eta: f32,
 }
 
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1

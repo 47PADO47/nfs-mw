@@ -228,6 +228,7 @@ impl super::super::TrafficWorld {
             roadblock_active: self.police.roadblock_standing(),
             player_hit: self.sighting(level).recent_hit,
             cops_destroyed: self.police.cops_destroyed(),
+            backup_eta: self.backup_eta().unwrap_or(0.0),
         })
     }
 

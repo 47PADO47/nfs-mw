@@ -5,12 +5,13 @@ use std::rc::Rc;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::EndReason;
-use blackbox_pursuit::wave::{Slot, pick_needed};
+use blackbox_pursuit::backup::Budget;
+use blackbox_pursuit::wave::{Slot, adjusted_counts, pick_needed, want_cops};
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
-use nfsmw_data::pursuit::{HeatRow, ground_cops};
+use nfsmw_data::pursuit::{BackupRow, HeatRow, ground_cops};
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
@@ -62,13 +63,23 @@ pub struct Pursuit {
     player: Performance,
     spawn_timer: f32,
     involved: u32,
+    /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
+    pub(super) budget: Budget,
+    /// The backup values of every heat level, index = level - 1.
+    backups: Vec<BackupRow>,
+    /// The cops that have stood within the engagement radius and are still in the chase, by audio identity.
+    pub(super) engaged: std::collections::HashSet<u32>,
     /// The chase's support request and the cars it took (`support`).
     pub(super) support: super::support::Session,
 }
 
 impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
+        let required = rows.get(heat.max(1) as usize - 1).or(rows.last()).map_or(0, |row| row.full_engagement_cops);
         Self {
+            budget: Budget::new(required, BackupRow::default().trigger),
+            backups: Vec::new(),
+            engaged: Default::default(),
             heat,
             rows,
             player,
@@ -78,6 +89,20 @@ impl Pursuit {
             involved: 0,
             support: Default::default(),
         }
+    }
+
+    /// Gives the chase the backup values of the heat levels and restarts its budget from the row of the current heat.
+    pub(super) fn set_backups(&mut self, backups: Vec<BackupRow>) {
+        self.backups = backups;
+        let required = self.row().map_or(0, |row| row.full_engagement_cops);
+        self.budget.refill(required, self.backup().trigger);
+    }
+
+    /// The backup values of the heat the chase is at now.
+    pub(super) fn backup(&self) -> BackupRow {
+        let last = self.backups.len().checked_sub(1);
+        let at = (self.heat.max(1) as usize - 1).min(last.unwrap_or(0));
+        self.backups.get(at).copied().unwrap_or_default()
     }
 
     /// How the player's car performs, for the cops that chase it.
@@ -112,13 +137,42 @@ impl Pursuit {
         self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
     }
 
-    /// How many cops the chase wants now: the whole wave, but no more than the cops still to evade (the level's cap
-    /// from the Bartender file, or the install's value without one), and no more than the chase's cop limit.
-    pub fn wanted(&self, settings: &BartenderSettings) -> usize {
-        let Some(row) = self.row() else { return 0 };
+    /// The fewest and the most cops the chase may have now. Cooling down it keeps exactly the row's patrol count; otherwise
+    /// the most is the cops still to evade (`Budget::allowed`), held to the level's cap from the Bartender file and to the
+    /// chase's cop limit (`GetAdjustedCopCounts`).
+    fn limits(&self, settings: &BartenderSettings, cooldown: bool) -> (u32, u32) {
+        let Some(row) = self.row() else { return (0, 0) };
+        let limit = settings.max_cops;
+        if cooldown {
+            let patrol = row.patrol_cars.min(limit);
+            return (patrol, patrol);
+        }
+        let most = match settings.cop_cap(self.heat) {
+            Some(cap) => self.budget.allowed().min(cap.max(1)),
+            None => self.budget.allowed(),
+        };
+        (0, most.min(limit))
+    }
+
+    /// How many cops the chase wants now: the wave's total held between the limits.
+    pub fn wanted(&self, settings: &BartenderSettings, cooldown: bool) -> usize {
         let nominal: u32 = self.wave().map(|w| w.1).sum();
-        let cap = settings.cop_cap(self.heat).unwrap_or(row.full_engagement_cops).max(1);
-        (nominal.min(cap) as usize).min(settings.max_cops as usize)
+        let (least, most) = self.limits(settings, cooldown);
+        want_cops(nominal, least, most) as usize
+    }
+
+    /// The wave scaled to the cops wanted now: each car type with the count the chase may have of it and its weight. A
+    /// type scaled to nothing is left out.
+    pub fn adjusted_wave(&self, settings: &BartenderSettings, cooldown: bool) -> Vec<(&str, u32, u32)> {
+        let nominal: Vec<(&str, u32, u32)> = self.wave().collect();
+        let counts: Vec<u32> = nominal.iter().map(|w| w.1).collect();
+        let scaled = adjusted_counts(&counts, self.wanted(settings, cooldown) as u32);
+        nominal
+            .into_iter()
+            .zip(scaled)
+            .filter(|(_, n)| *n > 0)
+            .map(|((name, _, chance), n)| (name, n, chance))
+            .collect()
     }
 }
 
@@ -130,7 +184,9 @@ impl TrafficWorld {
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
         self.cops.unlock();
         self.police.begin(heat);
-        self.pursuit = Some(Pursuit::new(self.police.patrol_heat(), rows, player));
+        let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
+        pursuit.set_backups(self.backup_rows.clone());
+        self.pursuit = Some(pursuit);
         let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
         for car in &mut self.cars {
             let near = self.player_position.is_some_and(|p| car.physics_position().distance(p) < range);
@@ -232,19 +288,18 @@ impl TrafficWorld {
             log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
         }
         pursuit.spawn_timer -= sim_dt;
+        self.update_budget(sim_dt, focus);
+        self.flee_surplus(focus, cooldown);
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
-        let wanted = match cooldown {
-            true => {
-                pursuit.row().map_or(0, |row| row.patrol_cars as usize).min(self.police.settings().max_cops as usize)
-            }
-            false => pursuit.wanted(self.police.settings()),
-        };
+        let wanted = pursuit.wanted(self.police.settings(), cooldown);
         if alive >= wanted || pursuit.spawn_timer > 0.0 {
             return;
         }
         // The next type of the current wave, weighted by its chance among those the wave still needs.
         let pick = {
-            let slots: Vec<Slot> = pursuit.wave().map(|(name, count, chance)| Slot { name, count, chance }).collect();
+            let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
+            let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
                 |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
             let roll = self.rng.next_f32();
@@ -352,11 +407,16 @@ impl TrafficWorld {
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
         let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
         format!(
-            "heat {}: {} of {} cops ({}); formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); {} to evade{}; formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
-            p.wanted(self.police.settings()),
+            p.wanted(
+                self.police.settings(),
+                self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown
+            ),
             cops.join(", "),
+            p.budget.remaining(),
+            p.budget.eta().map_or(String::new(), |eta| format!(", backup in {eta:.0} s")),
             infractions.len(),
             self.police.infractions().total_fines(),
             if infractions.is_empty() { String::new() } else { format!(" ({})", infractions.join(", ")) },

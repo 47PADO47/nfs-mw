@@ -25,6 +25,7 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod pursuit_budget;
 mod radar;
 mod release;
 mod road_reflection;
@@ -112,6 +113,8 @@ pub struct TrafficWorld {
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
+    /// The backup values of the heat levels, from the install.
+    backup_rows: Vec<nfsmw_data::pursuit::BackupRow>,
     police: police::Police,
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
@@ -196,6 +199,7 @@ impl TrafficWorld {
             model_loader: None,
             helicopter_rig: None,
             pursuit: None,
+            backup_rows: Vec::new(),
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),

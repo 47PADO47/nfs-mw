@@ -101,6 +101,10 @@ pub struct AiCar {
     cruise: Cruise,
     patrol: bool,
     searching: bool,
+    /// The cop was sent away (`StartFlee`): lights off, driving off along the traffic lanes until it is recycled.
+    fleeing: bool,
+    /// The cop has stood within the engagement radius of the player (`WasWithinEngagementRadius`).
+    engaged: bool,
     arrested: bool,
     perp_hidden_from_me: bool,
     /// Seconds the car has been out of the player's view.
@@ -194,6 +198,8 @@ impl AiCar {
             cruise: start.cruise,
             patrol: start.patrol,
             searching: false,
+            fleeing: false,
+            engaged: false,
             arrested: false,
             perp_hidden_from_me: false,
             offscreen: 0.0,

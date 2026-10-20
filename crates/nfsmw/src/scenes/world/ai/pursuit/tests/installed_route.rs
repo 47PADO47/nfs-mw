@@ -228,8 +228,9 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
     }
     let mut rows = nfsmw_data::pursuit::heat_rows(scene.physics.database());
     // This single-unit fixture isolates the physical chase/search transition from wave replacement pressure.
+    // The wave is the one unit: a cop of a type the wave does not want would be sent away as surplus.
     for row in &mut rows {
-        row.cops.clear();
+        row.cops = vec![nfsmw_data::pursuit::CopRecord { name: "copmidsize".into(), count: 1, chance: 100 }];
     }
     world.start_pursuit(1, rows, performance);
     let mut props = PropWorld::default();
