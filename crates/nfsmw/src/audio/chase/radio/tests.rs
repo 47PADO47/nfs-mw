@@ -282,3 +282,19 @@ fn a_car_nobody_recorded_is_not_described() {
     let snap = super::snapshot::snapshot(&f, &Default::default());
     assert!(snap.player.car.is_none() && !snap.player.commentable);
 }
+
+#[test]
+fn the_flow_readout_counts_the_notices_the_worlds_events_made() {
+    use crate::audio::WorldEvent;
+    let mut radio = super::ChaseRadio::new(1);
+    let level = nfsmw_data::speech_chase::LevelSpeech::default();
+    let first = feed(|_| {});
+    radio.run(0.1, Some(&first), blackbox_pursuit::EndReason::None, &level, None);
+    let second = feed(|f| {
+        f.speech.events = first.speech.events;
+        f.speech.events.push(WorldEvent::TireBlown);
+        f.speech.events.push(WorldEvent::RoadblockDodged);
+    });
+    radio.run(0.1, Some(&second), blackbox_pursuit::EndReason::None, &level, None);
+    assert!(radio.status().contains("2 world notices"), "{}", radio.status());
+}

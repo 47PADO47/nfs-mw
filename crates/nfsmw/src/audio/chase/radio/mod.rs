@@ -84,6 +84,8 @@ pub struct ChaseRadio {
     busted_level: f32,
     asked: u32,
     said: u32,
+    /// The notices the world's events have made (`world_notices`).
+    world_notices: u32,
 }
 
 impl ChaseRadio {
@@ -102,6 +104,7 @@ impl ChaseRadio {
             busted_level: 0.0,
             asked: 0,
             said: 0,
+            world_notices: 0,
         }
     }
 
@@ -124,12 +127,13 @@ impl ChaseRadio {
             .as_ref()
             .map_or("not loaded".to_owned(), |ids| format!("{} lines without an event", ids.missing().len()));
         format!(
-            "chase radio: {}\n  asked {} lines, {} said; busted level {:.2}; 911 call {}; events: {missing}",
+            "chase radio: {}\n  asked {} lines, {} said; busted level {:.2}; 911 call {}; {} world notices; events: {missing}",
             self.machine.status(),
             self.asked,
             self.said,
             self.busted_level,
             self.call_911.map_or("none".to_owned(), |s| format!("{s:.0} s")),
+            self.world_notices,
         )
     }
 
@@ -161,12 +165,9 @@ impl ChaseRadio {
         self.running = true;
         self.last_ended = EndReason::None;
         notices.extend(snapshot::notices(&mut self.prev, feed));
-        notices.extend(world_notices::notices(
-            &mut self.prev.events_seen,
-            &feed.speech.events,
-            &self.tune,
-            &feed.speech,
-        ));
+        let world = world_notices::notices(&mut self.prev.events_seen, &feed.speech.events, &self.tune, &feed.speech);
+        self.world_notices += world.len() as u32;
+        notices.extend(world);
         let snap = snapshot::snapshot(feed, level);
         self.last_snapshot = Some(snap.clone());
         (snap, notices)
