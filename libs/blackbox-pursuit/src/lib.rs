@@ -26,6 +26,7 @@ pub mod roadblock;
 pub mod rules;
 pub mod sight;
 pub mod siren;
+pub mod speech;
 pub mod spikes;
 pub mod support;
 pub mod tactics;
