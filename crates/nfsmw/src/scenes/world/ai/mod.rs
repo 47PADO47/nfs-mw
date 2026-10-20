@@ -10,6 +10,7 @@ mod cop;
 mod cop_aims;
 mod cop_health;
 mod cop_lights;
+mod cop_manager;
 mod data;
 mod goal_aims;
 mod hitch;
@@ -112,6 +113,8 @@ pub struct TrafficWorld {
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
     police: police::Police,
+    /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
+    cops: cop_manager::CopManager,
     cars: Vec<AiCar>,
     rng: SplitMix,
     alpha: f32,
@@ -194,6 +197,7 @@ impl TrafficWorld {
             helicopter_rig: None,
             pursuit: None,
             police: police::Police::default(),
+            cops: Default::default(),
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,

@@ -127,6 +127,7 @@ impl TrafficWorld {
     /// The cars of the support requests are asked for too, at every level, so they load while the chase waits for its
     /// first support (a support car whose model is not in yet waits for it, `ai/support`).
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
+        self.cops.unlock();
         self.police.begin(heat);
         self.pursuit = Some(Pursuit::new(self.police.patrol_heat(), rows, player));
         let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
@@ -149,6 +150,11 @@ impl TrafficWorld {
         }
     }
 
+    /// Seconds the cops are still locked out (no patrols, no spawns): 0 when they may appear.
+    pub fn cop_lockout_left(&self) -> f32 {
+        self.cops.lockout_left()
+    }
+
     /// Ends the chase without a result (the `pursuit off` command) and removes the cops.
     pub fn stop_pursuit(&mut self) {
         self.end_pursuit(EndReason::None);
@@ -158,6 +164,9 @@ impl TrafficWorld {
     pub fn end_pursuit(&mut self, reason: EndReason) {
         self.pursuit = None;
         self.police.end(reason);
+        if reason == EndReason::Evaded {
+            self.cops.lock_out();
+        }
         match reason == EndReason::Busted && self.arrest_active() {
             true => {
                 for car in self.cars.iter_mut().filter(|car| car.is_police()) {

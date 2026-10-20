@@ -36,6 +36,15 @@ impl super::super::TrafficWorld {
         Some((gaps.len() as u32, gaps.iter().sum::<f32>() / gaps.len() as f32))
     }
 
+    /// While the lockout runs every active cop is removed, as the original's patrol pass does (`VehicleSpawningEnabled`
+    /// is false for a despawn too). A chase clears the lockout when it starts, so a chase never runs under it.
+    fn remove_cops_while_locked_out(&mut self) {
+        if self.cops.spawning_enabled() || self.is_pursuing() || self.police.bust.active() {
+            return;
+        }
+        self.cars.retain(|car| !car.is_police());
+    }
+
     /// Whether a support roll asked for a roadblock this frame; the world places it and calls `roadblock_placed`.
     pub fn take_roadblock_request(&mut self) -> bool {
         self.police.take_roadblock_request()
@@ -59,6 +68,8 @@ impl super::super::TrafficWorld {
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
         self.apply_mod_requests();
+        self.cops.tick(dt);
+        self.remove_cops_while_locked_out();
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);

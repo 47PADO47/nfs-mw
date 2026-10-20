@@ -58,6 +58,8 @@ impl TrafficWorld {
         };
         self.police.set_hidden_zones(of_kind(super::police::HIDDEN_ZONE));
         self.police.set_tunnel_zones(of_kind(super::police::TUNNEL_ZONE));
+        self.cops.set_no_spawn_zones(of_kind(super::cop_manager::NO_COP_SPAWN_ZONE));
+        self.cops.start_session();
         self.police.set_heli_settings(crate::settings::helicopter::load());
         self.police.set_settings(crate::settings::bartender::load(), crate::settings::fairbusts::load());
         match build_patterns(db, zones) {

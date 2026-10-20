@@ -207,7 +207,7 @@ impl TrafficWorld {
         if self.cop_share == 0 {
             return false;
         }
-        if self.pursuit.is_some() || !self.police.can_begin() {
+        if self.pursuit.is_some() || !self.police.can_begin() || !self.cops.spawning_enabled() {
             return false;
         }
         let heat = self.police.patrol_heat();
