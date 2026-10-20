@@ -28,6 +28,8 @@ pub struct WorldIndex {
     pub scenery_groups: Vec<blackbox_scenery::SceneryGroup>,
     /// The group number of each scenery override index that a group lists (`ScenerySection::override_hooks`).
     pub override_groups: HashMap<u16, u16>,
+    /// The scenery override records, by global override index (`docs/specs/race-barriers.md`).
+    pub scenery_overrides: Vec<blackbox_scenery::SceneryOverride>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -58,6 +60,8 @@ impl WorldIndex {
         let scenery_groups = blackbox_scenery::read_scenery_groups(&meta)
             .with_context(|| format!("reading the scenery groups in {meta_file}"))?;
         let override_groups = blackbox_scenery::override_group_numbers(&scenery_groups);
+        let scenery_overrides = blackbox_scenery::read_scenery_overrides(&meta)
+            .with_context(|| format!("reading the scenery overrides in {meta_file}"))?;
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -77,6 +81,7 @@ impl WorldIndex {
             model_hierarchies,
             scenery_groups,
             override_groups,
+            scenery_overrides,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })
     }
