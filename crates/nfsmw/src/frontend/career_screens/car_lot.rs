@@ -29,13 +29,13 @@ use crate::ui::Text;
 /// The objects of `Car_Select.fng` the screen fills (guids from `nfsmw dump-screen Car_Select.fng`): the car card's
 /// name, the `Cost:` value, the `Funds:` value, the "This Car is Locked" notice, the Sell button, the Accept button's
 /// label and the header's title text.
-const CAR_NAME: u32 = 0x000E_283B;
+pub(super) const CAR_NAME: u32 = 0x000E_283B;
 const PRICE: u32 = 0x000F_90AB;
 const CASH: u32 = 0x000F_90A7;
 const LOCKED: u32 = 0x000F_BDEB;
-const SELL_BUTTON: u32 = 0x0010_5E06;
-const ACCEPT: u32 = 0x000E_2B7E;
-const TAB_TITLE: u32 = 0x000F_18D7;
+pub(super) const SELL_BUTTON: u32 = 0x0010_5E06;
+pub(super) const ACCEPT: u32 = 0x000E_2B7E;
+pub(super) const TAB_TITLE: u32 = 0x000F_18D7;
 
 /// One LED strip of a stat bar: its image GUID, its centre x inside the bar's group, its size in pixels and its uv width.
 /// The strips are `LED_main.tga` at 32 pixels per uv unit (`[exe][verified]`, `Car_Select.fng`). Both strips of a bar
@@ -49,15 +49,15 @@ pub struct Strip {
 }
 
 /// The strips of the TOP SPEED bar (group `0xF1737`), the HANDLING bar (`0xF173F`) and the ACCELERATION bar (`0xF172F`).
-const TOP_SPEED_STRIPS: [Strip; 2] = [
+pub(super) const TOP_SPEED_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1738, centre_x: -20.0, width: 80.0, uv_width: 2.5 },
     Strip { guid: 0x000F_1739, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
-const HANDLING_STRIPS: [Strip; 2] = [
+pub(super) const HANDLING_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1740, centre_x: 0.0, width: 120.0, uv_width: 3.75 },
     Strip { guid: 0x000F_1741, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
-const ACCELERATION_STRIPS: [Strip; 2] = [
+pub(super) const ACCELERATION_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1730, centre_x: -40.0, width: 40.0, uv_width: 1.25 },
     Strip { guid: 0x000F_1731, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
@@ -91,7 +91,7 @@ fn strip_fill(lit_total: f32, strip: &Strip) -> StripFill {
 }
 
 /// Draws one bar: each strip's uv rectangle, width and position for `fraction`.
-fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
+pub(super) fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
     for fill in strip_fills(fraction, strips) {
         let Some(object) = cx.guid(fill.guid) else { continue };
         cx.rt.set_hidden(object, !fill.shown);
@@ -112,7 +112,7 @@ fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
 const LOT_TITLE: u32 = 0xB9D7_1959;
 const OWNED_TITLE: u32 = 0x5415_C3F1;
 const BUY_LABEL: u32 = 0x7010_BBF2;
-const ACCEPT_LABEL: u32 = 0x2B65_A216;
+pub(super) const ACCEPT_LABEL: u32 = 0x2B65_A216;
 
 /// The two tabs of the screen: the cars for sale, and the player's own cars.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,18 +178,18 @@ fn label(key: &str) -> Text {
     Text::Game(label_hash(key))
 }
 
-fn show(cx: &mut Cx, guid: u32, shown: bool) {
+pub(super) fn show(cx: &mut Cx, guid: u32, shown: bool) {
     let Some(object) = cx.guid(guid) else { return };
     cx.rt.set_hidden(object, !shown);
 }
 
-fn set_text(cx: &mut Cx, guid: u32, text: String) {
+pub(super) fn set_text(cx: &mut Cx, guid: u32, text: String) {
     let Some(object) = cx.guid(guid) else { return };
     cx.rt.set_text(object, text);
 }
 
 /// Shows the language table's text for `label` on the object `guid` (nothing when the table has no such label).
-fn set_label(cx: &mut Cx, guid: u32, label_hash: u32) {
+pub(super) fn set_label(cx: &mut Cx, guid: u32, label_hash: u32) {
     let text = Text::Game(label_hash).resolve(cx.assets).unwrap_or_default();
     set_text(cx, guid, text);
 }
@@ -234,7 +234,7 @@ fn owned_items(stable: &Stable, cars: &[LotCar]) -> Vec<Item> {
 
 /// The three bar fractions of a row, `[TOP SPEED, HANDLING, ACCELERATION]`, from the car's stats among the lot's
 /// (`stats::bar_fractions`). Empty bars for no row, a car the lot does not name, or a car with no stats.
-fn shown_fractions(career: &Career, item: Option<&Item>) -> [f32; 3] {
+pub(super) fn shown_fractions(career: &Career, item: Option<&Item>) -> [f32; 3] {
     let Some(item) = item else { return [0.0; 3] };
     let key = match item.key {
         Key::Lot(key) => key,
@@ -295,7 +295,7 @@ pub fn buy_refusal(settings: &CareerSettings, stable: &Stable, car: &LotCar) -> 
 
 /// The question for selling the owned car `handle`, or the notice that refuses it (`docs/specs/career-car-lot.md`
 /// section 4). Only at stage 15 or lower.
-fn sell_start(career: &Career, handle: u32) -> Start {
+pub(super) fn sell_start(career: &Career, handle: u32) -> Start {
     if career.settings.stage > MAX_SALE_STAGE {
         return Start::Nothing;
     }

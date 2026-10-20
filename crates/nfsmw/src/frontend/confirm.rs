@@ -25,12 +25,20 @@ pub struct Confirm {
     pub yes: Text,
     pub no: Text,
     pub on_yes: Box<Command>,
+    /// What No (or back) does besides closing the dialog; nothing for most questions.
+    pub on_no: Option<Box<Command>>,
 }
 
 impl Confirm {
     /// A question with the game's own Yes and No answers.
     pub fn new(message: Text, on_yes: Command) -> Self {
-        Self { title: None, message, yes: Text::Game(YES), no: Text::Game(NO), on_yes: Box::new(on_yes) }
+        Self { title: None, message, yes: Text::Game(YES), no: Text::Game(NO), on_yes: Box::new(on_yes), on_no: None }
+    }
+
+    /// The same question with `command` run when it is answered No.
+    pub fn or_else(mut self, command: Command) -> Self {
+        self.on_no = Some(Box::new(command));
+        self
     }
 
     /// The question the original asks before quitting to the main menu.
@@ -74,6 +82,10 @@ impl ConfirmLogic {
         cx.send(Command::Pop);
         if yes {
             cx.send((*self.confirm.on_yes).clone());
+            return;
+        }
+        if let Some(no) = &self.confirm.on_no {
+            cx.send((**no).clone());
         }
     }
 }

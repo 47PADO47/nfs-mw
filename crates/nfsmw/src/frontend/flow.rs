@@ -21,6 +21,8 @@ use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_bust.rs"]
+mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
 #[path = "flow_loading.rs"]
@@ -317,11 +319,15 @@ impl Frontend {
     }
 
     /// The payment on the ticket: the bust takes it (and the game goes on driving) or refuses it (the ticket stays).
-    fn pay_bust(&mut self, marker: bool, host: &mut Host) {
+    fn pay_bust(&mut self, marker: bool, host: &mut Host, env: &mut Env) {
         if !host.scene.pay_bust(marker) {
             return;
         }
         log::info!("busted: paid with {}", if marker { "a marker" } else { "cash" });
+        // In a career the ticket leads to the car select (`flow_bust.rs`); free roam without one drives on.
+        if self.career.is_active() {
+            return self.bust_paid(marker, host, env);
+        }
         self.resume();
     }
 
@@ -376,6 +382,7 @@ impl Frontend {
                 Command::CareerNew(alias) => self.career_new(&alias, host, env),
                 Command::CareerDelete(alias) => self.career_delete(&alias, host, env),
                 Command::CarLot(action) => self.car_lot_action(action, host, env),
+                Command::CareerCar(action) => self.career_car_action(action, host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
                 Command::OpenGraphics => self.graphics_requested = true,
                 Command::Remap(control, slot) => {
@@ -384,7 +391,7 @@ impl Frontend {
                 }
                 Command::SaveAlias => self.save_alias(host, env),
                 Command::LoadAlias => self.load_alias(host, env),
-                Command::PayBust { marker } => self.pay_bust(marker, host),
+                Command::PayBust { marker } => self.pay_bust(marker, host, env),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }

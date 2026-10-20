@@ -100,6 +100,8 @@ pub enum Command {
     CareerDelete(String),
     /// Buy or sell a car on the car lot, after its confirmation (`career_screens/car_lot.rs`).
     CarLot(super::career_screens::car_lot::CarLotAction),
+    /// The career car select asks for something (`career_screens/car_select.rs`, `flow_bust.rs`).
+    CareerCar(super::career_screens::car_select::CarSelectAction),
 }
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do

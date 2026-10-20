@@ -4,6 +4,8 @@
 
 pub mod blacklist;
 pub mod car_lot;
+pub mod car_select;
+mod car_select_view;
 pub mod rap_sheet;
 pub mod region_unlock;
 pub mod safehouse_menu;

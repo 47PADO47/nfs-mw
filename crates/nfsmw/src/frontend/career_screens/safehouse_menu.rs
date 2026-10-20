@@ -2,9 +2,11 @@
 //! (`docs/specs/career-safehouse.md` section 5.1, `docs/specs/career-safehouse-2.md`). The rules are in
 //! `nfsmw_career::safehouse::menu`; this screen shows the items as the icon row and dispatches the selection.
 
+use nfsmw_career::economy::aftermath::CarSelectEntry;
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::safehouse::menu::{MenuItem, MenuTarget, visible_items};
 
+use super::car_select::CarSelectAction;
 use crate::career::CareerHandle;
 use crate::frontend::confirm::Confirm;
 use crate::frontend::icon_items::{Id, safehouse_icons};
@@ -110,7 +112,9 @@ fn command_for(target: MenuTarget, args: Args) -> Command {
         // The original opens `SafehouseReputationOverview.fng` (`career-safehouse.md` 5.1), which has no logic here
         // yet; the Blacklist stepper it leads to opens straight away.
         MenuTarget::ReputationOverview { .. } => Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args),
-        MenuTarget::CarSelect => Command::Switch(screen::CAR_SELECT.into(), args),
+        // The safe house's Car Select is the career select mode of the package (choose, release, sell); the car lot zone
+        // opens the lot mode (`car_select.rs`, `docs/specs/busted-aftermath.md` section 3).
+        MenuTarget::CarSelect => Command::CareerCar(CarSelectAction::Open(CarSelectEntry::Plain)),
         MenuTarget::RapSheetLogin => Command::Switch(screen::RAP_SHEET_LOGIN.into(), args),
         MenuTarget::SaveDialog => Command::Switch(screen::MC_MAIN.into(), args),
     }
