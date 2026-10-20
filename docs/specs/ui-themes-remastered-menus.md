@@ -1,6 +1,7 @@
 # UI themes: the Remastered vertical menus
 
-The Remastered look of the icon menus (the main menu, the option categories, the pause menu and the safe house). Under
+The Remastered look of the icon menus (the main menu, the option categories, the pause menu and the safe house) and of the
+settings pages behind them. Under
 Original these are a row of FEng icons; under Remastered they are a list down the left of the screen. Companion to
 [ui-themes.md](ui-themes.md) section 10 and [ui-themes-menus.md](ui-themes-menus.md).
 
@@ -65,16 +66,36 @@ Under Original nothing reads the cell.
 - **Leaving.** The package draws nothing, so its leave animation would only be a pause. A vertical menu acts at once on a
   press or on Back.
 
-## 5. Not done, and open
+## 5. The in-game menus and the settings pages
 
-- The option tables (`OptionTable`), the track select and the career screens are still Original, so the menus behind a
-  category keep the old look. A vertical table in the same style is the next step.
+- **Pause.** The pause menu and its option categories (`MenuStyle::Pause`) dim the whole frozen world behind them with a
+  translucent scrim, as the map does, and have no logo or tagline. The pause menu's settings pages are the same pages with
+  the same scrim.
+- **Settings pages** (`OptionTable`, `Options.fng` and `Pause_Options.fng`). `WidgetMenu` publishes every row as a
+  `MenuEntry` with a `MenuValue`: a `Choice` (the value cycled with left and right) or a `Slider` (0 to 100). A row that only
+  opens something or runs a command has a choice with no chevrons. The page's heading is the title. The rows are wider than an
+  icon menu's: the label starts at the same column and shrinks if it would run into the value column, and the value sits in
+  a column at the right of the bar. At most eight rows show; the window slides with the selection as in the icon menus.
+- **Chevrons.** The double arrow is the install's own `ARROW_SKINNIER.tga`. Only the selected, enabled row shows them. When
+  the player presses left or right the chevron that way jumps out and settles back over 0.28 s (`blackbox_ui::bounce`,
+  published as `MenuList::nudge`).
+- **Input.** Up, Down, Left and Right reach the page as they always did (only the icon menus turn Up and Down into Left and
+  Right, `ScreenLogic::rotate_pad`). The pointer selects the row under it; a click on the left or right chevron changes the
+  value that way, a click elsewhere on the row steps it on. Back leaves at once instead of playing the package's leave.
+- **Base components.** The pieces are generic components in `blackbox-ui`, so any other screen gets the look from the skin:
+  `Choice` (a value between two chevrons), `Chevron` (the mirrored, nudged double arrow), `PillBar` (a track with a gradient
+  fill that can start in a point, also used by the drive cluster's gauges), with `Slant` and `Outline` from before.
+
+## 6. Not done, and open
+
+- The track select and the career screens (`TrackSelect`, `Blacklist`, `CarLot`, `RapSheet`, `MemoryCard`, `Sms`) are still
+  Original, and so are the key list and the jukebox, which have no slot.
 - The logo is the texture alone; the reference's black splatter behind it is not drawn.
 - Hover also follows the pointer on a stack screen under a dialog only when it is the top screen.
 - Checked on one aspect (16:9) by screenshot. Other aspects are covered by the layout tests (the left edge moves with the
   aspect), not by screenshots.
 
-## 6. Tests
+## 7. Tests
 
 `ui/theme/remastered/menu/tests.rs` (what the component builds for a list), `menu/layout.rs` (rows, the left edge, row and
 hint hit tests), `ui/theme/menu_list.rs` (the cell), `ui/raster_text.rs` (tracking, the measured width equals the rendered
