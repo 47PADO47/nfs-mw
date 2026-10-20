@@ -31,10 +31,13 @@ pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
 /// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
 const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
+/// The cool-down bar's "HIDING" text group and its car icon. They sit under the cool-down group and rest at zero
+/// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
+/// (`0x5c2a4f20`) answers no message in the package and stays at rest.
+pub(super) const HIDING: [u32; 2] = [0x60b4_5523, 0x3807_4901];
 /// Parts of the package with no state bound yet, held hidden whatever the feature: the heat arcs (their
-/// mask-to-heat mapping is not bound), and the cool-down bar's "HIDING" group and car icon (the hiding timer is not
-/// in the feed).
-const HELD_HIDDEN: [u32; 4] = [0x8628_24c9, 0x4b2c_be1b, 0x60b4_5523, 0x3807_4901];
+/// mask-to-heat mapping is not bound).
+const HELD_HIDDEN: [u32; 2] = [0x8628_24c9, 0x4b2c_be1b];
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
