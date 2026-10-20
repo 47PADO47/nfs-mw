@@ -19,28 +19,26 @@ pub struct Odds {
     pub search_radius: f32,
 }
 
-/// The install's rows, heat 1 to 10 (`pursuitlevels`, **[verified]** in the spec, checked again by an installed test).
-/// Columns: probability, spike chance, search chance. The radius is 1000 m on every row.
-const ROWS: [(f32, f32, f32); 10] = [
-    (0.0, 0.0, 0.0),
-    (10.0, 0.0, 3.0),
-    (25.0, 0.0, 5.0),
-    (30.0, 70.0, 7.0),
-    (40.0, 80.0, 10.0),
-    (50.0, 85.0, 12.0),
-    (35.0, 85.0, 12.0),
-    (50.0, 0.0, 60.0),
-    (100.0, 100.0, 0.0),
-    (80.0, 0.0, 80.0),
+/// The install's rows, heat 1 to 10 (`pursuitlevels`, **[verified]**: the installed test
+/// `installed_level_rows_match_the_roadblock_and_helicopter_tables` compares every cell). Columns: probability, spike
+/// chance, search chance, search radius in metres.
+const ROWS: [(f32, f32, f32, f32); 10] = [
+    (0.0, 0.0, 0.0, 1000.0),
+    (10.0, 0.0, 3.0, 1000.0),
+    (25.0, 0.0, 5.0, 2000.0),
+    (30.0, 70.0, 7.0, 5000.0),
+    (40.0, 80.0, 10.0, 10000.0),
+    (50.0, 85.0, 12.0, 10000.0),
+    (35.0, 85.0, 12.0, 10000.0),
+    (50.0, 0.0, 60.0, 3500.0),
+    (100.0, 100.0, 0.0, 4000.0),
+    (80.0, 0.0, 80.0, 5000.0),
 ];
-
-/// `SearchModeRoadblockRadius` of every heat row, metres.
-pub const SEARCH_RADIUS: f32 = 1000.0;
 
 /// The odds of heat `level` (1 to 10; anything else has none).
 pub fn odds(level: u32) -> Odds {
-    let row = level.checked_sub(1).and_then(|i| ROWS.get(i as usize)).copied().unwrap_or((0.0, 0.0, 0.0));
-    Odds { probability: row.0, spike_chance: row.1, search_chance: row.2, search_radius: SEARCH_RADIUS }
+    let row = level.checked_sub(1).and_then(|i| ROWS.get(i as usize)).copied().unwrap_or((0.0, 0.0, 0.0, 1000.0));
+    Odds { probability: row.0, spike_chance: row.1, search_chance: row.2, search_radius: row.3 }
 }
 
 /// The chance (percent) that a roll succeeds: the row's probability in sight, otherwise the search chance scaled by how
@@ -189,7 +187,7 @@ mod tests {
     #[test]
     fn the_rows_are_the_installs() {
         assert_eq!(odds(1).probability, 0.0);
-        assert_eq!(odds(4), Odds { probability: 30.0, spike_chance: 70.0, search_chance: 7.0, search_radius: 1000.0 });
+        assert_eq!(odds(4), Odds { probability: 30.0, spike_chance: 70.0, search_chance: 7.0, search_radius: 5000.0 });
         assert_eq!(odds(9).probability, 100.0);
         assert_eq!(odds(10).search_chance, 80.0);
         assert_eq!(odds(0).probability, 0.0, "no heat has no odds");
@@ -257,10 +255,11 @@ mod tests {
     #[test]
     fn out_of_sight_the_chance_falls_with_the_distance_from_the_last_known_place() {
         let heat = odds(8);
+        assert_eq!(heat.search_radius, 3500.0);
         assert_eq!(chance(&heat, false, 0.0), 60.0);
-        assert_eq!(chance(&heat, false, 500.0), 30.0);
-        assert_eq!(chance(&heat, false, 1000.0), 0.0);
-        assert!(chance(&heat, false, 1500.0) < 0.0, "beyond the radius it never succeeds");
+        assert_eq!(chance(&heat, false, 1750.0), 30.0);
+        assert_eq!(chance(&heat, false, 3500.0), 0.0);
+        assert!(chance(&heat, false, 4000.0) < 0.0, "beyond the radius it never succeeds");
         assert_eq!(chance(&heat, true, 900.0), 50.0, "in sight the row's probability holds");
     }
 

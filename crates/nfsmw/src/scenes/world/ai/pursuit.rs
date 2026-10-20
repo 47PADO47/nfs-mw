@@ -90,6 +90,16 @@ impl Pursuit {
         self.rows.get((self.heat.max(1) as usize - 1).min(last))
     }
 
+    /// The helicopter was picked: it counts among the cops involved and arms the next spawn delay like a car does.
+    pub(super) fn sent_helicopter(&mut self) {
+        let delay = self.row().map(|r| match self.involved < 3 {
+            true => r.time_between_first_four_spawns,
+            false => r.time_between_cop_spawns,
+        });
+        self.involved += 1;
+        self.spawn_timer = delay.unwrap_or(0.0);
+    }
+
     /// Follows the police heat level: a new level takes effect at once. Returns true when the level changed.
     pub fn follow_heat(&mut self, level: u32) -> bool {
         if level == self.heat {
@@ -128,6 +138,7 @@ impl TrafficWorld {
     /// first support (a support car whose model is not in yet waits for it, `ai/support`).
     pub fn start_pursuit(&mut self, heat: u32, rows: Vec<HeatRow>, player: Performance) {
         self.police.begin(heat);
+        self.roadblocks.begin_chase();
         self.pursuit = Some(Pursuit::new(self.police.patrol_heat(), rows, player));
         let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
         for car in &mut self.cars {
@@ -164,10 +175,14 @@ impl TrafficWorld {
                     car.hold_for_arrest();
                 }
             }
-            false => self.cars.retain(|car| !car.is_police()),
+            // An escape leaves the roadblocks standing: their cars and props go by the rules that retire what nobody sees.
+            false => self.cars.retain(|car| !car.is_police() || (reason == EndReason::Evaded && car.is_roadblock())),
         }
         self.seen_by_cops = false;
-        self.clear_spikes();
+        if reason != EndReason::Evaded {
+            self.clear_spikes();
+        }
+        self.roadblocks.end_chase();
     }
 
     pub fn add_cop_model(&mut self, model: CopModel) {
@@ -226,6 +241,10 @@ impl TrafficWorld {
             log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
         }
         pursuit.spawn_timer -= sim_dt;
+        // A latched roadblock request stops the manager from spawning pursuit cops until the roadblock stands.
+        if self.roadblocks.dispatcher_latched() {
+            return;
+        }
         let alive = self.cars.iter().filter(|c| c.is_cop()).count();
         let wanted = match cooldown {
             true => {
@@ -233,9 +252,14 @@ impl TrafficWorld {
             }
             false => pursuit.wanted(self.police.settings()),
         };
-        if alive >= wanted || pursuit.spawn_timer > 0.0 {
+        if pursuit.spawn_timer > 0.0 {
             return;
         }
+        // The helicopter takes its turn among the wave's types (`ai/air.rs`); a pick counts as a cop spawned.
+        if self.pick_helicopter(&player, alive < wanted) || alive >= wanted {
+            return;
+        }
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
         // The next type of the current wave, weighted by its chance among those the wave still needs.
         let pick = {
             let slots: Vec<Slot> = pursuit.wave().map(|(name, count, chance)| Slot { name, count, chance }).collect();
@@ -343,12 +367,19 @@ impl TrafficWorld {
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
         let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
+        let roadblocks = self.roadblocks.stats();
+        let helicopter = self.helicopter_status().map_or("no helicopter".to_owned(), |h| {
+            format!("helicopter {:?}, {:.0} s of fuel{}", h.mode, h.fuel_secs, if h.in_sight { ", sees you" } else { "" })
+        });
         format!(
-            "heat {}: {} of {} cops ({}); formation {formation}; evade in {to_evade:.0} s; infractions {} for ${}{}",
+            "heat {}: {} of {} cops ({}); formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}",
             p.heat,
             cops.len(),
             p.wanted(self.police.settings()),
             cops.join(", "),
+            self.roadblocks.count(),
+            roadblocks.deployed,
+            roadblocks.dodged,
             infractions.len(),
             self.police.infractions().total_fines(),
             if infractions.is_empty() { String::new() } else { format!(" ({})", infractions.join(", ")) },

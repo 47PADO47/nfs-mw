@@ -23,11 +23,13 @@ use crate::scenes::world::ai::ModelRequest;
 use crate::scenes::world::{keys, sun};
 use crate::settings::CarShading;
 
+mod air;
 mod arrest;
 mod free_roam;
 mod installed;
 mod installed_arrest;
 mod installed_route;
+mod roadblock;
 
 /// The frames the model is still loading for, and the length of each frame in simulated seconds.
 const LOADING_FRAMES: u32 = 30;

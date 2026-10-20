@@ -143,6 +143,7 @@ impl HeliSettings {
             all_around_sight: self.all_around_sight.at(level, racing),
             front_sight_only: self.front_sight_only,
             hiding_spots: self.hiding_spots,
+            search_radius: blackbox_pursuit::roadblock::request::odds(level).search_radius,
         }
     }
 

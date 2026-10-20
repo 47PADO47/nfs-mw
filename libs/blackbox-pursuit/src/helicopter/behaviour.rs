@@ -9,6 +9,10 @@ use super::control::Goal;
 pub const STRIKE_SPEED: f32 = 100.0;
 /// The speed the search flies at, m/s. [decomp] 70, pool.
 pub const SEARCH_SPEED: f32 = 70.0;
+/// The horizontal distance (m) at which a search point is reached and the next one is chosen. [decomp] 30.
+pub const SEARCH_ARRIVAL: f32 = 30.0;
+/// How far round its circle the search moves at each new point, in turns. [decomp] 0.125.
+pub const SEARCH_STEP_TURNS: f32 = 0.125;
 /// Seconds a skid hit's approach lasts before the timer can run out. [decomp] 8, pool.
 pub const SKID_TIMER: f32 = 8.0;
 /// Horizontal window (m) from the player in which a skid hit can start. [decomp] 5 to 35: the lower bound is pool
@@ -148,7 +152,7 @@ pub fn skid_aborts(heli: Vec3, player: &Player) -> bool {
 /// The search point: `distance` between 0.2 and 0.9 of `radius` from `centre` at `angle` turns, at the floor (if
 /// the heli sheet covers it, never below `centre`'s height) plus 5 m. `unit_random` in `0..=1` picks the distance.
 pub fn search_point(centre: Vec3, angle_turns: f32, unit_random: f32, radius: f32, floor: Option<f32>) -> Vec3 {
-    // The 0.2 and 0.7 of the radius are spec §6.1 [decomp]; the 1000 m radius is pool; the 5 m has no word.
+    // The 0.2 and 0.7 of the radius are spec §6.1 [decomp]; the radius is the level's `SearchModeRoadblockRadius`.
     let dist = unit_random.clamp(0.0, 1.0) * 0.7 * radius + 0.2 * radius;
     let angle = angle_turns * std::f32::consts::TAU;
     let base = match floor {

@@ -6,11 +6,11 @@ use glam::Quat;
 #[path = "police/free_roam_tests.rs"]
 mod free_roam;
 
-fn view(speed: f32) -> PlayerView {
+pub(super) fn view(speed: f32) -> PlayerView {
     PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed, nitrous: 0.0, throttle: 0.0 }
 }
 
-fn sensed(seen: bool) -> Sensed {
+pub(super) fn sensed(seen: bool) -> Sensed {
     Sensed {
         seen,
         unit_random: 0.5,
@@ -86,23 +86,24 @@ fn heat_grows_while_chased_and_not_otherwise() {
 }
 
 #[test]
-fn a_helicopter_joins_at_a_helicopter_level_after_its_first_wait() {
+fn a_helicopter_the_cop_manager_queued_joins_on_the_next_step_at_its_spawn_point() {
     let mut police = Police::default();
     police.begin(4);
-    for _ in 0..200 {
-        police.update(0.1, true, &view(5.0), sensed(true));
-    }
-    assert!(police.heli.is_some(), "joined after the 10 s first wait");
+    let spawn = heli::Spawn { position: Vec3::new(10.0, 25.0, -240.0), heading: 0.5 };
+    police.queue_helicopter(spawn);
+    police.update(0.1, true, &view(5.0), sensed(true));
+    let heli = police.heli.expect("joined");
+    assert!((heli.body.position.z - -240.0).abs() < 5.0, "it appears where the manager put it: {:?}", heli.body.position);
 }
 
 #[test]
-fn no_helicopter_at_a_level_without_one() {
+fn no_helicopter_comes_without_the_cop_managers_request() {
     let mut police = Police::default();
-    police.begin(3);
+    police.begin(5);
     for _ in 0..200 {
         police.update(0.1, true, &view(5.0), sensed(true));
     }
-    assert!(police.heli.is_none());
+    assert!(police.heli.is_none(), "the police alone do not send one: the wave's turn does (ai/air.rs)");
 }
 
 #[test]

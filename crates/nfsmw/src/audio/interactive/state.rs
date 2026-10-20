@@ -61,6 +61,12 @@ pub struct PursuitFeed {
     pub player_mph: f32,
     /// A police helicopter is in the chase, flying or leaving.
     pub heli_present: bool,
+    /// The helicopter has the player in sight: its last sight test, grace included. False with none flying.
+    pub heli_in_sight: bool,
+    /// The helicopter's fuel left, 0 to 1 (0 with none flying). At 0 it leaves.
+    pub heli_fuel: f32,
+    /// The search-mode roll sent the helicopter (the quadrant-search call), until it has left again.
+    pub heli_search_call: bool,
     /// The rain, 0 (dry) to 1 (heavy), from the scene's weather. Set by the scene, not the traffic.
     pub rain_intensity: f32,
     /// A roadblock of this chase stands.

@@ -31,6 +31,8 @@ pub enum Request {
     Cop(String),
     /// The police helicopter's rig.
     Helicopter,
+    /// The models of a roadblock's spike strip and sawhorse.
+    RoadblockProps,
 }
 
 impl Request {
@@ -40,6 +42,7 @@ impl Request {
             Self::Traffic(name) => Self::Traffic(name.to_ascii_lowercase()),
             Self::Cop(name) => Self::Cop(name.to_ascii_lowercase()),
             Self::Helicopter => Self::Helicopter,
+            Self::RoadblockProps => Self::RoadblockProps,
         }
     }
 }
@@ -83,6 +86,13 @@ pub enum Job {
         staged: Box<StagedCop>,
     },
     Helicopter,
+    RoadblockProps,
+}
+
+/// The models of a roadblock's props, from the track's shared scenery.
+pub struct RoadblockModels {
+    pub spike: CarModel,
+    pub sawhorse: CarModel,
 }
 
 /// A traffic car as the worker loaded it: its model and, for a semi tractor, its trailer's `pvehicle` and model.
@@ -110,6 +120,7 @@ pub enum Loaded {
     Cop(Box<CopLoad>),
     CopExtras(Box<CopExtrasLoad>),
     Helicopter(Box<CarModel>),
+    RoadblockProps(Box<RoadblockModels>),
 }
 
 /// A request the worker has finished, or failed.
@@ -217,6 +228,7 @@ impl Worker {
             Job::Cop(lookup) => self.cop(&lookup),
             Job::CopExtras { car_type, hashes, staged } => Ok(self.extras(&car_type, &hashes, *staged)),
             Job::Helicopter => self.helicopter(),
+            Job::RoadblockProps => self.roadblock_props(),
         }
     }
 
@@ -265,6 +277,18 @@ impl Worker {
             return Vec::new();
         }
         nfsmw_data::car::exhaust::particle_textures(&self.dir, hashes).unwrap_or_default()
+    }
+
+    /// The sawhorse and the spike strip are scenery models of the track's shared sections (`XO_SAWHORSE_1B_00`,
+    /// `XO_SPIKEBELT_1B_DW_00`); the rest of the shared set is dropped.
+    fn roadblock_props(&self) -> Result<Loaded, String> {
+        use crate::scenes::world::ai::roadblock::props::{SAWHORSE_MODEL, SPIKE_MODEL};
+        let shared = nfsmw_data::world::SharedAssets::load(&self.dir, nfsmw_data::world::DEFAULT_TRACK)
+            .map_err(|e| format!("the shared scenery: {e:#}"))?;
+        let model = |name: &str| {
+            shared.find(name).map(|index| shared.model(index)).ok_or_else(|| format!("{name} is not in the shared scenery"))
+        };
+        Ok(Loaded::RoadblockProps(Box::new(RoadblockModels { spike: model(SPIKE_MODEL)?, sawhorse: model(SAWHORSE_MODEL)? })))
     }
 
     /// The helicopter is not a car: only its model is read (`docs/specs/ai-helicopter.md`).

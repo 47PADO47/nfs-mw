@@ -59,6 +59,9 @@ impl WorldScene {
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
             .with_hierarchies(index.model_hierarchies.clone());
         log::info!("{} props have collision bounds", props.len());
+        if let Some(world) = traffic.as_mut() {
+            world.set_roadblock_physics(&props);
+        }
         // The mods' map packs take residency indices after the install's sections; their interiors refer to them
         // by those.
         let installed: std::collections::HashSet<i16> = index.sections.iter().map(|s| s.number).collect();
@@ -99,7 +102,6 @@ impl WorldScene {
             garage_open: false,
             audio_environment,
             common_sounds: Vec::new(),
-            rotor_previous: None,
             sound_speedbreaker_active: false,
             dir: dir.clone(),
             track: index.track.clone(),

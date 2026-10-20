@@ -153,9 +153,9 @@ pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[
     }
 }
 
-/// `roadblock`: lays a roadblock of cop cars across the road 250 m ahead (a test of the placement; the support request
-/// that asks for one in a chase is not built, `docs/specs/ai-pursuit-formations.md` section 6). The outcome also goes to
-/// the log file, so a headless run shows it (the console keeps its own buffer).
+/// `roadblock`: lays a roadblock across the road 250 m ahead now, as the request lottery would (a manual setup; in a chase
+/// the roadblocks come by themselves, `docs/specs/ai-pursuit-roadblocks.md` section 1). The outcome also goes to the log
+/// file, so a headless run shows it (the console keeps its own buffer).
 pub(in crate::scenes::world) fn roadblock_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     let result = roadblock_outcome(scene, args);
     match &result {
@@ -174,8 +174,10 @@ fn roadblock_outcome(scene: &mut WorldScene, args: &[&str]) -> Result<String, St
         return Err("the car is not on the road yet; type the command once the drive has started".into());
     }
     let view = drive.player_view();
-    let (collision, _) = scene.residency.world_parts();
+    let (collision, props) = scene.residency.world_parts();
     let surfaces = &scene.physics.surfaces;
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
-    traffic.place_roadblock(view, collision, surfaces).map(|n| format!("roadblock: {n} cop cars placed"))
+    traffic
+        .place_roadblock_with_props(view, collision, props, surfaces)
+        .map(|n| format!("roadblock: {n} cop cars placed"))
 }

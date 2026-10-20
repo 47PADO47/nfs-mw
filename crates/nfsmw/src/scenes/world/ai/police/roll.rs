@@ -14,6 +14,10 @@ impl Police {
         let before = self.pursuit_time;
         self.pursuit_time += dt;
         self.tick_rep(before, dt, seen, level);
+        // A met heavy roadblock request is active for its duration and no other ground support is rolled meanwhile.
+        if self.heavy_roadblock_active(dt) {
+            return;
+        }
         self.support_timer -= dt;
         if self.support_timer > 0.0 || self.pursuit_time < support::minimum_delay(level) {
             return;
@@ -24,7 +28,10 @@ impl Police {
         }
         let Some(request) = self.support_roll(level, random) else { return };
         match request.strategy {
-            Strategy::HeavyRoadblock => self.roadblock_requested = true,
+            Strategy::HeavyRoadblock => {
+                self.roadblock_requested = true;
+                self.roadblock.duration = request.duration;
+            }
             strategy => {
                 log::info!("support: {strategy:?} rolled for the chase");
                 self.support_requested = Some(request);

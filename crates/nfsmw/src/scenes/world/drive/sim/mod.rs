@@ -326,10 +326,14 @@ impl CarSim {
     pub fn wheel_patches(&self) -> [blackbox_pursuit::spikes::Patch; 4] {
         std::array::from_fn(|i| {
             let wheel = self.vehicle.wheel(i);
+            // The axle is the tire's lateral direction: the body's right turned by the steering, seen from above.
+            let (sin, cos) = wheel.steer_angle.sin_cos();
+            let axle = self.vehicle.rotation() * Vec3::new(cos, 0.0, -sin);
             blackbox_pursuit::spikes::Patch {
                 position: glam::Vec2::new(wheel.position.x, wheel.position.z),
                 elevation: wheel.position.y,
                 radius: wheel.radius,
+                axle: glam::Vec2::new(axle.x, axle.z),
                 on_ground: wheel.on_ground,
             }
         })
