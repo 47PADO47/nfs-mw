@@ -108,6 +108,22 @@ fn readout(ctx: &egui::Context, m: &Metrics) {
         });
 }
 
+/// Frame times as a line, with a mark at 60 fps.
+fn graph(ui: &mut egui::Ui, m: &Metrics) {
+    let (rect, _) = ui.allocate_exact_size(vec2(HISTORY as f32, 48.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    let y_of = |ms: f32| rect.bottom() - (ms / GRAPH_MAX_MS).min(1.0) * rect.height();
+    let y60 = y_of(1000.0 / 60.0);
+    painter.line_segment(
+        [pos2(rect.left(), y60), pos2(rect.right(), y60)],
+        Stroke::new(1.0, Color32::from_white_alpha(50)),
+    );
+    let offset = HISTORY - m.frame_ms.len();
+    let points =
+        m.frame_ms.iter().enumerate().map(|(i, &ms)| pos2(rect.left() + (offset + i) as f32, y_of(ms))).collect();
+    painter.add(Shape::line(points, Stroke::new(1.0, Color32::LIGHT_GREEN)));
+}
+
 #[cfg(test)]
 mod tests {
     use super::rate_lines;
@@ -136,20 +152,4 @@ mod tests {
         assert_eq!(rate_lines(60.0, 16.7, None, true).last().unwrap(), "Frame generation: configured");
         assert!(!rate_lines(60.0, 16.7, Some(120.0), false).iter().any(|l| l.contains("Frame generation")));
     }
-}
-
-/// Frame times as a line, with a mark at 60 fps.
-fn graph(ui: &mut egui::Ui, m: &Metrics) {
-    let (rect, _) = ui.allocate_exact_size(vec2(HISTORY as f32, 48.0), Sense::hover());
-    let painter = ui.painter_at(rect);
-    let y_of = |ms: f32| rect.bottom() - (ms / GRAPH_MAX_MS).min(1.0) * rect.height();
-    let y60 = y_of(1000.0 / 60.0);
-    painter.line_segment(
-        [pos2(rect.left(), y60), pos2(rect.right(), y60)],
-        Stroke::new(1.0, Color32::from_white_alpha(50)),
-    );
-    let offset = HISTORY - m.frame_ms.len();
-    let points =
-        m.frame_ms.iter().enumerate().map(|(i, &ms)| pos2(rect.left() + (offset + i) as f32, y_of(ms))).collect();
-    painter.add(Shape::line(points, Stroke::new(1.0, Color32::LIGHT_GREEN)));
 }
