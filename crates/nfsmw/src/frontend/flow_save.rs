@@ -58,7 +58,7 @@ impl Frontend {
         let at_start = self.screens.top().is_none();
         let message = Text::Custom(LOAD_COMPLETE.to_owned());
         let alert = match at_start {
-            true => Alert::then(message, Command::QuitTo(QuitTo::MainMenu)),
+            true => Alert::then(message, Command::QuitTo(QuitTo::Main)),
             false => Alert::new(message),
         };
         self.show_alert(alert, host, env);
@@ -78,7 +78,7 @@ impl Frontend {
         };
         log::info!("career: new career {alias}");
         self.career.set(career);
-        self.origin = QuitTo::CareerMenu;
+        self.origin = QuitTo::Career;
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 

@@ -163,9 +163,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
     let quit = match ctx.quit {
-        QuitTo::MainMenu => 0xE950_B7AF,
-        QuitTo::QuickRaceMenu => 0x4349_998B,
-        QuitTo::CareerMenu => 0x690E_9B7C,
+        QuitTo::Main => 0xE950_B7AF,
+        QuitTo::QuickRace => 0x4349_998B,
+        QuitTo::Career => 0x690E_9B7C,
     };
     list.push(icon(Id::Quit(ctx.quit), QUIT_TEXTURE, quit, true));
     list
@@ -185,18 +185,19 @@ pub fn career_icons(started: bool, won: bool) -> Vec<Icon> {
     list
 }
 
-/// The icons of the safe house menu, one per item in menu order (`career-safehouse-2.md`). Textures are the
-/// install's pictures this build knows by hash: Resume Free Roam (pause), Car Select (My Cars), Save (the alias
-/// manager's disk). Blacklist and Rap Sheet have none known yet and draw no picture (texture 0).
-pub fn safehouse_icons(items: &[MenuItem]) -> Vec<Icon> {
+/// The icons of the safe house menu, one per item in menu order (`career-safehouse-2.md`). The pictures are the
+/// original's own (`MAIN_ICON_TOP_15`, `MAIN_ICON_CAR_SELECT`, `MAIN_ICON_RAP_SHEET`, `GENERIC_ICON_SAVE`, and the pause
+/// menu's resume picture; docs/provenance/career-parity-menus.md). Before the world exists (`prelude`) Car Select is
+/// greyed out.
+pub fn safehouse_icons(items: &[MenuItem], prelude: bool) -> Vec<Icon> {
     items
         .iter()
         .map(|item| match *item {
             MenuItem::ResumeFreeRoam => icon(Id::SafeHouseResume, 0x12BB_5EA2, 0x01BD_185C, true),
-            MenuItem::Blacklist(stage) => icon(Id::SafeHouseBlacklist(stage), 0, 0x80B9_FF9B, true),
-            MenuItem::CarSelect => icon(Id::SafeHouseCarSelect, 0xB0C4_6023, 0x00D5_F627, true),
-            MenuItem::RapSheet => icon(Id::SafeHouseRapSheet, 0, 0xAC22_F27E, true),
-            MenuItem::Save => icon(Id::SafeHouseSave, 0x6B30_3856, 0x001C_8ACE, true),
+            MenuItem::Blacklist(stage) => icon(Id::SafeHouseBlacklist(stage), 0x2C14_AC23, 0x80B9_FF9B, true),
+            MenuItem::CarSelect => icon(Id::SafeHouseCarSelect, 0xC6A1_A6E0, 0x00D5_F627, !prelude),
+            MenuItem::RapSheet => icon(Id::SafeHouseRapSheet, 0x2FD8_B206, 0xAC22_F27E, true),
+            MenuItem::Save => icon(Id::SafeHouseSave, 0x228B_7E32, 0x001C_8ACE, true),
         })
         .collect()
 }

@@ -44,6 +44,8 @@ pub enum Start {
     Browse(String),
     /// Straight into free roam.
     Drive,
+    /// Where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+    Aliases,
 }
 
 /// A step of the boot flow (the original `BootFlowManager`).
@@ -132,13 +134,12 @@ pub struct Frontend {
     pub(super) profiles: Option<ProfileDir>,
     /// The safe house menu is up over the frozen world: leaving it restarts free roam (`flow_career.rs`).
     pub(super) in_safe_house: bool,
-    /// The safe house menu stands before the world exists (Resume Career): Resume Free Roam starts the world and Back goes
-    /// to the career menu (`flow_career.rs`).
-    pub(super) prelude: bool,
     /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
     pub(super) origin: QuitTo,
     /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
-    look: Look,
+    pub(super) look: Look,
+    /// A look the command line fixed (`view-screen --look`): the screens do not change it.
+    pub(super) look_override: Option<Look>,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
@@ -181,9 +182,9 @@ impl Frontend {
             career: CareerHandle::default(),
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
-            prelude: false,
-            origin: QuitTo::MainMenu,
+            origin: QuitTo::Main,
             look: Look::Main,
+            look_override: None,
             auto_shop_requested: false,
             quick_race: None,
             quick_car: None,
@@ -205,6 +206,7 @@ impl Frontend {
                 self.next_boot(host, env);
             }
             Start::Menu => self.show_menu(host, env),
+            Start::Aliases => self.after_boot(host, env),
             Start::Screen(name, args) => {
                 self.show_backdrop(host);
                 let commands = self.screens.open(&name, args, true, env);
@@ -307,14 +309,15 @@ impl Frontend {
         self.paused.set(false);
         self.screens.clear();
         self.career.end_play();
-        self.prelude = false;
         self.in_safe_house = false;
         self.open_menu(name, args, host, env);
     }
 
     /// Opens a menu screen over the backdrop it wants, with the menu stage on.
     pub(super) fn open_menu(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
-        if let Some(look) = super::factory::look_for(name, &args) {
+        if self.look_override.is_none()
+            && let Some(look) = super::factory::look_for(name, &args)
+        {
             self.look = look;
         }
         self.show_backdrop(host);
@@ -329,7 +332,8 @@ impl Frontend {
         if self.stage != Stage::Menus || !self.menu_in_window {
             return;
         }
-        let Some(look) = self.screens.look().filter(|look| *look != self.look) else { return };
+        let wanted = self.look_override.clone().or_else(|| self.screens.look());
+        let Some(look) = wanted.filter(|look| *look != self.look) else { return };
         log::info!("menu backdrop: {look:?}");
         self.look = look;
         let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
@@ -421,12 +425,12 @@ impl Frontend {
             match command {
                 Command::StartFreeRoam => {
                     self.career.end_play();
-                    self.origin = QuitTo::MainMenu;
+                    self.origin = QuitTo::Main;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartQuickRace(race) => {
                     self.career.end_play();
-                    self.origin = QuitTo::QuickRaceMenu;
+                    self.origin = QuitTo::QuickRace;
                     self.quick_race = Some(race);
                     self.quick_play = false;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
@@ -435,7 +439,7 @@ impl Frontend {
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
                 Command::RestartRace => self.restart_race(host),
-                Command::Resume if self.prelude => self.start_from_safe_house(host, env),
+                Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
@@ -465,7 +469,12 @@ impl Frontend {
                 Command::PayBust { marker } => self.pay_bust(marker, host),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host),
                 Command::ShowResults(report) => self.show_results(report, host, env),
-                Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
+                Command::Switch(..)
+                | Command::Push(..)
+                | Command::Pop
+                | Command::Confirm(_)
+                | Command::Alert(_)
+                | Command::EnterName(_) => {}
             }
         }
     }

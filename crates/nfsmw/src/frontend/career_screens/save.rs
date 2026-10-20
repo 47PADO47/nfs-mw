@@ -17,7 +17,7 @@ use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
 use crate::career::{CareerHandle, ProfileDir};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
 use crate::ui::Text;
 
 /// The rows the list shows at once (`option_name_1` to `option_name_8`). The dump of `MC_List.fng` has eight row names;
@@ -302,6 +302,10 @@ impl AliasListLogic {
 }
 
 impl ScreenLogic for AliasListLogic {
+    fn footer(&self) -> Footer {
+        Footer::BackOnly
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.aliases = list_aliases();
         if self.aliases.is_empty() {

@@ -4,6 +4,7 @@
 
 mod alias_menu;
 mod browse;
+mod camera_pose;
 mod career_screens;
 mod confirm;
 mod controls_layout;
@@ -26,9 +27,11 @@ mod loading_tips;
 mod logic;
 mod look;
 mod mod_options;
+mod name_entry;
 mod options;
 mod photo;
 mod plugin;
+mod plugin_keys;
 mod pointer;
 pub(crate) mod post_options;
 mod post_race;
@@ -46,6 +49,7 @@ mod screens;
 mod script;
 mod scroller;
 mod splash;
+mod stage;
 mod track_options;
 mod track_select;
 mod widget_layout;
@@ -80,6 +84,7 @@ mod vehicle_effects_tests;
 pub use browse::Browse;
 pub use flow::{Frontend, Start};
 pub use logic::{Args, Category};
+pub use look::Look;
 pub use plugin::{FrontendPlugin, map_pointer_on_picture};
 pub use scene::MenuScene;
 #[cfg(test)]

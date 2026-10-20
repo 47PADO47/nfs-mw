@@ -4,11 +4,12 @@
 
 use nfsmw_career::settings::Flags;
 
-use super::save::{ListMode, list_aliases, next_alias, open_list};
+use super::save::{ListMode, open_list};
 use crate::career::CareerHandle;
 use crate::frontend::icon_items::{Id, career_icons};
 use crate::frontend::icon_menu::{IconMenu, Kind};
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::name_entry::NameFor;
 
 /// The logic of the career menu: its row follows the loaded profile (`career_icons`).
 pub fn make(args: Args) -> Box<dyn ScreenLogic> {
@@ -22,7 +23,7 @@ pub fn make(args: Args) -> Box<dyn ScreenLogic> {
 pub fn press(cx: &mut Cx, id: Id) {
     match id {
         Id::CareerResume => cx.send(Command::ResumeCareer),
-        Id::CareerNew => cx.send(Command::CareerNew(next_alias(&list_aliases()))),
+        Id::CareerNew => cx.send(Command::EnterName(NameFor::NewCareer)),
         Id::CareerLoad => open_list(cx, ListMode::Load),
         _ => {}
     }

@@ -3,10 +3,11 @@
 //! new alias and loads it, Load and Delete open the profile list (`career_screens/save.rs`), Save asks about the loaded alias.
 
 use crate::career::CareerHandle;
-use crate::frontend::career_screens::save::{self, ListMode, list_aliases, next_alias, open_list};
+use crate::frontend::career_screens::save::{self, ListMode, open_list};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::icon_items::Id;
 use crate::frontend::logic::{Command, Cx};
+use crate::frontend::name_entry::NameFor;
 use crate::ui::Text;
 
 /// "Are you sure you want to save the alias named %s?" (`0x39B3CCBA`).
@@ -15,7 +16,7 @@ const SAVE_QUESTION: u32 = 0x39B3_CCBA;
 /// What pressing an icon of the alias manager does.
 pub fn press(cx: &mut Cx, id: Id) {
     match id {
-        Id::AliasCreate => cx.send(Command::AliasCreate(next_alias(&list_aliases()))),
+        Id::AliasCreate => cx.send(Command::EnterName(NameFor::Create)),
         Id::AliasLoad => open_list(cx, ListMode::Load),
         Id::AliasSave => ask_to_save(cx),
         Id::AliasDelete => open_list(cx, ListMode::Delete),

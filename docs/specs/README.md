@@ -110,11 +110,13 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-milestones.md](career-milestones.md) and [career-milestones-data.md](career-milestones-data.md): the statistics, milestones and speed traps, their states and tables.
 - [career-flow.md](career-flow.md) and [career-car-lot.md](career-car-lot.md): new and resumed career, safe house, autosave, car lot and car rules.
 - [career-safehouse.md](career-safehouse.md) and [career-safehouse-2.md](career-safehouse-2.md): the native safe house (zones, engage, unload and reload, heat, the respawn marker).
+- [menu-backdrop.md](menu-backdrop.md) and [menu-backdrop-looks.md](menu-backdrop-looks.md): the 3D picture behind the menus: the crib room and the safe house room, which car each look shows (the profile's last car, the red BMW M3 E46 GTR by default), and the original's car stand and camera poses.
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
+- [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
 
@@ -155,3 +157,5 @@ remaining clock, geometry, context and live-comparison limits.
 - [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap
   races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
   [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up.
+- [race-restart.md](race-restart.md): when the pause menu counts a race as in progress, and what Restart resets (the clock, the
+  racers, the checkpoints, the cops) without touching the career.
