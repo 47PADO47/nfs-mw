@@ -1,7 +1,6 @@
 //! What the police radio asks of a car: its identity, what it was doing when it was hit, and what its last step did.
 
 use super::*;
-use crate::audio::Vehicle;
 use crate::scenes::world::drive::SurfaceHit;
 
 impl AiCar {
@@ -22,7 +21,7 @@ impl AiCar {
 
     /// The car is one of the SUVs (a ram of one is no deliberate hit on a cop).
     pub(in crate::scenes::world::ai) fn is_suv(&self) -> bool {
-        crate::audio::radio_tables::vehicle_of(&self.name) == Vehicle::Suv
+        crate::audio::radio_tables::is_suv(&self.name)
     }
 
     /// The car is a tractor, or tows a trailer: a hit on it is a hit on a semi.

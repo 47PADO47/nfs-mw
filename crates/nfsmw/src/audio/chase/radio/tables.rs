@@ -61,6 +61,11 @@ pub fn vehicle_of(name: &str) -> Vehicle {
     }
 }
 
+/// Whether a cop car's `pvehicle` name is one of the SUVs (the Rhino units).
+pub fn is_suv(name: &str) -> bool {
+    vehicle_of(name) == Vehicle::Suv
+}
+
 /// A place the cops can name: the region and the nth location of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Place {

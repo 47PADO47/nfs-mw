@@ -116,6 +116,7 @@ impl EventLog {
     }
 
     /// Every event the log holds, oldest first.
+    #[cfg(test)]
     pub fn all(&self) -> impl Iterator<Item = &WorldEvent> {
         self.since(0)
     }
