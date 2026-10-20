@@ -173,6 +173,7 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
+            traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
         if let (Some(drive), Some(step)) = (self.drive.as_mut(), player_step) {

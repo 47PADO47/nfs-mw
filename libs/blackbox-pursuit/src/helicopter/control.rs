@@ -9,6 +9,7 @@
 
 use glam::{Vec2, Vec3};
 
+use super::camera::{self, Camera};
 use super::gains::Gains;
 
 /// The lowest height the helicopter may fly at above `x, z`, as a trait so the game can supply the heli sheet.
@@ -95,13 +96,27 @@ const SINK_GAIN: f32 = 3.0;
 const TARGET_CLIMB_GAIN: f32 = 2.0;
 
 /// The desired velocity for a goal, from the body's position and velocity.
-pub fn desired(position: Vec3, velocity: Vec3, goal: &Goal, heights: &dyn Heights, gains: &Gains) -> Desired {
+pub fn desired(
+    position: Vec3,
+    velocity: Vec3,
+    goal: &Goal,
+    heights: &dyn Heights,
+    gains: &Gains,
+    camera: Option<Camera>,
+) -> Desired {
+    let mut velocity = velocity;
     let mut work = position + velocity * WORK_LEAD;
     let dest_velocity_h = Vec3::new(goal.dest_velocity.x, 0.0, goal.dest_velocity.z);
     let mut dest = goal.drive + dest_velocity_h * WORK_LEAD;
+    // Keep out of the camera's sphere before anything else moves the destination.
+    let kicked = camera.and_then(|camera| camera::avoid(position, velocity, work, camera));
+    if let Some(avoided) = kicked {
+        dest = avoided.dest;
+        velocity = avoided.velocity;
+    }
     floor_point(&mut dest, heights);
     let roof_steer = ahead_roof(position, ahead_point(position, velocity), heights);
-    let body_velocity = lead_roof(position, velocity, &mut work, &mut dest, heights);
+    let body_velocity = lead_roof(position, velocity, &mut work, &mut dest, heights).or(kicked.map(|a| a.velocity));
 
     let to = dest - work;
     let len = to.length();
@@ -218,9 +233,21 @@ fn vertical(dy: f32, target_vy: f32) -> f32 {
 mod tests {
     use super::*;
 
+    #[test]
+    fn the_camera_sphere_kicks_the_body_velocity() {
+        let camera = Camera { position: Vec3::ZERO, forward: Vec3::X };
+        let goal = goal(Vec3::new(-100.0, 5.0, 0.0));
+        let flying = Vec3::new(-40.0, 0.0, 0.0);
+        let at = Vec3::new(14.0, 5.0, 0.0);
+        let free = super::desired(at, flying, &goal, &Flat(0.0), &Gains::default(), None);
+        assert!(free.body_velocity.is_none());
+        let near = super::desired(at, flying, &goal, &Flat(0.0), &Gains::default(), Some(camera));
+        assert!(near.body_velocity.is_some_and(|v| v.x > flying.x), "{:?}", near.body_velocity);
+    }
+
     /// The desired velocity with the game's own gains.
     fn desired(position: Vec3, velocity: Vec3, goal: &Goal, heights: &dyn Heights) -> Desired {
-        super::desired(position, velocity, goal, heights, &Gains::default())
+        super::desired(position, velocity, goal, heights, &Gains::default(), None)
     }
 
     fn goal(drive: Vec3) -> Goal {

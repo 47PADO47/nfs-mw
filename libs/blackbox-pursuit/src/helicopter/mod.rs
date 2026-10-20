@@ -3,6 +3,7 @@
 //! Spec: `docs/specs/ai-helicopter.md`.
 
 pub mod behaviour;
+pub mod camera;
 pub mod control;
 pub mod flight;
 pub mod gains;
@@ -127,6 +128,8 @@ pub struct Helicopter {
     pub tuning: Tuning,
     /// Where the search is on its circle, in turns; it advances an eighth of a turn at each new search point.
     pub search_angle: f32,
+    /// The game camera, when the world gives one: the helicopter keeps out of a sphere in front of it (`camera.rs`).
+    pub camera: Option<camera::Camera>,
 }
 
 impl Helicopter {
@@ -140,6 +143,7 @@ impl Helicopter {
             skid_timer: 0.0,
             tuning,
             search_angle: 0.0,
+            camera: None,
         }
     }
 
@@ -265,7 +269,8 @@ impl Helicopter {
     }
 
     fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
-        let desired = control::desired(self.body.position, self.body.velocity, &goal, heights, &self.tuning.gains);
+        let desired =
+            control::desired(self.body.position, self.body.velocity, &goal, heights, &self.tuning.gains, self.camera);
         self.body.velocity = desired.body_velocity.unwrap_or(self.body.velocity);
         self.body.step(dt, desired.velocity, goal.look_at - self.body.position, desired.max_decel, specs);
     }

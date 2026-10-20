@@ -64,6 +64,10 @@ impl Police {
         self.busted.meter(&self.bust_tuning())
     }
 
+    pub fn set_heli_camera(&mut self, camera: Option<blackbox_pursuit::helicopter::camera::Camera>) {
+        self.heli_camera = camera;
+    }
+
     /// Holds the busted meter where it is (a cinematic moment plays): the timer neither fills nor drains.
     pub fn hold_busted(&mut self, hold: bool) {
         self.busted_hold = hold;

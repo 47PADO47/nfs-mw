@@ -199,6 +199,7 @@ impl Police {
             self.try_join(player);
         }
         let Some(mut heli) = self.heli.take() else { return };
+        heli.camera = self.heli_camera;
         let from = heli.body.position;
         let line = |to: Vec3| clear(from, to + Vec3::Y);
         let body = to_body(player);
