@@ -41,3 +41,36 @@ fn the_open_city_calibration_covers_the_streamed_city() {
     assert!(checked > 80, "{checked}");
     assert_eq!(GRID.tiles_per_side, 8);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_event_map_file_holds_named_tiles_and_races_find_theirs() {
+    let Some(dir) = install() else { return };
+    let files: Vec<String> = dir
+        .files_in("TRACKS/L2RA")
+        .into_iter()
+        .map(|f| f.rsplit_once('.').map_or(f.clone(), |(stem, _)| stem.to_owned()).to_ascii_uppercase())
+        .filter(|stem| stem.starts_with("MINI_MAP_") && !stem.contains("UNLOCK"))
+        .collect();
+    assert_eq!(files.len(), 264, "the event map files");
+    for stem in &files {
+        let tiles = minimap::read_tiles(&dir, stem).unwrap_or_else(|e| panic!("{stem}: {e:#}"));
+        for (n, t) in tiles.tiles.iter().enumerate() {
+            let name = blackbox_minimap::tile_name(stem, n as i32);
+            assert_eq!(t.name_hash, blackbox_hash::bstring_hash(&name), "{stem} tile {n} is not {name}");
+        }
+    }
+    // A race that is not a pursuit race names its file by its event id; the few without a file keep the stage's map.
+    let data = nfsmw_data::gameplay::load(&dir).unwrap();
+    let (mut with, mut without) = (0, Vec::new());
+    for race in data.races.iter().filter(|r| !r.params.pursuit_race) {
+        let event = race.event.clone().unwrap_or_default();
+        let stem = minimap::event_stem(&event);
+        match files.contains(&stem) {
+            true => with += 1,
+            false => without.push(event),
+        }
+    }
+    eprintln!("{with} races with an event map; without: {without:?}");
+    assert!(with > 200 && without.len() < 15, "{with} with, {} without", without.len());
+}

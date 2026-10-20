@@ -78,6 +78,13 @@ pub fn open_city_calibration(dir: &GameDir) -> Result<Calibration> {
     Ok(info.map)
 }
 
+/// The file stem of the minimap of a race, from its event id: `MINI_MAP_` and the id in upper case with each dot an
+/// underscore (`10.2.1` gives `MINI_MAP_10_2_1`, the reversed `10.4.2.r` gives `MINI_MAP_10_4_2_R`).
+/// `docs/specs/race-minimap.md` section 2.
+pub fn event_stem(event: &str) -> String {
+    format!("{FULL_MAP}_{}", event.replace('.', "_").to_ascii_uppercase())
+}
+
 /// The tiles of a map file of `TRACKS/L2RA/` (`MINI_MAP` for the whole city), 64 of them.
 pub fn read_tiles(dir: &GameDir, file_stem: &str) -> Result<TileSet> {
     let rel = format!("TRACKS/L2RA/{file_stem}.BIN");
@@ -100,6 +107,13 @@ mod tests {
         r[MAP_ORIGIN + 4..MAP_ORIGIN + 8].copy_from_slice(&origin[1].to_le_bytes());
         r[MAP_WIDTH..MAP_WIDTH + 4].copy_from_slice(&width.to_le_bytes());
         r
+    }
+
+    #[test]
+    fn an_event_id_names_its_map_file() {
+        assert_eq!(event_stem("10.2.1"), "MINI_MAP_10_2_1");
+        assert_eq!(event_stem("10.4.2.r"), "MINI_MAP_10_4_2_R");
+        assert_eq!(event_stem("19.8.32"), "MINI_MAP_19_8_32");
     }
 
     #[test]

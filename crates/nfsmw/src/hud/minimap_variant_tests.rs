@@ -5,7 +5,7 @@ use blackbox_feng::{NodeKind, Runtime, fe_hash_upper};
 use blackbox_minimap::{Calibration, Orientation, tile_name};
 use nfsmw_career::regions::MapVariant;
 
-use super::{MinimapBinding, needs_switch, usable_variant, variant_for_stage, variant_stem};
+use super::{MinimapBinding, usable_variant, variant_for_stage, variant_stem};
 use crate::hud::minimap_tests::package;
 use crate::hud::state::{HudState, MapPosition};
 
@@ -37,14 +37,6 @@ fn an_unloaded_variant_falls_back_to_the_full_map() {
     assert_eq!(usable_variant(MapVariant::Full, |_| false), MapVariant::Full);
 }
 
-#[test]
-fn a_switch_is_needed_only_when_the_header_differs() {
-    assert!(!needs_switch("MINI_MAP", MapVariant::Full));
-    assert!(needs_switch("MINI_MAP", MapVariant::Unlock1));
-    assert!(!needs_switch("MINI_MAP_UNLOCK_2", MapVariant::Unlock2));
-    assert!(needs_switch("MINI_MAP_UNLOCK_2", MapVariant::Full));
-}
-
 fn position_at(position: [f32; 2]) -> MapPosition {
     MapPosition { position, heading: [0.0, 1.0], orientation: Orientation::North }
 }
@@ -70,14 +62,36 @@ fn switching_the_variant_moves_the_pieces_to_its_tiles() {
     binding.apply(&mut rt, &hud, &at);
     assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_CHOP0"));
 
-    assert!(binding.set_variant(MapVariant::Unlock1), "the stem changed");
+    assert!(binding.set_stem(variant_stem(MapVariant::Unlock1)), "the stem changed");
     binding.apply(&mut rt, &hud, &at);
     assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_UNLOCK_1_CHOP0"));
     assert_eq!(piece_texture(&rt, id, "TRACK_MAP4"), fe_hash_upper("MINI_MAP_UNLOCK_1_CHOP9"));
 
-    assert!(!binding.set_variant(MapVariant::Unlock1), "the same variant changes nothing");
+    assert!(!binding.set_stem("MINI_MAP_UNLOCK_1"), "the same stem changes nothing");
 
-    assert!(binding.set_variant(MapVariant::Full), "back to the full map");
+    assert!(binding.set_stem(variant_stem(MapVariant::Full)), "back to the full map");
     binding.apply(&mut rt, &hud, &at);
     assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_CHOP0"));
+}
+
+#[test]
+fn a_race_event_has_its_own_tiles_and_the_stage_map_comes_back() {
+    let mut rt = Runtime::new();
+    let id = rt.load(package());
+    let mut binding = MinimapBinding::new(&rt, id, MAP, "MINI_MAP_UNLOCK_1").expect("the objects are found");
+    let (hud, at) = state([1250.0, 6750.0]);
+
+    assert!(binding.set_stem("MINI_MAP_10_2_1"));
+    binding.apply(&mut rt, &hud, &at);
+    assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_10_2_1_CHOP0"));
+    assert_eq!(piece_texture(&rt, id, "TRACK_MAP4"), fe_hash_upper("MINI_MAP_10_2_1_CHOP9"));
+
+    assert!(binding.set_stem("mini_map_10_4_2_r"), "the stem is kept in upper case");
+    binding.apply(&mut rt, &hud, &at);
+    assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_10_4_2_R_CHOP0"));
+    assert!(!binding.set_stem("MINI_MAP_10_4_2_R"));
+
+    assert!(binding.set_stem("MINI_MAP_UNLOCK_1"), "the race ended: the stage's map again");
+    binding.apply(&mut rt, &hud, &at);
+    assert_eq!(piece_texture(&rt, id, "TRACK_MAP1"), fe_hash_upper("MINI_MAP_UNLOCK_1_CHOP0"));
 }

@@ -137,6 +137,11 @@ impl WorldScene {
         let racers = plan.len();
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
+            map: crate::hud::MapSource::of_race(
+                &crate::career::race_event_id(&race),
+                p.pursuit_race,
+                race.region.as_deref(),
+            ),
             name: race.name.clone(),
             kind: race.race_type.unwrap_or(RaceType::Sprint),
             options,
