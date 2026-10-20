@@ -137,7 +137,7 @@ impl ScreenLogic for QuickPlay {
         let pick = self.pick?;
         let (cars, _) = Self::sources()?;
         let car = cars.cars.get(pick.car)?;
-        Some(Look::Car(CarLook { car: car.folder.clone(), preset: None }))
+        Some(Look::Car(CarLook::named(&car.folder, None)))
     }
 }
 
