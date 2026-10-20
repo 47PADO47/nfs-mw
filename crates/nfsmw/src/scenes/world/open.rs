@@ -220,6 +220,7 @@ impl WorldScene {
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
                 moment: Default::default(),
+                breaker_icons: Default::default(),
             }
         })))
     }

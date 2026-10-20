@@ -49,6 +49,7 @@ impl WorldScene {
             }
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
+                self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
                 let mut meter = 0.0;
                 if let Some(drive) = &self.drive {
                     let player = drive.player_view();

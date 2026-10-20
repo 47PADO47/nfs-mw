@@ -7,6 +7,11 @@ use super::moment::Facts;
 use super::{WorldScene, space};
 
 impl WorldScene {
+    /// The console line about the cinematic moment.
+    pub(super) fn moment_status(&self) -> String {
+        self.moment.status()
+    }
+
     /// The breaker sequences asked for these scenes this step. The first the rules allow plays.
     pub(super) fn play_moments(&mut self, scenes: Vec<String>) {
         if scenes.is_empty() {

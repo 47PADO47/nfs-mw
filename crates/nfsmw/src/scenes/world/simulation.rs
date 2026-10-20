@@ -181,6 +181,7 @@ impl WorldScene {
         }
         let stops = props.update_scenery(&self.physics);
         let moments = props.take_moments();
+        let fired: Vec<Vec3> = stops.iter().map(|stop| stop.position).collect();
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.breaker_stops(stops);
         }
@@ -192,5 +193,8 @@ impl WorldScene {
         let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces: &self.physics.surfaces }, view, STEP);
         self.play_moments(moments);
+        self.breaker_icons.fired(&fired);
+        let (_, props) = self.residency.world_parts();
+        self.breaker_icons.step(STEP, props, &self.physics);
     }
 }

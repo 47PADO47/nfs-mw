@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
+mod breaker_icons;
 mod breaker_visuals;
 mod camera_choice;
 mod camera_cycle;
@@ -218,6 +219,8 @@ pub struct WorldScene {
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
     moment: moment::Moment,
+    /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
+    breaker_icons: breaker_icons::BreakerIcons,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

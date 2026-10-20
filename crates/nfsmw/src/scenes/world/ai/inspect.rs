@@ -63,6 +63,7 @@ pub(in crate::scenes::world) fn breakers(scene: &WorldScene) -> Result<String, S
     for event in props.breaker_history() {
         lines.push(format!("  event: {event}"));
     }
+    lines.push(format!("  {}", scene.moment_status()));
     Ok(lines.join("\n"))
 }
 
