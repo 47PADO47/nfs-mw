@@ -242,7 +242,7 @@ UNLOCK_1       UNLOCK_2
 
 The world map screen computes the same variant from the stage when it opens (`< 9` -> full, `9..12` -> 2, `>= 13` ->
 1) and loads the matching texture of `TrackMaps.bin` (the three names exist; 297 textures in the pack). In a race that
-is not a pursuit race the minimap is `MINI_MAP_<event id>`; in a **pursuit race** (`PursuitRace` true) it is chosen by
+is not a pursuit race the minimap is `MINI_MAP_<event id>` ([race-minimap.md](race-minimap.md)); in a **pursuit race** (`PursuitRace` true) it is chosen by
 the race's `Region` text instead (section 6.3). Outside a race (racing state 0) the stage rule above applies, reading the career settings byte
 whatever the game mode; the function returns no map for the drag HUD (argument 2). **[exe]**
 
