@@ -94,7 +94,7 @@ fn live(parts: &mut Parts, frame: &WorldMapFrame) {
         if x.abs() > OFF_X || y.abs() > OFF_Y {
             continue;
         }
-        let icon = Image::new(PLAYER_ICON).with_tint(car.rgba(frame.clock)).with_rotation(car.bearing.to_radians());
+        let icon = Image::new(car.icon()).with_tint(car.rgba(frame.clock)).with_rotation(car.bearing.to_radians());
         parts.push(icon, Rect::new(x, y, ICON, ICON));
     }
 }

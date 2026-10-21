@@ -6,7 +6,7 @@ use blackbox_minimap::{Calibration, bearing_degrees};
 
 use super::{Chrome, Filter, LiveBlip, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
 use crate::frontend::challenge_series::maps::Maps;
-use crate::hud::{COP, MapBlip, MapPosition, RACER};
+use crate::hud::{CHECKPOINT, COP, HELICOPTER, MapBlip, MapPosition, RACER};
 use crate::ui::UiAssets;
 
 #[derive(Resource, Default)]
@@ -116,11 +116,12 @@ impl WorldMapOverlay {
     }
 }
 
-/// The racers and the police cars among `blips`, placed on the picture. A car with no heading points up.
+/// The racers, the police cars and helicopter and the race's next checkpoint among `blips`, placed on the picture. A thing
+/// with no heading points up. A checkpoint shows only while it is active, as in the HUD.
 pub fn live(blips: &[MapBlip], calibration: &Calibration) -> Vec<LiveBlip> {
     blips
         .iter()
-        .filter(|b| b.style == RACER || b.style == COP)
+        .filter(|b| matches!(b.style, RACER | COP | HELICOPTER) || (b.style == CHECKPOINT && b.active))
         .map(|b| LiveBlip {
             style: b.style,
             map: calibration.to_map(b.position),
@@ -160,17 +161,21 @@ mod tests {
     }
 
     #[test]
-    fn racers_and_cops_are_live_blips_on_every_tab_and_other_blips_are_not() {
-        use crate::hud::{AUTO_SHOP, CHECKPOINT};
+    fn moving_cars_and_the_next_checkpoint_are_live_blips_on_every_tab_and_other_blips_are_not() {
+        use crate::hud::AUTO_SHOP;
         let blips = [
             MapBlip { style: RACER, position: [100.0, 0.0], active: true, heading: Some([1.0, 0.0]) },
             MapBlip { style: COP, position: [0.0, 0.0], active: true, heading: Some([0.0, 1.0]) },
             MapBlip { style: COP, position: [0.0, 50.0], active: false, heading: None },
             MapBlip { style: CHECKPOINT, position: [0.0, 0.0], active: true, heading: None },
+            MapBlip { style: CHECKPOINT, position: [9.0, 9.0], active: false, heading: None },
+            MapBlip { style: HELICOPTER, position: [0.0, 5.0], active: false, heading: Some([1.0, 0.0]) },
             MapBlip { style: AUTO_SHOP, position: [0.0, 0.0], active: false, heading: None },
         ];
         let live = live(&blips, &CITY);
-        assert_eq!(live.len(), 3, "two cops and a racer");
+        assert_eq!(live.len(), 5, "a racer, two cops, the active checkpoint and the helicopter");
+        assert_eq!(live[3].style, CHECKPOINT);
+        assert_eq!(live[4].style, HELICOPTER);
         assert_eq!((live[0].style, live[0].map, live[0].bearing), (RACER, CITY.to_map([100.0, 0.0]), 90.0));
         assert!(!live[0].chasing, "a racer is never chasing");
         assert!(live[1].chasing && !live[2].chasing, "only a cop in the chase flashes");
@@ -182,6 +187,11 @@ mod tests {
         let car = |style, chasing| LiveBlip { style, map: [0.0; 2], bearing: 0.0, chasing };
         assert_eq!(car(RACER, false).rgba(0.0), [255, 150, 40, 255]);
         assert_eq!(car(COP, false).rgba(0.0), [255, 255, 255, 255]);
+        assert_eq!(car(HELICOPTER, false).rgba(0.0), [255; 4], "the helicopter keeps its own colours");
+        assert_eq!(car(CHECKPOINT, false).rgba(0.0), [255, 160, 0, 255], "the checkpoint is orange");
+        assert_eq!(car(CHECKPOINT, false).icon(), "Minimap_Icon_Circuit.tga");
+        assert_eq!(car(HELICOPTER, false).icon(), "Helicopter_Minimap_Icon.tga");
+        assert_eq!(car(RACER, false).icon(), "Minimap_Icon_Car.tga");
         let chase = [car(COP, true).rgba(0.0), car(COP, true).rgba(0.25)];
         assert_ne!(chase[0], chase[1], "the light bar changes colour");
         assert!(chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0));

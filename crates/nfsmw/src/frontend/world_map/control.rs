@@ -74,7 +74,7 @@ pub fn hints(bindings: &Bindings, device: InputDevice) -> Vec<MenuHint> {
 }
 
 /// Every icon file [`icon_name`] can return, so the themed legend can register them as textures up front.
-pub const MAP_ICON_FILES: [&str; 7] = [
+pub const MAP_ICON_FILES: [&str; 9] = [
     "Minimap_Icon_Car.tga",
     "Minimap_Icon_Chop_Shop.tga",
     "Minimap_Icon_Car_Lot.tga",
@@ -82,7 +82,15 @@ pub const MAP_ICON_FILES: [&str; 7] = [
     "Minimap_Icon_Speedtrap.tga",
     "Minimap_Icon_Circuit.tga",
     "Minimap_Icon_Event.tga",
+    HELICOPTER_ICON,
+    CHECKPOINT_ICON,
 ];
+
+/// The police helicopter's icon, as the HUD package draws it.
+pub const HELICOPTER_ICON: &str = "Helicopter_Minimap_Icon.tga";
+/// The race's next checkpoint: the HUD's own `MMICON_CHECKPOINT` is the first icon after the player's arrow in
+/// `HUD_SingleRace.fng` and uses `Minimap_Icon_Circuit.tga` **[inferred]**.
+pub const CHECKPOINT_ICON: &str = "Minimap_Icon_Circuit.tga";
 
 /// The icon file of a blip style, from the map's own legend (the first screenshot's Shop, Safe House and Car Lot
 /// icons are the package's `Minimap_Icon_*` textures).

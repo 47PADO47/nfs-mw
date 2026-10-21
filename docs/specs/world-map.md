@@ -120,9 +120,10 @@ and the GPS prompt are the same as every other look's.
   (the same pictures the challenge series screen uses), which has the route baked in as a white band. It is read on a worker
   thread when the map opens (`WorldMapOverlay::show_event`); until it is in the assets the stage's map stays. A race with no
   such picture keeps the stage's map. The picture is dropped when the map closes.
-- **Moving cars.** The racers and the police cars (the HUD's `racer` and `cop` blips, read when the map opens) are drawn on
-  every tab, as the car arrow turned to where they point: a racer orange, a cop white, or blue and red in a chase
-  (`WorldMapFrame::live`). They are not listed, cannot be focused and have no GPS. The package has no objects for them, so the
+- **Moving cars and the checkpoint.** The racers, the police cars and the helicopter (the HUD's `racer`, `cop` and `helicopter`
+  blips) and the race's next checkpoint (`checkpoint`, while active), read when the map opens, are drawn on every tab. The
+  cars are the car arrow turned to where they point: a racer orange, a cop white, or blue and red in a chase; the helicopter
+  is `Helicopter_Minimap_Icon.tga`; the checkpoint is `Minimap_Icon_Circuit.tga` **[inferred]** (`WorldMapFrame::live`). They are not listed, cannot be focused and have no GPS. The package has no objects for them, so the
   original-look screen gives each a pool object that no blip of the tab uses; the Remastered map draws them itself.
 
 ## Differences from the executable

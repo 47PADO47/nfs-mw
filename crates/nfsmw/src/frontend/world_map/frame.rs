@@ -15,7 +15,7 @@ pub struct PlayerMark {
 /// A moving thing on the map: a racer or a police car. It is drawn on every tab and cannot be focused or sent to by GPS.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LiveBlip {
-    /// `RACER` or `COP`.
+    /// `RACER`, `COP`, `HELICOPTER` or `CHECKPOINT`.
     pub style: &'static str,
     /// Its place on the picture, 0..1 on both axes.
     pub map: [f32; 2],
@@ -26,11 +26,26 @@ pub struct LiveBlip {
 }
 
 impl LiveBlip {
+    /// The icon file: the car arrow, the helicopter, or the checkpoint's ring.
+    pub fn icon(&self) -> &'static str {
+        match self.style {
+            crate::hud::HELICOPTER => super::control::HELICOPTER_ICON,
+            crate::hud::CHECKPOINT => super::control::CHECKPOINT_ICON,
+            _ => "Minimap_Icon_Car.tga",
+        }
+    }
+
     /// The icon colour `clock` seconds after the map opened: a racer is orange, a cop white, or the light bar's colour in a
-    /// chase (`docs/specs/hud-cop-blips.md`).
+    /// chase (`docs/specs/hud-cop-blips.md`); the checkpoint is orange as on the minimap and the helicopter keeps its own colours.
     pub fn rgba(&self, clock: f32) -> [u8; 4] {
-        if self.style != crate::hud::COP {
+        if self.style == crate::hud::RACER {
             return [255, 150, 40, 255];
+        }
+        if self.style == crate::hud::CHECKPOINT {
+            return [255, 160, 0, 255];
+        }
+        if self.style != crate::hud::COP {
+            return [255; 4];
         }
         let tick = (clock / crate::hud::TICK_SECONDS) as u32;
         crate::hud::cop_colour(self.chasing, crate::hud::cop_step_at(tick))

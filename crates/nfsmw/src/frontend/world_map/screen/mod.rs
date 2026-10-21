@@ -167,7 +167,7 @@ fn draw_live(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
         let [r, g, b, _] = car.rgba(frame.clock);
         cx.rt.set_position_xy(o, x, y);
         cx.rt.set_rotation_z(o, car.bearing.to_radians());
-        cx.rt.set_texture(o, resource_handle("Minimap_Icon_Car.tga"));
+        cx.rt.set_texture(o, resource_handle(car.icon()));
         cx.rt.set_colour(o, [r, g, b]);
         cx.rt.set_hidden(o, false);
     }
