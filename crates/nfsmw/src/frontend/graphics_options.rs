@@ -34,6 +34,9 @@ pub enum GraphicsSetting {
     MirrorSize,
     MirrorTint,
     Shadows,
+    ShadowResolution,
+    ShadowDistance,
+    ShadowCasters,
     FeShadows,
     AmbientOcclusion,
     AoIntensity,
@@ -41,7 +44,7 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 27] = [
         Self::Hdr,
         Self::Style,
         Self::Quality,
@@ -62,6 +65,9 @@ impl GraphicsSetting {
         Self::MirrorSize,
         Self::MirrorTint,
         Self::Shadows,
+        Self::ShadowResolution,
+        Self::ShadowDistance,
+        Self::ShadowCasters,
         Self::FeShadows,
         Self::AmbientOcclusion,
         Self::AoIntensity,
@@ -73,6 +79,10 @@ impl GraphicsSetting {
             Self::Shadows => {
                 caps.soft_shadows || (caps.renderer == "blackbox" && caps.api != blackbox_gfx::GraphicsApi::Gl)
             }
+            Self::ShadowResolution | Self::ShadowDistance => {
+                caps.renderer == "blackbox" && caps.api != blackbox_gfx::GraphicsApi::Gl
+            }
+            Self::ShadowCasters => caps.separate_shadow_casters,
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::RoadReflections => caps.projected_reflections,
@@ -99,6 +109,11 @@ impl GraphicsSetting {
 
     pub fn enabled(self, s: &Settings) -> bool {
         match self {
+            Self::ShadowResolution => s.appearance.lighting.sun_shadows,
+            Self::ShadowDistance => {
+                s.appearance.lighting.sun_shadows && s.appearance.lighting.shadow_projection.is_none()
+            }
+            Self::ShadowCasters => s.appearance.lighting.sun_shadows,
             Self::Reflections => s.car_shading != CarShading::Simple,
             Self::RoadReflections => s.appearance.lighting.original_world_materials,
             Self::AoIntensity | Self::AoComparison => s.ao != AoQuality::Off,
@@ -136,6 +151,9 @@ impl GraphicsSetting {
             Self::RoadReflections => "Road Reflection Detail",
             Self::TextureFiltering => "Texture Filtering",
             Self::Shadows => "Enhanced Sun Shadows",
+            Self::ShadowResolution => "Sun Shadow Base Resolution",
+            Self::ShadowDistance => "Sun Shadow Distance",
+            Self::ShadowCasters => "Sun Shadow Caster Detail",
             Self::CubeSize => "Car Cubemap Resolution (Per Face)",
             Self::Pow2 => "Power-of-Two Cube Size",
             Self::VehicleBrightness => "Vehicle Reflection Brightness",
@@ -171,6 +189,33 @@ impl GraphicsSetting {
         }
         if self == Self::VehicleBrightness {
             return Data::Text(s.reflection_extra.brightness.to_string());
+        }
+        if self == Self::ReflectionDistance {
+            return Data::Text(distance_label(s.reflection_extra.distance));
+        }
+        if self == Self::ShadowResolution {
+            return Data::Text(format!(
+                "{} × {}",
+                s.appearance.lighting.shadow_resolution, s.appearance.lighting.shadow_resolution
+            ));
+        }
+        if self == Self::ShadowDistance {
+            let lighting = s.appearance.lighting;
+            return Data::Text(format!(
+                "{:.0} m{}",
+                lighting.shadow_distance,
+                match lighting.far_shadows {
+                    true => " (+ distant coverage)",
+                    false => "",
+                }
+            ));
+        }
+        if self == Self::ShadowCasters {
+            let radius = s.appearance.lighting.shadow_caster_min_radius;
+            return Data::Text(match radius {
+                r if r <= 0.0 => "All scenery".into(),
+                r => format!("Scenery radius ≥ {r:.1} m"),
+            });
         }
         Data::Text(
             match self {
@@ -208,7 +253,8 @@ impl GraphicsSetting {
                 Self::MirrorTint => tint_label(s.mirror_tint),
                 Self::ReflectionDetail => lod_label(s.reflection_extra.lod),
                 Self::ReflectionContent => content_label(s.reflection_extra.content),
-                Self::ReflectionDistance => distance_label(s.reflection_extra.distance),
+                Self::ReflectionDistance => unreachable!("labelled above"),
+                Self::ShadowResolution | Self::ShadowDistance | Self::ShadowCasters => unreachable!("labelled above"),
                 Self::CarShading => s.car_shading.label(),
                 Self::WorldDetail => s.detail.world.label(),
                 Self::CarGeometry => s.detail.car.label(),
@@ -246,6 +292,29 @@ impl GraphicsSetting {
         }
         let before = *s;
         match self {
+            Self::ShadowResolution | Self::ShadowDistance | Self::ShadowCasters => {
+                let lighting = &mut s.appearance.lighting;
+                match self {
+                    Self::ShadowResolution => {
+                        lighting.shadow_resolution =
+                            cycle(&[512, 1024, 2048, 4096, 8192], lighting.shadow_resolution, forward)
+                    }
+                    Self::ShadowDistance => {
+                        lighting.shadow_distance = (lighting.shadow_distance
+                            + match forward {
+                                true => 20.0,
+                                false => -20.0,
+                            })
+                        .clamp(40.0, 320.0)
+                    }
+                    Self::ShadowCasters => {
+                        lighting.shadow_caster_min_radius =
+                            cycle(&[0.0, 0.5, 1.0, 2.0, 3.0], lighting.shadow_caster_min_radius, forward)
+                    }
+                    _ => unreachable!(),
+                }
+                changed.appearance = Some(s.appearance);
+            }
             Self::Hdr => {
                 use crate::settings::appearance::display::DisplayMode;
                 s.appearance.display.mode =

@@ -30,7 +30,30 @@ impl Renderer {
             #[cfg(all(windows, feature = "streamline"))]
             Output::Window { dx12: Some(native), .. } => (None, native.view()?),
             Output::Window { surface, config, .. } => {
-                let texture = match surface.get_current_texture() {
+                let acquired = surface.get_current_texture();
+                blackbox_trace::global().counter(
+                    "Surface acquisition",
+                    &[("elapsed_ms", acquire_started.elapsed().as_secs_f64() * 1000.0)],
+                );
+                let outcome = match &acquired {
+                    wgpu::CurrentSurfaceTexture::Success(_) => "success",
+                    wgpu::CurrentSurfaceTexture::Suboptimal(_) => "suboptimal",
+                    wgpu::CurrentSurfaceTexture::Timeout => "timeout",
+                    wgpu::CurrentSurfaceTexture::Occluded => "occluded",
+                    wgpu::CurrentSurfaceTexture::Outdated => "outdated",
+                    wgpu::CurrentSurfaceTexture::Lost => "lost",
+                    wgpu::CurrentSurfaceTexture::Validation => "validation",
+                };
+                if outcome != "success" {
+                    blackbox_trace::global().note(
+                        "Surface acquisition outcome",
+                        &format!(
+                            "{outcome}; present_mode={:?}; {}x{}",
+                            config.present_mode, config.width, config.height
+                        ),
+                    );
+                }
+                let texture = match acquired {
                     wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
                     wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
                     wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {

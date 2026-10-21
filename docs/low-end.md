@@ -38,6 +38,37 @@ nfsmw view-world --drive --car-shading simple --render-scale 75 --upscaler bilin
 Also worth doing on a weak machine, and unchanged by this page: a frame limit (`max_fps`) your screen can
 use, vsync on, and the window or `resolution` setting at the panel's own size or lower.
 
+## Independent reflection and shadow controls
+
+The Video menu exposes Sun Shadow Base Resolution, Sun Shadow Distance and
+Sun Shadow Caster Detail independently of the shadow quality preset. Native
+Vulkan and DX12 support these controls. Distance is 40–320 m; the optional
+distant-coverage mode extends the cascades beyond it. The original projected
+shadow system uses its own range, so that distance row is disabled for it.
+F8 Lighting retains the independent near-detail map resolution and distant
+coverage controls. Lowering the base resolution does not lower an enabled
+wide-detail map's resolution.
+
+Caster detail defaults to All scenery. Increasing its minimum radius omits
+small static scenery from the separate shadow feed. It keeps vehicles,
+dynamic props and objects whose radius is unknown. This changes shadow
+coverage, not main-view object detail. F8 Lighting offers the continuous
+0–5 m radius control. It is saved as `shadow_caster_min_radius` inside
+`[appearance.lighting]`; old profiles default to zero.
+
+Reflection Distance keeps Unlimited and Original, and adds 150, 200, 300, 500
+and 1000 m choices. F8's custom distance slider accepts 25–2000 m; config,
+environment, console and command line accept values such as `275m`. Custom
+limits apply to both car and rear-view captures. Original retains its distinct
+100 m car and 192 m mirror limits. Resolution, detail and content remain
+independent of distance.
+
+These controls do not introduce a new reflection refresh limit. High quality
+with cached reflections disabled still captures all six current faces every
+frame. Scenery is traversed once for the six views; current prop poses are
+resolved once per object, and each face sorts once after traffic and sky are
+appended. No previous-frame visibility is reused.
+
 ## Graphics presets
 
 `graphics_preset` is `custom` (the default, which changes nothing), `low`, `medium`, `high` or `ultra`. A preset

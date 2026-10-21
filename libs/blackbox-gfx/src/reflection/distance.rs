@@ -23,15 +23,26 @@ pub enum ReflectionDistance {
     Unlimited,
     /// The original limits: [`CAR_FAR`] for the car cube and [`MIRROR_FAR`] for the mirror.
     Original,
+    /// A user-selected limit, in metres, for both captures.
+    Meters(u16),
 }
 
 impl ReflectionDistance {
-    pub const ALL: [Self; 2] = [Self::Unlimited, Self::Original];
+    pub const ALL: [Self; 7] = [
+        Self::Unlimited,
+        Self::Original,
+        Self::Meters(150),
+        Self::Meters(200),
+        Self::Meters(300),
+        Self::Meters(500),
+        Self::Meters(1000),
+    ];
 
-    pub const fn name(self) -> &'static str {
+    pub fn name(self) -> Cow<'static, str> {
         match self {
-            Self::Unlimited => "unlimited",
-            Self::Original => "original",
+            Self::Unlimited => "unlimited".into(),
+            Self::Original => "original".into(),
+            Self::Meters(metres) => format!("{metres}m").into(),
         }
     }
 
@@ -40,6 +51,7 @@ impl ReflectionDistance {
         match self {
             Self::Unlimited => None,
             Self::Original => Some(CAR_FAR),
+            Self::Meters(metres) => Some(metres as f32),
         }
     }
 
@@ -48,6 +60,7 @@ impl ReflectionDistance {
         match self {
             Self::Unlimited => None,
             Self::Original => Some(MIRROR_FAR),
+            Self::Meters(metres) => Some(metres as f32),
         }
     }
 }
@@ -56,16 +69,22 @@ impl std::str::FromStr for ReflectionDistance {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let text = s.trim().to_ascii_lowercase();
+        if let Some(metres) = text.strip_suffix('m').and_then(|v| v.trim().parse::<u16>().ok())
+            && (25..=2000).contains(&metres)
+        {
+            return Ok(Self::Meters(metres));
+        }
         Self::ALL
             .into_iter()
-            .find(|d| d.name() == s.trim().to_ascii_lowercase())
-            .ok_or_else(|| format!("expected unlimited or original, got {s:?}"))
+            .find(|d| d.name() == text)
+            .ok_or_else(|| format!("expected unlimited, original or 25m–2000m, got {s:?}"))
     }
 }
 
 impl std::fmt::Display for ReflectionDistance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name())
+        f.write_str(&self.name())
     }
 }
 
@@ -113,6 +132,16 @@ mod tests {
         assert_eq!(" ORIGINAL ".parse::<ReflectionDistance>().unwrap(), ReflectionDistance::Original);
         for text in ["", "100", "far", "384"] {
             assert!(text.parse::<ReflectionDistance>().is_err(), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn custom_distance_round_trips_and_reaches_both_capture_paths() {
+        let d: ReflectionDistance = " 275 m ".parse().unwrap();
+        assert_eq!(d.to_string(), "275m");
+        assert_eq!((d.car_far(), d.mirror_far()), (Some(275.0), Some(275.0)));
+        for text in ["0m", "24m", "2001m", "NaNm", "-100m"] {
+            assert!(text.parse::<ReflectionDistance>().is_err());
         }
     }
 

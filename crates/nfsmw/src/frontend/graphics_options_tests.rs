@@ -4,6 +4,36 @@ use crate::settings::ReflectionSize;
 use blackbox_gfx::reflection::brightness::VehicleBrightness;
 
 #[test]
+fn shadow_controls_change_independently_and_round_trip_through_saved_settings() {
+    for row in [GraphicsSetting::ShadowResolution, GraphicsSetting::ShadowDistance, GraphicsSetting::ShadowCasters] {
+        assert!(row.shown(&crate::settings::test_caps::native()));
+        assert!(!row.shown(&crate::settings::test_caps::full()), "hide unsupported independent controls");
+    }
+    let mut s = Settings::from(Partial::default());
+    s.appearance.lighting.sun_shadows = true;
+    s.appearance.lighting.shadow_resolution = 4096;
+    s.appearance.lighting.shadow_distance = 120.0;
+    let mut changed = Partial::default();
+    GraphicsSetting::ShadowResolution.step(&mut s, &mut changed, false);
+    assert_eq!(s.appearance.lighting.shadow_resolution, 2048);
+    assert_eq!(s.appearance.lighting.shadow_distance, 120.0);
+    GraphicsSetting::ShadowDistance.step(&mut s, &mut changed, true);
+    assert_eq!(s.appearance.lighting.shadow_distance, 140.0);
+    assert_eq!(s.appearance.lighting.shadow_resolution, 2048);
+    GraphicsSetting::ShadowCasters.step(&mut s, &mut changed, true);
+    assert_eq!(s.appearance.lighting.shadow_caster_min_radius, 0.5);
+    let saved = crate::settings::write::merge("", &changed).unwrap();
+    let restored = Settings::from(crate::settings::file::parse(&saved, "shadow controls"));
+    assert_eq!(restored.appearance.lighting, s.appearance.lighting);
+    s.appearance.lighting.sun_shadows = false;
+    assert!(!GraphicsSetting::ShadowResolution.step(&mut s, &mut changed, true));
+    assert!(!GraphicsSetting::ShadowDistance.step(&mut s, &mut changed, true));
+    s.appearance.lighting.sun_shadows = true;
+    s.appearance.lighting.shadow_projection = Some(crate::settings::appearance::shadows::PROJECTION);
+    assert!(!GraphicsSetting::ShadowDistance.enabled(&s), "the original projection has its own range");
+}
+
+#[test]
 fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
     let mut s = Settings::from(Partial::default());
     let mut changed = Partial::default();

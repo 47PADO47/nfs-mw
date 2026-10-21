@@ -96,3 +96,36 @@ the mimalloc C sources), so a target without one builds with the feature left ou
 The buffer grows on demand up to four million events, enough for longer high-FPS
 captures. A full capture can occupy several hundred MiB before JSON export.
 Overflow remains bounded and is disclosed in the saved trace metadata.
+
+### Hitch and memory-growth evidence
+
+The recorder also writes `trace-*.context.json` beside each Perfetto trace. Keep
+both files when sharing a capture. The companion includes the executable SHA-256,
+package-declared source revision/tree hash and package-metadata hash. Package
+claims remain distinct from the measured executable identity; absent metadata is
+reported as unknown. Hashing and export run on the writer, outside live frames.
+
+A worker retains up to 600 approximately one-second health samples, including
+samples before F9. Windows records process working set, private committed memory,
+peak working set, cumulative page faults, process I/O totals, available physical
+memory and process commit headroom. Failed/unsupported counters stay absent.
+Page faults include soft faults and are not proof of disk paging; process RAM is
+not VRAM. The trace buffer itself uses memory while recording, so the history
+marks recording intervals for comparison with the earlier baseline. This history
+is bounded in RAM and saved only with a requested trace; it is not a continuous
+on-disk log. The worker keeps sampling memory while the main thread is blocked.
+
+Live snapshots include mesh/texture counts, effect-buffer vertex capacities,
+shadow cascade/draw/instance counts, scene status (resident/loading tiles and
+props where available), and camera pose. Snapshot age makes stale resource data
+visible. The frame sends these snapshots without waiting for the worker. History
+relative times use a monotonic clock: negative seconds precede the trace start.
+Wall-clock milliseconds allow correlation with external recordings. Only retained
+history at or before capture stop is exported.
+
+`Hitch observation (25 ms threshold)` marks long frame intervals with observation
+and delayed-GPU readback IDs, focus and acquisition/presentation/pacing waits.
+It is a marker at observation time, not a diagnosis or native CPU stack sample.
+Reflection visibility faces and shadow CPU cascades have separate nested scopes.
+Start F9 before reproducing a hitch and let it continue afterward; earlier memory
+history cannot recover CPU/GPU events that occurred before recording began.

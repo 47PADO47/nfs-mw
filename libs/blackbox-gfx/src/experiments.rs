@@ -64,6 +64,9 @@ pub struct RenderExperiments {
     pub sun_angle: f32,
     pub shadow_resolution: u32,
     pub shadow_distance: f32,
+    /// Skip static scenery smaller than this radius in separate shadow feeds.
+    /// Zero preserves every caster. Vehicles and dynamic props are unaffected.
+    pub shadow_caster_min_radius: f32,
     pub shadow_filter: f32,
     pub contact_length: f32,
 }
@@ -97,6 +100,7 @@ impl Default for RenderExperiments {
             sun_angle: 0.27,
             shadow_resolution: 2048,
             shadow_distance: 160.0,
+            shadow_caster_min_radius: 0.0,
             shadow_filter: 1.0,
             contact_length: 0.35,
         }
@@ -118,6 +122,7 @@ impl RenderExperiments {
             world_ambient_tint: finite(self.world_ambient_tint, 0.35).clamp(0.0, 1.0),
             sun_angle: finite(self.sun_angle, 0.27).clamp(0.0, 2.0),
             shadow_distance: finite(self.shadow_distance, 160.0).clamp(40.0, 320.0),
+            shadow_caster_min_radius: finite(self.shadow_caster_min_radius, 0.0).clamp(0.0, 5.0),
             shadow_filter: finite(self.shadow_filter, 1.0).clamp(0.0, 3.0),
             contact_length: finite(self.contact_length, 0.35).clamp(0.05, 0.8),
             ..self
