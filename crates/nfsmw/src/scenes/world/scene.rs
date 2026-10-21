@@ -54,6 +54,7 @@ impl Scene for WorldScene {
         crate::hud::show_mod_message(ctx);
         self.show_pursuit_end(ctx);
         self.show_race_card(ctx);
+        self.show_nis_bars(ctx);
         0.0
     }
 
@@ -229,6 +230,10 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
+        if self.nis.is_playing() {
+            return Some(crate::hud::HudState { visible: false, ..Default::default() });
+        }
         if self.moment.hides_hud() {
             return None;
         }

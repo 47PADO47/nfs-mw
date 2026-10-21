@@ -237,6 +237,7 @@ impl WorldScene {
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
                 moment: Default::default(),
+                nis: Default::default(),
                 photo_shot: None,
                 breaker_icons: Default::default(),
             };

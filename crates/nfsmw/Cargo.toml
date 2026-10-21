@@ -39,6 +39,7 @@ blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
 ini-tuning.workspace = true
 blackbox-minimap.workspace = true
+blackbox-nis.workspace = true
 blackbox-playlist.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-modding = { workspace = true, features = ["host"] }

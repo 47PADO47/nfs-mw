@@ -3893,6 +3893,7 @@ dependencies = [
  "blackbox-mixmap",
  "blackbox-modding",
  "blackbox-movie",
+ "blackbox-nis",
  "blackbox-paramap",
  "blackbox-particles",
  "blackbox-playlist",

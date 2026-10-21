@@ -1,5 +1,6 @@
 use super::*;
-use blackbox_chunk::ice::Key;
+use crate::scenes::world::scene_space::place;
+use blackbox_chunk::ice::{Key, Space};
 use nfsmw_data::nis::CameraLibrary;
 use nfsmw_data::world::moment::{MARKER_NAMES, Marker};
 

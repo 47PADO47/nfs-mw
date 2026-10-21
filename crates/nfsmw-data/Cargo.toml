@@ -20,6 +20,7 @@ blackbox-ginsu.workspace = true
 blackbox-gfx.workspace = true
 blackbox-hash.workspace = true
 blackbox-minimap.workspace = true
+blackbox-nis.workspace = true
 blackbox-particles.workspace = true
 blackbox-roads.workspace = true
 blackbox-scenery.workspace = true
@@ -37,7 +38,6 @@ serde.workspace = true
 
 [dev-dependencies]
 blackbox-anim.workspace = true
-blackbox-nis.workspace = true
 blackbox-text.workspace = true
 
 [lints]

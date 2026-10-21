@@ -22,7 +22,7 @@ fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
 impl WorldScene {
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
     pub(super) fn hud_shown(&self) -> bool {
-        if self.moment.hides_hud() {
+        if self.moment.hides_hud() || self.nis.is_playing() {
             return false;
         }
         if self.view == View::Fly {

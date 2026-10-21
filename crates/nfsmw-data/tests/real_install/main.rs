@@ -29,6 +29,7 @@ mod manual;
 mod minimap;
 mod music;
 mod nis_audio;
+mod nis_bundles;
 mod nis_cameras;
 mod nis_scenes;
 mod objects;

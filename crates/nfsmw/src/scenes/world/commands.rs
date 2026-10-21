@@ -41,6 +41,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "list the races of the install, start one (a name, part of it or an event id like 1.5.2), show the race, end it",
     ),
     ("gps <x> <y> | gps off", "set the GPS route to a point on the road (x y as the map shows them), or clear it"),
+    (
+        "nis list | play <scene> [track] | stop | status",
+        "the NIS cutscenes of the install: list them, play a scene's camera from the car (track 0 unless given), stop it, show it",
+    ),
 ];
 
 pub(super) fn run(
@@ -58,6 +62,7 @@ pub(super) fn run(
         "goto" => goto(scene, args),
         "gps" => gps(scene, args),
         "race" => super::race::race_command(scene, args),
+        "nis" => super::nis::nis_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),
