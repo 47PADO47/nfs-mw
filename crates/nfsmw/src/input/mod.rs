@@ -22,6 +22,7 @@ mod presentation_tests;
 mod remap;
 mod slots;
 mod snapshot;
+mod split;
 #[cfg(test)]
 pub(crate) use snapshot::Snapshot;
 mod source;
@@ -33,6 +34,7 @@ pub use action::Action;
 pub(crate) use bindings::Source;
 pub use presentation::{InputDevice, InputPresentation};
 pub use slots::Control;
+pub use split::{PlayerDevice, SplitInput};
 pub use state::{ActionState, Bindings};
 pub(crate) use systems::update_actions;
 pub use systems::{InputLayerPlugin, MouseCapture, UiFocus};

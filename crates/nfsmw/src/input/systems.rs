@@ -11,6 +11,7 @@ use bevy_input::{ButtonInput, InputSystems};
 use bevy_time::{Real, Time};
 
 use super::snapshot::Snapshot;
+use super::split::{self, SplitInput};
 use super::state::{ActionState, Bindings};
 use super::{Action, InputPresentation, bindings::Source};
 
@@ -31,6 +32,7 @@ impl Plugin for InputLayerPlugin {
             .init_resource::<MouseCapture>()
             .init_resource::<UiFocus>()
             .init_resource::<InputPresentation>()
+            .init_resource::<SplitInput>()
             .add_observer(super::device_settings::configure_added_gamepad)
             .add_systems(PreUpdate, update_actions.after(InputSystems));
     }
@@ -53,6 +55,7 @@ pub(crate) fn update_actions(
     settings: Option<Res<crate::settings::Settings>>,
     mut state: ResMut<ActionState>,
     mut presentation: ResMut<InputPresentation>,
+    mut split: ResMut<SplitInput>,
     mut held: Local<HashSet<GamepadButton>>,
     mut logged_axes: Local<HashMap<GamepadAxis, f32>>,
 ) {
@@ -86,25 +89,18 @@ pub(crate) fn update_actions(
         dt: time.delta_secs(),
         ..Snapshot::default()
     };
-    for (_, pad) in pads.iter().filter(|(e, _)| Some(*e) == presentation.active_pad) {
-        snapshot.pad_buttons.extend(pad.get_pressed().chain(pad.get_just_pressed()).copied());
-        // Bevy's analog store also contains buttons, including nonstandard wheel pedals.
-        for input in pad.get_analog_axes() {
-            let value = pad.get(*input).unwrap_or(0.0);
-            match *input {
-                GamepadInput::Button(button) => {
-                    let entry = snapshot.pad_triggers.entry(button).or_insert(0.0);
-                    *entry = entry.max(value);
-                }
-                GamepadInput::Axis(axis) => {
-                    let entry = snapshot.pad_axes.entry(axis).or_insert(0.0);
-                    if value.abs() > entry.abs() {
-                        *entry = value;
-                    }
-                }
-            }
-        }
+    // A split-screen race gives the first player the pad they were seated with, not the one that moved last.
+    let first_pad = match split.devices() {
+        Some(_) => split.pad_of(0),
+        None => presentation.active_pad,
+    };
+    for (_, pad) in pads.iter().filter(|(e, _)| Some(*e) == first_pad) {
+        fill_pad(&mut snapshot, pad);
     }
+    split.start_press = split::start_press(
+        &keys.get_just_pressed().copied().collect(),
+        pads.iter().map(|(entity, pad)| (entity, pad.get_just_pressed().copied().collect())),
+    );
     for code in newly_pressed_unnamed(&snapshot.pad_buttons, &held) {
         log::info!(
             "gamepad button {code} pressed (a button without a name: `paddle_up = {code}` or `paddle_down = {code}` in the config file binds it to a gear shift)"
@@ -116,7 +112,40 @@ pub(crate) fn update_actions(
         );
     }
     *held = snapshot.pad_buttons.clone();
+    if split.devices().is_none() {
+        state.update(&bindings, &snapshot, focus.0);
+        return;
+    }
+    // Split screen: the second player's actions come from their own device; either player's Start pauses.
+    let mut second = split.second_snapshot(&snapshot);
+    for (_, pad) in pads.iter().filter(|(e, _)| Some(*e) == split.pad_of(1)) {
+        fill_pad(&mut second, pad);
+    }
+    split.update_second(&second);
+    snapshot = split.first_snapshot(&snapshot);
     state.update(&bindings, &snapshot, focus.0);
+    state.merge_pressed(&split.second, &[Action::Cancel, Action::MenuStart]);
+}
+
+/// Adds one pad's buttons and axes to `snapshot`.
+fn fill_pad(snapshot: &mut Snapshot, pad: &Gamepad) {
+    snapshot.pad_buttons.extend(pad.get_pressed().chain(pad.get_just_pressed()).copied());
+    // Bevy's analog store also contains buttons, including nonstandard wheel pedals.
+    for input in pad.get_analog_axes() {
+        let value = pad.get(*input).unwrap_or(0.0);
+        match *input {
+            GamepadInput::Button(button) => {
+                let entry = snapshot.pad_triggers.entry(button).or_insert(0.0);
+                *entry = entry.max(value);
+            }
+            GamepadInput::Axis(axis) => {
+                let entry = snapshot.pad_axes.entry(axis).or_insert(0.0);
+                if value.abs() > entry.abs() {
+                    *entry = value;
+                }
+            }
+        }
+    }
 }
 
 /// The codes of the buttons the platform has no name for that went down since `before`, in order.
