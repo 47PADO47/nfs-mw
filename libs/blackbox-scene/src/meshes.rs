@@ -117,6 +117,7 @@ mod tests {
             num_indices: 3,
             base_vertex: 0,
             vertex_buffer: 0,
+            bone_table: None,
         }
     }
 
@@ -145,6 +146,7 @@ mod tests {
             }],
             indices: vec![0, 0, 0],
             groups: vec![group(0), group(1), group(0xFF)],
+            skin: None,
         }
     }
 

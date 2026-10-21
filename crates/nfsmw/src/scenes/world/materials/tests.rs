@@ -30,6 +30,7 @@ fn solid() -> Solid {
         num_indices: 3,
         base_vertex: 0,
         vertex_buffer: 0,
+        bone_table: None,
     };
     Solid {
         name: "NORMAL".into(),
@@ -58,6 +59,7 @@ fn solid() -> Solid {
         tangents: vec![[1.0, 0.0, 0.0, -1.0]; 3],
         indices: vec![0, 1, 2],
         groups: vec![group.clone(), group],
+        skin: None,
     }
 }
 
