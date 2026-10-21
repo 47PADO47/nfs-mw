@@ -32,7 +32,7 @@ Quick Race menu -> Split Screen -> mode select -> track list -> [options] -> Pre
 
 | Screen | What changes in split screen | Evidence |
 |---|---|---|
-| Mode select | Title `0x43C825ED`. Circuit, Sprint, Drag and Speedtrap only: no Lap Knockout, and the tollbooth stays as in a custom race. | **[decomp]** `UIQRModeSelect::Setup`, `RefreshHeader` |
+| Mode select | Title `0x43C825ED`. Circuit, Sprint, Drag and Speedtrap only: no Lap Knockout and no Tollbooth (the decomp's split-screen list has neither; the tollbooth is a custom-race addition of the PC build). | **[decomp]** `UIQRModeSelect::Setup`, `RefreshHeader` |
 | Track list | As a custom race. For a Drag, Sprint or Speedtrap track, Accept makes the race with one opponent and no cops and goes to Press Start at once; the options screen is skipped. | **[decomp]** `UIQRTrackSelect` |
 | Track options | Only Direction and Laps (circuit) or Direction (sprint, drag, speedtrap), and the knockout's rows are not offered. **No Traffic, Opponents, Difficulty or Catch Up rows.** Accept makes the race with one opponent (the second player) and no cops, then goes to Press Start. | **[decomp]** `UIQRTrackOptions::Setup*`, `NotificationMessage` |
 | Press Start | Text "Player N press Start" (labels `0xCF538E1C` and `0xA065EFFE`, N the player number). The Start press seats the device that sent it as that player's controller. Player 2 cannot take player 1's controller. Back from player 1 goes to the track options (or the track list for Drag, Sprint, Speedtrap), from player 2 to player 1's car select. | **[decomp]** `uiQRPressStart` |
