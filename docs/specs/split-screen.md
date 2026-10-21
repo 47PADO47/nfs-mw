@@ -72,7 +72,8 @@ and 6 the drag ones, 2 the single drag HUD, anything else `HUD_SingleRace.fng` *
 
 The renderer's view mode is "two horizontal" (`EVIEWMODE_TWOH`) once both players' views have a camera mover **[decomp]**
 (`eUpdateViewMode`): player 1's view is `EVIEW_PLAYER1` and player 2's is `EVIEW_PLAYER2`. The picture is the screen cut in two,
-player 1 above player 2, each half as wide as the screen **[unconfirmed]** (the packages' extents fix it: section 4.1).
+player 1 above player 2, each half as wide as the screen **[verified]** (the four HUD packages are authored on the whole 640 x 480 canvas, player 1's in
+its upper half and player 2's in its lower one: section 4.1).
 Each camera uses the split-screen set of the seven gameplay views (`CameraInfo::SplitScreenPOVArray`), and a camera setting
 whose `SELECTABLE` attribute is off in two-player mode is not offered **[decomp]**.
 
@@ -85,7 +86,10 @@ viewport in the backends is the follow-up that removes both (open question 1).
 ### 4.1 The HUD packages
 
 See [split-screen-hud.md](split-screen-hud.md) for the objects of the four packages, how they bind to a player's `HudState`
-and where each half places them.
+and where each half places them. In short: each package is drawn over the whole window with the ordinary HUD math and lands in
+its half by itself (player 1 in y -240..0 of the canvas, player 2 in 0..240); the first player's package alone has the minimap,
+across the middle, with the second player's car as its second arrow; the rule between the halves is part of it. The world's
+two pictures are the window's halves (`hud::split::half_rect`).
 
 ## 5. Input
 
@@ -118,7 +122,7 @@ A player holds a device, as the original maps a player to a controller port **[d
 ## 7. Open questions
 
 1. Backend viewports instead of two captures (cost and latency, section 4).
-2. The exact half rectangles of the PC build (section 4).
+2. The PC build's own widescreen handling of the split HUDs (section 4.1 settles the half rectangles: the window cut in two).
 3. A pad unplugged mid-race: pause as the single-player game does for the active pad.
 4. The two-player sound mix.
 5. Split-screen records and the "2 players" statistics page of the post-race screen.
