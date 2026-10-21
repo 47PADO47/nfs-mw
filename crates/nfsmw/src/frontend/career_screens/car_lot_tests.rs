@@ -3,8 +3,8 @@ use nfsmw_career::carlot::{LotCar, LotClass};
 use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::{CarRecord, CareerRecord, Stable};
 
-use crate::frontend::career_screens::car_lot_bars::{StripFill, strip_fills};
 use super::*;
+use crate::frontend::career_screens::car_lot_bars::{StripFill, strip_fills};
 
 fn lot(name: &str, key: u32, price: u32) -> LotCar {
     LotCar {

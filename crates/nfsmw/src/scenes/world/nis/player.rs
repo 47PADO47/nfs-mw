@@ -16,10 +16,10 @@ use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::camera;
 use super::cars::{self, CarSpot, CarTrack, Target};
+use super::characters::{Characters, Materials};
 use super::events::{NisEvent, NisEvents};
 use super::handlers::NisScreen;
 use crate::audio::nis::NisAudioRequest;
-use super::characters::{Characters, Materials};
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
 

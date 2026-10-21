@@ -269,7 +269,13 @@ fn sequence() -> Package {
 #[test]
 fn a_scene_hands_out_its_events_as_its_clock_passes_them() {
     let mut nis = NisPlayer::default();
-    nis.start_with_cars(plan("IntroNis05", NisKind::Intro), Vec::new(), Some(Arc::new(sequence())), Characters::default()).unwrap();
+    nis.start_with_cars(
+        plan("IntroNis05", NisKind::Intro),
+        Vec::new(),
+        Some(Arc::new(sequence())),
+        Characters::default(),
+    )
+    .unwrap();
     assert_eq!(nis.advance(0.0), [NisEvent::CellCall(13)], "the time-zero event fires at the start");
     assert!(nis.advance(0.5).is_empty());
     assert_eq!(nis.advance(1.5), [NisEvent::CellCall(11)]);
@@ -280,7 +286,13 @@ fn a_scene_hands_out_its_events_as_its_clock_passes_them() {
 #[test]
 fn skipping_a_scene_stops_its_events() {
     let mut nis = NisPlayer::default();
-    nis.start_with_cars(plan("IntroNis05", NisKind::Intro), Vec::new(), Some(Arc::new(sequence())), Characters::default()).unwrap();
+    nis.start_with_cars(
+        plan("IntroNis05", NisKind::Intro),
+        Vec::new(),
+        Some(Arc::new(sequence())),
+        Characters::default(),
+    )
+    .unwrap();
     assert_eq!(nis.advance(0.0), [NisEvent::CellCall(13)]);
     assert!(nis.skip());
     assert!(nis.advance(2.0).is_empty(), "the skipped scene fires nothing more");
