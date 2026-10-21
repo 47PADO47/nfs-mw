@@ -40,3 +40,19 @@
 - The PC build's view rectangles and field of view in the two-view mode (the decomp is the GameCube build).
 - The two-player sound mix beyond the mode flag.
 - The post-race screen's two-player layout (`FEPKg_PostRace.cpp` was only grepped).
+
+## Front-end flow (2026-10-21)
+
+Read for the menu flow in `frontend/custom_race/` (decomp `Frontend/MenuScreens/Safehouse/quickrace/`, no code copied).
+
+| Source | What it gave |
+|---|---|
+| `uiQRPressStart.cpp` | `__PAD_START_RELEASED__` seats the port that sent it; the test `iPlayerNum != 1 || joyPort != port of player 0` is the refusal of player 2 taking player 1's port; Back from player 2 returns to `Car_Select.fng` (player 1), from player 1 to `Track_Options.fng`, or `Track_Select.fng` in split screen for drag, P2P and speed trap; `EXIT_COMPLETE` opens `Car_Select.fng` with the player number. The texts are `FEPrintf(0xb244cf71, 0xcf538e1c, n)` ("Player %d press START.") and the body `0xa065effe`. |
+| `uiQRCarSelect.cpp` | Player group `0xe3fe27fe` set to `0x7b070984` or `0x7b070985`; intro message `0x2cf6c390` instead of `0xde511657`; Accept for player 1 goes to `PressStart.fng` with arg 1, drag skips the transmission question; Back from player 2 clears its port (`SetPlayersJoystickPort(1, -1)`) and goes to Press Start 1, from player 1 to Press Start 0. |
+| `uiQRTrackSelect.cpp` | In split screen Drag, P2P and SpeedTrap make the race with one opponent and cops off and go to `PressStart.fng` at once. |
+| `uiQRTrackOptions.cpp` | Direction (when reversible) and, for the circuit, Laps only; Accept makes the race with one opponent and goes to Press Start. |
+| `uiQRModeSelect.cpp`, `uiQRMainMenu.cpp` | Split-screen list (no knockout), title `0x43c825ed`; the Split Screen icon sets `iNumPlayers = 2`, every other entry 1. |
+| `PressStart.fng` (`nfsmw dump-screen`) | Headline string object `0xb244cf71`, body `0x545570c6`, leave handler `0x144873e9` answering `0x587c018b` (our `LEAVE_SCREEN`) with `EXIT_COMPLETE`; the package carries its own Back and Select hints. Language strings checked with `nfsmw strings`. |
+| `Car_Select.fng` dump | The "2 players" message `0x2cf6c390` reaches the player group `0xe3fe27fe`, whose string reads "Player 1". |
+
+Not read in the exe: the Press Start screen's own code (only its decomp and the package were read).
