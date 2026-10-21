@@ -111,11 +111,18 @@ fn build_hello() -> PathBuf {
     let output = command.output().expect("run cargo build -p hello-mod");
     assert!(output.status.success(), "cargo build -p hello-mod failed");
 
+    // The test binary sits in `deps` or, with a separate build folder, in `build/<crate>/<hash>/out`: the library is in the
+    // profile folder above whichever it is.
+    let exe = env::current_exe().expect("test binary path");
+    let library = exe.ancestors().skip(1).map(|dir| dir.join(library_file_name())).find(|path| path.is_file());
+    library.unwrap_or_else(|| panic!("built library not found above {}", exe.display()))
+  
     let messages = String::from_utf8_lossy(&output.stdout);
     let library = artifact_path(&messages, &library_file_name())
         .unwrap_or_else(|| panic!("cargo reported no {} for hello-mod", library_file_name()));
     assert!(library.is_file(), "built library not found at {}", library.display());
     library
+  
 }
 
 /// The path of the file named `file` among the `filenames` of cargo's `compiler-artifact` messages. The paths are JSON

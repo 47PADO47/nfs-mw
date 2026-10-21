@@ -18,6 +18,8 @@ codegen-backend = "cranelift"
 [profile.dev.package."*"]
 codegen-backend = "llvm"
 
+# Tests stay on LLVM: Cranelift cannot unwind a panic on Windows, so a should_panic test or a failed assertion would kill the
+# whole test process (exit code 0xE06D7363 or an access violation) instead of failing one test.
 # Tests are built with LLVM. Cranelift miscompiled the egui code our test binary instantiates: with it, `garage::` and
 # `devtools::` crashed with an access violation and `blackbox-smaa` aborted, while the same tests pass under LLVM.
 [profile.test]
