@@ -12,6 +12,31 @@ pub struct PlayerMark {
     pub bearing: f32,
 }
 
+/// A moving thing on the map: a racer or a police car. It is drawn on every tab and cannot be focused or sent to by GPS.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LiveBlip {
+    /// `RACER` or `COP`.
+    pub style: &'static str,
+    /// Its place on the picture, 0..1 on both axes.
+    pub map: [f32; 2],
+    /// Where its nose points, degrees clockwise from up the picture.
+    pub bearing: f32,
+    /// A cop in a chase (its icon flashes blue and red).
+    pub chasing: bool,
+}
+
+impl LiveBlip {
+    /// The icon colour `clock` seconds after the map opened: a racer is orange, a cop white, or the light bar's colour in a
+    /// chase (`docs/specs/hud-cop-blips.md`).
+    pub fn rgba(&self, clock: f32) -> [u8; 4] {
+        if self.style != crate::hud::COP {
+            return [255, 150, 40, 255];
+        }
+        let tick = (clock / crate::hud::TICK_SECONDS) as u32;
+        crate::hud::cop_colour(self.chasing, crate::hud::cop_step_at(tick))
+    }
+}
+
 /// How the active theme dresses the map (`ElementId::WorldMapChrome`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Chrome {
@@ -52,6 +77,11 @@ pub struct WorldMapFrame {
     pub chrome: Chrome,
     /// The file name of the picture the career stage's map uses (`MapVariant::world_map_texture`).
     pub texture: &'static str,
+    /// The name hash of the running race's own picture (`TRACK_MAP_<event id>`, with the route in white), once it is
+    /// loaded. It replaces [`WorldMapFrame::texture`].
+    pub event_picture: Option<u32>,
+    /// The racers and the police cars, drawn on every tab.
+    pub live: Vec<LiveBlip>,
     /// Seconds since the map opened, for the themed map's entrance.
     pub clock: f32,
     /// Seconds since the cursor last snapped onto, or off, a blip, for the snap animation.

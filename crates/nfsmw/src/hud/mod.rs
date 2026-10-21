@@ -60,12 +60,13 @@ pub(crate) mod viewport;
 #[cfg(test)]
 mod viewport_tests;
 
-pub use blip_style::MapBlip;
+pub use blip_style::{MapBlip, TICK_SECONDS};
 pub use blip_styles::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, CHECKPOINT, COP, GPS, HELICOPTER, PURSUIT_BREAKER, RACE_CIRCUIT,
     RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, ROADBLOCK, SAFE_HOUSE,
     SAFE_HOUSE_TINT,
 };
+pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use map_source::MapSource;
 #[cfg(test)]

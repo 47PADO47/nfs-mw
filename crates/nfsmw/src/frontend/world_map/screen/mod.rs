@@ -46,7 +46,7 @@ impl ScreenLogic for WorldMapLogic {
         let session = &frame.session;
         let attached = session.attached;
         let drawn = place::assign(&frame.blips, session.filter);
-        draw_picture(cx, session.camera, session.filter, self.variant);
+        draw_picture(cx, session.camera, session.filter, picture_key(frame, self.variant));
         draw_blips(cx, frame, &drawn);
         draw_player(cx, frame);
         // Every map hides the stripe lines and shows the frozen world through a translucent background. Under the
@@ -106,18 +106,22 @@ fn show_key_prompts(cx: &mut Cx) {
 
 /// The part of the picture the view shows (the picture's texture crop) and the variant's texture of it. The tab and
 /// the zoom readout are written here too.
-fn draw_picture(cx: &mut Cx, camera: Camera, filter: Filter, variant: MapVariant) {
+fn draw_picture(cx: &mut Cx, camera: Camera, filter: Filter, key: u32) {
     if let Some(o) = cx.guid(pools::PICTURE) {
         cx.rt.set_uv(o, camera.uv());
-        set_picture_texture(cx, o, variant);
+        set_picture_texture(cx, o, key);
     }
     set_text(cx, pools::ZOOM, &format!("Zoom x{:.1}", camera.zoom()));
     set_text(cx, pools::TAB, &filter.label().to_uppercase());
 }
 
-/// The picture's texture is the variant's world map texture. Without it in the install the package keeps its own.
-fn set_picture_texture(cx: &mut Cx, o: ObjectRef, variant: MapVariant) {
-    let key = resource_handle(variant.world_map_texture());
+/// The picture's texture: the running race's own (route in white) once it is loaded, else the variant's world map texture.
+fn picture_key(frame: &WorldMapFrame, variant: MapVariant) -> u32 {
+    frame.event_picture.unwrap_or_else(|| resource_handle(variant.world_map_texture()))
+}
+
+/// Sets the picture's texture. Without it in the install the package keeps its own.
+fn set_picture_texture(cx: &mut Cx, o: ObjectRef, key: u32) {
     if cx.assets.texture(key).is_none() {
         return;
     }
@@ -139,7 +143,33 @@ fn draw_blips(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
         let Some(o) = cx.guid(d.guid) else { continue };
         let [x, y] = layout::point_of(view);
         cx.rt.set_position_xy(o, x, y);
+        cx.rt.set_rotation_z(o, 0.0);
         show_icon(cx, o, blip.style);
+    }
+    draw_live(cx, frame, drawn);
+}
+
+/// The racers and the police cars: the package has no objects of their own on this map, so each takes a pool object no
+/// blip of the tab uses (a race parks the race icons; a chase leaves most of them free), as the car arrow in its colour.
+fn draw_live(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
+    let camera = frame.session.camera;
+    let mut spare = pools::POOLS
+        .iter()
+        .flat_map(|(_, slots)| slots.iter().copied())
+        .filter(|guid| !drawn.iter().any(|d| d.guid == *guid));
+    for car in &frame.live {
+        let view = camera.to_view(car.map);
+        if view.iter().any(|v| !(0.0..=1.0).contains(v)) {
+            continue;
+        }
+        let Some(o) = spare.next().and_then(|guid| cx.guid(guid)) else { return };
+        let [x, y] = layout::point_of(view);
+        let [r, g, b, _] = car.rgba(frame.clock);
+        cx.rt.set_position_xy(o, x, y);
+        cx.rt.set_rotation_z(o, car.bearing.to_radians());
+        cx.rt.set_texture(o, resource_handle("Minimap_Icon_Car.tga"));
+        cx.rt.set_colour(o, [r, g, b]);
+        cx.rt.set_hidden(o, false);
     }
 }
 

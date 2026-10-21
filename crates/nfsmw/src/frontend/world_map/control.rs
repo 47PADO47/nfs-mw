@@ -148,9 +148,9 @@ pub fn format_metres(metres: f32) -> String {
 /// Opens the map over the frozen world. The blips and the player are read before the world freezes (a paused scene
 /// reports no blips), and stay as they were while it is paused.
 pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
-    let (blips, player) = match host.scene.hud_state() {
-        Some(hud) => (hud.blips.clone(), hud.minimap),
-        None => (Vec::new(), None),
+    let (blips, player, event) = match host.scene.hud_state() {
+        Some(hud) => (hud.blips.clone(), hud.minimap, hud.map_source.event().map(str::to_owned)),
+        None => (Vec::new(), None, None),
     };
     let calibration = match nfsmw_data::minimap::open_city_calibration(&fe.dir) {
         Ok(calibration) => Some(calibration),
@@ -161,7 +161,11 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
     };
     overlay.open(calibration);
     overlay.refresh(&blips, player.as_ref());
-    log::info!("world map open: {} blips", overlay.blips.len());
+    log::info!("world map open: {} blips, {} moving", overlay.blips.len(), overlay.live.len());
+    // In a race the picture is the race's own, with its route in white.
+    if let Some(event) = event {
+        overlay.show_event(&fe.dir, &event);
+    }
     // The career stage picks the map; outside career mode (no career handle) it is the full map.
     let variant = fe.career.with(|c| MapVariant::of_stage(c.stage())).unwrap_or(MapVariant::Full);
     overlay.texture = variant.world_map_texture();
@@ -180,6 +184,7 @@ pub fn step(
     env: &mut Env,
 ) {
     overlay.tick(dt);
+    overlay.poll_pictures(fe.screens.assets());
     let outcome = overlay.session.frame(&input, &overlay.blips);
     match outcome {
         Outcome::Stay => draw(fe, overlay, dt, chrome, host, env),
@@ -221,7 +226,7 @@ fn draw(fe: &mut Frontend, overlay: &WorldMapOverlay, dt: f32, chrome: Chrome, h
 
 fn close(fe: &mut Frontend, overlay: &mut WorldMapOverlay) {
     log::info!("world map closed");
-    overlay.close();
+    overlay.close(fe.screens.assets());
     fe.screens.set_world_map(None);
     fe.resume();
 }

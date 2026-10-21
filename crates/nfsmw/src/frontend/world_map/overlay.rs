@@ -4,8 +4,10 @@
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::{Calibration, bearing_degrees};
 
-use super::{Chrome, Filter, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
-use crate::hud::{MapBlip, MapPosition};
+use super::{Chrome, Filter, LiveBlip, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
+use crate::frontend::challenge_series::maps::Maps;
+use crate::hud::{COP, MapBlip, MapPosition, RACER};
+use crate::ui::UiAssets;
 
 #[derive(Resource, Default)]
 pub struct WorldMapOverlay {
@@ -18,8 +20,13 @@ pub struct WorldMapOverlay {
     pub player: [f32; 2],
     /// The player's car on the picture, once a calibration places it.
     pub player_mark: Option<PlayerMark>,
+    /// The racers and police cars, placed on the picture; drawn on every tab.
+    pub live: Vec<LiveBlip>,
     /// The picture of the career stage's map (`MapVariant::world_map_texture`); empty until the map opens.
     pub texture: &'static str,
+    /// The running race's own picture, `TRACK_MAP_<event id>`: its name hash, and the read of it.
+    event_picture: Option<u32>,
+    pictures: Maps,
     /// Seconds since the map opened, advanced each frame (`tick`).
     pub clock: f32,
     /// The clock when the cursor last snapped onto, or off, a blip, and the blip it was on then.
@@ -34,6 +41,8 @@ impl WorldMapOverlay {
         self.session = WorldMap::new();
         self.calibration = calibration;
         self.blips.clear();
+        self.live.clear();
+        self.event_picture = None;
         self.clock = 0.0;
         self.snap_since = 0.0;
         self.snapped = None;
@@ -48,10 +57,26 @@ impl WorldMapOverlay {
         }
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self, assets: &UiAssets) {
         self.open = false;
         self.session = WorldMap::new();
         self.blips.clear();
+        self.live.clear();
+        self.event_picture = None;
+        self.pictures.release(assets);
+    }
+
+    /// Starts reading the picture of a running race's event (`TRACK_MAP_<event id>`, route in white). Until it is read the
+    /// career stage's map stays.
+    pub fn show_event(&mut self, dir: &game_install::GameDir, event: &str) {
+        let hash = crate::frontend::challenge_series::board::map_texture(event);
+        self.pictures.start_in(dir.clone(), vec![hash]);
+        self.event_picture = Some(hash);
+    }
+
+    /// Takes a finished read of the event's picture into the assets. Call every frame while the map is open.
+    pub fn poll_pictures(&mut self, assets: &UiAssets) {
+        self.pictures.poll(assets);
     }
 
     /// Places the blips the scene reported. Without a calibration there is nothing to place.
@@ -67,6 +92,10 @@ impl WorldMapOverlay {
             Some(calibration) => placed(blips, &calibration),
             None => Vec::new(),
         };
+        self.live = match self.calibration {
+            Some(calibration) => live(blips, &calibration),
+            None => Vec::new(),
+        };
     }
 
     /// The frame the map's screen draws this tick. `chrome` says how an alternative theme dresses the map: when it does,
@@ -75,6 +104,8 @@ impl WorldMapOverlay {
         WorldMapFrame {
             session: self.session.clone(),
             blips: self.blips.clone(),
+            live: self.live.clone(),
+            event_picture: self.event_picture.filter(|_| self.pictures.loaded()),
             player: self.player,
             player_mark: self.player_mark,
             chrome,
@@ -85,8 +116,21 @@ impl WorldMapOverlay {
     }
 }
 
-/// The blips of the map's filters, placed on the picture (`Calibration::to_map`). Other blips (cops, traffic) are not
-/// on the map.
+/// The racers and the police cars among `blips`, placed on the picture. A car with no heading points up.
+pub fn live(blips: &[MapBlip], calibration: &Calibration) -> Vec<LiveBlip> {
+    blips
+        .iter()
+        .filter(|b| b.style == RACER || b.style == COP)
+        .map(|b| LiveBlip {
+            style: b.style,
+            map: calibration.to_map(b.position),
+            bearing: b.heading.map_or(0.0, bearing_degrees),
+            chasing: b.style == COP && b.active,
+        })
+        .collect()
+}
+
+/// The blips of the map's filters, placed on the picture (`Calibration::to_map`). The moving cars are [`live`].
 pub fn placed(blips: &[MapBlip], calibration: &Calibration) -> Vec<PlacedBlip> {
     blips
         .iter()
@@ -116,6 +160,44 @@ mod tests {
     }
 
     #[test]
+    fn racers_and_cops_are_live_blips_on_every_tab_and_other_blips_are_not() {
+        use crate::hud::{AUTO_SHOP, CHECKPOINT};
+        let blips = [
+            MapBlip { style: RACER, position: [100.0, 0.0], active: true, heading: Some([1.0, 0.0]) },
+            MapBlip { style: COP, position: [0.0, 0.0], active: true, heading: Some([0.0, 1.0]) },
+            MapBlip { style: COP, position: [0.0, 50.0], active: false, heading: None },
+            MapBlip { style: CHECKPOINT, position: [0.0, 0.0], active: true, heading: None },
+            MapBlip { style: AUTO_SHOP, position: [0.0, 0.0], active: false, heading: None },
+        ];
+        let live = live(&blips, &CITY);
+        assert_eq!(live.len(), 3, "two cops and a racer");
+        assert_eq!((live[0].style, live[0].map, live[0].bearing), (RACER, CITY.to_map([100.0, 0.0]), 90.0));
+        assert!(!live[0].chasing, "a racer is never chasing");
+        assert!(live[1].chasing && !live[2].chasing, "only a cop in the chase flashes");
+        assert_eq!(live[2].bearing, 0.0, "no heading points up");
+    }
+
+    #[test]
+    fn a_racer_is_orange_and_a_cop_is_white_or_flashes_blue_and_red() {
+        let car = |style, chasing| LiveBlip { style, map: [0.0; 2], bearing: 0.0, chasing };
+        assert_eq!(car(RACER, false).rgba(0.0), [255, 150, 40, 255]);
+        assert_eq!(car(COP, false).rgba(0.0), [255, 255, 255, 255]);
+        let chase = [car(COP, true).rgba(0.0), car(COP, true).rgba(0.25)];
+        assert_ne!(chase[0], chase[1], "the light bar changes colour");
+        assert!(chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0));
+    }
+
+    #[test]
+    fn the_race_picture_is_used_only_once_it_is_loaded() {
+        let mut overlay = WorldMapOverlay::default();
+        overlay.open(Some(CITY));
+        assert_eq!(overlay.frame(Chrome::Drawn).event_picture, None, "no race");
+        // Asking for a race's picture sets it wanted, but nothing has been read: the stage's map stays.
+        overlay.event_picture = Some(7);
+        assert_eq!(overlay.frame(Chrome::Drawn).event_picture, None, "not loaded yet");
+    }
+
+    #[test]
     fn a_closed_map_forgets_its_blips_and_a_new_one_starts_on_locations() {
         let mut overlay = WorldMapOverlay { calibration: Some(CITY), ..Default::default() };
         overlay.session.filter = Filter::Races;
@@ -123,7 +205,7 @@ mod tests {
         let at = MapPosition { position: [5.0, 6.0], heading: [0.0, 1.0], orientation: Orientation::North };
         overlay.refresh(&[], Some(&at));
         assert_eq!(overlay.player, [5.0, 6.0]);
-        overlay.close();
+        overlay.close(&UiAssets::empty());
         assert!(!overlay.open && overlay.blips.is_empty());
         assert_eq!(overlay.session.filter, Filter::DEFAULT);
     }

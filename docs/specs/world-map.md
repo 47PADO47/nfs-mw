@@ -114,6 +114,17 @@ and the GPS prompt are the same as every other look's.
 - **Screenshots.** `--ui-script "wait 8;key M;wait 2;pointer -18 38"` opens the map in a `play --drive` run and puts the pointer at
   a point of the screen (FEng units); `key L` hides the legend.
 
+## In a race **[ours]**
+
+- **Picture.** While a race with an event map runs, the picture is the event's own `TRACK_MAP_<event id>` of `TrackMaps.bin`
+  (the same pictures the challenge series screen uses), which has the route baked in as a white band. It is read on a worker
+  thread when the map opens (`WorldMapOverlay::show_event`); until it is in the assets the stage's map stays. A race with no
+  such picture keeps the stage's map. The picture is dropped when the map closes.
+- **Moving cars.** The racers and the police cars (the HUD's `racer` and `cop` blips, read when the map opens) are drawn on
+  every tab, as the car arrow turned to where they point: a racer orange, a cop white, or blue and red in a chase
+  (`WorldMapFrame::live`). They are not listed, cannot be focused and have no GPS. The package has no objects for them, so the
+  original-look screen gives each a pool object that no blip of the tab uses; the Remastered map draws them itself.
+
 ## Differences from the executable
 
 - **Zoom All** is the Z key. The executable has no Zoom-All message; it reaches zoom 1 by zooming out.
