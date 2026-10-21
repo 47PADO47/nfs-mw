@@ -19,4 +19,4 @@ mod tests;
 
 pub use error::{Error, Result};
 pub use model::{BASE_VERTEX_STRIDE, PositionMarker, ShadingGroup, Solid, Vertex, VertexBuffer};
-pub use reader::{read_solid, read_solids};
+pub use reader::{read_solid, read_solids, read_solids_lossy};
