@@ -9,6 +9,7 @@
 //! - [`pursuit`]: the cop waves of each heat level;
 //! - [`traffic`]: the car list and speeds of each traffic pattern;
 //! - [`music`]: the licensed songs of the radio, from the attribute database;
+//! - [`nis`]: the NIS and FMV camera tracks of `GLOBAL/InGameB.bun`, by scene name;
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
 //! - [`speech_chase`]: the thresholds the chase's speech flows read (`speechtune`, and the roadblock and 911 fields of a heat row).
@@ -28,6 +29,7 @@ pub mod game;
 pub mod gameplay;
 pub mod minimap;
 pub mod music;
+pub mod nis;
 pub mod pursuit;
 pub mod pursuit_siren;
 pub mod rank_thresholds;

@@ -22,6 +22,7 @@ mod load_timing;
 mod manual;
 mod minimap;
 mod music;
+mod nis_cameras;
 mod objects;
 mod physics;
 mod pursuit;
