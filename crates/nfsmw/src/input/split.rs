@@ -11,10 +11,10 @@ use bevy_ecs::prelude::{Entity, Resource};
 use bevy_input::gamepad::GamepadButton;
 use bevy_input::keyboard::KeyCode;
 
+use super::Action;
 use super::bindings::{self, Binding, Source};
 use super::snapshot::Snapshot;
 use super::state::{ActionState, Bindings};
-use super::Action;
 
 /// A device a split-screen player holds. The original maps each player to a controller port; a PC has the keyboard and
 /// any number of pads, so a player holds one of these.
@@ -99,12 +99,7 @@ impl SplitInput {
     /// The second player's snapshot: only their own keys; the pad state is filled by the caller from their pad.
     pub fn second_snapshot(&self, all: &Snapshot) -> Snapshot {
         let Some([first, second]) = self.devices else { return Snapshot::default() };
-        Snapshot {
-            controls: all.controls,
-            keys: keys_for(second, first, &all.keys),
-            dt: all.dt,
-            ..Snapshot::default()
-        }
+        Snapshot { controls: all.controls, keys: keys_for(second, first, &all.keys), dt: all.dt, ..Snapshot::default() }
     }
 
     /// The pad a player holds, if any.
@@ -214,7 +209,10 @@ mod tests {
     fn the_second_player_drives_with_the_arrows() {
         let mut input = SplitInput::default();
         input.seat(Some([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]));
-        let all = Snapshot { keys: keys(&[KeyCode::ArrowUp, KeyCode::ArrowLeft, KeyCode::ShiftRight]), ..Snapshot::default() };
+        let all = Snapshot {
+            keys: keys(&[KeyCode::ArrowUp, KeyCode::ArrowLeft, KeyCode::ShiftRight]),
+            ..Snapshot::default()
+        };
         let second = input.second_snapshot(&all);
         input.update_second(&second);
         assert!(input.second.pressed(Action::Throttle));
