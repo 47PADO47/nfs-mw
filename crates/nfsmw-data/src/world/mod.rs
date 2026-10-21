@@ -9,6 +9,7 @@
 
 mod assets;
 pub mod explosion_fx;
+pub mod finish_fx;
 mod globals;
 pub mod heli_sheet;
 mod index;

@@ -105,6 +105,30 @@ fn race_parameters_and_characters_match_documented_numbers() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_race_names_its_photo_backdrop_and_finish_camera() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let texture = |t: gameplay::RaceType| {
+        let mut names: Vec<&str> = data
+            .races
+            .iter()
+            .filter(|r| r.race_type == Some(t))
+            .filter_map(|r| r.params.photo_texture.as_deref())
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
+    };
+    assert_eq!(texture(RaceType::Tollbooth), ["PHOTOFINISH_TOOBOOTH"]);
+    assert_eq!(texture(RaceType::Drag), ["PHOTOFINISH_DRAG"]);
+    assert_eq!(texture(RaceType::Circuit), ["PHOTOFINISH_SPRINT"]);
+    assert!(data.races.iter().filter(|r| r.race_type.is_some()).all(|r| r.params.finish_camera.is_some()));
+    let numbered = data.races.iter().filter_map(|r| r.params.finish_camera.as_deref());
+    assert!(numbered.clone().any(|name| name == "DefaultFinish") && numbered.clone().any(|name| name == "PHoldFin_17"));
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn tollbooth_bonuses_and_speed_trap_spheres_are_read() {
     let Some(dir) = install() else { return };
     let data = gameplay::load(&dir).expect("gameplay data");
