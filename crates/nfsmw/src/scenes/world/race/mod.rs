@@ -20,10 +20,12 @@ mod names;
 mod report;
 mod restart;
 mod setup;
+mod split;
 mod start;
 
 pub(super) use command::race_command;
 pub use setup::RaceOptions;
+pub use split::SplitSetup;
 
 use blackbox_race::{CatchUp, Course, Race};
 use nfsmw_data::gameplay::RaceType;

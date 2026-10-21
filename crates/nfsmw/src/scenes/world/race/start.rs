@@ -59,6 +59,12 @@ impl WorldScene {
         self.queued_race = Some((query, options));
     }
 
+    /// Asks for a split-screen race: as [`queue_race`](Self::queue_race), with two players on the grid.
+    pub fn queue_split_race(&mut self, query: String, options: RaceOptions, setup: super::SplitSetup) {
+        self.queued_race = Some((query, options));
+        self.queued_split = Some(setup);
+    }
+
     /// Starts the race `query` names. The player's car is put on the grid and the opponents are loaded; the countdown
     /// starts when everything stands. Quick race and the console use this; the career's race entry too.
     pub(in crate::scenes::world) fn start_race(&mut self, query: &str, options: RaceOptions) -> Result<String, String> {

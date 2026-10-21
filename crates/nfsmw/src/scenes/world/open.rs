@@ -193,6 +193,7 @@ impl WorldScene {
                 gameplay,
                 race: None,
                 queued_race: None,
+                queued_split: None,
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 career: Default::default(),
