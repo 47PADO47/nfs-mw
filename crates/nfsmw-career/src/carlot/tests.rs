@@ -317,8 +317,8 @@ fn a_preset_car_the_stable_already_holds_is_not_added_twice() {
 fn a_preset_car_needs_a_free_career_record_and_car_slot() {
     let cat = catalogue();
     let mut stable = Stable::empty();
-    for index in 0..CAREER_SLOTS {
-        stable.careers[index] = CareerRecord::new(index as u8);
+    for (index, career) in stable.careers.iter_mut().enumerate().take(CAREER_SLOTS) {
+        *career = CareerRecord::new(index as u8);
     }
     let before = stable.clone();
     assert_eq!(add_preset_car(&mut stable, &cat[0], 4), Err(PurchaseError::NoCareerSlot));

@@ -12,6 +12,7 @@
 //! 2. out of jail and impound (Get Out of Jail Free `0x11`, Extra Impound Strike `0x14`, Impound Release `0x15`),
 //! 3. the pink slip (`0x12`, which needs a preset car),
 //! 4. the cash bonus (`0x13`, which needs a value of 0 or more).
+//!
 //! A reward with no category (any other kind, no route) is not offered. The shuffle swaps each of the first three cards
 //! with a random one of the first three (F-24) and draws from the quick play generator.
 //!

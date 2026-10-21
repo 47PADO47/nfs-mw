@@ -47,7 +47,7 @@ pub fn rigid_split(solid: &Solid) -> Vec<RigidPart> {
         let Some(indices) = solid.indices.get(first..first + group.num_indices as usize) else {
             continue;
         };
-        for triangle in indices.chunks_exact(3) {
+        for triangle in indices.as_chunks::<3>().0 {
             let corners = [0, 1, 2].map(|i| group.base_vertex + u32::from(triangle[i]));
             if corners.iter().any(|&v| v as usize >= skin.len()) {
                 continue;
