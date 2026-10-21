@@ -66,7 +66,7 @@ fn a_rotation_is_normalised_and_a_missing_one_is_the_identity() {
 #[test]
 fn a_car_is_set_five_metres_above_the_ground_under_it() {
     let spot = CarSpot { position: Vec3::new(1.0, 2.0, 40.0), rotation: Quat::IDENTITY };
-    assert!(near(lifted(spot, Some(10.0)).position, Vec3::new(1.0, 2.0, 15.0)));
+    assert!(near(lifted(spot, Some(10.0)).position, Vec3::new(1.0, 2.0, 10.0 + CAR_LIFT)));
     assert_eq!(lifted(spot, None), spot, "no ground under the car, no lift");
 }
 

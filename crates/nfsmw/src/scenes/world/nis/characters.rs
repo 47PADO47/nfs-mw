@@ -107,7 +107,12 @@ impl Characters {
         if let Some(index) = self.models.iter().position(|model| model.solid.name_hash == solid.name_hash) {
             return index;
         }
-        let parts = rigid_split(solid);
+        let mut parts = rigid_split(solid);
+        // The skinned shader ignores the vertex colour, and the character meshes store it as 0; the lit material
+        // multiplies by it, so it is set to white.
+        for vertex in parts.iter_mut().flat_map(|part| part.vertices.iter_mut()) {
+            vertex.color_bgra = [255; 4];
+        }
         self.models.push(Model { solid: solid.clone(), meshes: vec![None; parts.len()], parts });
         self.models.len() - 1
     }
