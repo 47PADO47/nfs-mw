@@ -13,6 +13,7 @@ ADR 0009 wins; the sections it changes carry a note. In short:
 
 - Frames are `type u8, length varint, payload` (no `len` inside `RELIABLE`). Entity ids are `u16`, gap-coded in id order.
 - The kind is written only in full records, and the field mask has one bit per schema field. Message types are namespaced.
+- Header byte 0: bit 0 says the ack block is valid (the sender has received a packet); the format moves to bits 3..1.
 - The built `conn` and `replicate` modules of `libs/blackbox-net-core` are the reference layout until sealing exists.
 
 ## 1. Layers
