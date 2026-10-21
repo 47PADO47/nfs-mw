@@ -60,6 +60,7 @@ mod race_restart_tests;
 mod readiness;
 mod rear_view;
 mod reflections;
+mod reflections_visibility;
 mod residency;
 mod resident;
 mod road;
@@ -164,6 +165,7 @@ pub struct WorldScene {
     gain_map: Option<blackbox_gfx::RgbaImage>,
     breaker_visuals: breaker_visuals::Presentation,
     reflection_faces: [Vec<Instance>; 6],
+    reflection_scratch: reflections_visibility::Scratch,
     reflection_last: Option<reflections::CaptureStamp>,
     wet_road: wet_reflections::WetRoad,
     /// Seconds since the scene started, for texture animations.

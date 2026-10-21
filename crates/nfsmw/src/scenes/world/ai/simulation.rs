@@ -61,7 +61,7 @@ impl TrafficWorld {
         for (me, car) in self.cars.iter_mut().enumerate() {
             let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
             car.damage_distance = view.map_or(f32::INFINITY, |v| v.distance(car.physics_position()));
-            car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng);
+            car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng.nav);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
             // A police car inside a breaker zone is destroyed, however it got there (`ApplyBreakerZones`); it is counted
@@ -76,7 +76,7 @@ impl TrafficWorld {
             let mut ctx = Ctx {
                 net: &self.network,
                 index: &self.index,
-                rng: &mut self.rng,
+                rng: &mut self.rng.nav,
                 bodies: &bodies,
                 me,
                 player: match car.is_cop() && !car.is_searching() {

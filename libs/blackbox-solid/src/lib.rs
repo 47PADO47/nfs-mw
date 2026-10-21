@@ -20,5 +20,5 @@ mod tests;
 
 pub use error::{Error, Result};
 pub use model::{BASE_VERTEX_STRIDE, PositionMarker, ShadingGroup, SkinVertex, Solid, Vertex, VertexBuffer};
-pub use reader::{read_solid, read_solids, read_solids_lossy};
+pub use reader::{read_solid, read_solids, read_solids_filtered, read_solids_lossy};
 pub use rigid::{PartRun, RigidPart, rigid_split};

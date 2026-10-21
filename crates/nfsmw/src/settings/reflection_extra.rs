@@ -59,10 +59,11 @@ pub fn step_brightness(current: VehicleBrightness, forward: bool) -> VehicleBrig
 }
 
 /// The row's text for the reach: `Unlimited` or `Original`.
-pub fn distance_label(distance: ReflectionDistance) -> &'static str {
+pub fn distance_label(distance: ReflectionDistance) -> String {
     match distance {
-        ReflectionDistance::Unlimited => "Unlimited",
-        ReflectionDistance::Original => "Original",
+        ReflectionDistance::Unlimited => "Unlimited".into(),
+        ReflectionDistance::Original => "Original".into(),
+        ReflectionDistance::Meters(metres) => format!("{metres} m"),
     }
 }
 
@@ -107,9 +108,20 @@ mod tests {
     }
 
     #[test]
+    fn a_custom_distance_survives_saved_profiles_and_reaches_the_renderer() {
+        let p = Partial { reflection_distance: Some(ReflectionDistance::Meters(275)), ..Default::default() };
+        let text = write::merge("", &p).unwrap();
+        let restored = Settings::from(file::parse(&text, "custom distance"));
+        assert_eq!(restored.graphics().reflection_distance, ReflectionDistance::Meters(275));
+    }
+
+    #[test]
     fn the_menu_cycles_the_choices_and_steps_the_brightness_in_its_list() {
         assert_eq!(cycle(&ReflectionDistance::ALL, ReflectionDistance::Unlimited, true), ReflectionDistance::Original);
-        assert_eq!(cycle(&ReflectionDistance::ALL, ReflectionDistance::Original, true), ReflectionDistance::Unlimited);
+        assert_eq!(
+            cycle(&ReflectionDistance::ALL, ReflectionDistance::Original, true),
+            ReflectionDistance::Meters(150)
+        );
         assert_eq!(cycle(&ReflectionLod::ALL, ReflectionLod::Capture, false), ReflectionLod::View);
         assert_eq!(cycle(&ReflectionContent::ALL, ReflectionContent::Original, true), ReflectionContent::Restored);
         let mut b = VehicleBrightness::DEFAULT;

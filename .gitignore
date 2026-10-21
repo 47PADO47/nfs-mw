@@ -43,6 +43,7 @@
 !/libs/*/src/**/*.wesl
 !/libs/*/tests/**/*.rs
 !/libs/blackbox-vehicle/examples/physics_reference/**/*.rs
+!/libs/blackbox-net-core/examples/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs
 !/crates/*/src/**/*.wgsl

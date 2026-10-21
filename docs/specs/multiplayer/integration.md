@@ -1,6 +1,7 @@
 # Multiplayer integration: the Bevy shell, the crates and the order of work
 
-Status: **design only**. Nothing is built. Written 2026-10-16. How the netcode of
+Status: written 2026-10-16, revised 2026-10-21 by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md). Step 1 of
+section 5 (`libs/blackbox-net-core`) is built; the rest is design. How the netcode of
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) fits the existing program: the Bevy shell and `Scene` trait
 ([architecture.md](../../architecture.md), [ADR 0001](../../decisions/0001-bevy.md)), the `libs/` and `crates/` rules
 ([AGENTS.md](../../../AGENTS.md)), and the telemetry server ([multiplayer reuse](../telemetry/multiplayer-reuse.md)).
@@ -23,6 +24,8 @@ game thread (Bevy App)
   same code in `libs/blackbox-net-core`. Overflow drops the oldest entry and counts it; it never blocks.
 - The net thread uses blocking sockets with a short timeout (no async runtime). It owns the sockets, the Noise state, the reliability
   layer and the packet queues; it holds no game state.
+- **The listen host's own client** (ADR 0009 section 3) talks to the server thread through the in-memory link
+  (`link::MemoryNet`), with the same connection and replication code as a remote client. It opens no socket and runs no handshake.
 - The server loop (`nfsmw-server`, or the listen server's thread) is a plain loop with a fixed-step timer. It reads the
   inbox, steps the world, writes snapshots, and sleeps until the next tick with a spin on the last 0.5 ms.
 
@@ -62,6 +65,11 @@ multiplayer does not compile the `netcode` feature (a cargo feature `multiplayer
 it can start off). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies are checked (`deny.toml` sets
 `all-features = false`). No file over 500 lines.
 
+**As built (ADR 0009).** `blackbox-net-core` is standard library only and has no cargo features yet. The modules are `bits`,
+`link`, `conn`, `replicate`, `clock`, `session`, `discovery` and `rng`. The `core`/`netcode` feature split is added when the
+handshake brings `snow`, so that telemetry still pulls no crypto. The hand-off queues of the `core` feature are added with the net
+thread.
+
 If `blackbox-net-core` passes a few thousand lines, the snapshot machinery moves to a sibling `blackbox-net-replication`
 without changing any public name used by the game.
 
@@ -97,8 +105,8 @@ Fallback if step 4 proves too large: the first multiplayer release ships the **l
 | Step | Content | Gate |
 |---|---|---|
 | 0 | Sim benchmarks; determinism audit (D1 to D6); the sim extraction (section 4) | Single-player frame-rate trace unchanged |
-| 1 | `blackbox-net-core`: bit packing, quantisers, hand-off, simulator; codec tests and fuzz targets | Property tests pass |
-| 2 | Handshake, sealing and the reliability layer in `netcode`; the packet simulator suite (reliable messages in order exactly once at 10 % loss; fuzz targets for every pre-authentication parser). Optional: the one-week `renet` spike of the ADR | Reliability and fuzz gates; the spike result |
+| 1 | `blackbox-net-core`: bit packing, quantisers, links and the packet simulator, the connection layer (reliability, fragments), replication codec and per-client views, clock filter, session state machine, discovery; seeded round-trip, loss and fuzz tests; `net_bench` | **Built 2026-10-21** (ADR 0009) |
+| 2 | Handshake and sealing (`snow`) around the built connection layer; fuzz targets for every pre-authentication parser; the hand-off queues. (The reliability suite moved to step 1; the `renet` spike is dropped by ADR 0009) | Fuzz gates; `cargo deny` with the crypto crates |
 | 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window |
 | 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic |
 | 5 | Prediction and reconciliation for the owner; clock sync; the bad-network suite | Targets of [features](features.md) section 4 |

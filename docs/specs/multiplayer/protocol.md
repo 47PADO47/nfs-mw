@@ -8,6 +8,14 @@ cookie, ChaCha20-Poly1305 sealing, the replay window, rekeying, connect tokens, 
 disagree the security files win. The transport is our own UDP layer ([transport options](transport-options.md)). This protocol
 shares nothing with the original game's LAN protocol ([lan-server.md](../lan-server.md)).
 
+**Revised by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md) (2026-10-21).** Where this file and ADR 0009 disagree,
+ADR 0009 wins; the sections it changes carry a note. In short:
+
+- Frames are `type u8, length varint, payload` (no `len` inside `RELIABLE`). Entity ids are `u16`, gap-coded in id order.
+- The kind is written only in full records, and the field mask has one bit per schema field. Message types are namespaced.
+- Header byte 0: bit 0 says the ack block is valid (the sender has received a packet); the format moves to bits 3..1.
+- The built `conn` and `replicate` modules of `libs/blackbox-net-core` are the reference layout until sealing exists.
+
 ## 1. Layers
 
 ```
@@ -162,6 +170,9 @@ address with a valid tag and a newer number is accepted, but no bulk data goes t
 
 ### 5.2 Frame types
 
+> **ADR 0009:** every frame except `PADDING` is `type`, then the payload length as a LEB128 varint (at most 3 bytes), then the
+> payload, so every type is skippable and the known-or-skippable split below no longer decides how to parse. The type numbers stay.
+
 A frame starts with a `type` byte. Types `0x01` to `0x04` and `0x10` to `0x13` are **known frames**: their length follows from
 their fields, and every build must understand them. Any type from `0x20` up (and the reserved types marked below) is **skippable**:
 `type` is followed by a `u16` byte length so an older receiver can skip it.
@@ -187,6 +198,10 @@ A receiver drops a datagram's remaining frames if a known frame fails to decode,
 `security-gameplay.md` 1.3. An unknown skippable type is skipped and counted.
 
 ### 5.3 Reliable frames
+
+> **ADR 0009:** the frame length gives the data length, so `RELIABLE` is `flags` (channel 2 bits, first, last, 4 zero bits),
+> `msg_id` u16 little-endian, data. Fragments carry at most 1,024 data bytes. The first fragment of a split message starts with the
+> total length as a `u16`.
 
 A `RELIABLE` frame carries a whole message or one fragment of it. The message is `type` u16, `format` u8, then the postcard body
 (section 7). Messages up to the frame space go in one frame with `first` and `last` set. Larger messages (at most 16 KiB; the bulk
@@ -258,6 +273,12 @@ mean earliness in 4 bits). About 230 bits; 256 are reserved.
 **Global block:** session phase 4; this player's pursuit state (heat level 4, busted fraction 8, cooldown fraction 8, state 3); race
 state (place 5, lap 6, checkpoint 8); time of day 16; reserved bits to 96.
 
+> **ADR 0009:** entries are no longer grouped by kind. The snapshot body is `tick` 32, baseline distance varint (0 = full),
+> entry count varint, then entries in id order: the id as a gap (`varint3` of `id - prev - 1`, the first as `varint7`), `op` 2 bits,
+> and for a full record the kind in 6 bits and every field, for a delta a mask with one bit per field and the changed fields
+> (difference-coded fields as zigzag `varint4`). An entity not listed keeps its last value. The kinds below are the game's schema,
+> registered by `nfsmw-net`.
+
 **Entity group:** `kind` 4 bits, `count` varint, then `count` entries. **Entry:** `id` 8 bits, `op` 2 bits (`01` delta, `10` full,
 `11` remove, `00` invalid), then for a delta an 8-bit field-group mask and the changed groups, for a full entry all groups. An entity
 not listed is unchanged from the baseline and still relevant.
@@ -297,6 +318,9 @@ The server answers in the same loop iteration. Rates and use: [sync model](sync-
 All are postcard structs: `type` u16, `format` u8, body. Direction: C (client to server), S (server to client). A new optional field
 is appended at the end of a body; a reader that knows an older format decodes the fields it knows and skips the rest by the message
 length (`security-gameplay.md` 1.1, rule 8).
+
+> **ADR 0009:** `type` numbers fall in namespaces: core `0x0000`–`0x0FFF` (admission, lobby, session), game `0x1000`–`0x7FFF`
+> (events, loadout, modes), mods `0x8000`–`0xFFFF`. A receiver skips an unknown type and counts it.
 
 ### 7.1 Admission (channel `control`)
 
@@ -448,7 +472,7 @@ The enforcement values (rate limits, strikes) are in `security-gameplay.md` sect
 | Limit | Value |
 |---|---|
 | Slots in the id space | 32 (5 bits); sessions default to 16 racers and 8 spectators |
-| Entity ids | 8 bits (255 in flight; traffic and police ids are recycled) |
+| Entity ids | 16 bits, gap-coded (ADR 0009; was 8 bits) |
 | Entities in one snapshot | 64 cars, 64 traffic, 32 police (session settings) |
 | Datagram | 1,200 bytes |
 | Input frame | 8 ticks |
@@ -464,7 +488,7 @@ The enforcement values (rate limits, strikes) are in `security-gameplay.md` sect
 
 ## 10. Open questions
 
-1. Entity ids are 8 bits. Telemetry adds a 24-bit generation counter in a `u32` so recordings never confuse a reused id
+1. *Settled by ADR 0009: ids are 16 bits and telemetry splits its `u32` as 16 + 16.* Entity ids are 8 bits. Telemetry adds a 24-bit generation counter in a `u32` so recordings never confuse a reused id
    ([ADR 0007](../../decisions/0007-telemetry-server.md)); the wire stays 8 bits. If traffic density needs more than 255 entities,
    the width becomes a session constant in a later minor.
 2. The position range (±8,192 m) is an assumption until the road and collision bounds are measured; `world_bounds` lets the server

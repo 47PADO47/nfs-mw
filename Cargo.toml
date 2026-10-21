@@ -25,6 +25,7 @@ default-members = [
     "libs/blackbox-minimap",
     "libs/blackbox-mixmap",
     "libs/blackbox-modding",
+    "libs/blackbox-net-core",
     "libs/blackbox-paramap",
     "libs/blackbox-fxedit",
     "libs/blackbox-playlist",

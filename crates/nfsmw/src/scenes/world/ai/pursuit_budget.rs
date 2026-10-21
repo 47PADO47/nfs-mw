@@ -99,7 +99,7 @@ impl TrafficWorld {
         if surplus.iter().all(|&over| over == 0) {
             return;
         }
-        let roll = self.rng.next_f32();
+        let roll = self.rng.police.next_f32();
         let Some((index, count)) = pick_surplus(&surplus, roll) else { return };
         let kind = types[index].0.clone();
         let cruise = self.search_cruise();
@@ -128,7 +128,7 @@ impl TrafficWorld {
             if sees && watching <= KEEP_WATCHING {
                 continue;
             }
-            if cars[i].start_flee(cruise, network, lanes, rng) {
+            if cars[i].start_flee(cruise, network, lanes, &mut rng.police) {
                 log::info!("pursuit: {} is sent away, over what the chase wants", cars[i].name);
                 if sees && rank == 0 {
                     watching -= 1;

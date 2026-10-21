@@ -27,7 +27,7 @@ fn text(s: &'static str) -> Title {
 fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     let native = test_caps::native();
     let video = titles(Category::Video, &native);
-    assert_eq!(video.len(), 48);
+    assert_eq!(video.len(), 51);
     for hidden in ["Upscale Quality", "Front-End Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }

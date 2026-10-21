@@ -10,6 +10,10 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
             choice(ui, "Reflection detail", &mut settings.reflection_extra.lod, &ReflectionLod::ALL);
             choice(ui, "Reflection content", &mut settings.reflection_extra.content, &ReflectionContent::ALL);
             choice(ui, "Reflection distance", &mut settings.reflection_extra.distance, &ReflectionDistance::ALL);
+            if let ReflectionDistance::Meters(ref mut metres) = settings.reflection_extra.distance {
+                ui.add(egui::Slider::new(metres, 25..=2000).text("Capture distance (m)"));
+            }
+            ui.small("Distance limits geometry in car and mirror captures; it does not lower the update rate.");
             ui.add(
                 egui::Slider::new(&mut settings.reflection_extra.brightness.0, 0.0..=3.0)
                     .text("Vehicle reflection brightness"),

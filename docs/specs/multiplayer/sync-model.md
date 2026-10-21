@@ -250,7 +250,7 @@ tested before milestone 10 builds on them.
 | # | Requirement | Reason | State today |
 |---|---|---|---|
 | D1 | The sim advances only in fixed 1/60 s steps | Server tick = predict step | Done and tested (see [physics-timing.md](../../physics-timing.md)) |
-| D2 | No wall-clock or frame-time input in the sim | Headless server, replays | One `Instant` in `scenes/world/drive_input.rs` (a wait for input, not part of the sim); the rest to audit |
+| D2 | No wall-clock or frame-time input in the sim | Headless server, replays | One `Instant` used in `scenes/world/drive_input.rs` (field in `scenes/world/mod.rs`; a wait for input, not part of the sim). Audit: [determinism.md](determinism.md) |
 | D3 | No iteration over a `HashMap`, or any order that depends on a hasher, in sim results | Same inputs, same pair order | None found in the AI manager and simulation files read; full audit needed |
 | D4 | Random numbers from seeded streams owned by the server, one stream per system, derived from the session seed with a fixed mixing (`SplitMix` exists in `libs/blackbox-roads`) | Replays, debugging | The pure crates take random numbers from the caller; the scene must stop using a shared source |
 | D5 | Entities are processed in order of entity id | Pair order changes contact results | To implement |

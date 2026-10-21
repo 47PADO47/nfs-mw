@@ -1,7 +1,8 @@
 # Multiplayer (milestones 10 and 11)
 
 Design for LAN multiplayer (milestone 10) that online multiplayer (milestone 11) reuses without a rewrite: one host-authoritative
-server program, the same on a LAN and on the internet, over our own UDP layer. Designed now, not built. Written 2026-10-16.
+server program, the same on a LAN and on the internet, over our own UDP layer. Written 2026-10-16, revised by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md) on 2026-10-21. The generic layer
+(`libs/blackbox-net-core`) is built; the rest is design.
 
 The decision record is [ADR 0006](../../decisions/0006-multiplayer-netcode.md). The files here hold the requirements, the wire format,
 the algorithms and the security design it refers to.
@@ -21,6 +22,10 @@ Read in this order:
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
    order of work for milestone 10.
+8. [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md): the revisions made before building (16-bit ids, shared delta
+   encoding, layers, skippable frames, registries, the session state machine). It overrides the files above where they disagree.
+9. [determinism.md](determinism.md): the audit of the sim against D1 to D8 and the planned fix for each finding.
+10. [`blackbox-net-core`](../../../libs/blackbox-net-core/README.md): the built generic layer and how to run its tests and bench.
 
 Milestone 11 (online) on the same base: [online.md](online.md) covers dedicated hosting, the master service, relay, accounts, persistence, operations and the phases.
 

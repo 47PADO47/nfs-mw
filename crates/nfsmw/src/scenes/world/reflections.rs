@@ -86,48 +86,42 @@ impl WorldScene {
         // The cube face size the renderer captures at, so the detail threshold follows the capture.
         let face_size = size as f32;
         // The traffic cars are gathered once; each face keeps the ones in its own frustum.
-        let mut cars = Vec::new();
+        self.reflection_scratch.traffic.clear();
         if let Some(traffic) = self.traffic.as_ref().filter(|_| content.includes_traffic()) {
-            traffic.instances(&mut cars);
+            traffic.instances(&mut self.reflection_scratch.traffic);
         }
         let far = distance.car_far();
-        for face in 0..6 {
+        let cameras = std::array::from_fn(|face| {
             let frame = face_frame(origin, face, &template);
-            let camera = visibility::Camera {
+            visibility::Camera {
                 light_dir: self.sun.direction().to_array(),
                 view_proj: frame.view_proj(),
                 position: origin.to_array(),
                 forward: frame.view.inverse().transform_vector3(Vec3::NEG_Z).to_array(),
                 fov_y_radians: std::f32::consts::FRAC_PI_2,
-            };
-            let placed = self
-                .residency
-                .placed()
-                .filter(|p| self.original_shadows || !p.original_shadow)
-                .filter(|p| within(origin, p.transform.w_axis.truncate(), far));
-            let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-            // The traffic is appended after the scenery, so the face is sorted once after both (`collect_for_height`
-            // has no unsorted variant: its own sort is the one extra pass on that path).
-            match lod.uses_main_view() {
-                true => visibility::collect_unsorted_with_shadows(
-                    placed,
-                    &camera,
-                    rules,
-                    self.residency.props(),
-                    0.0,
-                    &mut self.reflection_faces[face],
-                ),
-                false => visibility::collect_for_height(
-                    placed,
-                    &camera,
-                    rules,
-                    self.residency.props(),
-                    face_size,
-                    &mut self.reflection_faces[face],
-                ),
             }
+        });
+        let placed = self
+            .residency
+            .placed()
+            .filter(|p| self.original_shadows || !p.original_shadow)
+            .filter(|p| within(origin, p.transform.w_axis.truncate(), far));
+        let height = match lod.uses_main_view() {
+            true => visibility::REFERENCE_HEIGHT,
+            false => face_size,
+        };
+        super::reflections_visibility::collect(
+            placed,
+            &cameras,
+            &blackbox_scenery::layout::MOST_WANTED.lod,
+            self.residency.props(),
+            height,
+            &mut self.reflection_faces,
+            &mut self.reflection_scratch,
+        );
+        for (face, camera) in cameras.iter().enumerate() {
             add_traffic(
-                &cars,
+                &self.reflection_scratch.traffic,
                 origin,
                 far,
                 &Frustum::from_view_proj(&camera.view_proj),

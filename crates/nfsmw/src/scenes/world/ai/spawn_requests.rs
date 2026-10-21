@@ -139,7 +139,7 @@ impl TrafficWorld {
         if !nav.init_at_point(&self.network, &self.index, request.at, request.forward, false) {
             return None;
         }
-        if !chase && !nav.can_traffic_spawn(&self.network, &mut self.rng) {
+        if !chase && !nav.can_traffic_spawn(&self.network, &mut self.rng.police) {
             return None;
         }
         let render = space::to_render(request.at.to_array());
@@ -148,13 +148,19 @@ impl TrafficWorld {
         nav.half_width = model.model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
         if !chase {
-            nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, &mut self.rng);
+            nav.advance_with_lookahead(
+                &self.network,
+                START_LOOK_AHEAD,
+                Vec3::ZERO,
+                START_LOOK_AHEAD,
+                &mut self.rng.police,
+            );
         }
         let role = match performance {
             Some(performance) if chase => Role::Cop(Box::new(CopState::new(model.car, performance, speed))),
             _ => Role::Traffic,
         };
-        let start = Start { stagger: (self.rng.next_f32() * 8.0) as u32, speed, cruise, patrol: !chase };
+        let start = Start { stagger: (self.rng.police.next_f32() * 8.0) as u32, speed, cruise, patrol: !chase };
         AiCar::place(&model.model, role, nav, spawn, start, &WorldGround { collision, surfaces })
     }
 

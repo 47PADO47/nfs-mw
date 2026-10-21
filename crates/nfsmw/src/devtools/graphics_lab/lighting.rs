@@ -44,6 +44,11 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
                 ui.small("Single fitted perspective map; original camera and sun/cloud strength. Caster selection and vendor filtering remain incomplete. Stock size: 1024; larger maps need no new assets.");
             }
             super::controls::choice(ui, "Map resolution", &mut lab.options.shadow_resolution, &[512, 1024, 2048, 4096, 8192], defaults.shadow_resolution);
+            ui.add_enabled_ui(lab.caps.is_some_and(|caps| caps.separate_shadow_casters), |ui| {
+                super::controls::slider(ui, &mut lab.options.shadow_caster_min_radius, 0.0..=5.0,
+                    "Minimum scenery caster radius (m)", defaults.shadow_caster_min_radius);
+                ui.small("0 keeps all scenery shadows. Higher values omit small static casters; vehicles and dynamic props remain.");
+            });
             ui.add_enabled_ui(lab.options.shadow_projection.is_none(), |ui| {
                 super::controls::checkbox(ui, &mut lab.options.wide_shadow_detail, "Wide-detail cascades", defaults.wide_shadow_detail)
                     .on_hover_text("Keeps the first two cascades detailed over a wider area, with separate map resolution and consistent filter softness. Overrides legacy tight focus. Higher resolutions cost GPU time and memory.");

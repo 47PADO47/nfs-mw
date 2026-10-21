@@ -1,4 +1,5 @@
 mod builder;
+mod filtered;
 mod rigid;
 mod skin;
 

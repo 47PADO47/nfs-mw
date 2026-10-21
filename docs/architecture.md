@@ -23,7 +23,7 @@ The [`libs/`](../libs) crates, one per format, codec or rule set, are listed wit
   drivers and car sound.
 - **Graphics:** `blackbox-gfx` is the renderer-neutral interface. The renderers behind it are optional leaf crates.
 - **Shared plumbing:** `game-install` (the only crate that finds and reads the install), `blackbox-hash` and
-  `blackbox-sequence`.
+  `blackbox-sequence`; `blackbox-net-core` holds the generic netcode layers.
 
 ### Game crates
 
@@ -465,8 +465,6 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 
 ## Roadmap
 
-The milestones and what is done in each are in [roadmap.md](roadmap.md).
-
-Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
-multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md), [specs](specs/multiplayer/README.md)) and the telemetry
+The milestones and what is done in each are in [roadmap.md](roadmap.md). Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
+multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)) and the telemetry
 server ([ADR 0007](decisions/0007-telemetry-server.md), [specs](specs/telemetry/README.md)).

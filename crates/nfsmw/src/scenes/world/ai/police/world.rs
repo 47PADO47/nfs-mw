@@ -70,7 +70,7 @@ impl super::super::TrafficWorld {
         self.update_hiding(dt, at);
         let sensed = Sensed {
             seen: self.sighting(level).seen,
-            unit_random: self.rng.next_f32(),
+            unit_random: self.rng.police.next_f32(),
             on_road: self.near_road(at),
             nearest_cop: self.nearest_cop(at),
             hit_traffic: self.sighting(level).recent_hit,
@@ -79,9 +79,9 @@ impl super::super::TrafficWorld {
             hidden: self.police.hiding.latch.hidden(),
             hidden_from_heli: self.police.hiding.latch.from_helicopters(),
             in_tunnel: self.in_tunnel(at),
-            formation_random: [self.rng.next_f32(), self.rng.next_f32()],
+            formation_random: [self.rng.police.next_f32(), self.rng.police.next_f32()],
             formation_gap: self.formation_gap(at, player.forward),
-            support_random: self.rng.next_f32(),
+            support_random: self.rng.police.next_f32(),
         };
         // The busted timer's inputs. `flashing` is the post-reset blink, started by a manual reset (FairBusts' penalty).
         let bust = BustInput {
@@ -100,7 +100,7 @@ impl super::super::TrafficWorld {
         self.publish_to_mods();
         if busted {
             log::info!("the player is busted: the pursuit ends");
-            self.police.start_bust(self.rng.next_f32());
+            self.police.start_bust(self.rng.police.next_f32());
             self.end_pursuit(EndReason::Busted);
             return;
         }

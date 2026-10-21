@@ -1,6 +1,10 @@
 //! The shared scenery models of a track (poles, cones, bins...): the models the map tiles place, kept in the
 //! track's non-spatial sections (docs/formats/maps.md). The asset viewer lists them and shows one at a time.
 
+mod selected;
+#[cfg(test)]
+mod tests;
+
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
@@ -87,6 +91,10 @@ impl SharedAssets {
                 textures.entry(texture.name_hash).or_insert(texture);
             }
         }
+        Ok(Self::assemble(solids, anims, textures))
+    }
+
+    fn assemble(solids: Vec<Solid>, anims: Vec<TextureAnim>, textures: HashMap<u32, Texture>) -> Self {
         let mut seen = HashSet::new();
         let mut assets: Vec<Asset> = solids
             .into_iter()
@@ -107,7 +115,7 @@ impl SharedAssets {
             })
             .collect();
         assets.sort_by_key(|a| a.solid.name.to_ascii_lowercase());
-        Ok(Self { assets })
+        Self { assets }
     }
 
     /// The name of each model, in the order [`model`](Self::model) takes indices.

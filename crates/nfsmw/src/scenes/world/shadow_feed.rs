@@ -47,6 +47,9 @@ impl WorldScene {
         }
         let props = self.residency.props();
         for p in self.residency.shadow_placed() {
+            if !admits_scenery(p.radius, p.prop_id, settings.shadow_caster_min_radius) {
+                continue;
+            }
             // Authored shadow overlays are receivers/art, not physical occluders.
             if !p.casts_sun_shadow || p.original_shadow || props.hidden(p.prop_id) {
                 continue;
@@ -80,9 +83,24 @@ fn stable_mesh<T: Copy>(lods: &[Option<T>; 4]) -> Option<T> {
     lods.iter().flatten().next().copied()
 }
 
+fn admits_scenery(radius: f32, prop_id: u32, minimum: f32) -> bool {
+    // Keep dynamic props, unknown radii, and the full-detail default intact.
+    prop_id != NOT_A_PROP || minimum <= 0.0 || radius <= 0.0 || !radius.is_finite() || radius >= minimum
+}
+
 #[cfg(test)]
 mod tests {
     use super::stable_mesh;
+
+    #[test]
+    fn scenery_detail_preserves_dynamic_props_and_the_full_detail_default() {
+        assert!(super::admits_scenery(0.1, 0, 0.0));
+        assert!(!super::admits_scenery(0.1, 0, 1.0));
+        assert!(super::admits_scenery(0.1, 12, 1.0));
+        assert!(super::admits_scenery(1.0, 0, 1.0));
+        assert!(super::admits_scenery(f32::NAN, 0, 1.0));
+        assert!(super::admits_scenery(0.0, 0, 1.0));
+    }
 
     #[test]
     fn a_missing_coarse_lod_never_removes_a_detailed_caster() {

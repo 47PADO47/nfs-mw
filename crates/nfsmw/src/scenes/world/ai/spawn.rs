@@ -76,7 +76,7 @@ impl TrafficWorld {
             Pick::Patrol(i) => &self.cop_models[i].model,
         };
         let occupied = self.population_slots(focus);
-        let rng = &mut self.rng;
+        let rng = &mut self.rng.population;
         let probe = match pick {
             Pick::Traffic(_) => traffic_probe(rng, focus, &self.policy),
             Pick::Patrol(_) => patrol_probe(rng, cop_probe_focus(&self.cops, focus)),
@@ -224,12 +224,12 @@ impl TrafficWorld {
                 at[1]
             );
         }
-        let index = self.rng.index(self.models.len());
+        let index = self.rng.population.index(self.models.len());
         let physics_at = Vec3::from(space::to_physics(Vec3::new(at[0], at[1], 0.0)));
         let dir = Vec3::from(space::to_physics(Vec3::new(heading.cos(), heading.sin(), 0.0)));
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
         if !nav.init_at_point(&self.network, &self.index, physics_at, dir, false)
-            || !nav.can_traffic_spawn(&self.network, &mut self.rng)
+            || !nav.can_traffic_spawn(&self.network, &mut self.rng.population)
         {
             return false;
         }
@@ -244,10 +244,16 @@ impl TrafficWorld {
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, &mut self.rng);
+        nav.advance_with_lookahead(
+            &self.network,
+            START_LOOK_AHEAD,
+            Vec3::ZERO,
+            START_LOOK_AHEAD,
+            &mut self.rng.population,
+        );
         let cruise = Cruise::default();
         let start = Start {
-            stagger: (self.rng.next_f32() * 10.0) as u32,
+            stagger: (self.rng.population.next_f32() * 10.0) as u32,
             speed: START_SPEED_FACTOR * cruise.street.min(cruise.highway),
             cruise,
             patrol: false,

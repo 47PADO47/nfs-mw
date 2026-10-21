@@ -439,7 +439,7 @@ Values follow part 1's text rules. Every key is native-only in effect; the menu 
 
 | Key | Default | Values | Env | CLI | Console | Menu row (Video options) |
 |---|---|---|---|---|---|---|
-| `reflection_distance` | `unlimited` | `unlimited`, `original` | `NFSMW_REFLECTION_DISTANCE` | `--reflection-distance` | yes | Reflection Distance |
+| `reflection_distance` | `unlimited` | `unlimited`, `original`, `25m`–`2000m` | `NFSMW_REFLECTION_DISTANCE` | `--reflection-distance` | yes | Reflection Distance |
 | `reflection_lod` | `capture` | `capture`, `view` | `NFSMW_REFLECTION_LOD` | `--reflection-lod` | yes | Reflection Detail |
 | `reflection_content` | `original` | `original`, `restored` | `NFSMW_REFLECTION_CONTENT` | `--reflection-content` | yes | Reflection Content |
 | `vehicle_reflection_brightness` | `100%` | `N%` or `N`, 0 to 300 | `NFSMW_VEHICLE_REFLECTION_BRIGHTNESS` | `--vehicle-reflection-brightness` | yes | Vehicle Reflection Brightness |

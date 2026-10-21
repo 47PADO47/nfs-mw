@@ -283,8 +283,10 @@ impl Worker {
     /// `XO_SPIKEBELT_1B_DW_00`); the rest of the shared set is dropped.
     fn roadblock_props(&self) -> Result<Loaded, String> {
         use crate::scenes::world::ai::roadblock::props::{SAWHORSE_MODEL, SPIKE_MODEL};
-        let shared = nfsmw_data::world::SharedAssets::load(&self.dir, nfsmw_data::world::DEFAULT_TRACK)
-            .map_err(|e| format!("the shared scenery: {e:#}"))?;
+        let hashes = [SPIKE_MODEL, SAWHORSE_MODEL].map(blackbox_hash::bstring_hash);
+        let shared =
+            nfsmw_data::world::SharedAssets::load_selected(&self.dir, nfsmw_data::world::DEFAULT_TRACK, &hashes)
+                .map_err(|e| format!("the shared scenery: {e:#}"))?;
         let model = |name: &str| {
             shared
                 .find(name)

@@ -11,8 +11,9 @@ Closed at **unverified**, by the project owner's decision. Re-read on 2026-10-16
 the peer lookup (`peerIP`, `peerPort`), the UDP receive and dispatch, and the ack mechanism. Resolved in code:
 the datagram layout is 25 bytes on both sides. Not verified: any wire-level behaviour, since no capture
 exists. No protocol client or server exists. The tools here are a patch-set checker, an HTTP framing probe
-and a datagram codec whose layout is wrong (see [its note](#cob-datagram-codec-wrong-layout)). A capture of
-a real session would confirm the layout and the game payload.
+and a datagram codec that uses the 25-byte layout (rewritten after the client path was read). A capture of
+a real session would confirm the layout and the game payload. The race-level messages that ride above this
+channel are in [original race netcode](original-race-netcode.md).
 
 ## Sources read
 
@@ -302,7 +303,7 @@ Ghidra check on the stock PC `speed.exe` **[verified]**:
 - **Datagram handler, `0x008652D0`** **[verified in disassembly]**: for each datagram from a known peer it
   updates the peer's counters (`+0x450`, a sequence count, and `+0x454`, a running total) and a time
   difference from `+0x14` (a division by a constant). If the datagram is from a new address, it resets
-  `+0x450`. Then it compares the datagram's tag at offset 4 with `COb` (`0x0090D4F8`), `0x0090D500` and
+  `+0x450`. Then it compares the datagram's tag (at offset 4 of the handler's argument, which is datagram offset 0; see the client path section) with `COb` (`0x0090D4F8`), `0x0090D500` and
   `0x0090D504`, and `0x0090D4FC` (`DSC`), and acts on the match:
   - `COb`: when the peer state at `+0x28` is 1, it calls `0x008650A0` (a reply). It copies five dwords
     from datagram offset 8 into the peer record at `+0x10`..`+0x20`, reads a byte at datagram offset `0x1C`
@@ -444,7 +445,7 @@ From reading the source and README. None are confirmed in game.
 ## Relevance to the rewrite
 
 The rewrite targets single-player gameplay on the original PC build (see [roadmap.md](../roadmap.md) and
-[licensing.md](../licensing.md)). Online play is not on the roadmap. This spec records the one piece of
+[licensing.md](../licensing.md)). Online play is on the roadmap as milestones 10 and 11 with a new protocol ([ADR 0006](../decisions/0006-multiplayer-netcode.md)), not this one. This spec records the one piece of
 prior art that shows how the game's online layer can be run and patched, so that a future decision has
 facts to start from.
 
