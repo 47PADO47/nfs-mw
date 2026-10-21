@@ -29,7 +29,7 @@ e_machine = 8 (EM_MIPS)           even on PC, a leftover of the PS2-era toolchai
 e_flags   = 0x20924000
 ```
 
-All 188 EAGL objects in the install (64 skeletons + 124 animation banks) follow this pattern. EA's
+All 194 EAGL objects in the install (67 skeleton and 127 animation chunks, counting the copies in `GLOBAL`) follow this pattern. EA's
 offline tools produce these "objects", and at load time the game links them in memory. The decomp has
 the loader: `eagl4supportdlopen.cpp` (a small `dlopen`) and `eagl4supportsympool.cpp` (symbol lookup).
 
@@ -50,18 +50,18 @@ The symbol names follow the pattern `__<Type>:::<name>`:
 | Symbol | Meaning | Example |
 |---|---|---|
 | `__Skeleton:::<rig>` | the skeleton object | `__Skeleton:::Bip24` |
-| `__Bone:::<rig>.<bone>` | one bone; its value is an offset into `.data`, and bones are spaced 16 bytes apart | `__Bone:::Bip21.Bip21 L Thigh`, `__Bone:::Bip24.Cuff02` |
+| `__Bone:::<rig>.<bone>` | one bone; its value is the offset of the bone's 16-byte index record in `.data` (the 112-byte bone records follow the skeleton header; see [eagl-animation-skeleton.md](../specs/eagl-animation-skeleton.md)) | `__Bone:::Bip21.Bip21 L Thigh`, `__Bone:::Bip24.Cuff02` |
 | `__AnimationBank:::bank` | entry point of an animation bank | |
 | `__EAGL_TOOLLIB_VERSION:::EAGL_TOOLLIB_VERSION-3` | tool version marker (weak symbol) | |
 
-Totals: 2,532 bone symbols, 64 skeletons, 124 banks. The bone names (`Bip21 Spine 1`, `Bip21 R Upperarm`,
+Totals in the NIS bundles: 2,532 bone symbols, 64 skeletons, 111 animation objects (the install as a whole: 67 skeleton and 127 animation chunks). The bone names (`Bip21 Spine 1`, `Bip21 R Upperarm`,
 `Bip21 Cheek L`, …) are **3ds Max Character Studio Biped** names, so the characters were rigged with
 Biped in 3ds Max. Character skeletons include facial bones (brows, cheeks, jaw, eyes).
 
 ### Relocations
 
-Every relocation in all 188 objects is type **2 = `R_MIPS_32`**: a 32-bit absolute pointer (4,772 in
-total). To "load" an object without the game:
+Every relocation is type **2 = `R_MIPS_32`**: a 32-bit absolute pointer against the `.data` section symbol (4,838
+entries over the 127 animation chunks; skeleton objects have none). To "load" an object without the game:
 
 1. Read `.data`.
 2. For each `.rel.data` entry `(r_offset, r_info)`: `word_at(r_offset) += address_of(symbol(r_info >> 8))`.

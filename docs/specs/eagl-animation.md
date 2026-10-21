@@ -20,7 +20,7 @@ open.
   [formats/animation.md](../formats/animation.md).
 - Each `EAGLAnimations` payload is 8 bytes of `0x11` padding and then an ELF32 relocatable object (`ET_REL`,
   `EM_MIPS`, relocations `R_MIPS_32` only).
-- The airliner's object is the ELF that starts at offset **1,409,088** in `TRACKS/L2RA.BUN` (1,504 bytes).
+- The airliner's object is the ELF that starts at offset **1,409,088** in `TRACKS/L2RA.BUN` (1,488 bytes of ELF in a 1,496-byte chunk payload).
   Its symbol table holds one `__AnimationBank:::bank` symbol at `.data` offset **0x330**, and no other bank.
 - The bank names inside the object are `ANM_AirlinerA_10_XO_AirlinerA_1b_LB_10_q`, `..._s` and `..._t`. The
   suffixes are bank names. They do not select the codec: the airliner's `_s` entry is a DeltaF3 channel, and
