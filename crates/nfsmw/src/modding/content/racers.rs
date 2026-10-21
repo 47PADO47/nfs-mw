@@ -38,11 +38,15 @@ fn read_names(m: &ModDir) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
 
+    /// A folder of its own for each call: the tests run in parallel and would otherwise write one `mod.toml` over the other.
     fn names_of(manifest: &str) -> Vec<String> {
-        let dir = std::env::temp_dir().join(format!("nfsmw-mod-racers-{}", std::process::id()));
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        let call = CALLS.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("nfsmw-mod-racers-{}-{call}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("mod.toml"), manifest).unwrap();
         read_names(&ModDir { id: "example.racers".to_owned(), dir })
