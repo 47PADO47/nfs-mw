@@ -14,7 +14,7 @@ const WHITE: [u8; 4] = [255; 4];
 #[derive(Default)]
 pub struct SplitOverlay {
     pending: [Option<CaptureId>; 2],
-    /// Which half asks for its next picture first (the other follows on the next frame), so both stay as fresh.
+    /// Whose picture is asked for next: the halves alternate.
     turn: usize,
     /// The base layer the composed one was made from, and the window size it was made for.
     composed_from: Option<(UiLayer, [u32; 2])>,
@@ -137,29 +137,31 @@ impl SplitOverlay {
         self.composed_from = Some((base.clone(), surface));
     }
 
+    /// Asks for the next picture. The renderer takes one view capture at a time, so the halves are captured in turn: each
+    /// is refreshed every other capture.
     fn request(&mut self, renderer: &mut dyn RenderBackend, scene: &mut dyn Scene, surface: [u32; 2]) {
+        if self.pending.iter().any(Option::is_some) {
+            return;
+        }
         let size = half_size(surface);
         let aspect = size[0] as f32 / size[1] as f32;
+        let player = self.turn % 2;
+        let Some((params, instances)) = scene.split_view(player, aspect) else { return };
         let hides_ui = !renderer.capabilities().view_capture_without_ui;
-        for step in 0..2 {
-            let player = (self.turn + step) % 2;
-            if self.pending[player].is_some() {
-                continue;
-            }
-            let Some((params, instances)) = scene.split_view(player, aspect) else { continue };
-            if hides_ui {
-                renderer.set_ui_layer(UiLayer::default());
-            }
-            let started = renderer.request_view_capture(size, &params, instances);
-            if let Some(layer) = self.composed.as_ref().filter(|_| hides_ui) {
-                renderer.set_ui_layer(layer.clone());
-            }
-            match started {
-                Ok(id) => self.pending[player] = Some(id),
-                Err(e) => log::warn!("split screen: the capture of player {} could not start: {e}", player + 1),
-            }
+        if hides_ui {
+            renderer.set_ui_layer(UiLayer::default());
         }
-        self.turn = (self.turn + 1) % 2;
+        let started = renderer.request_view_capture(size, &params, instances);
+        if let Some(layer) = self.composed.as_ref().filter(|_| hides_ui) {
+            renderer.set_ui_layer(layer.clone());
+        }
+        match started {
+            Ok(id) => {
+                self.pending[player] = Some(id);
+                self.turn += 1;
+            }
+            Err(e) => log::warn!("split screen: the capture of player {} could not start: {e}", player + 1),
+        }
     }
 }
 

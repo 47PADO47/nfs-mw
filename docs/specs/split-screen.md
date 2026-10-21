@@ -103,7 +103,7 @@ whose `SELECTABLE` attribute is off in two-player mode is not offered **[decomp]
 
 **This rewrite [ours]:** the world draws each half through the renderer's off-screen view capture (the rear-view mirror's
 path: `RenderBackend::request_view_capture`, `app/mirror.rs`) at the half's size, and the UI layer puts the two pictures one
-above the other with the player HUDs over them. No renderer backend changes. The cost is a read-back and an upload of two
+above the other with the player HUDs over them. No renderer backend changes. The native renderer takes one view capture at a time (`blackbox-render/src/gpu/view_capture.rs`), so the halves are captured in turn and each is refreshed every other capture (checked offscreen: `race start 10_2_1_sprint split=PORSCHE911` with `view-world --drive --screenshot` shows both halves, both cars, both HUDs and the map). The cost is a read-back and an upload of two
 half-screen images per frame, and the pictures lag by the capture's latency (a few frames on some backends); a native
 viewport in the backends is the follow-up that removes both (open question 1).
 
@@ -169,7 +169,7 @@ A player holds a device, as the original maps a player to a controller port **[d
 
 ## 8. Open questions
 
-1. Backend viewports instead of two captures (cost and latency, section 4).
+1. Backend viewports, or a second view-capture slot in `blackbox-render`, instead of captures in turn (cost, latency and each half's refresh rate, section 4).
 2. The PC build's own widescreen handling of the split HUDs (section 4.1 settles the half rectangles: the window cut in two).
 3. A pad unplugged mid-race: pause as the single-player game does for the active pad.
 4. The two-player sound mix.
