@@ -112,12 +112,14 @@ fn the_race_readout_binds_the_single_race_hud_objects() {
     let text = |hash: u32| node(hash).text.clone().unwrap_or_default();
     assert_eq!(text(0x9C18_3BF8), "3", "place");
     assert_eq!(text(0x3BBD_6268), "6", "racers");
-    assert_eq!((text(0x1CDD_D8D0).as_str(), text(0x18A7_ACD2).as_str()), ("2", "4"), "lap");
+    // A lapped race says LAP 2/4 in the progress group (the original's `%d/%d`); the group is not the tollbooth's.
+    assert_eq!(text(0x9CB5_C95D), "2/4", "lap");
+    assert_eq!(fe_hash_upper("Complete_Text"), 0x328F_1B7C, "the caption of the progress group");
     assert_eq!(text(fe_hash_upper("CurrentLapTime")), "01:15.50", "clock");
     assert_eq!(text(0xB969_E9EF), "2", "countdown step");
     assert!(node(fe_hash_upper("CurrentLapTime")).visible, "clock");
-    assert!(node(0x1A09_1045).visible, "lap group");
-    assert!(!node(0xE3DD_CD09).visible, "a lapped race shows the lap group, not the progress");
+    assert!(node(0xE3DD_CD09).visible, "the progress group");
+    assert!(!node(0x1A09_1045).visible, "the tollbooth milestone group is not bound");
     let g = node(fe_hash_upper("321_GO_GROUP"));
     assert!(
         g.visible,
@@ -126,6 +128,12 @@ fn the_race_readout_binds_the_single_race_hud_objects() {
         rt.script_of(rt.find(id, fe_hash_upper("321_GO_GROUP")).unwrap())
     );
     assert_eq!(rt.script_of(rt.find(id, fe_hash_upper("321_GO_GROUP")).unwrap()), Some(fe_hash_upper("TWO")));
+    // A sprint says COMPLETE 99 % (the original's `%d %%`, with a space, the percent cut off).
+    let sprint = RaceHud { lap: None, progress: 0.997, count: None, ..race };
+    binding.apply(&mut rt, &HudState { race: Some(sprint), ..Default::default() });
+    let tree = rt.tree(id);
+    let progress = tree.nodes.iter().find(|n| n.name_hash == 0x9CB5_C95D).unwrap();
+    assert_eq!(progress.text.as_deref(), Some("99 %"), "progress");
     // Out of the race the group goes away again.
     let idle = HudState::default();
     binding.apply(&mut rt, &idle);
@@ -170,4 +178,56 @@ fn the_drag_hud_shows_the_race_readout_and_turns_its_needle() {
     let lines: Vec<_> = tree.nodes.iter().filter(|n| n.name_hash == 0xDA76_8EA6).collect();
     assert_eq!(lines.len(), 2, "the shadow and the face");
     assert!(lines.iter().all(|n| n.text.as_deref() == Some("Checkpoint 2/3")), "the generic message text");
+}
+
+/// The real `HUD_SingleRace.fng` shows the leaderboard's rows with their text, highlights the player's backing, and hides
+/// the rows past the racers and the online headsets (`hud/leaderboard.rs`).
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_leaderboard_binds_the_single_race_hud_rows() {
+    use super::leaders::{Entry, LeaderRow, Leaders};
+    use super::race::RaceHud;
+    use super::state::HudState;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    let entry = |place: u32, name: &str, percent: f32| Entry {
+        place,
+        player: place == 2,
+        row: LeaderRow { name: name.into(), percent, points: 0.0, out: false, busted: false },
+    };
+    let entries = vec![entry(1, "ROG", 60.0), entry(2, "stock", 50.0), entry(3, "DOM", 40.0)];
+    let leaders = Leaders::pick(entries, 2000.0, false);
+    let race = RaceHud { place: 2, racers: 3, lap: None, clock: 5.0, progress: 0.5, count: None };
+    let state = HudState { race: Some(race), leaders: Some(leaders), use_mph: true, ..Default::default() };
+    let mut run = |rt: &mut Runtime, frames: usize| {
+        for _ in 0..frames {
+            binding.advance_mirror_fade(1.0 / 60.0);
+            binding.apply(rt, &state);
+            rt.update(1.0 / 60.0);
+        }
+    };
+    run(&mut rt, 20);
+    let tree = rt.tree(id);
+    let node = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+    for k in 0..3 {
+        assert!(node(0x2AF8_9FD7 + k).visible && node(0x4183_E0A1 + k).visible, "row {k}");
+        assert!(node(0x4FDD_D64C + k).visible, "backing {k}");
+        assert!(!node(0x51F5_B673 + k).visible, "the online headset of row {k}");
+    }
+    assert!(!node(0x2AF8_9FDA).visible && !node(0x4FDD_D64F).visible, "no fourth row");
+    assert_eq!(node(0x2AF8_9FD7).text.as_deref(), Some("ROG"));
+    assert_eq!(node(0x4183_E0A2).text.as_deref(), Some("2"));
+    let backing = rt.find(id, 0x4FDD_D64D).unwrap();
+    assert_eq!(rt.script_of(backing), Some(0x249D_B7B7), "the player's backing is highlighted");
+    // Past the swap the rows say the gaps: 10 percent of 2000 m is 200 m, 656 ft.
+    run(&mut rt, 96);
+    let tree = rt.tree(id);
+    let text = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap().text.clone().unwrap_or_default();
+    assert_eq!(text(0x2AF8_9FD7), "+656 FT");
+    assert_eq!(text(0x2AF8_9FD8), "-----");
+    assert_eq!(text(0x2AF8_9FD9), "-656 FT");
 }

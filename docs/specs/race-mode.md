@@ -186,9 +186,25 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
 (`docs/provenance/race-mode.md` section 9):
 
 - `POSITION_GROUP` shows the place and the number of racers (two strings), `CurrentLapTime` the clock (`mm:ss.cc`: the
-  time left under a time limit, else the time since GO **[unconfirmed]** for which one the original shows), the lap group
-  the lap now and the laps in all for a lapped race, the progress group (`100% COMPLETE`) the share of the gates done
-  for a sprint **[unconfirmed]** (which race kinds use it).
+  time left under a time limit, else the time since GO **[unconfirmed]** for which one the original shows). The progress group
+  under it says `COMPLETE 99 %` (the racer's percent cut off, `%d %%`) for a sprint, a tollbooth and a speed-trap race, and
+  `LAP 2/4` (`%d/%d`) for every other race type, a circuit and a knockout **[exe]** (`docs/provenance/race-leaderboard.md`
+  section 5). The lap group of the package is the tollbooth milestone group: not bound, hidden (the tollbooth's own branch of
+  the original, which hides the place group, is not done).
+- **The leaderboard** (`LeaderBoardGroup`, `hud/leaders.rs`, `hud/leaderboard.rs`; `HudState::leaders`) **[exe]**: four rows at
+  the top right under the clock, in `HUD_SingleRace.fng` only (a drag race has none, nor has a race of one racer). The rows are
+  the four best placed racers, first place first; the place number is in each row. Their value text swaps every 90 HUD updates
+  (1.5 s at 60 per second **[unconfirmed]**) between the racer's name and a status, through the strings' `LEAVE` and `ENTER`
+  scripts (160 ms each): the rows slide out, and back in with the other text. **The slide is that swap, not a reaction to a place
+  changing.** The status is, in order: `BUSTED` for a busted racer, `K.O.` for one that is out; in a speed-trap race the points in
+  `KM/H` or `MPH`; `-----` for the player; else the gap to the player, `-609 FT` when the racer is that far behind and `+609 FT`
+  when ahead, from the racers' percent: `|difference| * 0.01 * race length`, in feet (times 3.28084) with the imperial setting
+  or in metres with the metric one (`M`), with the locale's digit grouping (`-1,312 FT`). The race length is the straight lines
+  between the start, the gates and the finish, times the laps. The player's backing plays `HIGHLIGHT` (orange) and the others rest
+  in `INIT`. Rows past the racers are hidden. The player's name is the loaded alias, else `player`. Not read: what the
+  original's second integer of a row holds (the rewrite shows the place), and the row of a player who is not in the top four (the
+  rewrite highlights none and measures the gaps from the player anyway) **[unconfirmed]**. Tests: `hud/leaders_tests.rs`,
+  `hud/leaderboard_tests.rs`, and with the install `hud/race_install_tests.rs`.
 - `321_GO_GROUP` plays its `THREE`, `TWO`, `ONE` and `GO` scripts when the countdown step changes; its two strings take
   the digit or `Go!`.
 - A drag race shows `HUD_Drag.fng` (`HudState::drag`). It reuses the names of the race HUD for its speed digits and
@@ -278,6 +294,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 | The drag race's steering assist and lanes | `race/drag.rs`, `drive/grid.rs` |
 | The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
 | The place, lap, clock, progress and 3-2-1-GO | `hud/race.rs` (the HUD package's objects) |
+| The leaderboard | `scenes/world/race/card.rs` (`race_leaders`), `hud/leaders.rs`, `hud/leaderboard.rs` |
 | The banner, the points and the race-over message | `hud/race_card.rs` (egui) |
 | The post-race screen (three pages), the rewards screen | `frontend/post_race/`, `frontend/rewards.rs`, `race/report.rs`, `libs/blackbox-race/src/stats.rs` |
 | The mods' view of the races | `modding/races_feed.rs`, `backends/races.rs`, `race/mods.rs` |

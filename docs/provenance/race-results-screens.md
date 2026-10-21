@@ -60,9 +60,10 @@ when two flags of the game's settings object (`+0x12C` bits 3 and 6) are set (an
 `0x0059F0E0`) finds, for k from 1 to 4, `LBData_k` (the value string, `0x2AF89FD7` + k - 1), `LeaderText_k` (the place number,
 `0x4183E0A1` + k - 1), `OL_ICON_k` (the online headset) and `LBBacking_k` (the row's backing, `0x4FDDD64C` + k - 1). Four
 rows, in rank order. In the screenshot the player's row is the highlighted one with `-----` and the others show their gap in
-feet (`-609 FT`). The strings carry two scripts each, `0x5079C8F8` and `0x033113AC` (160 ms, position and scale tracks): the
-slide of a row that changes place. The update routine is reached through a vtable the decompiler does not resolve, so the
-gap's sign and reference are inferred from the screenshot **[unconfirmed]**.
+feet (`-609 FT`). The strings carry two scripts each, `ENTER` `0x5079C8F8` and `LEAVE` `0x033113AC` (160 ms, position and scale tracks): the slide
+of the rows when their text swaps between the names and the gaps. The update routine was read afterwards (it is vtable slot
+1 of `0x008A237C`, at `0x0058C160`): [race-leaderboard](race-leaderboard.md) has the rules, the gap's sign and unit and what
+feeds the rows.
 
 ## 4. The racer record and what the pages read **[exe]**
 

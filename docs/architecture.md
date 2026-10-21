@@ -342,9 +342,8 @@ with `Scene::hud_state`; nothing else knows FEng.
   game's per-frame scroll and turn around the car ([spec](specs/hud-minimap.md), [data](formats/minimap.md)); the
   retail game has no speed zoom. `minimap = fixed|rotating|off` (config file, `NFSMW_MINIMAP`, console `set minimap`;
   fixed, as the original's free roam). Blips of cops and racers wait for milestone 7 (`blackbox_minimap::place_blip`).
-- **Hidden:** the elements that need the race and pursuit state of milestone 7 (radar detector, pursuit, heat, busted,
-  cost-to-state, milestone and race boards, countdown, infractions, speed breaker meter, the wrong-way sign, online
-  fields); the engine temperature gauge (drag HUD only). The runtime still runs their scripts.
+- **Hidden:** radar detector, pursuit, heat, busted, cost-to-state, milestone board, infractions, speed breaker meter,
+  the wrong-way sign, online fields, engine temperature (drag HUD only); a race's own elements: [race-mode](specs/race-mode.md) section 10.
 - **HUD layout:** Gameplay's [HUD Layout](hud-layout.md) chooses PC wide placement, centered 4:3 or the Xbox
   addon's 92% wide scale. A HUD-only viewport shifts the map and all gauge descendants together after their
   rotations; resizing and live preset changes leave package state untouched ([spec](specs/hud-viewport.md)).
@@ -368,8 +367,8 @@ The menus are the install's own FEng screens run by the same runtime and drawn b
   original geometry), `WidgetMenu` (the option rows: titles, data strings, sliders), `Splash`. A screen with no
   logic of its own runs as its package says. `options.rs` maps rows to settings.
 - **Flow.** `Frontend` (a Bevy resource, driven in `FrameSet::Frontend`) decides what the window shows: the boot
-  movies (`ealogo`, `psa` through the movie scene), the title screen, the profile step (the list of saved profiles, or the
-  question to create one when none is saved: `flow_startup.rs`, [spec](specs/boot-profile-prompt.md)), the main menu over an empty backdrop,
+  movies (`ealogo`, `psa` through the movie scene), the title screen, the profile step (`flow_startup.rs`,
+  [spec](specs/boot-profile-prompt.md)), the main menu over an empty backdrop,
   free roam (the world scene, wrapped in `Pausable` so Escape or Start freezes it under the pause menu) and the
   way back. Career starts or resumes a profile (`career::start_or_resume`) and then starts free roam with it. The
   safe house menu, the car lot and the region unlock screen open over the frozen world when the world asks for them

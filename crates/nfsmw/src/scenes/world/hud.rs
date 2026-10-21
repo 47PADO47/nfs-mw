@@ -86,6 +86,7 @@ impl WorldScene {
             }
             self.career.hud.apply(state);
             state.race = self.race_hud();
+            state.leaders = self.race_leaders();
             state.message = self.race_message();
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();
