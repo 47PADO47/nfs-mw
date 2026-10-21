@@ -11,9 +11,9 @@
 //! The rules read the race's story fields as [`StoryFields`]. This crate does not depend on `nfsmw-data`, so the game
 //! crate copies the fields of its `RaceStory` into this struct. An empty text counts as not set, as the Lua does.
 
-pub mod final_race;
 pub mod chase_16_2_1;
 pub mod drive_to_target;
+pub mod final_race;
 pub mod prologue;
 pub mod race_life;
 
