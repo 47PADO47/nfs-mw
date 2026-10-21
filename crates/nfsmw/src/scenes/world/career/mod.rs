@@ -19,6 +19,7 @@ mod rewards;
 mod safehouse;
 pub(super) mod sms_popup;
 mod speedtraps;
+pub(super) mod story_command;
 
 use std::collections::VecDeque;
 

@@ -1,4 +1,5 @@
-//! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props` and `debug`.
+//! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug`,
+//! `race`, `nis`, `movie` and `story`.
 
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
@@ -46,6 +47,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "the NIS cutscenes of the install: list them, play a scene's camera from the car (track 0 unless given), stop it, show it",
     ),
     ("movie <name> | movie stop", "play a movie full screen over the world (a name or part of one), or stop it"),
+    (
+        "story status | race <event id> | arrival | firstvisit",
+        "the story flow: its state (stage, prologue resume, rival beaten, final race on resume), a career race with its intro (16.1.0, 1.8.1), the safe house arrival, the first visit",
+    ),
 ];
 
 pub(super) fn run(
@@ -65,6 +70,7 @@ pub(super) fn run(
         "race" => super::race::race_command(scene, args),
         "nis" => super::nis::nis_command(scene, args),
         "movie" => super::story_movie::movie_command(scene, args),
+        "story" => super::career::story_command::story_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),
