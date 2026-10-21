@@ -67,9 +67,8 @@ impl Session {
         Ok(())
     }
 
-    /// `Lobby` to `Loading`. Every peer enters `Loading`. `now_ms` is accepted for symmetry with the other timed calls;
-    /// the load deadline starts at `host_loaded`.
-    pub fn start_loading(&mut self, _now_ms: u64) -> Result<(), SessionError> {
+    /// `Lobby` to `Loading`. Every peer enters `Loading`. The load deadline starts at `host_loaded`.
+    pub fn start_loading(&mut self) -> Result<(), SessionError> {
         self.require(Phase::Lobby)?;
         for state in self.peers.values_mut() {
             *state = PeerState::Loading;

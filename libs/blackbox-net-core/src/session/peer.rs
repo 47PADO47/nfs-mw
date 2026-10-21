@@ -15,6 +15,4 @@ pub enum PeerState {
     Loaded,
     /// Taking part in the race.
     InGame,
-    /// Gone. A session removes a left peer, so this state is never returned by `Session::peer`.
-    Left,
 }

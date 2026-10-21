@@ -21,7 +21,7 @@ fn session_in(target: Phase) -> Session {
     if s.phase() == target {
         return s;
     }
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     if s.phase() == target {
         return s;
     }
@@ -73,7 +73,7 @@ fn full_path_with_three_peers() {
     }
     assert!(drain(&mut s).is_empty());
 
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     assert_eq!(s.phase(), Phase::Loading);
     assert!(s.peers().all(|(_, state)| state == PeerState::Loading));
 
@@ -127,7 +127,7 @@ fn a_peer_that_never_loads_is_dropped_at_exactly_the_deadline() {
     for id in [P1, P2, P3] {
         s.join(id).unwrap();
     }
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     s.host_loaded(1_000).unwrap();
     s.peer_loaded(P1).unwrap();
     s.peer_loaded(P2).unwrap();
@@ -156,7 +156,7 @@ fn every_unloaded_peer_is_dropped_in_id_order() {
     for id in [P3, P1, P2] {
         s.join(id).unwrap();
     }
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     s.host_loaded(0).unwrap();
     s.peer_loaded(P2).unwrap();
     drain(&mut s);
@@ -176,7 +176,7 @@ fn every_unloaded_peer_is_dropped_in_id_order() {
 #[test]
 fn zero_peers_go_on_at_the_first_update() {
     let mut s = Session::new(SessionConfig::default());
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     s.host_loaded(0).unwrap();
     assert_eq!(s.phase(), Phase::WaitLoads);
     s.update(0, 42);
@@ -187,7 +187,7 @@ fn zero_peers_go_on_at_the_first_update() {
 fn a_peer_may_load_before_the_host() {
     let mut s = Session::new(SessionConfig::default());
     s.join(P1).unwrap();
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     s.peer_loaded(P1).unwrap();
     s.host_loaded(0).unwrap();
     s.update(0, 0);
@@ -199,7 +199,7 @@ fn the_intro_lasts_its_length_then_the_countdown_starts() {
     let config = SessionConfig { load_timeout_ms: 500, intro_ms: 3_000, countdown_ticks: 180 };
     let mut s = Session::new(config);
     s.join(P1).unwrap();
-    s.start_loading(0).unwrap();
+    s.start_loading().unwrap();
     s.host_loaded(0).unwrap();
     s.peer_loaded(P1).unwrap();
     s.update(0, 7);
@@ -275,7 +275,7 @@ fn every_wrong_call_in_every_phase_changes_nothing() {
         let before = s.clone();
 
         if phase != Phase::Lobby {
-            assert_eq!(s.start_loading(0), Err(SessionError::WrongPhase { phase }), "start_loading in {phase:?}");
+            assert_eq!(s.start_loading(), Err(SessionError::WrongPhase { phase }), "start_loading in {phase:?}");
         }
         if phase != Phase::Loading {
             assert_eq!(s.host_loaded(0), Err(SessionError::WrongPhase { phase }), "host_loaded in {phase:?}");
