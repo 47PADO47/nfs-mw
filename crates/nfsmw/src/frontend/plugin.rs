@@ -322,15 +322,7 @@ fn update(
                 fe.next_boot(host, &mut env);
             }
         }
-        Stage::Tutorial => {
-            let skip = actions.just_pressed(Action::MenuAccept)
-                || actions.just_pressed(Action::MenuStart)
-                || actions.just_pressed(Action::MenuBack)
-                || actions.just_pressed(Action::Click);
-            if host.scene.finished() || skip {
-                fe.end_tutorial(host, &mut env);
-            }
-        }
+        Stage::Movie { .. } => fe.movie_frame(&actions, host, &mut env),
         // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {

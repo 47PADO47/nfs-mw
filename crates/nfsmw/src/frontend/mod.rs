@@ -69,6 +69,8 @@ mod disabled_rows_tests;
 #[cfg(test)]
 mod exhaust_flames_tests;
 #[cfg(test)]
+mod flow_movie_tests;
+#[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]
 mod menu_rows_tests;

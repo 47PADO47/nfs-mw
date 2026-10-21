@@ -29,10 +29,10 @@ fn the_title_screen_stays_when_the_movies_are_skipped() {
 
 #[test]
 fn the_profile_step_ends_when_its_last_screen_closes() {
-    assert!(is_over(true, Stage::Menus, None));
-    assert!(!is_over(true, Stage::Menus, Some(MAIN_MENU)), "a screen is still up");
-    assert!(!is_over(false, Stage::Menus, None), "no profile step is running");
-    assert!(!is_over(true, Stage::Playing, None), "the world has the window");
+    assert!(is_over(true, &Stage::Menus, None));
+    assert!(!is_over(true, &Stage::Menus, Some(MAIN_MENU)), "a screen is still up");
+    assert!(!is_over(false, &Stage::Menus, None), "no profile step is running");
+    assert!(!is_over(true, &Stage::Playing, None), "the world has the window");
 }
 
 #[test]

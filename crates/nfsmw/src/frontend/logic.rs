@@ -156,6 +156,13 @@ pub enum Command {
         back: String,
         args: Args,
     },
+    /// Play any movie (`MOVIES/<name>`, a tutorial or a story movie) full screen, then do what `then` says: open a screen
+    /// or run a command (`flow_movie.rs`). The career sends it for the story movies.
+    #[allow(dead_code)] // no caller yet; the career's story movies will send it
+    PlayMovie {
+        movie: String,
+        then: super::flow::flow_movie::AfterMovie,
+    },
     /// The custom race's options page, Defaults answered Yes: the current mode's options go back to their defaults.
     CustomDefaults,
     /// Custom Race, after the transmission: start this race (a gameplay collection name) with this car and options
