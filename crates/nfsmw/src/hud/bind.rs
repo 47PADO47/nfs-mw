@@ -223,7 +223,6 @@ impl HudBinding {
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
             career: s.career_bounty.is_some(),
             race: s.race.is_some(),
-            race_laps: s.race.is_some_and(|r| r.lap.is_some()),
             countdown: s.race.is_some_and(|r| r.count.is_some()),
             leaders: s.leaders.as_ref().map_or(0, |l| l.shown_rows() as u8),
             message: s.message.is_some() || self.race.message_active(),

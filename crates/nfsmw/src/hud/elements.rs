@@ -57,8 +57,6 @@ pub struct Shown {
     pub career: bool,
     /// A race runs: the race information group (place, clock) shows.
     pub race: bool,
-    /// The race has laps: the lap group shows, else the progress group does.
-    pub race_laps: bool,
     /// A countdown step is up: the `321_GO_GROUP` shows.
     pub countdown: bool,
     /// A line of the generic message group is up.
@@ -91,7 +89,6 @@ pub struct Layout {
     bounty_row: Vec<usize>,
     race: Vec<usize>,
     race_lap: Vec<usize>,
-    race_progress: Vec<usize>,
     countdown: Vec<usize>,
     message: Vec<usize>,
     /// The leaderboard's group, the objects of each row, and the online headset icons (held hidden: no online game).
@@ -138,7 +135,6 @@ impl Layout {
             bounty_row: find(&BOUNTY_ROW),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
-            race_progress: find(&[super::race::progress_hash()]),
             countdown: find(&[super::race::count_hash()]),
             message: find(&[super::race::message_hash()]),
             leaders: find(&[leaderboard::GROUP]),
@@ -226,9 +222,9 @@ impl Layout {
         // The parts without a bound feed stay hidden under whatever shows around them.
         for (i, slot) in shown.iter_mut().enumerate() {
             let held = !want.career && self.is_under_any(i, &self.bounty_row);
-            let race_part = (!want.race_laps && self.is_under_any(i, &self.race_lap))
-                || (want.race_laps && self.is_under_any(i, &self.race_progress))
-                || (!want.countdown && self.is_under_any(i, &self.countdown));
+            // The lap group is the tollbooth milestone group (not bound); a lap count shows in the progress group.
+            let race_part =
+                self.is_under_any(i, &self.race_lap) || (!want.countdown && self.is_under_any(i, &self.countdown));
             // The rows past the racers are hidden, and the online headsets always (there is no online game).
             let unused_row = self
                 .leader_rows

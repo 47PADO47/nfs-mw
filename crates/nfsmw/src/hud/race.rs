@@ -12,13 +12,16 @@ const CLOCK_ICON: &str = "TIMER_ICON";
 const POSITION_GROUP: &str = "POSITION_GROUP";
 const PLACE: u32 = 0x9C18_3BF8;
 const RACERS: u32 = 0x3BBD_6268;
-/// The lap group: the lap now and the laps in all.
+/// The group of the tollbooth milestone (the original's `Milestone_TollBooth`): not bound, so it stays hidden.
 const LAP_GROUP: u32 = 0x1A09_1045;
-const LAP_NOW: u32 = 0x1CDD_D8D0;
-const LAP_TOTAL: u32 = 0x18A7_ACD2;
-/// The progress group: the percentage and `COMPLETE`.
+/// The progress group: the number (`99 %`, or `2/4` laps) and its caption (`COMPLETE`, or `LAP`).
 const PROGRESS_GROUP: u32 = 0xE3DD_CD09;
 const PROGRESS: u32 = 0x9CB5_C95D;
+const CAPTION: &str = "Complete_Text";
+/// The caption's labels: `COMPLETE` for a sprint, tollbooth or speed-trap race, `LAP` for the others
+/// (`docs/provenance/race-leaderboard.md` section 5).
+const LABEL_COMPLETE: u32 = 0x59BB_1918;
+const LABEL_LAP: u32 = 0x0000_BF9C;
 /// The countdown group and the two strings of its text (the shadow and the face).
 const COUNT_GROUP: &str = "321_GO_GROUP";
 const COUNT_TEXT: [u32; 2] = [0xB969_E9EF, 0x2DA2_20AA];
@@ -88,7 +91,8 @@ pub struct RaceHud {
     /// The player's place, 1 for first, among `racers`.
     pub place: u32,
     pub racers: u32,
-    /// The lap now and the laps in all; `None` for a sprint.
+    /// The lap now and the laps in all, for a circuit or a knockout (the progress group says `LAP 2/4`); `None` for a
+    /// sprint, a tollbooth or a speed-trap race (it says `COMPLETE 99 %`).
     pub lap: Option<(u32, u32)>,
     /// The seconds on the clock: the time left under a time limit, else the time since GO.
     pub clock: f32,
@@ -112,13 +116,9 @@ pub(super) fn count_hash() -> u32 {
     fe_hash_upper(COUNT_GROUP)
 }
 
-/// The lap and progress groups: shown for a lapped race, and for a sprint, in that order.
+/// The tollbooth milestone group, held hidden.
 pub(super) fn lap_hash() -> u32 {
     LAP_GROUP
-}
-
-pub(super) fn progress_hash() -> u32 {
-    PROGRESS_GROUP
 }
 
 /// Every object of the package with this name hash: two strings can share a name (a shadow and its face).
@@ -132,12 +132,11 @@ fn named_all(rt: &Runtime, package: PackageId, name_hash: u32) -> Vec<ObjectRef>
 pub(super) struct Binding {
     place: Option<ObjectRef>,
     racers: Option<ObjectRef>,
-    /// The lap and progress groups: their authored fade-in is a script on a message this build does not raise, so
-    /// they are held at full alpha while a race runs (as the pursuit board is).
+    /// The progress group: its authored fade-in is a script on a message this build does not raise, so it is held at
+    /// full alpha while a race runs (as the pursuit board is).
     frames: Vec<ObjectRef>,
-    lap_now: Option<ObjectRef>,
-    lap_total: Option<ObjectRef>,
     progress: Option<ObjectRef>,
+    caption: Option<ObjectRef>,
     clock: Option<ObjectRef>,
     count_group: Option<ObjectRef>,
     count_text: Vec<ObjectRef>,
@@ -155,10 +154,9 @@ impl Binding {
         Self {
             place: rt.find(package, PLACE),
             racers: rt.find(package, RACERS),
-            frames: [LAP_GROUP, PROGRESS_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
-            lap_now: rt.find(package, LAP_NOW),
-            lap_total: rt.find(package, LAP_TOTAL),
+            frames: [PROGRESS_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
             progress: rt.find(package, PROGRESS),
+            caption: rt.find(package, fe_hash_upper(CAPTION)),
             clock: rt.find(package, fe_hash_upper(CLOCK)),
             count_group: rt.find(package, fe_hash_upper(COUNT_GROUP)),
             count_text: COUNT_TEXT.iter().filter_map(|h| rt.find(package, *h)).collect(),
@@ -214,21 +212,25 @@ impl Binding {
         if let Some(o) = self.racers {
             rt.set_text(o, r.racers.to_string());
         }
-        if let Some((now, total)) = r.lap {
-            if let Some(o) = self.lap_now {
-                rt.set_text(o, now.to_string());
-            }
-            if let Some(o) = self.lap_total {
-                rt.set_text(o, total.to_string());
-            }
-        }
-        if let Some(o) = self.progress {
-            rt.set_text(o, format!("{}% ", (r.progress.clamp(0.0, 1.0) * 100.0) as u32));
-        }
+        self.progress_text(rt, &r);
         if let Some(o) = self.clock {
             rt.set_text(o, super::pursuit::timer_text(r.clock));
         }
         self.count(rt, r.count);
+    }
+
+    /// The progress group: `LAP 2/4` for a lapped race, else `COMPLETE 99 %` (the original's `%d/%d` and `%d %%`, the percent
+    /// cut off to a whole number) **[exe]**.
+    fn progress_text(&self, rt: &mut Runtime, r: &RaceHud) {
+        if let Some(o) = self.caption {
+            rt.set_label(o, if r.lap.is_some() { LABEL_LAP } else { LABEL_COMPLETE });
+        }
+        let Some(o) = self.progress else { return };
+        let text = match r.lap {
+            Some((now, total)) => format!("{now}/{total}"),
+            None => format!("{} %", (r.progress.clamp(0.0, 1.0) * 100.0) as u32),
+        };
+        rt.set_text(o, text);
     }
 
     /// Starts the countdown step's script on its group when the step changes.
