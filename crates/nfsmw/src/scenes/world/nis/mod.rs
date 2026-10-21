@@ -13,6 +13,7 @@ mod camera;
 mod car_world;
 mod cars;
 mod characters;
+mod cop_cars;
 mod command;
 mod events;
 mod handlers;

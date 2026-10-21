@@ -1,10 +1,12 @@
 //! The cars of a NIS scene in the world: which real car each car channel drives, and the poses the scene gives them each
-//! frame. The channels and their poses are in `cars.rs`. The player's override is `Drive::set_nis_pose` and the traffic's
-//! is `TrafficWorld::set_nis_pose`. Rules: `docs/specs/nis-player.md` sections 7.2 to 7.5.
+//! frame. The channels and their poses are in `cars.rs`, and which kind of car each channel takes in `cop_cars.rs`. The
+//! player's override is `Drive::set_nis_pose` and the traffic's is `TrafficWorld::set_nis_pose`. Rules:
+//! `docs/specs/nis-player.md` sections 7.2 to 7.5.
 
 use glam::{Quat, Vec3};
 
 use super::cars::{self, CarSpot, Target};
+use super::cop_cars::{self, SlotKind};
 use crate::scenes::world::drive::CarPose;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
@@ -13,35 +15,62 @@ use crate::scenes::world::{WorldScene, space};
 const GROUND_REACH: f32 = 20.0;
 
 impl WorldScene {
-    /// Links the playing scene's car channels to the real cars, once per scene. Channel 1 is the player's car. Every other
-    /// channel takes the nearest traffic car that no channel has taken yet. A channel with no car to take stays off, and
-    /// the log says which.
+    /// Links the playing scene's car channels to the real cars, once per scene. Channel 1 is the player's car. A civilian
+    /// channel (`car2`..`car8`) takes the nearest traffic car that no channel has taken yet, never a police car. A cop
+    /// channel (`cop1`..`cop8`) takes the nearest free police car, or a police car the scene spawns when none is free. A
+    /// channel with no car to take stays off. The log says which cop channels borrowed a car, which spawned one, and which
+    /// channels got none.
     pub(in crate::scenes::world) fn link_nis_cars(&mut self) {
         if !self.nis.needs_links() {
             return;
         }
         let mut links = Vec::new();
         let mut taken = Vec::new();
+        let mut borrowed = Vec::new();
+        let mut spawned = Vec::new();
         let mut missing = Vec::new();
-        for (slot, at) in self.nis.car_slots() {
-            let found = match slot {
-                0 => self.drive.as_ref().map(|_| Target::Player),
-                _ => self.traffic.as_ref().and_then(|traffic| traffic.nearest_car(at, &taken)).map(Target::Traffic),
+        for (slot, spot) in self.nis.car_slots() {
+            let kind = cop_cars::slot_kind(slot);
+            let found = match kind {
+                Some(SlotKind::Player) => self.drive.as_ref().map(|_| Target::Player),
+                Some(SlotKind::Civilian) => self
+                    .traffic
+                    .as_ref()
+                    .and_then(|traffic| traffic.nearest_car(spot.position, &taken))
+                    .map(Target::Traffic),
+                Some(SlotKind::Cop) => self.link_cop(spot, &taken),
+                None => None,
             };
             let Some(target) = found else {
                 missing.push(slot + 1);
                 continue;
             };
-            if let Target::Traffic(index) = target {
+            if let Target::Traffic(index) | Target::Spawned(index) = target {
                 taken.push(index);
+            }
+            match (kind, target) {
+                (Some(SlotKind::Cop), Target::Traffic(_)) => borrowed.push(slot + 1),
+                (Some(SlotKind::Cop), Target::Spawned(_)) => spawned.push(slot + 1),
+                _ => {}
             }
             links.push((slot, target));
         }
-        if !missing.is_empty() {
-            let name = self.nis.playing_name().unwrap_or_default();
-            log::info!("NIS {name}: no car for channel(s) {missing:?}; they stay off");
-        }
+        let name = self.nis.playing_name().unwrap_or_default();
+        log::info!(
+            "NIS {name}: cop channel(s) {borrowed:?} borrow a police car, {spawned:?} spawn one; no car for channel(s) {missing:?}"
+        );
         self.nis.set_links(links);
+    }
+
+    /// The police car a cop channel at `spot` takes: the nearest free one of the chase, or a car the scene spawns there.
+    fn link_cop(&mut self, spot: CarSpot, taken: &[usize]) -> Option<Target> {
+        let (collision, _) = self.residency.world_parts();
+        let surfaces = &self.physics.surfaces;
+        let traffic = self.traffic.as_mut()?;
+        let borrowed = traffic.nearest_police(spot.position, taken);
+        cop_cars::choose_cop(borrowed, || {
+            traffic.spawn_nis_cop(spot.position, heading_of(spot.rotation), collision, surfaces)
+        })
     }
 
     /// Drives the playing scene's cars this frame: each linked car takes its spot, lifted onto the ground under it.
@@ -52,12 +81,14 @@ impl WorldScene {
         }
     }
 
-    /// Ends the scene's car work. The player's car stands where the scene left it, at rest, and every car draws its
-    /// physics pose again.
+    /// Ends the scene's car work. The player's car stands where the scene left it, at rest. Every car draws its physics
+    /// pose again: a borrowed police car goes back to the chase. The police cars the scene spawned are removed.
     pub(in crate::scenes::world) fn finish_nis_cars(&mut self) {
+        let mut spawned = Vec::new();
         for (target, spot) in self.nis.take_final_cars().unwrap_or_default() {
             match target {
                 Target::Player => self.stand_player(spot),
+                Target::Spawned(index) => spawned.push(index),
                 Target::Traffic(_) => {}
             }
         }
@@ -66,6 +97,7 @@ impl WorldScene {
         }
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_nis_poses();
+            traffic.remove_cars(&spawned);
         }
     }
 
@@ -77,7 +109,7 @@ impl WorldScene {
                 let pose = spot.map(|spot| posed(spot, drive.pose()));
                 drive.set_nis_pose(pose);
             }
-            Target::Traffic(index) => {
+            Target::Traffic(index) | Target::Spawned(index) => {
                 let Some(traffic) = self.traffic.as_mut() else { return };
                 let pose = spot.and_then(|spot| traffic.car_pose(index).map(|base| posed(spot, base)));
                 traffic.set_nis_pose(index, pose);

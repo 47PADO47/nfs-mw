@@ -11,7 +11,6 @@ use blackbox_gfx::{Instance, RenderBackend};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
 use blackbox_sequence::Package;
 use game_install::GameDir;
-use glam::Vec3;
 use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::camera;
@@ -370,12 +369,12 @@ impl NisPlayer {
         }
     }
 
-    /// Each car channel of the playing scene with its slot and its position now, in render space. Empty when no scene
-    /// plays.
-    pub fn car_slots(&self) -> Vec<(usize, Vec3)> {
+    /// Each car channel of the playing scene with its slot and its pose now, in render space and before the ground lift.
+    /// Empty when no scene plays.
+    pub fn car_slots(&self) -> Vec<(usize, CarSpot)> {
         let Some(playing) = self.play.as_ref() else { return Vec::new() };
         let time = playing.run.scene_time();
-        playing.cars.iter().map(|car| (car.slot, car.spot(&playing.anchor, time).position)).collect()
+        playing.cars.iter().map(|car| (car.slot, car.spot(&playing.anchor, time))).collect()
     }
 
     /// The linked cars' poses now, in render space and before the ground lift. Empty when no scene plays or none is

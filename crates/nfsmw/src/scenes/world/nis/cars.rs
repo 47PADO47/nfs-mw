@@ -33,13 +33,15 @@ pub enum Part {
     Rotation,
 }
 
-/// Which real car a car slot drives.
+/// Which real car a car slot drives. The indices are the traffic world's car indices (`ai/nis_poses.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     /// The player's car.
     Player,
-    /// A traffic car, by its index in the traffic world.
+    /// A traffic car: a civilian, or a police car the scene borrows from the chase. The chase keeps it.
     Traffic(usize),
+    /// A police car the scene spawned for its cop channel. The scene removes it when it ends.
+    Spawned(usize),
 }
 
 /// A car's pose in render space: where its model origin is, and how the model is turned.
