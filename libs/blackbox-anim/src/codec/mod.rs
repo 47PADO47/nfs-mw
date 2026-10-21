@@ -3,6 +3,9 @@
 //! The byte layouts and decode rules are in `docs/specs/eagl-animation-codecs.md`. A channel writes its values into
 //! a flat `f32` buffer that holds 12 floats per bone (see [`Channel::sample`]).
 
+mod bins;
+mod delta_f1;
+mod delta_f3;
 mod delta_lerp;
 mod delta_quat;
 mod rows;
@@ -13,6 +16,10 @@ use crate::{Error, Object, Result};
 pub const DELTA_LERP: u16 = 10;
 /// The codec type of a DeltaQuat leaf: four consecutive floats per dof index.
 pub const DELTA_QUAT: u16 = 11;
+/// The codec type of a DeltaF3 leaf: three floats per bone, in bins of 2^power frames.
+pub const DELTA_F3: u16 = 20;
+/// The codec type of a DeltaF1 leaf: one float per bone, in bins of 2^power frames.
+pub const DELTA_F1: u16 = 21;
 
 /// A decoded animation channel.
 pub trait Channel {
@@ -41,6 +48,14 @@ pub fn read_leaf(object: &Object, type_id: u16, offset: u32) -> Result<Box<dyn C
         }
         DELTA_QUAT => {
             let channel: Box<dyn Channel + Send + Sync> = Box::new(delta_quat::read(object, offset)?);
+            Ok(channel)
+        }
+        DELTA_F3 => {
+            let channel: Box<dyn Channel + Send + Sync> = Box::new(delta_f3::read(object, offset)?);
+            Ok(channel)
+        }
+        DELTA_F1 => {
+            let channel: Box<dyn Channel + Send + Sync> = Box::new(delta_f1::read(object, offset)?);
             Ok(channel)
         }
         other => Err(Error::Unsupported(format!("channel codec type {other}"))),

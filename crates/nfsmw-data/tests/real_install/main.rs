@@ -10,6 +10,7 @@
 mod anim_banks;
 mod anim_clips;
 mod anim_codecs;
+mod anim_codecs_f;
 mod anim_skeletons;
 mod career;
 mod carparts;

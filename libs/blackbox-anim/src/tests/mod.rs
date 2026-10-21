@@ -4,6 +4,7 @@
 mod bank;
 mod clip;
 mod codec;
+mod codec_f;
 mod compound;
 mod elf_builder;
 mod fixture;

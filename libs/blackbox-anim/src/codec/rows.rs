@@ -25,7 +25,7 @@ struct DofInfo {
     start: f32,
 }
 
-/// A DeltaChan leaf with its track decoded to dense values.
+/// A channel with its track decoded to dense values: a DeltaChan leaf here, or a binned leaf (`bins.rs`).
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct DeltaTrack {
     frames: u32,
@@ -61,6 +61,12 @@ impl DeltaTrack {
         let dofs =
             (0..num_dofs / width).map(|i| object.u16_at(offset + DOF_LIST_AT + 2 * i)).collect::<Result<Vec<u16>>>()?;
         Ok(Self { frames, dofs, width, values })
+    }
+
+    /// Wraps a track that a codec has already decoded: `values` holds `frames` rows of `dofs.len() * width` values,
+    /// frame-major, with each dof's `width` values in a row.
+    pub(super) fn from_values(frames: u32, dofs: Vec<u16>, width: usize, values: Vec<f32>) -> Self {
+        Self { frames, dofs, width, values }
     }
 
     /// The number of floats one frame holds for this channel.

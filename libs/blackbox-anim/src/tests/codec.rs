@@ -7,7 +7,7 @@ use crate::{Error, Object};
 
 const BLOCK_AT: usize = 0x40;
 /// Written into every slot that a channel must not touch.
-const UNTOUCHED: f32 = -999.0;
+pub(super) const UNTOUCHED: f32 = -999.0;
 
 /// The minimum, range and start value of one dof.
 #[derive(Clone, Copy)]
@@ -66,14 +66,14 @@ fn leaf(type_id: u16, frames: u16, dofs: &[u16], bits: u8, infos: &[Info], rows:
     leaf_with(type_id, frames, dofs, &block(bits, infos, rows))
 }
 
-fn read(object: &Object, type_id: u16) -> Box<dyn Channel + Send + Sync> {
+pub(super) fn read(object: &Object, type_id: u16) -> Box<dyn Channel + Send + Sync> {
     match read_leaf(object, type_id, 0) {
         Ok(channel) => channel,
         Err(error) => panic!("leaf should read: {error}"),
     }
 }
 
-fn read_error(object: &Object, type_id: u16) -> Error {
+pub(super) fn read_error(object: &Object, type_id: u16) -> Error {
     match read_leaf(object, type_id, 0) {
         Ok(_) => panic!("leaf should not read"),
         Err(error) => error,
@@ -81,13 +81,13 @@ fn read_error(object: &Object, type_id: u16) -> Error {
 }
 
 /// The 32 slots of a sample, with `UNTOUCHED` where the channel wrote nothing.
-fn sample(channel: &dyn Channel, frame: f32) -> Vec<f32> {
+pub(super) fn sample(channel: &dyn Channel, frame: f32) -> Vec<f32> {
     let mut out = vec![UNTOUCHED; 32];
     channel.sample(frame, &mut out);
     out
 }
 
-fn assert_close(actual: &[f32], expected: &[f32], tolerance: f32) {
+pub(super) fn assert_close(actual: &[f32], expected: &[f32], tolerance: f32) {
     assert_eq!(actual.len(), expected.len());
     for (a, e) in actual.iter().zip(expected) {
         assert!((a - e).abs() <= tolerance, "{actual:?} is not {expected:?}");
@@ -259,7 +259,7 @@ fn spec_example_a_decodes_the_airliner_quaternion() {
 #[test]
 fn unsupported_codecs_are_named() {
     let object = quat_8bit();
-    assert_eq!(read_error(&object, 20), Error::Unsupported("channel codec type 20".to_string()));
+    assert_eq!(read_error(&object, 18), Error::Unsupported("channel codec type 18".to_string()));
     assert!(matches!(read_error(&object, 17), Error::Unsupported(_)));
 }
 

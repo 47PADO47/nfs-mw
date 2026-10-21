@@ -9,7 +9,7 @@ use blackbox_anim::{Bank, Compound, Object, TypeId};
 use crate::{install, unwrapped};
 
 /// The chunk id of an `EAGLAnimations` chunk: one animation bank object per chunk.
-const EAGL_ANIMATIONS: u32 = 0x00E3_4010;
+pub(super) const EAGL_ANIMATIONS: u32 = 0x00E3_4010;
 /// The type id of a compound channel: the type of every bank entry in the install.
 const COMPOUND: u16 = 15;
 /// The frame rate every compound holds.
@@ -27,7 +27,7 @@ struct Census {
 }
 
 /// The bank files to read, as `(group, install path)`: every NIS scene bundle, then the L2RA track and InGame packs.
-fn bank_files(dir: &game_install::GameDir) -> Vec<(&'static str, String)> {
+pub(super) fn bank_files(dir: &game_install::GameDir) -> Vec<(&'static str, String)> {
     let mut files: Vec<(&'static str, String)> = dir
         .files_in("NIS")
         .into_iter()
