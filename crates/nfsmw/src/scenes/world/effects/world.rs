@@ -42,7 +42,8 @@ impl WorldScene {
             drive.tail_trails.clear();
         }
         let layer = drive.effects.build(position, forward);
-        if self.view == View::Chase {
+        // No entry discs during a race: the garages and the other races' starts are not offered then.
+        if self.view == View::Chase && self.race.is_none() {
             entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);

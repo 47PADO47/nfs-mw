@@ -91,8 +91,11 @@ impl WorldScene {
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();
             self.race_blips(&mut state.blips);
             self.race_start_blips(&mut state.blips);
-            self.speed_trap_blips(&mut state.blips);
-            state.blips.extend_from_slice(&self.map_blips);
+            // A race shows its own route only: no garages, car lots, safe houses or free-roam speed traps.
+            if self.race.is_none() {
+                self.speed_trap_blips(&mut state.blips);
+                state.blips.extend_from_slice(&self.map_blips);
+            }
             state.blips.extend_from_slice(&self.mod_blips);
         }
         hud
