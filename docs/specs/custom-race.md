@@ -136,8 +136,10 @@ package gets the message `0xDE511657` (the quick race look: the list header, the
   SL 500, 997 S, IS 300, GTI, Gallardo, Cobalt SS, Punto) **[decomp]** (`QuickRaceUnlocker::IsCarUnlocked`). A rival's car `BLn` is
   open when the stage is below `n`; the C6R when the career is won; the SL65 when event 68 of the challenge series (`19.8.68`) is
   won and the GT2 when every event of the series is won (the two hidden ones, `19.8.31` and `19.9.70`, are not needed **[ours]**), from
-  the wins `challenge_series.toml` keeps **[decomp]** (the sentences say "completing event number 68" and "every event"); the
-  Castrol GT (an easter egg this build has not) and the collector's cars stay locked **[decomp, ours]**.
+  the wins `challenge_series.toml` keeps or the profile's own flags (`HasBeatenSpecialChallengeEvent`, `HasBeatenChallengeSeries`)
+  **[decomp]** (the sentences say "completing event number 68" and "every event"). The C6R follows `HasBeatenCareer` (the
+  career-complete flag, not the game-over one) and the Castrol GT `HasBeenAwardedCastrolGT` (profile flag bit 18); this build
+  never awards it itself, so it opens only for a profile that has it. The collector's cars stay locked **[decomp, ours]**.
   A locked car shows `Unlock this car by beating <alias>, Blacklist member <n>.` or the bonus sentences of the Quick Play brief; Accept
   and Showcase refuse it.
 - **Keys:** left and right the cars, up and down the lists, Accept, Back (to the options), `3` Showcase (`PAD_BUTTON0`).
@@ -167,5 +169,5 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 - Whether the original asks the transmission question for a drag race: the decompilation says no, this build asks.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
   at the heat the level gives.
-- The Castrol GT: the original awards it for an easter egg the world has not here, so it stays locked.
+- Nothing in this build awards the Castrol GT (`SetAwardedCastrolGT`, the original's easter egg); a profile that has the flag opens it.
 - Split Screen is not built (greyed out).

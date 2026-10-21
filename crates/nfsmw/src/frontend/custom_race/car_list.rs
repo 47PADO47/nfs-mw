@@ -82,6 +82,8 @@ pub struct Progress {
     pub stage: u8,
     /// The career was won (`HasBeatenCareer`), which opens the C6R.
     pub career_won: bool,
+    /// The profile was awarded the Castrol GT (`HasBeenAwardedCastrolGT`), which opens it.
+    pub castrol_awarded: bool,
     /// Every car is open, a developer's switch.
     pub open_all: bool,
     /// The catalogue names of the cars the loaded profile owns, for the Career list.
@@ -150,14 +152,14 @@ fn stock_entry(car: &PoolCar, progress: &Progress) -> Entry {
 
 /// How a bonus car opens **[decomp]** (`QuickRaceUnlocker::IsCarUnlocked`): a rival's car when rival `n` is beaten (the stage is
 /// below `n`), the C6R when the career is won, the SL65 with event 68 of the series and the GT2 with every event of it, the Castrol
-/// GT for an easter egg, the collector's cars never.
+/// GT once the profile was awarded it, the collector's cars never.
 fn bonus_entry(preset: &str, car: &PoolCar, progress: &Progress) -> Option<Entry> {
     let upper = preset.to_ascii_uppercase();
     let (open, unlock) = match upper.as_str() {
         "BONUS_C6R" => (progress.career_won, Unlock::Label(0xBD8B_AC94)),
         "BONUS_SL65" => (progress.series.special, Unlock::Label(0xBD8B_AC91)),
         "BONUS_GT2" => (progress.series.all, Unlock::Label(0xBD8B_AC92)),
-        "CASTROLGT" => (false, Unlock::None),
+        "CASTROLGT" => (progress.castrol_awarded, Unlock::None),
         _ => {
             let member: u8 = upper.strip_prefix("BL")?.parse().ok().filter(|n| (2..=15).contains(n))?;
             (progress.stage < member, Unlock::Rival(member))
@@ -203,6 +205,7 @@ mod tests {
         Progress {
             stage,
             career_won: false,
+            castrol_awarded: false,
             open_all: false,
             owned: Vec::new(),
             customs: Vec::new(),
@@ -253,8 +256,10 @@ mod tests {
         assert_eq!(
             locked(Completion { special: true, all: true }),
             [false, false, true],
-            "the Castrol GT stays locked"
+            "the Castrol GT waits for its award"
         );
+        let awarded = Progress { castrol_awarded: true, ..progress(16) };
+        assert!(!entries(List::Bonus, &pool, &awarded)[2].locked, "the award opens the Castrol GT");
     }
 
     #[test]

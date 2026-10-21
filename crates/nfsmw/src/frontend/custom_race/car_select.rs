@@ -86,7 +86,7 @@ impl Default for CarSelect {
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
 pub(crate) fn progress() -> Progress {
-    let (stage, career_won, owned, customs) = CareerHandle::shared()
+    let (stage, flags, owned, customs) = CareerHandle::shared()
         .with_loaded(|career| {
             let names = |keep: &dyn Fn(&CarRecord) -> bool| -> Vec<String> {
                 let cars = career.stable.cars.iter().filter(|car| keep(car));
@@ -97,16 +97,22 @@ pub(crate) fn progress() -> Progress {
             };
             let owned = names(&|car| !car.is_free() && car.is_owned());
             let customs = names(&CarRecord::is_quick_race);
-            (career.stage(), career.settings.flags.contains(Flags::GAME_OVER), owned, customs)
+            (career.stage(), career.settings.flags, owned, customs)
         })
-        .unwrap_or((PROLOGUE_STAGE, false, Vec::new(), Vec::new()));
+        .unwrap_or((PROLOGUE_STAGE, Flags::EMPTY, Vec::new(), Vec::new()));
+    // The profile's own flags (`HasBeatenCareer`, `HasBeatenSpecialChallengeEvent`, `HasBeatenChallengeSeries`,
+    // `HasBeenAwardedCastrolGT`) count as much as the series wins this build keeps itself **[decomp]**.
+    let mut series = crate::frontend::challenge_series::completion();
+    series.special |= flags.contains(Flags::EVENT_19_8_69_DONE);
+    series.all |= flags.contains(Flags::CHALLENGE_SERIES_DONE);
     Progress {
         stage,
-        career_won,
+        career_won: flags.contains(Flags::CAREER_COMPLETE),
+        castrol_awarded: flags.contains(Flags::BONUS_CAR_0X34498EB2),
         open_all: super::tracks::unlock_all(),
         owned,
         customs,
-        series: crate::frontend::challenge_series::completion(),
+        series,
     }
 }
 
