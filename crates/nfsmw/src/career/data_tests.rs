@@ -28,6 +28,7 @@ fn race(key: u32, name: &str) -> Race {
         checkpoints: Vec::new(),
         barriers: Vec::new(),
         params: Default::default(),
+        story: Default::default(),
     }
 }
 

@@ -189,6 +189,7 @@ mod tests {
             checkpoints: Vec::new(),
             barriers: Vec::new(),
             params: Default::default(),
+            story: Default::default(),
         }
     }
 

@@ -8,7 +8,7 @@ use super::text;
 
 /// What a race shows and plays around its run: the intro, the outro and the forced player car. Empty texts and an
 /// unset message id (`-1`) read as `None`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct RaceStory {
     /// `IntroMessageID`: the message screen the intro shows first, when set (`career-scripts-events.md` section 1.1).
     pub intro_message_id: Option<i32>,
