@@ -39,8 +39,32 @@ Quick Race menu -> Split Screen -> mode select -> track list -> [options] -> Pre
 | Car select | The header says Player 1 or 2 (`0x7B070984`, `0x7B070985`) and the screen plays the "2 players" intro. Player 2's profile is made when their select opens and dropped when player 1's opens. Accept for player 1 goes on to Press Start for player 2; for player 2 it starts the race. Back from player 2 returns to Press Start for player 2, from player 1 to Press Start for player 1. A Drag race skips the transmission question; the others ask each player. | **[decomp]** `uiQRCarSelect` |
 
 **This rewrite [ours]:** the screens are the custom race's (`frontend/custom_race/`) with a split-screen flag in the
-session state; the Press Start screens are `PressStart.fng` **[verified]**. A device that already seats player 1 is refused for
-player 2. Devices: section 5.
+session state (`custom_race/split.rs`); the Press Start screens are `PressStart.fng` **[verified]**. A device that already seats
+player 1 is refused for player 2. Devices: section 5.
+
+**Status: built up to the hand-over to the world [verified]** (screen tests in `frontend/tests/split_screen_tests.rs` against the
+install, and offscreen screenshots of every screen). Where the build differs from the table:
+
+- **The Start press** is the input layer's `SplitInput::start_press`, read by the plugin each frame and handed to the top screen
+  (`Screens::set_start_press`, `ScreenLogic::start_pressed`; ignored while the gesture that opened the screen is held). The
+  original seats on the Start *release* (`__PAD_START_RELEASED__`); this rewrite seats on the press **[ours]**. A mouse click
+  seats nobody. A scripted run (`--ui-script`) seats with `key Space` (keyboard) or `key NumpadEnter` (arrow block).
+- **Back** from the Press Start of player 2 goes to player 1's car select with player 1 still seated; from a car select it goes to
+  that player's Press Start (player 2's seat is given up); from player 1's Press Start to the options (circuit) or the track list
+  (drag, sprint, speedtrap) with both seats cleared **[decomp]**.
+- **Gearboxes** are stored per player (`Split::transmissions`); the global transmission setting is not changed by a split race.
+- **The options page** has the circuit's Laps only; no race of the install can be reversed, so Direction never shows. The race
+  is made with one opponent, no cops, no catch-up (the decomp sets the first two; catch-up off between humans is ours, section 3)
+  and the race's own traffic and difficulty.
+- **The start:** `Command::StartSplitRace { race, options, setup }` (`setup` is `scenes::world::SplitSetup`; the cars are named
+  `folder` or `folder:preset` as for the single-player start). The front end starts the world behind the loading screen as for a
+  custom race (origin Quick Race: the pause menu's Quit and the post-race Exit return to the Quick Race menu) and calls
+  `WorldScene::queue_split_race` when the world is built (`flow_split.rs`, `flow_loading.rs`).
+- **The seats** are set in the input layer by the plugin: `SplitInput::seat(Some(devices))` while a split race is loading, running,
+  paused or showing the map, `seat(None)` as soon as the front end is back in the menus (`Frontend::split_seats`). A restart keeps
+  the setup. Menu input from either device stays allowed because the seats are empty in the menus.
+- **Not verified:** the race itself (the world does not act on `queue_split_race` in this branch), and the "2 players" intro playing
+  in the package (the message is posted; only the header text was checked).
 
 ## 3. The race
 
@@ -110,7 +134,8 @@ A player holds a device, as the original maps a player to a controller port **[d
 | Devices, the second player's actions, Start detection | `crates/nfsmw/src/input/split.rs`, `input/systems.rs` |
 | The setup the front end hands over | `scenes/world/race/split.rs` (`SplitSetup`), `WorldScene::queue_split_race` |
 | The scene hooks | `viewer/mod.rs` (`set_second_input`, `split_active`, `split_view`, `split_hud_state`) |
-| Menus | `frontend/custom_race/` (split-screen flag), `frontend/split/` |
+| Menus | `frontend/custom_race/` (`split.rs` the flag, seats, cars and gearboxes; `press_start.rs`; `car_select/players.rs`; `settings.rs` the rows and options), `icon_items.rs`, `icon_menu/press.rs` |
+| The start and the seats | `frontend/flow_split.rs`, `flow_loading.rs`, `plugin.rs`, `screens/start.rs` |
 | The second human racer | `scenes/world/ai/car/human.rs`, `scenes/world/race/split.rs` |
 | The two views | `scenes/world/split_view.rs`, `app/split.rs` |
 | The HUDs | `hud/split/` |

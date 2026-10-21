@@ -34,6 +34,8 @@ mod flow_loading;
 mod flow_save;
 #[path = "flow_series.rs"]
 pub(super) mod flow_series;
+#[path = "flow_split.rs"]
+mod flow_split;
 #[path = "flow_startup.rs"]
 mod flow_startup;
 
@@ -162,6 +164,8 @@ pub struct Frontend {
     /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
     /// (`world_built`).
     race_options: Option<crate::scenes::world::RaceOptions>,
+    /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
+    split: Option<crate::scenes::world::SplitSetup>,
     /// Where the tutorial movie that is playing returns to (`flow_series.rs`).
     tutorial_back: Option<(String, Args)>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
@@ -208,6 +212,7 @@ impl Frontend {
             series: Default::default(),
             quick_car: None,
             race_options: None,
+            split: None,
             tutorial_back: None,
             map_chrome: Default::default(),
         }
@@ -407,6 +412,10 @@ impl Frontend {
                 Command::PlayTutorial { movie, back, args } => self.play_tutorial(&movie, (back, args), host),
                 Command::CustomDefaults => crate::frontend::custom_race::state::with(|state| state.reset_settings()),
                 Command::StartCustomRace(start) => self.start_custom_race(*start, host, env),
+                Command::SplitFirstCar(transmission) => self.split_first_car(transmission, host, env),
+                Command::StartSplitRace { race, options, setup } => {
+                    self.start_split_race(race, options, setup, host, env)
+                }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),

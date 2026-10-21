@@ -170,4 +170,20 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
   at the heat the level gives.
 - Nothing in this build awards the Castrol GT (`SetAwardedCastrolGT`, the original's easter egg); a profile that has the flag opens it.
-- Split Screen is not built (greyed out).
+- Split Screen is the same screens with a flag in the session state (`custom_race/split.rs`): [split-screen.md](split-screen.md) section 2.
+
+## 9. Split screen
+
+The Quick Race menu's Split Screen icon sets `state.split.on` and opens this mode select **[ours]**. In that flow (Custom Race and
+Quick Play clear the flag again, as the original sets one player for them **[decomp]**):
+
+- The mode select lists Circuit, Sprint, Drag and Speedtrap, titled `0x43C825ED` (`split screen mode select`) **[decomp]**.
+- The track list is the same. For a Drag, Sprint or Speedtrap track, Accept skips the options and goes to Press Start **[decomp]**.
+- The options page shows only the circuit's Laps (`settings::split_rows`); Direction never shows in this install (as above). No
+  Traffic, Opponents, Difficulty, Catch Up or Heat Level rows. The race is made with one opponent, no cops and no catch-up
+  (`Settings::split_options`); traffic and difficulty stay the race's own.
+- Press Start (`PressStart.fng`) for player 1, then the car select for player 1, Press Start for player 2 and the car select for
+  player 2 (the car select header names the player, `0x7B070984`, `0x7B070985`). Each player has their own car pick and gearbox
+  answer (a drag race asks nobody and uses the transmission setting). Player 2's Accept starts the race (`Command::StartSplitRace`).
+  The custom race's own picked car is untouched.
+

@@ -25,6 +25,8 @@ pub mod screen {
     /// Quick Race: the track list (`track_select.rs`) and the track's options (`track_options.rs`).
     pub const TRACK_SELECT: &str = "Track_Select.fng";
     pub const TRACK_OPTIONS: &str = "Track_Options.fng";
+    /// Split screen: "Player N press Start" seats the device that pressed it (`custom_race/press_start.rs`).
+    pub const PRESS_START: &str = "PressStart.fng";
     /// The challenge series: a grid of the bin 19 events with a map (`challenge_series/`).
     pub const CHALLENGE_SERIES: &str = "ChallengeSeries.fng";
     /// Quick Play: the random car and race, with Randomize and Accept (`quick_play.rs`).

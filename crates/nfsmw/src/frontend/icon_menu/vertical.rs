@@ -2,6 +2,7 @@
 //! still supplies the order of the entries and the messages; this is the part that is not its icons.
 
 use super::{Category, Cx, Icon, IconMenu, Id, Kind, Pick};
+use crate::frontend::custom_race::state as custom_state;
 use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuIcon, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
@@ -17,6 +18,8 @@ impl IconMenu {
             Kind::SafeHouse => 0xE596_C4A3,
             Kind::Career => 0x8FFF_61F2,
             Kind::QuickRace => 0xCDF0_CC03,
+            // `split screen mode select` in split screen **[decomp]** (`UIQRModeSelect::RefreshHeader`).
+            Kind::CustomRace if custom_state::with(|state| state.split.on) => 0x43C8_25ED,
             Kind::CustomRace => 0x1F20_3817,
             Kind::AliasManager => 0x1B76_F2CE,
         }
