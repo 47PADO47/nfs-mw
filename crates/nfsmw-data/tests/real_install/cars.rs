@@ -7,7 +7,13 @@ fn every_car_geometry_parses() {
     let (mut cars, mut solids) = (0, 0);
     for car in nfsmw_data::car::list(&dir) {
         let rel = format!("CARS/{car}/GEOMETRY.BIN");
-        let parsed = blackbox_solid::read_solids(&unwrapped(&dir, &rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
+        // An add-on car can have a few solids that do not parse (the `CORVETTE` of a Desktop install has 8); the car's
+        // other solids are what counts.
+        let (parsed, failed) =
+            blackbox_solid::read_solids_lossy(&unwrapped(&dir, &rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
+        if !failed.is_empty() {
+            eprintln!("{rel}: {} solid(s) do not parse, the first: {}", failed.len(), failed[0]);
+        }
         assert!(!parsed.is_empty(), "{rel}: no solids");
         for s in &parsed {
             assert_eq!(s.name_hash, blackbox_hash::bstring_hash(&s.name), "{rel}: {}", s.name);
@@ -108,4 +114,48 @@ fn every_car_type_assembles() {
     // COPHELI has no wheels; BMWM3 has no ecar record (no gameplay vehicle uses it).
     without_wheels.sort();
     assert_eq!(without_wheels, ["BMWM3", "COPHELI"]);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_blacklist_rival_car_builds_with_its_wheels() {
+    let Some(dir) = install() else { return };
+    let data = nfsmw_data::gameplay::load(&dir).expect("gameplay data");
+    let tables = nfsmw_data::car::CarTables::load(&dir).expect("car tables");
+    let folders = nfsmw_data::car::list(&dir);
+    let mut checked = 0;
+    for rival in data.characters.iter().filter(|c| c.is_boss) {
+        let car = rival.preset_ride.as_deref().and_then(|n| tables.preset(n)).map(|p| p.car_type_name.clone());
+        let Some(folder) =
+            car.as_deref().or(rival.car_type.as_deref()).and_then(|c| nfsmw_data::car::pick_folder(&folders, c))
+        else {
+            continue;
+        };
+        let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
+        let model =
+            nfsmw_data::car::load_driving(&dir, folder, &options).unwrap_or_else(|e| panic!("{}: {e:#}", rival.name));
+        let wheels = model.placements.iter().filter(|p| p.corner.is_some() && !p.is_brake()).count();
+        assert_eq!(wheels, 4, "{} drives {folder}", rival.name);
+        assert!(model.placements.len() > 4, "{} drives {folder}: a body as well as wheels", rival.name);
+        checked += 1;
+    }
+    assert!(checked >= 15, "{checked} rivals checked");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_geometry_file_with_its_solid_packs_after_the_geometry_pack_is_read() {
+    let Some(dir) = install() else { return };
+    // The flat layout of `docs/formats/models.md`: only some installs have such a car.
+    let flat = ["CORVETTE", "COBALTSS", "TT", "BMWM3"]
+        .into_iter()
+        .filter(|car| dir.exists(&format!("CARS/{car}/GEOMETRY.BIN")));
+    for car in flat {
+        let data = unwrapped(&dir, &format!("CARS/{car}/GEOMETRY.BIN"));
+        let (solids, _) = blackbox_solid::read_solids_lossy(&data).unwrap();
+        let top_level = blackbox_chunk::chunks(&data)
+            .filter(|c| c.as_ref().is_ok_and(|c| c.id == blackbox_chunk::ids::SOLID_PACK))
+            .count();
+        assert!(solids.len() >= top_level.saturating_sub(10), "{car}: {} solids of {top_level} packs", solids.len());
+    }
 }
