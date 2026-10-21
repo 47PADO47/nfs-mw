@@ -194,3 +194,19 @@ Not edited (other agents' or older files); for the maintainers:
   the Xbox label. Section 5's list of the four buttons: Save `0x00542FD0` (`0x2251`), Create `0x005430F0` (`0x61`), Load
   `0x00543030` (`0x411`), Delete `0x00543090` (`0x31`).
 - [career-flow provenance](career-flow.md): `FUN_00602010` is the event start, not the race end.
+
+## Node state bits
+
+Pass of 2026-10-21 (story mode, Ghidra on `speed.exe` 1.3): `search_instructions` for `OR [reg + 0x4], imm` in the
+race-database code, then the writers decompiled. The node list lives in the race database (`DAT_0091e004`):
+count at `+0`, records of 16 bytes from the pointer at `+0x3C`.
+
+| Function | Address | Role |
+|---|---|---|
+| race-finished record | `FUN_00602320` | finds or adds the node of the current race (`+0x1968`), keeps the best result, writes the two u16 statistics, and on a win (argument 1) ORs 2 when the play mode (`DAT_0091e000 + 0x1964`) is 2 (career), else 1 |
+| caller | `LAB_006119f0` (`NotifyRaceFinished`), call at `0x00611CB4` | the same routine also walks the won race's unlock list (`0x00611C80`): OR 4, then OR 8 unless `FUN_005fc110` (attribute `0xA4E6FCFD`) is set |
+| unlock request | code at `0x00612170` | same pair: OR 4, then OR 8 unless `0xA4E6FCFD` |
+| reset | `FUN_00600b20` | clears the list and re-seeds it from the race database: skips nodes with `0x8CB01ABF`; ORs 4 when `0xB39ED8C3` or `0xEA855EAF` (not when `0xFF5EE5D6` `BossRace`), ORs 0x10 when `0x39509746` |
+| attribute readers | `FUN_005fbd20` / `FUN_005fbbd0` / `FUN_005fbc40` / `FUN_005fbcb0` / `FUN_005fbd90` / `FUN_005fc110` | `0x8CB01ABF` / `0xB39ED8C3` / `0x39509746` / `0xEA855EAF` / `0xFF5EE5D6` / `0xA4E6FCFD`; each reads a cached bit word at `+0x18` of the node's record or the attribute |
+
+Not found: the name of `0x39509746` and what reads bit 0x10.
