@@ -5,7 +5,7 @@ use blackbox_race::{CatchUpGains, Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::setup::{self, RaceOptions};
-use super::{Banner, RaceSession, RacerPlan, Stage};
+use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{View, WorldScene, space};
 
@@ -83,6 +83,7 @@ impl WorldScene {
         if race.race_type == Some(RaceType::Challenge) {
             return self.start_challenge(&race, options);
         }
+        let given_course = course.clone();
         let course = match course {
             Some(course) => course,
             None => setup::course_of(&data, &race, &options)?,
@@ -169,6 +170,7 @@ impl WorldScene {
             pool,
             challenge: None,
             walls,
+            origin: Origin { race: race.clone(), course: given_course },
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }

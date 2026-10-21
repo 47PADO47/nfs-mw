@@ -14,17 +14,16 @@ use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 const FRAME: f32 = 1.0 / 60.0;
 
-#[path = "prompt_tests.rs"]
-mod prompt_tests;
-
 #[path = "click_tests.rs"]
 mod click_tests;
-
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
-
 #[path = "player_options_tests.rs"]
 mod player_options_tests;
+#[path = "prompt_tests.rs"]
+mod prompt_tests;
+#[path = "quick_play_screen_tests.rs"]
+mod quick_play_screen_tests;
 
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {
@@ -223,16 +222,18 @@ fn down_from_to(h: &mut Harness, category: Category, from: super::options::Setti
 }
 
 #[test]
-fn the_main_menu_starts_a_career_from_career() {
+fn career_on_the_main_menu_opens_the_career_menu() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::StartCareer), "career: {:?}", h.commands);
+    // The screens carry out the switch themselves, so it is the screen on top that shows it happened.
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "career: {:?}", h.commands);
+    assert!(!h.said(&Command::ResumeCareer), "opening the menu plays nothing: {:?}", h.commands);
 }
 
 #[test]
-fn quick_race_opens_the_track_select_screen() {
+fn quick_race_opens_the_quick_race_menu() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     // Career, Challenge Series, Quick Race: the challenge series is browsable but not there yet.
@@ -240,8 +241,7 @@ fn quick_race_opens_the_track_select_screen() {
     h.press(pad::RIGHT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    // The screens carry out the switch themselves, so it is the screen on top that shows it happened.
-    assert_eq!(h.screens.top(), Some(screen::TRACK_SELECT), "quick race: {:?}", h.commands);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "quick race: {:?}", h.commands);
     assert!(!h.said(&Command::StartFreeRoam), "quick race must not start a race: {:?}", h.commands);
 }
 
@@ -375,7 +375,7 @@ fn the_pause_menu_resumes_opens_the_options_and_quits() {
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::PAUSE_MENU), "no keeps the game paused");
-    assert!(!h.said(&Command::QuitToMenu), "{:?}", h.commands);
+    assert!(!h.said(&Command::QuitTo(super::logic::QuitTo::Main)), "{:?}", h.commands);
     // The pause menu still reacts after the question: Start resumes.
     h.press(pad::START);
     h.wait(1.5);
@@ -391,7 +391,7 @@ fn the_pause_menu_resumes_opens_the_options_and_quits() {
     h.press(pad::LEFT);
     h.press(pad::ACCEPT);
     h.wait(1.5);
-    assert!(h.said(&Command::QuitToMenu), "{:?}", h.commands);
+    assert!(h.said(&Command::QuitTo(super::logic::QuitTo::Main)), "{:?}", h.commands);
 }
 
 #[test]

@@ -79,11 +79,14 @@ pub(super) fn run(
 fn vehicle_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
     let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
     match args {
-        [] | ["status"] => return Ok(drive.vehicle_effects.status()),
-        ["clear"] => drive.vehicle_effects.clear(),
+        [] | ["status"] => return Ok(format!("{}; {}", drive.vehicle_effects.status(), scene.impact_fx.status())),
+        ["clear"] => {
+            drive.vehicle_effects.clear();
+            scene.impact_fx.clear();
+        }
         _ => return Err("usage: vehicle-effects [status|clear]".into()),
     }
-    let result = drive.vehicle_effects.status();
+    let result = format!("{}; {}", drive.vehicle_effects.status(), scene.impact_fx.status());
     scene.upload_effects(renderer);
     Ok(result)
 }

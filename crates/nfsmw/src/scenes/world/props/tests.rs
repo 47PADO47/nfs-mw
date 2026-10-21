@@ -8,9 +8,13 @@ use super::*;
 
 mod compound;
 mod fragments;
+mod immobile;
 mod installed;
 mod lifetime;
+mod native_parity;
+mod object_eligibility;
 mod placement;
+mod sounds;
 mod support;
 
 pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detach: f32) -> Placed {
@@ -33,6 +37,9 @@ pub(super) fn placement(id: u32, at: Vec3, mass: f32, no_car_effect: bool, detac
         mass,
         tensor_scale: Vec3::splat(3.0),
         body: RigidBodySpec::default(),
+        walls: Default::default(),
+        no_world_collisions: false,
+        no_object_collisions: false,
         fallback_shape: blackbox_collision::Shape::Box,
         base_surface: 0,
         detach_impulse: detach,
@@ -109,7 +116,8 @@ fn no_car_effect_leaves_car_motion_unchanged_and_launches_prop() {
     let (world, v, impact, id) = hit(true, 0.0, 20.0);
     assert_eq!(v.linear_velocity(), Vec3::Z * 20.0);
     assert_eq!(v.position(), car(20.0).position());
-    assert_eq!(impact.impulse, 0.0);
+    assert!(impact.impulse > 0.0, "native callbacks retain impact intensity without changing car motion");
+    assert!(impact.sounds[0].delta_v > 0.0);
     assert!(!impact.contacts.is_empty());
     assert_eq!(impact.contacts[0].kind, ContactKind::PropMovable);
     assert!(world.colliders[&id].body.as_ref().unwrap().rigid.linear_velocity.length() > 1.0);

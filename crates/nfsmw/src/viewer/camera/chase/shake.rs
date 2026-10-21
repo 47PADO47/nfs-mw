@@ -36,7 +36,7 @@ impl Pulse {
 }
 
 #[derive(Default)]
-pub(super) struct Shake {
+pub(in crate::viewer::camera) struct Shake {
     time: f64,
     step: f64,
     pending: Vec3,
@@ -58,6 +58,16 @@ impl Shake {
         }
         self.step = f64::from(dt);
         self.time += self.step;
+        self.select_pending();
+    }
+
+    /// A later native camera source selects at the same clock instant.
+    pub fn select(&mut self, acceleration: Vec3) {
+        self.request(acceleration);
+        self.select_pending();
+    }
+
+    fn select_pending(&mut self) {
         let acceleration = std::mem::take(&mut self.pending);
         let length = acceleration.length();
         if length < 100.0 {
@@ -85,7 +95,7 @@ impl Shake {
 }
 
 /// The original applies translation and quantised X/Y rotations to the view matrix.
-pub(super) fn apply(view: Mat4, translation: Vec3) -> Mat4 {
+pub(in crate::viewer::camera) fn apply(view: Mat4, translation: Vec3) -> Mat4 {
     let local = view.transform_vector3(translation);
     let radians = std::f32::consts::TAU / 65536.0;
     let x = (-1200.0 * (local.z + local.y)) as i32;

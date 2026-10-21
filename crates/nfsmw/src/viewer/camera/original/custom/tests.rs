@@ -108,6 +108,7 @@ fn replay(fps: u32, scale: f32) -> (super::super::Sample, u64) {
             vehicles: vec![],
             noise: NoiseControls::default(),
             chopper_positions: vec![],
+            explosions: vec![],
             impacts: vec![],
         }
     };

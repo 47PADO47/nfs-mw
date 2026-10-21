@@ -12,6 +12,7 @@ mod native_vectors;
 mod noise;
 mod obstruction;
 mod projection;
+mod shake;
 mod spline;
 mod timeline;
 #[cfg(test)]
@@ -27,6 +28,7 @@ pub use environment::covered;
 pub use follow::{BodyInput, Sample};
 pub use impacts::Kind as ImpactKind;
 pub use obstruction::CameraHit;
+pub use shake::Explosion;
 pub use timeline::{Frame, NoiseControls, PhysicsFrame, Timeline};
 pub use underpass::VehicleBounds;
 pub use vehicle_avoidance::Avoidable;

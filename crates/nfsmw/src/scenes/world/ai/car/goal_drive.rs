@@ -15,6 +15,7 @@ const SLOT_ARRIVAL: f32 = 2.0;
 /// The goal a cop car holds this step: the command the goal gives and the limiter it carries to the next step.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct GoalDrive {
+    pub collision_goal: Option<u32>,
     /// The goal's speed limiter (m/s). It carries from step to step, and is 0 with no goal.
     pub limit: f32,
     command: Option<GoalCommand>,
@@ -24,7 +25,7 @@ impl GoalDrive {
     /// The drive of one step of a goal, or none. With no goal the limiter starts again from 0.
     pub fn from_step(step: Option<Step>) -> Self {
         match step {
-            Some(step) => Self { limit: step.limit, command: Some(step.command) },
+            Some(step) => Self { limit: step.limit, command: Some(step.command), collision_goal: None },
             None => Self::default(),
         }
     }
@@ -47,8 +48,17 @@ impl AiCar {
     }
 
     /// Sets the goal of this step from `ai/goal_aims.rs`: its step, or none for a car on the chase.
-    pub fn set_goal_drive(&self, step: Option<Step>) {
-        self.goal.set(GoalDrive::from_step(step));
+    pub fn set_goal_drive(&self, step: Option<Step>, kind: Option<blackbox_pursuit::goals::GoalKind>) {
+        use blackbox_pursuit::goals::GoalKind;
+        let mut drive = GoalDrive::from_step(step);
+        drive.collision_goal = kind.filter(|_| step.is_some()).map(|k| {
+            blackbox_attrib::vlt_hash(match k {
+                GoalKind::Pit => "AIGoalPit",
+                GoalKind::BoxIn | GoalKind::RollingBlock => "AIGoalRam",
+                GoalKind::PullOver => "AIGoalPullOver",
+            })
+        });
+        self.goal.set(drive);
     }
 
     /// A goal cop that has arrived holds the full brake: brake and handbrake on, no steer and no gas.

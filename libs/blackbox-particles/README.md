@@ -8,6 +8,10 @@ Pure maths: no files, no GPU, no game data. Where the numbers come from (a game'
 and how a sprite is drawn (texture, blend) is the caller's business. The rules follow the behaviour
 documented in `docs/specs/exhaust-flames.md` (sections 5 and 6).
 
-Not modelled: start delays, on/off cycles, one-shot emitters, the disc spread, animated textures.
+Start delays, on/off and one-shot control follow `docs/specs/particle-emission-control.md`.
+Quantized square atlases and random static cells follow
+`docs/specs/prop-particle-attributes.md`. Sprites expose their selected UV rectangle.
+Disc spread, the original global random stream and packed particle motion remain
+outside this simulation's current coverage.
 
 License: MIT OR Apache-2.0.

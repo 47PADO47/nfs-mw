@@ -261,7 +261,8 @@ bounty one at a time (Accept steps on), and the car's bounty. The words are the 
 
 `AbandonRace` ends the race for the player without a result; `RestoreStartPositions` puts every racer back on
 the grid for a restart **[exe]** names. The rewrite supports `race stop` (abandon, no result) and, on the post-race screen, Restart.
-The player's reset key keeps working in a race.
+The player's reset key keeps working in a race. The pause menu's Resume Race and Restart items and what a restart resets are in
+[race-restart.md](race-restart.md).
 
 ## 13. What the rewrite runs (status)
 

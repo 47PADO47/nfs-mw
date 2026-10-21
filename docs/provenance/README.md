@@ -6,6 +6,8 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 
 ## Records
 
+Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
+
 | Module | Spec | Restricted sources read |
 |---|---|---|
 | [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
@@ -28,6 +30,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [`ea-audio`](audio-codecs.md) | [specs/audio-containers.md](../specs/audio-containers.md), [formats/audio.md](../formats/audio.md) | vgmstream (ISC-style, permissive) and utkencode (Unlicense): ported with notices; no decompiled code |
 | [Car assembly](car-assembly.md) | [specs/car-assembly.md](../specs/car-assembly.md) | dbalatoni13/nfsmw `World/CarInfo.cpp`, `CarRender.cpp`, `CarSkin.cpp` and others (decompiled, CC0) |
 | [Race mode](race-mode.md) | [specs/race-mode.md](../specs/race-mode.md), [specs/ai-racers.md](../specs/ai-racers.md) | Original PC 1.3 executable (Ghidra, read only): the race status calls, ranking, knockout and time rules |
+| [Race restart](race-restart.md) | [specs/race-restart.md](../specs/race-restart.md) | Original PC 1.3 executable (Ghidra, read only): the pause menu's race flag, the restart item and the routines that put the racers back |
 | [Car environment captures](car-reflections.md) | [specs/car-reflections.md](../specs/car-reflections.md) | Retail PC car shader and shared environment camera setup (decompiled, CC0; spec first) |
 | [World scenery LOD](world-scenery-lod.md) | [specs/scenery-lod.md](../specs/scenery-lod.md) | dbalatoni13/nfsmw `World/Scenery.cpp`, `Scenery.hpp`, `Ecstasy/eView.cpp` (decompiled, CC0) |
 | [World scenery visibility](world-scenery-visibility.md) | [specs/scenery-visibility.md](../specs/scenery-visibility.md) | dbalatoni13/nfsmw `World/Scenery.cpp`, `Ecstasy/Ecstasy.cpp` (decompiled, CC0) |
@@ -46,6 +49,7 @@ a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).
 | [Career text](career-text.md) | [specs/career-text.md](../specs/career-text.md), [specs/career-text-2.md](../specs/career-text-2.md) | `English.bin` and `Labels.bin` (private decoder); `speed.exe` 1.3 label formats (Ghidra, read only) |
 | [Career phone](career-phone.md) | [specs/career-phone.md](../specs/career-phone.md) | `speed.exe` 1.3 (Ghidra, read only); `English.bin`, `gameplay.bin`, saves |
 | [Career rap sheet](career-rapsheet.md) | [specs/career-rapsheet.md](../specs/career-rapsheet.md), [specs/career-rapsheet-2.md](../specs/career-rapsheet-2.md) | `speed.exe` 1.3 (Ghidra, read only); the install's FEng packages |
+| [Career parity menus](career-parity-menus.md) | [specs/career-parity-menus.md](../specs/career-parity-menus.md) | `speed.exe` 1.3 (Ghidra MCP, read only; label and texture keys hashed against `FrontB.lzc`) |
 | [Career save screens](career-save-screens.md) | [specs/career-save-screens.md](../specs/career-save-screens.md), [specs/career-save-screens-2.md](../specs/career-save-screens-2.md) | `speed.exe` 1.3 (Ghidra, read only; disassembly of the file library) |
 | [Career regions](career-regions.md) | [specs/career-regions.md](../specs/career-regions.md) | `speed.exe` 1.3 (Ghidra, read only); `gameplay.bin`, `Rivals.bin`, `TrackMaps.bin` |
 | [Race barriers](race-barriers.md) | [specs/race-barriers.md](../specs/race-barriers.md) | `speed.exe` 1.3 (Ghidra, read only; a byte scan of the PE); `gameplay.bin`, `L2RA.BUN`, `STREAML2RA.BUN` |

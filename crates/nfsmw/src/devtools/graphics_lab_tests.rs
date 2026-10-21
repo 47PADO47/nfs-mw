@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn pursuit_testing_buttons_queue_session_commands_without_changing_saved_settings() {
+    let ctx = egui::Context::default();
+    let mut lab = GraphicsLab {
+        open: true,
+        tab: profiles::Tab::Traffic,
+        traffic_status: Some("no pursuit".into()),
+        ..Default::default()
+    };
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    click(&ctx, &mut lab, &mut settings, "Pursuit testing");
+    let previous = settings;
+    click(&ctx, &mut lab, &mut settings, "Heat 3");
+    assert_eq!(lab.pursuit_request, Some(3));
+    assert_eq!(settings, previous);
+    click(&ctx, &mut lab, &mut settings, "End pursuit");
+    assert_eq!(lab.pursuit_request, Some(0));
+    assert_eq!(settings, previous);
+}
+
+#[test]
 fn section_resets_keep_optional_render_paths_in_their_own_sections() {
     let mut settings = Settings::from(crate::settings::Partial::default());
     settings.renderer = crate::settings::RendererKind::Blackbox;

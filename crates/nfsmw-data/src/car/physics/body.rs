@@ -81,9 +81,32 @@ pub fn object_material(c: Fields<'_>) -> ObjectMaterial {
         false => 1.0,
     };
     ObjectMaterial {
+        immobile: c.bool("IMMOBILE_OBJECT_COLLISIONS"),
         friction: c.pair("OBJ_FRICTION"),
         elasticity: c.vec3("OBJ_ELASTICITY"),
         inertia_scale: Vec3::new(scale[0], scale[1], scale[2]),
         mass_scale,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "needs the original install selected by NFSMW_GAME_DIR"]
+    fn installed_vehicle_object_immobility_matches_every_linked_source_body() {
+        let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let db = blackbox_attrib::Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        let mut immobile = 0;
+        let mut mobile = 0;
+        for vehicle in db.collections_of("pvehicle") {
+            let Some(source) = vehicle.follow("rigidbodyspecs") else { continue };
+            let expected = source.get_bool("IMMOBILE_OBJECT_COLLISIONS").unwrap_or(false);
+            assert_eq!(body(Fields(vehicle)).spec.objects.immobile, expected, "vehicle {}", vehicle.key());
+            immobile += usize::from(expected);
+            mobile += usize::from(!expected);
+        }
+        assert!(immobile > 0 && mobile > 0, "must exercise both original source rules");
     }
 }

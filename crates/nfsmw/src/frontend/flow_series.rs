@@ -3,7 +3,34 @@
 
 use super::*;
 
+/// What a race started from the challenge series asks of the flow.
+#[derive(Default)]
+pub(in crate::frontend) struct Series {
+    /// Leaving the race opens the series screen again, not the main menu.
+    pub active: bool,
+    /// The race runs with these options, not the quick race rows.
+    pub options: Option<crate::scenes::world::RaceOptions>,
+}
+
 impl Frontend {
+    /// Starts an event of the series with the transmission the player chose; the original stores the choice with the
+    /// player's settings.
+    pub(in crate::frontend) fn start_challenge(
+        &mut self,
+        race: String,
+        transmission: crate::settings::Transmission,
+        host: &mut Host,
+        env: &mut Env,
+    ) {
+        env.settings.transmission = transmission;
+        env.changed.transmission = Some(transmission);
+        self.career.end_play();
+        self.origin = crate::frontend::logic::QuitTo::Main;
+        self.series = Series { active: true, options: Some(Default::default()) };
+        self.quick_race = Some(race);
+        self.start_free_roam(LoadingScreen::Plain, host, env);
+    }
+
     /// Plays a tutorial movie full screen over the parked menu backdrop; `end_tutorial` brings the screen back.
     pub(in crate::frontend) fn play_tutorial(&mut self, name: &str, host: &mut Host) {
         let scene = match crate::movie::MovieScene::open(&self.dir, name, 0.0) {
@@ -21,26 +48,12 @@ impl Frontend {
         log::info!("tutorial over");
         self.latch = true;
         self.paused.set(false);
-        self.show_backdrop(host);
-        let commands = self.screens.open(crate::frontend::ids::screen::CHALLENGE_SERIES, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
+        self.open_menu(crate::frontend::ids::screen::CHALLENGE_SERIES, Args::default(), host, env);
     }
 
     /// The challenge series over the menu backdrop, where a race started from it ends (`from_series`).
     pub(in crate::frontend) fn show_series(&mut self, host: &mut Host, env: &mut Env) {
-        self.from_series = false;
-        self.show_screen(crate::frontend::ids::screen::CHALLENGE_SERIES, host, env);
-    }
-
-    pub(in crate::frontend) fn show_screen(&mut self, name: &str, host: &mut Host, env: &mut Env) {
-        log::info!("menu: {name}");
-        self.latch = true;
-        self.paused.set(false);
-        self.screens.clear();
-        self.show_backdrop(host);
-        let commands = self.screens.open(name, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
+        self.series.active = false;
+        self.show_menu_at(crate::frontend::ids::screen::CHALLENGE_SERIES, Args::default(), host, env);
     }
 }

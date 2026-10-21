@@ -220,6 +220,7 @@ impl WorldScene {
             pool: Vec::new(),
             challenge: Some(Challenge::new(stat, params.threshold, heat)),
             walls: self.raise_race_walls(&race.barriers),
+            origin: super::Origin { race: race.clone(), course: None },
         });
         Ok(format!("{}: pursuit challenge, {name} {} at heat {heat}", race.name, params.threshold))
     }

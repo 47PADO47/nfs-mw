@@ -17,7 +17,7 @@ use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
 use crate::career::{CareerHandle, ProfileDir};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
 use crate::ui::Text;
 
 /// The rows the list shows at once (`option_name_1` to `option_name_8`). The dump of `MC_List.fng` has eight row names;
@@ -63,9 +63,15 @@ pub(crate) enum ListMode {
 /// The mode the next list opened shows. Set just before `MC_List.fng` is pushed.
 static LIST_MODE: Mutex<ListMode> = Mutex::new(ListMode::Load);
 
-/// Sets the mode the next list opened shows (`alias_options.rs` opens the list in load or delete mode).
+/// Sets the mode the next list opened shows (the alias menu and the career menu open the list in load or delete mode).
 pub(crate) fn set_list_mode(mode: ListMode) {
     *LIST_MODE.lock().unwrap_or_else(|e| e.into_inner()) = mode;
+}
+
+/// Pushes the profile list over the screen that is up, in `mode`.
+pub(crate) fn open_list(cx: &mut Cx, mode: ListMode) {
+    set_list_mode(mode);
+    cx.send(Command::Push(screen::MC_LIST.into(), Args::default()));
 }
 
 fn list_mode() -> ListMode {
@@ -296,6 +302,10 @@ impl AliasListLogic {
 }
 
 impl ScreenLogic for AliasListLogic {
+    fn footer(&self) -> Footer {
+        Footer::BackOnly
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.aliases = list_aliases();
         if self.aliases.is_empty() {

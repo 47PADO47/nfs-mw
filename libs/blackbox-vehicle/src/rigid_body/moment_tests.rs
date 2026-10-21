@@ -292,3 +292,29 @@ fn reference_stationary() {
     close(b.angular_velocity, Vec3::new(0.0, 0.0, 0.0));
     assert!(!b.immobile);
 }
+
+#[test]
+fn reference_near_tangent_momentum_cancels_in_the_original_axis_order() {
+    let velocity = Vec3::new(10.0, -10.0, -0.0000001);
+    let mut a = sample(1000.0, velocity);
+    let mut b = sample(1000.0, Vec3::ZERO);
+    let contact = PlaneContact { point: Vec3::ZERO, normal: Vec3::ONE, friction_static: 0.0, friction_kinetic: 0.0 };
+    // Original-machine-code measurement gives an exactly non-approaching
+    // projection for these synthetic inputs.
+    assert!(react_moments(&mut a, &mut b, &contact, 32).is_none());
+    assert_eq!(a.linear_velocity, velocity);
+    assert_eq!(b.linear_velocity, Vec3::ZERO);
+}
+
+#[test]
+fn reference_near_tangent_projection_combines_x_z_before_y() {
+    let velocity = Vec3::new(-0.0000001, 10.0, -10.0);
+    let mut a = sample(1000.0, velocity);
+    let mut b = sample(1000.0, Vec3::ZERO);
+    let contact = PlaneContact { point: Vec3::ZERO, normal: Vec3::ONE, friction_static: 0.0, friction_kinetic: 0.0 };
+    // The original returns false. Adding y/z before x leaves a tiny negative
+    // projection and incorrectly reports a reaction.
+    assert!(react_moments(&mut a, &mut b, &contact, 32).is_none());
+    assert_eq!(a.linear_velocity, velocity);
+    assert_eq!(b.linear_velocity, Vec3::ZERO);
+}

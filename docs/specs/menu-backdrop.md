@@ -1,7 +1,9 @@
 # Main menu backdrop (the car behind the menus)
 
-Status: a stand-in is in place. `frontend/scene.rs` (`MenuScene`) shows the career-start M3 GTR (`BMWM3GTRE46`, preset `M3GTRCAREERSTART`) standing still
-on the car viewer's floor, with the menu packages on top. The original's stage is not reproduced yet.
+Status: `frontend/scene.rs` (`MenuScene`) shows the career-start M3 GTR (`BMWM3GTRE46`, preset `M3GTRCAREERSTART`) standing still
+in the crib room (`PlatformCrib.BIN`, drawn since section 1b), with the menu packages on top. The car's own placement and the camera of
+the crib are still the car viewer's. The other looks (a profile's car, the safe house room with the original's car stand and camera) are
+in [menu-backdrop-looks.md](menu-backdrop-looks.md).
 Tags follow [frontend-menus.md](frontend-menus.md): **[decomp]** read from decompiled code, **[verified]** checked
 against the install data, **[ours]** this rewrite's choice.
 
@@ -58,13 +60,14 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
   documented in [models.md](../formats/models.md)). The probe `platform_crib_solids_parse_with_the_0x18_layout`
   (ignored, needs the install) checks five solids with geometry.
 - `frontend/room.rs` uploads the room's textures (`blackbox_tpk::read_texture_packs`) and solids (`upload_solid`), and
-  `MenuScene` draws them with the car. Written, but the crate does not compile right now because of other
-  uncommitted work in the same tree (`settings/mod.rs`), so the room has not been rendered yet.
+  `MenuScene` draws them with the car. Rendered offscreen (`nfsmw view-screen MainMenu.fng --screenshot out.png`): the room shows behind
+  the car. [verified] (This install's `PlatformCrib.BIN` is a modified room, dated 2022, not the original's.) `room.rs` loads
+  the stage of the look (`Stage::file`), see [menu-backdrop-looks.md](menu-backdrop-looks.md) section 3.
 
 ## 2. The stand-in [ours]
 
-- `MenuScene::new(Some(dir))` loads `BMWM3GTRE46` with the `M3GTRCAREERSTART` preset at LOD A with `nfsmw_data::car::load` and shows it with the car
-  viewer's floor (`CarScene`). If the car cannot be loaded, the menus fall back to the flat dark backdrop.
+- `MenuScene::new(Some(dir))` loads `BMWM3GTRE46` with the `M3GTRCAREERSTART` preset at LOD A with `nfsmw_data::car::load` and shows it in the crib room (on the car
+  viewer's floor only when the room cannot be loaded). If the car cannot be loaded, the menus fall back to the flat dark backdrop.
 - The car stands still. The camera settles once, when the menus come up, from 30° round and 1.5× further out onto
   its rest pose over 0.5 s (`INTRO_SECONDS`, `INTRO_YAW_DEGREES`, `INTRO_DISTANCE_SCALE`). The 0.5 s is the original's
   camera move length (the float at `DAT_00905E28`, read with Ghidra); the start pose is ours.
@@ -79,13 +82,12 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
 
 ## 3. Still to do
 
-1. Render the crib room (`PLATFORMCRIB.BIN`, section 1a) behind the menus: its five solid packs and their textures
-   through `blackbox-scene`, in place of the stand-in floor. The car still comes from elsewhere.
-2. Find which car the original shows, and where. The `FrontB.lzc` geometry pack is ruled out (section 1a'); the
-   player's current car is the next candidate.
-3. Find the original's turn rate and whether the car changes with the player's car (`CAR_LOT` and the career
-   stages use other cars).
-4. Replace the floor and the stand-in camera with the stage's own once it is read.
+1. ~~Render the crib room~~ Done (section 1b).
+2. ~~Find which car the original shows, and where.~~ The car is the player's current car (section 7), stood by code in the
+   executable, not by the stage file ([menu-backdrop-looks.md](menu-backdrop-looks.md) section 4).
+3. The car's turn in the crib, the crib's camera (`angle3` is the lead) and the original's turn rate are not applied to the crib
+   (`Look::Main` stays as it is on purpose). The safe house has its own car stand and camera.
+4. The other platforms (customization shop, back room, car lot) are not drawn.
 
 ## 4. Lead: the showcase [strings, not yet decompiled]
 

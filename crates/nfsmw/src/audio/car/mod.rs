@@ -43,6 +43,7 @@ pub struct CarSoundTick {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarEvent {
     pub sound_profile: u32,
+    pub audio_zone: Option<nfsmw_data::sound::CollisionZone>,
     pub kind: EventKind,
     /// The `simsurface` hash of the surface involved.
     pub surface: u32,
@@ -134,6 +135,7 @@ impl Audio {
         }
         if state.is_some() {
             self.prepare_breaker_moments();
+            self.prepare_explosion();
         }
         self.update_speedbreaker(state.is_some_and(|state| state.view.speedbreaker), dt);
         let Some(state) = state else {

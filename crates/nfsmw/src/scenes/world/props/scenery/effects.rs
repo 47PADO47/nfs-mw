@@ -10,6 +10,9 @@ impl PropWorld {
             return;
         };
         match event {
+            WorldEvent::ObjectEffect(effect) => self.object_effect(id, effect, data),
+            WorldEvent::StopObjectEffect(instance) => self.stop_object_effect(id, Some(instance)),
+            WorldEvent::StopObjectEffects => self.stop_object_effect(id, None),
             WorldEvent::AreaStimulus { system, stimulus, queue_mode, radius } => {
                 if radius <= 0.0 {
                     return;

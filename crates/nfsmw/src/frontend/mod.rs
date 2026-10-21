@@ -2,8 +2,9 @@
 //! main menu, free roam, the pause menu) and the screens' own logic. The packages are run by `blackbox-feng` and
 //! drawn by the shared presenter in `ui`. Spec: `docs/specs/frontend-menus.md`.
 
-mod alias_options;
+mod alias_menu;
 mod browse;
+mod camera_pose;
 mod career_screens;
 // The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.
 pub(crate) mod challenge_series;
@@ -26,10 +27,13 @@ mod jukebox;
 mod loading;
 mod loading_tips;
 mod logic;
+mod look;
 mod mod_options;
+mod name_entry;
 mod options;
 mod photo;
 mod plugin;
+mod plugin_keys;
 mod pointer;
 pub(crate) mod post_options;
 mod post_race;
@@ -37,6 +41,7 @@ mod prompt_layout;
 mod prompts;
 mod pursuit_results;
 mod quick_options;
+mod quick_play;
 mod quick_race;
 mod renderer_options;
 mod rewards;
@@ -46,6 +51,7 @@ mod screens;
 mod script;
 mod scroller;
 mod splash;
+mod stage;
 mod track_options;
 mod track_select;
 mod widget_layout;
@@ -65,6 +71,8 @@ mod exhaust_flames_tests;
 #[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]
+mod menu_rows_tests;
+#[cfg(test)]
 mod speed_units_tests;
 #[cfg(test)]
 mod tests;
@@ -78,6 +86,7 @@ mod vehicle_effects_tests;
 pub use browse::Browse;
 pub use flow::{Frontend, Start};
 pub use logic::{Args, Category};
+pub use look::Look;
 pub use plugin::{FrontendPlugin, map_pointer_on_picture};
 pub use scene::MenuScene;
 #[cfg(test)]

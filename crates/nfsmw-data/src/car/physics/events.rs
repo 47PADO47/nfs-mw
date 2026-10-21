@@ -25,6 +25,11 @@ pub struct CarEventSpec {
     pub strength: f32,
     pub suppress_distance: f32,
     pub visual_scale: [f32; 10],
+    pub hit_points: f32,
+    pub hit_point_threshold: f32,
+    pub hit_point_scale: [f32; 10],
+    pub shock_force: f32,
+    pub shock_time: f32,
 }
 
 impl CarEventSpec {
@@ -36,11 +41,20 @@ impl CarEventSpec {
             let Some(value) = bytes.get(..4) else { return 0.0 };
             f32::from_le_bytes(value.try_into().unwrap())
         });
+        let hit_point_scale = DAMAGE_ZONES.map(|zone| {
+            let Some(Value::Raw { bytes, .. }) = damage.get(zone) else { return 0.0 };
+            bytes.get(4..8).map_or(0.0, |value| f32::from_le_bytes(value.try_into().unwrap()))
+        });
         Some(Self {
             sequence: key.and_then(|k| sequences.get(k)).cloned(),
             strength: damage.get_f32("FORCE").unwrap_or(0.0) * 1000.0,
             suppress_distance: damage.get_f32("SUPPRESS_DIST").unwrap_or(0.0),
             visual_scale,
+            hit_points: damage.get_f32("HIT_POINTS").unwrap_or(0.0),
+            hit_point_threshold: damage.get_f32("HP_THRESHOLD").unwrap_or(0.0),
+            hit_point_scale,
+            shock_force: damage.get_f32("SHOCK_FORCE").unwrap_or(0.0),
+            shock_time: damage.get_f32("SHOCK_TIME").unwrap_or(0.0),
         })
     }
 }

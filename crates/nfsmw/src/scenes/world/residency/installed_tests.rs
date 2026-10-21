@@ -89,6 +89,7 @@ fn installed_cargo_damage_uses_the_active_camera_after_leaving_the_free_camera()
             half: trailer.bounds.half_dimensions,
             closing_speed: 50.0,
             force: spec.strength * 10.0,
+            shock_force: 0.0,
             before_velocity: Vec3::Z * 50.0,
             other: OtherBody { vehicle: true, player: true, ..Default::default() },
         });

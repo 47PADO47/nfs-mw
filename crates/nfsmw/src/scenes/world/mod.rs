@@ -39,10 +39,15 @@ mod focus_feed;
 mod object_geometry;
 mod open;
 pub use open::WorldLoad;
+mod damage_effects;
+mod impact_effects;
 #[cfg(test)]
 mod performance_tests;
+mod prop_effects;
 mod props;
 mod race;
+#[cfg(test)]
+mod race_restart_tests;
 mod readiness;
 mod rear_view;
 mod reflections;
@@ -204,6 +209,9 @@ pub struct WorldScene {
     rain: crate::weather::rain::Rain,
     /// The petrol station's explosion effect, started by the scenery physics.
     explosions: explosion_fx::ExplosionFx,
+    object_fx: prop_effects::ObjectFx,
+    car_damage_fx: damage_effects::DamageEffects,
+    impact_fx: impact_effects::ImpactEffects,
     /// The physics clock multiplier (Extra Options `GameSpeed`).
     tuning: crate::settings::WorldTuning,
     car_shading: crate::settings::CarShading,

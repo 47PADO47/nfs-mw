@@ -14,6 +14,7 @@ impl WorldScene {
     /// Gives the drive the collision sparks and the car's wind trail, as the settings say.
     pub(super) fn apply_vehicle_effects(&mut self) {
         let [sparks, _] = self.vehicle_effects;
+        self.impact_fx.set_enabled(sparks);
         let trails = self.car_trails();
         if let Some(drive) = self.drive.as_mut() {
             drive.vehicle_effects.set_enabled(sparks, trails);

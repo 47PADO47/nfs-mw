@@ -81,15 +81,15 @@ impl CollisionEffects {
     }
 }
 
-struct Record {
-    surface: RefSpec,
-    effect: RefSpec,
-    min: f32,
-    max: f32,
+pub(super) struct Record {
+    pub surface: RefSpec,
+    pub effect: RefSpec,
+    pub min: f32,
+    pub max: f32,
 }
 
 impl Record {
-    fn read(value: &Value) -> Option<Self> {
+    pub(super) fn read(value: &Value) -> Option<Self> {
         let Value::Raw { type_key, bytes } = value else { return None };
         if *type_key != vlt_hash("EffectLinkageRecord") || bytes.len() != 32 {
             return None;
@@ -124,7 +124,7 @@ impl Record {
         Some(SparkLink { min: self.min, max: self.max, styles, inherit_velocity })
     }
 
-    fn pc_link(&self, db: &Database) -> Option<PcSparkLink> {
+    pub(super) fn pc_link(&self, db: &Database) -> Option<PcSparkLink> {
         if self.effect.class != vlt_hash("effects")
             || !self.min.is_finite()
             || self.min < 0.0

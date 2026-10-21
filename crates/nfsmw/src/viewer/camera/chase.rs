@@ -6,7 +6,7 @@ use glam::Vec3;
 use super::{Camera, Lens, direction};
 
 mod presentation;
-mod shake;
+pub(super) mod shake;
 pub use presentation::ChaseView;
 
 /// Distance behind the car at rest and at [`FAST`], metres.

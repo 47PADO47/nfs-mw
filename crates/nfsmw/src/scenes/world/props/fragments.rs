@@ -75,6 +75,8 @@ impl PropWorld {
             original_bounds: Aabb::EMPTY,
             body: Some(body),
             cells: Vec::new(),
+            effect_owner: super::super::impact_effects::next_owner(),
+            effect_lifetime: std::rc::Rc::new(()),
         };
         collider.original_bounds = collider.physics_bounds();
         self.colliders.insert(id, collider);

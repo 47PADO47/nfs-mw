@@ -19,6 +19,7 @@ use glam::Vec2;
 use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
+use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
 use super::pointer::{self, feng_point};
 use super::screens::{Presented, Screens};
 use super::script::{self, UiScript};
@@ -45,6 +46,8 @@ pub struct FrontendPlugin {
     pub browse: Option<Browse>,
     /// The career being played: the same handle the HUD and the world hold.
     pub career: crate::career::CareerHandle,
+    /// A backdrop look that stays whatever the screens ask for (`view-screen --look`, for checking the looks offscreen).
+    pub look: Option<super::look::Look>,
 }
 
 impl Plugin for FrontendPlugin {
@@ -57,9 +60,15 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();
+        if let Some(look) = &self.look {
+            frontend.look = look.clone();
+            frontend.look_override = Some(look.clone());
+        }
         app.insert_resource(frontend)
             .init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
+            .init_resource::<TypedKeys>()
+            .add_systems(Update, collect_typed.before(update))
             .add_systems(Update, update.in_set(FrameSet::Frontend))
             .add_systems(Update, present.in_set(FrameSet::Hud))
             .add_systems(Update, pointer::apply);
@@ -83,37 +92,6 @@ pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
         .is_some_and(|view| (0.0..=1.0).contains(&view[0]) && (0.0..=1.0).contains(&view[1]))
 }
 
-/// Puts a key in a slot and writes the bindings to the config file. A missing config path only keeps the change for
-/// this run.
-fn remember_key(bindings: &mut Bindings, control: crate::input::Control, slot: usize, key: KeyCode) {
-    bindings.set_keyboard_slot(control, slot, key);
-    let Some(path) = Settings::config_path() else { return };
-    if let Err(e) = bindings.save_to(&path) {
-        log::warn!("the key could not be saved to {}: {e:#}", path.display());
-    }
-}
-
-/// The pad mask the real input makes this frame.
-fn pad_mask(actions: &ActionState) -> u32 {
-    [
-        (Action::MenuUp, pad::UP),
-        (Action::MenuDown, pad::DOWN),
-        (Action::MenuLeft, pad::LEFT),
-        (Action::MenuRight, pad::RIGHT),
-        (Action::MenuAccept, pad::ACCEPT),
-        (Action::MenuBack, pad::BACK),
-        (Action::MenuStart, pad::START),
-        // Key 1 is Restart on both post-race screens: the lap table's button 1 and the photo's button 5.
-        (Action::MenuButton1, (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
-        (Action::MenuButton2, pad::BUTTON0 << 4),
-        (Action::MenuTriggerLeft, pad::LTRIGGER),
-        (Action::MenuTriggerRight, pad::RTRIGGER),
-    ]
-    .into_iter()
-    .filter(|(action, _)| actions.pressed(*action))
-    .fold(0, |mask, (_, bit)| mask | bit)
-}
-
 /// What a click on the menus presses.
 enum Press {
     /// Accept, held while the button is held.
@@ -122,6 +100,8 @@ enum Press {
     Back,
     /// Quit, once, as the quit action does on the main menu.
     Quit,
+    /// Button 1, once (Game Stats on the main menu, Randomize on the Quick Play brief).
+    Button1,
     /// A screen's own part (an option row or its arrow), with what it queued.
     Screen(Vec<Command>),
     Nothing,
@@ -133,6 +113,7 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
         Some(Action::MenuAccept) => return Press::Accept,
         Some(Action::MenuBack) => return Press::Back,
         Some(Action::MenuQuit) => return Press::Quit,
+        Some(Action::MenuButton1) => return Press::Button1,
         _ => {}
     }
     if let Some(commands) = fe.screens.click(point, env) {
@@ -156,6 +137,8 @@ struct MapParams<'w> {
     themes: Res<'w, UiThemes>,
     /// The mods, for the rows of the options' Mods page (`bb.menus`); absent without mods.
     mods: Option<NonSend<'w, crate::modding::Mods>>,
+    /// The keys typed this frame, for a screen that takes text.
+    typed: ResMut<'w, TypedKeys>,
 }
 
 /// How long a menu step may take before it is logged as a stall.
@@ -253,7 +236,7 @@ fn update(
     }
     // On the menus a click presses what is under the pointer and holds accept while a button is held. A sidebar's
     // list takes its own clicks and wheel turns, so none of them reach the screen under it.
-    let (mut press_back, mut press_quit) = (false, false);
+    let (mut press_back, mut press_quit, mut press_button1) = (false, false, false);
     let on_list = fe.browse.as_ref().is_some_and(Browse::over_panel);
     // The GPS Yes/No dialog is the one menu that opens over the map; it takes the menu click and pad handling too.
     let dialog_over_map = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::DIALOG);
@@ -274,6 +257,7 @@ fn update(
                 Press::Accept => *clicking = true,
                 Press::Back => press_back = true,
                 Press::Quit => press_quit = true,
+                Press::Button1 => press_button1 = true,
                 Press::Screen(commands) => fe.apply(commands, host, &mut env),
                 Press::Nothing => {}
             }
@@ -287,6 +271,28 @@ fn update(
         if press_back {
             mask |= pad::BACK;
         }
+        if press_button1 {
+            mask |= (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5);
+        }
+    }
+    // A screen that takes text (the alias name prompt) gets the typed characters, and only Enter and Escape press its pad.
+    if matches!(fe.stage, Stage::Menus | Stage::Paused) && fe.screens.wants_text() {
+        let typed = std::mem::take(&mut map.typed.0).into_iter();
+        let scripted_text = fe.script.as_mut().and_then(UiScript::take_text).unwrap_or_default();
+        // In a script `~` is Backspace.
+        let from_script = scripted_text.chars().map(|c| match c {
+            '~' => super::name_entry::TextKey::Backspace,
+            c => super::name_entry::TextKey::Char(c),
+        });
+        for key in typed.chain(from_script) {
+            let commands = fe.screens.type_key(key, &mut env);
+            fe.apply(commands, host, &mut env);
+        }
+        if scripted.is_none() {
+            mask = text_mask(&keys);
+        }
+    } else {
+        map.typed.0.clear();
     }
     // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
     let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list;
@@ -396,6 +402,7 @@ fn update(
             let top = fe.screens.top().map(str::to_owned);
             let commands = fe.screens.update(dt, mask, &mut env);
             fe.apply(commands, host, &mut env);
+            fe.sync_backdrop(host);
             // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
             let took = started.elapsed();
             if took >= SLOW_MENU_STEP {

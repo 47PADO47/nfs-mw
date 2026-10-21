@@ -25,6 +25,12 @@ impl Drive {
         }
     }
 
+    pub(in crate::scenes::world) fn take_impact_effects(
+        &mut self,
+    ) -> Vec<crate::scenes::world::impact_effects::Contact> {
+        self.sim.as_mut().map_or_else(Vec::new, |sim| sim.take_impact_effects())
+    }
+
     /// Free the flames' unloaded textures and load the car's flames when the setting is on and they are not
     /// loaded yet. A frame with the setting off and nothing to free does nothing.
     pub fn maintain_flames(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database) {

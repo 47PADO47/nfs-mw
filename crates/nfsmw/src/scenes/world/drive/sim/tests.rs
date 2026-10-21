@@ -5,9 +5,11 @@ use nfsmw_data::car::physics::CarBounds;
 use super::*;
 
 mod contact_order;
+mod damage_callbacks;
 mod frame_rate;
 mod geometry;
 mod reactions;
+mod simple_chassis;
 mod traffic_placement;
 
 fn sim() -> CarSim {
@@ -15,6 +17,7 @@ fn sim() -> CarSim {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(0.0, spec.dimension.y, 0.1) };
     CarSim::new(
         CarPhysics {
+            effect_source: 0,
             tire_integration: Default::default(),
             jump_config: Default::default(),
             spec,

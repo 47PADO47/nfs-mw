@@ -6,8 +6,7 @@
 //! [`Emitter::step`], and reads the particles back as [`Sprite`]s. Nothing is drawn here; the sprite holds the
 //! position, the half size, the rotation and the colour of one billboard.
 //!
-//! Units are the caller's (metres and seconds in the games); `+z` is up. Not modelled: start delays,
-//! on/off cycles, one-shot emitters, the disc spread and animated textures.
+//! Units are the caller's (metres and seconds in the games); `+z` is up.
 //!
 //! ```
 //! use blackbox_particles::{Emitter, EmitterSpec, Frame};
@@ -20,6 +19,12 @@
 //! assert_eq!(emitter.sprites().count(), 4);
 //! ```
 
+mod animation;
+#[cfg(test)]
+mod animation_tests;
+mod control;
+#[cfg(test)]
+mod control_tests;
 mod curve;
 #[cfg(test)]
 mod cycle_tests;
@@ -29,6 +34,7 @@ mod spec;
 #[cfg(test)]
 mod tests;
 
+pub use animation::Animation;
 pub use curve::Curve;
 pub use emitter::{Emitter, Frame, MAX_PARTICLES, Sprite};
 pub use rng::Rng;

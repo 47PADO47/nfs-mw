@@ -98,7 +98,7 @@ fn lot_stats(dir: &GameDir, cars: &[LotCar]) -> Vec<Option<CarStats>> {
 /// One car's stats from the repo's estimator. **[unconfirmed]** the estimator (`blackbox_vehicle::performance`) is the
 /// repo's own measurement, not the game's simulation: top speed is its top speed, time to 100 mph is integrated from its
 /// acceleration table, and handling is its start grip. `None` when the car's physics cannot be read.
-fn car_stats(physics: &PhysicsData, name: &str) -> Option<CarStats> {
+pub fn car_stats(physics: &PhysicsData, name: &str) -> Option<CarStats> {
     let car = physics.car(name).ok()?;
     let performance = measure_with_integration(&car.spec, car.tire_integration);
     let time_to_100 = time_to_speed(SPEED_100_MPH, performance.top_speed, |speed| performance.acceleration_at(speed));

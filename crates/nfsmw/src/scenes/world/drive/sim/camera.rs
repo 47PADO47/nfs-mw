@@ -86,6 +86,7 @@ mod tests {
         let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::new(5.0, 6.0, 7.0) };
         let mut car = CarSim::new(
             CarPhysics {
+                effect_source: 0,
                 spec,
                 bounds,
                 tire_integration: Default::default(),

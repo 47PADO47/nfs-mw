@@ -3,6 +3,7 @@
 
 mod effects;
 mod explosion;
+mod particles;
 mod spawn;
 #[cfg(test)]
 mod tests;
@@ -48,6 +49,7 @@ pub(super) struct SceneryModel {
     hidden_parts: BTreeSet<u32>,
     spawned: BTreeSet<u32>,
     triggered: bool,
+    authored_visual: bool,
     owner: Weak<()>,
     parent_owner: Option<Rc<()>>,
 }
@@ -68,6 +70,7 @@ impl SceneryModel {
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
+            authored_visual: false,
             owner: Rc::downgrade(&owner),
             parent_owner: Some(owner),
         }
@@ -99,6 +102,7 @@ impl SceneryModel {
         self.failed = false;
         self.hidden = false;
         self.triggered = false;
+        self.authored_visual = false;
         self.hidden_parts.clear();
         self.spawned.clear();
         let owner = Rc::new(());
@@ -141,6 +145,8 @@ pub(super) struct Stimulus {
 
 #[derive(Default)]
 pub(super) struct SceneryEvents {
+    particles: Vec<super::super::prop_effects::Command>,
+    authored_blasts: Vec<Vec3>,
     pub models: BTreeMap<u32, SceneryModel>,
     pending: VecDeque<Stimulus>,
     waves: Vec<explosion::Wave>,

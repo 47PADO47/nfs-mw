@@ -5,7 +5,7 @@ use super::{PropWorld, SceneryModel};
 use blackbox_vehicle::rigid_body::BodyState;
 use glam::{Quat, Vec3};
 use nfsmw_data::{car::physics::PhysicsData, world::sequences::Fragment};
-use std::{collections::BTreeSet, rc::Weak};
+use std::{collections::BTreeSet, rc::Weak, sync::Arc};
 
 impl PropWorld {
     pub(super) fn spawn_scenery_fragment(&mut self, id: u32, fragment: Fragment, data: &PhysicsData) -> Option<u32> {
@@ -47,7 +47,19 @@ impl PropWorld {
         if owner.strong_count() == 0 {
             return None;
         }
-        let spec = data.fragment_dynamics(fragment.attributes)?;
+        let spec = match (fragment.no_physics, data.fragment_dynamics(fragment.attributes)) {
+            (_, Some(spec)) => spec,
+            (false, None) => return None,
+            (true, None) => {
+                // A visual model has no independent body attributes. Retain a frozen
+                // pose carrier, cleaned up by its parent rather than prop physics.
+                let mut carrier = self.colliders.get(&id)?.shape.dynamics.as_ref()?.as_ref().clone();
+                carrier.event_sequencer = 0;
+                carrier.kill_off_screen = 0.0;
+                carrier.allow_off_world = true;
+                Arc::new(carrier)
+            }
+        };
         let mut body = PropBody::fragment(&bounds, bounds_root, &spec, pose, visual)?;
         body.rigid.linear_velocity = velocity.0;
         body.rigid.angular_velocity = velocity.1;
@@ -64,6 +76,7 @@ impl PropWorld {
             player: None,
             failed: false,
             hidden: false,
+            authored_visual: false,
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,

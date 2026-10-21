@@ -71,6 +71,9 @@ pub struct RaceParams {
     pub challenge_series: bool,
     /// `OutroNIS`: the cutscene the career plays after the race, when it has one.
     pub outro_nis: Option<String>,
+    /// `RaceLength` (hash `0x7C11C52E`): the route in metres as the editor stored it, 0 when it has none. The Quick Play
+    /// brief's `Length:` line reads it (`docs/specs/quick-play.md` section 5).
+    pub route_length: f32,
 }
 
 impl Default for RaceParams {
@@ -105,6 +108,7 @@ impl Default for RaceParams {
             unlock_races: Vec::new(),
             localization_tag: 0,
             challenge_series: false,
+            route_length: 0.0,
         }
     }
 }
@@ -141,6 +145,7 @@ impl RaceParams {
             localization_tag: c.get_i32("LocalizationTag").unwrap_or(0),
             challenge_series: c.get_bool("ChallengeSeriesRace").unwrap_or(false),
             outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
+            route_length: c.get_f32("RaceLength").unwrap_or(d.route_length),
         }
     }
 

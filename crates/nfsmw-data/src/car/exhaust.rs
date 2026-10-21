@@ -76,11 +76,22 @@ pub fn pipe_frames(placements: &[Placement], solids: &HashMap<u32, Solid>) -> Ve
 
 pub fn group_emitters(db: &Database, group: CollectionRef<'_>) -> Vec<GroupEmitter> {
     let Some(items) = group.get("Emitters").and_then(|v| v.as_array()) else { return Vec::new() };
+    let ranges = group.get("IntensityRanges").and_then(|v| v.as_array()).filter(|r| r.len() == items.len());
     items
         .iter()
-        .filter_map(|v| v.as_ref_spec())
-        .filter_map(|r| db.resolve(r))
-        .filter_map(|e| Some(GroupEmitter { spec: emitter_spec(e), texture: texture_hash(e)? }))
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let emitter = item.as_ref_spec().and_then(|r| db.resolve(r))?;
+            let mut spec = emitter_spec(emitter);
+            if let Some(ranges) = ranges {
+                let range = ranges[index].as_vector2().unwrap_or([0.0, 1.0]);
+                spec.intensity_range = match range[0] < range[1] {
+                    true => range,
+                    false => [0.0, 1.0],
+                };
+            }
+            Some(GroupEmitter { spec, texture: texture_hash(emitter)? })
+        })
         .collect()
 }
 
@@ -90,8 +101,7 @@ fn texture_hash(emitter: CollectionRef<'_>) -> Option<u32> {
     Some(u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?))
 }
 
-/// An `emitterdata` collection as emitter parameters. Fields the emitter library does not model (start delay,
-/// cycles, one-shot, disc spread, texture animation) are ignored.
+/// An `emitterdata` collection as emitter parameters, including authored control timing.
 fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
     let float = |name: &str| e.get_f32(name).unwrap_or(0.0);
     let vector = |name: &str| e.get_vector4(name).map_or(Vec3::ZERO, |[x, y, z, _]| Vec3::new(x, y, z));
@@ -101,6 +111,7 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
     let keys = four("KeyPositions").map(|k| k / 3.0);
     let no_kill = e.get_bool("NoKillAtAlpha").unwrap_or(false);
     EmitterSpec {
+        animation: animation(e.get("TextureAnimation").and_then(|v| v.as_raw()).unwrap_or_default()),
         rate: float("NumParticles"),
         rate_variance: float("NumParticlesVariance"),
         life: float("Life"),
@@ -132,11 +143,36 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
         off_cycle: float("OffCycle"),
         off_cycle_variance: float("OffCycleVariance"),
         start_delay: float("StartDelay"),
+        start_delay_random: e.get_bool("StartDelayRandomVariance").unwrap_or(false),
         one_shot: e.get_bool("IsOneShot").unwrap_or(false),
+        intensity_range: [0.0, 999999.0],
         kill_alpha: match no_kill {
             true => None,
             false => Some(e.get_i32("AlphaToKillAt").unwrap_or(0).clamp(0, 255) as u8),
         },
+    }
+}
+
+fn animation(bytes: &[u8]) -> blackbox_particles::Animation {
+    let Some(bytes) = bytes.get(..8) else { return Default::default() };
+    let grid = match u32::from_le_bytes(bytes[..4].try_into().unwrap()) {
+        value @ (2 | 4 | 8 | 16) => value as u8,
+        _ => 0,
+    };
+    blackbox_particles::Animation { grid, fps: bytes[4], random_start: bytes[5] != 0 }
+}
+
+#[cfg(test)]
+mod animation_tests {
+    use super::animation;
+
+    #[test]
+    fn animation_layout_keeps_static_random_cells_and_all_supported_grid_sizes() {
+        let animation = animation(&[4, 0, 0, 0, 0, 1, 0, 0]);
+        assert_eq!((animation.grid, animation.fps, animation.random_start), (4, 0, true));
+        assert_eq!(super::animation(&[16, 0, 0, 0, 24, 0, 0, 0]).grid, 16);
+        assert_eq!(super::animation(&[0; 7]).grid, 0);
+        assert_eq!(super::animation(&[3, 0, 0, 0, 24, 0, 0, 0]).grid, 0);
     }
 }
 

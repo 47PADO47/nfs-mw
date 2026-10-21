@@ -39,10 +39,16 @@ pub(super) fn shape(body: &RigidBody, frame: Option<BodyGeometryFrame<'_>>, inde
     })
 }
 
-pub(super) fn parameters(body: &RigidBody, normal: Vec3, spec: &PropDynamics, attached: bool) -> BodyHit {
+pub(super) fn parameters(
+    body: &RigidBody,
+    normal: Vec3,
+    spec: &PropDynamics,
+    attached: bool,
+    partner_immobile: bool,
+) -> BodyHit {
     let mut hit = material(body, normal);
     hit.immobile = spec.immobile || attached;
-    if !spec.immobile && attached {
+    if !partner_immobile && !spec.immobile && attached {
         hit.breaking_impulse = spec.detach_impulse.max(0.0);
     }
     hit

@@ -7,6 +7,8 @@ mod color;
 pub mod cop_lights;
 pub mod customization;
 pub mod damage;
+pub mod damage_effects;
+pub mod damage_parts;
 mod ecar;
 pub mod exhaust;
 mod folders;
@@ -168,6 +170,7 @@ fn load_with(
         Some(name) => preset_parts(t, car_type, t.preset(name).with_context(|| format!("no preset named {name}"))?),
         None => customization::resolve(t, car_type, customization)?,
     };
+    let damage_slots = driver.then(|| damage_parts::slots(t, car_type, &slots)).flatten();
     let mut pool: HashMap<u32, Arc<Solid>> = own.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect();
     let mut shared_sources = HashMap::new();
     let levels: Vec<usize> = match driver && lod == 0 {
@@ -176,7 +179,13 @@ fn load_with(
     };
     let wanted: Vec<u32> = levels
         .iter()
-        .flat_map(|&level| slots[..slot::MODELS].iter().flatten().filter_map(move |p| t.parts.model_hash(p, level)))
+        .flat_map(|&level| {
+            slots[..slot::MODELS]
+                .iter()
+                .chain(damage_slots.iter().flat_map(|slots| &slots[..23]))
+                .flatten()
+                .filter_map(move |p| t.parts.model_hash(p, level))
+        })
         .collect();
     if wanted.iter().any(|h| !pool.contains_key(h)) {
         // Only the wanted names are taken: the car's own solids win, then the first shared folder that has the name.
@@ -198,12 +207,32 @@ fn load_with(
     let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
     customization::validate_placements(customization, &placements)?;
     let extra = match driver && lod == 0 {
-        true => lods::assemble(t, &slots, &pool, setup.as_ref()),
+        true => lods::assemble(t, &slots, &pool, setup.as_ref(), damage_slots.is_some()),
         false => Vec::new(),
     };
-    let driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra };
-    let used: HashSet<u32> =
-        placements.iter().chain(driving_lods.levels.iter().flat_map(|l| &l.placements)).map(|p| p.solid).collect();
+    let damage = damage_parts::DamageParts {
+        enabled: damage_slots.is_some(),
+        levels: damage_slots
+            .iter()
+            .flat_map(|slots| {
+                levels.iter().map(|&level| {
+                    let (mut placements, _) = assemble::assemble(t, slots, &pool, setup.as_ref(), level, driver);
+                    placements.retain(|p| p.slot <= 22);
+                    LodAssembly { level, placements }
+                })
+            })
+            .collect(),
+    };
+    let damage_fx = match driver {
+        true => damage_effects::DamageFx::read(&t.attributes, &car_type.base_model_name, setup.as_ref()),
+        false => Default::default(),
+    };
+    let driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra, damage, damage_fx };
+    let used: HashSet<u32> = placements
+        .iter()
+        .chain(driving_lods.levels.iter().chain(&driving_lods.damage.levels).flat_map(|l| &l.placements))
+        .map(|p| p.solid)
+        .collect();
     pool.retain(|h, _| used.contains(h));
     let shared_folders: HashSet<_> =
         shared_sources.into_iter().filter(|(h, _)| used.contains(h)).map(|(_, folder)| folder).collect();

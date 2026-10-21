@@ -42,10 +42,12 @@
 !/libs/*/src/**/*.wgsl
 !/libs/*/src/**/*.wesl
 !/libs/*/tests/**/*.rs
+!/libs/blackbox-vehicle/examples/physics_reference/**/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs
 !/crates/*/src/**/*.wgsl
 !/crates/*/tests/**/*.rs
+!/crates/nfsmw-data/examples/physics_profiles.rs
 !/xtask/Cargo.toml
 !/xtask/src/**/*.rs
 

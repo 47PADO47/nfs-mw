@@ -53,7 +53,7 @@ pub struct Lookup {
 
 /// A car as the main thread makes its physics from it: everything but the rig.
 pub struct CarParts {
-    /// The name the model is known by: the upper-case `pvehicle` for traffic, the folder for a cop.
+    /// The requested upper-case `pvehicle`, including when its geometry comes from an ancestor's folder.
     pub name: String,
     pub model: CarModel,
     pub physics: CarPhysics,

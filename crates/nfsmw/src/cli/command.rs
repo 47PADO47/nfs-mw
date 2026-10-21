@@ -77,6 +77,9 @@ pub enum Command {
         /// Start driving at once (free roam with the stock car).
         #[arg(long, conflicts_with = "skip_boot")]
         drive: bool,
+        /// Start where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+        #[arg(long, hide = true, conflicts_with_all = ["skip_boot", "drive"])]
+        aliases: bool,
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
         #[arg(long, hide = true, value_name = "SCRIPT")]
         ui_script: Option<String>,
@@ -99,6 +102,12 @@ pub enum Command {
         /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".
         #[arg(long, value_name = "SCRIPT")]
         ui_script: Option<String>,
+        /// Fix the 3D backdrop whatever the screen asks for, to check a look offscreen: main, car or safehouse.
+        #[arg(long, hide = true, value_name = "LOOK")]
+        look: Option<String>,
+        /// For --look car or safehouse: the car folder under CARS/ and optionally a preset, as BMWM3GTRE46:M3GTRCAREERSTART.
+        #[arg(long, hide = true, value_name = "CAR[:PRESET]", requires = "look")]
+        car: Option<String>,
         #[command(flatten)]
         view: ViewArgs,
     },

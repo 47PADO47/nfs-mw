@@ -196,8 +196,17 @@ fn a_wrecked_patrol_cannot_report_sight_or_appear_on_radar() {
     world.player_position = Some(Vec3::ZERO);
     world.update_sight(0.25, &|_, _| None);
     assert!(world.sighting(1).seen);
-    let at = world.cars[0].physics_position();
-    world.cars[0].on_hit(1_000_000.0, true, DriverClass::Human, 50.0, at, 0.0);
+    let hit = crate::scenes::world::events::DamageHit {
+        arm: Vec3::ZERO,
+        normal: Vec3::X,
+        half: Vec3::ONE,
+        closing_speed: 50.0,
+        force: 1_000_000.0,
+        shock_force: 500_000.0,
+        before_velocity: Vec3::ZERO,
+        other: crate::scenes::world::events::OtherBody { vehicle: true, player: true, ..Default::default() },
+    };
+    world.cars[0].on_hit(1_000_000.0, true, DriverClass::Human, 50.0, hit, 0.0);
     assert!(world.cars[0].is_wrecked());
     world.update_sight(0.25, &|_, _| None);
     assert!(!world.sighting(1).seen);

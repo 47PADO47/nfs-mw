@@ -105,7 +105,13 @@ impl AiCar {
             &self.pose(alpha),
             self.sim.events.as_ref().map(|e| &e.hidden_slots),
             &revealed,
-            crate::scenes::world::drive::DrawOptions { car: self.render_id, detail, ..Default::default() },
+            crate::scenes::world::drive::DrawOptions {
+                car: self.render_id,
+                detail,
+                glass: self.glass_mask(),
+                damage: self.sim.events.as_ref().map(|e| e.source_levels()),
+                ..Default::default()
+            },
             out,
         );
     }

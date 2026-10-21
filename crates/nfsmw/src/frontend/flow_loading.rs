@@ -43,9 +43,10 @@ impl Frontend {
         self.screens.clear();
         log::info!("starting free roam");
         let dir = self.dir.clone();
+        let car = self.quick_car.take().unwrap_or_else(|| DEFAULT_CAR.to_owned());
         let spawned = std::thread::Builder::new()
             .name("world-load".to_owned())
-            .spawn(move || WorldScene::load(&dir, free_roam_options()));
+            .spawn(move || WorldScene::load(&dir, free_roam_options(&car)));
         let world = match spawned {
             Ok(world) => world,
             Err(e) => {
@@ -93,10 +94,14 @@ impl Frontend {
         };
         world.set_career(self.career.clone(), self.profiles.clone());
         if let Some(race) = self.quick_race.take() {
-            let options = self
-                .race_options
-                .take()
-                .unwrap_or_else(|| crate::frontend::quick_options::Choice::of(env.settings).race_options());
+            // The challenge series sets its own options; Quick Play has none (the race runs as the data has it); a Custom
+            // Race runs with the player's choice.
+            let own = self.series.options.take();
+            let options = match (own, std::mem::take(&mut self.quick_play)) {
+                (Some(options), _) => options,
+                (None, true) => crate::scenes::world::RaceOptions::default(),
+                (None, false) => crate::frontend::quick_options::Choice::of(env.settings).race_options(),
+            };
             world.queue_race(race, options);
         }
         self.paused.set(false);

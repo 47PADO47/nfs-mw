@@ -8,11 +8,14 @@ use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::jukebox::JukeboxLogic;
 use super::loading_tips::LoadingTips;
-use super::logic::{Args, Plain, ScreenLogic};
+use super::logic::{Args, Plain, ScreenLogic, Sub};
+use super::look::{CarLook, Look};
+use super::quick_play::QuickPlay;
 use super::splash::Splash;
 use super::track_options::TrackOptions;
 use super::track_select::TrackSelect;
 use super::widget_menu::WidgetMenu;
+use crate::career::CareerHandle;
 use crate::ui::Text;
 use crate::ui::theme::ElementId;
 
@@ -36,8 +39,17 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     if let Some(logic) = super::career_screens::make(&name, args) {
         return logic;
     }
+    if is(screen::MAIN_MENU_SUB) && args.sub == Sub::Career {
+        return super::career_screens::career_menu::make(args);
+    }
+    if is(screen::MAIN_MENU_SUB) && args.sub == Sub::QuickRace {
+        return Box::new(IconMenu::new(Kind::QuickRace, args));
+    }
     if is(screen::MAIN_MENU_SUB) {
         return Box::new(IconMenu::new(Kind::Categories { pause: false, mods: mod_rows }, args));
+    }
+    if is(screen::MC_PROFILE_MANAGER) {
+        return Box::new(IconMenu::new(Kind::AliasManager, args));
     }
     if is(screen::PAUSE_MENU) {
         let kind = if args.options { Kind::Categories { pause: true, mods: mod_rows } } else { Kind::Pause };
@@ -61,6 +73,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::CHALLENGE_SERIES) {
         return Box::new(super::challenge_series::ChallengeSeries::new());
+    }
+    if is(screen::QUICK_RACE_BRIEF) {
+        return Box::new(QuickPlay::new());
     }
     if is(screen::EA_TRAX_JUKEBOX) {
         return Box::new(JukeboxLogic::new());
@@ -103,7 +118,7 @@ pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
     if let Some(slot) = career_slot(&name) {
         return Some(slot);
     }
-    if is(screen::MAIN_MENU_SUB) {
+    if is(screen::MAIN_MENU_SUB) || is(screen::MC_PROFILE_MANAGER) {
         return Some(ElementId::Categories);
     }
     if is(screen::PAUSE_MENU) {
@@ -128,6 +143,27 @@ pub fn slot_for(name: &str, args: &Args) -> Option<ElementId> {
         return Some(ElementId::Credits);
     }
     None
+}
+
+/// The backdrop the package called `name` wants behind it, or `None` when it keeps the one there: the dialogs, the lists and
+/// the screens that open over others. Like [`slot_for`] it reads the file name and the `Args` only (`look.rs`).
+pub fn look_for(name: &str, args: &Args) -> Option<Look> {
+    let name = name.to_ascii_lowercase();
+    let is = |file: &str| name == file.to_ascii_lowercase();
+    if is(screen::MAIN_MENU) || is(screen::MC_PROFILE_MANAGER) {
+        return Some(Look::Main);
+    }
+    if is(screen::MAIN_MENU_SUB) && args.safehouse {
+        return Some(Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())));
+    }
+    if is(screen::MAIN_MENU_SUB) && args.sub == Sub::Career {
+        return Some(Look::Car(CarLook::of_profile(&CareerHandle::shared())));
+    }
+    if is(screen::MAIN_MENU_SUB) && !args.pause {
+        return Some(Look::Main);
+    }
+    let safehouse_screen = career_slot(&name).is_some() && !is(screen::MC_LIST);
+    safehouse_screen.then(|| Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())))
 }
 
 /// The slot of a career screen, by its lower-case file name.

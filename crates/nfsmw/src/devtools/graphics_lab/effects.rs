@@ -10,7 +10,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
         choice(ui, "Smoke quality", &mut settings.smoke_quality, &[SmokeQuality::Standard, SmokeQuality::High]);
     });
     ui.checkbox(&mut settings.skid_marks, "Skid marks");
-    ui.checkbox(&mut settings.collision_sparks, "Collision sparks");
+    ui.checkbox(&mut settings.collision_sparks, "Collision particles");
     ui.add_enabled_ui(settings.collision_sparks, |ui| {
         choice(
             ui,

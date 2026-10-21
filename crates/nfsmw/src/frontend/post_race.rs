@@ -101,7 +101,7 @@ impl Frontend {
         }
         log::info!("race: the results screen answered {answer:?}");
         // An event of the challenge series ends on the series screen.
-        if self.from_series && matches!(answer, crate::viewer::RaceAnswer::Exit) {
+        if self.series.active && matches!(answer, crate::viewer::RaceAnswer::Exit) {
             return self.show_series(host, env);
         }
         self.resume();

@@ -4,6 +4,8 @@ Plain-language specifications of game behaviour (physics, AI, pursuit, streaming
 before the Rust implementation. Required wherever the only source is decompiled code; see
 [licensing.md § Spec-first](../licensing.md#spec-first).
 
+Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
+
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
@@ -60,6 +62,9 @@ textured sparks and contact glow separately from the experimental restoration.
 [Ground contacts](ground-contact-response.md) and [prop lifetime](prop-lifetime.md)
 cover measured plane response, world probes, sinking and model cleanup.
 
+[Native impact parity](native-impact-parity.md) covers the original contact
+pipeline, authored prop attributes and the limits of installed-data coverage.
+
 [Pursuit breakers](pursuit-breakers.md) covers named scenery fragments, area
 stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.
 [Trailer constraints](trailer-constraints.md) covers named angular limits,
@@ -110,11 +115,13 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-milestones.md](career-milestones.md) and [career-milestones-data.md](career-milestones-data.md): the statistics, milestones and speed traps, their states and tables.
 - [career-flow.md](career-flow.md) and [career-car-lot.md](career-car-lot.md): new and resumed career, safe house, autosave, car lot and car rules.
 - [career-safehouse.md](career-safehouse.md) and [career-safehouse-2.md](career-safehouse-2.md): the native safe house (zones, engage, unload and reload, heat, the respawn marker).
+- [menu-backdrop.md](menu-backdrop.md) and [menu-backdrop-looks.md](menu-backdrop-looks.md): the 3D picture behind the menus: the crib room and the safe house room, which car each look shows (the profile's last car, the red BMW M3 E46 GTR by default), and the original's car stand and camera poses.
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
+- [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
 - [race-barriers.md](race-barriers.md): the walls a race's `Barriers` list switches on (scenery groups, the star's
   mirror, collision, the door) and the road barrier flags.
@@ -152,6 +159,10 @@ remaining clock, geometry, context and live-comparison limits.
   sync model, bandwidth, transport, integration, online phases and the security design (see its own index).
 - [telemetry/README.md](telemetry/README.md): the optional telemetry server (milestone 13): channels, transport and privacy,
   control endpoints, the HTTP API and what carries over to multiplayer (see its own index).
+- [quick-play.md](quick-play.md): the Quick Play brief (random car and race by Blacklist stage, Randomize, Accept), with its
+  Ghidra record in [../provenance/quick-play.md](../provenance/quick-play.md).
 - [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap
   races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
   [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up.
+- [race-restart.md](race-restart.md): when the pause menu counts a race as in progress, and what Restart resets (the clock, the
+  racers, the checkpoints, the cops) without touching the career.

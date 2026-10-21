@@ -86,9 +86,9 @@ Attachment and material immobility are separate. Do not clear an authored
 `IMMOBILE` attribute when constructing a fragment. No-physics pieces remain
 visual only, with neither collision nor integration. Their event handler takes
 a separate visual-model branch, so missing rigid-body attributes must not be a
-prerequisite for drawing them. The remake still requires fragment dynamics
-before reaching that branch; handling attribute-free visual pieces is a
-separate unresolved adapter gap. Joint-bearing and simple-physics fragments
+prerequisite for drawing them. The host may retain a frozen pose carrier with
+parent-owned lifetime for that branch; it must not register collision, integrate,
+or start the parent's event sequence on that carrier. Joint-bearing and simple-physics fragments
 retain their documented unsupported or approximate behavior.
 
 An installed traffic-light and street-light sequence both replace their

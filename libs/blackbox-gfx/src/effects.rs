@@ -76,7 +76,19 @@ impl EffectLayer {
 
     /// Append a particle quad with identical age/seed on each vertex.
     pub fn particle_quad(out: &mut Vec<EffectVertex>, corners: [Vec3; 4], color: [u8; 4], detail: [f32; 2]) {
-        let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+        Self::particle_quad_uv(out, corners, color, detail, [[0.0; 2], [1.0; 2]]);
+    }
+
+    /// Append a particle quad sampling its selected atlas rectangle.
+    pub fn particle_quad_uv(
+        out: &mut Vec<EffectVertex>,
+        corners: [Vec3; 4],
+        color: [u8; 4],
+        detail: [f32; 2],
+        rect: [[f32; 2]; 2],
+    ) {
+        let [[u0, v0], [u1, v1]] = rect;
+        let uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
         for i in [0, 1, 2, 0, 2, 3] {
             out.push(EffectVertex { position: corners[i].to_array(), color, uv: uv[i], detail });
         }
@@ -86,6 +98,16 @@ impl EffectLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn atlas_quads_keep_the_selected_uv_rectangle_on_both_triangles() {
+        let mut vertices = Vec::new();
+        EffectLayer::particle_quad_uv(&mut vertices, [Vec3::ZERO; 4], [255; 4], [0.0; 2], [[0.25, 0.5], [0.5, 0.75]]);
+        assert_eq!(
+            vertices.iter().map(|v| v.uv).collect::<Vec<_>>(),
+            [[0.25, 0.5], [0.5, 0.5], [0.5, 0.75], [0.25, 0.5], [0.5, 0.75], [0.25, 0.75]]
+        );
+    }
 
     #[test]
     fn a_new_layer_fades_intersections_over_the_default_distance() {

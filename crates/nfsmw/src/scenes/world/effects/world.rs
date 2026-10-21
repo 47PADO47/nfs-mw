@@ -14,8 +14,15 @@ impl WorldScene {
         let _trace = blackbox_trace::scope("World: effects / uploads");
         let lens = self.gameplay_lens(self.physics_aspect);
         let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
+        self.object_fx.maintain(renderer, &self.dir, self.physics.database());
+        self.car_damage_fx.maintain(renderer, &self.dir);
+        self.impact_fx.maintain(renderer, &self.dir);
         let Some(drive) = self.drive.as_mut() else {
-            renderer.set_effects(&EffectLayer::default());
+            let mut layer = EffectLayer::default();
+            self.object_fx.textured(position, forward, &mut layer.textured);
+            self.car_damage_fx.textured(position, forward, &mut layer.textured);
+            self.impact_fx.textured(forward, &mut layer.textured);
+            renderer.set_effects(&layer);
             return;
         };
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
@@ -67,6 +74,9 @@ impl WorldScene {
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         drive.flames.geometry(position, forward, layer);
         self.explosions.textured(position, forward, &mut layer.textured);
+        self.object_fx.textured(position, forward, &mut layer.textured);
+        self.car_damage_fx.textured(position, forward, &mut layer.textured);
+        self.impact_fx.textured(forward, &mut layer.textured);
         renderer.set_effects(layer);
         drive.flames.reclaim(layer);
     }
