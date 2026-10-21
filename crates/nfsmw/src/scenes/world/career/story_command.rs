@@ -40,7 +40,7 @@ pub(super) fn parse(args: &[&str]) -> Result<StoryCommand, String> {
 }
 
 /// Runs `story ...`.
-pub(super) fn story_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+pub(in crate::scenes::world) fn story_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     match parse(args)? {
         StoryCommand::Status => status(scene),
         StoryCommand::Race(event) => scene.start_race(&event, RaceOptions { career: true, ..RaceOptions::default() }),

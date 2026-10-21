@@ -20,7 +20,7 @@ const ARRIVAL_RADIUS_M: f32 = 30.0;
 
 /// The drive's state in the world: asked for and waiting for the car to stand, or running with its machine.
 #[derive(Debug, Default)]
-pub(super) struct SafeHouseDrive {
+pub(in crate::scenes::world) struct SafeHouseDrive {
     /// The drive was asked for; it starts once the player's car stands on the road.
     pub waiting: bool,
     /// The drive while it runs. `None` before it starts and once it is done.

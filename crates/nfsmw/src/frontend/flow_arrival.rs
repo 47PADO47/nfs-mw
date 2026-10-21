@@ -10,7 +10,7 @@
 //! The rules are the stepper's; the tests here walk it through the steps of each stage.
 
 use glam::Vec2;
-use nfsmw_career::safehouse::{BlacklistStepper, FrontEndContext, StepAction};
+use nfsmw_career::safehouse::BlacklistStepper;
 use nfsmw_career::savefile::GateInputs;
 
 use crate::app::Host;
@@ -219,6 +219,7 @@ impl ScreenLogic for StepScreen {
 
 #[cfg(test)]
 mod tests {
+    use nfsmw_career::safehouse::{FrontEndContext, StepAction};
     use nfsmw_career::settings::{CareerSettings, Flags};
 
     use super::*;

@@ -38,7 +38,7 @@ pub(super) const SELL_BUTTON: u32 = 0x0010_5E06;
 pub(super) const ACCEPT: u32 = 0x000E_2B7E;
 pub(super) const TAB_TITLE: u32 = 0x000F_18D7;
 
-pub(crate) use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
+pub(crate) use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, Strip, TOP_SPEED_STRIPS, set_bar};
 
 /// The language table labels the tab titles and the Accept label show (`Car Lot`, `Career`, `Buy Car`, `Accept`).
 /// The owned tab shows `Career` (`0x5415C3F1`, the label the package's own header object carries). `My Cars`

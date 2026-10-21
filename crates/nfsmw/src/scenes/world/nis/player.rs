@@ -190,6 +190,7 @@ impl NisPlayer {
 
     /// Starts a prepared scene with no cars and no events. Refused while another plays, or when the scene has no time to
     /// play.
+    #[cfg(test)]
     pub fn start(&mut self, plan: Plan) -> Result<(), String> {
         self.start_with_cars(plan, Vec::new(), None, Characters::default())
     }
