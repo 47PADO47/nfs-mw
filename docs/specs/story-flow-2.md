@@ -267,7 +267,10 @@ No script or native path was found that moves `CurrentBin` from N to N-1 (CB 5.3
 3. Bin N-1's graph then starts at `initial` (4.1).
 4. Bin 1 has no bin below it. Its last boss race is the final race (section 5).
 
-Lookup: F-23.
+Lookup: F-23. Supporting evidence for the rule **[exe]**: the arrival stepper reads the stage after the rival is beaten
+and already sees the next bin (the region screen at stages 8 and 12 follows the wins over rivals 9 and 13, and
+`blacklist_NN` plays the movie of the rival now faced), so the original also enters bin N-1 before the arrival
+sequence.
 
 ### 4.8 Regions by stage **[verified]** (CB 6)
 
