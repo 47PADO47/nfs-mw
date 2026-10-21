@@ -181,6 +181,12 @@ impl Runtime {
         }
     }
 
+    /// The text of a language label through the host's string resolver, for a host that formats a line from a label (a
+    /// number and its unit word). `None` without a resolver or when the label is unknown.
+    pub fn label_text(&self, label: u32) -> Option<String> {
+        self.resolve_label(label)
+    }
+
     pub(crate) fn resolve_label(&self, label: u32) -> Option<String> {
         self.resolver.as_ref().and_then(|f| f(label))
     }
