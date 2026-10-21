@@ -24,6 +24,7 @@ mod environment;
 mod events;
 mod exhaust;
 mod explosion_fx;
+mod finish_flares;
 mod frame;
 mod garage;
 mod gps;
@@ -218,6 +219,8 @@ pub struct WorldScene {
     explosions: explosion_fx::ExplosionFx,
     /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
     heli_wash: heli_wash::HeliWash,
+    /// The flares at the running race's finish line (`finish_flares.rs`).
+    finish_flares: finish_flares::FinishFlares,
     object_fx: prop_effects::ObjectFx,
     car_damage_fx: damage_effects::DamageEffects,
     impact_fx: impact_effects::ImpactEffects,

@@ -137,6 +137,11 @@ impl WorldScene {
         );
         let racers = plan.len();
         let walls = self.raise_race_walls(&race.barriers);
+        // A race a mod registered has no finish trigger in the install's data, so no flares.
+        match given_course {
+            Some(_) => self.finish_flares.clear(),
+            None => self.show_finish_flares(&data, &race),
+        }
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
             map: crate::hud::MapSource::of_race(

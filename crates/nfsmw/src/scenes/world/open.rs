@@ -223,6 +223,7 @@ impl WorldScene {
                 wet_road: Default::default(),
                 explosions: Default::default(),
                 heli_wash: Default::default(),
+                finish_flares: Default::default(),
                 object_fx: Default::default(),
                 car_damage_fx: Default::default(),
                 impact_fx: Default::default(),

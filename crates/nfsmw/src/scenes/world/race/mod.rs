@@ -12,6 +12,7 @@ mod demo;
 mod drag;
 mod emulate;
 mod finish;
+mod flares;
 mod flow;
 mod load;
 pub(super) mod mods;
