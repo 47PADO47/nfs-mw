@@ -77,6 +77,27 @@ fn help_and_keys_are_commands() {
 }
 
 #[test]
+fn dump_anim_takes_a_bundle_and_an_optional_sample() {
+    let plain = Cli::try_parse_from(["nfsmw", "dump-anim", "NIS/Scene_IntroNis05_BundleB.bun"]).unwrap();
+    let Some(Command::DumpAnim { path, bank, sample }) = plain.command else { panic!("wrong command") };
+    assert_eq!(path, "NIS/Scene_IntroNis05_BundleB.bun");
+    assert!(bank.is_none() && sample.is_none());
+
+    let sampled =
+        Cli::try_parse_from(["nfsmw", "dump-anim", "NIS/x_BundleB.bun", "--bank", "ANM_Walk", "--sample", "5"])
+            .unwrap();
+    let Some(Command::DumpAnim { bank, sample, .. }) = sampled.command else { panic!("wrong command") };
+    assert_eq!(bank.as_deref(), Some("ANM_Walk"));
+    assert_eq!(sample, Some(5));
+
+    assert!(
+        Cli::try_parse_from(["nfsmw", "dump-anim", "NIS/x_BundleB.bun", "--sample", "5"]).is_err(),
+        "a sample needs a bank"
+    );
+    assert!(Cli::try_parse_from(["nfsmw", "dump-anim", "NIS/x_BundleB.bun", "--bank", "A", "--sample", "0"]).is_err());
+}
+
+#[test]
 fn window_options_reach_the_cli_settings_layer() {
     let cli = Cli::try_parse_from([
         "nfsmw",

@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-anim.workspace = true
 blackbox-trace.workspace = true
 anyhow.workspace = true
 blackbox-attrib.workspace = true
@@ -35,7 +36,6 @@ log.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
-blackbox-anim.workspace = true
 blackbox-text.workspace = true
 
 [lints]

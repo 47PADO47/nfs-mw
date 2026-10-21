@@ -4,6 +4,7 @@
 //!
 //! - [`game`]: the install spec (registry key, required files, known builds);
 //! - [`car`]: one car's solids and textures;
+//! - [`anim`]: a bundle's EAGL skeletons and animation banks, read from its chunk tree;
 //! - [`minimap`]: the map tiles and the calibration of the open city's minimap;
 //! - [`world`]: the streamed city (`TRACKS/L2RA.BUN` + `STREAML2RA.BUN`).
 //! - [`pursuit`]: the cop waves of each heat level;
@@ -18,6 +19,7 @@
 //! - [`career_cars`]: the career car lot's cars, prices and unlock ranks from `GLOBAL/FE_ATTRIB.bin`.
 //! - [`gameplay`]: the race events, their box triggers (start, finish, checkpoints) and the auto shop and safe house zones.
 
+pub mod anim;
 pub mod camera;
 pub mod car;
 pub mod career_cars;

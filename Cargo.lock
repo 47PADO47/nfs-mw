@@ -3867,6 +3867,7 @@ dependencies = [
  "bevy_window",
  "bevy_winit",
  "blackbox-aems",
+ "blackbox-anim",
  "blackbox-attrib",
  "blackbox-bevy-render",
  "blackbox-carsound",

@@ -1,5 +1,6 @@
 //! Command dispatch.
 
+mod dump_anim;
 mod install;
 mod setup;
 mod start;
@@ -89,6 +90,7 @@ pub fn run(cli: Cli) -> Result<()> {
             print!("{}", crate::frontend::dump::dump(package));
             Ok(())
         }
+        Command::DumpAnim { path, bank, sample } => dump_anim::run(game_dir, &path, bank.as_deref(), sample),
         Command::Play { skip_boot, drive, aliases, ui_script, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;

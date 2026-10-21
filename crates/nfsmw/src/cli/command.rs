@@ -141,6 +141,18 @@ pub enum Command {
         /// File name of the screen, in any case.
         name: String,
     },
+    /// Print the skeletons and animation banks of one bundle, and with --bank the decoded frames of one animation:
+    /// `nfsmw dump-anim NIS/Scene_IntroNis05_BundleB.bun --bank <name> --sample 5`.
+    DumpAnim {
+        /// Bundle path relative to the install, e.g. NIS/Scene_IntroNis05_BundleB.bun.
+        path: String,
+        /// The animation to show in detail, by its name in the bank.
+        #[arg(long, value_name = "NAME")]
+        bank: Option<String>,
+        /// How many evenly spaced frames of --bank to decode and print.
+        #[arg(long, value_name = "N", requires = "bank", value_parser = clap::value_parser!(u32).range(1..))]
+        sample: Option<u32>,
+    },
     /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).

@@ -25,6 +25,7 @@ bevy_window.workspace = true
 bevy_winit.workspace = true
 blackbox-aems.workspace = true
 blackbox-bevy-render = { workspace = true, optional = true }
+blackbox-anim.workspace = true
 blackbox-attrib.workspace = true
 blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
