@@ -29,6 +29,7 @@ mod manual;
 mod minimap;
 mod music;
 mod nis_cameras;
+mod nis_scenes;
 mod objects;
 mod physics;
 mod pursuit;

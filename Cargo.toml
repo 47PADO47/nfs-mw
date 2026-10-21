@@ -32,6 +32,7 @@ default-members = [
     "libs/blackbox-race",
     "libs/blackbox-speedfx",
     "libs/blackbox-movie",
+    "libs/blackbox-nis",
     "libs/blackbox-render",
     "libs/blackbox-scene",
     "libs/blackbox-scenery",
@@ -87,6 +88,7 @@ blackbox-pursuit = { path = "libs/blackbox-pursuit" }
 blackbox-race = { path = "libs/blackbox-race" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
+blackbox-nis = { path = "libs/blackbox-nis" }
 blackbox-particles = { path = "libs/blackbox-particles" }
 blackbox-render = { path = "libs/blackbox-render" }
 blackbox-roads = { path = "libs/blackbox-roads" }
