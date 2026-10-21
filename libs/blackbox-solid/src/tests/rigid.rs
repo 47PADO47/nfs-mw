@@ -51,7 +51,8 @@ fn an_unskinned_solid_has_no_parts() {
 
 #[test]
 fn each_part_records_its_triangles_per_group_as_runs() {
-    // Two groups: group 0 has one bone-5 triangle, group 1 has two bone-9 triangles, so each group is one run.
+    // Two groups sharing one six-vertex buffer (three vertices each; indices address the whole buffer): group 0 has one
+    // bone-5 triangle, group 1 two bone-9 triangles, so each group is one run.
     let vertices = skinned_vertex_buffer(&[
         ([1.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
         ([0.9, 0.1, 0.0], [0.0, 1.0, 0.0]),
@@ -61,8 +62,8 @@ fn each_part_records_its_triangles_per_group_as_runs() {
         ([1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
     ]);
     let groups = [
-        Group { effect: 2, vertices: 6, indices: vec![0, 1, 2], bone_table: Some(TABLE) },
-        Group { effect: 2, vertices: 6, indices: vec![2, 3, 4, 2, 3, 4], bone_table: Some(TABLE) },
+        Group { effect: 2, vertices: 3, indices: vec![0, 1, 2], bone_table: Some(TABLE) },
+        Group { effect: 2, vertices: 3, indices: vec![2, 3, 4, 2, 3, 4], bone_table: Some(TABLE) },
     ];
     let file = solid_file("RUNS", &groups, &[vertices]);
     let s = &read_solids(&file).unwrap()[0];
