@@ -26,6 +26,7 @@ mod restart;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 mod start;
+mod startable;
 
 pub(super) use command::race_command;
 pub use setup::RaceOptions;

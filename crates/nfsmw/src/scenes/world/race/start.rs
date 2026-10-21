@@ -5,6 +5,7 @@ use blackbox_race::{CatchUpGains, Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::setup::{self, RaceOptions};
+use super::startable;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{View, WorldScene, space};
@@ -78,7 +79,7 @@ impl WorldScene {
             return Err("a race is already running (race stop ends it)".into());
         }
         let data = self.gameplay.clone().ok_or("the race data could not be read from the install")?;
-        if !setup::runnable(race.race_type) {
+        if !startable::can_start(&race) {
             return Err(format!("{} is a {:?} race, which this version does not run", race.name, race.race_type));
         }
         if self.drive.is_none() {
@@ -98,7 +99,7 @@ impl WorldScene {
         let opponents = setup::opponents_of(&data, &race, &options, &resolve_preset);
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
-        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
+        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
         super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
         let p = &race.params;
         let prepared = Prepared {
