@@ -38,6 +38,8 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.arrest_scene_over();
         }
+        let marker = Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(view.forward));
+        self.nis.play(&self.dir, name, marker, NisKind::of_scene(name), track)
     }
 
     /// Ends the scene that plays. Returns whether one did.
@@ -63,6 +65,11 @@ impl WorldScene {
             if let Some(traffic) = self.traffic.as_mut() {
                 traffic.arrest_scene_over();
             }
+            self.finish_nis_cars();
+        }
+        if self.nis.is_playing() {
+            self.link_nis_cars();
+            self.drive_nis_cars();
         }
         if self.nis.take_cut() {
             self.cut.arm();

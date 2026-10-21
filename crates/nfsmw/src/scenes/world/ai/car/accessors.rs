@@ -64,6 +64,16 @@ impl AiCar {
         self.previous.lerp(&self.current, alpha)
     }
 
+    /// The pose the car is drawn at: the NIS scene's pose while a scene drives it, otherwise the physics pose at `alpha`.
+    pub fn render_pose(&self, alpha: f32) -> CarPose {
+        self.nis_pose.unwrap_or_else(|| self.pose(alpha))
+    }
+
+    /// Sets the pose a NIS scene gives the car, or clears it with `None`.
+    pub fn set_nis_pose(&mut self, pose: Option<CarPose>) {
+        self.nis_pose = pose;
+    }
+
     /// Collision separation belongs to this tick's displayed pose too.
     pub fn sync_contacts(&mut self) {
         if let Some(trailer) = self.trailer.as_mut() {

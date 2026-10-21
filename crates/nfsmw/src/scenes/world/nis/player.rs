@@ -5,10 +5,12 @@
 use blackbox_chunk::ice::{CameraSample, Track};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
 use game_install::GameDir;
+use glam::Vec3;
 use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::camera;
-use crate::scenes::world::scene_space::{Anchor, lens_of};
+use super::cars::{self, CarSpot, CarTrack, Target};
+use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
 
 /// Frames per second of a scene's clock (`docs/specs/nis-scenes.md`, section 0).
@@ -65,16 +67,20 @@ pub struct Plan {
     pub kind: NisKind,
     pub clock: SceneClock,
     pub anchor: Anchor,
+    /// Where the orbit circles: the marker the scene would stand at, which a render-space scene does not use.
+    pub focus: Anchor,
     /// The camera track, or `None` for a scene with no camera set (a slow orbit plays instead).
     pub camera: Option<Track>,
 }
 
 impl Plan {
-    /// The plan of the scene `name` with the header `scene` (its frame window) and its camera. `None` when the scene has
-    /// neither a window nor a camera track to give it a length.
-    pub fn new(name: &str, scene: &Scene, camera: Option<Track>, anchor: Anchor, kind: NisKind) -> Option<Self> {
+    /// The plan of the scene `name` with the header `scene` (its frame window), its camera, and the `marker` it would
+    /// stand at. The scene's anchor follows its type ([`placed`]). `None` when the scene has neither a window nor a
+    /// camera track to give it a length.
+    pub fn new(name: &str, scene: &Scene, camera: Option<Track>, marker: Anchor, kind: NisKind) -> Option<Self> {
         let clock = clock_of(scene, camera.as_ref())?;
-        Some(Self { name: name.to_owned(), kind, clock, anchor, camera })
+        let anchor = placed(scene.scene_type, marker);
+        Some(Self { name: name.to_owned(), kind, clock, anchor, focus: marker, camera })
     }
 }
 
@@ -93,8 +99,28 @@ struct Playing {
     name: String,
     kind: NisKind,
     anchor: Anchor,
+    focus: Anchor,
     camera: Option<Track>,
     run: Playback,
+    /// The scene's car tracks (`cars.rs`), one per car slot that has both its clips.
+    cars: Vec<CarTrack>,
+    /// Which real car each car slot drives, once the world has linked them; `None` until then.
+    links: Option<Vec<(usize, Target)>>,
+}
+
+impl Playing {
+    /// The linked cars' poses now, in render space and before the ground lift, each with the target it drives.
+    fn spots(&self) -> Vec<(Target, CarSpot)> {
+        let Some(links) = self.links.as_ref() else { return Vec::new() };
+        let time = self.run.scene_time();
+        links
+            .iter()
+            .filter_map(|&(slot, target)| {
+                let car = self.cars.iter().find(|car| car.slot == slot)?;
+                Some((target, car.spot(&self.anchor, time)))
+            })
+            .collect()
+    }
 }
 
 /// The NIS player: at most one scene plays at a time. The world asks it for the camera, whether the world is frozen,
@@ -108,16 +134,19 @@ pub struct NisPlayer {
     cut: bool,
     /// The last scene's end, for the console.
     last: Option<String>,
+    /// The linked cars where they stood when the last scene ended, until the world takes them (`take_final_cars`).
+    final_cars: Option<Vec<(Target, CarSpot)>>,
 }
 
 impl NisPlayer {
-    /// Loads the scene `scene` from the install and starts it at `anchor`. Its camera is track `track`, or track 0 when
-    /// the scene's set has no track `track`. The error names what failed.
+    /// Loads the scene `scene` from the install and starts it, standing at `marker` when its type places it there (types
+    /// 0, 2 and 3; the others play in render space). Its camera is track `track`, or track 0 when the scene's set has no
+    /// track `track`. The error names what failed.
     pub fn play(
         &mut self,
         dir: &GameDir,
         scene: &str,
-        anchor: Anchor,
+        marker: Anchor,
         kind: NisKind,
         track: u32,
     ) -> Result<(), String> {
@@ -128,13 +157,19 @@ impl NisPlayer {
         if camera.is_none() {
             log::info!("NIS {}: no camera set, so a slow orbit plays for the scene", bundle.name);
         }
-        let plan = Plan::new(&bundle.name, &bundle.scene, camera, anchor, kind)
+        let plan = Plan::new(&bundle.name, &bundle.scene, camera, marker, kind)
             .ok_or_else(|| format!("{scene} has neither a frame window nor a camera track"))?;
-        self.start(plan)
+        let cars = cars::read_tracks(&bundle.anim.banks);
+        self.start_with_cars(plan, cars)
     }
 
-    /// Starts a prepared scene. Refused while another plays, or when the scene has no time to play.
+    /// Starts a prepared scene with no cars. Refused while another plays, or when the scene has no time to play.
     pub fn start(&mut self, plan: Plan) -> Result<(), String> {
+        self.start_with_cars(plan, Vec::new())
+    }
+
+    /// Starts a prepared scene with its car tracks. Refused while another plays, or when the scene has no time to play.
+    fn start_with_cars(&mut self, plan: Plan, cars: Vec<CarTrack>) -> Result<(), String> {
         self.refuse_while_playing()?;
         let run = Playback::new(plan.clock, plan.kind.skippable());
         if run.is_finished() {
@@ -143,7 +178,16 @@ impl NisPlayer {
         self.outcome = None;
         self.cut = true;
         self.last = Some(format!("{}: playing", plan.name));
-        self.play = Some(Playing { name: plan.name, kind: plan.kind, anchor: plan.anchor, camera: plan.camera, run });
+        self.play = Some(Playing {
+            name: plan.name,
+            kind: plan.kind,
+            anchor: plan.anchor,
+            focus: plan.focus,
+            camera: plan.camera,
+            run,
+            cars,
+            links: None,
+        });
         Ok(())
     }
 
@@ -185,6 +229,7 @@ impl NisPlayer {
 
     fn end(&mut self, outcome: NisOutcome) {
         let Some(playing) = self.play.take() else { return };
+        self.final_cars = Some(playing.spots());
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
         self.cut = true;
@@ -193,6 +238,43 @@ impl NisPlayer {
     /// How the last scene ended, once: the next call gives `None` until another scene ends.
     pub fn take_outcome(&mut self) -> Option<NisOutcome> {
         self.outcome.take()
+    }
+
+    /// The name of the scene that plays, if one does.
+    pub fn playing_name(&self) -> Option<&str> {
+        self.play.as_ref().map(|playing| playing.name.as_str())
+    }
+
+    /// Whether a scene plays and its car channels still wait for their real cars (see [`NisPlayer::set_links`]).
+    pub fn needs_links(&self) -> bool {
+        self.play.as_ref().is_some_and(|playing| playing.links.is_none())
+    }
+
+    /// Gives the playing scene's car channels their real cars. Called once per scene: a channel missing from `links`
+    /// stays off. Does nothing when no scene plays.
+    pub fn set_links(&mut self, links: Vec<(usize, Target)>) {
+        if let Some(playing) = self.play.as_mut() {
+            playing.links = Some(links);
+        }
+    }
+
+    /// Each car channel of the playing scene with its slot and its position now, in render space. Empty when no scene
+    /// plays.
+    pub fn car_slots(&self) -> Vec<(usize, Vec3)> {
+        let Some(playing) = self.play.as_ref() else { return Vec::new() };
+        let time = playing.run.scene_time();
+        playing.cars.iter().map(|car| (car.slot, car.spot(&playing.anchor, time).position)).collect()
+    }
+
+    /// The linked cars' poses now, in render space and before the ground lift. Empty when no scene plays or none is
+    /// linked.
+    pub fn car_spots(&self) -> Vec<(Target, CarSpot)> {
+        self.play.as_ref().map_or_else(Vec::new, Playing::spots)
+    }
+
+    /// The linked cars' poses where the last scene ended, once: the next call gives `None` until another scene ends.
+    pub fn take_final_cars(&mut self) -> Option<Vec<(Target, CarSpot)>> {
+        self.final_cars.take()
     }
 
     /// Whether the camera jumped since this was last called: a scene began or ended.
@@ -217,7 +299,7 @@ impl NisPlayer {
         let playing = self.play.as_ref()?;
         let track = self.sample().and_then(|sample| lens_of(&playing.anchor, &sample, aspect));
         let fraction = playing.run.elapsed() / playing.run.clock().duration();
-        Some(track.unwrap_or_else(|| camera::orbit(&playing.anchor, fraction, aspect)))
+        Some(track.unwrap_or_else(|| camera::orbit(&playing.focus, fraction, aspect)))
     }
 
     /// The letterbox bar height as a fraction of the screen at the scene's time; 0 when the scene has no bars.

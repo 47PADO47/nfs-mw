@@ -19,6 +19,7 @@ mod input;
 #[cfg(test)]
 mod lamp_tests;
 mod look;
+mod nis_pose;
 mod original_camera;
 mod placement;
 #[cfg(test)]
@@ -124,6 +125,8 @@ pub struct Drive {
     pending_speed: f32,
     previous: CarPose,
     current: CarPose,
+    /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
+    nis_pose: Option<CarPose>,
     telemetry: Telemetry,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,
@@ -206,6 +209,7 @@ impl Drive {
             pending_speed: 0.0,
             previous: pose,
             current: pose,
+            nis_pose: None,
             telemetry: Telemetry::default(),
             breaker: speedbreaker::SpeedBreaker::default(),
             breaker_camera: breaker_camera::Zoom::default(),

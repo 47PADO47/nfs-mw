@@ -3,7 +3,8 @@
 //! `docs/specs/pursuit-breaker-moment.md` (section 3) and `docs/specs/nis-player.md` (section 5).
 
 use blackbox_chunk::ice::{CameraSample, Space};
-use glam::Vec3;
+use blackbox_nis::SceneType;
+use glam::{Quat, Vec3};
 use nfsmw_data::world::moment::Marker;
 
 use crate::viewer::camera::{Lens, original};
@@ -21,6 +22,9 @@ pub struct Anchor {
 }
 
 impl Anchor {
+    /// The identity: no origin and no turn. A scene authored in render space (types 1 and 4) stands here.
+    pub const IDENTITY: Self = Self { origin: Vec3::ZERO, turn: 0 };
+
     /// A scene stood at `origin` (render space, on the ground) whose forward axis points along `angle` (16-bit units,
     /// counted from +x towards +y, as [`crate::scenes::world::moment::heading_angle`] gives it).
     pub fn facing(origin: Vec3, angle: u16) -> Self {
@@ -33,6 +37,12 @@ impl Anchor {
         let (x, y) = (point[0], point[1]);
         self.origin + Vec3::new(x * cos - y * sin, x * sin + y * cos, point[2])
     }
+
+    /// The turn about the up axis as a rotation, the same turn [`Anchor::to_render`] applies to points. A scene's
+    /// rotations (a car's model, say) are turned by it too.
+    pub fn rotation(self) -> Quat {
+        Quat::from_rotation_z(f32::from(self.turn) / 65536.0 * std::f32::consts::TAU)
+    }
 }
 
 /// The anchor of a marker: its position stood on the ground under it (`ground` gives the ground height, or `None` to
@@ -40,6 +50,16 @@ impl Anchor {
 pub fn anchor_of(marker: Marker, ground: impl Fn(Vec3) -> Option<f32>) -> Anchor {
     let z = ground(marker.position).unwrap_or(marker.position.z);
     Anchor::facing(Vec3::new(marker.position.x, marker.position.y, z), marker.angle)
+}
+
+/// The anchor a scene of `scene_type` stands at, given the marker it would stand at. Types 0, 2 and 3 stand at the
+/// marker. Types 1 and 4 are authored in render space and ignore the marker: their anchor is the identity, so their
+/// camera and car coordinates are already the render coordinates (`docs/specs/nis-player.md` sections 5.2 and 10.3).
+pub fn placed(scene_type: SceneType, marker: Anchor) -> Anchor {
+    match scene_type.places_at_marker() {
+        true => marker,
+        false => Anchor::IDENTITY,
+    }
 }
 
 /// A track point in render space. Only the scene's own space is placed: car, world and hybrid spaces belong to

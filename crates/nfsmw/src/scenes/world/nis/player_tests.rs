@@ -10,6 +10,7 @@ fn plan(name: &str, kind: NisKind) -> Plan {
         kind,
         clock: SceneClock::new(0, 90, SCENE_FPS).expect("a clock"),
         anchor: Anchor::facing(Vec3::ZERO, 0),
+        focus: Anchor::facing(Vec3::ZERO, 0),
         camera: None,
     }
 }
@@ -204,4 +205,42 @@ fn a_scene_with_no_camera_plays_the_orbit_and_idle_state_has_no_camera() {
     nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
     assert!(nis.lens(1.0).is_some(), "the orbit");
     assert!(nis.status().contains("orbit"), "{}", nis.status());
+}
+
+#[test]
+fn a_type_4_scene_is_not_anchored_at_the_marker_but_its_orbit_still_circles_it() {
+    let marker = Anchor::facing(Vec3::new(10.0, 20.0, 3.0), 4000);
+    let render_space = Scene { scene_type: SceneType::Type4, ..scene(0, 90) };
+    let plan = Plan::new("IntroNisDD", &render_space, None, marker, NisKind::Intro).expect("a plan");
+    assert_eq!(plan.anchor, Anchor::IDENTITY, "type 4 is authored in render space");
+    assert_eq!(plan.focus, marker, "the orbit circles the marker the player stands at");
+    let at_marker = Scene { scene_type: SceneType::Type0, ..scene(0, 90) };
+    let plan = Plan::new("IntroNis05", &at_marker, None, marker, NisKind::Intro).expect("a plan");
+    assert_eq!(plan.anchor, marker, "type 0 stands at the marker");
+}
+
+#[test]
+fn the_car_links_are_made_once_and_the_final_cars_are_handed_back_once() {
+    let mut nis = NisPlayer::default();
+    assert!(!nis.needs_links(), "no scene, nothing to link");
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    assert!(nis.needs_links(), "the scene's cars wait for their real cars");
+    nis.set_links(vec![(0, Target::Player)]);
+    assert!(!nis.needs_links(), "linked once");
+    assert!(nis.car_spots().is_empty(), "no car channel was read, so no car stands anywhere");
+    nis.advance(3.0);
+    assert_eq!(nis.take_final_cars(), Some(Vec::new()), "the scene hands back its linked cars at its end");
+    assert_eq!(nis.take_final_cars(), None, "the cars are handed back once");
+    nis.set_links(vec![(0, Target::Player)]);
+    assert!(!nis.needs_links(), "no scene plays, so nothing is linked");
+}
+
+#[test]
+fn a_skipped_scene_hands_back_its_cars_too() {
+    let mut nis = NisPlayer::default();
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    nis.set_links(vec![(0, Target::Traffic(3))]);
+    assert!(nis.skip());
+    assert_eq!(nis.take_final_cars(), Some(Vec::new()));
+    assert!(!nis.needs_links());
 }
