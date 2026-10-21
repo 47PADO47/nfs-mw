@@ -83,13 +83,19 @@ pub fn blips(parts: &mut Parts, frame: &WorldMapFrame) {
         };
         parts.push(Image::new(icon_name(blip.style)).with_tint(blip_rgba(blip.style)), Rect::new(x, y, size, size));
     }
-    live(parts, frame);
+    live(parts, frame, false);
 }
 
-/// The racers and the police cars, on every tab: the car arrow in their colour, turned to where they point.
-fn live(parts: &mut Parts, frame: &WorldMapFrame) {
+/// The police helicopter, over everything else on the picture, the player's car included.
+pub fn helicopter(parts: &mut Parts, frame: &WorldMapFrame) {
+    live(parts, frame, true);
+}
+
+/// The racers, the police cars, the helicopter and the checkpoint, on every tab: the car arrow in their colour, turned to
+/// where they point. `air` picks the helicopter alone (drawn last) or everything else.
+fn live(parts: &mut Parts, frame: &WorldMapFrame, air: bool) {
     let camera = frame.session.camera;
-    for car in &frame.live {
+    for car in frame.live.iter().filter(|car| (car.style == crate::hud::HELICOPTER) == air) {
         let (x, y) = at(camera.to_view(car.map));
         if x.abs() > OFF_X || y.abs() > OFF_Y {
             continue;
