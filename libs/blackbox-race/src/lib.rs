@@ -7,6 +7,7 @@
 //! - [`Race`]: the course, the [`Clock`] and the racers together; it raises [`RaceEvent`]s and gives the places.
 //! - [`ranking`]: the order of the racers. [`knockout_due`]: the lap knockout rule. [`SpeedTraps`]: points.
 //! - [`CatchUp`]: the rubber band controller.
+//! - [`RacerStats`]: the top speed, distance and stage marks the post-race pages show.
 //!
 //! No I/O and no dependency on vehicles, roads or rendering. The caller picks the up axis and passes all tuning.
 
@@ -18,6 +19,7 @@ mod knockout;
 mod points;
 mod race;
 pub mod ranking;
+mod stats;
 
 #[cfg(test)]
 mod tests;
@@ -30,3 +32,4 @@ pub use knockout::knockout_due;
 pub use points::{KMH_TO_MS, SpeedTraps, overtime_loss};
 pub use race::{Outcome, Race, RaceConfig, RaceEvent, Racer};
 pub use ranking::Standing;
+pub use stats::{QUARTER_MILE, RacerStats, SIXTY_MPH, STAGE_PERCENTS, StageMark};
