@@ -84,7 +84,16 @@ The suffix probably selects the channel codec. The decomp has one runtime class 
 | `PoseAnim`, `CompoundChannel`, `PhaseChan`, `CsisEventChannel` | pose blending, multi-channel, phase (cycles), sound/event channels |
 | `Skeleton`, `SkeletonData`, `BoneMask`, `IK` | skeleton side |
 
-Mapping the `_q` / `_s` suffixes to specific codecs is **[unconfirmed]**.
+Mapping the `_q` / `_s` suffixes to specific codecs is **[unconfirmed]** in the decomp. The install census below is
+**[verified]**.
+
+**Census (verified).** All 89 `.bun` files in `NIS` (87 files), `TRACKS\L2RA.BUN` and `GLOBAL\InGameB.bun` were
+walked. 87 of them hold 125 `EAGLAnimations` objects with 848 bank animations and 948 child channels, and no layout
+check failed. Every bank entry is a Compound (type 15). Its children are DeltaLerp (10, 475 in NIS), DeltaQuat (11,
+343), DeltaQ (17, 1 in InGame), DeltaF3 (20, 90) and DeltaF1 (21, 39). `_q` is DeltaQuat in every NIS and L2RA case;
+`_s` and `_t` mix DeltaLerp, DeltaF3 and DeltaF1 (so the suffix gives the DOF slot, not the codec). Each animation
+has an FPS attribute of 30, and the game samples at 30 steps per second. Full table, layouts and examples:
+[specs/eagl-animation-bank.md](../specs/eagl-animation-bank.md).
 
 ## NIS scene chunk
 
