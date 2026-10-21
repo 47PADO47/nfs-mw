@@ -368,6 +368,9 @@ impl Scene for Pausable {
     fn take_explosions(&mut self) -> Vec<glam::Vec3> {
         self.inner.take_explosions()
     }
+    fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
+        self.inner.take_world_effect_audio()
+    }
 
     fn finished(&self) -> bool {
         self.inner.finished()

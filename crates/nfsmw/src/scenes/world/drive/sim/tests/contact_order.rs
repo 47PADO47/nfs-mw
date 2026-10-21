@@ -10,7 +10,7 @@ use nfsmw_data::world::{PropDynamics, PropKind, PropShape};
 use super::*;
 use crate::scenes::world::resident::Placed;
 
-fn attached_pole() -> Placed {
+pub(super) fn attached_pole() -> Placed {
     let half = Vec3::new(0.2, 4.0, 0.2);
     let bounds = Arc::new(BoundsSet {
         name_hash: 1,
@@ -74,7 +74,7 @@ fn attached_pole() -> Placed {
     placed
 }
 
-fn nearby_wall() -> CollisionWorld {
+pub(super) fn nearby_wall() -> CollisionWorld {
     let mut world = CollisionWorld::new(None);
     world.insert(CollisionPack {
         section: 1,

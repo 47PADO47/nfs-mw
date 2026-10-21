@@ -1,0 +1,67 @@
+//! Synthetic vectors executed by the isolated original PC reaction selector.
+
+use super::*;
+
+#[test]
+fn native_reaction_selection_matches_pc_threshold_sign_seam_and_rotation_vectors() {
+    let mut ai = sim();
+    ai.configure_ai();
+    let record = |mass_scale| CollisionReaction { mass_scale, ..Default::default() };
+    let profile = Arc::new(CollisionReactions {
+        front: record(2.0),
+        front_side: record(3.0),
+        rear: record(5.0),
+        rear_side: record(7.0),
+    });
+    ai.reactions = Some(Arc::new(AiCollisionReactions { default: Some(profile), goals: vec![] }));
+    // Inputs retain the original oracle's f32 values; rows carry observed record indices.
+    let cases = [
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf3, 0x00000000, 0xbf34fdf3], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf2, 0x00000000, 0xbf34fdf4], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf1, 0x00000000, 0xbf34fdf5], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf3, 0x00000000, 0x3f34fdf3], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf2, 0x00000000, 0x3f34fdf4], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40000000], [0x3f350bf1, 0x00000000, 0x3f34fdf5], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf3, 0x00000000, 0xbf34fdf3], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf2, 0x00000000, 0xbf34fdf4], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf1, 0x00000000, 0xbf34fdf5], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf3, 0x00000000, 0x3f34fdf3], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf2, 0x00000000, 0x3f34fdf4], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f350bf1, 0x00000000, 0x3f34fdf5], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf3, 0x00000000, 0xbf34fdf3], 0x00000000, 1),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf2, 0x00000000, 0xbf34fdf4], 0x00000000, 0),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf1, 0x00000000, 0xbf34fdf5], 0x00000000, 0),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf3, 0x00000000, 0x3f34fdf3], 0x00000000, 1),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf2, 0x00000000, 0x3f34fdf4], 0x00000000, 0),
+        ([0x3f800000, 0x40000000, 0x40800000], [0x3f350bf1, 0x00000000, 0x3f34fdf5], 0x00000000, 0),
+        ([0x3f800000, 0x40000000, 0x403fffff], [0x00000000, 0x00000000, 0x3f800000], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x403fffff], [0x3f800000, 0x00000000, 0x00000000], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x00000000, 0x00000000, 0x3f800000], 0x00000000, 2),
+        ([0x3f800000, 0x40000000, 0x40400000], [0x3f800000, 0x00000000, 0x00000000], 0x00000000, 3),
+        ([0x3f800000, 0x40000000, 0x40400001], [0x00000000, 0x00000000, 0x3f800000], 0x00000000, 0),
+        ([0x3f800000, 0x40000000, 0x40400001], [0x3f800000, 0x00000000, 0x00000000], 0x00000000, 1),
+        ([0x00000000, 0x40000000, 0x40400000], [0x3f800000, 0x00000000, 0x248d3132], 0x3fc90fdb, 2),
+        ([0x00000000, 0x40000000, 0x40400000], [0x248d3132, 0x00000000, 0xbf800000], 0x3fc90fdb, 3),
+        ([0x40000000, 0x40000000, 0x40400000], [0x3f800000, 0x00000000, 0x248d3132], 0x3fc90fdb, 0),
+        ([0x40000000, 0x40000000, 0x40400000], [0x248d3132, 0x00000000, 0xbf800000], 0x3fc90fdb, 1),
+        ([0x3f236d2c, 0x40000000, 0x400454c0], [0x3eb925a8, 0x00000000, 0x3f6ead01], 0x3ebd70a4, 2),
+        ([0x3f236d2c, 0x40000000, 0x400454c0], [0x3f6ead01, 0x00000000, 0xbeb925a8], 0x3ebd70a4, 3),
+        ([0x3fae496a, 0x40000000, 0x407bab40], [0x3eb925a8, 0x00000000, 0x3f6ead01], 0x3ebd70a4, 0),
+        ([0x3fae496a, 0x40000000, 0x407bab40], [0x3f6ead01, 0x00000000, 0xbeb925a8], 0x3ebd70a4, 1),
+        ([0x3ff74d0e, 0x40000000, 0x4028cf21], [0xbf6e9a1d, 0x00000000, 0x3eb986f5], 0xbf99999a, 2),
+        ([0x3ff74d0e, 0x40000000, 0x4028cf21], [0x3eb986f5, 0x00000000, 0x3f6e9a1d], 0xbf99999a, 3),
+        ([0x3d8b2f18, 0x40000000, 0x405730df], [0xbf6e9a1d, 0x00000000, 0x3eb986f5], 0xbf99999a, 0),
+        ([0x3d8b2f18, 0x40000000, 0x405730df], [0x3eb986f5, 0x00000000, 0x3f6e9a1d], 0xbf99999a, 1),
+    ];
+    for (point, normal, yaw, selected) in cases {
+        let point = point.map(f32::from_bits);
+        let normal = normal.map(f32::from_bits);
+        let yaw = f32::from_bits(yaw);
+        ai.body_mut().place(Vec3::new(1.0, 2.0, 3.0), Quat::from_rotation_y(yaw));
+        let base = ai.object_hit(point.into(), normal.into(), false, false);
+        let hit = ai.object_hit(point.into(), normal.into(), false, true);
+        let expected = [2.0, 3.0, 5.0, 7.0][selected];
+        assert_eq!(hit.mass_scale, base.mass_scale * expected, "point={point:?}, normal={normal:?}, yaw={yaw}");
+        assert_eq!(hit.inertia_scale, base.inertia_scale * expected);
+    }
+}

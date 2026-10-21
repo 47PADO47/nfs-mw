@@ -2,9 +2,8 @@
 //! Spec: `docs/specs/vehicle-rigid-body.md` (Ã‚Â§6).
 
 use crate::scenes::world::events::DamageHit;
-use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
 use blackbox_collision::bounds_flags;
-use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, Separation, resolve_bodies};
+use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, ObbContact, Separation, resolve_bodies};
 use glam::Vec3;
 
 use super::CarSim;
@@ -47,20 +46,15 @@ impl CarSim {
         self.collision_radius() + self.vehicle.position().distance(self.previous_contact_pose.0)
     }
 
-    fn geometry_frame(&self) -> Option<BodyGeometryFrame<'_>> {
-        Some(BodyGeometryFrame { geometry: &self.geometry.as_ref()?.body, previous: self.previous_contact_pose })
-    }
-
-    /// Tests this car against `other` and, when their boxes overlap, pushes them apart and changes their
-    /// velocities. Returns the hit, if the cars were approaching.
-    pub fn collide_with(&mut self, other: &mut CarSim) -> Option<CarHit> {
-        let a = object_shapes(self.body(), self.geometry_frame());
-        let b = object_shapes(other.body(), other.geometry_frame());
-        let contact = a
-            .iter()
-            .flat_map(|a| b.iter().filter_map(move |b| a.contact(b).map(|c| (c, a.surface, b.surface))))
-            .max_by(|a, b| a.0.overlap.total_cmp(&b.0.overlap))?;
-        let (contact, surface_a, surface_b) = contact;
+    pub(super) fn resolve_pair_contact(
+        &mut self,
+        other: &mut CarSim,
+        contact: ObbContact,
+        surface_a: u32,
+        surface_b: u32,
+    ) -> Option<CarHit> {
+        self.vehicle.mark_object_contact();
+        other.vehicle.mark_object_contact();
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;
         let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
@@ -81,6 +75,7 @@ impl CarSim {
         let mut pair = PairContact::capture(self.body(), other.body(), contact.point, contact.normal, closing);
         let sound = crate::audio::CarContact {
             sound_profile: 0,
+            vehicle: None,
             audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
                 self.body().rotation().transpose() * contact.normal,
             )),
@@ -114,15 +109,11 @@ impl CarSim {
         let body = BodyContact::from_geometry(contact, material_a.friction_with(&material_b));
         let response = resolve_bodies(a, b, &body, &hit_a, &hit_b, Separation::Mass)?;
         pair.delta_v = response.impulse_delta_v;
-        if self.collision_role.player {
-            self.pending_sound_contacts
-                .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[0], ..sound });
-        }
-        if other.collision_role.player {
-            other
-                .pending_sound_contacts
-                .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[1], ..other_sound });
-        }
+        self.pending_sound_contacts
+            .push(crate::audio::CarContact { delta_v: response.notification_delta_v[0], ..sound });
+        other
+            .pending_sound_contacts
+            .push(crate::audio::CarContact { delta_v: response.notification_delta_v[1], ..other_sound });
         let mut damage_a = damage_a.resolved(a, response.notification_delta_v[0], true);
         let mut damage_b = damage_b.resolved(b, response.notification_delta_v[1], true);
         // Callback position remains the original collider point, while arms use separated bodies.
@@ -157,8 +148,8 @@ impl CarSim {
             response.notification_delta_v[1],
             other.vehicle.body().linear_velocity,
         ));
-        self.vehicle.notify_collision(response.impulse_delta_v[0]);
-        other.vehicle.notify_collision(response.impulse_delta_v[1]);
+        self.vehicle.notify_object_collision(response.impulse_delta_v[0]);
+        other.vehicle.notify_object_collision(response.impulse_delta_v[1]);
         Some(CarHit { impulse: response.reaction.impulse, point: contact.point, pair, damage: [damage_a, damage_b] })
     }
 

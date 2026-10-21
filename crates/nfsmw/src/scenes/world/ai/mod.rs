@@ -6,6 +6,7 @@ mod activation;
 mod air;
 mod car;
 mod collide;
+mod collision_sounds;
 mod commands;
 mod cop;
 mod cop_aims;
@@ -378,10 +379,10 @@ impl TrafficWorld {
         }
     }
 
-    /// Appends the headlight beams of every car.
-    pub fn car_beams(&self, out: &mut Vec<EffectVertex>) {
+    /// Authored directional head, brake and reverse flares of every actor and trailer.
+    pub fn car_flares(&self, view: super::car_light_flares::FlareView, out: &mut Vec<blackbox_render::TexturedEffect>) {
         for car in &self.cars {
-            car.beams(self.alpha, out);
+            car.flares(self.alpha, view, out);
         }
     }
 

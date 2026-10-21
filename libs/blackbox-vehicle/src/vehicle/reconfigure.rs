@@ -25,6 +25,9 @@ impl Vehicle {
         self.geometry = prepared.geometry;
         self.params = prepared.params;
         self.spec = spec;
+        if self.rolling_chassis.is_some() {
+            self.set_rolling_chassis(self.rolling_chassis);
+        }
     }
 }
 

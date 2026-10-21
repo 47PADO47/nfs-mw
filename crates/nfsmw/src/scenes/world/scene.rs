@@ -284,6 +284,9 @@ impl Scene for WorldScene {
     fn take_explosions(&mut self) -> Vec<glam::Vec3> {
         self.explosions.take_started()
     }
+    fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
+        self.residency.world_parts().1.take_world_effect_audio()
+    }
 
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
         let drive = self.drive.as_ref()?;

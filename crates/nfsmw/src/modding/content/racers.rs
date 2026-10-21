@@ -45,8 +45,8 @@ mod tests {
     /// A folder of its own for each call: the tests run in parallel and would otherwise write one `mod.toml` over the other.
     fn names_of(manifest: &str) -> Vec<String> {
         // One folder per call: the tests run in parallel and each writes its own `mod.toml`.
-        static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        let call = CALLS.fetch_add(1, Ordering::Relaxed);
 
         let dir = std::env::temp_dir().join(format!("nfsmw-mod-racers-{}-{call}", std::process::id()));
 

@@ -64,6 +64,7 @@ pub const BRAKE_LEFT: &str = "BRAKE_GLOBAL_LEFT";
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TextureSwaps {
     lamps: HashMap<u32, [u32; 2]>,
+    broken_brakes: u32,
     /// Placeholder hash → texture hash to draw instead.
     pub map: HashMap<u32, u32>,
     /// Placeholders whose groups are not drawn.
@@ -71,6 +72,12 @@ pub struct TextureSwaps {
 }
 
 impl TextureSwaps {
+    /// Original per-side brake damage; head surface substitutions stay independent.
+    pub fn with_broken_brake_lights(mut self, broken: u32) -> Self {
+        self.broken_brakes = broken & 56;
+        self
+    }
+
     /// Available state textures are loaded once, including both diffuse and brake glass.
     pub fn lamp_variants(&self) -> impl Iterator<Item = u32> + '_ {
         self.lamps.values().flat_map(|states| *states)
@@ -90,6 +97,13 @@ impl TextureSwaps {
             ("BRAKELIGHT_GLASS", braking, &["LEFT", "RIGHT", "CENTRE"][..]),
         ] {
             for side in sides {
+                let brake_bit = match (kind.starts_with("BRAKELIGHT"), *side) {
+                    (true, "LEFT") => 8,
+                    (true, "RIGHT") => 16,
+                    (true, "CENTRE") => 32,
+                    _ => 0,
+                };
+                let enabled = enabled && self.broken_brakes & brake_bit == 0;
                 let placeholder = bstring_hash(&format!("{kind}_{side}"));
                 let Some(states) = self.lamps.get(&placeholder) else { continue };
                 let wanted = states[usize::from(enabled)];
@@ -145,7 +159,7 @@ impl TextureSwaps {
                 lamps.insert(bstring_hash(&format!("{kind}_{side}")), states);
             }
         }
-        Self { map, lamps, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect() }
+        Self { map, lamps, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect(), broken_brakes: 0 }
     }
 
     /// Show the cracked-window texture on these texture hashes (window placeholders or window solids' diffuse

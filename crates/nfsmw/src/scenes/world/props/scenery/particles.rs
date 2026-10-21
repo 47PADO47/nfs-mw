@@ -54,6 +54,16 @@ impl PropWorld {
             return;
         };
         frame.intensity = effect.intensity;
+        if effect.instance == 0 {
+            let normal = glam::Vec3::from_array(space::to_physics(frame.to_world.z_axis.truncate()));
+            let body = &self.colliders[&id].body.as_ref().unwrap().rigid;
+            self.scenery.audio.push(crate::audio::WorldEffectAudio {
+                effect: effect.effect,
+                zone: nfsmw_data::sound::CollisionZone::from_local_normal(body.rotation().transpose() * normal),
+                position: frame.to_world.w_axis.truncate(),
+                magnitude: effect.intensity,
+            });
+        }
         let owner = model.owner.clone();
         if !nfsmw_data::world::object_fx::emitters(data.database(), effect.effect).is_empty() {
             self.scenery.models.get_mut(&id).unwrap().authored_visual = true;
@@ -68,6 +78,9 @@ impl PropWorld {
 
     pub fn take_particle_commands(&mut self) -> Vec<Command> {
         std::mem::take(&mut self.scenery.particles)
+    }
+    pub fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
+        std::mem::take(&mut self.scenery.audio)
     }
     pub fn take_authored_blasts(&mut self) -> Vec<Vec3> {
         std::mem::take(&mut self.scenery.authored_blasts)

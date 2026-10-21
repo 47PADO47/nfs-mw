@@ -12,8 +12,8 @@ use super::props::{FragmentSpawn, PropWorld};
 mod particles;
 
 pub fn update(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld, data: &PhysicsData, view: Vec3) {
-    update_with(sim, props, data, view, |slot| {
-        let instances = rig.fragment_instances(slot);
+    update_with(sim, props, data, view, |slot, damage| {
+        let instances = rig.fragment_instances(slot, Some(damage));
         (!instances.is_empty()).then_some(instances)
     });
 }
@@ -23,7 +23,7 @@ fn update_with(
     props: &mut PropWorld,
     data: &PhysicsData,
     view: Vec3,
-    instances: impl Fn(usize) -> Option<Vec<blackbox_render::Instance>>,
+    instances: impl Fn(usize, &[u8; 10]) -> Option<Vec<blackbox_render::Instance>>,
 ) {
     let Some(geometry) = sim.geometry.clone() else { return };
     let body = sim.body();
@@ -71,7 +71,7 @@ fn update_with(
         let root = usize::try_from(bounds.root().first_child).unwrap_or(0) + child;
         let node = &bounds.nodes[root];
         let Some(spec) = data.fragment_dynamics(fragment.attributes) else { continue };
-        let Some(instances) = instances(slot) else { continue };
+        let Some(instances) = instances(slot, events.source_levels()) else { continue };
         let local_q = Quat::from_array(node.orientation);
         if !local_q.is_finite() || local_q.length_squared() < 1e-6 {
             continue;

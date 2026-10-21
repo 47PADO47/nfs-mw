@@ -1,5 +1,5 @@
 //! When a semi's 5th wheel lets go of its trailer.
-//! Spec: `docs/specs/ai-traffic.md` (§2).
+//! Specs: `docs/specs/ai-traffic.md` (§2), `docs/specs/trailer-release-controls.md`.
 
 use glam::Vec3;
 
@@ -35,8 +35,8 @@ pub enum Release {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Hitch {
     released: Option<Release>,
-    /// Seconds each body (tractor, trailer) has been on fewer than two wheels.
-    off_ground: [f32; 2],
+    /// Seconds while either body has fewer than two supported wheels.
+    off_ground: f32,
 }
 
 impl Hitch {
@@ -54,15 +54,13 @@ impl Hitch {
         if self.released.is_some() {
             return false;
         }
-        for (time, body) in self.off_ground.iter_mut().zip([tractor, trailer]) {
-            *time = match body.wheels_on_ground < MIN_WHEELS {
-                true => *time + dt,
-                false => 0.0,
-            };
-        }
+        self.off_ground = match tractor.wheels_on_ground < MIN_WHEELS || trailer.wheels_on_ground < MIN_WHEELS {
+            true => self.off_ground + dt,
+            false => 0.0,
+        };
         let tipped = tractor.up.y < MIN_UP_Y || trailer.up.y < MIN_UP_Y;
         let folded = tractor.up.dot(trailer.up) < MIN_UP_DOT;
-        let airborne = self.off_ground.iter().any(|&t| t > MAX_OFF_GROUND);
+        let airborne = self.off_ground > MAX_OFF_GROUND;
         self.released = match (tipped, folded, airborne) {
             (true, _, _) => Some(Release::Tipped),
             (_, true, _) => Some(Release::Folded),
@@ -138,6 +136,21 @@ mod tests {
         for _ in 0..15 {
             assert!(hitch.update(0.1, flying, LEVEL));
         }
+    }
+
+    #[test]
+    fn alternating_unsupported_bodies_share_one_continuous_release_timer() {
+        let mut hitch = Hitch::default();
+        let unsupported = Posture { wheels_on_ground: 1, ..LEVEL };
+        for tick in 0..8 {
+            let (a, b) = match tick % 2 {
+                0 => (unsupported, LEVEL),
+                _ => (LEVEL, unsupported),
+            };
+            assert!(hitch.update(0.25, a, b), "two seconds exactly still holds");
+        }
+        assert!(!hitch.update(0.25, LEVEL, unsupported), "the pair never regained full support");
+        assert_eq!(hitch.released(), Some(Release::OffGround));
     }
 
     #[test]

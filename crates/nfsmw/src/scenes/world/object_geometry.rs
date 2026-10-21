@@ -26,6 +26,7 @@ pub fn primitive_at(p: &BodyPrimitive, pose: BodyPose) -> Obb {
     Obb { centre: pose.0 + rotation * p.centre, axes: rotation * Mat3::from_quat(p.rotation), half: p.half }
 }
 
+#[cfg(test)]
 pub fn object_shapes(body: &RigidBody, frame: Option<BodyGeometryFrame<'_>>) -> Vec<ObjectGeometry> {
     let Some(frame) = frame else {
         return vec![ObjectGeometry {
@@ -46,6 +47,35 @@ pub fn object_shapes(body: &RigidBody, frame: Option<BodyGeometryFrame<'_>>) -> 
             ObjectGeometry { travel: bounds.centre - previous, bounds, shape: p.shape, surface: p.surface }
         })
         .collect()
+}
+
+/// Original runtime order, including slots that the channel/disabled filter may skip.
+pub fn object_shape_count(frame: Option<BodyGeometryFrame<'_>>) -> usize {
+    frame.map_or(1, |frame| frame.geometry.primitives.len())
+}
+
+/// Prepare one shape from the current body pose while retaining its fixed-tick previous centre.
+pub fn object_shape_at(body: &RigidBody, frame: Option<BodyGeometryFrame<'_>>, index: usize) -> Option<ObjectGeometry> {
+    let Some(frame) = frame else {
+        return (index == 0).then(|| ObjectGeometry {
+            bounds: Obb { centre: body.position, axes: body.rotation(), half: body.dimension() },
+            shape: Shape::Box,
+            travel: Vec3::ZERO,
+            surface: 0,
+        });
+    };
+    let primitive = frame.geometry.primitives.get(index)?;
+    if !primitive.collides(bounds_flags::PRIM_VS_OBJECTS) {
+        return None;
+    }
+    let bounds = primitive_at(primitive, (body.position, body.orientation));
+    let previous = frame.previous.0 + Mat3::from_quat(frame.previous.1) * primitive.centre;
+    Some(ObjectGeometry {
+        travel: bounds.centre - previous,
+        bounds,
+        shape: primitive.shape,
+        surface: primitive.surface,
+    })
 }
 
 #[cfg(test)]

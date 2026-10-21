@@ -4,6 +4,17 @@ Sources and evidence boundaries are recorded in
 [the provenance note](../provenance/cop-destruction-contacts.md).
 This refines [cop damage](ai-pursuit-cop-cars.md#6-damage-and-destruction).
 
+## Health and visual destruction
+
+When accumulated health damage reaches one, every lamp query reports broken,
+including an impact that reaches exactly one without emitting the strict
+greater-than-one destruction event. Propagate that health predicate to the
+lamp consumer independently of event emission. An ordinary lethal impact still
+updates only its selected visual zone through the normal impact/damage stimuli.
+Do not substitute explicit Destroy, which sets all visual zones to six, merely
+to turn off a health-destroyed car's lamps. Later contacts cannot add health
+damage, but may still issue collision/impact stimuli for a retired body.
+
 ## Incoming collision data
 
 Damage eligibility uses the magnitude of the incoming velocity component along

@@ -55,6 +55,8 @@ pub(super) struct SceneryModel {
     /// A pursuit breaker zone opened from this model since it was placed (`EBreakerStopCops`).
     fired: bool,
     authored_visual: bool,
+    /// A consumed placement reloaded from the section cache has no running model.
+    streamed_hidden: bool,
     owner: Weak<()>,
     parent_owner: Option<Rc<()>>,
     /// A prop the game put in the world with its own intact meshes (a roadblock's sawhorse): drawn from them until its
@@ -80,6 +82,7 @@ impl SceneryModel {
             triggered: false,
             fired: false,
             authored_visual: false,
+            streamed_hidden: false,
             owner: Rc::downgrade(&owner),
             parent_owner: Some(owner),
             intact: false,
@@ -92,7 +95,7 @@ impl SceneryModel {
     }
 
     fn initialize(&mut self, data: &PhysicsData) {
-        if self.player.is_some() || self.failed || self.key == 0 {
+        if self.player.is_some() || self.failed || self.key == 0 || self.streamed_hidden {
             return;
         }
         let Some(sequence) = data.sequence(self.key) else {
@@ -119,11 +122,22 @@ impl SceneryModel {
         self.triggered = false;
         self.fired = false;
         self.authored_visual = false;
+        self.streamed_hidden = false;
         self.hidden_parts.clear();
         self.spawned.clear();
         let owner = Rc::new(());
         self.owner = Rc::downgrade(&owner);
         self.parent_owner = Some(owner);
+    }
+
+    pub(super) fn streaming_state(&self, moved: bool) -> Option<bool> {
+        (moved || self.hidden || !self.hidden_parts.is_empty() || self.fired).then_some(self.fired)
+    }
+
+    pub(super) fn restore_streamed_hidden(&mut self, fired: bool) {
+        self.hidden = true;
+        self.fired = fired;
+        self.streamed_hidden = true;
     }
 
     fn instances(&self, transform: Mat4, out: &mut Vec<Instance>) {
@@ -161,6 +175,7 @@ pub(super) struct Stimulus {
 
 #[derive(Default)]
 pub(super) struct SceneryEvents {
+    audio: Vec<crate::audio::WorldEffectAudio>,
     particles: Vec<super::super::prop_effects::Command>,
     authored_blasts: Vec<Vec3>,
     pub models: BTreeMap<u32, SceneryModel>,
@@ -213,10 +228,30 @@ impl PropWorld {
     }
 
     pub(super) fn reset_model(&mut self, id: u32) {
+        if let Some(collider) = self.colliders.get_mut(&id) {
+            collider.collidable = true;
+        }
         if let Some(model) = self.scenery.models.get_mut(&id) {
             model.reset();
         }
         self.remove_orphaned_fragments();
+    }
+
+    /// HideModel ends the parent's physical simulation without releasing its sequence or children.
+    pub(super) fn hide_model(&mut self, id: u32) {
+        if let Some(model) = self.scenery.models.get_mut(&id) {
+            model.hidden = true;
+        }
+        if let Some(collider) = self.colliders.get_mut(&id) {
+            collider.collidable = false;
+            if let Some(body) = collider.body.as_mut() {
+                body.rigid.state = blackbox_vehicle::rigid_body::BodyState::Frozen;
+                body.rigid.linear_velocity = Vec3::ZERO;
+                body.rigid.angular_velocity = Vec3::ZERO;
+                body.lifetime = Default::default();
+            }
+        }
+        self.regrid(id);
     }
 
     fn enqueue(&mut self, id: u32, stimulus: u32) {

@@ -60,13 +60,24 @@ fn first_successful_prop_ground_reaction_keeps_owned_profile_and_incoming_veloci
 }
 
 #[test]
-fn existing_player_prop_owned_sound_is_not_repeated_in_world_queue() {
-    let mut placed = [placement(113, Vec3::new(0.0, 0.6, 0.0), 100.0, false, 0.0)];
+fn vehicle_prop_sound_survives_a_discarded_ai_impact_without_duplicating_the_car_endpoint() {
+    let mut placed = [placement(113, Vec3::new(0.0, 0.6, 0.0), 100.0, false, 1000.0)];
     owned(&mut placed[0], 74, 54);
     let mut world = PropWorld::default();
     world.add_tile(1, &mut placed);
     let mut impact = Impact::default();
     world.collide_vehicle(&mut car(20.0), None, &mut impact);
-    assert_eq!(impact.sounds.iter().filter(|c| c.sound_profile == 74).count(), 1);
-    assert!(world.take_sound_contacts().is_empty());
+    assert_eq!(impact.sounds.len(), 1, "only the car endpoint belongs to its local impact feed");
+    assert_eq!(impact.sounds[0].sound_profile, 0);
+    let car_contact = impact.sounds[0];
+    drop(impact); // Traffic and trailers discard this return value; the prop still owns its sound.
+    let contacts = world.take_sound_contacts();
+    assert_eq!(contacts.len(), 1);
+    let prop_contact = contacts[0];
+    assert_eq!(prop_contact.sound_profile, 74);
+    assert_eq!(prop_contact.identity, u64::from(placed[0].prop_id));
+    assert!(prop_contact.detached && prop_contact.delta_v > 0.0);
+    assert_eq!(prop_contact.normal, -car_contact.normal);
+    assert_eq!(prop_contact.velocity, -car_contact.velocity);
+    assert!(world.take_sound_contacts().is_empty(), "one completed tick consumes the prop endpoint once");
 }

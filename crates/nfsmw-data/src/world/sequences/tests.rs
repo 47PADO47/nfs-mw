@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn named_light_damage_requires_a_name_and_preserves_it_without_string_resolution() {
+    let name = vlt_hash("LIGHT_COPS");
+    for words in [vec![name], vec![name, 0, 0]] {
+        assert_eq!(
+            WorldEvent::decode(&event(0x4FD8_F6DC, &words)).unwrap().resolve_strings(&Package::default()),
+            WorldEvent::DamageLights(name)
+        );
+    }
+    assert!(WorldEvent::decode(&event(0x4FD8_F6DC, &[])).is_err());
+}
+
+#[test]
 fn object_effect_resolves_string_tag_and_preserves_attachment_fields() {
     let raw = event(0xC1AF_4FDD, &[17, 42, 3.0_f32.to_bits(), 99, 1, 1]);
     let mut package = Package::default();

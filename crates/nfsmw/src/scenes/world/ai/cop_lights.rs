@@ -93,9 +93,13 @@ impl CopLightRun {
 
     /// Advance every emitter by `dt` seconds with the car's frame `to_world` (the emitters switch on and off by
     /// themselves).
-    pub fn step(&mut self, dt: f32, to_world: Mat4) {
+    pub fn step(&mut self, dt: f32, to_world: Mat4, active: bool) {
         for (emitter, template) in self.emitters.iter_mut().zip(&self.set.templates) {
-            let frame = Frame { to_world: to_world * template.frame, inherit_velocity: Vec3::ZERO, intensity: 1.0 };
+            let frame = Frame {
+                to_world: to_world * template.frame,
+                inherit_velocity: Vec3::ZERO,
+                intensity: f32::from(u8::from(active)),
+            };
             emitter.step(dt, &frame);
         }
     }

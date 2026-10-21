@@ -9,6 +9,9 @@ use super::sim::CarSim;
 use super::{CarRig, Drive, SpawnRequest};
 use crate::scenes::world::vehicle_effects::VehicleEffects;
 
+#[cfg(test)]
+mod tests;
+
 impl Drive {
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
@@ -51,6 +54,7 @@ impl Drive {
             _ => spawn,
         };
         let rest = self.rig.rest_heights();
+        let replacing = self.sim.is_some() && self.last_good.is_some();
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
         sim.set_tunings(self.tunings);
         sim.set_visual_tires(self.rig.visual_tires());
@@ -59,6 +63,9 @@ impl Drive {
         }
         if !sim.place_moving(&ground, spawn, std::mem::take(&mut self.pending_speed)) {
             return false;
+        }
+        if replacing {
+            sim.begin_reset_collision_grace();
         }
         self.effects.disconnect();
         let pose = sim.pose();

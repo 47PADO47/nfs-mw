@@ -14,6 +14,7 @@ fn install() -> GameDir {
 fn contact() -> CarContact {
     CarContact {
         sound_profile: 0,
+        vehicle: None,
         audio_zone: None,
         detached: false,
         source: ContactSource::World,
@@ -52,6 +53,9 @@ fn physical_contact_coalescing_keeps_distinct_partners_and_lateral_scrapes() {
     assert_eq!(out[0].delta_v, 5.0);
     assert_eq!(a.sliding_speed(), 10.0);
     assert_eq!(CarContact { velocity: Vec3::X * 10.0, ..a }.closing_speed(), 0.0);
+    let npc_a = CarContact { vehicle: Some(crate::audio::ContactVehicle { identity: 7, profile: 9 }), ..a };
+    let npc_b = CarContact { vehicle: Some(crate::audio::ContactVehicle { identity: 8, profile: 9 }), ..a };
+    assert_eq!(contacts::coalesced(&[npc_a, npc_b]).len(), 2, "same-model cars touching one wall remain independent");
 }
 
 #[test]
@@ -360,6 +364,7 @@ fn installed_physical_impact_stitches_render_authored_pieces_and_retire() {
     {
         let event = CarEvent {
             sound_profile: 0,
+            vehicle: None,
             audio_zone: None,
             kind,
             surface: SurfaceTable::hash_of(surface),
@@ -423,6 +428,7 @@ fn installed_detaching_props_emit_their_own_profile_effects() {
     for (profile, name, speed) in candidates.into_iter().take(5) {
         let event = CarContact {
             sound_profile: profile,
+            vehicle: None,
             audio_zone: None,
             detached: true,
             identity: u64::from(profile),

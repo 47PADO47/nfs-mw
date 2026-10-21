@@ -34,6 +34,9 @@ impl Vehicle {
 
     /// The suspension's current maximum range, before a simple chassis applies tire steering scale.
     pub fn maximum_steering_degrees(&self) -> f32 {
+        if let Some(config) = self.rolling_chassis {
+            return config.steering_degrees;
+        }
         if self.simple_chassis.is_some() {
             return self.simple_max_steering;
         }
@@ -41,6 +44,10 @@ impl Vehicle {
     }
 
     pub(super) fn update_chassis_cog(&mut self) {
+        if let Some(cog) = self.rolling_chassis.and_then(|config| config.cog) {
+            self.body.set_cog(cog);
+            return;
+        }
         let ride_extra =
             self.simple_chassis.map_or(self.tunings.ride_height, |c| c.ride_extra[self.wheels_on_ground_prev.min(2)]);
         self.body.set_cog(center_of_gravity(

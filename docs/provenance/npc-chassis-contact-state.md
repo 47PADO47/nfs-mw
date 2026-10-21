@@ -13,8 +13,11 @@
   also damps local roll. The readable reference corroborates these operations.
 - **Implementation:** a caller-configured optional chassis state supplies
   support-dependent centre-of-gravity ride offsets, instantaneous steering range
-  and landing angular retention. The game enables it for NPC physical cars;
-  stored body mass and inertia remain independently sourced.
+  and landing angular retention. Police and patrol retain this adapter;
+  ordinary traffic and trailers now select their distinct installed mechanics
+  documented in [traffic suspension runtime](traffic-suspension-runtime.md).
+  AI-racer behavior selection remains unverified. Stored body mass and inertia
+  remain independently sourced.
 - **Validation scope:** synthetic production-path checks cover all support-count
   branches, throttle/brake steering changes, first-landing angular retention and
   independent player configuration. Installed contact captures include police

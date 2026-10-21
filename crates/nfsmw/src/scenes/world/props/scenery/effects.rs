@@ -39,9 +39,7 @@ impl PropWorld {
                 self.create_explosion(id, explosion);
             }
             WorldEvent::HideObject => {
-                if let Some(model) = self.scenery.models.get_mut(&id) {
-                    model.hidden = true;
-                }
+                self.hide_model(id);
             }
             WorldEvent::HidePart(part) => {
                 if let Some(model) = self.scenery.models.get_mut(&id) {

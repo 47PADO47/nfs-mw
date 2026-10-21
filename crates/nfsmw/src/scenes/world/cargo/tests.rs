@@ -90,7 +90,7 @@ fn run(data: &PhysicsData, model: &CarModel, name: &str, frames: impl Iterator<I
         for _ in 0..clock.advance(dt) {
             props.step(&ground, 1.0 / 60.0);
             sim.step(&DriveInput::default(), &ground, None);
-            update_with(&mut sim, &mut props, data, Vec3::ZERO, |s| parts(model, s));
+            update_with(&mut sim, &mut props, data, Vec3::ZERO, |s, _| parts(model, s));
             trace.counts.push(props.fragment_count());
             for (_, body, pose) in props.fragment_bodies() {
                 assert!(body.position.is_finite() && pose.is_finite());
@@ -112,7 +112,7 @@ fn run(data: &PhysicsData, model: &CarModel, name: &str, frames: impl Iterator<I
     sim.body_mut().place(Vec3::Y * 4.0, Quat::IDENTITY);
     rear_hit(&mut sim);
     for _ in 0..240 {
-        update_with(&mut sim, &mut props, data, Vec3::ZERO, |s| parts(model, s));
+        update_with(&mut sim, &mut props, data, Vec3::ZERO, |s, _| parts(model, s));
     }
     assert_eq!(props.fragment_count(), before);
     // Parent destruction removes child bodies from drawing immediately and from collision at the next tick.
@@ -159,11 +159,11 @@ fn missing_meshes_do_not_hide_cargo_and_original_side_scaling_does_not_drop_it()
     );
     hit.force = 1_000_000.0;
     sim.events.as_mut().unwrap().hit(hit);
-    update_with(&mut sim, &mut props, &data, Vec3::ZERO, |_| Some(Vec::new()));
+    update_with(&mut sim, &mut props, &data, Vec3::ZERO, |_, _| Some(Vec::new()));
     assert_eq!(props.fragment_count(), 0);
     rear_hit(&mut sim);
     for _ in 0..240 {
-        update_with(&mut sim, &mut props, &data, Vec3::ZERO, |_| None);
+        update_with(&mut sim, &mut props, &data, Vec3::ZERO, |_, _| None);
     }
     assert_eq!(props.fragment_count(), 0);
     assert!(sim.events.as_ref().unwrap().hidden_slots.is_empty());

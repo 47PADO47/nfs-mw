@@ -97,6 +97,17 @@ player-engine mixer frame. Scrapes publish those parameters plus intensity and
 a low-pass value to the authored FX_Scrape module. Preserve the module's sample
 selection; success executing an engine module does not prove scrape coverage.
 
+Capture an impact's event azimuth on its first playback update and retain it
+for the remaining stitch pieces, including delayed pieces. Scrape azimuth
+continues to follow current mixer output. A camera turn must not rotate an
+already-started impact recording.
+
+At creation, a collision described by both SMOKABLE and WALL requires
+trunc(clamp(audio magnitude,0,1)*127) greater than 9. This applies to scrape
+creation as well as impacts. Other descriptions have no such gate. Once a
+scrape exists, lower-intensity updates refresh it normally; do not apply this
+constructor-only gate to an existing voice.
+
 Maintain an active scrape voice or module across contacts; update its parameters
 rather than creating a voice per tick. Release uses the documented lifetime.
 Do not accidentally compound the original effect fade with multiple generic
@@ -161,9 +172,29 @@ collision table for a silent or absent prop rule.
 
 Queue these records on their completed simulation tick, after world/ground
 response, and consume them once with the existing contact playback. They must
-not enter the player's camera-impact feed. Player/prop records already emitted
-by the vehicle contact path are not emitted again. Contact identities must keep
+not enter the player's camera-impact feed. The vehicle contact path publishes
+the prop endpoint directly to the world queue for player, AI and trailer contacts;
+only the vehicle endpoint belongs in its returned impact. AI/trailer callers may
+discard their vehicle impact without discarding the prop's detach or hit sound.
+The world drain must not duplicate the player's prop endpoint. Contact identities must keep
 different prop owners separate even when they share one source profile.
+
+Non-player vehicles publish their own endpoint as well: world, ground, prop and
+vehicle-pair reactions select the owning `pvehicle` collection's links. Keep a
+unique physical body identity alongside that collection so two cars of the same
+type scraping the same wall do not overwrite each other. A trailer is a separate
+owner. Never use the player's collision table for a missing vehicle profile.
+Both pair endpoints retain their own surface, normal, orientation zone and
+notification delta-v. An immobile endpoint uses its partner's effective mass,
+as specified by [collision notifications](pc-object-contact.md#collision-notifications),
+and can remain audible without changing its physical velocity. Draining traffic contacts must neither repeat the player's
+endpoint nor add traffic records to the player's camera-contact history.
+
+The host delivers completed traffic contacts with its fixed-tick sound history,
+including ticks where only traffic advances. Authored thresholds, culling,
+curves, collision stitches and scrape refresh/release use the same shared audio
+playback as existing source contacts. A missing source remains silent; no generic
+crash sample is substituted. Live original voice competition remains unverified.
 
 The AEMS direct route applies its dry word at seven-bit precision and azimuth
 only to mono samples. Wet playback now follows the shared output contract described below.

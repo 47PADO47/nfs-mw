@@ -9,6 +9,7 @@ impl CarSim {
         ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        self.reset_collision.advance(FIXED_STEP);
         self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = InputState {
@@ -41,13 +42,15 @@ impl CarSim {
                     .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
                 // The original prunes object pairs before its end-frame world collision callback.
                 let mut objects = Impact::default();
-                props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
+                props.collide_vehicle_admitted(&mut self.vehicle, frame, &mut objects, || self.reset_collision.admit());
                 let wall_exclusion = self.terrain_exclusion();
                 let mut impact = walls::resolve_into(
                     &mut self.vehicle,
                     &walls::world_cast_with_mask(collision, wall_exclusion),
                     &walls::world_props(props),
                     &self.walls,
+                    &|surface| ground.world_friction(surface),
+                    self.collision_role.player,
                     &mut self.wall_scratch,
                 );
                 impact.impulse = impact.impulse.max(objects.impulse);
@@ -72,6 +75,7 @@ impl CarSim {
             let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
             crate::audio::CarContact {
                 sound_profile: 0,
+                vehicle: None,
                 audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(rotation.transpose() * c.normal)),
                 detached: false,
                 source: crate::audio::ContactSource::Ground,
@@ -103,6 +107,8 @@ impl CarSim {
         }
         let body = self.vehicle.body();
         self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
+        self.queue_non_player_sounds(&impact);
+        self.advance_lamps(input.brake);
         impact
     }
 }

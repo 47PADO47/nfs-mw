@@ -36,3 +36,19 @@ every linked vehicle body.
   static-roadblock overrides. Stored physical mass/inertia remain independent
   of these temporary contact parameters. The complete original goal state
   machines, stun handling and matched live impact comparison remain open.
+
+
+## 2026-10-21 directional/type follow-up
+
+Fresh matching PC selector and goal-change inspection, corroborated by the CC0
+reference `RBVehicle.cpp` and `AIVehicle.cpp`, confirms the existing four-way
+front/rear and end/side branch. Thirty-six isolated original selector executions
+cover both normal signs, adjacent float values around the 0.707 threshold,
+front/rear seam ties and three rotated bodies. These are synthetic executable
+instruction oracles, not live gameplay captures.
+
+Goal-change inspection corrects the previous invalid-override interpretation:
+the first matching goal is selected, but an invalid resulting profile falls back
+to `PlayerCollisionsDefault`. It does not search a later duplicate matching key.
+The parser keeps nullable references; native profile selection now applies that
+fallback. Tests retain first-match order and cover missing default independently.

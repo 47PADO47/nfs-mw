@@ -51,6 +51,13 @@ impl WorldScene {
         self.residency.set_shadow_sun(self.sun.to_sun());
         self.residency.set_shadow_receiver_extent(extent, lens.position.truncate().distance(glam::Vec2::new(x, y)));
         self.prepare_traffic_support();
+        // Section overrides expire on reload only outside an active race (prop-lifetime.md).
+        let racing = self.race.as_ref().is_some_and(|race| {
+            race.stage == super::race::Stage::Running
+                && (race.challenge.is_some()
+                    || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing))
+        });
+        self.residency.world_parts().1.set_streaming_reset_locked(racing);
         self.residency.update(renderer, x, y);
         self.prepare_drive();
         let sim_dt = match self.garage_open {

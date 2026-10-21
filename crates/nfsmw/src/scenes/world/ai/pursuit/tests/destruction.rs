@@ -1,4 +1,6 @@
 //! Real installed cop damage travels through production vehicle contacts, rendering and retirement.
+mod health_mapping;
+mod wreck_motion;
 use super::*;
 use crate::scenes::world::{
     drive::{CarSim, DriveInput},

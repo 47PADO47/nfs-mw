@@ -25,6 +25,7 @@ impl Vehicle {
             return;
         }
         self.tire_damage.advance(dt);
+        self.begin_retirement_frame();
         self.body_contacts.clear();
         self.body.begin_frame(dt);
         self.time += dt;
@@ -59,6 +60,7 @@ impl Vehicle {
         self.apply_aero();
 
         let out = self.wheel_forces(dt, ground, angular_velocity);
+        self.advance_retirement_support(dt);
         if self.wheels_on_ground > 0 {
             let up = self.body.rotation().y_axis;
             let mut torque = out.torque;
@@ -104,6 +106,9 @@ impl Vehicle {
     }
 
     pub(super) fn update_steering(&mut self, dt: f32, forward_speed: f32) {
+        if self.rolling_steering() {
+            return;
+        }
         let c = self.controls;
         let tire_steering = self.simple_steering_scale();
         let normal_angle = self.steering.update(&SteeringInput {
@@ -132,7 +137,10 @@ impl Vehicle {
 
     fn run_powertrain(&mut self, dt: f32, speed: f32) {
         let trans = &self.spec.transmission;
-        let (front, rear) = (trans.front_driven(), trans.rear_driven());
+        let (front, rear) = match self.rolling_chassis {
+            Some(config) => (config.front_drive_share > 0.0, config.front_drive_share < 1.0),
+            None => (trans.front_driven(), trans.rear_driven()),
+        };
         let dir = if self.powertrain.gear() == GEAR_REVERSE { -1.0 } else { 1.0 };
         let is_driven = |i: usize| if i < 2 { front } else { rear };
         let count = (0..4).filter(|&i| is_driven(i)).count();
@@ -167,7 +175,7 @@ impl Vehicle {
         });
         let writes = self.powertrain.wheel_writes();
         for (i, t) in self.tires.iter_mut().enumerate() {
-            if !reference || writes[i] {
+            if self.rolling_chassis.is_none() && (!reference || writes[i]) {
                 t.av = av[i];
             }
         }
@@ -180,6 +188,11 @@ impl Vehicle {
     }
 
     pub(super) fn apply_aero(&mut self) {
+        if self.rolling_chassis.is_some() {
+            let velocity = self.body.linear_velocity;
+            self.body.apply_force(-velocity * velocity.length() * self.spec.aero.drag_coefficient);
+            return;
+        }
         let rot = self.body.rotation();
         self.body.apply_force(-rot.y_axis * self.spec.mass * self.maneuver.extra_downward_acceleration);
         let aero = crate::aero::AeroSpec {

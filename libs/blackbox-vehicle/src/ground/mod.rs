@@ -66,6 +66,11 @@ pub trait Ground {
         1.0
     }
 
+    /// World contact friction for a surface tag; independent of tire and body-ground grip.
+    fn world_friction(&self, _surface: u32) -> f32 {
+        1.0
+    }
+
     /// Casts a ray from `origin` along the unit vector `dir` for at most `max_distance` metres and returns
     /// the nearest ground surface it hits, if any. The vehicle casts straight down from slightly above each
     /// wheel contact point.

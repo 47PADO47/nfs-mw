@@ -282,7 +282,7 @@ fn action(c: &WallContact) -> &'static str {
 /// deepest pushes the body out; a light prop only costs the car the momentum it takes to push it away.
 #[cfg(test)]
 pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, walls: &WallSpec) -> Impact {
-    resolve_into(vehicle, cast, props, walls, &mut Vec::new())
+    resolve_into(vehicle, cast, props, walls, &|_| 1.0, true, &mut Vec::new())
 }
 
 /// As `resolve`, with the contact list built in `scratch` (cleared first) so a caller that keeps the buffer does not
@@ -292,6 +292,8 @@ pub fn resolve_into(
     cast: Cast<'_>,
     props: PropQuery<'_>,
     walls: &WallSpec,
+    world_friction: &dyn Fn(u32) -> f32,
+    head_on_damping: bool,
     scratch: &mut Vec<WallContact>,
 ) -> Impact {
     let body = vehicle.body();
@@ -330,6 +332,7 @@ pub fn resolve_into(
         .iter()
         .map(|c| CarContact {
             sound_profile: 0,
+            vehicle: None,
             audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(rot.transpose() * c.normal)),
             detached: false,
             source: if c.prop.is_some() { ContactSource::Object } else { ContactSource::World },
@@ -370,11 +373,12 @@ pub fn resolve_into(
     for (index, c) in contacts.iter().filter(|c| !is_light(c)).enumerate() {
         let n = c.normal;
         let e = Vec3::new(n.dot(rot.x_axis), n.dot(rot.y_axis), n.dot(rot.z_axis)) * walls.elasticity;
+        let surface = c.info.map_or(1.0, |info| world_friction(info.surface));
         let plane = PlaneContact {
             point: c.point,
             normal: n,
-            friction_static: walls.friction[0],
-            friction_kinetic: walls.friction[1].min(walls.friction[0]),
+            friction_static: walls.friction[0] * surface,
+            friction_kinetic: walls.friction[1].min(walls.friction[0]) * surface,
         };
         let params = ContactParams { restitution: e.length(), inertia_scale: walls.moment_scale };
         let damage = DamageHit::capture(
@@ -386,7 +390,7 @@ pub fn resolve_into(
         );
         let body_velocity = vehicle.body().linear_velocity;
         let closing_velocity = vehicle.body().point_velocity(c.point);
-        let (centre, params) = vehicle.wall_reaction(n, params);
+        let (centre, params) = vehicle.wall_reaction(n, params, head_on_damping);
         if let Some(reaction) = vehicle.body_mut().react_plane_at(&plane, &params, Some(centre)) {
             if c.prop.is_none() {
                 vehicle.notify_wall_contact(c.point, n, closing_velocity, body_velocity);
@@ -435,3 +439,6 @@ mod visual_tests;
 mod steering_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod surface_tests;

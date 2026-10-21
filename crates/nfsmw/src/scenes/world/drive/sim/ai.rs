@@ -9,6 +9,19 @@ use super::CarSim;
 use crate::scenes::world::{road::Spawn, space};
 
 impl CarSim {
+    /// Original destroyed-on-wheels sleep is independent of retirement brake controls.
+    pub fn set_destroyed_non_player(&mut self, destroyed: bool) {
+        let delay = (destroyed && !self.collision_role.player).then_some(2.0);
+        self.vehicle.set_retirement_sleep_delay(delay);
+        let response = (destroyed && !self.collision_role.player && self.collision_role.cop)
+            .then(nfsmw_data::car::physics::destroyed_coasting_tires);
+        self.vehicle.set_coasting_tires(response);
+    }
+
+    pub fn finish_retirement_contacts(&mut self) {
+        self.vehicle.finish_retirement_contacts();
+    }
+
     /// Traffic starts supported by the road, including its bank and slope, with tangent velocity.
     /// Spec: `docs/specs/ai-traffic-spawning.md` section 12.
     pub fn place_traffic_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
@@ -34,6 +47,7 @@ impl CarSim {
             return false;
         }
         self.spin = [0.0; 4];
+        self.brake_lamp_age = 0.0;
         match speed > 0.0 {
             true => self.vehicle.place_moving(position, orientation, speed),
             false => self.vehicle.place(position, orientation),
@@ -56,6 +70,13 @@ impl CarSim {
             manual_clutch: false,
             h_shifter: false,
         };
+    }
+
+    /// Ordinary traffic selects its own suspension, independently of police and racer controls.
+    pub fn configure_traffic(&mut self) {
+        self.configure_ai();
+        let config = nfsmw_data::car::physics::traffic_chassis_config(self.vehicle.spec());
+        self.vehicle.set_rolling_chassis(Some(config));
     }
 
     /// What an AI driver needs to know of the car.

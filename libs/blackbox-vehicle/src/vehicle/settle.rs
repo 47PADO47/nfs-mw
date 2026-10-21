@@ -7,6 +7,9 @@ use super::Vehicle;
 impl Vehicle {
     /// Halves the spin about the up and forward axes when the car lands after being fully airborne.
     pub(super) fn damp_landing(&mut self, angular_velocity: Vec3) -> Vec3 {
+        if self.rolling_chassis.is_some() {
+            return angular_velocity;
+        }
         if self.wheels_on_ground_prev == 0 && self.wheels_on_ground > 0 {
             let rot = self.body.rotation();
             let mut w = rot.transpose() * angular_velocity;
