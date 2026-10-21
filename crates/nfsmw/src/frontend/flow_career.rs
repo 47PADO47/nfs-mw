@@ -147,10 +147,17 @@ impl Frontend {
         handle_autosave(&self.career, self.profiles.as_ref(), Trigger::RoamingStart, inputs);
     }
 
-    /// Carries out a confirmed car lot purchase or sale on the career; a refusal is shown in an alert.
+    /// Carries out a confirmed car lot purchase or sale on the career; a refusal is shown in an alert. The first car of the
+    /// prologue starts the drive to the first safe house once it is bought (`start_first_drive`).
     pub(super) fn car_lot_action(&mut self, action: CarLotAction, host: &mut Host, env: &mut Env) {
-        let Some(Err(text)) = self.career.with(|career| car_lot::apply(career, &action)) else { return };
-        let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);
-        self.apply(commands, host, env);
+        let first_drive = action.starts_first_drive();
+        match self.career.with(|career| car_lot::apply(career, &action)) {
+            Some(Ok(())) if first_drive => self.start_first_drive(host, env),
+            Some(Err(text)) => {
+                let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);
+                self.apply(commands, host, env);
+            }
+            _ => {}
+        }
     }
 }

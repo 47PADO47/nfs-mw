@@ -38,74 +38,7 @@ pub(super) const SELL_BUTTON: u32 = 0x0010_5E06;
 pub(super) const ACCEPT: u32 = 0x000E_2B7E;
 pub(super) const TAB_TITLE: u32 = 0x000F_18D7;
 
-/// One LED strip of a stat bar: its image GUID, its centre x inside the bar's group, its size in pixels and its uv width.
-/// The strips are `LED_main.tga` at 32 pixels per uv unit (`[exe][verified]`, `Car_Select.fng`). Both strips of a bar
-/// start at the same left edge (x = -60), so the shorter first strip overlays the start of the full one.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Strip {
-    pub guid: u32,
-    pub centre_x: f32,
-    pub width: f32,
-    pub uv_width: f32,
-}
-
-/// The strips of the TOP SPEED bar (group `0xF1737`), the HANDLING bar (`0xF173F`) and the ACCELERATION bar (`0xF172F`).
-pub(crate) const TOP_SPEED_STRIPS: [Strip; 2] = [
-    Strip { guid: 0x000F_1738, centre_x: -20.0, width: 80.0, uv_width: 2.5 },
-    Strip { guid: 0x000F_1739, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
-pub(crate) const HANDLING_STRIPS: [Strip; 2] = [
-    Strip { guid: 0x000F_1740, centre_x: 0.0, width: 120.0, uv_width: 3.75 },
-    Strip { guid: 0x000F_1741, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
-pub(crate) const ACCELERATION_STRIPS: [Strip; 2] = [
-    Strip { guid: 0x000F_1730, centre_x: -40.0, width: 40.0, uv_width: 1.25 },
-    Strip { guid: 0x000F_1731, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
-
-/// What one strip shows for a fraction: its lit uv (the `u1` of its texture rectangle), its new width and centre x, and
-/// whether it is shown at all.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct StripFill {
-    pub guid: u32,
-    pub lit_uv: f32,
-    pub width: f32,
-    pub centre_x: f32,
-    pub shown: bool,
-}
-
-/// Splits a bar's fraction over its strips. The bar is as wide as its widest strip (`total` uv); the lit part is
-/// `fraction * total` uv from the left edge, and every strip lights that part up to its own uv width (the strips share
-/// the left edge). A lit strip keeps its pixels per uv and its left edge, so its width and centre move with the lit part.
-/// A strip with nothing lit is hidden.
-pub fn strip_fills(fraction: f32, strips: &[Strip]) -> Vec<StripFill> {
-    let total = strips.iter().map(|strip| strip.uv_width).fold(0.0, f32::max);
-    let lit_total = fraction.clamp(0.0, 1.0) * total;
-    strips.iter().map(|strip| strip_fill(lit_total, strip)).collect()
-}
-
-fn strip_fill(lit_total: f32, strip: &Strip) -> StripFill {
-    let lit_uv = lit_total.clamp(0.0, strip.uv_width);
-    let width = lit_uv * strip.width / strip.uv_width;
-    let left = strip.centre_x - strip.width / 2.0;
-    StripFill { guid: strip.guid, lit_uv, width, centre_x: left + width / 2.0, shown: lit_uv > 0.0 }
-}
-
-/// Draws one bar: each strip's uv rectangle, width and position for `fraction`.
-pub(crate) fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
-    for fill in strip_fills(fraction, strips) {
-        let Some(object) = cx.guid(fill.guid) else { continue };
-        cx.rt.set_hidden(object, !fill.shown);
-        if !fill.shown {
-            continue;
-        }
-        cx.set_uv(fill.guid, [0.0, 0.0, fill.lit_uv, 1.0]);
-        let Some(size) = cx.rt.size(object) else { continue };
-        cx.rt.set_size_xy(object, fill.width, size.y);
-        let Some(position) = cx.rt.position(object) else { continue };
-        cx.rt.set_position_xy(object, fill.centre_x, position.y);
-    }
-}
+pub(crate) use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
 
 /// The language table labels the tab titles and the Accept label show (`Car Lot`, `Career`, `Buy Car`, `Accept`).
 /// The owned tab shows `Career` (`0x5415C3F1`, the label the package's own header object carries). `My Cars`
@@ -143,10 +76,18 @@ impl Tab {
 /// What a confirmed question does to the career. Carried by `Command::CarLot` (`flow_career.rs` applies it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarLotAction {
-    /// Buy the lot car with this front-end key (`LotCar::frontend_key`).
-    Buy { frontend_key: u32, delivery: Delivery },
+    /// Buy the lot car with this front-end key (`LotCar::frontend_key`). `first_drive` marks the first car of the
+    /// prologue: the drive to the first safe house starts once the car is bought (`flow_career.rs`).
+    Buy { frontend_key: u32, delivery: Delivery, first_drive: bool },
     /// Sell the owned car with this handle.
     Sell { handle: u32 },
+}
+
+impl CarLotAction {
+    /// Whether the action is the first car's purchase, which starts the drive to the first safe house when it is made.
+    pub const fn starts_first_drive(&self) -> bool {
+        matches!(self, CarLotAction::Buy { first_drive: true, .. })
+    }
 }
 
 /// The key a row is found by when its question is answered.
@@ -258,13 +199,27 @@ pub fn start_at(career: &Career, tab: Tab, cursor: usize) -> Start {
         return Start::Nothing;
     }
     match item.key {
-        Key::Lot(key) => buy_start(career, key),
+        Key::Lot(key) => buy_start(career, key, false),
         Key::Owned(handle) => sell_start(career, handle),
     }
 }
 
+/// The answer to Accept on row `cursor` of the first-car lot (`Args.first_car`): a lot car is bought as the first car, and
+/// the drive starts after the purchase (the cash and the room are checked as for any purchase). Other rows get the
+/// ordinary answer.
+pub fn start_first_at(career: &Career, tab: Tab, cursor: usize) -> Start {
+    let Some(item) = items(career, tab).into_iter().nth(cursor) else { return Start::Nothing };
+    if item.locked {
+        return Start::Nothing;
+    }
+    match item.key {
+        Key::Lot(key) => buy_start(career, key, true),
+        Key::Owned(_) => start_at(career, tab, cursor),
+    }
+}
+
 /// The question for buying the lot car `key`: at stage 16 a plain confirm (delivered); at 15 or lower Drive Now.
-fn buy_start(career: &Career, key: u32) -> Start {
+fn buy_start(career: &Career, key: u32, first_drive: bool) -> Start {
     let Some(car) = carlot::by_frontend_key(&career.data.cars, key) else { return Start::Nothing };
     if car.state_at(career.settings.stage) != LotState::Buyable {
         return Start::Nothing;
@@ -276,7 +231,12 @@ fn buy_start(career: &Career, key: u32) -> Start {
         PurchasePrompt::Confirm => (label("CAR_PURCHASE_CONFIRM"), Delivery::Deliver),
         PurchasePrompt::DriveOrDeliver => (label("CARLOT_BUYMSG"), Delivery::DriveNow),
     };
-    let action = CarLotAction::Buy { frontend_key: key, delivery };
+    // The first car is the one the drive to the first safe house starts in, so it becomes the current car.
+    let delivery = match first_drive {
+        true => Delivery::DriveNow,
+        false => delivery,
+    };
+    let action = CarLotAction::Buy { frontend_key: key, delivery, first_drive };
     Start::Ask(Confirm::new(message, Command::CarLot(action)))
 }
 
@@ -317,7 +277,7 @@ pub(super) fn sell_start(career: &Career, handle: u32) -> Start {
 pub fn apply(career: &mut Career, action: &CarLotAction) -> Result<(), Text> {
     let data = career.data.clone();
     match *action {
-        CarLotAction::Buy { frontend_key, delivery } => buy_car(career, &data.cars, frontend_key, delivery),
+        CarLotAction::Buy { frontend_key, delivery, .. } => buy_car(career, &data.cars, frontend_key, delivery),
         CarLotAction::Sell { handle } => sell_car(career, &data.cars, handle),
     }
 }
@@ -381,7 +341,8 @@ pub fn step(cursor: usize, len: usize, down: bool) -> usize {
 pub struct CarLotLogic {
     tab: Tab,
     cursor: usize,
-    /// Opened by the scripted chase: Accept on an owned car picks it for the first drive, and Back is refused.
+    /// Opened by the scripted chase: Accept on a lot car buys it as the first car and on an owned car picks it, and either
+    /// starts the first drive; Back is refused.
     first_car: bool,
 }
 
@@ -444,8 +405,13 @@ impl CarLotLogic {
             }
             return;
         }
-        let start =
-            CareerHandle::shared().with(|career| start_at(career, self.tab, self.cursor)).unwrap_or(Start::Nothing);
+        let first_car = self.first_car;
+        let start = CareerHandle::shared()
+            .with(|career| match first_car {
+                true => start_first_at(career, self.tab, self.cursor),
+                false => start_at(career, self.tab, self.cursor),
+            })
+            .unwrap_or(Start::Nothing);
         match start {
             Start::Nothing => {}
             Start::Refused(text) => cx.send(Command::Alert(Alert::new(text))),
@@ -485,10 +451,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         return None;
     }
     let mut logic = CarLotLogic::new();
-    if args.first_car {
-        logic.first_car = true;
-        logic.tab = Tab::Owned;
-    }
+    logic.first_car = args.first_car;
     Some(Box::new(logic))
 }
 
