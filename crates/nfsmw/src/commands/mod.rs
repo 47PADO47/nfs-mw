@@ -91,6 +91,13 @@ pub fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::DumpAnim { path, bank, sample } => dump_anim::run(game_dir, &path, bank.as_deref(), sample),
+        Command::ViewAnim { path, skeleton, clip, time, view } => {
+            let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
+            let scene =
+                crate::scenes::anim_view::AnimViewScene::open(&dir, &path, skeleton.as_deref(), clip.as_deref(), time)?;
+            let run_options = view.run_options(&dir, false).with_mods(mods);
+            crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
+        }
         Command::Play { skip_boot, drive, aliases, ui_script, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;

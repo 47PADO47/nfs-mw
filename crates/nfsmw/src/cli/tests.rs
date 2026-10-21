@@ -98,6 +98,35 @@ fn dump_anim_takes_a_bundle_and_an_optional_sample() {
 }
 
 #[test]
+fn view_anim_takes_a_bundle_and_optional_rig_clip_and_time() {
+    let plain = Cli::try_parse_from(["nfsmw", "view-anim", "NIS/Scene_ArrestF02_BundleB.bun"]).unwrap();
+    let Some(Command::ViewAnim { path, skeleton, clip, time, .. }) = plain.command else { panic!("wrong command") };
+    assert_eq!(path, "NIS/Scene_ArrestF02_BundleB.bun");
+    assert!(skeleton.is_none() && clip.is_none());
+    assert_eq!(time, 0.0);
+
+    let chosen = Cli::try_parse_from([
+        "nfsmw",
+        "view-anim",
+        "NIS/Scene_ArrestF02_BundleB.bun",
+        "--skeleton",
+        "ArrestF02",
+        "--clip",
+        "ArrestF02_Cuffs_s",
+        "--time",
+        "1.5",
+    ])
+    .unwrap();
+    let Some(Command::ViewAnim { skeleton, clip, time, .. }) = chosen.command else { panic!("wrong command") };
+    assert_eq!(skeleton.as_deref(), Some("ArrestF02"));
+    assert_eq!(clip.as_deref(), Some("ArrestF02_Cuffs_s"));
+    assert_eq!(time, 1.5);
+
+    assert!(Cli::try_parse_from(["nfsmw", "view-anim"]).is_err(), "a bundle is needed");
+    assert!(Cli::try_parse_from(["nfsmw", "view-anim", "x_BundleB.bun", "--time", "soon"]).is_err());
+}
+
+#[test]
 fn window_options_reach_the_cli_settings_layer() {
     let cli = Cli::try_parse_from([
         "nfsmw",

@@ -153,6 +153,23 @@ pub enum Command {
         #[arg(long, value_name = "N", requires = "bank", value_parser = clap::value_parser!(u32).range(1..))]
         sample: Option<u32>,
     },
+    /// Show a skeleton of a bundle as sticks, one box per bone, animated by one of its clips (drag to orbit, scroll to
+    /// zoom, Esc to quit): `nfsmw view-anim NIS/Scene_ArrestF02_BundleB.bun --clip <name> --time 1`.
+    ViewAnim {
+        /// Bundle path relative to the install, e.g. NIS/Scene_ArrestF02_BundleB.bun.
+        path: String,
+        /// The skeleton to show, by its rig name; the bundle's first one when left out.
+        #[arg(long, value_name = "RIG")]
+        skeleton: Option<String>,
+        /// The clip to play, by its name in the banks; the first one that drives the skeleton when left out.
+        #[arg(long, value_name = "NAME")]
+        clip: Option<String>,
+        /// The clip time, in seconds, to start at; the clip loops from there.
+        #[arg(long, value_name = "SECS", default_value_t = 0.0)]
+        time: f32,
+        #[command(flatten)]
+        view: ViewArgs,
+    },
     /// Fly through the city (WASD + mouse to look; Shift = fast; Esc frees the mouse, again to quit).
     ViewWorld {
         /// Start position on the map as X,Y (default: the centre of the city).
