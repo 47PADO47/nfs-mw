@@ -238,6 +238,7 @@ impl WorldScene {
                 cop_health: Default::default(),
                 moment: Default::default(),
                 nis: Default::default(),
+                story_movie: Default::default(),
                 photo_shot: None,
                 breaker_icons: Default::default(),
             };

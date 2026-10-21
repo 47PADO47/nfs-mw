@@ -16,6 +16,9 @@ const SPECIAL_SETUP_FIELD: u32 = 0x4393_F69B;
 const DEFER_REWARDS_FIELD: u32 = 0xF2FE_50D7;
 /// The child whose presence marks the race's outro (`story-flow.md` section 2.7 and F-12).
 const OUTRO_MARKER: &str = "outro_nis_marker";
+/// Attribute `0xFF5EE5D6` (flag): the race is a boss race, which a quick race plays with `QuickRaceNIS` (`story-flow.md`
+/// section 1.2). The name is not known, so the key is read (`docs/formats/gameplay-races.md`).
+const BOSS_RACE_FIELD: u32 = 0xFF5E_E5D6;
 
 /// What a race shows and plays around its run: the intro, the outro, the forced player car, the flags the career
 /// reads when the race starts and is won, and its reward list. Empty texts and an unset message id (`-1`) read as
@@ -40,6 +43,9 @@ pub struct RaceStory {
     pub nis_shell: bool,
     /// `DDayRace`: a D-Day (prologue) race. Its tutorial state is skipped (`story-flow.md` section 1.1).
     pub dday: bool,
+    /// `BossRace` (attribute `0xFF5EE5D6`, see [`BOSS_RACE_FIELD`]): a boss race. A quick race of one plays
+    /// `QuickRaceNIS` and no movie (`story-flow.md` section 1.2).
+    pub boss_race: bool,
     /// The race runs the special-setup hook (attribute `0x4393F69B`, see [`SPECIAL_SETUP_FIELD`]).
     pub special_setup: bool,
     /// The race defers its rewards to the safe house markers screen (attribute `0xF2FE50D7`, see
@@ -77,6 +83,7 @@ impl RaceStory {
             quick_race_nis: text(c, "QuickRaceNIS"),
             nis_shell: c.get_bool("NISShell").unwrap_or(false),
             dday: c.get_bool("DDayRace").unwrap_or(false),
+            boss_race: flag_at(c, BOSS_RACE_FIELD),
             special_setup: flag_at(c, SPECIAL_SETUP_FIELD),
             defer_rewards: flag_at(c, DEFER_REWARDS_FIELD),
             outro_nis: text(c, "OutroNIS"),

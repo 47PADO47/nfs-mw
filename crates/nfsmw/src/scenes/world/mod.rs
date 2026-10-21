@@ -76,6 +76,7 @@ mod space;
 mod speech_look;
 mod speed_trails;
 mod start;
+mod story_movie;
 mod sun;
 mod teardown;
 mod update;
@@ -249,6 +250,8 @@ pub struct WorldScene {
     moment: moment::Moment,
     /// The NIS cutscene player: the camera of a cutscene scene while it plays (`nis/`).
     nis: nis::NisPlayer,
+    /// The movie the world plays over its view, and the tutorials seen (`story_movie.rs`).
+    story_movie: story_movie::StoryMovie,
     /// The camera of the win photo while the post-race screen shows it (`photo_shot.rs`).
     photo_shot: Option<photo_shot::PhotoShot>,
     /// The pursuit breakers' minimap icons (`breaker_icons.rs`).

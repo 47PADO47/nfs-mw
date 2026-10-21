@@ -40,6 +40,17 @@ impl WorldScene {
         }
         let marker = Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(view.forward));
         self.nis.play(&self.dir, name, marker, NisKind::of_scene(name), track)
+        self.play_nis_at(name, track, anchor)
+    }
+
+    /// Starts the NIS scene `name` with its camera `track`, standing at `anchor`. Refused while another scene plays.
+    pub(in crate::scenes::world) fn play_nis_at(
+        &mut self,
+        name: &str,
+        track: u32,
+        anchor: Anchor,
+    ) -> Result<(), String> {
+        self.nis.play(&self.dir, name, anchor, NisKind::of_scene(name), track)
     }
 
     /// Ends the scene that plays. Returns whether one did.

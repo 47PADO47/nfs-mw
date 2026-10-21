@@ -1,6 +1,7 @@
 //! Viewer integration, controls and world updates.
 
 use super::*;
+use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
@@ -54,8 +55,18 @@ impl Scene for WorldScene {
         crate::hud::show_mod_message(ctx);
         self.show_pursuit_end(ctx);
         self.show_race_card(ctx);
+        self.show_race_message_card(ctx);
         self.show_nis_bars(ctx);
+        self.show_story_movie(ctx);
         0.0
+    }
+
+    fn fullscreen(&mut self) -> Option<Fullscreen> {
+        self.story_movie.picture()
+    }
+
+    fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
+        self.story_movie.take_clip()
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {

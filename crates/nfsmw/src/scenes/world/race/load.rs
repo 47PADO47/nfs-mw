@@ -5,7 +5,7 @@ use blackbox_race::{CatchUp, Race};
 use glam::Vec3;
 use nfsmw_data::pursuit::ai_vehicle;
 
-use super::{RaceSession, Stage};
+use super::{RaceSession, Stage, intro};
 use crate::scenes::world::ai::{ModelState, RacerSpawn};
 use crate::scenes::world::{WorldScene, space};
 
@@ -119,13 +119,13 @@ impl WorldScene {
         session.plan = kept;
         session.emu = vec![None; grid.len()];
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
-        let mut engine = Race::new(prep.course, prep.config, &grid);
-        let started = match prep.rolling {
-            true => engine.start_now(),
-            false => engine.begin_countdown(),
-        };
-        session.engine = Some(engine);
-        session.stage = Stage::Running;
-        self.race_events(session, started);
+        session.engine = Some(Race::new(prep.course, prep.config, &grid));
+        // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.
+        let steps = intro::intro_queue(session);
+        if steps.is_empty() {
+            self.start_countdown(session);
+            return;
+        }
+        session.stage = Stage::Intro { steps, current: intro::Playing::Idle };
     }
 }

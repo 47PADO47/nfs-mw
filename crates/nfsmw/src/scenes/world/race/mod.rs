@@ -14,9 +14,11 @@ mod emulate;
 mod finish;
 mod flares;
 mod flow;
+mod intro;
 mod load;
 pub(super) mod mods;
 mod names;
+mod outro;
 mod report;
 mod restart;
 mod setup;
@@ -25,16 +27,22 @@ mod start;
 pub(super) use command::race_command;
 pub use setup::RaceOptions;
 
+use std::collections::VecDeque;
+
 use blackbox_race::{CatchUp, Course, Race};
+use nfsmw_career::story::{IntroStep, OutroStep};
 use nfsmw_data::gameplay::RaceType;
 
 use crate::scenes::world::road::Spawn;
 
 /// Where the run is.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) enum Stage {
     /// Waiting for the player's car to stand on the grid and the racers' models to load.
     Loading { waited: f32 },
+    /// The race's intro, once the racers stand on the grid and before the countdown: the message, the tutorial, the movie
+    /// and the NIS (`intro.rs`). `current` is what plays now.
+    Intro { steps: VecDeque<IntroStep>, current: intro::Playing },
     /// The countdown and the race itself (the engine's phase tells which).
     Running,
     /// The race-over message is up for this many more seconds (`RaceOverMessageDuration`).
@@ -42,13 +50,16 @@ pub(super) enum Stage {
     /// The post-race screen has the race: it waits for the front end to take the report and answer. `left` is how long
     /// the world waits for a front end before it ends the race itself (a run with no front end).
     PostRace { left: f32 },
+    /// The race's outro, after the post-race answer: the outro NIS, message and movie (`outro.rs`). `won` is whether the
+    /// race's chain runs once the outro is over.
+    Outro { steps: VecDeque<OutroStep>, current: intro::Playing, won: bool },
 }
 
 impl Stage {
-    /// The race is staged or on: loading, counting down or running. Once the result is fixed (`Results`, `PostRace`) the
-    /// career has been told and the post-race screen owns the race (`docs/specs/race-restart.md` section 1).
-    pub(super) fn is_live(self) -> bool {
-        matches!(self, Stage::Loading { .. } | Stage::Running)
+    /// The race is staged or on: loading, the intro, counting down or running. Once the result is fixed (`Results`,
+    /// `PostRace`) the career has been told and the post-race screen owns the race (`docs/specs/race-restart.md` section 1).
+    pub(super) fn is_live(&self) -> bool {
+        matches!(self, Stage::Loading { .. } | Stage::Intro { .. } | Stage::Running)
     }
 }
 

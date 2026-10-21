@@ -147,7 +147,6 @@ impl MoviePlayback {
     }
 
     /// Ends the movie now, whatever is left of it.
-    #[allow(dead_code)] // no caller yet; the subtitles and the scene over the world will skip with it
     pub fn skip(&mut self) {
         self.clock.end();
     }

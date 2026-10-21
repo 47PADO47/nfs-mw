@@ -15,9 +15,11 @@ impl WorldScene {
         // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
         self.update_arrest_nis();
         self.update_nis(input, dt);
-        // The garage and a playing NIS scene freeze the world: no input reaches it and no time passes in it.
+        self.update_story_movie(input, dt);
+        // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
+        // passes in it.
         let idle = ActionState::default();
-        let frozen = self.garage_open || self.nis.is_playing();
+        let frozen = self.garage_open || self.nis.is_playing() || self.story_movie.is_playing();
         let input = match frozen {
             true => &idle,
             false => input,
@@ -58,9 +60,10 @@ impl WorldScene {
         self.prepare_traffic_support();
         // Section overrides expire on reload only outside an active race (prop-lifetime.md).
         let racing = self.race.as_ref().is_some_and(|race| {
-            race.stage == super::race::Stage::Running
-                && (race.challenge.is_some()
-                    || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing))
+            matches!(race.stage, super::race::Stage::Intro { .. })
+                || (race.stage == super::race::Stage::Running
+                    && (race.challenge.is_some()
+                        || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing)))
         });
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
         self.residency.update(renderer, x, y);

@@ -29,10 +29,12 @@ impl WorldScene {
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
+            Stage::Intro { .. } => self.race_intro(&mut session, frame_dt),
             Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session),
             Stage::Running => self.race_running(&mut session, sim_dt),
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
             Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),
+            Stage::Outro { .. } => self.race_outro(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
         match keep {

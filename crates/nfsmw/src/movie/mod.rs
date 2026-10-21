@@ -18,7 +18,8 @@ use crate::gui::{OwnedPatch, UiOutput};
 use crate::input::ActionState;
 use crate::viewer::{Fullscreen, Scene};
 use framing::fit_rect;
-use playback::MoviePlayback;
+pub(crate) use playback::MoviePlayback;
+pub(crate) use subtitles::show as show_subtitles;
 
 /// Texture id of the movie picture; egui's are small numbers and the HUD's have a high bit.
 const PICTURE: UiTextureId = UiTextureId(0x4D4F_5649_4500);

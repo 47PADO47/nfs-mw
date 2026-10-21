@@ -65,7 +65,7 @@ pub(super) fn lines_at(track: Option<&SubtitleTrack>, elapsed: f64) -> (Option<&
 }
 
 /// Draws the lines centred near the bottom of the window, white on a dark box. Nothing is drawn when no line is up.
-pub(super) fn show(ctx: &egui::Context, (first, second): (Option<&str>, Option<&str>)) {
+pub(crate) fn show(ctx: &egui::Context, (first, second): (Option<&str>, Option<&str>)) {
     let lines: Vec<&str> = [first, second].into_iter().flatten().collect();
     if lines.is_empty() {
         return;

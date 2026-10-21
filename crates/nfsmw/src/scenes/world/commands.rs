@@ -45,6 +45,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "nis list | play <scene> [track] | stop | status",
         "the NIS cutscenes of the install: list them, play a scene's camera from the car (track 0 unless given), stop it, show it",
     ),
+    ("movie <name> | movie stop", "play a movie full screen over the world (a name or part of one), or stop it"),
 ];
 
 pub(super) fn run(
@@ -63,6 +64,7 @@ pub(super) fn run(
         "gps" => gps(scene, args),
         "race" => super::race::race_command(scene, args),
         "nis" => super::nis::nis_command(scene, args),
+        "movie" => super::story_movie::movie_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),
