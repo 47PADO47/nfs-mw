@@ -201,6 +201,9 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
   message ("You won", "You finished 3rd", "Race lost", "Challenge complete") and the challenge line. It plays the group's
   3200 ms script `0xA19BB14C`; the game's choice among the group's seven scripts (1200 to 3600 ms) is not read
   **[unconfirmed]**. The egui card keeps only the points of a speed-trap race.
+- The finish line shows red flares from the start of the race: the finish trigger's `ParticleEffect` (`fxgame_flare_red`)
+  at a point each side of the line, `FlareSpacing` metres from its centre ([race-finish-effects.md](race-finish-effects.md)
+  section 1; `scenes/world/finish_flares.rs`). They stay while the post-race screens are up.
 - The groups `TOLL_BOOTH_GROUP`, `SPRINT_GROUP`, `SPEEDTRAP_GROUP` and `RIVAL_GROUP` are not in the HUD packages: they
   are objects of the photo screen `InGamePhotoMaster.fng` and of no other package (checked against every package of the
   install, `hud/install_tests.rs`). They are the groups of the win photo, section 11. The `*Stat` strings,
@@ -230,8 +233,10 @@ section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`do
 
 1. `raceover`: the race-over message shows for `RaceOverMessageDuration`, 3 s: the HUD's generic message group says
    "You won", "You finished 3rd", "Race lost" or "Challenge complete" (Interact skips the wait).
-2. `postrace` after a win: the win photo, `InGamePhotoMaster.fng` (`frontend/photo.rs`): the frozen world is the photo and
-   one group says WINNER, the cash and the time (`SPRINT_GROUP`: time `m:ss:cc` at the average speed; `RIVAL_GROUP`, used
+2. `postrace` after a win: the win photo, `InGamePhotoMaster.fng` (`frontend/photo.rs`): a tilted polaroid whose window
+   is transparent, over the frozen world seen from the race's finish camera (a replay camera in the player's car space,
+   [race-finish-effects.md](race-finish-effects.md) sections 2 and 3), with the finish line's flares behind the car.
+   One group says WINNER, the cash and the time (`SPRINT_GROUP`: time `m:ss:cc` at the average speed; `RIVAL_GROUP`, used
    for drag races: seconds at the speed at the line; `TOLL_BOOTH_GROUP`: speed, time left, cash and the bonus time)
    **[unconfirmed]** which race kinds take which group. Its buttons are Continue (Enter), Race Stats (key 2) and
    Restart (key 1).
@@ -277,6 +282,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 | The place, lap, clock, progress and 3-2-1-GO | `hud/race.rs` (the HUD package's objects) |
 | The banner, the points and the race-over message | `hud/race_card.rs` (egui) |
 | The post-race screen, the rewards screen | `frontend/post_race.rs`, `frontend/rewards.rs`, `race/report.rs` |
+| The finish line's flares, the win photo's camera and backdrop | `finish_flares.rs`, `race/flares.rs`, `photo_shot.rs`, `frontend/photo.rs` ([race-finish-effects.md](race-finish-effects.md)) |
 | The mods' view of the races | `modding/races_feed.rs`, `backends/races.rs`, `race/mods.rs` |
 | The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
 | The console | `race list|start|status|stop|mod`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
