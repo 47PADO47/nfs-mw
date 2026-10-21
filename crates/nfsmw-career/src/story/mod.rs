@@ -1,0 +1,33 @@
+//! Story mode: the rules that shape a race's life from the outside, written from `docs/specs/story-flow.md`.
+//!
+//! - [`race_life`]: the intro steps before a race (the tutorial, the message, the intro movie and NIS), the outro
+//!   steps after it, the exit of the intro NIS, and the post-race chain (`story-flow.md` sections 1.1, 1.2, 1.5, 1.7).
+//!
+//! The rules read the race's story fields as [`StoryFields`]. This crate does not depend on `nfsmw-data`, so the game
+//! crate copies the fields of its `RaceStory` into this struct. An empty text counts as not set, as the Lua does.
+
+pub mod race_life;
+
+pub use race_life::{
+    AfterIntroNis, IntroContext, IntroStep, OutroStep, after_intro_nis, chain_after, intro_steps, outro_steps,
+};
+
+/// The story fields of one race that the rules read (`career-scripts-events.md` section 1.1). `None` means the field
+/// is not set; an empty text counts as not set too.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StoryFields {
+    /// `IntroMessageID`: the message screen shown first when set and not -1.
+    pub intro_message_id: Option<i32>,
+    /// `IntroMovie`: the movie of the intro.
+    pub intro_movie: Option<String>,
+    /// `IntroNIS`: the intro cutscene at the start marker.
+    pub intro_nis: Option<String>,
+    /// `QuickRaceNIS`: the cutscene a boss race plays when it starts from the quick race menu.
+    pub quick_race_nis: Option<String>,
+    /// `OutroNIS`: the cutscene after the race, played only when the race has an outro marker.
+    pub outro_nis: Option<String>,
+    /// `OutroMessageID`: the message screen shown after the outro cutscene, when set and not -1.
+    pub outro_message_id: Option<i32>,
+    /// `OutroMovie`: the movie played last, before the race is done.
+    pub outro_movie: Option<String>,
+}
