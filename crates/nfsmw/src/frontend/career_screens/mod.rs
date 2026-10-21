@@ -9,6 +9,7 @@ mod car_lot_first;
 pub mod car_select;
 mod car_select_view;
 pub mod career_menu;
+pub mod end_game_page;
 pub mod markers;
 pub mod rap_sheet;
 pub mod region_unlock;
@@ -28,6 +29,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         .or_else(|| markers::make(name, args))
         .or_else(|| save::make(name, args))
         .or_else(|| sms::make(name, args))
+        .or_else(|| end_game_page::make(name))
 }
 
 /// Posted to `MC_Main.fng` before [`INITIALIZE_SCREEN`]: the memory card prompt's pre-message.

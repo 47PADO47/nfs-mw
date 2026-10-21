@@ -45,6 +45,12 @@ pub mod screen {
     pub const EA_TRAX_JUKEBOX: &str = "EA_Trax_Jukebox.fng";
     /// The credits roll (`credits.rs`), opened from the option categories.
     pub const CREDITS: &str = "Credits.fng";
+    /// The end-game pages (`docs/specs/career-rapsheet-2.md` section 3): the win screen and the three rap sheet pages the
+    /// end-game counter pushes (`flow_endgame.rs`).
+    pub const GAME_WON: &str = "GameWon.fng";
+    pub const RAP_SHEET_LOGIN_ENDGAME: &str = "RapSheetLogin_ENDGAME.fng";
+    pub const RAP_SHEET_LOGIN2_ENDGAME: &str = "RapSheetLogin2_ENDGAME.fng";
+    pub const RAP_SHEET_MAIN_ENDGAME: &str = "RapSheetMain_ENDGAME.fng";
     /// The career screens (`docs/specs/career-*.md`).
     pub const SAFE_HOUSE_RIVAL_CHALLENGE: &str = "SafeHouseRivalChallenge.fng";
     pub const SAFE_HOUSE_RIVAL_BIO: &str = "SafeHouseRivalBio.fng";
