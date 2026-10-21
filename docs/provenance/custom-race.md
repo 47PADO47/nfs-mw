@@ -66,9 +66,10 @@ options, so it is added by this rewrite.
 ## Dead ends
 
 - `GRaceDatabase::IsQuickRaceUnlocked` is an empty file in the decomp; in the exe it is the flag test above, and the flag is set
-  for a fresh profile by `0x00600B20`. The setter that opens the rest when a rival is beaten was not found (a scan for `OR [r+4], 4`
-  found `0x00600B20` and unrelated code only). The rule in the spec (a track opens with its bin's rival) comes from the lock
-  sentence and from the cars' arithmetic.
+  for a fresh profile by `0x00600B20`. The setter that opens the rest is the career action `UnlockRace` (`0x00612140`, registered by name at
+  `0x0061EB7E`; it sets flag 4 unless `0xA4E6FCFD`, then flag 8), found by listing the `OR [r+4], imm` instructions of the
+  gameplay code (`0x00600BF0`, `0x00611C94`, `0x00612184`) and the string of its registration; the bin scripts that call it are in
+  `career-blacklist.md` (sections 2.3 and 2.6, from the earlier career work).
 - The tutorial button of the mode select: the exe's table of modes with a tutorial was not found; the three movies exist.
 - The car select's transmission question in the exe: a scan for the immediates of the labels `0x6F5401D1` (the question), `0x317D3005`
   and `0x8CD532A0` found only the options row of the Transmission setting (`0x0051C5F0`, which shows Manual or Auto from the player

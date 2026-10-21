@@ -78,7 +78,7 @@ fn a_locked_track_is_not_accepted_an_open_one_is_and_back_returns_to_the_mode_se
     }
     let Some(mut h) = open_in(Mode::Circuit, screen::TRACK_SELECT, Args::default()) else { return };
     let board = quick_race::board().expect("the board was read");
-    let listed = tracks::list(&board, Mode::Circuit, Filter::ALL, pool::PROLOGUE_STAGE, false);
+    let listed = tracks::list(&board, Mode::Circuit, Filter::ALL, &tracks::Standing::at(pool::PROLOGUE_STAGE), false);
     // On a fresh profile the exe opens a few circuits from the start; the rest wait for their rival.
     let locked = listed.iter().position(|l| l.locked).expect("a circuit is locked at the first stage");
     let open = listed.iter().position(|l| !l.locked).expect("a circuit is open from the start");

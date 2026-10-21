@@ -64,10 +64,13 @@ saved to the config file (the old `quick_race` config key and its four rows are 
   `FUN_005765A0`, `FUN_00576790`) and sets it for a fresh profile from the race's own flags: `InitiallyUnlocked` or either of
   the flags `0xB39ED8C3` and `0xEA855EAF` (`FUN_00600B20`) **[exe]**. In this install that opens 28 races of bins 1 to 15 from the
   start (drag, circuit, sprint, knockout, speedtrap and tollbooth ones), and `NeverInQuickRace` (`0xA4E6FCFD`, `FUN_005FC110`)
-  keeps a race out of the lists (none here). The other races open with their Blacklist bin: a track of bin `b` is open once
-  rival `b` is beaten, i.e. the career's stage is below `b` **[ours]**; the exe's setter of the flag at that point was not found,
-  the rule is the car select's own arithmetic for the rivals' cars **[decomp]**, and the lock sentence `Unlock this track by
-  beating <alias>, Blacklist member <b>` (label `0xBD563BE5`, `BLACKLIST_RIVAL_<bb>_AKA`) names the bin **[exe, verified]**.
+  keeps a race out of the lists (none here). The other races are opened by the bin scripts: the career action `UnlockRace`
+  (`0x00612140`, registered by name; [career-blacklist.md](career-blacklist.md) sections 2.3, 2.6 and 4.1) sets flag 4 unless the
+  race is `NeverInQuickRace`, and the scripts call it for the races open from the start, for the boss races of a bin when its
+  rival is unlocked (`rival_unlocked`) and for the free races when the rival is beaten (`done`) **[exe]**. So a free track of bin
+  `b` is open once rival `b` is beaten, i.e. the career's stage is below `b`, and a boss track already when the rival is
+  unlocked (`tracks::Standing`). The lock sentence `Unlock this track by beating <alias>, Blacklist member <b>` (label
+  `0xBD563BE5`, `BLACKLIST_RIVAL_<bb>_AKA`) names the bin **[exe, verified]**.
   A locked track hides the Accept hint and refuses Accept. The environment variable `NFSMW_UNLOCK_ALL` opens everything for
   testing, as the original's `UnlockAllThings` cheat does (`DAT_00926124` in the checker **[exe]**).
 - **Accept** on an open track stores it for the mode and plays the package's leave script (`EVENT_HANDLER` forward); on
@@ -161,8 +164,6 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 ## 8. Open
 
 - Whether the original asks the transmission question for a drag race: the decompilation says no, this build asks.
-- The exe's setter of the quick race flag when a rival is beaten was not found (see section 3); the later opens use the
-  rival-beaten rule above.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
   at the heat the level gives.
 - The Castrol GT: the original awards it for an easter egg the world has not here, so it stays locked.

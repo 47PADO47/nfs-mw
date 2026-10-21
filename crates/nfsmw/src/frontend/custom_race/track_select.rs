@@ -12,7 +12,7 @@ use glam::Vec2;
 use super::mode::Mode;
 use super::records;
 use super::state;
-use super::tracks::{self, Listed};
+use super::tracks::{self, Listed, Standing};
 use crate::career::CareerHandle;
 use crate::frontend::challenge_series::{Crop, Maps, Zoom};
 use crate::frontend::ids::{self, screen};
@@ -78,8 +78,10 @@ impl Default for TrackSelect {
 }
 
 impl TrackSelect {
-    fn stage() -> u8 {
-        CareerHandle::shared().with_loaded(|career| career.stage()).unwrap_or(PROLOGUE_STAGE)
+    fn standing() -> Standing {
+        CareerHandle::shared()
+            .with_loaded(|career| Standing::of(&career.blacklist))
+            .unwrap_or_else(|| Standing::at(PROLOGUE_STAGE))
     }
 
     /// Takes the board once it was read and makes the list.
@@ -99,7 +101,7 @@ impl TrackSelect {
     fn rebuild(&mut self, cx: &mut Cx, keep: Option<String>) {
         let Some(board) = self.board.clone() else { return };
         let (mode, filter) = state::with(|s| (s.mode, s.filter));
-        self.list = tracks::list(&board, mode, filter, Self::stage(), tracks::unlock_all());
+        self.list = tracks::list(&board, mode, filter, &Self::standing(), tracks::unlock_all());
         self.at = keep
             .and_then(|name| self.list.iter().position(|listed| board.tracks[listed.index].name == name))
             .unwrap_or(0);
