@@ -68,6 +68,8 @@ pub struct SplitInput {
     pub second: ActionState,
     /// The device whose Start (or accept) key was pressed this frame: the "press start" screens read it to seat a player.
     pub start_press: Option<PlayerDevice>,
+    /// A seated pad going away was reported already (once per seating).
+    lost_reported: bool,
 }
 
 impl SplitInput {
@@ -75,6 +77,7 @@ impl SplitInput {
     pub fn seat(&mut self, devices: Option<[PlayerDevice; 2]>) {
         self.devices = devices;
         self.second = ActionState::default();
+        self.lost_reported = false;
     }
 
     /// The devices of player 1 and player 2 while a split-screen race is on.
@@ -86,6 +89,13 @@ impl SplitInput {
     pub fn lost_pad(&self, connected: &HashSet<Entity>) -> Option<usize> {
         let devices = self.devices?;
         devices.iter().position(|d| matches!(d, PlayerDevice::Pad(pad) if !connected.contains(pad)))
+    }
+
+    /// True once, the frame a seated pad is found gone: the race pauses as it does for the single player's pad.
+    pub fn pad_just_lost(&mut self, connected: &HashSet<Entity>) -> bool {
+        let lost = self.lost_pad(connected).is_some() && !self.lost_reported;
+        self.lost_reported |= lost;
+        lost
     }
 
     /// The first player's snapshot: the keys and the pad of their own device only. `pads` gives the pad's state by entity.

@@ -122,6 +122,10 @@ pub(crate) fn update_actions(
         fill_pad(&mut second, pad);
     }
     split.update_second(&second);
+    let connected: HashSet<Entity> = pads.iter().map(|(entity, _)| entity).collect();
+    if split.pad_just_lost(&connected) {
+        presentation.disconnected = true;
+    }
     snapshot = split.first_snapshot(&snapshot);
     state.update(&bindings, &snapshot, focus.0);
     state.merge_pressed(&split.second, &[Action::Cancel, Action::MenuStart]);

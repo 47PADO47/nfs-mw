@@ -119,7 +119,13 @@ impl SplitOverlay {
         }
     }
 
-    fn show_layer(&mut self, renderer: &mut dyn RenderBackend, base: Option<&UiLayer>, window: [f32; 2], surface: [u32; 2]) {
+    fn show_layer(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        base: Option<&UiLayer>,
+        window: [f32; 2],
+        surface: [u32; 2],
+    ) {
         let Some(base) = base else { return };
         let unchanged = self.composed_from.as_ref().is_some_and(|(from, size)| from == base && *size == surface);
         if unchanged {
@@ -174,12 +180,8 @@ mod tests {
 
     #[test]
     fn the_pictures_go_under_the_hud() {
-        let hud = UiMesh {
-            vertices: Vec::new(),
-            indices: Vec::new(),
-            texture: UiTextureId(7),
-            clip: [0.0, 0.0, 1.0, 1.0],
-        };
+        let hud =
+            UiMesh { vertices: Vec::new(), indices: Vec::new(), texture: UiTextureId(7), clip: [0.0, 0.0, 1.0, 1.0] };
         let base = UiLayer { pixels_per_point: 2.0, meshes: vec![hud.clone()], compositions: Vec::new() };
         let layer = compose(&base, [640.0, 360.0]);
         assert_eq!(layer.pixels_per_point, 2.0);

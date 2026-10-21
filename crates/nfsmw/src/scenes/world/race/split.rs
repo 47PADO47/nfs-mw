@@ -1,8 +1,8 @@
 //! Two players on one grid: what the front end hands the world to start a split-screen race, and how the race plan takes
 //! the second player. Spec: `docs/specs/split-screen.md` section 3.
 
-use super::setup::Opponent;
 use super::RacerPlan;
+use super::setup::Opponent;
 use crate::input::PlayerDevice;
 use crate::settings::Transmission;
 
