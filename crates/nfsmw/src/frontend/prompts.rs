@@ -217,6 +217,9 @@ fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
         0xB8A7_C6CE,
         0x28FD_842D,
         super::ids::QUIT_BUTTON,
+        // The Quick Play brief's own Back, Accept and Randomize hints.
+        super::prompt_layout::BRIEF_FOOTER,
+        super::prompt_layout::BRIEF_RANDOMIZE,
     ];
     let mut hidden = vec![false; tree.nodes.len()];
     for (i, n) in tree.nodes.iter().enumerate() {
