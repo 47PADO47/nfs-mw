@@ -169,7 +169,12 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
     };
     overlay.open(calibration);
     overlay.refresh(&blips, player.as_ref());
-    log::info!("world map open: {} blips, {} moving", overlay.blips.len(), overlay.live.len());
+    let helicopters = overlay.live.iter().filter(|blip| blip.style == crate::hud::HELICOPTER).count();
+    log::info!(
+        "world map open: {} blips, {} moving ({helicopters} helicopter)",
+        overlay.blips.len(),
+        overlay.live.len()
+    );
     // In a race the picture is the race's own, with its route in white.
     if let Some(event) = event {
         overlay.show_event(&fe.dir, &event);

@@ -119,7 +119,7 @@ impl WorldMapOverlay {
 /// The racers, the police cars and helicopter and the race's next checkpoint among `blips`, placed on the picture. A thing
 /// with no heading points up. A checkpoint shows only while it is active, as in the HUD.
 pub fn live(blips: &[MapBlip], calibration: &Calibration) -> Vec<LiveBlip> {
-    blips
+    let mut live: Vec<LiveBlip> = blips
         .iter()
         .filter(|b| matches!(b.style, RACER | COP | HELICOPTER) || (b.style == CHECKPOINT && b.active))
         .map(|b| LiveBlip {
@@ -128,7 +128,14 @@ pub fn live(blips: &[MapBlip], calibration: &Calibration) -> Vec<LiveBlip> {
             bearing: b.heading.map_or(0.0, bearing_degrees),
             chasing: b.style == COP && b.active,
         })
-        .collect()
+        .collect();
+    // Drawn in this order, so the checkpoint and then the helicopter lie over the cars they fly above.
+    live.sort_by_key(|blip| match blip.style {
+        CHECKPOINT => 1,
+        HELICOPTER => 2,
+        _ => 0,
+    });
+    live
 }
 
 /// The blips of the map's filters, placed on the picture (`Calibration::to_map`). The moving cars are [`live`].

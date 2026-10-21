@@ -46,7 +46,8 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
     }
 }
 
-/// `pursuit <heat>|off|status|911`: cops chase the player with the wave of that heat level; `911` makes a 911 call now
+/// `pursuit <heat>|off|status|911|heli`: cops chase the player with the wave of that heat level; `heli` sends the helicopter
+/// into the running chase; `911` makes a 911 call now
 /// (the cops are let in and a patrol that sees the player chases it). `pursuit breakers` and
 /// `pursuit hiding` list the pursuit breakers and the hiding spots of the resident world (`inspect.rs`).
 pub(in crate::scenes::world) fn pursuit_command(
@@ -54,7 +55,7 @@ pub(in crate::scenes::world) fn pursuit_command(
     renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
-    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|911|cop <car>|breakers|hiding";
+    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|911|heli|cop <car>|breakers|hiding";
     match args {
         ["breakers"] => return super::inspect::breakers(scene),
         ["hiding"] => return super::inspect::hiding(scene),
@@ -73,6 +74,10 @@ pub(in crate::scenes::world) fn pursuit_command(
         ["status"] => Ok(scene.traffic.as_ref().map(|t| t.pursuit_status()).unwrap_or_default()),
         ["911"] => Ok(scene.traffic.as_mut().map(|t| t.dev_911_call()).unwrap_or_default()),
         ["cop", name] => queue_cop(scene, renderer, name),
+        ["heli"] => {
+            let body = scene.traffic_focus().body.ok_or("not driving (use the drive command first)")?;
+            scene.traffic.as_mut().ok_or("this track has no road network")?.dev_send_helicopter(&body)
+        }
         [heat] => {
             let heat: u32 = heat.parse().ok().filter(|h| (1..=10).contains(h)).ok_or(USAGE)?;
             let player = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?.performance();
