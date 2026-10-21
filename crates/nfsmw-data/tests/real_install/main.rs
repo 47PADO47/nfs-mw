@@ -37,6 +37,7 @@ mod sequences;
 mod sound;
 mod spawners;
 mod speech;
+mod subtitles;
 mod textures;
 mod tire_profile;
 mod traffic;

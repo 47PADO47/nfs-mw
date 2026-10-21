@@ -36,6 +36,7 @@ serde.workspace = true
 
 [dev-dependencies]
 blackbox-anim.workspace = true
+blackbox-text.workspace = true
 
 [lints]
 workspace = true

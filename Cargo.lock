@@ -3956,6 +3956,7 @@ dependencies = [
  "blackbox-sequence",
  "blackbox-solid",
  "blackbox-streaming",
+ "blackbox-text",
  "blackbox-tpk",
  "blackbox-trace",
  "blackbox-vehicle",
