@@ -62,3 +62,9 @@ Registered by the script registry `FUN_0061e750` (push of `0x006124E0` with the 
 `0x00926064` is 0, the play mode is 2 and a race is current. Then by race type (`FUN_005faa20`): 2 → settings `+0xAC`
 bit 6 and `drag_tutorial`, 4 → bit 8 and `tollbooth_tutorial`, 5 → bit 7 and `speedtrap_tutorial`; a set bit or any
 other type posts `0x20D60DBF`. Otherwise it sets the bit and starts the movie through `FUN_0062f820`.
+
+### F-04: the message screen
+
+`EShowMessageScreen` hashes to `0xDE59505A` (index 116 of the event table); its handler `FUN_00631020` builds the event
+(`FUN_00625030`: the id at `+8`), and the event's teardown `FUN_00625090` opens `SixDaysLater.fng` through the screen
+manager (`FUN_005257f0`) with the id as the argument.
