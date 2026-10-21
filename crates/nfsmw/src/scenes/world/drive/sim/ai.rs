@@ -58,6 +58,15 @@ impl CarSim {
         };
     }
 
+    /// Makes the car take its controls from a person on a computer-driven body (split screen): the player's own control
+    /// set-up (dead zone, automatic reverse, idle braking, the pad's steering response) and chassis, so the car drives as the
+    /// player's does. `automatic` is the person's gearbox.
+    pub fn configure_human(&mut self, automatic: bool) {
+        self.collision_role.player = false;
+        self.vehicle.set_simple_chassis(None);
+        self.vehicle.config = ControlConfig { automatic, ..ControlConfig::default() };
+    }
+
     /// What an AI driver needs to know of the car.
     pub fn driver_view(&self) -> blackbox_driver::VehicleView {
         let v = &self.vehicle;
