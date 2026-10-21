@@ -40,6 +40,12 @@ pub enum ContentError {
     /// `contexts` is an empty list.
     #[error("music contexts lists no context")]
     NoMusicContext,
+    /// A racer name is empty, longer than 24 characters or has a control character.
+    #[error("racer name {0:?} is empty, longer than 24 characters or has a control character")]
+    InvalidRacerName(String),
+    /// A racer name is listed twice.
+    #[error("racer name {0:?} is listed twice")]
+    RepeatedRacerName(String),
     /// The `[pack]` key, or the `[interior]` key, is not the file name.
     #[error("key {key:?} does not match the file name {file:?}")]
     KeyMismatch { file: String, key: String },

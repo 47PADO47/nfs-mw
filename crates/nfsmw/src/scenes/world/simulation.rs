@@ -214,6 +214,7 @@ impl WorldScene {
         let helicopter = self.traffic.as_ref().and_then(|t| t.helicopter_motion());
         let helicopter = helicopter.map(|(at, _, _)| Vec3::from_array(space::to_physics(at)));
         self.heli_wash.step(STEP, helicopter, self.residency.collision());
+        self.finish_flares.step(STEP);
         self.record_original_camera();
         let view = self.simulation_lens(self.physics_aspect).view_proj();
         let (collision, props) = self.residency.world_parts();

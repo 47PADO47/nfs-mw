@@ -62,6 +62,8 @@ impl WorldScene {
     /// set, the grid hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
     pub(super) fn release_race(&mut self, session: &mut RaceSession) {
         self.lower_race_walls(std::mem::take(&mut session.walls));
+        self.finish_flares.clear();
+        self.end_photo_shot();
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_racers();
         }

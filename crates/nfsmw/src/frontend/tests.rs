@@ -20,6 +20,8 @@ mod click_tests;
 mod icon_transition_tests;
 #[path = "player_options_tests.rs"]
 mod player_options_tests;
+#[path = "post_race_tests.rs"]
+mod post_race_tests;
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
 #[path = "quick_play_screen_tests.rs"]
@@ -126,9 +128,8 @@ fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
                 tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
             })
         };
-        // Audio, Video, Gameplay, Player, then Controls in both category strips.
-        let to_controls = 4;
-        for _ in 0..to_controls {
+        for _ in 0..4 {
+            // Audio, Video, Gameplay, Player, then Controls in both category strips.
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
@@ -200,7 +201,6 @@ impl Harness {
         self.run(0, (seconds / FRAME) as usize);
     }
 
-    /// A press and a release.
     fn press(&mut self, button: u32) {
         self.run(button, 3);
         self.run(0, 3);
@@ -256,12 +256,13 @@ fn track_options_accept_starts_nothing() {
 }
 
 #[test]
-fn the_quit_button_of_the_main_menu_quits() {
+fn the_quit_button_of_the_main_menu_asks_first() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.screens.post_to_top(super::ids::QUIT_BUTTON, super::ids::MOUSE_LEFT_RELEASED);
     h.wait(0.2);
-    assert!(h.said(&Command::QuitGame), "{:?}", h.commands);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "the dialog asks: {:?}", h.commands);
+    assert!(!h.said(&Command::QuitGame), "the game quits only once the question is answered Yes");
 }
 
 #[test]

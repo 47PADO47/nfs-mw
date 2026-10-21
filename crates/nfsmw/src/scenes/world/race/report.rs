@@ -6,13 +6,19 @@ use super::{RaceSession, Stage};
 use crate::scenes::world::WorldScene;
 use nfsmw_data::gameplay::RaceType;
 
-use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport, ReportLap, ReportRacer};
+use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, photo_picture};
 
 impl WorldScene {
     /// The report of a finished race, from the engine's lap times.
     pub(super) fn race_report(session: &RaceSession) -> Option<RaceReport> {
         let names: Vec<&str> = session.plan.iter().map(|p| p.name.as_str()).collect();
-        Some(report_of(session.engine.as_ref()?, &names, session.kind, session.cash_value))
+        let mut report =
+            report_of(session.engine.as_ref()?, &names, session.kind, session.cash_value, session.collisions);
+        // The race's own data names the backdrop of its photo.
+        if let Some(photo) = report.photo.as_mut() {
+            photo.picture = photo_picture(session.origin.race.params.photo_texture.as_deref(), photo.kind);
+        }
+        Some(report)
     }
 
     /// The report, once, for the front end to show.
@@ -40,8 +46,9 @@ impl WorldScene {
 
 /// The report of `engine`: a racer's place at the end of a lap is its rank among the racers that had crossed the same
 /// lap's line by then.
-fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32) -> RaceReport {
+fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collisions: u32) -> RaceReport {
     let outcomes = engine.outcomes();
+    let winner = winner_time(engine);
     let racers = engine.racers();
     let report = racers
         .iter()
@@ -60,16 +67,40 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32) -> RaceRe
                 })
                 .collect();
             let me = outcomes.get(i);
+            let time = me.and_then(|o| o.time);
+            let ran = racer.finished_at.or(racer.out_at).unwrap_or_else(|| engine.elapsed());
             ReportRacer {
                 name: names.get(i).map_or_else(|| format!("Racer {i}"), |n| (*n).to_owned()),
                 place: me.map_or(i as u32 + 1, |o| o.place),
-                time: me.and_then(|o| o.time),
+                time,
                 laps,
+                stats: racer.stats,
+                average_speed: racer.stats.average_speed(ran),
+                time_behind: time_behind(time, winner),
+                collisions: if i == 0 { collisions } else { 0 },
+                checkpoints: racer.checkpoint_times.clone(),
+                knocked_out: racer.out_at.is_some(),
+                traps: racer.traps.slots().to_vec(),
             }
         })
         .collect();
     let photo = photo_of(engine, kind, cash);
-    RaceReport { racers: report, photo, pursuit: None }
+    RaceReport { racers: report, kind, laps: engine.course().laps.max(1), photo, pursuit: None }
+}
+
+/// The finish time of the racer that won, if one finished first.
+fn winner_time(engine: &Race) -> Option<f32> {
+    engine.outcomes().iter().find(|o| o.place == 1 && o.finished).and_then(|o| o.time)
+}
+
+/// Seconds a racer finished behind the winner: none for the winner itself and for a racer with no time.
+pub(crate) fn time_behind(time: Option<f32>, winner: Option<f32>) -> Option<f32> {
+    let (time, winner) = (time?, winner?);
+    let behind = (time - winner).abs();
+    if behind <= 0.0 {
+        return None;
+    }
+    Some(behind)
 }
 
 /// The win photo: only for a player who finished first. The sprint's speed is the average over the course; a drag
@@ -88,6 +119,7 @@ fn photo_of(engine: &Race, kind: RaceType, cash: f32) -> Option<PhotoReport> {
     };
     Some(PhotoReport {
         kind,
+        picture: kind.default_picture(),
         cash: cash.max(0.0).round() as u32,
         time,
         speed,
@@ -131,7 +163,7 @@ mod tests {
         lap(&mut race, 0);
         race.tick(5.0);
         lap(&mut race, 1);
-        let report = report_of(&race, &["PLAYER", "RIVAL"], RaceType::Circuit, 500.0);
+        let report = report_of(&race, &["PLAYER", "RIVAL"], RaceType::Circuit, 500.0, 2);
         assert_eq!(report.racers[0].name, "PLAYER");
         let places: Vec<u32> = report.racers[0].laps.iter().map(|l| l.place).collect();
         assert_eq!(places, [2, 1]);
@@ -141,16 +173,28 @@ mod tests {
         assert_eq!(report.racers[1].laps.iter().map(|l| l.place).collect::<Vec<_>>(), [1]);
         assert_eq!((report.racers[0].place, report.racers[1].place), (1, 2));
         assert_eq!(report.racers[0].time, Some(45.0));
+        assert_eq!((report.racers[0].collisions, report.racers[1].collisions), (2, 0));
+        assert_eq!(report.racers[0].time_behind, None, "the winner is behind nobody");
+        assert_eq!(report.racers[1].time_behind, None, "a racer without a time has none");
+        assert_eq!((report.kind, report.laps), (RaceType::Circuit, 2));
         let photo = report.photo.expect("the player won");
         assert_eq!((photo.kind, photo.cash, photo.time), (PhotoKind::Sprint, 500, 45.0));
         assert!(photo.speed > 0.0);
     }
 
     #[test]
+    fn the_time_behind_is_the_gap_to_the_winner() {
+        assert_eq!(time_behind(Some(175.2), Some(172.5)), Some(175.2 - 172.5));
+        assert_eq!(time_behind(Some(172.5), Some(172.5)), None);
+        assert_eq!(time_behind(None, Some(172.5)), None);
+        assert_eq!(time_behind(Some(10.0), None), None);
+    }
+
+    #[test]
     fn a_racer_without_a_name_gets_one() {
         let course = Course::new(Vec3::ZERO, vec![gate(100.0)], Some(gate(300.0)), 1);
         let race = Race::new(course, RaceConfig::default(), &[(true, Vec3::ZERO), (false, Vec3::ZERO)]);
-        let report = report_of(&race, &["PLAYER"], RaceType::Sprint, 0.0);
+        let report = report_of(&race, &["PLAYER"], RaceType::Sprint, 0.0, 0);
         assert_eq!(report.racers[1].name, "Racer 1");
         assert!(report.racers[0].laps.is_empty());
         assert_eq!(report.photo, None, "no photo for a race nobody finished");

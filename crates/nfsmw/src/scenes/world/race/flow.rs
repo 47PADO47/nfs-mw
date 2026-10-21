@@ -68,6 +68,7 @@ impl WorldScene {
             events.extend(engine.move_racer(0, position));
         }
         events.extend(self.step_racers(session, player, dt));
+        self.count_collisions(session);
         self.drag_assist(session);
         self.demo_step(session, dt);
         self.race_goals(session);
@@ -75,6 +76,16 @@ impl WorldScene {
         self.race_log(session, dt);
         self.race_events(session, events);
         true
+    }
+
+    /// Adds the player's collisions with traffic since the last frame to the race's count, while the player is racing.
+    fn count_collisions(&mut self, session: &mut RaceSession) {
+        let Some(traffic) = self.traffic.as_mut() else { return };
+        let hits = traffic.take_traffic_collisions();
+        let racing = session.engine.as_ref().is_some_and(|e| e.phase() == Phase::Racing && e.racers()[0].racing());
+        if racing {
+            session.collisions += hits;
+        }
     }
 
     /// A line per racer every ten seconds at the debug level: where it is, how fast, and how far from its next gate.
@@ -213,13 +224,17 @@ impl WorldScene {
         session.report = match &session.challenge {
             Some(challenge) => challenge.last.map(|pursuit| crate::viewer::RaceReport {
                 racers: Vec::new(),
+                kind: nfsmw_data::gameplay::RaceType::Sprint,
+                laps: 1,
                 photo: None,
                 pursuit: Some(pursuit),
             }),
             None => Self::race_report(session),
         };
-        if session.report.is_none() {
-            return false;
+        let Some(report) = session.report.as_ref() else { return false };
+        // The win photo is the world seen from the replay camera the race names, through the photo screen's window.
+        if report.photo.is_some() {
+            self.start_photo_shot(session.origin.race.params.finish_camera.as_deref(), session.kind);
         }
         session.stage = Stage::PostRace { left: POST_RACE_WAIT };
         true

@@ -1,4 +1,4 @@
-//! Content mods (ADR 0005 section 5): the cars, the music, the map packs and the interiors a mod declares in files. The
+//! Content mods (ADR 0005 section 5): the cars, the music, the racer names, the map packs and the interiors a mod declares in files. The
 //! mod's `files/` folder is already a layer of the install (`layers.rs`). This module reads the mod's `cars/` and `music/`
 //! declarations for the loaded mods, and seals the results once, at start-up, before any scene is built. The map packs
 //! and the interiors are read when a world opens, against its streaming index (`scenery.rs`, `interior/`).
@@ -8,9 +8,11 @@
 mod cars;
 pub mod interior;
 mod music;
+mod racers;
 pub mod scenery;
 
 pub(crate) use music::{MusicSource, sources as music_sources};
+pub(crate) use racers::names as racer_names;
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -44,6 +46,7 @@ pub fn plan(loaded: &[String], candidates: &[Candidate]) -> Vec<ModDir> {
 pub fn register(dir: &GameDir, mods: &[ModDir]) {
     cars::register(dir, mods);
     music::register(mods);
+    racers::register(mods);
     if MODS.set(mods.to_vec()).is_err() {
         log::warn!("mod content was already registered for this run; the first list is kept");
     }

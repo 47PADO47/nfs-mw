@@ -108,6 +108,7 @@ mod tests {
             origin: Origin { race: race(), course },
             map: crate::hud::MapSource::default(),
             walls: Default::default(),
+            collisions: 0,
         }
     }
 

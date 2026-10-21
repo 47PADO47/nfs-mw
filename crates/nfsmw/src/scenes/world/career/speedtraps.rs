@@ -81,6 +81,7 @@ impl WorldScene {
                 log::info!("career: speed trap {key:#x} passed at {speed_kmh:.0} km/h, bounty {bounty}");
                 self.career.trap_photo = Some(crate::viewer::PhotoReport {
                     kind: crate::viewer::PhotoKind::SpeedTrap,
+                    picture: None,
                     cash: 0,
                     time: 0.0,
                     speed: speed_kmh / 3.6,

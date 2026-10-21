@@ -35,6 +35,17 @@ impl Gate {
         self.local(point).abs().cmple(self.half).all()
     }
 
+    /// Where the trigger's flares stand: `spacing` metres to each side of the centre along the gate's width axis, or
+    /// the centre alone when `spacing` is not above zero: one marker effect at each of centre minus and centre plus
+    /// `side * spacing`, where `side` is the up axis crossed with the heading (`docs/specs/race-finish-effects.md`
+    /// section 1).
+    pub fn flare_points(&self, spacing: f32) -> Vec<Vec3> {
+        match spacing > 0.0 {
+            true => vec![self.centre - self.side * spacing, self.centre + self.side * spacing],
+            false => vec![self.centre],
+        }
+    }
+
     /// Whether the segment from `from` to `to` touches the box. This catches a fast racer that jumps over a thin gate
     /// between two ticks, which a point test would miss.
     pub fn touches(&self, from: Vec3, to: Vec3) -> bool {
@@ -102,6 +113,28 @@ mod tests {
         assert!(g.contains(Vec3::new(29.9, 4.9, 100.0)));
         assert!(!g.contains(Vec3::new(30.1, 0.0, 100.0)));
         assert!(!g.contains(Vec3::new(10.0, 5.1, 100.0)));
+    }
+
+    #[test]
+    fn flares_stand_a_spacing_to_each_side_along_the_width() {
+        let g = gate();
+        let points = g.flare_points(5.0);
+        assert_eq!(points.len(), 2);
+        // The gate heads +z with y up, so its width axis is x: the flares are 5 m either side of the centre.
+        let xs = [points[0].x.min(points[1].x), points[0].x.max(points[1].x)];
+        assert!((xs[0] - 5.0).abs() < 1e-4 && (xs[1] - 15.0).abs() < 1e-4);
+        assert!((points[0].distance(points[1]) - 10.0).abs() < 1e-4, "twice the spacing apart");
+        assert!(((points[0] + points[1]) * 0.5 - g.centre).length() < 1e-4, "centred on the gate");
+        for p in points {
+            assert!(g.local(p).x.abs() < 1e-4, "on the gate's own line, not ahead or behind it");
+        }
+    }
+
+    #[test]
+    fn a_gate_without_spacing_has_one_flare_at_its_centre() {
+        let g = gate();
+        assert_eq!(g.flare_points(0.0), vec![g.centre]);
+        assert_eq!(g.flare_points(-3.0), vec![g.centre]);
     }
 
     #[test]

@@ -59,6 +59,8 @@ pub struct Screens {
     aspect: f32,
     /// Where the pointer was last frame, so a hover follows its movement and not its rest (`hover_row`).
     pointer: Option<Vec2>,
+    /// The last frame's pad mask, for `ScreenLogic::pad_pressed`.
+    last_pad: u32,
 }
 
 impl Screens {
@@ -82,6 +84,7 @@ impl Screens {
             world_map: None,
             aspect: DEFAULT_ASPECT,
             pointer: None,
+            last_pad: 0,
         }
     }
 
@@ -228,12 +231,15 @@ impl Screens {
             true => vertical::vertical_pad(mask),
             false => mask,
         };
-        self.runtime.set_pad_mask(match self.await_release {
-            true => 0,
-            false => mask,
-        });
+        let mask = if self.await_release { 0 } else { mask };
+        let pressed = mask & !self.last_pad;
+        self.last_pad = mask;
+        self.runtime.set_pad_mask(mask);
         self.runtime.update(dt);
         let mut commands = Vec::new();
+        if let Some(top) = self.stack.last().map(|s| s.id).filter(|_| pressed != 0) {
+            self.with_logic(top, env, &mut commands, |logic, cx| logic.pad_pressed(cx, pressed));
+        }
         for out in self.runtime.take_outgoing() {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),

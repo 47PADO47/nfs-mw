@@ -90,6 +90,26 @@ world map ([gps-route.md](gps-route.md)); the executable has the strings `ShowGP
 `GORacingMiniMap` and `GOExploringMiniMap`, which were not followed: **[unconfirmed]** whether they change the minimap
 object's look between a race and free roam.
 
+## 4.1 Checked in a quick race (2026-10-21)
+
+**[verified]** offscreen, the way the menu starts a race: `nfsmw play --skip-boot --ui-script "wait 1;down;down;wait 0.5;accept;
+wait 2;accept;wait 3;accept;wait 30" --screenshot out.png --screenshot-delay 5` (Quick Race, Quick Play, Accept: the front end
+hands the picked race to `WorldScene::queue_race`). The random pick was `15.1.1.r`, a reversed two-lap circuit. The log says
+`minimap: the tiles of event 15.1.1.r are loaded` about a second after the world opens, and the minimap shows that event's
+tiles: the green start bar and the baked route band along the road, the other roads in the dimmer grey of the whole-city map.
+A sprint (`10.2.1`, from the console) and a second quick-race pick (a two-racer sprint) show the same. Lapped races
+use the same file for every lap (the route is one picture; the leaderboard and the `LAP n/m` readout carry the lap count).
+No fault was found in the quick-race path: it shares `begin_race` with the console, and the tile read, the source and the
+switch are the ones of section 3.
+
+**Not matched to the original.** The route reads as the brightest road on the disc but not as white: the route's pixels are
+pure white in the tile (the stitched picture of `10.2.1` has a pure white band), and on the screenshot they come out about
+(106, 118, 136) against about (70, 76, 90) for the other roads, a contrast of 1.7 with every colour at about half the tile's
+brightness. The HUD package's minimap objects are plain white at alpha 255 in their start script and the mask is 80 %
+(section 5 of [hud-minimap.md](hud-minimap.md)); an 80 % blend alone would give about 210 for the route. The extra dimming
+was not traced to a cause (it is the same for the free-roam map, so it is not in the choice of file). **[unconfirmed]** whether the original draws the picture brighter; a comparison with a capture of the
+original minimap in a race is what decides it.
+
 ## 5. Where it is in the code
 
 | What | Where |

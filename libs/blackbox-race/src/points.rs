@@ -37,6 +37,11 @@ impl SpeedTraps {
         self.record(slot, kmh)
     }
 
+    /// The stored speed of each trap in m/s, by slot; `None` for a trap not passed.
+    pub fn slots(&self) -> &[Option<f32>] {
+        &self.slots
+    }
+
     /// How many traps the racer has passed.
     pub fn passed(&self) -> usize {
         self.slots.iter().flatten().count()

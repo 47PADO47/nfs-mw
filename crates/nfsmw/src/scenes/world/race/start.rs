@@ -94,7 +94,8 @@ impl WorldScene {
         let opponents = setup::opponents_of(&data, &race, &options, &resolve_preset);
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
-        let plan = plan_racers(&race, &start, &opponents, &pool, has_road);
+        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
+        super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
         let p = &race.params;
         let prepared = Prepared {
             course,
@@ -137,6 +138,11 @@ impl WorldScene {
         );
         let racers = plan.len();
         let walls = self.raise_race_walls(&race.barriers);
+        // A race a mod registered has no finish trigger in the install's data, so no flares.
+        match given_course {
+            Some(_) => self.finish_flares.clear(),
+            None => self.show_finish_flares(&data, &race),
+        }
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
             map: crate::hud::MapSource::of_race(
@@ -170,10 +176,16 @@ impl WorldScene {
             pool,
             challenge: None,
             walls,
+            collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
+}
+
+/// A seed that differs from run to run, so the same race does not always bring the same names.
+fn clock_seed() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos())
 }
 
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.
@@ -186,6 +198,13 @@ fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
 }
 
 /// The racers' plans: the player first, then the opponents on the grid. Without a road network there are no opponents.
+/// What the player is called in the race's results: the loaded profile's alias (a Quick Race runs with a profile that is
+/// loaded but not played, so `with_loaded`), else `player`.
+fn player_name() -> String {
+    let alias = crate::career::CareerHandle::shared().with_loaded(|career| career.alias.clone());
+    alias.unwrap_or_else(|| "player".into())
+}
+
 fn plan_racers(
     race: &Race,
     start: &nfsmw_data::gameplay::Placement,
@@ -198,7 +217,7 @@ fn plan_racers(
         heading: setup::spawn_heading(placement.heading_deg),
     };
     let mut plan = vec![RacerPlan {
-        name: "player".into(),
+        name: player_name(),
         model: None,
         spawn: slot(start),
         skill: 1.0,

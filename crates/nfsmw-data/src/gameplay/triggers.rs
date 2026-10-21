@@ -26,7 +26,8 @@ pub struct BoxTrigger {
     pub fire_on_exit: bool,
     /// `ParticleEffect`: an effect shown at the trigger, for example `fxgame_flare_red` on finish lines.
     pub particle_effect: Option<String>,
-    /// `FlareSpacing`: the distance between the flares of `particle_effect`, when set.
+    /// `FlareSpacing`: how far each of the two flares of `particle_effect` stands from the trigger's centre, along its
+    /// width axis (so the flares are twice this apart), when set. `docs/specs/race-finish-effects.md` section 1.
     pub flare_spacing: Option<f32>,
     /// `TimeBonus` (an `Int32`): seconds the race clock gains when the player reaches the checkpoint. Set on the
     /// `time_bonus_checkpoint` triggers of the tollbooth races (25, 35 and 160 s in `2.4.3`). 0 when unset.

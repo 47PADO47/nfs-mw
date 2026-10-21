@@ -223,6 +223,7 @@ impl WorldScene {
                 wet_road: Default::default(),
                 explosions: Default::default(),
                 heli_wash: Default::default(),
+                finish_flares: Default::default(),
                 object_fx: Default::default(),
                 car_damage_fx: Default::default(),
                 impact_fx: Default::default(),
@@ -236,6 +237,7 @@ impl WorldScene {
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
                 moment: Default::default(),
+                photo_shot: None,
                 breaker_icons: Default::default(),
             };
             scene.switch_default_scenery_groups();
