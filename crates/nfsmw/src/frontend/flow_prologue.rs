@@ -37,11 +37,11 @@ pub(super) fn prologue_resume(nodes: &NodeStates, stage: u8) -> Option<&'static 
 }
 
 impl Frontend {
-    /// Starts the prologue race `event` behind the loading screen as a career race: the world is queued with it and the
-    /// car the race forces, and the race's own chain takes over from its `PostRaceActivity`.
-    pub(super) fn start_prologue_race(&mut self, event: &str, host: &mut Host, env: &mut Env) {
+    /// Starts the career race `event` behind the loading screen (a prologue race, or the final race on a resume): the world
+    /// is queued with it and the car the race forces, and the race's own chain takes over from its `PostRaceActivity`.
+    pub(super) fn start_career_race(&mut self, event: &str, host: &mut Host, env: &mut Env) {
         let car = self.career.with(|career| forced_car(&career.data.gameplay, event)).flatten();
-        log::info!("career: starting prologue race {event} in {car:?}");
+        log::info!("career: starting race {event} in {car:?}");
         self.origin = QuitTo::Career;
         self.quick_race = Some(event.to_owned());
         self.race_options = Some(RaceOptions { career: true, ..RaceOptions::default() });

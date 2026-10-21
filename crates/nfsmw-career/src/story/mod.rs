@@ -14,6 +14,7 @@
 pub mod chase_16_2_1;
 pub mod drive_to_target;
 pub mod final_race;
+pub mod final_resume;
 pub mod prologue;
 pub mod race_life;
 

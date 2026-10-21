@@ -78,7 +78,7 @@ impl Frontend {
         };
         log::info!("career: new career {alias}");
         self.career.set(career);
-        self.start_prologue_race(FIRST_PROLOGUE_RACE, host, env);
+        self.start_career_race(FIRST_PROLOGUE_RACE, host, env);
     }
 
     /// The alias manager's Create: a new alias is made, saved and loaded, and the notice says so. It is not played: Career

@@ -1,6 +1,9 @@
 //! Career on the main menu: the flow starts or resumes the career, then goes on to free roam with it
 //! (`career-flow.md` sections 2 to 4). The start itself is `career::start_or_resume`.
 
+use nfsmw_career::blacklist::FINAL_RACE_EVENT;
+use nfsmw_career::story::final_resume::resume_final_race;
+
 use crate::app::Host;
 use crate::career::{AutosaveInputs, CareerRequest, handle_autosave};
 use crate::frontend::career_screens::car_lot::{self, CarLotAction};
@@ -17,15 +20,21 @@ use super::flow_loading::LoadingScreen;
 
 impl Frontend {
     /// Career menu, Resume Career: the loaded profile is played. A career in its prologue starts the first prologue race it has
-    /// not won, as a career race (`story-flow.md` section 2.7); any other goes to the safe house menu, which stands before the
-    /// world until Resume Free Roam (`career-flow.md` section 4).
+    /// not won, as a career race (`story-flow.md` section 2.7); a finished Blacklist (race 1.2.3 won, career not completed)
+    /// starts the final race 1.8.1; any other goes to the safe house menu, which stands before the world until Resume Free
+    /// Roam (`career-flow.md` section 4).
     pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
         self.career.begin_play();
         self.origin = QuitTo::Career;
         if let Some(event) = self.resume_prologue_event() {
             log::info!("career: resuming the prologue at {event}");
             self.save_settings(env.changed);
-            return self.start_prologue_race(event, host, env);
+            return self.start_career_race(event, host, env);
+        }
+        if self.resume_final_race_due() {
+            log::info!("career: resuming at the final race {FINAL_RACE_EVENT}");
+            self.save_settings(env.changed);
+            return self.start_career_race(FINAL_RACE_EVENT, host, env);
         }
         log::info!("career: resuming at the safe house");
         self.career.set_prelude(true);
@@ -60,6 +69,12 @@ impl Frontend {
         self.quick_car = Some(car);
         self.race_options = Some(Default::default());
         self.start_free_roam(LoadingScreen::Plain, host, env);
+    }
+
+    /// Whether the loaded career resumes at the final race: race 1.2.3 is won and the career is not completed
+    /// (`story-flow.md` section 2.7).
+    fn resume_final_race_due(&self) -> bool {
+        self.career.with(|career| resume_final_race(&career.settings.nodes(), career.settings.flags)).unwrap_or(false)
     }
 
     /// Leaves the game in progress for the menu it was started from (the pause menu's Quit).
