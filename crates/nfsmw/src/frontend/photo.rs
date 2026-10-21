@@ -1,8 +1,8 @@
 //! The win photo (`InGamePhotoMaster.fng`): the screen after a race win (the Lua graph's `ShowWinningPostRaceScreen`), and
 //! the photo of a speed trap in free roam. One group of the package is shown by the kind of result: `SPRINT_GROUP`,
 //! `RIVAL_GROUP` (used here for drag races), `TOLL_BOOTH_GROUP` or `SPEEDTRAP_GROUP`. The frozen world behind it is the
-//! photo. After a race win the buttons are Race Stats (the lap table, `post_race.rs`), Restart and Continue; after a trap
-//! only Continue. `docs/provenance/race-mode.md` section 10 has what is known of the package.
+//! photo. After a race win the buttons are Race Stats (the standings page of `post_race/`), Restart (which asks OK or
+//! Cancel first) and Continue; after a trap only Continue. `docs/provenance/race-mode.md` section 10 has what is known of the package.
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0};
 
