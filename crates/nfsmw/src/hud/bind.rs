@@ -14,9 +14,6 @@ use super::state::{HudState, redline_rotation, redline_rotation_drag};
 /// The script an object plays when its condition is on, and the one it rests in.
 const SCRIPT_GREEN: u32 = 0x02DDC8F0;
 pub(super) const SCRIPT_INIT: u32 = blackbox_feng::runtime::INIT_SCRIPT;
-/// The nitrous icon's scripts: while the tank drains, and while it is not draining.
-pub(super) const SCRIPT_NOS_BURNING: u32 = 0x77031C70;
-pub(super) const SCRIPT_NOS_READY: u32 = 0x03826A28;
 /// The rear-view mirror's top group (`0x7fac287b`) and the script that brings it to full colour.
 const MIRROR_FRAME: u32 = 0x7FAC_287B;
 /// The radar's outer fade group. The detector binding owns the layouts under it.
@@ -28,9 +25,6 @@ const MIRROR_FADE_SECONDS: f32 = 0.6;
 pub fn mirror_fade_alpha(elapsed: f32) -> u8 {
     (elapsed / MIRROR_FADE_SECONDS).clamp(0.0, 1.0).mul_add(255.0, 0.5) as u8
 }
-/// Language labels of the speed units.
-const LABEL_KMH: u32 = 0x8569a25f;
-const LABEL_MPH: u32 = 0x8569ab44;
 /// The needle sweeps from this angle by this many degrees as the rpm rises.
 const NEEDLE_START_DEG: f32 = 66.0;
 const NEEDLE_SWEEP_DEG: f32 = 228.0;
@@ -108,13 +102,6 @@ pub struct HudBinding {
 
 fn find(rt: &Runtime, package: PackageId, name: &str) -> Option<ObjectRef> {
     rt.find(package, fe_hash_upper(name))
-}
-
-/// Starts `script` on `o` unless it is the one playing.
-fn ensure_script(rt: &mut Runtime, o: ObjectRef, script: u32) {
-    if rt.script_of(o) != Some(script) {
-        rt.run_script(o, script);
-    }
 }
 
 impl HudBinding {
@@ -265,18 +252,7 @@ impl HudBinding {
     }
 
     fn speedometer(&self, rt: &mut Runtime, s: &HudState) {
-        let speed = s.display_speed();
-        let digits = [speed % 10, (speed / 10) % 10, (speed / 100) % 10];
-        for (i, slot) in self.digits.iter().enumerate() {
-            let Some(o) = *slot else { continue };
-            rt.set_text(o, char::from_digit(digits[i], 10).unwrap_or('0').to_string());
-            // A leading zero is not shown (the ones digit always is).
-            let leading_zero = i > 0 && digits[i] == 0 && speed < 10u32.pow(i as u32);
-            rt.set_hidden(o, leading_zero);
-        }
-        if let Some(o) = self.units {
-            rt.set_label(o, if s.use_mph { LABEL_MPH } else { LABEL_KMH });
-        }
+        super::gauges::speed_readout(rt, &self.digits, self.units, s);
     }
 
     fn tachometer(&mut self, rt: &mut Runtime, s: &HudState) {
@@ -361,19 +337,12 @@ impl HudBinding {
     }
 
     fn nitrous(&mut self, rt: &mut Runtime, s: &HudState) {
-        let nos = s.nos.clamp(0.0, 1.0);
-        if let Some(o) = self.nos_bar {
-            rt.set_mask_rotation(o, nos * -NOS_BAR_EMPTY_DEG + NOS_BAR_EMPTY_DEG);
-        }
-        if let Some(o) = self.nos_icon {
-            let script = match nos {
-                n if n <= 0.0 => SCRIPT_INIT,
-                n if n < self.last_nos => SCRIPT_NOS_BURNING,
-                _ => SCRIPT_NOS_READY,
-            };
-            ensure_script(rt, o, script);
-        }
-        self.last_nos = nos;
+        super::gauges::nitrous_meter(
+            rt,
+            super::gauges::Nitrous { bar: self.nos_bar, icon: self.nos_icon, empty_deg: NOS_BAR_EMPTY_DEG },
+            &mut self.last_nos,
+            s.nos,
+        );
     }
 
     fn turbo(&self, rt: &mut Runtime, s: &HudState) {

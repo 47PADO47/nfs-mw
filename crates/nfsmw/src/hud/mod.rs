@@ -20,6 +20,7 @@ mod cop_blip;
 mod cop_blip_tests;
 mod elements;
 mod event_tiles;
+mod gauges;
 mod hiding_mark;
 #[cfg(test)]
 mod install_tests;
