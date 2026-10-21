@@ -38,9 +38,6 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.arrest_scene_over();
         }
-        let marker = Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(view.forward));
-        self.nis.play(&self.dir, name, marker, NisKind::of_scene(name), track)
-        self.play_nis_at(name, track, anchor)
     }
 
     /// Starts the NIS scene `name` with its camera `track`, standing at `anchor`. Refused while another scene plays.
