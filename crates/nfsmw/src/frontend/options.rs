@@ -3,7 +3,6 @@
 
 use std::str::FromStr;
 
-use super::alias_options::AliasSetting;
 use super::graphics_options::GraphicsSetting;
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::input_options::InputSetting;
@@ -49,7 +48,6 @@ pub enum Setting {
     Discord,
     DiscordTimePlayed,
     Input(InputSetting),
-    Alias(AliasSetting),
     Hd(hd_options::HdSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
@@ -186,7 +184,6 @@ impl Setting {
             Setting::Quick(row) => Data::Text(super::quick_options::text(s, row)),
             Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
             Setting::Input(setting) => setting.data(s),
-            Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
             Setting::Post(setting) => setting.data(s),
             Setting::Graphics(setting) => setting.data(s),
             Setting::Renderer(setting) => setting.data(s),
@@ -327,7 +324,6 @@ impl Setting {
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
             Setting::Renderer(setting) => return setting.step(s, changed, forward),
             Setting::Hd(setting) => return setting.step(s, changed, forward),
-            Setting::Alias(_) => unreachable!("alias rows never reach the settings step"),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);

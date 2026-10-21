@@ -3,7 +3,9 @@
 use blackbox_feng::{NodeKind, UiNode, UiTree, fe_hash_upper};
 use glam::{Mat4, Quat, Vec2, Vec3};
 
+use super::logic::Footer;
 use super::{ids::screen, prompt_layout::Frame};
+use crate::career::CareerHandle;
 use crate::input::{Action, Bindings, InputDevice};
 use crate::ui::{
     UiAssets,
@@ -32,13 +34,16 @@ impl HintArea {
 pub type Hint = (Vec<Prompt>, &'static str, Option<Action>);
 
 /// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
-pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
+pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
     let (rows, main, splash) = (
         [screen::OPTIONS, screen::PAUSE_OPTIONS].iter().any(|s| name.eq_ignore_ascii_case(s)),
         name.eq_ignore_ascii_case(screen::MAIN_MENU),
         [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)),
     );
     let action = |a| vec![prompts::for_action(bindings, a, device)];
+    if footer == Footer::BackOnly {
+        return vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
+    }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), "Accept", Some(Action::MenuAccept))];
     if splash {
@@ -48,7 +53,11 @@ pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hin
         hints.push((action(Action::MenuBack), "Back", Some(Action::MenuBack)));
     }
     if main {
-        hints[1] = (action(Action::MenuQuit), "Quit", Some(Action::MenuQuit));
+        // Quit, and Game Stats while a profile is loaded (the reference screenshot has no Accept here).
+        hints = vec![(action(Action::MenuQuit), "Quit", Some(Action::MenuQuit))];
+        if CareerHandle::shared().is_loaded() {
+            hints.push((action(Action::MenuButton1), "Game Stats", Some(Action::MenuButton1)));
+        }
     }
     let is = |file: &str| name.eq_ignore_ascii_case(file);
     if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
@@ -79,6 +88,13 @@ pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hin
     if is(screen::CREDITS) {
         hints = vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
     }
+    if is(screen::QUICK_RACE_BRIEF) {
+        hints = vec![
+            (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+            (action(Action::MenuAccept), "Accept", Some(Action::MenuAccept)),
+            (action(Action::MenuButton1), "Randomize", Some(Action::MenuButton1)),
+        ];
+    }
     if rows {
         hints = vec![
             (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), "Select", None),
@@ -93,6 +109,7 @@ pub fn hint_set(name: &str, bindings: &Bindings, device: InputDevice) -> Vec<Hin
 pub fn decorate(
     tree: &mut UiTree,
     name: &str,
+    footer: Footer,
     bindings: &Bindings,
     device: InputDevice,
     assets: &UiAssets,
@@ -102,7 +119,7 @@ pub fn decorate(
     let Some(frame) = Frame::find(tree, name) else { return Vec::new() };
     hide_legacy_hints(tree, splash);
     let first_hint = tree.nodes.len();
-    let hints = hint_set(name, bindings, device);
+    let hints = hint_set(name, footer, bindings, device);
     let colour = match pause || name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
         true => [255, 174, 64, 255],
         false => [255; 4],
@@ -189,7 +206,18 @@ fn rect(tree: &mut UiTree, x: f32, y: f32, width: f32, height: f32, colour: [u8;
 }
 
 fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
-    let names = [0x6A21_8478, 0x812A_09D4, 0x7379_349B, 0x5E4D_1BDC, super::ids::QUIT_BUTTON];
+    // 0xD646_3100 is the Game Stats (and Randomize) button group.
+    // 0xB8A7_C6CE is the profile list's own Accept; 0x28FD_842D the main menu's Game Stats card header.
+    let names = [
+        0x6A21_8478,
+        0x812A_09D4,
+        0x7379_349B,
+        0x5E4D_1BDC,
+        0xD646_3100,
+        0xB8A7_C6CE,
+        0x28FD_842D,
+        super::ids::QUIT_BUTTON,
+    ];
     let mut hidden = vec![false; tree.nodes.len()];
     for (i, n) in tree.nodes.iter().enumerate() {
         let hint_text = n.text.as_deref().is_some_and(|t| matches!(t.trim(), "Accept" | "Back" | "Quit" | "Defaults"));

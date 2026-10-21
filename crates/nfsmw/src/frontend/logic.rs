@@ -23,12 +23,53 @@ pub enum Category {
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,
-    /// The alias manager, opened from the main menu's Alias Manager icon: save and load (`alias_options.rs`).
-    AliasManager,
     /// The rows of Quick Race's track options (`quick_options.rs`).
     QuickRace,
     /// The rows the mods registered (`bb.menus`): listed on the page only when a mod has rows (`mod_options.rs`).
     Mods,
+}
+
+/// Which icon row `MainMenu_Sub.fng` is. The package is the option categories, the career menu and the Quick Race menu
+/// (the original's `UIOptionsMain`, the career main menu and `UIQRMainMenu` all run on it); the safe house is its own
+/// flag (`Args::safehouse`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Sub {
+    #[default]
+    Options,
+    /// Resume Career, Start New Career, Load (`career_screens/career_menu.rs`).
+    Career,
+    /// Quick Play, Custom Race, Split Screen (`race_menu.rs`).
+    QuickRace,
+}
+
+/// Where the pause menu's quit item leads, and so what it says: the menu the game in progress was started from
+/// (`docs/specs/career-parity-menus.md`, section 5).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum QuitTo {
+    /// Free roam or a race started from the main menu: Quit to Main Menu.
+    #[default]
+    Main,
+    /// A Quick Race started from the Quick Race menu: Quit to Quick Race Menu.
+    QuickRace,
+    /// The career: Quit to Career Main Menu.
+    Career,
+}
+
+/// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam) and where Quit goes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PauseCtx {
+    pub race: bool,
+    pub quit: QuitTo,
+}
+
+/// What the footer of a screen offers besides what its package name gives (`prompts.rs`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Footer {
+    #[default]
+    Standard,
+    /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
+    /// Race menu, the safe house menu, the profile list).
+    BackOnly,
 }
 
 /// What a screen is opened with (the original passes an argument and reads the game mode).
@@ -43,11 +84,23 @@ pub struct Args {
     pub safehouse: bool,
     /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
     pub rival: u8,
+    /// Which icon row `MainMenu_Sub.fng` shows when it is not the option categories or the safe house.
+    pub sub: Sub,
+    /// What the pause menu offers (the pause menu only).
+    pub pause_ctx: PauseCtx,
 }
 
 impl Default for Args {
     fn default() -> Self {
-        Self { pause: false, options: false, category: Category::Audio, safehouse: false, rival: 0 }
+        Self {
+            pause: false,
+            options: false,
+            category: Category::Audio,
+            safehouse: false,
+            rival: 0,
+            sub: Sub::Options,
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
+        }
     }
 }
 
@@ -69,8 +122,6 @@ pub enum Command {
     /// Quick Race: leave the menus and start this race (a gameplay collection name) in the world, outside career mode
     /// (`quick_race.rs`, `track_options.rs`).
     StartQuickRace(String),
-    /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
-    StartCareer,
     /// Close the pause menu and go on driving.
     Resume,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
@@ -84,8 +135,23 @@ pub enum Command {
     PayBust {
         marker: bool,
     },
-    /// Leave the game in progress for the main menu.
-    QuitToMenu,
+    /// Leave the game in progress for the menu it was started from (`flow.rs`, `quit_to`).
+    QuitTo(QuitTo),
+    /// Run the race in progress again from its grid (the pause menu's Restart).
+    RestartRace,
+    /// Career menu, Resume Career: play the loaded profile, into the safe house menu or the prologue (`flow_career.rs`).
+    ResumeCareer,
+    /// Leave the safe house menu that stands before the world for the career menu (its Back).
+    LeaveSafeHouse,
+    /// Ask for an alias name over the screen that is up (`name_entry.rs`); the answer is the command the purpose names.
+    EnterName(super::name_entry::NameFor),
+    /// Alias manager, Create: make a new alias, load it and say so (`flow_save.rs`).
+    AliasCreate(String),
+    /// Quick Play, Accept: start this race (a gameplay collection name) with this car (`quick_play.rs`).
+    StartQuickPlay {
+        race: String,
+        car: String,
+    },
     QuitGame,
     /// Write the settings to the config file.
     SaveSettings,
@@ -93,10 +159,6 @@ pub enum Command {
     OpenGraphics,
     /// Change one slot (0 primary, 1 secondary) of a control to the next key pressed (`controls_screen.rs`).
     Remap(Control, usize),
-    /// Save the alias index with the default alias (`saves.rs`), and say so in an alert.
-    SaveAlias,
-    /// Read the alias index back and say whether it has the default alias (`saves.rs`), in an alert.
-    LoadAlias,
     /// The boot flow goes on to its next step.
     NextBootStep,
     /// Save the career being played to its profile (`MC_Main.fng`, `flow_save.rs`).
@@ -333,6 +395,26 @@ pub trait ScreenLogic: Send + Sync {
     /// Whether Up and Down are turned into Left and Right for the package: the icon row's package knows no Up and Down.
     fn rotate_pad(&self) -> bool {
         false
+    }
+
+    /// Whether the screen takes typed text (`typed`): the keyboard then feeds it characters, and the pad's letter and
+    /// Backspace bindings stay out of the way.
+    fn wants_text(&self) -> bool {
+        false
+    }
+
+    /// A key typed while the screen takes text.
+    fn typed(&mut self, _cx: &mut Cx, _key: super::name_entry::TextKey) {}
+
+    /// The footer hints of the screen (`prompts::hint_set`).
+    fn footer(&self) -> Footer {
+        Footer::Standard
+    }
+
+    /// The backdrop this screen wants right now, when it depends on what the screen shows (the Quick Play brief shows the car it
+    /// picked). `None` leaves it to the screen's look by name (`factory::look_for`).
+    fn look(&self) -> Option<super::look::Look> {
+        None
     }
 
     /// The pointer is over, or pressed, the entry `row` of the vertical list.

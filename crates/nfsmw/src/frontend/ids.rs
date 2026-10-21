@@ -25,6 +25,8 @@ pub mod screen {
     /// Quick Race: the track list (`track_select.rs`) and the track's options (`track_options.rs`).
     pub const TRACK_SELECT: &str = "Track_Select.fng";
     pub const TRACK_OPTIONS: &str = "Track_Options.fng";
+    /// Quick Play: the random car and race, with Randomize and Accept (`quick_play.rs`).
+    pub const QUICK_RACE_BRIEF: &str = "Quick_Race_Brief.fng";
     /// The world map (M in free roam): its logic is `world_map/screen`, opened by `world_map/control.rs`.
     pub const WORLD_MAP: &str = "WorldMapMain.fng";
     /// The ticket after a bust in free roam (`infractions.rs`). Opened by the bust sequence, not by a menu.
@@ -54,6 +56,8 @@ pub mod screen {
     pub const RAP_SHEET_RANKINGS_DETAIL: &str = "RapSheetRankingsDetail.fng";
     pub const MC_MAIN: &str = "MC_Main.fng";
     pub const MC_LIST: &str = "MC_List.fng";
+    /// The alias manager's icon row (`alias_menu.rs`).
+    pub const MC_PROFILE_MANAGER: &str = "MC_ProfileManager.fng";
     pub const CAR_SELECT: &str = "Car_Select.fng";
     pub const SMS_MAILBOXES: &str = "SMS_Mailboxes.fng";
     pub const SMS_MESSAGE: &str = "SMS_Message.fng";

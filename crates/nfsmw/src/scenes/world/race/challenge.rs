@@ -214,6 +214,7 @@ impl WorldScene {
             cash_value: params.cash_value,
             pool: Vec::new(),
             challenge: Some(Challenge::new(stat, params.threshold, heat)),
+            origin: super::Origin { race: race.clone(), course: None },
         });
         Ok(format!("{}: pursuit challenge, {name} {} at heat {heat}", race.name, params.threshold))
     }

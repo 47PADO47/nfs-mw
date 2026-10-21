@@ -103,7 +103,7 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
                 Data::Text(text) => text,
             };
             // A row that opens something or runs a command has no values to cycle, so no chevrons.
-            let acts = matches!(row.setting, options::Setting::AdvancedGraphics | options::Setting::Alias(_));
+            let acts = matches!(row.setting, options::Setting::AdvancedGraphics);
             MenuValue::Choice { text, arrows: !acts }
         }
     };

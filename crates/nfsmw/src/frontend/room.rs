@@ -1,5 +1,6 @@
-//! The menu room: the front-end stage `FRONTEND/PLATFORMS/PlatformCrib.BIN` (five solids and their textures),
-//! drawn behind the menus. Spec: `docs/specs/menu-backdrop.md`.
+//! The menu room: a front-end stage file (`FRONTEND/PLATFORMS/PlatformCrib.BIN`, five solids and their textures, or the
+//! safe house's `CAREER_SAFEHOUSE.BIN`), drawn behind the menus. Spec: `docs/specs/menu-backdrop.md` and
+//! `docs/specs/menu-backdrop-looks.md`.
 
 use std::collections::HashMap;
 
@@ -9,7 +10,8 @@ use blackbox_scene::{MaterialLookup, blend_mode, upload_solid, upload_texture};
 use game_install::GameDir;
 use glam::Mat4;
 
-const ROOM_FILE: &str = "FRONTEND/PLATFORMS/PlatformCrib.BIN";
+use super::stage::Stage;
+
 /// The instance key of the room's parts. The car viewer keys its parts from zero, so this one stays apart.
 const ROOM_ID: u32 = u32::MAX - 2;
 
@@ -30,11 +32,13 @@ impl MaterialLookup for Materials {
 }
 
 impl Room {
-    /// Uploads the room's textures and solids. The room sits where the stage file puts it (identity transform).
-    pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir) -> Result<Self> {
-        let file = dir.read(ROOM_FILE).with_context(|| format!("reading {ROOM_FILE}"))?;
-        let solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {ROOM_FILE}"))?;
-        let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {ROOM_FILE}"))?;
+    /// Uploads the textures and the drawn solids of `stage`. The room sits where the stage file puts it (identity
+    /// transform).
+    pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, stage: Stage) -> Result<Self> {
+        let path = stage.file();
+        let file = dir.read(path).with_context(|| format!("reading {path}"))?;
+        let solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
+        let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
         let mut textures = Vec::new();
         let mut map = HashMap::new();
         for pack in &packs {
@@ -47,7 +51,7 @@ impl Room {
         let materials = Materials(map);
         let mut meshes = Vec::new();
         let mut instances = Vec::new();
-        for solid in &solids {
+        for solid in solids.iter().filter(|solid| stage.draws(&solid.name)) {
             // The stage is pre-lit world geometry (its vertex colours carry the light), as the world's scenery is.
             let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
             meshes.push(mesh);

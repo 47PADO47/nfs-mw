@@ -46,6 +46,8 @@ mod performance_tests;
 mod prop_effects;
 mod props;
 mod race;
+#[cfg(test)]
+mod race_restart_tests;
 mod readiness;
 mod rear_view;
 mod reflections;

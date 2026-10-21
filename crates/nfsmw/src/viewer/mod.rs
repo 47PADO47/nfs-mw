@@ -246,6 +246,14 @@ pub trait Scene {
     fn take_rewards_report(&mut self) -> Option<RewardsReport> {
         None
     }
+    /// Whether a race is running or staged in the world (the pause menu offers Resume Race and Restart then).
+    fn race_active(&self) -> bool {
+        false
+    }
+    /// Runs the race in progress again from its grid. Returns whether there was a race to restart.
+    fn restart_race(&mut self) -> bool {
+        false
+    }
     /// The post-race screen's answer. `true` when a race was waiting on it.
     fn answer_race(&mut self, _answer: RaceAnswer) -> bool {
         false
