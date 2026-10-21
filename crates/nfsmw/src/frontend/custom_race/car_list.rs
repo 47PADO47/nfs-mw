@@ -86,27 +86,33 @@ pub struct Progress {
     pub open_all: bool,
     /// The catalogue names of the cars the loaded profile owns, for the Career list.
     pub owned: Vec<String>,
+    /// The catalogue names of the profile's quick race custom cars, for the My Cars list.
+    pub customs: Vec<String>,
     /// What the challenge series has been won of, which opens the SL 65 and the GT2.
     pub series: crate::frontend::challenge_series::Completion,
+}
+
+/// The cars of a garage list: the named cars of the pool, all open. A car the pool does not know is left out.
+fn garage_entries(names: &[String], prefix: &str, pool: &CarPool) -> Vec<Entry> {
+    names
+        .iter()
+        .filter_map(|name| pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name)))
+        .map(|car| Entry {
+            car: car.clone(),
+            preset: None,
+            key: format!("{prefix}:{}", car.name),
+            locked: false,
+            unlock: Unlock::None,
+        })
+        .collect()
 }
 
 /// The cars of a list.
 pub fn entries(list: List, pool: &CarPool, progress: &Progress) -> Vec<Entry> {
     match list {
         List::Stock => pool.cars.iter().map(|car| stock_entry(car, progress)).collect(),
-        List::Career => progress
-            .owned
-            .iter()
-            .filter_map(|name| pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name)))
-            .map(|car| Entry {
-                car: car.clone(),
-                preset: None,
-                key: format!("career:{}", car.name),
-                locked: false,
-                unlock: Unlock::None,
-            })
-            .collect(),
-        List::MyCars => Vec::new(),
+        List::Career => garage_entries(&progress.owned, "career", pool),
+        List::MyCars => garage_entries(&progress.customs, "custom", pool),
         List::Bonus => {
             pool.presets.iter().filter_map(|preset| bonus_entry(&preset.name, &preset.car, progress)).collect()
         }
@@ -194,7 +200,14 @@ mod tests {
     }
 
     fn progress(stage: u8) -> Progress {
-        Progress { stage, career_won: false, open_all: false, owned: Vec::new(), series: Default::default() }
+        Progress {
+            stage,
+            career_won: false,
+            open_all: false,
+            owned: Vec::new(),
+            customs: Vec::new(),
+            series: Default::default(),
+        }
     }
 
     #[test]
@@ -245,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn the_career_list_holds_the_cars_the_profile_owns_and_my_cars_is_empty() {
+    fn the_career_list_holds_the_cars_the_profile_owns_and_my_cars_the_customs() {
         let owned = Progress { owned: vec!["cobaltss".into(), "unknown".into()], ..progress(16) };
         let career = entries(List::Career, &pool(), &owned);
         assert_eq!(career.len(), 1, "a car the pool does not know is left out");
@@ -253,6 +266,11 @@ mod tests {
         assert!(!career[0].locked);
         assert!(entries(List::Career, &pool(), &progress(16)).is_empty());
         assert!(entries(List::MyCars, &pool(), &owned).is_empty());
+        let customs = Progress { customs: vec!["cobaltss".into()], ..progress(16) };
+        let mine = entries(List::MyCars, &pool(), &customs);
+        assert_eq!(mine.len(), 1);
+        assert_eq!(mine[0].key, "custom:cobaltss");
+        assert!(entries(List::Career, &pool(), &customs).is_empty(), "a custom car is not a career car");
     }
 
     #[test]

@@ -122,7 +122,8 @@ package gets the message `0xDE511657` (the quick race look: the list header, the
 
 - **Lists** (`FE_CAR_FILTER_LIST_*`): Stock, Career, My Cars, Bonus, Preset (and a Debug list, not offered) **[decomp]**. **Stock**
   is every car of the catalogue with a folder and readable physics; **Career** the cars the loaded profile owns (empty with none
-  loaded); **My Cars** the quick race garage, always empty here (this build has no garage of custom cars); **Bonus** the rivals'
+  loaded); **My Cars** the quick race garage: the profile's car records with the quick race flag `0x4` ([career-car-lot.md](career-car-lot.md)
+  section 7; empty when none is loaded or none was saved, since this build has no editor that makes them); **Bonus** the rivals'
   cars `BL2` to `BL15` and `BONUS_C6R`, `BONUS_SL65`, `BONUS_GT2`, `CASTROLGT`; **Preset** the career-start M3 GTR
   (`M3GTRCAREERSTART`). Up and down change the list with wrap-around, in that order; the original's own scroll skips Preset
   **[decomp]**, ours includes it **[ours]**. An empty list shows the package's "No cars in list." panel (messages `0xD9420CD5` and

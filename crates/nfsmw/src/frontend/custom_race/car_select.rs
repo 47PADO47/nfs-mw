@@ -9,6 +9,7 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_
 use blackbox_text::label_hash;
 use nfsmw_career::carlot::{self, stats};
 use nfsmw_career::settings::Flags;
+use nfsmw_career::stable::CarRecord;
 
 use super::car_list::{self, Entry, List, Progress};
 use super::state;
@@ -85,25 +86,26 @@ impl Default for CarSelect {
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
 pub(crate) fn progress() -> Progress {
-    let (stage, career_won, owned) = CareerHandle::shared()
+    let (stage, career_won, owned, customs) = CareerHandle::shared()
         .with_loaded(|career| {
-            let owned = career
-                .stable
-                .cars
-                .iter()
-                .filter(|car| !car.is_free() && car.is_owned())
-                .filter_map(|car| {
+            let names = |keep: &dyn Fn(&CarRecord) -> bool| -> Vec<String> {
+                let cars = career.stable.cars.iter().filter(|car| keep(car));
+                cars.filter_map(|car| {
                     carlot::by_frontend_key(&career.data.cars, car.frontend_key).map(|lot| lot.name.clone())
                 })
-                .collect();
-            (career.stage(), career.settings.flags.contains(Flags::GAME_OVER), owned)
+                .collect()
+            };
+            let owned = names(&|car| !car.is_free() && car.is_owned());
+            let customs = names(&CarRecord::is_quick_race);
+            (career.stage(), career.settings.flags.contains(Flags::GAME_OVER), owned, customs)
         })
-        .unwrap_or((PROLOGUE_STAGE, false, Vec::new()));
+        .unwrap_or((PROLOGUE_STAGE, false, Vec::new(), Vec::new()));
     Progress {
         stage,
         career_won,
         open_all: super::tracks::unlock_all(),
         owned,
+        customs,
         series: crate::frontend::challenge_series::completion(),
     }
 }
