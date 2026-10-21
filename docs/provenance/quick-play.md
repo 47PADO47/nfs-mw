@@ -44,4 +44,6 @@
   difficulty word), so only the package's own dump was used to name them.
 - **The pool rule itself** (above): not found.
 - **Which cars have no physics type.** `trueno`, `levin` and `corollae88` of this install's catalogue have no `pvehicle`
-  collection of that name; not investigated.
+  collection of that name; the car tables (`GlobalB.lzc`) have `levin` and `trueno` but no collision bounds for them
+  (`docs/formats/collision.md`), and `corollae88` has no car-table entry at all (`docs/formats/cardata.md`). The exe's handling of
+  such a car was not traced; the rewrite leaves them out of the pool.
