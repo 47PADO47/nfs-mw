@@ -21,6 +21,7 @@ impl WorldScene {
             (me.finished, me.time, session.kind == nfsmw_data::gameplay::RaceType::SpeedTrap)
         {
             crate::frontend::custom_race::records::note_time(&session.event, time);
+            crate::frontend::custom_race::records::note_lap(&session.event, time - session.lap_mark);
         }
         session.stage = Stage::Results { left: RACE_OVER_SECS };
         self.note_race_outcome(session);

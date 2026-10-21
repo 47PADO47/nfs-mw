@@ -232,8 +232,10 @@ fn unlock_sentence(cx: &Cx, track: &Track) -> String {
 /// `0 MPH`/`0 KPH` **[verified]**.
 fn record_text(cx: &Cx, mode: Mode, metric: bool, event: &str) -> String {
     let best = records::best(event);
-    if mode != Mode::SpeedTrap {
-        return records::time_text(best.time);
+    match mode {
+        Mode::SpeedTrap => {}
+        Mode::Circuit | Mode::Knockout => return records::time_text(best.lap),
+        _ => return records::time_text(best.time),
     }
     let unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
     let speed = best.speed.unwrap_or(0.0) * if metric { 1.0 } else { KMH_TO_MPH };

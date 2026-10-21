@@ -108,10 +108,11 @@ impl Mode {
         }
     }
 
-    /// The label of `Best Speed:` the speedtrap's record line starts with **[decomp]**; the other modes keep the package's `Best
-    /// Time:`. The decomp says `Best Lap:` for the circuit and the knockout, but this build records the finish time, not a lap.
+    /// The label of `Best Lap:` (circuit and knockout) or `Best Speed:` (speedtrap) the track list's record line starts with
+    /// **[decomp]**; the other modes keep the package's `Best Time:`.
     pub fn record_label(self) -> Option<u32> {
         match self {
+            Mode::Circuit | Mode::Knockout => Some(0xC5B5_A177),
             Mode::SpeedTrap => Some(0x0512_E823),
             _ => None,
         }

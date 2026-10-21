@@ -13,6 +13,8 @@ const FILE: &str = "records.toml";
 pub struct Record {
     /// The fastest finish, seconds.
     pub time: Option<f32>,
+    /// The fastest lap, seconds.
+    pub lap: Option<f32>,
     /// The highest speed through a speed trap, km/h.
     pub speed: Option<f32>,
 }
@@ -26,6 +28,15 @@ impl Records {
         let better = seconds > 0.0 && record.time.is_none_or(|best| seconds < best);
         if better {
             record.time = Some(seconds);
+        }
+        better
+    }
+
+    fn note_lap(&mut self, event: &str, seconds: f32) -> bool {
+        let record = self.0.entry(event.to_owned()).or_default();
+        let better = seconds > 0.0 && record.lap.is_none_or(|best| seconds < best);
+        if better {
+            record.lap = Some(seconds);
         }
         better
     }
@@ -46,6 +57,9 @@ impl Records {
             if let Some(time) = record.time {
                 entry.insert("time".into(), toml::Value::Float(f64::from(time)));
             }
+            if let Some(lap) = record.lap {
+                entry.insert("lap".into(), toml::Value::Float(f64::from(lap)));
+            }
             if let Some(speed) = record.speed {
                 entry.insert("speed".into(), toml::Value::Float(f64::from(speed)));
             }
@@ -63,7 +77,10 @@ impl Records {
         let number = |entry: &toml::Table, key: &str| entry.get(key).and_then(toml::Value::as_float).map(|n| n as f32);
         let read = |(event, value): (&String, &toml::Value)| {
             let entry = value.as_table()?;
-            Some((event.clone(), Record { time: number(entry, "time"), speed: number(entry, "speed") }))
+            Some((
+                event.clone(),
+                Record { time: number(entry, "time"), lap: number(entry, "lap"), speed: number(entry, "speed") },
+            ))
         };
         Self(events.iter().filter_map(read).collect())
     }
@@ -91,6 +108,11 @@ pub fn best(event: &str) -> Record {
 /// Notes a finish time and writes the file when it is the best.
 pub fn note_time(event: &str, seconds: f32) {
     write(with_shared(|records| records.note_time(event, seconds).then(|| records.to_toml())));
+}
+
+/// Notes the time of a lap and writes the file when it is the best.
+pub fn note_lap(event: &str, seconds: f32) {
+    write(with_shared(|records| records.note_lap(event, seconds).then(|| records.to_toml())));
 }
 
 /// Notes the speed of a pass through a speed trap and writes the file when it is the best.
@@ -130,7 +152,9 @@ mod tests {
         assert!(records.note_speed("10.2.1", 200.0));
         assert!(!records.note_speed("10.2.1", 150.0));
         assert!(!records.note_time("10.2.1", 0.0));
-        assert_eq!(records.0["10.2.1"], Record { time: Some(80.5), speed: Some(200.0) });
+        assert!(records.note_lap("10.2.1", 40.0));
+        assert!(!records.note_lap("10.2.1", 41.0));
+        assert_eq!(records.0["10.2.1"], Record { time: Some(80.5), lap: Some(40.0), speed: Some(200.0) });
     }
 
     #[test]

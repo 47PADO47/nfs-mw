@@ -213,6 +213,7 @@ impl WorldScene {
             emu: Vec::new(),
             log_clock: 0.0,
             banner: Banner::default(),
+            lap_mark: 0.0,
             result: None,
             report: None,
             chain: None,

@@ -120,6 +120,8 @@ pub(super) struct RaceSession {
     /// Seconds since the last debug line about the racers.
     pub log_clock: f32,
     pub banner: Banner,
+    /// The race clock at the start of the lap the player is on, for the best lap (`custom_race/records.rs`).
+    pub lap_mark: f32,
     pub result: Option<RaceResult>,
     /// The post-race report, built when the race-over message ends and taken by the front end.
     pub report: Option<crate::viewer::RaceReport>,
