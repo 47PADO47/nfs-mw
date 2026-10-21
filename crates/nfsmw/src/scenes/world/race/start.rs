@@ -171,6 +171,7 @@ impl WorldScene {
             pool,
             challenge: None,
             walls,
+            collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))

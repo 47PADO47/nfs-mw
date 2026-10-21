@@ -134,6 +134,8 @@ pub(super) struct RaceSession {
     pub challenge: Option<challenge::Challenge>,
     /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
     pub walls: barriers::RaceWalls,
+    /// How many times the player ran into traffic since GO, for the post-race statistics.
+    pub collisions: u32,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
 }
