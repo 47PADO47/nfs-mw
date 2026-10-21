@@ -3,8 +3,9 @@
 //! safe house menu either way. `MC_List.fng` is the profile list (nine rows in the spec; eight in the package): a pick
 //! loads that profile or asks to delete it. The screens only show and dispatch; the profile work is `frontend/flow_save.rs`.
 //!
-//! Screens cannot reach the front end's profile folder, so they list `ProfileDir::default_dir()`, read only. A screenshot
-//! run therefore lists the player's real folder while it saves into its temp folder. Delete asks with the dialog
+//! Screens cannot reach the front end's profile folder, so they list `Sources::standard()` (this build's folder and the
+//! original game's save folder), read only. A screenshot run therefore lists the player's real folders while it saves
+//! into its temp folder. Delete asks with the dialog
 //! (`Command::Confirm`); the original never opens `MC_DeleteProfile.fng`, so this build does not use it.
 //!
 //! The list's mode (load or delete) is set just before the list is pushed: a screen gets no constructor data.
@@ -14,7 +15,7 @@ use std::sync::Mutex;
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 
 use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
-use crate::career::{CareerHandle, ProfileDir};
+use crate::career::{CareerHandle, Sources};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
 use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
@@ -155,9 +156,10 @@ pub fn row_text(alias: &str, selected: bool) -> String {
     alias.to_owned()
 }
 
-/// The profiles the list shows: the folder's listable aliases, or none when there is no folder.
+/// The profiles the list shows: the listable aliases of this build's folder and of the original game's save folder
+/// (`career/sources.rs`), or none when there is neither.
 pub(crate) fn list_aliases() -> Vec<String> {
-    ProfileDir::default_dir().map(|dir| dir.aliases()).unwrap_or_default()
+    Sources::standard().aliases()
 }
 
 /// The safe house menu the prompt returns to, with the safe house flag set.
