@@ -34,5 +34,8 @@ glam.workspace = true
 log.workspace = true
 serde.workspace = true
 
+[dev-dependencies]
+blackbox-anim.workspace = true
+
 [lints]
 workspace = true

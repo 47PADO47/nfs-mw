@@ -10,9 +10,13 @@
 mod bytes;
 mod error;
 pub mod object;
+pub mod pose;
+pub mod skeleton;
 
 pub use error::{Error, Result};
 pub use object::{Object, Symbol};
+pub use pose::{DOFS_PER_BONE, Pose, Sqt};
+pub use skeleton::{Bone, Skeleton};
 
 #[cfg(test)]
 mod tests;
