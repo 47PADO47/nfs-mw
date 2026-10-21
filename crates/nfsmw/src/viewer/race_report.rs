@@ -34,10 +34,37 @@ pub enum PhotoKind {
     SpeedTrap,
 }
 
+/// The backdrops of `GLOBAL/HUDTEXTURESPHOTOFINISH.BIN`: a polaroid on gravel and leaves whose picture is transparent, so
+/// the world seen through it is the photo (`docs/specs/race-finish-effects.md` section 2). A race names one.
+pub const PHOTO_PICTURES: [&str; 4] =
+    ["PHOTOFINISH_SPRINT", "PHOTOFINISH_RIVAL", "PHOTOFINISH_DRAG", "PHOTOFINISH_TOOBOOTH"];
+
+impl PhotoKind {
+    /// The backdrop the kind takes when its race names none the pack has.
+    pub fn default_picture(self) -> Option<&'static str> {
+        match self {
+            PhotoKind::Sprint => Some(PHOTO_PICTURES[0]),
+            PhotoKind::Drag => Some(PHOTO_PICTURES[2]),
+            PhotoKind::Tollbooth => Some(PHOTO_PICTURES[3]),
+            PhotoKind::SpeedTrap => None,
+        }
+    }
+}
+
+/// The backdrop of a race's photo: the texture its data names when the pack has it (7 races of the install name
+/// `PhotoFinish_Sprint.tga`, which it does not), else the kind's own.
+pub fn photo_picture(named: Option<&str>, kind: PhotoKind) -> Option<&'static str> {
+    let known = named.and_then(|name| PHOTO_PICTURES.iter().find(|known| known.eq_ignore_ascii_case(name.trim())));
+    known.copied().or_else(|| kind.default_picture())
+}
+
 /// What the win photo shows.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PhotoReport {
     pub kind: PhotoKind,
+    /// The backdrop texture (one of [`PHOTO_PICTURES`]); `None` leaves the package's own picture hidden, as the speed
+    /// trap's photo does.
+    pub picture: Option<&'static str>,
     pub cash: u32,
     /// Seconds of the race.
     pub time: f32,
@@ -101,6 +128,7 @@ impl PhotoReport {
     pub fn sample() -> Self {
         Self {
             kind: PhotoKind::Sprint,
+            picture: PhotoKind::Sprint.default_picture(),
             cash: 1200,
             time: 80.5,
             speed: 70.0,

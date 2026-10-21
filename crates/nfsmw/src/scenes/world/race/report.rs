@@ -6,13 +6,18 @@ use super::{RaceSession, Stage};
 use crate::scenes::world::WorldScene;
 use nfsmw_data::gameplay::RaceType;
 
-use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport, ReportLap, ReportRacer};
+use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, photo_picture};
 
 impl WorldScene {
     /// The report of a finished race, from the engine's lap times.
     pub(super) fn race_report(session: &RaceSession) -> Option<RaceReport> {
         let names: Vec<&str> = session.plan.iter().map(|p| p.name.as_str()).collect();
-        Some(report_of(session.engine.as_ref()?, &names, session.kind, session.cash_value))
+        let mut report = report_of(session.engine.as_ref()?, &names, session.kind, session.cash_value);
+        // The race's own data names the backdrop of its photo.
+        if let Some(photo) = report.photo.as_mut() {
+            photo.picture = photo_picture(session.origin.race.params.photo_texture.as_deref(), photo.kind);
+        }
+        Some(report)
     }
 
     /// The report, once, for the front end to show.
@@ -88,6 +93,7 @@ fn photo_of(engine: &Race, kind: RaceType, cash: f32) -> Option<PhotoReport> {
     };
     Some(PhotoReport {
         kind,
+        picture: kind.default_picture(),
         cash: cash.max(0.0).round() as u32,
         time,
         speed,
