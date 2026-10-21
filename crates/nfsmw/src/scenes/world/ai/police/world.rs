@@ -36,14 +36,13 @@ impl super::super::TrafficWorld {
         Some((gaps.len() as u32, gaps.iter().sum::<f32>() / gaps.len() as f32))
     }
 
-    /// Whether a support roll asked for a roadblock this frame; the world places it and calls `roadblock_placed`.
-    pub fn take_roadblock_request(&mut self) -> bool {
-        self.police.take_roadblock_request()
-    }
-
-    /// The roadblock was placed: no second heavy roadblock this chase.
-    pub fn roadblock_placed(&mut self) {
-        self.police.roadblock_placed();
+    /// While the lockout runs every active cop is removed, as the original's patrol pass does (`VehicleSpawningEnabled`
+    /// is false for a despawn too). A chase clears the lockout when it starts, so a chase never runs under it.
+    fn remove_cops_while_locked_out(&mut self) {
+        if self.cops.spawning_enabled() || self.is_pursuing() || self.police.bust.active() {
+            return;
+        }
+        self.cars.retain(|car| !car.is_police());
     }
 
     /// The player pressed the reset key: the post-reset blink starts (the reset penalty applies while it runs).
@@ -59,11 +58,16 @@ impl super::super::TrafficWorld {
 
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
         self.apply_mod_requests();
+        self.note_speech_view(player);
+        self.cops.tick(dt);
+        self.update_911(dt);
+        self.remove_cops_while_locked_out();
         let pursuing = self.is_pursuing();
         self.police.tick_bust(dt);
         let level = self.police.level().unwrap_or(1);
         let at = Vec3::from_array(space::to_physics(player.position));
         let strikes = self.take_strikes();
+        self.update_hiding(dt, at);
         let sensed = Sensed {
             seen: self.sighting(level).seen,
             unit_random: self.rng.next_f32(),
@@ -72,8 +76,8 @@ impl super::super::TrafficWorld {
             hit_traffic: self.sighting(level).recent_hit,
             struck_cop: strikes.cop,
             struck_property: strikes.property,
-            hidden: self.hidden_from_cars(at),
-            hidden_from_heli: self.hidden_from_helicopters(at),
+            hidden: self.police.hiding.latch.hidden(),
+            hidden_from_heli: self.police.hiding.latch.from_helicopters(),
             in_tunnel: self.in_tunnel(at),
             formation_random: [self.rng.next_f32(), self.rng.next_f32()],
             formation_gap: self.formation_gap(at, player.forward),
@@ -88,6 +92,7 @@ impl super::super::TrafficWorld {
             flashing: self.police.flashing(),
         };
         self.police.set_rig(self.helicopter_rig.clone());
+        self.police.set_last_known(self.pursuit.as_ref().and_then(|p| p.last_seen).map(|seen| seen.position));
         self.police.note_cops_damaged(self.cops_damaged());
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
         let busted = self.police.tick_busted(dt, pursuing, bust);
@@ -110,9 +115,9 @@ impl super::super::TrafficWorld {
         self.police.end_reason()
     }
 
-    /// The cool-down meter, 0 to 1, for the pursuit board's bar.
-    pub fn evade_level(&self) -> f32 {
-        self.police.evade_level()
+    /// The pursuit board's cool-down bar fill, 0 to 1: empty when the cool-down opens.
+    pub fn cooldown_bar(&self) -> f32 {
+        self.police.cooldown_bar()
     }
 
     /// The end-of-pursuit card, while a chase ended busted or evaded. `None` otherwise.
@@ -131,25 +136,6 @@ impl super::super::TrafficWorld {
             secs: self.police.pursuit_time,
             since_end: self.police.since_end(),
         })
-    }
-
-    /// Whether a physics-space point is in a HIDDEN zone that hides it from cars: any zone but one flagged `Heli`.
-    pub(in crate::scenes::world::ai) fn hidden_from_cars(&self, at: Vec3) -> bool {
-        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != HELI_HASH)
-    }
-
-    /// Whether a physics-space point is in a HIDDEN zone that hides it from helicopters: any zone but one flagged `Car`.
-    fn hidden_from_helicopters(&self, at: Vec3) -> bool {
-        self.in_hidden_zone(at, |zone| zone.data[0] as u32 != CAR_HASH)
-    }
-
-    /// Whether `at` is inside a HIDDEN zone at its height (`HIDDEN_HEIGHT`) that `hides` accepts.
-    fn in_hidden_zone(&self, at: Vec3, hides: impl Fn(&TrackZone) -> bool) -> bool {
-        let zone_point = to_zone_space(at);
-        self.police
-            .hidden_zones
-            .iter()
-            .any(|z| hides(z) && z.contains(zone_point) && (at.y - z.elevation).abs() < HIDDEN_HEIGHT)
     }
 
     /// Whether a physics-space point is inside a tunnel zone. The zones have no height test: a tunnel is its outline.
@@ -206,18 +192,23 @@ impl super::super::TrafficWorld {
         let heat = self.police.level().unwrap_or(pursuit.heat);
         let limit = blackbox_pursuit::evade::timeout(heat);
         let level = self.police.level().unwrap_or(1);
-        Some(crate::audio::PursuitFeed {
+        Some(self.with_speech_feed(crate::audio::PursuitFeed {
             heat,
             intensity: chase_intensity(self.police.seen, self.police.escape_progress(), limit),
             secs: self.police.pursuit_time,
             secs_to_evade: self.police.secs_to_evade(),
             player_mph: self.player_speed / super::super::traffic::MPH,
             heli_present: self.police.helicopter_present(),
+            heli_in_sight: self.police.helicopter_status().is_some_and(|status| status.in_sight),
+            heli_fuel: self.police.helicopter_status().map_or(0.0, |status| status.fuel_fraction),
+            heli_search_call: self.police.heli_search_call(),
             rain_intensity: 0.0,
             roadblock_active: self.police.roadblock_standing(),
             player_hit: self.sighting(level).recent_hit,
             cops_destroyed: self.police.cops_destroyed(),
-        })
+            speech: Default::default(),
+            backup_eta: self.backup_eta().unwrap_or(0.0),
+        }))
     }
 
     /// The horizontal distance from a physics-space point to the nearest cop on its level; infinite with none. A cop

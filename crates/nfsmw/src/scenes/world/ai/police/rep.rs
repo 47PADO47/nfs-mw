@@ -16,6 +16,8 @@ const COST_COP_DESTROYED: u32 = 5000;
 const COST_COP_DAMAGED: u32 = 250;
 /// Cost to state of one roadblock deployed (spec 5.4).
 const COST_ROADBLOCK: u32 = 500;
+/// Cost to state of one roadblock prop deployed (`mNumSpikeStripsDeployed` counts every prop, spec 5.4).
+const COST_PROP: u32 = 250;
 /// Cost to state of one helicopter spawned (spec 5.4).
 const COST_HELICOPTER: u32 = 2000;
 
@@ -138,6 +140,14 @@ impl Police {
             return;
         }
         self.rep.add_cost(COST_ROADBLOCK);
+    }
+
+    /// `count` roadblock props (sawhorses and spike strips alike) were deployed: their cost to state (spec 5.4).
+    pub(super) fn on_roadblock_props(&mut self, count: u32) {
+        if self.heat.is_none() {
+            return;
+        }
+        self.rep.add_cost(COST_PROP.saturating_mul(count));
     }
 
     /// A helicopter joined the chase: its cost to state.

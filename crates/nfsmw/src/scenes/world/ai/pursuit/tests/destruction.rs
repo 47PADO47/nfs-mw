@@ -49,7 +49,7 @@ fn installed_model(dir: &GameDir, data: &PhysicsData, renderer: &mut NullBackend
 fn spawn(world: &mut TrafficWorld, name: &str) {
     assert!(world.spawn_cop_at(
         name,
-        CopSpot { at: Vec3::ZERO, target: Vec3::Z * 50.0, speed: 0.0, player: player() },
+        CopSpot { at: Vec3::ZERO, target: Vec3::Z * 50.0, speed: 0.0, player: player(), band: None },
         &floor(),
         &SurfaceTable::default()
     ));
@@ -151,7 +151,7 @@ fn installed_cop_native_destruction_uses_resolved_contacts_and_independent_visua
         assert_ne!(mask, 0, "physical impacts must crack the cop's glass");
         assert!(world.spawn_cop_at(
             "copmidsize",
-            CopSpot { at: Vec3::Z * 60.0, target: Vec3::ZERO, speed: 0.0, player: player() },
+            CopSpot { at: Vec3::Z * 60.0, target: Vec3::ZERO, speed: 0.0, player: player(), band: None },
             &floor(),
             &SurfaceTable::default(),
         ));
@@ -236,6 +236,7 @@ fn pursuit_breakers_destroy_live_roadblock_cars_and_count_each_once() {
         position: world.cars[0].physics_position(),
         radius: 10.0,
         duration: 1.0,
+        gas_station: false,
     }]);
     let mut props = PropWorld::default();
     for _ in 0..3 {
@@ -297,7 +298,7 @@ fn native_cop_shock_precedes_light_prop_damage_filter_but_obeys_incoming_speed_g
         };
         world.cars[0].on_hit(100_000.0, false, DriverClass::Traffic, 10.0, hit, 0.0);
         assert_eq!(world.cars[0].cop_health_sample().unwrap().damage, 0.0, "light props cannot consume cop health");
-        world.cars[0].destroy_police();
+        world.cars[0].destroy_by_breaker();
         world.cars[0].sims_mut().0.body_mut().linear_velocity = Vec3::Z * 10.0;
         world.step(focus(), &floor(), &mut PropWorld::default(), &SurfaceTable::default());
         assert_eq!(

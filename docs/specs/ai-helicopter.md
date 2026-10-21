@@ -62,6 +62,12 @@ all [decomp]:
   `SearchModeHeliSpawnChance` percent (heat 4: 2, heat 5: 4, heat 6: 5, zero elsewhere **[verified]**) it forces the next
   spawn to be a helicopter ("copheli"), and the speech system announces a quadrant search.
 - A forced or chosen helicopter bypasses the ground-cop caps (`mMaxActiveCopHelicopters` is 1).
+- The helicopter's turn happens at the same spawn opportunities as a ground cop (the pursuit's spawn timer spent, fewer
+  than the maximum cars active): weighted among the types still lacking, so with all ground cops present it is the only
+  one left and comes at the next opportunity. Picking it counts as a cop involved and sets the next spawn delay like a car.
+  The allow test is `heli timer < 0` **and** `MinimumSupportDelay < pursuit time` (heat 4: 45 s, heat 5: 35 s, heat 6:
+  10 s, heat 8 to 10: 10 s); the search-mode roll is made once per loss of contact, only when allowed, with
+  `rand <= chance`. [decomp]
 
 ### 2.2 Placement (`SpawnPursuitHelicopter`)
 
@@ -222,8 +228,10 @@ mode inside the action decides the behaviour. [decomp]
 State: `pursuit_mode` in {straight line, search, skid-hit approach, skid-hit strike}, `skid_timer` (starts at 0, counts down
 every think), `collision_abort` counter, player body/position/speed refreshed every think; at start a path to the
 player's position is requested (`StartPathToPoint`; the result is not used by the modes below). Mode switch each think: if
-the pursuit says the target is out of sight, switch to **search** (choosing the first destination); when sight returns,
-back to straight line.
+the **pursuit** says the target is out of sight (`IsPerpInSight` false: no cop and no roadblock has seen it for 7 s, the
+helicopter's own sight included), switch to **search** (choosing the first destination); when the pursuit has sight again,
+back to straight line. The helicopter's own line being blocked does not change its mode while a ground cop sees the target.
+[decomp, `AIActionHeliPursuit::Update`]
 
 **Straight line** (follow the player):
 
@@ -255,10 +263,13 @@ the heli is ahead of the player and farther than 40 m, or below the player, or b
 collision listener adds 2 to `collision_abort` for a ground hit and 5 for a hit on the player while `skid_timer > 0`, and
 at more than 20 the skid is aborted. `collision_abort` decays by 1 per think. [decomp]
 
-**Search** (target out of sight): around the pursuit's last known position `C`: `R = SearchModeRoadblockRadius` (1000 m);
-choose a point at distance `random(0, 0.7 R) + 0.2 R` (200 to 900 m) at an angle that advances by 0.125 turn per
-destination; its altitude = the sheet elevation (if covered, never lower than the point's own `y`) + 5 m. Fly to it at
-70 m/s, dest velocity = own velocity, look at the point; when within 30 m horizontally choose the next. [decomp]
+**Search** (pursuit out of sight): around the pursuit's last known position `C` (not the live player position):
+`R = SearchModeRoadblockRadius` **of the heat row, which is 1000 m at heat 1 and 2 only**: 2000, 5000, 10 000, 10 000,
+10 000, 3500, 4000, 5000 m at heat 3 to 10 **[verified]** (the roadblock request reads the same field). Choose a point at
+distance `random(0, 0.7 R) + 0.2 R` at an angle that advances by 0.125 turn per destination (the first angle is 0.125);
+its altitude = the sheet elevation at `C` (if covered, never lower than `C`'s own `y`) + 5 m. Fly to it at 70 m/s, dest
+velocity = own velocity, look at the point; **only when within 30 m horizontally choose the next**. The spec's earlier
+"1000 m" was the heat 1 and 2 value. [decomp][verified]
 
 ### 6.2 `AIActionHeliExit`
 
@@ -304,8 +315,8 @@ State `seek up -> seek car -> fly out`.
   the pitch master writes slot 2. Its inputs are one 3D control (spatial object 1, which reads controller 1: distances to
   the car and camera at 0 and 1, azimuths at 2 and 3, the has-position flag at 15), the state's sub-mix (events only)
   and state 0 events. The map does the distance rolloff, so the words carry no extra falloff.
-- **Rust.** `audio/heli` plays the module with the words above. The scene's `rotor_frame` gives the frame: position from the
-  traffic's chopper, velocity by finite difference, a flat heading. The rotor stops on pause or with no car.
+- **Rust.** `audio/heli` plays the module with the words above. The scene's `rotor_frame` gives the frame: the chopper body's position, nose
+  direction and velocity. The rotor stops on pause or with no car.
 
 ## 8. Constants not in AttribSys
 
@@ -398,9 +409,12 @@ this chase stands), `player_hit` (traffic was hit within its hit memory) and `co
 state records the player being hit by a cop or the helicopter) and an escaped-cars count (no memory of cars that got away). The
 `chase/` cues that use them are not wired yet.
 
-**Reversal status.** The per-level values are section 2.3's, tagged [verified] there. Re-checking them in `speed.exe` (Ghidra) for
-`CanSeeTarget`, `BeginHelicopter`'s fuel, `MAX_SPEED_MPS` and the hidden-zone data words was not done in this pass; see
-[provenance/ai-helicopter-tuning.md](../provenance/ai-helicopter-tuning.md).
+**Reversal status.** Every per-level value of section 2.3 (`HeliFuelTime`, `TimeBetweenHeliActive`, `heliLOSdistance`, and
+`SearchModeHeliSpawnChance`, `SearchModeRoadblockRadius`) is compared with the install by the ignored test
+`installed_level_rows_match_the_roadblock_and_helicopter_tables` (heat rows only; the race rows are not compared).
+`CanSeeTarget` and the spawn helper were read in the PC binary earlier; `MAX_SPEED_MPS` and the hidden-zone words were not.
+See [provenance/ai-helicopter-tuning.md](../provenance/ai-helicopter-tuning.md) and
+[provenance/ai-pursuit-roadblocks.md](../provenance/ai-pursuit-roadblocks.md).
 
 ## Rewrite status
 
@@ -414,80 +428,55 @@ and up). Sight uses the world's ray cast (the line from the helicopter to the pl
 (`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
 floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the
 documented 51 504 triangles (`tests/real_install/heli_sheet.rs`). Not yet seen in a running game. Rotor sound: `audio/heli` plays it, fed by the scene's `rotor_frame`.
-Not yet heard in a running game. Open: the rotor's word meanings, the chopper's real heading (the feed uses a flat
-velocity heading), and the spotlight/rotor wash effects. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
+Not yet heard in a running game. What changed since (spawn rules, search, status, the rotor's real heading) is in the parity pass at the end. The shipped numbers are the spec's; the controller is the spec's, not the decompilation's code.
 Pass 3 (D15): `control.rs` now has the `CheckHeliSheet` steering (look-ahead point, rising-roof and lead-point rules, body
 velocity kick, section 4.2) and the destination lift follows the spec (the old lift raised the destination to the floor
 under the work point even when that floor was lower). The two rules' side push and the lead shortening are [unconfirmed]
 readings. The sheet gives elevation only, so the side push is zero in play until the sheet lookup returns normals (a
 `Heights::floor` override in `ai/police/helpers.rs`). Constants carry tags and pool addresses in the source.
 
-## Verified in `speed.exe` (Ghidra, PC v1.3)
+## Verified in `speed.exe`
 
-The binary has no symbols; these were found from the strings and their references, and the names are ours.
+The PC binary checks of the spawn helper and the float pool of the controller's constants are in
+[ai-helicopter-constants.md](ai-helicopter-constants.md).
 
-| Claim | Where | Evidence |
-|---|---|---|
-| Spawn 250 m behind the target | `SpawnPursuitHelicopter` at `0x004269a0` | pushes `0x437A0000` = 250.0f into the nav advance |
-| Height +20 m | same function | adds the float at `0x00890560` = 20.0 to the spawn height |
-| Nav points backward | same function | multiplies the target direction by `0x00890DA8` = -1.0 |
-| One helicopter at a time, a free one is reused | `0x00426610` (an inactive `copheli` in the vehicle pool) | filters the pool by the `copheli` type name, returns the first not spawned |
-| Cop manager asks for a helicopter | `0x0043E8D0` (the cop manager's update) | compares the cop type's hash with `copheli` (`0x008915DC`) and calls `0x004269A0` |
+## Parity pass (spawn, search, status; this branch)
 
-Pass 2 (below, "Constants in speed.exe") checked the constants against the float pool. The function holding
-`DoDriving` and the helicopter's `Update` is still not located, so the rules of sections 4, 5 and 6 are not yet tied to
-code addresses.
+Tags: **[headless]** by the synthetic world tests, **[verified]** against the install, **[unseen]** not run in a live game.
 
-## Constants in speed.exe (pass 2)
-
-Source: the float pool of `speed.exe` at `0x00890500` to `0x00890E8F` (PC v1.3), decoded as IEEE singles. The heli
-constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use sites are not found, so the value is
-**[decomp]** and the link to the helicopter is **[unconfirmed]** (cluster only). Method and addresses are in
-[provenance/ai-helicopter-tuning.md](../provenance/ai-helicopter-tuning.md).
-
-| Constant | Value | Pool address | Meaning | Port |
-|---|---|---|---|---|
-| Work lead | 0.45 s | 0x890840 | `work` and `dest` lead (section 4) | `control.rs` `WORK_LEAD` |
-| Look-ahead lead | 0.65 s | 0x890844 | the `ahead` point of `CheckHeliSheet` | `control.rs` `ahead_point` |
-| Sheet steer gains | 0.3, 0.4 | 0x890848, 0x89084C (also 0x8905D0) | sliding around a roof and a wall | `control.rs` `ahead_roof`, `lead_roof` |
-| Camera avoid | lead 0.2 s, sphere 7 m, kick 1.2 | 0x8905CC, 0x8905F0 (7), 0x890860 (1.2) | `AvoidCamera` | not ported (no camera) |
-| Response ratio | 2 | 0x890628 | desired accel = 2 x velocity error | `flight.rs` |
-| Accel limit | `min(80, 0.6 v + 30)` | 0x89062C (0.6), 0x890620 (80), 0x890820 (30) | section 5 | `flight.rs` |
-| Closing / brake | closing > 3; speed cut 0.4; brake at 15 m | 0x8905DC, 0x890690 (3); 0x8905D0 (0.4); 0x890668 (15) | section 4 | `control.rs` |
-| Braking divisor | 1.55 | not in 0x890500-0x890E8F | section 4 | `control.rs` (no PC source) |
-| Vertical | climb x5 below 7 m; descend x3 above -5 m; add 2 x target vy | 0x8905E0 (5), 0x8905F0 (7), 0x8905F4 (3), 0x890DB8 (-5) | section 4 | `control.rs` `vertical` |
-| Follow lead | 30 + 0.4 v, cap 45 | 0x89052C (30), 0x89055C / 0x890658 (45) | section 6.1 | `behaviour.rs` `follow` |
-| Follow speed | 50 / 30 / 20 m/s at 300 / 15 / 3 m | 0x890558 (50), 0x890544 (300), 0x890678 (10), 0x89067C (20) | section 6.1 | `behaviour.rs` `follow` |
-| Follow heights | +6, +12 m; 2 m (skid); 55 m split | 0x8905A8 (6), 0x890590 (12), 0x890628 (2), 0x890584 (55) | section 6.1 | `behaviour.rs` `follow` |
-| Skid | height 13 m; approach 0.23 s; window 5 m; timer 8 s; cooldown -5 s; side 6 m | 0x890648, 0x89064C, 0x890654, 0x89059C (8), 0x8905A8 (6) | section 6.1 | `behaviour.rs` |
-| Strike | 4 m; 0.4 m height; speed 100 m/s | 0x89065C (4), 0x8905D0 (0.4), 0x890530 / 0x890664 (100) | section 6.1 | `behaviour.rs` |
-| Search | radius 1000 m; arrival 30 m; speed 70 m/s; +5 m | 0x890538 (1000), 0x890820 (30), 0x89057C (70) | section 6.1 | `behaviour.rs` |
-| Exit | height 25 m; seek up at 15 m; 200 m dive | 0x890DC0 (25), 0x890DAC (15), 0x8908BC (200) | section 6.2 | `behaviour.rs` `Exit` |
-| Sight | grace 150 m, 20 m | 0x89076C (150), 0x890560 (20, also spawn) | section 3 | `sight.rs` |
-| Spawn | 250 m back, +20 m, backward (-1) | 0x890560 (20, verified in code), 0x890DA8 (-1, verified), 0x890854 (250) | section 2.2 | `mod.rs` `spawn_distance` |
-| Think period | 0.125 s | 0x8905C8, 0x890830 | section 1 | `mod.rs` `THINK_PERIOD` |
-| Yaw gain / lean | 8; lean 9/80 and 12/80; clamp 0.1 | 0x8905E4 (8), 0x890598 (9), 0x890590 (12), 0x8905C4 (0.1) | section 5 | `flight.rs` |
-| Smoothing | 1/8 new, 7/8 old | 0x8905F0 (7), 0x8908C8 (0.125) | section 5 | `flight.rs` |
-
-**Not found** in the pool read (0x00890500 to 0x00890E8F): 1.55 (braking), 0.035 (pitch gain), 0.092 (strike lead),
-1.3 (yaw clamp), 1.8 and 4.8 (skid lift), 1.9 (strike across), 0.7, 1.14, 35 (skid window), 75 (visual sphere), 85 (exit
-seek), 600 (despawn). They may be immediate operands in code. Their values are the spec's, not confirmed in `speed.exe`.
-
-**Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` stays unported, since the port has
-no camera. Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
-
-## Next leads
-
-1. Find `AIVehicleHelicopter::Update` and `OnDriving` by the vtable of the heli object. The pool helper 0x426610 and the
-   vehicle slot 0x80 are the anchors. Needs xref tools (get_xrefs_to), which were not callable in pass 2.
-2. Find the functions whose `refs` contain 0x890828 to 0x890868: the cluster's users are the controller.
-3. Find who passes `"AIVehicleHelicopter"` (0x893070) to the class factory `0x5CC240`: that caller builds the heli AI.
-4. Identify the class tags `0x4037E0`, `0x4038C0`, `0x4038E0` used by `0x5D59F0` (casts) to tell heli from cop.
-5. Search immediates (not the pool) for 1.55, 0.035, 0.092, 1.3, 1.8, 35, 75, 85, 600 once a byte-pattern search is
-   available (none in this session).
-6. The words at 0x00890CE0 are code pointers into 0x0040xxxx; not yet identified (possibly a dispatch table).
-7. Find the update that fills the rotor sound object's fields +0x28 to +0x54 (the constructor `0x004dfce0` is in the vtable
-   at `0x008999b0`; find the vtable's per-tick slot and the sound manager's call to it). Needs `get_xrefs_to` on 0x008999b0.
-8. Done: state 11's output slots and controller are in section 7 ([verified] in `MAPOUTPUT.mxb`).
-9. Open: an accessor on the chopper for its real orientation (`Chopper.orientation`, physics space, `space::to_render`).
-   The feed now uses a flat heading from the velocity. Needs `ai/police/heli.rs` (not in the rotor's file list).
+- **Spawn [headless].** The helicopter is no longer sent by a hard-coded level list when the cops see the player. The cop
+  manager's spawn opportunity (`ai/pursuit.rs` `update_pursuit`) asks `Police::heli_ask` (`police/heli.rs`): the timer (10 s at
+  the start, then `TimeBetweenHeliActive` after one left), the support row's `MinimumSupportDelay`, none flying or coming, the
+  model loaded, the player not busted. Allowed, it takes its turn by the row's `copheli` weight against the ground types still
+  needed (`ai/air.rs`); the search-mode roll (armed when the cool-down meter appears, disarmed when the chase returns, made
+  once, `rand <= SearchModeHeliSpawnChance`) forces it. It appears `SpawnDistance` (250 m) along the cop road behind the target
+  and 20 m up, facing along the road, or at the target when there is no cop road there. Picking it counts as a cop involved.
+- **Search [headless].** The helicopter searches when the pursuit has lost the player for 7 s, not when its own line is
+  blocked; it circles the last known place with the heat row's radius and keeps each point until within 30 m (section 6.1).
+- **Status for the speech and the HUD [headless].** `TrafficWorld::helicopter_status` gives `HeliStatus` (the last sight test
+  including the grace, fuel seconds and fraction, mode: following, skid hit, searching, leaving; health, always 1 because
+  `HIT_POINTS` is 0). `PursuitFeed` carries `heli_in_sight`, `heli_fuel` and `heli_search_call` (the search roll sent it: the
+  quadrant call). Wording is the speech layer's.
+- **Rotor [unseen].** The scene feeds `audio/heli` the chopper body's own position, nose direction and velocity (the earlier
+  flat heading from finite differences is gone), so the doppler and the heading-to-listener angle use the real values.
+- **Breaker zones [headless].** A zone destroys the helicopter above it (horizontal test, height ignored) and the next one waits
+  `TimeBetweenHeliActive`. The ground cops are the breaker agent's: they are braked, not wrecked (see the pursuit-breakers spec).
+- **No spotlight, gun or spike drop** exist in the original (checked: no such code or strings beyond statistics), so none is
+  built. `HELICOPTER_LINE_OF_SIGHT` and `HELICOPTER_ICON_GROUP` are minimap package objects the minimap constructor loads
+  (`FUN_0059d500`); the icon group is the helicopter blip. The line-of-sight object (a 64 x 64 image, tint
+  `144, 184, 255, 160`) stands at the icon group's own place in the package **[verified]**; the code that scales and turns
+  it was not re-read, so the minimap shows the blip but not the sight cone **[open]**.
+- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three emitters. The effect
+  is placed once a second on the ground under the helicopter, turned to the ground normal, with the intensity
+  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground (`scenes/world/heli_wash.rs`).
+- **AvoidCamera [headless].** Section 4.1 is in `helicopter/camera.rs`; the world gives the controller the game camera
+  (the cut's camera during a breaker moment) each physics step.
+- **Mod options.** Spawn and despawn distance, speed cap, fly and search speed, attack time, sight distances and the
+  switches are applied (section 10). `Leading`, `ClosingSpeed`, `Turning`, `Acceleration` and `Brake` take two or three
+  comma-separated values; the reader takes each part with its own range (`ini-tuning::read_numbers`) and they reach the
+  controller as `Gains` (lead 30 and 45, closing 20, 30 and 50, yaw limit 1.3 and gain 8, acceleration 80 and 30, braking
+  1.55 and 0.4). The meaning of each part is mapped by value, since the mod's defaults equal the vanilla constants
+  **[inferred]**; the mod's `-8` gain is used by its size. `SearchRadius` (80, 250) is read and held: no constant of the
+  controller matches it. `DespawnDistance` (600 m) is the mod's default for a vanilla distance whose code was not found.
+- **Not done.** The sight cone, the skid-hit's collision-abort counter from real body collisions, and the rotor word
+  meanings (section 7). A live-play comparison has not been made.

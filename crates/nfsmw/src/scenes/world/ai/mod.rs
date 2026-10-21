@@ -3,6 +3,7 @@
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
 mod activation;
+mod air;
 mod car;
 mod collide;
 mod commands;
@@ -10,14 +11,19 @@ mod cop;
 mod cop_aims;
 mod cop_health;
 mod cop_lights;
+mod cop_manager;
 mod damage_effects;
 mod data;
 mod goal_aims;
 mod hitch;
+mod inspect;
+#[cfg(test)]
+pub(in crate::scenes::world) mod installed_support;
 mod lamps;
 mod manager;
 mod model_loader;
 mod models;
+mod moment_feed;
 mod original_camera;
 mod pattern;
 mod police;
@@ -25,6 +31,7 @@ mod policy;
 mod population;
 mod population_stats;
 mod pursuit;
+mod pursuit_budget;
 mod racer;
 mod racers;
 mod radar;
@@ -34,13 +41,17 @@ mod road_reflection;
 mod roadblock;
 mod scene;
 mod search;
+mod seek_spawn;
 mod shading;
 pub(super) mod signal_props;
 mod simulation;
+mod sirens;
 mod spawn;
+mod spawn_requests;
 mod spikes;
 mod stop;
 mod support;
+mod tally;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
@@ -64,8 +75,11 @@ pub(super) use models::load_requested;
 pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
+#[cfg(test)]
+pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
 pub use racers::{ModelState, RacerSpawn};
+pub use tally::RoadblockTally;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -116,7 +130,11 @@ pub struct TrafficWorld {
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
+    /// The backup values of the heat levels, from the install.
+    backup_rows: Vec<nfsmw_data::pursuit::BackupRow>,
     police: police::Police,
+    /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
+    cops: cop_manager::CopManager,
     cars: Vec<AiCar>,
     rng: SplitMix,
     alpha: f32,
@@ -144,11 +162,14 @@ pub struct TrafficWorld {
     warmup_left: f32,
     /// Simulated seconds since the last debug status line.
     log_timer: f32,
-    breaker_areas: Vec<super::props::scenery::StopArea>,
+    /// The live pursuit breaker zones: a police car inside one is destroyed (`blackbox_pursuit::breaker`).
+    breaker_zones: blackbox_pursuit::breaker::Zones,
     /// The thresholds of the sound and pursuit rules (`traffic_events.rs`).
     events: traffic_events::EventTuning,
     /// Sounds the cars asked for since the scene last took them (`collide.rs`).
     sounds: Vec<crate::audio::traffic::TrafficSound>,
+    /// The sirens of the police cars (`sirens.rs`).
+    sirens: sirens::Sirens,
     /// Seconds left in which a hit by the player counts as recent.
     hit_timer: f32,
     /// The player's speed (m/s) and whether a patrol cop can see the player, as of the last collision step.
@@ -163,10 +184,8 @@ pub struct TrafficWorld {
     sight_clock: f32,
     /// What the player struck since the police last read it (`collide.rs`).
     strikes: collide::Strikes,
-    /// The spike strips of the standing roadblocks, on the road plane (`spikes.rs`). Cleared when the chase ends.
-    spikes: Vec<blackbox_pursuit::spikes::Strip>,
-    /// Where the standing roadblocks are, in render space, for the map's roadblock icons. Cleared with the spikes.
-    roadblock_sites: Vec<[f32; 2]>,
+    /// The standing roadblocks with their spike strips and sawhorses, and the request lottery (`roadblock.rs`).
+    roadblocks: roadblock::Roadblocks,
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
     /// Tires punctured by the strips (`spikes.rs`).
     spike_hits: u32,
@@ -177,6 +196,10 @@ pub struct TrafficWorld {
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
+    /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
+    speech_view: Option<PlayerView>,
+    /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
+    speech_watch: police::SpeechWatch,
 }
 
 impl TrafficWorld {
@@ -207,7 +230,9 @@ impl TrafficWorld {
             model_loader: None,
             helicopter_rig: None,
             pursuit: None,
+            backup_rows: Vec::new(),
             police: police::Police::default(),
+            cops: Default::default(),
             cars: Vec::new(),
             rng: SplitMix(0x6E66_736D_7721),
             alpha: 0.0,
@@ -225,9 +250,10 @@ impl TrafficWorld {
             population_stats: Default::default(),
             warmup_left: 0.0,
             log_timer: 0.0,
-            breaker_areas: Vec::new(),
+            breaker_zones: Default::default(),
             events: traffic_events::EventTuning::default(),
             sounds: Vec::new(),
+            sirens: sirens::Sirens::default(),
             hit_timer: 0.0,
             player_speed: 0.0,
             player_position: None,
@@ -235,14 +261,15 @@ impl TrafficWorld {
             seen_by_cops: false,
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),
-            spikes: Vec::new(),
-            roadblock_sites: Vec::new(),
+            roadblocks: Default::default(),
             spike_patches: None,
             spike_hits: 0,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),
             passes: Vec::new(),
+            speech_view: None,
+            speech_watch: Default::default(),
         }
     }
 
@@ -273,8 +300,7 @@ impl TrafficWorld {
             player_speed: self.player_speed,
             seen: self.seen_by_cops,
             recent_hit: self.hit_timer > 0.0,
-            // No 911 calls in the rewrite yet.
-            has_911: false,
+            has_911: self.cops.roam.active(),
         }
     }
 
@@ -319,16 +345,16 @@ impl TrafficWorld {
     }
 
     /// Where the standing roadblocks are, in render space.
-    pub fn roadblock_sites(&self) -> &[[f32; 2]] {
-        &self.roadblock_sites
+    pub fn roadblock_sites(&self) -> Vec<[f32; 2]> {
+        self.roadblocks.sites()
     }
 
     /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
     pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let pursuing = self.pursuit.is_some();
         self.helicopter_blips(pursuing, out);
-        for at in &self.roadblock_sites {
-            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: *at, active: false, heading: None });
+        for at in self.roadblock_sites() {
+            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: at, active: false, heading: None });
         }
         for car in self.cars.iter().filter(|c| c.is_live_police()) {
             let at = car.position();
@@ -371,6 +397,7 @@ impl TrafficWorld {
             car.instances_with_detail(alpha, detail, out);
         }
         self.police.instances(out);
+        self.roadblock_instances(out);
     }
 
     /// Removes every car (the models stay loaded).

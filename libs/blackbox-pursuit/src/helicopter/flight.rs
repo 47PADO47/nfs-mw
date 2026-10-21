@@ -13,21 +13,55 @@ pub struct Specs {
     pub roll_ang: f32,
     pub pitch_align: f32,
     pub roll_align: f32,
+    /// The acceleration limit `min(cap, 0.6 v + base)`.
+    pub accel_cap: f32,
+    pub accel_base: f32,
+    /// The yaw rate limit (rad/s) and the rate per radian of heading error.
+    pub yaw_limit: f32,
+    pub yaw_gain: f32,
+}
+
+impl Specs {
+    /// The specs with the top speed and the numbers a tuning file may change.
+    pub fn with_gains(max_speed: f32, gains: &super::gains::Gains) -> Self {
+        Self {
+            max_speed,
+            accel_cap: gains.acceleration[0],
+            accel_base: gains.acceleration[1],
+            yaw_limit: gains.turning[0],
+            yaw_gain: gains.turning[1],
+            ..Self::default()
+        }
+    }
 }
 
 impl Default for Specs {
     fn default() -> Self {
-        Self { max_speed: 100.0, pitch_ang: 0.05, roll_ang: 0.06, pitch_align: 6.0, roll_align: 4.5 }
+        Self {
+            max_speed: 100.0,
+            pitch_ang: 0.05,
+            roll_ang: 0.06,
+            pitch_align: 6.0,
+            roll_align: 4.5,
+            accel_cap: 80.0,
+            accel_base: 30.0,
+            yaw_limit: YAW_LIMIT,
+            yaw_gain: YAW_GAIN,
+        }
     }
 }
 
 /// The acceleration limit: `min(80, 0.6 v + 30)`, or 80 when braking hard. [decomp]: 0.6 pool, 80 pool
 ///, 30 pool.
 pub fn max_acceleration(speed: f32, max_decel: bool) -> f32 {
+    limit(speed, max_decel, 80.0, 30.0)
+}
+
+fn limit(speed: f32, max_decel: bool, cap: f32, base: f32) -> f32 {
     if max_decel {
-        return 80.0;
+        return cap;
     }
-    (speed * 0.6 + 30.0).min(80.0)
+    (speed * 0.6 + base).min(cap)
 }
 
 /// Desired acceleration is this many times the velocity error (`Chopper_Ratio`, a 0.5 s response). [decomp] 2, pool.
@@ -87,7 +121,7 @@ impl Chopper {
         }
         let desired = clamp_length(desired, specs.max_speed);
         let speed = self.velocity.length();
-        let limit = max_acceleration(speed, max_decel);
+        let limit = limit(speed, max_decel, specs.accel_cap, specs.accel_base);
         let dv = desired - self.velocity;
         let required = dv.length() * RESPONSE_RATIO;
         let accel = if required > 1.0 && (required > limit || max_decel) {
@@ -133,7 +167,7 @@ impl Chopper {
         let mut raw = Vec3::ZERO;
         raw.x = (-torque_x * specs.pitch_align).clamp(-1.0, 1.0);
         raw.z = (-torque_z * specs.roll_align).clamp(-1.0, 1.0);
-        raw.y = yaw_rate(facing, forward);
+        raw.y = yaw_rate(facing, forward, specs);
 
         self.angular = (raw + ANGULAR_OLD * self.angular) * ANGULAR_SMOOTH;
         let turn = Quat::from_scaled_axis(self.angular * dt);
@@ -142,10 +176,10 @@ impl Chopper {
 }
 
 /// The yaw rate that turns the nose, flattened to the horizontal, towards `facing`.
-fn yaw_rate(facing: Vec3, forward: Vec3) -> f32 {
+fn yaw_rate(facing: Vec3, forward: Vec3, specs: &Specs) -> f32 {
     let ideal = Vec3::new(facing.x, 0.0, facing.z).normalize_or_zero();
     let actual = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-    (-ideal.cross(actual).y * YAW_GAIN).clamp(-YAW_LIMIT, YAW_LIMIT)
+    (-ideal.cross(actual).y * specs.yaw_gain).clamp(-specs.yaw_limit, specs.yaw_limit)
 }
 
 /// `v` shortened to `max` if it is longer.

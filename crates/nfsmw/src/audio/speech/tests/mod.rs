@@ -4,11 +4,12 @@ mod dispatcher;
 mod lines;
 mod real;
 mod rules;
+mod sentences;
 mod speech;
 
 use nfsmw_data::speech::SpeechEvent;
 
-use super::Voice;
+use super::{Request, Voice};
 
 /// An event with the default scheduling data and the given number, changed by `edit`.
 pub fn event(id: u32, edit: impl FnOnce(&mut SpeechEvent)) -> SpeechEvent {
@@ -38,11 +39,11 @@ impl Voice for FakeVoice {
         self.busy
     }
 
-    fn play(&mut self, event: &SpeechEvent, speaker: u16, cut: bool) -> bool {
+    fn play(&mut self, event: &SpeechEvent, request: &Request, cut: bool) -> bool {
         if self.mute.contains(&event.id) {
             return false;
         }
-        self.plays.push((event.id, speaker, cut));
+        self.plays.push((event.id, request.speaker, cut));
         self.busy = true;
         true
     }

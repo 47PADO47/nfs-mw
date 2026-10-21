@@ -5,16 +5,20 @@
 //! to say it: a take of the recording is decoded from `copspeech.big` and played on the speech track. Spec:
 //! `docs/specs/speech.md`.
 //!
-//! What works: the queue and its rules (from the attribute database's `speech` events), the recordings of every
-//! event that has a bank of its own (28 of the 133), the speech volume. What does not: the events that are
-//! sentences built from several phrases (their rules are in `copspeech.evt`, not read yet), and nothing in the
-//! game asks for speech, because there is no pursuit. Nobody has listened to the result.
+//! What works: the queue and its rules (from the attribute database's `speech` events), the sentences (an event's
+//! phrases and, from the request's [`SpeechParams`], the variant of each that fits: the car, the direction, the
+//! unit calling), the speech volume. What does not: the radio click, the low-pass and panning, and the pursuit
+//! flows that decide what to ask for. Nobody has listened to the result.
 
 mod commands;
 mod dispatcher;
 mod glue;
 mod history;
 mod lines;
+/// The vocabulary of the sentences' parameters. Most of it waits for the pursuit flows that will ask for lines by
+/// situation (`Audio::say_with`), so the binary does not use it all yet.
+#[allow(dead_code)]
+pub mod params;
 mod plugin;
 pub(crate) mod random;
 mod rules;
@@ -26,8 +30,9 @@ pub use commands::command;
 pub use dispatcher::{Dispatcher, Outcome, Request, Voice};
 pub use glue::SpeechSlot;
 pub use lines::{Files, Lines};
+pub use params::{Param, SpeechParams};
 pub use plugin::add as add_systems;
-pub use rules::Context;
+pub use rules::{Actor, Context};
 pub use sink::{KiraSink, Sink};
 
 use nfsmw_data::speech::{SpeechEvent, SpeechTune};
@@ -61,8 +66,9 @@ impl Voice for Speaker<'_> {
         self.sink.busy()
     }
 
-    fn play(&mut self, event: &SpeechEvent, speaker: u16, cut: bool) -> bool {
-        let pcm = match self.lines.take(event.id, speaker) {
+    fn play(&mut self, event: &SpeechEvent, request: &Request, cut: bool) -> bool {
+        let numbered = params::lib_params(&event.name, request.speaker, &request.params);
+        let pcm = match self.lines.take(event.id, request.speaker, &numbered) {
             Ok(pcm) => pcm,
             Err(e) => {
                 log::debug!("speech {}: {e}", event.name);
@@ -124,9 +130,26 @@ impl Speech {
         self.context = context;
     }
 
-    /// Ask for an event to be said.
+    /// Ask for an event to be said, in any variant of its wording.
     pub fn request(&mut self, event: u32, speaker: u16) -> Outcome {
-        self.dispatcher.request(event, Request { speaker, actor: None })
+        self.request_with(event, speaker, SpeechParams::new())
+    }
+
+    /// Ask for an event to be said by `speaker` (1 to 9; 0 for any) in the wording `params` describes.
+    pub fn request_with(&mut self, event: u32, speaker: u16, params: SpeechParams) -> Outcome {
+        self.dispatcher.request(event, Request { speaker, actor: None, params })
+    }
+
+    /// Ask for an event to be said as `request` describes (the speaker, the unit that would speak, the wording).
+    pub fn request_as(&mut self, event: u32, request: Request) -> Outcome {
+        self.dispatcher.request(event, request)
+    }
+
+    /// Stop the line that sounds and withdraw every waiting request, keeping what was said (the original's
+    /// `ClearPlayback`).
+    pub fn clear_playback(&mut self) {
+        self.sink.stop();
+        self.dispatcher.clear_pending();
     }
 
     /// Once per frame, with the time since the last one.
@@ -142,8 +165,9 @@ impl Speech {
 
     /// Say `event` at once, outside the queue and its rules, cutting any line in progress. Returns the length in
     /// seconds.
-    pub fn play_now(&mut self, event: u32, speaker: u16) -> Result<f32, String> {
-        let pcm = self.lines.take(event, speaker)?;
+    pub fn play_now(&mut self, event: u32, speaker: u16, params: &SpeechParams) -> Result<f32, String> {
+        let name = self.dispatcher.event(event).map_or("", |e| e.name.as_str());
+        let pcm = self.lines.take(event, speaker, &params::lib_params(name, speaker, params))?;
         self.sink.stop();
         self.sink.play(&pcm)?;
         Ok(pcm.frames() as f32 / pcm.sample_rate.max(1) as f32)

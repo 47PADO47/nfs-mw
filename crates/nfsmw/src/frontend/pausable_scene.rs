@@ -216,6 +216,17 @@ impl Scene for Pausable {
         self.inner.pursuit_feed()
     }
 
+    fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.roam_feed()
+    }
+
+    fn start_911_call(&mut self, secs: f32) {
+        self.inner.start_911_call(secs);
+    }
+
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
         if self.concealed() {
             return blackbox_pursuit::EndReason::None;
@@ -337,6 +348,14 @@ impl Scene for Pausable {
 
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         let frame = self.inner.rotor_frame(dt);
+        if self.concealed() {
+            return None;
+        }
+        frame
+    }
+
+    fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
+        let frame = self.inner.siren_frame(dt);
         if self.concealed() {
             return None;
         }

@@ -46,6 +46,7 @@ mod graphics_preset_tests;
 mod graphics_tests;
 pub mod hd_content;
 pub mod helicopter;
+pub mod helicopter_lists;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;

@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
+use blackbox_feng::ids::BUTTON_PRESSED;
 use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
@@ -232,6 +233,11 @@ impl Screens {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
                 Outgoing::Package { kind, name, .. } => commands.extend(package_command(kind, name)),
+                // A button that answers BUTTON_PRESSED announces the press to the sound system with its GUID. Only the
+                // logic that asks for it hears it (`ScreenLogic::pressed`): some packages post nothing to the game.
+                Outgoing::Sound { message: BUTTON_PRESSED, package, from: Some(button) } => {
+                    self.deliver_press(package, button, env, &mut commands)
+                }
                 Outgoing::Sound { .. } => {}
             }
         }
@@ -242,7 +248,14 @@ impl Screens {
         self.apply_stack_commands(commands, env)
     }
 
-    fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
+    /// Runs `call` on the logic of the screen of `package`, with the context it works in.
+    fn with_logic(
+        &mut self,
+        package: PackageId,
+        env: &mut Env,
+        out: &mut Vec<Command>,
+        call: impl FnOnce(&mut dyn ScreenLogic, &mut Cx),
+    ) {
         let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
         let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
@@ -261,29 +274,20 @@ impl Screens {
             mods,
             name,
         };
-        screen.logic.message(&mut cx, message);
+        call(screen.logic.as_mut(), &mut cx);
+    }
+
+    fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
+        self.with_logic(package, env, out, |logic, cx| logic.message(cx, message));
+    }
+
+    /// Tells the screen of `package` which button (by GUID) was pressed.
+    fn deliver_press(&mut self, package: PackageId, button: u32, env: &mut Env, out: &mut Vec<Command>) {
+        self.with_logic(package, env, out, |logic, cx| logic.pressed(cx, button));
     }
 
     fn deliver_tick(&mut self, package: PackageId, dt: f32, env: &mut Env, out: &mut Vec<Command>) {
-        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
-        let Some(screen) = stack.iter_mut().find(|s| s.id == package) else { return };
-        let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
-        let name = &screen.name;
-        let mut cx = Cx {
-            rt: runtime,
-            package,
-            assets,
-            settings,
-            changed,
-            caps,
-            commands: out,
-            memory,
-            key_texts,
-            world_map: world_map.as_ref(),
-            mods,
-            name,
-        };
-        screen.logic.tick(&mut cx, dt);
+        self.with_logic(package, env, out, |logic, cx| logic.tick(cx, dt));
     }
 
     /// Runs the commands that switch, push or pop screens (which can queue more) and returns the rest.

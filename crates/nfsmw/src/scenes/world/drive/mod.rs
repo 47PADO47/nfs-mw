@@ -34,6 +34,7 @@ mod simulation;
 mod sound;
 mod speedbreaker;
 mod time_scale;
+mod touch;
 mod trace;
 mod visual_tires;
 pub(super) mod walls;
@@ -60,6 +61,8 @@ pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 pub(super) use sim::CarSim;
 use sim::Telemetry;
+pub(super) use sim::memo::{StepMemo, SurfaceHit};
+pub(super) use sim::pair_contact::PairContact;
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]
@@ -159,6 +162,8 @@ pub struct Drive {
     markers: ContactMarkers,
     /// Props the car knocked over this tick, hidden by the world's next `update_events`.
     pending_knocks: Vec<u32>,
+    /// How long ago the car last touched a prop (`touch.rs`).
+    prop_touch: touch::PropTouch,
 }
 
 impl Drive {
@@ -222,6 +227,7 @@ impl Drive {
             wheel: WheelOptions::default(),
             markers: ContactMarkers::default(),
             pending_knocks: Vec::new(),
+            prop_touch: Default::default(),
         }
     }
 
@@ -303,6 +309,11 @@ impl Drive {
     pub fn half_extents(&self) -> (f32, f32) {
         let half = self.physics.spec.dimension;
         (half.x, half.z)
+    }
+
+    /// Half the height of the car's body, metres: the body origin is its middle, so the feet are this far below it.
+    pub fn half_height(&self) -> f32 {
+        self.physics.spec.dimension.y
     }
 
     /// Speed along the car, m/s (negative in reverse).

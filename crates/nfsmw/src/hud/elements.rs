@@ -33,8 +33,10 @@ pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
 /// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
 const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
-/// The cool-down bar's "HIDING" group and car icon have no hiding-timer feed yet.
-const HELD_HIDDEN: [u32; 2] = [0x60b4_5523, 0x3807_4901];
+/// The cool-down bar's "HIDING" text group and its car icon. They sit under the cool-down group and rest at zero
+/// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
+/// (`0x5c2a4f20`) answers no message in the package and stays at rest.
+pub(super) const HIDING: [u32; 2] = [0x60b4_5523, 0x3807_4901];
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -81,7 +83,6 @@ pub struct Layout {
     pursuit: Vec<usize>,
     pursuit_cops: Vec<usize>,
     cooldown: Vec<usize>,
-    held: Vec<usize>,
     /// The bounty row: shown in career mode only.
     bounty_row: Vec<usize>,
     race: Vec<usize>,
@@ -126,7 +127,6 @@ impl Layout {
             pursuit: find(&PURSUIT_BOARD),
             pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
-            held: find(&HELD_HIDDEN),
             bounty_row: find(&BOUNTY_ROW),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
@@ -206,7 +206,7 @@ impl Layout {
         }
         // The parts without a bound feed stay hidden under whatever shows around them.
         for (i, slot) in shown.iter_mut().enumerate() {
-            let held = self.is_under_any(i, &self.held) || (!want.career && self.is_under_any(i, &self.bounty_row));
+            let held = !want.career && self.is_under_any(i, &self.bounty_row);
             let race_part = (!want.race_laps && self.is_under_any(i, &self.race_lap))
                 || (want.race_laps && self.is_under_any(i, &self.race_progress))
                 || (!want.countdown && self.is_under_any(i, &self.countdown));

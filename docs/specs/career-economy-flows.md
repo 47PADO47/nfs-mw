@@ -209,6 +209,7 @@ cars. **[exe]**
 | 0 | cash payment, fine larger than cash at open | 3 |
 | 2, 3 | countdown ticks reach 0 | 4 |
 | 4 | release by cash fee or Impound Release marker | 0, strikes = 0, countdown = 0 |
+| 2, 3 | release by Impound Release marker (the handler tests no state; see [busted-aftermath.md](busted-aftermath.md) 5) | 0, strikes = 0, countdown = 0, heat 0 |
 | 0 | pursuit evaded, decay counter reaches 3 | 0, strikes - 1 (floor 0) |
 
 Release by cash costs `round(0.25 * Cost)` of the car (static float `0x008f4310`; `Cost` is the `frontend`

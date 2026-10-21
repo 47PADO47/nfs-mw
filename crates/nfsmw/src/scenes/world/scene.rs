@@ -229,6 +229,9 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        if self.moment.hides_hud() {
+            return None;
+        }
         let looking_back = self.drive.as_ref().is_some_and(|d| d.camera_looking_back(self.camera_mode));
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;
@@ -246,7 +249,28 @@ impl Scene for WorldScene {
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         let rain = self.rain.intensity();
-        self.traffic.as_ref()?.pursuit_feed().map(|feed| crate::audio::PursuitFeed { rain_intensity: rain, ..feed })
+        let look = self.player_look(&self.speech_look).unwrap_or_default();
+        let mut feed = self.traffic.as_ref()?.pursuit_feed()?;
+        feed.rain_intensity = rain;
+        feed.speech.player.car_type = look.car_type;
+        feed.speech.player.car_colour = look.colour;
+        Some(feed)
+    }
+
+    fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
+        let look = self.player_look(&self.speech_look).unwrap_or_default();
+        let traffic = self.traffic.as_mut()?;
+        let tuning = traffic.roam_tuning();
+        let mut feed = traffic.roam_feed(&tuning)?;
+        feed.player.car_type = look.car_type;
+        feed.player.car_colour = look.colour;
+        Some(feed)
+    }
+
+    fn start_911_call(&mut self, secs: f32) {
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.start_911_call(secs);
+        }
     }
 
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
@@ -342,5 +366,8 @@ impl Scene for WorldScene {
     }
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         self.rotor_frame_now(dt)
+    }
+    fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
+        self.traffic.as_mut()?.siren_frame(dt)
     }
 }

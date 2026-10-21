@@ -3,6 +3,7 @@ use nfsmw_career::settings::{CareerSettings, Flags};
 
 use super::*;
 use crate::frontend::icon_items::Id;
+use nfsmw_career::economy::aftermath::CarSelectEntry;
 
 /// The items of the menu for a career, as the screen lists them (the memory-card layer is always there).
 fn items(settings: &CareerSettings) -> Vec<MenuItem> {
@@ -61,7 +62,11 @@ fn each_item_opens_the_documented_target_in_the_safe_house() {
         command_for(select(MenuItem::Blacklist(9)), args),
         Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args)
     );
-    assert_eq!(command_for(select(MenuItem::CarSelect), args), Command::Switch(screen::CAR_SELECT.into(), args));
+    assert_eq!(
+        command_for(select(MenuItem::CarSelect), args),
+        Command::CareerCar(CarSelectAction::Open(CarSelectEntry::Plain)),
+        "the safe house opens the career select mode, not the lot"
+    );
     assert_eq!(command_for(select(MenuItem::RapSheet), args), Command::Switch(screen::RAP_SHEET_LOGIN.into(), args));
     assert_eq!(command_for(select(MenuItem::Save), args), Command::Switch(screen::MC_MAIN.into(), args));
 }

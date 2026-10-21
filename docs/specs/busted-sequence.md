@@ -355,8 +355,14 @@ runs were allowed in this pass); its parts have unit tests.
 - **The infractions ticket** (`frontend/infractions.rs`, `Infractions.fng`). It shows this chase's count and fines, the
   unserved count and fines (0, the port has no career state), and the total due. The package has no row per infraction,
   so the offences are listed on the "Violation:" line (layout unverified). Pay with Cash and Pay with Marker send
-  `PayBust`. Pay with Marker is dimmed and refused with no marker. Which of the two package messages is which button is
-  inferred from the button positions and focus, not checked in game.
+  `PayBust`. Pay with Marker is dimmed and refused with no marker. **[verified]** (package dump): the package posts
+  nothing to the game when a payment button is pressed. Its only two game responses (`0x9120409e`, `0xb5971bf1`) are
+  the pad's left and right moves, not payments. An earlier version took them for the two payments, so the ticket could
+  never be paid and the game stayed frozen under it. The press is the pressed button's own `BUTTON_PRESSED` answer
+  (the runtime reports it with the button's GUID, `ScreenLogic::pressed`): holder `0xf72c2` (object `0xb8a7c6cd`, on
+  the right) is Pay with Cash and holder `0xf70e8` (object `0xb8a7c6cc`, on the left) is Pay with Marker. **[decomp]**
+  The original's handler tells the two apart by those object name hashes. The press also disables the package's input
+  until its own timed script re-enables it (response `button 0x101`).
 
 ### 10.3 Missing
 
@@ -368,9 +374,8 @@ runs were allowed in this pass); its parts have unit tests.
   already gives the name.
 - **The arrest spot** (section 4.2). The spot search is not built. The NIS path needs it; the flow always takes the
   free-roam or race route.
-- **Career state.** The port has no cash, markers, unserved infractions, impound strikes or impound flag. So Pay with
-  Cash does not deduct a fine, and the strike and impound rules of section 7 are not done. The marker's effect on the
-  strikes is open (section 7).
+- **Career state.** Done in a career: see [busted-aftermath.md](busted-aftermath.md) (cash, strikes, impound, markers,
+  the notices, the car select and the respawn). Free roam without a career has none of it and resumes driving.
 - **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and
   the end card stays) is not reached yet. The request object the original makes for a race is not decoded and not built.
 

@@ -4,11 +4,16 @@
 use glam::{Vec2, Vec3};
 
 use super::control::Goal;
+use super::gains::Gains;
 
 /// The speed (m/s) the skid hit and the exit fly at (`drive_speed = 100`). [decomp] 100, pool and.
 pub const STRIKE_SPEED: f32 = 100.0;
 /// The speed the search flies at, m/s. [decomp] 70, pool.
 pub const SEARCH_SPEED: f32 = 70.0;
+/// The horizontal distance (m) at which a search point is reached and the next one is chosen. [decomp] 30.
+pub const SEARCH_ARRIVAL: f32 = 30.0;
+/// How far round its circle the search moves at each new point, in turns. [decomp] 0.125.
+pub const SEARCH_STEP_TURNS: f32 = 0.125;
 /// Seconds a skid hit's approach lasts before the timer can run out. [decomp] 8, pool.
 pub const SKID_TIMER: f32 = 8.0;
 /// Horizontal window (m) from the player in which a skid hit can start. [decomp] 5 to 35: the lower bound is pool
@@ -42,9 +47,9 @@ pub fn horizontal_distance(a: Vec3, b: Vec3) -> f32 {
 
 /// The follow goal (straight line). `skid_ready` is a skid hit enabled for this level and its cooldown over; it
 /// shortens the lead by a quarter. `skid_timer` above 0 means a skid is in progress and holds the height at +2 m.
-pub fn follow(heli: Vec3, player: &Player, skid_timer: f32, skid_ready: bool) -> Goal {
+pub fn follow(heli: Vec3, player: &Player, skid_timer: f32, skid_ready: bool, gains: &Gains) -> Goal {
     let speed = player.velocity.length();
-    let mut lead = (30.0 + 0.4 * speed).min(45.0);
+    let mut lead = (gains.leading[0] + 0.4 * speed).min(gains.leading[1]);
     if skid_ready {
         lead *= 0.75;
     }
@@ -58,7 +63,7 @@ pub fn follow(heli: Vec3, player: &Player, skid_timer: f32, skid_ready: bool) ->
     if along < 0.0 {
         along *= 0.5;
     }
-    let close = follow_speed(d);
+    let close = follow_speed(d, &gains.closing_speed);
     let look_at = if d < 5.0 && speed < 15.0 { player.position } else { seek };
     Goal { drive: seek, speed: close + along, dest_velocity: player.velocity, look_at }
 }
@@ -77,15 +82,15 @@ fn follow_height(dist: f32, skid_timer: f32) -> f32 {
 
 /// The speed the follow flies at for a horizontal gap `d`: 50 m/s beyond 300 m, 30 m/s beyond 15 m, 20 m/s beyond 3 m,
 /// else the gap itself. Spec §6.1 (pool = 50, = 300, = 20; no word found for 30, 15 or 3).
-fn follow_speed(d: f32) -> f32 {
+fn follow_speed(d: f32, speeds: &[f32; 3]) -> f32 {
     if d > 300.0 {
-        return 50.0;
+        return speeds[2];
     }
     if d > 15.0 {
-        return 30.0;
+        return speeds[1];
     }
     if d > 3.0 {
-        return 20.0;
+        return speeds[0];
     }
     d
 }
@@ -148,7 +153,7 @@ pub fn skid_aborts(heli: Vec3, player: &Player) -> bool {
 /// The search point: `distance` between 0.2 and 0.9 of `radius` from `centre` at `angle` turns, at the floor (if
 /// the heli sheet covers it, never below `centre`'s height) plus 5 m. `unit_random` in `0..=1` picks the distance.
 pub fn search_point(centre: Vec3, angle_turns: f32, unit_random: f32, radius: f32, floor: Option<f32>) -> Vec3 {
-    // The 0.2 and 0.7 of the radius are spec §6.1 [decomp]; the 1000 m radius is pool; the 5 m has no word.
+    // The 0.2 and 0.7 of the radius are spec §6.1 [decomp]; the radius is the level's `SearchModeRoadblockRadius`.
     let dist = unit_random.clamp(0.0, 1.0) * 0.7 * radius + 0.2 * radius;
     let angle = angle_turns * std::f32::consts::TAU;
     let base = match floor {
@@ -227,7 +232,7 @@ mod tests {
     #[test]
     fn follow_leads_the_player_and_flies_at_its_pace() {
         let heli = Vec3::new(-100.0, 80.0, 0.0);
-        let goal = follow(heli, &player(), -20.0, false);
+        let goal = follow(heli, &player(), -20.0, false, &Gains::default());
         assert!((goal.drive.x - 42.0).abs() < 1e-4, "lead is 30 + 0.4*30 = 42 m ahead");
         assert!((goal.drive.y - 12.0).abs() < 1e-4, "12 m above the player when far");
         assert_eq!(goal.dest_velocity, player().velocity);
@@ -236,25 +241,25 @@ mod tests {
     #[test]
     fn a_skid_ready_helicopter_leads_a_quarter_less() {
         let heli = Vec3::new(-100.0, 80.0, 0.0);
-        let plain = follow(heli, &player(), -20.0, false).drive.x;
-        let ready = follow(heli, &player(), -20.0, true).drive.x;
+        let plain = follow(heli, &player(), -20.0, false, &Gains::default()).drive.x;
+        let ready = follow(heli, &player(), -20.0, true, &Gains::default()).drive.x;
         assert!((ready - (plain * 0.75)).abs() < 1e-3);
     }
 
     #[test]
     fn a_skid_in_progress_holds_the_height_at_two_metres() {
         let heli = Vec3::new(-100.0, 80.0, 0.0);
-        assert!((follow(heli, &player(), 4.0, false).drive.y - 2.0).abs() < 1e-4);
+        assert!((follow(heli, &player(), 4.0, false, &Gains::default()).drive.y - 2.0).abs() < 1e-4);
     }
 
     #[test]
     fn the_follow_speed_steps_with_the_distance_to_the_point() {
         let mut p = player();
         p.velocity = Vec3::ZERO;
-        let far = follow(Vec3::new(-400.0, 80.0, 0.0), &p, -20.0, false);
+        let far = follow(Vec3::new(-400.0, 80.0, 0.0), &p, -20.0, false, &Gains::default());
         assert!((far.speed - 50.0).abs() < 1e-4, "far away flies at 50");
         // 12 m short of the point 30 m ahead: between 3 and 15 m.
-        let near = follow(Vec3::new(18.0, 80.0, 0.0), &p, -20.0, false);
+        let near = follow(Vec3::new(18.0, 80.0, 0.0), &p, -20.0, false, &Gains::default());
         assert!((near.speed - 20.0).abs() < 1e-4, "between 3 and 15 m flies at 20");
     }
 

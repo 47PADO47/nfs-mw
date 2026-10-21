@@ -110,6 +110,7 @@ impl WorldScene {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
             if let Some(world) = traffic.as_mut() {
                 world.load_data(physics.database(), index.track_zones.clone());
+                world.set_roadblock_physics(&props);
                 world.set_track_barriers(std::mem::take(&mut index.track_barriers));
                 if let Some(sheet) = heli_sheet.flatten() {
                     world.set_heli_sheet(sheet);
@@ -132,7 +133,6 @@ impl WorldScene {
                 garage_open: false,
                 audio_environment,
                 common_sounds: Vec::new(),
-                rotor_previous: None,
                 sound_speedbreaker_active: false,
                 dir,
                 track: index.track.clone(),
@@ -184,6 +184,7 @@ impl WorldScene {
                 speedbreaker_clock: drive::SpeedbreakerClock::default(),
                 view: if pending_car.is_some() { View::Chase } else { View::Fly },
                 last_car: pending_car.as_ref().map_or_else(|| DEFAULT_CAR.to_owned(), |c| c.name.clone()),
+                speech_look: Default::default(),
                 pending_car,
                 drive: None,
                 traffic,
@@ -221,6 +222,7 @@ impl WorldScene {
                 rain: crate::weather::rain::Rain::new(),
                 wet_road: Default::default(),
                 explosions: Default::default(),
+                heli_wash: Default::default(),
                 object_fx: Default::default(),
                 car_damage_fx: Default::default(),
                 impact_fx: Default::default(),
@@ -233,6 +235,8 @@ impl WorldScene {
                 waiting_since: None,
                 camera_mode: CameraMode::default(),
                 cop_health: Default::default(),
+                moment: Default::default(),
+                breaker_icons: Default::default(),
             };
             scene.switch_default_scenery_groups();
             scene

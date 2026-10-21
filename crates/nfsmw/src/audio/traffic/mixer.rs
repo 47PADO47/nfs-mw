@@ -18,18 +18,24 @@ pub(super) struct Levels {
 }
 
 #[derive(Default)]
-pub(super) struct Motion {
+pub(in crate::audio) struct Motion {
     previous_distances: Option<[f32; 2]>,
     previous_speeds: [f32; 2],
 }
 
 impl Motion {
     pub fn inputs(&mut self, emitter: &TrafficEmitter, view: AudioView, velocities: [Vec3; 2]) -> [i32; 16] {
+        self.inputs_at(emitter.position, emitter.velocity, view, velocities)
+    }
+
+    /// The controller block of a source at `position` moving at `velocity`, heard by listeners moving at `velocities`
+    /// (the car and the camera): distances, azimuths, closing speeds and the flags.
+    pub fn inputs_at(&mut self, position: Vec3, velocity: Vec3, view: AudioView, velocities: [Vec3; 2]) -> [i32; 16] {
         let mut inputs = [0; 16];
-        inputs[..4].copy_from_slice(&view.distances(emitter.position));
-        let distances = [view.car_position, view.camera_position].map(|p| p.distance(emitter.position));
+        inputs[..4].copy_from_slice(&view.distances(position));
+        let distances = [view.car_position, view.camera_position].map(|p| p.distance(position));
         let speeds: [f32; 2] = std::array::from_fn(|i| {
-            let speed = (emitter.velocity - velocities[i]).length();
+            let speed = (velocity - velocities[i]).length();
             if self.previous_distances.is_some_and(|previous| previous[i] > distances[i]) {
                 return -speed;
             }

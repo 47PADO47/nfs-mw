@@ -265,7 +265,7 @@ impl WorldScene {
         let (secs, reason) = (traffic.pursuit_time(), traffic.end_reason());
         if let Some(position) = player {
             let at = [position[0], position[1]];
-            challenge.track_roadblocks(traffic.roadblock_sites(), at);
+            challenge.track_roadblocks(&traffic.roadblock_sites(), at);
             challenge.track_spikes(&traffic.spike_sites(), at, traffic.spike_hits());
         }
         let value = match challenge.stat {

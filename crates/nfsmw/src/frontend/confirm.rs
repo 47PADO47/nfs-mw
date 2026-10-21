@@ -97,6 +97,12 @@ impl Confirm {
         self
     }
 
+    /// The same question with `command` run when it is answered No.
+    pub fn or_else(mut self, command: Command) -> Self {
+        self.on_no = Some(Box::new(command));
+        self
+    }
+
     /// The question before quitting to `to`. A race in progress adds that its progress will be lost (the labels
     /// `0xA2E9B449`, `0x1DB1CDE5` and `0xECD92696`; free roam has no progress, so the main menu keeps the plain question).
     pub fn quit_to(to: QuitTo, race: bool) -> Self {

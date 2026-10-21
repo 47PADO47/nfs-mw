@@ -225,6 +225,13 @@ pub trait Scene {
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None
     }
+    /// What the speech machine reads of the world while no cop chases (the free-roam 911 call's inputs); `None` with a
+    /// chase on. Taking it clears what the player did since the last call.
+    fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
+        None
+    }
+    /// The speech made the 911 call: the player's 911 timer runs `secs` seconds and the cops are let in.
+    fn start_911_call(&mut self, _secs: f32) {}
     /// How the last chase ended, while none runs: the speech says the suspect's escape once per end. `None` before any.
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
         blackbox_pursuit::EndReason::None
@@ -307,6 +314,10 @@ pub trait Scene {
     }
     /// The police helicopter's rotor for this frame (`dt` seconds since the last one), or `None` without one.
     fn rotor_frame(&mut self, _dt: f32) -> Option<crate::audio::HeliFrame> {
+        None
+    }
+    /// The police cars' sirens for this frame (`dt` seconds since the last one), or `None` without any police.
+    fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
         None
     }
     /// Positions of petrol-station blasts since the last call, in render space.

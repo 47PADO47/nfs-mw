@@ -41,8 +41,6 @@ pub const TUNNEL_ZONE: u32 = 3;
 
 /// The track path zone kind of a hiding spot (`pursuit-data.md` §5: type 8 HIDDEN).
 pub const HIDDEN_ZONE: u32 = 8;
-/// How far (metres) the player's height may be from a hiding zone's elevation to count as inside it (spec §5).
-const HIDDEN_HEIGHT: f32 = 1.25;
 
 /// The throttle above which a hit counts as deliberate (unconfirmed).
 const DELIBERATE_THROTTLE: f32 = 0.5;
@@ -115,14 +113,18 @@ pub struct Police {
     reset_penalty: ResetPenalty,
     /// Seconds of the post-reset blink left (`busted::RESET_BLINK` after a manual reset); 0 when not flashing.
     reset_blink: f32,
+    /// A cinematic moment plays: the busted meter holds its value (`moment_feed.rs`).
+    busted_hold: bool,
+    /// The game camera for the helicopter's `AvoidCamera`, physics space (set by the world each step).
+    heli_camera: Option<blackbox_pursuit::helicopter::camera::Camera>,
     /// Seconds until the next helicopter may join.
     heli_wait: f32,
     /// Seconds of think time not yet spent on the helicopter.
     heli_clock: f32,
+    /// The helicopter's spawn plan: the search-mode roll and the spawn the cop manager queued (`heli.rs`).
+    heli_plan: heli::Plan,
     seen: bool,
     speed_fx: SpeedFx,
-    /// Where the helicopter's search circles, in turns.
-    search_turns: f32,
     /// The helicopter's model, when it is loaded (`COPHELI`).
     rig: Option<Rc<CarRig>>,
     /// The escape: the grace, the cool-down meter and EVADED (`blackbox_pursuit::Cooldown`).
@@ -147,6 +149,8 @@ pub struct Police {
     roadblock_requested: bool,
     /// A roadblock of this chase stands (a heavy roadblock is then not rolled again).
     roadblock_standing: bool,
+    /// The roadblock's formation rule and its heavy request's active time (`roadblock.rs`).
+    roadblock: roadblock::State,
     /// A ram or leader request was rolled and waits for the chase to take it (`take_support_request`).
     support_requested: Option<blackbox_pursuit::support::Request>,
     /// The heat the priority check of the leader options was last run for, and whether it has run (once per heat).
@@ -156,6 +160,8 @@ pub struct Police {
     hidden_zones: Vec<TrackZone>,
     /// The TUNNEL track zones of the track (kind `TUNNEL_ZONE`), read once per track.
     tunnel_zones: Vec<TrackZone>,
+    /// The player's hiding latch (`hiding.rs`).
+    hiding: hiding::HidingState,
     /// The helicopter's height sheet of the track, when it was read (`nfsmw_data::world::heli_sheet`).
     heli_sheet: Option<HeliSheet>,
     /// The busted timer of the chase (`blackbox_pursuit::Busted`); reset when a chase starts, kept after it ends.
@@ -164,6 +170,8 @@ pub struct Police {
     rep: rep::RepState,
     /// The bust sequence after the meter fills (`police/busted/flow.rs`); reset when a chase starts.
     bust: busted::BustFlow,
+    /// The career's bin and the install's growth tables: the heat range and growth time of the bin.
+    heat_model: heat_model::HeatModel,
 }
 
 impl Default for Police {
@@ -178,11 +186,13 @@ impl Default for Police {
             settings: BartenderSettings::default(),
             reset_penalty: FairBustsSettings::default().penalty(BartenderSettings::default().busted.reach),
             reset_blink: 0.0,
+            busted_hold: false,
+            heli_camera: None,
             heli_wait: 0.0,
             heli_clock: 0.0,
+            heli_plan: Default::default(),
             seen: false,
             speed_fx: SpeedFx::new(SpeedTuning::default()),
-            search_turns: 0.0,
             rig: None,
             cooldown: Cooldown::default(),
             end_reason: EndReason::None,
@@ -196,14 +206,17 @@ impl Default for Police {
             support_timer: SUPPORT_CHECK,
             roadblock_requested: false,
             roadblock_standing: false,
+            roadblock: Default::default(),
             support_requested: None,
             priority_heat: 0,
             priority_done: false,
             hidden_zones: Vec::new(),
             tunnel_zones: Vec::new(),
+            hiding: Default::default(),
             heli_sheet: None,
             busted: Busted::default(),
             rep: rep::RepState::default(),
+            heat_model: Default::default(),
         }
     }
 }
@@ -234,8 +247,9 @@ impl Police {
     /// A chase starts at `level`: the heat is at least the base and at least `level`, the infraction log empties and
     /// the helicopter's first join is set.
     pub fn begin(&mut self, level: u32) {
-        let bounds = extra_options::active().heat_bounds().unwrap_or_default();
-        let mut heat = Heat::new(bounds.min, bounds.max);
+        let config = extra_options::active().heat_bounds().map(|bounds| (bounds.min, bounds.max));
+        let (min, max) = self.heat_model.range_for(config, level);
+        let mut heat = Heat::new(min, max);
         heat.begin();
         heat.raise_to(self.carried_heat);
         heat.raise_to(level as f32);
@@ -243,6 +257,7 @@ impl Police {
         self.infractions.clear();
         self.bust.reset();
         self.heli_wait = FIRST_JOIN;
+        self.heli_plan = Default::default();
         self.seen = true;
         self.cooldown = Cooldown::default();
         self.end_reason = EndReason::None;
@@ -251,6 +266,7 @@ impl Police {
         self.support_timer = SUPPORT_CHECK;
         self.roadblock_requested = false;
         self.roadblock_standing = false;
+        self.roadblock = Default::default();
         self.support_requested = None;
         self.priority_heat = 0;
         self.priority_done = false;
@@ -358,13 +374,14 @@ impl Police {
             if self.cooldown.status() == blackbox_pursuit::CooldownStatus::InitialChase
                 && let Some(heat) = self.heat.as_mut()
             {
-                heat.grow(dt, self.settings.time_per_level(heat.level()));
+                heat.grow(dt, self.heat_model.growth_seconds(&self.settings, heat.level()));
             }
             let level = self.level().unwrap_or(1);
             self.tick_formations(dt, level, sensed.formation_random);
             self.tick_finisher(dt, sensed.formation_gap);
             self.tick_support(dt, sensed.seen, level, sensed.support_random);
             evaded = self.tick_cooldown(dt, sensed, level);
+            self.note_heli_cooldown();
             if let (true, Some(heat)) = (evaded, self.heat) {
                 self.carried_heat = heat.value() * self.settings.evade_heat_adjust;
             }
@@ -373,22 +390,6 @@ impl Police {
             self.age_end_card(dt);
         }
         evaded
-    }
-
-    /// Whether a roadblock was asked for since the last call (the world places it).
-    pub fn take_roadblock_request(&mut self) -> bool {
-        std::mem::take(&mut self.roadblock_requested)
-    }
-
-    /// The world placed the roadblock: the chase does not roll another heavy roadblock.
-    pub fn roadblock_placed(&mut self) {
-        self.roadblock_standing = true;
-        self.on_roadblock();
-    }
-
-    /// A roadblock of this chase stands.
-    pub fn roadblock_standing(&self) -> bool {
-        self.roadblock_standing
     }
 
     /// Advances the chosen formation's finisher with the cops' gap to their slots. Armed and ended are logged.
@@ -415,7 +416,7 @@ impl Police {
             self.last_level = level;
             self.formations.heat_changed();
         }
-        if let Some(choice) = self.formations.tick(dt, level, true, false, random) {
+        if let Some(choice) = self.formations.tick(dt, level, true, self.roadblock.follow, random) {
             log::debug!("cop formation: {:?} for {:.0} s", choice.formation, choice.duration);
             self.last_formation = Some(choice.formation);
             self.finisher = Finisher::default();
@@ -476,13 +477,22 @@ mod tests;
 
 mod busted;
 mod escape;
-mod heli;
+mod heat_model;
+pub(super) mod heli;
 mod helpers;
+mod hiding;
 mod mod_feed;
 mod original_camera;
 mod patrol;
 mod rep;
+mod roadblock;
+mod roam_911;
 mod roll;
+mod siren_feed;
+mod speech_events;
+mod speech_feed;
+mod speech_hits;
 mod world;
 
 use helpers::{horizontal, render_rotation};
+pub(super) use speech_events::SpeechWatch;

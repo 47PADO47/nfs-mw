@@ -259,6 +259,44 @@ duration or `StaggerFormationTime`), only while no finisher runs, the pursuit is
 "pursuit flow" focus (skipped in pursuit races and with speech off); a roadblock that is up, undodged and undamaged forces FOLLOW; `IsCollapseActive` and
 `IsFinisherActive` are read by the HUD and the speech.
 
+## Implemented in the rewrite
+
+Written after the code, to say what exists and what is approximated. Evidence tags as above.
+
+- **Lockout** (`scenes/world/ai/cop_manager.rs`): 60 s at session start, 120 s after an evade or a paid ticket
+  (`TimeInactiveFor911`, free roam); a chase start clears it. While it runs no patrol spawns and every active cop is
+  removed, as the original's patrol pass does for a despawn check. **[decomp]** The original removes every active cop at an
+  evade too, so the rewrite's instant removal of ground units at an evade is the original's, not a gap.
+- **Spawn window and zones**: wave, search and patrol cops must land 150 to 400 m (horizontally) from the player after the
+  road snap and outside `NO_COP_SPAWN` zones. A patrol's probe is a point of the disc around the player (uniform by area,
+  shifted by the player's velocity, at most 100 m), on either lane direction. **[decomp]** for the window and zones;
+  **[inferred]** for the disc, which stands for the random candidate segment of 3.1. The camera is the player here.
+- **Recycle** (`blackbox_pursuit::respawn`, `population/cops.rs`): section 2's rule with the camera eye and forward of the
+  simulation lens; a car's age is its steps since placement. Applies to patrols, chase cops, support cars, roadblock cars
+  and wrecks. A fall-off-the-map rule (no wheel down for 4 s, out of sight) stays as a rewrite extension. The old 500 m
+  removal is gone.
+- **Budget and backup** (`blackbox_pursuit::backup`, `ai/pursuit_budget.rs`): section 4 and the heat spec's
+  `FullEngagementCopCount`, `FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`. A cop counts as evaded when it
+  has stood within the radius (not in cool-down, not support) and later leaves the chase by any route. **[decomp]**
+- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop leaves the chase
+  logic, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. **[decomp]**
+  A cop's own line of sight is not kept per car, so "sees the player" is the chase's contact within the front range.
+  **[inferred]**
+- **Fleet** (`ai/spawn_requests.rs`, `ai/seek_spawn.rs`, `blackbox_pursuit::{fleet, spawn_rules}`;
+  [provenance](../provenance/ai-pursuit-cop-fleet.md)): the wave asks for a cop only while the active police cars (patrols,
+  chase, support, roadblock, wrecks) are below the budget (the Bartender `MaxCops`, 8); queued spawn requests (console
+  `pursuit cop <car>`) are placed when spawning is enabled and the spot is free, after taking the lowest-priority cop off the
+  road if they would break the budget (priority is player-to-cop dot forward, plus 1 in view; the section 5 text above says
+  cop-to-player, the source subtracts the other way); a waiting request holds the patrol pass; the spawn window is measured
+  from the camera eye (the simulation lens); patrols and the search cop keep 15 m / 5 m lane spacing (40 m for chase spawns);
+  the wave's spot comes from the seek-ahead walk of 3.4 with the 200 m disc as fallback; the flee rule reads each cop's own
+  sight. **[decomp]** The pool of inactive cars is not built as a pool (a car is cheap to make from its shared model; see the
+  provenance); the steal rule exists as `fleet::steal` and nothing calls it, because the forced-start and roadblock-builder
+  paths that use it are not built. `SpikesHit` has no caller in the original.
+- 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).
+- Not built: roadblock spawn requests, and the forced start of `pursuit N` through `SpawnPursuitCar` (340 m ahead, 15 m
+  behind as the fallback).
+
 ## Rust implementation notes
 
 - A `CopManager` resource with the limits and timers of section 1, a `Pursuit` per target (ai-pursuit.md), and a small `CopPool` of
@@ -283,5 +321,5 @@ support after the support delay.
 
 - Platform cop-car budget on PC (the decomp is the GameCube build, budget 8 assumed).
 - Exact weighting of the greedy slot assignment ties; the decomp marks `AssignClosestOffsets` as not matching.
-- Roadblock cop recruitment rules (spike hit pulls up to the nearest roadblock cop into the chase) are summarised only.
+- Roadblock cop recruitment: the cheat rule's single recruit is built (roadblock director); `SpikesHit` (up to three cars) has no caller in the sources, so the rewrite has no trigger for it.
 - Whether `copcompact` (tether weight 100) is ever spawned (it is in `aivehicle` but in no `cops` row).

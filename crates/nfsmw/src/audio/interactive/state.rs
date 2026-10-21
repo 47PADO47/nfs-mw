@@ -61,6 +61,12 @@ pub struct PursuitFeed {
     pub player_mph: f32,
     /// A police helicopter is in the chase, flying or leaving.
     pub heli_present: bool,
+    /// The helicopter has the player in sight: its last sight test, grace included. False with none flying.
+    pub heli_in_sight: bool,
+    /// The helicopter's fuel left, 0 to 1 (0 with none flying). At 0 it leaves.
+    pub heli_fuel: f32,
+    /// The search-mode roll sent the helicopter (the quadrant-search call), until it has left again.
+    pub heli_search_call: bool,
     /// The rain, 0 (dry) to 1 (heavy), from the scene's weather. Set by the scene, not the traffic.
     pub rain_intensity: f32,
     /// A roadblock of this chase stands.
@@ -69,6 +75,11 @@ pub struct PursuitFeed {
     pub player_hit: bool,
     /// The cop cars wrecked in the chase.
     pub cops_destroyed: u32,
+    /// What the chase speech reads besides the numbers above: the cops, the helicopter, the roadblock, the player's
+    /// heading, road and car, and how the pursuit stands (`audio/chase/feed.rs`). Empty in a feed built without it.
+    pub speech: crate::audio::SpeechFeed,
+    /// Seconds until the backup arrives while it is called (`GetBackupETA`), 0 when it was not called.
+    pub backup_eta: f32,
 }
 
 /// The pursuit set for a heat level, 1 (lowest) up. **[guess]**: the four sets are spread evenly over heat levels 1

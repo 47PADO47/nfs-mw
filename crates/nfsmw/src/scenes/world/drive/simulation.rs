@@ -91,6 +91,7 @@ impl Drive {
         self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
         self.vehicle_effects.bounce(collision, clock::STEP);
         self.markers.record(&impact.contacts, sim.tyre_hits());
+        self.prop_touch.step(&impact.contacts, clock::STEP);
         self.previous = self.current;
         self.current = sim.pose();
         self.telemetry = sim.telemetry();

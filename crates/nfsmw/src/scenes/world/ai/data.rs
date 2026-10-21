@@ -58,6 +58,14 @@ impl TrafficWorld {
         };
         self.police.set_hidden_zones(of_kind(super::police::HIDDEN_ZONE));
         self.police.set_tunnel_zones(of_kind(super::police::TUNNEL_ZONE));
+        self.set_speech_zones(zones.iter().flat_map(|z| z.zones.iter().cloned()).collect());
+        self.cops.set_no_spawn_zones(of_kind(super::cop_manager::NO_COP_SPAWN_ZONE));
+        self.cops.start_session();
+        self.load_911_data(db);
+        self.backup_rows = nfsmw_data::pursuit::backup_rows(db);
+        if let Some(heat) = nfsmw_data::pursuit::career_heat(db) {
+            self.police.set_heat_growth(heat.growth.to_vec());
+        }
         self.police.set_heli_settings(crate::settings::helicopter::load());
         self.police.set_settings(crate::settings::bartender::load(), crate::settings::fairbusts::load());
         match build_patterns(db, zones) {
@@ -68,5 +76,6 @@ impl TrafficWorld {
             self.set_patrol(plan);
         }
         self.police.set_rep_table(nfsmw_data::pursuit::rep_table(db));
+        self.sirens.set_data(nfsmw_data::pursuit_siren::siren_data(db));
     }
 }

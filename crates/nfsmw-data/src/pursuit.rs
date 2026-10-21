@@ -29,6 +29,24 @@ pub struct HeatRow {
     pub time_between_cop_spawns: f32,
 }
 
+/// The backup values of one `pursuitlevels` row (`docs/specs/ai-pursuit-heat.md` section 2.1).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BackupRow {
+    /// `FullEngagementRadius`: a cop within this distance of the player counts as fully engaged, metres.
+    pub engagement_radius: f32,
+    /// `NumCopsToTriggerBackup`: when this many cops or fewer remain to be evaded, the backup is called.
+    pub trigger: u32,
+    /// `BackupCallTimer`: seconds from the call to the backup's arrival.
+    pub call_timer: f32,
+}
+
+impl Default for BackupRow {
+    /// The values the cop manager falls back on when a row is missing (`FullEngagementRadius` 150 m).
+    fn default() -> Self {
+        Self { engagement_radius: 150.0, trigger: 2, call_timer: 120.0 }
+    }
+}
+
 /// The `cops` record is 24 bytes: a string key (the name hash sits at offset 8), a count and a weight.
 const COP_RECORD_LEN: usize = 24;
 
@@ -45,7 +63,7 @@ pub fn heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
 
 /// The `pursuitlevels` collection of heat level `heat` (1…10, clamped) in the escalation table `table`
 /// (`heattable` or `racetable`), from the `default` collection of `pursuitescalation`.
-fn level_collection<'a>(db: &'a Database, table: &str, heat: u32) -> Option<CollectionRef<'a>> {
+pub(crate) fn level_collection<'a>(db: &'a Database, table: &str, heat: u32) -> Option<CollectionRef<'a>> {
     let level = heat.clamp(1, HEAT_LEVELS) as usize - 1;
     let escalation = db.collections_of("pursuitescalation").find(|c| c.name() == Some("default"))?;
     let Value::Array(rows) = escalation.get(table)? else { return None };
@@ -60,6 +78,22 @@ pub fn race_heat_row(db: &Database, heat: u32) -> Option<HeatRow> {
 /// The rows of every heat level that has one, in level order: the row of level `n` is at index `n - 1`.
 pub fn heat_rows(db: &Database) -> Vec<HeatRow> {
     (1..=HEAT_LEVELS).filter_map(|heat| heat_row(db, heat)).collect()
+}
+
+/// The backup values of heat level `heat` (1…10), outside races. A field the row lacks keeps its default.
+pub fn backup_row(db: &Database, heat: u32) -> Option<BackupRow> {
+    let row = level_collection(db, "heattable", heat)?;
+    let fallback = BackupRow::default();
+    Some(BackupRow {
+        engagement_radius: row.get_f32("FullEngagementRadius").unwrap_or(fallback.engagement_radius),
+        trigger: row.get_i32("NumCopsToTriggerBackup").map_or(fallback.trigger, |n| n.max(0) as u32),
+        call_timer: row.get_f32("BackupCallTimer").unwrap_or(fallback.call_timer),
+    })
+}
+
+/// The backup values of every heat level, in level order: level `n` is at index `n - 1`.
+pub fn backup_rows(db: &Database) -> Vec<BackupRow> {
+    (1..=HEAT_LEVELS).filter_map(|heat| backup_row(db, heat)).collect()
 }
 
 /// The car records of a wave: the wave without the helicopter, which is not a car.

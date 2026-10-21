@@ -23,6 +23,11 @@ impl Rng {
         self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
 
+    /// A seed for another generator.
+    pub fn next_seed(&mut self) -> u64 {
+        self.next_u64()
+    }
+
     /// A number in `[0, 1)`.
     pub fn next_f32(&mut self) -> f32 {
         (self.next_u64() >> 40) as f32 / (1u64 << 24) as f32
@@ -34,5 +39,11 @@ impl Rng {
             return 0;
         }
         (self.next_u64() % n as u64) as usize
+    }
+}
+
+impl ea_audio::speech::Random for Rng {
+    fn below(&mut self, n: usize) -> usize {
+        Rng::below(self, n)
     }
 }

@@ -23,13 +23,27 @@ use crate::scenes::world::ai::ModelRequest;
 use crate::scenes::world::{keys, sun};
 use crate::settings::CarShading;
 
+mod air;
 mod arrest;
+pub(in crate::scenes::world::ai) mod arrest_fixture;
+mod budget;
+mod call_911;
 mod destruction;
+mod fleet;
 mod free_roam;
 mod heat_progress;
 mod installed;
 mod installed_arrest;
+mod installed_breaker;
+mod installed_hiding;
 mod installed_route;
+mod lockout;
+mod placement;
+mod recycling;
+mod roadblock;
+mod sirens;
+mod speech_events;
+mod speech_feed;
 
 /// The frames the model is still loading for, and the length of each frame in simulated seconds.
 const LOADING_FRAMES: u32 = 30;
@@ -209,7 +223,7 @@ fn a_wave_row_whose_model_is_still_loading_spawns_once_the_model_arrives() {
 
     // The model arrives: the same row spawns.
     world.add_cop_model(cop_model(&mut renderer, "copx", player));
-    let spot = CopSpot { at: Vec3::ZERO, target: Vec3::new(0.0, 0.0, 70.0), speed: START_SPEED, player };
+    let spot = CopSpot { at: Vec3::ZERO, target: Vec3::new(0.0, 0.0, 70.0), speed: START_SPEED, player, band: None };
     assert!(world.spawn_cop_at("copx", spot, &collision, &surfaces));
     assert_eq!(cop_count(&world), 1);
 }

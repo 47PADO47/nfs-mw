@@ -241,3 +241,46 @@ fn assert_group_drawn(tree: &blackbox_feng::UiTree, group: usize, assets: &crate
     });
     assert_eq!(drawn, expected, "installed group {:08x} presents visible triangle area", tree.nodes[group].name_hash);
 }
+
+/// The cool-down bar's "HIDING" mark (`docs/specs/pursuit-hiding.md` section 5): hidden at rest, faded in while a
+/// hiding spot latches the player, faded out again when it lets go.
+#[test]
+#[ignore = "needs installed HUD assets"]
+fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/InGameC.bun"]);
+    let mut rt = Runtime::new();
+    let package = rt.load(catalog.find("HUD_SingleRace.fng").expect("installed HUD").clone());
+    let mut binding = bind::HudBinding::new(&mut rt, package);
+    binding.advance_mirror_fade(1.0);
+    let mut state = HudState {
+        pursuit: Some(PursuitHud { secs: 30.0, evade: 0.4, cooldown: true, ..Default::default() }),
+        ..Default::default()
+    };
+    let marks = [0x60B4_5523, 0x3807_4901];
+    let alpha = |rt: &Runtime, hash: u32| rt.alpha(rt.find(package, hash).unwrap()).unwrap();
+    for _ in 0..8 {
+        step(&mut rt, &mut binding, &state);
+    }
+    for hash in marks {
+        assert_eq!(alpha(&rt, hash), 0, "{hash:x} rests invisible while no spot hides the player");
+    }
+    state.pursuit.as_mut().unwrap().hiding = Some(1.0);
+    for _ in 0..400 {
+        step(&mut rt, &mut binding, &state);
+    }
+    for hash in marks {
+        assert!(alpha(&rt, hash) > 100, "{hash:x} faded in: {}", alpha(&rt, hash));
+    }
+    let tree = rt.tree(package);
+    for hash in marks {
+        assert!(tree.nodes.iter().find(|n| n.name_hash == hash).unwrap().visible, "{hash:x} is drawn");
+    }
+    state.pursuit.as_mut().unwrap().hiding = None;
+    for _ in 0..400 {
+        step(&mut rt, &mut binding, &state);
+    }
+    for hash in marks {
+        assert_eq!(alpha(&rt, hash), 0, "{hash:x} faded out when the spot let go");
+    }
+}

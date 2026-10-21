@@ -133,10 +133,12 @@ pub fn release_with_cash(
     Ok(fee)
 }
 
-/// Releases a car with an Impound Release marker (type `0x15`) instead of cash; the caller has removed the
-/// marker. Returns false when the car is not in state 4 (the marker must then be kept).
+/// Releases a car with an Impound Release marker (type `0x15`) instead of cash; the caller removes the marker when
+/// this returns true. The marker works in any impound state, not only state 4 (the original's handler does not test
+/// it, `docs/specs/busted-aftermath.md` section 5); it returns false for a car that is free to drive, and the marker
+/// must then be kept.
 pub fn release_with_marker(record: &mut CareerRecord) -> bool {
-    record.release()
+    record.release_by_marker()
 }
 
 /// The game-over check of the car-select handler: when no live car is in state 0 and the player
@@ -320,8 +322,9 @@ mod tests {
         let mut counting = CareerRecord::new(1);
         counting.enter_impound(ImpoundState::CashConfiscated);
         assert_eq!(release_with_cash(&mut s, &mut counting, 1), Err(ReleaseError::NotReleasable));
-        assert!(!release_with_marker(&mut counting));
-        assert_eq!(counting.state, 3);
+        assert!(release_with_marker(&mut counting), "a marker frees a car that is still counting down");
+        assert_eq!((counting.state, counting.strikes, counting.countdown), (0, 0, 0));
+        assert!(!release_with_marker(&mut counting), "a free car keeps the marker");
         assert!(release_with_marker(&mut r));
         assert_eq!(r.state, 0);
     }

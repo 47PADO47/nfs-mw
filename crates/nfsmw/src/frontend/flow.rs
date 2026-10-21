@@ -23,6 +23,8 @@ use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_bust.rs"]
+mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
 #[path = "flow_loading.rs"]
@@ -373,33 +375,6 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    /// Opens the bust's ticket when the world's bust sequence reaches it (free roam, driving). The ticket is up over the
-    /// frozen game, as the pause menu is: the stage is `Paused`, so the screens take the pad and the mouse, and the world
-    /// does not run until the payment resumes it.
-    pub(super) fn poll_bust(&mut self, host: &mut Host, env: &mut Env) {
-        if self.stage != Stage::Playing {
-            return;
-        }
-        let Some(lines) = host.scene.take_bust_ticket() else { return };
-        log::info!("busted: the ticket is up ({} infractions)", lines.len());
-        self.latch = true;
-        self.paused.set(true);
-        self.stage = Stage::Paused;
-        let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
-        let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
-        let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
-        self.apply(commands, host, env);
-    }
-
-    /// The payment on the ticket: the bust takes it (and the game goes on driving) or refuses it (the ticket stays).
-    fn pay_bust(&mut self, marker: bool, host: &mut Host) {
-        if !host.scene.pay_bust(marker) {
-            return;
-        }
-        log::info!("busted: paid with {}", if marker { "a marker" } else { "cash" });
-        self.resume();
-    }
-
     /// Opens the world map over the frozen game: its screen is the package `WorldMapMain.fng`, with the map's logic.
     pub(super) fn open_map(&mut self, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
         self.latch = true;
@@ -465,6 +440,7 @@ impl Frontend {
                 Command::CareerNew(alias) => self.career_new(&alias, host, env),
                 Command::CareerDelete(alias) => self.career_delete(&alias, host, env),
                 Command::CarLot(action) => self.car_lot_action(action, host, env),
+                Command::CareerCar(action) => self.career_car_action(action, host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
                 Command::OpenGraphics => self.graphics_requested = true,
                 Command::Remap(control, slot) => {
@@ -472,7 +448,7 @@ impl Frontend {
                     self.remap = Some((control, slot));
                 }
                 Command::AliasCreate(alias) => self.alias_create(&alias, host, env),
-                Command::PayBust { marker } => self.pay_bust(marker, host),
+                Command::PayBust { marker } => self.pay_bust(marker, host, env),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..)

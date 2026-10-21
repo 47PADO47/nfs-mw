@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use nfsmw_data::speech::{SpeechEvent, SpeechTune};
 
 use super::history::History;
+use super::params::SpeechParams;
 use super::random::Rng;
 use super::rules::{Actor, Asked, Context, Env, Verdict, judge};
 
@@ -24,9 +25,10 @@ pub trait Voice {
     /// Whether a line is sounding.
     fn busy(&self) -> bool;
 
-    /// Start the line for `event`, said by `speaker` (0 for any), cutting the line in progress when `cut`. False
-    /// when there is nothing to say (no recording): the request is then dropped.
-    fn play(&mut self, event: &SpeechEvent, speaker: u16, cut: bool) -> bool;
+    /// Start the line for `event` as `request` asks (the speaker, 0 for any, and the parameters that choose the
+    /// wording), cutting the line in progress when `cut`. False when there is nothing to say (no recording that
+    /// fits): the request is then dropped.
+    fn play(&mut self, event: &SpeechEvent, request: &Request, cut: bool) -> bool;
 }
 
 /// What a request asks for besides the event.
@@ -35,6 +37,9 @@ pub struct Request {
     /// The voice that should say it (1 to 9), or 0 for any.
     pub speaker: u16,
     pub actor: Option<Actor>,
+    /// The situation the line describes (car colour, direction, ...): which variant of the sentence is said. Left
+    /// empty, the wording is chosen at random among the variants the event has.
+    pub params: SpeechParams,
 }
 
 /// What became of a request.
@@ -68,6 +73,7 @@ struct Pending {
 /// The line being said, or that was said last.
 struct Current {
     event: u32,
+    request: Request,
     priority: i32,
     interrupt: bool,
     interruptable: bool,
@@ -81,6 +87,8 @@ struct Current {
 
 pub struct Dispatcher {
     events: HashMap<u32, SpeechEvent>,
+    /// The number of every collection name (a name whose number another collection took still finds that event).
+    names: HashMap<String, u32>,
     tune: SpeechTune,
     pending: Vec<Pending>,
     history: History,
@@ -91,14 +99,25 @@ pub struct Dispatcher {
     enabled: bool,
     rng: Rng,
     seq: u64,
+    /// Events whose line ended since the last [`Dispatcher::take_finished`], with the request that was said.
+    finished: Vec<(u32, Request)>,
 }
 
 impl Dispatcher {
     /// A dispatcher for `events` (the template collection with number 0 is not an event).
     pub fn new(events: Vec<SpeechEvent>, tune: SpeechTune, rng: Rng) -> Self {
-        let events = events.into_iter().filter(|e| e.id != 0).map(|e| (e.id, e)).collect();
+        // Two collections can share a number (`collisionworld` and `collworld_spin`, both 98): the file has the one record,
+        // the sentence of the first, so the first keeps the number.
+        let mut by_id = HashMap::new();
+        let mut names = HashMap::new();
+        for event in events.into_iter().filter(|e| e.id != 0) {
+            names.insert(event.name.to_ascii_lowercase(), event.id);
+            by_id.entry(event.id).or_insert(event);
+        }
+        let events = by_id;
         Self {
             events,
+            names,
             tune,
             pending: Vec::new(),
             history: History::default(),
@@ -109,6 +128,7 @@ impl Dispatcher {
             enabled: true,
             rng,
             seq: 0,
+            finished: Vec::new(),
         }
     }
 
@@ -118,7 +138,8 @@ impl Dispatcher {
 
     /// The event with this name (case does not matter), if there is one.
     pub fn find(&self, name: &str) -> Option<&SpeechEvent> {
-        self.events.values().find(|e| e.name.eq_ignore_ascii_case(name))
+        let id = self.names.get(&name.to_ascii_lowercase())?;
+        self.events.get(id)
     }
 
     /// The events in order of number.
@@ -150,6 +171,50 @@ impl Dispatcher {
 
     pub fn history(&self) -> &History {
         &self.history
+    }
+
+    /// A line sounds, is held in its enforced silence, or waits in the queue: the cop channel is busy.
+    pub fn busy(&self) -> bool {
+        self.current.is_some() || !self.pending.is_empty()
+    }
+
+    /// Seconds since a line last sounded (0 while one does; a large number before the first).
+    pub fn silent_secs(&self) -> f32 {
+        if self.current.as_ref().is_some_and(|c| c.finished.is_none()) {
+            return 0.0;
+        }
+        self.last_sounded.map_or(NEVER_SPOKEN, |t| self.now - t)
+    }
+
+    /// Whether `event` waits in the queue.
+    pub fn is_queued(&self, event: u32) -> bool {
+        self.pending.iter().any(|p| p.event == event)
+    }
+
+    /// The event sounding now and the request it was said for (not the silence that follows a line).
+    pub fn playing(&self) -> Option<(u32, &Request)> {
+        let current = self.current.as_ref().filter(|c| c.finished.is_none())?;
+        Some((current.event, &current.request))
+    }
+
+    /// The events whose lines ended since the last call, with their requests, oldest first.
+    pub fn take_finished(&mut self) -> Vec<(u32, Request)> {
+        std::mem::take(&mut self.finished)
+    }
+
+    /// Withdraws `event` from the queue (the original's recall).
+    pub fn recall(&mut self, event: u32) {
+        self.pending.retain(|p| p.event != event);
+    }
+
+    /// Forgets what was said (a pursuit reset starts with a clean history); the queue stays.
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+    }
+
+    /// Withdraws every waiting request but keeps what was said.
+    pub fn clear_pending(&mut self) {
+        self.pending.clear();
     }
 
     /// Withdraw every request and forget the history (the pursuit is over).
@@ -214,11 +279,12 @@ impl Dispatcher {
         let Some(cut) = self.may_start(self.events[&event].interrupt, priority, busy) else { return };
         let waiting = self.pending.remove(index);
         let data = &self.events[&event];
-        if !voice.play(data, waiting.request.speaker, cut) {
+        if !voice.play(data, &waiting.request, cut) {
             return;
         }
         self.current = Some(Current {
             event,
+            request: waiting.request,
             priority,
             interrupt: data.interrupt,
             interruptable: data.interruptable,
@@ -241,7 +307,11 @@ impl Dispatcher {
             }
             return;
         }
+        let first_look = current.finished.is_none();
         let ended = *current.finished.get_or_insert(self.now);
+        if first_look {
+            self.finished.push((current.event, current.request));
+        }
         if !current.counted {
             current.counted = true;
             self.history.touch(current.event, self.now);

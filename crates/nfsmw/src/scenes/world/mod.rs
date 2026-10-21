@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
+mod breaker_icons;
 mod breaker_visuals;
 mod camera_choice;
 mod camera_cycle;
@@ -27,12 +28,17 @@ mod frame;
 mod garage;
 mod gps;
 mod ground;
+mod heli_wash;
 mod hud;
 mod keys;
 mod lighting;
 mod materials;
 mod mod_hooks;
+mod moment;
+mod moment_world;
 mod tail_light_trails;
+#[cfg(test)]
+pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
 use car_loader::load_car;
 mod focus;
 mod focus_feed;
@@ -63,6 +69,7 @@ mod simulation;
 mod sky;
 mod sound;
 mod space;
+mod speech_look;
 mod speed_trails;
 mod start;
 mod sun;
@@ -169,8 +176,6 @@ pub struct WorldScene {
     drive: Option<Drive>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
-    /// The police helicopter's position at the last rotor frame, for its velocity (`rotor_frame`).
-    rotor_previous: Option<Vec3>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
@@ -198,6 +203,8 @@ pub struct WorldScene {
     traffic_manual: Option<usize>,
     /// The car last driven, for `drive` without a name.
     last_car: String,
+    /// How the cops describe the car being driven (`speech_look.rs`).
+    speech_look: std::cell::RefCell<speech_look::Cache>,
     /// Car physics data, road grips and the gameplay database.
     physics: PhysicsData,
     tire_effects: [bool; 2],
@@ -209,6 +216,8 @@ pub struct WorldScene {
     rain: crate::weather::rain::Rain,
     /// The petrol station's explosion effect, started by the scenery physics.
     explosions: explosion_fx::ExplosionFx,
+    /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
+    heli_wash: heli_wash::HeliWash,
     object_fx: prop_effects::ObjectFx,
     car_damage_fx: damage_effects::DamageEffects,
     impact_fx: impact_effects::ImpactEffects,
@@ -230,6 +239,10 @@ pub struct WorldScene {
     camera_mode: CameraMode,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
     cop_health: effects::cop_health::CopHealthBars,
+    /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
+    moment: moment::Moment,
+    /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
+    breaker_icons: breaker_icons::BreakerIcons,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

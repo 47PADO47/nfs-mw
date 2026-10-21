@@ -117,6 +117,12 @@ fn drive_car(
         Some(state) => audio.update_heli(heli, state.view),
         None => audio.stop_heli(),
     }
+    // The police sirens follow the same car and stop with it.
+    let sirens = host.scene.siren_frame(time.delta_secs());
+    match &car {
+        Some(state) => audio.update_sirens(sirens, state.view),
+        None => audio.stop_sirens(),
+    }
     // Each petrol-station blast of this frame plays its explosion.
     let view = car.as_ref().map(|state| state.view).unwrap_or(audio.speedbreaker.view);
     audio.update_explosion(view, time.delta_secs());
@@ -133,7 +139,12 @@ fn drive_car(
     // The chase of the world reaches the music and the speech; the pursuit music takes the songs' place while a chase
     // is on and for a while after it.
     let chase = host.scene.pursuit_feed();
-    audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended());
+    audio.follow_roam(host.scene.roam_feed());
+    audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended(), time.delta_secs());
+    // The dispatcher's 911 report was said: the world starts the call.
+    if let Some(secs) = audio.take_911_call() {
+        host.scene.start_911_call(secs);
+    }
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
     audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free);
     if let Some(clip) = host.scene.take_clip()

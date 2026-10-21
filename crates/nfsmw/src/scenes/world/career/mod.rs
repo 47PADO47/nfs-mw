@@ -5,12 +5,15 @@
 //! frame after the simulation and the entry zones.
 
 mod bust;
+mod cooling;
 mod events;
 mod hud;
 mod ladder;
 mod phone;
 mod pursuit;
+mod rap_tally;
 mod regions;
+mod respawn;
 mod rewards;
 mod safehouse;
 mod speedtraps;
@@ -35,6 +38,10 @@ pub(super) struct WorldCareer {
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
+    /// The respawn markers visited, and a respawn waiting for the game to run again after a bust.
+    pub respawn: respawn::Respawns,
+    /// The paint cooling table of the install, read when the garage first fits a part (`None` inside: not readable).
+    pub cooling: Option<Option<nfsmw_career::economy::cooling::CoolingTable>>,
     /// The events of the challenge bin the player has won this session (`events.rs`).
     pub side_won: std::collections::BTreeSet<String>,
     /// The speed traps the car is inside (`speedtraps.rs`).
@@ -57,6 +64,7 @@ impl WorldScene {
         if !self.career.handle.is_active() {
             return;
         }
+        self.career_respawn();
         self.career_pursuit(dt);
         self.career_speed_traps();
         self.career_regions();

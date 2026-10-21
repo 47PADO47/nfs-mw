@@ -25,9 +25,18 @@ const LIMIT: usize = 64;
 const MAX_BLASTS: usize = 4;
 
 /// The GPU side of the effect: its textures and, per emitter, the texture it is drawn with.
-struct Set {
+pub(super) struct Set {
     textures: Vec<(TextureHandle, BlendMode)>,
-    templates: Vec<(usize, EmitterSpec)>,
+    pub templates: Vec<(usize, EmitterSpec)>,
+}
+
+impl Set {
+    /// Gives back the set's textures.
+    pub fn destroy(self, renderer: &mut dyn RenderBackend) {
+        for (texture, _) in self.textures {
+            renderer.destroy_texture(texture);
+        }
+    }
 }
 
 enum Load {
@@ -111,9 +120,7 @@ impl ExplosionFx {
         self.blasts.clear();
         self.unannounced.clear();
         if let Load::Ready(set) = std::mem::replace(&mut self.load, Load::Missing) {
-            for (texture, _) in set.textures {
-                renderer.destroy_texture(texture);
-            }
+            set.destroy(renderer);
         }
     }
 
@@ -158,40 +165,52 @@ impl ExplosionFx {
     /// Append one textured batch per texture with live particles, the sprites turned to face the camera.
     pub fn textured(&self, camera: Vec3, forward: Vec3, out: &mut Vec<TexturedEffect>) {
         let Load::Ready(set) = &self.load else { return };
-        let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
-        let up = right.cross(forward).normalize_or(Vec3::Z);
-        for (slot, &(handle, blend)) in set.textures.iter().enumerate() {
-            let gain = match blend {
-                BlendMode::Additive => ADDITIVE_GAIN,
-                _ => 1.0,
-            };
-            let mut vertices = Vec::new();
-            for blast in &self.blasts {
-                for (emitter, &(texture, _)) in blast.emitters.iter().zip(&set.templates) {
-                    if texture != slot {
+        draw(set, self.blasts.iter().map(|blast| blast.emitters.as_slice()), camera, forward, out);
+    }
+}
+
+/// Appends one textured batch per texture of `set` with live particles in the emitter groups (each group has one
+/// emitter per template of the set), the sprites turned to face the camera.
+pub(super) fn draw<'a>(
+    set: &Set,
+    groups: impl Iterator<Item = &'a [Emitter]> + Clone,
+    camera: Vec3,
+    forward: Vec3,
+    out: &mut Vec<TexturedEffect>,
+) {
+    let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
+    let up = right.cross(forward).normalize_or(Vec3::Z);
+    for (slot, &(handle, blend)) in set.textures.iter().enumerate() {
+        let gain = match blend {
+            BlendMode::Additive => ADDITIVE_GAIN,
+            _ => 1.0,
+        };
+        let mut vertices = Vec::new();
+        for emitters in groups.clone() {
+            for (emitter, &(texture, _)) in emitters.iter().zip(&set.templates) {
+                if texture != slot {
+                    continue;
+                }
+                for sprite in emitter.sprites() {
+                    if (sprite.position - camera).dot(forward) <= 0.0 {
                         continue;
                     }
-                    for sprite in emitter.sprites() {
-                        if (sprite.position - camera).dot(forward) <= 0.0 {
-                            continue;
-                        }
-                        let corners = sprite.corners(right, up, forward);
-                        let mut color = sprite.color;
-                        color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
-                        // The texture's top edge is v = 0: start from the upper-left corner.
-                        blackbox_render::EffectLayer::particle_quad_uv(
-                            &mut vertices,
-                            [corners[3], corners[2], corners[1], corners[0]],
-                            color,
-                            [0.0; 2],
-                            sprite.uv,
-                        );
-                    }
+                    let corners = sprite.corners(right, up, forward);
+                    let mut color = sprite.color;
+                    color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
+                    // The texture's top edge is v = 0: start from the upper-left corner.
+                    blackbox_render::EffectLayer::particle_quad_uv(
+                        &mut vertices,
+                        [corners[3], corners[2], corners[1], corners[0]],
+                        color,
+                        [0.0; 2],
+                        sprite.uv,
+                    );
                 }
             }
-            if !vertices.is_empty() {
-                out.push(TexturedEffect { texture: handle, blend, vertices });
-            }
+        }
+        if !vertices.is_empty() {
+            out.push(TexturedEffect { texture: handle, blend, vertices });
         }
     }
 }
@@ -203,6 +222,15 @@ fn build(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database) -> Opti
         log::info!("no petrol station explosion effect in the install");
         return None;
     }
+    build_set(renderer, dir, emitters)
+}
+
+/// The set of an effect's emitters: their textures uploaded, one template each. `None` without any art.
+pub(super) fn build_set(
+    renderer: &mut dyn RenderBackend,
+    dir: &GameDir,
+    emitters: Vec<nfsmw_data::car::exhaust::GroupEmitter>,
+) -> Option<Set> {
     let wanted: Vec<u32> = emitters.iter().map(|e| e.texture).collect();
     let found = particle_textures(dir, &wanted).unwrap_or_else(|e| {
         log::warn!("explosion textures: {e:#}");

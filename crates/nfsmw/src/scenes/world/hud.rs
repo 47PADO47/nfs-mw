@@ -22,6 +22,9 @@ fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
 impl WorldScene {
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
     pub(super) fn hud_shown(&self) -> bool {
+        if self.moment.hides_hud() {
+            return false;
+        }
         if self.view == View::Fly {
             return false;
         }
@@ -46,6 +49,7 @@ impl WorldScene {
             }
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
+                self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
                 let mut meter = 0.0;
                 if let Some(drive) = &self.drive {
                     let player = drive.player_view();
@@ -57,12 +61,13 @@ impl WorldScene {
                 state.cops_engaged = traffic.cops_engaged();
                 state.cops_damaged = traffic.cops_damaged();
                 let wrecked = traffic.cops_destroyed();
-                // The bar is the escape's cool-down meter: it fills while the cops are out of sight and drains when
-                // they see the player again (`docs/specs/ai-pursuit.md` section 6).
+                // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter
+                // (`evade_level`) starts at the grace's share (`docs/specs/ai-pursuit.md` section 6).
                 state.pursuit = traffic.pursuit_feed().map(|feed| PursuitHud {
-                    evade: traffic.evade_level(),
+                    evade: traffic.cooldown_bar(),
                     busted: meter,
                     cooldown: traffic.cooldown_shown(),
+                    hiding: traffic.hiding_fill(),
                     ..pursuit_hud(feed, wrecked)
                 });
                 if traffic.arrest_active() {
@@ -72,6 +77,7 @@ impl WorldScene {
                         cops_destroyed: wrecked,
                         busted: 1.0,
                         cooldown: false,
+                        hiding: None,
                     });
                     state.radar = None;
                 }

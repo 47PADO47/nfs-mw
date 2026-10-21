@@ -419,3 +419,18 @@ fn the_race_and_interior_map_icons_are_objects_of_the_single_race_hud() {
         }
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_pursuit_breaker_icons_are_a_pool_of_the_single_race_hud() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let package = catalog.find("HUD_SingleRace.fng").expect("HUD_SingleRace.fng").clone();
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let found: Vec<usize> =
+        (0..128).filter(|i| rt.find(id, fe_hash_upper(&format!("PURSUIT_BREAKER_{i}"))).is_some()).collect();
+    eprintln!("PURSUIT_BREAKER_n objects: {found:?}");
+    assert_eq!(found, (0..super::blip_styles::PURSUIT_BREAKER_POOL).collect::<Vec<_>>());
+}

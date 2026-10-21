@@ -10,20 +10,27 @@
 //!
 //! Specs: `docs/specs/ai-pursuit.md` sections 4 to 6, `docs/specs/ai-pursuit-heat.md`, `docs/specs/ai-pursuit-tactics.md`, `docs/specs/ai-helicopter.md`.
 
+pub mod backup;
 pub mod breaker;
 pub mod busted;
 pub mod cooldown;
 pub mod end;
 pub mod evade;
+pub mod fleet;
 pub mod formation;
 pub mod goals;
 pub mod health_bar;
 pub mod heat;
 pub mod helicopter;
+pub mod hiding;
 pub mod infraction;
+pub mod respawn;
 pub mod roadblock;
 pub mod rules;
 pub mod sight;
+pub mod siren;
+pub mod spawn_rules;
+pub mod speech;
 pub mod spikes;
 pub mod support;
 pub mod tactics;

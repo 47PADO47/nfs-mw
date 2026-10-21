@@ -8,6 +8,7 @@ use blackbox_vehicle::rigid_body::{BodyContact, BodyHit, Separation, resolve_bod
 use glam::Vec3;
 
 use super::CarSim;
+use super::pair_contact::PairContact;
 
 /// What a hit did.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,6 +17,8 @@ pub struct CarHit {
     pub impulse: f32,
     /// Where the cars touched (physics space).
     pub point: Vec3,
+    /// How the cars met, for the police radio (`pair_contact.rs`).
+    pub pair: PairContact,
     /// Original callback inputs, measured separately for each body before/after resolution.
     pub damage: [DamageHit; 2],
 }
@@ -75,6 +78,7 @@ impl CarSim {
         );
         let relative = self.body().point_velocity(contact.point) - other.body().point_velocity(contact.point);
         let closing = relative.length();
+        let mut pair = PairContact::capture(self.body(), other.body(), contact.point, contact.normal, closing);
         let sound = crate::audio::CarContact {
             sound_profile: 0,
             audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
@@ -109,6 +113,7 @@ impl CarSim {
         let (a, b) = (self.vehicle.body_mut(), other.vehicle.body_mut());
         let body = BodyContact::from_geometry(contact, material_a.friction_with(&material_b));
         let response = resolve_bodies(a, b, &body, &hit_a, &hit_b, Separation::Mass)?;
+        pair.delta_v = response.impulse_delta_v;
         if self.collision_role.player {
             self.pending_sound_contacts
                 .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[0], ..sound });
@@ -154,7 +159,7 @@ impl CarSim {
         ));
         self.vehicle.notify_collision(response.impulse_delta_v[0]);
         other.vehicle.notify_collision(response.impulse_delta_v[1]);
-        Some(CarHit { impulse: response.reaction.impulse, point: contact.point, damage: [damage_a, damage_b] })
+        Some(CarHit { impulse: response.reaction.impulse, point: contact.point, pair, damage: [damage_a, damage_b] })
     }
 
     /// Temporary parameters selected for this contact, including the grounded player's roll centre.

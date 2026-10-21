@@ -1,9 +1,12 @@
 //! Named scenery models, separate from their physics body and streamed placement.
 //! Spec: `docs/specs/pursuit-breakers.md`.
 
+pub(in crate::scenes::world) mod breaker_sites;
 mod effects;
 mod explosion;
 mod particles;
+#[cfg(test)]
+pub(in crate::scenes::world) mod ram;
 mod spawn;
 #[cfg(test)]
 mod tests;
@@ -49,9 +52,14 @@ pub(super) struct SceneryModel {
     hidden_parts: BTreeSet<u32>,
     spawned: BTreeSet<u32>,
     triggered: bool,
+    /// A pursuit breaker zone opened from this model since it was placed (`EBreakerStopCops`).
+    fired: bool,
     authored_visual: bool,
     owner: Weak<()>,
     parent_owner: Option<Rc<()>>,
+    /// A prop the game put in the world with its own intact meshes (a roadblock's sawhorse): drawn from them until its
+    /// sequence hides it, while the hierarchy serves the fragments it releases.
+    intact: bool,
 }
 
 impl SceneryModel {
@@ -70,10 +78,17 @@ impl SceneryModel {
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
+            fired: false,
             authored_visual: false,
             owner: Rc::downgrade(&owner),
             parent_owner: Some(owner),
+            intact: false,
         }
+    }
+
+    /// A model for a prop put in the world at run time: it lives while `owner` does, and is not a streamed placement.
+    pub fn runtime(parts: Arc<ModelParts>, bounds: Arc<BoundsSet>, spec: &PropDynamics, owner: Weak<()>) -> Self {
+        Self { owner, parent_owner: None, intact: true, ..Self::placed(Some(parts), bounds, spec) }
     }
 
     fn initialize(&mut self, data: &PhysicsData) {
@@ -102,6 +117,7 @@ impl SceneryModel {
         self.failed = false;
         self.hidden = false;
         self.triggered = false;
+        self.fired = false;
         self.authored_visual = false;
         self.hidden_parts.clear();
         self.spawned.clear();
@@ -153,7 +169,11 @@ pub(super) struct SceneryEvents {
     /// Points where a petrol-station explosion started since the world last drained them.
     blasts: Vec<Vec3>,
     stops: Vec<StopArea>,
+    /// The cinematic moments the sequences asked for since the world last drained them: the scene names.
+    moments: Vec<String>,
     common_sounds: Vec<crate::audio::CommonEvent>,
+    /// The last pursuit breaker events, for the console (`breaker_sites.rs`).
+    history: VecDeque<String>,
     /// Scratch for one scenery tick: events waiting for dispatch, and one model's drained output.
     ready: VecDeque<(u32, WorldEvent)>,
     drained: Vec<Effect>,
@@ -167,6 +187,8 @@ pub struct StopArea {
     pub position: Vec3,
     pub radius: f32,
     pub duration: f32,
+    /// The breaker is a gas station's (the chase radio remarks on its blast).
+    pub gas_station: bool,
 }
 
 impl PropWorld {
@@ -174,11 +196,16 @@ impl PropWorld {
         std::mem::take(&mut self.scenery.common_sounds)
     }
 
+    /// The scenes of the cinematic moments the breaker sequences asked for since the last call, oldest first.
+    pub fn take_moments(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.scenery.moments)
+    }
+
     pub fn model_instances(&self, id: u32, transform: Mat4, out: &mut Vec<Instance>) -> bool {
         let Some(model) = self.scenery.models.get(&id) else {
             return false;
         };
-        if model.parts.is_some() || model.hidden {
+        if model.hidden || (model.parts.is_some() && !model.intact) {
             model.instances(transform, out);
             return true;
         }

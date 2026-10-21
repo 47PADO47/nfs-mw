@@ -10,6 +10,7 @@ mod obb;
 mod original_camera;
 mod pairs;
 mod phases;
+mod placed;
 pub(super) mod scenery;
 mod sounds;
 #[cfg(test)]
@@ -20,6 +21,7 @@ use body::PropBody;
 pub use fragments::FragmentSpawn;
 use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
+pub use placed::PlacedSpawn;
 
 use super::drive::walls::{ContactKind, ContactPoint, Impact};
 use super::events::{DamageHit, OtherBody};
@@ -393,6 +395,7 @@ impl PropWorld {
                     damage.shock_force = response.reaction.impulse;
                     damage.other.smackable = Some((spec.mass, spec.immobile || (p.attached && prop_immobile)));
                     impact.damage.push(damage.resolved(vehicle.body(), response.notification_delta_v[0], true));
+                    impact.smacked.push((id, spec.cost_to_state));
                     p.attached &= prop_immobile;
                     p.moved |= !prop_immobile;
                     impact.effects.push(super::impact_effects::RawContact::new(

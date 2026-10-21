@@ -10,7 +10,7 @@ use crate::modding::cop_rows::{with_heat_overrides, without_models};
 use crate::scenes::world::WorldScene;
 
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: traffic <count>|off|status|warmup <seconds>";
+    const USAGE: &str = "usage: traffic <count>|off|status|sirens|warmup <seconds>";
     let focus = scene.traffic_focus();
     if scene.traffic.is_none() {
         return Err("this track has no road network".into());
@@ -32,6 +32,10 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
             let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
             Ok(format!("models: {}\n{}", traffic.model_names().join(" "), traffic.status(focus)))
         }
+        ["sirens"] => {
+            let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
+            Ok(traffic.siren_status())
+        }
         [count] => {
             let count: usize = count.parse().map_err(|_| format!("{count:?} is not a number ({USAGE})"))?;
             // Until the traffic setting changes, this count replaces it.
@@ -42,13 +46,20 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
     }
 }
 
-/// `pursuit <heat>|off|status`: cops chase the player with the wave of that heat level.
+/// `pursuit <heat>|off|status|911`: cops chase the player with the wave of that heat level; `911` makes a 911 call now
+/// (the cops are let in and a patrol that sees the player chases it). `pursuit breakers` and
+/// `pursuit hiding` list the pursuit breakers and the hiding spots of the resident world (`inspect.rs`).
 pub(in crate::scenes::world) fn pursuit_command(
     scene: &mut WorldScene,
     renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
-    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status";
+    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|911|cop <car>|breakers|hiding";
+    match args {
+        ["breakers"] => return super::inspect::breakers(scene),
+        ["hiding"] => return super::inspect::hiding(scene),
+        _ => {}
+    }
     if scene.traffic.is_none() {
         return Err("this track has no road network".into());
     }
@@ -60,6 +71,8 @@ pub(in crate::scenes::world) fn pursuit_command(
             Ok("the cops give up".into())
         }
         ["status"] => Ok(scene.traffic.as_ref().map(|t| t.pursuit_status()).unwrap_or_default()),
+        ["911"] => Ok(scene.traffic.as_mut().map(|t| t.dev_911_call()).unwrap_or_default()),
+        ["cop", name] => queue_cop(scene, renderer, name),
         [heat] => {
             let heat: u32 = heat.parse().ok().filter(|h| (1..=10).contains(h)).ok_or(USAGE)?;
             let player = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?.performance();
@@ -74,6 +87,24 @@ pub(in crate::scenes::world) fn pursuit_command(
         }
         _ => Err(USAGE.into()),
     }
+}
+
+/// `pursuit cop <car>`: asks the cop manager for a cop car of that `pvehicle` name 40 m ahead of the player, as a script's spawn
+/// request does. It joins the chase when one runs, else it patrols. It is placed on a later run, when the cops are not locked
+/// out and nothing overlaps the spot; when the cop budget is full the lowest-priority cop is taken off the road first.
+fn queue_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &str) -> Result<String, String> {
+    use super::cop_manager::requests::Role;
+    load_cop_models(scene, renderer, &[name.to_owned()])?;
+    let focus = scene.traffic_focus();
+    let body = focus.body.ok_or("not driving (use the drive command first)")?;
+    let forward = glam::Vec3::new(body.forward.x, 0.0, body.forward.y);
+    let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
+    let role = match traffic.is_pursuing() {
+        true => Role::Chase,
+        false => Role::Patrol,
+    };
+    traffic.queue_cop_spawn(name, body.position + forward * 40.0, forward, role);
+    Ok(format!("a {name} is asked for as {role:?}: {}", traffic.fleet_status()))
 }
 
 /// Starts a chase at `heat` against `player`: loads the cop models of its wave and gives the wave to the traffic.
@@ -153,9 +184,9 @@ pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[
     }
 }
 
-/// `roadblock`: lays a roadblock of cop cars across the road 250 m ahead (a test of the placement; the support request
-/// that asks for one in a chase is not built, `docs/specs/ai-pursuit-formations.md` section 6). The outcome also goes to
-/// the log file, so a headless run shows it (the console keeps its own buffer).
+/// `roadblock`: lays a roadblock across the road 250 m ahead now, as the request lottery would (a manual setup; in a chase
+/// the roadblocks come by themselves, `docs/specs/ai-pursuit-roadblocks.md` section 1). The outcome also goes to the log
+/// file, so a headless run shows it (the console keeps its own buffer).
 pub(in crate::scenes::world) fn roadblock_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     let result = roadblock_outcome(scene, args);
     match &result {
@@ -174,8 +205,10 @@ fn roadblock_outcome(scene: &mut WorldScene, args: &[&str]) -> Result<String, St
         return Err("the car is not on the road yet; type the command once the drive has started".into());
     }
     let view = drive.player_view();
-    let (collision, _) = scene.residency.world_parts();
+    let (collision, props) = scene.residency.world_parts();
     let surfaces = &scene.physics.surfaces;
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
-    traffic.place_roadblock(view, collision, surfaces).map(|n| format!("roadblock: {n} cop cars placed"))
+    traffic
+        .place_roadblock_with_props(view, collision, props, surfaces)
+        .map(|n| format!("roadblock: {n} cop cars placed"))
 }

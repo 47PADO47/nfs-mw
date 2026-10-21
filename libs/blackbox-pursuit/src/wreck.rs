@@ -426,6 +426,18 @@ mod tests {
     }
 
     #[test]
+    fn destroying_a_car_wrecks_it_once_and_fills_its_damage() {
+        let mut w = Wreck::default();
+        assert!(w.destroy());
+        assert!(w.is_destroyed());
+        assert!(w.damage() >= 1.0, "the health bar reads a full wreck");
+        assert!(!w.destroy(), "a wreck is counted once");
+        let mut hit = Wreck::default();
+        assert!(hit.impact(&MID, 200_000.0, 5.0, 1.0, 10.0), "wrecked by a hit");
+        assert!(!hit.destroy(), "already wrecked: not counted again");
+    }
+
+    #[test]
     fn a_light_hit_does_not_shock() {
         let mut w = Wreck::default();
         // Scale 4000 / 1000 / 40 = 0.1, under the 0.2 floor.

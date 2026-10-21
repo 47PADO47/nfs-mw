@@ -63,6 +63,8 @@ mod widgets;
 pub(crate) mod world_map;
 
 #[cfg(test)]
+mod bust_resume_tests;
+#[cfg(test)]
 mod capability_tests;
 #[cfg(test)]
 mod disabled_rows_tests;

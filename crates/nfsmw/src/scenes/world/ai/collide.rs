@@ -7,7 +7,7 @@ use super::TrafficWorld;
 
 use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
-use crate::scenes::world::drive::{CarSim, STEP};
+use crate::scenes::world::drive::{CarSim, PairContact, STEP};
 
 /// Eye height of a cop and of the player, in metres above the body's centre.
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
@@ -46,6 +46,8 @@ pub(super) struct Hit {
     from_camera: f32,
     striker: DriverClass,
     speed: f32,
+    /// How the two cars met, for the police radio.
+    contact: PairContact,
 }
 
 /// A close pass of the player past a traffic car: the car, the distance between their centres (m) and how fast the
@@ -103,6 +105,8 @@ impl TrafficWorld {
         hits.clear();
         let mut passes = std::mem::take(&mut self.passes);
         passes.clear();
+        // The traffic cars the player hit this step and how fast they closed: the free-roam 911 counts the hard ones.
+        let mut traffic_hits: Vec<(usize, f32)> = Vec::new();
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
@@ -114,6 +118,7 @@ impl TrafficWorld {
                 // A pass is judged on the centres, which can be further apart than the bounding spheres touch.
                 let distance = player.body().position.distance(part.sim.body().position);
                 let player_speed = player.body().linear_velocity.length();
+                let closing = (player.body().linear_velocity - part.sim.body().linear_velocity).length();
                 if near(player, part.sim)
                     && let Some(hit) = player.collide_with(part.sim)
                 {
@@ -126,7 +131,11 @@ impl TrafficWorld {
                         from_camera,
                         striker: DriverClass::Human,
                         speed: player_speed,
+                        contact: hit.pair,
                     });
+                    if part.class == DriverClass::Traffic {
+                        traffic_hits.push((part.owner, closing));
+                    }
                 } else if distance < events.near_miss_distance {
                     passes.push(Pass {
                         owner: part.owner,
@@ -157,6 +166,7 @@ impl TrafficWorld {
                         from_camera: near_a,
                         striker: other.class,
                         speed: speed_b,
+                        contact: hit.pair,
                     });
                     hits.push(Hit {
                         owner: other.owner,
@@ -166,17 +176,20 @@ impl TrafficWorld {
                         from_camera: near_b,
                         striker: part.class,
                         speed: speed_a,
+                        contact: hit.pair,
                     });
                 }
             }
         }
         drop(parts);
+        self.note_traffic_hits(&traffic_hits);
         for hit in &hits {
             if hit.by_player {
                 self.hit_timer = events.hit_memory;
             }
         }
         for hit in hits.drain(..) {
+            self.note_pair_hit(hit.owner, hit.by_player, hit.striker, &hit.contact);
             let first_damage = self.cars[hit.owner].on_hit(
                 hit.impulse,
                 hit.by_player,
@@ -195,9 +208,14 @@ impl TrafficWorld {
         }
         if let Some(player) = player.as_deref_mut() {
             self.strikes.property |= player.take_prop_struck();
+            let smacked = player.take_smacked();
+            self.note_smacked(&smacked);
             self.spike_player(player);
+            self.watch_player(player);
         }
+        self.tick_speech_watch(STEP);
         for pass in passes.drain(..) {
+            self.note_pass(pass.owner, pass.relative_speed);
             let car = &mut self.cars[pass.owner];
             if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
                 car.sounded(events.cooldown);
@@ -229,7 +247,7 @@ impl TrafficWorld {
     }
 
     /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
-    /// section 4.1). Every cop car counts: patrol cars, the chase's cops and the roadblock's. A cop sees the player when
+    /// section 4.1). Every cop car counts: patrol cars and the chase's cops (a roadblock sees by its own rule). A cop sees the player when
     /// the heat's range and rear cone allow it and the world's faces do not block the line from its eyes to the
     /// player's. Between tests the last answer holds.
     pub fn update_sight(&mut self, dt: f32, cast: Cast<'_>) {
@@ -243,17 +261,19 @@ impl TrafficWorld {
             return;
         };
         let level = self.police.patrol_heat();
-        let hidden = self.hidden_from_cars(player);
+        let hidden = self.hidden_from_cars();
         let eye = player + EYE;
-        self.seen_by_cops = self.cars.iter_mut().fold(false, |seen, car| {
-            if !car.is_live_police() {
+        // A roadblock car does not look for the player: the roadblock sees it within 60 m (`roadblock/director.rs`).
+        let roadblock_sees = self.roadblocks.sees_player();
+        self.seen_by_cops = self.cars.iter_mut().fold(roadblock_sees, |seen, car| {
+            if !car.is_live_police() || car.is_roadblock() {
                 return seen;
             }
             let cop = car.physics_position();
             let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
             let facing = car.physics_forward().dot(to_player);
             let distance = cop.distance(player);
-            let out_of_range = match car.is_cop() || car.is_roadblock() {
+            let out_of_range = match car.is_cop() {
                 true => sight::out_of_range(level, distance, facing),
                 false => sight::patrol_out_of_range(distance, facing),
             };

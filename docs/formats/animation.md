@@ -169,12 +169,11 @@ so the reader rejects it.
 
 | Offset | Type | Field |
 |---|---|---|
-| `+0x00` | u8 | Enabled flag. The evaluator skips the element when this byte is zero (`0x4789C0`) |
+| `+0x00` | u8 | Kind (`nType`). The tangent routine (`0x47F490`) gives a key of kind 0 no tangents. The full key table is in "ICE camera keys" below |
 | `+0x10` | f32 | Time key. `0x46D2E0` scans backward for the last element with key `<=` the current time |
-| `+0x14`, `+0x4C`, `+0x54` | f32 | Read by `0x477EE0` in a component-wise difference test. Meaning not confirmed |
+| `+0x14`, `+0x4C`, `+0x54` | f32 | Read by `0x477EE0` in a component-wise difference test: tangent length, dutch and lens (the continuity test of neighbouring keys) |
 
-Position, target and FOV are not pinned yet. The fields that interpolate between keys are the ones
-the evaluator calls, and their offsets are not confirmed here. Other bytes are left raw.
+Position, target and FOV are pinned below ("ICE camera keys"); the bytes after the key table are the same data.
 
 **Shake tracks (`0x0003B211`, handler `0x00478890`).** The payload starts with `u32 N` at `+0x00`.
 Records start at `+0x04`. Each record has a `0x20`-byte header:
@@ -188,9 +187,40 @@ Records start at `+0x04`. Each record has a `0x20`-byte header:
 The next record starts at `record + 0x20 + M*0x18`. The shake walker does not call the duplicate
 lookup. It links into the owner object at `manager+0x10`.
 
-**Not pinned:** the meaning of the camera element's `+0x14`/`+0x4C`/`+0x54` floats and the rest of
-the `0x84` element. The 24-byte shake element is also undecoded. The reader in
-`libs/blackbox-chunk/src/ice/` exposes these as raw bytes.
+**Not pinned:** the 24-byte shake element.
+
+## ICE camera keys **[decomp: `speed.exe` 1.3 and the CC0 `ICEData` header; fields checked against the install]**
+
+A camera set's key (`+0` of the sub-chunk) is the hash of a scene name (`bStringHash`, case-sensitive, seed `~0`,
+`h*33 + c`). Its records are the scene's tracks. The 0x28-byte record header is the ICE track object: `+0xC` start
+(float), `+0x10` length in seconds (float), `+0x14` key count (i16), `+0x17` name (14 bytes, `Track 0`...). The scene
+loader finds a track by the name `Track <n>`. Each 0x84-byte key:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | u8 | kind; 0 = no tangents |
+| `0x01` | u8 | smooth (unused by the evaluator read) |
+| `0x02` / `0x03` | u8 | cubic flag for eye (also dutch, lens) / for the look point |
+| `0x04` / `0x05` | u8 | space of the eye / of the look point: 0 car, 1 world, 2 hybrid, 3 scene |
+| `0x06` .. `0x0A` | u8 | constrain to cars, constrain to world, ignore orientation, car-space lag, overlay |
+| `0x0C` | u32 | shake type |
+| `0x10` | f32 | the key's time, 0 to 1 along the track |
+| `0x14` | f32 x2 | tangent length at the start and at the end |
+| `0x1C` | f32 x3 x2 | eye at the start (x y z) then at the end |
+| `0x34` | f32 x3 x2 | look point, same layout |
+| `0x4C` | f32 x2 | dutch (roll) |
+| `0x54` | f32 x2 | lens, millimetres |
+| `0x5C` | f32 x2 | near clip |
+| `0x64`, `0x6C`, `0x74` | f32 x2 | noise amplitude, noise frequency, focal distance |
+| `0x7C`, `0x7E`, `0x80` | u8 x2 | aperture, letterbox percent, simulation speed percent |
+
+Scene space (3) is the scene's own frame: `+y` is the way the camera looks and `+z` is up; the NIS origin and heading
+place it in the world (`docs/specs/pursuit-breaker-moment.md` section 3). Evaluation (`blackbox_chunk::ice::Track`):
+cubic Hermite per interval with tangents `chord * tangent_length`, field of view `2 atan(15.96 / lens)`, dutch cut to
+an integer 16-bit angle, simulation speed `percent * 0.01` clamped to at least 0.01. Not applied: the smoothing of a
+key's tangents with its neighbours' (the engine does it for keys that continue each other), noise, depth of field,
+the hybrid and car spaces, and the lens-to-angle conversion of the lens tangent (the rewrite curves the lens, the
+engine curves the angle; the two agree when the lens does not change).
 
 **Known gaps in the dispatch:** `0x0047FB6F` (the shake branch of the second dispatch) is not read.
 `0x0047FB40` is not a function start in the Ghidra database, so the second site was not fully

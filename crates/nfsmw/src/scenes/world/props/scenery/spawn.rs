@@ -80,8 +80,10 @@ impl PropWorld {
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
+            fired: false,
             owner: owner.clone(),
             parent_owner: None,
+            intact: false,
         };
         let child = self.insert_fragment_with(body, spec, Vec::new(), owner, true)?;
         if fragment.no_physics {

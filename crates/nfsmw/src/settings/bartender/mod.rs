@@ -103,6 +103,12 @@ impl BartenderSettings {
         self.level(level).time_per_level
     }
 
+    /// Whether the file left the growth time of `level` at the stock value, so the install's per-bin times apply.
+    pub fn time_per_level_is_stock(&self, level: u32) -> bool {
+        let stock = vanilla::TIME_PER_LEVEL[(level as usize).clamp(1, LEVELS) - 1];
+        (self.time_per_level(level) - stock).abs() < f32::EPSILON
+    }
+
     /// The speed under which the player is busted at `level`, metres per second.
     pub fn bust_speed_mps(&self, level: u32) -> f32 {
         self.level(level).bust_speed_kph / KPH_PER_MPS

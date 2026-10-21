@@ -52,7 +52,7 @@ impl Police {
     /// Advances the busted timer one frame. Returns `true` on the frame the player is busted; the world then ends the
     /// pursuit. Nothing runs without a chase on.
     pub(super) fn tick_busted(&mut self, dt: f32, pursuing: bool, input: BustInput) -> bool {
-        if !pursuing || self.heat.is_none() {
+        if !pursuing || self.heat.is_none() || self.busted_hold {
             return false;
         }
         let tuning = self.bust_tuning();
@@ -62,6 +62,15 @@ impl Police {
     /// The busted meter, 0 to 1 (1 once busted); it keeps its value after the chase ends, until the next chase.
     pub fn busted_meter(&self) -> f32 {
         self.busted.meter(&self.bust_tuning())
+    }
+
+    pub fn set_heli_camera(&mut self, camera: Option<blackbox_pursuit::helicopter::camera::Camera>) {
+        self.heli_camera = camera;
+    }
+
+    /// Holds the busted meter where it is (a cinematic moment plays): the timer neither fills nor drains.
+    pub fn hold_busted(&mut self, hold: bool) {
+        self.busted_hold = hold;
     }
 
     /// A manual reset (the player's reset key) starts the post-reset blink.
@@ -161,6 +170,8 @@ impl super::super::TrafficWorld {
         self.police.cooldown = Cooldown::default();
         self.police.reset_blink = 0.0;
         self.cars.retain(|car| !car.is_police());
+        // The original restarts the world after the ticket, which locks the cops out again.
+        self.cops.lock_out();
         true
     }
 

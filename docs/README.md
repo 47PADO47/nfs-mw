@@ -114,7 +114,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/attributes.md](formats/attributes.md) | AttribSys `VPAK` packs, vaults, exports, hash, the 57 classes | Layout verified |
 | [formats/cardata.md](formats/cardata.md) | Car types, parts database, slot types, presets, light materials, solid markers, `ecar`, vinyls | Car tables verified; vinyls partial |
 | [formats/animation.md](formats/animation.md) | EAGL4 ELF objects, skeletons, banks, NIS cutscenes | Container verified; codecs open |
-| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx` verified, `.evt` and `.csi` partial |
+| [formats/audio.md](formats/audio.md) | Sound banks, GIN engine loops, MPF/MUS music, speech, reverb | Codecs known; speech `.idx`, `.evt`, `.csi` verified ([speech-evt.md](formats/speech-evt.md)) |
 | [specs/car-audio-tyres-transmission.md](specs/car-audio-tyres-transmission.md) | Authored skid and transmission producers | PC bounds and installed playback regressions |
 | [specs/car-audio-road-weather.md](specs/car-audio-road-weather.md) | Road transitions, stitch road and weather wind | PC parameters; render-clock policy explicit |
 | [specs/car-audio-environment.md](specs/car-audio-environment.md) | Engine environment, distance filtering and software effects | Authored spatial maps, zone selection and FXEDIT wet bus; backend limits explicit |
@@ -176,7 +176,7 @@ contract has a companion provenance record and an explicit validation boundary.
 | `TroughBoundary.bin` chunk `0x00034190` (not in the decomp's chunk list) | — |
 | EAGL bank header and channel layouts | `EAGL4Anim/*` in the decomp |
 | Where a compressed palettized texture keeps its palette | no example in car packs; check world/frontend streams |
-| Speech sentence rules (`.evt` parameter tests, `.csi` tables), reverb and mix presets | [formats/audio.md](formats/audio.md) |
+| Reverb and mix presets; the table after the records of `copspeech.evt` | [formats/audio.md](formats/audio.md), [formats/speech-evt.md](formats/speech-evt.md) |
 | FEngFont glyph format | [formats/frontend.md](formats/frontend.md) |
 | Save header bytes 0x08–0x33 | answered in [formats/career-save.md](formats/career-save.md) (CRCs and descriptor) |
 | What moves the career stage on after bin 15; the bounty divisor at run time; the Lua rules (safe house heat reset) | [specs/career.md](specs/career.md#open-questions-all-pages) |

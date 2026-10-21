@@ -57,3 +57,37 @@ fn the_patrol_speeds_are_the_documented_defaults() {
     let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
     assert_eq!(patrol_speeds_mph(&db), (50.0, 71.0));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_siren_rows_are_read_for_every_heat_level() {
+    use nfsmw_data::pursuit_siren::siren_data;
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    let data = siren_data(&db);
+    assert_eq!(data.rows.len(), 10);
+    for (level, row) in data.rows.iter().enumerate() {
+        println!("heat {}: {row:?}", level + 1);
+        assert!(row.wail_period > 0.0 && row.max_yelp_time > 0.0, "heat {} has no wail/yelp times", level + 1);
+        assert!(row.scream_period > 0.0 && row.max_scream_time > 0.0, "heat {} has no scream times", level + 1);
+        assert!(row.init_min_period > 0.0, "heat {} has no opening gap", level + 1);
+    }
+    println!("intensity: heat {} or {} s", data.high_intensity_heat, data.high_intensity_secs);
+    assert_eq!(data.high_intensity_heat, 2);
+    assert_eq!(data.high_intensity_secs, 150.0);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_backup_rows_match_the_documented_table() {
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    let rows = nfsmw_data::pursuit::backup_rows(&db);
+    assert_eq!(rows.len(), 10);
+    let radius: Vec<f32> = rows.iter().map(|r| r.engagement_radius).collect();
+    let trigger: Vec<u32> = rows.iter().map(|r| r.trigger).collect();
+    let timer: Vec<f32> = rows.iter().map(|r| r.call_timer).collect();
+    assert_eq!(radius, [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 200.0, 50.0, 200.0]);
+    assert_eq!(trigger, [2, 2, 2, 2, 2, 2, 2, 3, 5, 5]);
+    assert_eq!(timer, [180.0, 120.0, 120.0, 120.0, 90.0, 90.0, 90.0, 60.0, 45.0, 60.0]);
+}

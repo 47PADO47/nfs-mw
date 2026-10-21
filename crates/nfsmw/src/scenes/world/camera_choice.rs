@@ -10,6 +10,9 @@ impl WorldScene {
     /// The lens for this frame: an original view on the car, the chase camera (or its dynamic-FOV variant), or the
     /// free camera when there is no car to follow.
     pub(super) fn gameplay_lens(&self, aspect: f32) -> Lens {
+        if let Some(lens) = self.moment.lens(aspect) {
+            return lens;
+        }
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
@@ -25,6 +28,9 @@ impl WorldScene {
 
     /// The selected retained shot on the physical body, independent of render interpolation.
     pub(super) fn simulation_lens(&self, aspect: f32) -> Lens {
+        if let Some(lens) = self.moment.lens(aspect) {
+            return lens;
+        }
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };

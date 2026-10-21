@@ -1,7 +1,6 @@
 //! Traffic participates in the world's physics tick, including its spawning and pursuit timers.
 
 use blackbox_collision::CollisionWorld;
-use blackbox_pursuit::breaker;
 use glam::Vec2;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -15,9 +14,23 @@ impl TrafficWorld {
     pub fn set_damage_view(&mut self, view: glam::Vec3) {
         self.damage_view = Some(view);
     }
+    /// Takes the zones the scenery events opened this tick (`EBreakerStopCops`).
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
-        self.breaker_areas.extend(areas);
+        for area in areas {
+            if area.gas_station {
+                // The breaker's own sequence blew it up: the player's chase set it off.
+                let at = area.position.to_array();
+                self.note_speech(crate::audio::WorldEvent::GasStation { by_player: true, at });
+            }
+            self.breaker_zones.push(Vec2::new(area.position.x, area.position.z), area.radius, area.duration);
+        }
     }
+
+    /// The live pursuit breaker zones as (centre x, centre z, radius, seconds left), physics space.
+    pub fn breaker_zone_list(&self) -> Vec<(f32, f32, f32, f32)> {
+        self.breaker_zones.iter().map(|z| (z.centre.x, z.centre.y, z.radius, z.remaining)).collect()
+    }
+
     pub(super) fn has_work(&self) -> bool {
         !self.cars.is_empty() || self.target > 0 || self.pursuit.is_some() || self.patrol_enabled()
     }
@@ -34,6 +47,7 @@ impl TrafficWorld {
         bodies.clear();
         bodies.extend(self.cars.iter().map(|c| (c.avoidable(), c.is_cop())));
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
+        self.watch_ground(focus.body.map(|b| b.position), collision);
         let target = self.pursuit_target(focus.body);
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
         let mut aims = std::mem::take(&mut self.aims);
@@ -50,13 +64,11 @@ impl TrafficWorld {
             car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
-            let in_breaker = car.is_live_police()
-                && self.breaker_areas.iter().any(|area| {
-                    area.duration > 0.0
-                        && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
-                });
-            if in_breaker {
-                car.destroy_police();
+            // A police car inside a breaker zone is destroyed, however it got there (`ApplyBreakerZones`); it is counted
+            // as a wreck below, like one from damage. A roadblock car holds its place with the brakes on.
+            if car.is_live_police() && self.breaker_zones.covers(point) {
+                log::info!("pursuit breaker: {} destroyed at {:?}", car.name, point);
+                car.destroy_by_breaker();
             }
             car.set_breaker_stop(car.is_roadblock());
             car.set_avoidance(self.avoidance);
@@ -84,13 +96,11 @@ impl TrafficWorld {
             }
             car.step_lights();
         }
+        self.watch_cops_against_walls();
         self.bodies = bodies;
         self.aims = aims;
         self.signal_time += STEP;
-        for area in &mut self.breaker_areas {
-            area.duration -= STEP;
-        }
-        self.breaker_areas.retain(|a| a.duration > 0.0);
+        self.breaker_zones.step(STEP);
     }
 
     /// Commit contact poses and advance every gameplay timer by exactly one tick. `camera` is the lens the
@@ -105,6 +115,7 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) {
+        self.cops.set_eye(glam::Vec3::from(crate::scenes::world::space::to_physics(camera.position)));
         for car in &mut self.cars {
             car.sync_contacts();
             if car.is_damaged_cop()
@@ -117,6 +128,7 @@ impl TrafficWorld {
         let finishing = self.warmup_left > 0.0 && self.warmup_left <= STEP;
         self.warmup_left = (self.warmup_left - STEP).max(0.0);
         self.update_pursuit(STEP, focus, collision, surfaces);
+        self.apply_breakers_to_helicopter();
         self.log_timer += STEP;
         if self.log_timer >= 5.0 && log::log_enabled!(log::Level::Debug) {
             self.log_timer = 0.0;
@@ -126,6 +138,7 @@ impl TrafficWorld {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
         self.recycle(STEP, focus, camera, shown, props);
+        self.service_spawn_requests(focus, collision, surfaces);
         let enabled = self.target > 0 || self.patrol_enabled();
         if activation::due(&mut self.spawn_timer, STEP, enabled) {
             self.manage(activation::PERIOD, focus, collision, surfaces);

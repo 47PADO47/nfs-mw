@@ -60,6 +60,7 @@ impl CarSim {
             None => Impact::default(),
         };
 
+        self.smacked.append(&mut impact.smacked);
         self.prop_struck |=
             impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
 
@@ -100,6 +101,8 @@ impl CarSim {
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
             *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
         }
+        let body = self.vehicle.body();
+        self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
         impact
     }
 }

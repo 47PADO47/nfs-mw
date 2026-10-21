@@ -85,11 +85,18 @@ TerminatePursuit(forced bail-out; game-mode driven) --> music terminal, queue cl
 ## 3. Actors: voices, call signs and the leader
 
 - Every cop car with the cop driver class that the pursuit lists gets an `EAXCop` actor when it first appears (`AddNewCop`), with a
-  **voice** (speaker id) taken from a shuffled pool of ids 3 to 9 (one voice per actor, so at most six ordinary speaking cops plus the cross car; extra
-  cars get no actor until a voice frees up), a **battalion** and a **call sign number**.
-  Voice choice: roadblock cars take a secondary voice (6 to 8), the cross car takes voice 9, others the first primary or
-  secondary left. If the pool is empty the new car adopts the identity of the actor that is farthest away (the actor's handle moves
-  to the new car).
+  **voice** (speaker id) taken from a shuffled pool of ids 3 to 9 (one voice per actor), a **battalion** and a **call sign number**.
+  The order of the choices **[decomp, Ghidra-checked in `speed.exe`: the branch conditions of the function that builds a new actor]**:
+  1. the battalion: by the car's model (below), else by the road under it, else random (a car whose nav has no road id at all is
+     skipped);
+  2. unless the car is the cross car: if an existing actor that is not the helicopter is **farther from the player than the new car**
+     (and the new car is not a roadblock car), the new car **takes over that actor** (the actor's handle moves to the new car; it keeps
+     its voice, and gets a new battalion and call sign). This happens whenever such an actor exists, not only when the voice pool is
+     empty;
+  3. otherwise a voice is taken from the pool: the cross car takes voice 9 (only when it is free), a roadblock car a secondary voice
+     (6 to 8), every other car the first of voices 3 to 8 left; **the default pool excludes voice 9, so at most six ordinary speaking
+     cops** (plus the cross car). With no voice free the car has no actor.
+  Actors are also dropped when their car is unspawned with a "remove" reason, and the voice returns to the pool.
 - **Battalion** (what the cop calls himself): by vehicle for the SUVs (`copsuv`, `copsuvl`, `copsuvpatrol`: Rhino Units 32) and the
   super-pursuit cars (`copsport`, `copsportghost`, `copsporthench`, `copcross`: Super Pursuit 16); otherwise by the road the cop is on (region
   city: City 4, coastal: Coastal 2, college town: Rosewood 1) or random among Rosewood, Coastal, City, Alpine (1, 2, 4, 8). Dispatch is 256, air
@@ -155,7 +162,7 @@ Bailout         pursuit became Inactive: a random cop says the low bail-out
 ChangeTarget    pursuit became OtherTarget: the closest cop says "focus change", dispatch escalation
 ```
 
-A hit on a cop by the player during PursuitFlow (closing speed over 25 mph, deliberate) restarts the flow with cause CopAssaulted unless an
+A hit on a cop by the player during PursuitFlow (past the closing gate of section 7, deliberate) restarts the flow with cause CopAssaulted unless an
 "assault" line has already been said; the cop that was hit calls `WasRammed`. **[decomp]**
 
 ## 6. Strategy flow, lost contact and dead air
@@ -191,15 +198,20 @@ A bit set tracks the current roadblock: set up, seen, helicopter joined, averted
 - **Enabled flags.** When `roadblockprobability`, `roadblockhelichance` or `roadblockspikechance` of the current row change between zero and non-zero, a request line is
   made once the pursuit has said an "initiate strategy" or "self strategy" line: with roadblocks still disabled and none called yet, the leader says "call for roadblock" and dispatch
   replies *no* and the leader "negative roadblock reply"; when they become enabled (or spikes become enabled) the leader says "call for roadblock" (or the reminder if it was said)
-  and dispatch replies *yes* (type spikes, multiple or generic); a helicopter roadblock adds a backup call for air support.
-- **Set-up.** When a roadblock appears (`REQ_SERVICE`): if it is the second or later one, a secondary cop says "call for sub-roadblock" or dispatch "sub-roadblock reply";
-  otherwise dispatch updates (no) and a secondary says "negative roadblock reply" (first state), or, once the cars are placed (message `MReqRoadBlock` "Position" with the
-  spike-strip offset), the spike position comment (one strip) or the roadblock cop says "roadblock approach"; before the player sees it, half the time dispatch updates and a primary says
-  "pursuit approaching", otherwise the roadblock warning plays. With line of sight to the roadblock (any roadblock car seeing the player or in view) a random secondary says "roadblock approach".
+  and dispatch replies *yes* (type spikes, multiple or generic). The helicopter's roadblock request (a backup call for air support) needs the "requested" and "called for" flags, which no code
+  of the flow ever sets, so it never runs. **[decomp]**
+- **Set-up.** When a roadblock appears (`REQ_SERVICE`), once the cars are placed (message `MReqRoadBlock` "Position" with the spike-strip offset) the flow says the spike position (one strip
+  or fewer) or a roadblock cop (else a random secondary) says "roadblock approach"; before the position is known, half the time dispatch updates and a primary says "pursuit approaching"
+  (not while dispatch is still talking), otherwise the roadblock warning plays. With line of sight to the roadblock a random secondary says "roadblock approach". Two things in the
+  decompiled code differ from a straight reading: the "line of sight" bit is set when a roadblock car sees the player and **cleared at the very next look** (so it toggles every update), and
+  the opening branch of the set-up (the "second roadblock: call for sub-roadblock", dispatch "no" and "negative roadblock reply") is reachable only with the set-up bit clear, while the
+  service runs the set-up only with it set: it never runs. `NumRoadBlocks` is never assigned, so dispatch's roadblock updates always use the generic type. **[decomp]**
 - **Outcome.** The player hitting spikes, another roadblock object or a roadblock car marks "engaged" (the message `TireBlown` marks spikes); a dodge (`MReqRoadBlock` "Dodged") marks "averted".
-  After `RBOutcomeTimer` (1.5 s): engaged and not averted with LOS: a random cop says "arrest"; then a secondary says "roadblock engage" (with or without the spikes variant) or a generic engage
-  line; averted without engagement: "roadblock averted" (from dispatch, a secondary, or a generic line; spikes always use the generic averted line) and a primary may call the
-  next sub-roadblock. The flow resets after `RBPostOutcomeResetTime` (2 s) once the line was said.
+  After `RBOutcomeTimer` (1.5 s) the outcome timer is cleared only when the roadblock was averted (alone or together with a hit). **Engaged without a dodge keeps the timer set**, and the
+  flow then only repeats its "arrest" request (a random cop with sight, while the line-of-sight bit is on) and never reaches the outcome lines **[decomp + Ghidra: the three clearing
+  conditions and the early return were read in `speed.exe`]**. With the timer cleared: a roadblock with a damaged or destroyed cop, or one that was hit, gets "roadblock engage" (a secondary half the
+  time, else the generic engage line, with or without the spikes variant); one that was only dodged gets "roadblock averted" (dispatch, a secondary, or a generic line; spikes always use the generic averted line)
+  and a primary may call the next sub-roadblock. The flow resets after `RBPostOutcomeResetTime` (2 s) once the line was said.
 
 ### 6.2 Lost contact
 
@@ -207,6 +219,11 @@ In focus Lost the machine says, as `PerpLostTime` passes 5 s (and stays below 15
 "wrong suspect", else (random of 3) "suspect possibly gone", "quadrant moving" or "other lead"; then it is expired. When the cool-down is complete (evaded) dispatch says
 "time expired" once. When forced to terminate by bail-out: the "bail-out" line. On `TerminatePursuit` with no cop in view the last speaker says "lost suspect"; dispatch says "break away" with the last known
 location and heading. **[decomp]**
+
+Notes on the lost sequence **[decomp]**: the quadrant lines are said from `SyncPursuit` itself (not from a flow), while the strategy flow sits in its "lost" state, which only ends it (to its terminal, that
+resets it). The "time expired" line needs the pursuit to be gone (null) or in the evaded state **and** the quadrant sequence expired; in the decompiled branch order the same condition that says the quadrant lines is tried first, so the
+line comes when the channel is busy (a queued line counts) or after 153 s; the Rust port treats an evaded pursuit like a finished one (it says "time expired" at once when the sequence has expired). **[inferred]**
+When the focus is Lost and the pursuit comes back within 153 s the opening flow runs again with the cause "reacquired" ("re-initiate pursuit" by the closest cop, or "spotted"/"regain visual" when the loss was under 3 s).
 
 ### 6.3 Dead air (`DealWithDeadAir`)
 
@@ -216,8 +233,9 @@ needed) and the leader answers with "pursuit update reply" or a "location report
 ## 7. Observations: crashes, stunts and the player's driving (`Observer`)
 
 `Observer` runs only while the speech pursuit state is Active, skips when the focus is the pursuit flow and busted is near (< 0.5), and processes queued observations plus the assessments below. Collision
-observations come from `SoundAI::OnCollision` (every vehicle in the chase is a listener): closing speed above 25 mph and an impact **intensity** =
-`clamp((impulse - 10 mph) / (30 mph - 10 mph), 0, 1)` (from `PlayerSmashSpeedRange`). **[decomp]**
+observations come from `SoundAI::OnCollision` (every vehicle in the chase is a listener): a closing velocity whose *squared* length is 11.176 or more (the original compares it with 25 mph taken as metres per second, so hits closing under 3.34 m/s are dropped) and an impact **intensity** =
+`clamp((impulse - 10 mph) / (30 mph - 10 mph), 0, 1)` (from `PlayerSmashSpeedRange`; the impulse is the speed the two bodies lost between them). The world's side of every row below, with the
+thresholds and the message senders, is in [ai-pursuit-speech-world.md](ai-pursuit-speech-world.md). **[decomp]**
 
 | Trigger | Condition | Line |
 |---|---|---|
@@ -226,7 +244,7 @@ observations come from `SoundAI::OnCollision` (every vehicle in the chase is a l
 | player hits world | speed loss over 66 % (`CrashSlowdownPct`) | "collision world" family: the closest LOS cop; variants for semi/tractor trailer, train, guardrail, spike belt, gas station explosion (set by the world event `expl_gas_station`; "call for EV" from cops within 50 m for 15 s) |
 | player hits traffic | traffic hits with intensity >= 0.5 counted for 911 | "collision world civilian" |
 | cop hits world | intensity >= 0.85 | the cop bails out (bad-road variant with weather) |
-| airborne | altitude >= 0.5 m for 0.9 s, a cop has LOS | "collision world air" normal / high (speed >= 100 mph) |
+| airborne | altitude >= 0.5 m for 0.9 s, a cop has LOS (`NotifyAirborne` has no caller in the decompiled sources) | "collision world air" normal / high (speed >= 100 mph) |
 | rolled over | up vector down for 1 s | "collision world flip" |
 | u-turn (180) | heading dot road < 0.7, passes -0.7 within 12 contiguous samples and 50 m and 5 s | "suspect u-turn" |
 | hard braking | brake or handbrake full, road alignment >= 0.7, speed > 60 mph, no crash/ram within 5 s, then a speed loss over 66 % | "suspect brake" |
@@ -249,7 +267,10 @@ observations come from `SoundAI::OnCollision` (every vehicle in the chase is a l
   When the report ends, `Force911State` sets `Lifetime911` seconds on the player's 911 timer and clears the cop lockout. "More details" and a "vehicle description"
   (colour, car type) follow with 50 %. A scripted version occurs during the final 20 s of the cop lockout in non-roaming, non-race play.
 - **Heat jumps:** after 5 s of chase in the strategy focus, the heat rising across 2, 3, 4 or 5 makes dispatch (50 %) or a cop/heli say "heat jump" with the level; another coin flip adds a
-  "jurisdiction shift" to state police at heat 3.x and federal at 5+. **[decomp]**
+  "jurisdiction shift" to state police at heat 3.x and federal at 5+. The heat the comparison starts from is a function-local static that is never reset (a jump needs a new maximum of the session). **[decomp]**
+- **Decompiled quirks that change what is said:** "havoc" is the free-roam damage counter, which is cleared whenever a pursuit is Active or Searching, so the "suspect behaviour" line (havoc 200) and the
+  "havoc over 1000" wording of the opening effectively never apply in a chase; a heading is reported only when the road speech id is between 1 and 80 and the direction has held for 3 s; the "call to
+  position" line reads the offset of the *speaker* (the leader), not of the cop being called. **[decomp]**
 
 ## 9. Interactive pursuit music (`MusicFlow`)
 
@@ -280,26 +301,61 @@ seconds; when contact is lost the siren turns off; afterwards: for the first 6 s
 (6 s) every `SirenWailPeriod + SirenMaxYelpTime` (11 + 6 s); while a formation is collapsing, a finisher is running, or the re-initiate / spotted / bullhorn lines play, a cop in formation screams
 (high intensity) for up to 3 s every 60 s, or yelps. A cop in a roadblock always wails; a cop whose lights are off is off, or "die" when destroyed. **[decomp]**
 
+(The sound side, the voice limits and the data are in [cop-siren-audio.md](cop-siren-audio.md).)
+
 ## Rust implementation notes
 
-- Split into `pursuit` (game logic, no audio) and `pursuit_speech` (a resource that reads `PursuitView` and emits `SpeechRequest { event, params, speaker }`). The audio layer owns the queue of
-  [ai-pursuit-speech-events.md](ai-pursuit-speech-events.md) section 3.
-- Needed from the pursuit: status, `IsPerpInSight`, `GetEvadeLevel`, `TimeUntilBusted`, `IsCollapseActive`, `IsFinisherActive`, `GetFormationType`, `GetBackupETA`, `GetNumCopsDestroyed`, cops list with
-  LOS flag, distance, formation flags, roadblock presence and cop membership, the 911 timer and lockout hooks. Needed from the world: road speech ids (not documented yet), the SPAM map for off-road moments,
-  car colour and verbal type, the camera view test.
-- Without the `.evt` / `.idx` / `.csi` decoders, a rewrite can log the requests or use the event name only; the siren state, the 911 call, the music state and the busted-mixer level can be implemented
-  without speech samples.
-- Voices and call signs: keep a seeded RNG; the shuffling is cosmetic.
+Built (2026-10-20), from this spec and with the decompiled flows read for the details above:
+
+- **The machine** is `libs/blackbox-pursuit/src/speech/` (`blackbox_pursuit::speech`), pure and engine-generic: it reads a `Snapshot` (pursuit, player, cops, helicopter, roadblock, level
+  settings), a list of `Notice`s (the game's messages and collisions) and a `Channel` (the radio queue's busy state and history), and returns `Request { line, speaker, params, talker }`
+  plus `Effect`s (clear the queue, reset the history, recall a line, the busted level, the end of a 911 call). Files: `actors` (voices, call signs, the roster), `sync_actors` / `sync_pursuit` /
+  `sync_player` (the main update), `pursuit_flow` + `pursuit_spotter`, `strategy_flow`, `roadblock_flow`, `observer` + `observer_said`, `notices` (collision reactions), `say` / `say_events` /
+  `say_dispatch` (what each actor method fills), `machine` (the two task rates, 0.1 s and 0.25 s). The lines are `Line`, the typed parameters `Params`; the game names, voice layout and thresholds
+  are passed in (`Layout`, `Tune`), none are defaults of the library.
+- **The game's side** is `crates/nfsmw/src/audio/chase/radio/`: `snapshot` (the world feed to the snapshot, and the notices from the change between two feeds), `tables` (voices 1 to 9, the battalions and
+  their call sign pools, the road-name table of 85 named roads, the cop models' battalions), `params` (each `Line` to its speech event and each typed value to its bit), `channel` (the dispatcher as the
+  machine's channel), `mod` (`ChaseRadio`: runs the machine each frame and sends the lines to the speech). The world fills the feed in `scenes/world/ai/police/speech_feed.rs`; the player's car type
+  (`pvehicle.VerbalType`) and stock paint (`SPEECHCOLOUR`) come from `scenes/world/speech_look.rs`. Console: `speech flow`.
+- **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
+  roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's
+  arrival time, the pedals, the up vector and the direction of the road under the car, and the world's **events** ([ai-pursuit-speech-world.md](ai-pursuit-speech-world.md)): the player against a wall,
+  a prop, traffic or a cop (with the contact classified as rear-end, T-bone, head-on or side swipe, and whether the ram was deliberate), a cop against traffic or a wall, a jump (told on landing), a passing
+  cop, a tunnel, a gas station blast, a roadblock built, dodged, hit (sawhorse, car, burst tires), and the ram and leader support calls and refusals. A cop wrecked by a breaker is a destroyed, inactive
+  cop, which the machine calls in as "unit disabled". **Inferred, not read from the game:** a cop's sight is the world's sight test applied to that cop's range and cone (no second ray cast); "in view" is that sight
+  within 150 m (no camera test); a cop is "in formation" when the formation gives it a slot; the road's direction is the nearest segment's centre line turned to the way the car went; the gas station blast is
+  taken as set off by the player; a jump is told on landing.
+- **The free-roam 911 call is supplied** (`audio/chase/roam.rs`, `scenes/world/ai/police/roam_911.rs`): with no chase the world gives the
+  machine a free-roam frame (the player, the heat, the lockout, the props smashed and the traffic hits since the last frame, a restart
+  after a lockout); the machine says the report and `Audio::take_911_call` returns `Lifetime911` to the world. See
+  [ai-pursuit-heat.md](ai-pursuit-heat.md) section 5.3.
+- **Not supplied by the world, so unset:** the off-road places (the track's "Speech" parameter map is installed and
+  holds the place ids, but the id-to-place table of the original was not available), AI racers (this world has none). **Never raised by the original:** the helicopter
+  joining a roadblock (`ReqHeliJoin` has no sender), the guardrail, train and spin-out variants of a crash. Dispatch's "no" to a heavy or leader support request has no recording (event 184 has only the
+  "no units" version), so it is not heard, as in the original.
+- The siren state and the pursuit music (section 9, 10) are separate and unchanged. The busted level for the radio's muffling and the 911 call's `Lifetime911` leave the machine as effects and are held by `ChaseRadio` (the
+  speech sink plays a line at the speech volume only: the radio chirp, clarity, pan and the busted muffling go through the dynamic mixer's speech object, see
+  [ai-pursuit-speech-world.md](ai-pursuit-speech-world.md) section 5).
+- Voices and call signs use a seeded generator; the shuffling is cosmetic.
 
 ## How to check it
 
+Unit tests: `cargo test -p blackbox-pursuit speech` (the machine on scripted chases: the opening exchange and its parameters, the lost sequence, strategy and backup, roadblocks, the observer, 911) and
+`cargo test -p nfsmw audio::chase` (the adapter). Installed tests (`NFSMW_GAME_DIR`, `--release -- --ignored --test-threads=1`): every line has an event in the install, the speech tuning equals the table of
+the events file, and a scripted chase timeline driven through the machine into the real recordings assembles every request to audio. In the game: `speech flow` shows the focus, the flows and the cops' voices.
+Nobody has listened to the result next to the original.
+
 (1) Start a chase at 70 mph past a patrol cop: the first line is "attempt vehicle stop" within a few seconds, the dispatch "go ahead" next; (2) stop the car: the player-stopped branch cuts the cop short;
-(3) hit a cop at speed and watch the cause switch to "assaulted"; (4) hide for 5 s: "lost visual", then the quadrant lines, then "time expired" at the end of cool-down; (5) get arrested: "bullhorn arrest" while the
-busted bar is above 0.8; (6) free roam: smash property to the 911 threshold with no cops around and confirm the call and the `Lifetime911` window.
+(3) hit a cop at speed and watch the cause switch to "assaulted"; (4) hide for 5 s: "lost visual", then the quadrant lines; (5) get arrested: "bullhorn arrest" while the busted bar is above 0.8.
 
 ## Open questions
 
-- The `.evt` / `.idx` / `.csi` formats and the SPCH sentence selection (how parameters pick samples).
-- The road speech id table (`MWRoadNames`) and the SPAM speech map for off-road moments: data layouts not documented.
+- *Answered:* the `.evt` / `.idx` / `.csi` formats and how parameters pick takes are in [formats/speech-evt.md](../formats/speech-evt.md) and [speech-sentences.md](speech-sentences.md). The values of each parameter and the argument list of each event are in `crates/nfsmw/src/audio/speech/params/`.
+- *Answered:* the road speech id (`WRoad.nSpeechId`) is the `speech_id` of each road of the road network ([formats/road-network.md](../formats/road-network.md)); the table from road id to region and location is the original's
+  `GetLocation`, written down in `chase/radio/tables.rs` (ids 1 to 83, 85 and 86 have a name; 84, 87 and the off-road places 88 up do not).
+- The SPAM speech map: the layer "Speech" of the track's parameter maps is installed (26 sets, integer field 1 is the id, -1 to 27); the table from id to the 24 named places (`GetSPAMLocation`) is still to be read.
 - The `kNeverVisibleRespawnTime` and `DESTROY_COPS_ON_INACTIVITY` constants (build-time) and the PC value of `SpeechFlow` display flags.
-- Behaviour of the helicopter actor lines (`EAXAirSupport.cpp`) beyond the event list of the events file.
+- Whether the original's `IsCopSpeechBusy` includes requests still waiting in the queue; the port counts them (the flows then wait for the lines they asked for). **[inferred]**
+- The `std::sort` of cop pointers that the flows use to choose "the first" cop is an address order; the port takes the cop that joined first.
+- Behaviour of the helicopter actor lines (`EAXAirSupport.cpp`) beyond the event list of the events file is ported as read (self strategy, lost visual, intent to bail, bail-out, swarming, spotter, hazard alert, bullhorn arrest);
+  the quadrant lines of the helicopter are not asked for by the flows.

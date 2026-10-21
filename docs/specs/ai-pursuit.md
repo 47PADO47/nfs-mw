@@ -268,6 +268,10 @@ remaining = max(0, required - sum), clamped to GetCoolDownTimeRequired() = requi
 if busted or bailed: evade_level = 0
 ```
 
+**HUD bar.** The pursuit board does not draw `evade_level`. Its cool-down bar is `1 - remaining / (required - 7)` with `remaining`
+clamped as above, so it opens empty even though `evade_level` already holds the 7 s grace (`sum / required` is about 0.35 at heat 1).
+The rewrite feeds the bar from `Cooldown::bar` and keeps `level` for the signed meter. **[decomp]**
+
 `mode_timer` grows by dt each update; the 2.5 s gates stop the meter flickering between the chase and the cool-down
 display. Because `sum` already includes the 7 s grace window, the cool-down shows `required - 7` seconds of progress
 bar; this is why the HUD is given `required - 7` as the full length. Consequences in numbers (`evadetimeout`,

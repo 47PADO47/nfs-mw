@@ -3,8 +3,9 @@
 //! one defaults to on. The file is `NFSMWAirSupportSettings.ini` next to the config file, read with `ini-tuning`
 //! (`[Section]` headers, `Key = value` lines, `//` comments). A missing file is all on; a malformed value is on.
 //!
-//! The groups that are wired in `cues.rs` are gated by [`AirSupport::allows`]. The other switches are read and held
-//! here so the config surface is complete; their TODOs are in `chase.rs`.
+//! The lines the radio machine asks for are gated by [`AirSupport::allows_line`], the weather cue of `cues.rs` by
+//! [`AirSupport::allows`]. The other switches are read and held here so the config surface is complete; their TODOs are
+//! in `chase.rs`.
 
 use std::path::Path;
 
@@ -64,21 +65,27 @@ air_support! {
 }
 
 impl AirSupport {
-    /// Whether a cue may be said. The base chase lines (lost, regained, heat jump) are never switched off here.
-    /// `TimeExpired` is the dispatch's "time expired" at the end of a lost search; it belongs to the mod's
-    /// `SearchPattern` group, which the mod describes as the call when the chase cools down. That mapping is our
-    /// reading of the mod's description, to be checked in play. `CopDown` as `KillShot` is also a guess: the mod's
-    /// kill-shot group may be the helicopter's kill line, not the cop-down one.
+    /// Whether the weather cue may be said (the `WeatherReport` switch).
     pub fn allows(&self, cue: Cue) -> bool {
         match cue {
-            Cue::Lost | Cue::Regained | Cue::HeatJump | Cue::Escaped => true,
-            Cue::TimeExpired => self.search_pattern,
             Cue::Rain => self.weather_report,
-            Cue::RoadblockCalled => self.roadblock_call,
-            Cue::BeenHit => self.been_hit,
-            Cue::HeliLost => self.reacquire,
-            Cue::HeliSpotted => self.spotted_again,
-            Cue::CopDown => self.kill_shot,
+        }
+    }
+
+    /// Whether the radio machine may ask for `line`: the lines that have a switch obey it (the same readings of the mod's
+    /// groups as [`AirSupport::allows`]); every other line is always allowed.
+    pub fn allows_line(&self, line: blackbox_pursuit::speech::Line) -> bool {
+        use blackbox_pursuit::speech::Line;
+        match line {
+            Line::DispTimeExpired => self.search_pattern,
+            Line::WeatherReport => self.weather_report,
+            Line::CallForRoadblock => self.roadblock_call,
+            Line::CollisionWorld | Line::CollWorldCivi | Line::CollWorldSpin => self.been_hit,
+            Line::HeliLostVisual => self.reacquire,
+            Line::Spotted => self.spotted_again,
+            Line::UnitDisabled => self.kill_shot,
+            Line::IntentToRam => self.ram_lines,
+            _ => true,
         }
     }
 }

@@ -179,6 +179,8 @@ pub enum Command {
     CareerDelete(String),
     /// Buy or sell a car on the car lot, after its confirmation (`career_screens/car_lot.rs`).
     CarLot(super::career_screens::car_lot::CarLotAction),
+    /// The career car select asks for something (`career_screens/car_select.rs`, `flow_bust.rs`).
+    CareerCar(super::career_screens::car_select::CarSelectAction),
 }
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do
@@ -373,6 +375,10 @@ pub trait ScreenLogic: Send + Sync {
 
     /// A message the package sent to the game.
     fn message(&mut self, cx: &mut Cx, message: u32);
+
+    /// A button of the package was pressed (`button` is its GUID). Only packages whose buttons answer
+    /// `BUTTON_PRESSED` report this, and it comes whether or not the package also posts a message to the game.
+    fn pressed(&mut self, _cx: &mut Cx, _button: u32) {}
 
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}

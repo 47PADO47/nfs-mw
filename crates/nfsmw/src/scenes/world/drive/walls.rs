@@ -248,6 +248,8 @@ pub struct Impact {
     pub contacts: Vec<ContactPoint>,
     /// At most sixteen rigid contacts, deepest first, retaining their pre-response velocities.
     pub visuals: Vec<VisualContact>,
+    /// The props the car hit this step with their `COST_TO_STATE` (prop id, cost): what the free-roam 911 logic sums.
+    pub smacked: Vec<(u32, u32)>,
 }
 
 impl From<&WallContact> for ContactPoint {

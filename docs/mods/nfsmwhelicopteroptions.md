@@ -133,6 +133,10 @@ Notes:
 - The mechanism (ASI loader, inline detours, fixed-address patches, vtable edits, reading `dllmain.cpp` addresses) does not apply. Our rewrite does not run the original binary. Loader-specific hacks, fixed addresses for v1.3, and the `NFSMWRevisedAirSupport.asi` interaction are out of scope.
 - The licence is MIT, so copying is allowed in principle. Project rule still applies: spec first, do not copy code, document behaviour and data only. This page is a behaviour reference.
 
+### Status in the rewrite
+
+The single-number options and the multi-number ones (`Leading`, `ClosingSpeed`, `Acceleration`, `Brake`, `Turning`) are read from `NFSMWHelicopterSettings.ini` (`crates/nfsmw/src/settings/helicopter*.rs`); `SearchRadius` is read and held. See `docs/specs/ai-helicopter.md`, "Parity pass".
+
 ### Behaviours to specify
 
 1. Helicopter pursuit spawn and despawn distances, per Heat level and per race.

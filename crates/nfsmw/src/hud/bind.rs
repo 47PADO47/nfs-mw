@@ -64,6 +64,7 @@ pub struct HudBinding {
     police: super::police::Binding,
     race: super::race::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
+    hiding_mark: super::hiding_mark::HidingMark,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
@@ -122,6 +123,7 @@ impl HudBinding {
             police: super::police::Binding::new(rt, package),
             race: super::race::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
+            hiding_mark: super::hiding_mark::HidingMark::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
             mirror_shown: true,
@@ -243,6 +245,7 @@ impl HudBinding {
         self.race.apply(rt, s.race);
         self.race.show_message(rt, s.message.as_ref());
         self.pursuit_meter.apply(rt, s.pursuit);
+        self.hiding_mark.apply(rt, s.pursuit.is_some_and(|p| p.hiding_shown()));
         self.police.apply(rt, s, self.mirror_shown);
         if s.has_nos {
             self.nitrous(rt, s);

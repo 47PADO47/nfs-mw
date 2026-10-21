@@ -15,6 +15,7 @@ use nfsmw_career::safehouse::{FrontEndContext, spawn_heat};
 use nfsmw_career::savefile::Trigger;
 use nfsmw_career::stable::Stable;
 
+use super::rap_tally::ChaseTally;
 use crate::career::{AutosaveInputs, handle_autosave};
 use crate::scenes::world::WorldScene;
 
@@ -37,6 +38,8 @@ pub(in crate::scenes::world) struct PursuitWatch {
     /// The safe house unloaded the driven car's heat when it ended a chase (`note_safe_house_unload`); the evade
     /// factor leaves that car alone at the next end.
     safe_house_unloaded: bool,
+    /// The counts only the world sees (cops involved, damaged, helicopters), for the rap sheet.
+    tally: ChaseTally,
 }
 
 impl PursuitWatch {
@@ -86,15 +89,18 @@ impl WorldScene {
         self.career.pursuit.end_reason = reason;
         if started {
             self.career.handle.with(|career| career.milestones.start_pursuit());
+            self.career.pursuit.tally.begin();
         }
         if pursuing {
             self.feed_running_stats(&chase);
+            self.career.pursuit.tally.observe(traffic);
         }
         if let Some(reason) = ended {
             self.pursuit_ended(reason, &chase);
         }
         if !pursuing {
             self.load_carried_heat();
+            self.load_career_bin();
         }
     }
 
@@ -123,6 +129,8 @@ impl WorldScene {
         let driven_kept = std::mem::take(&mut self.career.pursuit.safe_house_unloaded);
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
+        let roadblocks = self.traffic.as_ref().map(|traffic| traffic.roadblock_tally()).unwrap_or_default();
+        let tally = &self.career.pursuit.tally;
         let phone = &mut self.career.phone;
         let mut rewards = None;
         let bins = self.career.handle.with(|career| {
@@ -142,6 +150,8 @@ impl WorldScene {
                 result.bounty(),
                 chase.cost_to_state,
             );
+            let mut stats = stats;
+            tally.write(roadblocks, &mut stats);
             career.history.record(&stats, busted, case_id(seed));
             let milestones = career.milestones.on_pursuit_end(&result, FREE_ROAM, chase.secs, escapes);
             if let Some(record) = career.stable.career_for_handle_mut(handle) {
@@ -190,6 +200,15 @@ impl WorldScene {
             Trigger::PursuitEvaded { event_underway: false },
             inputs,
         );
+    }
+
+    /// Tells the police the Blacklist's current bin (or that no career is on): the bin sets the heat range and how fast a
+    /// chase heats up, read when the next chase starts.
+    fn load_career_bin(&mut self) {
+        let bin = self.career.handle.with(|career| career.blacklist.current_bin());
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.set_career_bin(bin);
+        }
     }
 
     /// Loads the current car's heat into the police, so the next chase starts from it. Runs each frame outside a

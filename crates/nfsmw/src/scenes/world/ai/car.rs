@@ -33,6 +33,7 @@ mod patrol;
 mod racing;
 mod setup;
 mod sound;
+mod speech;
 pub(super) mod support_drive;
 mod towing;
 
@@ -105,10 +106,18 @@ pub struct AiCar {
     cruise: Cruise,
     patrol: bool,
     searching: bool,
+    /// The cop was sent away (`StartFlee`): lights off, driving off along the traffic lanes until it is recycled.
+    fleeing: bool,
+    /// The cop has stood within the engagement radius of the player (`WasWithinEngagementRadius`).
+    engaged: bool,
     arrested: bool,
     perp_hidden_from_me: bool,
+    /// The car saw the player at its last sight test (`GetTimeSinceTargetSeen() <= 0`).
+    sees_player: bool,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
+    /// Whether this cop has stood where the patrol pass may not recycle it (`blackbox_pursuit::respawn`).
+    respawn: blackbox_pursuit::respawn::Latch,
     breaker_stop: bool,
     /// A cop that has reached its slot holds the handbrake (the pull-over).
     arrived: bool,
@@ -117,6 +126,8 @@ pub struct AiCar {
     goal: Cell<GoalDrive>,
     /// A roadblock car: it holds its place with the brakes on whatever the chase does (`AIGoalStaticRoadBlock`).
     roadblock: bool,
+    /// The standing roadblock this car belongs to (`roadblock/state.rs`), 0 for none.
+    roadblock_group: u32,
     /// The light bars of a cop car, when it has them.
     cop_lights: Option<super::cop_lights::CopLightRun>,
     /// Installed authored traffic sound class IDs.
@@ -195,13 +206,18 @@ impl AiCar {
             cruise: start.cruise,
             patrol: start.patrol,
             searching: false,
+            fleeing: false,
+            engaged: false,
             arrested: false,
             perp_hidden_from_me: false,
+            sees_player: false,
             offscreen: 0.0,
+            respawn: Default::default(),
             breaker_stop: false,
             arrived: false,
             goal: Cell::new(GoalDrive::default()),
             roadblock: false,
+            roadblock_group: 0,
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
             quiet: 0.0,
@@ -470,16 +486,5 @@ impl AiCar {
                 self.support_drive(&player);
             }
         }
-    }
-
-    /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
-    pub fn physics_position(&self) -> Vec3 {
-        self.sim.driver_view().position
-    }
-
-    /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
-    pub fn physics_forward(&self) -> Vec3 {
-        let forward = self.sim.driver_view().forward;
-        forward.try_normalize().unwrap_or(Vec3::Z)
     }
 }

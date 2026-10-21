@@ -16,7 +16,10 @@
   bits: smackables, non-player vehicles and players (`0x63B120`). Positive
   IncludePlayers therefore survives ExcludeVehicles. Area messages carry the
   emitting model position (`0x62FB90`). Stop-cop messages retain an expiring
-  spherical area (`0x62AF90`, `0x439E60`).
+  spherical area (`0x62AF90`, `0x439E60`). The cop manager's task applies the zones before it updates patrols and
+  pursuits, and a police vehicle inside one is destroyed (CC0 reconstruction of the manager's task and of the damage
+  behaviour's destroy routine; the same behaviour is written in `ai-pursuit-roadblocks.md` section 7). The perpetrator
+  hiding latch and the pursuit's hidden-zone time are in [pursuit hiding](../specs/pursuit-hiding.md).
 - **Implementation:** 2026-10-11, from the specification. Named scenery models,
   area stimuli, timed fragments, ownership, hide/kill/wake effects, expansion
   waves and cop braking run on the shared clock. Vehicle and scenery fragment
@@ -29,6 +32,11 @@
   120, 144 and 240 FPS and uneven frame durations. Parent tile unload removes
   every child and grid entry. CPU checks verify installed solids without
   fabricating GPU handles; rendered gameplay still needs comparison.
+- **Pursuit chain, 2026-10-20:** the breaker events `EBreakerStopCops` and `EPlayRaceNIS` ("Moment") are read from
+  every action and tag list of all 75 installed engines (16 open a zone; none carries `EPursuitBreaker`). An installed
+  census places the breakers by streaming section. An installed world test streams the city around a gas station,
+  hits a pump, sees the roof open its 16 m, 5 s zone and checks that the patrol car inside is wrecked and counted
+  while one far away is not. This is a CPU-level check of the chain; it is not a live-play comparison.
 - **Limits:** first-contact IMPACT_1 is a trigger adapter; the full PC collision
   stimulus levels and original static-trigger lifecycle are not reproduced.
   Simple-physics requests use the full body solver. No-physics pieces do not
@@ -38,4 +46,5 @@
   occlusion and cinematic slowdown are unverified. Named joints in scenery
   fragment events are skipped. Model kill currently restores a placement at
   release. Cinematics, authored particle/audio effects, dynamic regions,
-  pursuit score/wreck notifications and exact stop-cop AI semantics remain open.
+  pursuit score notifications beyond the wreck count, the cinematic moment, the helicopter in a zone and the
+  breaker music/speech remain open.

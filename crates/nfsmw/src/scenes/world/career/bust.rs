@@ -28,6 +28,8 @@ impl WorldScene {
         }
         let outcome = self.career.handle.with(|career| settle_bust(career, pursuit, marker)).flatten();
         log::info!("busted: career settled the bust (marker {marker}), outcome {outcome:?}");
+        // The car goes back to the respawn marker when the game runs again (`respawn.rs`).
+        self.career.respawn.pending = true;
         true
     }
 }

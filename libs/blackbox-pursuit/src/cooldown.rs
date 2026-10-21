@@ -188,6 +188,23 @@ impl Cooldown {
         self.required
     }
 
+    /// The fill of the pursuit board's cool-down bar, 0 to 1: `1 - remaining / (required - grace)`. The bar spans only
+    /// the cool-down's own length, so it opens empty even though the meter ([`level`](Self::level)) already holds the
+    /// grace's share of the required time. Empty until the cool-down shows, full once evaded.
+    pub fn bar(&self, tuning: &CooldownTuning) -> f32 {
+        if self.status == Status::Evaded {
+            return 1.0;
+        }
+        if !self.displayed {
+            return 0.0;
+        }
+        let length = self.required - tuning.grace;
+        if length <= f32::EPSILON {
+            return 1.0;
+        }
+        (1.0 - self.remaining(tuning) / length).clamp(0.0, 1.0)
+    }
+
     /// Seconds still to go to evade, for the status line: `required - progress`, clamped to the cool-down's length
     /// (`required - grace`, spec section 6).
     pub fn remaining(&self, tuning: &CooldownTuning) -> f32 {
@@ -318,6 +335,32 @@ mod tests {
         assert_eq!(cooldown.remaining(&TUNING), 13.0);
         step(&mut cooldown, 12.5, unseen(20.0, false));
         assert!((cooldown.remaining(&TUNING) - 12.5).abs() < 0.2, "{}", cooldown.remaining(&TUNING));
+    }
+
+    #[test]
+    fn the_board_bar_opens_empty_while_the_meter_holds_the_grace() {
+        let mut cooldown = Cooldown::default();
+        assert_eq!(cooldown.bar(&TUNING), 0.0, "no cool-down yet");
+        step(&mut cooldown, 11.9, unseen(20.0, false));
+        assert_eq!(cooldown.bar(&TUNING), 0.0, "still inside the grace");
+        step(&mut cooldown, 0.6, unseen(20.0, false));
+        assert!(cooldown.is_shown());
+        assert!(cooldown.level() > 0.3, "the meter already holds the grace: {}", cooldown.level());
+        assert!(cooldown.bar(&TUNING) < 0.06, "the bar starts empty: {}", cooldown.bar(&TUNING));
+        // Half of the 13 s cool-down later the bar is about half full.
+        step(&mut cooldown, 6.5, unseen(20.0, false));
+        assert!((cooldown.bar(&TUNING) - 0.5).abs() < 0.08, "{}", cooldown.bar(&TUNING));
+    }
+
+    #[test]
+    fn the_board_bar_ends_full_when_evaded_and_falls_back_to_empty_when_the_chase_returns() {
+        let mut evaded = Cooldown::default();
+        step(&mut evaded, 20.0, unseen(20.0, true));
+        assert_eq!(evaded.bar(&TUNING), 1.0);
+        let mut chase = Cooldown::default();
+        step(&mut chase, 14.0, unseen(20.0, false));
+        step(&mut chase, 2.6, seen(20.0));
+        assert_eq!(chase.bar(&TUNING), 0.0);
     }
 
     #[test]

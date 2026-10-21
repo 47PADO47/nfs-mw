@@ -11,7 +11,8 @@ use nfsmw_data::pursuit::ai_vehicle;
 
 use super::cop_lights::CopLightSet;
 use super::model_loader::{
-    CarParts, CopExtrasLoad, CopLoad, Done, Job, Loaded, Lookup, ModelLoader, Request, StagedCop, TrafficLoad,
+    CarParts, CopExtrasLoad, CopLoad, Done, Job, Loaded, Lookup, ModelLoader, Request, RoadblockModels, StagedCop,
+    TrafficLoad,
 };
 use super::{CopCar, CopModel, ModelRequest, TrafficModel};
 use crate::scenes::world::drive::CarRig;
@@ -116,6 +117,13 @@ pub(in crate::scenes::world) fn load_requested(
             }
         }
     }
+    // The props of the roadblocks load once, when the first chase wants them.
+    if scene.traffic.as_ref().is_some_and(|t| t.wants_roadblock_models()) {
+        ask(scene, Request::RoadblockProps, Job::RoadblockProps);
+        if let Some(traffic) = scene.traffic.as_mut() {
+            traffic.roadblock_models_asked();
+        }
+    }
     pump(scene, renderer, blocking);
 }
 
@@ -192,6 +200,15 @@ fn handle(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, done: Done) 
         (Request::Cop(name), Err(error)) => fail_cop(scene, &name, &error),
         (Request::Helicopter, Ok(Loaded::Helicopter(model))) => install_helicopter(scene, renderer, *model),
         (Request::Helicopter, Err(error)) => log::warn!("the police helicopter has no model: {error}"),
+        (Request::RoadblockProps, Ok(Loaded::RoadblockProps(models))) => {
+            install_roadblock_props(scene, renderer, *models)
+        }
+        (Request::RoadblockProps, Err(error)) => {
+            log::warn!("the roadblock props have no models: {error}");
+            if let Some(traffic) = scene.traffic.as_mut() {
+                traffic.roadblock_models_failed();
+            }
+        }
         _ => log::warn!("model loader: a result that does not match its request"),
     }
 }
@@ -297,6 +314,20 @@ fn install_helicopter(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, 
     let rig = Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
     if let Some(traffic) = scene.traffic.as_mut() {
         traffic.set_helicopter_rig(rig);
+    }
+}
+
+/// The roadblock's spike strip and sawhorse are uploaded as rigs, drawn at the poses of the roadblocks.
+fn install_roadblock_props(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, models: RoadblockModels) {
+    let rig = |scene: &WorldScene, renderer: &mut dyn RenderBackend, model: CarModel| {
+        Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()))
+    };
+    let spike = rig(scene, renderer, models.spike);
+    let sawhorse = rig(scene, renderer, models.sawhorse);
+    let parts = scene.residency.fragment_parts(crate::scenes::world::ai::roadblock::props::SAWHORSE_MODEL);
+    if let Some(traffic) = scene.traffic.as_mut() {
+        traffic.set_roadblock_models(spike, sawhorse);
+        traffic.set_sawhorse_parts(parts);
     }
 }
 
