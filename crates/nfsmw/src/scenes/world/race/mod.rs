@@ -3,6 +3,7 @@
 //! computer-driven racers, the minimap, the card and the career. Specs: `docs/specs/race-mode.md`,
 //! `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-racers-catchup.md`.
 
+mod barriers;
 mod blips;
 mod card;
 mod challenge;
@@ -94,6 +95,9 @@ pub(super) struct RaceSession {
     pub name: String,
     /// The career event id, for example `10.2.1`.
     pub event: String,
+    /// The minimap's map file while this race runs: the event's own tiles, or the region's variant for a pursuit race
+    /// (`docs/specs/race-minimap.md`).
+    pub map: crate::hud::MapSource,
     pub kind: RaceType,
     pub options: RaceOptions,
     pub stage: Stage,
@@ -127,6 +131,8 @@ pub(super) struct RaceSession {
     pub pool: Vec<String>,
     /// The pursuit challenge being run, for a `challenge` race: it has no engine (`challenge.rs`).
     pub challenge: Option<challenge::Challenge>,
+    /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
+    pub walls: barriers::RaceWalls,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
 }

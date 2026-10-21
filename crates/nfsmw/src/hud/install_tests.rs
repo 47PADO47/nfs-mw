@@ -262,6 +262,57 @@ fn the_minimap_finds_its_objects_and_its_tiles_in_the_install() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_race_event_has_route_tiles_the_minimap_switches_to_and_leaves() {
+    use super::event_tiles::{EventTiles, install_loader};
+    use super::map_source::{MapSource, resolve_stem};
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").expect("HUD_SingleRace.fng").clone());
+    let assets = UiAssets::load(&dir).unwrap();
+    let mut binding = MinimapBinding::open_city(&rt, id, &dir, &assets).unwrap();
+    let mut tiles = EventTiles::new(install_loader(dir.clone()));
+    let wait = |tiles: &mut EventTiles, event: Option<&str>| {
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while std::time::Instant::now() < until {
+            tiles.update(event, &assets);
+            if tiles.ready_stem().is_some() || event.is_none() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    };
+    let all = |_| true;
+
+    // The reversed route of 10.4.2 has its own file; the pieces use its tiles once the file is read.
+    let source = MapSource::Event("10.4.2.r".into());
+    tiles.update(source.event(), &assets);
+    let before = resolve_stem(&source, Some(14), all, tiles.ready_stem()).to_owned();
+    wait(&mut tiles, source.event());
+    let stem = resolve_stem(&source, Some(14), all, tiles.ready_stem());
+    assert_eq!(stem, "MINI_MAP_10_4_2_R");
+    assert!(before == stem || before == "MINI_MAP_UNLOCK_1", "the stage map shows while the file is read");
+    assert!(binding.set_stem(stem));
+    assert!(binding.resources_available(|key| assets.texture(key).is_some(), |_| true), "all 64 tiles are known");
+
+    // A pursuit challenge has no file: the stage's map stays and nothing is added.
+    let challenge = MapSource::Event("19.8.1".into());
+    for _ in 0..50 {
+        tiles.update(challenge.event(), &assets);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(tiles.ready_stem(), None);
+    assert_eq!(resolve_stem(&challenge, Some(14), all, tiles.ready_stem()), "MINI_MAP_UNLOCK_1");
+
+    // The race is over: the tiles are dropped.
+    wait(&mut tiles, None);
+    assert_eq!(assets.late_count(), 0);
+    assert!(assets.texture(fe_hash_upper("MINI_MAP_10_4_2_R_CHOP0")).is_none());
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_pursuit_board_and_cooldown_bar_are_objects_of_the_single_race_hud() {
     let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
     let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();

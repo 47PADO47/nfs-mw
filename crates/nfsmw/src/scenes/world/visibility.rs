@@ -137,6 +137,12 @@ fn collect_inner<'a>(
         let Some((transform, bounds)) = current_pose(p, props) else {
             continue;
         };
+        // A turned race wall is mirrored along its own length (`docs/specs/race-barriers.md` section 3).
+        let turned = p.flags & blackbox_scenery::INSTANCE_TURNABLE != 0 && groups.is_some_and(|g| g.turned(p.group));
+        let (transform, bounds) = match turned {
+            true => turned_pose(transform, &bounds),
+            false => (transform, bounds),
+        };
         let in_view = frustum.intersects(&bounds);
         // A margin along the light ray admits casters beyond the last receiver cascade.
         let caster =
@@ -179,6 +185,16 @@ fn collect_inner<'a>(
             out.push(Instance::keyed(mesh, transform, p.key));
         }
     }
+}
+
+/// The pose of a turned piece: its local x axis negated (the engine's `diag(-1, 1, 1) * M` in its row-vector
+/// convention), the position kept. The bounds become the cube that holds the original box swung around the position,
+/// which contains the mirrored box.
+pub(super) fn turned_pose(transform: Mat4, bounds: &blackbox_scene::Aabb) -> (Mat4, blackbox_scene::Aabb) {
+    let mirrored = transform * Mat4::from_scale(glam::Vec3::new(-1.0, 1.0, 1.0));
+    let centre = transform.w_axis.truncate();
+    let reach = (bounds.max - centre).abs().max((bounds.min - centre).abs()).length();
+    (mirrored, blackbox_scene::Aabb { min: centre - glam::Vec3::splat(reach), max: centre + glam::Vec3::splat(reach) })
 }
 
 /// Conservative swept bounds reject nearby objects whose shadows cannot reach the camera frustum.
@@ -261,6 +277,24 @@ mod tests {
         collect_with_shadows([&p].into_iter(), &away, rules, &props, 80.0, &mut out);
         assert!(out.is_empty(), "casters pointing away from the receiver view stay culled");
         assert!(!near_caster(&p.bounds, [1000.0; 3], 80.0), "distant scenery stays culled");
+    }
+
+    #[test]
+    fn a_turned_piece_is_mirrored_along_its_local_x_and_stays_inside_its_bounds() {
+        // A piece 8 m long from its origin along a rotated x axis, as the race walls are placed.
+        let transform = Mat4::from_rotation_translation(glam::Quat::from_rotation_z(0.4), Vec3::new(10.0, 20.0, 1.0));
+        let far_end = transform.transform_point3(Vec3::new(8.0, 0.0, 0.0));
+        let bounds =
+            Aabb { min: Vec3::new(10.0, 20.0, 0.0).min(far_end), max: Vec3::new(10.0, 20.0, 2.0).max(far_end) };
+        let (mirrored, swung) = turned_pose(transform, &bounds);
+        let flipped_end = mirrored.transform_point3(Vec3::new(8.0, 0.0, 0.0));
+        assert!(
+            (flipped_end - (2.0 * Vec3::new(10.0, 20.0, 1.0) - far_end)).length() < 1e-4,
+            "the far end swings over"
+        );
+        assert_eq!(mirrored.w_axis, transform.w_axis, "the position is kept");
+        assert_eq!(mirrored.y_axis, transform.y_axis);
+        assert!(swung.min.cmple(flipped_end).all() && swung.max.cmpge(flipped_end).all());
     }
 
     #[test]

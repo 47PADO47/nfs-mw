@@ -46,11 +46,6 @@ pub fn usable_variant(wanted: MapVariant, loaded: impl Fn(MapVariant) -> bool) -
     MapVariant::Full
 }
 
-/// Whether a binding whose tiles are named by `header` must switch to `variant`.
-pub fn needs_switch(header: &str, variant: MapVariant) -> bool {
-    header != variant_stem(variant)
-}
-
 /// The minimap objects and what is needed to drive them.
 pub struct MinimapBinding {
     calibration: Calibration,
@@ -138,14 +133,15 @@ impl MinimapBinding {
         Some(binding)
     }
 
-    /// Switches the tiles to `variant`'s map file. Its tiles must be loaded (see [`usable_variant`]): the pieces take
-    /// the new tiles on the next [`MinimapBinding::apply`]. The tile keys hashed for the old file are dropped.
+    /// Switches the tiles to the map file `stem` (upper case: `MINI_MAP_UNLOCK_1`, or a race's `MINI_MAP_10_2_1`). The
+    /// 64 tiles named `<stem>_CHOP<n>` must be in the assets (see [`usable_variant`] for the stage's maps): the pieces
+    /// take them on the next [`MinimapBinding::apply`], and the tile keys hashed for the old file are dropped.
     /// Returns whether anything changed.
-    pub fn set_variant(&mut self, variant: MapVariant) -> bool {
-        if !needs_switch(&self.header, variant) {
+    pub fn set_stem(&mut self, stem: &str) -> bool {
+        if self.header == stem {
             return false;
         }
-        self.header = variant_stem(variant).to_owned();
+        self.header = stem.to_ascii_uppercase();
         *self.tile_keys.get_mut().unwrap_or_else(|e| e.into_inner()) = [None; 4];
         true
     }

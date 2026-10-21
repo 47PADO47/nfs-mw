@@ -136,8 +136,14 @@ impl WorldScene {
             cars
         );
         let racers = plan.len();
+        let walls = self.raise_race_walls(&race.barriers);
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
+            map: crate::hud::MapSource::of_race(
+                &crate::career::race_event_id(&race),
+                p.pursuit_race,
+                race.region.as_deref(),
+            ),
             name: race.name.clone(),
             kind: race.race_type.unwrap_or(RaceType::Sprint),
             options,
@@ -163,6 +169,7 @@ impl WorldScene {
             cash_value: options.cash.unwrap_or(p.cash_value),
             pool,
             challenge: None,
+            walls,
             origin: Origin { race: race.clone(), course: given_course },
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))

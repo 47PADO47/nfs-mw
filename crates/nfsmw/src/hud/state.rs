@@ -78,6 +78,9 @@ pub struct HudState {
     pub drag: bool,
     /// The line the generic message group shows (`hud/race.rs`).
     pub message: Option<super::race::Message>,
+    /// Which map file the minimap shows: the stage's outside a race, the race's own tiles in one
+    /// (`docs/specs/race-minimap.md`).
+    pub map_source: super::map_source::MapSource,
 }
 
 impl Default for HudState {
@@ -94,6 +97,7 @@ impl Default for HudState {
             race: None,
             drag: false,
             message: None,
+            map_source: Default::default(),
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,

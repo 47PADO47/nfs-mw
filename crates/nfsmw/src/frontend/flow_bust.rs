@@ -12,6 +12,37 @@ use crate::ui::Text;
 use nfsmw_career::economy::aftermath::CarSelectEntry;
 
 impl Frontend {
+    /// Opens the bust's ticket when the world's bust sequence reaches it (free roam, driving). The ticket is up over the
+    /// frozen game, as the pause menu is: the stage is `Paused`, so the screens take the pad and the mouse, and the world
+    /// does not run until the payment resumes it.
+    pub(in crate::frontend) fn poll_bust(&mut self, host: &mut Host, env: &mut Env) {
+        if self.stage != Stage::Playing {
+            return;
+        }
+        let Some(lines) = host.scene.take_bust_ticket() else { return };
+        log::info!("busted: the ticket is up ({} infractions)", lines.len());
+        self.latch = true;
+        self.paused.set(true);
+        self.stage = Stage::Paused;
+        let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
+        let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
+        let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// The payment on the ticket: the bust takes it (and the game goes on driving) or refuses it (the ticket stays).
+    pub(super) fn pay_bust(&mut self, marker: bool, host: &mut Host, env: &mut Env) {
+        if !host.scene.pay_bust(marker) {
+            return;
+        }
+        log::info!("busted: paid with {}", if marker { "a marker" } else { "cash" });
+        // In a career the ticket leads to the car select (`flow_bust.rs`); free roam without one drives on.
+        if self.career.is_active() {
+            return self.bust_paid(marker, host, env);
+        }
+        self.resume();
+    }
+
     /// The bust's payment was taken in a career: the notice first when the car was impounded (closing it opens the car
     /// select with the impounded animation), else the car select at once. The world stays held; leaving the car select
     /// goes to the safe house menu, whose Resume Free Roam drives again.

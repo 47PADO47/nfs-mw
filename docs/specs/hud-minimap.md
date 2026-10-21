@@ -35,7 +35,7 @@ package `HUD_SingleRace.fng` ([feng-runtime.md](feng-runtime.md) section 8).
 For the player's own HUD (not the drag HUD) the game picks the file from the situation: in free roam by the
 career's current blacklist rank (`>= 13`: `MINI_MAP_Unlock_1`, `>= 9`: `MINI_MAP_Unlock_2`, else `MINI_MAP`); in a
 race `MINI_MAP_<event id>`; in a pursuit race the same three by region. The file name's stem, upper case, is the
-texture header (`MINI_MAP`, `MINI_MAP_UNLOCK_1`, ...). If the file does not exist there is no minimap. The 64 tiles
+texture header (`MINI_MAP`, `MINI_MAP_UNLOCK_1`, ...). If the file does not exist there is no minimap (the rewrite keeps the stage's map; the event rules are in [race-minimap.md](race-minimap.md)). The 64 tiles
 are held compressed and a tile is inflated when a piece needs it. **[decomp]**
 
 ## 3. The projection

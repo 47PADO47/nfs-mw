@@ -31,6 +31,8 @@ mod flow_career;
 mod flow_loading;
 #[path = "flow_save.rs"]
 mod flow_save;
+#[path = "flow_series.rs"]
+pub(super) mod flow_series;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -74,6 +76,8 @@ pub enum Stage {
     Paused,
     /// The world map is open over the frozen game (`world_map/control.rs`).
     Map,
+    /// A tutorial movie plays full screen over the menus (`flow_series.rs`).
+    Tutorial,
 }
 
 use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
@@ -146,6 +150,7 @@ pub struct Frontend {
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
+    pub(super) series: flow_series::Series,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
     /// The race above is Quick Play's: it runs with its own laps and opponents, not the Custom Race options (`world_built`).
@@ -159,6 +164,7 @@ impl Frontend {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
         super::quick_race::load_in_background(&dir);
+        super::challenge_series::load_in_background(&dir);
         super::quick_play::load_in_background(&dir);
         Self {
             screens,
@@ -189,6 +195,7 @@ impl Frontend {
             look_override: None,
             auto_shop_requested: false,
             quick_race: None,
+            series: Default::default(),
             quick_car: None,
             quick_play: false,
             map_chrome: Default::default(),
@@ -368,37 +375,6 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    /// Opens the bust's ticket when the world's bust sequence reaches it (free roam, driving). The ticket is up over the
-    /// frozen game, as the pause menu is: the stage is `Paused`, so the screens take the pad and the mouse, and the world
-    /// does not run until the payment resumes it.
-    pub(super) fn poll_bust(&mut self, host: &mut Host, env: &mut Env) {
-        if self.stage != Stage::Playing {
-            return;
-        }
-        let Some(lines) = host.scene.take_bust_ticket() else { return };
-        log::info!("busted: the ticket is up ({} infractions)", lines.len());
-        self.latch = true;
-        self.paused.set(true);
-        self.stage = Stage::Paused;
-        let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
-        let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
-        let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);
-        self.apply(commands, host, env);
-    }
-
-    /// The payment on the ticket: the bust takes it (and the game goes on driving) or refuses it (the ticket stays).
-    fn pay_bust(&mut self, marker: bool, host: &mut Host, env: &mut Env) {
-        if !host.scene.pay_bust(marker) {
-            return;
-        }
-        log::info!("busted: paid with {}", if marker { "a marker" } else { "cash" });
-        // In a career the ticket leads to the car select (`flow_bust.rs`); free roam without one drives on.
-        if self.career.is_active() {
-            return self.bust_paid(marker, host, env);
-        }
-        self.resume();
-    }
-
     /// Opens the world map over the frozen game: its screen is the package `WorldMapMain.fng`, with the map's logic.
     pub(super) fn open_map(&mut self, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
         self.latch = true;
@@ -438,6 +414,8 @@ impl Frontend {
                     self.quick_play = false;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
+                Command::StartChallenge { race, transmission } => self.start_challenge(race, transmission, host, env),
+                Command::PlayTutorial(name) => self.play_tutorial(&name, host),
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
@@ -471,7 +449,7 @@ impl Frontend {
                 }
                 Command::AliasCreate(alias) => self.alias_create(&alias, host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host, env),
-                Command::RaceAnswer(answer) => self.race_answer(answer, host),
+                Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..)
                 | Command::Push(..)

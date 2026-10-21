@@ -17,7 +17,7 @@ tests or probes.
 |---|---|---|
 | `MINI_MAP.BIN` | 221,492 B | free roam once the career is far enough on (`CurrentBin < 9`), pursuits outside the other regions; the full city |
 | `MINI_MAP_Unlock_1.BIN`, `MINI_MAP_Unlock_2.BIN` | | free roam earlier in the career (`CurrentBin >= 13` and `>= 9`): the same grid with the regions not unlocked yet left black (`Unlock_1` shows only the first, north-western, region and marks its gates with chevrons) **[decomp; the pictures looked at]** |
-| `MINI_MAP_<event id>.BIN` (264 files) | | the minimap of one race; `_R` files are the reversed routes **[unconfirmed]** |
+| `MINI_MAP_<event id>.BIN` (264 files) | | the minimap of one race (white route band, start and checkpoint marks baked into the city map, tiles away from the route black); `_R` files are the reversed routes, named by the event id `<id>.r` **[decomp + verified]**: [race-minimap.md](../specs/race-minimap.md) |
 
 A file is a plain sequence of 64 top-level chunks `0x0003A100 CompTPKBlock` and nothing else. The payload of
 each chunk in the original PC install is a bare JDLZ blob that inflates to a complete TPK of exactly one texture (17,152 bytes:
