@@ -6,8 +6,9 @@ use std::sync::Mutex;
 
 use super::*;
 use crate::frontend::custom_race::car_list::{self, List};
+use crate::frontend::custom_race::region::Filter;
 use crate::frontend::custom_race::settings::Row;
-use crate::frontend::custom_race::{Mode, state};
+use crate::frontend::custom_race::{Mode, state, tracks};
 use crate::frontend::logic::Sub;
 use crate::frontend::quick_play::pool;
 use crate::frontend::quick_race;
@@ -70,16 +71,35 @@ fn the_mode_select_offers_the_tutorial_of_drag_and_goes_back_to_the_quick_race_m
 }
 
 #[test]
-fn a_locked_track_is_not_accepted_and_back_returns_to_the_mode_select() {
+fn a_locked_track_is_not_accepted_an_open_one_is_and_back_returns_to_the_mode_select() {
     let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     if tracks_open() {
         return;
     }
     let Some(mut h) = open_in(Mode::Circuit, screen::TRACK_SELECT, Args::default()) else { return };
+    let board = quick_race::board().expect("the board was read");
+    let listed = tracks::list(&board, Mode::Circuit, Filter::ALL, pool::PROLOGUE_STAGE, false);
+    // On a fresh profile the exe opens a few circuits from the start; the rest wait for their rival.
+    let locked = listed.iter().position(|l| l.locked).expect("a circuit is locked at the first stage");
+    let open = listed.iter().position(|l| !l.locked).expect("a circuit is open from the start");
+    for _ in 0..locked {
+        h.press(pad::RIGHT);
+    }
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::TRACK_SELECT), "a locked track stays on the list");
     assert!(state::with(|s| s.event().is_none()));
+    // Back to the first track, then on to an open one.
+    for _ in 0..(listed.len() - locked + open) {
+        h.press(pad::RIGHT);
+    }
+    h.press(pad::ACCEPT);
+    h.wait(3.0);
+    assert_eq!(h.screens.top(), Some(screen::TRACK_OPTIONS), "an open track goes on to the options");
+    assert_eq!(state::with(|s| s.event().map(str::to_owned)), Some(board.tracks[listed[open].index].name.clone()));
+    h.press(pad::BACK);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::TRACK_SELECT));
     h.press(pad::BACK);
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
@@ -124,7 +144,7 @@ fn the_car_select_starts_with_the_career_start_car_asks_for_the_transmission_and
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
     let remembered = state::with(|s| s.car.name.clone()).expect("a car");
-    assert!(car_list::find(&pool, car_select_progress(), &remembered).is_some(), "{remembered}");
+    assert!(car_list::find(&pool, &car_select_progress(), &remembered).is_some(), "{remembered}");
     // A locked car is refused; the M3 GTR of the Preset list is open.
     state::with(|s| s.car.name = Some(car_list::DEFAULT_PRESET.into()));
     drop(h);

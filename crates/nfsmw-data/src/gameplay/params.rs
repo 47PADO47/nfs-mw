@@ -1,13 +1,18 @@
 //! The run-time parameters of a race and the opponent characters. Spec: `docs/formats/gameplay-races.md` sections 3.2,
 //! 3.3 and 4; `docs/specs/race-mode.md`.
 
-use blackbox_attrib::{CollectionRef, Database};
+use blackbox_attrib::{CollectionRef, Database, Value};
 
 use super::{Placement, collection, inherits, instances, key_array, key_field, name_of, placement, text};
 
 /// `CashValue` (`Float`, hash `0xD8BAA07B`): the cash a career win pays (`docs/specs/career-economy-flows.md` section 7).
 /// Read by its hash, as the career crate documents it.
 const CASH_VALUE_FIELD: u32 = 0xD8BA_A07B;
+/// The three race flags the exe reads by hash (names unknown): the first and the second open the race in a quick race from the
+/// start of a career, the third keeps it out of the quick race lists (`docs/provenance/custom-race.md`).
+const QUICK_OPEN_A_FIELD: u32 = 0xB39E_D8C3;
+const QUICK_OPEN_B_FIELD: u32 = 0xEA85_5EAF;
+const NEVER_IN_QUICK_RACE_FIELD: u32 = 0xA4E6_FCFD;
 
 /// What a race asks of the run: the start, the clock, the opponents, the traffic and the rank rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,6 +67,10 @@ pub struct RaceParams {
     pub post_race_activity: Option<u32>,
     /// `InitiallyUnlocked`: the race is open from the start of a career (the side bins' ladders start from these).
     pub initially_unlocked: bool,
+    /// The quick race is open from the start (flag `0xB39ED8C3` or `0xEA855EAF` of the exe's score setup).
+    pub quick_race_open: bool,
+    /// The race is left out of the quick race lists (flag `0xA4E6FCFD`).
+    pub never_in_quick_race: bool,
     /// `UnlockRaces`: the keys of the races a win opens (the challenge ladders).
     pub unlock_races: Vec<u32>,
     /// `LocalizationTag`: the number the challenge series' texts are named by (`CHALLENGE_SERIES_DESC_<tag>`); 0 for
@@ -105,6 +114,8 @@ impl Default for RaceParams {
             post_race_activity: None,
             outro_nis: None,
             initially_unlocked: false,
+            quick_race_open: false,
+            never_in_quick_race: false,
             unlock_races: Vec::new(),
             localization_tag: 0,
             challenge_series: false,
@@ -141,6 +152,10 @@ impl RaceParams {
             threshold: c.get_f32("ThreshholdValue").unwrap_or(d.threshold),
             post_race_activity: key_field(c, "PostRaceActivity"),
             initially_unlocked: c.get_bool("InitiallyUnlocked").unwrap_or(false),
+            quick_race_open: [QUICK_OPEN_A_FIELD, QUICK_OPEN_B_FIELD]
+                .iter()
+                .any(|key| c.get_by_key(*key).and_then(Value::as_bool).unwrap_or(false)),
+            never_in_quick_race: c.get_by_key(NEVER_IN_QUICK_RACE_FIELD).and_then(Value::as_bool).unwrap_or(false),
             unlock_races: key_array(c, "UnlockRaces"),
             localization_tag: c.get_i32("LocalizationTag").unwrap_or(0),
             challenge_series: c.get_bool("ChallengeSeriesRace").unwrap_or(false),

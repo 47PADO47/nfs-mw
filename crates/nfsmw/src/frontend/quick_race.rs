@@ -88,6 +88,7 @@ impl Board {
             .filter(|r| matches!(r.race_type, Some(t) if t != RaceType::Challenge))
             .filter(|r| r.race_type.is_some_and(|t| t != RaceType::CheckpointRace) && r.start.is_some())
             .filter(|r| r.finish.is_some() || !r.checkpoints.is_empty())
+            .filter(|r| !r.params.never_in_quick_race)
             .map(|r| (event_key(&r.name), track_of(data, r, map)))
             .collect();
         tracks.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.name.cmp(&b.1.name)));
@@ -135,7 +136,7 @@ fn track_of(data: &GameplayData, race: &Race, map: Option<&Calibration>) -> Trac
         bin: event_key(&race.name).first().and_then(|bin| u8::try_from(*bin).ok()).filter(|bin| (1..=15).contains(bin)),
         event: crate::career::event_id(&race.name),
         region: race.region.as_deref().and_then(Region::of),
-        open_at_start: race.params.initially_unlocked,
+        open_at_start: race.params.initially_unlocked || race.params.quick_race_open,
         crop: map.map_or(Crop::WHOLE, |map| Crop::around(&route_on_map(data, race, map))),
         map_texture: map_texture(&crate::career::event_id(&race.name)),
     }
@@ -211,6 +212,22 @@ mod tests {
             time_bonus: 0.0,
             resets_player: false,
         }
+    }
+
+    #[test]
+    fn a_race_the_exe_opens_for_the_quick_race_is_open_and_one_it_keeps_out_is_not_listed() {
+        let mut open = race("race_bin_10/10_3_1_knockout", RaceType::Knockout);
+        open.params.quick_race_open = true;
+        let mut hidden = race("race_bin_10/10_4_1_drag", RaceType::Drag);
+        hidden.params.never_in_quick_race = true;
+        let data = GameplayData {
+            races: vec![open, hidden, race("race_bin_10/10_5_1_drag", RaceType::Drag)],
+            triggers: vec![finish_at(100.0)],
+            ..Default::default()
+        };
+        let board = Board::from_data(&data, None);
+        let found: Vec<(&str, bool)> = board.tracks.iter().map(|t| (t.event.as_str(), t.open_at_start)).collect();
+        assert_eq!(found, [("10.3.1", true), ("10.5.1", false)]);
     }
 
     #[test]
