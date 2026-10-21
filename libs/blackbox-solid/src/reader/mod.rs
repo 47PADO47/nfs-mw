@@ -15,7 +15,13 @@ pub use solid::read_solid;
 /// `GeometryPack` and store each `SolidPack` after it, as a sibling. Fails on the first solid that does not parse; see
 /// [`read_solids_lossy`] to keep the rest.
 pub fn read_solids(data: &[u8]) -> Result<Vec<Solid>> {
-    let (solids, mut failed) = read_solids_lossy(data)?;
+    read_solids_filtered(data, |_| true)
+}
+
+/// Like [`read_solids`], but reject models by their header name hash before decoding mesh data.
+/// Chunk structure and solid headers are still validated. Rejected mesh data is not parsed.
+pub fn read_solids_filtered(data: &[u8], keep: impl Fn(u32) -> bool) -> Result<Vec<Solid>> {
+    let (solids, mut failed) = read_filtered(data, &keep)?;
     match failed.is_empty() {
         true => Ok(solids),
         false => Err(failed.swap_remove(0)),
@@ -26,14 +32,18 @@ pub fn read_solids(data: &[u8]) -> Result<Vec<Solid>> {
 /// Add-on cars can carry a few broken solids (the install's `CORVETTE` has 8 aftermarket hoods with a vertex buffer that
 /// fits no vertex count); the rest of the car is still good. A file whose chunks cannot be walked is still an error.
 pub fn read_solids_lossy(data: &[u8]) -> Result<(Vec<Solid>, Vec<Error>)> {
+    read_filtered(data, &|_| true)
+}
+
+fn read_filtered(data: &[u8], keep: &impl Fn(u32) -> bool) -> Result<(Vec<Solid>, Vec<Error>)> {
     let mut found = Found::default();
     for pack in blackbox_chunk::find_all(data, ids::GEOMETRY_PACK) {
         for child in pack.children() {
-            read_member(child?, &mut found)?;
+            read_member(child?, &mut found, keep)?;
         }
     }
     for top in blackbox_chunk::chunks(data) {
-        read_member(top?, &mut found)?;
+        read_member(top?, &mut found, keep)?;
     }
     Ok((found.solids, found.failed))
 }
@@ -45,6 +55,14 @@ struct Found {
 }
 
 impl Found {
+    fn read(&mut self, pack: Chunk<'_>, keep: &impl Fn(u32) -> bool) {
+        match solid::name_hash(pack).map(keep) {
+            Ok(true) => self.push(read_solid(pack)),
+            Ok(false) => (),
+            Err(error) => self.failed.push(error),
+        }
+    }
+
     fn push(&mut self, solid: Result<Solid>) {
         match solid {
             Ok(solid) => self.solids.push(solid),
@@ -54,16 +72,18 @@ impl Found {
 }
 
 /// A `SolidPack`, or a bare JDLZ blob that holds some, when `member` is one of them.
-fn read_member(member: Chunk<'_>, out: &mut Found) -> Result<()> {
+fn read_member(member: Chunk<'_>, out: &mut Found, keep: &impl Fn(u32) -> bool) -> Result<()> {
     if member.id == ids::SOLID_PACK {
-        out.push(read_solid(member));
-    } else if member.is_bare_jdlz() {
+        out.read(member, keep);
+        return Ok(());
+    }
+    if member.is_bare_jdlz() {
         // A compressed SolidPack (community-built add-on cars). Offsets inside are blob-relative.
         let inflated = ea_compress::jdlz_decompress(member.payload)?;
         for inner in blackbox_chunk::chunks(&inflated) {
             let inner = inner?;
             if inner.id == ids::SOLID_PACK {
-                out.push(read_solid(inner));
+                out.read(inner, keep);
             }
         }
     }
