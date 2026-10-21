@@ -26,3 +26,10 @@ native facts in `speed.exe` 1.3 with Ghidra (read for behaviour only; no decompi
 | `0x00611BC1` .. `0x00611C10` | not won before: each entry of the race's reward list goes to the reward request `0x0062AA90` |
 | `0x00611C25` .. `0x00611CA2` | not won before: each race of the unlock list (`0xFC8995C8`) gets `0x4`, and `0x8` unless `0xA4E6FCFD` |
 | `0x00611CB4` | `FUN_00602320(1)`: the node record, `0x2` in career or `0x1` otherwise ([career-save-screens.md](career-save-screens.md#node-state-bits)) |
+
+### F-14: the special-setup hook
+
+`DoSpecialSetup` (`0x00605830`, no function defined there; disassembled to `0x0060588F`): node lookup by hash
+(`FUN_006022d0`), the node attribute test `FUN_005fc560` (`0x4393F69B`), then the profile (`DAT_0091cf90 + 0x10`) flags
+word `+0xAC` shifted by 20 and tested; when the bit is clear, `FUN_005a41e0(stable + 0x414, 0x03A94520)` finds the
+preset's stable record and its first word goes to the current car (`+0xA8`); returns 1. Any other path returns 0.

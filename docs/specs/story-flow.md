@@ -188,10 +188,12 @@ The movie and NIS columns follow CSE 2.1; the rule in section 1.2 disagrees, see
 
 ### 2.2 Forced car and the flag test
 
-Tags: **[exe]** (CSE 2.3, CB 7.2, CF 3). The meaning of the flag: F-14.
+Tags: **[exe]** (CSE 2.3, CB 7.2, CF 3; F-14 answered in [provenance/story-flow.md](../provenance/story-flow.md)).
 
-1. The special-setup hook (`DoSpecialSetup`) forces the preset car for races that ask for a fixed car, unless career
-   flag 20 is set.
+1. The special-setup hook (`DoSpecialSetup`) runs for a race whose node carries attribute `0x4393F69B`. When settings
+   flag bit 20 (`0x100000`, "the E3 demo BMW has been given") is **clear**, it finds the stable record of preset
+   `E3_DEMO_BMW` (`0x03A94520`) and makes it the current car, and answers true; otherwise it does nothing. So this hook
+   is the final race's BMW, not the prologue car.
 2. A new career sets the current car to `M3GTRCAREERSTART` (hash `0x38A3C42C`) at the start (CF 3, step 2).
 3. Every prologue race forces the preset (CSE 2.1). Boss races force their own car where their data says so: the final
    race forces `e3_demo_bmw` (CSE 4); other forced cars are in GR 3.2 (`PlayerCarType`, 177 races leave it empty).

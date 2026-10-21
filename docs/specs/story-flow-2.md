@@ -358,7 +358,7 @@ repo), or the install data (the crate reader in `crates/nfsmw-data` or a throwaw
 | F-11 | 5.3, 5.4 | After `EndingNis04` completes in 1.8.1: the next state (`postrace` or `done`), and whether the post-race return opens `GameWon.fng` directly. | Lua: the `niscomplete` handler of the `epic_pursuit` copy. |
 | F-12 | 2.1 step 4 | `16_1_1_circuit` holds an `outro_nis_marker` child (name, this pass), but CSE 2.1 and RM 11 say only `16_nis_rog_razor` sets `OutroNIS`. Is the outro of 16.1.1 set? | Data: `OutroNIS` and `OutroMessageID` of `16_1_1_circuit`. |
 | F-13 | 2.1 | `CashValue` (attribute `0xD8BAA07B`) of 16.2.2 and 16.2.3. The CSE 2.1 text says steps 2 to 4 pay 10,000; its table shows it only for 16.1.1. | Data: `CashValue` of `16_2_2_sprint`, `16_2_3_sprint`. Lua done copies. |
-| F-14 | 2.2 | Whether "career flag 20" in `DoSpecialSetup` (`0x00605830`) is settings bit 20 (`0x100000`), and its polarity. SAVE 3.3 gives bit 20 as "E3 demo BMW given". | Ghidra: `DoSpecialSetup` and its test on the settings flags. |
+| F-14 | 2.2 | **Answer [exe]:** settings bit 20 (`0x100000`, profile flags at `+0xAC`); the hook forces the `E3_DEMO_BMW` stable car (`0x03A94520`) for races with attribute `0x4393F69B` only while the bit is clear. The prologue's M3 GTR is the race's `PlayerCarType`. | done |
 | F-15 | 2.4 | What blocks new pursuits at `bail_trigger` (CSE 2.2), and the arguments of `EDispIntroRace` and `EBailPursuit(1, 1)`. | Lua: the `bail_trigger` triggerenter handler in 16_2_1. Ghidra: the `E*` wrappers. |
 | F-16 | 1.7, 2.4 | Which fade ends 16.2.1: the 8 s fade after the call starts (CP 5.2) or the 1 s fade after the engine blows (CSE 2.2). Both may hold. | Lua: `basicrace` racing handler for `notifycellcallstarted`; the 16_2_1 engine-blown handler. |
 | F-17 | 2.5 | The behaviour of `drive_to_target` states `activate_gps` and `outro_movie` (CS 1.2 lists them; CSE 7.1 does not describe them), and whether `at_target` goes to `outro_movie`. | Lua: the `drive_to_target` handlers (17 in the class). |
@@ -396,7 +396,7 @@ is the one to build.
 | C-02 | Cash per finish | CB 4.2: `CashValue` on every finish. RM 11: cash on first place. | F-10 |
 | C-03 | Prologue intro | CSE 2.1 lists a movie and an NIS for the same race. CSE 1.1 plays the movie only when no NIS is set. | F-01 |
 | C-04 | Settings bit 17 (`0x20000`) | CB 7.1: "first safe house visit processed". SAVE 3.3: "bonus-content popup already queued". CF 3 step 4 and CF 6 set it with the bonus probe. The context word's bit 17 is a different word (Blacklist sequence). | Writers of settings flags bit 17 (Ghidra) |
-| C-05 | "Career flag 20" | CS 3.2 and CB 7.2 test flag 20 in `DoSpecialSetup`. SAVE 3.3 gives bit 20 as "E3 demo BMW given". | F-14 |
+| C-05 | "Career flag 20" | CS 3.2 and CB 7.2 test flag 20 in `DoSpecialSetup`. SAVE 3.3 gives bit 20 as "E3 demo BMW given". | F-14 Settled by F-14: the same bit. |
 | C-06 | Stage 13 movie | CB 5.4: `bounty_tutorial` and flag `0x10`. CSH 5.3: the rap sheet movie flow. | F-20 |
 | C-07 | Marker choice count | CT2: "a choice of two markers". CSH 5.4: up to four shuffled. | F-24 |
 | C-08 | Outro NIS | CSE 2.1 and RM 11: only `16_nis_rog_razor` has `OutroNIS`. The install's `16_1_1_circuit` has an `outro_nis_marker`. | F-12 |
