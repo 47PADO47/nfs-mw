@@ -115,4 +115,4 @@ Open:
 - The arrest-spot search (the arrest uses the player's pose instead).
 - Delete confirmation in the inbox.
 - Text-language cell calls.
-- The markers screen and the final race are still in progress.
+- The markers screen and the final race are written but not yet checked in a running game.
