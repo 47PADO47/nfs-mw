@@ -2,6 +2,7 @@
 //! `elf_builder`; no install data is read.
 
 mod bank;
+mod clip;
 mod codec;
 mod compound;
 mod elf_builder;

@@ -9,6 +9,7 @@
 
 pub mod bank;
 mod bytes;
+pub mod clip;
 pub mod codec;
 pub mod compound;
 mod error;
@@ -18,6 +19,7 @@ pub mod skeleton;
 pub mod type_id;
 
 pub use bank::{Animation, Bank};
+pub use clip::{Clip, clips};
 pub use compound::{ChildRef, Compound};
 pub use error::{Error, Result};
 pub use object::{Object, Symbol};
