@@ -9,6 +9,7 @@ mod lighting;
 mod materials;
 mod presets;
 mod profiles;
+mod pursuit;
 mod quality;
 mod reflections;
 mod roads;
@@ -55,6 +56,7 @@ pub struct GraphicsLab {
     environment: Option<crate::viewer::Environment>,
     environment_change: Option<crate::viewer::Environment>,
     traffic_status: Option<String>,
+    pursuit_request: Option<u8>,
 }
 
 impl Default for GraphicsLab {
@@ -112,6 +114,7 @@ impl Default for GraphicsLab {
             environment: None,
             environment_change: None,
             traffic_status: None,
+            pursuit_request: None,
         }
     }
 }
@@ -220,6 +223,7 @@ impl GraphicsLab {
 
 fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSendMut<Host>) {
     let _trace = blackbox_trace::scope("Diagnostics: apply graphics lab");
+    pursuit::apply(&mut lab, &mut host);
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());

@@ -10,8 +10,7 @@ impl Vehicle {
         if self.wheels_on_ground_prev == 0 && self.wheels_on_ground > 0 {
             let rot = self.body.rotation();
             let mut w = rot.transpose() * angular_velocity;
-            w.y *= 0.5;
-            w.z *= 0.5;
+            w *= self.simple_chassis.map_or(Vec3::new(1.0, 0.5, 0.5), |c| c.landing_angular_retention);
             self.body.angular_velocity = rot * w;
             return self.body.angular_velocity;
         }

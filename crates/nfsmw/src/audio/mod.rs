@@ -26,6 +26,7 @@ pub use view::AudioView;
 pub mod commands;
 mod coverage;
 mod engine;
+mod explosion;
 mod fx;
 mod heli;
 mod interactive;
@@ -103,6 +104,7 @@ pub struct Audio {
     common: common_effects::CommonPlayback,
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
+    explosion: explosion::Slot,
     dir: GameDir,
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
@@ -183,6 +185,7 @@ impl Audio {
             common: common_effects::CommonPlayback::default(),
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),
+            explosion: explosion::Slot::default(),
             dir,
             volumes,
             banks: HashMap::new(),

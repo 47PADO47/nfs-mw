@@ -22,6 +22,9 @@ impl WorldScene {
             false => dt,
         };
         self.update_car_shading(renderer);
+        if let Some(traffic) = self.traffic.as_ref() {
+            traffic.update_damaged_windows(renderer, self.sun.to_sun());
+        }
         if let Some(drive) = self.drive.as_mut() {
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);

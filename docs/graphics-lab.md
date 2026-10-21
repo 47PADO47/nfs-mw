@@ -34,6 +34,11 @@ Save/load includes render scale, upscaling quality/sharpness and visual effect
 preferences, alongside lighting, materials, treatment and HDR calibration. It
 preserves requested values even when the active renderer uses a fallback.
 Detail and Traffic controls are shared by both renderers and included in saved snapshots.
+**Traffic → Pursuit testing** starts a session-only chase at heat 1–10 or ends
+the current pursuit. It uses the existing pursuit console command and does not
+persist a heat override. The live traffic readout includes fractional heat and
+the configured seconds per level, so slow escalation is visible. The console
+alternative is **F12**, then `pursuit 3` or `pursuit off`.
 Video contains HDR output/calibration and post-process anti-aliasing; Look keeps
 tone mapping, bloom and colour treatment. Video includes API (after restart), window mode, monitor, resolution, VSync, frame
 limit, performance overlay, upscaler, temporal quality (Native selects DLAA with

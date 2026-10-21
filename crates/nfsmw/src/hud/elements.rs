@@ -1,8 +1,8 @@
 //! Which parts of the HUD package are shown. The package holds every element of the in-game HUD; the game turns
 //! each on or off by feature. Here an element is on when the state it shows exists in this build: the speedometer
 //! and the tachometer always, the nitrous and turbo gauges when the car has the hardware, the pursuit board and its
-//! cool-down bar during a chase, the bounty row in career mode. The race group shows during a race; the heat arcs stay
-//! hidden until their state is bound; the minimap shows when the scene has a map position for it.
+//! cool-down bar during a chase, the bounty row in career mode. Race groups and heat arcs show their bound state;
+//! the minimap shows when the scene has a map position for it.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
@@ -33,10 +33,8 @@ pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
 /// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
 const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
-/// Parts of the package with no state bound yet, held hidden whatever the feature: the heat arcs (their
-/// mask-to-heat mapping is not bound), and the cool-down bar's "HIDING" group and car icon (the hiding timer is not
-/// in the feed).
-const HELD_HIDDEN: [u32; 4] = [0x8628_24c9, 0x4b2c_be1b, 0x60b4_5523, 0x3807_4901];
+/// The cool-down bar's "HIDING" group and car icon have no hiding-timer feed yet.
+const HELD_HIDDEN: [u32; 2] = [0x60b4_5523, 0x3807_4901];
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -123,7 +121,7 @@ impl Layout {
             minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
             mirror: find(&MIRROR),
             radar: find(&RADAR),
-            heat: find(&[0xC46A_80A9]),
+            heat: find(&[0xC46A_80A9, 0xB0F6_3386]),
             laser: find(&LASER),
             pursuit: find(&PURSUIT_BOARD),
             pursuit_cops: find(&PURSUIT_COPS),

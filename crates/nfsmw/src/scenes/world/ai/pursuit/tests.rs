@@ -24,7 +24,9 @@ use crate::scenes::world::{keys, sun};
 use crate::settings::CarShading;
 
 mod arrest;
+mod destruction;
 mod free_roam;
+mod heat_progress;
 mod installed;
 mod installed_arrest;
 mod installed_route;
@@ -140,6 +142,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };
     let physics = CarPhysics {
+        effect_source: 0,
         tire_integration: Default::default(),
         jump_config: Default::default(),
         spec,

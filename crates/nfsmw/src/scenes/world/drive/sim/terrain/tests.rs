@@ -10,6 +10,7 @@ mod installed;
 fn physics() -> CarPhysics {
     let spec = VehicleSpec::example();
     CarPhysics {
+        effect_source: 0,
         bounds: CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO },
         spec,
         tire_integration: Default::default(),

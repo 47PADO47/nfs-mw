@@ -106,7 +106,9 @@ kept, and it is invulnerable for 1.0 s ("physics switch"). [decomp]
 
 ## 6. Damage and destruction
 
-Cop damage is `DamageVehicle::OnCollision` plus two cop rules.
+Cop damage is `DamageVehicle::OnCollision` plus two cop rules. The callback
+quantity, signed-zone rules, strict thresholds and presentation are refined by
+[cop-destruction-contacts.md](cop-destruction-contacts.md).
 
 ```
 on a collision with closing speed >= 1 m/s:
@@ -148,7 +150,7 @@ be damaged to destruction. [decomp][verified]
 
 **Flipped over.** `DamageCopCar` checks every 0.1 s while the cop is not destroyed, not animating and no cut-scene exists:
 if the body is simulated and not all wheels touch the ground, and `dot(up, ground_normal) < 0.5` and `up.y < 0.5`, a
-"flipped" timer accumulates `dT`, else it resets. At 6.0 s the cop is destroyed. If it is flipped and the last cause of
+"flipped" timer accumulates `dT`, else it resets. After strictly more than 6.0 s the cop is destroyed. If it is flipped and the last cause of
 its motion (the causality chain) is the player's vehicle, it is destroyed at once. [decomp]
 
 **Shock.** `SetShockForce(f)`: `scale = f / mass / SHOCK_FORCE`; if `SHOCK_TIME > 0` and `scale > 0.2` the shock timer becomes
@@ -221,9 +223,9 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
 - **Q1** `SuspensionSimple` is only skimmed in the vehicle specs; the cop cars' handling depends on it. Measure it.
 - **Q2** The `copsuvl` goal hash (0x3CD90F0E in the lookup2 hash space) is not any goal name tried; it may name a goal
   that exists only in the PC build.
-- **Q3** `AIActionTooDamaged` needs `IsDestroyed()`; the exact moment the flag turns on (event `EVehicleDestroyed` handler
-  is not in the sources read) is unconfirmed.
-- **Q4** The visual damage tiers (zone damage levels 0 to 6) are not specified here.
+- Health predicates, event boundaries and visual damage tiers are specified in
+  [cop-destruction-contacts.md](cop-destruction-contacts.md). Complete causal
+  attribution and jointed hood/door presentation remain open.
 
 ## Rust implementation notes
 
@@ -247,25 +249,24 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
 - **Open:** the install's exact vertical test and the game's occlusion query flags are not confirmed by reversing (see
   `docs/provenance/ai-pursuit-sight.md`).
 
-### 2.2 Cop damage and the cops-wrecked count (epic E8b)
+### 2.2 Native cop damage and retirement
 
-- **Pure rules** live in `libs/blackbox-pursuit/src/wreck.rs`: `Wreck` (damage, flipped timer, shock, destroyed), `zone_of`
-  (the impact zone), `is_flipped`, and `WreckTuning` (the per-car numbers, passed in). The impulse is the car's collision
-  impulse (N s); the force is that impulse doubled, as the other body is a vehicle. A hit with a closing speed under 1 m/s
-  or beyond the suppress distance does nothing. Damage per hit is `ratio * zone_scale / HIT_POINTS` where the ratio is
-  `force / 20000`; a scaled ratio not over `HP_THRESHOLD` does nothing, and the car is wrecked once the damage is over 1.
-- **Per-car numbers** are the table of section 6 (`crates/nfsmw/src/scenes/world/ai/car/hits.rs`, `tuning_for`). Models not
-  in the table (`copsporthench`, `copsportghost`, `copcompact`, `cops`) take the base row; the two sport variants are
-  guesses for `copc6` **[unconfirmed]**.
-- **Flipped:** checked every 0.1 s; a flipped car is wrecked after 6.0 s, or at once when the player's car moved it within
-  the last 2.0 s (`PLAYER_CAUSE`, design value **[unconfirmed]** for the causality chain). The flipped test uses the
-  body's up against the ground normal taken as world up (the car's rest pose), so a car on a slope is approximated.
-- **Zone:** the contact normal is not carried by the collision hit, so the zone is the front, rear or side from the arm
-  alone; corners and top or bottom are not picked yet **[approximation]**.
-- **Shock:** `SetShockForce` is stored (`Wreck::set_shock`, scale over `SHOCK_FORCE` 40, decays over `SHOCK_TIME` 3 s), but
-  nothing reads it yet: the wreck coast-brake rule is not built, and the traffic shock (`car.rs`) is unchanged.
-- **Wrecked cops** brake where they are and stop counting as cops (`AiCar::is_cop`), so they leave the sight, the nearest
-  cop and the formation. They are not yet removed from the world (the manager's `AIActionTooDamaged` retirement is not built).
-- **The count:** `Police::record_wreck` (`ai/police.rs`) counts each wreck while a chase is on, and `begin` clears it. The
-  rep points of the wreck (`RepPointsForDestroying[heat]`) are **not paid**: `record_wreck` is the hook they go in.
-- **Engaged cops** (`GetNumCopsFullyEngaged`) and **damaged cops** (`GetNumCopsDamaged`) are not counted yet.
+- `blackbox-pursuit::wreck` owns health, strict thresholds, disabled predicates,
+  flipped timing and shock. The caller supplies the final body-specific damage
+  quantity, including the object multiplier; world and ground do not double it.
+- Installed inherited damage records provide health, thresholds, strength,
+  per-zone scales and shock settings. The older name table is only a fallback
+  when no resolved record exists.
+- Native vehicle contacts preserve the actual signed normal, arm, incoming
+  closing speed and incoming linear velocity. World, ground and eligible heavy
+  smackable callbacks feed the same health path and sequencer.
+- Flips use the cached terrain normal and strict six-second timeout. The
+  two-second recent-player-hit attribution remains an approximation of the
+  original model causality graph.
+- Destroyed cars leave active police queries and retain native dynamics, coasting
+  while shocked or slow and applying a quarter brake otherwise. Breaker areas
+  invoke explicit destruction, including later entrants, once per actor.
+- Live pit, ram, pull-over and static-roadblock states select installed collision
+  reaction overrides without changing the stored physical mass or inertia.
+- These deterministic and installed fixtures do not establish matched original
+  driving, full suspension parity, articulated part behavior or deformation.

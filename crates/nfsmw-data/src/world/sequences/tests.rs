@@ -1,5 +1,27 @@
 use super::*;
 
+#[test]
+fn object_effect_resolves_string_tag_and_preserves_attachment_fields() {
+    let raw = event(0xC1AF_4FDD, &[17, 42, 3.0_f32.to_bits(), 99, 1, 1]);
+    let mut package = Package::default();
+    package.strings.insert(17, "wooddust1".into());
+    let WorldEvent::ObjectEffect(effect) = WorldEvent::decode(&raw).unwrap().resolve_strings(&package) else {
+        panic!("wrong event");
+    };
+    assert_eq!(effect.effect, vlt_hash("wooddust1"));
+    assert_eq!((effect.position, effect.instance), (42, 99));
+    assert_eq!(effect.intensity, 1.0);
+    assert!(effect.tracking && effect.allow_hidden_spawn);
+    assert!(WorldEvent::decode(&event(0xC1AF_4FDD, &[17, 0, f32::NAN.to_bits(), 0, 0, 0])).is_err());
+    let WorldEvent::ObjectEffect(missing) = WorldEvent::decode(&raw).unwrap().resolve_strings(&Package::default())
+    else {
+        panic!("wrong event");
+    };
+    assert_eq!(missing.effect, 0);
+    assert_eq!(WorldEvent::decode(&event(0x3338_EFB8, &[99])).unwrap(), WorldEvent::StopObjectEffect(99));
+    assert_eq!(WorldEvent::decode(&event(0xC738_9F39, &[])).unwrap(), WorldEvent::StopObjectEffects);
+}
+
 fn event(id: u32, words: &[u32]) -> Event {
     let mut data = id.to_le_bytes().to_vec();
     for word in words {

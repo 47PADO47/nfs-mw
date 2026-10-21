@@ -1,7 +1,7 @@
 //! Independent PC emitter clocks; no fixed-rate Xenon dispatch.
 
 use super::particle::uniform;
-use glam::{Quat, Vec3};
+use glam::{Mat3, Quat, Vec3};
 use nfsmw_data::vehicle_effects::PcEmitter;
 
 #[derive(Clone, Copy)]
@@ -18,6 +18,7 @@ pub(super) struct PcSource {
     pub profile: PcEmitter,
     pub point: Vec3,
     pub rotation: Quat,
+    pub frame: Mat3,
     pub owner: Vec3,
     pub intensity: f32,
     pub forced: bool,
@@ -36,7 +37,18 @@ impl PcSource {
         forced: bool,
         seed: u64,
     ) -> Self {
-        Self { profile, point, rotation, owner, intensity, forced, phase: Phase::NotStarted, carry: 0.0, seed }
+        Self {
+            profile,
+            point,
+            rotation,
+            frame: Mat3::from_quat(rotation),
+            owner,
+            intensity,
+            forced,
+            phase: Phase::NotStarted,
+            carry: 0.0,
+            seed,
+        }
     }
 
     fn start(&mut self, rollover: f32) {

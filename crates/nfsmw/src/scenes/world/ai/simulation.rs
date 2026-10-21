@@ -12,6 +12,9 @@ use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
 impl TrafficWorld {
+    pub fn set_damage_view(&mut self, view: glam::Vec3) {
+        self.damage_view = Some(view);
+    }
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
         self.breaker_areas.extend(areas);
     }
@@ -42,16 +45,20 @@ impl TrafficWorld {
         let searching = !self.police.is_perp_in_sight();
         let search_cruise = self.search_cruise();
         for (me, car) in self.cars.iter_mut().enumerate() {
+            let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
+            car.damage_distance = view.map_or(f32::INFINITY, |v| v.distance(car.physics_position()));
             car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
-            let stop = car.is_roadblock()
-                || (car.is_cop()
-                    && self.breaker_areas.iter().any(|area| {
-                        area.duration > 0.0
-                            && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
-                    }));
-            car.set_breaker_stop(stop);
+            let in_breaker = car.is_live_police()
+                && self.breaker_areas.iter().any(|area| {
+                    area.duration > 0.0
+                        && breaker::inside(Vec2::new(area.position.x, area.position.z), area.radius, point)
+                });
+            if in_breaker {
+                car.destroy_police();
+            }
+            car.set_breaker_stop(car.is_roadblock());
             car.set_avoidance(self.avoidance);
             car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
             let mut ctx = Ctx {

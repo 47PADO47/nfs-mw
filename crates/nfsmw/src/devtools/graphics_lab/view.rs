@@ -51,7 +51,7 @@ pub(super) fn show(
                     },
                     profiles::Tab::Lighting => lighting::show(ui, lab, settings),
                     profiles::Tab::Detail => detail::show(ui, settings),
-                    profiles::Tab::Traffic => traffic::show(ui, settings, lab.traffic_status.as_deref()),
+                    profiles::Tab::Traffic => traffic::show(ui, settings, lab.traffic_status.as_deref(), &mut lab.pursuit_request),
                     profiles::Tab::Materials => super::materials::show(ui, lab, settings),
                     profiles::Tab::Effects => {
                         ui.add_enabled_ui(lab.caps.is_none_or(|c| c.ambient_occlusion), |ui| {

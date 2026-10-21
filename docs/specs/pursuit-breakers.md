@@ -50,7 +50,9 @@ when an attached body cannot move. Exact broad-phase shell selection, damage,
 causality, world occlusion and cinematic slowdown still need validation.
 
 `EBreakerStopCops` carries radius and duration at 4/8. Track an expiring area on
-the fixed clock and brake pursuing cops inside it, including later entrants.
+the fixed clock and explicitly destroy live police inside it, including later
+entrants. Native retirement coasts or brakes lightly according to shock and speed;
+it does not keep the roadblock hold brake on a destroyed car.
 Cinematic events, authored visual effects, dynamic regions, music/speech and
 pursuit score notifications remain separate integrations; report their absence.
 

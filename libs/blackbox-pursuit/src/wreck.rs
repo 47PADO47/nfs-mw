@@ -24,8 +24,6 @@ pub const SHOCK_TIME: f32 = 3.0;
 pub const SHOCK_FORCE: f32 = 40.0;
 /// A shock scaled to this or less does nothing.
 const SHOCK_MIN: f32 = 0.2;
-/// Slack for the float sums of the damage and the flipped time, so that five fifths make one.
-const DAMAGE_EPS: f32 = 1e-4;
 /// The part of a unit contact normal that picks a corner or a top or bottom (`0.8`).
 const NORMAL_SIDE: f32 = 0.8;
 /// The fraction of the half extents an arm must pass to leave the centre zone (`k = 0.5`).
@@ -42,6 +40,8 @@ pub struct WreckTuning {
     pub suppress_dist: f32,
     /// The `HitPointScale` of the front and rear zones: 0.5 for the cop sets, 1.0 for `copcross`.
     pub front_rear_scale: f32,
+    /// Installed FORCE, converted to N s for the damage ratio.
+    pub strength: f32,
 }
 
 /// The zone of the car an impact landed in (`DamageVehicle`'s zones).
@@ -76,8 +76,9 @@ impl Zone {
 /// the contact `normal`. All three are in the car's frame: x to the side, y up, z forward. A zero normal (the direction
 /// of the contact is not known) never picks a corner, a top or a bottom: the impact falls to the front, rear or side.
 pub fn zone_of(arm: Vec3, half: Vec3, normal: Vec3) -> Zone {
-    let left = arm.x < 0.0;
-    let corner = arm.x.abs() > EDGE * half.x && normal.x.abs() > NORMAL_SIDE;
+    let left = arm.x <= 0.0;
+    let corner =
+        (arm.x > EDGE * half.x && normal.x < -NORMAL_SIDE) || (arm.x < -EDGE * half.x && normal.x > NORMAL_SIDE);
     if let Some(front) = end_of(arm.z, half.z) {
         return end_zone(front, left, corner);
     }
@@ -123,7 +124,7 @@ pub fn is_flipped(up_dot_ground: f32, up_y: f32, all_wheels_down: bool) -> bool 
 /// The damage and shock of one cop car.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Wreck {
-    /// The damage taken, 0 at the start; the car is wrecked once it is over 1.
+    /// The damage taken, 0 at the start; the car is wrecked once it reaches 1.
     damage: f32,
     /// Seconds flipped so far, counted per flipped check.
     flipped: f32,
@@ -152,15 +153,25 @@ impl Wreck {
         self.destroyed
     }
 
+    /// Explicit destruction (flip or pursuit breaker), reported once to the host.
+    pub fn destroy(&mut self) -> bool {
+        if self.destroyed {
+            return false;
+        }
+        self.damage = 1.0;
+        self.destroyed = true;
+        true
+    }
+
     /// Whether the car is in shock: a hard hit is still being felt.
     pub fn in_shock(&self) -> bool {
         self.shock > 0.0
     }
 
     /// An impact of `impulse` (N s) at a closing speed of `closing` (m/s), in a zone whose hit point scale is
-    /// `zone_scale`, from `from_camera` metres away. Returns `true` on the impact that wrecks the car. The force is
-    /// the impulse doubled (the other body is a vehicle); a ratio not over the threshold does nothing, and the damage
-    /// adds `ratio * zone_scale / hit_points`.
+    /// `zone_scale`, from `from_camera` metres away. The caller supplies the final callback force, including the
+    /// object multiplier. The scaled ratio must exceed the threshold; damage adds `ratio * zone_scale / hit_points`.
+    /// At exactly 1 the car is disabled; the original impact event requires a strict crossing above 1.
     pub fn impact(
         &mut self,
         tuning: &WreckTuning,
@@ -175,15 +186,18 @@ impl Wreck {
         if tuning.suppress_dist > 0.0 && from_camera > tuning.suppress_dist {
             return false;
         }
-        let ratio = impulse * VEHICLE_OTHER / (FORCE_SCALE * 1000.0);
+        if tuning.hit_points <= 0.0 || tuning.strength <= 0.0 || !impulse.is_finite() {
+            return false;
+        }
+        let ratio = impulse / tuning.strength;
         let scaled = ratio * zone_scale;
         if scaled <= tuning.threshold {
             return false;
         }
         self.damage += scaled / tuning.hit_points.max(f32::EPSILON);
-        if self.damage > 1.0 + DAMAGE_EPS {
+        if self.damage >= 1.0 {
             self.destroyed = true;
-            return true;
+            return self.damage > 1.0;
         }
         false
     }
@@ -204,9 +218,8 @@ impl Wreck {
             true => self.flipped + FLIP_CHECK,
             false => 0.0,
         };
-        if (flipped_now && by_player) || self.flipped + DAMAGE_EPS >= FLIP_TIME {
-            self.destroyed = true;
-            return true;
+        if (flipped_now && by_player) || self.flipped > FLIP_TIME {
+            return self.destroy();
         }
         false
     }
@@ -214,16 +227,32 @@ impl Wreck {
     /// `SetShockForce(force)` for a car of `mass` kg: the shock becomes the force's scale (force over mass over
     /// [`SHOCK_FORCE`]) when that is over [`SHOCK_MIN`], as the larger of the shock and the scale, at most 1.
     pub fn set_shock(&mut self, force: f32, mass: f32) {
-        let scale = force / mass.max(1.0) / SHOCK_FORCE;
+        self.set_shock_scaled(force, mass, SHOCK_FORCE);
+    }
+
+    pub fn set_shock_scaled(&mut self, force: f32, mass: f32, shock_force: f32) {
+        if shock_force <= 0.0 {
+            return;
+        }
+        let scale = force / mass.max(1.0) / shock_force;
         if scale <= SHOCK_MIN {
             return;
         }
         self.shock = self.shock.max(scale).min(1.0);
     }
 
+    /// Original disabled-car retirement: coast while shocked or slow, otherwise a quarter brake.
+    pub fn retirement_brake(&self, planar_speed: f32) -> f32 {
+        if !self.in_shock() && planar_speed >= 2.5 { 0.25 } else { 0.0 }
+    }
+
     /// Decays the shock by `dt` seconds.
     pub fn step_shock(&mut self, dt: f32) {
-        self.shock = (self.shock - dt / SHOCK_TIME).max(0.0);
+        self.step_shock_scaled(dt, SHOCK_TIME);
+    }
+
+    pub fn step_shock_scaled(&mut self, dt: f32, shock_time: f32) {
+        self.shock = if shock_time > 0.0 { (self.shock - dt / shock_time).max(0.0) } else { 0.0 };
     }
 }
 
@@ -232,12 +261,31 @@ mod tests {
     use super::*;
 
     /// A cop set of the base numbers (`copmidsize`): hit points 5, threshold 0.75, suppressed beyond 35 m.
-    const MID: WreckTuning =
-        WreckTuning { hit_points: 5.0, threshold: 0.75, suppress_dist: 35.0, front_rear_scale: 0.5 };
+    const MID: WreckTuning = WreckTuning {
+        hit_points: 5.0,
+        threshold: 0.75,
+        suppress_dist: 35.0,
+        front_rear_scale: 0.5,
+        strength: 20_000.0,
+    };
     const HALF: Vec3 = Vec3::new(1.0, 0.7, 2.2);
 
     /// The impulse (N s) that gives a side hit a ratio of exactly one: `20000 / 2` (the doubling of the force).
-    const ONE: f32 = 10_000.0;
+    const ONE: f32 = 20_000.0;
+
+    #[test]
+    fn retirement_coasts_during_shock_and_brakes_lightly_only_above_the_speed_gate() {
+        let mut wreck = Wreck::default();
+        assert!(wreck.destroy());
+        assert_eq!(wreck.damage(), 1.0);
+        assert!(!wreck.destroy(), "an explicit destruction is reported once");
+        assert_eq!(wreck.retirement_brake(2.49), 0.0);
+        assert_eq!(wreck.retirement_brake(2.5), 0.25);
+        wreck.set_shock(40_000.0, 1500.0);
+        assert_eq!(wreck.retirement_brake(20.0), 0.0);
+        wreck.step_shock(3.1);
+        assert_eq!(wreck.retirement_brake(20.0), 0.25);
+    }
 
     #[test]
     fn the_zone_is_the_end_or_the_side_of_the_arm() {
@@ -251,7 +299,8 @@ mod tests {
     fn a_corner_needs_the_arm_out_to_the_side_and_the_normal_across_it() {
         let across = Vec3::new(1.0, 0.0, 0.0);
         assert_eq!(zone_of(Vec3::new(-0.9, 0.0, 2.0), HALF, across), Zone::FrontLeft);
-        assert_eq!(zone_of(Vec3::new(0.9, 0.0, -2.0), HALF, across), Zone::RearRight);
+        assert_eq!(zone_of(Vec3::new(0.9, 0.0, -2.0), HALF, -across), Zone::RearRight);
+        assert_eq!(zone_of(Vec3::new(0.9, 0.0, -2.0), HALF, across), Zone::Rear);
         // Without the normal's side the same arm is the plain front.
         assert_eq!(zone_of(Vec3::new(-0.9, 0.0, 2.0), HALF, Vec3::ZERO), Zone::Front);
     }
@@ -262,7 +311,7 @@ mod tests {
         assert_eq!(zone_of(Vec3::new(0.0, 0.6, 0.0), HALF, down), Zone::Top);
         assert_eq!(zone_of(Vec3::new(0.0, -0.6, 0.0), HALF, -down), Zone::Bottom);
         // A zero normal never picks the top.
-        assert_eq!(zone_of(Vec3::new(0.0, 0.6, 0.0), HALF, Vec3::ZERO), Zone::Right);
+        assert_eq!(zone_of(Vec3::new(0.0, 0.6, 0.0), HALF, Vec3::ZERO), Zone::Left);
     }
 
     #[test]
@@ -292,14 +341,17 @@ mod tests {
     }
 
     #[test]
-    fn side_hits_wreck_the_base_car_on_the_sixth() {
+    fn side_hits_wreck_the_base_car_at_exactly_full_damage() {
         let mut w = Wreck::default();
-        // Each side hit at a ratio of one adds 1 / 5 = 0.2: five leave it at 1.0, the sixth wrecks it.
-        for _ in 0..5 {
+        // Each side hit at a ratio of one adds 1 / 5 = 0.2: five leave it disabled at exactly 1.0.
+        for _ in 0..4 {
             assert!(!w.impact(&MID, ONE, 5.0, 1.0, 10.0));
         }
         assert!(!w.is_destroyed());
-        assert!(w.impact(&MID, ONE, 5.0, 1.0, 10.0));
+        assert!(
+            !w.impact(&MID, ONE, 5.0, 1.0, 10.0),
+            "at exactly one the predicate changes without an impact destruction event"
+        );
         assert!(w.is_destroyed());
         // Once wrecked, nothing more happens and it does not report twice.
         assert!(!w.impact(&MID, ONE, 5.0, 1.0, 10.0));
@@ -327,7 +379,7 @@ mod tests {
             }
         }
         let at = wrecked_at.expect("flipped for seven seconds");
-        assert!((at - FLIP_TIME).abs() < 0.11, "wrecked at {at}");
+        assert!(at > FLIP_TIME && at < FLIP_TIME + FLIP_CHECK + 0.02, "wrecked at {at}");
     }
 
     #[test]

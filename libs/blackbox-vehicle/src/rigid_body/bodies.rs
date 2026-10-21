@@ -58,6 +58,9 @@ pub struct BodyReaction {
     pub reaction: Reaction,
     pub immobile: [bool; 2],
     pub impulse_delta_v: [f32; 2],
+    /// Collision callback intensity. An immobile moment uses its partner's effective mass,
+    /// even though it receives no physical velocity change.
+    pub notification_delta_v: [f32; 2],
 }
 
 impl BodyContact {
@@ -105,7 +108,9 @@ pub fn resolve_bodies(
         true => 0.0,
         false => reaction.impulse / moment.mass,
     });
-    Some(BodyReaction { reaction, immobile: [left.immobile, right.immobile], impulse_delta_v })
+    let notification_delta_v =
+        [(&left, &right), (&right, &left)].map(|(own, other)| own.notification_delta_v(other, reaction.impulse));
+    Some(BodyReaction { reaction, immobile: [left.immobile, right.immobile], impulse_delta_v, notification_delta_v })
 }
 
 /// Pushes two overlapping bodies apart along the normal, the lighter one further (by the mass ratio).

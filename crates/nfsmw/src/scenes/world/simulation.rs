@@ -160,15 +160,20 @@ impl WorldScene {
         let event_view = camera.position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
-        props.step(&super::drive::WorldGround { collision, surfaces }, STEP);
-        self.explosions.request(props.take_blasts());
+        props.begin_native(STEP);
+        self.explosions.request(props.take_blasts().into_iter().map(|point| space::to_render(point.to_array())));
+        self.explosions.announce_authored(
+            props.take_authored_blasts().into_iter().map(|point| space::to_render(point.to_array())),
+        );
         self.explosions.step(STEP);
         let player_step = match (driving, self.drive.as_mut()) {
             (true, Some(drive)) => drive.step(collision, props, surfaces),
             _ => None,
         };
+        let player_advanced = player_step.is_some();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
+            traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
             traffic.step(focus, collision, props, surfaces);
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
@@ -179,7 +184,24 @@ impl WorldScene {
             drive.update_events(props, &self.physics, event_view);
             drive.finish_step(collision, surfaces, step);
         }
+        props.finish_native_world(&super::drive::WorldGround { collision, surfaces }, STEP);
+        let mut visual_contacts = props.take_impact_effects();
+        if let Some(drive) = self.drive.as_mut() {
+            visual_contacts.extend(drive.take_impact_effects());
+        }
+        if let Some(traffic) = self.traffic.as_mut() {
+            visual_contacts.extend(traffic.take_impact_effects());
+        }
+        self.impact_fx.set_enabled(self.vehicle_effects[0]);
+        self.impact_fx.step(self.physics.database(), visual_contacts, event_view, STEP);
+        let prop_sounds = props.take_sound_contacts();
+        if player_advanced && let Some(drive) = self.drive.as_mut() {
+            drive.append_world_sound_contacts(prop_sounds);
+        }
         let stops = props.update_scenery(&self.physics);
+        self.object_fx.request(props.take_particle_commands());
+        self.object_fx.step(props, STEP);
+        self.car_damage_fx.step(self.traffic.iter().flat_map(|traffic| traffic.damage_effect_sources()), STEP);
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.breaker_stops(stops);
         }

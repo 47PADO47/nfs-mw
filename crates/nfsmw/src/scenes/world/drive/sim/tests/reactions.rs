@@ -3,6 +3,19 @@ use nfsmw_data::car::physics::{AiCollisionReactions, CollisionReaction, Collisio
 use super::*;
 
 #[test]
+fn vehicle_source_immobility_initializes_contact_without_retuning_the_body() {
+    let mut vehicle = sim();
+    let mut spec = vehicle.vehicle.spec().clone();
+    spec.body.objects.immobile = true;
+    vehicle.vehicle.set_spec(spec);
+    let mass = vehicle.body().mass();
+    let inertia = vehicle.body().inertia();
+    assert!(vehicle.object_hit(Vec3::Z, Vec3::NEG_Z, false, true).immobile);
+    assert_eq!(vehicle.body().mass(), mass);
+    assert_eq!(vehicle.body().inertia(), inertia);
+}
+
+#[test]
 fn speedbreaker_collision_override_scales_temporary_mass_and_inertia_and_restores() {
     let mut player = sim();
     let normal = Vec3::NEG_Z;
@@ -103,4 +116,76 @@ fn changing_goal_selects_a_profile_and_an_invalid_override_suppresses_it() {
     assert!(ai.object_hit(Vec3::Z, Vec3::Z, false, true).centre.is_some());
     ai.collision_goal = Some(2);
     assert!(ai.object_hit(Vec3::Z, Vec3::Z, false, true).centre.is_none());
+}
+
+#[test]
+fn native_pair_damage_uses_normal_callback_and_stored_mass_with_temporary_ai_scaling() {
+    let (mut player, mut cop) = (sim(), sim());
+    cop.configure_ai();
+    cop.collision_role.cop = true;
+    let reaction = CollisionReaction { mass_scale: 0.5, elasticity: 0.4, ..Default::default() };
+    let profile =
+        Arc::new(CollisionReactions { front: reaction, front_side: reaction, rear: reaction, rear_side: reaction });
+    cop.reactions = Some(Arc::new(AiCollisionReactions { default: Some(profile), goals: vec![] }));
+    player.body_mut().place(Vec3::ZERO, Quat::IDENTITY);
+    let separation = cop.half_dimensions().z * 2.0 - 0.1;
+    cop.body_mut().place(Vec3::Z * separation, Quat::IDENTITY);
+    player.body_mut().linear_velocity = Vec3::new(5.0, 0.0, 20.0);
+    let before = cop.body().linear_velocity;
+    let mass = cop.body().mass();
+    let scale = cop.body().spec().objects.mass_scale * reaction.mass_scale;
+    let hit = player.collide_with(&mut cop).expect("approaching bodies overlap");
+    let callback = hit.damage[1];
+    let expected = 2.0 * hit.impulse / scale;
+    assert!((callback.force - expected).abs() < expected * 1e-5);
+    assert_eq!(callback.before_velocity, before);
+    assert!((callback.closing_speed - 20.0).abs() < 1e-5, "sliding is not part of damage closing speed");
+    assert_eq!(callback.normal, -hit.damage[0].normal);
+    assert_eq!(callback.arm, cop.body().rotation().transpose() * (hit.point - cop.body().position));
+    assert_eq!(hit.damage[0].arm, player.body().rotation().transpose() * (hit.point - player.body().position));
+    assert!(callback.other.player && callback.other.vehicle);
+    assert_eq!(cop.body().mass(), mass, "temporary collision scaling must not change stored police mass");
+    let final_velocity_force = (cop.body().linear_velocity - before).length() * mass * 2.0;
+    assert!((final_velocity_force - callback.force).abs() > 1.0, "friction and restitution are excluded from damage");
+}
+
+#[test]
+#[ignore = "needs installed police mass and collision reaction records"]
+fn installed_cop_native_weight_and_goal_reactions_preserve_the_source_physical_body() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+    let data = nfsmw_data::car::physics::PhysicsData::load(&dir).unwrap();
+    for name in [
+        "copmidsize",
+        "copghost",
+        "copgto",
+        "copgtoghost",
+        "copsuv",
+        "copsuvl",
+        "copsuvpatrol",
+        "copcross",
+        "copsport",
+        "copsportghost",
+    ] {
+        let physics = data.car(name).unwrap();
+        let source_mass = data.database().collection("pvehicle", name).unwrap().get_f32("MASS").unwrap();
+        assert_eq!(physics.spec.mass, source_mass, "{name}: physical mass must be inherited from its vehicle record");
+        let reactions = physics.reactions.as_ref().expect("installed police collision profiles").clone();
+        let mut sim = CarSim::new(physics, [0.3; 4]);
+        sim.configure_ai();
+        let before_mass = sim.body().mass();
+        let before_inertia = sim.body().inertia();
+        for goal in std::iter::once(None).chain(reactions.goals.iter().map(|entry| Some(entry.goal))) {
+            sim.collision_goal = goal;
+            let base = sim.object_hit(Vec3::Z, Vec3::NEG_Z, false, false);
+            let contact = sim.object_hit(Vec3::Z, Vec3::NEG_Z, false, true);
+            let expected_scale = reactions.profile(goal).map_or(1.0, |profile| {
+                let scale = profile.front.mass_scale;
+                if scale > 0.0 { scale } else { 1.0 }
+            });
+            assert!((contact.mass_scale - base.mass_scale * expected_scale).abs() < 1e-5, "{name}: goal {goal:?}");
+            assert_eq!(sim.body().mass(), before_mass);
+            assert_eq!(sim.body().inertia(), before_inertia);
+        }
+        eprintln!("{name}: native mass={source_mass}, {} authored goal reaction overrides", reactions.goals.len());
+    }
 }

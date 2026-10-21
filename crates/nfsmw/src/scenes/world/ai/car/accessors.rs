@@ -8,7 +8,10 @@ impl AiCar {
         self.roadblock = true;
         self.breaker_stop = true;
         self.sim.collision_role.cop = true;
-        self.damage.get_or_insert_with(|| CopDamage::for_model(&self.name));
+        self.sim.collision_goal = Some(blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock"));
+        if self.damage.is_none() {
+            self.damage = Some(CopDamage::for_model(&self.name, self.sim.events.as_ref().map(|e| e.spec())));
+        }
     }
 
     /// Whether this car is part of a roadblock (and so holds its place).
@@ -53,8 +56,9 @@ impl AiCar {
 
     /// A line about what the car is doing, for the `traffic status` command.
     pub fn debug(&self) -> String {
+        let damage = self.damage_status();
         format!(
-            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s",
+            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s{damage}",
             if self.is_cop() {
                 "cop"
             } else if self.patrol {

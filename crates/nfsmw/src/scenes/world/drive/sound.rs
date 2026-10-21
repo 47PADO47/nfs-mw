@@ -17,6 +17,12 @@ pub struct SoundFeed {
 }
 
 impl SoundFeed {
+    fn append_world_contacts(&mut self, contacts: Vec<CarContact>) {
+        if let Some(tick) = self.ticks.last_mut() {
+            tick.contacts.extend(contacts);
+        }
+    }
+
     pub fn after_step(
         &mut self,
         sim: &mut CarSim,
@@ -71,6 +77,13 @@ impl SoundFeed {
             ticks: std::mem::take(&mut self.ticks),
             view: Default::default(),
         }
+    }
+}
+
+impl super::Drive {
+    /// Nearby prop sounds belong to the completed tick, independently of player camera impacts.
+    pub(in crate::scenes::world) fn append_world_sound_contacts(&mut self, contacts: Vec<CarContact>) {
+        self.sound.append_world_contacts(contacts);
     }
 }
 

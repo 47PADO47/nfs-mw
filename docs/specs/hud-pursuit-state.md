@@ -16,6 +16,27 @@ busted/evade meter. It is written before the corresponding implementation.
   meter formulas below. These are static/native-isolation results; matched
   gameplay comparison remains required.
 
+## Heat progress around the minimap
+
+**[binary]** The PC heat-meter update confirms that the ring shows the fractional
+part of the current heat, while its `xN` label shows the integer part. The first
+half-mask (`0x862824c9`) rotates from175 to0 degrees over fractions0 to0.5; the
+second (`0x4b2cbe1b`) remains at175 until0.5, then rotates to0 by1.0. At the next
+integer both masks reset and the multiplier increments. These are mask rotations,
+not rotations of the images or minimap. Preserve the authored pivots/textures.
+
+The multiplier group (`0x7f91da62`) selects script `0x41e1fedc` below fraction0.5 and `INIT` at/above
+0.5. The icon (`0x6f85ed55`) uses `0x77031c70` for positive heat through fraction
+0.75 and `0xda600155` above0.75; non-positive heat selects `INIT`. Hide the
+multiplier below heat1. The group's two `0xa81a2028` string layers carry the
+same xN text; scripts belong to their group. The two arcs belong to their separate authored group
+`0xb0f63386`, which must be eligible alongside `Heat_Meter_Group`. They must not
+remain held hidden once this feed is bound. This meter cannot change pursuit
+heat, growth timing or the selected cop wave.
+
+The CC0 `FeHeatMeter.cpp` is marked unsolved and its second-half expression is
+incomplete below0.5; native instructions confirm that this half stays empty there.
+
 ## Radar target and sweep
 
 The native feeder selects the nearest eligible live ground police vehicle

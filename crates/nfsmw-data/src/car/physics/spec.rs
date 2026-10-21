@@ -14,6 +14,7 @@ use super::{
 /// A car ready for the physics: its spec and where the collision box sits in the car's own space.
 #[derive(Debug, Clone)]
 pub struct CarPhysics {
+    pub effect_source: u32,
     pub spec: VehicleSpec,
     pub tire_integration: blackbox_vehicle::tires::TireIntegration,
     pub jump_config: blackbox_vehicle::vehicle::JumpConfig,
@@ -57,6 +58,7 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
     };
     let reactions = AiCollisionReactions::read(db, pvehicle).map(Arc::new);
     Ok(CarPhysics {
+        effect_source: pvehicle.key(),
         spec,
         bounds,
         walls,

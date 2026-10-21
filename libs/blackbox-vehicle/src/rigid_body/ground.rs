@@ -26,6 +26,12 @@ pub struct GroundContact {
     pub friction: f32,
     pub surface: u32,
     pub velocity: Vec3,
+    /// Original local contact vertex, before penetration correction moves the body.
+    pub local_arm: Vec3,
+    /// Incoming normal speed of the successful reaction, excluding sliding.
+    pub closing_speed: f32,
+    /// Body linear velocity immediately before the successful reaction.
+    pub before_velocity: Vec3,
     pub impulse_delta_v: f32,
 }
 
@@ -39,7 +45,7 @@ impl RigidBody {
         let downward = self.angular_velocity.x * arm.z - self.angular_velocity.z * arm.x - self.linear_velocity.y;
         let planar = self.linear_velocity.x.hypot(self.linear_velocity.z);
         let ceiling = self.position.y + extent;
-        let lift = (planar * dt + downward.max(0.0) * dt + extent).max(0.25).min(ceiling - point.y);
+        let lift = (planar * dt + downward.max(0.0) * dt + extent).min(ceiling - point.y).max(0.25);
         if !lift.is_finite() || lift <= 0.0 {
             return None;
         }
@@ -56,6 +62,9 @@ impl RigidBody {
             friction: ground.body_friction(hit.surface.tag),
             surface: hit.surface.tag,
             velocity: self.point_velocity(point),
+            local_arm: self.rotation().transpose() * (point - self.position),
+            closing_speed: 0.0,
+            before_velocity: Vec3::ZERO,
             impulse_delta_v: 0.0,
         })
     }
@@ -76,7 +85,10 @@ impl RigidBody {
                 friction_static: spec.ground_friction[0] * c.friction,
                 friction_kinetic: spec.ground_friction[1].min(spec.ground_friction[0]) * c.friction,
             };
+            let before_velocity = self.linear_velocity;
             if let Some(reaction) = self.react_plane(&plane, &params) {
+                c.closing_speed = reaction.closing_speed.abs();
+                c.before_velocity = before_velocity;
                 c.impulse_delta_v = reaction.impulse / self.mass();
                 break;
             }

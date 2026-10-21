@@ -12,6 +12,7 @@ mod jump;
 mod maneuver;
 mod reconfigure;
 mod settle;
+mod simple_chassis;
 mod spec;
 mod state;
 mod step;
@@ -25,6 +26,7 @@ pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
 pub use maneuver::ManeuverAssist;
+pub use simple_chassis::SimpleChassisConfig;
 pub use spec::{Tunings, VehicleSpec};
 pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
 pub use wall_steering::WallSteeringConfig;
@@ -49,6 +51,8 @@ pub struct Vehicle {
     pub tunings: Tunings,
     /// How raw input is interpreted (dead zone, automatic gearbox, steering device).
     pub config: ControlConfig,
+    simple_chassis: Option<SimpleChassisConfig>,
+    simple_max_steering: f32,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
     /// recorded drive). `None` in play.
     pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
@@ -118,6 +122,8 @@ impl Vehicle {
         Self {
             tunings: Tunings::default(),
             config: ControlConfig::default(),
+            simple_chassis: None,
+            simple_max_steering: 0.0,
             forced_wheel_angles: None,
             disabled: false,
             can_recharge_nos: true,
@@ -219,6 +225,7 @@ impl Vehicle {
     }
 
     fn reset_dynamics(&mut self) {
+        self.simple_max_steering = self.simple_chassis.map_or(0.0, |c| c.steering_range[0]);
         self.wall_steering = wall_steering::WallSteering::default();
         self.jump_state = JumpState::default();
         self.ground_reference = None;

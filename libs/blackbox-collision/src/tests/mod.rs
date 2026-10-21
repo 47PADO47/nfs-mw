@@ -8,5 +8,5 @@ mod install;
 mod install_filtered;
 mod pack;
 mod query;
-mod synth;
+pub(crate) mod synth;
 mod ungridded;

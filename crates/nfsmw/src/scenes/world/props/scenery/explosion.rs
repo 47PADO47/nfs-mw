@@ -22,6 +22,20 @@ pub(super) struct Wave {
 }
 
 impl PropWorld {
+    /// Native camera explosions use maximum range independently of physical target flags.
+    pub fn camera_explosions(&self) -> Vec<crate::viewer::camera::original::Explosion> {
+        self.scenery
+            .waves
+            .iter()
+            .filter(|wave| !wave.complete)
+            .map(|wave| crate::viewer::camera::original::Explosion {
+                position: crate::scenes::world::space::to_render(wave.position.to_array()),
+                expansion_speed: wave.spec.speed,
+                maximum_radius: wave.spec.radius,
+            })
+            .collect()
+    }
+
     pub(super) fn create_explosion(&mut self, id: u32, spec: Explosion) {
         if spec.speed <= 0.0 || spec.radius <= 0.0 || spec.start_radius >= spec.radius {
             return;
@@ -41,7 +55,10 @@ impl PropWorld {
             vehicles: Vec::new(),
         });
         if petrol {
-            self.scenery.blasts.push(position);
+            match self.scenery.models.get(&id).is_some_and(|model| model.authored_visual) {
+                true => self.scenery.authored_blasts.push(position),
+                false => self.scenery.blasts.push(position),
+            }
         }
     }
 

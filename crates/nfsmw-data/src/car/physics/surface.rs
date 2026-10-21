@@ -35,6 +35,7 @@ pub struct SurfaceTable {
     grips: HashMap<u32, SurfaceGrip>,
     audio: HashMap<u32, SurfaceAudio>,
     body_friction: HashMap<u32, f32>,
+    world_friction: HashMap<u32, f32>,
     camera_noise: HashMap<u32, [f32; 2]>,
     unknown: SurfaceGrip,
 }
@@ -68,11 +69,18 @@ impl SurfaceTable {
         let body_friction =
             db.collections_of("simsurface").map(|c| (c.key(), c.get_f32("GROUND_FRICTION").unwrap_or(1.0))).collect();
         let camera_noise = db.collections_of("simsurface").map(|c| (c.key(), camera_pair(c))).collect();
-        Self { grips, audio, body_friction, camera_noise, unknown }
+        let world_friction =
+            db.collections_of("simsurface").map(|c| (c.key(), c.get_f32("WORLD_FRICTION").unwrap_or(1.0))).collect();
+        Self { grips, audio, body_friction, world_friction, camera_noise, unknown }
     }
 
     pub fn body_friction(&self, hash: u32) -> f32 {
         self.body_friction.get(&hash).or_else(|| self.body_friction.get(&self.unknown.tag)).copied().unwrap_or(1.0)
+    }
+
+    /// Original wall/barrier friction, distinct from ground contact friction.
+    pub fn world_friction(&self, hash: u32) -> f32 {
+        self.world_friction.get(&hash).or_else(|| self.world_friction.get(&self.unknown.tag)).copied().unwrap_or(1.0)
     }
 
     /// Native terrain-camera values for a contact surface, or the installed unknown surface.
@@ -125,6 +133,7 @@ mod tests {
             grips: HashMap::from([(7, SurfaceGrip { lateral: 0.5, drive: 0.6, rolling: 2.0, tag: 7 })]),
             audio: HashMap::from([(7, SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() })]),
             body_friction: HashMap::from([(7, 0.3)]),
+            world_friction: HashMap::from([(7, 0.8), (0, 0.4)]),
             camera_noise: HashMap::from([(7, [0.6, 0.1]), (0, [0.2, 0.3])]),
             unknown: SurfaceGrip { lateral: 0.9, drive: 0.9, rolling: 1.0, tag: 0 },
         };
@@ -134,6 +143,8 @@ mod tests {
         assert!(table.knows(7) && !table.knows(0));
         assert_eq!(table.audio(7), SurfaceAudio { skid_type: 1, road_loop: 3, ..Default::default() });
         assert_eq!(table.audio(99), SurfaceAudio::default());
+        assert_eq!(table.world_friction(7), 0.8);
+        assert_eq!(table.world_friction(99), 0.4);
         assert_eq!(table.camera_noise(7), [0.6, 0.1]);
         assert_eq!(table.camera_noise(99), [0.2, 0.3]);
         assert_eq!(SurfaceTable::default().camera_noise(99), [0.0; 2]);

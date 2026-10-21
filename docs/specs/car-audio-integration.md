@@ -31,6 +31,31 @@ does not by itself imply the original sound device uses slowed time or pitch.
 
 ## Linkage resolution
 
+After resolving a material linkage, choose the effects wrapper's exact inherited
+`AudioFX_FRONT`, `AudioFX_REAR`, `AudioFX_TOP`, `AudioFX_BOTTOM` or `AudioFX_SIDE`
+reference. Classify the signed unit normal in the owning body's local physics
+axes: forward z below -0.707 selects front, above +0.707 rear; otherwise up y
+below -0.707 selects top, above +0.707 bottom; otherwise side. Boundaries belong
+to side; forward classification takes precedence over up. A missing/zero zone
+reference falls back only to `AudioFX_DEFAULT`. With no owner orientation, use
+the default reference. A material linkage that resolves an effects wrapper
+without audio stays silent; it must still prevent substitution of a different
+material's fallback sound. A nonzero zone reference that does not resolve to
+audio also stays silent. DESCRIPTION flags classify the selected audio event;
+they do not select which wrapper field to read. Preserve this audio zone
+independently from camera front/side classification.
+
+Retain the effects wrapper's inherited `AudioQuadratic` and `AudioCullDist`.
+After the physical hit ramp passes its positive threshold, map it through
+`clamp(((D*x+C)*x+B)*x+A, 0, 1)` before stitch/mixer intensity selection. A missing
+curve uses (0,1,0,0). Scrapes apply their physical minimum intensity 0.1 before
+this curve. Apply it once; a direct CarEvent already carries audio intensity.
+Cull against the active view's distance and the source wrapper's radius (plus
+the collision audio service's 100 m limit). One-shots include the radius boundary;
+continuous effects require strictly less. A physically accepted OnDetached
+effect suppresses OnHitObject fallback even when that effect has no audio, is
+culled or its audio curve produces zero.
+
 The pvehicle action arrays contain 32-byte records. In addition to the selector
 and effect references, retain the final two floats as the minimum and maximum
 response values. Resolve a matching material and its parent surfaces before
@@ -123,8 +148,23 @@ audio independently of the car's table. Preserve that collection key. On actual
 detachment, first try OnDetached on the other primitive's surface using relative
 contact speed; if no eligible effect is produced, use the prop's OnHitObject
 rule and per-prop response delta-v. Do not substitute a wall sound for a missing
-object rule. PC confirms these paths and the carbody selector. This batch handles
-player-prop contacts; other prop-ground and prop-prop sound producers remain open.
+object rule. PC confirms these paths and the carbody selector.
+Prop-owned object/object, ground and authored-world contacts must publish their
+own sound records too. Preserve the owning smackable profile and the partner's
+primitive or world surface, relative contact velocity, normal and per-owner
+response delta-v. A prop pair publishes one record for each endpoint after a
+successful response; detachment is independently reported for each endpoint.
+Ground uses the first successful support reaction. Barrier contacts use the
+resolved world plane and pre-response point velocity. The authored source rules
+decide whether these callbacks produce sound; do not substitute the player's
+collision table for a silent or absent prop rule.
+
+Queue these records on their completed simulation tick, after world/ground
+response, and consume them once with the existing contact playback. They must
+not enter the player's camera-impact feed. Player/prop records already emitted
+by the vehicle contact path are not emitted again. Contact identities must keep
+different prop owners separate even when they share one source profile.
+
 The AEMS direct route applies its dry word at seven-bit precision and azimuth
 only to mono samples. Wet playback now follows the shared output contract described below.
 

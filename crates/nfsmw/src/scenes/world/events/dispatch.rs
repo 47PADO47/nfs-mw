@@ -23,7 +23,7 @@ pub(in super::super) fn drain(
                 bail!("event dispatch cycle exceeded 4096 events");
             }
             remaining -= 1;
-            let event = WorldEvent::decode(event)?;
+            let event = WorldEvent::decode(event)?.resolve_strings(package);
             if let WorldEvent::FireList { list, delayed } = event {
                 if delayed {
                     bail!("delayed EFireEventList needs deferred context");

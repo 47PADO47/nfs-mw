@@ -26,6 +26,7 @@ fn striker() -> CarSim {
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };
     CarSim::new(
         CarPhysics {
+            effect_source: 0,
             tire_integration: Default::default(),
             jump_config: Default::default(),
             spec,

@@ -6,6 +6,49 @@ use std::collections::HashMap;
 
 use super::fields::Fields;
 
+/// The owning body's impact face, independent from sound DESCRIPTION flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CollisionZone {
+    #[default]
+    Default,
+    Front,
+    Rear,
+    Top,
+    Bottom,
+    Side,
+}
+
+impl CollisionZone {
+    pub const ALL: [Self; 6] = [Self::Default, Self::Front, Self::Rear, Self::Top, Self::Bottom, Self::Side];
+
+    pub fn from_local_normal(normal: glam::Vec3) -> Self {
+        if normal.z < -0.707 {
+            return Self::Front;
+        }
+        if normal.z > 0.707 {
+            return Self::Rear;
+        }
+        if normal.y < -0.707 {
+            return Self::Top;
+        }
+        if normal.y > 0.707 {
+            return Self::Bottom;
+        }
+        Self::Side
+    }
+
+    pub fn field(self) -> &'static str {
+        match self {
+            Self::Default => "AudioFX_DEFAULT",
+            Self::Front => "AudioFX_FRONT",
+            Self::Rear => "AudioFX_REAR",
+            Self::Top => "AudioFX_TOP",
+            Self::Bottom => "AudioFX_BOTTOM",
+            Self::Side => "AudioFX_SIDE",
+        }
+    }
+}
+
 /// What happened, which also decides the list of links used (`OnHitGround`, ...).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EventKind {
@@ -52,6 +95,7 @@ impl EventKind {
 /// One `audioimpact` or `audioscrape` collection.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ImpactSound {
+    pub key: u32,
     pub name: String,
     /// `STITCH_LEVEL_0..3`: stitch ids, quietest to loudest; empty lists are unused.
     pub levels: [Vec<u32>; 4],
@@ -86,6 +130,7 @@ impl ImpactSound {
             None => Vec::new(),
         };
         Self {
+            key: c.key(),
             name: fields.name(),
             levels: [
                 level("STITCH_LEVEL_0"),
@@ -105,17 +150,17 @@ impl ImpactSound {
     }
 }
 
-/// The `audioimpact` or `audioscrape` collections a link's wrapper collection (`carhitwall`) points at: one
-/// for a hit on the car's side and others for a hit on its front, as the wrapper's own references (not the
-/// inherited ones) list them.
-fn sounds_of<'a>(db: &'a Database, wrapper: CollectionRef<'a>) -> Vec<CollectionRef<'a>> {
+/// Exact wrapper fields retain normal collection inheritance and per-face identity.
+fn sounds_of<'a>(db: &'a Database, wrapper: CollectionRef<'a>) -> Vec<(CollisionZone, Option<CollectionRef<'a>>)> {
     let classes = [vlt_hash("audioimpact"), vlt_hash("audioscrape")];
-    wrapper
-        .attributes()
-        .iter()
-        .filter_map(|a| match &a.value {
-            Value::RefSpec(r) if classes.contains(&r.class) => db.resolve(*r),
-            _ => None,
+    CollisionZone::ALL
+        .into_iter()
+        .filter_map(|zone| {
+            let r = wrapper.get(zone.field())?.as_ref_spec()?;
+            if r.class == 0 || r.collection == 0 {
+                return None;
+            }
+            Some((zone, classes.contains(&r.class).then(|| db.resolve(r)).flatten()))
         })
         .collect()
 }
@@ -136,10 +181,12 @@ struct Link {
     kind: EventKind,
     /// The `simsurface` name hash the link is for.
     surface: u32,
-    /// The side hit first, then the front hits.
-    sounds: Vec<ImpactSound>,
+    /// A present but unresolved/non-audio reference stays silent rather than falling back.
+    sounds: Vec<(CollisionZone, Option<ImpactSound>)>,
     minimum: f32,
     maximum: f32,
+    audio_curve: [f32; 4],
+    audio_cull_distance: f32,
 }
 
 /// An authored collision rule and its input range (velocity change for hits, sliding speed for scrapes).
@@ -148,9 +195,29 @@ pub struct CollisionRule<'a> {
     pub sound: &'a ImpactSound,
     pub minimum: f32,
     pub maximum: f32,
+    pub audio_curve: [f32; 4],
+    pub audio_cull_distance: f32,
 }
 
 impl CollisionRule<'_> {
+    pub fn audio_magnitude(&self, value: f32) -> f32 {
+        if !value.is_finite() || !self.audio_curve.iter().all(|v| v.is_finite()) {
+            return 0.0;
+        }
+        let [a, b, c, d] = self.audio_curve;
+        (((d * value + c) * value + b) * value + a).clamp(0.0, 1.0)
+    }
+
+    pub fn audible_at(&self, distance: f32, continuous: bool) -> bool {
+        if !distance.is_finite() || !self.audio_cull_distance.is_finite() || distance > 100.0 {
+            return false;
+        }
+        match continuous {
+            true => distance < self.audio_cull_distance,
+            false => distance <= self.audio_cull_distance,
+        }
+    }
+
     pub fn magnitude(&self, value: f32) -> Option<f32> {
         if !value.is_finite()
             || !self.minimum.is_finite()
@@ -192,19 +259,18 @@ impl CollisionSounds {
                 // {selector class, selector key, 0, sound class, sound key, 0, min, max}
                 let Some(wrapper) = db.collection_by_key(word(bytes, 12), word(bytes, 16)) else { continue };
                 let name = Fields(wrapper).name();
-                let sounds: Vec<ImpactSound> = sounds_of(db, wrapper)
+                let sounds = sounds_of(db, wrapper)
                     .into_iter()
-                    .map(|c| ImpactSound { name: name.clone(), ..ImpactSound::read(c) })
-                    .collect();
-                if sounds.is_empty() {
-                    continue;
-                }
+                    .map(|(zone, c)| (zone, c.map(|c| ImpactSound { name: name.clone(), ..ImpactSound::read(c) })))
+                    .collect::<Vec<_>>();
                 links.push(Link {
                     kind,
                     surface: word(bytes, 4),
                     sounds,
                     minimum: f32::from_bits(word(bytes, 24)),
                     maximum: f32::from_bits(word(bytes, 28)),
+                    audio_curve: wrapper.get_vector4("AudioQuadratic").unwrap_or([0.0, 1.0, 0.0, 0.0]),
+                    audio_cull_distance: wrapper.get_f32("AudioCullDist").unwrap_or(0.0),
                 });
             }
         }
@@ -217,27 +283,59 @@ impl CollisionSounds {
 
     /// The collection for an event of `kind` on `surface` (a `simsurface` hash): the link for that surface, else
     /// its parent surfaces, then `default`; of its collections the one for a `front` or a side hit when it
-    /// has one, else the first.
+    /// has one, else its default reference.
     pub fn pick(&self, kind: EventKind, surface: u32, default: u32, front: bool) -> Option<&ImpactSound> {
         self.rule(kind, surface, default, front).map(|rule| rule.sound)
     }
 
-    pub fn rule(&self, kind: EventKind, mut surface: u32, default: u32, front: bool) -> Option<CollisionRule<'_>> {
+    pub fn rule(&self, kind: EventKind, surface: u32, default: u32, front: bool) -> Option<CollisionRule<'_>> {
+        self.rule_for_zone(kind, surface, default, if front { CollisionZone::Front } else { CollisionZone::Side })
+    }
+
+    pub fn rule_for_zone(
+        &self,
+        kind: EventKind,
+        surface: u32,
+        default: u32,
+        zone: CollisionZone,
+    ) -> Option<CollisionRule<'_>> {
+        Self::selected(self.link(kind, surface, default)?, zone)
+    }
+
+    /// Physical acceptance precedes world-effect audio selection, curves and culling.
+    pub fn accepts_hit(&self, kind: EventKind, surface: u32, default: u32, value: f32) -> bool {
+        let Some(link) = self.link(kind, surface, default) else {
+            return false;
+        };
+        value.is_finite()
+            && link.minimum.is_finite()
+            && link.maximum.is_finite()
+            && link.maximum - link.minimum > 0.000001
+            && value > link.minimum
+    }
+
+    fn link(&self, kind: EventKind, mut surface: u32, default: u32) -> Option<&Link> {
         // A malformed ancestry cycle cannot hang sound playback.
         for _ in 0..=self.parents.len() {
             if let Some(link) = self.links.iter().find(|l| l.kind == kind && l.surface == surface) {
-                return Self::selected(link, front);
+                return Some(link);
             }
             let Some(parent) = self.parents.get(&surface).copied() else { break };
             surface = parent;
         }
-        let link = self.links.iter().find(|l| l.kind == kind && l.surface == default)?;
-        Self::selected(link, front)
+        self.links.iter().find(|l| l.kind == kind && l.surface == default)
     }
 
-    fn selected(link: &Link, front: bool) -> Option<CollisionRule<'_>> {
-        let sound = link.sounds.iter().find(|s| s.has("FRONT") == front).or_else(|| link.sounds.first())?;
-        Some(CollisionRule { sound, minimum: link.minimum, maximum: link.maximum })
+    fn selected(link: &Link, zone: CollisionZone) -> Option<CollisionRule<'_>> {
+        let find = |zone| link.sounds.iter().find(|(z, _)| *z == zone).map(|(_, sound)| sound);
+        let sound = find(zone).or_else(|| find(CollisionZone::Default))?.as_ref()?;
+        Some(CollisionRule {
+            sound,
+            minimum: link.minimum,
+            maximum: link.maximum,
+            audio_curve: link.audio_curve,
+            audio_cull_distance: link.audio_cull_distance,
+        })
     }
 
     pub fn is_empty(&self) -> bool {

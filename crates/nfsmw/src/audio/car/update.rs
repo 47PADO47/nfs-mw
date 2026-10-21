@@ -71,7 +71,7 @@ impl Audio {
             layer.set_synth_frequency(car.handle.current_frequency() * below_min);
             layer.update(&mut KiraSampler(self), frame.dt, &Feed { engine: &out, levels: &levels });
         }
-        let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt);
+        let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt, &view);
         for event in hits.iter().chain(frame.events) {
             self.play_impact(car, event, &input, &view);
         }

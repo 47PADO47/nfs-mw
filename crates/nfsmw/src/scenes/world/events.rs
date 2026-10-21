@@ -30,6 +30,8 @@ pub struct VehicleEvents {
     /// The car's sequencer, when it has one. Damage (the model and the visible overlays) does not need it.
     player: Option<Player>,
     hits: Vec<DamageHit>,
+    /// Original per-zone sequencer damage levels, independent of the cosmetic aspect model.
+    source_levels: [u8; 10],
     failed: bool,
     pub hidden_slots: BTreeSet<usize>,
     pub spawned: BTreeSet<u32>,
@@ -40,12 +42,27 @@ pub struct VehicleEvents {
 }
 
 impl VehicleEvents {
+    pub fn destroy(&mut self) {
+        self.source_levels.fill(6);
+        for (zone, &glass) in ZONE_HAS_GLASS.iter().enumerate() {
+            self.damage.impact(zone, 6, glass);
+        }
+    }
+    pub fn spec(&self) -> &CarEventSpec {
+        &self.spec
+    }
+
+    pub fn source_levels(&self) -> &[u8; 10] {
+        &self.source_levels
+    }
+
     pub fn new(spec: Arc<CarEventSpec>) -> Result<Self> {
         let player = spec.sequence.as_ref().map(|s| Player::new(&s.package, s.engine, TAGS)).transpose()?;
         Ok(Self {
             spec,
             player,
             hits: Vec::new(),
+            source_levels: [0; 10],
             failed: false,
             hidden_slots: BTreeSet::new(),
             spawned: BTreeSet::new(),
@@ -90,12 +107,6 @@ impl VehicleEvents {
         }
     }
 
-    /// Applies an impact to the visible damage alone, for a car with no sequencer to tell of it (a traffic car hit
-    /// by the player or by another car). The same zone and level as a hit the sequencer is told of.
-    pub fn damage_hit(&mut self, hit: DamageHit) {
-        self.wear(&hit);
-    }
-
     /// Applies `hit` to the visible damage: its zone and the impact level it reached. `None` when it does nothing
     /// (no strength, or a force that is not finite).
     fn wear(&mut self, hit: &DamageHit) -> Option<(usize, usize)> {
@@ -135,9 +146,16 @@ impl VehicleEvents {
                 stimuli.push(vlt_hash("COLLISION_PLAYER"));
             }
             stimuli.extend((1..=level).map(|n| vlt_hash(&format!("IMPACT_{n}"))));
+            let target_level = level.min(2) as u8;
+            let previous = self.source_levels[zone];
+            if previous <= 5 && target_level > previous {
+                stimuli.extend((previous + 1..=target_level).map(|n| vlt_hash(&format!("DAMAGE_{n}"))));
+                self.source_levels[zone] = target_level;
+            }
             if let (Some(sequence), Some(player)) = (&self.spec.sequence, self.player.as_mut()) {
                 for stimulus in stimuli {
-                    player.stimulate(&sequence.package, target, stimulus, QueueMode::Allow, Some(1))?;
+                    let handled = player.stimulate(&sequence.package, target, stimulus, QueueMode::Allow, Some(1))?;
+                    log::debug!("vehicle sequencer {}: stimulus {stimulus:08X}, handled={handled}", DAMAGE_ZONES[zone]);
                     drain(sequence, player, Some(hit.before_velocity), &mut out)?;
                 }
             }

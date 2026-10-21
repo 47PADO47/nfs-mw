@@ -1,7 +1,8 @@
 use glam::{Mat3, Quat, Vec3};
 
-use super::inertia::{box_inertia, inverse_diagonal};
+use super::inertia::box_inertia;
 use super::spec::RigidBodySpec;
+use super::{inverse_world_inertia, transform_vector};
 
 /// Largest linear speed per axis (m/s).
 pub const MAX_LINEAR_SPEED: f32 = 300.0;
@@ -127,7 +128,7 @@ impl RigidBody {
 
     /// World position of the centre of gravity.
     pub fn world_cog(&self) -> Vec3 {
-        self.position + self.rotation * self.cog
+        self.position + transform_vector(self.rotation, self.cog)
     }
 
     /// Velocity of a world point attached to the body.
@@ -147,8 +148,7 @@ impl RigidBody {
 
     fn refresh_matrices(&mut self) {
         self.rotation = Mat3::from_quat(self.orientation);
-        let inv = Mat3::from_diagonal(inverse_diagonal(self.inertia));
-        self.inv_world_tensor = self.rotation * inv * self.rotation.transpose();
+        self.inv_world_tensor = inverse_world_inertia(self.rotation, self.inertia);
     }
 
     /// Places the body: awake, given pose, velocities and accumulators cleared.
@@ -244,7 +244,7 @@ impl RigidBody {
             }
             BodyState::Awake => {}
         }
-        let cg0 = self.rotation * self.cog;
+        let cg0 = transform_vector(self.rotation, self.cog);
         self.linear_velocity += self.force * (dt * self.inv_mass);
         self.position += self.linear_velocity * dt;
         self.angular_velocity += self.inv_world_tensor * (self.torque * dt);
@@ -259,7 +259,7 @@ impl RigidBody {
         }
         self.refresh_matrices();
         // Rotate about the centre of gravity, not about the origin.
-        self.position += cg0 - self.rotation * self.cog;
+        self.position += cg0 - transform_vector(self.rotation, self.cog);
         self.force = Vec3::ZERO;
         self.torque = Vec3::ZERO;
         self.force.y += self.spec.gravity * self.mass;
@@ -306,7 +306,6 @@ impl RigidBody {
 
     /// Inverse world inertia with the principal moments scaled per body axis by `scale`.
     pub(super) fn scaled_inv_world_tensor(&self, scale: Vec3) -> Mat3 {
-        let inv = Mat3::from_diagonal(inverse_diagonal(self.inertia * scale));
-        self.rotation * inv * self.rotation.transpose()
+        inverse_world_inertia(self.rotation, self.inertia * scale)
     }
 }
