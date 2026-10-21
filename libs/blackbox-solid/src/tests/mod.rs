@@ -2,7 +2,7 @@ mod builder;
 
 use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 
-use crate::{Error, layout, read_solids};
+use crate::{Error, layout, read_solids, read_solids_lossy};
 
 #[test]
 fn single_buffer_solid() {
@@ -20,6 +20,35 @@ fn single_buffer_solid() {
     assert_eq!(s.indices, [0, 1, 2]);
     assert_eq!(s.groups[0].diffuse_texture(s), Some(0xAA));
     assert_eq!(s.groups[0].light_material, 0xFF);
+}
+
+#[test]
+fn solid_packs_after_the_geometry_pack_are_read_too() {
+    // The flat layout of some add-on cars: an (empty here) GeometryPack, then each SolidPack as a sibling.
+    let wrapped =
+        solid_file("FLAT", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    let mut file = wrapped[..8].to_vec();
+    file[4..8].copy_from_slice(&0u32.to_le_bytes());
+    file.extend_from_slice(&wrapped[8..]);
+    let solids = read_solids(&file).unwrap();
+    assert_eq!(solids.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["FLAT"]);
+    assert_eq!(solids[0].indices, [0, 1, 2]);
+}
+
+#[test]
+fn a_broken_solid_fails_read_solids_but_not_the_lossy_read() {
+    let good =
+        solid_file("GOOD", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    // 100 bytes of vertices cannot be 3 vertices.
+    let bad = solid_file("BAD", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vec![0; 100]]);
+    let mut file = good[..8].to_vec();
+    file[4..8].copy_from_slice(&0u32.to_le_bytes());
+    file.extend_from_slice(&good[8..]);
+    file.extend_from_slice(&bad[8..]);
+    assert!(read_solids(&file).is_err(), "the strict read stops at the broken solid");
+    let (solids, failed) = read_solids_lossy(&file).unwrap();
+    assert_eq!(solids.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["GOOD"]);
+    assert_eq!(failed.len(), 1);
 }
 
 #[test]
