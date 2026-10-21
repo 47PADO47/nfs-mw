@@ -3,8 +3,8 @@
 use blackbox_ui::{BuildCx, DrawList, LayoutCx, NodeKind, Rect, Theme, UiNode};
 
 use super::{MapSnapshot, WorldMapViewCell};
-use crate::frontend::world_map::{Camera, Chrome, Filter, PlacedBlip, WorldMap, WorldMapFrame};
-use crate::hud::{AUTO_SHOP, RACE_SPRINT, SAFE_HOUSE};
+use crate::frontend::world_map::{Camera, Chrome, Filter, LiveBlip, PlacedBlip, WorldMap, WorldMapFrame};
+use crate::hud::{AUTO_SHOP, CHECKPOINT, COP, HELICOPTER, RACE_SPRINT, RACER, SAFE_HOUSE};
 use crate::input::Action;
 use crate::ui::input_icons::Glyph;
 use crate::ui::prompts::Prompt;
@@ -192,4 +192,41 @@ fn the_map_fades_in_as_it_opens() {
     };
     assert!(alpha_of_ground(0.0) < alpha_of_ground(0.1));
     assert!(alpha_of_ground(0.1) < alpha_of_ground(1.0));
+}
+
+#[test]
+fn racers_cops_the_helicopter_and_the_checkpoint_are_drawn_on_every_tab_with_their_own_icons() {
+    let live = |style, map| LiveBlip { style, map, bearing: 90.0, chasing: style == COP };
+    let mut shown = snapshot(WorldMap::new());
+    shown.frame.live = vec![
+        live(RACER, [0.40, 0.5]),
+        live(COP, [0.45, 0.5]),
+        live(HELICOPTER, [0.50, 0.4]),
+        live(CHECKPOINT, [0.55, 0.5]),
+    ];
+    for filter in Filter::ALL {
+        shown.frame.session.filter = filter;
+        let mut empty = shown.clone();
+        empty.frame.live.clear();
+        // The legend draws the player's arrow too: the live cars are what the arrow count grows by.
+        let bare = built(Some(empty));
+        let before = icons(&bare, "Minimap_Icon_Car.tga").len();
+        let nodes = built(Some(shown.clone()));
+        assert_eq!(icons(&nodes, "Minimap_Icon_Car.tga").len(), before + 2, "a racer and a cop on the {filter:?} tab");
+        assert_eq!(
+            icons(&nodes, "Helicopter_Minimap_Icon.tga").len(),
+            icons(&bare, "Helicopter_Minimap_Icon.tga").len() + 1,
+            "the helicopter on the {filter:?} tab"
+        );
+        assert_eq!(
+            icons(&nodes, "Minimap_Icon_Circuit.tga").len(),
+            icons(&bare, "Minimap_Icon_Circuit.tga").len() + 1,
+            "the checkpoint on the {filter:?} tab"
+        );
+    }
+    let nodes = built(Some(shown));
+    let heli = icons(&nodes, "Helicopter_Minimap_Icon.tga").into_iter().next().expect("a helicopter icon");
+    assert_ne!(heli.world.x_axis.y, 0.0, "the helicopter is turned to where it points");
+    let orange = icons(&nodes, "Minimap_Icon_Car.tga").into_iter().filter(|n| n.colour == [255, 150, 40, 255]).count();
+    assert_eq!(orange, 1, "a racer is orange");
 }
