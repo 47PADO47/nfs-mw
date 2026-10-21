@@ -40,21 +40,28 @@ impl WorldScene {
         if session.options.career {
             let place = u8::try_from(place).unwrap_or(u8::MAX);
             self.career_race_finished(&session.event, place, session.cash_value);
+            return;
+        }
+        // Outside the career a win of the challenge series opens the events it lists. Running out of time alone on
+        // the road is last place of one racer, not a win.
+        if me.finished && place == 1 {
+            crate::frontend::challenge_series::record_win(&session.event);
         }
     }
 
     /// Takes the race down: the racers leave, the traffic count is given back and the car is let go.
-    pub(super) fn end_race(&mut self, session: RaceSession) {
-        self.release_race(&session);
+    pub(super) fn end_race(&mut self, mut session: RaceSession) {
+        self.release_race(&mut session);
         log::info!("race: {} ended", session.name);
         if session.options.career {
             self.career_race_left();
         }
     }
 
-    /// What a race holds on the world, given back: the racers, the traffic count a console command had set, the grid
-    /// hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
-    pub(super) fn release_race(&mut self, session: &RaceSession) {
+    /// What a race holds on the world, given back: the racers, the race's walls, the traffic count a console command had
+    /// set, the grid hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
+    pub(super) fn release_race(&mut self, session: &mut RaceSession) {
+        self.lower_race_walls(std::mem::take(&mut session.walls));
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_racers();
         }

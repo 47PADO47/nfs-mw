@@ -21,7 +21,29 @@ const RESTART_RACE: u32 = 0x4d33_99a8;
 pub const YES: u32 = 0x70e0_1038;
 pub const NO: u32 = 0x417b_25e4;
 
-/// A question with a yes and a no, and the command to run on yes (no runs nothing and closes the dialog).
+/// The header and picture of a dialog (`feDialogScreen`, the dialog's title kind): the alert's "attention" over a
+/// triangle with a mark, the confirmation's "selection" over a question mark (docs/specs/challenge-series.md).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Look {
+    Attention,
+    Selection,
+}
+
+impl Look {
+    /// The header label and the picture texture of the look (the original's `0x6FD91524` and `0x60249A74` labels).
+    fn parts(self) -> (u32, u32) {
+        match self {
+            Look::Attention => (0x6fd9_1524, 0x6948_e2b3),
+            Look::Selection => (0x6024_9a74, 0x3994_9433),
+        }
+    }
+}
+
+/// The picture objects of `Dialog.fng` (the header's icon and the big faint one behind the panel).
+const ICON_OBJECTS: [u32; 2] = [0x0d4f_4069, 0xfac8_8427];
+
+/// A question with a yes and a no, and the command to run on yes (no runs nothing and closes the dialog, unless the
+/// caller gave a command for no). Back closes the dialog without answering.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Confirm {
     /// The header above the question. The original's quit question has none (its caller passes an empty name).
@@ -30,12 +52,49 @@ pub struct Confirm {
     pub yes: Text,
     pub no: Text,
     pub on_yes: Box<Command>,
+    /// What the second answer runs; none runs nothing.
+    pub on_no: Option<Box<Command>>,
+    /// The first answer has the focus when the dialog opens (the second has it otherwise).
+    pub focus_yes: bool,
+    /// The dialog's header and picture; none leaves the package's own.
+    pub look: Option<Look>,
 }
 
 impl Confirm {
     /// A question with the game's own Yes and No answers.
     pub fn new(message: Text, on_yes: Command) -> Self {
-        Self { title: None, message, yes: Text::Game(YES), no: Text::Game(NO), on_yes: Box::new(on_yes) }
+        Self {
+            title: None,
+            message,
+            yes: Text::Game(YES),
+            no: Text::Game(NO),
+            on_yes: Box::new(on_yes),
+            on_no: None,
+            focus_yes: false,
+            look: None,
+        }
+    }
+
+    /// Gives the dialog a header and a picture.
+    pub fn looking(mut self, look: Look) -> Self {
+        self.title = Some(Text::Game(look.parts().0));
+        self.look = Some(look);
+        self
+    }
+
+    /// Two named answers that each run a command (the transmission choice): `first` on the left, `second` on the right.
+    pub fn choice(message: Text, first: (Text, Command), second: (Text, Command)) -> Self {
+        let mut confirm = Self::new(message, first.1);
+        confirm.yes = first.0;
+        confirm.no = second.0;
+        confirm.on_no = Some(Box::new(second.1));
+        confirm
+    }
+
+    /// The first answer has the focus (or not) when the dialog opens.
+    pub fn focusing_first(mut self, first: bool) -> Self {
+        self.focus_yes = first;
+        self
     }
 
     /// The question before quitting to `to`. A race in progress adds that its progress will be lost (the labels
@@ -91,7 +150,16 @@ impl ConfirmLogic {
         cx.send(Command::Pop);
         if yes {
             cx.send((*self.confirm.on_yes).clone());
+            return;
         }
+        if let Some(no) = &self.confirm.on_no {
+            cx.send((**no).clone());
+        }
+    }
+
+    /// The holder of the answer that has the focus when the dialog opens.
+    fn first_holder(&self) -> u32 {
+        if self.confirm.focus_yes { YES_HOLDER } else { NO_HOLDER }
     }
 }
 
@@ -132,13 +200,20 @@ impl ScreenLogic for ConfirmLogic {
                 }
             }
         }
+        if let Some(look) = self.confirm.look {
+            for name in ICON_OBJECTS {
+                if let Some(o) = cx.object(name) {
+                    cx.rt.set_texture(o, look.parts().1);
+                }
+            }
+        }
         set_text(cx, MESSAGE, &self.confirm.message);
         set_text(cx, YES_BUTTON, &self.confirm.yes);
         set_text(cx, NO_BUTTON, &self.confirm.no);
         if let Some(o) = by_guid(cx, UNUSED_HOLDER) {
             cx.rt.set_hidden(o, true);
         }
-        focus(cx, NO_HOLDER);
+        focus(cx, self.first_holder());
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
@@ -213,11 +288,11 @@ impl ScreenLogic for ConfirmLogic {
                 let yes = yes_is_focused(cx);
                 self.answer(cx, yes);
             }
-            // The package sets its own focus when it has appeared, after `start`: No takes it back.
-            ids::INIT_COMPLETE => focus(cx, NO_HOLDER),
+            // The package sets its own focus when it has appeared, after `start`: the first answer takes it back.
+            ids::INIT_COMPLETE => focus(cx, self.first_holder()),
             PAD_LEFT => focus(cx, YES_HOLDER),
             PAD_RIGHT => focus(cx, NO_HOLDER),
-            PAD_BACK => self.answer(cx, false),
+            PAD_BACK => cx.send(Command::Pop),
             _ => {}
         }
     }

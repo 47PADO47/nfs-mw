@@ -32,6 +32,9 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Career)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::Career, ..self.args }));
             }
+            (Kind::Main, Pending::Pressed(Id::Challenge)) => {
+                cx.send(Command::Switch(screen::CHALLENGE_SERIES.into(), Args::default()));
+            }
             (Kind::Main, Pending::Pressed(Id::QuickRace)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::QuickRace, ..self.args }));
             }

@@ -192,6 +192,11 @@ impl WorldScene {
         let previous_traffic = self.traffic_manual;
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(race),
+            map: crate::hud::MapSource::of_race(
+                &crate::career::race_event_id(race),
+                params.pursuit_race,
+                race.region.as_deref(),
+            ),
             name: race.name.clone(),
             kind: nfsmw_data::gameplay::RaceType::Challenge,
             options,
@@ -214,6 +219,7 @@ impl WorldScene {
             cash_value: params.cash_value,
             pool: Vec::new(),
             challenge: Some(Challenge::new(stat, params.threshold, heat)),
+            walls: self.raise_race_walls(&race.barriers),
             origin: super::Origin { race: race.clone(), course: None },
         });
         Ok(format!("{}: pursuit challenge, {name} {} at heat {heat}", race.name, params.threshold))
@@ -310,6 +316,10 @@ impl WorldScene {
         // Only an escape with the value reached is notified; a lost challenge changes nothing in the career.
         if session.options.career && won {
             self.career_race_finished(&session.event, 1, session.cash_value);
+            return;
+        }
+        if won {
+            crate::frontend::challenge_series::record_win(&session.event);
         }
     }
 }

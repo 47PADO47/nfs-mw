@@ -18,6 +18,7 @@ use nfsmw_data::shared_unwrapped;
 
 use super::fonts::CustomFontSet;
 use super::fonts::tier::Tier;
+use super::late_textures::{LateTextures, TextureRef};
 use super::tips;
 use crate::settings::custom_fonts;
 use crate::settings::hd_content;
@@ -175,6 +176,8 @@ pub struct UiAssets {
     /// The user's custom fonts (`ui/fonts`). They win over the stock fonts and textures of the same name while the
     /// custom fonts are on (see [`UiAssets::font`]).
     custom: CustomFontSet,
+    /// Textures added after the load and dropped again (the minimap tiles of a race; see [`UiAssets::add_textures`]).
+    late: LateTextures,
     input_atlas: Image,
     discord_mark: Image,
     mod_mark: Image,
@@ -186,6 +189,24 @@ impl UiAssets {
     #[cfg(test)]
     pub fn load(dir: &GameDir) -> Result<Self> {
         Self::load_with(dir, CustomFontSet::default())
+    }
+
+    /// Assets with nothing in them (the tests' fixture for code that only adds and looks up textures).
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        let blank = || Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 };
+        Self {
+            fonts: HashMap::new(),
+            textures: HashMap::new(),
+            aliases: HashMap::new(),
+            font_native: HashMap::new(),
+            custom: CustomFontSet::default(),
+            late: LateTextures::default(),
+            input_atlas: blank(),
+            discord_mark: blank(),
+            mod_mark: blank(),
+            strings: None,
+        }
     }
 
     /// Loads the stock assets and keeps `custom` as the user's font set.
@@ -264,8 +285,18 @@ impl UiAssets {
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
         let mod_mark = super::mod_icon::load()?;
-        let assets =
-            Self { fonts, textures, aliases, font_native, custom, strings, input_atlas, discord_mark, mod_mark };
+        let assets = Self {
+            fonts,
+            textures,
+            aliases,
+            font_native,
+            custom,
+            late: LateTextures::default(),
+            strings,
+            input_atlas,
+            discord_mark,
+            mod_mark,
+        };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
     }
@@ -307,11 +338,32 @@ impl UiAssets {
         }
     }
 
-    /// The raw texture for a key, following the custom fonts and the run-time swaps.
-    pub fn texture(&self, hash: u32) -> Option<&Texture> {
-        self.custom_texture(hash)
-            .or_else(|| self.textures.get(&hash))
-            .or_else(|| self.aliases.get(&hash).and_then(|a| self.textures.get(a)))
+    /// The raw texture for a key, following the custom fonts, the run-time swaps and the late textures.
+    pub fn texture(&self, hash: u32) -> Option<TextureRef<'_>> {
+        if let Some(texture) = self.custom_texture(hash).or_else(|| self.textures.get(&hash)) {
+            return Some(TextureRef::Stock(texture));
+        }
+        if let Some(texture) = self.late.get(hash) {
+            return Some(TextureRef::Late(texture));
+        }
+        self.aliases.get(&hash).and_then(|alias| self.textures.get(alias)).map(TextureRef::Stock)
+    }
+
+    /// Adds textures to the assets for the screens to draw, from any thread. They are looked up after the stock
+    /// textures, so a stock texture of the same name wins. Used for the per-event minimap tiles.
+    pub fn add_textures(&self, textures: impl IntoIterator<Item = Texture>) {
+        self.late.add(textures);
+    }
+
+    /// Drops textures added with [`UiAssets::add_textures`] (the stock ones are not touched).
+    pub fn remove_textures(&self, hashes: &[u32]) {
+        self.late.remove(hashes);
+    }
+
+    /// How many added textures are held now.
+    #[cfg(test)]
+    pub fn late_count(&self) -> usize {
+        self.late.len()
     }
 
     /// The custom texture for a key in use now (a custom font's own texture), if any.
@@ -325,7 +377,8 @@ impl UiAssets {
 
     /// The texture key that finally supplies a key (after aliases).
     pub fn resolve(&self, hash: u32) -> u32 {
-        let known = self.textures.contains_key(&hash) || self.custom_texture(hash).is_some();
+        let known =
+            self.textures.contains_key(&hash) || self.late.contains(hash) || self.custom_texture(hash).is_some();
         if known { hash } else { self.aliases.get(&hash).copied().unwrap_or(hash) }
     }
 
@@ -359,7 +412,7 @@ impl UiAssets {
             return Some(Image { width: 2, height: 2, rgba: vec![255; 16], blend: 1 });
         }
         let t = self.texture(hash)?;
-        let rgba = decode_rgba8(t)?;
+        let rgba = decode_rgba8(&t)?;
         Some(Image { width: t.width, height: t.height, rgba, blend: t.alpha_blend })
     }
 

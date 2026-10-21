@@ -32,7 +32,7 @@ dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and
 the sputters, the sweeteners); the radio: [music-graph.md](music-graph.md) (the PathFinder graph of `MW_Music.mpf`,
 the song events and the play lists) and [interactive-music.md](interactive-music.md) (the pursuit sets, the game state that
 drives them, the cross-fades); speech: [speech.md](speech.md) (the dispatch queue, when a line may be said,
-the recordings); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle effects for nitrous and gear changes); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom) and [hud-cop-blips.md](hud-cop-blips.md) (the police car icon: white when normal, the blue and red light bar in a pursuit); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
+the recordings); [exhaust-flames.md](exhaust-flames.md) (the tail-pipe particle effects for nitrous and gear changes); the HUD minimap: [hud-minimap.md](hud-minimap.md) (the projection, the tiles around the player, the turning, the missing speed zoom) [race-minimap.md](race-minimap.md) (the map file of a running race: the event's baked route tiles, read on demand) and [hud-cop-blips.md](hud-cop-blips.md) (the police car icon: white when normal, the blue and red light bar in a pursuit); the user interface: [feng-runtime.md](feng-runtime.md) (scripts, messages,
 drawing), [feng-input.md](feng-input.md) (pad messages, focus, navigation) and [frontend-menus.md](frontend-menus.md)
 (the screens, the option rows, the game flow).
 
@@ -123,6 +123,8 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
 - [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
+- [race-barriers.md](race-barriers.md): the walls a race's `Barriers` list switches on (scenery groups, the star's
+  mirror, collision, the door) and the road barrier flags.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).
 
 ## Pursuit, traffic and the busted sequence

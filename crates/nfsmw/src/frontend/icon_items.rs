@@ -83,7 +83,8 @@ const fn icon(id: Id, texture: u32, name: u32, enabled: bool) -> Icon {
 /// The icons of a menu: `(texture, name label)` as the original screens give them.
 pub fn icons(kind: Kind) -> Vec<Icon> {
     match kind {
-        // Career and Quick Race both start free roam here. Challenge Series, My Cars, Online and LAN are greyed out.
+        // Career and Quick Race both start free roam here; Challenge Series opens its grid of events. My Cars, Online and LAN
+        // are greyed out.
         // Alias Manager (the original's profile manager, which it adds only when the memory card is enabled) opens
         // the save and load rows (`alias_options.rs`).
         // Online and LAN are not in this build's original main menu; the user asked for them, so they are listed
@@ -92,7 +93,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
         // (`icon_window.rs`).
         Kind::Main => vec![
             icon(Id::Career, 0x0370_4F3D, 0x5815_A2B5, true),
-            icon(Id::Challenge, 0x9A96_2438, 0xCC8C_B746, false),
+            icon(Id::Challenge, 0x9A96_2438, 0xCC8C_B746, true),
             icon(Id::QuickRace, 0x4E6F_BB02, 0x5402_0A7A, true),
             icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, false),
             icon(Id::Online, 0x2056_3D30, 0x74FB_90A8, false),
@@ -210,12 +211,12 @@ mod tests {
     fn the_menus_have_the_original_icons() {
         let main = icons(Kind::Main);
         assert_eq!(main.len(), 8, "the original's main menu, Alias Manager included, plus LAN and Online");
-        assert!(main[0].enabled && !main[1].enabled, "career works, the challenge series do not exist yet");
+        assert!(main[0].enabled && main[1].enabled, "career and the challenge series open their screens");
         let alias = main.iter().find(|i| i.id == Id::AliasManager).expect("Alias Manager");
         assert!(alias.enabled, "Alias Manager opens the save and load rows");
         assert!(
             main.iter()
-                .filter(|i| ![Id::Career, Id::QuickRace, Id::Options, Id::AliasManager].contains(&i.id))
+                .filter(|i| ![Id::Career, Id::Challenge, Id::QuickRace, Id::Options, Id::AliasManager].contains(&i.id))
                 .all(|i| !i.enabled)
         );
         let categories = icons(Kind::Categories { pause: false, mods: false });

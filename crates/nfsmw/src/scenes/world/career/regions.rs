@@ -2,8 +2,8 @@
 //! (`docs/specs/career-regions.md`). The gates come from the `Barriers` list of the stage's bin record.
 //!
 //! Each change of the stage switches the gate groups on the world's scenery-group set (`scenery_groups.rs`): closed
-//! gates on, opened gates off. The draw cull and the collision gather do not read that set yet, so the gate scenery
-//! is still drawn nowhere and collides nowhere; see [`RegionState::closed_gates`].
+//! gates on, opened gates off. The draw cull and the collision queries read that set, so a closed gate is drawn and
+//! blocks cars. A race's own walls are switched on top of the gates (`race/barriers.rs`).
 
 use nfsmw_career::regions::{GateChange, GateSet, gates_in_list, group_of, region_unlock_screen};
 use nfsmw_data::gameplay::Bin;
@@ -31,7 +31,7 @@ pub(super) struct RegionUpdate {
 
 impl RegionState {
     /// The gates closed at the applied stage.
-    #[allow(dead_code)] // the scenery hook that hides and un-hides the gates does not exist yet
+    #[allow(dead_code)] // no caller: the gates are applied as changes (`apply_gate_change`)
     pub(in crate::scenes::world) fn closed_gates(&self) -> GateSet {
         self.closed
     }
@@ -100,6 +100,7 @@ impl WorldScene {
         for group in change.opened.numbers().into_iter().filter_map(group_of) {
             self.set_scenery_group(group, false);
         }
+        self.refresh_road_barriers();
     }
 }
 

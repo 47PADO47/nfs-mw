@@ -6,6 +6,8 @@ pub enum Error {
     Section { offset: usize, detail: String },
     #[error("scenery group at 0x{offset:X}: {detail}")]
     Groups { offset: usize, detail: String },
+    #[error("scenery overrides: {detail}")]
+    Overrides { detail: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

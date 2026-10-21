@@ -113,7 +113,7 @@ uses the same slot animation as the installed icons.
 
 ### 2.1 Main menu entries [decomp]
 
-Entries this rewrite cannot do yet (Challenge Series, My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
+Challenge Series opens `ChallengeSeries.fng` ([challenge-series.md](challenge-series.md)). Entries this rewrite cannot do yet (My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
 selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
 (`0x1AFD5BE6`, `0xB0C46023`), Online (`0x74FB90A8`, `0x20563D30`), LAN (`0x4D78216D`, `0xD13A2E66`), Alias Manager

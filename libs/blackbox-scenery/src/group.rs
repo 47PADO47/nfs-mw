@@ -1,5 +1,6 @@
 //! `SceneryGroups` (chunk `0x34109` of the track bundle): scenery instances that are switched on and off together,
-//! such as the race gates. Spec: `docs/specs/career-regions.md` section 1.2.
+//! such as the race gates. Specs: `docs/specs/career-regions.md` section 1.2,
+//! `docs/specs/race-barriers.md`.
 
 use std::collections::HashMap;
 
@@ -75,6 +76,11 @@ pub fn read_scenery_groups(bundle: &[u8]) -> Result<Vec<SceneryGroup>> {
         return Ok(Vec::new());
     };
     parse_groups(chunk.payload)
+}
+
+/// The group whose name hash is `hash` (`bStringHash` of the name, case sensitive), the way the engine looks a name up.
+pub fn find_group(groups: &[SceneryGroup], hash: u32) -> Option<&SceneryGroup> {
+    groups.iter().find(|g| g.hash == hash)
 }
 
 /// The group number of each global override index that a group lists. Groups with number 0 are left out. The

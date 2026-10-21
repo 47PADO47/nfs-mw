@@ -29,6 +29,8 @@ mod flow_career;
 mod flow_loading;
 #[path = "flow_save.rs"]
 mod flow_save;
+#[path = "flow_series.rs"]
+pub(super) mod flow_series;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -72,6 +74,8 @@ pub enum Stage {
     Paused,
     /// The world map is open over the frozen game (`world_map/control.rs`).
     Map,
+    /// A tutorial movie plays full screen over the menus (`flow_series.rs`).
+    Tutorial,
 }
 
 use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
@@ -144,6 +148,7 @@ pub struct Frontend {
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
+    pub(super) series: flow_series::Series,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
     /// The race above is Quick Play's: it runs with its own laps and opponents, not the Custom Race options (`world_built`).
@@ -157,6 +162,7 @@ impl Frontend {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
         super::quick_race::load_in_background(&dir);
+        super::challenge_series::load_in_background(&dir);
         super::quick_play::load_in_background(&dir);
         Self {
             screens,
@@ -187,6 +193,7 @@ impl Frontend {
             look_override: None,
             auto_shop_requested: false,
             quick_race: None,
+            series: Default::default(),
             quick_car: None,
             quick_play: false,
             map_chrome: Default::default(),
@@ -432,6 +439,8 @@ impl Frontend {
                     self.quick_play = false;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
+                Command::StartChallenge { race, transmission } => self.start_challenge(race, transmission, host, env),
+                Command::PlayTutorial(name) => self.play_tutorial(&name, host),
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
@@ -464,7 +473,7 @@ impl Frontend {
                 }
                 Command::AliasCreate(alias) => self.alias_create(&alias, host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host),
-                Command::RaceAnswer(answer) => self.race_answer(answer, host),
+                Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..)
                 | Command::Push(..)

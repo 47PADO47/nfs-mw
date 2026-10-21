@@ -36,10 +36,10 @@ impl WorldScene {
         if self.race.is_none() {
             return self.queued_race.is_some();
         }
-        let Some(session) = self.race.take_if(|s| s.stage.is_live()) else { return false };
+        let Some(mut session) = self.race.take_if(|s| s.stage.is_live()) else { return false };
         let Some((race, options, course)) = restart_kit(&session) else { return false };
         log::info!("race: {} restarts", session.name);
-        self.release_race(&session);
+        self.release_race(&mut session);
         // The original resets the cops as the restart begins (`ResetCopsForRestart`): a chase, its roadblocks and spike
         // strips end, so the new start is clear of them.
         if let Some(traffic) = self.traffic.as_mut() {
@@ -106,6 +106,8 @@ mod tests {
             pool: Vec::new(),
             challenge: None,
             origin: Origin { race: race(), course },
+            map: crate::hud::MapSource::default(),
+            walls: Default::default(),
         }
     }
 

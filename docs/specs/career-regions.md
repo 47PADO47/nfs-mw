@@ -172,6 +172,9 @@ enabled by the race-start hook and removed by `done`. The 15 challenge-series ra
 challenges 06 to 15 list {10, 12, 13}. So a challenge pursuit closes those gates for its duration whatever the player's
 stage, and `done` restores the stage's set. **[verified]** (lists) **[exe]** (timing).
 
+The pieces, the star (a mirror of turnable pieces along their length), the door and what the rewrite does at race
+start and end are in [race-barriers.md](race-barriers.md).
+
 ## 4. What a closed gate is
 
 ### 4.1 Appearance **[verified]** (names) **[unconfirmed]** (look)
@@ -188,8 +191,9 @@ Every gate group has one world-collision instance (CARP pack of the same streami
 number field (`+0x18` of the 0x40-byte instance) equals the group number, holding 4 or 5 vertical wall segments about
 11 m tall that span the pieces (gate 13: five walls over a 40 m box). On disk its instance flags are 0. A collision
 query (sphere or ray) accepts an instance only if its group number is 0 **or** the group's state byte is non-zero, so
-a closed gate blocks cars, and an open one is ignored. The rewrite already excludes group instances in free roam
-(`GROUP_EXCLUSION`, [collision.md](../formats/collision.md)); it must instead include a group when it is enabled.
+a closed gate blocks cars, and an open one is ignored. The rewrite's collision world keeps the set of switched-on
+groups and drops the baked `GROUP_EXCLUSION` bits ([collision.md](../formats/collision.md)) for them, and its draw cull
+reads the same set.
 Nothing pushes the car back and no event fires: the car simply hits a wall.
 
 ### 4.3 AI roads and the GPS **[exe]**
@@ -242,7 +246,7 @@ UNLOCK_1       UNLOCK_2
 
 The world map screen computes the same variant from the stage when it opens (`< 9` -> full, `9..12` -> 2, `>= 13` ->
 1) and loads the matching texture of `TrackMaps.bin` (the three names exist; 297 textures in the pack). In a race that
-is not a pursuit race the minimap is `MINI_MAP_<event id>`; in a **pursuit race** (`PursuitRace` true) it is chosen by
+is not a pursuit race the minimap is `MINI_MAP_<event id>` ([race-minimap.md](race-minimap.md)); in a **pursuit race** (`PursuitRace` true) it is chosen by
 the race's `Region` text instead (section 6.3). Outside a race (racing state 0) the stage rule above applies, reading the career settings byte
 whatever the game mode; the function returns no map for the drag HUD (argument 2). **[exe]**
 

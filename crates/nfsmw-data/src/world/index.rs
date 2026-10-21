@@ -19,6 +19,8 @@ pub struct WorldIndex {
     pub road_network: Option<blackbox_roads::RoadNetwork>,
     /// The typed polygons of the track (traffic patterns, tunnels...) (`docs/formats/road-network.md`).
     pub track_zones: Option<blackbox_roads::TrackZones>,
+    /// The barrier lines AI routes may not cross while their scenery group is on (`docs/specs/race-barriers.md`).
+    pub track_barriers: Vec<blackbox_roads::TrackBarrier>,
     /// The bounds of the props (cones, bins, poles...), keyed by an object name hash.
     pub prop_bounds: Vec<blackbox_collision::BoundsSet>,
     /// Original event engines, including breakables and truck cargo.
@@ -28,6 +30,8 @@ pub struct WorldIndex {
     pub scenery_groups: Vec<blackbox_scenery::SceneryGroup>,
     /// The group number of each scenery override index that a group lists (`ScenerySection::override_hooks`).
     pub override_groups: HashMap<u16, u16>,
+    /// The scenery override records, by global override index (`docs/specs/race-barriers.md`).
+    pub scenery_overrides: Vec<blackbox_scenery::SceneryOverride>,
     /// Install-relative path of the stream file.
     pub stream_file: String,
 }
@@ -47,6 +51,8 @@ impl WorldIndex {
             .map_err(|e| anyhow::anyhow!("reading the road network in {meta_file}: {e}"))?;
         let track_zones = blackbox_roads::TrackZones::read(&meta)
             .map_err(|e| anyhow::anyhow!("reading the track path zones in {meta_file}: {e}"))?;
+        let track_barriers = blackbox_roads::read_track_barriers(&meta)
+            .map_err(|e| anyhow::anyhow!("reading the track path barriers in {meta_file}: {e}"))?;
         let prop_bounds = blackbox_collision::read_bounds_sets(&meta)
             .map_err(|e| anyhow::anyhow!("reading the prop bounds in {meta_file}: {e}"))?;
         let sequences = super::sequences::SequenceCatalog::read(&meta)?;
@@ -58,6 +64,8 @@ impl WorldIndex {
         let scenery_groups = blackbox_scenery::read_scenery_groups(&meta)
             .with_context(|| format!("reading the scenery groups in {meta_file}"))?;
         let override_groups = blackbox_scenery::override_group_numbers(&scenery_groups);
+        let scenery_overrides = blackbox_scenery::read_scenery_overrides(&meta)
+            .with_context(|| format!("reading the scenery overrides in {meta_file}"))?;
         log::info!(
             "{track}: {} sections ({} map tiles, {} shared), {} zones",
             sections.len(),
@@ -72,11 +80,13 @@ impl WorldIndex {
             collision_grid,
             road_network,
             track_zones,
+            track_barriers,
             prop_bounds,
             sequences,
             model_hierarchies,
             scenery_groups,
             override_groups,
+            scenery_overrides,
             stream_file: format!("TRACKS/STREAM{track}.BUN"),
         })
     }

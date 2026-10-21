@@ -7,6 +7,9 @@ Callers pass the layout for their game (`layout::MOST_WANTED`).
 Also reads physics placement packs (`ObjectSpawner`) and scenery override hooks,
 which connect each physical object to its visual instance and attribute key.
 The reader ignores runtime pointers and validates the serialized record count.
+Scenery groups (`read_scenery_groups`, `find_group` by name hash) and the global
+override records (`read_scenery_overrides`) say which instances a group switches
+and which flags it writes (`SceneryOverride::enabled` / `disabled`).
 Named model hierarchies retain node/solid keys and child ranges, validate cycles,
 and select visible descendants without drawing reserved internal parts.
 

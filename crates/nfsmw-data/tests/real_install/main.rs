@@ -25,6 +25,8 @@ mod music;
 mod objects;
 mod physics;
 mod pursuit;
+mod race_barrier_routes;
+mod race_barriers;
 mod reactions;
 mod sequences;
 mod sound;
