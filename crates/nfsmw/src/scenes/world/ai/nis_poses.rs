@@ -34,6 +34,12 @@ impl TrafficWorld {
         self.nearest_where(point, taken, AiCar::is_live_police)
     }
 
+    /// Asks for the police car a NIS scene spawns, unless it is loaded. The world asks once when it opens, so a scene that
+    /// wants one usually finds it loaded; a scene that does not finds it waiting (`scenes/world/nis/cop_wait.rs`).
+    pub fn request_nis_cop(&mut self) {
+        self.request_cop(NIS_COP_MODEL);
+    }
+
     /// Puts a police car of the scene at `at` (render space), facing `heading` (radians from +X, render space), on the cop
     /// road through the cop spawn path (`spawn_cop_at`). Returns its index, or `None` when the car is not loaded or the road
     /// has no place for it. The car is not driven: its pose is the scene's, and the scene removes it at its end.

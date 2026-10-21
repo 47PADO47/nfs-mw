@@ -67,6 +67,17 @@ impl WorldScene {
         self.nis.prepare_characters(renderer, &self.residency.shared.materials);
     }
 
+    /// Loads the police car model a playing scene's cop channels wait for. The world freezes while a scene plays, so the
+    /// traffic's own loading (`prepare_traffic`) does not run then; this loads the models the scene asked for. Runs every
+    /// frame, before the frame is built.
+    pub(in crate::scenes::world) fn update_nis_models(&mut self, renderer: &mut dyn RenderBackend) {
+        if self.nis.cop_waiting().is_empty() {
+            return;
+        }
+        let submit = self.residency.complete();
+        crate::scenes::world::ai::load_requested(self, renderer, submit, false);
+    }
+
     /// Reads the player's skip and plays the scene on real frame time. Runs before the world reads the frame's input,
     /// so the world can freeze while a scene plays.
     pub(in crate::scenes::world) fn update_nis(&mut self, input: &ActionState, dt: f32) {
@@ -85,6 +96,7 @@ impl WorldScene {
         }
         if self.nis.is_playing() {
             self.link_nis_cars();
+            self.retry_nis_cops(dt);
             self.drive_nis_cars();
         }
         if self.nis.take_cut() {

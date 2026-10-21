@@ -16,6 +16,7 @@ impl WorldScene {
         self.update_arrest_nis();
         self.update_nis(input, dt);
         self.update_nis_characters(renderer);
+        self.update_nis_models(renderer);
         self.update_story_movie(input, dt);
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.

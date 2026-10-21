@@ -241,6 +241,22 @@ fn the_car_links_are_made_once_and_the_final_cars_are_handed_back_once() {
 }
 
 #[test]
+fn a_cop_channel_waits_for_its_car_and_gives_up_once_its_time_is_up() {
+    let mut nis = NisPlayer::default();
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    nis.set_links(vec![(0, Target::Player)]);
+    nis.wait_for_cops(vec![8, 9]);
+    assert_eq!(nis.cop_waiting(), &[8, 9]);
+    assert!(nis.linked_cars().is_empty(), "the player's car is no police car");
+    nis.link_waiting_cop(8, Target::Spawned(4));
+    assert_eq!(nis.cop_waiting(), &[9], "the channel that got its car no longer waits");
+    assert_eq!(nis.linked_cars(), vec![4], "the spawned car is taken by its channel");
+    assert!(nis.tick_cop_wait(1.0).is_empty(), "one second is under the limit");
+    assert_eq!(nis.tick_cop_wait(1.0), vec![9], "two seconds in all and the last channel gives up");
+    assert!(nis.cop_waiting().is_empty());
+}
+
+#[test]
 fn a_skipped_scene_hands_back_its_cars_too() {
     let mut nis = NisPlayer::default();
     nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();

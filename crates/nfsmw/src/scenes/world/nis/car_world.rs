@@ -7,6 +7,7 @@ use glam::{Quat, Vec3};
 
 use super::cars::{self, CarSpot, Target};
 use super::cop_cars::{self, SlotKind};
+use super::cop_wait::WAIT_LIMIT;
 use crate::scenes::world::drive::CarPose;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
@@ -17,9 +18,9 @@ const GROUND_REACH: f32 = 20.0;
 impl WorldScene {
     /// Links the playing scene's car channels to the real cars, once per scene. Channel 1 is the player's car. A civilian
     /// channel (`car2`..`car8`) takes the nearest traffic car that no channel has taken yet, never a police car. A cop
-    /// channel (`cop1`..`cop8`) takes the nearest free police car, or a police car the scene spawns when none is free. A
-    /// channel with no car to take stays off. The log says which cop channels borrowed a car, which spawned one, and which
-    /// channels got none.
+    /// channel (`cop1`..`cop8`) takes the nearest free police car, or a police car the scene spawns when none is free; when
+    /// it can take neither yet, it waits for the police car model (`retry_nis_cops`). A channel with no car to take stays
+    /// off. The log says which cop channels borrowed a car, which spawned one, which wait, and which channels got none.
     pub(in crate::scenes::world) fn link_nis_cars(&mut self) {
         if !self.nis.needs_links() {
             return;
@@ -28,6 +29,7 @@ impl WorldScene {
         let mut taken = Vec::new();
         let mut borrowed = Vec::new();
         let mut spawned = Vec::new();
+        let mut waiting = Vec::new();
         let mut missing = Vec::new();
         for (slot, spot) in self.nis.car_slots() {
             let kind = cop_cars::slot_kind(slot);
@@ -42,7 +44,10 @@ impl WorldScene {
                 None => None,
             };
             let Some(target) = found else {
-                missing.push(slot + 1);
+                match (kind, self.traffic.is_some()) {
+                    (Some(SlotKind::Cop), true) => waiting.push(slot),
+                    _ => missing.push(slot + 1),
+                }
                 continue;
             };
             if let Target::Traffic(index) | Target::Spawned(index) = target {
@@ -56,10 +61,44 @@ impl WorldScene {
             links.push((slot, target));
         }
         let name = self.nis.playing_name().unwrap_or_default();
+        let waiting_channels: Vec<usize> = waiting.iter().map(|slot| slot + 1).collect();
         log::info!(
-            "NIS {name}: cop channel(s) {borrowed:?} borrow a police car, {spawned:?} spawn one; no car for channel(s) {missing:?}"
+            "NIS {name}: cop channel(s) {borrowed:?} borrow a police car, {spawned:?} spawn one, {waiting_channels:?} wait for one; no car for channel(s) {missing:?}"
         );
+        let asks = !waiting.is_empty();
         self.nis.set_links(links);
+        self.nis.wait_for_cops(waiting);
+        if !asks {
+            return;
+        }
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.request_nis_cop();
+        }
+    }
+
+    /// Retries the playing scene's waiting cop channels, once a frame, with the frame's real time `dt`: a channel takes the
+    /// nearest free police car or a car the scene spawns, as [`WorldScene::link_nis_cars`] does. A channel still waiting
+    /// when [`WAIT_LIMIT`] real seconds have passed gives up and stays off; the log says so once.
+    pub(in crate::scenes::world) fn retry_nis_cops(&mut self, dt: f32) {
+        for slot in self.nis.cop_waiting().to_vec() {
+            let spot = self.nis.car_slots().into_iter().find(|&(s, _)| s == slot).map(|(_, spot)| spot);
+            let Some(spot) = spot else { continue };
+            let taken = self.nis.linked_cars();
+            let Some(target) = self.link_cop(spot, &taken) else { continue };
+            log::info!(
+                "NIS {}: cop channel {} gets its police car",
+                self.nis.playing_name().unwrap_or_default(),
+                slot + 1
+            );
+            self.nis.link_waiting_cop(slot, target);
+        }
+        let given_up = self.nis.tick_cop_wait(dt);
+        if given_up.is_empty() {
+            return;
+        }
+        let channels: Vec<usize> = given_up.iter().map(|slot| slot + 1).collect();
+        let name = self.nis.playing_name().unwrap_or_default();
+        log::info!("NIS {name}: no police car for cop channel(s) {channels:?} within {WAIT_LIMIT} s; they stay off");
     }
 
     /// The police car a cop channel at `spot` takes: the nearest free one of the chase, or a car the scene spawns there.

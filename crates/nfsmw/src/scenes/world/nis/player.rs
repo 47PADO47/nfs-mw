@@ -16,6 +16,7 @@ use nfsmw_data::nis::{CameraLibrary, NisBundle};
 use super::camera;
 use super::cars::{self, CarSpot, CarTrack, Target};
 use super::characters::{Characters, Materials};
+use super::cop_wait::CopWait;
 use super::events::{NisEvent, NisEvents};
 use super::handlers::NisScreen;
 use crate::audio::nis::NisAudioRequest;
@@ -115,6 +116,8 @@ struct Playing {
     cars: Vec<CarTrack>,
     /// Which real car each car slot drives, once the world has linked them; `None` until then.
     links: Option<Vec<(usize, Target)>>,
+    /// The cop channels still waiting for a police car (`cop_wait.rs`); empty when none waits.
+    cop_wait: CopWait,
     /// The scene's event sequence, when its bundle has one. Dropping the scene stops it.
     events: Option<NisEvents>,
     /// The owner of the effects the scene plays: they stop once it is dropped with the scene.
@@ -224,6 +227,7 @@ impl NisPlayer {
             run,
             cars,
             links: None,
+            cop_wait: CopWait::default(),
             events,
             owner: Rc::new(()),
             voice: false,
@@ -367,6 +371,47 @@ impl NisPlayer {
         if let Some(playing) = self.play.as_mut() {
             playing.links = Some(links);
         }
+    }
+
+    /// The cop channels of the playing scene still waiting for a police car, in slot order. Empty when none waits or no
+    /// scene plays.
+    pub fn cop_waiting(&self) -> &[usize] {
+        self.play.as_ref().map_or(&[][..], |playing| playing.cop_wait.slots())
+    }
+
+    /// Makes the cop channels `slots` of the playing scene wait for a police car (see [`CopWait`]). Called once per scene,
+    /// after [`NisPlayer::set_links`]. Does nothing when no scene plays.
+    pub fn wait_for_cops(&mut self, slots: Vec<usize>) {
+        if let Some(playing) = self.play.as_mut() {
+            playing.cop_wait = CopWait::new(slots);
+        }
+    }
+
+    /// Gives the waiting cop channel `slot` its real car: the channel is linked and no longer waits.
+    pub fn link_waiting_cop(&mut self, slot: usize, target: Target) {
+        let Some(playing) = self.play.as_mut() else { return };
+        playing.cop_wait.resolve(slot);
+        if let Some(links) = playing.links.as_mut() {
+            links.push((slot, target));
+        }
+    }
+
+    /// The traffic indices of the police cars the linked channels take: the cars the scene borrows or spawns.
+    pub fn linked_cars(&self) -> Vec<usize> {
+        let Some(links) = self.play.as_ref().and_then(|playing| playing.links.as_ref()) else { return Vec::new() };
+        links
+            .iter()
+            .filter_map(|&(_, target)| match target {
+                Target::Traffic(index) | Target::Spawned(index) => Some(index),
+                Target::Player => None,
+            })
+            .collect()
+    }
+
+    /// Spends `dt` real seconds on the waiting cop channels. Returns the channels that give up now, once their time is
+    /// up (see [`CopWait::tick`]).
+    pub fn tick_cop_wait(&mut self, dt: f32) -> Vec<usize> {
+        self.play.as_mut().map_or_else(Vec::new, |playing| playing.cop_wait.tick(dt))
     }
 
     /// Each car channel of the playing scene with its slot and its pose now, in render space and before the ground lift.

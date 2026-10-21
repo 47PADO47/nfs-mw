@@ -110,6 +110,8 @@ impl WorldScene {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
             if let Some(world) = traffic.as_mut() {
                 world.load_data(physics.database(), index.track_zones.clone());
+                // The police car a NIS scene spawns loads now, so a bust or a race intro usually finds it (`nis_poses.rs`).
+                world.request_nis_cop();
                 world.set_roadblock_physics(&props);
                 world.set_track_barriers(std::mem::take(&mut index.track_barriers));
                 if let Some(sheet) = heli_sheet.flatten() {
