@@ -16,6 +16,7 @@ const FRAME: f32 = 1.0 / 60.0;
 
 #[path = "click_tests.rs"]
 mod click_tests;
+mod custom_race_screen_tests;
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
 #[path = "player_options_tests.rs"]

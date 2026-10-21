@@ -35,6 +35,8 @@ pub enum Kind {
     QuickRace,
     /// The alias manager (`MC_ProfileManager.fng`).
     AliasManager,
+    /// The kinds of custom race (`MainMenu_Sub.fng` with `Sub::CustomRace`, `custom_race/`).
+    CustomRace,
 }
 
 /// An icon object of the package and the place it takes on the strip.
@@ -55,6 +57,8 @@ enum Pending {
     Start,
 }
 
+/// The fifth face button, key 2: View Tutorial on the mode select (`PAD_BUTTON4`).
+const TUTORIAL_BUTTON: u32 = blackbox_feng::ids::PAD_BUTTON0 + 4;
 /// Empty icons before the first and after the last real one.
 const BOOK_ENDS: usize = 2;
 /// The colours the icons fade between: idle and faded, as `0xAARRGGBB`.
@@ -326,6 +330,7 @@ impl ScreenLogic for IconMenu {
             | Kind::SafeHouse
             | Kind::Career
             | Kind::QuickRace
+            | Kind::CustomRace
             | Kind::AliasManager => cx.label_group(ids::TITLE_GROUP, title),
             Kind::Categories { pause: true, .. } | Kind::Pause => cx.label_group(ids::PAUSE_HEADER, title),
         }
@@ -357,6 +362,8 @@ impl ScreenLogic for IconMenu {
     fn footer(&self) -> Footer {
         match self.kind {
             Kind::Career | Kind::QuickRace | Kind::AliasManager | Kind::SafeHouse => Footer::BackOnly,
+            Kind::CustomRace if self.tutorial().is_some() => Footer::Tutorial,
+            Kind::CustomRace => Footer::BackAccept,
             _ => Footer::Standard,
         }
     }
@@ -378,14 +385,17 @@ impl ScreenLogic for IconMenu {
             PAD_LEFT => self.scroll_by(cx, -1),
             PAD_RIGHT => self.scroll_by(cx, 1),
             BUTTON_PRESSED => self.press(cx),
+            TUTORIAL_BUTTON => self.play_tutorial(cx),
             ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
             profile::GAME_STATS_BUTTON => self.toggle_stats(cx),
             PAD_BACK => match self.kind {
                 Kind::Main => {}
                 // The safe house menu that stands before the world goes back to the career menu; in the world it stays.
                 Kind::SafeHouse => cx.send(Command::LeaveSafeHouse),
-                Kind::Career | Kind::QuickRace | Kind::AliasManager if self.vertical => self.act(cx, Pending::Back),
-                Kind::Career | Kind::QuickRace | Kind::AliasManager => {
+                Kind::Career | Kind::QuickRace | Kind::CustomRace | Kind::AliasManager if self.vertical => {
+                    self.act(cx, Pending::Back)
+                }
+                Kind::Career | Kind::QuickRace | Kind::CustomRace | Kind::AliasManager => {
                     self.pending = Some(Pending::Back);
                     self.reacts = false;
                 }

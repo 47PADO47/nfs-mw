@@ -21,6 +21,7 @@ mod icon_menu;
 mod icon_window;
 mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).
+mod custom_race;
 mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
@@ -40,7 +41,6 @@ mod post_race;
 mod prompt_layout;
 mod prompts;
 mod pursuit_results;
-mod quick_options;
 mod quick_play;
 mod quick_race;
 mod renderer_options;
@@ -52,8 +52,6 @@ mod script;
 mod scroller;
 mod splash;
 mod stage;
-mod track_options;
-mod track_select;
 mod widget_layout;
 mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.

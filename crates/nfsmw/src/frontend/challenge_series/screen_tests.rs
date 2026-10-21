@@ -139,11 +139,11 @@ fn no_on_the_launch_question_goes_back_to_the_grid() {
 fn the_tutorial_button_plays_the_tollbooth_movie_only_on_a_tollbooth_event() {
     let Some(mut h) = Harness::open() else { return };
     h.press(pad::BUTTON0 << 4);
-    assert!(h.commands.contains(&Command::PlayTutorial("tollbooth_tutorial".into())), "{:?}", h.commands);
+    assert!(plays(&h.commands, "tollbooth_tutorial"), "{:?}", h.commands);
     h.commands.clear();
     h.press(pad::RIGHT);
     h.press(pad::BUTTON0 << 4);
-    assert!(h.commands.contains(&Command::PlayTutorial("pursuit_tutorial".into())), "{:?}", h.commands);
+    assert!(plays(&h.commands, "pursuit_tutorial"), "{:?}", h.commands);
 }
 
 impl Harness {
@@ -175,4 +175,11 @@ fn a_click_on_an_open_event_asks_to_launch_it_and_on_a_locked_one_does_nothing()
     assert!(h.click(open));
     h.run(0, 60);
     assert_eq!(h.screens.top(), Some(screen::DIALOG), "an open event asks to launch: {:?}", h.commands);
+}
+
+/// Whether the commands play this tutorial and come back to the series.
+fn plays(commands: &[Command], movie: &str) -> bool {
+    commands.iter().any(
+        |c| matches!(c, Command::PlayTutorial { movie: m, back, .. } if m == movie && back == screen::CHALLENGE_SERIES),
+    )
 }

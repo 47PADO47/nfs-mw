@@ -23,8 +23,8 @@ pub enum Category {
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,
-    /// The rows of Quick Race's track options (`quick_options.rs`).
-    QuickRace,
+    /// The rows of the custom race's options (`custom_race/settings.rs`, `track_options.rs`).
+    CustomRace,
     /// The rows the mods registered (`bb.menus`): listed on the page only when a mod has rows (`mod_options.rs`).
     Mods,
 }
@@ -40,6 +40,8 @@ pub enum Sub {
     Career,
     /// Quick Play, Custom Race, Split Screen (`race_menu.rs`).
     QuickRace,
+    /// The kinds of custom race (`custom_race/`).
+    CustomRace,
 }
 
 /// Where the pause menu's quit item leads, and so what it says: the menu the game in progress was started from
@@ -70,6 +72,25 @@ pub enum Footer {
     /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
     /// Race menu, the safe house menu, the profile list).
     BackOnly,
+    /// Back and Accept: the custom race's track list and the mode select of a mode with no tutorial.
+    BackAccept,
+    /// Back, Accept and `2 View Tutorial`: the mode select on a mode that has a tutorial movie.
+    Tutorial,
+    /// Back, Accept and `1 Defaults`: the custom race's options.
+    Defaults,
+    /// Back, Accept and `3 Showcase`: the custom race's car select.
+    CarSelect,
+    /// Back only, on the custom race's car select: the car shown is locked.
+    CarSelectLocked,
+    /// Back, `9 0 Zoom` and the arrows `View Car`: the Showcase.
+    Orbit,
+}
+
+impl Footer {
+    /// Whether the footer is one of the custom race's car select (`Car_Select.fng` also serves the career's car lot).
+    pub fn is_custom_car_select(self) -> bool {
+        matches!(self, Footer::CarSelect | Footer::CarSelectLocked)
+    }
 }
 
 /// What a screen is opened with (the original passes an argument and reads the game mode).
@@ -88,6 +109,8 @@ pub struct Args {
     pub sub: Sub,
     /// What the pause menu offers (the pause menu only).
     pub pause_ctx: PauseCtx,
+    /// Opened by the custom race: `Car_Select.fng` then picks the car of the race, not a career car (`custom_race/`).
+    pub custom: bool,
 }
 
 impl Default for Args {
@@ -100,6 +123,7 @@ impl Default for Args {
             rival: 0,
             sub: Sub::Options,
             pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
+            custom: false,
         }
     }
 }
@@ -119,17 +143,24 @@ pub enum Command {
     /// Leave the menus and drive, outside career mode.
     #[allow(dead_code)] // nothing sends it since Career starts a career; Quick Race will
     StartFreeRoam,
-    /// Quick Race: leave the menus and start this race (a gameplay collection name) in the world, outside career mode
-    /// (`quick_race.rs`, `track_options.rs`).
-    StartQuickRace(String),
     /// The challenge series: leave the menus and start this event (a gameplay collection name) with the transmission
     /// the player chose, outside career mode (`challenge_series/`).
     StartChallenge {
         race: String,
         transmission: crate::settings::Transmission,
     },
-    /// Play a tutorial movie (`MOVIES/<name>`) full screen, then come back to the screen that asked.
-    PlayTutorial(String),
+    /// Play a tutorial movie (`MOVIES/<name>`) full screen, then come back to the screen that asked (`back`, opened with
+    /// `args`).
+    PlayTutorial {
+        movie: String,
+        back: String,
+        args: Args,
+    },
+    /// The custom race's options page, Defaults answered Yes: the current mode's options go back to their defaults.
+    CustomDefaults,
+    /// Custom Race, after the transmission: start this race (a gameplay collection name) with this car and options
+    /// (`custom_race/start.rs`).
+    StartCustomRace(Box<CustomStart>),
     /// Close the pause menu and go on driving.
     Resume,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
@@ -181,6 +212,18 @@ pub enum Command {
     CarLot(super::career_screens::car_lot::CarLotAction),
     /// The career car select asks for something (`career_screens/car_select.rs`, `flow_bust.rs`).
     CareerCar(super::career_screens::car_select::CarSelectAction),
+}
+
+/// What a custom race starts with.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomStart {
+    /// The race's collection name.
+    pub race: String,
+    /// The car type folder under `CARS/`, and the preset it is built with.
+    pub car: String,
+    pub preset: Option<String>,
+    pub options: crate::scenes::world::RaceOptions,
+    pub transmission: crate::settings::Transmission,
 }
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do

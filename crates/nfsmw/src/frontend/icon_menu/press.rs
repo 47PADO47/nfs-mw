@@ -1,6 +1,7 @@
 //! What a press on an icon does: the package's leave (or none, in a vertical menu), then the screen the icon opens.
 
 use super::{Args, Category, Command, Confirm, Cx, IconMenu, Id, Kind, Pending, ids, safehouse_menu, screen};
+use crate::frontend::custom_race::state as custom_state;
 use crate::frontend::logic::Sub;
 
 impl IconMenu {
@@ -48,7 +49,17 @@ impl IconMenu {
             (Kind::QuickRace, Pending::Pressed(Id::QuickPlay)) => {
                 cx.send(Command::Switch(screen::QUICK_RACE_BRIEF.into(), self.args));
             }
+            (Kind::QuickRace, Pending::Pressed(Id::CustomRace)) => {
+                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::CustomRace, ..self.args }));
+            }
+            (Kind::CustomRace, Pending::Pressed(Id::CustomMode(mode))) => {
+                custom_state::with(|state| state.choose_mode(mode));
+                cx.send(Command::Switch(screen::TRACK_SELECT.into(), Args::default()));
+            }
             (Kind::AliasManager, Pending::Pressed(id)) => crate::frontend::alias_menu::press(cx, id),
+            (Kind::CustomRace, Pending::Back) => {
+                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::QuickRace, ..self.args }));
+            }
             (Kind::Career | Kind::QuickRace | Kind::AliasManager, Pending::Back) => {
                 cx.send(Command::Switch(screen::MAIN_MENU.into(), Args::default()));
             }
@@ -79,6 +90,25 @@ impl IconMenu {
             }
             _ => {}
         }
+    }
+
+    /// The tutorial movie of the selected kind of custom race, if it has one.
+    pub(super) fn tutorial(&self) -> Option<&'static str> {
+        match self.icons.get(self.current_icon()?)?.id {
+            Id::CustomMode(mode) if self.kind == Kind::CustomRace => mode.tutorial(),
+            _ => None,
+        }
+    }
+
+    /// View Tutorial (key 2): plays the movie of the selected kind of race and comes back to this menu.
+    pub(super) fn play_tutorial(&mut self, cx: &mut Cx) {
+        let Some(movie) = self.tutorial().filter(|_| self.reacts) else { return };
+        cx.memory.insert(self.memory_key(cx), self.current_icon().unwrap_or(0));
+        cx.send(Command::PlayTutorial {
+            movie: movie.to_owned(),
+            back: screen::MAIN_MENU_SUB.to_owned(),
+            args: Args { sub: Sub::CustomRace, ..self.args },
+        });
     }
 
     /// Accept on the selected icon: the item's screen opens (after the package's leave, unless the menu is vertical).
