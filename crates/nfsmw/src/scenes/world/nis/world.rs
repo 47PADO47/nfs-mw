@@ -66,7 +66,8 @@ impl WorldScene {
         if input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart) {
             self.nis.skip();
         }
-        self.nis.advance(dt);
+        let events = self.nis.advance(dt);
+        self.apply_nis_events(events);
         if let Some(outcome) = self.nis.take_outcome() {
             log::info!("NIS scene ended: {outcome:?}");
             // A bust waiting on its arrest scene goes on; the bust ignores any other scene's end.

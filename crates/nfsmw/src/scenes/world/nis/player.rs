@@ -1,15 +1,23 @@
 //! The NIS player's state machine: which scene plays, how far it has got, and how it ended. It advances on the caller's
 //! real frame time and knows nothing of the world. The camera is in `camera.rs`, the console in `command.rs`, and the
-//! world's side (the freeze, the skip, the bars) in `world.rs`. Spec: `docs/specs/nis-player.md`, `nis-player-2.md`.
+//! world's side (the freeze, the skip, the bars) in `world.rs`. The scene's event sequence is in `events.rs`, and what its
+//! events do in `handlers.rs`. Spec: `docs/specs/nis-player.md`, `nis-player-2.md`.
+
+use std::rc::{Rc, Weak};
+use std::sync::Arc;
 
 use blackbox_chunk::ice::{CameraSample, Track};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
+use blackbox_sequence::Package;
 use game_install::GameDir;
 use glam::Vec3;
 use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::camera;
 use super::cars::{self, CarSpot, CarTrack, Target};
+use super::events::{NisEvent, NisEvents};
+use super::handlers::NisScreen;
+use crate::audio::nis::NisAudioRequest;
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
 
@@ -106,6 +114,14 @@ struct Playing {
     cars: Vec<CarTrack>,
     /// Which real car each car slot drives, once the world has linked them; `None` until then.
     links: Option<Vec<(usize, Target)>>,
+    /// The scene's event sequence, when its bundle has one. Dropping the scene stops it.
+    events: Option<NisEvents>,
+    /// The owner of the effects the scene plays: they stop once it is dropped with the scene.
+    owner: Rc<()>,
+    /// The scene's audio request, which the audio plugin follows while the scene plays.
+    audio: NisAudioRequest,
+    /// Whether the scene's voice is playing, as the audio plugin last reported it.
+    voice: bool,
 }
 
 impl Playing {
@@ -136,6 +152,8 @@ pub struct NisPlayer {
     last: Option<String>,
     /// The linked cars where they stood when the last scene ended, until the world takes them (`take_final_cars`).
     final_cars: Option<Vec<(Target, CarSpot)>>,
+    /// The flash and the overlay the playing scene shows; cleared when it ends.
+    screen: NisScreen,
 }
 
 impl NisPlayer {
@@ -160,25 +178,35 @@ impl NisPlayer {
         let plan = Plan::new(&bundle.name, &bundle.scene, camera, marker, kind)
             .ok_or_else(|| format!("{scene} has neither a frame window nor a camera track"))?;
         let cars = cars::read_tracks(&bundle.anim.banks);
-        self.start_with_cars(plan, cars)
+        self.start_with_cars(plan, cars, bundle.sequence.clone())
     }
 
-    /// Starts a prepared scene with no cars. Refused while another plays, or when the scene has no time to play.
+    /// Starts a prepared scene with no cars and no events. Refused while another plays, or when the scene has no time to
+    /// play.
     pub fn start(&mut self, plan: Plan) -> Result<(), String> {
-        self.start_with_cars(plan, Vec::new())
+        self.start_with_cars(plan, Vec::new(), None)
     }
 
-    /// Starts a prepared scene with its car tracks. Refused while another plays, or when the scene has no time to play.
-    fn start_with_cars(&mut self, plan: Plan, cars: Vec<CarTrack>) -> Result<(), String> {
+    /// Starts a prepared scene with its car tracks and its event sequence, if it has one. Refused while another plays, or
+    /// when the scene has no time to play. The events start on the scene's `START` stimulus, and fire as the scene runs.
+    fn start_with_cars(
+        &mut self,
+        plan: Plan,
+        cars: Vec<CarTrack>,
+        sequence: Option<Arc<Package>>,
+    ) -> Result<(), String> {
         self.refuse_while_playing()?;
         let run = Playback::new(plan.clock, plan.kind.skippable());
         if run.is_finished() {
             return Err(format!("{} has no time to play", plan.name));
         }
+        let events = sequence.and_then(|package| NisEvents::start(package, &plan.name));
         self.outcome = None;
         self.cut = true;
+        self.screen.clear();
         self.last = Some(format!("{}: playing", plan.name));
         self.play = Some(Playing {
+            audio: NisAudioRequest { scene: Some(plan.name.clone()) },
             name: plan.name,
             kind: plan.kind,
             anchor: plan.anchor,
@@ -187,6 +215,9 @@ impl NisPlayer {
             run,
             cars,
             links: None,
+            events,
+            owner: Rc::new(()),
+            voice: false,
         });
         Ok(())
     }
@@ -198,13 +229,19 @@ impl NisPlayer {
         }
     }
 
-    /// Plays `dt` seconds of real time. The scene ends when its clock runs out.
-    pub fn advance(&mut self, dt: f32) {
-        let Some(playing) = self.play.as_mut() else { return };
+    /// Plays `dt` seconds of real time: the clock, the events that fall in it (returned, each once, in order) and the
+    /// screen. The scene ends when its clock runs out.
+    pub fn advance(&mut self, dt: f32) -> Vec<NisEvent> {
+        let Some(playing) = self.play.as_mut() else { return Vec::new() };
+        let before = playing.run.elapsed();
         let finished = playing.run.advance(dt) == PlaybackState::Finished;
+        let step = playing.run.elapsed() - before;
+        let events = playing.events.as_mut().map_or_else(Vec::new, |events| events.advance(step));
+        self.screen.advance(dt);
         if finished {
             self.end(NisOutcome::Completed);
         }
+        events
     }
 
     /// The player's skip. Returns whether the scene was skipped: a scene that cannot be skipped (an arrest or an
@@ -232,7 +269,43 @@ impl NisPlayer {
         self.final_cars = Some(playing.spots());
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
+        self.screen.clear();
         self.cut = true;
+    }
+
+    /// The flash and the overlay the playing scene shows.
+    pub fn screen(&self) -> &NisScreen {
+        &self.screen
+    }
+
+    /// The flash and the overlay the playing scene shows, for the events that set them.
+    pub fn screen_mut(&mut self) -> &mut NisScreen {
+        &mut self.screen
+    }
+
+    /// The audio request of the playing scene: its name, while it plays. `None` when no scene plays.
+    pub fn audio_request(&self) -> Option<&NisAudioRequest> {
+        self.play.as_ref().map(|playing| &playing.audio)
+    }
+
+    /// Records whether the playing scene's voice plays, as the audio plugin reports it each frame. A voice that stops
+    /// before the scene ends is logged.
+    pub fn note_voice(&mut self, playing: bool) {
+        let Some(scene) = self.play.as_mut() else { return };
+        if scene.voice && !playing {
+            log::debug!("NIS {}: the voice stopped at {:.1} s", scene.name, scene.run.elapsed());
+        }
+        scene.voice = playing;
+    }
+
+    /// The playing scene's anchor: its scene space in render space. `None` when no scene plays.
+    pub fn anchor(&self) -> Option<Anchor> {
+        self.play.as_ref().map(|playing| playing.anchor)
+    }
+
+    /// The owner of the playing scene's effects. A weak handle: it stops working when the scene ends.
+    pub fn effect_owner(&self) -> Option<Weak<()>> {
+        self.play.as_ref().map(|playing| Rc::downgrade(&playing.owner))
     }
 
     /// How the last scene ended, once: the next call gives `None` until another scene ends.

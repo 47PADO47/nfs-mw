@@ -1,7 +1,12 @@
 use super::*;
+use std::collections::BTreeMap;
+
 use blackbox_chunk::ice::{Key, Space};
 use blackbox_nis::SceneType;
+use blackbox_sequence::{Action, Engine, Event, Response, State, System};
 use glam::Vec3;
+
+use crate::scenes::world::nis::events::START;
 
 /// A three-second scene: frames 0 to 90 at 30 frames per second, with no camera (the orbit plays).
 fn plan(name: &str, kind: NisKind) -> Plan {
@@ -243,4 +248,68 @@ fn a_skipped_scene_hands_back_its_cars_too() {
     assert!(nis.skip());
     assert_eq!(nis.take_final_cars(), Some(Vec::new()));
     assert!(!nis.needs_links());
+}
+
+/// One engine, named after the scene: a call (id 13) at time zero and a call (id 11) at 1 s, over a 2 s action.
+fn sequence() -> Package {
+    let mut states = BTreeMap::new();
+    let responses = BTreeMap::from([(START, Response { end_state: 20, action: 40 })]);
+    states.insert(20, State { filter: None, responses });
+    let system = System { initial: 20, default: 20, states };
+    let engine = Engine { name: "IntroNis05".into(), name_hash: 77, systems: BTreeMap::from([(10, system)]) };
+    let action = Action { name_hash: 40, duration: 2.0, tags: BTreeMap::new(), times: vec![(0.0, 101), (1.0, 102)] };
+    let call = |id: u32| Event {
+        id: 0x885F_756E,
+        data: [0x885F_756E, id].iter().flat_map(|w: &u32| w.to_le_bytes()).collect(),
+    };
+    let event_lists = BTreeMap::from([(101, vec![call(13)]), (102, vec![call(11)])]);
+    Package { engines: vec![engine], actions: BTreeMap::from([(40, action)]), event_lists, strings: BTreeMap::new() }
+}
+
+#[test]
+fn a_scene_hands_out_its_events_as_its_clock_passes_them() {
+    let mut nis = NisPlayer::default();
+    nis.start_with_cars(plan("IntroNis05", NisKind::Intro), Vec::new(), Some(Arc::new(sequence()))).unwrap();
+    assert_eq!(nis.advance(0.0), [NisEvent::CellCall(13)], "the time-zero event fires at the start");
+    assert!(nis.advance(0.5).is_empty());
+    assert_eq!(nis.advance(1.5), [NisEvent::CellCall(11)]);
+    assert!(nis.advance(5.0).is_empty(), "the clock runs out at 3 s and no event waits past it");
+    assert_eq!(nis.take_outcome(), Some(NisOutcome::Completed));
+}
+
+#[test]
+fn skipping_a_scene_stops_its_events() {
+    let mut nis = NisPlayer::default();
+    nis.start_with_cars(plan("IntroNis05", NisKind::Intro), Vec::new(), Some(Arc::new(sequence()))).unwrap();
+    assert_eq!(nis.advance(0.0), [NisEvent::CellCall(13)]);
+    assert!(nis.skip());
+    assert!(nis.advance(2.0).is_empty(), "the skipped scene fires nothing more");
+    assert_eq!(nis.take_outcome(), Some(NisOutcome::Skipped));
+}
+
+#[test]
+fn a_scene_with_no_sequence_fires_nothing() {
+    let mut nis = NisPlayer::default();
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    assert!(nis.advance(0.0).is_empty());
+}
+
+#[test]
+fn the_audio_request_is_the_playing_scene_until_it_ends() {
+    let mut nis = NisPlayer::default();
+    assert_eq!(nis.audio_request(), None);
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    assert_eq!(nis.audio_request(), Some(&NisAudioRequest { scene: Some("IntroNis05".into()) }));
+    nis.stop();
+    assert_eq!(nis.audio_request(), None);
+}
+
+#[test]
+fn the_screen_is_cleared_when_the_scene_ends() {
+    let mut nis = NisPlayer::default();
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    nis.screen_mut().start_flash(2.0);
+    assert!(nis.screen().flash_alpha().is_some());
+    nis.stop();
+    assert_eq!(nis.screen().flash_alpha(), None);
 }

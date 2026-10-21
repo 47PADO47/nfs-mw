@@ -58,6 +58,7 @@ impl Scene for WorldScene {
         self.show_race_message_card(ctx);
         self.show_nis_bars(ctx);
         self.show_story_movie(ctx);
+        self.nis.screen().draw(ctx);
         0.0
     }
 
@@ -385,6 +386,12 @@ impl Scene for WorldScene {
     }
     fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
         self.career.requests.pop_front()
+    }
+    fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
+        self.nis.audio_request()
+    }
+    fn note_nis_audio(&mut self, playing: bool) {
+        self.nis.note_voice(playing);
     }
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         self.rotor_frame_now(dt)

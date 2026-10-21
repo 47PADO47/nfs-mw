@@ -2,8 +2,12 @@
 //! read with `blackbox-nis`) and its EAGL skeletons and animation banks (read with [`AnimObjects`]). The file layout is
 //! in `docs/specs/nis-scenes.md`; how a scene plays is in `docs/specs/nis-player.md`.
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result, anyhow};
+use blackbox_chunk::ids;
 use blackbox_nis::{Scene, find_scene};
+use blackbox_sequence::Package;
 use game_install::GameDir;
 
 use crate::anim::AnimObjects;
@@ -12,7 +16,7 @@ use crate::read_unwrapped;
 /// The install folder of the NIS bundles.
 const NIS_DIR: &str = "NIS";
 
-/// One NIS scene's data: the scene name as the file names it, the scene chunk and the EAGL objects.
+/// One NIS scene's data: the scene name as the file names it, the scene chunk, the EAGL objects and the event sequence.
 #[derive(Debug, Clone)]
 pub struct NisBundle {
     /// The scene name, as in the bundle's file name (`IntroNis05` for `Scene_IntroNis05_BundleB.bun`).
@@ -21,6 +25,8 @@ pub struct NisBundle {
     pub scene: Scene,
     /// The bundle's skeletons and animation banks.
     pub anim: AnimObjects,
+    /// The scene's CARP event sequence (its `0x0003B811` chunk), or `None` when the bundle has none.
+    pub sequence: Option<Arc<Package>>,
 }
 
 impl NisBundle {
@@ -39,12 +45,27 @@ impl NisBundle {
     pub fn from_bytes(name: &str, data: &[u8]) -> Result<Self> {
         let scene = find_scene(data)?.ok_or_else(|| anyhow!("the bundle has no AnimScene chunk"))?;
         let anim = AnimObjects::from_bytes(data)?;
-        Ok(Self { name: name.to_owned(), scene, anim })
+        let sequence = read_sequence(data);
+        Ok(Self { name: name.to_owned(), scene, anim, sequence })
     }
 
     /// The scene names of every NIS bundle in the install, in file order.
     pub fn list(dir: &GameDir) -> Vec<String> {
         dir.files_in(NIS_DIR).iter().filter_map(|file| scene_name_of_file(file)).map(str::to_owned).collect()
+    }
+}
+
+/// The bundle's CARP event sequence, parsed. A sequence that does not parse is logged and dropped: the scene still plays,
+/// without its events.
+fn read_sequence(data: &[u8]) -> Option<Arc<Package>> {
+    let chunk = blackbox_chunk::find(data, ids::EVENT_SEQUENCES)?;
+    let blob = chunk.aligned_payload(16).get(16..)?;
+    match Package::parse(blob) {
+        Ok(package) => Some(Arc::new(package)),
+        Err(error) => {
+            log::warn!("NIS event sequence unreadable, the scene plays without its events: {error}");
+            None
+        }
     }
 }
 

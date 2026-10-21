@@ -130,6 +130,11 @@ impl PhoneState {
         outcome
     }
 
+    /// `ECellCall(id)` from a scene: the call `id` waits in the call list, to be processed on the next frame like any call.
+    pub fn call(&mut self, id: u32) {
+        self.calls.push(CellCallRequest { id });
+    }
+
     /// Queues the messages of a bin: its entry message and the ones its wins and challenges send. The ids come from
     /// [`bin_messages`]. Returns how many were newly queued; a message already pending, delivered or read is skipped.
     pub fn queue_bin_messages(&mut self, inbox: &mut SmsInbox, ids: &[u32]) -> usize {
