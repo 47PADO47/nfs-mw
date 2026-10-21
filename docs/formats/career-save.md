@@ -234,7 +234,7 @@ last sequence given (74 in `mwo`). Deleting a message sets its state back to 0. 
 
 **Node state list** **[exe + verified]**: a u32 count (255, 256 and 280 in the three saves; the cap is 300) then that many
 `{u32 node hash, u32 state flags, u32, u32}`; the rest of the 4,800 bytes is zero. The nodes are the career graph's
-event nodes (the game looks nodes up by the hash of ids like `16.1.0`). State flag values seen: 0x10 (most nodes in an early
+event nodes (the game looks nodes up by the hash of ids like `16.1.0`, which is `vlt_hash` of the id text, lookup2 with initval `0xABCDEF00`; the three saves match it on 128 to 132 records each). State flag values seen: 0x10 (most nodes in an early
 save), 0x4, 0x14, 0xE, 0x1E, 0xD in a late one. Bit 1 (value 2) is tested when the list is saved to refresh a node
 **[exe]**. The record is `{u32 node hash, u32 flags, u32 best result, u16, u16}`; the bits are **[exe]**
 ([provenance](../provenance/career-save-screens.md#node-state-bits)):

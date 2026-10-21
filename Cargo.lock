@@ -3941,6 +3941,7 @@ dependencies = [
 name = "nfsmw-career"
 version = "0.1.0"
 dependencies = [
+ "blackbox-attrib",
  "save-store",
  "thiserror 2.0.21",
 ]

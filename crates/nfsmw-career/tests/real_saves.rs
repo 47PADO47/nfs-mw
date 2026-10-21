@@ -8,7 +8,7 @@ use nfsmw_career::phone::InboxTab;
 use nfsmw_career::save::ProfileSave;
 use nfsmw_career::save::layout::FILE_LEN;
 use nfsmw_career::save::milestones_block::MilestoneBlock;
-use nfsmw_career::settings::Flags;
+use nfsmw_career::settings::{Flags, NODE_LIST_LEN};
 use std::path::{Path, PathBuf};
 
 /// The profile files under `dir`: `<dir>/<alias>/<alias>` and files of the right size directly in `dir`.
@@ -57,13 +57,21 @@ fn real_profiles_round_trip_and_match_the_documented_values() {
             assert_eq!(record.strike_limit, 3, "{name}: every career record starts with limit 3");
         }
 
+        let mut node_block = vec![0u8; NODE_LIST_LEN];
+        settings.nodes().write(&mut node_block).unwrap();
+        assert_eq!(node_block, settings.node_states[..], "{name}: the node list round trip");
+
         let known = matches!(name.as_str(), "NAME" | "mwo" | "stock");
         if !known {
             continue;
         }
         assert_eq!(settings.flags, Flags(0x001D_F7F3), "{name}: the flags word is the same in the three saves");
+        let nodes = settings.nodes();
+        let won_in_career = |id: &str| nodes.get(id).is_some_and(|state| state.won_in_career());
         match name.as_str() {
             "mwo" => {
+                assert_eq!(nodes.len(), 256, "{name}: node records");
+                assert!(won_in_career("16.1.0") && won_in_career("16.2.1"), "{name}: the prologue races are won");
                 assert_eq!(settings.stage, 1);
                 assert_eq!(settings.unknown_0x10, 30_372);
                 assert_eq!(settings.sms.counter, 74);
@@ -79,6 +87,7 @@ fn real_profiles_round_trip_and_match_the_documented_values() {
                 assert_eq!(no_sequence, [10, 11, 12, 13, 95, 96], "calls written without a sequence number");
             }
             "stock" => {
+                assert!(!won_in_career("16.2.1"), "{name}: 16.2.1 is not won");
                 assert_eq!(settings.stage, 15);
                 assert_eq!((settings.sms.counter, stable.sold.bounty), (1, 0));
                 let delivered: Vec<_> = settings.sms.slots.iter().filter(|s| s.state != 0).collect();
