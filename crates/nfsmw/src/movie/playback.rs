@@ -1,11 +1,13 @@
 //! One movie played against a clock, apart from any scene: the decoder, the picture due now, the sound and the end.
 
 use anyhow::{Result, bail};
+use blackbox_text::SubtitleTrack;
 use ea_audio::Pcm;
 use game_install::GameDir;
 
 use super::framing::framing;
 use super::player::{Movie, Step};
+use super::subtitles;
 use crate::settings::hd_content;
 use crate::viewer::Fullscreen;
 
@@ -68,6 +70,8 @@ pub struct MoviePlayback {
     /// Whether a picture has been handed out yet.
     shown: bool,
     clock: Clock,
+    /// The movie's subtitles, when it has any to show (see [`subtitles::load`]).
+    subtitles: Option<SubtitleTrack>,
 }
 
 impl MoviePlayback {
@@ -87,7 +91,8 @@ impl MoviePlayback {
             frame = Some(movie.rgba().to_vec());
         }
         let sound_secs = audio.as_ref().map_or(0.0, Pcm::duration_secs);
-        Ok(Self { name: file, movie, audio, frame, shown: false, clock: Clock::new(start, sound_secs) })
+        let subtitles = subtitles::load(dir, &file);
+        Ok(Self { name: file, movie, audio, frame, shown: false, clock: Clock::new(start, sound_secs), subtitles })
     }
 
     /// The file name of the movie, such as `ealogo_english_ntsc.vp6`.
@@ -96,9 +101,13 @@ impl MoviePlayback {
     }
 
     /// Seconds played, from the start of the movie.
-    #[allow(dead_code)] // no caller yet; the subtitles and the scene over the world will read it
     pub fn elapsed(&self) -> f64 {
         self.clock.elapsed
+    }
+
+    /// The subtitle lines up now: line 1 and, in the tutorials, line 2. Both are `None` when nothing is shown.
+    pub fn subtitle_lines(&self) -> (Option<&str>, Option<&str>) {
+        subtitles::lines_at(self.subtitles.as_ref(), self.elapsed())
     }
 
     /// Moves the clock on by `dt` seconds and decodes the frame that is due.
@@ -174,5 +183,20 @@ mod tests {
         clock.tick(0.1);
         clock.picture_ended();
         assert!(clock.done);
+    }
+
+    #[test]
+    fn the_clock_shows_each_subtitle_line_from_its_cue_until_the_clear() {
+        use blackbox_text::Cue;
+        // Cues at 5.5 s and 14.5 s (the clear); the times are exact in binary, so the clock's sums are too.
+        let cues = [Cue { start_tenths: 55, label: 7 }, Cue { start_tenths: 145, label: 0xC1EA }];
+        let track = SubtitleTrack::new(&cues, 0xC1EA, |_| Some("line".to_owned()));
+        let lines = |clock: &Clock| subtitles::lines_at(Some(&track), clock.elapsed);
+        let mut clock = Clock::new(0.0, 0.0);
+        assert_eq!(lines(&clock), (None, None));
+        clock.tick(5.5);
+        assert_eq!(lines(&clock), (Some("line"), None));
+        clock.tick(9.0);
+        assert_eq!(lines(&clock), (None, None), "the clear at 14.5 s");
     }
 }

@@ -3,6 +3,7 @@
 mod framing;
 mod playback;
 mod player;
+mod subtitles;
 
 use anyhow::Result;
 use bevy_app::{AppExit, Plugin, Update};
@@ -56,6 +57,11 @@ impl Scene for MovieScene {
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         Some(crate::hud::HudState { visible: false, ..Default::default() })
+    }
+
+    fn ui(&mut self, ctx: &egui::Context) -> f32 {
+        subtitles::show(ctx, self.playback.subtitle_lines());
+        0.0
     }
 
     fn frame(&mut self, _aspect: f32) -> (FrameParams, &[Instance]) {
@@ -167,5 +173,19 @@ mod tests {
             assert!(steps < 60 * 10, "the movie never ends");
         }
         assert!(frames > 20, "{frames} steps showed a picture");
+    }
+
+    /// With the install (`NFSMW_GAME_DIR`): the bounty tutorial shows both of its lines at its first cue (5.4 s), and
+    /// shows nothing before it.
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn the_bounty_tutorial_shows_its_first_lines_at_its_first_cue() {
+        let Some(root) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+        let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+        let before = MoviePlayback::open(&dir, "bounty_tutorial", 0.0).unwrap();
+        assert_eq!(before.subtitle_lines(), (None, None), "no line before the first cue");
+        let at_cue = MoviePlayback::open(&dir, "bounty_tutorial", 5.4).unwrap();
+        let (first, second) = at_cue.subtitle_lines();
+        assert!(first.is_some() && second.is_some(), "both lines of the first cue");
     }
 }
