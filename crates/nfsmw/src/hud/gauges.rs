@@ -61,3 +61,20 @@ pub(super) fn nitrous_meter(rt: &mut Runtime, gauge: Nitrous, last: &mut f32, le
     }
     *last = nos;
 }
+
+/// The drag HUD's "Perfect Shift!" group (`0x2579C809`) and the script that plays it (one of four of 1900 ms, which one
+/// the game picks for which shift is not read), and the share of the red line a shift has to be made above to count
+/// **[unconfirmed]**: the game's shift rating is not read.
+pub(super) const PERFECT_SHIFT: u32 = 0x2579_C809;
+const PERFECT_SCRIPT: u32 = 0xC8D8_8528;
+const PERFECT_SHARE: f32 = 0.95;
+
+/// A shift up made close to the red line plays "Perfect Shift!" on `group`. `last` is the gear and rpm of the last call.
+pub(super) fn perfect_shift(rt: &mut Runtime, group: Option<ObjectRef>, last: &mut (i32, f32), s: &HudState) {
+    let (gear, rpm) = *last;
+    *last = (s.gear, s.rpm);
+    let Some(o) = group else { return };
+    if s.gear > gear && gear >= 1 && rpm >= s.red_line * PERFECT_SHARE {
+        rt.run_script(o, PERFECT_SCRIPT);
+    }
+}

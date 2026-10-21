@@ -37,12 +37,6 @@ const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
 /// the `Drag_RPM_10000_Lines` face; the sweep is the main needle's **[unconfirmed]**.
 const DRAG_NEEDLE_START_DEG: f32 = 42.0;
 const DRAG_SCALE_RPM: f32 = 10000.0;
-/// The drag HUD's "Perfect Shift!" group (`0x2579C809`) and the script that plays it (one of four of 1900 ms, which one
-/// the game picks for which shift is not read), and the share of the red line a shift has to be made above to count
-/// **[unconfirmed]**: the game's shift rating is not read.
-const PERFECT_SHIFT: u32 = 0x2579_C809;
-const PERFECT_SCRIPT: u32 = 0xC8D8_8528;
-const PERFECT_SHARE: f32 = 0.95;
 /// The gear digit's alpha while a gear change is in progress.
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The pursuit board's group (`PursuitBoardGroup`).
@@ -125,7 +119,7 @@ impl HudBinding {
             units: find(rt, package, "3rdPersonSpeedUnits"),
             gear: find(rt, package, GEAR),
             needle: find(rt, package, "3rdPersonNeedle"),
-            perfect: rt.find(package, PERFECT_SHIFT),
+            perfect: rt.find(package, super::gauges::PERFECT_SHIFT),
             last_shift: (0, 0.0),
             drag: rt.package(package).is_some_and(|p| p.name.eq_ignore_ascii_case("HUD_Drag.fng")),
             fill: rt.find_guid(package, 0x456e),
@@ -312,12 +306,8 @@ impl HudBinding {
 
     /// A drag shift made close to the red line plays "Perfect Shift!".
     fn perfect_shift(&mut self, rt: &mut Runtime, s: &HudState) {
-        let (gear, rpm) = self.last_shift;
-        self.last_shift = (s.gear, s.rpm);
-        let Some(o) = self.perfect.filter(|_| self.drag) else { return };
-        if s.gear > gear && gear >= 1 && rpm >= s.red_line * PERFECT_SHARE {
-            rt.run_script(o, PERFECT_SCRIPT);
-        }
+        let group = self.perfect.filter(|_| self.drag);
+        super::gauges::perfect_shift(rt, group, &mut self.last_shift, s);
     }
 
     /// The pursuit board's timer and the width of the cool-down bar, while a chase runs. The board and the bar fade
