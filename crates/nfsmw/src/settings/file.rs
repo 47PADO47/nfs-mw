@@ -120,7 +120,6 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         turn_signals: field(&table, origin, "turn_signals", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
-        quick_race: field(&table, origin, "quick_race", quick_choice),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),
         mods: field(&table, origin, "mods", |v| super::mods::ModsMode::from_str(text_of(v)?)),
@@ -195,17 +194,6 @@ pub fn parse(text: &str, origin: &str) -> Partial {
 /// Read `key` through `convert`; a value of the wrong kind is reported and ignored.
 fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> Result<T, String>) -> Option<T> {
     convert(table.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `{key}`: {e}")).ok()
-}
-
-/// The Quick Race rows: four whole numbers from 0 to 9, in the order laps, opponents, difficulty, traffic.
-fn quick_choice(v: &Value) -> Result<[u8; 4], String> {
-    let items = v.as_array().ok_or_else(|| "expected four numbers".to_owned())?;
-    let numbers: Vec<u8> = items
-        .iter()
-        .map(|item| item.as_integer().and_then(|n| u8::try_from(n).ok()).filter(|n| *n <= super::MAX_QUICK_INDEX))
-        .collect::<Option<_>>()
-        .ok_or_else(|| "expected whole numbers from 0 to 9".to_owned())?;
-    <[u8; 4]>::try_from(numbers).map_err(|_| "expected four numbers".to_owned())
 }
 
 fn boolean(v: &Value) -> Result<bool, String> {

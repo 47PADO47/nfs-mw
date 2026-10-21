@@ -149,8 +149,6 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub const DEFAULT_TRAFFIC: u32 = 20;
 /// The default share of those cars that are patrol cops: 5 percent, one in twenty.
 pub const DEFAULT_COP_SHARE: Percent = Percent(5);
-/// The largest index a Quick Race option row takes (laps run to 9).
-pub const MAX_QUICK_INDEX: u8 = 9;
 
 /// Whether traffic stops at red lights by default. The original game has no traffic lights: this is a rewrite
 /// extension, on because it was asked for.
@@ -253,9 +251,6 @@ pub struct Settings {
     pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
-    /// What the Quick Race option rows are set to: laps, opponents, difficulty and traffic, each an index where 0 leaves the
-    /// race's own value (`frontend/quick_options.rs`).
-    pub quick_race: [u8; 4],
     /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).
     pub discord: bool,
     /// Show the elapsed play time in Discord Rich Presence (needs `discord`).
@@ -391,7 +386,6 @@ impl From<Partial> for Settings {
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
-            quick_race: p.quick_race.unwrap_or_default().map(|index| index.min(MAX_QUICK_INDEX)),
             discord: p.discord.unwrap_or(true),
             discord_time_played: p.discord_time_played.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
