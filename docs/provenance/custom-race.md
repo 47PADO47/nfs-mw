@@ -27,6 +27,11 @@
 | `0x007ACE50` | `SetupKnockout`: Direction, Opponents, Laps (its text object `0x58` set to the opponents' string, the widget disabled), Traffic, Difficulty, Catch Up. |
 | `0x007AD0F0` | `SetupSpeedTrap`: Direction, Traffic, Opponents, Difficulty, Catch Up. |
 | `0x007AD310` | `SetupTollbooth`: Direction, Traffic. |
+| `0x007AADE0` | `UIQRTrackSelect::RefreshHeader`: the region labels, the counter, the lock text (`blacklist_rival_%02d_aka` with label `0xBD563BE5`, shown when the list node's byte at `+0xC` is set, the accept group `0x73DCB662` hidden), the length, and the record line: a time for race types 0 to 4 (`FUN_007C4B80`), `Best Speed:` with the speed in the speed unit for type 5, the `Best Lap:` label swapped in for types 1 and 3. |
+| `0x007AAC70` | `TryToAddTrack`: the event is available (`FUN_00576A20`), `NeverInQuickRace` clear (`FUN_005FC110`, attribute `0xA4E6FCFD`), the race type equals the mode, not a D-Day race (`FUN_005FBD20`), the region equals the filter or the filter is 3; the node's lock byte is `IsTrackUnlocked == 0`. |
+| `0x00576790`, `0x005765A0`, `0x005DCA70` | `IsTrackUnlocked`: all open when `DAT_00926124` (unlock all) is set; the quick race bit (`param & 1`) calls `0x005765A0`, which tests bit 4 of the race's score flags (`FUN_005DCA70(table, hash, 4)`) and opens the event `19.8.31`; the career bit tests bit 8. |
+| `0x00600B20` | The score flags set up for a new profile: for each race that is not a D-Day race, bit 4 (open in the quick race) is set when `FUN_005FBBD0` (attribute `0xB39ED8C3`, bit 0 of the race record) or `FUN_005FBCB0` (attribute `0xEA855EAF`, bit 2) holds (and the race is not disabled by `FUN_005FBD90`); bit `0x10` from `FUN_005FBC40` (attribute `0x39509746`). 28 races of bins 1 to 15 carry the first two in this install. |
+| `0x007AB950` | A two-way widget (left and right) that toggles a byte of the front-end database (`+0x173`) and clears another (`+0x144`); not identified. |
 | `0x007AD640` | A table of 13 Blacklist-position language hashes (`0xCE184740` ...), not read further. |
 
 The widget classes were told apart by their order in these constructors: the same vtable (`0x008B78C8` Direction, `0x008B788C` Laps,
@@ -60,9 +65,10 @@ options, so it is added by this rewrite.
 
 ## Dead ends
 
-- `GRaceDatabase::IsQuickRaceUnlocked` is an empty file in the decomp and a flag test on the race score in the exe; the flag's
-  setter was not found. The rule in the spec (a track opens with its bin's rival) comes from the lock sentence and from the cars'
-  arithmetic, not from the flag.
+- `GRaceDatabase::IsQuickRaceUnlocked` is an empty file in the decomp; in the exe it is the flag test above, and the flag is set
+  for a fresh profile by `0x00600B20`. The setter that opens the rest when a rival is beaten was not found (a scan for `OR [r+4], 4`
+  found `0x00600B20` and unrelated code only). The rule in the spec (a track opens with its bin's rival) comes from the lock
+  sentence and from the cars' arithmetic.
 - The tutorial button of the mode select: the exe's table of modes with a tutorial was not found; the three movies exist.
 - `TransmissionPromptOn` (the player option that skips the question) has no counterpart in this build's settings.
 - The exe's Heat Level row (see above).

@@ -52,19 +52,24 @@ saved to the config file (the old `quick_race` config key and its four rows are 
   a click on the arrows beside the label).
 - **Left and right** step through the tracks with wrap-around; the track name is the label `TRACKNAME_<id>` or the event id.
 - **Length** `%.1f` of the stored `RaceLength` in KMs or Miles (the Speed units setting) **[decomp]**, as the Quick Play brief does.
-- **Record:** `Best Time:` with the best finish time (`m:ss.cc`), or `Best Speed:` with the best speed through a speed trap in the
-  Speed units setting (the speedtrap); `0.00` and `0 MPH` for an event never raced, as the screenshots show **[verified]**.
-  The decomp says `Best Lap:` for the circuit and the knockout **[decomp]**; this build keeps the finish time and leaves the
-  package's `Best Time:` **[ours]**. The records are `records.toml` next to the config file (`custom_race/records.rs`), noted by the
-  world when a race ends (any race, as the original's race scores are) and on each speed-trap pass; only a better one is kept.
+- **Record** **[exe]** (`FUN_007AADE0`): the sprint, drag and tollbooth show `Best Time:` with the best finish time (`m:ss.cc`); the
+  circuit and the knockout swap the label for `Best Lap:` (`0xC5B5A177`) and show the best lap; the speedtrap swaps it for
+  `Best Speed:` (`0x0512E823`) and shows the best speed through a speed trap in the Speed units setting. `0.00` and `0 MPH`
+  for an event never raced, as the screenshots show **[verified]**. The records are `records.toml` next to the config file
+  (`custom_race/records.rs`): the world notes the finish time and the lap times when a race ends (any race, as the original's race
+  scores are) and each speed-trap pass; only a better one is kept.
 - **Map:** `TRACK_MAP_<event id>` of `TrackMaps.bin`, eased to the route's box as the challenge series does
   ([challenge-series.md](challenge-series.md) section 3).
-- **Locked tracks.** A track of bin `b` is open once rival `b` is beaten, i.e. the career's stage is below `b`; a race open from the
-  start (`InitiallyUnlocked`) is always open **[ours]**: the screen says `Unlock this track by beating <alias>, Blacklist member <b>`
-  (label `0xBD563BE5`, the alias `BLACKLIST_RIVAL_<bb>_AKA`) **[decomp, verified]**, and the car select's own rule for the rivals'
-  cars is the same arithmetic **[decomp]**. A locked track hides the Accept hint and refuses Accept. With no profile loaded the
-  stage is the prologue's 16, so nothing is open; the environment variable `NFSMW_UNLOCK_ALL` opens everything for testing,
-  as the original's `UnlockAllThings` cheat does.
+- **Locked tracks.** The exe keeps a score flag per race (bit 4 is "open in the quick race", `FUN_005DCA70` and the checker
+  `FUN_005765A0`, `FUN_00576790`) and sets it for a fresh profile from the race's own flags: `InitiallyUnlocked` or either of
+  the flags `0xB39ED8C3` and `0xEA855EAF` (`FUN_00600B20`) **[exe]**. In this install that opens 28 races of bins 1 to 15 from the
+  start (drag, circuit, sprint, knockout, speedtrap and tollbooth ones), and `NeverInQuickRace` (`0xA4E6FCFD`, `FUN_005FC110`)
+  keeps a race out of the lists (none here). The other races open with their Blacklist bin: a track of bin `b` is open once
+  rival `b` is beaten, i.e. the career's stage is below `b` **[ours]**; the exe's setter of the flag at that point was not found,
+  the rule is the car select's own arithmetic for the rivals' cars **[decomp]**, and the lock sentence `Unlock this track by
+  beating <alias>, Blacklist member <b>` (label `0xBD563BE5`, `BLACKLIST_RIVAL_<bb>_AKA`) names the bin **[exe, verified]**.
+  A locked track hides the Accept hint and refuses Accept. The environment variable `NFSMW_UNLOCK_ALL` opens everything for
+  testing, as the original's `UnlockAllThings` cheat does (`DAT_00926124` in the checker **[exe]**).
 - **Accept** on an open track stores it for the mode and plays the package's leave script (`EVENT_HANDLER` forward); on
   `EXIT_COMPLETE` the options open. **Back** clears the pick and returns to the mode select.
 
@@ -101,9 +106,9 @@ defaults?` (`0x8AEF5AE8`, Yes/No) and puts the current mode's rows back. The kno
 
 **What the race gets** (`RaceOptions`): the circuit's and the knockout's laps; the opponents, the difficulty (33, 66 or 100) and
 the catch-up switch for the modes that have the row; the traffic as `FillCustomRace` writes it, 0, 10, 30 or 50 **[exe]** (`ai-traffic-spawning.md`).
-Heat Level Moderate or Maximum leaves the road's police on; None and Minimum call off a pursuit at the start of the race
-(`race/start.rs`) **[ours]**: the exe's `FillCustomRace` enables cops only when `CopsOn` is set, which the screens of this build
-do not expose.
+Heat Level Moderate or Maximum leaves the road's police on and gives the car the heat 3 or 5 for a chase that starts in the race
+(`race/start.rs`); None and Minimum call off a pursuit at the start of the race **[ours]**: the exe's `FillCustomRace` enables cops
+only when `CopsOn` is set, which the screens of this build do not expose. The police of free roam are the ones that appear.
 
 Back returns to the track list, Accept opens the car select.
 
@@ -112,11 +117,13 @@ Back returns to the track list, Accept opens the car select.
 The package is the career car lot's (`career_screens/`), opened with `Args::custom`; the logic is `car_select.rs`. At open the
 package gets the message `0xDE511657` (the quick race look: the list header, the counter and the up/down arrows).
 
-- **Lists** (`FE_CAR_FILTER_LIST_*`): the original has Stock, Career, My Cars, Bonus, Preset and Debug **[decomp]**; this build has
-  **Stock** (every car of the catalogue with a folder and readable physics), **Bonus** (the rivals' cars `BL2` to `BL15` and
-  `BONUS_C6R`, `BONUS_SL65`, `BONUS_GT2`, `CASTROLGT`) and **Preset** (the career-start M3 GTR, `M3GTRCAREERSTART`). Up and
-  down change the list with wrap-around; the original's own scroll skips Preset **[decomp]**, ours includes it **[ours]**.
-  The Career and My Cars lists need a garage this menu does not have.
+- **Lists** (`FE_CAR_FILTER_LIST_*`): Stock, Career, My Cars, Bonus, Preset (and a Debug list, not offered) **[decomp]**. **Stock**
+  is every car of the catalogue with a folder and readable physics; **Career** the cars the loaded profile owns (empty with none
+  loaded); **My Cars** the quick race garage, always empty here (this build has no garage of custom cars); **Bonus** the rivals'
+  cars `BL2` to `BL15` and `BONUS_C6R`, `BONUS_SL65`, `BONUS_GT2`, `CASTROLGT`; **Preset** the career-start M3 GTR
+  (`M3GTRCAREERSTART`). Up and down change the list with wrap-around, in that order; the original's own scroll skips Preset
+  **[decomp]**, ours includes it **[ours]**. An empty list shows the package's "No cars in list." panel (messages `0xD9420CD5` and
+  `0x7C4583DC`, sentence `0x58BBED2A`; My Cars says to add cars from My Cars in the main menu, `0x0DA87B01`) **[decomp]**.
 - **First car:** the Preset list's M3 GTR, `1/1` **[verified]**; afterwards the car chosen last.
 - **List header:** the label and picture of the list (Stock `0xD9D6B954`/`0x3A541F7F`, Bonus `0xD8A058F7`/`0xBE5AD8A2`, Preset
   `0x0D8500C3`/`0x03704F3D`) **[decomp]**; the counter, the manufacturer logo (`0x3E01AD1D`) and the model-name picture
@@ -150,10 +157,10 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 
 ## 8. Open
 
-- The exe's `IsQuickRaceUnlocked` and the profile's race score flags were not traced; the unlock rule above is the decomp's
-  arithmetic for the rivals' cars applied to the tracks.
-- A circuit's best lap (the decomp's `Best Lap:`): only the finish time is recorded.
-- Heat Level's exact meaning: the screenshot shows the row, the exe's setup does not.
-- The Career and My Cars lists; the career's own unlocks for the SL65, GT2 and Castrol GT.
-- Heat Level Moderate and Maximum do not yet start a pursuit; the police are those of free roam.
+- The exe's setter of the quick race flag when a rival is beaten was not found (see section 3); the later opens use the
+  rival-beaten rule above.
+- Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
+  at the heat the level gives.
+- The career's own unlocks for the SL65, GT2 and Castrol GT (this build records neither the special challenge, the series
+  completion nor the easter egg).
 - Split Screen is not built (greyed out).
