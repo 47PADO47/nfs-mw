@@ -83,7 +83,17 @@ pub struct RaceParams {
     /// `RaceLength` (hash `0x7C11C52E`): the route in metres as the editor stored it, 0 when it has none. The Quick Play
     /// brief's `Length:` line reads it (`docs/specs/quick-play.md` section 5).
     pub route_length: f32,
+    /// `FinishCamera` (hash `0x62DFC259`): the name of the replay camera (an ICE track of `InGameB.bun`'s replay pack)
+    /// that frames the win photo, for example `DefaultFinish` or `PHoldFin_17`
+    /// (`docs/specs/race-finish-effects.md` section 3).
+    pub finish_camera: Option<String>,
+    /// The win photo's backdrop texture (field `0x038A3B53`, name unknown): `PHOTOFINISH_SPRINT`, `PHOTOFINISH_DRAG` or
+    /// `PHOTOFINISH_TOOBOOTH` in the install.
+    pub photo_texture: Option<String>,
 }
+
+/// The race field that names the win photo's backdrop texture; its name is not known, the key is the executable's.
+const PHOTO_TEXTURE_FIELD: u32 = 0x038A_3B53;
 
 impl Default for RaceParams {
     /// The values of the `basicrace` template.
@@ -120,6 +130,8 @@ impl Default for RaceParams {
             localization_tag: 0,
             challenge_series: false,
             route_length: 0.0,
+            finish_camera: None,
+            photo_texture: None,
         }
     }
 }
@@ -161,6 +173,13 @@ impl RaceParams {
             challenge_series: c.get_bool("ChallengeSeriesRace").unwrap_or(false),
             outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
             route_length: c.get_f32("RaceLength").unwrap_or(d.route_length),
+            finish_camera: text(c, "FinishCamera"),
+            photo_texture: c
+                .get_by_key(PHOTO_TEXTURE_FIELD)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
         }
     }
 

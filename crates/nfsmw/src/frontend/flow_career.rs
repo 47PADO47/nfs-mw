@@ -64,7 +64,7 @@ impl Frontend {
     }
 
     /// Leaves the game in progress for the menu it was started from (the pause menu's Quit).
-    pub(super) fn quit_to(&mut self, to: QuitTo, host: &mut Host, env: &mut Env) {
+    pub(in crate::frontend) fn quit_to(&mut self, to: QuitTo, host: &mut Host, env: &mut Env) {
         match to {
             QuitTo::Main if self.series.active => self.show_series(host, env),
             QuitTo::Main => self.show_menu(host, env),

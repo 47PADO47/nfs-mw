@@ -15,6 +15,7 @@ mod cop_manager;
 mod damage_effects;
 mod data;
 mod goal_aims;
+mod hit_count;
 mod hitch;
 mod inspect;
 #[cfg(test)]
@@ -189,6 +190,8 @@ pub struct TrafficWorld {
     spike_patches: Option<[blackbox_pursuit::spikes::Patch; 4]>,
     /// Tires punctured by the strips (`spikes.rs`).
     spike_hits: u32,
+    /// The player's collisions with traffic, for the post-race statistics (`hit_count.rs`).
+    player_hits: hit_count::HitCount,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -264,6 +267,7 @@ impl TrafficWorld {
             roadblocks: Default::default(),
             spike_patches: None,
             spike_hits: 0,
+            player_hits: Default::default(),
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),

@@ -7,6 +7,7 @@ use crate::course::{Course, Event, Progress};
 use crate::knockout::knockout_due;
 use crate::points::{KMH_TO_MS, SpeedTraps, overtime_loss};
 use crate::ranking::{Standing, places};
+use crate::stats::{RacerStats, StageMark};
 
 /// What the race needs besides the course.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,6 +56,8 @@ pub struct Racer {
     pub checkpoint_times: Vec<f32>,
     /// The race time at the end of each lap.
     pub lap_times: Vec<f32>,
+    /// The totals for the post-race pages.
+    pub stats: RacerStats,
 }
 
 impl Racer {
@@ -70,6 +73,7 @@ impl Racer {
             traps: SpeedTraps::new(traps),
             checkpoint_times: Vec::new(),
             lap_times: Vec::new(),
+            stats: RacerStats::default(),
         }
     }
 
@@ -213,8 +217,12 @@ impl Race {
 
     /// Tells the race how fast racer `index` is going now, m/s: the speed traps read it on the next move.
     pub fn set_speed(&mut self, index: usize, mps: f32) {
-        if let Some(racer) = self.racers.get_mut(index) {
-            racer.speed = mps;
+        let time = self.clock.elapsed();
+        let racing = self.clock.phase() == Phase::Racing;
+        let Some(racer) = self.racers.get_mut(index) else { return };
+        racer.speed = mps;
+        if racing && racer.racing() {
+            racer.stats.note_speed(mps, time);
         }
     }
 
@@ -240,6 +248,8 @@ impl Race {
         racer.progress.advance(&self.course, from, to, &mut raised);
         racer.percent = self.course.percent(&racer.progress, to);
         let time = self.clock.elapsed();
+        racer.stats.note_distance(from.distance(to), time);
+        self.note_stage(index, time);
         for event in raised {
             self.apply(index, event, time, &mut events);
         }
@@ -248,6 +258,13 @@ impl Race {
             self.check_over(&mut events);
         }
         events
+    }
+
+    /// Keeps the time and the place of racer `index` at the stage it has just passed, if any.
+    fn note_stage(&mut self, index: usize, time: f32) {
+        let Some(stage) = self.racers[index].stats.stage_due(self.racers[index].percent) else { return };
+        let place = self.places()[index];
+        self.racers[index].stats.stages[stage] = Some(StageMark { time, place });
     }
 
     /// A move through a speed trap: entering its sphere pays when the speed beats the threshold and the best so far.

@@ -1,6 +1,6 @@
 //! Content a mod declares in files rather than code (ADR 0005 section 5): a manifest per car in `cars/`, the `[music]`
 //! table of `mod.toml` for the `music/` folder, a manifest per scenery pack in `scenery/`, and a manifest per interior in
-//! `interiors/`.
+//! `interiors/`, and the `[racers]` table of `mod.toml` for extra racer names.
 //!
 //! This module checks the schema only. Whether a `clone` names a stock car, whether a section number is free, and whether
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
@@ -11,6 +11,9 @@ mod interior;
 #[cfg(test)]
 mod interior_tests;
 mod music;
+mod racers;
+#[cfg(test)]
+mod racers_tests;
 mod scenery;
 #[cfg(test)]
 mod scenery_tests;
@@ -21,6 +24,7 @@ pub use car::{CarManifest, Role, parse as parse_car};
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
+pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 
 /// The folder inside a mod that holds one car manifest per car.

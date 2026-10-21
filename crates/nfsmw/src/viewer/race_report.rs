@@ -1,6 +1,9 @@
 //! What a finished race tells the post-race screen (`PostRace_Results.fng`, `frontend/post_race.rs`), and what the
 //! screen answers. Plain data: the world builds it, the front end shows it.
 
+use blackbox_race::{RacerStats, StageMark};
+use nfsmw_data::gameplay::RaceType;
+
 /// One lap of a racer: its time and the place the racer held at the end of it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReportLap {
@@ -19,6 +22,39 @@ pub struct ReportRacer {
     /// The finish time; `None` for a racer that did not finish.
     pub time: Option<f32>,
     pub laps: Vec<ReportLap>,
+    /// The top speed, the stage marks and the drag marks of the run (`blackbox_race::RacerStats`).
+    pub stats: RacerStats,
+    /// The average speed over the run, m/s.
+    pub average_speed: f32,
+    /// Seconds behind the winner; `None` for the winner and for a racer that did not finish.
+    pub time_behind: Option<f32>,
+    /// How many times the racer ran into traffic.
+    pub collisions: u32,
+    /// The race time at each checkpoint the racer reached (the tollbooths of a tollbooth race).
+    pub checkpoints: Vec<f32>,
+    /// The racer was knocked out (a lap knockout, or totalled).
+    pub knocked_out: bool,
+    /// The speed through each speed trap, m/s, `None` for a trap not passed.
+    pub traps: Vec<Option<f32>>,
+}
+
+impl ReportRacer {
+    /// A racer with only a name, a place and a time: no laps, no statistics.
+    pub fn bare(name: &str, place: u32, time: Option<f32>) -> Self {
+        Self {
+            name: name.to_owned(),
+            place,
+            time,
+            laps: Vec::new(),
+            stats: RacerStats::default(),
+            average_speed: 0.0,
+            time_behind: None,
+            collisions: 0,
+            checkpoints: Vec::new(),
+            knocked_out: false,
+            traps: Vec::new(),
+        }
+    }
 }
 
 /// Which group of the win photo (`InGamePhotoMaster.fng`) a result takes.
@@ -34,10 +70,37 @@ pub enum PhotoKind {
     SpeedTrap,
 }
 
+/// The backdrops of `GLOBAL/HUDTEXTURESPHOTOFINISH.BIN`: a polaroid on gravel and leaves whose picture is transparent, so
+/// the world seen through it is the photo (`docs/specs/race-finish-effects.md` section 2). A race names one.
+pub const PHOTO_PICTURES: [&str; 4] =
+    ["PHOTOFINISH_SPRINT", "PHOTOFINISH_RIVAL", "PHOTOFINISH_DRAG", "PHOTOFINISH_TOOBOOTH"];
+
+impl PhotoKind {
+    /// The backdrop the kind takes when its race names none the pack has.
+    pub fn default_picture(self) -> Option<&'static str> {
+        match self {
+            PhotoKind::Sprint => Some(PHOTO_PICTURES[0]),
+            PhotoKind::Drag => Some(PHOTO_PICTURES[2]),
+            PhotoKind::Tollbooth => Some(PHOTO_PICTURES[3]),
+            PhotoKind::SpeedTrap => None,
+        }
+    }
+}
+
+/// The backdrop of a race's photo: the texture its data names when the pack has it (7 races of the install name
+/// `PhotoFinish_Sprint.tga`, which it does not), else the kind's own.
+pub fn photo_picture(named: Option<&str>, kind: PhotoKind) -> Option<&'static str> {
+    let known = named.and_then(|name| PHOTO_PICTURES.iter().find(|known| known.eq_ignore_ascii_case(name.trim())));
+    known.copied().or_else(|| kind.default_picture())
+}
+
 /// What the win photo shows.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PhotoReport {
     pub kind: PhotoKind,
+    /// The backdrop texture (one of [`PHOTO_PICTURES`]); `None` leaves the package's own picture hidden, as the speed
+    /// trap's photo does.
+    pub picture: Option<&'static str>,
     pub cash: u32,
     /// Seconds of the race.
     pub time: f32,
@@ -89,7 +152,12 @@ impl PursuitReport {
 /// The finished race, the player first.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RaceReport {
+    /// The player first, then the opponents in grid order.
     pub racers: Vec<ReportRacer>,
+    /// The kind of race: it picks the pages' rows (`frontend/post_race`).
+    pub kind: RaceType,
+    /// The laps of the course (1 for a sprint).
+    pub laps: u32,
     /// The photo of a win; `None` for a race that was not won.
     pub photo: Option<PhotoReport>,
     /// A pursuit challenge's chase: it takes `PostRace_Pursuit.fng`, and `racers` is empty.
@@ -101,6 +169,7 @@ impl PhotoReport {
     pub fn sample() -> Self {
         Self {
             kind: PhotoKind::Sprint,
+            picture: PhotoKind::Sprint.default_picture(),
             cash: 1200,
             time: 80.5,
             speed: 70.0,
@@ -112,22 +181,62 @@ impl PhotoReport {
 }
 
 impl RaceReport {
-    /// A report for `nfsmw view-screen`: the player and three opponents over three laps.
+    /// A report for `nfsmw view-screen`: a sprint of four racers, the numbers of the original's screenshots.
     pub fn sample() -> Self {
+        let stage = |time: f32, place: u32| Some(StageMark { time, place });
+        let racer = |name: &str, place: u32, time: f32, behind: Option<f32>| {
+            let mut racer = ReportRacer::bare(name, place, Some(time));
+            racer.stats.top_speed = 55.0;
+            racer.stats.stages = [
+                stage(time * 0.18, place),
+                stage(time * 0.35, place),
+                stage(time * 0.55, place),
+                stage(time * 0.81, place),
+            ];
+            racer.average_speed = 35.3;
+            racer.time_behind = behind;
+            racer.collisions = place;
+            racer
+        };
+        let mut player = racer("stock", 1, 172.51, None);
+        player.stats.top_speed = 123.0 / 2.236_94;
+        player.average_speed = 79.0 / 2.236_94;
+        player.collisions = 3;
+        player.stats.stages = [stage(30.36, 1), stage(59.92, 1), stage(95.19, 1), stage(140.29, 1)];
+        Self {
+            racers: vec![
+                player,
+                racer("Sully", 2, 175.20, Some(2.69)),
+                racer("Rhino", 3, 181.90, Some(9.39)),
+                racer("Dingo", 4, 190.40, Some(17.89)),
+            ],
+            kind: RaceType::Sprint,
+            laps: 1,
+            photo: Some(PhotoReport::sample()),
+            pursuit: None,
+        }
+    }
+
+    /// A circuit report: the player and three opponents over three laps.
+    #[cfg(test)]
+    pub fn sample_circuit() -> Self {
         let lap = |time: f32, place: u32| ReportLap { time, place };
-        let racer = |name: &str, place: u32, laps: Vec<ReportLap>| ReportRacer {
-            name: name.to_owned(),
-            place,
-            time: Some(laps.iter().map(|l| l.time).sum()),
-            laps,
+        let racer = |name: &str, place: u32, laps: Vec<ReportLap>| {
+            let mut racer = ReportRacer::bare(name, place, Some(laps.iter().map(|l| l.time).sum()));
+            racer.laps = laps;
+            racer.stats.top_speed = 60.0;
+            racer.average_speed = 40.0;
+            racer
         };
         Self {
             racers: vec![
-                racer("PLAYER", 2, vec![lap(61.2, 2), lap(59.8, 2), lap(60.1, 2)]),
-                racer("RACER 1", 1, vec![lap(60.4, 1), lap(59.1, 1), lap(59.9, 1)]),
-                racer("RACER 2", 3, vec![lap(63.0, 3), lap(61.5, 3), lap(62.2, 3)]),
-                racer("RACER 3", 4, vec![lap(64.8, 4), lap(63.9, 4), lap(63.3, 4)]),
+                racer("stock", 2, vec![lap(61.2, 2), lap(59.8, 2), lap(60.1, 2)]),
+                racer("Sully", 1, vec![lap(60.4, 1), lap(59.1, 1), lap(59.9, 1)]),
+                racer("Rhino", 3, vec![lap(63.0, 3), lap(61.5, 3), lap(62.2, 3)]),
+                racer("Dingo", 4, vec![lap(64.8, 4), lap(63.9, 4), lap(63.3, 4)]),
             ],
+            kind: RaceType::Circuit,
+            laps: 3,
             photo: Some(PhotoReport::sample()),
             pursuit: None,
         }

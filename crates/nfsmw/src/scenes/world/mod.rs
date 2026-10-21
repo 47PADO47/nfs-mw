@@ -24,6 +24,7 @@ mod environment;
 mod events;
 mod exhaust;
 mod explosion_fx;
+mod finish_flares;
 mod frame;
 mod garage;
 mod gps;
@@ -36,6 +37,7 @@ mod materials;
 mod mod_hooks;
 mod moment;
 mod moment_world;
+mod photo_shot;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -218,6 +220,8 @@ pub struct WorldScene {
     explosions: explosion_fx::ExplosionFx,
     /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
     heli_wash: heli_wash::HeliWash,
+    /// The flares at the running race's finish line (`finish_flares.rs`).
+    finish_flares: finish_flares::FinishFlares,
     object_fx: prop_effects::ObjectFx,
     car_damage_fx: damage_effects::DamageEffects,
     impact_fx: impact_effects::ImpactEffects,
@@ -241,6 +245,8 @@ pub struct WorldScene {
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
     moment: moment::Moment,
+    /// The camera of the win photo while the post-race screen shows it (`photo_shot.rs`).
+    photo_shot: Option<photo_shot::PhotoShot>,
     /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
     breaker_icons: breaker_icons::BreakerIcons,
 }

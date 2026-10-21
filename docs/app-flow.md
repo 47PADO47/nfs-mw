@@ -32,19 +32,34 @@ Frame order is `Prepare` → `SceneUpdate` → `Frontend`/`Ui` → `Draw` (see
 
 ```
 Stage::Boot(..) ──► Stage::Menus ──► Stage::Playing ⇄ Stage::Paused
- movies, splash     main menu,       world scene       pause menu over the
-                    options, ...                       frozen world
+ movies, title      profile step,    world scene       pause menu over the
+                    main menu,                         frozen world
+                    options, ...
 ```
 
 | Stage | What the window shows | Notes |
 |---|---|---|
-| `Boot` | Queue of `Boot` items: `ealogo` movie, `psa` movie (has a `bypass` flag), then the `Splash` screen | Movies play through the movie scene (`movie/`, `blackbox-movie`). |
-| `Menus` | Main menu (`IconMenu`), option categories, `WidgetMenu` rows | Run as the game's own FEng screens. |
+| `Boot` | Queue of `Boot` items: `ealogo` movie, `psa` movie (has a `bypass` flag), then the `Splash` screen (title). The movies are left out when the `skip_intro` setting is on | Movies play through the movie scene (`movie/`, `blackbox-movie`). |
+| `Menus` | The profile step after the title screen (see [Start-up profile step](#start-up-profile-step)), then the main menu (`IconMenu`), option categories, `WidgetMenu` rows | Run as the game's own FEng screens. |
 | `Loading` | The original `WS_Loading.fng` screen over an empty window while free roam streams in | The world is built and updated but hidden and silent until `Scene::ready()`; then `Playing`. See [specs/loading-screen.md](specs/loading-screen.md). |
 | `Playing` | Free roam: the world scene, with the HUD | Career runs here (see [Career flow](#career-flow)). |
 | `Paused` | Pause menu over the world | The world is wrapped in `Pausable`, so it freezes. Escape or Start opens it. |
 
-Your sequence (video, splash, main menu, world) is exactly `Boot` → `Menus` → `Playing`.
+Your sequence (video, splash, profile step, main menu, world) is exactly `Boot` → `Menus` → `Playing`.
+
+### Start-up profile step
+
+After the title screen and before the main menu the game asks for a profile, as the original does (`MC_Main.fng` in start-up
+state `0x20`; [specs/boot-profile-prompt.md](specs/boot-profile-prompt.md), `frontend/flow_startup.rs`):
+
+- saved profiles (this build's folder and the original's `Documents\NFS Most Wanted`, read only): the list `MC_List.fng` ("load")
+  over a black screen. A pick loads the profile into the session and says "Load complete."; Back goes on with none loaded;
+- none saved: the question "Create a new alias?", the two autosave notices and the name prompt; the alias is made, saved and
+  loaded;
+- then the main menu. The step is over when its last screen closes (`Frontend::poll_startup`).
+
+How `play` starts (`commands/start.rs`): no switch is the whole flow; `skip_intro` drops only the movies; `--skip-boot` and
+`--ui-script` start at the main menu with no prompt; `--aliases` runs the profile step alone (the way to test it in a script).
 
 ## Screens (menus)
 

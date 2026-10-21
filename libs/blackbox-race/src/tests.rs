@@ -177,3 +177,33 @@ fn the_countdown_holds_the_race_until_go() {
     }
     assert_eq!(events, [RaceEvent::Count(3), RaceEvent::Count(2), RaceEvent::Count(1), RaceEvent::Go]);
 }
+
+#[test]
+fn a_racer_keeps_its_time_and_place_at_each_stage() {
+    // The course is 300 m to the line: 20 % is 60 m, 40 % 120 m.
+    let mut race = started(1, RaceConfig::default(), &[true, false]);
+    race.tick(10.0);
+    drive(&mut race, 1, 0.0, &[70.0, 100.0]);
+    race.tick(5.0);
+    drive(&mut race, 0, 0.0, &[70.0, 130.0]);
+    let rival = race.racers()[1].stats.stages[0].expect("the rival passed 20 %");
+    assert_eq!((rival.time, rival.place), (10.0, 1));
+    let me = race.racers()[0].stats;
+    assert_eq!(me.stages[0].map(|m| (m.time, m.place)), Some((15.0, 2)));
+    assert!(me.stages[1].is_some(), "a later move fills the next stage");
+    assert!(me.stages[2].is_none());
+}
+
+#[test]
+fn speed_and_distance_count_only_while_racing() {
+    let grid = [(true, Vec3::ZERO)];
+    let mut race = Race::new(course(1), RaceConfig::default(), &grid);
+    race.set_speed(0, 50.0);
+    assert_eq!(race.racers()[0].stats.top_speed, 0.0, "not before GO");
+    race.start_now();
+    race.set_speed(0, 40.0);
+    drive(&mut race, 0, 0.0, &[30.0, 60.0]);
+    let stats = race.racers()[0].stats;
+    assert_eq!((stats.top_speed, stats.distance), (40.0, 60.0));
+    assert_eq!(stats.sixty_at, Some(0.0), "40 m/s is past 60 mph");
+}

@@ -279,3 +279,19 @@ fn late_textures_are_found_after_the_stock_ones_and_can_be_dropped() {
     assert!(assets.texture(2).is_none());
     assert!(assets.texture(1).is_some(), "the stock texture stays");
 }
+
+#[test]
+#[ignore = "needs the installed game"]
+fn installed_photo_backdrops_are_in_the_ui_assets_with_a_transparent_window() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    for name in ["PHOTOFINISH_SPRINT", "PHOTOFINISH_RIVAL", "PHOTOFINISH_DRAG", "PHOTOFINISH_TOOBOOTH"] {
+        let texture = assets.texture(fe_hash_upper(name)).unwrap_or_else(|| panic!("{name} is in the assets"));
+        assert_eq!((texture.width, texture.height), (1024, 512), "{name}");
+        let image = assets.image(fe_hash_upper(name)).expect("decodes");
+        // The polaroid's picture is cut out of the backdrop: a pixel in the middle of it is clear, one in a corner is not.
+        let alpha = |x: usize, y: usize| image.rgba[(y * image.width as usize + x) * 4 + 3];
+        assert_eq!(alpha(500, 250), 0, "{name}: the window is transparent");
+        assert_eq!(alpha(10, 10), 255, "{name}: the backdrop is opaque");
+    }
+}

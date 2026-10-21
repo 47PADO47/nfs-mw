@@ -26,6 +26,12 @@ mod install_tests;
 mod interact_prompt;
 #[cfg(test)]
 mod interact_prompt_tests;
+mod leaderboard;
+#[cfg(test)]
+mod leaderboard_tests;
+mod leaders;
+#[cfg(test)]
+mod leaders_tests;
 mod map_source;
 mod message;
 #[cfg(test)]
@@ -68,6 +74,7 @@ pub use blip_styles::{
 };
 pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
+pub use leaders::{Entry as LeaderEntry, LeaderRow, Leaders};
 pub use map_source::MapSource;
 #[cfg(test)]
 pub use message::current as current_mod_message;

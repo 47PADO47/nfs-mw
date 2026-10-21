@@ -105,6 +105,58 @@ fn race_parameters_and_characters_match_documented_numbers() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn finish_lines_carry_the_red_flare_and_checkpoints_none() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let (mut finishes, mut with_flares) = (0, 0);
+    let mut spacings: Vec<i32> = Vec::new();
+    for race in &data.races {
+        for key in &race.checkpoints {
+            let trigger = data.trigger(*key).expect("checkpoint");
+            assert!(trigger.particle_effect.is_none(), "{} shows an effect", trigger.name);
+        }
+        let Some(finish) = race.finish.and_then(|key| data.trigger(key)) else { continue };
+        finishes += 1;
+        let Some(effect) = finish.particle_effect.as_deref() else { continue };
+        with_flares += 1;
+        assert_eq!(effect, "fxgame_flare_red", "{}", finish.name);
+        let spacing = finish.flare_spacing.unwrap_or(0.0);
+        assert!(spacing > 0.0, "{} has no spacing", finish.name);
+        spacings.push(spacing as i32);
+    }
+    spacings.sort_unstable();
+    spacings.dedup();
+    println!("flare spacings: {spacings:?}");
+    // 69 finish lines have none (the D-Day story shells among them); the spacings run from 4 to 16 m, road by road.
+    assert!(with_flares == 148 && with_flares <= finishes, "{with_flares} of {finishes} finish lines have flares");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_race_names_its_photo_backdrop_and_finish_camera() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let texture = |t: gameplay::RaceType| {
+        let mut names: Vec<&str> = data
+            .races
+            .iter()
+            .filter(|r| r.race_type == Some(t))
+            .filter_map(|r| r.params.photo_texture.as_deref())
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
+    };
+    assert_eq!(texture(RaceType::Tollbooth), ["PHOTOFINISH_TOOBOOTH"]);
+    assert_eq!(texture(RaceType::Drag), ["PHOTOFINISH_DRAG"]);
+    assert_eq!(texture(RaceType::Circuit), ["PHOTOFINISH_SPRINT"]);
+    assert!(data.races.iter().filter(|r| r.race_type.is_some()).all(|r| r.params.finish_camera.is_some()));
+    let numbered = data.races.iter().filter_map(|r| r.params.finish_camera.as_deref());
+    assert!(numbered.clone().any(|name| name == "DefaultFinish") && numbered.clone().any(|name| name == "PHoldFin_17"));
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn tollbooth_bonuses_and_speed_trap_spheres_are_read() {
     let Some(dir) = install() else { return };
     let data = gameplay::load(&dir).expect("gameplay data");

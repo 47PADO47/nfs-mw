@@ -423,6 +423,10 @@ pub trait ScreenLogic: Send + Sync {
     /// `BUTTON_PRESSED` report this, and it comes whether or not the package also posts a message to the game.
     fn pressed(&mut self, _cx: &mut Cx, _button: u32) {}
 
+    /// The pad buttons newly pressed this frame, as `blackbox_feng::runtime::pad` bits, whether or not the package
+    /// answers them with a game message (the post-race pages' second button has no game response).
+    fn pad_pressed(&mut self, _cx: &mut Cx, _bits: u32) {}
+
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}
 

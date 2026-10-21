@@ -222,7 +222,10 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
   Its footer has Continue (accept), Race Stats (`PAD_BUTTON4`) and Restart (`PAD_BUTTON5`), with the PC keys Enter, 2 and
   1 drawn by the package. The Lua graph's `ShowWinningPostRaceScreen` hook is this screen **[inferred]** from the names.
   The rests-hidden groups are held at full alpha by the screen logic: their own fade script leaves the group's colour at
-  0 (probed in a run of the package alone).
+  0 (probed in a run of the package alone). The package's picture object (`photofinish_toobooth.tga`, 1024 x 512) is a
+  polaroid with a transparent window; the game swaps its texture for the race's backdrop and shows the live world through
+  the window from a replay camera. The reading is in [../specs/race-finish-effects.md](../specs/race-finish-effects.md)
+  (provenance [race-finish-effects.md](race-finish-effects.md)).
 - **`PostRace_Pursuit.fng`** (95 objects): rows of a label (`0x38B136A8 + n`) and a value (`0x85AB7369 + n`) reading
   `00:00.00 / 00:00.00`: Length, Escape Within, Cops Damaged, Cops Destroyed, Roadblocks Dodged, Cost to State
   Achieved, Unserved Infractions, Consecutive Pursuits Evaded, Unserved Infractions. The heading says `INFRACTIONS` (the

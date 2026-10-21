@@ -90,7 +90,11 @@ fn a_car_with_no_physics_is_not_offered_once_the_physics_are_read() {
     let with = PoolCar { stats: Some(stats), ..car("cobaltss", 12) };
     let without = PoolCar { stats: None, ..car("levin", 12) };
     let cars = vec![with.clone(), without.clone()];
-    assert_eq!(pool::drivable(cars.clone(), true), [with.clone()], "levin has no pvehicle, so it cannot be driven");
+    assert_eq!(
+        pool::drivable(cars.clone(), true),
+        std::slice::from_ref(&with),
+        "levin has no pvehicle, so it cannot be driven"
+    );
     assert_eq!(pool::drivable(cars, false), [with, without], "without the physics database nothing is known");
 }
 

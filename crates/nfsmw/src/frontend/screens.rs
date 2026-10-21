@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::BUTTON_PRESSED;
-use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+use blackbox_feng::{Outgoing, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
 use super::confirm::{AlertLogic, ConfirmLogic};
@@ -20,6 +20,7 @@ use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
 
+mod command;
 mod text;
 mod vertical;
 
@@ -59,6 +60,8 @@ pub struct Screens {
     aspect: f32,
     /// Where the pointer was last frame, so a hover follows its movement and not its rest (`hover_row`).
     pointer: Option<Vec2>,
+    /// The last frame's pad mask, for `ScreenLogic::pad_pressed`.
+    last_pad: u32,
 }
 
 impl Screens {
@@ -82,6 +85,7 @@ impl Screens {
             world_map: None,
             aspect: DEFAULT_ASPECT,
             pointer: None,
+            last_pad: 0,
         }
     }
 
@@ -228,16 +232,19 @@ impl Screens {
             true => vertical::vertical_pad(mask),
             false => mask,
         };
-        self.runtime.set_pad_mask(match self.await_release {
-            true => 0,
-            false => mask,
-        });
+        let mask = if self.await_release { 0 } else { mask };
+        let pressed = mask & !self.last_pad;
+        self.last_pad = mask;
+        self.runtime.set_pad_mask(mask);
         self.runtime.update(dt);
         let mut commands = Vec::new();
+        if let Some(top) = self.stack.last().map(|s| s.id).filter(|_| pressed != 0) {
+            self.with_logic(top, env, &mut commands, |logic, cx| logic.pad_pressed(cx, pressed));
+        }
         for out in self.runtime.take_outgoing() {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
-                Outgoing::Package { kind, name, .. } => commands.extend(package_command(kind, name)),
+                Outgoing::Package { kind, name, .. } => commands.extend(command::package_command(kind, name)),
                 // A button that answers BUTTON_PRESSED announces the press to the sound system with its GUID. Only the
                 // logic that asks for it hears it (`ScreenLogic::pressed`): some packages post nothing to the game.
                 Outgoing::Sound { message: BUTTON_PRESSED, package, from: Some(button) } => {
@@ -481,18 +488,5 @@ impl Screens {
     #[cfg(test)]
     pub fn focused_button(&self) -> Option<ObjectRef> {
         self.runtime.current_button(self.stack.last()?.id)
-    }
-}
-
-fn package_command(kind: PackageCommandKind, name: String) -> Option<Command> {
-    match kind {
-        PackageCommandKind::Switch => Some(Command::Switch(name, Args::default())),
-        PackageCommandKind::PushGlobal | PackageCommandKind::PushCurrent | PackageCommandKind::PushNone => {
-            Some(Command::Push(name, Args::default()))
-        }
-        PackageCommandKind::Pop => Some(Command::Pop),
-        PackageCommandKind::RecordMarker | PackageCommandKind::SwitchToMarker | PackageCommandKind::ClearMarkers => {
-            None
-        }
     }
 }

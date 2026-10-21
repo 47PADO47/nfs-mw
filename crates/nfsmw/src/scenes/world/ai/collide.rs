@@ -183,6 +183,8 @@ impl TrafficWorld {
         }
         drop(parts);
         self.note_traffic_hits(&traffic_hits);
+        self.player_hits.tick(STEP);
+        self.player_hits.note(traffic_hits.iter().map(|&(owner, _)| owner));
         for hit in &hits {
             if hit.by_player {
                 self.hit_timer = events.hit_memory;

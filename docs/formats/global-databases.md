@@ -16,9 +16,9 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 
 | Status | Files |
 |---|---|
-| Read by code | `GlobalB.lzc`, `attributes.bin`, `gameplay.bin`, `gameplay.lzc`, `InGameA.bun` (textures), `GLOBALA.BUN`, `InGameB.bun`, `INGAMEC.BUN`, `WIDESCREEN_GLOBAL.BUN`, `HUDS_Custom_*.bin` (names only), `HUDTEXRACE.BIN` |
+| Read by code | `GlobalB.lzc`, `attributes.bin`, `gameplay.bin`, `gameplay.lzc`, `InGameA.bun` (textures), `GLOBALA.BUN`, `InGameB.bun`, `INGAMEC.BUN`, `WIDESCREEN_GLOBAL.BUN`, `HUDS_Custom_*.bin` (names only), `HUDTEXRACE.BIN`, `HUDTEXTURESPHOTOFINISH.BIN` |
 | Partly read | `InGameA.bun` (shared models now read, the sky draw path not pinned), `GLOBALA.BUN` (UI only), `FE_ATTRIB.bin` (decoded by `blackbox-attrib`, unused by the game code) |
-| Not read | `InGameB.bun` ICE cameras and shared animations, `RIVALS.BIN`, `DYNTEX.BIN`, `CardTextures.bin`, `HUDTEXDRAG*.BIN`, `HUDTEXSPLIT.BIN`, `HUDTEXTURESPHOTOFINISH.BIN`, `InGameSplitScreen.bun`, `THINSCREEN_GLOBAL.BUN`, `DEMO_GLOBAL.BUN`, `DEMO_MARKETING.BUN`, the `*MemoryFile.bin` files |
+| Not read | `InGameB.bun` ICE cameras and shared animations, `RIVALS.BIN`, `DYNTEX.BIN`, `CardTextures.bin`, `HUDTEXDRAG*.BIN`, `HUDTEXSPLIT.BIN`, `InGameSplitScreen.bun`, `THINSCREEN_GLOBAL.BUN`, `DEMO_GLOBAL.BUN`, `DEMO_MARKETING.BUN`, the `*MemoryFile.bin` files |
 | Backups | `*.bacc`, `*.bak`: the original files before a mod tool rewrote them. No code reads them. |
 
 ## Files
@@ -45,7 +45,7 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 | `HUDTEXDRAG.BIN` | 358 KB | Drag-race HUD texture pack. | Not read |
 | `HUDTEXDRAGSPLIT.BIN` | 33 KB | Drag-race split-screen HUD textures. | Not read |
 | `HUDTEXSPLIT.BIN` | 48 KB | Split-screen HUD textures. | Not read |
-| `HUDTEXTURESPHOTOFINISH.BIN` | 996 KB | Photo-finish HUD textures. HUFF/JDLZ entries. | Not read |
+| `HUDTEXTURESPHOTOFINISH.BIN` | 996 KB | The win photo's backdrops: four 1024 x 512 DXT3 textures (`PHOTOFINISH_SPRINT`, `_RIVAL`, `_DRAG`, `_TOOBOOTH`), each a polaroid on gravel with a transparent window. HUFF/JDLZ entries. [race-finish-effects](../specs/race-finish-effects.md) | Listed in UI assets |
 | `HUDS_Custom_00.bin` … `HUDS_Custom_10.bin` | 15–23 KB each | Tachometer skin textures (`n_LINES_NN`, `TACH_NEEDLE_NN`, `TACH_FILL_NN`), 11 skins. | Texture names in `crates/nfsmw/src/hud/skin.rs`; pack not loaded |
 
 ### Car, tuning and race data
