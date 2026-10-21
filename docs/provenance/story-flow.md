@@ -33,3 +33,12 @@ native facts in `speed.exe` 1.3 with Ghidra (read for behaviour only; no decompi
 (`FUN_006022d0`), the node attribute test `FUN_005fc560` (`0x4393F69B`), then the profile (`DAT_0091cf90 + 0x10`) flags
 word `+0xAC` shifted by 20 and tested; when the bit is clear, `FUN_005a41e0(stable + 0x414, 0x03A94520)` finds the
 preset's stable record and its first word goes to the current car (`+0xA8`); returns 1. Any other path returns 0.
+
+### F-18, F-19, F-20: the arrival stepper
+
+| Function | Address | Reading |
+|---|---|---|
+| stepper | `FUN_005302c0` | counter `+4` incremented on entry; step 5 formats `blacklist_%02d` with the stage byte `[[0x0091CF90]+0x10]+0xB0` (push at `0x005302F1`) and opens `FEAnyMovie.fng` / `WS_FEAnyMovie.fng`; step 6: stage 15 clears context bit 17, sets context bit 0 and settings bit 5, opens `SafeHouseReputationOverview.fng`, counter -1; stage 13 with settings bit 4 clear: counter 5, sets bit 4, plays the movie named at `0x0089D8B0` (`storyfmv_rap30`); otherwise `FUN_0056c5b0` |
+| front-end entry | `FUN_00562ff0`, call at `0x005630E2` | calls the stepper when the request flags (`DAT_0091cbac`) carry `0x400000` |
+| rival bio, Accept | code at `0x00551D1A` (vtable `0x0089F0A8`, slot 1 `0x00551C80`, no function defined) | on `PAD_ACCEPT` (`0x406415E3`) with context bit 17: a counter of -1 becomes 4 (`0x00551D3D`), then the stepper is called |
+| movie screen teardown | `FUN_00622600` | calls the stepper when the counter is 6 |

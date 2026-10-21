@@ -239,7 +239,7 @@ This is the corrected order (CSH 5.3). It replaces the order in CF 7.3, which pu
 | 2 | `SafeHouseRegionUnlock.fng` | Stage 8 or 12 only | Shows `RIVAL_09_BG` at stage 8, `RIVAL_13_BG` at stage 12. Changes no state. |
 | 3 | `MC_Main.fng` autosave flow; `SafeHouseRivalBio.fng` opens when it ends | Autosave possible | Autosave possible: context bits 3 and 6 clear; memory-card layer present; profile autosave option (profile `+0x38`) on or the manual-save byte set; the current event not flagged `0xFF5EE5D6`; not the final event. |
 | 4 | `SafeHouseRivalBio.fng` | Always. Reached at once when step 3 is skipped. | |
-| 5 | Movie `blacklist_NN` in `FEAnyMovie.fng` | Always | Which NN: F-19. Files `blacklist_01` and `blacklist_15` exist (this pass); the video spec lists 01 to 15 (`formats/video.md`). |
+| 5 | Movie `blacklist_NN` in `FEAnyMovie.fng` (`WS_FEAnyMovie.fng` on wide screens) | Always | NN is the stage byte at this moment, two digits: the movie introduces the rival now faced (F-19). |
 | 6 | By stage (below) | | |
 | 7 | Broadcast on the gameplay subject; create a type-0 event; clear bit 17; end | | The player is in the safe house menu. |
 
@@ -248,11 +248,13 @@ Step 6 by stage:
 | Stage | Action |
 |---|---|
 | 15 | Clear context bit 17. Set context bit 0 and settings bit 5 (`0x20`, "opening seen"). Open `SafehouseReputationOverview.fng`. End. |
-| 13, rap sheet flag (settings bit 4, `0x10`) clear | Set the flag. Set the counter to 5. Play the rap sheet movie (F-20). When it ends, run step 6 again; the flag is now set, so leave the front end. |
+| 13, rap sheet flag (settings bit 4, `0x10`) clear | Set the flag. Set the counter to 5. Play `storyfmv_rap30` (F-20). When it ends, run step 6 again; the flag is now set, so leave the front end. |
 | Any other | Leave the front end (the Resume Free Roam path, CSH2 6.1). |
 
-The first visit is section 2.6 of story-flow.md: it runs the bio with stage 16 and enters bin 15. Where the stepper resumes
-after it: F-18.
+The front end starts the stepper (first call, counter -1 to 0) when the request carries the Blacklist-sequence request bit
+(`0x400000`). **The first visit** (story-flow.md 2.6) opens the bio outside the stepper; on Accept, with context bit 17
+set, the bio sets a counter of -1 to 4 and steps: step 5 plays `blacklist_15`, step 6 (stage 15) sets "opening seen"
+and opens the reputation overview (F-18).
 
 ### 4.7 The bin advance (rewrite rule) **[unconfirmed]**
 
@@ -362,9 +364,9 @@ repo), or the install data (the crate reader in `crates/nfsmw-data` or a throwaw
 | F-15 | 2.4 | What blocks new pursuits at `bail_trigger` (CSE 2.2), and the arguments of `EDispIntroRace` and `EBailPursuit(1, 1)`. | Lua: the `bail_trigger` triggerenter handler in 16_2_1. Ghidra: the `E*` wrappers. |
 | F-16 | 1.7, 2.4 | Which fade ends 16.2.1: the 8 s fade after the call starts (CP 5.2) or the 1 s fade after the engine blows (CSE 2.2). Both may hold. | Lua: `basicrace` racing handler for `notifycellcallstarted`; the 16_2_1 engine-blown handler. |
 | F-17 | 2.5 | The behaviour of `drive_to_target` states `activate_gps` and `outro_movie` (CS 1.2 lists them; CSE 7.1 does not describe them), and whether `at_target` goes to `outro_movie`. | Lua: the `drive_to_target` handlers (17 in the class). |
-| F-18 | 2.6 step 5, 4.6 | After `SafeHouseRivalBio` on the first visit (counter -1 when the front end is built): which step the stepper resumes at, and whether it plays the autosave, the `blacklist_15` movie and the stage 15 overview. | Ghidra: the stepper `0x005302C0`, the code that advances its counter, the bio's post-screen navigation (CSH 5.3, CSH2 11.1). |
-| F-19 | 4.6 step 5 | How `NN` in `blacklist_NN` is computed (from the bin, or the rival). | Ghidra: the movie name format and its caller in stepper step 5. |
-| F-20 | 4.6 step 6 | The stage 13 movie: CB 5.4 says `bounty_tutorial` (file exists, this pass) with flag `0x10`; CSH 5.3 says the rap sheet movie flow. | Ghidra: stepper step 6 for stage 13, and the movie name it plays. |
+| F-18 | 2.6 step 5, 4.6 | **Answer [exe]:** the bio's Accept (context bit 17) sets a counter of -1 to 4, so the first visit continues with step 5 (`blacklist_15`) and step 6 (stage 15: opening seen, reputation overview). No autosave step. | done |
+| F-19 | 4.6 step 5 | **Answer [exe]:** `blacklist_%02d` of the stage byte (`profile + 0xB0`) at that moment. | done |
+| F-20 | 4.6 step 6 | **Answer [exe]:** the stage 13 movie is `storyfmv_rap30`; `bounty_tutorial` is not played here. | done |
 | F-21 | 4.6 (visual only) | The port draws nothing on the rival screens because their content groups carry definition flag `0x8` (CSH2 11.5). Whether the original clears the flag or only the alpha at run time. | Ghidra: the reveal scripts of `SafeHouseRivalChallenge` (groups `0x1162D4`, `0x10CF79`, `0x116248`) and `SafehouseRivalBio` (`0x116316`); the runtime flag word `+0x1C` bit 0. |
 | F-22 | 4.4 | Which race names each `IntroNisBL` scene. `IntroNisBL01` and `IntroNisBL08` have bundles (names, this pass) but no race names them. Whether the later boss races of a gauntlet play an NIS. | Data: intro attributes of all 19 boss collections and the `*_r` events. Compare with the rival number. |
 | F-23 | 4.7 | The path that enters bin N-1 after bin N is done. The callers of the bin-entry routine `0x0062C2D0` are the first-visit step, the Lua function `EEnterBin` (`0x0062C4C0`) and its event handler (`0x0062C470`). None of them is called from a script, NIS or world event (CB 5.3). | Ghidra: references to `0x0062C2D0`, `0x0062C470`, `0x0062C4C0` including data references (vtables, function tables, Lua constants). The `race_bin` done bytecode for a call to an entry function. |
