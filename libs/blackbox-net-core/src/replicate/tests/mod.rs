@@ -3,8 +3,11 @@
 mod cache;
 mod codec;
 mod frame;
+mod garbage;
 mod history;
+mod priority;
 mod schema;
+mod snapshot;
 mod spatial;
 
 use crate::bits::BitReader;

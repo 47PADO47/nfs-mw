@@ -24,41 +24,47 @@
 //! The codec is allocation free after warm-up: [`Frame::clear`], [`EncodeCache::reset`] and
 //! [`SpatialHash::clear`] keep their capacity, and the decoders write into caller arrays.
 //!
-//! ## To build next (A6)
+//! ## Per-client state: server and client
 //!
-//! - `server.rs`: `pub struct ClientState` (one per client): `new()`, `on_delivered(&mut self, tick)` (the newest
-//!   delivered snapshot tick is the baseline), and `write_snapshot(&mut self, schema, history, cache, tick, candidates:
-//!   &[(u16, f32)], budget_bits, w) -> Result<SnapshotStats, ReplicateError>`. `candidates` are the entities relevant to
-//!   this client, sorted by id, with a priority weight. Snapshot layout: `tick` 32 bits, baseline distance varint (0 =
-//!   none), entry count varint, then entries in id order: id gap (`IdGapEncoder`), op 2 bits, body (cached span).
-//!   Steps: pick the baseline (the newest delivered tick whose frame is still in `history` and whose sent view is still
-//!   kept); every entity of the baseline view that is not a candidate is a remove; a candidate whose source frame left the
-//!   history is a forced full; every other changed or new candidate competes by its priority accumulator (`+= weight` per
-//!   snapshot, reset to 0 when sent) for `budget_bits`; unchanged entities move their source tick to `tick` for free. The
-//!   view recorded for `tick` is `(id, source_tick)` per entity the client then holds. Buffers reused; nothing allocated
-//!   per call after warm-up except when the entity id range grows.
-//! - `client.rs`: `pub struct ClientViews` (a ring of 64 `Frame`s): `read_snapshot(&mut self, schema, r) -> Result<u32,
-//!   ReplicateError>` applies entries onto the baseline view (`MissingBaseline` if it is not kept) into a new view for
-//!   the tick; `view(tick)`, `latest()`.
-//! - Integration tests, the allocation test and the `net_bench` example: see the A6 task.
+//! - [`ClientState`] (server side, one per client) records the views the client has been sent: for each tick, the
+//!   `(id, source tick)` pairs of the entities it holds. A view entry names the server tick whose frame gives the
+//!   entity's values, so nothing is copied per client. [`ClientState::on_delivered`] takes the newest acknowledged
+//!   snapshot tick as the baseline. [`ClientState::write_snapshot`] then decides, for each candidate entity (sorted by
+//!   id, with a priority weight): an unchanged entity moves its view to the tick for free; a removal is mandatory, as
+//!   is a full record when the source frame has left the history; a changed entity competes for the byte budget by a
+//!   priority accumulator that grows by the weight each snapshot and resets when the entity is sent, so every entity
+//!   is sent eventually. [`ClientState::reset`] forgets the views after the client reports a lost baseline, so the next
+//!   snapshot is full.
+//! - [`ClientViews`] (client side) keeps the last 64 decoded views. `read_snapshot` takes the baseline view that the
+//!   snapshot names, copies the entities the snapshot does not touch, applies the entries and keeps the result as the
+//!   view of the snapshot's tick.
+//!
+//! Snapshot layout: tick (32 bits), baseline distance (varint, 0 = none), entry count (varint), then the entries in id
+//! order: id gap ([`crate::bits::IdGapEncoder`]), operation (2 bits), body (a cached span, nothing for a removal).
+//! The per-tick path allocates nothing after warm-up: every list is reused, and an accumulator grows only when an id
+//! beyond its length appears.
 
 mod cache;
+mod client;
 mod codec;
 mod error;
 mod frame;
 mod history;
 mod schema;
+mod server;
 mod spatial;
 
 #[cfg(test)]
 mod tests;
 
 pub use cache::{EncodeCache, Span};
+pub use client::ClientViews;
 pub use codec::{OP_DELTA, OP_FULL, OP_REMOVE, decode_delta, decode_full, encode_delta, encode_full};
 pub use error::ReplicateError;
 pub use frame::Frame;
 pub use history::History;
 pub use schema::{FieldDesc, KindId, Schema};
+pub use server::{ClientState, SnapshotStats};
 pub use spatial::SpatialHash;
 
 /// Most entity kinds a schema can register (they are written in 6 bits).
