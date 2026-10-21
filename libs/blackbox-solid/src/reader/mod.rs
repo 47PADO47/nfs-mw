@@ -1,6 +1,7 @@
 //! Walking `GeometryPack`s and reading each `SolidPack`.
 
 mod mesh;
+mod skin;
 mod solid;
 
 use blackbox_chunk::{Chunk, ids};

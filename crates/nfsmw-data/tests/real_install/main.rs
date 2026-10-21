@@ -40,6 +40,7 @@ mod race_barriers;
 mod race_story;
 mod reactions;
 mod sequences;
+mod skin;
 mod sound;
 mod spawners;
 mod speech;
