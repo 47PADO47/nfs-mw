@@ -27,7 +27,7 @@ impl TrafficWorld {
         points.extend(self.seek_walk_point(player));
         let forward = Vec3::new(player.forward.x, 0.0, player.forward.y);
         let centre = fallback_centre(player.position, player.velocity, forward);
-        let (angle_roll, radius_roll) = (self.rng.next_f32(), self.rng.next_f32());
+        let (angle_roll, radius_roll) = (self.rng.police.next_f32(), self.rng.police.next_f32());
         points.push(disc_point(centre, angle_roll, radius_roll));
         points
     }
@@ -41,7 +41,7 @@ impl TrafficWorld {
         }
         nav.filter.cop = cops_consider(&self.network, nav.segment);
         let ahead = seek_ahead_distance(player.velocity.length());
-        nav.advance(&self.network, ahead, Vec3::ZERO, &mut self.rng);
+        nav.advance(&self.network, ahead, Vec3::ZERO, &mut self.rng.police);
         Some(nav.position)
     }
 
@@ -51,14 +51,14 @@ impl TrafficWorld {
         let seek = self.seek_ahead_point(player)?;
         let back = player.position - seek;
         let distance = back.length();
-        let toward = rotate_in_xz(back, side_angle(self.rng.next_f32()));
+        let toward = rotate_in_xz(back, side_angle(self.rng.police.next_f32()));
         let mut nav =
             RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter { cop: true, ..SegmentFilter::default() });
         if !nav.init_at_point(&self.network, &self.index, seek, toward, false) {
             return None;
         }
         nav.filter.cop = cops_consider(&self.network, nav.segment);
-        nav.advance(&self.network, distance, toward, &mut self.rng);
+        nav.advance(&self.network, distance, toward, &mut self.rng.police);
         Some(nav.position).filter(|point| point.is_finite())
     }
 }

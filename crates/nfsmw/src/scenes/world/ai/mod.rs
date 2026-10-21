@@ -52,6 +52,7 @@ mod spawn;
 mod spawn_requests;
 mod spikes;
 mod stop;
+mod streams;
 mod support;
 mod tally;
 mod traffic;
@@ -63,7 +64,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use blackbox_render::{EffectVertex, Instance};
-use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
+use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController};
 use glam::Vec3;
 use nfsmw_data::car::physics::CarPhysics;
 
@@ -138,7 +139,8 @@ pub struct TrafficWorld {
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
     cars: Vec<AiCar>,
-    rng: SplitMix,
+    /// One random stream per system (`streams.rs`).
+    rng: streams::Streams,
     alpha: f32,
     /// How many cars the manager keeps on the road.
     target: usize,
@@ -238,7 +240,7 @@ impl TrafficWorld {
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),
-            rng: SplitMix(0x6E66_736D_7721),
+            rng: streams::Streams::default(),
             alpha: 0.0,
             target: 0,
             policy: Default::default(),

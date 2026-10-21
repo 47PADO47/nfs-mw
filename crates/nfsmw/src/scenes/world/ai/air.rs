@@ -33,8 +33,8 @@ impl TrafficWorld {
             }
             false => 0,
         };
-        let search_roll = self.rng.next_f32();
-        let pick_roll = self.rng.next_f32();
+        let search_roll = self.rng.air.next_f32();
+        let pick_roll = self.rng.air.next_f32();
         let picked = match self.police.heli_ask(level, search_roll) {
             Ask::No => false,
             Ask::Forced => true,
@@ -64,7 +64,7 @@ impl TrafficWorld {
             RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter { cop: true, ..SegmentFilter::default() });
         let (mut position, facing) = match nav.init_at_point(&self.network, &self.index, player.position, back, false) {
             true => {
-                nav.advance(&self.network, distance, back, &mut self.rng);
+                nav.advance(&self.network, distance, back, &mut self.rng.air);
                 (nav.position, nav.forward.with_y(0.0).normalize_or_zero())
             }
             false => (player.position, forward),

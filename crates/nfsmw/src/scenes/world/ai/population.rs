@@ -200,7 +200,7 @@ impl TrafficWorld {
     fn start_pattern(&mut self) {
         let Some(pattern) = self.patterns.as_ref().and_then(|p| p.current()).cloned() else { return };
         log::info!("traffic: pattern {} ({} car types)", pattern.name, pattern.rules.len());
-        self.timers.reset(&pattern.rules, &mut self.rng);
+        self.timers.reset(&pattern.rules, &mut self.rng.population);
         for rule in &pattern.rules {
             if !self.models.iter().any(|m| m.name.eq_ignore_ascii_case(&rule.name)) {
                 self.request(ModelRequest::Traffic(rule.name.clone()));
@@ -246,7 +246,7 @@ impl TrafficWorld {
             return false;
         }
         let cruise = plan.cruise;
-        let i = candidates[self.rng.index(candidates.len())];
+        let i = candidates[self.rng.population.index(candidates.len())];
         self.spawn_one(Pick::Patrol(i), cruise, focus, collision, surfaces)
     }
 

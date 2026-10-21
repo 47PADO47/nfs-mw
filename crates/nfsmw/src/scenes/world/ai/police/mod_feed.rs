@@ -79,7 +79,7 @@ impl super::super::TrafficWorld {
         match mode {
             EndMode::Evade => self.end_pursuit(blackbox_pursuit::EndReason::Evaded),
             EndMode::Bust => {
-                self.police.start_bust(self.rng.next_f32());
+                self.police.start_bust(self.rng.police.next_f32());
                 self.end_pursuit(blackbox_pursuit::EndReason::Busted);
             }
             EndMode::Abort => self.end_pursuit(blackbox_pursuit::EndReason::None),
