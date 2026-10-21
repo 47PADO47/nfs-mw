@@ -229,6 +229,7 @@ pub fn find_into(
 /// What a step against the world did.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Impact {
+    pub effects: Vec<crate::scenes::world::impact_effects::RawContact>,
     /// Unbounded contact metadata for sound, independent of the visual telemetry budget.
     pub sounds: Vec<CarContact>,
     /// Damage callback data captured before each successful response.
@@ -329,6 +330,7 @@ pub fn resolve_into(
         .iter()
         .map(|c| CarContact {
             sound_profile: 0,
+            audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(rot.transpose() * c.normal)),
             detached: false,
             source: if c.prop.is_some() { ContactSource::Object } else { ContactSource::World },
             identity: c.prop.map_or_else(
@@ -389,7 +391,22 @@ pub fn resolve_into(
             if c.prop.is_none() {
                 vehicle.notify_wall_contact(c.point, n, closing_velocity, body_velocity);
             }
-            impact.damage.push(damage.resolved(vehicle.body(), false));
+            impact.effects.push(crate::scenes::world::impact_effects::RawContact::new(
+                if c.prop.is_some() {
+                    crate::scenes::world::impact_effects::Kind::Object
+                } else {
+                    crate::scenes::world::impact_effects::Kind::World
+                },
+                c.info.map_or(0, |i| i.surface),
+                c.point,
+                n,
+                closing_velocity,
+                reaction.impulse / car_mass,
+                vehicle.body().linear_velocity,
+            ));
+            let mut damage = damage.resolved(vehicle.body(), reaction.impulse / car_mass, false);
+            damage.closing_speed = reaction.closing_speed.abs();
+            impact.damage.push(damage);
             impact.impulse = impact.impulse.max(reaction.impulse);
             if let Some(sound) = impact.sounds.iter_mut().find(|s| s.point == c.point && s.normal == n) {
                 sound.delta_v = reaction.impulse / car_mass;

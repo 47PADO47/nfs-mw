@@ -3,18 +3,19 @@
 //! Spec: `docs/specs/ai-pursuit-cop-cars.md` section 6.
 
 use blackbox_pursuit::health_bar::Sample;
-use blackbox_pursuit::wreck::{MIN_CLOSING, Wreck, WreckTuning, is_flipped, zone_of};
+use blackbox_pursuit::wreck::{Wreck, WreckTuning, is_flipped};
 use glam::Vec3;
 
 use super::{AiCar, Role, SHOCK_FORCE, SHOCK_MIN_SPEED_CHANGE};
 use crate::scenes::world::ai::collide::DriverClass;
-use crate::scenes::world::events::{DamageHit, OtherBody};
+use crate::scenes::world::events::DamageHit;
+use nfsmw_data::car::physics::CarEventSpec;
 
 /// Seconds after a hit by the player's car that the car still counts as moved by it (the causality chain;
 /// design value, unconfirmed).
 const PLAYER_CAUSE: f32 = 2.0;
 /// The camera distance (metres) within which a hit by the player starts a crash (the original's view gate:
-/// `ai-traffic-obstacles.md` §5.1).
+/// `ai-traffic-obstacles.md` Â§5.1).
 const CRASH_VIEW: f32 = 80.0;
 /// 5 mph in metres per second: a vehicle at this speed or faster starts a crash again when the car is already over.
 const CRASH_MIN_SPEED: f32 = 2.235_15;
@@ -33,6 +34,9 @@ pub(super) fn is_fast(speed: f32) -> bool {
 /// The damage state of a cop car: its numbers, the wreck, and whether a new wreck waits to be counted.
 pub(super) struct CopDamage {
     tuning: WreckTuning,
+    scales: [f32; 10],
+    shock_force: f32,
+    shock_time: f32,
     wreck: Wreck,
     /// A wreck happened and the world has not taken it yet (see [`AiCar::take_wreck`]).
     pending: bool,
@@ -41,8 +45,29 @@ pub(super) struct CopDamage {
 }
 
 impl CopDamage {
-    pub(super) fn for_model(model: &str) -> Self {
-        Self { tuning: tuning_for(model), wreck: Wreck::default(), pending: false, since_player: f32::INFINITY }
+    pub(super) fn for_model(model: &str, spec: Option<&CarEventSpec>) -> Self {
+        let mut tuning = tuning_for(model);
+        let mut scales = [1.0; 10];
+        scales[0] = tuning.front_rear_scale;
+        scales[1] = tuning.front_rear_scale;
+        scales[8] = 0.5;
+        scales[9] = 0.0;
+        if let Some(spec) = spec {
+            tuning.hit_points = spec.hit_points;
+            tuning.threshold = spec.hit_point_threshold;
+            tuning.suppress_dist = spec.suppress_distance;
+            tuning.strength = spec.strength;
+            scales = spec.hit_point_scale;
+        }
+        Self {
+            tuning,
+            scales,
+            shock_force: spec.map_or(40.0, |s| s.shock_force),
+            shock_time: spec.map_or(3.0, |s| s.shock_time),
+            wreck: Wreck::default(),
+            pending: false,
+            since_player: f32::INFINITY,
+        }
     }
 }
 
@@ -58,7 +83,7 @@ fn tuning_for(model: &str) -> WreckTuning {
         "copcross" => (400.0, 10.0, 25.0, 1.0),
         _ => (5.0, 0.75, 35.0, 0.5),
     };
-    WreckTuning { hit_points, threshold, suppress_dist, front_rear_scale }
+    WreckTuning { hit_points, threshold, suppress_dist, front_rear_scale, strength: 20_000.0 }
 }
 
 /// The health sample of a car: only a cop (`Role::Cop`, wrecked or not) gets one, with its damage and destruction.
@@ -70,6 +95,13 @@ fn cop_sample(is_cop: bool, key: u32, position: Vec3, damage: f32, destroyed: bo
 }
 
 impl AiCar {
+    pub(super) fn damage_health(&self) -> Option<f32> {
+        let damage = self.damage.as_ref()?;
+        if damage.wreck.is_destroyed() {
+            return Some(0.0);
+        }
+        Some((1.0 - damage.wreck.damage()).clamp(0.0, 1.0))
+    }
     pub fn is_damaged_cop(&self) -> bool {
         self.is_police() && self.damage.as_ref().is_some_and(|d| d.wreck.damage() > 0.0)
     }
@@ -83,10 +115,9 @@ impl AiCar {
         by_player: bool,
         striker: DriverClass,
         speed: f32,
-        point: Vec3,
+        hit: DamageHit,
         from_camera: f32,
     ) -> bool {
-        self.dent(impulse, point);
         let speed_change = impulse / self.mass.max(1.0);
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
@@ -100,7 +131,7 @@ impl AiCar {
             let fast = is_fast(hitter_speed);
             self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor, fast);
         }
-        self.wreck_hit(impulse, point, by_player, from_camera)
+        self.wreck_hit(hit, from_camera)
     }
 
     /// Whether the car is a cop that the damage has wrecked.
@@ -116,13 +147,14 @@ impl AiCar {
             return false;
         }
         let name = self.name.clone();
-        let damage = self.damage.get_or_insert_with(|| CopDamage::for_model(&name));
+        let damage =
+            self.damage.get_or_insert_with(|| CopDamage::for_model(&name, self.sim.events.as_ref().map(|e| e.spec())));
         if !damage.wreck.destroy() {
             return false;
         }
         damage.pending = true;
         if let Some(events) = self.sim.events.as_mut() {
-            events.wreck_all();
+            events.destroy();
         }
         true
     }
@@ -137,50 +169,56 @@ impl AiCar {
         self.damage.as_mut().is_some_and(|d| std::mem::take(&mut d.pending))
     }
 
-    /// The impact on a cop: the arm from the car's centre in its frame gives the zone, and the zone's scale and the
-    /// impulse give the damage. A traffic car has no damage state and nothing happens. Returns whether this hit by the
-    /// player is the first to damage the cop (its damage was zero before and is over zero after).
-    /// The visible damage of a hit: the panel where it landed is dented, as the player's car's is. The contact's normal
-    /// is not carried by the hit, so it is taken as the direction of the contact from the car's centre.
-    fn dent(&mut self, impulse: f32, point: Vec3) {
-        let closing = impulse / self.mass.max(1.0);
-        if closing < MIN_CLOSING {
-            return;
-        }
-        let view = self.sim.driver_view();
-        let offset = point - view.position;
-        let side = Vec3::Y.cross(view.forward).normalize_or_zero();
-        let arm = Vec3::new(offset.dot(side), offset.dot(Vec3::Y), offset.dot(view.forward));
-        let Some(events) = self.sim.events.as_mut() else { return };
-        events.damage_hit(DamageHit {
-            arm,
-            normal: arm.normalize_or_zero(),
-            half: self.dim,
-            closing_speed: closing,
-            force: impulse,
-            before_velocity: Vec3::ZERO,
-            other: OtherBody::default(),
-        });
-    }
-
-    pub(super) fn wreck_hit(&mut self, impulse: f32, point: Vec3, by_player: bool, from_camera: f32) -> bool {
+    /// Health consumes the same resolved callback as the visual sequencer, exactly once.
+    pub(super) fn wreck_hit(&mut self, hit: DamageHit, from_camera: f32) -> bool {
         let Some(damage) = self.damage.as_mut() else { return false };
-        // The contact's normal is not carried by the hit, so the zone is the front, rear or side (see `zone_of`).
-        let view = self.sim.driver_view();
-        let side = Vec3::Y.cross(view.forward).normalize_or_zero();
-        let offset = point - view.position;
-        let arm = Vec3::new(offset.dot(side), offset.dot(Vec3::Y), offset.dot(view.forward));
-        let scale = zone_of(arm, self.dim, Vec3::ZERO).hit_point_scale(damage.tuning.front_rear_scale);
-        if by_player {
+        if hit.closing_speed < blackbox_pursuit::wreck::MIN_CLOSING {
+            return false;
+        }
+        if damage.shock_time > 0.0 && hit.shock_force > 0.0 {
+            damage.wreck.set_shock_scaled(hit.shock_force, self.mass, damage.shock_force);
+        }
+        if !hit.allows_cop() {
+            return false;
+        }
+        let scale = damage.scales[hit.zone()];
+        if hit.other.player {
             damage.since_player = 0.0;
         }
-        let closing = impulse / self.mass.max(1.0);
-        damage.wreck.set_shock(impulse, self.mass);
         let before = damage.wreck.damage();
-        if damage.wreck.impact(&damage.tuning, impulse, closing, scale, from_camera) {
+        if damage.wreck.impact(&damage.tuning, hit.force, hit.closing_speed, scale, from_camera) {
             damage.pending = true;
         }
-        by_player && before <= 0.0 && damage.wreck.damage() > 0.0
+        if damage.wreck.damage() != before {
+            log::info!(
+                "cop damage {}: zone {}, {:.3} -> {:.3}, force {:.0}, closing {:.1}, disabled={}",
+                self.name,
+                hit.zone(),
+                before,
+                damage.wreck.damage(),
+                hit.force,
+                hit.closing_speed,
+                damage.wreck.is_destroyed()
+            );
+        }
+        hit.other.player && before <= 0.0 && damage.wreck.damage() > 0.0
+    }
+
+    pub(super) fn wreck_brake(&self) -> f32 {
+        self.damage.as_ref().map_or(0.0, |d| {
+            let v = self.sim.velocity();
+            d.wreck.retirement_brake(v.x.hypot(v.z))
+        })
+    }
+
+    pub(super) fn damage_status(&self) -> String {
+        self.damage.as_ref().map_or_else(String::new, |d| {
+            format!(
+                "; health {:.0}%{}",
+                (1.0 - d.wreck.damage()).clamp(0.0, 1.0) * 100.0,
+                if self.is_wrecked() { ", disabled" } else { "" }
+            )
+        })
     }
 
     /// The driver class of this car (see `DriverClass`): a cop, a patrol car or a roadblock car is a cop, else traffic.
@@ -202,15 +240,19 @@ impl AiCar {
     /// One physics step after the car moved: the shock decays, the flipped check runs, and the time since the player
     /// last hit the car goes on. The car is flipped when not every wheel is down and its body is turned over.
     pub(super) fn wreck_step(&mut self, dt: f32) {
-        let height = (self.current.rotation * Vec3::Z).z;
+        let up = self.sim.up();
+        let height = up.y;
         let all_down = self.sim.telemetry().wheels_on_ground >= 4;
-        let flipped = is_flipped(height, height, all_down);
+        let flipped = is_flipped(up.dot(self.sim.ground_normal()), height, all_down);
         let Some(damage) = self.damage.as_mut() else { return };
-        damage.wreck.step_shock(dt);
+        damage.wreck.step_shock_scaled(dt, damage.shock_time);
         damage.since_player += dt;
         let by_player = damage.since_player <= PLAYER_CAUSE;
         if damage.wreck.flip(dt, flipped, by_player) {
             damage.pending = true;
+            if let Some(events) = &mut self.sim.events {
+                events.destroy();
+            }
         }
     }
 }

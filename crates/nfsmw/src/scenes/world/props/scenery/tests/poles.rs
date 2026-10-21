@@ -157,11 +157,62 @@ struct Motion {
     render_change: f32,
 }
 
+/// Exercise the no-physics adapter with valid installed art. This synthetic event
+/// is distinct from authored events whose optional part is absent in this model.
+fn visual_fragment_control(data: &PhysicsData, placed: &Placed) {
+    use nfsmw_data::world::sequences::Fragment;
+    let mut world = PropWorld::default();
+    let mut placed = placed.clone();
+    world.add_tile(0, std::slice::from_mut(&mut placed));
+    let id = placed.prop_id;
+    let model = &world.scenery.models[&id];
+    let parts = model.parts.as_ref().unwrap();
+    let name = model
+        .bounds
+        .children(&model.bounds.nodes[model.bounds_root])
+        .iter()
+        .find_map(|node| {
+            let root = parts.hierarchy.find(node.name_hash)?;
+            parts.hierarchy.visible_nodes(root).iter().any(|i| parts.available.contains(i)).then_some(node.name_hash)
+        })
+        .expect("control needs a real fragment with both art and collision frame");
+    let mut event = Fragment {
+        part: name,
+        collision: name,
+        attributes: 0,
+        joint: 0,
+        allow_duplicates: false,
+        inherit_velocity: 0.0,
+        hide_parent: false,
+        hide_part: false,
+        allow_hidden_spawn: false,
+        no_physics: false,
+        simple_physics: false,
+    };
+    assert!(data.fragment_dynamics(event.attributes).is_none());
+    assert!(world.spawn_scenery_fragment(id, event, data).is_none(), "a physical fragment still needs its attributes");
+    event.no_physics = true;
+    let child =
+        world.spawn_scenery_fragment(id, event, data).expect("valid visual-only art does not need body attributes");
+    let collider = &world.colliders[&child];
+    assert!(!collider.collidable && collider.cells.is_empty());
+    assert_eq!(collider.body.as_ref().unwrap().rigid.state, blackbox_vehicle::rigid_body::BodyState::Frozen);
+    assert_eq!(world.scenery.models[&child].key, 0);
+    let transform = collider.body.as_ref().unwrap().transform(1.0);
+    let mut drawn = Vec::new();
+    assert!(world.model_instances(child, transform, &mut drawn) && !drawn.is_empty());
+    world.step(&FlatGround::new(-1000.0), STEP);
+    assert!(matrix_difference(world.pose(child).unwrap().0, transform) < 0.002);
+    world.remove_tile(0);
+    assert!(world.colliders.is_empty() && world.scenery.models.is_empty());
+}
+
 fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
     let mut world = PropWorld::default();
     let id = placed.spawner.unwrap().unique_id + 1;
     let base_height = placed.spawner.unwrap().position[1];
     assert!(placed.parts.as_ref().is_some_and(|p| !p.meshes.is_empty()), "fixture needs uploaded hierarchy art");
+    visual_fragment_control(data, &placed);
     let strike_pose = fixture(data, &placed);
     if id == 6638 {
         let mut low = PropWorld::default();
@@ -184,6 +235,25 @@ fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
     world.update_scenery(data);
     assert!(!world.scenery.models[&id].failed, "installed pole sequencer must initialize");
     assert!(!world.fragments.is_empty(), "physical collision must emit actual installed fragments for pole {id}");
+    let visual_events: Vec<_> = data
+        .sequence(placed.prop.as_ref().unwrap().dynamics.as_ref().unwrap().event_sequencer)
+        .unwrap()
+        .package
+        .event_lists
+        .values()
+        .flatten()
+        .filter_map(|event| match nfsmw_data::world::sequences::WorldEvent::decode(event).unwrap() {
+            nfsmw_data::world::sequences::WorldEvent::Fragment(fragment) if fragment.no_physics => Some(fragment),
+            _ => None,
+        })
+        .collect();
+    for fragment in visual_events {
+        // Shared sequences can request art absent from an individual placement.
+        // Preserve native SpawnModel's failure rather than fabricating that mesh.
+        if placed.parts.as_ref().unwrap().hierarchy.find(fragment.part).is_none() {
+            assert!(!world.scenery.models[&id].spawned.contains(&fragment.part));
+        }
+    }
     assert!(
         world.scenery.models[&id].hidden || !world.scenery.models[&id].hidden_parts.is_empty(),
         "the damaged art must replace the parent art"

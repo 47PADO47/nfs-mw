@@ -28,8 +28,10 @@ mod arrest;
 pub(in crate::scenes::world::ai) mod arrest_fixture;
 mod budget;
 mod call_911;
+mod destruction;
 mod fleet;
 mod free_roam;
+mod heat_progress;
 mod installed;
 mod installed_arrest;
 mod installed_breaker;
@@ -154,6 +156,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
     let spec = VehicleSpec::example();
     let bounds = CarBounds { half_dimensions: spec.dimension, pivot: Vec3::ZERO };
     let physics = CarPhysics {
+        effect_source: 0,
         tire_integration: Default::default(),
         jump_config: Default::default(),
         spec,

@@ -1,6 +1,6 @@
 # Save slots and the alias manager
 
-Status: research done, screen logic not built. The storage side exists: `libs/save-store` (slots as `<name>.sav`, an
+Status: the alias manager is built as an icon row of Create, Load, Save and Delete: see [career-parity-menus.md](career-parity-menus.md). The research below is kept; its section 4 questions are answered there. Earlier status: research done, screen logic not built. The storage side exists: `libs/save-store` (slots as `<name>.sav`, an
 atomic write, an alias index in `aliases.toml`). Nothing calls it yet. Read from the install with `nfsmw dump-screen`
 and `nfsmw strings`. Tags follow [frontend-menus.md](frontend-menus.md). Addresses are the install's own name hashes.
 

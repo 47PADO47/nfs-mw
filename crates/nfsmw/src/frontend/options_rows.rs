@@ -1,7 +1,6 @@
 //! Category layout for the option screens.
 use super::hd_options::HdSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
-use crate::frontend::alias_options::AliasSetting;
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
 use crate::frontend::logic::Category;
@@ -97,14 +96,6 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::Controls => {
             InputSetting::ALL.into_iter().map(|setting| row(Setting::Input(setting), setting.title())).collect()
         }
-        Category::AliasManager => AliasSetting::ALL
-            .into_iter()
-            .map(|setting| match setting {
-                // `START_NEW_CAREER`, "Start New Career"; the other rows have no label in the table.
-                AliasSetting::NewCareer => row(Setting::Alias(setting), Title::Label(0x17E1_8F87)),
-                _ => row(Setting::Alias(setting), Title::Text(setting.title())),
-            })
-            .collect(),
         // The rows of the Mods page are the mods' own (`bb.menus`), read from the bridge by `widget_menu.rs`.
         Category::Mods => Vec::new(),
         Category::QuickRace => crate::frontend::quick_options::QuickRow::ALL

@@ -3,7 +3,7 @@
 
 use glam::{Mat3, Vec3};
 
-use super::{FrictionState, PlaneContact, Reaction};
+use super::{FrictionState, PlaneContact, Reaction, transform_vector};
 
 /// One body's effective parameters for an object contact, all in world space.
 #[derive(Clone, Copy, Debug)]
@@ -22,6 +22,19 @@ pub struct ContactMoment {
 }
 
 impl ContactMoment {
+    /// Collision callback intensity. An immobile moment uses its partner's contact mass.
+    /// This can be positive even when this moment receives no physical velocity change.
+    pub fn notification_delta_v(&self, other: &Self, impulse: f32) -> f32 {
+        let mass = match self.immobile {
+            true => other.mass,
+            false => self.mass,
+        };
+        match mass > 0.0 {
+            true => impulse / mass,
+            false => 0.0,
+        }
+    }
+
     fn is_valid(&self) -> bool {
         self.mass.is_finite()
             && self.mass > 0.0
@@ -70,16 +83,20 @@ impl IterationBody {
         if self.immobile {
             return;
         }
-        let turn_normal = moment.inverse_inertia * self.arm.cross(normal);
-        let turn_tangent = moment.inverse_inertia * self.arm.cross(tangent);
-        self.angular += turn_normal + turn_tangent;
-        self.output_angular += turn_normal * (1.0 + moment.elasticity) + turn_tangent;
+        let turn_normal = transform_vector(moment.inverse_inertia, self.arm.cross(normal));
+        let turn_tangent = transform_vector(moment.inverse_inertia, self.arm.cross(tangent));
+        let turn = turn_normal + turn_tangent;
+        self.angular += turn;
+        self.output_angular += turn + turn_normal * moment.elasticity;
         if moment.fixed_centre {
             return;
         }
         let inv_mass = moment.mass.recip();
-        self.linear += (normal + tangent) * inv_mass;
-        self.output_linear += (normal * (1.0 + moment.elasticity) + tangent) * inv_mass;
+        let normal = normal * inv_mass;
+        let tangent = tangent * inv_mass;
+        let linear = normal + tangent;
+        self.linear += linear;
+        self.output_linear += linear + normal * moment.elasticity;
     }
 
     fn finish(self, moment: &mut ContactMoment) {
@@ -164,7 +181,7 @@ pub fn react_moments(
     for i in 0..iterations {
         let velocity = left.velocity() - right.velocity();
         let momentum = velocity * mass;
-        let approach = -momentum.dot(normal);
+        let approach = -((momentum.x * normal.x + momentum.z * normal.z) + momentum.y * normal.y);
         if approach <= 0.0 {
             break;
         }
@@ -183,7 +200,7 @@ pub fn react_moments(
             continue;
         }
         let fraction = i as f32 / iterations as f32;
-        let normal_impulse = normal * (approach * fraction);
+        let normal_impulse = (normal * approach) * fraction;
         let tangent_impulse = tangent * fraction;
         left.apply(a, normal_impulse, tangent_impulse);
         right.apply(b, -normal_impulse, -tangent_impulse);

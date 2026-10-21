@@ -11,6 +11,9 @@ use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
 impl TrafficWorld {
+    pub fn set_damage_view(&mut self, view: glam::Vec3) {
+        self.damage_view = Some(view);
+    }
     /// Takes the zones the scenery events opened this tick (`EBreakerStopCops`).
     pub fn breaker_stops(&mut self, areas: Vec<super::super::props::scenery::StopArea>) {
         for area in areas {
@@ -56,12 +59,14 @@ impl TrafficWorld {
         let searching = !self.police.is_perp_in_sight();
         let search_cruise = self.search_cruise();
         for (me, car) in self.cars.iter_mut().enumerate() {
+            let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
+            car.damage_distance = view.map_or(f32::INFINITY, |v| v.distance(car.physics_position()));
             car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
             // A police car inside a breaker zone is destroyed, however it got there (`ApplyBreakerZones`); it is counted
             // as a wreck below, like one from damage. A roadblock car holds its place with the brakes on.
-            if car.is_police() && !car.is_wrecked() && self.breaker_zones.covers(point) {
+            if car.is_live_police() && self.breaker_zones.covers(point) {
                 log::info!("pursuit breaker: {} destroyed at {:?}", car.name, point);
                 car.destroy_by_breaker();
             }

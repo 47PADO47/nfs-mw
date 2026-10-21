@@ -262,6 +262,14 @@ impl Scene for Pausable {
         self.inner.take_rewards_report()
     }
 
+    fn race_active(&self) -> bool {
+        self.inner.race_active()
+    }
+
+    fn restart_race(&mut self) -> bool {
+        self.inner.restart_race()
+    }
+
     fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
         self.inner.answer_race(answer)
     }
@@ -354,7 +362,7 @@ impl Scene for Pausable {
         frame
     }
 
-    fn take_explosions(&mut self) -> u32 {
+    fn take_explosions(&mut self) -> Vec<glam::Vec3> {
         self.inner.take_explosions()
     }
 

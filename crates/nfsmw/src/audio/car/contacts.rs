@@ -11,7 +11,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use nfsmw_data::sound::{CarSound, ImpactSound};
 use std::collections::HashMap;
 
-type Key = (ContactSource, u64, u32, bool, bool, u32);
+type Key = (ContactSource, u64, u32, bool, bool, u32, Option<nfsmw_data::sound::CollisionZone>);
 const SCRAPE_BANK: &str = "IG_GLOBAL/FX_Misc_MB.abk";
 
 struct Scrape {
@@ -51,7 +51,7 @@ pub(super) fn coalesced(contacts: &[CarContact]) -> Vec<CarContact> {
 }
 
 fn key(c: CarContact) -> Key {
-    (c.source, c.identity, c.surface, c.bottom, c.front, c.sound_profile)
+    (c.source, c.identity, c.surface, c.bottom, c.front, c.sound_profile, c.audio_zone)
 }
 
 impl ContactPlayback {
@@ -66,6 +66,7 @@ impl ContactPlayback {
         mixer: Option<&CarMixer>,
         contacts: &[CarContact],
         sim_dt: f32,
+        view: &AudioView,
     ) -> Vec<CarEvent> {
         for scrape in self.scrapes.values_mut() {
             if scrape.release.is_some() {
@@ -87,27 +88,37 @@ impl ContactPlayback {
                 continue;
             }
             let rules = owned.as_deref().unwrap_or(&sound.collision);
+            let distance = view.camera_position.distance(contact.render_point());
             let severity = match (contact.detached, contact.bottom) {
                 (true, _) => contact.velocity.length(),
                 (_, true) => contact.closing_speed(),
                 _ => contact.delta_v,
             };
             let attempt = |kind, severity| {
-                let rule = rules.rule(kind, contact.surface, default, contact.front)?;
-                let magnitude = rule.magnitude(severity).filter(|m| *m > 0.0)?;
-                Some((kind, rule.sound, magnitude))
-            };
-            let hit = attempt(contact.hit_kind(), severity).or_else(|| {
-                if !contact.detached {
+                let rule =
+                    rules.rule_for_zone(kind, contact.surface, default, contact.audio_zone.unwrap_or_default())?;
+                if !rule.audible_at(distance, false) {
                     return None;
                 }
-                attempt(nfsmw_data::sound::EventKind::HitObject, contact.delta_v)
-            });
+                let physical = rule.magnitude(severity).filter(|m| *m > 0.0)?;
+                let magnitude = rule.audio_magnitude(physical);
+                if magnitude <= 0.0 {
+                    return None;
+                }
+                Some((kind, rule.sound, magnitude))
+            };
+            let hit = match contact.detached
+                && !rules.accepts_hit(nfsmw_data::sound::EventKind::Detached, contact.surface, default, severity)
+            {
+                true => attempt(nfsmw_data::sound::EventKind::HitObject, contact.delta_v),
+                false => attempt(contact.hit_kind(), severity),
+            };
             if contact.velocity.length_squared() > 1.0
                 && let Some((kind, selected, magnitude)) = hit
             {
                 events.push(CarEvent {
                     sound_profile: contact.sound_profile,
+                    audio_zone: contact.audio_zone,
                     kind,
                     surface: contact.surface,
                     magnitude,
@@ -121,8 +132,20 @@ impl ContactPlayback {
                 continue;
             }
             let key = key(contact);
-            let rule = rules.rule(contact.scrape_kind(), contact.surface, default, contact.front);
-            let eligible = rule.and_then(|rule| rule.magnitude(speed).map(|m| (rule.sound, m.max(0.1))));
+            let rule = rules.rule_for_zone(
+                contact.scrape_kind(),
+                contact.surface,
+                default,
+                contact.audio_zone.unwrap_or_default(),
+            );
+            let eligible = rule.and_then(|rule| {
+                if !rule.audible_at(distance, true) {
+                    return None;
+                }
+                let physical = rule.magnitude(speed)?.max(0.1);
+                let magnitude = rule.audio_magnitude(physical);
+                (magnitude > 0.0).then_some((rule.sound, magnitude))
+            });
             let Some((selected, magnitude)) = eligible.filter(|(s, _)| !s.scrape_effect.is_empty()) else {
                 if let Some(scrape) = self.scrapes.get_mut(&key) {
                     scrape.release.get_or_insert(0.25);

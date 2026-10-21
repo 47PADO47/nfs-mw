@@ -13,6 +13,7 @@ pub mod performance;
 mod powertrain;
 mod reactions;
 mod running_gear;
+mod simple_chassis;
 mod spec;
 mod surface;
 pub mod tuning;
@@ -30,6 +31,7 @@ pub use performance::{PerformanceCatalog, PerformanceCategory, PerformancePackag
 pub use powertrain::{engine, induction, no_engine, no_transmission, nos, transmission};
 pub use reactions::{AiCollisionReactions, CollisionReaction, CollisionReactions, GoalReaction};
 pub use running_gear::{brakes, tires};
+pub use simple_chassis::simple_chassis_config;
 pub use spec::{CarPhysics, car_physics};
 pub use surface::{SurfaceAudio, SurfaceTable};
 pub use wall_steering::wall_steering_config;

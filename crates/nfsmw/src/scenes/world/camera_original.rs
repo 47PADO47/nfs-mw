@@ -98,6 +98,7 @@ impl WorldScene {
         self.residency.props().camera_bodies(&mut avoidables);
         Some(PhysicsFrame {
             body,
+            explosions: self.residency.props().camera_explosions(),
             custom: original::index_of(self.camera_mode)
                 .is_none()
                 .then(|| original::custom_sample(self.car_lens(drive, drive.custom_camera(), self.physics_aspect))),

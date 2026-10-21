@@ -7,7 +7,7 @@ mod pc_emitter;
 #[cfg(test)]
 mod pc_install_tests;
 mod pc_particle;
-mod pc_sparks;
+pub(in crate::scenes::world) mod pc_sparks;
 #[cfg(test)]
 mod pc_tests;
 mod sparks;
@@ -114,7 +114,7 @@ impl VehicleEffects {
         self.trails.age(dt);
         if self.enabled[0] {
             match self.style {
-                crate::settings::SparkStyle::OriginalPc => self.pc.emit(contacts, &self.data.collision, velocity, dt),
+                crate::settings::SparkStyle::OriginalPc => {} // Source-owned contact manager emits stock groups.
                 crate::settings::SparkStyle::RestoredExperimental => {
                     self.sparks.emit(contacts, &self.data.collision, velocity, dt)
                 }

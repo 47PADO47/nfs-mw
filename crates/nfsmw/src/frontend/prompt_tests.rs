@@ -161,7 +161,14 @@ fn custom_keycaps_fit_and_inherit_footer_transforms_and_visibility() {
         root.world_colour[3] = 127;
         root.visible = visible;
         let mut shown = raw.clone();
-        super::super::prompts::decorate(&mut shown, screen::PAUSE_OPTIONS, &bindings, InputDevice::Keyboard, &assets);
+        super::super::prompts::decorate(
+            &mut shown,
+            screen::PAUSE_OPTIONS,
+            super::super::logic::Footer::Standard,
+            &bindings,
+            InputDevice::Keyboard,
+            &assets,
+        );
         assert_footer(&raw, &shown, 0xB3A6_9E89, 0x81B4_FAD0, &assets);
         assert!(shown.nodes[raw.nodes.len()..].iter().any(|n| n.text.as_deref() == Some("Backspace")));
         let insets: Vec<_> =

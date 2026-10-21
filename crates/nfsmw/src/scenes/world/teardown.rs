@@ -32,6 +32,9 @@ impl WorldScene {
         self.cop_health.release(renderer);
         self.explosions.release(renderer);
         self.heli_wash.release(renderer);
+        self.object_fx.release(renderer);
+        self.car_damage_fx.release(renderer);
+        self.impact_fx.release(renderer);
     }
 }
 

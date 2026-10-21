@@ -98,6 +98,7 @@ fn drive_car(
         *seen = host.scene_changes;
         audio.stop_music();
         audio.stop_traffic();
+        audio.stop_explosion();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
@@ -123,8 +124,10 @@ fn drive_car(
         None => audio.stop_sirens(),
     }
     // Each petrol-station blast of this frame plays its explosion.
-    for _ in 0..host.scene.take_explosions() {
-        audio.play_explosion();
+    let view = car.as_ref().map(|state| state.view).unwrap_or(audio.speedbreaker.view);
+    audio.update_explosion(view, time.delta_secs());
+    for position in host.scene.take_explosions() {
+        audio.play_explosion(position, view);
     }
     // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
     let pops = audio.take_sputter_pops();

@@ -10,8 +10,7 @@ use crate::ground::Ground;
 use crate::input::{GearRequest, InputContext, InputState, shape};
 use crate::math::clamp_signed;
 use crate::rigid_body::BodyState;
-use crate::steering::{SteeringInput, ackermann};
-use crate::suspension::center_of_gravity;
+use crate::steering::{SteeringDevice, SteeringInput, ackermann};
 
 /// Rear slip angle (turns, 1.0 = 360 deg) past which the car counts as drifting. About 14 degrees.
 const DRIFT_SLIP: f32 = 0.04;
@@ -50,12 +49,7 @@ impl Vehicle {
         self.body_slip = if local_velocity.z < 1.0 { 0.0 } else { local_velocity.x.atan2(local_velocity.z) };
 
         self.update_controls(input, local_velocity.z);
-        self.body.set_cog(center_of_gravity(
-            &self.spec.chassis,
-            self.spec.dimension.y,
-            self.tunings.ride_height,
-            self.wheels_on_ground_prev > 0,
-        ));
+        self.update_chassis_cog();
         self.update_steering(dt, local_velocity.z);
         self.apply_wall_steering();
 
@@ -111,6 +105,7 @@ impl Vehicle {
 
     pub(super) fn update_steering(&mut self, dt: f32, forward_speed: f32) {
         let c = self.controls;
+        let tire_steering = self.simple_steering_scale();
         let normal_angle = self.steering.update(&SteeringInput {
             dt,
             steer: c.steering,
@@ -118,9 +113,12 @@ impl Vehicle {
             brake: c.brake,
             ebrake: c.handbrake,
             forward_speed,
-            tire_steering: self.spec.tires.steering,
+            tire_steering,
             tuning: self.tunings.steering,
-            device: self.config.steering_device,
+            device: match self.simple_chassis.is_some() {
+                true => SteeringDevice::Ai,
+                false => self.config.steering_device,
+            },
             rear_slip_deg: [self.tires[2].slip_angle * 360.0, self.tires[3].slip_angle * 360.0],
         });
         let angle = match self.maneuver.steering_degrees {

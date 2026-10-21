@@ -45,6 +45,16 @@ impl WorldScene {
 
     /// Takes the race down: the racers leave, the traffic count is given back and the car is let go.
     pub(super) fn end_race(&mut self, session: RaceSession) {
+        self.release_race(&session);
+        log::info!("race: {} ended", session.name);
+        if session.options.career {
+            self.career_race_left();
+        }
+    }
+
+    /// What a race holds on the world, given back: the racers, the traffic count a console command had set, the grid
+    /// hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
+    pub(super) fn release_race(&mut self, session: &RaceSession) {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_racers();
         }
@@ -52,10 +62,6 @@ impl WorldScene {
         if let Some(drive) = self.drive.as_mut() {
             drive.hold_on_grid(false);
             drive.set_steer_assist(None);
-        }
-        log::info!("race: {} ended", session.name);
-        if session.options.career {
-            self.career_race_left();
         }
     }
 

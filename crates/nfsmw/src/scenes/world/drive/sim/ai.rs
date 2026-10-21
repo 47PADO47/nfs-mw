@@ -1,7 +1,7 @@
 //! What a computer driver needs of the car: its controls set-up, a view of the state and gear changes.
 
 use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
-use blackbox_vehicle::steering::{ABSOLUTE_MAX_STEERING, SteeringDevice};
+use blackbox_vehicle::steering::SteeringDevice;
 use blackbox_vehicle::{ControlConfig, Ground};
 use glam::{Mat3, Quat, Vec3};
 
@@ -46,6 +46,7 @@ impl CarSim {
     /// the full steering angle for the input, and the gearbox shifts by itself.
     pub fn configure_ai(&mut self) {
         self.collision_role.player = false;
+        self.vehicle.set_simple_chassis(Some(nfsmw_data::car::physics::simple_chassis_config()));
         self.vehicle.config = ControlConfig {
             dead_zone: 0.0,
             auto_reverse: false,
@@ -67,10 +68,15 @@ impl CarSim {
             forward_speed: v.forward_speed(),
             planar_speed: Vec3::new(velocity.x, 0.0, velocity.z).length(),
             gear_is_reverse: v.gear() == GEAR_REVERSE,
-            max_steer: (ABSOLUTE_MAX_STEERING * v.spec().tires.steering).to_radians(),
+            max_steer: v.maximum_steering_degrees().to_radians(),
             in_shock: false,
             staging: false,
         }
+    }
+
+    /// Terrain-cache supporting normal, in physics space; upright fallback without a cached face.
+    pub fn ground_normal(&self) -> Vec3 {
+        self.vehicle.ground_reference.map_or(Vec3::Y, |ground| ground.normal)
     }
 
     /// The body's velocity in physics space.

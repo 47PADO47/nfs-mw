@@ -24,6 +24,7 @@ fn player_car(at: Vec3, speed: f32) -> CarSim {
     let mut sim = CarSim::new(
         CarPhysics {
             tire_integration: Default::default(),
+            effect_source: 0,
             jump_config: Default::default(),
             spec,
             bounds,

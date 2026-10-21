@@ -91,7 +91,7 @@ fn strip_fill(lit_total: f32, strip: &Strip) -> StripFill {
 }
 
 /// Draws one bar: each strip's uv rectangle, width and position for `fraction`.
-pub(super) fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
+pub(crate) fn set_bar(cx: &mut Cx, strips: &[Strip; 2], fraction: f32) {
     for fill in strip_fills(fraction, strips) {
         let Some(object) = cx.guid(fill.guid) else { continue };
         cx.rt.set_hidden(object, !fill.shown);

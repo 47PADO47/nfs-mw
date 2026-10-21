@@ -24,6 +24,8 @@ use crate::scenes::world::road::Spawn;
 mod accessors;
 mod accident;
 mod avoid;
+mod damage_effects;
+mod glass;
 mod goal_drive;
 mod hits;
 mod original_camera;
@@ -132,8 +134,6 @@ pub struct AiCar {
     pub audio_profile: crate::audio::traffic::TrafficProfile,
     /// Seconds until the car may play a near miss or a horn again (`traffic_events::EventTuning::cooldown`).
     quiet: f32,
-    /// Half extents of the body (physics space): where a hit lands on a cop.
-    dim: Vec3,
     /// A cop's damage (`hits`); `None` for traffic.
     damage: Option<CopDamage>,
     /// The request this support car belongs to and its goal (`car/support_drive.rs`); `None` for other cars.
@@ -142,6 +142,7 @@ pub struct AiCar {
     avoid: avoid::Avoid,
     /// The player car's speed (m/s) at the last physics step: the crash gate of `hits.rs` reads it.
     player_speed: f32,
+    pub(in crate::scenes::world::ai) damage_distance: f32,
 }
 
 impl AiCar {
@@ -166,7 +167,7 @@ impl AiCar {
             Some(trailer) => Some(TrailerCar::place(trailer, &sim, spawn, start.speed, ground)?),
             None => None,
         };
-        let damage = sim.collision_role.cop.then(|| CopDamage::for_model(&name));
+        let damage = sim.collision_role.cop.then(|| CopDamage::for_model(&name, physics.events.as_deref()));
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
         Some(Self {
@@ -220,11 +221,11 @@ impl AiCar {
             cop_lights: model.cop_lights.clone().map(super::cop_lights::CopLightRun::new),
             audio_profile: model.audio_profile,
             quiet: 0.0,
-            dim: physics.spec.dimension,
             damage,
             support: None,
             avoid: avoid::Avoid::default(),
             player_speed: 0.0,
+            damage_distance: 0.0,
         })
     }
 
@@ -297,12 +298,17 @@ impl AiCar {
         if self.racer_emulated() {
             return;
         }
+        self.sim.collision_goal = if self.roadblock && !self.is_wrecked() {
+            Some(blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock"))
+        } else {
+            self.goal_drive().collision_goal
+        };
         let think_steps = match self.role {
             Role::Traffic => THINK_STEPS,
             Role::Cop(_) => cop::THINK_STEPS,
             Role::Racer(_) => super::racer::RACER_THINK_STEPS,
         };
-        if (self.steps + self.stagger).is_multiple_of(think_steps) {
+        if !self.is_wrecked() && (self.steps + self.stagger).is_multiple_of(think_steps) {
             self.think(ctx);
         }
         let mut view = self.sim.driver_view();
@@ -323,10 +329,14 @@ impl AiCar {
             self.controls = controls;
         }
         self.hold_goal_brake();
-        if self.breaker_stop || self.is_wrecked() {
+        if self.breaker_stop {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
-        if self.arrested || self.racer_held() {
+        if self.is_wrecked() {
+            self.arrived = false;
+            self.controls = AiControls { brake: self.wreck_brake(), ..AiControls::default() };
+        }
+        if (self.arrested || self.racer_held()) && !self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, handbrake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
@@ -338,7 +348,10 @@ impl AiCar {
             nos: self.controls.nos,
             ..DriveInput::default()
         };
-        self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
+        let impact = self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
+        for hit in impact.damage {
+            self.wreck_hit(hit, self.damage_distance);
+        }
         self.avoid.advance(self.speed().abs() * STEP);
         if let Some(trailer) = self.trailer.as_mut() {
             let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
@@ -473,16 +486,5 @@ impl AiCar {
                 self.support_drive(&player);
             }
         }
-    }
-
-    /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
-    pub fn physics_position(&self) -> Vec3 {
-        self.sim.driver_view().position
-    }
-
-    /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
-    pub fn physics_forward(&self) -> Vec3 {
-        let forward = self.sim.driver_view().forward;
-        forward.try_normalize().unwrap_or(Vec3::Z)
     }
 }

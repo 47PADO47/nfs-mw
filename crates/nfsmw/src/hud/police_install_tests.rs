@@ -51,6 +51,39 @@ fn installed_pursuit_hud_drives_heat_counts_and_radar_without_template_numbers()
     assert!(!tree.nodes.iter().find(|n| n.name_hash == 0x2419_6AD4).unwrap().visible);
     authored_layouts(&mut rt, package, &mut binding, &state, &assets);
     signed_meter(&mut rt, package, &mut binding, &assets);
+    fractional_heat(&mut rt, package, &mut binding);
+}
+
+fn fractional_heat(rt: &mut Runtime, package: blackbox_feng::PackageId, binding: &mut bind::HudBinding) {
+    use blackbox_feng::{NodeKind, runtime::INIT_SCRIPT};
+
+    let masks = [0x8628_24C9, 0x4B2C_BE1B].map(|hash| rt.find(package, hash).unwrap());
+    let multiplier = rt.find(package, 0x7F91_DA62).unwrap();
+    let icon = rt.find(package, 0x6F85_ED55).unwrap();
+    let states = [
+        (1.0, [175.0, 175.0], "x1", 0x41E1_FEDC, 0x7703_1C70),
+        (1.25, [87.5, 175.0], "x1", 0x41E1_FEDC, 0x7703_1C70),
+        (1.5, [0.0, 175.0], "x1", INIT_SCRIPT, 0x7703_1C70),
+        (1.75, [0.0, 87.5], "x1", INIT_SCRIPT, 0x7703_1C70),
+        (1.875, [0.0, 43.75], "x1", INIT_SCRIPT, 0xDA60_0155),
+        (2.0, [175.0, 175.0], "x2", 0x41E1_FEDC, 0x7703_1C70),
+    ];
+    for (heat, angles, text, label_script, icon_script) in states {
+        let state = HudState { vehicle_heat: heat, ..Default::default() };
+        step(rt, binding, &state);
+        let tree = rt.tree(package);
+        for (mask, expected) in masks.into_iter().zip(angles) {
+            let node = &tree.nodes[mask.index];
+            assert!(node.visible, "both installed heat halves are eligible at {heat}");
+            let NodeKind::Image { mask_rotation, .. } = node.kind else { panic!("heat mask is an image") };
+            assert!((mask_rotation[2] - expected).abs() < 1e-4, "heat {heat} half-mask state");
+        }
+        let labels: Vec<_> = tree.nodes.iter().filter(|n| n.name_hash == 0xA81A_2028 && n.text.is_some()).collect();
+        assert!(labels.len() >= 2, "the multiplier group contains both authored string layers");
+        assert!(labels.iter().all(|node| node.text.as_deref() == Some(text)));
+        assert_eq!(rt.script_of(multiplier), Some(label_script));
+        assert_eq!(rt.script_of(icon), Some(icon_script));
+    }
 }
 
 fn authored_layouts(

@@ -24,6 +24,7 @@ use crate::career::{Career, CareerHandle};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
+use crate::frontend::logic::QuitTo;
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
 use crate::ui::Text;
 
@@ -231,7 +232,7 @@ impl CareerCarSelectLogic {
         if !over {
             return;
         }
-        let alert = Alert::then(Text::Game(TEXT_GAME_OVER), Command::QuitToMenu);
+        let alert = Alert::then(Text::Game(TEXT_GAME_OVER), Command::QuitTo(QuitTo::Main));
         cx.send(Command::Alert(Alert { title: Text::Custom(String::new()), ..alert }));
     }
 }

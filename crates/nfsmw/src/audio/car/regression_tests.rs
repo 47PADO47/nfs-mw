@@ -14,6 +14,7 @@ fn install() -> GameDir {
 fn contact() -> CarContact {
     CarContact {
         sound_profile: 0,
+        audio_zone: None,
         detached: false,
         source: ContactSource::World,
         identity: 1,
@@ -166,7 +167,7 @@ fn installed_scrape_module_alone_is_audible_and_sim_timeout_releases_in_audio_ti
     let view = AudioView::default();
     let mut recorded = Vec::new();
     for _ in 0..60 {
-        playback.observe(&mut audio, &sound, Some(&mixer), &[contact()], 1.0 / 60.0);
+        playback.observe(&mut audio, &sound, Some(&mixer), &[contact()], 1.0 / 60.0, &AudioView::default());
         playback.update(&mut audio, 1.0 / 60.0, &input, &view);
         recorded.extend_from_slice(audio.render_replay(800));
     }
@@ -177,13 +178,13 @@ fn installed_scrape_module_alone_is_audible_and_sim_timeout_releases_in_audio_ti
     assert_eq!(levels.over_full_scale, 0);
     // Audio continues during a stalled/paused simulation; SIM timeout must not expire.
     for _ in 0..30 {
-        playback.observe(&mut audio, &sound, Some(&mixer), &[], 0.0);
+        playback.observe(&mut audio, &sound, Some(&mixer), &[], 0.0, &AudioView::default());
         playback.update(&mut audio, 1.0 / 60.0, &input, &view);
         audio.render_replay(800);
     }
     assert_eq!(playback.active_count(), 1);
     for _ in 0..60 {
-        playback.observe(&mut audio, &sound, Some(&mixer), &[], 1.0 / 60.0);
+        playback.observe(&mut audio, &sound, Some(&mixer), &[], 1.0 / 60.0, &AudioView::default());
         playback.update(&mut audio, 1.0 / 60.0, &input, &view);
         audio.render_replay(800);
     }
@@ -359,6 +360,7 @@ fn installed_physical_impact_stitches_render_authored_pieces_and_retire() {
     {
         let event = CarEvent {
             sound_profile: 0,
+            audio_zone: None,
             kind,
             surface: SurfaceTable::hash_of(surface),
             magnitude: 0.5,
@@ -421,6 +423,7 @@ fn installed_detaching_props_emit_their_own_profile_effects() {
     for (profile, name, speed) in candidates.into_iter().take(5) {
         let event = CarContact {
             sound_profile: profile,
+            audio_zone: None,
             detached: true,
             identity: u64::from(profile),
             surface: other,
@@ -431,10 +434,17 @@ fn installed_detaching_props_emit_their_own_profile_effects() {
             front: false,
             ..contact()
         };
-        let events = feed.observe(&mut audio, &car.sound, car.mixer.as_ref(), &[event], 1.0 / 60.0);
+        let events =
+            feed.observe(&mut audio, &car.sound, car.mixer.as_ref(), &[event], 1.0 / 60.0, &AudioView::default());
         assert_eq!(events.len(), 1, "{name} detachment must emit one owned hit");
         assert_eq!(events[0].sound_profile, profile);
         assert_eq!(events[0].kind, EventKind::Detached);
+        let rules = nfsmw_data::sound::CollisionSounds::prop(&db, profile);
+        let rule = rules.rule(EventKind::Detached, other, default, false).unwrap();
+        let physical = rule.magnitude(event.velocity.length()).unwrap();
+        assert!((events[0].magnitude - rule.audio_magnitude(physical)).abs() < 1e-5);
+        let far = AudioView { camera_position: Vec3::splat(1000.0), ..Default::default() };
+        assert!(feed.observe(&mut audio, &car.sound, car.mixer.as_ref(), &[event], 1.0 / 60.0, &far).is_empty());
         audio.play_impact(&mut car, &events[0], &input, &AudioView::default());
         assert!(car.impacts.active_count() > 0);
         let mut recorded = Vec::new();

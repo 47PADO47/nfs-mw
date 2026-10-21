@@ -15,6 +15,9 @@ impl IconMenu {
             Kind::Categories { pause: true, .. } => 0x1D7B_B6C9,
             Kind::Pause => 0x6C83_9FBE,
             Kind::SafeHouse => 0xE596_C4A3,
+            Kind::Career => 0x8FFF_61F2,
+            Kind::QuickRace => 0xCDF0_CC03,
+            Kind::AliasManager => 0x1B76_F2CE,
         }
     }
 
@@ -79,7 +82,11 @@ impl IconMenu {
             .collect();
         let style = match self.kind {
             Kind::Main => MenuStyle::Main,
-            Kind::Categories { pause: false, .. } | Kind::SafeHouse => MenuStyle::Sub,
+            Kind::Categories { pause: false, .. }
+            | Kind::SafeHouse
+            | Kind::Career
+            | Kind::QuickRace
+            | Kind::AliasManager => MenuStyle::Sub,
             Kind::Categories { pause: true, .. } | Kind::Pause => MenuStyle::Pause,
         };
         Some(MenuList {

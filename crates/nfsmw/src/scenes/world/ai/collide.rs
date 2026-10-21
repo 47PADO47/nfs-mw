@@ -41,7 +41,7 @@ pub(super) enum DriverClass {
 pub(super) struct Hit {
     owner: usize,
     impulse: f32,
-    point: Vec3,
+    damage: crate::scenes::world::events::DamageHit,
     by_player: bool,
     from_camera: f32,
     striker: DriverClass,
@@ -89,7 +89,8 @@ impl TrafficWorld {
         }
         let events = self.events;
         let focus = player.as_deref().map(|p| p.body().position);
-        let far = |sim: &CarSim| focus.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
+        let view = self.damage_view.or(focus);
+        let far = |sim: &CarSim| view.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
@@ -125,7 +126,7 @@ impl TrafficWorld {
                     hits.push(Hit {
                         owner: part.owner,
                         impulse: hit.impulse,
-                        point: hit.point,
+                        damage: hit.damage[1],
                         by_player: true,
                         from_camera,
                         striker: DriverClass::Human,
@@ -160,7 +161,7 @@ impl TrafficWorld {
                     hits.push(Hit {
                         owner: part.owner,
                         impulse: hit.impulse,
-                        point: hit.point,
+                        damage: hit.damage[0],
                         by_player: false,
                         from_camera: near_a,
                         striker: other.class,
@@ -170,7 +171,7 @@ impl TrafficWorld {
                     hits.push(Hit {
                         owner: other.owner,
                         impulse: hit.impulse,
-                        point: hit.point,
+                        damage: hit.damage[1],
                         by_player: false,
                         from_camera: near_b,
                         striker: part.class,
@@ -194,7 +195,7 @@ impl TrafficWorld {
                 hit.by_player,
                 hit.striker,
                 hit.speed,
-                hit.point,
+                hit.damage,
                 hit.from_camera,
             );
             self.strikes.cop |= first_damage;
@@ -321,3 +322,19 @@ mod sight_tests {
 
 #[cfg(test)]
 mod tests;
+
+impl TrafficWorld {
+    pub(in crate::scenes::world) fn take_impact_effects(
+        &mut self,
+    ) -> Vec<crate::scenes::world::impact_effects::Contact> {
+        let mut out = Vec::new();
+        for car in &mut self.cars {
+            let (tractor, trailer) = car.sims_mut();
+            out.extend(tractor.take_impact_effects());
+            if let Some(trailer) = trailer {
+                out.extend(trailer.take_impact_effects());
+            }
+        }
+        out
+    }
+}

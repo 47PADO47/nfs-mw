@@ -23,6 +23,8 @@ const INSTALLS_PER_FRAME: usize = 2;
 const NO_ROADS: &str = "this track has no road network";
 
 #[cfg(test)]
+mod installed_tests;
+#[cfg(test)]
 mod shading_tests;
 
 /// The car folders to try for the `pvehicle` `vehicle`, best first: its own name, that name without the `traf`
@@ -194,7 +196,7 @@ fn handle(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, done: Done) 
         (Request::Traffic(vehicle), Ok(Loaded::Traffic(load))) => install_traffic(scene, renderer, &vehicle, *load),
         (Request::Traffic(vehicle), Err(error)) => fail(scene, &vehicle, &error),
         (Request::Cop(name), Ok(Loaded::Cop(load))) => cop_arrived(scene, &name, *load),
-        (Request::Cop(_), Ok(Loaded::CopExtras(load))) => install_cop(scene, renderer, *load),
+        (Request::Cop(name), Ok(Loaded::CopExtras(load))) => install_cop(scene, renderer, &name, *load),
         (Request::Cop(name), Err(error)) => fail_cop(scene, &name, &error),
         (Request::Helicopter, Ok(Loaded::Helicopter(model))) => install_helicopter(scene, renderer, *model),
         (Request::Helicopter, Err(error)) => log::warn!("the police helicopter has no model: {error}"),
@@ -259,6 +261,9 @@ fn traffic_model(
 
 /// The first trip of a cop car is in: its physics and light effect are made here, and its second trip goes out.
 fn cop_arrived(scene: &mut WorldScene, name: &str, load: CopLoad) {
+    if scene.traffic.as_ref().is_none_or(|traffic| traffic.has_cop_model(name)) {
+        return;
+    }
     match cop_job(scene, name, load) {
         Ok(job) => ask(scene, Request::Cop(name.to_owned()), job),
         Err(error) => fail_cop(scene, name, &error),
@@ -269,6 +274,7 @@ fn cop_arrived(scene: &mut WorldScene, name: &str, load: CopLoad) {
 /// the hashes its light effect names.
 fn cop_job(scene: &mut WorldScene, name: &str, load: CopLoad) -> Result<Job, String> {
     let CopLoad { folder, model } = load;
+    log::debug!("cop car {name}: using geometry from {folder}");
     let car_type = model.car_type.clone().unwrap_or_else(|| name.to_owned());
     let physics = scene.physics_of(&model).map_err(|e| format!("{name}: {e:#}"))?;
     let ai = ai_vehicle(scene.physics.database(), &car_type);
@@ -276,11 +282,16 @@ fn cop_job(scene: &mut WorldScene, name: &str, load: CopLoad) -> Result<Job, Str
     let hashes: Vec<u32> = light_fx
         .as_ref()
         .map_or_else(Vec::new, |fx| fx.lanes.iter().flat_map(|lane| lane.emitters.iter().map(|e| e.texture)).collect());
-    let car = parts(scene, folder, &car_type, model, physics);
+    let car = parts(scene, name.to_ascii_uppercase(), &car_type, model, physics);
     Ok(Job::CopExtras { car_type, hashes, staged: Box::new(StagedCop { car, ai, light_fx }) })
 }
 
-fn install_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, load: CopExtrasLoad) {
+fn install_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &str, load: CopExtrasLoad) {
+    // A borrowed geometry folder is not the requested vehicle's identity. Reject stale
+    // results before uploading: dropping a second rig does not release its GPU handles.
+    if scene.traffic.as_ref().is_none_or(|traffic| traffic.has_cop_model(name)) {
+        return;
+    }
     let CopExtrasLoad { staged, performance, textures } = load;
     let StagedCop { car, ai, light_fx } = staged;
     log::info!(

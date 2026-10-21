@@ -6,7 +6,9 @@ use nfsmw_career::economy::aftermath::{Payment, after_payment_of};
 
 use super::*;
 use crate::frontend::career_screens::car_select::{self, CarSelectAction, CareerCarSelectLogic};
+use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::ids::screen::{CAR_SELECT, DIALOG};
+use crate::ui::Text;
 use nfsmw_career::economy::aftermath::CarSelectEntry;
 
 impl Frontend {

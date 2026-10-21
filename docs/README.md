@@ -2,6 +2,8 @@
 
 Runtime customization: [garage-overlay.md](garage-overlay.md).
 
+Native physics work: [collision and destruction parity](native-physics-parity.md).
+
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
 the game stores its data, what prior work exists, and how the rewrite is built. Format claims are checked
 against a local install selected with `NFSMW_GAME_DIR`.

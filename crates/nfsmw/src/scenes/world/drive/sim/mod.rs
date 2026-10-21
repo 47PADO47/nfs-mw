@@ -63,6 +63,10 @@ pub struct CarSim {
     /// The props the car hit with their cost to state, until the traffic takes them (`take_smacked`).
     smacked: Vec<(u32, u32)>,
     pending_sound_contacts: Vec<crate::audio::CarContact>,
+    effect_source: u32,
+    effect_owner: u64,
+    effect_lifetime: std::rc::Rc<()>,
+    pending_effects: Vec<crate::scenes::world::impact_effects::Contact>,
     sound_identity: u64,
     /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
     wall_scratch: Vec<WallContact>,
@@ -116,6 +120,10 @@ impl CarSim {
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
             pending_sound_contacts: Vec::new(),
+            effect_source: physics.effect_source,
+            effect_owner: crate::scenes::world::impact_effects::next_owner(),
+            effect_lifetime: std::rc::Rc::new(()),
+            pending_effects: Vec::new(),
             sound_identity: next_sound_identity(),
             wall_scratch: Vec::new(),
             memo: memo::StepMemo::default(),
@@ -168,101 +176,6 @@ impl CarSim {
     pub fn set_wheel_options(&mut self, options: crate::settings::WheelOptions) {
         self.vehicle.config.manual_clutch = options.manual_clutch;
         self.vehicle.config.h_shifter = options.h_shifter;
-    }
-
-    /// One physics step. `world` is the collision the body's walls are tested against (the ground is
-    /// `ground`); without it the car only meets the road.
-    pub fn step(
-        &mut self,
-        input: &DriveInput,
-        ground: &dyn Ground,
-        mut world: Option<(&CollisionWorld, &mut PropWorld)>,
-    ) -> Impact {
-        self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
-        self.before_velocity = self.vehicle.body().linear_velocity;
-        let input = InputState {
-            throttle: input.throttle,
-            brake: input.brake,
-            steer: input.steer,
-            handbrake: f32::from(u8::from(input.handbrake)),
-            nos: input.nos,
-            shift_up: input.shift_up,
-            shift_down: input.shift_down,
-            gear_select: input.gear_select,
-            clutch: input.clutch,
-        };
-        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
-        if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
-            props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
-        }
-        if let Some(events) = &self.events {
-            let punctured = events.punctured();
-            for wheel in (0..4).filter(|&w| punctured[w]) {
-                self.vehicle.tire_damage.puncture(wheel);
-            }
-        }
-        self.step_with_ground(&input, ground, world.is_some());
-        let mut impact = match world {
-            Some((collision, props)) => {
-                let frame = self
-                    .geometry
-                    .as_ref()
-                    .map(|g| BodyGeometryFrame { geometry: &g.body, previous: self.previous_contact_pose });
-                // The original prunes object pairs before its end-frame world collision callback.
-                let mut objects = Impact::default();
-                props.collide_vehicle(&mut self.vehicle, frame, &mut objects);
-                let wall_exclusion = self.terrain_exclusion();
-                let mut impact = walls::resolve_into(
-                    &mut self.vehicle,
-                    &walls::world_cast_with_mask(collision, wall_exclusion),
-                    &walls::world_props(props),
-                    &self.walls,
-                    &mut self.wall_scratch,
-                );
-                impact.impulse = impact.impulse.max(objects.impulse);
-                impact.contacts.extend(objects.contacts);
-                impact.damage.splice(0..0, objects.damage);
-                impact.sounds.extend(objects.sounds);
-                impact
-            }
-            None => Impact::default(),
-        };
-
-        self.smacked.append(&mut impact.smacked);
-        self.prop_struck |=
-            impact.contacts.iter().any(|c| matches!(c.kind, ContactKind::PropRigid | ContactKind::PropMovable));
-
-        let body = self.vehicle.body();
-        let rotation = body.rotation();
-        let bottom_point =
-            body.position - rotation.y_axis * body.dimension().y - rotation.z_axis * (body.dimension().z * 0.75);
-        impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
-            let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
-            crate::audio::CarContact {
-                sound_profile: 0,
-                detached: false,
-                source: crate::audio::ContactSource::Ground,
-                identity: 0,
-                surface: c.surface,
-                point: if bottom { bottom_point } else { c.point },
-                normal: c.normal,
-                velocity: c.velocity,
-                delta_v: c.impulse_delta_v,
-                front: false,
-                bottom,
-            }
-        }));
-        if let Some(events) = self.events.as_mut() {
-            for &hit in &impact.damage {
-                events.hit(hit);
-            }
-        }
-        for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
-            *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
-        }
-        let body = self.vehicle.body();
-        self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
-        impact
     }
 
     pub fn take_sound_contacts(&mut self) -> Vec<crate::audio::CarContact> {
@@ -458,8 +371,11 @@ fn next_sound_identity() -> u64 {
 
 mod ai;
 mod camera;
+mod contact_damage;
+mod impact_effects;
 mod pair;
 mod performance;
+mod step;
 mod terrain;
 mod trailer;
 

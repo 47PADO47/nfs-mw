@@ -253,6 +253,14 @@ pub trait Scene {
     fn take_rewards_report(&mut self) -> Option<RewardsReport> {
         None
     }
+    /// Whether a race is running or staged in the world (the pause menu offers Resume Race and Restart then).
+    fn race_active(&self) -> bool {
+        false
+    }
+    /// Runs the race in progress again from its grid. Returns whether there was a race to restart.
+    fn restart_race(&mut self) -> bool {
+        false
+    }
     /// The post-race screen's answer. `true` when a race was waiting on it.
     fn answer_race(&mut self, _answer: RaceAnswer) -> bool {
         false
@@ -312,9 +320,9 @@ pub trait Scene {
     fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
         None
     }
-    /// How many explosions (petrol-station blasts) started since the last call; each one plays its sound.
-    fn take_explosions(&mut self) -> u32 {
-        0
+    /// Positions of petrol-station blasts since the last call, in render space.
+    fn take_explosions(&mut self) -> Vec<glam::Vec3> {
+        Vec::new()
     }
     /// The sound viewer's transport, when the scene has one: the audio plugin plays what it asks for.
     fn sound_preview(&self) -> Option<crate::audio::preview::Preview> {

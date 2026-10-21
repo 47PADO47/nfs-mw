@@ -72,6 +72,9 @@ impl Scene for WorldScene {
     }
 
     fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
+        if self.spark_style != style {
+            self.impact_fx.clear();
+        }
         self.spark_style = style;
         if let Some(drive) = self.drive.as_mut() {
             drive.vehicle_effects.set_style(style);
@@ -80,6 +83,7 @@ impl Scene for WorldScene {
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
         self.vehicle_effects = [sparks, trails];
+        self.impact_fx.set_enabled(sparks);
         self.apply_vehicle_effects();
     }
 
@@ -110,7 +114,9 @@ impl Scene for WorldScene {
     }
 
     fn traffic_status(&self) -> Option<String> {
-        self.traffic.as_ref().map(|traffic| traffic.population_status(self.traffic_focus()))
+        self.traffic
+            .as_ref()
+            .map(|traffic| format!("{}\n{}", traffic.population_status(self.traffic_focus()), traffic.pursuit_status()))
     }
 
     fn set_environment(&mut self, value: crate::viewer::Environment) {
@@ -275,7 +281,7 @@ impl Scene for WorldScene {
         self.traffic.as_mut().map(|t| t.take_sounds()).unwrap_or_default()
     }
 
-    fn take_explosions(&mut self) -> u32 {
+    fn take_explosions(&mut self) -> Vec<glam::Vec3> {
         self.explosions.take_started()
     }
 
@@ -345,6 +351,12 @@ impl Scene for WorldScene {
     }
     fn answer_race(&mut self, answer: crate::viewer::RaceAnswer) -> bool {
         self.answer_race(answer)
+    }
+    fn race_active(&self) -> bool {
+        self.race_in_progress()
+    }
+    fn restart_race(&mut self) -> bool {
+        self.restart_race_now()
     }
     fn pay_bust(&mut self, marker: bool) -> bool {
         self.career_pay_bust(marker)

@@ -94,13 +94,23 @@ fn a_cop_in_a_chase_stays_while_it_is_about_to_meet_the_target() {
 fn a_wreck_in_play_stays_in_view_and_goes_once_it_may_respawn_out_of_play() {
     use crate::scenes::world::ai::collide::DriverClass;
     let mut world = world_with_a_stationary_cop_at(60.0);
-    let at = world.cars[0].physics_position();
-    world.cars[0].on_hit(1_000_000.0, true, DriverClass::Human, 50.0, at, 0.0);
+    let hit = crate::scenes::world::events::DamageHit {
+        arm: glam::Vec3::ZERO,
+        normal: glam::Vec3::X,
+        half: glam::Vec3::ONE,
+        closing_speed: 50.0,
+        force: 1_000_000.0,
+        shock_force: 500_000.0,
+        before_velocity: glam::Vec3::ZERO,
+        other: crate::scenes::world::events::OtherBody { vehicle: true, player: true, ..Default::default() },
+    };
+    world.cars[0].on_hit(1_000_000.0, true, DriverClass::Human, 50.0, hit, 0.0);
     assert!(world.cars[0].is_wrecked());
     let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, true));
-    run(&mut world, focus, &camera, 30.0);
+    // The wreck coasts to a stop (the native retirement): a few seconds, while it is still inside the window.
+    run(&mut world, focus, &camera, 3.0);
     assert_eq!(world.cars.len(), 1, "a wreck 210 m ahead of the camera is in play");
     let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, false));
-    run(&mut world, focus, &camera, 1.0);
+    run(&mut world, focus, &camera, 12.0);
     assert!(world.cars.is_empty(), "turn away and it is out of the cone");
 }

@@ -3,6 +3,7 @@ use blackbox_vehicle::rigid_body::RigidBodySpec;
 
 use super::*;
 
+mod collision_fields;
 mod duplicates;
 
 #[test]
@@ -61,6 +62,9 @@ fn models_sharing_original_physics_keys_keep_their_own_identity() {
         mass: 10000.0,
         tensor_scale: Vec3::splat(2.0),
         body: RigidBodySpec::default(),
+        walls: Default::default(),
+        no_world_collisions: false,
+        no_object_collisions: false,
         fallback_shape: Shape::Box,
         base_surface: 0,
         detach_impulse: -1.0,

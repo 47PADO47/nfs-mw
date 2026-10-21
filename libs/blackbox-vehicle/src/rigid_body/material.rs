@@ -4,6 +4,8 @@ use glam::Vec3;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ObjectMaterial {
+    /// Initial source immobility for object contacts; does not freeze integration.
+    pub immobile: bool,
     /// Static and kinetic friction coefficients.
     pub friction: [f32; 2],
     /// Restitution along each local body axis.
@@ -30,6 +32,12 @@ impl ObjectMaterial {
 
 impl Default for ObjectMaterial {
     fn default() -> Self {
-        Self { friction: [0.5, 0.3], elasticity: Vec3::splat(0.2), inertia_scale: Vec3::ONE, mass_scale: 1.0 }
+        Self {
+            immobile: false,
+            friction: [0.5, 0.3],
+            elasticity: Vec3::splat(0.2),
+            inertia_scale: Vec3::ONE,
+            mass_scale: 1.0,
+        }
     }
 }

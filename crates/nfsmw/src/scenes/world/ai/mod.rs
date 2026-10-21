@@ -12,6 +12,7 @@ mod cop_aims;
 mod cop_health;
 mod cop_lights;
 mod cop_manager;
+mod damage_effects;
 mod data;
 mod goal_aims;
 mod hitch;
@@ -51,7 +52,7 @@ mod stop;
 mod support;
 mod tally;
 mod traffic;
-#[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md §4)
+#[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
 mod trailer;
 
@@ -172,6 +173,8 @@ pub struct TrafficWorld {
     player_speed: f32,
     /// The player's physics position as of the last collision step (`None` when not driving).
     player_position: Option<Vec3>,
+    /// Current simulation camera in physics space for source damage suppression.
+    damage_view: Option<Vec3>,
     /// Whether a cop sees the player, as of the last sight test (`collide.rs`).
     seen_by_cops: bool,
     /// Simulated seconds since the last sight test, against `blackbox_pursuit::sight::TEST_PERIOD`.
@@ -250,6 +253,7 @@ impl TrafficWorld {
             hit_timer: 0.0,
             player_speed: 0.0,
             player_position: None,
+            damage_view: None,
             seen_by_cops: false,
             sight_clock: 0.0,
             strikes: collide::Strikes::default(),

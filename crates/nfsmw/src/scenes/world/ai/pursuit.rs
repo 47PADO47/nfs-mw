@@ -447,6 +447,8 @@ impl TrafficWorld {
         let infractions: Vec<String> = self.police.infractions().iter().map(|i| format!("{i:?}")).collect();
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
         let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
+        let heat = self.police.heat_value();
+        let seconds_per_level = self.police.settings().time_per_level(p.heat);
         let roadblocks = self.roadblocks.stats();
         let helicopter = self.helicopter_status().map_or("no helicopter".to_owned(), |h| {
             format!(
@@ -457,8 +459,7 @@ impl TrafficWorld {
             )
         });
         format!(
-            "heat {}: {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}; {}",
-            p.heat,
+            "heat {heat:.3} ({seconds_per_level:.0} s/level outside cooldown): {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}; {}",
             cops.len(),
             p.wanted(
                 self.police.settings(),

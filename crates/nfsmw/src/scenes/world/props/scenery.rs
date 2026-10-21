@@ -4,6 +4,7 @@
 pub(in crate::scenes::world) mod breaker_sites;
 mod effects;
 mod explosion;
+mod particles;
 #[cfg(test)]
 pub(in crate::scenes::world) mod ram;
 mod spawn;
@@ -53,6 +54,7 @@ pub(super) struct SceneryModel {
     triggered: bool,
     /// A pursuit breaker zone opened from this model since it was placed (`EBreakerStopCops`).
     fired: bool,
+    authored_visual: bool,
     owner: Weak<()>,
     parent_owner: Option<Rc<()>>,
     /// A prop the game put in the world with its own intact meshes (a roadblock's sawhorse): drawn from them until its
@@ -77,6 +79,7 @@ impl SceneryModel {
             spawned: BTreeSet::new(),
             triggered: false,
             fired: false,
+            authored_visual: false,
             owner: Rc::downgrade(&owner),
             parent_owner: Some(owner),
             intact: false,
@@ -115,6 +118,7 @@ impl SceneryModel {
         self.hidden = false;
         self.triggered = false;
         self.fired = false;
+        self.authored_visual = false;
         self.hidden_parts.clear();
         self.spawned.clear();
         let owner = Rc::new(());
@@ -157,6 +161,8 @@ pub(super) struct Stimulus {
 
 #[derive(Default)]
 pub(super) struct SceneryEvents {
+    particles: Vec<super::super::prop_effects::Command>,
+    authored_blasts: Vec<Vec3>,
     pub models: BTreeMap<u32, SceneryModel>,
     pending: VecDeque<Stimulus>,
     waves: Vec<explosion::Wave>,

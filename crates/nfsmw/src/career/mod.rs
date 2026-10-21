@@ -14,6 +14,7 @@
 #![allow(dead_code)]
 
 mod autosave;
+mod card;
 mod data;
 mod io;
 mod start;
@@ -22,9 +23,8 @@ mod state;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use autosave::{AutosaveInputs, handle_autosave};
-pub use data::{CareerData, event_id, race_event_id};
+pub use data::{CareerData, car_stats, event_id, race_event_id};
 pub use io::ProfileDir;
-pub use start::start_or_resume;
 pub use state::Career;
 
 /// What the career in the world asks the front end to do, taken once with `Scene::take_career_request`.
@@ -41,10 +41,22 @@ pub enum CareerRequest {
     RegionUnlock { stage: u8 },
 }
 
-/// The career being played, shared by the front end, the world scene and the mod backend. Empty outside career
-/// mode (quick race, free roam from the command line).
+/// The profile the player picked and whether it is being played, shared by the front end, the world scene and the mod
+/// backend. A profile is loaded from the alias list at the start (or by the alias manager) and stays loaded across the
+/// menus; it is *played* only from the career menus on, so the quick race, free roam from the command line and every other
+/// place that asks [`CareerHandle::with`] or [`CareerHandle::is_active`] sees no career. The menus that show the loaded
+/// profile (the main menu card, the alias manager) use [`CareerHandle::with_loaded`].
 #[derive(Clone, Default)]
-pub struct CareerHandle(Arc<Mutex<Option<Career>>>);
+pub struct CareerHandle(Arc<Mutex<Profile>>);
+
+/// What a [`CareerHandle`] holds.
+#[derive(Default)]
+struct Profile {
+    career: Option<Career>,
+    playing: bool,
+    /// The safe house menu stands before the world exists (Resume Career): the menus offer less there.
+    prelude: bool,
+}
 
 impl CareerHandle {
     /// The process's career handle. The screens are built by name with no constructor data (`frontend::factory`), so
@@ -54,27 +66,69 @@ impl CareerHandle {
         SHARED.get_or_init(CareerHandle::default).clone()
     }
 
-    /// Starts playing `career`, replacing the one before.
-    pub fn set(&self, career: Career) {
-        *self.lock() = Some(career);
+    /// Loads `career` as the player's profile, replacing the one before. It is not played yet ([`Self::begin_play`]).
+    pub fn load(&self, career: Career) {
+        *self.lock() = Profile { career: Some(career), ..Profile::default() };
     }
 
-    /// Leaves career mode.
+    /// Starts playing `career`, replacing the one before.
+    pub fn set(&self, career: Career) {
+        *self.lock() = Profile { career: Some(career), playing: true, prelude: false };
+    }
+
+    /// Plays the loaded profile. Nothing happens when none is loaded.
+    pub fn begin_play(&self) {
+        let mut profile = self.lock();
+        profile.playing = profile.career.is_some();
+    }
+
+    /// Leaves career mode; the profile stays loaded.
+    pub fn end_play(&self) {
+        let mut profile = self.lock();
+        profile.playing = false;
+        profile.prelude = false;
+    }
+
+    /// Marks the safe house menu as standing before the world (or not).
+    pub fn set_prelude(&self, prelude: bool) {
+        self.lock().prelude = prelude;
+    }
+
+    /// True while the safe house menu stands before the world exists.
+    pub fn is_prelude(&self) -> bool {
+        self.lock().prelude
+    }
+
+    /// Unloads the profile.
     pub fn clear(&self) {
-        *self.lock() = None;
+        *self.lock() = Profile::default();
     }
 
     /// True while a career is being played.
     pub fn is_active(&self) -> bool {
-        self.lock().is_some()
+        self.lock().playing
+    }
+
+    /// True while a profile is loaded, played or not.
+    pub fn is_loaded(&self) -> bool {
+        self.lock().career.is_some()
     }
 
     /// Runs `f` on the career, or returns `None` outside career mode.
     pub fn with<R>(&self, f: impl FnOnce(&mut Career) -> R) -> Option<R> {
-        self.lock().as_mut().map(f)
+        let mut profile = self.lock();
+        if !profile.playing {
+            return None;
+        }
+        profile.career.as_mut().map(f)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Option<Career>> {
+    /// Runs `f` on the loaded profile, played or not, or returns `None` with no profile loaded.
+    pub fn with_loaded<R>(&self, f: impl FnOnce(&mut Career) -> R) -> Option<R> {
+        self.lock().career.as_mut().map(f)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Profile> {
         // A panic while the lock was held leaves the career as it was; keep using it.
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }

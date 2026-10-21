@@ -6,6 +6,9 @@ use glam::Vec3;
 /// belong to: a particle's value is drawn from `[value * (1 - variance), value)`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EmitterSpec {
+    pub animation: crate::Animation,
+    /// Inclusive group-authored emitter activation range.
+    pub intensity_range: [f32; 2],
     /// Particles per second at intensity 1.
     pub rate: f32,
     /// Fraction taken off `rate` (a fixed reduction, not a random one).
@@ -56,20 +59,24 @@ pub struct EmitterSpec {
     /// A particle whose alpha falls to this value or below dies (`None`: never).
     pub kill_alpha: Option<u8>,
     /// The emitter is on for `on_cycle` seconds, then off for `off_cycle` seconds, each drawn additively within its
-    /// variance. A zero `on_cycle` means always on.
+    /// variance (drawn between zero and the variance). Zero on duration and variance means always on.
     pub on_cycle: f32,
     pub on_cycle_variance: f32,
     pub off_cycle: f32,
     pub off_cycle_variance: f32,
     /// Seconds of silence before the first on-cycle.
     pub start_delay: f32,
-    /// Stop for good after the first on-cycle.
+    /// Draw StartDelay between zero and its authored value.
+    pub start_delay_random: bool,
+    /// Stop after the first on-cycle. With no on-cycle, the original controller stays on.
     pub one_shot: bool,
 }
 
 impl Default for EmitterSpec {
     fn default() -> Self {
         Self {
+            animation: crate::Animation::default(),
+            intensity_range: [0.0, f32::MAX],
             rate: 0.0,
             rate_variance: 0.0,
             life: 1.0,
@@ -102,6 +109,7 @@ impl Default for EmitterSpec {
             off_cycle: 0.0,
             off_cycle_variance: 0.0,
             start_delay: 0.0,
+            start_delay_random: false,
             one_shot: false,
         }
     }

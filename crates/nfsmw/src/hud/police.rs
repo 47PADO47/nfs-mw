@@ -4,6 +4,8 @@ use blackbox_feng::{ObjectRef, PackageId, Runtime};
 
 use super::HudState;
 
+mod heat;
+
 /// Original PC ground detector range, metres (`docs/specs/hud-pursuit-state.md`).
 pub const RADAR_RANGE: f32 = 300.0;
 
@@ -21,7 +23,7 @@ impl RadarHud {
 }
 
 pub(super) struct Binding {
-    heat_labels: Vec<ObjectRef>,
+    heat: heat::Binding,
     heat_group: Option<ObjectRef>,
     engaged: Option<ObjectRef>,
     damaged: Option<ObjectRef>,
@@ -30,18 +32,8 @@ pub(super) struct Binding {
 
 impl Binding {
     pub fn new(rt: &Runtime, package: PackageId) -> Self {
-        let heat_labels = rt
-            .package(package)
-            .into_iter()
-            .flat_map(|p| p.objects.iter().enumerate())
-            .filter(|(_, object)| {
-                object.kind == blackbox_feng::package::ObjectKind::String
-                    && matches!(object.name_hash, 0xA81A_2028 | 0x7F91_DA62)
-            })
-            .map(|(index, _)| ObjectRef { package, index })
-            .collect();
         Self {
-            heat_labels,
+            heat: heat::Binding::new(rt, package),
             heat_group: rt.find(package, 0xC46A_80A9),
             engaged: rt.find(package, 0x8149_18CA),
             damaged: rt.find(package, 0x5FA7_0D4C),
@@ -55,10 +47,7 @@ impl Binding {
 
     pub fn apply(&mut self, rt: &mut Runtime, state: &HudState, mirror: bool) {
         self.radar.apply(rt, state, mirror);
-        for &label in &self.heat_labels {
-            rt.set_text(label, format!("x{}", state.vehicle_heat.floor().clamp(1.0, 10.0) as u32));
-            rt.set_alpha(label, 255);
-        }
+        self.heat.apply(rt, state.vehicle_heat);
         if let Some(group) = self.heat_group {
             rt.set_alpha(group, 255);
         }

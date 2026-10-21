@@ -4,6 +4,32 @@ use crate::{Curve, Emitter, EmitterSpec, Frame, MAX_PARTICLES};
 
 const STEP: f32 = 1.0 / 60.0;
 
+#[test]
+fn forced_one_shot_respects_delay_and_on_cycle_then_drains() {
+    let mut emitter = Emitter::new(EmitterSpec { start_delay: 0.1, on_cycle: 0.2, off_cycle: 1.0, ..spec() }, 1);
+    emitter.force_one_shot();
+    run(&mut emitter, 5, &Frame::default());
+    assert!(emitter.is_empty());
+    run(&mut emitter, 10, &Frame::default());
+    assert!(!emitter.is_empty());
+    run(&mut emitter, 120, &Frame::default());
+    assert!(emitter.finished_spawning() && emitter.is_empty());
+}
+
+#[test]
+fn zero_cycle_forced_source_stays_on_and_uses_life_scaled_batches() {
+    let mut emitter = Emitter::new(spec(), 1);
+    emitter.force_one_shot();
+    emitter.step(STEP, &Frame::default());
+    assert_eq!(emitter.len(), 30);
+    assert!(!emitter.finished_spawning());
+    emitter.step(STEP, &Frame::default());
+    assert_eq!(emitter.len(), 60);
+    emitter.set_enabled(false);
+    run(&mut emitter, 120, &Frame::default());
+    assert!(emitter.is_empty());
+}
+
 fn spec() -> EmitterSpec {
     EmitterSpec { rate: 60.0, life: 0.5, speed: 4.0, ..Default::default() }
 }
@@ -173,8 +199,13 @@ fn the_same_seed_gives_the_same_particles() {
 
 #[test]
 fn a_sprite_turns_about_the_view_direction() {
-    let sprite =
-        crate::Sprite { position: Vec3::ZERO, half_size: 1.0, angle: std::f32::consts::FRAC_PI_2, color: [255; 4] };
+    let sprite = crate::Sprite {
+        uv: [[0.0; 2], [1.0; 2]],
+        position: Vec3::ZERO,
+        half_size: 1.0,
+        angle: std::f32::consts::FRAC_PI_2,
+        color: [255; 4],
+    };
     // Looking along +x with right = -y... any right/up pair turns by a quarter turn.
     let corners = sprite.corners(Vec3::Y, Vec3::Z, Vec3::X);
     for c in corners {

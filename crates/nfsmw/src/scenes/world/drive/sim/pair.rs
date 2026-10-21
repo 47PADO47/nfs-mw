@@ -1,5 +1,5 @@
 //! Two cars hitting each other.
-//! Spec: `docs/specs/vehicle-rigid-body.md` (§6).
+//! Spec: `docs/specs/vehicle-rigid-body.md` (Ã‚Â§6).
 
 use crate::scenes::world::events::DamageHit;
 use crate::scenes::world::object_geometry::{BodyGeometryFrame, object_shapes};
@@ -19,6 +19,8 @@ pub struct CarHit {
     pub point: Vec3,
     /// How the cars met, for the police radio (`pair_contact.rs`).
     pub pair: PairContact,
+    /// Original callback inputs, measured separately for each body before/after resolution.
+    pub damage: [DamageHit; 2],
 }
 
 impl CarSim {
@@ -79,6 +81,9 @@ impl CarSim {
         let mut pair = PairContact::capture(self.body(), other.body(), contact.point, contact.normal, closing);
         let sound = crate::audio::CarContact {
             sound_profile: 0,
+            audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
+                self.body().rotation().transpose() * contact.normal,
+            )),
             detached: false,
             source: crate::audio::ContactSource::Object,
             identity: other.sound_identity,
@@ -92,6 +97,9 @@ impl CarSim {
             bottom: false,
         };
         let other_sound = crate::audio::CarContact {
+            audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
+                other.body().rotation().transpose() * -contact.normal,
+            )),
             identity: self.sound_identity,
             surface: surface_a,
             normal: -sound.normal,
@@ -115,17 +123,43 @@ impl CarSim {
                 .pending_sound_contacts
                 .push(crate::audio::CarContact { delta_v: response.impulse_delta_v[1], ..other_sound });
         }
-        let damage_a = damage_a.resolved(a, true);
-        let damage_b = damage_b.resolved(b, true);
+        let mut damage_a = damage_a.resolved(a, response.notification_delta_v[0], true);
+        let mut damage_b = damage_b.resolved(b, response.notification_delta_v[1], true);
+        // Callback position remains the original collider point, while arms use separated bodies.
+        let closing = response.reaction.closing_speed.abs();
+        damage_a.arm = a.rotation().transpose() * (contact.point - a.position);
+        damage_b.arm = b.rotation().transpose() * (contact.point - b.position);
+        damage_a.closing_speed = closing;
+        damage_b.closing_speed = closing;
+        damage_a.shock_force = response.reaction.impulse;
+        damage_b.shock_force = response.reaction.impulse;
         if let Some(events) = self.events.as_mut() {
             events.hit(damage_a);
         }
         if let Some(events) = other.events.as_mut() {
             events.hit(damage_b);
         }
+        self.queue_effect(crate::scenes::world::impact_effects::RawContact::new(
+            crate::scenes::world::impact_effects::Kind::Object,
+            surface_b,
+            contact.point,
+            contact.normal,
+            relative,
+            response.notification_delta_v[0],
+            self.vehicle.body().linear_velocity,
+        ));
+        other.queue_effect(crate::scenes::world::impact_effects::RawContact::new(
+            crate::scenes::world::impact_effects::Kind::Object,
+            surface_a,
+            contact.point,
+            -contact.normal,
+            -relative,
+            response.notification_delta_v[1],
+            other.vehicle.body().linear_velocity,
+        ));
         self.vehicle.notify_collision(response.impulse_delta_v[0]);
         other.vehicle.notify_collision(response.impulse_delta_v[1]);
-        Some(CarHit { impulse: response.reaction.impulse, point: contact.point, pair })
+        Some(CarHit { impulse: response.reaction.impulse, point: contact.point, pair, damage: [damage_a, damage_b] })
     }
 
     /// Temporary parameters selected for this contact, including the grounded player's roll centre.
@@ -139,6 +173,7 @@ impl CarSim {
         let body = self.vehicle.body();
         let material = body.spec().objects;
         let mut hit = BodyHit {
+            immobile: material.immobile,
             restitution: material.restitution(body.rotation().transpose() * normal),
             inertia_scale: material.inertia_scale,
             mass_scale: material.mass_scale,

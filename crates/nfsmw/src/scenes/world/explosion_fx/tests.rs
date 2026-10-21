@@ -28,6 +28,8 @@ fn requests_are_dropped_when_the_effect_has_no_art() {
     assert!(fx.queued.is_empty());
     fx.step(1.0 / 60.0);
     assert!(fx.blasts.is_empty());
+    assert_eq!(fx.take_started(), [Vec3::ZERO, Vec3::X], "audio keeps the original blast positions without art");
+    assert!(fx.take_started().is_empty(), "one notification per blast");
 }
 
 #[test]

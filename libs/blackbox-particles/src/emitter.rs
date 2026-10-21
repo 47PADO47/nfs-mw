@@ -31,6 +31,8 @@ impl Default for Frame {
 /// One billboard to draw.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sprite {
+    /// Quantized atlas rectangle, minimum and maximum UV coordinates.
+    pub uv: [[f32; 2]; 2],
     pub position: Vec3,
     /// Half the width of the square; the corners are `position +- right * half_size +- up * half_size`
     /// after turning `right` and `up` by `angle` about the view direction.
@@ -53,6 +55,8 @@ impl Sprite {
 
 #[derive(Debug, Clone, Copy)]
 struct Particle {
+    animation_phase: u16,
+    animation_cell: u16,
     position: Vec3,
     velocity: Vec3,
     accel: Vec3,
@@ -64,19 +68,6 @@ struct Particle {
     half_size: f32,
     angle: f32,
     color: [u8; 4],
-}
-
-/// Where an emitter is in its on and off cycles.
-#[derive(Debug, Clone, Default)]
-struct Cycle {
-    started: bool,
-    on: bool,
-    /// Seconds left in the current on or off phase.
-    left: f32,
-    /// Seconds left before the first on-cycle.
-    delay: f32,
-    /// A one-shot emitter has finished its first on-cycle.
-    done: bool,
 }
 
 /// A running emitter.
@@ -93,7 +84,8 @@ pub struct Emitter {
     enabled: bool,
     /// Live particles allowed; a spawn past it is skipped.
     limit: usize,
-    cycle: Cycle,
+    cycle: crate::control::Control,
+    forced_one_shot: bool,
 }
 
 impl Emitter {
@@ -110,7 +102,8 @@ impl Emitter {
             rng: Rng::new(seed),
             enabled: true,
             limit: MAX_PARTICLES,
-            cycle: Cycle::default(),
+            cycle: crate::control::Control::default(),
+            forced_one_shot: false,
         }
     }
 
@@ -143,6 +136,15 @@ impl Emitter {
         self.enabled
     }
 
+    /// Set the original forced one-shot flag. A source without an on-cycle stays continuously on.
+    pub fn force_one_shot(&mut self) {
+        self.forced_one_shot = true;
+    }
+
+    pub fn finished_spawning(&self) -> bool {
+        !self.enabled || self.cycle.finished()
+    }
+
     pub fn len(&self) -> usize {
         self.particles.len()
     }
@@ -155,7 +157,7 @@ impl Emitter {
     pub fn clear(&mut self) {
         self.particles.clear();
         self.owed = 0.0;
-        self.cycle = Cycle::default();
+        self.cycle = crate::control::Control::default();
     }
 
     /// Spawn (when enabled) and then advance every particle, the new ones included, by `dt` seconds.
@@ -163,14 +165,20 @@ impl Emitter {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
-        if self.enabled && self.cycle_on(dt) {
-            self.spawn(dt, frame);
+        if self.enabled
+            && let Some(delta) = self
+                .cycle
+                .emission_delta(&self.spec, self.forced_one_shot, &mut self.rng, dt)
+                .filter(|delta| *delta > 0.0)
+        {
+            self.spawn(delta, frame);
         }
         self.advance(dt);
     }
 
     pub fn sprites(&self) -> impl Iterator<Item = Sprite> + '_ {
         self.particles.iter().map(|p| Sprite {
+            uv: self.spec.animation.uv(p.animation_cell),
             position: p.position,
             half_size: p.half_size,
             angle: p.angle,
@@ -178,53 +186,17 @@ impl Emitter {
         })
     }
 
-    /// Advance the on and off cycles by `dt` and say whether the emitter is on for this step. Continuous emitters
-    /// (no on-cycle) are always on.
-    fn cycle_on(&mut self, dt: f32) -> bool {
-        let (on_cycle, on_variance) = (self.spec.on_cycle, self.spec.on_cycle_variance);
-        if on_cycle <= 0.0 {
-            return true;
-        }
-        if !self.cycle.started {
-            self.cycle = Cycle { started: true, on: true, delay: self.spec.start_delay, ..Cycle::default() };
-            self.cycle.left = self.draw_cycle(on_cycle, on_variance);
-        }
-        if self.cycle.done {
-            return false;
-        }
-        if self.cycle.delay > 0.0 {
-            self.cycle.delay -= dt;
-            return false;
-        }
-        self.cycle.left -= dt;
-        // A zero-length phase passes at once; the bound keeps a degenerate spec from looping.
-        for _ in 0..4 {
-            if self.cycle.left > 0.0 {
-                break;
-            }
-            if self.cycle.on && self.spec.one_shot {
-                self.cycle.done = true;
-                return false;
-            }
-            self.cycle.on = !self.cycle.on;
-            let next = match self.cycle.on {
-                true => self.draw_cycle(on_cycle, on_variance),
-                false => self.draw_cycle(self.spec.off_cycle, self.spec.off_cycle_variance),
-            };
-            self.cycle.left += next;
-        }
-        self.cycle.on
-    }
-
-    /// A phase length: `length` plus or minus `variance`, never negative.
-    fn draw_cycle(&mut self, length: f32, variance: f32) -> f32 {
-        (length + (self.rng.unit() * 2.0 - 1.0) * variance).max(0.0)
-    }
-
     fn spawn(&mut self, dt: f32, frame: &Frame) {
-        if frame.intensity <= 0.0 {
+        if frame.intensity <= 0.0
+            || frame.intensity < self.spec.intensity_range[0]
+            || frame.intensity > self.spec.intensity_range[1]
+        {
             return;
         }
+        let dt = match (self.forced_one_shot || self.spec.one_shot) && !crate::control::has_on_cycle(&self.spec, true) {
+            true => (self.spec.life * (1.0 - self.spec.life_variance)).max(0.0),
+            false => dt,
+        };
         let rate = frame.intensity * self.spec.rate;
         let mut owed_now = (rate - self.spec.rate_variance * rate) * dt;
         let mut count = owed_now as usize;
@@ -293,7 +265,10 @@ impl Emitter {
         let initial_angle = (rng.below(s.initial_angle_range) - s.initial_angle_range * 0.5).to_radians();
         let turn_back = s.random_rotation_direction && rng.bit();
         let rotation_offset = rng.below(s.rotation_variance).clamp(0.0, 1.0);
+        let (animation_phase, animation_cell) = s.animation.birth(rng);
         let mut particle = Particle {
+            animation_phase,
+            animation_cell,
             position,
             velocity,
             accel,
@@ -331,6 +306,7 @@ impl Emitter {
         }
         p.life -= dt;
         let s = &self.spec;
+        s.animation.advance(&mut p.animation_phase, &mut p.animation_cell, dt);
         if s.drag > 0.0 {
             p.velocity += p.velocity * (-dt * s.drag * p.velocity.length()).max(-1.0);
         }

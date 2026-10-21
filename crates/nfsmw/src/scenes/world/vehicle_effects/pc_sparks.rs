@@ -3,19 +3,77 @@
 use super::super::{drive::VisualContact, space};
 use super::{pc_emitter::PcSource, pc_particle::PcParticle};
 use blackbox_gfx::{BlendMode, EffectVertex, TextureHandle, TexturedEffect};
-use glam::{Quat, Vec3};
-use nfsmw_data::vehicle_effects::{CollisionEffects, PcSparkLink};
+use glam::{Mat3, Quat, Vec3};
+use nfsmw_data::vehicle_effects::PcSparkLink;
 use std::collections::HashMap;
 
-#[derive(Default)]
-pub(super) struct PcSparks {
+pub(in crate::scenes::world) struct PcSparks {
     particles: Vec<PcParticle>,
     hits: Vec<PcSource>,
     scrape: Vec<PcSource>,
     pub emitted: u64,
+    limit: usize,
+}
+
+impl Default for PcSparks {
+    fn default() -> Self {
+        Self { particles: Vec::new(), hits: Vec::new(), scrape: Vec::new(), emitted: 0, limit: 1024 }
+    }
 }
 
 impl PcSparks {
+    pub fn set_limit(&mut self, limit: usize) {
+        self.limit = limit.clamp(1, 1024);
+    }
+    pub fn stop_scrape(&mut self) {
+        self.scrape.clear();
+    }
+    pub fn submit(&mut self, point: Vec3, normal: Vec3, link: PcSparkLink, owner: Vec3, intensity: f32, hit: bool) {
+        // A one-shot's native wrapper creates no group at zero mapped intensity.
+        if hit && intensity <= 0.0 {
+            return;
+        }
+        let c = VisualContact {
+            point,
+            normal,
+            velocity: Vec3::ZERO,
+            impulse_delta_v: 0.0,
+            surface: None,
+            kind: super::super::drive::walls::ContactKind::Face,
+            info: None,
+            prop: None,
+        };
+        let mut fresh = sources(&c, link, owner, intensity, hit, self.emitted);
+        let frame = contact_frame(normal, hit);
+        for source in &mut fresh {
+            source.frame = frame;
+        }
+        if hit {
+            if self.hits.len() + fresh.len() <= 128 {
+                self.hits.extend(fresh);
+            }
+            return;
+        }
+        let same = fresh.len() == self.scrape.len()
+            && fresh.iter().zip(&self.scrape).all(|(a, b)| a.profile.key == b.profile.key);
+        if !same {
+            self.scrape = fresh;
+            return;
+        }
+        for (source, new) in self.scrape.iter_mut().zip(fresh) {
+            source.point = new.point;
+            source.rotation = new.rotation;
+            source.frame = new.frame;
+            source.owner = new.owner;
+            source.intensity = intensity;
+        }
+    }
+    pub fn update(&mut self, dt: f32) {
+        self.update_sources(dt);
+    }
+    pub fn pending(&self) -> bool {
+        !self.hits.is_empty() || !self.scrape.is_empty()
+    }
     pub fn len(&self) -> usize {
         self.particles.len()
     }
@@ -32,76 +90,17 @@ impl PcSparks {
         self.particles.retain(PcParticle::alive);
     }
 
-    pub fn emit(&mut self, contacts: &[VisualContact], data: &CollisionEffects, owner: Vec3, dt: f32) {
-        let mut hit = None;
-        let mut scrape = None;
-        for c in contacts {
-            let Some(surface) = c.surface else { continue };
-            if !c.point.is_finite()
-                || !c.velocity.is_finite()
-                || !c.normal.is_finite()
-                || (c.normal.length_squared() - 1.0).abs() > 0.05
-                || !c.impulse_delta_v.is_finite()
-            {
-                continue;
-            }
-            let inward = c.velocity.dot(c.normal);
-            let sliding = (c.velocity - c.normal * inward).length();
-            if inward < -1.0
-                && c.impulse_delta_v > 0.0
-                && let Some(link) = data.pc_hit(surface)
-            {
-                let i = intensity(link, c.impulse_delta_v);
-                if i > hit.map_or(0.0, |(_, _, value)| value) {
-                    hit = Some((c, link, i));
-                }
-            }
-            if inward <= 0.1
-                && let Some(link) = data.pc_scrape(surface)
-                && sliding >= link.min
-            {
-                let i = intensity(link, sliding);
-                if i > scrape.map_or(0.0, |(_, _, value)| value) {
-                    scrape = Some((c, link, i));
-                }
-            }
-        }
-        if let Some((c, link, i)) = hit {
-            // Each impact owns its one-shot clocks, so its small glow can outlast contact.
-            if self.hits.len() + link.emitters.iter().flatten().count() <= 128 {
-                self.hits.extend(sources(c, link, owner, i, true, self.emitted));
-            }
-            scrape = None;
-        }
-        let Some((c, link, i)) = scrape else {
-            self.scrape.clear();
-            self.update_sources(dt);
-            return;
-        };
-        let fresh = sources(c, link, owner, i, false, self.emitted);
-        let same = fresh.len() == self.scrape.len()
-            && fresh.iter().zip(&self.scrape).all(|(a, b)| a.profile.key == b.profile.key);
-        if !same {
-            self.scrape = fresh;
-            self.update_sources(dt);
-            return;
-        }
-        for (source, new) in self.scrape.iter_mut().zip(fresh) {
-            source.point = new.point;
-            source.rotation = new.rotation;
-            source.owner = new.owner;
-            source.intensity = i;
-        }
-        self.update_sources(dt);
-    }
-
     fn update_sources(&mut self, dt: f32) {
         for source in self.hits.iter_mut().chain(&mut self.scrape) {
+            // Disabled persistent groups keep their delay/cycle phase until re-enabled.
+            if source.intensity <= 0.0 {
+                continue;
+            }
             for _ in 0..source.births(dt) {
-                if self.particles.len() == 1024 {
+                if self.particles.len() >= self.limit {
                     break;
                 }
-                let p = PcParticle::spawn(source.profile, source.point, source.rotation, source.owner, self.emitted);
+                let p = PcParticle::spawn_frame(source.profile, source.point, source.frame, source.owner, self.emitted);
                 self.particles.push(p);
                 self.emitted += 1;
             }
@@ -174,8 +173,26 @@ fn sources(c: &VisualContact, link: PcSparkLink, owner: Vec3, intensity: f32, hi
         .collect()
 }
 
-fn intensity(link: PcSparkLink, input: f32) -> f32 {
-    let x = ((input - link.min) / (link.max - link.min)).clamp(0.0, 1.0);
-    let [a, b, c, d] = link.quadratic;
-    (a + x * (b + x * (c + x * d))).clamp(0.0, 1.0)
+fn contact_frame(normal: Vec3, hit: bool) -> Mat3 {
+    if !hit {
+        return Mat3::from_quat(Quat::from_rotation_arc(Vec3::Y, space::to_render(normal.to_array())));
+    }
+    let rotation = Mat3::from_quat(Quat::from_rotation_arc(Vec3::Y, normal));
+    Mat3::from_cols(
+        space::to_render(rotation.z_axis.to_array()),
+        -space::to_render(rotation.x_axis.to_array()),
+        space::to_render(rotation.y_axis.to_array()),
+    )
+}
+#[cfg(test)]
+mod contact_frame_tests {
+    use super::*;
+    #[test]
+    fn one_shot_rotates_physics_up_then_swizzles_all_basis_vectors() {
+        let normal = Vec3::new(0.3, 0.4, 0.5).normalize();
+        let frame = contact_frame(normal, true);
+        assert!(frame.z_axis.distance(space::to_render(normal.to_array())) < 1e-6);
+        assert!((frame.determinant() - 1.0).abs() < 1e-6);
+        assert_eq!(contact_frame(Vec3::Y, true), Mat3::IDENTITY);
+    }
 }

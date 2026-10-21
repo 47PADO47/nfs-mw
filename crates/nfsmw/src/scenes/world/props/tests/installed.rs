@@ -63,6 +63,16 @@ fn every_installed_placement_preserves_its_identity_dynamics_and_initial_visual_
             let body = collider.body.as_ref().unwrap();
             let spec = collider.shape.dynamics.as_ref().unwrap();
             let spawn = p.spawner.unwrap();
+            let attributes = db.collection_by_key(vlt_hash("smackable"), spawn.attributes).unwrap();
+            assert!(spec.detach_impulse.is_finite() && spec.tensor_scale.is_finite());
+            assert_eq!(spec.detach_impulse, attributes.get_f32("DETACH_FORCE").unwrap_or(0.0));
+            assert_eq!(spec.no_car_effect, attributes.get("NO_CAR_EFFECT").and_then(|v| v.as_bool()).unwrap_or(false));
+            let source_body = nfsmw_data::car::physics::rigid_body_spec(nfsmw_data::car::physics::Fields(
+                attributes.follow("rigidbodyspecs").unwrap(),
+            ));
+            assert_eq!(body.rigid.spec().objects, source_body.objects);
+            assert_eq!(body.rigid.spec().gravity, source_body.gravity);
+            assert_eq!(body.rigid.spec().ground_friction, source_body.ground_friction);
             classes.insert(spawn.attributes);
             assert_eq!(p.prop_id, spawn.unique_id + 1);
             assert_eq!(body.attached, spec.detach_impulse != 0.0);
@@ -90,7 +100,10 @@ fn every_installed_placement_preserves_its_identity_dynamics_and_initial_visual_
             );
             let bounds = collider.physics_bounds();
             assert!(bounds.min.is_finite() && bounds.max.is_finite());
-            assert!(candidate_ids(&world, &bounds).contains(&p.prop_id));
+            assert_eq!(
+                candidate_ids(&world, &bounds).contains(&p.prop_id),
+                !spec.no_object_collisions && !body.geometry.primitives.is_empty()
+            );
         }
         world.remove_tile(1);
         assert!(world.colliders.is_empty() && world.grid.is_empty());

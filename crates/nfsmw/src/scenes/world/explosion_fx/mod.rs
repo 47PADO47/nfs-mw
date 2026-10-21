@@ -90,20 +90,27 @@ pub struct ExplosionFx {
     /// How many blasts have started, for their random seeds.
     started: u64,
     /// Blasts started since the audio last asked (see [`ExplosionFx::take_started`]).
-    unannounced: u32,
+    unannounced: Vec<Vec3>,
 }
 
 impl Default for ExplosionFx {
     fn default() -> Self {
-        Self { load: Load::Unloaded, queued: Vec::new(), blasts: Vec::new(), started: 0, unannounced: 0 }
+        Self { load: Load::Unloaded, queued: Vec::new(), blasts: Vec::new(), started: 0, unannounced: Vec::new() }
     }
 }
 
 impl ExplosionFx {
+    /// Keep the blast sound when the sequencer already supplied its particle visuals.
+    pub fn announce_authored(&mut self, points: impl IntoIterator<Item = Vec3>) {
+        self.unannounced.extend(points);
+    }
     /// Queue blasts at these points. Without the effect's art there is nothing to show, so they are dropped.
     pub fn request(&mut self, points: impl IntoIterator<Item = Vec3>) {
-        if !matches!(self.load, Load::Missing) {
-            self.queued.extend(points);
+        for point in points {
+            self.unannounced.push(point);
+            if !matches!(self.load, Load::Missing) {
+                self.queued.push(point);
+            }
         }
     }
 
@@ -111,6 +118,7 @@ impl ExplosionFx {
     pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
         self.queued.clear();
         self.blasts.clear();
+        self.unannounced.clear();
         if let Load::Ready(set) = std::mem::replace(&mut self.load, Load::Missing) {
             set.destroy(renderer);
         }
@@ -141,7 +149,6 @@ impl ExplosionFx {
                 self.blasts.remove(0);
             }
             self.started += 1;
-            self.unannounced += 1;
             self.blasts.push(Blast::new(&set.templates, position, self.started));
         }
         for blast in &mut self.blasts {
@@ -150,8 +157,8 @@ impl ExplosionFx {
         self.blasts.retain(Blast::alive);
     }
 
-    /// How many blasts started since the last call (the audio plays one explosion sound for each).
-    pub fn take_started(&mut self) -> u32 {
+    /// Blast points, independent of visual loading and drained exactly once.
+    pub fn take_started(&mut self) -> Vec<Vec3> {
         std::mem::take(&mut self.unannounced)
     }
 
@@ -192,11 +199,12 @@ pub(super) fn draw<'a>(
                     let mut color = sprite.color;
                     color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
                     // The texture's top edge is v = 0: start from the upper-left corner.
-                    blackbox_render::EffectLayer::particle_quad(
+                    blackbox_render::EffectLayer::particle_quad_uv(
                         &mut vertices,
                         [corners[3], corners[2], corners[1], corners[0]],
                         color,
                         [0.0; 2],
+                        sprite.uv,
                     );
                 }
             }

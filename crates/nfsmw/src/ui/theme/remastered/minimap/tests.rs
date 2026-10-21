@@ -111,7 +111,7 @@ fn the_heat_shows_as_a_multiplier_and_as_lit_segments() {
     let skin = test_skin();
     let dim = quads_of(&nodes, skin.colour(keys::MINIMAP_HEAT_DIM).expect("dim"));
     let lit = quads_of(&nodes, skin.colour(keys::MINIMAP_HEAT).expect("lit"));
-    assert!(dim > 0 && dim % 7 == 0, "{dim}");
+    assert!(dim > 0 && dim.is_multiple_of(7), "{dim}");
     assert!(lit >= dim / 7 * 3, "{lit} lit against {dim} dim");
     let one = built(package(0.0, true, 255), &HudState { vehicle_heat: 9.5, ..Default::default() });
     assert_eq!(quads_of(&one, skin.colour(keys::MINIMAP_HEAT_DIM).expect("dim")), dim / 7, "one segment is left dim");

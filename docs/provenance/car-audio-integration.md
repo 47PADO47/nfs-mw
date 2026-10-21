@@ -19,10 +19,30 @@ collision-controller comparisons, researched 2026-10-14. No code or assets copie
   authored stitch-module compatibility. Backend documentation established the
   signed panning range. Added actual output tests for left/centre/right placement,
   gentle landing, physical impact completion and five prop profiles.
+- **2026-10-20 prop callbacks:** matched PC Effects hit handling and the
+  independently readable Effects collision listener establish per-owner
+  WORLD/OBJECT/GROUND actions and source profile selection. Runtime records now
+  include prop pairs, successful ground support and authored barriers, consumed
+  on the same completed simulation tick without duplicating player/prop events
+  or feeding surrounding prop impacts into the player's camera response.
+- **Directional lookup:** original PC selector branches were executed in
+  isolation for ten signed-normal and strict-boundary cases. Installed data has
+  3,674 car/prop collision linkage records across 121 effects wrappers; 1,526
+  have directional audio fields and 1,274 inherit at least one audio field.
+  Resolving exact inherited fields replaces arbitrary own-reference enumeration
+  and DESCRIPTION-based front selection. Installed regressions compare every
+  reachable zone to the source reference, including fallback and silent rules.
+- **Audio intensity/culling:** matching PC one-shot world-effect handling and its
+  clamped polynomial helper establish wrapper AudioQuadratic and AudioCullDist.
+  Thirty-six isolated original curve cases passed. All 121 reached installed
+  wrappers have authored culling radii; the common nonlinear curves affect
+  both impact stitch levels and scrape strength. The port applies those fields
+  once after physical acceptance, retaining physical detachment acceptance
+  separately from whether its audio is audible.
 - **Playback limits:** collision family limit25 and the three-landing pool are
   retained. Piece variation uses the port RNG; its sequence is not a PC match.
   Mono panning follows the ideal native speaker law rather than its byte-quantized
-  table. Other prop-prop/prop-ground sound producers remain incomplete.
+  table. Matched live original audio and global voice competition remain open.
 - **Known differences:** no live original-game recording has established audible
   equivalence or absolute loudness calibration. Environmental reverb, signed skid
   telemetry/modules, road transitions/wet overlays, transmission modules,

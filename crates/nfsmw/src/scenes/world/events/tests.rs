@@ -45,6 +45,11 @@ fn engine() -> VehicleEvents {
         strength: 20_000.0,
         suppress_distance: 50.0,
         visual_scale: [1.0; 10],
+        hit_points: 5.0,
+        hit_point_threshold: 0.75,
+        hit_point_scale: [1.0; 10],
+        shock_force: 40.0,
+        shock_time: 3.0,
     }))
     .unwrap()
 }
@@ -56,9 +61,37 @@ fn hit() -> DamageHit {
         half: Vec3::new(1.0, 1.0, 4.0),
         closing_speed: 10.0,
         force: 40_000.0,
+        shock_force: 20_000.0,
         before_velocity: Vec3::X * 20.0,
         other: OtherBody::default(),
     }
+}
+
+#[test]
+fn source_damage_tiers_follow_impact_stimuli_once_and_explicit_destruction_does_not_replay_them() {
+    let mut spec = (*engine().spec).clone();
+    let sequence = spec.sequence.as_mut().unwrap();
+    let package = Arc::make_mut(&mut sequence.package);
+    let state = package.engines[0].systems.get_mut(&vlt_hash("DZ_REAR")).unwrap().states.get_mut(&0).unwrap();
+    for n in 1..=2 {
+        state.responses.insert(vlt_hash(&format!("DAMAGE_{n}")), Response { end_state: 0, action: 50 + n });
+    }
+    for n in 1..=2 {
+        package.actions.insert(
+            50 + n,
+            Action { name_hash: 0, duration: 0.0, tags: BTreeMap::from([(TAGS.start, 50 + n)]), times: vec![] },
+        );
+        package.event_lists.insert(50 + n, vec![event(300 + n)]);
+    }
+    let mut events = VehicleEvents::new(Arc::new(spec)).unwrap();
+    events.hit(hit());
+    assert_eq!(ids(&events.tick(0.0)), [100, 104, 105, 301, 302]);
+    events.hit(hit());
+    assert_eq!(ids(&events.tick(0.0)), [100, 104, 105], "repeat impacts must not replay damage transitions");
+    events.destroy();
+    assert!(events.tick(0.0).is_empty(), "explicit destruction does not invent a sequencer stimulus");
+    events.hit(hit());
+    assert_eq!(ids(&events.tick(0.0)), [100, 104, 105]);
 }
 
 #[test]
@@ -162,4 +195,28 @@ fn nested_lists_execute_in_place_and_cycles_stop_with_an_error() {
     events.spec = Arc::new(spec);
     events.hit(hit());
     assert!(events.advance(0.0).is_err());
+}
+
+#[test]
+fn damage_uses_callback_normal_impulse_instead_of_final_friction_and_restitution_velocity() {
+    use blackbox_vehicle::rigid_body::{RigidBody, RigidBodySpec};
+    let mut body = RigidBody::new(1000.0, Vec3::ONE, Vec3::ONE, RigidBodySpec::default());
+    body.linear_velocity = Vec3::X * 20.0;
+    let hit = DamageHit::capture(&body, Vec3::ZERO, Vec3::X, 40.0, OtherBody::default());
+    body.linear_velocity = Vec3::new(-4.0, 0.0, 8.0);
+    assert_eq!(hit.resolved(&body, 20.0, false).force, 20_000.0);
+    assert_eq!(hit.resolved(&body, 20.0, true).force, 40_000.0);
+    assert_eq!(hit.before_velocity, Vec3::X * 20.0);
+}
+
+#[test]
+fn cop_callback_filters_light_smackables_for_both_health_and_presentation() {
+    for (mass, immobile, allowed) in
+        [(500.0, false, false), (2000.0, false, false), (2000.1, false, true), (500.0, true, true)]
+    {
+        let hit = DamageHit { other: OtherBody { smackable: Some((mass, immobile)), ..Default::default() }, ..hit() };
+        assert_eq!(hit.allows_cop(), allowed);
+    }
+    assert!(!DamageHit { other: OtherBody { no_car_effect: true, ..Default::default() }, ..hit() }.allows_cop());
+    assert!(hit().allows_cop());
 }

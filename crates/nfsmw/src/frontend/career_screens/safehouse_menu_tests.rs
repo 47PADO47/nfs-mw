@@ -34,12 +34,21 @@ fn the_blacklist_item_shows_the_current_stage_and_the_icons_follow_the_items() {
     let mut s = CareerSettings::new_career();
     s.stage = 1;
     let list = items(&s);
-    let icons = safehouse_icons(&list);
+    let icons = safehouse_icons(&list, false);
     assert_eq!(icons.len(), list.len());
     assert_eq!(icons[1].id, Id::SafeHouseBlacklist(1));
     assert_eq!(icons[0].id, Id::SafeHouseResume);
     assert_eq!(icons[0].name, label_hash("PAUSE_RESUME_FREE_ROAM"));
     assert!(icons.iter().all(|icon| icon.enabled));
+}
+
+#[test]
+fn before_the_world_exists_car_select_is_greyed_out() {
+    let list = items(&CareerSettings::new_career());
+    let icons = safehouse_icons(&list, true);
+    let enabled: Vec<_> = icons.iter().map(|icon| (icon.id, icon.enabled)).collect();
+    assert!(enabled.contains(&(Id::SafeHouseCarSelect, false)));
+    assert!(enabled.contains(&(Id::SafeHouseResume, true)));
 }
 
 #[test]

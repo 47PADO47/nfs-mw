@@ -60,17 +60,19 @@ collision and original swept-box parity are unverified. See
 [pursuit-free-roam](pursuit-free-roam.md) and
 [pursuit-system](../pursuit-system.md). Run-flat data remains unread. `repair`
 resets tire state.
-## Traffic and cop cars (rewrite choice, not reverse-engineered this pass)
+## Traffic and cop cars
 
-An impact on a traffic or cop car now feeds its own `VehicleEvents` damage model (`scenes/world/ai/car/hits.rs`
-`dent`): the hit is taken at its contact point, relative to the car centre, with its impulse as the force. The contact
-normal is not carried by the hit, so it is taken as the contact direction. Impacts below `MIN_CLOSING` are ignored.
-The visible result is the same corner overlay the player car shows. Basis: the existing damage model and zone table;
-the retail per-car feed for AI cars was not re-read in Ghidra for this change.
-
-Not shown yet for AI cars: the engine exposed behind a broken front, and tire smoke or engine smoke after heavy
-damage. Cracked windows are not drawn on AI cars either.
-
+AI cars consume the captured vehicle/world/prop callback through `VehicleEvents`,
+without the former second approximate dent. Supported police models select
+their installed successor parts and window replacements from the original
+source zone levels, per actor and driving LOD; see
+[police appearance](cop-visible-damage.md). Health also drives the installed
+engine damage/death emitter groups independently of the collision sequencer.
+Ordinary cars retain the approximate cosmetic counters described above. Native police
+health, suppression and retirement are described in
+[cop destruction contacts](cop-destruction-contacts.md). Installed one-shot glass
+particles now reach the shared effect layer. Jointed cop parts and complete
+source paint/deformation/presentation remain incomplete.
 
 ## Not done
 

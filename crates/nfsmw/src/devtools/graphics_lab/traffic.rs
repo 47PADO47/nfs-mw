@@ -1,7 +1,8 @@
 //! Traffic population, independent of mesh detail and graphics quality presets.
 use crate::settings::{PopulationPreset, Settings, TrafficPreset};
 
-pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&str>) {
+pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&str>, pursuit: &mut Option<u8>) {
+    super::pursuit::show(ui, pursuit, status.is_some());
     if let Some(status) = status {
         ui.small(status);
         ui.separator();

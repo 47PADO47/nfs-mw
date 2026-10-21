@@ -83,6 +83,27 @@ fn collision_notifications_use_effective_mass_without_retuning_stored_mass() {
     let r = resolve_bodies(&mut a, &mut b, &contact(true), &ha, &hb, Separation::Mass).unwrap();
     assert_eq!(r.impulse_delta_v[0], r.reaction.impulse / 1000.0);
     assert_eq!(r.impulse_delta_v[1], 0.0);
+    assert_eq!(r.notification_delta_v, [r.reaction.impulse / 1000.0; 2]);
     assert_eq!(a.mass(), 2000.0);
     assert_eq!(b.mass(), 1000.0);
+}
+
+#[test]
+fn immobile_notification_uses_partner_mass_in_both_body_orders() {
+    for immobile_first in [false, true] {
+        let mut a = body(2000.0, Vec3::ZERO, Vec3::Z * 20.0);
+        let mut b = body(100.0, Vec3::Z * 1.6, Vec3::ZERO);
+        let ha = BodyHit { immobile: immobile_first, mass_scale: 0.5, ..Default::default() };
+        let hb = BodyHit { immobile: !immobile_first, mass_scale: 2.0, ..Default::default() };
+        let before = [a.linear_velocity, b.linear_velocity];
+        let r = resolve_bodies(&mut a, &mut b, &contact(true), &ha, &hb, Separation::Mass).unwrap();
+        let fixed = usize::from(!immobile_first);
+        let moving = 1 - fixed;
+        let mass = [1000.0, 200.0][moving];
+        assert!(r.reaction.impulse > 0.0);
+        assert_eq!(r.impulse_delta_v[fixed], 0.0);
+        assert_eq!(r.notification_delta_v, [r.reaction.impulse / mass; 2]);
+        assert_eq!([a.linear_velocity, b.linear_velocity][fixed], before[fixed]);
+        assert_eq!([a.mass(), b.mass()], [2000.0, 100.0]);
+    }
 }

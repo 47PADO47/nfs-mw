@@ -19,6 +19,16 @@ pub struct Track {
     pub kind: &'static str,
     /// The route length in metres, from the checkpoints and the finish (0 when there is none).
     pub length: f32,
+    /// The race type, which picks the Quick Play brief's icon and mode name.
+    pub race_type: RaceType,
+    /// `RaceLength`: the route in metres as the data stores it, 0 when it has none (`brief_length`).
+    pub route: f32,
+    /// The laps the race runs with its own values (`NumLaps`, at least one).
+    pub laps: u32,
+    /// The opponents the race lists (`Opponents`); the number a race starts with unless the player sets another.
+    pub opponents: usize,
+    /// The Blacklist bin of the race's event id (`10.2.1` is bin 10), `None` for a race outside bins 1 to 15.
+    pub bin: Option<u8>,
 }
 
 /// The tracks, in the order the screen steps through them.
@@ -100,7 +110,7 @@ fn event_key(name: &str) -> Vec<u32> {
     id.split('.').map(|part| part.parse().unwrap_or(u32::MAX)).collect()
 }
 
-fn kind_label(kind: RaceType) -> &'static str {
+pub(super) fn kind_label(kind: RaceType) -> &'static str {
     match kind {
         RaceType::Sprint => "Sprint",
         RaceType::Circuit => "Circuit",
@@ -122,15 +132,51 @@ fn track_of(data: &GameplayData, race: &Race) -> Track {
         .chain(race.finish.iter().filter_map(|k| data.trigger(*k)).map(|t| t.position))
         .collect();
     let length: f32 = centres.windows(2).map(|pair| pair[0].distance(pair[1])).sum();
-    Track { name: race.name.clone(), title: format!("{kind} {}", crate::career::event_id(&race.name)), kind, length }
+    Track {
+        name: race.name.clone(),
+        title: format!("{kind} {}", crate::career::event_id(&race.name)),
+        kind,
+        length,
+        race_type: race.race_type.unwrap_or(RaceType::Sprint),
+        route: race.params.route_length,
+        laps: u32::try_from(race.laps).unwrap_or(1).max(1),
+        opponents: race.params.opponents.len(),
+        bin: event_key(&race.name).first().and_then(|bin| u8::try_from(*bin).ok()).filter(|bin| (1..=15).contains(bin)),
+    }
 }
 
 impl Track {
+    /// The length the Quick Play brief shows, in metres: the stored `RaceLength`, else the length of the route.
+    pub fn brief_length(&self) -> f32 {
+        match self.route > 0.0 {
+            true => self.route,
+            false => self.length,
+        }
+    }
+
     /// The length as the screen shows it: kilometres with one decimal, or metres under a kilometre.
     pub fn length_text(&self) -> String {
         match self.length {
             m if m >= 1000.0 => format!("{:.1}KM", m / 1000.0),
             m => format!("{m:.0}M"),
+        }
+    }
+}
+
+impl Track {
+    /// A track with the given name and nothing else, for tests.
+    #[cfg(test)]
+    pub(super) fn sample(name: &str) -> Track {
+        Track {
+            name: name.into(),
+            title: String::new(),
+            kind: "Sprint",
+            length: 0.0,
+            race_type: RaceType::Sprint,
+            route: 0.0,
+            laps: 1,
+            opponents: 0,
+            bin: None,
         }
     }
 }
@@ -204,19 +250,14 @@ mod tests {
 
     #[test]
     fn a_length_reads_in_kilometres_or_metres() {
-        let track = |length| Track { name: String::new(), title: String::new(), kind: "Sprint", length };
+        let track = |length| Track { length, ..Track::sample("") };
         assert_eq!(track(7486.8).length_text(), "7.5KM");
         assert_eq!(track(640.0).length_text(), "640M");
     }
 
     #[test]
     fn stepping_wraps_round_the_list() {
-        let board = Board {
-            tracks: ["a", "b", "c"]
-                .iter()
-                .map(|n| Track { name: (*n).into(), title: String::new(), kind: "Sprint", length: 0.0 })
-                .collect(),
-        };
+        let board = Board { tracks: ["a", "b", "c"].iter().map(|n| Track::sample(n)).collect() };
         PICK.store(0, Ordering::Relaxed);
         assert_eq!(step(&board, -1).map(|t| t.name.as_str()), Some("c"));
         assert_eq!(step(&board, 1).map(|t| t.name.as_str()), Some("a"));

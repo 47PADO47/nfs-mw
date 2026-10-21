@@ -91,7 +91,22 @@ pub struct Explosion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ObjectEffect {
+    pub name_tag: u32,
+    /// Resolved effects collection key; zero when the package has no matching string.
+    pub effect: u32,
+    pub position: u32,
+    pub intensity: f32,
+    pub instance: u32,
+    pub tracking: bool,
+    pub allow_hidden_spawn: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WorldEvent {
+    ObjectEffect(ObjectEffect),
+    StopObjectEffect(u32),
+    StopObjectEffects,
     FireList {
         list: u32,
         delayed: bool,
@@ -131,6 +146,13 @@ pub enum WorldEvent {
 }
 
 impl WorldEvent {
+    pub fn resolve_strings(mut self, package: &Package) -> Self {
+        if let Self::ObjectEffect(effect) = &mut self {
+            effect.effect =
+                package.strings.get(&effect.name_tag).filter(|name| !name.is_empty()).map_or(0, |name| vlt_hash(name));
+        }
+        self
+    }
     pub fn decode(event: &Event) -> Result<Self> {
         let word = |at| -> Result<u32> {
             let bytes = event.data.get(at..at + 4).context("truncated world event")?;
@@ -144,6 +166,17 @@ impl WorldEvent {
             Ok(value)
         };
         match event.id {
+            0xC1AF_4FDD => Ok(Self::ObjectEffect(ObjectEffect {
+                name_tag: word(4)?,
+                effect: 0,
+                position: word(8)?,
+                intensity: number(12)?.clamp(0.0, 1.0),
+                instance: word(16)?,
+                tracking: word(20)? != 0,
+                allow_hidden_spawn: word(24)? != 0,
+            })),
+            0x3338_EFB8 => Ok(Self::StopObjectEffect(word(4)?)),
+            0xC738_9F39 => Ok(Self::StopObjectEffects),
             0x7624_42F3 => Ok(Self::AreaStimulus {
                 system: word(4)?,
                 stimulus: word(8)?,

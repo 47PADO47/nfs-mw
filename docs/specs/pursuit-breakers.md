@@ -135,6 +135,9 @@ car fires it; its moment is answered and its map icon is gone), the moment data 
 (`moment_tests`), the pool of eight breaker icons in the HUD package, and the console listing. The console command `pursuit breakers` prints the resident breakers nearest
 the player, the open zones and the last events.
 
+Native retirement of a destroyed police car coasts or brakes lightly according to shock and speed; the roadblock hold
+brake is not kept on a destroyed car.
+
 Checks: parse every installed hierarchy; exercise real support-to-roof chains,
 fragment meshes/bounds and repeated gas-station counts; compare complete event,
 body and cleanup traces across low/high/uneven render rates; verify parent unload

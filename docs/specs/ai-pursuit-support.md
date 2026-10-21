@@ -148,6 +148,11 @@ not seen (section 10).
   built from the car record of that name and a sound message is sent. A budget check (`manager+0x54`, vtable `+4`)
   comes first; when it refuses, no car is returned. **[decomp]** (what the budget check tests is not settled.)
 
+**Rewrite loading contract.** A support model is cached under its requested `pvehicle` name even when its
+geometry comes from an ancestor's folder. An inherited model must satisfy subsequent requests for the alias.
+Completed duplicate loads, or loads arriving without a traffic world, are discarded before GPU upload.
+This is a resource ownership rule of the rewrite, not additional original-game tuning.
+
 ## 9. The head-on ram SUV (`AIGoalHeadOnRam`)
 
 **Goal.** Built by the goal factory from the name hash (`0x0043d780`, constructor `0x0043bd10`). Its action list is,

@@ -8,7 +8,10 @@ impl AiCar {
         self.roadblock = true;
         self.breaker_stop = true;
         self.sim.collision_role.cop = true;
-        self.damage.get_or_insert_with(|| CopDamage::for_model(&self.name));
+        self.sim.collision_goal = Some(blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock"));
+        if self.damage.is_none() {
+            self.damage = Some(CopDamage::for_model(&self.name, self.sim.events.as_ref().map(|e| e.spec())));
+        }
     }
 
     /// Whether this car is part of a roadblock (and so holds its place).
@@ -90,8 +93,9 @@ impl AiCar {
 
     /// A line about what the car is doing, for the `traffic status` command.
     pub fn debug(&self) -> String {
+        let damage = self.damage_status();
         format!(
-            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s",
+            "{} segment {} lane {} t {:.2}{}{}{}, wants {:.1} m/s{damage}",
             if self.is_cop() {
                 "cop"
             } else if self.patrol {
@@ -170,5 +174,18 @@ impl AiCar {
     /// The player car's speed (m/s) this physics step, read by the crash gate in `hits.rs`.
     pub fn set_player_speed(&mut self, speed: f32) {
         self.player_speed = speed;
+    }
+}
+
+impl AiCar {
+    /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
+    pub fn physics_position(&self) -> Vec3 {
+        self.sim.driver_view().position
+    }
+
+    /// Which way the car faces, in physics space (unit length): the axis of its rear cone of sight.
+    pub fn physics_forward(&self) -> Vec3 {
+        let forward = self.sim.driver_view().forward;
+        forward.try_normalize().unwrap_or(Vec3::Z)
     }
 }
