@@ -152,13 +152,15 @@ the same car **[decomp]**. The rates and limits of the camera are ours.
 ## 7. Transmission and start
 
 After the car: `Select your transmission.` (`0x6F5401D1`) with Manual (`0x317D3005`) and Auto (`0x8CD532A0`), the current setting
-focused, the choice stored as the transmission setting, as the challenge series does **[exe]**. **A drag race does not ask** and uses
-the setting **[decomp]**: `UIQRCarSelect` starts a drag at once; this was not re-read in the exe. The race starts through the
+focused, the choice stored as the transmission setting, as the challenge series does **[exe]**. Every kind of race asks, the drag
+race too **[ours]**: the decompiled `UIQRCarSelect` starts a drag at once with the setting, but the request says the question
+follows the car, and the exe's own car select could not be read (provenance, dead ends). The race starts through the
 loading screen (`Command::StartCustomRace`): the car (folder and preset, `CAR:PRESET` to the world's loader), the options above,
 no career, and the pause menu's Quit goes to the Quick Race menu.
 
 ## 8. Open
 
+- Whether the original asks the transmission question for a drag race: the decompilation says no, this build asks.
 - The exe's setter of the quick race flag when a rival is beaten was not found (see section 3); the later opens use the
   rival-beaten rule above.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam

@@ -185,3 +185,14 @@ fn the_series_has_the_event_the_sl65_is_unlocked_by() {
     }
     panic!("the series board was not read");
 }
+
+#[test]
+fn a_drag_race_asks_for_the_transmission_too() {
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    state::with(|s| s.car.name = Some(car_list::DEFAULT_PRESET.into()));
+    let Some(mut h) = open_in(Mode::Drag, screen::CAR_SELECT, Args { custom: true, ..Args::default() }) else { return };
+    state::with(|s| s.set_event(Some("race_bin_02/2_1_2_drag".into())));
+    h.press(pad::ACCEPT);
+    h.wait(3.0);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "{:?}", h.commands);
+}
