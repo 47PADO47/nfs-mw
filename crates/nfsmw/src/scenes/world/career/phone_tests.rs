@@ -173,3 +173,56 @@ fn note_bins_queues_each_change_once_and_skips_the_first_frame() {
     phone.note_bins(&mut inbox, at(14, &[14]));
     assert_eq!(phone.queue.pending(), &[125, 126, 29]);
 }
+
+#[test]
+fn a_delivered_message_asks_the_front_end_to_open_it_at_once() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.add_sms(&mut inbox, 15);
+    let flush = phone.flush(&mut inbox, &flush_context(&clear())).expect("the world is clear");
+    assert_eq!(popup_request(&flush), CareerRequest::Sms { id: 15 });
+    assert_eq!(inbox.slots[15].state, 2, "delivered; the popup reads it when it opens");
+}
+
+#[test]
+fn a_chase_holds_the_popup_request_back_until_free_roam() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.add_sms(&mut inbox, 15);
+    let chase = flush_context(&PhoneFacts { pursuing: true, ..clear() });
+    assert!(phone.flush(&mut inbox, &chase).is_none(), "no request while the chase runs");
+    let flush = phone.flush(&mut inbox, &flush_context(&clear())).expect("free roam");
+    assert_eq!(popup_request(&flush), CareerRequest::Sms { id: 15 });
+}
+
+#[test]
+fn the_popup_opens_at_the_first_story_message_of_a_batch() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.add_sms(&mut inbox, 123);
+    phone.add_sms(&mut inbox, 17);
+    let flush = phone.flush(&mut inbox, &flush_context(&clear())).expect("the world is clear");
+    assert_eq!(popup_request(&flush), CareerRequest::Sms { id: 17 });
+    assert_eq!(flush.delivered, vec![123, 17]);
+}
+
+#[test]
+fn a_batch_of_tips_opens_the_oldest_one() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.add_sms(&mut inbox, 124);
+    phone.add_sms(&mut inbox, 123);
+    let flush = phone.flush(&mut inbox, &flush_context(&clear())).expect("the world is clear");
+    assert_eq!(popup_request(&flush), CareerRequest::Sms { id: 124 });
+}
+
+#[test]
+fn the_popup_reads_its_message_and_a_resend_then_does_nothing() {
+    let mut phone = PhoneState::default();
+    let mut inbox = inbox();
+    phone.add_sms(&mut inbox, 15);
+    phone.flush(&mut inbox, &flush_context(&clear()));
+    assert!(inbox.open_message(15).is_some(), "the popup opens the message");
+    assert_eq!(inbox.slots[15].state, 4, "read");
+    assert_eq!(phone.add_sms(&mut inbox, 15), AddOutcome::Ignored, "a read message is not sent again");
+}

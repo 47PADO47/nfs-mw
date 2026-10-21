@@ -237,22 +237,28 @@ pub struct MessageLogic {
     args: Args,
 }
 
+/// Shows message `id` on the message screen and marks it read, as opening it does. The body, sender and subject come
+/// from the language table; the replay hint and the voice group show for story messages only.
+pub fn show_message(cx: &mut Cx, id: u32) {
+    CareerHandle::shared().with(|career| mark_read(&mut career.settings.sms, id));
+    let body = lookup(cx, &label_for(id));
+    set_text(cx, BODY, body);
+    let sender = lookup(cx, &from_label_for(id));
+    set_text(cx, FROM, sender);
+    let subject = lookup(cx, &subject_label_for(id));
+    set_text(cx, SUBJECT, subject);
+    let story = is_story(id);
+    show_object(cx, REPLAY_HINT, story);
+    show_object(cx, VOICE, story);
+}
+
 impl ScreenLogic for MessageLogic {
     fn start(&mut self, cx: &mut Cx) {
         let Some(id) = opened() else {
             leave(cx, self.args);
             return;
         };
-        CareerHandle::shared().with(|career| mark_read(&mut career.settings.sms, id));
-        let body = lookup(cx, &label_for(id));
-        set_text(cx, BODY, body);
-        let sender = lookup(cx, &from_label_for(id));
-        set_text(cx, FROM, sender);
-        let subject = lookup(cx, &subject_label_for(id));
-        set_text(cx, SUBJECT, subject);
-        let story = is_story(id);
-        show_object(cx, REPLAY_HINT, story);
-        show_object(cx, VOICE, story);
+        show_message(cx, id);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
     }
 

@@ -36,6 +36,8 @@ pub(super) mod flow_movie;
 mod flow_save;
 #[path = "flow_series.rs"]
 pub(super) mod flow_series;
+#[path = "flow_sms.rs"]
+mod flow_sms;
 #[path = "flow_startup.rs"]
 mod flow_startup;
 

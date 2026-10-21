@@ -312,6 +312,9 @@ impl Scene for WorldScene {
         name: &str,
         args: &[&str],
     ) -> Option<Result<String, String>> {
+        if name == "career" {
+            return Some(career::sms_popup::command(self, args));
+        }
         commands::run(self, renderer, name, args)
     }
     fn time_held(&self) -> bool {

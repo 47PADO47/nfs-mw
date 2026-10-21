@@ -2,7 +2,8 @@
 //!
 //! Messages wait in a [`PhoneQueue`] until the world allows them: a bin's messages are queued when the bin is entered
 //! ([`PhoneState::queue_bin_messages`]), and `EAddSMS` goes through [`PhoneState::add_sms`]. Once a frame the queue
-//! is flushed into the career's inbox when [`FlushContext::can_show`] holds, and a notice goes on the interact card.
+//! is flushed into the career's inbox when [`FlushContext::can_show`] holds, and the front end is asked to open the
+//! message over the game ([`popup_request`], `flow_sms.rs`).
 
 use nfsmw_career::blacklist::{BinState, Blacklist};
 use nfsmw_career::phone::{
@@ -11,11 +12,8 @@ use nfsmw_career::phone::{
 };
 use nfsmw_career::settings::SmsInbox;
 
-use crate::hud::Prompt;
+use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
-
-/// How long the delivery notice holds the interact card, in seconds.
-const NOTICE_SECS: f32 = 3.0;
 
 /// The bins the Blacklist has (1 to 15). Bin 16 is the prologue and has no rival.
 const LAST_RIVAL_BIN: u8 = 15;
@@ -115,10 +113,10 @@ pub(super) fn flush_context(facts: &PhoneFacts) -> FlushContext {
     }
 }
 
-/// The notice raised when messages arrive on the interact card. The text is a placeholder until the inbox screen
-/// exists in the world.
-pub(super) fn delivery_prompt() -> Prompt {
-    Prompt { title: "New text message".to_string(), line: "Check the inbox".to_string() }
+/// The request a flush makes: the message screen opens at the message the flush chose (the first story message of the
+/// batch, else the oldest).
+pub(super) fn popup_request(flush: &FlushOutcome) -> CareerRequest {
+    CareerRequest::Sms { id: flush.open_at }
 }
 
 impl PhoneState {
@@ -157,7 +155,7 @@ impl PhoneState {
 
 impl WorldScene {
     /// Queues the bin messages that came due (a bin entered or a rival unlocked since the last frame), then flushes
-    /// the phone queue into the career's inbox when free roam allows it, and raises the notice of what arrived.
+    /// the phone queue into the career's inbox when free roam allows it, and asks the front end to open what arrived.
     /// Calls waiting from the immediate ids are processed first.
     pub(super) fn career_phone(&mut self, _dt: f32) {
         let facts = self.phone_facts();
@@ -175,8 +173,8 @@ impl WorldScene {
             phone.flush(inbox, &ctx)
         });
         let Some(flush) = flushed.flatten() else { return };
-        log::info!("phone: {} message(s) delivered, inbox would open at {}", flush.delivered.len(), flush.open_at);
-        self.entry.popup.flash(delivery_prompt(), NOTICE_SECS);
+        log::info!("phone: {} message(s) delivered, the message {} opens", flush.delivered.len(), flush.open_at);
+        self.career.requests.push_back(popup_request(&flush));
     }
 
     /// The world facts the flush test reads this frame.

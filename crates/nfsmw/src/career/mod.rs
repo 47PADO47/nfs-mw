@@ -44,6 +44,9 @@ pub enum CareerRequest {
     AutoShop { zone: String },
     /// A stage that closes fewer gates was reached: the region unlock screen is due (`career-regions.md` section 6).
     RegionUnlock { stage: u8 },
+    /// A text message was delivered in free roam: `SMS_Message.fng` opens over the frozen world at message `id`
+    /// (`career-phone.md` section 3.6, `story-flow-2.md` section 3.7).
+    Sms { id: u32 },
 }
 
 /// The profile the player picked and whether it is being played, shared by the front end, the world scene and the mod

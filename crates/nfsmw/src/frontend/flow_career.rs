@@ -102,6 +102,8 @@ impl Frontend {
                 self.auto_shop_requested = true;
                 return;
             }
+            // The message screen is opened with its own logic, which closes back to the game (`flow_sms.rs`).
+            CareerRequest::Sms { id } => return self.open_sms(id, host, env),
         };
         self.in_safe_house = screen == MAIN_MENU_SUB;
         self.latch = true;

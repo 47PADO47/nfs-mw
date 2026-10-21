@@ -16,6 +16,7 @@ mod regions;
 mod respawn;
 mod rewards;
 mod safehouse;
+pub(super) mod sms_popup;
 mod speedtraps;
 
 use std::collections::VecDeque;
