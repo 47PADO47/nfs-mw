@@ -68,8 +68,8 @@ profile's manager now. **[ours]**
 
 The Quick Race icon opens an icon row (`MainMenu_Sub.fng`, title "quick race") with three icons **[exe]**: Quick Play
 (`MODE_ICON_QUICK_SELECT`), Custom Race (`MODE_ICON_QUICK_RACE`) and Split Screen (`MODE_ICON_2PLAYER_SPLIT`; the exe builds
-it from another table, **[unconfirmed]**). Custom Race and Split Screen are listed and greyed out for now **[ours]**; their
-screens (`Track_Select.fng`, `Track_Options.fng`) stay in the install readers and the screen factory but no menu opens them.
+it from another table, **[unconfirmed]**). Split Screen is listed and greyed out for now **[ours]**; Custom Race opens the mode select of
+[custom-race.md](custom-race.md).
 
 Quick Play opens the brief (`Quick_Race_Brief.fng`, "quick play brief"): a random car and a random race, with Back (Esc),
 Accept (Enter) and Randomize (key 1), and Accept starts that race with that car. See [quick-play.md](quick-play.md).
