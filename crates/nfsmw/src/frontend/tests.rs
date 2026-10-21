@@ -256,12 +256,13 @@ fn track_options_accept_starts_nothing() {
 }
 
 #[test]
-fn the_quit_button_of_the_main_menu_quits() {
+fn the_quit_button_of_the_main_menu_asks_first() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
     h.wait(1.0);
     h.screens.post_to_top(super::ids::QUIT_BUTTON, super::ids::MOUSE_LEFT_RELEASED);
     h.wait(0.2);
-    assert!(h.said(&Command::QuitGame), "{:?}", h.commands);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "the dialog asks: {:?}", h.commands);
+    assert!(!h.said(&Command::QuitGame), "the game quits only once the question is answered Yes");
 }
 
 #[test]

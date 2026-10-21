@@ -378,7 +378,7 @@ impl ScreenLogic for IconMenu {
             PAD_LEFT => self.scroll_by(cx, -1),
             PAD_RIGHT => self.scroll_by(cx, 1),
             BUTTON_PRESSED => self.press(cx),
-            ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::QuitGame),
+            ids::QUIT_CLICKED if self.kind == Kind::Main => cx.send(Command::Confirm(Confirm::quit_game())),
             profile::GAME_STATS_BUTTON => self.toggle_stats(cx),
             PAD_BACK => match self.kind {
                 Kind::Main => {}

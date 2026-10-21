@@ -115,6 +115,11 @@ impl Confirm {
         Self::new(Text::Game(message), Command::QuitTo(to))
     }
 
+    /// The question before leaving the game from the main menu: the quit question under the question-mark header.
+    pub fn quit_game() -> Self {
+        Self::new(Text::Game(QUIT_MESSAGE), Command::QuitGame).looking(Look::Selection)
+    }
+
     /// The question before running the race again (`0x4D3399A8`).
     pub fn restart_race() -> Self {
         Self::new(Text::Game(RESTART_RACE), Command::RestartRace)
