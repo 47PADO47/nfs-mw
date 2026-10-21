@@ -1,5 +1,6 @@
 //! The pool filter, the random pick and the brief's text: pure, no game data needed.
 
+use nfsmw_career::carlot::stats::CarStats;
 use nfsmw_data::career_cars::{CarClass, CatalogueCar};
 use nfsmw_data::gameplay::RaceType;
 
@@ -81,6 +82,16 @@ fn a_catalogue_car_needs_a_price_a_car_class_and_a_folder() {
     let names: Vec<(&str, &str)> = cars.iter().map(|c| (c.name.as_str(), c.folder.as_str())).collect();
     assert_eq!(names, [("cobaltss", "COBALTSS"), ("carrera_gt", "CARRERAGT")]);
     assert_eq!(cars[0].manufacturer, Some(19));
+}
+
+#[test]
+fn a_car_with_no_physics_is_not_offered_once_the_physics_are_read() {
+    let stats = CarStats { top_speed: 80.0, handling: 1.0, time_to_100: 9.0 };
+    let with = PoolCar { stats: Some(stats), ..car("cobaltss", 12) };
+    let without = PoolCar { stats: None, ..car("levin", 12) };
+    let cars = vec![with.clone(), without.clone()];
+    assert_eq!(pool::drivable(cars.clone(), true), [with.clone()], "levin has no pvehicle, so it cannot be driven");
+    assert_eq!(pool::drivable(cars, false), [with, without], "without the physics database nothing is known");
 }
 
 #[test]

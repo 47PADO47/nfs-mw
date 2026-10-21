@@ -35,7 +35,7 @@ small state machine, section 2, and the rest of this page.
 | Phase | What happens | Evidence |
 |---|---|---|
 | Idle | free roam; the race zone offers its card | [world-markers.md](world-markers.md) |
-| Staging | `SetAllStaging(true)`: every racer is on the grid, held; the AI cars creep at 2.5 to 3.0 mph ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 1) | **[exe]** call, **[decomp]** speed |
+| Staging | `SetAllStaging(true)`: every racer is on the grid, held; the AI cars creep at 2.5 to 3.0 mph ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 1). The player's car is held with the brakes and the handbrake on **and its velocity is zeroed every tick** (`Drive::step`, `CarSim::hold_still`): the brakes alone let a car creep down a slope **[ours]** | **[exe]** call, **[decomp]** speed |
 | Countdown | only when `DoCountdown` is True (217 of 255 races); the 3, 2, 1, GO board; the cars stay held | **[verified]** flag |
 | Racing | `StartRace` and `StartRaceTimers`; staging off; the lap and race timers run | **[exe]** calls |
 | Finished | the player has finished or is out; the post-race flow runs while the others finish | **[exe]** |
@@ -289,6 +289,13 @@ is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) tr
 and jump types do not occur in this install.
 
 ## 14. Pursuit challenges
+
+**Police in races [ours].** Only a pursuit race (`PursuitRace`, 37 races) and a pursuit challenge have police. In every other race
+the cops are barred (`CopManager::bar`, set each frame by `race_bars_cops`): none spawns or stays, a chase that is on is ended
+when the race starts, and neither the lockout timer nor a 911 call lifts the bar. The data's `CopsInRace` is True for 108
+races **[verified]**; the rewrite does not follow it, because a quick or career race with a patrol in it is not wanted. The bar
+ends with the race. While a race runs the minimap shows its own route only: no garages, car lots, safe houses, free-roam speed
+traps or other races' start icons, and no entry discs are drawn on the road.
 
 A `challenge` race has no checkpoints, no finish and no opponents (`rewrite/scenes/world/race/challenge.rs`). It runs
 as [career-scripts-events.md](career-scripts-events.md) section 6.1 says **[verified]**:

@@ -81,7 +81,8 @@ rewrite): an event map is the whole-city map of `MINI_MAP.BIN` with the race's s
 white band over the grey roads, the start line drawn as a green bar across the road and the checkpoints and finish as
 yellow dashes across it. Only the tiles within reach of the route are present: every other tile of the 8 x 8 grid is
 black, so a car far from the route sees an empty minimap. The route is a picture, not a drawn overlay: the HUD does
-nothing for it but show the tiles.
+nothing for it but show the tiles. The Remastered minimap darkens the stage's map with a tint (`remastered.minimap.map`); that
+tint turned the white route grey, so a race's own map is shown without it (`DriveFeed::route_map`) **[ours]**.
 
 Nothing else is drawn for the route in the minimap code. The race's checkpoint, racer and event blips are the blips of
 [hud-minimap.md](hud-minimap.md) section 7 as before. The GPS is an unrelated feature the player turns on from the

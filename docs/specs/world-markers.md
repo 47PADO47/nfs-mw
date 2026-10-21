@@ -132,7 +132,8 @@ Until the destinations exist, entering logs and shows a placeholder:
 A **race** zone is no stub any more: Interact starts the race (`entry.rs`, `enter_race_zone`; `docs/specs/race-mode.md`),
 in the career when the Blacklist has opened the race, and while a race runs every other card and zone is held. A race
 the Blacklist lists and has not opened shows no start icon on the minimap, and no start icon shows during a race. The
-safe house and the auto shop keep their own handlers.
+safe house and the auto shop keep their own handlers. During a race the rewrite also hides the garage, car lot and safe house
+icons, the free-roam speed-trap icons and every entry disc on the road (`hud.rs`, `effects/world.rs`) **[ours]**.
 
 ## 7. How to check it
 

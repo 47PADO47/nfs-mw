@@ -165,9 +165,21 @@ were built with *NFS-CarToolkit by nfsu360* and store every `SolidPack` as a bar
 [bchunk.md § 4](bchunk.md#4-bare-jdlz-blobs-between-chunks); view them with
 `chunkdump.py --inflate`.
 
+## Flat geometry (re-exported stock cars)
+
+A second community layout was **[verified]** on a Desktop install (`CORVETTE`, `COBALTSS`, `TT`, `BMWM3`; 283, 151, 132
+and 282 solids). The file starts with a small `GeometryPack` (only `MeshContainerInfo`, about 9 KB) and an empty
+`MeshContainerEmpty`, then every `SolidPack` follows as a **top-level sibling**, uncompressed. A reader that looks only
+inside `GeometryPack`s finds **no solids**, so the car assembles with no body and no wheels (the Blacklist's Baron
+drives `CORVETTE`). `blackbox-solid` reads top-level `SolidPack`s as well.
+
+Eight of the `CORVETTE`'s solids (aftermarket hoods) do not parse: their vertex buffer is 3,564 bytes whatever vertex
+count the groups state. `read_solids_lossy` leaves such a solid out and returns its error, so the car still builds
+without it (`nfsmw_data::car` logs a warning). **[ours]**: the cause of the broken hoods was not investigated.
+
 ## Reading models today
 
 - **This project:** [`libs/blackbox-solid`](../../libs/blackbox-solid) (Rust) reads solids, including
-  the compressed add-on ones, and `nfsmw view-car <CAR>` draws them.
+  the compressed and the flat add-on ones, and `nfsmw view-car <CAR>` draws them.
 - [NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (C#, **no license**: read-only reference) has a
   MW reader (`Common/Geometry/MostWantedSolidReader.cs`) and exports to FBX with `AssetDumper`.

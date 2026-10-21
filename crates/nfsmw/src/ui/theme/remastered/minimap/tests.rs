@@ -131,6 +131,22 @@ fn the_package_pieces_are_darkened_and_the_arrow_takes_the_accent() {
 }
 
 #[test]
+fn a_races_own_map_is_shown_undarkened_so_its_white_route_stays_white() {
+    let skin = test_skin();
+    let map = skin.colour(keys::MINIMAP_MAP).expect("the map tint");
+    let piece_colour = |state: &HudState| {
+        let nodes = built(package(0.0, true, 255), state);
+        let pieces: Vec<_> =
+            nodes.iter().filter(|n| matches!(n.kind, NodeKind::Image { texture: 5, .. })).map(|n| n.colour).collect();
+        assert_eq!(pieces.len(), 1);
+        pieces[0]
+    };
+    assert_eq!(piece_colour(&HudState::default()), map, "the stage's map is darkened");
+    let race = HudState { map_source: crate::hud::MapSource::Event("10.2.1".into()), ..Default::default() };
+    assert_eq!(piece_colour(&race), WHITE, "a race's map is not");
+}
+
+#[test]
 fn the_minimap_has_one_ring_for_the_heat_and_shows_nothing_of_the_chase() {
     let calm = built(package(0.0, true, 255), &HudState::default());
     let giving_up = PursuitHud { secs: 9.0, evade: 0.5, cooldown: true, busted: -0.5, ..Default::default() };

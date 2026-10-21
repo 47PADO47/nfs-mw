@@ -47,6 +47,8 @@ pub(in crate::ui::theme) struct DriveFeed {
     pub cops_damaged: u32,
     /// The nearest cop in the detector's cone and range, if any (`HudState::radar`).
     pub radar: Option<crate::hud::RadarHud>,
+    /// A race's own map is on the minimap: its route is a white band that a darkening tint would turn grey.
+    pub route_map: bool,
 }
 
 /// The shared cell. Clones share one feed.
@@ -84,6 +86,7 @@ impl DriveFeedCell {
             cops_engaged: state.cops_engaged,
             cops_damaged: state.cops_damaged,
             radar: state.radar,
+            route_map: state.map_source.event().is_some(),
         };
         *self.lock() = feed;
     }

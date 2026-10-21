@@ -265,6 +265,13 @@ impl CarSim {
         space::to_render(self.vehicle.linear_velocity().to_array())
     }
 
+    /// Stops the body dead: the brakes alone let a car creep down a slope, and a grid car must not move before GO.
+    pub fn hold_still(&mut self) {
+        let body = self.vehicle.body_mut();
+        body.linear_velocity = Vec3::ZERO;
+        body.angular_velocity = Vec3::ZERO;
+    }
+
     /// The dot product of the car's up vector with the world's.
     pub fn up_dot(&self) -> f32 {
         self.vehicle.rotation().y_axis.y

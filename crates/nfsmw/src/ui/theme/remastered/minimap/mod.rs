@@ -140,7 +140,12 @@ fn parts(
     // The dark disc the map lies on, the map, darkened, and the arrow in the accent colour.
     let disc = Rect::new(x, y, 2.0 * r, 2.0 * r);
     parts.push(Box::new(Rounded::at_depth(keys::MINIMAP_DISC, disc, r, window.depth + BEHIND_MAP, cx)));
-    parts.push(Box::new(Tinted::new(FengSubtree::hud(frame, roots::minimap_tiles()), colour(keys::MINIMAP_MAP))));
+    // A race's map has its route baked in as a white band, which the darkening tint would turn grey: it is shown as it is.
+    let map_tint = match feed.route_map {
+        true => [255; 4],
+        false => colour(keys::MINIMAP_MAP),
+    };
+    parts.push(Box::new(Tinted::new(FengSubtree::hud(frame, roots::minimap_tiles()), map_tint)));
     parts.push(Box::new(Tinted::recoloured(
         FengSubtree::hud(frame, roots::minimap_arrow()),
         colour(keys::UNIT_HIGHLIGHT),

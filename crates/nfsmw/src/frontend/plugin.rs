@@ -336,7 +336,7 @@ fn update(
         Stage::Playing => {
             // The GPS dialog's Yes resumes the game; the map overlay it left open is cleared here.
             if map.overlay.open {
-                map.overlay.close();
+                map.overlay.close(fe.screens.assets());
                 map.themes.world_map_legend().clear();
                 map.themes.world_map_view().clear();
             }

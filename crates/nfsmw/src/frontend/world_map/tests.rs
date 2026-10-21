@@ -209,3 +209,14 @@ fn the_distance_is_straight_line_metres() {
     let blip = PlacedBlip { style: CAR_LOT, world: [300.0, 400.0], map: [0.0, 0.0] };
     assert!((distance_metres([0.0, 0.0], &blip) - 500.0).abs() < 1e-3);
 }
+
+#[test]
+fn every_map_icon_file_is_a_texture_of_the_install() {
+    let Some(root) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let assets = crate::ui::UiAssets::load(&dir).unwrap();
+    for file in control::MAP_ICON_FILES {
+        let key = blackbox_feng::resource_handle(file);
+        assert!(assets.texture(key).is_some(), "{file} is not a texture of the install");
+    }
+}

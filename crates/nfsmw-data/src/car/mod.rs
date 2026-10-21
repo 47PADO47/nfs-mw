@@ -297,7 +297,13 @@ fn read_solids(dir: &GameDir, folder: &str) -> Result<Vec<Solid>> {
     if !dir.exists(&path) {
         bail!("no car named {folder:?} (try `nfsmw list-cars`)");
     }
-    blackbox_solid::read_solids(&read_unwrapped(dir, &path)?).with_context(|| format!("parsing {path}"))
+    // An add-on car can carry a few broken solids; the rest of the car still builds.
+    let (solids, failed) =
+        blackbox_solid::read_solids_lossy(&read_unwrapped(dir, &path)?).with_context(|| format!("parsing {path}"))?;
+    if !failed.is_empty() {
+        log::warn!("{path}: {} solid(s) left out, the first: {}", failed.len(), failed[0]);
+    }
+    Ok(solids)
 }
 
 /// Without the parts database: the solids of one LOD at the origin, filtered by name.

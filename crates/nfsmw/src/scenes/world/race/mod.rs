@@ -138,3 +138,18 @@ pub(super) struct RaceSession {
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
 }
+
+impl RaceSession {
+    /// Whether the police are part of this race: the pursuit races and the pursuit challenges. Every other race is clear
+    /// of cops, whatever its `CopsInRace` says. **[ours]**
+    pub fn has_police(&self) -> bool {
+        self.challenge.is_some() || self.origin.race.params.pursuit_race
+    }
+}
+
+impl crate::scenes::world::WorldScene {
+    /// Whether a race that has no police is on, so the cops are kept out of the world.
+    pub(in crate::scenes::world) fn race_bars_cops(&self) -> bool {
+        self.race.as_ref().is_some_and(|race| !race.has_police())
+    }
+}

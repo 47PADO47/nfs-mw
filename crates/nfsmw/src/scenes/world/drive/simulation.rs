@@ -68,6 +68,9 @@ impl Drive {
             self.flames.pop();
         }
         let impact = sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, &mut *props)));
+        if self.gridded {
+            sim.hold_still();
+        }
         let hits = impact
             .visuals
             .iter()

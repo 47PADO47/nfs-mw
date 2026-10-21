@@ -49,7 +49,8 @@ On entering a race ([race-mode.md](race-mode.md) section 2) the world:
 
 1. removes the free-roam traffic and any pursuit near the start, or turns them to the race's `TrafficLevel`
    percent (0 for drag) and `CopsInRace` **[unconfirmed]** — the rewrite sets the traffic target to
-   `TrafficLevel`/100 of the setting and leaves the pursuit rules to run when `CopsInRace` is true;
+   `TrafficLevel`/100 of the setting and bars the cops unless the race is a pursuit race or challenge (`race-mode.md`, police in
+   races; the rewrite ignores `CopsInRace`) **[ours]**;
 2. places the player on the start marker and the opponents on the grid, [ai-racers-route.md](ai-racers-route.md)
    section 3, each in staging (held) unless the start is rolling;
 3. gives each opponent a racer goal with the race's route, `AIGoalRacer` with `SetRacerGoal` **[exe]**.
