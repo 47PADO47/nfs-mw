@@ -31,6 +31,8 @@ pub struct CarRecord {
 }
 
 impl CarRecord {
+    /// The low-half flag for a quick race custom car, the cars of the My Cars garage (`career-car-lot.md` section 7).
+    pub const FLAG_QUICK_RACE: u32 = 0x4;
     /// The low-half flag for an owned career car (tab "Career"; `career-state.md` calls it the owned bit).
     pub const FLAG_OWNED: u32 = 0x2;
     /// The class mask of the high half; the owned cars carry all four bits.
@@ -83,6 +85,11 @@ impl CarRecord {
         self.flags & CarRecord::FLAG_OWNED != 0
     }
 
+    /// True for a quick race custom car: not a free slot, with the quick race flag.
+    pub const fn is_quick_race(&self) -> bool {
+        !self.is_free() && self.flags & CarRecord::FLAG_QUICK_RACE != 0
+    }
+
     /// True when any bit of the class mask is set.
     pub const fn has_class_mask(&self) -> bool {
         self.flags & CarRecord::CLASS_MASK != 0
@@ -111,6 +118,14 @@ mod tests {
 
     fn owned(handle: u32, career: u8) -> CarRecord {
         CarRecord { handle, flags: 0xF_0002, career_index: career, ..CarRecord::free() }
+    }
+
+    #[test]
+    fn a_quick_race_record_has_the_quick_race_flag_and_a_handle() {
+        let custom = CarRecord { handle: 3, flags: 0x4, ..CarRecord::free() };
+        assert!(custom.is_quick_race());
+        assert!(!owned(3, 0).is_quick_race(), "the owned bit alone is a career car");
+        assert!(!CarRecord { flags: 0x4, ..CarRecord::free() }.is_quick_race(), "a free slot is not a car");
     }
 
     #[test]

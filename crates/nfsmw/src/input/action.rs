@@ -82,6 +82,11 @@ pub enum Action {
     MenuButton1,
     /// Menu button: the fifth face button (`PAD_BUTTON4`): the win photo's Race Stats.
     MenuButton2,
+    /// Menu button: the first face button (`PAD_BUTTON0`): the custom race car select's Showcase.
+    MenuButton3,
+    /// Menu keys of the Showcase screen: zoom the camera in and out (keys 9 and 0).
+    MenuZoomIn,
+    MenuZoomOut,
     /// Menu buttons: the left and right shoulder (`PAD_LTRIGGER`, `PAD_RTRIGGER`): the post-race screen's racer arrows.
     MenuTriggerLeft,
     MenuTriggerRight,
@@ -148,6 +153,9 @@ impl Action {
             "menu_start",
             "menu_button_1",
             "menu_button_2",
+            "menu_button_3",
+            "menu_zoom_in",
+            "menu_zoom_out",
             "menu_trigger_left",
             "menu_trigger_right",
             "menu_quit",
@@ -168,7 +176,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 53] = [
+    pub const ALL: [Action; 56] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -213,6 +221,9 @@ impl Action {
         Action::MenuStart,
         Action::MenuButton1,
         Action::MenuButton2,
+        Action::MenuButton3,
+        Action::MenuZoomIn,
+        Action::MenuZoomOut,
         Action::MenuTriggerLeft,
         Action::MenuTriggerRight,
         Action::MenuQuit,

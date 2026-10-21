@@ -41,8 +41,35 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)),
     );
     let action = |a| vec![prompts::for_action(bindings, a, device)];
-    if footer == Footer::BackOnly {
-        return vec![(action(Action::MenuBack), "Back", Some(Action::MenuBack))];
+    let (back, accept) = (
+        (action(Action::MenuBack), "Back", Some(Action::MenuBack)),
+        (action(Action::MenuAccept), "Accept", Some(Action::MenuAccept)),
+    );
+    // The custom race's screens list Back before Accept, as the reference screenshots do.
+    match footer {
+        Footer::BackOnly | Footer::CarSelectLocked => return vec![back],
+        Footer::BackAccept => return vec![back, accept],
+        Footer::Tutorial => {
+            return vec![back, accept, (action(Action::MenuButton2), "View Tutorial", Some(Action::MenuButton2))];
+        }
+        Footer::Defaults => {
+            return vec![back, accept, (action(Action::MenuButton1), "Defaults", Some(Action::MenuButton1))];
+        }
+        Footer::CarSelect => {
+            return vec![back, accept, (action(Action::MenuButton3), "Showcase", Some(Action::MenuButton3))];
+        }
+        Footer::Orbit => {
+            let zoom: Vec<Prompt> = [Action::MenuZoomIn, Action::MenuZoomOut]
+                .into_iter()
+                .map(|a| prompts::for_action(bindings, a, device))
+                .collect();
+            let arrows: Vec<Prompt> = [Action::MenuUp, Action::MenuDown, Action::MenuLeft, Action::MenuRight]
+                .into_iter()
+                .map(|a| prompts::for_action(bindings, a, device))
+                .collect();
+            return vec![back, (zoom, "Zoom", None), (arrows, "View Car", None)];
+        }
+        Footer::Standard => {}
     }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), "Accept", Some(Action::MenuAccept))];
@@ -116,7 +143,7 @@ pub fn decorate(
 ) -> Vec<HintArea> {
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
-    let Some(frame) = Frame::find(tree, name) else { return Vec::new() };
+    let Some(frame) = Frame::find(tree, name, footer) else { return Vec::new() };
     hide_legacy_hints(tree, splash);
     let first_hint = tree.nodes.len();
     let hints = hint_set(name, footer, bindings, device);

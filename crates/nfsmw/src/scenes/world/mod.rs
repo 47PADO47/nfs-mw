@@ -110,7 +110,7 @@ pub struct Options {
 }
 
 pub struct DriveOptions {
-    /// Car folder (a unique prefix is enough).
+    /// Car folder (a unique prefix is enough), with a preset ride after a colon (`BMWM3GTRE46:M3GTRCAREERSTART`).
     pub car: String,
     /// A scripted driver (`--drive-script`).
     pub script: Option<String>,

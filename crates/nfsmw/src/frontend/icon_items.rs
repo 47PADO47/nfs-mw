@@ -28,10 +28,12 @@ pub enum Id {
     CareerResume,
     CareerNew,
     CareerLoad,
-    /// The Quick Race menu's row (`race_menu.rs`): Custom Race and Split Screen are listed and greyed out.
+    /// The Quick Race menu's row (`race_menu.rs`): Split Screen is listed and greyed out.
     QuickPlay,
     CustomRace,
     SplitScreen,
+    /// A kind of custom race on the mode select (`custom_race/`).
+    CustomMode(super::custom_race::Mode),
     /// The key list (`controls_screen.rs`).
     Controls,
     /// The sensitivity and camera rows (`widget_menu.rs`).
@@ -136,12 +138,17 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasDelete, 0x0D90_35CE, 0x56B0_0632, true),
         ],
         // The Quick Race menu: Quick Play and Custom Race, and the Split Screen picture of the install.
-        // Custom Race and Split Screen are not built yet, so they are greyed out (section 4).
+        // Split Screen is not built, so it is greyed out (section 4).
         Kind::QuickRace => vec![
             icon(Id::QuickPlay, 0xE631_3967, 0xB5E8_F82F, true),
-            icon(Id::CustomRace, 0x2A49_B5E2, 0x25BB_D4C3, false),
+            icon(Id::CustomRace, 0x2A49_B5E2, 0x25BB_D4C3, true),
             icon(Id::SplitScreen, 0xF365_B5F5, 0x841D_518A, false),
         ],
+        // The mode select: Circuit, Sprint, Drag, Tollbooth, Lap Knockout, Speedtrap, each with its picture.
+        Kind::CustomRace => super::custom_race::Mode::ALL
+            .into_iter()
+            .map(|mode| icon(Id::CustomMode(mode), mode.icon(), mode.name(), true))
+            .collect(),
         // The career menu and the safe house row depend on the career: see `career_icons` and `safehouse_icons`.
         Kind::Career | Kind::SafeHouse => Vec::new(),
     }

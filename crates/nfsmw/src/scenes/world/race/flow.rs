@@ -173,6 +173,11 @@ impl WorldScene {
                     flash(&mut session.banner, format!("Checkpoint {number}/{total_checkpoints}"), BANNER_SECS)
                 }
                 RaceEvent::Lap { racer: 0, lap } => {
+                    if let Some(engine) = session.engine.as_ref() {
+                        let now = engine.elapsed();
+                        crate::frontend::custom_race::records::note_lap(&session.event, now - session.lap_mark);
+                        session.lap_mark = now;
+                    }
                     flash(&mut session.banner, format!("Lap {}/{laps}", lap + 1), BANNER_SECS)
                 }
                 RaceEvent::Finished { racer: 0, .. } => {
@@ -185,6 +190,7 @@ impl WorldScene {
                     flash(&mut session.banner, format!("+{seconds:.0} s"), BANNER_SECS)
                 }
                 RaceEvent::SpeedTrap { racer: 0, kmh, .. } => {
+                    crate::frontend::custom_race::records::note_speed(&session.event, kmh);
                     flash(&mut session.banner, format!("+{kmh:.0} km/h"), BANNER_SECS)
                 }
                 RaceEvent::KnockedOut { racer } => {

@@ -17,6 +17,7 @@ impl IconMenu {
             Kind::SafeHouse => 0xE596_C4A3,
             Kind::Career => 0x8FFF_61F2,
             Kind::QuickRace => 0xCDF0_CC03,
+            Kind::CustomRace => 0x1F20_3817,
             Kind::AliasManager => 0x1B76_F2CE,
         }
     }
@@ -86,6 +87,7 @@ impl IconMenu {
             | Kind::SafeHouse
             | Kind::Career
             | Kind::QuickRace
+            | Kind::CustomRace
             | Kind::AliasManager => MenuStyle::Sub,
             Kind::Categories { pause: true, .. } | Kind::Pause => MenuStyle::Pause,
         };

@@ -166,6 +166,8 @@ remaining clock, geometry, context and live-comparison limits.
   sync model, bandwidth, transport, integration, online phases and the security design (see its own index).
 - [telemetry/README.md](telemetry/README.md): the optional telemetry server (milestone 13): channels, transport and privacy,
   control endpoints, the HTTP API and what carries over to multiplayer (see its own index).
+- [custom-race.md](custom-race.md): the Custom Race chain (mode select, track list, options, car select, Showcase, transmission),
+  with its record in [../provenance/custom-race.md](../provenance/custom-race.md).
 - [quick-play.md](quick-play.md): the Quick Play brief (random car and race by Blacklist stage, Randomize, Accept), with its
   Ghidra record in [../provenance/quick-play.md](../provenance/quick-play.md).
 - [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap

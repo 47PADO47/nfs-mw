@@ -1,12 +1,12 @@
 //! The icon rows of the career-parity menus: which icons each menu lists and what the pause menu names. No game data is needed.
 
 #[test]
-fn the_quick_race_menu_lists_quick_play_with_custom_race_and_split_screen_greyed_out() {
+fn the_quick_race_menu_lists_quick_play_and_custom_race_with_split_screen_greyed_out() {
     use super::icon_items::{Id, icons};
     use super::icon_menu::Kind;
     let list = icons(Kind::QuickRace);
     let ids: Vec<_> = list.iter().map(|i| (i.id, i.enabled)).collect();
-    assert_eq!(ids, [(Id::QuickPlay, true), (Id::CustomRace, false), (Id::SplitScreen, false)]);
+    assert_eq!(ids, [(Id::QuickPlay, true), (Id::CustomRace, true), (Id::SplitScreen, false)]);
 }
 
 #[test]

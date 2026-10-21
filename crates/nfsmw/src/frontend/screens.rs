@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::BUTTON_PRESSED;
-use blackbox_feng::{Outgoing, PackageCommandKind, PackageId, Runtime, UiTree};
+use blackbox_feng::{Outgoing, PackageId, Runtime, UiTree};
 use glam::Vec2;
 
 use super::confirm::{AlertLogic, ConfirmLogic};
@@ -20,6 +20,7 @@ use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
 
+mod command;
 mod text;
 mod vertical;
 
@@ -243,7 +244,7 @@ impl Screens {
         for out in self.runtime.take_outgoing() {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
-                Outgoing::Package { kind, name, .. } => commands.extend(package_command(kind, name)),
+                Outgoing::Package { kind, name, .. } => commands.extend(command::package_command(kind, name)),
                 // A button that answers BUTTON_PRESSED announces the press to the sound system with its GUID. Only the
                 // logic that asks for it hears it (`ScreenLogic::pressed`): some packages post nothing to the game.
                 Outgoing::Sound { message: BUTTON_PRESSED, package, from: Some(button) } => {
@@ -487,18 +488,5 @@ impl Screens {
     #[cfg(test)]
     pub fn focused_button(&self) -> Option<ObjectRef> {
         self.runtime.current_button(self.stack.last()?.id)
-    }
-}
-
-fn package_command(kind: PackageCommandKind, name: String) -> Option<Command> {
-    match kind {
-        PackageCommandKind::Switch => Some(Command::Switch(name, Args::default())),
-        PackageCommandKind::PushGlobal | PackageCommandKind::PushCurrent | PackageCommandKind::PushNone => {
-            Some(Command::Push(name, Args::default()))
-        }
-        PackageCommandKind::Pop => Some(Command::Pop),
-        PackageCommandKind::RecordMarker | PackageCommandKind::SwitchToMarker | PackageCommandKind::ClearMarkers => {
-            None
-        }
     }
 }

@@ -301,7 +301,7 @@ config reader is `settings/custom_music.rs`; the radio's custom side is `audio/r
 | 2.5 history across both kinds | done | `audio/radio/mod.rs` `start_entry`, `record`; `controls.rs` |
 | 2.7 failures | done: a custom track that will not open is skipped, at most once per track in one start | `audio/radio/mod.rs` `start_next` |
 | 2.2 pursuit context | **not played (decision needed).** The radio already holds its place while a pursuit has the music (`update_held`, fed by `Scene::is_pursuing`), so no custom track plays in a chase. Playing the pursuit sources would put custom tracks over the pursuit music, which section 1 says they do not replace. Pick one: the pursuit sources play instead of the pursuit music (needs the music's gating changed), or they stay unplayed | `audio/radio/glue.rs` `update_radio`, `audio/plugin.rs` |
-| 2.2 race context | **not played.** The port has no race mode: Quick Race stops at its options screen (`frontend/track_options.rs`) | none |
+| 2.2 race context | **not played.** The port has no race mode: Quick Race stops at its options screen (`frontend/custom_race/track_options.rs`) | none |
 | 2.8 config read at the first drive | done | `audio/radio/glue.rs` `load_radio` |
 | 4 formats (mp3, ogg, flac, wav) | done through symphonia; the decoder streams blocks | `custom/decode.rs` |
 | EA Trax playlist screen (`frontend-menus.md` 2.2) | **done for stock songs**: the jukebox screen drives `EA_Trax_Jukebox.fng` with the four-state song mode, table order and random flag reversed from `speed.exe` ([eatrax-jukebox.md](eatrax-jukebox.md)). Custom tracks are not listed: the package has four fixed rows | `frontend/jukebox.rs`, `settings/eatrax.rs` |

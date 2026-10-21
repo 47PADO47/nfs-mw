@@ -61,6 +61,8 @@ pub mod screen {
     /// The alias manager's icon row (`alias_menu.rs`).
     pub const MC_PROFILE_MANAGER: &str = "MC_ProfileManager.fng";
     pub const CAR_SELECT: &str = "Car_Select.fng";
+    /// The custom race's car viewer: the car turns with the arrow keys (`custom_race/showcase.rs`).
+    pub const SHOWCASE: &str = "Showcase.fng";
     pub const SMS_MAILBOXES: &str = "SMS_Mailboxes.fng";
     pub const SMS_MESSAGE: &str = "SMS_Message.fng";
 }

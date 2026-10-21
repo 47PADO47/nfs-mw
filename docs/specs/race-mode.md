@@ -306,7 +306,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 | The mods' view of the races | `modding/races_feed.rs`, `backends/races.rs`, `race/mods.rs` |
 | The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
 | The console | `race list|start|status|stop|mod`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |
-| Quick Race | `frontend/quick_race.rs`, `track_select.rs`, `track_options.rs`, `quick_options.rs` |
+| Quick Race, Custom Race | `frontend/quick_race.rs`, `frontend/custom_race/` |
 
 Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
 post-race flow has no outro and no losing screen of its own; a player who is busted in a race

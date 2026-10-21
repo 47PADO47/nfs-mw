@@ -94,14 +94,8 @@ impl Frontend {
         };
         world.set_career(self.career.clone(), self.profiles.clone());
         if let Some(race) = self.quick_race.take() {
-            // The challenge series sets its own options; Quick Play has none (the race runs as the data has it); a Custom
-            // Race runs with the player's choice.
-            let own = self.series.options.take();
-            let options = match (own, std::mem::take(&mut self.quick_play)) {
-                (Some(options), _) => options,
-                (None, true) => crate::scenes::world::RaceOptions::default(),
-                (None, false) => crate::frontend::quick_options::Choice::of(env.settings).race_options(),
-            };
+            // The challenge series, Quick Play and a custom race set their options; a race started by hand runs as the data has it.
+            let options = self.race_options.take().unwrap_or_default();
             world.queue_race(race, options);
         }
         self.paused.set(false);

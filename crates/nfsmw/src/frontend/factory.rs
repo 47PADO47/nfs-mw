@@ -4,6 +4,10 @@ use super::career_screens::rap_sheet;
 use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
 use super::credits::CreditsLogic;
+use super::custom_race::car_select::CarSelect as CustomCarSelect;
+use super::custom_race::showcase::Showcase;
+use super::custom_race::track_options::TrackOptions;
+use super::custom_race::track_select::TrackSelect;
 use super::icon_menu::{IconMenu, Kind};
 use super::ids::screen;
 use super::jukebox::JukeboxLogic;
@@ -12,8 +16,6 @@ use super::logic::{Args, Plain, ScreenLogic, Sub};
 use super::look::{CarLook, Look};
 use super::quick_play::QuickPlay;
 use super::splash::Splash;
-use super::track_options::TrackOptions;
-use super::track_select::TrackSelect;
 use super::widget_menu::WidgetMenu;
 use crate::career::CareerHandle;
 use crate::ui::Text;
@@ -36,6 +38,12 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     if is(screen::MAIN_MENU_SUB) && args.safehouse {
         return super::career_screens::safehouse_menu::make(args);
     }
+    if is(screen::CAR_SELECT) && args.custom {
+        return Box::new(CustomCarSelect::default());
+    }
+    if is(screen::SHOWCASE) {
+        return Box::new(Showcase::default());
+    }
     if let Some(logic) = super::career_screens::make(&name, args) {
         return logic;
     }
@@ -44,6 +52,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::MAIN_MENU_SUB) && args.sub == Sub::QuickRace {
         return Box::new(IconMenu::new(Kind::QuickRace, args));
+    }
+    if is(screen::MAIN_MENU_SUB) && args.sub == Sub::CustomRace {
+        return Box::new(IconMenu::new(Kind::CustomRace, args));
     }
     if is(screen::MAIN_MENU_SUB) {
         return Box::new(IconMenu::new(Kind::Categories { pause: false, mods: mod_rows }, args));
@@ -161,6 +172,10 @@ pub fn look_for(name: &str, args: &Args) -> Option<Look> {
     }
     if is(screen::MAIN_MENU_SUB) && !args.pause {
         return Some(Look::Main);
+    }
+    // The custom race's car select and Showcase name the car they show once the cars were read (`ScreenLogic::look`).
+    if (is(screen::CAR_SELECT) && args.custom) || is(screen::SHOWCASE) {
+        return Some(Look::Car(CarLook::default_car()));
     }
     let safehouse_screen = career_slot(&name).is_some() && !is(screen::MC_LIST);
     safehouse_screen.then(|| Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())))

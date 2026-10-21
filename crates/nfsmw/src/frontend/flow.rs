@@ -26,6 +26,8 @@ use crate::settings::{Partial, Settings};
 mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_custom.rs"]
+mod flow_custom;
 #[path = "flow_loading.rs"]
 mod flow_loading;
 #[path = "flow_save.rs"]
@@ -157,8 +159,11 @@ pub struct Frontend {
     pub(super) series: flow_series::Series,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
-    /// The race above is Quick Play's: it runs with its own laps and opponents, not the Custom Race options (`world_built`).
-    quick_play: bool,
+    /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
+    /// (`world_built`).
+    race_options: Option<crate::scenes::world::RaceOptions>,
+    /// Where the tutorial movie that is playing returns to (`flow_series.rs`).
+    tutorial_back: Option<(String, Args)>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -202,7 +207,8 @@ impl Frontend {
             quick_race: None,
             series: Default::default(),
             quick_car: None,
-            quick_play: false,
+            race_options: None,
+            tutorial_back: None,
             map_chrome: Default::default(),
         }
     }
@@ -397,15 +403,10 @@ impl Frontend {
                     self.origin = QuitTo::Main;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
-                Command::StartQuickRace(race) => {
-                    self.career.end_play();
-                    self.origin = QuitTo::QuickRace;
-                    self.quick_race = Some(race);
-                    self.quick_play = false;
-                    self.start_free_roam(LoadingScreen::Plain, host, env);
-                }
                 Command::StartChallenge { race, transmission } => self.start_challenge(race, transmission, host, env),
-                Command::PlayTutorial(name) => self.play_tutorial(&name, host),
+                Command::PlayTutorial { movie, back, args } => self.play_tutorial(&movie, (back, args), host),
+                Command::CustomDefaults => crate::frontend::custom_race::state::with(|state| state.reset_settings()),
+                Command::StartCustomRace(start) => self.start_custom_race(*start, host, env),
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),

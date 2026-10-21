@@ -17,6 +17,12 @@ impl WorldScene {
         // A player who did not finish (out, or the time ran out) counts as last.
         let place = if me.finished { me.place } else { racers as u32 };
         session.result = Some(RaceResult { place, racers, time: me.time });
+        if let (true, Some(time), false) =
+            (me.finished, me.time, session.kind == nfsmw_data::gameplay::RaceType::SpeedTrap)
+        {
+            crate::frontend::custom_race::records::note_time(&session.event, time);
+            crate::frontend::custom_race::records::note_lap(&session.event, time - session.lap_mark);
+        }
         session.stage = Stage::Results { left: RACE_OVER_SECS };
         self.note_race_outcome(session);
         session.banner = Banner::default();

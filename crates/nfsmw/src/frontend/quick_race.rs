@@ -2,11 +2,14 @@
 //! gameplay data; it is read on a worker thread when the front end starts, so the track screen has it by the time it is
 //! opened (`track_select.rs`). Spec: `docs/specs/frontend-menus.md` section 5, `docs/specs/race-mode.md` section 11.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
+use blackbox_minimap::Calibration;
 use game_install::GameDir;
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
+
+use super::challenge_series::{Crop, map_texture, route_on_map};
+use super::custom_race::Region;
 
 /// One track of the list.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +32,15 @@ pub struct Track {
     pub opponents: usize,
     /// The Blacklist bin of the race's event id (`10.2.1` is bin 10), `None` for a race outside bins 1 to 15.
     pub bin: Option<u8>,
+    /// The event id the language table and the map picture are named by (`10.2.1`).
+    pub event: String,
+    /// The race's region, `None` when the data names none the front end knows.
+    pub region: Option<Region>,
+    /// The race is open from the start of a career (`InitiallyUnlocked`).
+    pub open_at_start: bool,
+    /// The part of the map picture the track list zooms to, and the picture's texture (`TRACK_MAP_<event id>`).
+    pub crop: Crop,
+    pub map_texture: u32,
 }
 
 /// The tracks, in the order the screen steps through them.
@@ -38,7 +50,6 @@ pub struct Board {
 }
 
 static BOARD: OnceLock<Arc<Board>> = OnceLock::new();
-static PICK: AtomicUsize = AtomicUsize::new(0);
 
 /// Starts reading the track list in the background. Does nothing when it was started already.
 pub fn load_in_background(dir: &GameDir) {
@@ -47,8 +58,9 @@ pub fn load_in_background(dir: &GameDir) {
     }
     let dir = dir.clone();
     let spawned = std::thread::Builder::new().name("quick-race-board".into()).spawn(move || {
+        let map = nfsmw_data::minimap::open_city_calibration(&dir).ok();
         let board = match nfsmw_data::gameplay::load(&dir) {
-            Ok(data) => Board::from_data(&data),
+            Ok(data) => Board::from_data(&data, map.as_ref()),
             Err(e) => {
                 log::warn!("quick race: no track list: {e:#}");
                 Board::default()
@@ -67,37 +79,17 @@ pub fn board() -> Option<Arc<Board>> {
     BOARD.get().cloned()
 }
 
-/// The index of the picked track.
-pub fn pick() -> usize {
-    PICK.load(Ordering::Relaxed)
-}
-
-/// Moves the pick by `step` (wrapping) and returns the track now picked.
-pub fn step(board: &Board, step: i32) -> Option<&Track> {
-    let count = board.tracks.len() as i32;
-    if count == 0 {
-        return None;
-    }
-    let next = (pick() as i32 + step).rem_euclid(count) as usize;
-    PICK.store(next, Ordering::Relaxed);
-    board.tracks.get(next)
-}
-
-/// The track that is picked.
-pub fn picked(board: &Board) -> Option<&Track> {
-    board.tracks.get(pick().min(board.tracks.len().saturating_sub(1)))
-}
-
 impl Board {
     /// The races a quick race can run: every type the world runs except the pursuit challenges, by event id.
-    pub fn from_data(data: &GameplayData) -> Self {
+    pub fn from_data(data: &GameplayData, map: Option<&Calibration>) -> Self {
         let mut tracks: Vec<(Vec<u32>, Track)> = data
             .races
             .iter()
             .filter(|r| matches!(r.race_type, Some(t) if t != RaceType::Challenge))
             .filter(|r| r.race_type.is_some_and(|t| t != RaceType::CheckpointRace) && r.start.is_some())
             .filter(|r| r.finish.is_some() || !r.checkpoints.is_empty())
-            .map(|r| (event_key(&r.name), track_of(data, r)))
+            .filter(|r| !r.params.never_in_quick_race)
+            .map(|r| (event_key(&r.name), track_of(data, r, map)))
             .collect();
         tracks.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.name.cmp(&b.1.name)));
         Self { tracks: tracks.into_iter().map(|(_, t)| t).collect() }
@@ -122,7 +114,7 @@ pub(super) fn kind_label(kind: RaceType) -> &'static str {
     }
 }
 
-fn track_of(data: &GameplayData, race: &Race) -> Track {
+fn track_of(data: &GameplayData, race: &Race, map: Option<&Calibration>) -> Track {
     let kind = race.race_type.map_or("Race", kind_label);
     let centres: Vec<glam::Vec3> = race
         .start
@@ -142,6 +134,11 @@ fn track_of(data: &GameplayData, race: &Race) -> Track {
         laps: u32::try_from(race.laps).unwrap_or(1).max(1),
         opponents: race.params.opponents.len(),
         bin: event_key(&race.name).first().and_then(|bin| u8::try_from(*bin).ok()).filter(|bin| (1..=15).contains(bin)),
+        event: crate::career::event_id(&race.name),
+        region: race.region.as_deref().and_then(Region::of),
+        open_at_start: race.params.initially_unlocked || race.params.quick_race_open,
+        crop: map.map_or(Crop::WHOLE, |map| Crop::around(&route_on_map(data, race, map))),
+        map_texture: map_texture(&crate::career::event_id(&race.name)),
     }
 }
 
@@ -151,14 +148,6 @@ impl Track {
         match self.route > 0.0 {
             true => self.route,
             false => self.length,
-        }
-    }
-
-    /// The length as the screen shows it: kilometres with one decimal, or metres under a kilometre.
-    pub fn length_text(&self) -> String {
-        match self.length {
-            m if m >= 1000.0 => format!("{:.1}KM", m / 1000.0),
-            m => format!("{m:.0}M"),
         }
     }
 }
@@ -177,6 +166,11 @@ impl Track {
             laps: 1,
             opponents: 0,
             bin: None,
+            event: String::new(),
+            region: None,
+            open_at_start: false,
+            crop: Crop::WHOLE,
+            map_texture: 0,
         }
     }
 }
@@ -221,6 +215,22 @@ mod tests {
     }
 
     #[test]
+    fn a_race_the_exe_opens_for_the_quick_race_is_open_and_one_it_keeps_out_is_not_listed() {
+        let mut open = race("race_bin_10/10_3_1_knockout", RaceType::Knockout);
+        open.params.quick_race_open = true;
+        let mut hidden = race("race_bin_10/10_4_1_drag", RaceType::Drag);
+        hidden.params.never_in_quick_race = true;
+        let data = GameplayData {
+            races: vec![open, hidden, race("race_bin_10/10_5_1_drag", RaceType::Drag)],
+            triggers: vec![finish_at(100.0)],
+            ..Default::default()
+        };
+        let board = Board::from_data(&data, None);
+        let found: Vec<(&str, bool)> = board.tracks.iter().map(|t| (t.event.as_str(), t.open_at_start)).collect();
+        assert_eq!(found, [("10.3.1", true), ("10.5.1", false)]);
+    }
+
+    #[test]
     fn the_board_orders_by_event_id_and_leaves_the_challenges_out() {
         let data = GameplayData {
             races: vec![
@@ -233,7 +243,7 @@ mod tests {
             triggers: vec![finish_at(2500.0)],
             ..Default::default()
         };
-        let board = Board::from_data(&data);
+        let board = Board::from_data(&data, None);
         let names: Vec<&str> = board.tracks.iter().map(|t| t.name.as_str()).collect();
         assert_eq!(
             names,
@@ -246,24 +256,5 @@ mod tests {
         );
         assert_eq!(board.tracks[0].title, "Circuit 2.1.1");
         assert_eq!(board.tracks[0].length, 2500.0);
-    }
-
-    #[test]
-    fn a_length_reads_in_kilometres_or_metres() {
-        let track = |length| Track { length, ..Track::sample("") };
-        assert_eq!(track(7486.8).length_text(), "7.5KM");
-        assert_eq!(track(640.0).length_text(), "640M");
-    }
-
-    #[test]
-    fn stepping_wraps_round_the_list() {
-        let board = Board { tracks: ["a", "b", "c"].iter().map(|n| Track::sample(n)).collect() };
-        PICK.store(0, Ordering::Relaxed);
-        assert_eq!(step(&board, -1).map(|t| t.name.as_str()), Some("c"));
-        assert_eq!(step(&board, 1).map(|t| t.name.as_str()), Some("a"));
-        assert_eq!(step(&board, 4).map(|t| t.name.as_str()), Some("b"));
-        assert_eq!(picked(&board).map(|t| t.name.as_str()), Some("b"));
-        assert_eq!(step(&Board::default(), 1), None);
-        PICK.store(0, Ordering::Relaxed);
     }
 }

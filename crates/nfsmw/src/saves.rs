@@ -178,7 +178,6 @@ pub fn partial_of(s: &Settings) -> Partial {
         exhaust_flames: Some(s.exhaust_flames),
         turn_signals: Some(s.turn_signals),
         rear_view_mirror: Some(s.rear_view_mirror),
-        quick_race: Some(s.quick_race),
         discord: Some(s.discord),
         discord_time_played: Some(s.discord_time_played),
         mods: None,

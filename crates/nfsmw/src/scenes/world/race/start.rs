@@ -48,6 +48,10 @@ pub(super) fn resolve<'a>(data: &'a GameplayData, query: &str) -> Result<&'a Rac
     Err(format!("no race matches {query:?} (race list shows them)"))
 }
 
+/// The heat a custom race's Moderate and Maximum Heat Level give the car **[ours]**.
+const MODERATE_RACE_HEAT: f32 = 3.0;
+const MAX_RACE_HEAT: f32 = 5.0;
+
 impl WorldScene {
     /// Asks for a race to start as soon as the player's car exists: the front end uses it for a quick race, which opens
     /// the world and the race in one go.
@@ -123,10 +127,16 @@ impl WorldScene {
             false => (self.traffic_setting.cars * level as u32 / 100) as usize,
         };
         self.traffic_manual = Some(cars);
-        if let Some(traffic) = self.traffic.as_mut()
-            && !p.pursuit_race
-        {
-            traffic.stop_pursuit();
+        // A custom race's Heat Level of Moderate or Maximum leaves the police on the road; below that only a pursuit race keeps
+        // them (`docs/specs/custom-race.md` section 4).
+        let police = p.pursuit_race || options.heat.is_some_and(|heat| heat >= 2);
+        if let Some(traffic) = self.traffic.as_mut() {
+            match options.heat.filter(|heat| *heat >= 2) {
+                // The heat the player's car carries into a chase that starts during the race: 3 for Moderate, the top for Maximum.
+                Some(heat) => traffic.set_carried_heat(if heat >= 3 { MAX_RACE_HEAT } else { MODERATE_RACE_HEAT }),
+                None if !police => traffic.stop_pursuit(),
+                None => {}
+            }
         }
         log::info!(
             "race: {} ({:?}), {} lap(s), {} opponent(s), traffic {} car(s)",
@@ -166,6 +176,7 @@ impl WorldScene {
             emu: Vec::new(),
             log_clock: 0.0,
             banner: Banner::default(),
+            lap_mark: 0.0,
             result: None,
             report: None,
             chain: p

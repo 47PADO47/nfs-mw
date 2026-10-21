@@ -22,6 +22,10 @@ pub struct RaceOptions {
     pub opponents: Option<usize>,
     pub difficulty: Option<i32>,
     pub traffic: Option<i32>,
+    /// The catch-up (rubber band) switch, instead of the race's own (`catch_up` of the data).
+    pub catch_up: Option<bool>,
+    /// The heat level of the race's police, 0 (none) to 3 (maximum), when the player chose one (custom race).
+    pub heat: Option<u8>,
     /// The cash a win pays, instead of the race's own (`nfsmw.races`' `set_reward`).
     pub cash: Option<f32>,
     /// Count the result in the career.
@@ -155,7 +159,7 @@ pub fn opponents_of(
             let car = character.preset_ride.as_deref().and_then(resolve_preset).or_else(|| character.car_type.clone());
             Some(Opponent {
                 name: character.name.clone(),
-                skill: base_skill(character, quick, class, race.params.catch_up),
+                skill: base_skill(character, quick, class, options.catch_up.unwrap_or(race.params.catch_up)),
                 bias: character.min_performance,
                 car,
                 start: character.force_start,

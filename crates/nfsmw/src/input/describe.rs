@@ -37,7 +37,9 @@ fn section(action: Action) -> Section {
         | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
-        | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => Section::Menus,
+        | MenuButton3 | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => {
+            Section::Menus
+        }
         Cancel | Console | RadioToggle | RadioNext | RadioPrevious | Map => Section::General,
     }
 }
@@ -90,7 +92,10 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MenuBack => ("Menu back", ""),
         MenuStart => ("Start (pause, resume)", ""),
         MenuButton1 => ("Menu button 1 (post-race: restart)", ""),
-        MenuButton2 => ("Menu button 2 (win photo: race stats)", ""),
+        MenuButton2 => ("Menu button 2 (win photo: race stats; tutorial)", ""),
+        MenuButton3 => ("Menu button 3 (car select: showcase)", ""),
+        MenuZoomIn => ("Showcase: zoom in", ""),
+        MenuZoomOut => ("Showcase: zoom out", ""),
         MenuTriggerLeft => ("Menu left shoulder (post-race: previous racer)", ""),
         MenuTriggerRight => ("Menu right shoulder (post-race: next racer)", ""),
         MenuQuit => ("Quit from the main menu", ""),

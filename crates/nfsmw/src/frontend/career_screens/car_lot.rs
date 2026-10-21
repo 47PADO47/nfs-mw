@@ -49,15 +49,15 @@ pub struct Strip {
 }
 
 /// The strips of the TOP SPEED bar (group `0xF1737`), the HANDLING bar (`0xF173F`) and the ACCELERATION bar (`0xF172F`).
-pub(super) const TOP_SPEED_STRIPS: [Strip; 2] = [
+pub(crate) const TOP_SPEED_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1738, centre_x: -20.0, width: 80.0, uv_width: 2.5 },
     Strip { guid: 0x000F_1739, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
-pub(super) const HANDLING_STRIPS: [Strip; 2] = [
+pub(crate) const HANDLING_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1740, centre_x: 0.0, width: 120.0, uv_width: 3.75 },
     Strip { guid: 0x000F_1741, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
-pub(super) const ACCELERATION_STRIPS: [Strip; 2] = [
+pub(crate) const ACCELERATION_STRIPS: [Strip; 2] = [
     Strip { guid: 0x000F_1730, centre_x: -40.0, width: 40.0, uv_width: 1.25 },
     Strip { guid: 0x000F_1731, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
 ];
