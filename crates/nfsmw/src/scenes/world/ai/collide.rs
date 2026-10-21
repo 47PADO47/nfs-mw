@@ -243,7 +243,7 @@ impl TrafficWorld {
         self.player_position = player.as_deref().map(|p| p.body().position);
     }
 
-    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a frame.
+    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a tick.
     pub fn take_strikes(&mut self) -> Strikes {
         std::mem::take(&mut self.strikes)
     }

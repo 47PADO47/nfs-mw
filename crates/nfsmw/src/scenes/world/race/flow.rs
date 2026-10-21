@@ -5,6 +5,7 @@ use glam::Vec3;
 
 use super::{Banner, RaceSession, Stage, setup};
 use crate::input::{Action, ActionState};
+use crate::scenes::world::drive::STEP;
 use crate::scenes::world::{WorldScene, space};
 
 /// Seconds the world waits for a front end to show the post-race screen before it ends the race (a run without one).
@@ -15,13 +16,12 @@ const BANNER_SECS: f32 = 1.5;
 const GO_SECS: f32 = 3.0;
 
 impl WorldScene {
-    /// One frame of the race: loading, running or the result card. `sim_dt` is the simulated time of the frame and
-    /// `frame_dt` the real one (the result card and the loading wait use real time).
+    /// One frame of the race: loading, a challenge or the result card, on the real frame time `frame_dt` (the result
+    /// card and the loading wait use real time). A running race steps in [`WorldScene::race_tick`] instead.
     pub(in crate::scenes::world) fn update_race(
         &mut self,
         renderer: &mut dyn blackbox_gfx::RenderBackend,
         input: &ActionState,
-        sim_dt: f32,
         frame_dt: f32,
     ) {
         self.update_race_mods();
@@ -30,11 +30,26 @@ impl WorldScene {
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
             Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session),
-            Stage::Running => self.race_running(&mut session, sim_dt),
+            Stage::Running => true,
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
             Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
+        match keep {
+            true => self.race = Some(session),
+            false => self.end_race(session),
+        }
+    }
+
+    /// One physics tick of a running race: the clock, the racers' positions and checkpoints, the goals and the catch-up.
+    /// It runs inside the tick loop, after the physics and the police, so a crossing is tested at the tick it happens
+    /// and the race does not depend on how ticks group into frames (`docs/specs/multiplayer/determinism.md`, D2).
+    pub(in crate::scenes::world) fn race_tick(&mut self) {
+        let Some(mut session) = self.race.take() else { return };
+        let keep = match session.stage {
+            Stage::Running if session.challenge.is_none() => self.race_running(&mut session, STEP),
+            _ => true,
+        };
         match keep {
             true => self.race = Some(session),
             false => self.end_race(session),

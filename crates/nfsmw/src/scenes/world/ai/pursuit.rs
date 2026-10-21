@@ -342,7 +342,7 @@ impl TrafficWorld {
             let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
                 |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
-            let roll = self.rng.next_f32();
+            let roll = self.rng.police.next_f32();
             pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned())
         };
         let Some(name) = pick else { return };
@@ -426,8 +426,12 @@ impl TrafficWorld {
         nav.half_width = model.model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
         let state = CopState::new(model.car, player, speed);
-        let start =
-            Start { stagger: (self.rng.next_f32() * 8.0) as u32, speed, cruise: Cruise::default(), patrol: false };
+        let start = Start {
+            stagger: (self.rng.police.next_f32() * 8.0) as u32,
+            speed,
+            cruise: Cruise::default(),
+            patrol: false,
+        };
         let Some(car) = AiCar::place(
             &model.model,
             Role::Cop(Box::new(state)),

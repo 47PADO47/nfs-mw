@@ -41,13 +41,13 @@ impl TrafficWorld {
         };
         let player = focus.body.map_or(Vec3::ZERO, |body| body.position);
         let centre = self.cops.base(player);
-        let distance = 150.0 + 250.0 * self.rng.next_f32();
-        let angle = std::f32::consts::TAU * self.rng.next_f32();
+        let distance = 150.0 + 250.0 * self.rng.police.next_f32();
+        let angle = std::f32::consts::TAU * self.rng.police.next_f32();
         let at = centre + Vec3::new(angle.cos() * distance, 0.0, angle.sin() * distance);
         let direction = Vec3::new(angle.sin(), 0.0, -angle.cos());
         let mut nav = RoadNav::traffic();
         if !nav.init_at_point(&self.network, &self.index, at, direction, false)
-            || !nav.can_traffic_spawn(&self.network, &mut self.rng)
+            || !nav.can_traffic_spawn(&self.network, &mut self.rng.police)
         {
             return false;
         }
@@ -65,7 +65,7 @@ impl TrafficWorld {
         let speed = cruise.street.min(cruise.highway);
         nav.half_width = model.model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        let start = Start { stagger: (self.rng.next_f32() * 8.0) as u32, speed, cruise, patrol: false };
+        let start = Start { stagger: (self.rng.police.next_f32() * 8.0) as u32, speed, cruise, patrol: false };
         let Some(mut car) = AiCar::place(
             &model.model,
             Role::Cop(Box::new(CopState::new(model.car, performance, speed))),
@@ -76,7 +76,7 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        car.search_mode(true, cruise, &self.network, &self.index, &mut self.rng);
+        car.search_mode(true, cruise, &self.network, &self.index, &mut self.rng.police);
         if !car.is_searching() {
             return false;
         }

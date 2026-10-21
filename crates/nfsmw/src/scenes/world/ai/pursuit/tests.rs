@@ -30,6 +30,7 @@ mod budget;
 mod call_911;
 mod destruction;
 mod fleet;
+mod frame_rate;
 mod free_roam;
 mod heat_progress;
 mod installed;

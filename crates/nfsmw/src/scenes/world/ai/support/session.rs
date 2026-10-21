@@ -155,7 +155,7 @@ impl TrafficWorld {
         let taking = session.cars.len() < wanted;
         while session.cars.len() < wanted {
             let index = session.cars.len() as u32;
-            let rand = self.rng.next_f32();
+            let rand = self.rng.police.next_f32();
             session.cars.push(car_for(strategy, index, big_suv, rand));
             if strategy == Strategy::Ram {
                 session.delay.arm();

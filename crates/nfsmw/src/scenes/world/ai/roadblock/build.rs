@@ -47,7 +47,7 @@ const ALONG_LIMIT: f32 = 14.0;
 fn pick_model(world: &mut TrafficWorld, cause: Cause) -> Option<usize> {
     let loaded = |name: &str| world.cop_models.iter().position(|m| m.model.name.eq_ignore_ascii_case(name));
     if let Cause::Heavy { big_suv } = cause {
-        let roll = world.rng.next_f32();
+        let roll = world.rng.roadblock.next_f32();
         let name = support::car_model(blackbox_pursuit::support::cars::suv(big_suv, roll));
         if let Some(index) = loaded(name) {
             return Some(index);
@@ -57,7 +57,7 @@ fn pick_model(world: &mut TrafficWorld, cause: Cause) -> Option<usize> {
         world.pursuit.iter().flat_map(|p| p.wave()).filter_map(|(name, _, _)| loaded(name)).collect();
     match wave.is_empty() {
         true => (!world.cop_models.is_empty()).then_some(0),
-        false => Some(wave[world.rng.index(wave.len())]),
+        false => Some(wave[world.rng.roadblock.index(wave.len())]),
     }
 }
 
@@ -92,7 +92,7 @@ impl TrafficWorld {
         let asked = roadblock::cars_asked(site.cr_width);
         let level = self.police.level().unwrap_or(1);
         let cooling = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
-        let spikes = !cooling && roadblock::takes_spikes(level, self.rng.next_f32());
+        let spikes = !cooling && roadblock::takes_spikes(level, self.rng.roadblock.next_f32());
         let list: &[Layout] = if spikes { &SPIKES } else { &NORMAL };
         let layout = roadblock::pick(list, site.cr_width, asked).ok_or("no roadblock layout fits this road")?;
         let placed = roadblock::place(layout, &site.road);

@@ -39,6 +39,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | [`blackbox-movie`](../libs/blackbox-movie) | EA VP6 movies (`.vp6`): demuxer and video decoder (the MIT `nihav-vp6`); no audio yet | — |
 | [`blackbox-pursuit`](../libs/blackbox-pursuit) | Pursuit rules as pure functions: heat, the infraction log and its detection, cop tactic geometry, and the police helicopter (flight model, controller, sight, behaviours) | — (fines, heat tables and per-level tuning passed by the caller) |
 | [`blackbox-race`](../libs/blackbox-race) | Race rules as pure code: gates (point and segment tests), the course with ordered checkpoints, laps and the finish, the race clock (staging, countdown, time limit and bonus), ranking, the lap knockout rule, speed-trap points, the catch-up controller and a `Race` that ties them together | — (limits, laps and gains passed by the caller) |
+| [`blackbox-net-core`](../libs/blackbox-net-core) | Generic netcode layers, std only and sans-IO: bit packing and quantisers, datagram links (UDP, in-memory, a seeded lossy simulator), a reliable connection (acks, 4 ordered channels, fragments), delta replication over a registered schema with a shared encode cache, clock sync, the session state machine and LAN discovery ([ADR 0009](decisions/0009-multiplayer-netcode-revisions.md)) | — (entity schemas, budgets and ports passed by the game) |
 | [`blackbox-speedfx`](../libs/blackbox-speedfx) | High-speed screen effects as curves: speed streaks, radial blur, shake and a nitrous FOV kick, with smoothing | — (tuning passed by the caller) |
 | [`blackbox-particles`](../libs/blackbox-particles) | Particle emitters: spawn and update rules (cone spray, drag, gravity, keyed size, angle and colour curves) as a deterministic simulation that yields sprites | — |
 | [`blackbox-vehicle`](../libs/blackbox-vehicle) | Deterministic fixed-step vehicle physics: rigid body, engine and gearbox, suspension, tires, steering, aero; driven by plain parameter structs and a `Ground` ray-cast trait | — (parameters passed by the caller) |
@@ -493,8 +494,6 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 
 ## Roadmap
 
-The milestones and what is done in each are in [roadmap.md](roadmap.md).
-
-Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
-multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md), [specs](specs/multiplayer/README.md)) and the telemetry
+The milestones and what is done in each are in [roadmap.md](roadmap.md). Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
+multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)) and the telemetry
 server ([ADR 0007](decisions/0007-telemetry-server.md), [specs](specs/telemetry/README.md)).
