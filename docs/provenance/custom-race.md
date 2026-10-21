@@ -56,7 +56,7 @@ options, so it is added by this rewrite.
   on, cops off); `FillCustomRace` (traffic 0, 10, 30, 50; difficulty and laps; cops only when `CopsOn`).
 - `UIQRCarSelect`: the lists and their header hashes, `RefreshCarList`, `SetupForPlayer`, the messages (`0x2E76EDFB` leave on Accept,
   `0x93E8A57C` leave on Back, `0x89D0649C` showcase, `0xDE511657` quick race setup), `ChooseTransmission` (labels
-  `0x6F5401D1`, `0x317D3005`, `0x8CD532A0`), the drag race starting without the question (not copied: this build asks), the bonus unlock sentences.
+  `0x6F5401D1`, `0x317D3005`, `0x8CD532A0`), the drag race starting without the question, the bonus unlock sentences.
 - `QuickRaceUnlocker::IsCarUnlocked` (the starter car types, `UnlockedAt() >= currentBin`, the bonus cars by name),
   `UnlockSystem::IsEventAvailable` (the events no quick race lists).
 - `Showcase`: the two logo textures, `Accept`/`Back` back to the car select, the rival block only for a Blacklist showcase.
@@ -74,6 +74,7 @@ options, so it is added by this rewrite.
 - The car select's transmission question in the exe: a scan for the immediates of the labels `0x6F5401D1` (the question), `0x317D3005`
   and `0x8CD532A0` found only the options row of the Transmission setting (`0x0051C5F0`, which shows Manual or Auto from the player
   byte at `+0x91`); the dialog of the car select takes its labels from a table, so whether a drag race skips it was not read in the
-  exe. The decomp says it does; this build asks anyway.
+  exe. The decomp says it does, and this build follows it.
 - `TransmissionPromptOn` (the player option that skips the question) has no counterpart in this build's settings.
-- The exe's Heat Level row (see above).
+- The exe's Heat Level row (see above): neither the exe's option setup nor the decomp's `UIQRTrackOptions` has one, so the row is built
+  from the request's screenshot.

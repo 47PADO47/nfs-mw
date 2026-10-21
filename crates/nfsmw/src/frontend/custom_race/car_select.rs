@@ -1,6 +1,6 @@
 //! Custom Race, step four: the car select (`Car_Select.fng` in its quick race mode, the original's `UIQRCarSelect`). Left and
 //! right step through the cars of a list, up and down change the list, `3` opens the Showcase, Accept asks for the
-//! transmission and starts the race, Back returns to the options. Spec:
+//! transmission (a drag race does not ask) and starts the race, Back returns to the options. Spec:
 //! `docs/specs/custom-race.md` sections 5 to 7.
 
 use std::sync::Arc;
@@ -12,6 +12,7 @@ use nfsmw_career::settings::Flags;
 use nfsmw_career::stable::CarRecord;
 
 use super::car_list::{self, Entry, List, Progress};
+use super::mode::Mode;
 use super::state;
 use crate::career::CareerHandle;
 use crate::frontend::career_screens::car_lot::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
@@ -271,8 +272,8 @@ impl CarSelect {
         }
     }
 
-    /// The transmission question, for every kind of race (the decompiled car select skips it for a drag race; the request says
-    /// the question comes after the car, so a drag race asks too **[ours]**).
+    /// The transmission question, or the race at once for a drag race, which starts with the transmission setting
+    /// **[decomp]** (`UIQRCarSelect` skips the question when the race mode is drag).
     fn start(&mut self, cx: &mut Cx) {
         let Some(entry) = self.entry().cloned() else { return };
         let Some((mode, race)) = state::with(|s| s.event().map(|race| (s.mode, race.to_owned()))) else { return };
@@ -286,6 +287,9 @@ impl CarSelect {
                 transmission,
             }))
         };
+        if mode == Mode::Drag {
+            return cx.send(go(cx.settings.transmission));
+        }
         let manual = cx.settings.transmission == Transmission::Manual;
         let question = Confirm::choice(
             Text::Game(TRANSMISSION_QUESTION),
