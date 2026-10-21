@@ -14,7 +14,7 @@ pub use screen::PostRaceLogic;
 
 use super::flow::{Frontend, Stage};
 use super::ids::screen::{MILESTONE_REWARDS, PHOTO, POST_RACE_PURSUIT, POST_RACE_RESULTS};
-use super::logic::{Env, ScreenLogic};
+use super::logic::{Env, QuitTo, ScreenLogic};
 use crate::app::Host;
 use crate::viewer::{RaceAnswer, RaceReport};
 
@@ -82,17 +82,63 @@ impl Frontend {
             return;
         }
         log::info!("race: the results screen answered {answer:?}");
-        // An event of the challenge series ends on the series screen.
-        if self.series.active && matches!(answer, RaceAnswer::Exit) {
-            return self.show_series(host, env);
+        match after_answer(answer, self.series.active, self.origin) {
+            After::Series => self.show_series(host, env),
+            After::QuickRaceMenu => {
+                self.save_settings(env.changed);
+                self.quit_to(QuitTo::QuickRace, host, env);
+            }
+            After::Drive => self.resume(),
         }
-        self.resume();
     }
+}
+
+/// Where the game goes after the results screen's answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum After {
+    /// The challenge series screen: an event of the series ends there.
+    Series,
+    /// The Quick Race menu, the world unloaded: a race started from that menu ends there.
+    QuickRaceMenu,
+    /// Back to driving: free roam after Exit, the same race after Restart.
+    Drive,
+}
+
+/// The rule: Restart always goes on driving; Exit leaves for the series screen, or for the Quick Race menu when the race
+/// was started from it, and goes on in free roam otherwise (a race of the career or of the main menu).
+fn after_answer(answer: RaceAnswer, series: bool, origin: QuitTo) -> After {
+    if answer == RaceAnswer::Restart {
+        return After::Drive;
+    }
+    if series {
+        return After::Series;
+    }
+    if origin == QuitTo::QuickRace {
+        return After::QuickRaceMenu;
+    }
+    After::Drive
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exit_goes_back_to_the_menu_the_race_came_from() {
+        use RaceAnswer::Exit;
+        assert_eq!(after_answer(Exit, false, QuitTo::QuickRace), After::QuickRaceMenu);
+        assert_eq!(after_answer(Exit, true, QuitTo::Main), After::Series, "the series keeps its own screen");
+        assert_eq!(after_answer(Exit, false, QuitTo::Career), After::Drive, "a career race goes on in free roam");
+        assert_eq!(after_answer(Exit, false, QuitTo::Main), After::Drive);
+    }
+
+    #[test]
+    fn restart_keeps_driving_wherever_the_race_came_from() {
+        for origin in [QuitTo::Main, QuitTo::QuickRace, QuitTo::Career] {
+            assert_eq!(after_answer(RaceAnswer::Restart, false, origin), After::Drive);
+            assert_eq!(after_answer(RaceAnswer::Restart, true, origin), After::Drive);
+        }
+    }
 
     #[test]
     fn a_pursuit_time_reads_minutes_seconds_and_hundredths() {
