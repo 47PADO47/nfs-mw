@@ -64,19 +64,20 @@
 - **Known differences from the original and gaps:**
   - Profiles are written to this build's own `career` folder next to the config file, never to the original's
     `Documents\NFS Most Wanted`. This is deliberate, so the rewrite cannot damage the original's saves.
-  - Races are not run: no race mode, no AI racers, no race pay or event unlocks. Quick Race starts nothing (its
-    `StartFreeRoam` command has no sender).
+  - Races run in the world ([race mode](../specs/race-mode.md)). A career race result goes to the Blacklist through
+    `apply_event_result` (`scenes/world/career/events.rs`), and Quick Race starts a race in the world.
   - The `nfsmw.career` table keeps `BB_ERR_UNSUPPORTED` for `milestone_register`, `milestone_progress`,
     `rival_defeat`, `rival_set_locked`, `give_car`, `remove_car`, `save`, `slot_get` and every safe house and shop call.
-  - Open items (see [roadmap](../roadmap.md#career-open-items-milestone-7)): the race mode, AI racers, the
-    auto shop prices, and the exact car lot stat values (the bars use the repo's estimator, normalized over the lot).
+  - Open items (see [roadmap](../roadmap.md#career-open-items-milestone-7) and
+    [race open items](../roadmap.md#race-open-items-milestone-7)): the auto shop prices, and the exact car lot stat
+    values (the bars use the repo's estimator, normalized over the lot).
   - The career screens draw once their opening messages are posted (`career_screens::post_opening`, from
     [career-safehouse-2.md](../specs/career-safehouse-2.md) section 11) and the FEng runtime treats an object's flag 8
     as its start-hidden state that a script set on it clears (`libs/blackbox-feng`). Two of the posted messages
     (`0x5FF45174` for the rival challenge content, `0x8BBAB3ED` for the bio content) come from the packages' message
     responses; who posts them in the original is not traced. The rival pictures load from `GLOBAL/RIVALS.BIN` (the 45
     menu pictures, not the `_IG` variants).
-  - The first safe house visit enters bin 15 on engaging the safe house; the original does it when the rival bio opens
-    (`career-safehouse.md` 5.3).
+  - The first safe house visit enters bin 15 when the rival bio opens after the `storyfmv_saf25` movie. The bin is
+    entered at that point, not on engaging the safe house (`career-safehouse.md` 5.3).
   - The 12 statistic types with no producer in the executable and the open questions of [specs/career.md](../specs/career.md)
     apply to the runtime as they do to the rules.

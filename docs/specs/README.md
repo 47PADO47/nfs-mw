@@ -160,6 +160,27 @@ remaining clock, geometry, context and live-comparison limits.
 - [custom-music.md](custom-music.md): the player's own audio folders and M3U playlists on the radio, next to the EA Trax songs.
 - [mod-world-content.md](mod-world-content.md): proposed scenery packs and interiors, the concrete form of ADR 0005 for the world.
 
+## Story mode, animation and cutscenes
+
+[EAGL animation](eagl-animation.md) is the index of the EAGL4 animation specs: the skeleton and bind pose
+([eagl-animation-skeleton.md](eagl-animation-skeleton.md)), the animation banks and their names
+([eagl-animation-bank.md](eagl-animation-bank.md)), the delta codecs ([eagl-animation-codecs.md](eagl-animation-codecs.md))
+and the non-delta channels ([eagl-animation-channels.md](eagl-animation-channels.md),
+[eagl-animation-channels-2.md](eagl-animation-channels-2.md)). Its record is [../provenance/eagl-animation.md](../provenance/eagl-animation.md).
+
+[NIS cutscenes](nis-scenes.md) covers what a NIS is on disk: the scene chunk, the entity records, the bundles, the
+directory and the ICE camera sets. [NIS player](nis-player.md) and [NIS player, part 2](nis-player-2.md) cover how a
+scene starts, is placed, timed, skipped and ended, with its characters and camera. [NIS events](nis-events.md) and
+[NIS events, part 2](nis-events-2.md) cover the event sequences and the NIS audio stream. Its record is
+[../provenance/nis-player.md](../provenance/nis-player.md).
+
+[Movie subtitles](subtitles.md) covers which file belongs to which movie, when a line shows and clears, and which
+objects draw it.
+
+[Story flow](story-flow.md) and [story flow, part 2](story-flow-2.md) are the state machines of the story mode: the race
+life cycle, the prologue, the first safe house visit, text messages and calls, the rival bins and gauntlets, the arrival
+sequence and the final race. Its record is [../provenance/story-flow.md](../provenance/story-flow.md).
+
 ## Multiplayer and telemetry (designs, not built)
 
 - [multiplayer/README.md](multiplayer/README.md): LAN and online multiplayer (milestones 10 and 11): requirements, protocol,
