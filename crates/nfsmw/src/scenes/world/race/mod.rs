@@ -73,6 +73,8 @@ pub(super) struct RacerPlan {
     pub bias: f32,
     /// Models that were tried and failed, so a fallback is not asked for twice.
     pub tried: Vec<String>,
+    /// A person drives this racer (split screen's second player): `Some(automatic gearbox)`.
+    pub person: Option<bool>,
 }
 
 /// How the player's race ended.

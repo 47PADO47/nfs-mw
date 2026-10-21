@@ -101,18 +101,29 @@ impl WorldScene {
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
-        let opponents = setup::opponents_of(&data, &race, &options, &resolve_preset);
+        let split = self.queued_split.take();
+        let opponents = match &split {
+            Some(setup) => vec![setup.second_player()],
+            None => setup::opponents_of(&data, &race, &options, &resolve_preset),
+        };
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
         let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
         super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
+        if let Some(setup) = &split {
+            if plan.len() < 2 {
+                return Err("a split-screen race needs the road network of the track".into());
+            }
+            setup.name_players(&mut plan);
+        }
         let p = &race.params;
         let prepared = Prepared {
             course,
             config: setup::config_of(&race),
             rolling: p.rolling_start,
             initial_speed: p.initial_speed.max(0.0),
-            catch_up: p.catch_up,
+            // Nothing slows the leader between two people.
+            catch_up: p.catch_up && split.is_none(),
             gains: CatchUpGains::default(),
         };
         let prepared_catch_up = prepared.catch_up;
@@ -135,7 +146,7 @@ impl WorldScene {
         self.traffic_manual = Some(cars);
         // A custom race's Heat Level of Moderate or Maximum leaves the police on the road; below that only a pursuit race keeps
         // them (`docs/specs/custom-race.md` section 4).
-        let police = p.pursuit_race || options.heat.is_some_and(|heat| heat >= 2);
+        let police = split.is_none() && (p.pursuit_race || options.heat.is_some_and(|heat| heat >= 2));
         if let Some(traffic) = self.traffic.as_mut() {
             match options.heat.filter(|heat| *heat >= 2) {
                 // The heat the player's car carries into a chase that starts during the race: 3 for Moderate, the top for Maximum.
@@ -153,6 +164,7 @@ impl WorldScene {
             cars
         );
         let racers = plan.len();
+        self.split = split.map(crate::scenes::world::split::SplitState::new);
         let walls = self.raise_race_walls(&race.barriers);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
@@ -240,6 +252,7 @@ fn plan_racers(
         skill: 1.0,
         bias: 1.0,
         tried: Vec::new(),
+        person: None,
     }];
     if !has_road {
         return plan;
@@ -255,6 +268,7 @@ fn plan_racers(
             skill: opponent.skill,
             bias: opponent.bias,
             tried: Vec::new(),
+            person: None,
         });
     }
     plan

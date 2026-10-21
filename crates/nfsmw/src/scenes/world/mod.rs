@@ -72,6 +72,7 @@ mod sky;
 mod sound;
 mod space;
 mod speech_look;
+mod split;
 mod speed_trails;
 mod start;
 mod sun;
@@ -191,6 +192,8 @@ pub struct WorldScene {
     queued_race: Option<(String, race::RaceOptions)>,
     /// The two players of the split-screen race `queued_race` starts (`race/split.rs`); `None` for a one-player race.
     queued_split: Option<SplitSetup>,
+    /// The split-screen match being played: the second player's actions and camera (`split/`).
+    split: Option<split::SplitState>,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.

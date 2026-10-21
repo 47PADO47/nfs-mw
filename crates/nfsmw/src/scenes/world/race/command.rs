@@ -3,7 +3,7 @@
 use super::setup::RaceOptions;
 use crate::scenes::world::WorldScene;
 
-const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] | race status | race stop | race mod [demo]";
+const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] [split=CAR] | race status | race stop | race mod [demo]";
 
 /// Runs `race ...`.
 pub(in crate::scenes::world) fn race_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
@@ -17,11 +17,30 @@ pub(in crate::scenes::world) fn race_command(scene: &mut WorldScene, args: &[&st
             false => Err("no race is running".into()),
         },
         ["start", query, rest @ ..] => {
-            let options = parse_options(rest)?;
+            let (split, rest): (Vec<&str>, Vec<&str>) = rest.iter().partition(|arg| arg.starts_with("split="));
+            let options = parse_options(&rest)?;
+            if let Some(setup) = split.first().map(|arg| split_setup(arg, scene)).transpose()? {
+                scene.queued_split = Some(setup);
+            }
             scene.start_race(query, options)
         }
         _ => Err(USAGE.into()),
     }
+}
+
+/// `split=CAR`: a split-screen race with the player's car and `CAR` for the second player, the keyboard and its arrow block.
+/// The input seats are the front end's (`SplitInput`); the console starts the race only, for tests and screenshots.
+fn split_setup(arg: &str, scene: &WorldScene) -> Result<super::SplitSetup, String> {
+    let car = arg.trim_start_matches("split=").trim();
+    if car.is_empty() {
+        return Err("split= needs the second player's car, e.g. split=PORSCHE911".into());
+    }
+    let first = scene.drive.as_ref().map_or_else(|| crate::scenes::world::DEFAULT_CAR.to_owned(), |d| d.car_name.clone());
+    Ok(super::SplitSetup {
+        cars: [first, car.to_owned()],
+        devices: [crate::input::PlayerDevice::Keyboard, crate::input::PlayerDevice::KeyboardArrows],
+        transmissions: [crate::settings::Transmission::Automatic; 2],
+    })
 }
 
 /// `laps=3 opponents=2 difficulty=66 traffic=0` and `career`.
