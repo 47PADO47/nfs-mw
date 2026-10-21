@@ -315,8 +315,13 @@ impl Timeline {
     }
 
     #[cfg(test)]
-    pub(super) fn acceleration(&self) -> Vec3 {
+    pub(crate) fn acceleration(&self) -> Vec3 {
         self.current.unwrap().body.acceleration
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_shake(&self) -> bool {
+        self.current.is_some_and(|key| self.shake.apply(key.sample) != key.sample)
     }
 }
 

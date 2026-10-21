@@ -12,7 +12,7 @@ use super::{Collider, PropWorld, body::PropBody};
 pub(super) struct FragmentVisual {
     instances: Vec<Instance>,
     owner: Weak<()>,
-    scenery: bool,
+    pub(super) scenery: bool,
 }
 
 impl PropWorld {

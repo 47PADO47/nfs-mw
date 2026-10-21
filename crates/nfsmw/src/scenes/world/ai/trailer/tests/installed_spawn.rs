@@ -11,10 +11,17 @@ use nfsmw_data::car::{LoadOptions, physics::PhysicsData};
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
 mod driving;
+mod emergency;
+mod lamp_damage;
+mod lighting;
 mod materials;
+mod named_lights;
 mod population;
+mod release;
 mod road_reflection;
+mod scenarios;
 mod slope;
+mod wreck_appearance;
 
 fn model(dir: &GameDir, data: &PhysicsData, name: &str, renderer: &mut NullBackend) -> TrafficModel {
     let folders = nfsmw_data::car::list(dir);
@@ -156,7 +163,7 @@ fn installed_loaded_trucks_spawn_on_highway_without_contact_or_cargo_release() {
         let tractor_model = model(&dir, &data, name, &mut renderer);
         let trailer_model = model(&dir, &data, &data.trailer_of(name).unwrap(), &mut renderer);
         let mut tractor = CarSim::for_rig(tractor_model.physics.clone(), &tractor_model.rig);
-        tractor.configure_ai();
+        tractor.configure_traffic();
         assert!(tractor.place_traffic_moving(&ground, spawn, speed));
         let mut trailer = TrailerCar::place(&trailer_model, &tractor, spawn, speed, &ground).unwrap();
         assert!(trailer.sim.events.is_some(), "fixture must run installed cargo events");

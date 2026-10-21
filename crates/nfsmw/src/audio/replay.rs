@@ -33,7 +33,7 @@ impl ReplayBackend {
 }
 
 impl Audio {
-    pub(super) fn replay(dir: GameDir, rate: u32) -> Self {
+    pub(crate) fn replay(dir: GameDir, rate: u32) -> Self {
         let mut main = kira::track::MainTrackBuilder::new();
         let wet = main.add_effect(super::wet::Bus::builder());
         let mut manager = AudioManager::<ReplayBackend>::new(AudioManagerSettings {
@@ -56,7 +56,7 @@ impl Audio {
         )
     }
 
-    pub(super) fn render_replay(&mut self, frames: usize) -> &[f32] {
+    pub(crate) fn render_replay(&mut self, frames: usize) -> &[f32] {
         let Some(output) = self.output.as_mut() else { panic!("replay output required") };
         let OutputManager::Replay(manager) = &mut output.manager else { panic!("replay output required") };
         manager.backend_mut().render(frames)

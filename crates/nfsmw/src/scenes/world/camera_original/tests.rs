@@ -3,7 +3,7 @@ use glam::Vec3;
 
 use super::{space, wall_hit};
 
-fn world(group: u16) -> CollisionWorld {
+pub(super) fn world(group: u16) -> CollisionWorld {
     let mut world = CollisionWorld::default();
     world.insert(CollisionPack {
         section: 1,

@@ -17,6 +17,7 @@ use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
+mod lighting;
 mod original_camera;
 
 /// Solver passes of the joint per physics step.
@@ -151,8 +152,8 @@ impl TrailerCar {
         })
     }
 
-    /// One physics step: roll (braking as the tractor does while hitched, and fully once it is on its own, as
-    /// the spring brakes of a trailer do when the air line is gone), meet the world, then hold to the tractor.
+    /// One physics step: roll, taking the tractor's brakes only while hitched, meet the world, then hold to
+    /// the tractor. A released trailer clears both pedals (`trailer-release-controls.md`).
     pub fn step(
         &mut self,
         tractor: &mut CarSim,
@@ -162,9 +163,10 @@ impl TrailerCar {
         surfaces: &SurfaceTable,
     ) {
         let was_hitched = self.coupling.is_hitched();
+        self.sim.set_trailer_hitched(was_hitched);
         let input = match was_hitched {
             true => DriveInput { brake: brakes.brake, handbrake: brakes.handbrake, ..DriveInput::default() },
-            false => DriveInput { brake: 1.0, ..DriveInput::default() },
+            false => DriveInput::default(),
         };
         let ground = WorldGround { collision, surfaces };
         self.sim.step(&input, &ground, Some((collision, props)));
@@ -212,7 +214,21 @@ impl TrailerCar {
             &self.pose(alpha),
             self.sim.events.as_ref().map(|e| &e.hidden_slots),
             &revealed,
-            crate::scenes::world::drive::DrawOptions { car: self.render_id, detail, ..Default::default() },
+            crate::scenes::world::drive::DrawOptions {
+                car: self.render_id,
+                broken_lights: self.sim.lamp_damage(),
+                lamps: [
+                    true,
+                    crate::scenes::world::car_lights::LampState {
+                        brake: self.sim.lamp_brake(),
+                        broken: self.sim.lamp_damage(),
+                        ..Default::default()
+                    }
+                    .brake_surfaces_on(),
+                ],
+                detail,
+                ..Default::default()
+            },
             out,
         );
     }

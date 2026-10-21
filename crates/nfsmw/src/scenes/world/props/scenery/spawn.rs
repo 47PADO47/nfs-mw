@@ -77,6 +77,7 @@ impl PropWorld {
             failed: false,
             hidden: false,
             authored_visual: false,
+            streamed_hidden: false,
             hidden_parts: BTreeSet::new(),
             spawned: BTreeSet::new(),
             triggered: false,
@@ -87,7 +88,10 @@ impl PropWorld {
         };
         let child = self.insert_fragment_with(body, spec, Vec::new(), owner, true)?;
         if fragment.no_physics {
-            self.colliders.get_mut(&child)?.collidable = false;
+            let collider = self.colliders.get_mut(&child)?;
+            collider.collidable = false;
+            // No BeginSimulation means no simulation-owned cleanup task.
+            collider.body.as_mut()?.lifetime = Default::default();
             self.regrid(child);
         }
         self.scenery.models.insert(child, child_model);
@@ -97,7 +101,7 @@ impl PropWorld {
             model.hidden_parts.insert(fragment.part);
         }
         if fragment.hide_parent {
-            model.hidden = true;
+            self.hide_model(id);
         }
         log::debug!("scenery {id}: released part {:08X}, body {child}", fragment.part);
         Some(child)

@@ -57,6 +57,7 @@ use fall::FallWatch;
 pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
+pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 pub(super) use sim::CarSim;
@@ -244,12 +245,13 @@ impl Drive {
     pub fn lamp_source(&self) -> (CarLights, super::car_light_flares::CarLightFlares, Mat4, LampState) {
         let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
         let state = LampState {
+            broken: self.sim.as_ref().map_or(0, |s| s.lamp_damage()),
+            emergency: 0,
             brake: self.brake_lamp,
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights,
             turn_signals: false,
-            siren: false,
             time: self.lamp_time,
         };
         (self.rig.lights().clone(), self.rig.flares().clone(), self.pose().transform(), state)
@@ -441,7 +443,10 @@ impl Drive {
 
     /// What the car sound needs of the drive; `None` while there is no car yet.
     pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        self.sim.as_ref()?;
+        if self.sim.is_none() {
+            self.sound.clear();
+            return None;
+        }
         Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 

@@ -14,6 +14,7 @@ fn cop(id: u32) -> CarFacts {
         roadblock: false,
         lights_on: true,
         wrecked: false,
+        broken_lights: 0,
     }
 }
 
@@ -23,6 +24,22 @@ fn patrol(id: u32) -> CarFacts {
 
 fn states(sources: &[SirenSource]) -> Vec<State> {
     sources.iter().map(|s| s.state).collect()
+}
+
+#[test]
+fn a_broken_emergency_lamp_overrides_the_sound_service_without_wrecking_the_car() {
+    let mut sirens = Sirens::default();
+    let none = Chase { on: false, ..chase(0.0) };
+    let red_broken = CarFacts { broken_lights: 4096, ..patrol(1) };
+    let head_broken = CarFacts { broken_lights: 1, ..patrol(2) };
+    assert_eq!(states(&sirens.tick(0.1, &none, &[red_broken, head_broken])), [State::Die, State::Off]);
+    let block = CarFacts { roadblock: true, ..red_broken };
+    assert_eq!(states(&sirens.tick(0.1, &none, &[block])), [State::Die]);
+    assert!(!block.wrecked);
+    let repaired = CarFacts { broken_lights: 0, ..block };
+    assert_eq!(states(&sirens.tick(0.1, &none, &[repaired])), [State::Off]);
+    let enabled = CarFacts { lights_on: true, ..repaired };
+    assert_eq!(states(&sirens.tick(0.1, &none, &[enabled])), [State::Wail]);
 }
 
 #[test]

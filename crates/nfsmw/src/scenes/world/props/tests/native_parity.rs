@@ -10,6 +10,8 @@ use nfsmw_data::{
     world::{DEFAULT_TRACK, PropCatalog, WorldIndex},
 };
 
+mod toll_audio;
+
 fn fixtures(dir: &GameDir, index: &WorldIndex, data: &PhysicsData) -> Vec<Placed> {
     let catalog = PropCatalog::new(index.prop_bounds.clone(), data.database());
     let mut found = std::collections::BTreeMap::new();
@@ -133,11 +135,19 @@ fn installed_native_tollbooth_and_parked_contacts_preserve_source_weight_and_bre
     let data = PhysicsData::load(&dir).unwrap();
     for placed in fixtures(&dir, &index, &data) {
         let spec = placed.prop.as_ref().unwrap().dynamics.as_ref().unwrap();
+        eprintln!("native source {}: {spec:?}", placed.prop.as_ref().unwrap().name);
         let id = placed.spawner.unwrap().unique_id + 1;
         let pose = fixture_pose(&placed, &data);
         assert!(spec.detach_impulse > 0.0 && !spec.immobile);
         for (speed, expected_attached) in [(0.01, true), (60.0, false)] {
             let (world, car, impact) = strike(&placed, &data, pose, speed, true);
+            eprintln!(
+                "native impact {} at {speed}: impulse {}, player contacts {:?}, prop contacts {:?}",
+                placed.prop.as_ref().unwrap().name,
+                impact.impulse,
+                impact.sounds,
+                world.sound_contacts
+            );
             let prop = world.colliders[&id].body.as_ref().unwrap();
             assert_eq!(prop.rigid.mass(), spec.mass);
             assert_eq!(prop.attached, expected_attached, "{} at {speed}", placed.prop.as_ref().unwrap().name);

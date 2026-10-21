@@ -15,7 +15,6 @@ use super::racer;
 use super::stop;
 use super::traffic::{self, Cruise, THINK_STEPS};
 use super::trailer::{Brakes, TrailerCar};
-use crate::scenes::world::car_lights::LampState;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
 use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
@@ -28,6 +27,7 @@ mod damage_effects;
 mod glass;
 mod goal_drive;
 mod hits;
+mod lighting;
 mod original_camera;
 mod patrol;
 mod racing;
@@ -69,6 +69,8 @@ pub struct AiCar {
     rig: Rc<CarRig>,
     /// This physical vehicle's identity, independent of its shared model rig.
     render_id: u32,
+    /// Persistent phase in [0,1), advancing with simulation even while lamps are off.
+    light_phase: f32,
     sim: CarSim,
     /// The trailer of a semi tractor, hitched or loose.
     trailer: Option<TrailerCar>,
@@ -159,6 +161,9 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.configure_ai();
+        if matches!(role, Role::Traffic) && !start.patrol {
+            sim.configure_traffic();
+        }
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         if !sim.place_traffic_moving(ground, spawn, start.speed) {
             return None;
@@ -170,10 +175,13 @@ impl AiCar {
         let damage = sim.collision_role.cop.then(|| CopDamage::for_model(&name, physics.events.as_deref()));
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
+        let render_id = keys::next_car();
+        let light_phase = (render_id.wrapping_mul(0x9e37_79b9) >> 8) as f32 / 16_777_216.0;
         Some(Self {
             name,
             rig,
-            render_id: keys::next_car(),
+            render_id,
+            light_phase,
             sim,
             trailer,
             driver: Driver::new(
@@ -229,33 +237,6 @@ impl AiCar {
         })
     }
 
-    /// The headlight beams of the car.
-    pub fn beams(&self, alpha: f32, out: &mut Vec<blackbox_render::EffectVertex>) {
-        self.rig.lights().beams(self.pose(alpha).transform(), true, out);
-    }
-
-    /// The lamps of the car as glows, lit by its brake, steering, siren and the blink clock.
-    pub fn glows(
-        &self,
-        alpha: f32,
-        time: f32,
-        turn_signals: bool,
-        camera: Vec3,
-        forward: Vec3,
-        out: &mut Vec<blackbox_render::EffectVertex>,
-    ) {
-        let state = LampState {
-            brake: self.controls.brake,
-            reverse: self.sim.telemetry().gear < 0,
-            steer: self.controls.steer,
-            headlights: true,
-            turn_signals,
-            siren: self.emergency_lights(),
-            time,
-        };
-        self.rig.lights().glows(self.pose(alpha).transform(), state, camera, forward, out);
-    }
-
     /// The car's position in render space.
     pub fn position(&self) -> Vec3 {
         self.current.position
@@ -269,11 +250,9 @@ impl AiCar {
 
     /// Advance the light bars by one tick, at the car's frame.
     pub fn step_lights(&mut self) {
-        if !self.emergency_lights() {
-            return;
-        }
+        let active = self.emergency_lights();
         if let Some(lights) = &mut self.cop_lights {
-            lights.step(STEP, self.current.transform());
+            lights.step(STEP, self.current.transform(), active);
         }
     }
 
@@ -348,6 +327,8 @@ impl AiCar {
             nos: self.controls.nos,
             ..DriveInput::default()
         };
+        let destroyed = self.is_wrecked();
+        self.sim.set_destroyed_non_player(destroyed);
         let impact = self.sim.step(&input, &WorldGround { collision, surfaces }, Some((collision, props)));
         for hit in impact.damage {
             self.wreck_hit(hit, self.damage_distance);

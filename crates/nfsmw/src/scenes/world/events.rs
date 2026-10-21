@@ -3,6 +3,7 @@
 
 mod damage;
 mod dispatch;
+mod lights;
 pub(super) use dispatch::{drain, queue};
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,8 @@ pub struct VehicleEvents {
     hits: Vec<DamageHit>,
     /// Original per-zone sequencer damage levels, independent of the cosmetic aspect model.
     source_levels: [u8; 10],
+    destroyed: bool,
+    light_damage: u32,
     failed: bool,
     pub hidden_slots: BTreeSet<usize>,
     pub spawned: BTreeSet<u32>,
@@ -42,7 +45,13 @@ pub struct VehicleEvents {
 }
 
 impl VehicleEvents {
+    /// Health destruction breaks lamps without replacing the ordinary hit's zone tiers.
+    pub fn note_health_destroyed(&mut self) {
+        self.destroyed = true;
+    }
+
     pub fn destroy(&mut self) {
+        self.note_health_destroyed();
         self.source_levels.fill(6);
         for (zone, &glass) in ZONE_HAS_GLASS.iter().enumerate() {
             self.damage.impact(zone, 6, glass);
@@ -63,6 +72,8 @@ impl VehicleEvents {
             player,
             hits: Vec::new(),
             source_levels: [0; 10],
+            destroyed: false,
+            light_damage: 0,
             failed: false,
             hidden_slots: BTreeSet::new(),
             spawned: BTreeSet::new(),
@@ -97,7 +108,16 @@ impl VehicleEvents {
             return Vec::new();
         }
         match self.advance(view_distance) {
-            Ok(events) => events,
+            Ok(mut events) => {
+                events.retain(|effect| {
+                    let WorldEvent::DamageLights(name) = effect.event else { return true };
+                    if !self.set_light_damage(name, true) {
+                        log::warn!("unknown named vehicle light {name:08X}");
+                    }
+                    false
+                });
+                events
+            }
             Err(error) => {
                 self.failed = true;
                 self.hits.clear();

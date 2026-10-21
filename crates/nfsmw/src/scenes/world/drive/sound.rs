@@ -17,7 +17,20 @@ pub struct SoundFeed {
 }
 
 impl SoundFeed {
-    fn append_world_contacts(&mut self, contacts: Vec<CarContact>) {
+    pub fn clear(&mut self) {
+        self.ticks.clear();
+        self.camera_contacts.clear();
+    }
+    fn append_world_contacts(&mut self, contacts: Vec<CarContact>, player_advanced: bool) {
+        if !player_advanced {
+            self.ticks.push(CarSoundTick {
+                telemetry: self.telemetry,
+                input: self.latest,
+                contacts,
+                surface: self.surface,
+            });
+            return;
+        }
         if let Some(tick) = self.ticks.last_mut() {
             tick.contacts.extend(contacts);
         }
@@ -82,8 +95,16 @@ impl SoundFeed {
 
 impl super::Drive {
     /// Nearby prop sounds belong to the completed tick, independently of player camera impacts.
-    pub(in crate::scenes::world) fn append_world_sound_contacts(&mut self, contacts: Vec<CarContact>) {
-        self.sound.append_world_contacts(contacts);
+    pub(in crate::scenes::world) fn append_world_sound_contacts(
+        &mut self,
+        contacts: Vec<CarContact>,
+        player_advanced: bool,
+    ) {
+        if self.sim.is_none() {
+            self.sound.clear();
+            return;
+        }
+        self.sound.append_world_contacts(contacts, player_advanced);
     }
 }
 
@@ -104,5 +125,42 @@ mod tests {
         assert_eq!(sound_upgrades(package), SoundUpgrades { engine: 2, transmission: 1, induction: 3 });
         let unrelated = PerformancePackage { levels: [4, 4, 4, 0, 0, 0, 4], junkman: 0x7f };
         assert_eq!(sound_upgrades(unrelated), SoundUpgrades::default());
+    }
+
+    #[test]
+    fn surrounding_contacts_keep_fixed_tick_order_without_entering_the_camera_feed() {
+        use crate::audio::{ContactSource, ContactVehicle};
+        use glam::Vec3;
+
+        let mut feed = SoundFeed::default();
+        for identity in [11, 12, 13] {
+            feed.append_world_contacts(
+                vec![CarContact {
+                    sound_profile: 0,
+                    vehicle: Some(ContactVehicle { identity, profile: 17 }),
+                    audio_zone: None,
+                    detached: false,
+                    source: ContactSource::World,
+                    identity: 0,
+                    surface: 0,
+                    point: Vec3::ZERO,
+                    normal: Vec3::X,
+                    velocity: Vec3::NEG_X * 10.0,
+                    delta_v: 3.0,
+                    front: false,
+                    bottom: false,
+                }],
+                false,
+            );
+        }
+        assert_eq!(feed.ticks.len(), 3, "traffic-only ticks must not merge into an old player tick");
+        assert_eq!(
+            feed.ticks.iter().map(|tick| tick.contacts[0].vehicle.unwrap().identity).collect::<Vec<_>>(),
+            [11, 12, 13]
+        );
+        assert!(feed.camera_contacts().is_empty());
+        let state = feed.state("BMWM3GTR", &Telemetry::default(), PerformancePackage::default());
+        assert_eq!(state.ticks.len(), 3);
+        assert!(feed.state("BMWM3GTR", &Telemetry::default(), PerformancePackage::default()).ticks.is_empty());
     }
 }

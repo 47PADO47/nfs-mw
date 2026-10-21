@@ -173,8 +173,8 @@ sleep = sum < SLEEP_VELOCITY  and  contact_points > 2
 
 where `contact_points` = ground contact points found this tick (§4.2) **plus, for vehicles, the number of
 wheels on the ground**. A vehicle additionally refuses to sleep if it is animating, had an object (car) hit
-this tick, or has wheels on the ground (unless it has been a destroyed, non-player car resting on at least
-half its wheels for `>= 2 s`, `mDeadOnWheels`) [decomp]. A sleeping body is not integrated and has its
+this tick, or has wheels on the ground (unless a destroyed non-player has more than half its wheels
+supported for `>= 2 s`; see [wreck-motion.md](wreck-motion.md)) [decomp]. A sleeping body is not integrated and has its
 velocity zeroed; any `apply_*` call, or a hit by an awake body, wakes it (`state = 0`).
 Sleeping bodies still refresh their ground height query each tick. A body created inactive starts asleep.
 
@@ -418,10 +418,9 @@ only for driver classes traffic through racer. `StunSpeed`/`StunTime` are used b
 
 ## 7. Invulnerability
 
-`RBVehicle` carries a state (`none`, `from reset`, `from manual reset`) and a timer. While not `none`,
-any penetration test against this car is refused (the other car sees no hit, no push-out) and the time of
-the last refused hit is remembered. The state clears when `>= 1 s` has passed since the last refused hit
-**and** the timer (decremented by `dT` each tick) has reached 0 [decomp]. Resets set the timer to 2 s.
+`RBVehicle`'s reset invulnerability gates object penetration, with a contact-sensitive countdown.
+Ground/world admission stays active. States, the strict cooldown, timer and reset callers are
+specified in [reset-object-collision.md](reset-object-collision.md).
 
 ## 8. Reset to road
 

@@ -64,7 +64,7 @@ fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
 
 fn tractor() -> CarSim {
     let mut sim = CarSim::new(physics(VehicleSpec::example(), false), [0.2; 4]);
-    sim.configure_ai();
+    sim.configure_traffic();
     sim
 }
 
@@ -140,7 +140,7 @@ fn installed_traffic_trucks_hold_their_original_hitch_positions_while_driving() 
     for name in ["semia", "semib", "semicon", "semicrate", "semilog"] {
         let mut a = CarSim::new(data.car(name).unwrap(), [0.5; 4]);
         let mut b = CarSim::new(data.car(&data.trailer_of(name).unwrap()).unwrap(), [0.5; 4]);
-        a.configure_ai();
+        a.configure_traffic();
         b.configure_trailer();
         assert!(a.place_moving(&ground, spawn(), 8.0));
         let coupling = Coupling::new(&a, &b).unwrap();

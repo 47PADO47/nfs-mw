@@ -2,6 +2,19 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Only live window/brake combinations need an affected-solid appearance.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SurfaceDamage {
+    glass: u16,
+    brakes: u8,
+}
+
+impl SurfaceDamage {
+    pub fn new(glass: u16, broken_lights: u32) -> Self {
+        Self { glass: glass & 0x3ff, brakes: ((broken_lights >> 3) & 7) as u8 }
+    }
+}
+
 pub(super) struct GlassVariant {
     pub parts: BTreeMap<(usize, usize, bool), Part>,
     meshes: Vec<(u32, MeshHandle)>,
@@ -16,18 +29,28 @@ impl GlassVariant {
 }
 
 impl CarRig {
+    #[cfg(test)]
     pub fn prepare_glass(&self, renderer: &mut dyn RenderBackend, masks: &BTreeSet<u16>, to_sun: Vec3) {
+        self.prepare_surfaces(renderer, &masks.iter().map(|&glass| SurfaceDamage::new(glass, 0)).collect(), to_sun);
+    }
+
+    pub fn prepare_surfaces(&self, renderer: &mut dyn RenderBackend, masks: &BTreeSet<SurfaceDamage>, to_sun: Vec3) {
         let mut variants = self.glass.borrow_mut();
         let dead: Vec<_> = variants.keys().filter(|m| !masks.contains(m)).copied().collect();
         for mask in dead {
             variants.remove(&mask).unwrap().release(renderer);
         }
-        for &mask in masks.iter().filter(|&&m| m != 0) {
+        for &mask in masks.iter().filter(|&&m| m != SurfaceDamage::default()) {
             if variants.contains_key(&mask) {
                 continue;
             }
-            let swaps = self.swaps_for((0..10).filter(|zone| mask & (1 << zone) != 0));
-            let affected = affected_solids(&self.model, &changed_textures(&self.swaps(), &swaps));
+            let swaps = self
+                .swaps_for((0..10).filter(|zone| mask.glass & (1 << zone) != 0))
+                .with_broken_brake_lights(u32::from(mask.brakes) << 3);
+            // Compare with brakes ON so a broken side is relevant even if it is OFF at this draw.
+            let before = self.swaps().with_lamp_state(true, true, &self.model.textures);
+            let after = swaps.clone().with_lamp_state(true, true, &self.model.textures);
+            let affected = affected_solids(&self.model, &changed_textures(&before, &after));
             let appearance = self.appearance.borrow();
             set_lighting(renderer, appearance.shading, to_sun);
             let (parts, meshes) = upload_solids(renderer, &self.model, &swaps, &appearance.materials, Some(&affected));

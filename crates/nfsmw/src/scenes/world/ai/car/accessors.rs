@@ -69,6 +69,7 @@ impl AiCar {
         if let Some(trailer) = self.trailer.as_mut() {
             trailer.sync_contacts(&mut self.sim);
         }
+        self.sim.finish_retirement_contacts();
         self.current = self.sim.pose();
     }
 

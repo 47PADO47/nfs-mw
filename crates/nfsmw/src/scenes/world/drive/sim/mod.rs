@@ -10,6 +10,7 @@ mod audio;
 mod hits;
 pub(in crate::scenes::world) mod memo;
 pub(in crate::scenes::world) mod pair_contact;
+mod reset_collision;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};
 use glam::{Mat3, Quat, Vec3};
@@ -39,6 +40,7 @@ const MAX_VISIBLE_TRAVEL: f32 = 0.25;
 
 pub struct CarSim {
     vehicle: Vehicle,
+    reset_collision: reset_collision::ResetCollision,
     /// Where the body box's centre is relative to the model's origin, in physics axes.
     pivot: Vec3,
     /// Height of each wheel's centre above the model's origin at rest, in model wheel order.
@@ -56,6 +58,8 @@ pub struct CarSim {
     pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
     before_velocity: Vec3,
+    /// Uninterrupted NPC regular-brake time for the original FX admission task.
+    brake_lamp_age: f32,
     ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
     /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
@@ -96,6 +100,7 @@ impl CarSim {
         }
         Self {
             vehicle,
+            reset_collision: Default::default(),
             prop_struck: false,
             smacked: Vec::new(),
             pivot: physics.bounds.pivot,
@@ -117,6 +122,7 @@ impl CarSim {
             collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
             before_velocity: Vec3::ZERO,
+            brake_lamp_age: 0.0,
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
             pending_sound_contacts: Vec::new(),
@@ -154,6 +160,7 @@ impl CarSim {
     /// Put the car on the road at `spawn`, already rolling forward at `speed` m/s.
     pub fn place_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
         self.spin = [0.0; 4];
+        self.brake_lamp_age = 0.0;
         self.ground_reference.clear();
         for wheel in self.wheel_ground.get_mut() {
             wheel.clear();
@@ -336,6 +343,7 @@ impl CarSim {
     pub fn repair(&mut self) {
         if let Some(events) = self.events.as_mut() {
             events.damage.repair();
+            events.repair_lights();
             self.vehicle.tire_damage.reset();
         }
     }
@@ -380,8 +388,11 @@ mod ai;
 mod camera;
 mod contact_damage;
 mod impact_effects;
+mod lights;
 mod pair;
+mod pair_dispatch;
 mod performance;
+mod sound_contacts;
 mod step;
 mod terrain;
 mod trailer;

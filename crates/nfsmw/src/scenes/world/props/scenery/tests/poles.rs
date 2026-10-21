@@ -53,9 +53,14 @@ fn strike(world: &mut PropWorld, id: u32, data: &PhysicsData, strike: Strike, sp
     }
     let mut impact = Impact::default();
     world.collide_vehicle(&mut car, Some(frame), &mut impact);
+    let prop_sounds = world.take_sound_contacts();
+    assert!(
+        impact.sounds.iter().all(|sound| sound.sound_profile == 0),
+        "vehicle impacts retain only their own endpoint"
+    );
     if was_attached && !world.colliders[&id].body.as_ref().unwrap().attached {
         assert!(
-            impact.sounds.iter().any(|s| s.sound_profile == profile && s.detached),
+            prop_sounds.iter().any(|s| s.sound_profile == profile && s.detached),
             "a real detached prop must retain its own authored sound profile"
         );
     }
@@ -197,11 +202,25 @@ fn visual_fragment_control(data: &PhysicsData, placed: &Placed) {
     let collider = &world.colliders[&child];
     assert!(!collider.collidable && collider.cells.is_empty());
     assert_eq!(collider.body.as_ref().unwrap().rigid.state, blackbox_vehicle::rigid_body::BodyState::Frozen);
+    assert!(!collider.body.as_ref().unwrap().lifetime.active);
     assert_eq!(world.scenery.models[&child].key, 0);
     let transform = collider.body.as_ref().unwrap().transform(1.0);
     let mut drawn = Vec::new();
     assert!(world.model_instances(child, transform, &mut drawn) && !drawn.is_empty());
     world.step(&FlatGround::new(-1000.0), STEP);
+    assert!(matrix_difference(world.pose(child).unwrap().0, transform) < 0.002);
+    // A visual-only piece with real body attributes must not inherit their cleanup tasks either.
+    event.attributes = placed.spawner.unwrap().attributes;
+    event.allow_duplicates = true;
+    let attributes = data.fragment_dynamics(event.attributes).unwrap();
+    assert!(attributes.kill_off_screen > 0.0);
+    let authored = world.spawn_scenery_fragment(id, event, data).unwrap();
+    assert!(!world.colliders[&authored].body.as_ref().unwrap().lifetime.active);
+    let offscreen = Mat4::from_translation(Vec3::splat(100000.0));
+    for _ in 0..1200 {
+        world.update_lifetimes(&FlatGround::new(-1000.0), offscreen, STEP);
+    }
+    assert!(world.colliders.contains_key(&authored), "NoPhysics has no simulation-owned offscreen countdown");
     assert!(matrix_difference(world.pose(child).unwrap().0, transform) < 0.002);
     world.remove_tile(0);
     assert!(world.colliders.is_empty() && world.scenery.models.is_empty());
@@ -292,7 +311,14 @@ fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
         matrix_difference(root.transform(1.0), root_visual),
         world.scenery.models[&id].hidden
     );
-    assert!(root.rigid.position.distance(root_position) > 0.02, "released root body must integrate");
+    let hidden_parent = world.scenery.models[&id].hidden;
+    if hidden_parent {
+        assert_eq!(root.rigid.state, blackbox_vehicle::rigid_body::BodyState::Frozen);
+        assert!(!world.colliders[&id].collidable, "a hidden parent has ended its physical simulation");
+    }
+    if !hidden_parent {
+        assert!(root.rigid.position.distance(root_position) > 0.02, "a visible released root body must integrate");
+    }
     let observations = initial
         .into_iter()
         .map(|(child, attached, frozen, position, orientation, visual)| {
@@ -318,8 +344,12 @@ fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
             motion
         })
         .collect();
-    // Restoring the streamed placement also invalidates its replacement meshes/bodies.
+    // A hidden parent cannot resurrect on its old simulation's offscreen timer.
     world.update_lifetimes(&ground, Mat4::from_translation(Vec3::splat(100_000.0)), 9.0);
+    if hidden_parent {
+        assert!(world.scenery.models[&id].hidden, "hidden parents retain their consumed state");
+        world.dispatch_scenery(id, nfsmw_data::world::sequences::WorldEvent::KillObject, data);
+    }
     assert!(world.fragments.is_empty(), "offscreen restoration must remove detached children");
     assert!(!world.scenery.models[&id].hidden, "restoration must reveal the intact pole again");
     assert!(matrix_difference(world.pose(id).unwrap().0, placed.transform) < 0.002);

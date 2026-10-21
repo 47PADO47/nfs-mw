@@ -10,10 +10,18 @@ pub enum ContactSource {
     Ground,
 }
 
+/// A non-player physical body and the installed pvehicle collection it owns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ContactVehicle {
+    pub identity: u64,
+    pub profile: u32,
+}
+
 /// Captured before response, with severity in the response's effective delta-v units.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarContact {
     pub sound_profile: u32,
+    pub vehicle: Option<ContactVehicle>,
     /// None means no owning orientation was available: select AudioFX_DEFAULT.
     pub audio_zone: Option<nfsmw_data::sound::CollisionZone>,
     pub detached: bool,

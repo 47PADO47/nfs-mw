@@ -116,7 +116,7 @@ fn coast(
     let trailer_model = model.trailer.as_ref().unwrap();
     let mut a = CarSim::for_rig(model.physics.clone(), &model.rig);
     let mut b = CarSim::for_rig(trailer_model.physics.clone(), &trailer_model.rig);
-    a.configure_ai();
+    a.configure_traffic();
     b.configure_trailer();
     let place = |sim: &mut CarSim, spawn| match runtime {
         true => sim.place_traffic_moving(ground, spawn, speed),
