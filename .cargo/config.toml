@@ -17,3 +17,8 @@ codegen-backend = "cranelift"
 
 [profile.dev.package."*"]
 codegen-backend = "llvm"
+
+# Tests are built with LLVM. Cranelift miscompiled the egui code our test binary instantiates: with it, `garage::` and
+# `devtools::` crashed with an access violation and `blackbox-smaa` aborted, while the same tests pass under LLVM.
+[profile.test]
+codegen-backend = "llvm"
