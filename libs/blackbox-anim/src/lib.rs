@@ -7,6 +7,12 @@
 //! The crate is being built. The formats are in `docs/formats/animation.md` and the runtime behaviour in
 //! `docs/specs/eagl-animation.md`.
 
+mod bytes;
 mod error;
+pub mod object;
 
 pub use error::{Error, Result};
+pub use object::{Object, Symbol};
+
+#[cfg(test)]
+mod tests;
