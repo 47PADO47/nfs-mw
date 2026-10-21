@@ -98,7 +98,7 @@ impl TrafficWorld {
         self.cars
             .iter()
             .enumerate()
-            .filter(|(index, car)| !taken.contains(index) && wanted(*car))
+            .filter(|(index, car)| !taken.contains(index) && wanted(car))
             .map(|(index, car)| (index, car.pose(self.alpha).position.distance_squared(point)))
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(index, _)| index)
