@@ -261,7 +261,7 @@ fn place(anchor: &Anchor, space: Space, point: [f32; 3]) -> Option<Vec3> {
 }
 
 /// `up` turned about `forward` by `roll` (16-bit units).
-fn roll(up: Vec3, forward: Vec3, roll: u16) -> Vec3 {
+pub(super) fn roll(up: Vec3, forward: Vec3, roll: u16) -> Vec3 {
     if roll == 0 || forward == Vec3::ZERO {
         return up;
     }

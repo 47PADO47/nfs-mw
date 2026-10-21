@@ -245,7 +245,10 @@ impl Scene for Pausable {
         if self.concealed() {
             return None;
         }
-        self.inner.take_race_report()
+        let report = self.inner.take_race_report();
+        // A win photo moves the camera: the frozen effect buffers are built again against the new one.
+        self.effects_dirty |= report.as_ref().is_some_and(|report| report.photo.is_some());
+        report
     }
 
     fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {

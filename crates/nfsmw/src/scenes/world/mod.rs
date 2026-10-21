@@ -37,6 +37,7 @@ mod materials;
 mod mod_hooks;
 mod moment;
 mod moment_world;
+mod photo_shot;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -244,6 +245,8 @@ pub struct WorldScene {
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
     moment: moment::Moment,
+    /// The camera of the win photo while the post-race screen shows it (`photo_shot.rs`).
+    photo_shot: Option<photo_shot::PhotoShot>,
     /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
     breaker_icons: breaker_icons::BreakerIcons,
 }

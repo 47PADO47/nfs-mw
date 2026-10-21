@@ -13,6 +13,9 @@ impl WorldScene {
         if let Some(lens) = self.moment.lens(aspect) {
             return lens;
         }
+        if let Some(lens) = self.photo_lens(aspect) {
+            return lens;
+        }
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
@@ -29,6 +32,9 @@ impl WorldScene {
     /// The selected retained shot on the physical body, independent of render interpolation.
     pub(super) fn simulation_lens(&self, aspect: f32) -> Lens {
         if let Some(lens) = self.moment.lens(aspect) {
+            return lens;
+        }
+        if let Some(lens) = self.photo_lens(aspect) {
             return lens;
         }
         let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
