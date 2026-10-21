@@ -8,7 +8,7 @@ use std::cell::Cell;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::Once;
@@ -96,22 +96,38 @@ fn platform_key() -> &'static str {
     }
 }
 
-/// Build `hello-mod` with the same profile as this test binary, and return the path of the library it produced.
+/// Build `hello-mod` with the same profile as this test binary, and return the path of the library it produced. Cargo says
+/// where it put the library (`--message-format=json`), so the folder layout of the target directory does not matter.
 fn build_hello() -> PathBuf {
     let release = !cfg!(debug_assertions);
     let mut command = Command::new(env!("CARGO"));
-    command.current_dir(workspace_root()).args(["build", "-p", "hello-mod"]);
+    command
+        .current_dir(workspace_root())
+        .args(["build", "-p", "hello-mod", "--message-format=json-render-diagnostics"])
+        .stdout(Stdio::piped());
     if release {
         command.arg("--release");
     }
-    let status = command.status().expect("run cargo build -p hello-mod");
-    assert!(status.success(), "cargo build -p hello-mod failed");
+    let output = command.output().expect("run cargo build -p hello-mod");
+    assert!(output.status.success(), "cargo build -p hello-mod failed");
 
-    let exe = env::current_exe().expect("test binary path");
-    let profile_dir = exe.parent().and_then(Path::parent).expect("target profile folder");
-    let library = profile_dir.join(library_file_name());
+    let messages = String::from_utf8_lossy(&output.stdout);
+    let library = artifact_path(&messages, &library_file_name())
+        .unwrap_or_else(|| panic!("cargo reported no {} for hello-mod", library_file_name()));
     assert!(library.is_file(), "built library not found at {}", library.display());
     library
+}
+
+/// The path of the file named `file` among the `filenames` of cargo's `compiler-artifact` messages. The paths are JSON
+/// strings, so a Windows path has its backslashes doubled.
+fn artifact_path(messages: &str, file: &str) -> Option<PathBuf> {
+    messages.lines().filter(|line| line.contains("\"compiler-artifact\"")).find_map(|line| {
+        let names = line.split("\"filenames\":[").nth(1)?.split(']').next()?;
+        names.split(',').map(|name| name.trim().trim_matches('"').replace("\\\\", "/")).find_map(|name| {
+            let ends_with_file = name.rsplit('/').next() == Some(file);
+            ends_with_file.then(|| PathBuf::from(name))
+        })
+    })
 }
 
 /// The manifest of the example, as committed in the repository.
