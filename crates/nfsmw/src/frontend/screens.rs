@@ -62,6 +62,11 @@ pub struct Screens {
 }
 
 impl Screens {
+    /// The textures and fonts the screens draw with.
+    pub fn assets(&self) -> &UiAssets {
+        &self.assets
+    }
+
     pub fn new(catalog: Catalog, assets: Arc<UiAssets>) -> Self {
         let mut runtime = crate::ui::runtime();
         let strings = assets.clone();

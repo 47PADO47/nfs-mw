@@ -2,10 +2,10 @@
 //! bin 19 with a map of the selected one, its description, a lock or a check mark on each icon, and the dialogs that
 //! launch it (are you sure, then manual or automatic). Spec: `docs/specs/challenge-series.md`.
 
-mod board;
+pub(crate) mod board;
 mod grid;
 mod kinds;
-mod maps;
+pub(crate) mod maps;
 mod progress;
 mod texts;
 mod view;
