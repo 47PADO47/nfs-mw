@@ -99,8 +99,8 @@ has an FPS attribute of 30, and the game samples at 30 steps per second. Full ta
 
 ```
 80037020 AnimScene (NisScene)
-├─ 00037030 AnimSceneHeaderData        152 B scene header; contains the scene name, e.g. "ArrestF02"
-└─ 00037040 AnimSceneEntityData ×N     152 B per scene actor/element (64 of 87 scenes have these)
+├─ 00037030 AnimSceneHeaderData        0x40 bytes + description, 68 to 188 B; contains the scene name, e.g. "ArrestF02"
+└─ 00037040 AnimSceneEntityData ×N     152 B (8 B of 0x11 padding + 144 B) per character; 64 records in the 26 arrest scenes
 ```
 
 The names come from the decomp's `src/Speed/Indep/Src/Misc/SpeedChunks.hpp`
