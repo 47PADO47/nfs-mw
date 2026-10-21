@@ -91,11 +91,12 @@ fn button(name: &str) -> Result<u32, String> {
         "start" => pad::START,
         "button1" => (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5),
         "button2" => pad::BUTTON0 << 4,
+        "button3" => pad::BUTTON0,
         "ltrigger" => pad::LTRIGGER,
         "rtrigger" => pad::RTRIGGER,
         other => {
             return Err(format!(
-                "unknown button {other:?} (up down left right accept back start button1 button2 ltrigger rtrigger)"
+                "unknown button {other:?} (up down left right accept back start button1 button2 button3 ltrigger rtrigger)"
             ));
         }
     })

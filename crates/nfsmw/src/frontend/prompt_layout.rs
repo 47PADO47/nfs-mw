@@ -4,6 +4,7 @@ use blackbox_feng::{UiNode, UiTree};
 use glam::{Mat4, Vec3};
 
 use super::ids::screen;
+use super::logic::Footer;
 
 pub struct Frame {
     pub world: Mat4,
@@ -16,7 +17,7 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn find(tree: &UiTree, name: &str) -> Option<Self> {
+    pub fn find(tree: &UiTree, name: &str, footer: Footer) -> Option<Self> {
         if [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)) {
             let n = tree.nodes.iter().find(|n| n.name_hash == 0xC4DF_3FF2)?;
             return Some(Self::new(n, n.world, 220.0, 32.0, true));
@@ -26,6 +27,9 @@ impl Frame {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
             "pause_options.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
             "options.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            // The custom race's screens (`custom_race/`); the career's car lot keeps the package's own footer.
+            "track_select.fng" | "track_options.fng" | "showcase.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "car_select.fng" if footer.is_custom_car_select() => (0x84BC_F2B5, 0x3D3B_C1AC),
             "mainmenu.fng" | "mainmenu_sub.fng" | "mc_profilemanager.fng" => (0x17B1_F254, 0xC6AF_DD7E),
             // The profile list's footer group is empty and sits below its panel: the hints go where its Back button was,
             // inside the panel's footer.
@@ -36,8 +40,10 @@ impl Frame {
             _ => return None,
         };
         let root = tree.nodes.iter().find(|n| n.name_hash == group)?;
-        let bar = tree.nodes.iter().find(|n| n.parent == Some(root.index) && n.name_hash == background)?;
-        let world = root.world * Mat4::from_translation(bar.local_position.truncate().extend(0.0));
+        let bar = tree.nodes.iter().find(|n| n.name_hash == background && is_inside(tree, n, root.index))?;
+        // Where the bar's origin is in the group's space: its own offset for a child, the sum of the offsets for a deeper one.
+        let at = root.world.inverse().transform_point3(bar.world.w_axis.truncate());
+        let world = root.world * Mat4::from_translation(at.truncate().extend(0.0));
         Some(Self::new(root, world, bar.size.x.abs() - 12.0, bar.size.y.abs(), false))
     }
 
@@ -56,4 +62,17 @@ impl Frame {
         }
         tree.draw_order.retain(|i| *i < first || tree.nodes[*i].visible);
     }
+}
+
+/// Whether `node` is `root` or inside it, following the parents.
+fn is_inside(tree: &UiTree, node: &UiNode, root: usize) -> bool {
+    let mut parent = node.parent;
+    for _ in 0..tree.nodes.len() {
+        match parent {
+            Some(p) if p == root => return true,
+            Some(p) => parent = tree.nodes.get(p).and_then(|n| n.parent),
+            None => return false,
+        }
+    }
+    false
 }

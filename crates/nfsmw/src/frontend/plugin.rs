@@ -100,8 +100,9 @@ enum Press {
     Back,
     /// Quit, once, as the quit action does on the main menu.
     Quit,
-    /// Button 1, once (Game Stats on the main menu, Randomize on the Quick Play brief).
-    Button1,
+    /// A face button, once, as the pad mask it presses (Game Stats on the main menu, Randomize on the Quick Play brief, Defaults,
+    /// View Tutorial, Showcase).
+    Button(u32),
     /// A screen's own part (an option row or its arrow), with what it queued.
     Screen(Vec<Command>),
     Nothing,
@@ -113,7 +114,9 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
         Some(Action::MenuAccept) => return Press::Accept,
         Some(Action::MenuBack) => return Press::Back,
         Some(Action::MenuQuit) => return Press::Quit,
-        Some(Action::MenuButton1) => return Press::Button1,
+        Some(Action::MenuButton1) => return Press::Button((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
+        Some(Action::MenuButton2) => return Press::Button(pad::BUTTON0 << 4),
+        Some(Action::MenuButton3) => return Press::Button(pad::BUTTON0),
         _ => {}
     }
     if let Some(commands) = fe.screens.click(point, env) {
@@ -236,7 +239,7 @@ fn update(
     }
     // On the menus a click presses what is under the pointer and holds accept while a button is held. A sidebar's
     // list takes its own clicks and wheel turns, so none of them reach the screen under it.
-    let (mut press_back, mut press_quit, mut press_button1) = (false, false, false);
+    let (mut press_back, mut press_quit, mut press_buttons) = (false, false, 0);
     let on_list = fe.browse.as_ref().is_some_and(Browse::over_panel);
     // The GPS Yes/No dialog is the one menu that opens over the map; it takes the menu click and pad handling too.
     let dialog_over_map = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::DIALOG);
@@ -257,7 +260,7 @@ fn update(
                 Press::Accept => *clicking = true,
                 Press::Back => press_back = true,
                 Press::Quit => press_quit = true,
-                Press::Button1 => press_button1 = true,
+                Press::Button(bits) => press_buttons |= bits,
                 Press::Screen(commands) => fe.apply(commands, host, &mut env),
                 Press::Nothing => {}
             }
@@ -271,9 +274,7 @@ fn update(
         if press_back {
             mask |= pad::BACK;
         }
-        if press_button1 {
-            mask |= (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5);
-        }
+        mask |= press_buttons;
     }
     // A screen that takes text (the alias name prompt) gets the typed characters, and only Enter and Escape press its pad.
     if matches!(fe.stage, Stage::Menus | Stage::Paused) && fe.screens.wants_text() {
