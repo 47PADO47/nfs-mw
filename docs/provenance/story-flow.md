@@ -54,3 +54,11 @@ near the player); then it gets the `NISActivity`, registers `car1`..`car8` (unle
 marker (or the player car when there is none) and starts it with the scene name and the track word. Where the
 activity plays the movie text (the "NIS Play Story" state label at `0x008B0754`, used by `FUN_006f7230`) is
 **[unconfirmed]**; the rewrite plays the movie first, then the scene.
+
+### F-03: `PlayTutorial`
+
+Registered by the script registry `FUN_0061e750` (push of `0x006124E0` with the name at `0x008A4A70`). The routine at
+`0x006124E0` (no function defined) returns the finished message at once unless the race status exists, a global at
+`0x00926064` is 0, the play mode is 2 and a race is current. Then by race type (`FUN_005faa20`): 2 → settings `+0xAC`
+bit 6 and `drag_tutorial`, 4 → bit 8 and `tollbooth_tutorial`, 5 → bit 7 and `speedtrap_tutorial`; a set bit or any
+other type posts `0x20D60DBF`. Otherwise it sets the bit and starts the movie through `FUN_0062f820`.
