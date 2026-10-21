@@ -13,7 +13,9 @@ use nfsmw_career::settings::PROLOGUE_STAGE;
 
 use crate::app::Host;
 use crate::career::CareerHandle;
-use crate::frontend::ids::screen::{MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO};
+use crate::frontend::ids::screen::{
+    MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_REGION_UNLOCK,
+};
 use crate::frontend::logic::{Args, Command, Env};
 
 use super::Frontend;
@@ -21,7 +23,7 @@ use super::Stage;
 use super::flow_movie::AfterMovie;
 
 /// The rap sheet movie of step 6 at stage 13 (`storyfmv_rap30`, story-flow-2 F-20).
-const RAP_SHEET_MOVIE: &str = "storyfmv_rap30";
+pub(in crate::frontend) const RAP_SHEET_MOVIE: &str = "storyfmv_rap30";
 
 /// The counter the first visit's bio leaves the stepper at. The stepper starts at -1 and the bio sets 4, so its next call
 /// is step 5, the rival movie (story-flow-2 F-18).
@@ -74,14 +76,15 @@ impl Frontend {
         true
     }
 
-    /// The Blacklist sequence goes on from `stepper`: one call of the stepper, then the movie or screen the step names. The
-    /// rival movie plays and hands the next step back when it is over.
+    /// The Blacklist sequence goes on from `stepper`: one call of the stepper, then the screen, movie or save the step names.
+    /// Screens hand the sequence back when they close (`flow_arrival.rs`), and movies when they are over.
     pub(super) fn blacklist_step(&mut self, mut stepper: BlacklistStepper, host: &mut Host, env: &mut Env) {
         let stepped = self.career.with(|career| {
             let mut context = FrontEndContext::CAREER;
             context.insert(FrontEndContext::BLACKLIST_SEQUENCE);
-            // Autosave is only asked for at step 3, which this counter never reaches, so the gate is not evaluated.
-            let action = stepper.advance(&mut career.settings, &mut context, false);
+            // The autosave gate was evaluated once when the arrival started (`flow_arrival.rs`); the first visit never
+            // reaches step 3, so its flag stays false.
+            let action = stepper.advance(&mut career.settings, &mut context, career.arrival_autosave);
             (action, career.settings.stage)
         });
         let Some((action, stage)) = stepped else {
@@ -92,9 +95,25 @@ impl Frontend {
             StepAction::RivalMovie => self.sequence_movie(&rival_movie(stage), stepper, host, env),
             StepAction::RapSheetMovie => self.sequence_movie(RAP_SHEET_MOVIE, stepper, host, env),
             StepAction::LeaveFrontEnd => self.start_from_safe_house(host, env),
+            StepAction::RivalChallenge => {
+                self.sequence_screen(SAFE_HOUSE_RIVAL_CHALLENGE, safe_house_args(), stepper, host, env)
+            }
+            StepAction::RegionUnlock => {
+                self.sequence_screen(SAFEHOUSE_REGION_UNLOCK, safe_house_args(), stepper, host, env)
+            }
+            StepAction::RivalBio => self.sequence_screen(SAFE_HOUSE_RIVAL_BIO, safe_house_args(), stepper, host, env),
+            // The marker choice (step 1) has no screen yet, and the autosave (step 3) writes the profile with no screen.
+            StepAction::Markers => {
+                log::info!("career: the marker choice is not built; its step is skipped");
+                self.blacklist_step(stepper, host, env);
+            }
+            StepAction::AutosaveFlow => {
+                self.sequence_save();
+                self.blacklist_step(stepper, host, env);
+            }
             // Step 6 at stage 15 opens the reputation overview. No screen of that name exists yet, so the safe house menu
             // stands in for it. Step 7 ends the sequence in the safe house menu too.
-            _ => self.open_safe_house(host, env),
+            StepAction::ReputationOverview | StepAction::End => self.open_safe_house(host, env),
         }
     }
 
@@ -117,6 +136,11 @@ impl Frontend {
         self.screens.clear();
         self.open_menu(MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() }, host, env);
     }
+}
+
+/// The arguments of a safe house screen of the sequence.
+fn safe_house_args() -> Args {
+    Args { safehouse: true, ..Args::default() }
 }
 
 #[cfg(test)]

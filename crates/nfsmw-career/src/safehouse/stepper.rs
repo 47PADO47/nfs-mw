@@ -78,7 +78,10 @@ impl BlacklistStepper {
                 5 => return StepAction::RivalMovie,
                 6 => return self.step_six(settings, context),
                 2 | 3 => continue,
-                _ => return StepAction::End,
+                _ => {
+                    context.remove(FrontEndContext::BLACKLIST_SEQUENCE);
+                    return StepAction::End;
+                }
             }
         }
     }
@@ -173,6 +176,17 @@ mod tests {
         let mut ctx = FrontEndContext::CAREER;
         let mut stepper = BlacklistStepper { counter: 5 };
         assert_eq!(stepper.advance(&mut settings, &mut ctx, false), LeaveFrontEnd);
+    }
+
+    #[test]
+    fn the_end_clears_the_blacklist_sequence_bit() {
+        let mut settings = CareerSettings::new_career();
+        settings.stage = 14;
+        let mut ctx = FrontEndContext(FrontEndContext::CAREER.0 | FrontEndContext::BLACKLIST_SEQUENCE.0);
+        let mut stepper = BlacklistStepper { counter: 6 };
+        assert_eq!(stepper.advance(&mut settings, &mut ctx, false), End);
+        assert!(!ctx.contains(FrontEndContext::BLACKLIST_SEQUENCE));
+        assert!(ctx.contains(FrontEndContext::CAREER), "the other bits are kept");
     }
 
     #[test]

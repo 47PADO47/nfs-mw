@@ -4,12 +4,16 @@
 //! (sections 2.3 and 5.2), a boss race once its rival is unlocked or beaten (section 2.6). An open race raises the
 //! autosave for an event start. Races are not built yet, so an open race still reaches the stub in `entry.rs`.
 
-use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, EventResult, apply_event_result};
+use nfsmw_career::blacklist::{
+    BinRecord, BinState, Blacklist, EventResult, Reward, RewardEffect, apply_event_result, grant_gauntlet_rewards,
+};
+use nfsmw_career::economy::markers::MarkerInventory;
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
+use nfsmw_data::gameplay::RewardRecord;
 
-use crate::career::{AutosaveInputs, event_id, handle_autosave};
+use crate::career::{AutosaveInputs, Career, event_id, handle_autosave, race_event_id};
 use crate::scenes::world::WorldScene;
 
 /// The Blacklist's bins, 1 to 15 (`FIRST_RIVAL_STAGE`).
@@ -53,6 +57,7 @@ impl WorldScene {
     /// are queued (`docs/specs/career-blacklist.md` section 4.2, `docs/specs/career-phone.md` section 7).
     pub(in crate::scenes::world) fn career_race_finished(&mut self, event: &str, place: u8, cash_value: f32) {
         let series_complete = self.note_side_race(event, place);
+        let rewards = self.race_rewards(event);
         let phone = &mut self.career.phone;
         let outcome = self.career.handle.with(|career| {
             let result = EventResult {
@@ -82,6 +87,15 @@ impl WorldScene {
             if outcome.released_cars > 0 {
                 phone.add_sms(inbox, RELEASE_SMS);
             }
+            // A rival beaten by its last boss race: its gauntlet's rewards are granted now, and the safe house runs
+            // the arrival sequence at the next entry (`flow_arrival.rs`). Bin 1 has no arrival: its last race is the
+            // final race, which has its own end (`story-flow-2.md` section 5).
+            if let Some(bin) = outcome.bins_done.first().copied() {
+                career.rival_beaten = outcome.bins_done.iter().copied().find(|bin| *bin > 1);
+                if let Some((list, deferred)) = &rewards {
+                    grant_gauntlet(career, list, bin, *deferred);
+                }
+            }
             outcome
         });
         let Some(outcome) = outcome else { return };
@@ -92,6 +106,14 @@ impl WorldScene {
             outcome.bins_entered,
             outcome.released_cars
         );
+    }
+
+    /// The reward list of the race `event` and whether it defers its rewards to the markers screen (`RaceStory`), or
+    /// `None` when the install has no such race.
+    fn race_rewards(&self, event: &str) -> Option<(Vec<RewardRecord>, bool)> {
+        let data = self.gameplay.as_ref()?;
+        let race = data.races.iter().find(|race| race_event_id(race) == event)?;
+        Some((race.story.rewards.clone(), race.story.defer_rewards))
     }
 
     /// Notes a won race of the challenge bin (events `19.*`) and says whether the series is complete: every event of bin 19
@@ -152,6 +174,41 @@ impl WorldScene {
 
 /// The SMS that tells the player an impounded car can be released (`docs/specs/career-economy-flows.md` section 7).
 const RELEASE_SMS: u32 = 120;
+
+/// Grants the reward list of a gauntlet's last race once its rival is beaten (`story-flow-2.md` section 4.5, F-10). The
+/// rewards go to the career at once, or to the popup queue when the race defers them. A pink slip names the rival's
+/// preset car (`BL<bin>`); it is reported and not added, because the stable has no add call by preset name yet.
+fn grant_gauntlet(career: &mut Career, rewards: &[RewardRecord], bin: u8, deferred: bool) {
+    let list: Vec<Reward> = rewards.iter().map(|record| reward_of(record, bin)).collect();
+    let effects = grant_gauntlet_rewards(&list, true, deferred, &mut career.settings, &mut career.popups, |_| false);
+    // The marker inventory is written back from `markers` when the profile is saved, so it reads the new entries.
+    match MarkerInventory::from_table(&career.settings.inventory[..]) {
+        Ok(markers) => career.markers = markers,
+        Err(e) => log::warn!("the marker inventory could not be read after the rewards: {e:?}"),
+    }
+    for effect in effects {
+        match effect {
+            RewardEffect::AddCar { preset } => {
+                log::warn!("reward: pink slip {preset} is not added to the stable (no add call by preset yet)")
+            }
+            RewardEffect::Unknown(reward) | RewardEffect::InventoryFull(reward) | RewardEffect::QueueFull(reward) => {
+                log::warn!("reward {reward:?} is not granted")
+            }
+            other => log::info!("reward: {other:?}"),
+        }
+    }
+}
+
+/// The rule crate's reward for one record of a race's list (`RewardRecord::kind`, the preset of a pink slip).
+fn reward_of(record: &RewardRecord, bin: u8) -> Reward {
+    let kind = record.kind();
+    Reward {
+        part: record.part,
+        kind,
+        value: record.value,
+        preset: (kind == Some(nfsmw_career::blacklist::KIND_PINK_SLIP)).then(|| format!("BL{bin}")),
+    }
+}
 
 /// The bin that lists `event` as a free race, and how many of its free races are won (the counter after this win).
 fn races_won_in_bin(blacklist: &Blacklist, event: &str) -> Option<(u8, u8)> {

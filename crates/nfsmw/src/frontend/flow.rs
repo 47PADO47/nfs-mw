@@ -22,6 +22,8 @@ use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
 
 // Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_arrival.rs"]
+mod flow_arrival;
 #[path = "flow_bust.rs"]
 mod flow_bust;
 #[path = "flow_career.rs"]

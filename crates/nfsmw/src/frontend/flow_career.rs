@@ -13,6 +13,7 @@ use nfsmw_career::savefile::Trigger;
 use nfsmw_career::settings::PROLOGUE_STAGE;
 
 use super::Frontend;
+use super::flow_arrival;
 use super::flow_loading::LoadingScreen;
 
 impl Frontend {
@@ -96,8 +97,19 @@ impl Frontend {
             return;
         }
         let (screen, args) = match request {
-            CareerRequest::SafeHouse { .. } => (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() }),
+            // A rival beaten since the last safe house visit: its arrival sequence runs in place of the menu.
+            CareerRequest::SafeHouse { .. } => {
+                if flow_arrival::take_due(&self.career) {
+                    return self.start_arrival(host, env);
+                }
+                (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() })
+            }
             CareerRequest::CarLot { .. } => (CAR_SELECT, Args { safehouse: true, ..Args::default() }),
+            // The arrival sequence shows this screen at its region step, in the safe house.
+            CareerRequest::RegionUnlock { .. } if flow_arrival::is_due(&self.career) => {
+                log::info!("career: the region screen waits for the arrival sequence");
+                return;
+            }
             CareerRequest::RegionUnlock { .. } => {
                 (SAFEHOUSE_REGION_UNLOCK, Args { safehouse: true, ..Args::default() })
             }
