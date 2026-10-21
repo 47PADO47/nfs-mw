@@ -55,7 +55,7 @@ impl CollisionReactions {
     }
 }
 
-/// A goal entry can intentionally resolve to no profile.
+/// The first matching goal entry falls back to the default when its profile is invalid.
 #[derive(Clone, Debug)]
 pub struct GoalReaction {
     pub goal: u32,
@@ -97,7 +97,7 @@ impl AiCollisionReactions {
 
     pub fn profile(&self, goal: Option<u32>) -> Option<&Arc<CollisionReactions>> {
         if let Some(record) = goal.and_then(|key| self.goals.iter().find(|r| r.goal == key)) {
-            return record.reactions.as_ref();
+            return record.reactions.as_ref().or(self.default.as_ref());
         }
         self.default.as_ref()
     }

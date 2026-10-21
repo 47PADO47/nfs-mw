@@ -23,7 +23,7 @@ fn profile(scale: f32) -> Arc<CollisionReactions> {
 }
 
 #[test]
-fn goal_selection_keeps_first_match_and_an_explicit_missing_profile() {
+fn goal_selection_keeps_first_match_and_falls_back_when_that_profile_is_invalid() {
     let default = profile(1.0);
     let specific = profile(2.6);
     let reactions = AiCollisionReactions {
@@ -32,10 +32,14 @@ fn goal_selection_keeps_first_match_and_an_explicit_missing_profile() {
             GoalReaction { goal: 7, reactions: Some(specific.clone()) },
             GoalReaction { goal: 7, reactions: Some(default.clone()) },
             GoalReaction { goal: 8, reactions: None },
+            GoalReaction { goal: 8, reactions: Some(specific.clone()) },
         ],
     };
     assert!(Arc::ptr_eq(reactions.profile(Some(7)).unwrap(), &specific));
     assert!(Arc::ptr_eq(reactions.profile(Some(9)).unwrap(), &default));
     assert!(Arc::ptr_eq(reactions.profile(None).unwrap(), &default));
-    assert!(reactions.profile(Some(8)).is_none());
+    assert!(Arc::ptr_eq(reactions.profile(Some(8)).unwrap(), &default));
+    let no_default = AiCollisionReactions { default: None, goals: reactions.goals.clone() };
+    assert!(no_default.profile(Some(8)).is_none());
+    assert!(no_default.profile(None).is_none());
 }

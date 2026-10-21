@@ -1,5 +1,8 @@
 //! Installed lens-flare profiles. Behavior: `docs/specs/player-car-lights.md`.
 
+mod damage;
+pub use damage::damage_mask;
+
 use blackbox_attrib::{CollectionRef, Database, Value};
 use blackbox_hash::bstring_hash;
 
@@ -42,7 +45,14 @@ impl FlareProfile {
 pub struct FlareProfiles {
     pub head: Vec<FlareProfile>,
     pub brake: Vec<FlareProfile>,
+    pub traffic_brake: Vec<FlareProfile>,
     pub reverse: Vec<FlareProfile>,
+    pub cop_red: Vec<FlareProfile>,
+    pub cop_blue: Vec<FlareProfile>,
+    pub cop_white: Vec<FlareProfile>,
+    pub cop_bright_red: Vec<FlareProfile>,
+    pub cop_bright_blue: Vec<FlareProfile>,
+    pub cop_orange: Vec<FlareProfile>,
 }
 
 impl FlareProfiles {
@@ -53,12 +63,30 @@ impl FlareProfiles {
         Self {
             head: read(&["headlight_inner", "headlight_outer"]),
             brake: read(&["brakelight_inner"]),
+            traffic_brake: read(&["brakelight_traffic_inner"]),
             reverse: read(&["reverselight_inner"]),
+            cop_red: read(&["coplightred_inner"]),
+            cop_blue: read(&["coplightblue_inner"]),
+            cop_white: read(&["coplightwhite_inner"]),
+            cop_bright_red: read(&["coplightbrightred"]),
+            cop_bright_blue: read(&["coplightbrightblue"]),
+            cop_orange: read(&["coplightorange"]),
         }
     }
 
     pub fn textures(&self) -> impl Iterator<Item = u32> + '_ {
-        self.head.iter().chain(&self.brake).chain(&self.reverse).map(|p| p.texture)
+        self.head
+            .iter()
+            .chain(&self.brake)
+            .chain(&self.traffic_brake)
+            .chain(&self.reverse)
+            .chain(&self.cop_red)
+            .chain(&self.cop_blue)
+            .chain(&self.cop_white)
+            .chain(&self.cop_bright_red)
+            .chain(&self.cop_bright_blue)
+            .chain(&self.cop_orange)
+            .map(|p| p.texture)
     }
 }
 
@@ -74,10 +102,12 @@ mod tests {
         let p = FlareProfiles::read(&db);
         assert_eq!(p.head.len(), 2);
         assert_eq!(p.brake.len(), 1);
+        assert_eq!(p.traffic_brake.len(), 1);
         assert_eq!(p.reverse.len(), 1);
         let traffic =
             FlareProfile::read(db.collection("light_flares_cg", "brakelight_traffic_inner").unwrap()).unwrap();
         assert_ne!(p.brake[0].color, traffic.color);
+        assert_eq!(p.traffic_brake[0], traffic);
         let model = super::super::load(
             &dir,
             "BMWM3GTR",

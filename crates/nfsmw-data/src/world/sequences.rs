@@ -128,6 +128,8 @@ pub enum WorldEvent {
     KillObject,
     WakeObject,
     HidePart(u32),
+    /// Original named VehicleFX group, already hashed; not a package string-table tag.
+    DamageLights(u32),
     StopCops {
         radius: f32,
         duration: f32,
@@ -187,6 +189,7 @@ impl WorldEvent {
             0xBD2F_6FF1 => Ok(Self::KillObject),
             0x8E60_A642 => Ok(Self::WakeObject),
             0xEFFE_CDD6 => Ok(Self::HidePart(word(4)?)),
+            0x4FD8_F6DC => Ok(Self::DamageLights(word(4)?)),
             0xDDA7_829B => Ok(Self::StopCops { radius: number(4)?, duration: number(8)? }),
             0x47C1_D36D => Ok(Self::PursuitBreaker { begin: word(4)? != 0 }),
             0x6666_6DC8 => Ok(Self::PlayNis { scene: word(8)?, kind: word(12)? }),

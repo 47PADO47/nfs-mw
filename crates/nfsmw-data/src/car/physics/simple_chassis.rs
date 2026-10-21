@@ -10,3 +10,14 @@ pub fn simple_chassis_config() -> SimpleChassisConfig {
         landing_angular_retention: Vec3::new(1.0, 0.5, 1.0),
     }
 }
+
+/// Native no-powered-slip Simple tire response; destroyed-cop-tires contract.
+pub fn destroyed_coasting_tires() -> blackbox_vehicle::tires::CoastingTireResponse {
+    blackbox_vehicle::tires::CoastingTireResponse {
+        angle_range: 12.0 / 360.0,
+        lateral_gain: 1.54,
+        brake_torque_scale: 10.0 / 4.0,
+        brake_force_gain: 2.5,
+        corner_drag: 0.5,
+    }
+}
