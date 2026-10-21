@@ -3,12 +3,14 @@
 //! `docs/formats/career-state.md` section 3).
 //!
 //! The block is packed without padding. [`CareerSettings::from_block_bytes`] and
-//! [`CareerSettings::to_block_bytes`] are exact inverses: the gameplay-state blob, the node list, the shop
-//! unlock table are not decoded yet and travel as raw bytes. The marker inventory is decoded by
+//! [`CareerSettings::to_block_bytes`] are exact inverses: the gameplay-state blob and the shop unlock table are
+//! not decoded yet and travel as raw bytes. The node state list is read and written through [`NodeStates`]
+//! ([`CareerSettings::nodes`], [`CareerSettings::set_nodes`]). The marker inventory is decoded by
 //! [`crate::economy::markers`].
 
 mod flags;
 mod new_career;
+mod nodes;
 mod sms;
 
 pub use flags::Flags;
@@ -16,6 +18,7 @@ pub use new_career::{
     NewCareer, SERIAL_NUMBER_OFFSET, SERIAL_NUMBER_RANGE, SERIAL_TEXT_MAX, SerialRng, format_serial, generate_serial,
     new_career_with,
 };
+pub use nodes::{NODE_CAP, NodeListError, NodeRecord, NodeState, NodeStates, node_hash};
 pub use sms::{SMS_INVALID_ID, SMS_SLOTS, SMS_TABLE_LEN, SmsInbox, SmsSlot, SmsState};
 
 use crate::LayoutError;
@@ -84,7 +87,7 @@ pub struct CareerSettings {
     pub serial: [u8; 16],
     /// The gameplay-manager snapshot (`Game` blob), raw; its first 16 bytes are the MD5 of the rest.
     pub gameplay_blob: Box<[u8; GAMEPLAY_BLOB_LEN]>,
-    /// The career graph's node state list, raw.
+    /// The career graph's node state list, raw. Read it with [`CareerSettings::nodes`].
     pub node_states: Box<[u8; NODE_LIST_LEN]>,
     /// The shop part-unlock tiers, raw.
     pub shop_unlocks: Box<[u8; SHOP_UNLOCK_LEN]>,
@@ -221,6 +224,17 @@ impl CareerSettings {
     pub fn refresh_gameplay_digest(&mut self) {
         let digest = md5(&self.gameplay_blob[16..]);
         self.gameplay_blob[..16].copy_from_slice(&digest);
+    }
+
+    /// The node state list, parsed from the raw block. Edit a copy and hand it back with
+    /// [`CareerSettings::set_nodes`].
+    pub fn nodes(&self) -> NodeStates {
+        NodeStates::parse(&self.node_states[..])
+    }
+
+    /// Replaces the raw node block with `nodes`: the count, the records and a zero tail, the block size unchanged.
+    pub fn set_nodes(&mut self, nodes: &NodeStates) {
+        nodes.encode(&mut self.node_states[..]);
     }
 }
 

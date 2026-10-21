@@ -29,7 +29,7 @@ e_machine = 8 (EM_MIPS)           even on PC, a leftover of the PS2-era toolchai
 e_flags   = 0x20924000
 ```
 
-All 188 EAGL objects in the install (64 skeletons + 124 animation banks) follow this pattern. EA's
+All 194 EAGL objects in the install (67 skeleton and 127 animation chunks, counting the copies in `GLOBAL`) follow this pattern. EA's
 offline tools produce these "objects", and at load time the game links them in memory. The decomp has
 the loader: `eagl4supportdlopen.cpp` (a small `dlopen`) and `eagl4supportsympool.cpp` (symbol lookup).
 
@@ -50,18 +50,18 @@ The symbol names follow the pattern `__<Type>:::<name>`:
 | Symbol | Meaning | Example |
 |---|---|---|
 | `__Skeleton:::<rig>` | the skeleton object | `__Skeleton:::Bip24` |
-| `__Bone:::<rig>.<bone>` | one bone; its value is an offset into `.data`, and bones are spaced 16 bytes apart | `__Bone:::Bip21.Bip21 L Thigh`, `__Bone:::Bip24.Cuff02` |
+| `__Bone:::<rig>.<bone>` | one bone; its value is the offset of the bone's 16-byte index record in `.data` (the 112-byte bone records follow the skeleton header; see [eagl-animation-skeleton.md](../specs/eagl-animation-skeleton.md)) | `__Bone:::Bip21.Bip21 L Thigh`, `__Bone:::Bip24.Cuff02` |
 | `__AnimationBank:::bank` | entry point of an animation bank | |
 | `__EAGL_TOOLLIB_VERSION:::EAGL_TOOLLIB_VERSION-3` | tool version marker (weak symbol) | |
 
-Totals: 2,532 bone symbols, 64 skeletons, 124 banks. The bone names (`Bip21 Spine 1`, `Bip21 R Upperarm`,
+Totals in the NIS bundles: 2,532 bone symbols, 64 skeletons, 111 animation objects (the install as a whole: 67 skeleton and 127 animation chunks). The bone names (`Bip21 Spine 1`, `Bip21 R Upperarm`,
 `Bip21 Cheek L`, …) are **3ds Max Character Studio Biped** names, so the characters were rigged with
 Biped in 3ds Max. Character skeletons include facial bones (brows, cheeks, jaw, eyes).
 
 ### Relocations
 
-Every relocation in all 188 objects is type **2 = `R_MIPS_32`**: a 32-bit absolute pointer (4,772 in
-total). To "load" an object without the game:
+Every relocation is type **2 = `R_MIPS_32`**: a 32-bit absolute pointer against the `.data` section symbol (4,838
+entries over the 127 animation chunks; skeleton objects have none). To "load" an object without the game:
 
 1. Read `.data`.
 2. For each `.rel.data` entry `(r_offset, r_info)`: `word_at(r_offset) += address_of(symbol(r_info >> 8))`.
@@ -84,14 +84,23 @@ The suffix probably selects the channel codec. The decomp has one runtime class 
 | `PoseAnim`, `CompoundChannel`, `PhaseChan`, `CsisEventChannel` | pose blending, multi-channel, phase (cycles), sound/event channels |
 | `Skeleton`, `SkeletonData`, `BoneMask`, `IK` | skeleton side |
 
-Mapping the `_q` / `_s` suffixes to specific codecs is **[unconfirmed]**.
+Mapping the `_q` / `_s` suffixes to specific codecs is **[unconfirmed]** in the decomp. The install census below is
+**[verified]**.
+
+**Census (verified).** All 89 `.bun` files in `NIS` (87 files), `TRACKS\L2RA.BUN` and `GLOBAL\InGameB.bun` were
+walked. 87 of them hold 125 `EAGLAnimations` objects with 848 bank animations and 948 child channels, and no layout
+check failed. Every bank entry is a Compound (type 15). Its children are DeltaLerp (10, 475 in NIS), DeltaQuat (11,
+343), DeltaQ (17, 1 in InGame), DeltaF3 (20, 90) and DeltaF1 (21, 39). `_q` is DeltaQuat in every NIS and L2RA case;
+`_s` and `_t` mix DeltaLerp, DeltaF3 and DeltaF1 (so the suffix gives the DOF slot, not the codec). Each animation
+has an FPS attribute of 30, and the game samples at 30 steps per second. Full table, layouts and examples:
+[specs/eagl-animation-bank.md](../specs/eagl-animation-bank.md).
 
 ## NIS scene chunk
 
 ```
 80037020 AnimScene (NisScene)
-├─ 00037030 AnimSceneHeaderData        152 B scene header; contains the scene name, e.g. "ArrestF02"
-└─ 00037040 AnimSceneEntityData ×N     152 B per scene actor/element (64 of 87 scenes have these)
+├─ 00037030 AnimSceneHeaderData        0x40 bytes + description, 68 to 188 B; contains the scene name, e.g. "ArrestF02"
+└─ 00037040 AnimSceneEntityData ×N     152 B (8 B of 0x11 padding + 144 B) per character; 64 records in the 26 arrest scenes
 ```
 
 The names come from the decomp's `src/Speed/Indep/Src/Misc/SpeedChunks.hpp`

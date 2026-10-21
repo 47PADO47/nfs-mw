@@ -4,7 +4,7 @@ use crate::{read_solids, read_solids_filtered};
 
 #[test]
 fn rejected_broken_mesh_is_not_decoded_and_selected_mesh_is_unchanged() {
-    let groups = [Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }];
+    let groups = [Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }];
     let good = solid_file("GOOD", &groups, &[vertex_buffer(3, 36, 0.0)]);
     let bad = solid_file("BAD", &groups, &[vec![0; 100]]);
     // Use a standalone second fixture to exercise rejection of its malformed mesh.

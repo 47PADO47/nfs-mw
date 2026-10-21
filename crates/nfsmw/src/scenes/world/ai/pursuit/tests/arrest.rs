@@ -28,7 +28,10 @@ fn a_bust_keeps_stopped_cops_until_payment_then_releases_the_terminal_state() {
     assert!(!controls.nos);
     assert!(!world.pay_bust(false, 0), "payment cannot skip the hold");
     world.update_police(3.1, &view, &|_, _| true);
-    assert!(world.take_bust_ticket().is_some(), "the no-NIS fallback reaches the ticket after3s");
+    assert!(world.take_arrest_request().is_some(), "the arrest shot asks for the arrest scene");
+    assert!(world.take_bust_ticket().is_none(), "the ticket waits for the scene");
+    world.arrest_scene_over(); // this fixture has no NIS to play the scene: it is refused at once
+    assert!(world.take_bust_ticket().is_some(), "with no scene to play, the ticket follows the 3 s hold");
     assert!(!world.pay_bust(true, 0), "an unavailable marker keeps the ticket active");
     assert!(world.arrest_active());
     assert!(world.pay_bust(false, 0));

@@ -1,0 +1,16 @@
+[package]
+name = "blackbox-nis"
+description = "EA NIS cutscene scenes of EA Black Box games: the scene header, its characters, the scene clock and placement."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-chunk.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

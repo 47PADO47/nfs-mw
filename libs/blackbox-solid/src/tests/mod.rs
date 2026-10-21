@@ -1,5 +1,7 @@
 mod builder;
 mod filtered;
+mod rigid;
+mod skin;
 
 use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 
@@ -7,8 +9,11 @@ use crate::{Error, layout, read_solids, read_solids_lossy};
 
 #[test]
 fn single_buffer_solid() {
-    let file =
-        solid_file("TRI", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    let file = solid_file(
+        "TRI",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
+        &[vertex_buffer(3, 36, 0.0)],
+    );
     let solids = read_solids(&file).unwrap();
     assert_eq!(solids.len(), 1);
     let s = &solids[0];
@@ -26,8 +31,11 @@ fn single_buffer_solid() {
 #[test]
 fn solid_packs_after_the_geometry_pack_are_read_too() {
     // The flat layout of some add-on cars: an (empty here) GeometryPack, then each SolidPack as a sibling.
-    let wrapped =
-        solid_file("FLAT", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    let wrapped = solid_file(
+        "FLAT",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
+        &[vertex_buffer(3, 36, 0.0)],
+    );
     let mut file = wrapped[..8].to_vec();
     file[4..8].copy_from_slice(&0u32.to_le_bytes());
     file.extend_from_slice(&wrapped[8..]);
@@ -38,10 +46,17 @@ fn solid_packs_after_the_geometry_pack_are_read_too() {
 
 #[test]
 fn a_broken_solid_fails_read_solids_but_not_the_lossy_read() {
-    let good =
-        solid_file("GOOD", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    let good = solid_file(
+        "GOOD",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
+        &[vertex_buffer(3, 36, 0.0)],
+    );
     // 100 bytes of vertices cannot be 3 vertices.
-    let bad = solid_file("BAD", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vec![0; 100]]);
+    let bad = solid_file(
+        "BAD",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
+        &[vec![0; 100]],
+    );
     let mut file = good[..8].to_vec();
     file[4..8].copy_from_slice(&0u32.to_le_bytes());
     file.extend_from_slice(&good[8..]);
@@ -56,9 +71,9 @@ fn a_broken_solid_fails_read_solids_but_not_the_lossy_read() {
 fn effect_runs_share_vertex_buffers() {
     // Groups 0 and 1 share effect 0 (one 36-byte buffer); group 2 (effect 3) has its own 60-byte buffer.
     let groups = [
-        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] },
-        Group { effect: 0, vertices: 3, indices: vec![3, 4, 5] },
-        Group { effect: 3, vertices: 4, indices: vec![0, 1, 2, 1, 2, 3] },
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 0, vertices: 3, indices: vec![3, 4, 5], bone_table: None },
+        Group { effect: 3, vertices: 4, indices: vec![0, 1, 2, 1, 2, 3], bone_table: None },
     ];
     let file = solid_file("RUNS", &groups, &[vertex_buffer(6, 36, 0.0), vertex_buffer(4, 60, 100.0)]);
     let s = &read_solids(&file).unwrap()[0];
@@ -77,9 +92,9 @@ fn effect_runs_share_vertex_buffers() {
 #[test]
 fn independent_sky_and_normal_uvs_survive_mixed_buffers() {
     let groups = [
-        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] },
-        Group { effect: 19, vertices: 3, indices: vec![0, 1, 2] },
-        Group { effect: 3, vertices: 3, indices: vec![0, 1, 2] },
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 19, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 3, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
     ];
     let mut sky = vertex_buffer(3, 44, 0.0);
     for (i, v) in sky.as_chunks_mut::<44>().0.iter_mut().enumerate() {
@@ -109,8 +124,8 @@ fn independent_sky_and_normal_uvs_survive_mixed_buffers() {
 #[test]
 fn buffer_count_must_match_effect_runs() {
     let groups = [
-        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] },
-        Group { effect: 1, vertices: 3, indices: vec![0, 1, 2] },
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 1, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
     ];
     let file = solid_file("BAD", &groups, &[vertex_buffer(6, 36, 0.0)]);
     assert!(matches!(read_solids(&file), Err(Error::Solid { .. })));
@@ -118,8 +133,11 @@ fn buffer_count_must_match_effect_runs() {
 
 #[test]
 fn unknown_version_is_reported() {
-    let mut file =
-        solid_file("V", &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }], &[vertex_buffer(3, 36, 0.0)]);
+    let mut file = solid_file(
+        "V",
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
+        &[vertex_buffer(3, 36, 0.0)],
+    );
     // Patch the version byte of the (0x10-aligned) SolidInfo payload.
     let info = file.windows(8).position(|w| w[..4] == 0x0013_4011u32.to_le_bytes()).unwrap() + 8;
     let info = info.next_multiple_of(0x10);
@@ -132,7 +150,7 @@ fn position_markers() {
     let brake = bstring_hash("FRONT_BRAKE");
     let file = solid_file_with_markers(
         "WHEEL",
-        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2] }],
+        &[Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None }],
         &[vertex_buffer(3, 36, 0.0)],
         &[(brake, [0.0, 0.046, 0.0]), (7, [1.0, 2.0, 3.0])],
     );
@@ -150,7 +168,8 @@ fn unknown_wide_declarations_do_not_become_tangent_data() {
         v[36..40].copy_from_slice(&99.0_f32.to_le_bytes());
         v[44..48].copy_from_slice(&88.0_f32.to_le_bytes());
     }
-    let file = solid_file("BONE", &[Group { effect: 2, vertices: 3, indices: vec![0, 1, 2] }], &[vertices]);
+    let file =
+        solid_file("BONE", &[Group { effect: 2, vertices: 3, indices: vec![0, 1, 2], bone_table: None }], &[vertices]);
     let solid = &read_solids(&file).unwrap()[0];
     assert_eq!(solid.secondary_uvs, vec![[0.0; 2]; 3]);
     assert_eq!(solid.tangents, vec![[0.0; 4]; 3]);

@@ -237,6 +237,7 @@ mod tests {
             vertices: Vec::new(),
             indices: Vec::new(),
             groups: Vec::new(),
+            skin: None,
         }
     }
 

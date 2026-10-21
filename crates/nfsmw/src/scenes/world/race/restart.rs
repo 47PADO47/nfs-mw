@@ -77,6 +77,7 @@ mod tests {
             checkpoints: Vec::new(),
             barriers: Vec::new(),
             params: RaceParams::default(),
+            story: Default::default(),
         }
     }
 

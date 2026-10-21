@@ -3,6 +3,7 @@
 use blackbox_attrib::{CollectionRef, Database, Value};
 
 use super::params::RaceParams;
+use super::story::RaceStory;
 use super::{collection, instances, key_array, key_field, name_of, placement, text};
 
 /// Where something stands: a position in physics space and the heading in degrees (see [`super::world_heading`]).
@@ -93,6 +94,8 @@ pub struct Race {
     pub barriers: Vec<String>,
     /// The start, clock, opponent and rank rules of the run (`docs/specs/race-mode.md`).
     pub params: RaceParams,
+    /// The intro, outro and forced-car fields of the race (`docs/specs/career-scripts-events.md`).
+    pub story: RaceStory,
 }
 
 /// The races of a database, in database order. Empty when the database has no `gameplay` class.
@@ -117,6 +120,7 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         checkpoints: key_array(c, "Checkpoint"),
         barriers: text_items(c.get("Barriers")),
         params: RaceParams::read(c),
+        story: RaceStory::read(db, c),
     })
 }
 

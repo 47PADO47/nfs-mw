@@ -1,8 +1,10 @@
 //! The post-race report: the racers' laps and places for `PostRace_Results.fng`, and the screen's answer.
 
 use blackbox_race::Race;
+use nfsmw_career::blacklist::FINAL_RACE_EVENT;
 
-use super::{RaceSession, Stage};
+use super::{RaceSession, Stage, outro};
+use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 use nfsmw_data::gameplay::RaceType;
 
@@ -28,17 +30,25 @@ impl WorldScene {
 
     /// The post-race screen's answer: run the race again, or end it. `false` when no race waits on the screen.
     pub(in crate::scenes::world) fn answer_race(&mut self, answer: RaceAnswer) -> bool {
-        let Some(session) = self.race.take_if(|s| matches!(s.stage, Stage::PostRace { .. })) else { return false };
-        let again = (session.name.clone(), session.options);
-        // A won career race goes on to the race its `PostRaceActivity` names (the Lua graph's `done` state), which the
-        // career then runs before free roam; a loss leaves the chain **[unconfirmed]**.
-        let won = session.result.is_some_and(|r| r.place == 1 && r.time.is_some());
-        let next = session.chain.clone().filter(|_| won && session.options.career);
-        self.end_race(session);
-        match (answer, next) {
-            (RaceAnswer::Restart, _) => self.queued_race = Some(again),
-            (RaceAnswer::Exit, Some(next)) => self.queued_race = Some((next, again.1)),
-            (RaceAnswer::Exit, None) => {}
+        let Some(mut session) = self.race.take_if(|s| matches!(s.stage, Stage::PostRace { .. })) else { return false };
+        match answer {
+            RaceAnswer::Restart => {
+                let again = (session.name.clone(), session.options);
+                self.end_race(session);
+                self.queued_race = Some(again);
+            }
+            RaceAnswer::Exit => {
+                // A race is won when it placed first with a time. The outro plays first; the race's chain runs after it
+                // (`story-flow.md` sections 1.1 and 1.5). A lost race leaves the chain (`outro.rs`).
+                let won = session.result.is_some_and(|r| r.place == 1 && r.time.is_some());
+                // The final race's win ends the game: its end-game chain is due now, once the results are answered
+                // (`story-flow-2.md` section 5.4, `frontend/flow_endgame.rs`).
+                if won && session.options.career && session.event == FINAL_RACE_EVENT {
+                    self.career.requests.push_back(CareerRequest::EndGame);
+                }
+                outro::begin(&mut session, won);
+                self.race = Some(session);
+            }
         }
         true
     }

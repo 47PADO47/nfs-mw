@@ -171,6 +171,7 @@ mod tests {
                 localization_tag: 7,
                 ..RaceParams::default()
             },
+            story: Default::default(),
         }
     }
 

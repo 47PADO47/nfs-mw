@@ -14,7 +14,7 @@ impl Drive {
         if let Some(sim) = &self.sim {
             let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
             self.rig.instances_detail(
-                &self.pose(),
+                &self.render_pose(),
                 sim.events.as_ref().map(|e| &e.hidden_slots),
                 &revealed,
                 DrawOptions {

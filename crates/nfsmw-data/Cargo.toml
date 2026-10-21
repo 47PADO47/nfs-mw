@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+blackbox-anim.workspace = true
 blackbox-trace.workspace = true
 anyhow.workspace = true
 blackbox-attrib.workspace = true
@@ -19,6 +20,7 @@ blackbox-ginsu.workspace = true
 blackbox-gfx.workspace = true
 blackbox-hash.workspace = true
 blackbox-minimap.workspace = true
+blackbox-nis.workspace = true
 blackbox-particles.workspace = true
 blackbox-roads.workspace = true
 blackbox-scenery.workspace = true
@@ -33,6 +35,10 @@ game-install.workspace = true
 glam.workspace = true
 log.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+blackbox-anim.workspace = true
+blackbox-text.workspace = true
 
 [lints]
 workspace = true

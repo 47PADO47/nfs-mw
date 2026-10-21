@@ -5,5 +5,11 @@
 use super::SolidLayout;
 use super::v16::V16;
 
-pub const V18: SolidLayout =
-    SolidLayout { version: 0x18, used_by: "NFS: Most Wanted front-end stages", tangent_effects: &[], ..V16 };
+// No skinned effects are known for the front-end stages, so none are read as skin until they are checked.
+pub const V18: SolidLayout = SolidLayout {
+    version: 0x18,
+    used_by: "NFS: Most Wanted front-end stages",
+    tangent_effects: &[],
+    skinned_effects: &[],
+    ..V16
+};

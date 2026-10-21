@@ -1,6 +1,7 @@
 //! Viewer integration, controls and world updates.
 
 use super::*;
+use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
@@ -54,7 +55,19 @@ impl Scene for WorldScene {
         crate::hud::show_mod_message(ctx);
         self.show_pursuit_end(ctx);
         self.show_race_card(ctx);
+        self.show_race_message_card(ctx);
+        self.show_nis_bars(ctx);
+        self.show_story_movie(ctx);
+        self.nis.screen().draw(ctx);
         0.0
+    }
+
+    fn fullscreen(&mut self) -> Option<Fullscreen> {
+        self.story_movie.picture()
+    }
+
+    fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
+        self.story_movie.take_clip()
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
@@ -229,6 +242,10 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
+        // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
+        if self.nis.is_playing() {
+            return Some(crate::hud::HudState { visible: false, ..Default::default() });
+        }
         if self.moment.hides_hud() {
             return None;
         }
@@ -307,6 +324,9 @@ impl Scene for WorldScene {
         name: &str,
         args: &[&str],
     ) -> Option<Result<String, String>> {
+        if name == "career" {
+            return Some(career::sms_popup::command(self, args));
+        }
         commands::run(self, renderer, name, args)
     }
     fn time_held(&self) -> bool {
@@ -366,6 +386,12 @@ impl Scene for WorldScene {
     }
     fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
         self.career.requests.pop_front()
+    }
+    fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
+        self.nis.audio_request()
+    }
+    fn note_nis_audio(&mut self, playing: bool) {
+        self.nis.note_voice(playing);
     }
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
         self.rotor_frame_now(dt)

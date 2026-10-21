@@ -27,6 +27,7 @@ bevy_window.workspace = true
 bevy_winit.workspace = true
 blackbox-aems.workspace = true
 blackbox-bevy-render = { workspace = true, optional = true }
+blackbox-anim.workspace = true
 blackbox-attrib.workspace = true
 blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
@@ -40,6 +41,7 @@ blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
 ini-tuning.workspace = true
 blackbox-minimap.workspace = true
+blackbox-nis.workspace = true
 blackbox-playlist.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-modding = { workspace = true, features = ["host"] }

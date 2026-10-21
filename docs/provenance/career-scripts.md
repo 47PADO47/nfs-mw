@@ -26,6 +26,14 @@ Method, addresses and dead ends for [career-scripts.md](../specs/career-scripts.
 5. **Saves.** The two local save files were parsed with the loader's own layout (`0x005F81D0`); 94 of 94 milestone
    and speed-trap keys resolve to collection names when hashed with lookup2.
 
+**Story-flow answers pass (differences from the steps above).** The reader was a Python script in a scratch folder, not a
+Rust crate: the VPAK, vault, class and collection layout of `blackbox-attrib` (legacy layout), HUFF and JDLZ, and a Lua
+5.0 reader. The Lua 5.0 chunk layout was checked against the 5.0 loader source: source, line, counts, lines, locals,
+upvalues, constants, nested functions, then code. The 35 opcodes match the Lua 5.0 header, and register/constant operands
+of 250 or more name constants. The owner field `0x857FE432` is a 4-byte key of the owning collection: the generic
+`basicrace` copies name the gpcore base, per-race copies name the race collection. The `bytecode` field is `0x9A4A020A`
+(an 8-byte blob value: size and pointer). All 259 `bytecode` collections were read (253 HUFF, 5 JDLZ, 1 empty).
+
 ## Addresses
 
 | Role | Ghidra name | Address |

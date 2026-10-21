@@ -4,20 +4,28 @@
 //! table. Back goes to the safe house menu when the inbox was opened there, otherwise it pops the screen.
 //!
 //! `Args` carries no message id, so the list stores the id it opens in [`OPENED`] and the message screen reads it when
-//! it starts. Voice replay and the delete action are not wired yet: `Cx` has no audio call, and the delete action needs
-//! its confirmation and a command of its own.
+//! it starts. Opening a story message the first time asks the audio system for its voice ([`crate::audio::cell_call`]);
+//! Replay (pad button 4) asks again, cutting the line in progress. Delete (pad button 5) empties the slot at once and
+//! goes back to the list: the original asks first in `InGameDialog.fng`, and that question's label is not known yet.
 
 use std::sync::Mutex;
 
-use blackbox_feng::ids::PAD_BACK;
+use blackbox_feng::ids::{PAD_BACK, PAD_BUTTON0};
 use blackbox_text::label_hash;
-use nfsmw_career::phone::{InboxTab, ListEntry, from_label_for, is_story, label_for, subject_label_for};
+use nfsmw_career::phone::{InboxTab, ListEntry, OpenEffect, from_label_for, is_story, label_for, subject_label_for};
 use nfsmw_career::settings::SmsInbox;
 
+use crate::audio::cell_call;
 use crate::career::CareerHandle;
-use crate::frontend::ids::{INPUT_ENABLE, screen};
+use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE, screen};
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
 use crate::ui::Text;
+
+/// The pad buttons of the message screen (`docs/specs/career-phone.md` 4.3, `docs/specs/story-flow-2.md` F-28): button 4
+/// replays the voice and button 5 deletes the message. The screen's init message ([`INIT_COMPLETE`], `0x35F8620B`) is its
+/// open action.
+pub const REPLAY: u32 = PAD_BUTTON0 + 4;
+pub const DELETE: u32 = PAD_BUTTON0 + 5;
 
 /// The messages the list sends: the Read button (`0x775CE5DF`), a row (`0x0C407210`), the tab hotspots (`0x9120409E`,
 /// either one), and the list's arrows (`0x72619778` up, `0x911C0A4B` down).
@@ -96,9 +104,41 @@ pub const fn unread_marks(tab: InboxTab, story_unread: bool, tips_unread: bool) 
     }
 }
 
-/// Marks message `id` read, as opening it does (state 4). False when the id is not in the list.
-pub fn mark_read(inbox: &mut SmsInbox, id: u32) -> bool {
-    inbox.open_message(id).is_some()
+/// Marks message `id` read, as opening it does (state 4). Returns what the opening asks for (the voice of an unread
+/// story message), or `None` when the id is not in the list.
+pub fn mark_read(inbox: &mut SmsInbox, id: u32) -> Option<OpenEffect> {
+    inbox.open_message(id)
+}
+
+/// The id to replay for message `id`: a listed story message. Tips and unlisted messages replay nothing.
+pub fn replay_id(inbox: &SmsInbox, id: u32) -> Option<u32> {
+    inbox.replay(id).map(|_| id)
+}
+
+/// Deletes message `id` as the delete action does: its slot goes back to state 0. False for an id with no slot.
+pub fn delete_message(inbox: &mut SmsInbox, id: u32) -> bool {
+    inbox.delete(id)
+}
+
+/// Opens message `id` as the player does: it is marked read, and an unread story message asks for its voice.
+pub fn open_message(id: u32) {
+    let effect = CareerHandle::shared().with(|career| mark_read(&mut career.settings.sms, id)).flatten();
+    if effect.is_some_and(|effect| effect.play_voice.is_some()) {
+        cell_call::request(id);
+    }
+}
+
+/// Replays the voice of message `id`, cutting the line in progress. Only a listed story message replays.
+pub fn replay_voice(id: u32) {
+    let Some(id) = CareerHandle::shared().with(|career| replay_id(&career.settings.sms, id)).flatten() else {
+        return;
+    };
+    cell_call::replay(id);
+}
+
+/// Deletes message `id` from the career's inbox.
+pub fn delete(id: u32) {
+    CareerHandle::shared().with(|career| delete_message(&mut career.settings.sms, id));
 }
 
 /// The language table's text for `label`, or the label itself in brackets when the table has no such label.
@@ -237,28 +277,45 @@ pub struct MessageLogic {
     args: Args,
 }
 
+/// Shows message `id` on the message screen and marks it read, as opening it does. The body, sender and subject come
+/// from the language table; the replay hint and the voice group show for story messages only.
+pub fn show_message(cx: &mut Cx, id: u32) {
+    open_message(id);
+    let body = lookup(cx, &label_for(id));
+    set_text(cx, BODY, body);
+    let sender = lookup(cx, &from_label_for(id));
+    set_text(cx, FROM, sender);
+    let subject = lookup(cx, &subject_label_for(id));
+    set_text(cx, SUBJECT, subject);
+    let story = is_story(id);
+    show_object(cx, REPLAY_HINT, story);
+    show_object(cx, VOICE, story);
+}
+
 impl ScreenLogic for MessageLogic {
     fn start(&mut self, cx: &mut Cx) {
         let Some(id) = opened() else {
             leave(cx, self.args);
             return;
         };
-        CareerHandle::shared().with(|career| mark_read(&mut career.settings.sms, id));
-        let body = lookup(cx, &label_for(id));
-        set_text(cx, BODY, body);
-        let sender = lookup(cx, &from_label_for(id));
-        set_text(cx, FROM, sender);
-        let subject = lookup(cx, &subject_label_for(id));
-        set_text(cx, SUBJECT, subject);
-        let story = is_story(id);
-        show_object(cx, REPLAY_HINT, story);
-        show_object(cx, VOICE, story);
+        show_message(cx, id);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if message == PAD_BACK {
             leave(cx, self.args);
+            return;
+        }
+        let Some(id) = opened() else { return };
+        match message {
+            INIT_COMPLETE => open_message(id),
+            REPLAY => replay_voice(id),
+            DELETE => {
+                delete(id);
+                leave(cx, self.args);
+            }
+            _ => {}
         }
     }
 }

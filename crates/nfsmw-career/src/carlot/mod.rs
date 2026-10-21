@@ -17,7 +17,7 @@ mod tests;
 pub use catalogue::{
     LotCar, LotClass, LotState, bonus_flag, bonus_unlocked, by_frontend_key, listed, rival_car_available,
 };
-pub use purchase::{Delivery, Purchase, PurchaseError, PurchasePrompt, buy, prompt_for};
+pub use purchase::{Delivery, Purchase, PurchaseError, PurchasePrompt, add_preset_car, buy, prompt_for};
 pub use sale::{Sale, SaleError, replacement_current, sell};
 
 use crate::stable::{CAREER_SLOTS, CarRecord, Stable};

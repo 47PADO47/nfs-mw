@@ -1,13 +1,15 @@
-//! The fallback after the busted meter fills: hold the car, then show the infractions screen in free roam.
-//! The original's NIS player is unavailable; the no-NIS path does not invent an extra overlay delay. The world starts it with
-//! the bust and the frame's time; the front end carries out the steps it asks for and reports the payment back.
-//! Nothing here reads a clock or a screen. Spec: `docs/specs/busted-sequence.md` sections 2, 6 and 7.
+//! The bust after the busted meter fills: hold the car for the arrest shot, play the arrest scene as a NIS, then show
+//! the infractions screen in free roam. The world plays the scene: it takes the request ([`BustFlow::take_arrest_request`])
+//! and answers with [`BustFlow::arrest_scene_over`] when the scene ends or cannot play. A scene that cannot play ends the
+//! wait at once, so the ticket follows the same 3 s hold as before. Nothing here reads a clock or a screen.
+//! Spec: `docs/specs/busted-sequence.md` sections 2, 4, 6 and 7.
 
 use blackbox_pursuit::{Fines, Infraction, InfractionLog};
 
 use super::arrest;
 
-/// The original's delay before requesting the arrest NIS. Without NIS playback the ticket follows this hold.
+/// The delay before the arrest shot, when the arrest scene plays (the original's NIS request). A scene that cannot play
+/// is answered at this point too, so the ticket follows this hold.
 pub const SHOT_SECS: f32 = 3.0;
 
 /// One infraction of the chase and its fine.
@@ -55,8 +57,10 @@ pub enum PayError {
 pub enum Step {
     /// Show the infractions screen with this report; the front end answers with [`BustFlow::pay`].
     Infractions(BustReport),
-    /// The sequence is over: a race's arrest shot has run, or the player has paid in free roam.
+    /// The sequence is over: a race's arrest scene has ended, or the player has paid in free roam.
     Finished,
+    /// The arrest shot is reached: the world plays this scene as the NIS and answers with [`BustFlow::arrest_scene_over`].
+    PlayArrest(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -64,9 +68,13 @@ enum Stage {
     /// No bust this chase.
     #[default]
     Idle,
+    /// The arrest shot's hold, with the scene the chooser picked.
     Arrest {
         secs: f32,
+        scene: &'static str,
     },
+    /// The arrest scene is asked for and plays; the sequence waits for its end.
+    ArrestScene,
     /// The infractions screen is up and waits for the payment.
     Infractions,
     Finished,
@@ -77,8 +85,11 @@ enum Stage {
 pub struct BustFlow {
     stage: Stage,
     race: bool,
+    /// The arrest scene the chooser picked for the last bust (`arrest_scene`).
     arrest: Option<&'static str>,
     report: BustReport,
+    /// The arrest scene waiting for the world (`take_arrest_request`): set at the arrest shot.
+    arrest_request: Option<&'static str>,
     /// The ticket waiting for the front end (`take_request`): set when the infractions step begins.
     request: Option<BustReport>,
 }
@@ -94,9 +105,10 @@ impl BustFlow {
         if self.stage != Stage::Idle {
             return false;
         }
-        self.stage = Stage::Arrest { secs: 0.0 };
+        let scene = arrest::arrest_scene(class, arrest::variant_from_roll(roll));
+        self.stage = Stage::Arrest { secs: 0.0, scene };
         self.race = race;
-        self.arrest = Some(arrest::arrest_scene(class, arrest::variant_from_roll(roll)));
+        self.arrest = Some(scene);
         self.report = report;
         true
     }
@@ -105,7 +117,29 @@ impl BustFlow {
     pub fn reset(&mut self) {
         self.stage = Stage::Idle;
         self.report = BustReport::default();
+        self.arrest_request = None;
         self.request = None;
+    }
+
+    /// The arrest scene to play as the NIS, once: the world takes it when the arrest shot has been reached.
+    pub fn take_arrest_request(&mut self) -> Option<&'static str> {
+        self.arrest_request.take()
+    }
+
+    /// The arrest scene is over: it ended, or the world could not play it. The hold is already spent, so the sequence
+    /// goes on at once: the infractions screen in free roam, the end of the bust in a race. Does nothing unless the
+    /// scene is the one playing.
+    pub fn arrest_scene_over(&mut self) -> Option<Step> {
+        if self.stage != Stage::ArrestScene {
+            return None;
+        }
+        if self.race {
+            self.stage = Stage::Finished;
+            return Some(Step::Finished);
+        }
+        self.stage = Stage::Infractions;
+        self.request = Some(self.report.clone());
+        Some(Step::Infractions(self.report.clone()))
     }
 
     /// The ticket to show, once: the front end takes it when the infractions step has begun.
@@ -119,23 +153,20 @@ impl BustFlow {
             return None;
         }
         match self.stage {
-            Stage::Arrest { secs } => self.run_arrest(secs + dt),
-            Stage::Idle | Stage::Infractions | Stage::Finished => None,
+            Stage::Arrest { secs, scene } => self.run_arrest(secs + dt, scene),
+            Stage::Idle | Stage::ArrestScene | Stage::Infractions | Stage::Finished => None,
         }
     }
 
-    fn run_arrest(&mut self, secs: f32) -> Option<Step> {
+    /// The arrest shot: the scene is asked for and the sequence waits for its end ([`BustFlow::arrest_scene_over`]).
+    fn run_arrest(&mut self, secs: f32, scene: &'static str) -> Option<Step> {
         if secs < SHOT_SECS {
-            self.stage = Stage::Arrest { secs };
+            self.stage = Stage::Arrest { secs, scene };
             return None;
         }
-        if self.race {
-            self.stage = Stage::Finished;
-            return Some(Step::Finished);
-        }
-        self.stage = Stage::Infractions;
-        self.request = Some(self.report.clone());
-        Some(Step::Infractions(self.report.clone()))
+        self.stage = Stage::ArrestScene;
+        self.arrest_request = Some(scene);
+        Some(Step::PlayArrest(scene))
     }
 
     /// The player pays on the infractions screen. `markers` is the markers in stock (the port has no career state, so
@@ -151,7 +182,8 @@ impl BustFlow {
         Ok(())
     }
 
-    /// The fallback has no arrest NIS completion event to trigger an overlay.
+    /// Whether the in-game overlay shows. This sequence never shows it: its show path is not located (`busted-sequence.md`
+    /// section 6.1).
     pub fn overlay_shown(&self) -> bool {
         false
     }
@@ -162,7 +194,7 @@ impl BustFlow {
         !self.race && self.stage != Stage::Idle
     }
 
-    /// The arrest scene chosen for the last bust. Nothing plays it yet (the NIS player is not in the port).
+    /// The arrest scene chosen for the last bust.
     pub fn arrest_scene(&self) -> Option<&'static str> {
         self.arrest
     }
@@ -182,9 +214,11 @@ mod tests {
         log
     }
 
-    /// Ticks a free-roam bust through the NIS request delay to the fallback ticket.
+    /// Ticks a free-roam bust through the arrest shot, then answers the scene as over (it cannot play, or it has ended),
+    /// which brings up the ticket.
     fn to_the_screen(flow: &mut BustFlow) {
-        assert!(matches!(flow.tick(SHOT_SECS + 0.1), Some(Step::Infractions(_))));
+        assert!(matches!(flow.tick(SHOT_SECS + 0.1), Some(Step::PlayArrest(_))));
+        assert!(matches!(flow.arrest_scene_over(), Some(Step::Infractions(_))));
     }
 
     fn free_roam_bust() -> BustFlow {
@@ -239,21 +273,75 @@ mod tests {
     }
 
     #[test]
-    fn a_free_roam_bust_holds_then_requests_the_ticket_without_a_fake_nis_delay() {
+    fn a_free_roam_bust_holds_then_asks_for_the_arrest_scene_before_the_ticket() {
         let mut flow = free_roam_bust();
         assert_eq!(flow.tick(SHOT_SECS / 2.0), None, "the arrest shot runs first");
         assert!(!flow.overlay_shown());
         let step = flow.tick(SHOT_SECS / 2.0 + 0.01);
-        assert!(matches!(step, Some(Step::Infractions(ref r)) if r.total == 500), "{step:?}");
+        assert!(matches!(step, Some(Step::PlayArrest(_))), "{step:?}");
+        assert!(flow.take_request().is_none(), "no ticket until the scene is over");
         assert!(!flow.overlay_shown());
-        assert!(flow.active(), "the ticket keeps controls held until payment");
+        assert!(flow.active(), "the bust keeps controls held through the scene");
     }
 
     #[test]
-    fn an_overshooting_step_requests_only_one_ticket() {
+    fn the_arrest_scene_is_the_one_the_chooser_picked() {
+        let mut flow = BustFlow::default();
+        assert!(flow.start(false, 2, 0.99, BustReport::default()));
+        assert_eq!(flow.tick(SHOT_SECS + 0.1), Some(Step::PlayArrest("ArrestF07b")));
+        assert_eq!(flow.take_arrest_request(), Some("ArrestF07b"));
+        assert_eq!(flow.take_arrest_request(), None, "handed over once");
+    }
+
+    #[test]
+    fn with_the_arrest_scene_playing_the_sequence_waits_for_its_end() {
         let mut flow = free_roam_bust();
-        assert!(matches!(flow.tick(SHOT_SECS + 2.0), Some(Step::Infractions(_))));
+        assert!(matches!(flow.tick(SHOT_SECS + 0.1), Some(Step::PlayArrest(_))));
+        assert_eq!(flow.tick(10.0), None, "the scene plays on; the hold is not the end");
+        assert!(flow.active() && flow.take_request().is_none());
+        assert_eq!(flow.pay(Payment::Cash, 0), Err(PayError::NotDue), "no payment during the scene");
+        assert!(matches!(flow.arrest_scene_over(), Some(Step::Infractions(ref r)) if r.total == 500));
+        assert_eq!(flow.take_request().map(|r| r.total), Some(500), "the ticket follows the scene");
+    }
+
+    #[test]
+    fn with_no_arrest_scene_to_play_the_three_second_hold_still_ends_the_wait() {
+        let mut flow = free_roam_bust();
+        assert_eq!(flow.tick(SHOT_SECS - 0.1), None);
+        assert!(matches!(flow.tick(0.2), Some(Step::PlayArrest(_))));
+        assert!(matches!(flow.arrest_scene_over(), Some(Step::Infractions(_))), "the world could not play it");
+        assert_eq!(flow.take_request().map(|r| r.total), Some(500));
+    }
+
+    #[test]
+    fn a_race_with_the_scene_ending_or_refused_finishes_the_bust() {
+        let mut flow = BustFlow::default();
+        assert!(flow.start(true, 0, 0.0, BustReport::default()));
+        assert!(!flow.replaces_end_card(), "the race keeps its end card");
+        assert_eq!(flow.tick(SHOT_SECS - 0.1), None);
+        assert_eq!(flow.tick(0.2), Some(Step::PlayArrest("ArrestM01")));
+        assert_eq!(flow.tick(5.0), None, "the scene plays on");
+        assert_eq!(flow.arrest_scene_over(), Some(Step::Finished));
+        assert!(!flow.active() && !flow.overlay_shown());
+        assert_eq!(flow.tick(5.0), None);
+    }
+
+    #[test]
+    fn a_scene_over_before_the_shot_or_twice_changes_nothing() {
+        let mut flow = free_roam_bust();
+        assert_eq!(flow.arrest_scene_over(), None, "no scene is playing during the hold");
+        assert!(flow.active() && flow.take_request().is_none());
+        assert!(matches!(flow.tick(SHOT_SECS + 0.1), Some(Step::PlayArrest(_))));
+        assert!(matches!(flow.arrest_scene_over(), Some(Step::Infractions(_))));
+        assert_eq!(flow.arrest_scene_over(), None, "the scene is over once");
+    }
+
+    #[test]
+    fn an_overshooting_step_asks_for_the_scene_once() {
+        let mut flow = free_roam_bust();
+        assert!(matches!(flow.tick(SHOT_SECS + 2.0), Some(Step::PlayArrest(_))));
         assert_eq!(flow.tick(SHOT_SECS), None);
+        assert!(matches!(flow.arrest_scene_over(), Some(Step::Infractions(_))));
     }
 
     #[test]
@@ -261,6 +349,8 @@ mod tests {
         let mut flow = free_roam_bust();
         assert!(flow.take_request().is_none(), "no ticket during the arrest");
         flow.tick(SHOT_SECS + 0.1);
+        assert!(flow.take_request().is_none(), "the scene is still to be answered");
+        flow.arrest_scene_over();
         flow.tick(SHOT_SECS + 0.1);
         assert_eq!(flow.take_request().map(|r| r.total), Some(500));
         assert!(flow.take_request().is_none());
@@ -269,8 +359,7 @@ mod tests {
     #[test]
     fn the_steps_fire_once() {
         let mut flow = free_roam_bust();
-        flow.tick(SHOT_SECS + 0.1);
-        flow.tick(SHOT_SECS + 0.1);
+        to_the_screen(&mut flow);
         assert_eq!(flow.tick(10.0), None, "the infractions screen waits for the payment, nothing more ticks");
     }
 
@@ -278,17 +367,6 @@ mod tests {
     fn the_free_roam_bust_replaces_the_end_card_from_the_start() {
         let flow = free_roam_bust();
         assert!(flow.replaces_end_card());
-    }
-
-    #[test]
-    fn a_race_bust_ends_after_the_arrest_shot_and_keeps_the_card() {
-        let mut flow = BustFlow::default();
-        assert!(flow.start(true, 0, 0.0, BustReport::default()));
-        assert!(!flow.replaces_end_card(), "the race keeps its end card");
-        assert_eq!(flow.tick(SHOT_SECS - 0.1), None);
-        assert_eq!(flow.tick(0.2), Some(Step::Finished));
-        assert!(!flow.overlay_shown(), "no overlay in a race");
-        assert_eq!(flow.tick(5.0), None);
     }
 
     #[test]

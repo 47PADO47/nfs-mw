@@ -21,7 +21,7 @@ impl WorldScene {
     /// while it runs. The countdown numbers are the countdown group's.
     pub(in crate::scenes::world) fn race_message(&self) -> Option<Message> {
         let session = self.race.as_ref()?;
-        if let (Stage::Results { .. }, Some(result)) = (session.stage, session.result) {
+        if let (Stage::Results { .. }, Some(result)) = (&session.stage, session.result) {
             let card = ResultCard {
                 place: result.place,
                 racers: result.racers,
@@ -42,6 +42,9 @@ impl WorldScene {
     /// What the HUD package shows of the race: the place, lap, clock, progress and the countdown step.
     pub(in crate::scenes::world) fn race_hud(&self) -> Option<RaceHud> {
         let session = self.race.as_ref()?;
+        if matches!(session.stage, Stage::Intro { .. }) {
+            return None;
+        }
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
         }
@@ -67,6 +70,9 @@ impl WorldScene {
     /// the countdown to the race-over message, in every race type with more than one racer.
     pub(in crate::scenes::world) fn race_leaders(&self) -> Option<Leaders> {
         let session = self.race.as_ref()?;
+        if matches!(session.stage, Stage::Intro { .. }) {
+            return None;
+        }
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
         }

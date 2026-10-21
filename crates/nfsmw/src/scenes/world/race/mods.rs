@@ -260,6 +260,7 @@ fn custom_race(custom: &Custom) -> (Race, Course) {
         checkpoints: Vec::new(),
         barriers: Vec::new(),
         params: RaceParams { cash_value: custom.reward as f32, do_countdown: true, ..RaceParams::default() },
+        story: Default::default(),
     };
     (race, course)
 }

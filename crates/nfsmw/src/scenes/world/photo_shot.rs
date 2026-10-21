@@ -8,7 +8,7 @@ use game_install::GameDir;
 use glam::{Mat4, Vec3};
 
 use super::WorldScene;
-use super::moment::roll;
+use super::scene_space::roll;
 use crate::viewer::camera::{Lens, original};
 use nfsmw_data::gameplay::RaceType;
 use nfsmw_data::world::finish_fx::load_replay_cameras;

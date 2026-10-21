@@ -22,12 +22,17 @@
 mod bin;
 mod gate;
 mod results;
+mod rewards;
 #[cfg(test)]
 mod tests;
 
 pub use bin::{BinDef, BinRecord, BinState, SideBin};
 pub use gate::{Counters, challenge_button_active, rival_gate_open};
 pub use results::{EventOutcome, EventResult, apply_event_result, enter_first_bin};
+pub use rewards::{
+    KIND_CASH_BONUS, KIND_PINK_SLIP, PART_FIRST, PART_LAST, POPUP_SLOTS, PopupQueue, Reward, RewardEffect, grant,
+    grant_gauntlet_rewards,
+};
 
 use std::collections::BTreeMap;
 

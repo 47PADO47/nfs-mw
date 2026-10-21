@@ -20,6 +20,7 @@ mod autosave;
 mod card;
 mod data;
 mod io;
+mod rewards;
 mod sources;
 mod start;
 mod state;
@@ -29,6 +30,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub use autosave::{AutosaveInputs, handle_autosave};
 pub use data::{CareerData, car_stats, event_id, race_event_id};
 pub use io::ProfileDir;
+pub use rewards::grant_rewards;
 pub use sources::Sources;
 pub use state::Career;
 
@@ -39,11 +41,20 @@ pub enum CareerRequest {
     SafeHouse { zone: String },
     /// The player engaged a car lot: the car lot screen opens (`career-car-lot.md`).
     CarLot { zone: String },
+    /// The scripted chase of 16.2.1 is over: `JumpToCarLot` opens the car lot in first-car mode, where the player picks the
+    /// car the drive to the safe house is made in (`docs/specs/story-flow.md` section 2.3).
+    FirstCarLot,
     /// The player engaged an auto shop in career mode: the customization garage opens over the world, with no charge
     /// (the garage has no price data yet).
     AutoShop { zone: String },
     /// A stage that closes fewer gates was reached: the region unlock screen is due (`career-regions.md` section 6).
     RegionUnlock { stage: u8 },
+    /// A text message was delivered in free roam: `SMS_Message.fng` opens over the frozen world at message `id`
+    /// (`career-phone.md` section 3.6, `story-flow-2.md` section 3.7).
+    Sms { id: u32 },
+    /// The final race is won and its results are answered: the end-game chain runs in the front end (`flow_endgame.rs`,
+    /// `story-flow-2.md` section 5.4).
+    EndGame,
 }
 
 /// The profile the player picked and whether it is being played, shared by the front end, the world scene and the mod

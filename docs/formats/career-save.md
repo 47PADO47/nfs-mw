@@ -234,9 +234,21 @@ last sequence given (74 in `mwo`). Deleting a message sets its state back to 0. 
 
 **Node state list** **[exe + verified]**: a u32 count (255, 256 and 280 in the three saves; the cap is 300) then that many
 `{u32 node hash, u32 state flags, u32, u32}`; the rest of the 4,800 bytes is zero. The nodes are the career graph's
-event nodes (the game looks nodes up by the hash of ids like `16.1.0`). State flag values seen: 0x10 (most nodes in an early
+event nodes (the game looks nodes up by the hash of ids like `16.1.0`, which is `vlt_hash` of the id text, lookup2 with initval `0xABCDEF00`; the three saves match it on 128 to 132 records each). State flag values seen: 0x10 (most nodes in an early
 save), 0x4, 0x14, 0xE, 0x1E, 0xD in a late one. Bit 1 (value 2) is tested when the list is saved to refresh a node
-**[exe]**; the other bits are **[unconfirmed]**. The two last dwords hold two floats or hashes only on a few entries.
+**[exe]**. The record is `{u32 node hash, u32 flags, u32 best result, u16, u16}`; the bits are **[exe]**
+([provenance](../provenance/career-save-screens.md#node-state-bits)):
+
+| Bit | Value | Set by | Meaning |
+|---|---|---|---|
+| 0 | 0x1 | the race-finished record, on a win when the play mode is not career | won outside the career |
+| 1 | 0x2 | the same record, on a win in career mode (play mode 2) | **won in the career**: the completion test for story nodes such as `16.2.1` and `1.2.3` |
+| 2 | 0x4 | the unlock list of a won race, and the reset that seeds `InitiallyUnlocked` (`0xEA855EAF`) or `0xB39ED8C3` nodes (not boss races) | unlocked in the career |
+| 3 | 0x8 | the same unlock list, unless the unlocked race carries `0xA4E6FCFD` (left out of the quick race lists) | unlocked for quick race |
+| 4 | 0x10 | the reset, from attribute `0x39509746` | **[unconfirmed]** meaning; set on most nodes of an early save |
+
+The best result (`+8`) is a float time or score, or a u32 for one race kind, kept only when it beats the stored one;
+the two u16 at `+0xC` and `+0xE` are written from two race-time statistics on every finish.
 
 **Shop part-unlock table** **[exe + verified]**: 57 entries of 8 bytes, indexed by part category id (4 tires, 5 brakes,
 6 chassis, 7 transmission, 8 engine, 9 induction, 10 nitrous, 11 body kit, 12 spoiler, 13 rims, 14 hood, 15 roof scoop,

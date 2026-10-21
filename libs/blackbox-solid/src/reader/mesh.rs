@@ -7,9 +7,13 @@
 
 use blackbox_chunk::{Chunk, ids};
 
+use super::skin::read_skin;
 use crate::bytes::{f32_at, u32_at, vec3_at};
-use crate::layout::{GroupLayout, SolidLayout};
-use crate::{BASE_VERTEX_STRIDE, ShadingGroup, Solid, Vertex, VertexBuffer};
+use crate::layout::SolidLayout;
+use crate::{BASE_VERTEX_STRIDE, ShadingGroup, SkinVertex, Solid, Vertex, VertexBuffer};
+
+/// The skin of an unskinned vertex in a solid that has skinned buffers: the root, rigidly.
+const ROOT_SKIN: SkinVertex = SkinVertex { weights: [1.0, 0.0, 0.0], bones: [0; 3] };
 
 pub(super) fn read_mesh(mesh: Chunk<'_>, layout: &SolidLayout, solid: &mut Solid) -> Result<(), String> {
     if let Some(groups) = mesh.child(ids::MESH_SHADING_GROUPS) {
@@ -18,7 +22,7 @@ pub(super) fn read_mesh(mesh: Chunk<'_>, layout: &SolidLayout, solid: &mut Solid
         if groups.len() % len != 0 {
             return Err(format!("shading groups: {} bytes is not a multiple of {len}", groups.len()));
         }
-        solid.groups = groups.chunks_exact(len).map(|r| read_group(r, &layout.group)).collect();
+        solid.groups = groups.chunks_exact(len).map(|r| read_group(r, layout)).collect();
     }
     if let Some(ib) = mesh.child(ids::MESH_INDICES) {
         solid.indices = ib
@@ -39,14 +43,20 @@ pub(super) fn read_mesh(mesh: Chunk<'_>, layout: &SolidLayout, solid: &mut Solid
     check_index_ranges(solid)
 }
 
-fn read_group(r: &[u8], l: &GroupLayout) -> ShadingGroup {
+fn read_group(r: &[u8], layout: &SolidLayout) -> ShadingGroup {
+    let l = &layout.group;
     let t = l.texture_slots;
+    let effect_id = u32_at(r, l.effect_id);
+    let bone_table: Option<[u8; 16]> = match layout.skinned_effects.contains(&effect_id) {
+        true => Some(std::array::from_fn(|i| r[l.bone_table + i])),
+        false => None,
+    };
     ShadingGroup {
         bounds_min: vec3_at(r, l.bounds_min),
         bounds_max: vec3_at(r, l.bounds_max),
         texture_slots: [r[t], r[t + 1], r[t + 2], r[t + 3], r[t + 4]],
         light_material: r[t + 5],
-        effect_id: u32_at(r, l.effect_id),
+        effect_id,
         flags: u32_at(r, l.flags),
         num_vertices: u32_at(r, l.num_vertices),
         num_triangles: u32_at(r, l.num_triangles),
@@ -54,6 +64,7 @@ fn read_group(r: &[u8], l: &GroupLayout) -> ShadingGroup {
         num_indices: u32_at(r, l.num_indices),
         base_vertex: 0,
         vertex_buffer: 0,
+        bone_table,
     }
 }
 
@@ -72,6 +83,8 @@ fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Soli
     if runs.len() != buffers.len() {
         return Err(format!("{} vertex buffers for {} effect runs", buffers.len(), runs.len()));
     }
+    let mut skin = Vec::new();
+    let mut any_skinned = false;
     for (index, (run, data)) in runs.into_iter().zip(buffers).enumerate() {
         let count: u32 = solid.groups[run.clone()].iter().map(|g| g.num_vertices).sum();
         if count == 0 || data.len() % count as usize != 0 {
@@ -81,7 +94,14 @@ fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Soli
         if stride < BASE_VERTEX_STRIDE {
             return Err(format!("vertex buffer {index}: unexpected stride {stride}"));
         }
-        let tangent = stride == 60 && layout.tangent_effects.contains(&solid.groups[run.start].effect_id);
+        let effect_id = solid.groups[run.start].effect_id;
+        if layout.skinned_effects.contains(&effect_id) {
+            any_skinned = true;
+            skin.extend(read_skin(&solid.groups[run.clone()], data, stride)?);
+        } else {
+            skin.extend(std::iter::repeat_n(ROOT_SKIN, count as usize));
+        }
+        let tangent = stride == 60 && layout.tangent_effects.contains(&effect_id);
         let first_vertex = solid.vertices.len() as u32;
         for g in &mut solid.groups[run] {
             g.vertex_buffer = index as u32;
@@ -100,6 +120,9 @@ fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Soli
             });
         }
         solid.vertex_buffers.push(VertexBuffer { stride, first_vertex, vertex_count: count });
+    }
+    if any_skinned {
+        solid.skin = Some(skin);
     }
     Ok(())
 }

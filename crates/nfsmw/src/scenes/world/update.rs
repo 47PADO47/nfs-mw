@@ -12,12 +12,21 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::update").entered();
         let _trace = blackbox_trace::scope("World: update");
         self.shadow_quality = renderer.graphics().shadows;
+        // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
+        self.update_arrest_nis();
+        self.update_nis(input, dt);
+        self.update_nis_characters(renderer);
+        self.update_nis_models(renderer);
+        self.update_story_movie(input, dt);
+        // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
+        // passes in it.
         let idle = ActionState::default();
-        let input = match self.garage_open {
+        let frozen = self.garage_open || self.nis.is_playing() || self.story_movie.is_playing();
+        let input = match frozen {
             true => &idle,
             false => input,
         };
-        let dt = match self.garage_open {
+        let dt = match frozen {
             true => 0.0,
             false => dt,
         };
@@ -53,14 +62,15 @@ impl WorldScene {
         self.prepare_traffic_support();
         // Section overrides expire on reload only outside an active race (prop-lifetime.md).
         let racing = self.race.as_ref().is_some_and(|race| {
-            race.stage == super::race::Stage::Running
-                && (race.challenge.is_some()
-                    || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing))
+            matches!(race.stage, super::race::Stage::Intro { .. })
+                || (race.stage == super::race::Stage::Running
+                    && (race.challenge.is_some()
+                        || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing)))
         });
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
         self.residency.update(renderer, x, y);
         self.prepare_drive();
-        let sim_dt = match self.garage_open {
+        let sim_dt = match frozen {
             true => 0.0,
             false => self.update_simulation(renderer, input, dt),
         };

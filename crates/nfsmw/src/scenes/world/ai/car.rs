@@ -79,6 +79,8 @@ pub struct AiCar {
     nav: RoadNav,
     previous: CarPose,
     current: CarPose,
+    /// The pose a NIS scene gives the car while it plays (`accessors.rs`); `None` draws the physics pose.
+    nis_pose: Option<CarPose>,
     /// Physics steps since the car was placed.
     steps: u32,
     /// Delays the first think so the cars' thinks spread over ten steps.
@@ -196,6 +198,7 @@ impl AiCar {
             nav,
             previous: pose,
             current: pose,
+            nis_pose: None,
             steps: 0,
             stagger: start.stagger,
             speed: start.speed,

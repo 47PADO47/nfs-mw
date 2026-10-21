@@ -1,7 +1,8 @@
 //! The arrest scene the bust picks: one of the 26 `Arrest*` NIS bundles, by the perp's class and a random variant. The
 //! rule is read from `speed.exe` (`docs/specs/busted-sequence.md` section 4.1). Only 16 of the 26 names are reachable
 //! in the chooser: the `ArrestM04`, `ArrestF23`, `ArrestM07`, `ArrestM14` and `ArrestF14` families (and `ArrestM23`,
-//! which has no bundle) are never the final scene. Nothing plays the scene yet: the NIS player is not in the port.
+//! which has no bundle) are never the final scene. The world plays the picked scene as a NIS at the arrest shot
+//! (`flow.rs`).
 
 /// The variants the random roll picks from (0 to 7).
 pub const VARIANTS: u8 = 8;

@@ -4,11 +4,13 @@
 //!
 //! - [`game`]: the install spec (registry key, required files, known builds);
 //! - [`car`]: one car's solids and textures;
+//! - [`anim`]: a bundle's EAGL skeletons and animation banks, read from its chunk tree;
 //! - [`minimap`]: the map tiles and the calibration of the open city's minimap;
 //! - [`world`]: the streamed city (`TRACKS/L2RA.BUN` + `STREAML2RA.BUN`).
 //! - [`pursuit`]: the cop waves of each heat level;
 //! - [`traffic`]: the car list and speeds of each traffic pattern;
 //! - [`music`]: the licensed songs of the radio, from the attribute database;
+//! - [`nis`]: the NIS and FMV camera tracks of `GLOBAL/InGameB.bun`, by scene name;
 //! - [`sound`]: a car's engine sound set (`.gin` loops, banks and mix tuning) from the attribute database;
 //! - [`speech`]: the scheduling data of the police dispatch's speech events from the attribute database.
 //! - [`speech_chase`]: the thresholds the chase's speech flows read (`speechtune`, and the roadblock and 911 fields of a heat row).
@@ -17,6 +19,7 @@
 //! - [`career_cars`]: the career car lot's cars, prices and unlock ranks from `GLOBAL/FE_ATTRIB.bin`.
 //! - [`gameplay`]: the race events, their box triggers (start, finish, checkpoints) and the auto shop and safe house zones.
 
+pub mod anim;
 pub mod camera;
 pub mod car;
 pub mod career_cars;
@@ -28,6 +31,7 @@ pub mod game;
 pub mod gameplay;
 pub mod minimap;
 pub mod music;
+pub mod nis;
 pub mod pursuit;
 pub mod pursuit_siren;
 pub mod rank_thresholds;

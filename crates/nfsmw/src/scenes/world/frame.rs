@@ -66,6 +66,8 @@ impl WorldScene {
         if let Some(arrow) = self.route_arrow() {
             self.visible.push(arrow);
         }
+        // The NIS scene's characters: placed with the rest, so they sort by mesh with them.
+        self.nis.character_instances(&mut self.visible);
         // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
         visibility::sort_by_mesh(&mut self.visible);
         let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());

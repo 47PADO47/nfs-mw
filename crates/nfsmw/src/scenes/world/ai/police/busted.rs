@@ -95,10 +95,7 @@ impl Police {
     pub(super) fn start_bust(&mut self, roll: f32) -> bool {
         let report = BustReport::from_log(&self.infractions, &self.settings.fines);
         let started = self.bust.start(false, ARREST_CLASS, roll, report);
-        log::info!(
-            "busted: arrest scene {} (the NIS player is not in the port yet)",
-            self.bust.arrest_scene().unwrap_or("none")
-        );
+        log::info!("busted: arrest scene {}", self.bust.arrest_scene().unwrap_or("none"));
         started
     }
 
@@ -144,6 +141,18 @@ impl super::super::TrafficWorld {
         self.police.is_busted()
     }
 
+    /// The arrest scene the bust asks the world to play as a NIS, once: the world answers with
+    /// [`TrafficWorld::arrest_scene_over`] when it ends or cannot play (`busted-sequence.md` section 4).
+    pub fn take_arrest_request(&mut self) -> Option<&'static str> {
+        self.police.bust.take_arrest_request()
+    }
+
+    /// The arrest scene is over, whether it ended or could not play: the bust goes on to its ticket in free roam, or
+    /// ends in a race. Does nothing when no arrest scene is playing.
+    pub fn arrest_scene_over(&mut self) {
+        let _ = self.police.bust.arrest_scene_over();
+    }
+
     /// The bust sequence's ticket, once, when the front end should show it: this chase's infractions and their fines.
     pub fn take_bust_ticket(&mut self) -> Option<Vec<(Infraction, u32)>> {
         let report = self.police.bust.take_request()?;
@@ -175,7 +184,7 @@ impl super::super::TrafficWorld {
         true
     }
 
-    /// The player controls remain held through the fallback and its unpaid ticket.
+    /// The player controls remain held through the arrest scene and the unpaid ticket.
     pub fn arrest_active(&self) -> bool {
         self.police.bust.active()
     }
@@ -234,7 +243,10 @@ mod bust_sequence_tests {
         assert!(police.start_bust(0.0), "a bust starts");
         assert!(!police.bust.overlay_shown());
         police.tick_bust(flow::SHOT_SECS + 0.1);
-        assert!(!police.bust.overlay_shown(), "the unavailable NIS does not invent an overlay stage");
+        assert!(!police.bust.overlay_shown(), "the arrest scene does not invent an overlay stage");
+        assert!(police.bust.take_arrest_request().is_some(), "the shot asks for the arrest scene");
+        assert!(police.bust.take_request().is_none(), "no ticket while the scene is to be answered");
+        assert!(police.bust.arrest_scene_over().is_some(), "the scene could not play: the hold is spent");
         assert!(police.bust.take_request().is_some(), "the ticket is up for the front end");
         assert!(police.bust.take_request().is_none(), "and handed over once");
         assert!(police.bust.pay(Payment::Cash, 0).is_ok(), "the payment is taken on the ticket");

@@ -4,6 +4,7 @@ use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::{CarRecord, CareerRecord, Stable};
 
 use super::*;
+use crate::frontend::career_screens::car_lot_bars::{StripFill, strip_fills};
 
 fn lot(name: &str, key: u32, price: u32) -> LotCar {
     LotCar {
@@ -157,4 +158,22 @@ fn a_fraction_outside_zero_to_one_is_clamped() {
 #[test]
 fn a_bar_of_no_strips_has_no_fills() {
     assert!(strip_fills(0.5, &[]).is_empty());
+}
+
+#[test]
+fn only_the_first_car_purchase_starts_the_first_drive() {
+    let first = CarLotAction::Buy { frontend_key: 0xC0, delivery: Delivery::Deliver, first_drive: true };
+    let plain = CarLotAction::Buy { frontend_key: 0xC0, delivery: Delivery::Deliver, first_drive: false };
+    assert!(first.starts_first_drive());
+    assert!(!plain.starts_first_drive());
+    assert!(!CarLotAction::Sell { handle: 1 }.starts_first_drive());
+}
+
+#[test]
+fn the_first_car_is_affordable_with_the_prologue_prize_money() {
+    // Three prologue wins pay 10,000 each (`story-flow-2.md` F-13): 30,000 in all.
+    let car = lot("prize", 0xC1, 30_000);
+    let refusal = buy_refusal(&settings(29_999), &Stable::empty(), &car);
+    assert_eq!(refusal, Some(Text::Game(label_hash("CAR_LOT_NO_CASH"))));
+    assert_eq!(buy_refusal(&settings(30_000), &Stable::empty(), &car), None);
 }

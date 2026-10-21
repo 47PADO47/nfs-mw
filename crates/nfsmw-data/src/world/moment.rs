@@ -2,20 +2,22 @@
 //! puts those markers, and the camera tracks of the scenes. Spec: `docs/specs/pursuit-breaker-moment.md`.
 //!
 //! Three installed sources: the scene candidate table in `GLOBAL/InGameB.bun` (`SceneCandidateData`, the moment list
-//! at 0xC9C), the camera packs of the same file (NIS pack, one set per scene hash), and the track position markers of
-//! `TRACKS/L2RA.BUN` (`TrackPositionMarkers`, 0x30-byte records).
+//! at 0xC9C), the camera packs of the same file (the NIS pack, one set per scene hash, read by [`crate::nis`]), and the
+//! track position markers of `TRACKS/L2RA.BUN` (`TrackPositionMarkers`, 0x30-byte records).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use blackbox_chunk::ice::{Track, parse_camera_pack};
-use blackbox_chunk::{find, find_all, ids};
+use blackbox_chunk::find;
+use blackbox_chunk::find_all;
+use blackbox_chunk::ice::Track;
 use blackbox_hash::bstring_hash;
 use game_install::GameDir;
 use glam::Vec3;
 
 use crate::memo;
+use crate::nis::{CameraLibrary, track_numbered};
 use crate::shared;
 
 /// The candidate table inside the anim directory.
@@ -68,8 +70,8 @@ pub struct MomentData {
     pub kinds: BTreeMap<u32, u32>,
     /// Marker name hash to the markers of that name, in file order.
     pub markers: BTreeMap<u32, Vec<Marker>>,
-    /// Scene hash to its camera tracks, in file order.
-    pub cameras: BTreeMap<u32, Vec<Track>>,
+    /// The NIS camera sets of the install: the scene's camera tracks by scene hash.
+    pub cameras: Arc<CameraLibrary>,
 }
 
 /// The hash a scene name has in the files.
@@ -82,20 +84,12 @@ pub fn scene_hash(name: &str) -> u32 {
 const ANGLE_BONUS: f32 = 25.0;
 
 impl MomentData {
-    /// The installed data: candidates and cameras from `InGameB.bun`, markers from `L2RA.BUN`.
-    pub fn read(ingame: &[u8], l2ra: &[u8]) -> Result<Self> {
-        let mut data = Self::default();
+    /// The installed data: candidates from `InGameB.bun`, the camera sets of `cameras` (read from the same file), and
+    /// markers from `L2RA.BUN`.
+    pub fn read(ingame: &[u8], l2ra: &[u8], cameras: Arc<CameraLibrary>) -> Result<Self> {
+        let mut data = Self { cameras, ..Self::default() };
         let candidates = find(ingame, CANDIDATE_DATA).context("no scene candidate table")?;
         data.read_kinds(candidates.payload)?;
-        for chunk in [ids::ICE_NIS_CAMERAS] {
-            for pack in find_all(ingame, chunk) {
-                let pack = parse_camera_pack(&pack).context("reading the NIS camera pack")?;
-                for set in pack.sets {
-                    let tracks = set.records.iter().filter_map(Track::from_record).collect();
-                    data.cameras.insert(set.key, tracks);
-                }
-            }
-        }
         for chunk in find_all(l2ra, POSITION_MARKERS) {
             data.read_markers(chunk.aligned_payload(16));
         }
@@ -146,8 +140,7 @@ impl MomentData {
 
     /// Camera track `index` of the scene (`Track 0`, `Track 1`...).
     pub fn track(&self, scene: u32, index: usize) -> Option<&Track> {
-        let wanted = format!("Track {index}");
-        self.cameras.get(&scene)?.iter().find(|t| t.name == wanted)
+        track_numbered(self.cameras.nis_set(scene)?, index)
     }
 }
 
@@ -161,7 +154,8 @@ fn turn(a: u16, b: u16) -> f32 {
 pub fn load(dir: &GameDir) -> Result<Arc<MomentData>> {
     let ingame = shared::ingame_b(dir)?;
     let l2ra = shared::l2ra(dir)?;
-    memo(dir, &[shared::INGAME_B_FILE, shared::L2RA_FILE], || MomentData::read(&ingame, &l2ra))
+    let cameras = CameraLibrary::load(dir)?;
+    memo(dir, &[shared::INGAME_B_FILE, shared::L2RA_FILE], || MomentData::read(&ingame, &l2ra, cameras))
 }
 
 #[cfg(test)]

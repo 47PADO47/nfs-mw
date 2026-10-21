@@ -29,10 +29,13 @@ impl WorldScene {
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
-            Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session),
+            Stage::Intro { .. } => self.race_intro(&mut session, frame_dt),
+            // `frame_dt` is 0 while the world is frozen (a scene or a story movie plays), so the challenge's clock stops.
+            Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session, frame_dt),
             Stage::Running => true,
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
             Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),
+            Stage::Outro { .. } => self.race_outro(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
         match keep {
