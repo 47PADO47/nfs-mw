@@ -13,8 +13,9 @@ fn with_no_profile_saved_the_game_asks_to_create_one() {
 }
 
 #[test]
-fn saved_profiles_are_listed_even_when_there_is_only_one() {
-    assert_eq!(decide(false, 1), Step::List);
+fn one_saved_profile_loads_at_once_and_several_are_listed() {
+    assert_eq!(decide(false, 1), Step::Load);
+    assert_eq!(decide(false, 2), Step::List);
     assert_eq!(decide(false, 8), Step::List);
 }
 

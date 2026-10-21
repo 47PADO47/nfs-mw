@@ -46,7 +46,8 @@ the same step over a black backdrop **[ours]** for the shape, **[exe]** for the 
 | Saved profiles (both folders of section 4) | Screen |
 |---|---|
 | none | the question (below), then the main menu |
-| one or more | the list "load", then the main menu. The original loads a single alias at once; this build shows the list for one as well, as the user asked (`career-parity-menus.md` section 2) |
+| one | that save is loaded at once, with the load notice, then the main menu (as the original does) |
+| two or more | the list "load", then the main menu |
 | a profile is loaded already | the main menu |
 
 **The question.** `MC_CREATE_NEW_PROFILE_MENU` (`0xBE97590F`, the text above) in a dialog titled "selection", Yes and No, No focused

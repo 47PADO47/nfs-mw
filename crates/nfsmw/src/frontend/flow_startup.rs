@@ -27,6 +27,8 @@ const AUTOSAVE_NOTICE_2: u32 = 0xB380_362F;
 pub(super) enum Step {
     /// A profile is loaded already: the main menu.
     Menu,
+    /// Exactly one profile is saved: it is loaded at once, as the original does.
+    Load,
     /// The profile list, to load one from.
     List,
     /// No profile is saved: ask to create one.
@@ -34,7 +36,7 @@ pub(super) enum Step {
 }
 
 /// The step for a game that has `saved` profiles to list and whether one is `loaded`. The original loads at once when
-/// exactly one is saved; this build shows the list for one as well (a request of the user).
+/// exactly one is saved (`docs/provenance/boot-profile-prompt.md`).
 pub(super) fn decide(loaded: bool, saved: usize) -> Step {
     if loaded {
         return Step::Menu;
@@ -42,7 +44,10 @@ pub(super) fn decide(loaded: bool, saved: usize) -> Step {
     if saved == 0 {
         return Step::Create;
     }
-    Step::List
+    match saved {
+        1 => Step::Load,
+        _ => Step::List,
+    }
 }
 
 /// The boot order: the EA logo, the public service announcement, the title screen. Without `movies` only the title screen
@@ -69,8 +74,10 @@ pub(super) fn create_question() -> Confirm {
 impl Frontend {
     /// After the boot flow: the profile step (`decide`), then the main menu.
     pub(super) fn after_boot(&mut self, host: &mut Host, env: &mut Env) {
-        match decide(self.career.is_loaded(), list_aliases().len()) {
+        let aliases = list_aliases();
+        match decide(self.career.is_loaded(), aliases.len()) {
             Step::Menu => self.show_menu(host, env),
+            Step::Load => self.load_only_profile(&aliases[0], host, env),
             Step::List => self.show_profile_list(host, env),
             Step::Create => self.ask_to_create(host, env),
         }
@@ -84,6 +91,13 @@ impl Frontend {
         self.replace_scene(host, Box::new(MenuScene::new(None)), false);
         self.startup = true;
         self.stage = Stage::Menus;
+    }
+
+    /// The only saved profile is loaded without a list; the notice that follows leads to the main menu.
+    fn load_only_profile(&mut self, alias: &str, host: &mut Host, env: &mut Env) {
+        log::info!("boot: one profile saved, loading {alias}");
+        self.begin_startup(host);
+        self.career_load(alias, host, env);
     }
 
     /// The list of saved profiles ("load") over the menu backdrop. Back leaves for the main menu with none loaded.
