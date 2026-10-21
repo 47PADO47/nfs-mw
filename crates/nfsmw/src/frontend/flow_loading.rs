@@ -96,7 +96,10 @@ impl Frontend {
         if let Some(race) = self.quick_race.take() {
             // The challenge series, Quick Play and a custom race set their options; a race started by hand runs as the data has it.
             let options = self.race_options.take().unwrap_or_default();
-            world.queue_race(race, options);
+            match self.split.clone() {
+                Some(setup) => world.queue_split_race(race, options, setup),
+                None => world.queue_race(race, options),
+            }
         }
         self.paused.set(false);
         self.conceal.set(true);
