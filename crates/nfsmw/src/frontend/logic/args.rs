@@ -24,6 +24,9 @@ pub struct Args {
     /// Opened in a Blacklist sequence (context bit 17, `0x20000`). The first visit's rival bio enters bin 15 when it
     /// opens this way, and its Accept goes on with the sequence (`flow_first_visit.rs`).
     pub sequence: bool,
+    /// Opened by the scripted chase's `JumpToCarLot`: the car lot picks the car the first drive to the safe house is made in
+    /// (`flow_prologue.rs`).
+    pub first_car: bool,
 }
 
 impl Default for Args {
@@ -38,6 +41,7 @@ impl Default for Args {
             pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
             custom: false,
             sequence: false,
+            first_car: false,
         }
     }
 }
