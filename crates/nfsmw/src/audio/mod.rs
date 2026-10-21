@@ -38,6 +38,7 @@ mod fx;
 mod heli;
 mod interactive;
 mod mixer;
+pub mod nis;
 pub mod oneshot;
 mod pcm;
 mod plugin;
@@ -117,6 +118,7 @@ pub struct Audio {
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
     explosion: explosion::Slot,
+    nis: nis::NisAudio,
     dir: GameDir,
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
@@ -221,6 +223,7 @@ impl Audio {
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),
             explosion: explosion::Slot::default(),
+            nis: nis::NisAudio::default(),
             dir,
             volumes,
             banks: HashMap::new(),

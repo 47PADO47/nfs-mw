@@ -100,10 +100,14 @@ fn drive_car(
         audio.stop_traffic();
         audio.stop_explosion();
         audio.stop_world_effect_audio();
+        audio.stop_nis();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
     audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
+    // The NIS player asks for the stream of the scene it plays, and hears back whether the stream still plays.
+    audio.update_nis(host.scene.nis_audio().and_then(|request| request.scene.as_deref()));
+    host.scene.note_nis_audio(audio.nis_playing());
     audio.trace.advance(time.delta_secs());
     let traffic = host.scene.take_traffic_sounds();
     if let Some(state) = &car {
