@@ -22,6 +22,8 @@ const EDGE_STOPS: [(f32, f32); 3] = [(0.0, 1.0), (0.6, 0.5), (1.0, 0.0)];
 /// The size of a blip's icon, in FEng units, and how much larger the focused one is drawn.
 const ICON: f32 = 16.0;
 const FOCUSED_SCALE: f32 = 1.3;
+/// The helicopter's icon: as large as the HUD package draws it (28 units), so it shows round the player's arrow.
+const HELICOPTER_ICON_SIZE: f32 = 28.0;
 /// The player's car icon.
 const PLAYER_ICON: &str = "Minimap_Icon_Car.tga";
 const PLAYER: f32 = 20.0;
@@ -83,19 +85,26 @@ pub fn blips(parts: &mut Parts, frame: &WorldMapFrame) {
         };
         parts.push(Image::new(icon_name(blip.style)).with_tint(blip_rgba(blip.style)), Rect::new(x, y, size, size));
     }
-    live(parts, frame);
+    live(parts, frame, false);
 }
 
-/// The racers and the police cars, on every tab: the car arrow in their colour, turned to where they point.
-fn live(parts: &mut Parts, frame: &WorldMapFrame) {
+/// The police helicopter, over everything else on the picture, the player's car included.
+pub fn helicopter(parts: &mut Parts, frame: &WorldMapFrame) {
+    live(parts, frame, true);
+}
+
+/// The racers, the police cars, the helicopter and the checkpoint, on every tab: the car arrow in their colour, turned to
+/// where they point. `air` picks the helicopter alone (drawn last) or everything else.
+fn live(parts: &mut Parts, frame: &WorldMapFrame, air: bool) {
     let camera = frame.session.camera;
-    for car in &frame.live {
+    for car in frame.live.iter().filter(|car| (car.style == crate::hud::HELICOPTER) == air) {
         let (x, y) = at(camera.to_view(car.map));
         if x.abs() > OFF_X || y.abs() > OFF_Y {
             continue;
         }
         let icon = Image::new(car.icon()).with_tint(car.rgba(frame.clock)).with_rotation(car.bearing.to_radians());
-        parts.push(icon, Rect::new(x, y, ICON, ICON));
+        let size = if air { HELICOPTER_ICON_SIZE } else { ICON };
+        parts.push(icon, Rect::new(x, y, size, size));
     }
 }
 

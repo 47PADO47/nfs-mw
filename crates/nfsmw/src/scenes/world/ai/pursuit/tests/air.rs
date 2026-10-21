@@ -55,3 +55,30 @@ fn only_one_helicopter_flies_at_a_time() {
     run_manager(&mut world, 20);
     assert_eq!(world.police.cost_to_state(), cost, "no second helicopter was sent while the first flies");
 }
+
+#[test]
+fn whenever_a_helicopter_flies_its_blip_reaches_the_world_maps_moving_cars_at_every_heat() {
+    use crate::frontend::world_map::overlay::live;
+    use crate::hud::HELICOPTER;
+    let city = blackbox_minimap::Calibration { origin: [-1224.8894, -1591.1449], width: 6659.332 };
+    let mut flew_at = Vec::new();
+    for level in 1..=10 {
+        let mut world = chase_with_heli(level);
+        run_manager(&mut world, 200);
+        let mut blips = Vec::new();
+        world.map_blips(&mut blips);
+        let on_hud = blips.iter().filter(|b| b.style == HELICOPTER).count();
+        let on_map = live(&blips, &city).iter().filter(|b| b.style == HELICOPTER).count();
+        assert_eq!(
+            on_hud,
+            usize::from(world.helicopter_status().is_some()),
+            "heat {level}: the HUD has a blip while it flies"
+        );
+        assert_eq!(on_map, on_hud, "heat {level}: the map's moving cars have it too");
+        if on_map == 1 {
+            flew_at.push(level);
+        }
+    }
+    eprintln!("the helicopter flew at heats {flew_at:?}");
+    assert!(flew_at.len() >= 3, "the helicopter flew at heats {flew_at:?}");
+}

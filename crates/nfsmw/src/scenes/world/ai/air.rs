@@ -55,6 +55,25 @@ impl TrafficWorld {
         true
     }
 
+    /// The `pursuit heli` console command: sends the helicopter into the running chase now, the way a spawn opportunity
+    /// would (it appears behind the player on the next police step). Refused without a chase, or with one already up.
+    pub fn dev_send_helicopter(&mut self, player: &Body) -> Result<String, String> {
+        let level = self
+            .police
+            .level()
+            .filter(|_| self.pursuit.is_some())
+            .ok_or("no chase is on (start one: pursuit <heat>)")?;
+        if self.police.helicopter_present() {
+            return Err("a helicopter is already in the chase".into());
+        }
+        let spawn = self.heli_spawn_point(player, self.police.heli_spawn_distance(level));
+        self.police.queue_helicopter(spawn);
+        if let Some(pursuit) = self.pursuit.as_mut() {
+            pursuit.sent_helicopter();
+        }
+        Ok("the helicopter is sent".into())
+    }
+
     /// Where the helicopter appears (`SpawnPursuitHelicopter`): `distance` metres along the cop road behind the target, or
     /// at the target when there is no cop road there, 20 m up, facing along the road.
     fn heli_spawn_point(&mut self, player: &Body, distance: f32) -> Spawn {

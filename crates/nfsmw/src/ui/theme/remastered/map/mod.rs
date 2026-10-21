@@ -108,6 +108,7 @@ fn assemble(snapshot: &MapSnapshot, cx: &LayoutCx<'_>) -> Vec<Box<dyn Component>
     draw::picture(&mut parts, frame);
     draw::blips(&mut parts, frame);
     draw::player(&mut parts, frame);
+    draw::helicopter(&mut parts, frame);
     panels::bands(&mut parts, half_width);
     panels::title(&mut parts, frame, -half_width);
     panels::compass(&mut parts, frame, half_width);
