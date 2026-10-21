@@ -122,8 +122,11 @@ impl WorldScene {
             false => (self.traffic_setting.cars * level as u32 / 100) as usize,
         };
         self.traffic_manual = Some(cars);
+        // A custom race's Heat Level of Moderate or Maximum leaves the police on the road; below that the race has none, as a
+        // race with no `CopsInRace` has none (`docs/specs/custom-race.md` section 4).
+        let police = p.cops_in_race || options.heat.is_some_and(|heat| heat >= 2);
         if let Some(traffic) = self.traffic.as_mut()
-            && !p.cops_in_race
+            && !police
         {
             traffic.stop_pursuit();
         }

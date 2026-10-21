@@ -261,7 +261,7 @@ pub(super) struct PendingCar {
 
 /// The player's car for `--drive`: its model and its driving script.
 fn load_pending_car(dir: &GameDir, d: DriveOptions) -> Result<PendingCar> {
-    let (name, model) = load_car(dir, &d.car)?;
+    let (name, model) = super::car_loader::load_named_car(dir, &d.car)?;
     let script = d.script.as_deref().map(DriveScript::parse).transpose().map_err(anyhow::Error::msg)?;
     Ok(PendingCar { name, model, script })
 }

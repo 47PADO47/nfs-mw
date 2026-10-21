@@ -36,7 +36,7 @@ use game_install::GameDir;
 use glam::Mat4;
 
 pub use assemble::Placement;
-pub use blackbox_carparts::LightMaterial;
+pub use blackbox_carparts::{LightMaterial, PresetRide};
 pub use ecar::WheelSetup;
 pub use paint::{CARSKIN, Paint};
 pub use parts::is_stock_part;
