@@ -130,8 +130,10 @@ package gets the message `0xDE511657` (the quick race look: the list header, the
   (`0xB05DD708`) as the Quick Play brief ([quick-play.md](quick-play.md) section 4); the three bars as the car lot's.
 - **Unlocks:** a stock car is open when its rank is at least the stage, or it is one of the starters (RX-8, Impreza WRX, Mustang GT,
   SL 500, 997 S, IS 300, GTI, Gallardo, Cobalt SS, Punto) **[decomp]** (`QuickRaceUnlocker::IsCarUnlocked`). A rival's car `BLn` is
-  open when the stage is below `n`; the C6R when the career is won; the SL65 (special challenge) and the GT2 (challenge series)
-  stay locked because this build records neither; the Castrol GT (an easter egg) and the collector's cars stay locked **[decomp, ours]**.
+  open when the stage is below `n`; the C6R when the career is won; the SL65 when event 68 of the challenge series (`19.8.68`) is
+  won and the GT2 when every event of the series is won (the two hidden ones, `19.8.31` and `19.9.70`, are not needed **[ours]**), from
+  the wins `challenge_series.toml` keeps **[decomp]** (the sentences say "completing event number 68" and "every event"); the
+  Castrol GT (an easter egg this build has not) and the collector's cars stay locked **[decomp, ours]**.
   A locked car shows `Unlock this car by beating <alias>, Blacklist member <n>.` or the bonus sentences of the Quick Play brief; Accept
   and Showcase refuse it.
 - **Keys:** left and right the cars, up and down the lists, Accept, Back (to the options), `3` Showcase (`PAD_BUTTON0`).
@@ -161,6 +163,5 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
   rival-beaten rule above.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
   at the heat the level gives.
-- The career's own unlocks for the SL65, GT2 and Castrol GT (this build records neither the special challenge, the series
-  completion nor the easter egg).
+- The Castrol GT: the original awards it for an easter egg the world has not here, so it stays locked.
 - Split Screen is not built (greyed out).

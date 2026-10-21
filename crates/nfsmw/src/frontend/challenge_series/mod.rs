@@ -20,7 +20,33 @@ use std::sync::Arc;
 use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 
+#[cfg(test)]
+pub(crate) use board::board;
 pub use board::load_in_background;
+
+/// The event the Mercedes SL 65 bonus car is unlocked by: "completing event number 68 in the Challenge Series" (label `0xBD8BAC91`).
+const SPECIAL_EVENT: &str = "19.8.68";
+/// The two events the series hides (the burger-chain race until its easter egg, the Black Edition race outside that edition):
+/// finishing the series does not need them **[ours]**.
+const OPTIONAL_EVENTS: [&str; 2] = ["19.8.31", "19.9.70"];
+
+/// What the player has won in the series, for the bonus cars the car select unlocks with it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Completion {
+    /// Event 68 was won (`HasBeatenSpecialChallengeEvent`).
+    pub special: bool,
+    /// Every event was won (`HasBeatenChallengeSeries`).
+    pub all: bool,
+}
+
+/// The wins of the series so far. Nothing is won while the events are not read yet.
+pub fn completion() -> Completion {
+    let Some(board) = board::board() else { return Completion::default() };
+    let won = progress::current();
+    let all =
+        board.entries.iter().filter(|e| !OPTIONAL_EVENTS.contains(&e.event.as_str())).all(|e| won.is_won(&e.event));
+    Completion { special: won.is_won(SPECIAL_EVENT), all: all && !board.entries.is_empty() }
+}
 pub(crate) use board::{map_texture, route_on_map};
 pub use progress::record_win;
 

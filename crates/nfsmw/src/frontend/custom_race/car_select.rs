@@ -100,7 +100,13 @@ pub(crate) fn progress() -> Progress {
             (career.stage(), career.settings.flags.contains(Flags::GAME_OVER), owned)
         })
         .unwrap_or((PROLOGUE_STAGE, false, Vec::new()));
-    Progress { stage, career_won, open_all: super::tracks::unlock_all(), owned }
+    Progress {
+        stage,
+        career_won,
+        open_all: super::tracks::unlock_all(),
+        owned,
+        series: crate::frontend::challenge_series::completion(),
+    }
 }
 
 impl CarSelect {

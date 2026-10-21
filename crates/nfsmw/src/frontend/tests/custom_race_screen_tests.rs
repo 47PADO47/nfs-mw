@@ -171,3 +171,17 @@ fn the_rows_of_each_mode_show_in_the_package_and_the_heat_row_closes_the_list() 
         assert_eq!(rows.last(), Some(&Row::Heat), "{mode:?}");
     }
 }
+
+#[test]
+fn the_series_has_the_event_the_sl65_is_unlocked_by() {
+    let Some(dir) = install() else { return };
+    crate::frontend::challenge_series::load_in_background(&dir);
+    for _ in 0..2400 {
+        if let Some(board) = crate::frontend::challenge_series::board() {
+            assert!(board.entries.iter().any(|e| e.event == "19.8.68"), "event 68 of the series");
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    panic!("the series board was not read");
+}

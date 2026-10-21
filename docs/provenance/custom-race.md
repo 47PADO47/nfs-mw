@@ -70,5 +70,9 @@ options, so it is added by this rewrite.
   found `0x00600B20` and unrelated code only). The rule in the spec (a track opens with its bin's rival) comes from the lock
   sentence and from the cars' arithmetic.
 - The tutorial button of the mode select: the exe's table of modes with a tutorial was not found; the three movies exist.
+- The car select's transmission question in the exe: a scan for the immediates of the labels `0x6F5401D1` (the question), `0x317D3005`
+  and `0x8CD532A0` found only the options row of the Transmission setting (`0x0051C5F0`, which shows Manual or Auto from the player
+  byte at `+0x91`); the dialog of the car select takes its labels from a table, so whether a drag race skips it was not read in the
+  exe. The decomp says it does.
 - `TransmissionPromptOn` (the player option that skips the question) has no counterpart in this build's settings.
 - The exe's Heat Level row (see above).

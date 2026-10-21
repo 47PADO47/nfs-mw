@@ -86,6 +86,8 @@ pub struct Progress {
     pub open_all: bool,
     /// The catalogue names of the cars the loaded profile owns, for the Career list.
     pub owned: Vec<String>,
+    /// What the challenge series has been won of, which opens the SL 65 and the GT2.
+    pub series: crate::frontend::challenge_series::Completion,
 }
 
 /// The cars of a list.
@@ -141,14 +143,14 @@ fn stock_entry(car: &PoolCar, progress: &Progress) -> Entry {
 }
 
 /// How a bonus car opens **[decomp]** (`QuickRaceUnlocker::IsCarUnlocked`): a rival's car when rival `n` is beaten (the stage is
-/// below `n`), the C6R when the career is won, the SL65 and the GT2 for achievements this build does not record, the Castrol
+/// below `n`), the C6R when the career is won, the SL65 with event 68 of the series and the GT2 with every event of it, the Castrol
 /// GT for an easter egg, the collector's cars never.
 fn bonus_entry(preset: &str, car: &PoolCar, progress: &Progress) -> Option<Entry> {
     let upper = preset.to_ascii_uppercase();
     let (open, unlock) = match upper.as_str() {
         "BONUS_C6R" => (progress.career_won, Unlock::Label(0xBD8B_AC94)),
-        "BONUS_SL65" => (false, Unlock::Label(0xBD8B_AC91)),
-        "BONUS_GT2" => (false, Unlock::Label(0xBD8B_AC92)),
+        "BONUS_SL65" => (progress.series.special, Unlock::Label(0xBD8B_AC91)),
+        "BONUS_GT2" => (progress.series.all, Unlock::Label(0xBD8B_AC92)),
         "CASTROLGT" => (false, Unlock::None),
         _ => {
             let member: u8 = upper.strip_prefix("BL")?.parse().ok().filter(|n| (2..=15).contains(n))?;
@@ -175,6 +177,7 @@ pub fn find(pool: &CarPool, progress: &Progress, key: &str) -> Option<(List, usi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::challenge_series::Completion;
     use crate::frontend::quick_play::pool::PoolPreset;
 
     fn car(name: &str, folder: &str, rank: u8) -> PoolCar {
@@ -191,7 +194,7 @@ mod tests {
     }
 
     fn progress(stage: u8) -> Progress {
-        Progress { stage, career_won: false, open_all: false, owned: Vec::new() }
+        Progress { stage, career_won: false, open_all: false, owned: Vec::new(), series: Default::default() }
     }
 
     #[test]
@@ -218,6 +221,27 @@ mod tests {
         assert!(bonus(1)[1].locked, "the C6R needs the career won");
         let won = entries(List::Bonus, &pool(), &Progress { career_won: true, ..progress(1) });
         assert!(!won[1].locked);
+    }
+
+    #[test]
+    fn the_series_cars_open_with_the_series_wins() {
+        let preset = |name: &str| PoolPreset { name: name.into(), car: car("m3", "BMWM3GTRE46", 0) };
+        let pool = CarPool {
+            presets: vec![preset("BONUS_SL65"), preset("BONUS_GT2"), preset("CASTROLGT")],
+            ..CarPool::default()
+        };
+        let locked = |series| {
+            let progress = Progress { series, ..progress(16) };
+            entries(List::Bonus, &pool, &progress).iter().map(|e| e.locked).collect::<Vec<_>>()
+        };
+        let none = Completion::default();
+        assert_eq!(locked(none), [true, true, true]);
+        assert_eq!(locked(Completion { special: true, all: false }), [false, true, true], "event 68 opens the SL 65");
+        assert_eq!(
+            locked(Completion { special: true, all: true }),
+            [false, false, true],
+            "the Castrol GT stays locked"
+        );
     }
 
     #[test]
