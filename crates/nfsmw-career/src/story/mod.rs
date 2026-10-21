@@ -2,12 +2,16 @@
 //!
 //! - [`race_life`]: the intro steps before a race (the tutorial, the message, the intro movie and NIS), the outro
 //!   steps after it, the exit of the intro NIS, and the post-race chain (`story-flow.md` sections 1.1, 1.2, 1.5, 1.7).
+//! - [`final_race`]: the final race 1.8.1, its timed calls, door and GPS, the win and lose triggers, and the chain
+//!   after the win (`story-flow-2.md` section 5).
 //!
 //! The rules read the race's story fields as [`StoryFields`]. This crate does not depend on `nfsmw-data`, so the game
 //! crate copies the fields of its `RaceStory` into this struct. An empty text counts as not set, as the Lua does.
 
+pub mod final_race;
 pub mod race_life;
 
+pub use final_race::{EndGameStep, FinalRace, FinalRaceEvent, FinalRaceInput, GpsTarget, after_win};
 pub use race_life::{
     AfterIntroNis, IntroContext, IntroStep, OutroStep, after_intro_nis, chain_after, intro_steps, outro_steps,
 };
