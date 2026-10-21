@@ -32,6 +32,8 @@ mod flow_custom;
 mod flow_loading;
 #[path = "flow_movie.rs"]
 pub(super) mod flow_movie;
+#[path = "flow_rival.rs"]
+mod flow_rival;
 #[path = "flow_save.rs"]
 mod flow_save;
 #[path = "flow_series.rs"]
@@ -417,6 +419,7 @@ impl Frontend {
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
+                Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),

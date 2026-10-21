@@ -2,8 +2,8 @@
 //! sections 1 and 2).
 //!
 //! `SafeHouseRivalChallenge.fng` walks the 15 rivals with Left and Right, from rival 15 down to rival 1, and shows each
-//! one's state, name, bounty and requirements. Its challenge button starts the rival's boss race; race mode is not built,
-//! so the button only shows whether it is on, and pressing it on is answered with an alert. Back, and Continue, leave for
+//! one's state, name, bounty and requirements. Its challenge button, when it is on, leaves for the world, which starts the
+//! rival's first boss race (`flow_rival.rs`). Back, and Continue, leave for
 //! the safe house menu, or for the region unlock screen when the stage byte is one that unlocks a region (8 and 12,
 //! `career-regions.md` section 7.1).
 //!
@@ -24,7 +24,6 @@ use super::{
     RIVAL_BIO_CONTENT, RIVAL_CONTENT_START, RIVAL_LIST_READY, RIVAL_OPENED_CAREER, RIVAL_OPENED_PLAIN, post_opening,
 };
 use crate::career::CareerHandle;
-use crate::frontend::confirm::Alert;
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
 use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
@@ -210,6 +209,11 @@ fn leave(cx: &mut Cx) {
     switch(cx, leave_screen(stage));
 }
 
+/// The command an accepted challenge button sends: the rival's boss race starts, when the button is on.
+fn challenge_command(row: RivalRow) -> Option<Command> {
+    row.button_active.then_some(Command::ChallengeRival { bin: row.bin })
+}
+
 /// The rival challenge stepper (`SafeHouseRivalChallenge.fng`).
 struct ChallengeLogic {
     selected: u8,
@@ -252,8 +256,8 @@ impl ChallengeLogic {
         self.fill(cx);
     }
 
-    /// Accept on the challenge button starts the boss race, which is not built: an alert when the button is on.
-    /// Accept anywhere else is Continue, which leaves like Back.
+    /// Accept on the challenge button starts the rival's boss race, when the button is on. Accept anywhere else is
+    /// Continue, which leaves like Back.
     fn accept(&self, cx: &mut Cx) {
         if self.vertical {
             return self.view_rival(cx);
@@ -261,9 +265,8 @@ impl ChallengeLogic {
         if !is_focused(cx, CHALLENGE_HOLDER) {
             return leave(cx);
         }
-        if self.selected_row().is_some_and(|row| row.button_active) {
-            cx.send(Command::Alert(Alert::new(Text::Custom("Race mode is not built yet".to_owned()))));
-        }
+        let Some(command) = self.selected_row().and_then(challenge_command) else { return };
+        cx.send(command);
     }
 }
 

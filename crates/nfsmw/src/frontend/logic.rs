@@ -189,6 +189,10 @@ pub enum Command {
     ResumeCareer,
     /// Leave the safe house menu that stands before the world for the career menu (its Back).
     LeaveSafeHouse,
+    /// The Blacklist's challenge button, accepted for this bin: the world starts its first boss race (`flow_rival.rs`).
+    ChallengeRival {
+        bin: u8,
+    },
     /// Ask for an alias name over the screen that is up (`name_entry.rs`); the answer is the command the purpose names.
     EnterName(super::name_entry::NameFor),
     /// Alias manager, Create: make a new alias, load it and say so (`flow_save.rs`).
