@@ -30,13 +30,17 @@ impl WorldScene {
     pub(in crate::scenes::world) fn answer_race(&mut self, answer: RaceAnswer) -> bool {
         let Some(session) = self.race.take_if(|s| matches!(s.stage, Stage::PostRace { .. })) else { return false };
         let again = (session.name.clone(), session.options);
+        let split = self.split.as_ref().map(|split| split.setup.clone());
         // A won career race goes on to the race its `PostRaceActivity` names (the Lua graph's `done` state), which the
         // career then runs before free roam; a loss leaves the chain **[unconfirmed]**.
         let won = session.result.is_some_and(|r| r.place == 1 && r.time.is_some());
         let next = session.chain.clone().filter(|_| won && session.options.career);
         self.end_race(session);
         match (answer, next) {
-            (RaceAnswer::Restart, _) => self.queued_race = Some(again),
+            (RaceAnswer::Restart, _) => {
+                self.queued_race = Some(again);
+                self.queued_split = split;
+            }
             (RaceAnswer::Exit, Some(next)) => self.queued_race = Some((next, again.1)),
             (RaceAnswer::Exit, None) => {}
         }

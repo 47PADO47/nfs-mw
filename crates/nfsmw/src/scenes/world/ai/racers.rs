@@ -42,6 +42,8 @@ pub struct RacerSpawn {
     pub speed: f32,
     /// Held on the grid until GO.
     pub held: bool,
+    /// A person drives this racer (split screen): `Some(automatic gearbox)`.
+    pub person: Option<bool>,
 }
 
 impl TrafficWorld {
@@ -97,7 +99,33 @@ impl TrafficWorld {
             spec.spawn.position.y
         );
         self.cars.push(car);
+        if let (Some(automatic), Some(car)) = (spec.person, self.cars.last_mut()) {
+            car.seat_person(automatic);
+        }
         true
+    }
+
+    /// The pedals a person holds in the racer `id` this frame. `false` when no person drives it.
+    pub fn set_racer_pedals(&mut self, id: usize, pedals: crate::scenes::world::drive::DriveInput) -> bool {
+        self.cars.iter_mut().find(|car| car.racer_id() == Some(id)).is_some_and(|car| car.set_pedals(pedals))
+    }
+
+    /// The racer's car as a camera follows it: place (render space), heading (radians from +X) and speed (m/s), blended
+    /// `alpha` of the way between its last two physics steps.
+    pub fn racer_followed(&self, id: usize, alpha: f32) -> Option<crate::viewer::camera::Followed> {
+        let car = self.cars.iter().find(|car| car.racer_id() == Some(id))?;
+        let pose = car.pose(alpha);
+        let nose = pose.rotation * Vec3::X;
+        Some(crate::viewer::camera::Followed {
+            position: pose.position,
+            heading: nose.y.atan2(nose.x),
+            speed: car.speed(),
+        })
+    }
+
+    /// The HUD state of the racer `id`'s car (split screen's second player).
+    pub fn racer_hud(&self, id: usize) -> Option<crate::hud::HudState> {
+        self.cars.iter().find(|car| car.racer_id() == Some(id)).map(AiCar::hud_state)
     }
 
     /// The racers: index, place in physics space and speed.

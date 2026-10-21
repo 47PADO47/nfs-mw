@@ -10,7 +10,7 @@ impl WorldScene {
                 Some(request) => request.near,
                 None => {
                     let p = drive.position();
-                    [p.x, p.y]
+                    self.split_focus(p).unwrap_or([p.x, p.y])
                 }
             },
             _ => [self.camera.position.x, self.camera.position.y],

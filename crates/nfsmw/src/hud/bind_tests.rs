@@ -2,7 +2,8 @@ use blackbox_feng::package::{MultiDef, ObjectData, ObjectDef, ObjectKind, Packag
 use blackbox_feng::{NodeKind, PackageId, Runtime, fe_hash_upper};
 use glam::Quat;
 
-use super::bind::{HudBinding, SCRIPT_INIT, SCRIPT_NOS_BURNING, SCRIPT_NOS_READY};
+use super::bind::{HudBinding, SCRIPT_INIT};
+use super::gauges::{SCRIPT_NOS_BURNING, SCRIPT_NOS_READY};
 use super::state::HudState;
 
 const SCRIPT_GREEN: u32 = 0x02DDC8F0;

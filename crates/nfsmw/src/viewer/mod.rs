@@ -214,6 +214,22 @@ pub trait Scene {
     /// How many computer-driven cars to keep around the player, what share of them are cops and whether they
     /// obey traffic lights, told every frame before `update`; a scene without roads ignores it.
     fn set_traffic(&mut self, _traffic: crate::settings::TrafficSettings) {}
+    /// The second player's actions for this frame, told before `update` while a split-screen race is on.
+    fn set_second_input(&mut self, _input: &ActionState) {}
+    /// A split-screen race is on: the picture is two views, one per player (`split_view`), each with its own HUD
+    /// (`split_hud_state`), and the main `frame` draws nothing of its own.
+    fn split_active(&self) -> bool {
+        false
+    }
+    /// The frame of one player's half of the screen (0 the top, 1 the bottom), drawn at `aspect` (the half's width over
+    /// its height); `None` when no split-screen race is on.
+    fn split_view(&mut self, _player: usize, _aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        None
+    }
+    /// What one player's HUD shows (`split_view`'s player); `None` outside a split-screen race.
+    fn split_hud_state(&self, _player: usize) -> Option<crate::hud::HudState> {
+        None
+    }
     /// What the in-game HUD shows this frame; `None` hides it.
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         None

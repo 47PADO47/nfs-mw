@@ -107,12 +107,13 @@ impl WorldScene {
                     base_skill: plan.skill,
                     speed,
                     held: !prep.rolling,
+                    person: plan.person,
                 };
                 if !traffic.spawn_racer(&spec, collision, &self.physics.surfaces) {
                     log::warn!("race: {} could not be put on the grid", plan.name);
                     continue;
                 }
-                grid.push((false, Vec3::from(space::to_physics(plan.spawn.position))));
+                grid.push((plan.person.is_some(), Vec3::from(space::to_physics(plan.spawn.position))));
                 kept.push(plan.clone());
             }
         }

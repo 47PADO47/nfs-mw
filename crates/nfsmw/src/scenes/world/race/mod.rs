@@ -20,10 +20,12 @@ mod names;
 mod report;
 mod restart;
 mod setup;
+mod split;
 mod start;
 
 pub(super) use command::race_command;
 pub use setup::RaceOptions;
+pub use split::SplitSetup;
 
 use blackbox_race::{CatchUp, Course, Race};
 use nfsmw_data::gameplay::RaceType;
@@ -71,6 +73,8 @@ pub(super) struct RacerPlan {
     pub bias: f32,
     /// Models that were tried and failed, so a fallback is not asked for twice.
     pub tried: Vec<String>,
+    /// A person drives this racer (split screen's second player): `Some(automatic gearbox)`.
+    pub person: Option<bool>,
 }
 
 /// How the player's race ended.

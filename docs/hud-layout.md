@@ -31,3 +31,6 @@ This reproduces HUD placement and scale. It does not supply Xbox textures,
 additional skins, race/pursuit state or the original game's graphics treatment.
 The measured native layout and the extension to other aspect ratios are
 documented in [specs/hud-viewport.md](specs/hud-viewport.md).
+
+A split-screen race has its own HUD, one package per player over their half of the window, and the layout presets move its
+widescreen contexts the same way: [specs/split-screen-hud.md](specs/split-screen-hud.md).

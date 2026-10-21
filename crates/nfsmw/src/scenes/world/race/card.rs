@@ -20,7 +20,16 @@ impl WorldScene {
     /// The line the HUD's generic message group shows: the banner (a checkpoint, a lap, a bonus), or the race-over message
     /// while it runs. The countdown numbers are the countdown group's.
     pub(in crate::scenes::world) fn race_message(&self) -> Option<Message> {
+        self.race_message_for(0)
+    }
+
+    /// The same for racer `racer`'s HUD (split screen): their own result, and the GO they share; the checkpoint and lap
+    /// flashes are the first player's.
+    pub(in crate::scenes::world) fn race_message_for(&self, racer: usize) -> Option<Message> {
         let session = self.race.as_ref()?;
+        if racer > 0 {
+            return self.other_racer_message(session, racer);
+        }
         if let (Stage::Results { .. }, Some(result)) = (session.stage, session.result) {
             let card = ResultCard {
                 place: result.place,
@@ -41,6 +50,11 @@ impl WorldScene {
 
     /// What the HUD package shows of the race: the place, lap, clock, progress and the countdown step.
     pub(in crate::scenes::world) fn race_hud(&self) -> Option<RaceHud> {
+        self.race_hud_for(0)
+    }
+
+    /// The race card of racer `racer`.
+    pub(in crate::scenes::world) fn race_hud_for(&self, racer: usize) -> Option<RaceHud> {
         let session = self.race.as_ref()?;
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
@@ -48,13 +62,13 @@ impl WorldScene {
         let engine = session.engine.as_ref()?;
         let places = engine.places();
         let course = engine.course();
-        let me = engine.racers().first()?;
+        let me = engine.racers().get(racer)?;
         let laps = course.laps.max(1);
         let count = (session.banner.left > 0.0).then(|| Count::from_banner(&session.banner.text)).flatten();
         // A circuit and a knockout say the lap, the others how much of the race is done (the original picks by race type).
         let lapped = matches!(session.kind, RaceType::Circuit | RaceType::Knockout) || course.laps > 1;
         Some(RaceHud {
-            place: places[0],
+            place: *places.get(racer)?,
             racers: places.len() as u32,
             lap: lapped.then(|| ((me.progress.laps + 1).min(laps), laps)),
             clock: if engine.has_time_limit() { engine.time_left() } else { engine.elapsed() },
@@ -66,6 +80,11 @@ impl WorldScene {
     /// The leaderboard of the HUD package: the four best placed racers with their progress (`hud/leaders.rs`). Shown from
     /// the countdown to the race-over message, in every race type with more than one racer.
     pub(in crate::scenes::world) fn race_leaders(&self) -> Option<Leaders> {
+        self.race_leaders_for(0)
+    }
+
+    /// The leaderboard of racer `racer`'s HUD: the same four racers, with that racer marked as the player.
+    pub(in crate::scenes::world) fn race_leaders_for(&self, viewer: usize) -> Option<Leaders> {
         let session = self.race.as_ref()?;
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
@@ -75,17 +94,33 @@ impl WorldScene {
         let alias = crate::career::CareerHandle::shared().with_loaded(|career| career.alias.clone());
         let entries = engine.racers().iter().enumerate().map(|(i, racer)| {
             let name = match (i, &alias) {
-                (0, Some(alias)) => alias.clone(),
+                (0, Some(alias)) if session.plan.get(1).is_none_or(|plan| plan.person.is_none()) => alias.clone(),
                 _ => session.plan.get(i).map_or_else(String::new, |p| p.name.clone()),
             };
             let points = racer.traps.total();
             LeaderEntry {
                 place: places[i],
-                player: i == 0,
+                player: i == viewer,
                 row: LeaderRow { name, percent: racer.percent, points, out: racer.out_at.is_some(), busted: false },
             }
         });
         Some(Leaders::pick(entries.collect(), engine.course().length(), engine.config().rank_by_points))
+    }
+
+    /// The line of a second person's HUD: the GO, and their own place once the race is over.
+    fn other_racer_message(&self, session: &super::RaceSession, racer: usize) -> Option<Message> {
+        let engine = session.engine.as_ref()?;
+        if let Stage::Results { .. } = session.stage {
+            let outcome = *engine.outcomes().get(racer)?;
+            let place = if outcome.finished { outcome.place } else { engine.outcomes().len() as u32 };
+            let card = ResultCard { place, racers: engine.outcomes().len(), time: outcome.time, challenge: false };
+            return Some(Message { serial: RESULT_SERIAL, text: card.title() });
+        }
+        let banner = &session.banner;
+        if banner.left <= 0.0 || banner.text != "GO" {
+            return None;
+        }
+        Some(Message { serial: banner.serial, text: banner.text.clone() })
     }
 
     /// Draws the race card over the frame.

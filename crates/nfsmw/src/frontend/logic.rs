@@ -111,6 +111,8 @@ pub struct Args {
     pub pause_ctx: PauseCtx,
     /// Opened by the custom race: `Car_Select.fng` then picks the car of the race, not a career car (`custom_race/`).
     pub custom: bool,
+    /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
+    pub player: u8,
 }
 
 impl Default for Args {
@@ -124,6 +126,7 @@ impl Default for Args {
             sub: Sub::Options,
             pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
             custom: false,
+            player: 0,
         }
     }
 }
@@ -161,6 +164,14 @@ pub enum Command {
     /// Custom Race, after the transmission: start this race (a gameplay collection name) with this car and options
     /// (`custom_race/start.rs`).
     StartCustomRace(Box<CustomStart>),
+    /// Split Screen, after player 1's car (and gearbox): store the gearbox, then Press Start for player 2.
+    SplitFirstCar(crate::settings::Transmission),
+    /// Split Screen, after player 2's car: start this race with the two players (`flow_split.rs`).
+    StartSplitRace {
+        race: String,
+        options: crate::scenes::world::RaceOptions,
+        setup: crate::scenes::world::SplitSetup,
+    },
     /// Close the pause menu and go on driving.
     Resume,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
@@ -214,17 +225,7 @@ pub enum Command {
     CareerCar(super::career_screens::car_select::CarSelectAction),
 }
 
-/// What a custom race starts with.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CustomStart {
-    /// The race's collection name.
-    pub race: String,
-    /// The car type folder under `CARS/`, and the preset it is built with.
-    pub car: String,
-    pub preset: Option<String>,
-    pub options: crate::scenes::world::RaceOptions,
-    pub transmission: crate::settings::Transmission,
-}
+pub use super::custom_race::start::CustomStart;
 
 /// The settings, the part of them the menus changed since they were last saved, and what the renderer can do
 /// (the option rows follow it).
@@ -426,6 +427,9 @@ pub trait ScreenLogic: Send + Sync {
     /// The pad buttons newly pressed this frame, as `blackbox_feng::runtime::pad` bits, whether or not the package
     /// answers them with a game message (the post-race pages' second button has no game response).
     fn pad_pressed(&mut self, _cx: &mut Cx, _bits: u32) {}
+
+    /// The device whose Start or accept key went down this frame (the split-screen Press Start screens seat a player with it).
+    fn start_pressed(&mut self, _cx: &mut Cx, _device: crate::input::PlayerDevice) {}
 
     /// Every frame after the runtime updated, `dt` in seconds.
     fn tick(&mut self, _cx: &mut Cx, _dt: f32) {}

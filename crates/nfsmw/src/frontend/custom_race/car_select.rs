@@ -5,6 +5,8 @@
 
 use std::sync::Arc;
 
+mod players;
+
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
 use nfsmw_career::carlot::{self, stats};
@@ -77,12 +79,8 @@ pub struct CarSelect {
     entries: Vec<Entry>,
     at: usize,
     leaving: Option<Leave>,
-}
-
-impl Default for CarSelect {
-    fn default() -> Self {
-        Self { pool: None, list: List::Stock, entries: Vec::new(), at: 0, leaving: None }
-    }
+    /// The player (0 or 1) who picks: always 0 outside split screen.
+    player: usize,
 }
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
@@ -118,6 +116,11 @@ pub(crate) fn progress() -> Progress {
 }
 
 impl CarSelect {
+    pub fn new(args: Args) -> Self {
+        let player = usize::from(args.player.min(1));
+        Self { pool: None, list: List::Stock, entries: Vec::new(), at: 0, leaving: None, player }
+    }
+
     /// Takes the cars once they were read (in the background when the front end started), and shows the car chosen last (the
     /// career-start M3 GTR the first time, in the Preset list **[verified]**).
     fn take_pool(&mut self, cx: &mut Cx) {
@@ -126,7 +129,7 @@ impl CarSelect {
         }
         let Some(pool) = pool::cars() else { return };
         let progress = progress();
-        let remembered = state::with(|s| s.car.name.clone());
+        let remembered = state::with(|s| s.pick(self.player).name.clone());
         let found = remembered.as_deref().and_then(|name| car_list::find(&pool, &progress, name));
         let (list, at) = found.unwrap_or((List::Preset, 0));
         self.pool = Some(pool);
@@ -145,8 +148,9 @@ impl CarSelect {
     fn choose(&mut self, cx: &mut Cx) {
         if let Some(entry) = self.entries.get(self.at) {
             state::with(|s| {
-                s.car.list = self.list.index();
-                s.car.name = Some(entry.key.clone());
+                let pick = s.pick_mut(self.player);
+                pick.list = self.list.index();
+                pick.name = Some(entry.key.clone());
             });
         }
         self.refresh(cx);
@@ -263,9 +267,10 @@ impl CarSelect {
     /// The package has left: go where the answer was.
     fn finish(&mut self, cx: &mut Cx) {
         match self.leaving.take() {
-            Some(Leave::Back) => cx.send(Command::Switch(screen::TRACK_OPTIONS.into(), Args::default())),
+            Some(Leave::Back) => self.back(cx),
             Some(Leave::Showcase) => {
-                cx.send(Command::Switch(screen::SHOWCASE.into(), Args { custom: true, ..Args::default() }))
+                let args = Args { custom: true, player: self.player as u8, ..Args::default() };
+                cx.send(Command::Switch(screen::SHOWCASE.into(), args))
             }
             Some(Leave::Accept) => self.start(cx),
             None => {}
@@ -275,6 +280,9 @@ impl CarSelect {
     /// The transmission question, or the race at once for a drag race, which starts with the transmission setting
     /// **[decomp]** (`UIQRCarSelect` skips the question when the race mode is drag).
     fn start(&mut self, cx: &mut Cx) {
+        if self.is_split() {
+            return self.start_split(cx);
+        }
         let Some(entry) = self.entry().cloned() else { return };
         let Some((mode, race)) = state::with(|s| s.event().map(|race| (s.mode, race.to_owned()))) else { return };
         let options = state::with(|s| s.settings().race_options(mode));
@@ -290,21 +298,29 @@ impl CarSelect {
         if mode == Mode::Drag {
             return cx.send(go(cx.settings.transmission));
         }
+        cx.send(Command::Confirm(self.transmission_question(cx, go)));
+    }
+
+    /// `Select your transmission.` with Manual and Auto, each running the command `go` makes of it; the current setting is
+    /// focused.
+    fn transmission_question(&self, cx: &Cx, go: impl Fn(Transmission) -> Command) -> Confirm {
         let manual = cx.settings.transmission == Transmission::Manual;
-        let question = Confirm::choice(
+        Confirm::choice(
             Text::Game(TRANSMISSION_QUESTION),
             (Text::Game(MANUAL), go(Transmission::Manual)),
             (Text::Game(AUTO), go(Transmission::Automatic)),
         )
         .looking(DialogLook::Selection)
-        .focusing_first(manual);
-        cx.send(Command::Confirm(question));
+        .focusing_first(manual)
     }
 }
 
 impl ScreenLogic for CarSelect {
     fn start(&mut self, cx: &mut Cx) {
-        cx.rt.post_to_package(cx.package, QUICK_RACE_MODE);
+        match self.is_split() {
+            true => self.show_player(cx),
+            false => cx.rt.post_to_package(cx.package, QUICK_RACE_MODE),
+        }
         self.take_pool(cx);
         self.refresh(cx);
     }

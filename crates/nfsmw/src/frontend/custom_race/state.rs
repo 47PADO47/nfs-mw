@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use super::mode::Mode;
 use super::region::Filter;
 use super::settings::Settings;
+use super::split::Split;
 
 /// The picked car of the car select: the list it is in and its name in the catalogue.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,6 +26,8 @@ pub struct State {
     events: [Option<String>; 6],
     settings: [Settings; 6],
     pub car: CarPick,
+    /// The two-player flow's part (`split.rs`): the flag, the devices, the gearboxes and the second car.
+    pub split: Split,
 }
 
 impl State {
@@ -35,6 +38,7 @@ impl State {
             events: [None, None, None, None, None, None],
             settings: [Settings { laps: 1, opponents: 3, difficulty: 1, traffic: 1, catch_up: true, heat: 1 }; 6],
             car: CarPick { list: 0, name: None },
+            split: Split::new(),
         }
     }
 
@@ -51,6 +55,21 @@ impl State {
     pub fn reset_settings(&mut self) {
         let mode = self.mode;
         self.settings[mode.index()] = Settings::defaults_for(mode);
+    }
+
+    /// The car pick of a player: the custom race's one, or in split screen the one of player `player` (0 or 1).
+    pub fn pick(&self, player: usize) -> &CarPick {
+        match self.split.on {
+            true => &self.split.cars[player.min(1)],
+            false => &self.car,
+        }
+    }
+
+    pub fn pick_mut(&mut self, player: usize) -> &mut CarPick {
+        match self.split.on {
+            true => &mut self.split.cars[player.min(1)],
+            false => &mut self.car,
+        }
     }
 
     /// The picked track of the current mode.

@@ -45,6 +45,16 @@ pub fn rows(mode: Mode) -> &'static [Row] {
     }
 }
 
+/// The rows of a mode's page in split screen **[decomp]** (`UIQRTrackOptions::Setup*` with `IsSplitScreenMode`): the circuit
+/// keeps its laps; every other mode has no row left, as Direction never shows in this install. Opponents, Difficulty and
+/// Catch Up are fixed, Traffic is not offered, and Heat Level (this build's own row) is not either: there are no cops.
+pub fn split_rows(mode: Mode) -> &'static [Row] {
+    match mode {
+        Mode::Circuit => &[Row::Laps],
+        _ => &[],
+    }
+}
+
 /// Most laps a circuit offers **[decomp]**.
 pub const MAX_LAPS: u8 = 8;
 /// Most opponents: three, the grid of four less the player **[decomp]**.
@@ -130,6 +140,22 @@ impl Settings {
     }
 }
 
+impl Settings {
+    /// What the settings ask of a split-screen race: the second player is the one opponent, the police are off
+    /// (`SetNumOpponents(1)`, `SetCopsEnabled(false)` **[decomp]**) and nothing slows the leader between two humans
+    /// (catch-up off **[ours]**). The traffic stays the race's own: the page does not offer it. The circuit's laps are the
+    /// only row left.
+    pub fn split_options(&self, mode: Mode) -> RaceOptions {
+        RaceOptions {
+            laps: (mode == Mode::Circuit).then_some(u32::from(self.laps)),
+            opponents: Some(1),
+            catch_up: Some(false),
+            heat: Some(0),
+            ..Default::default()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +205,23 @@ mod tests {
         let circuit = Settings::default().race_options(Mode::Circuit);
         assert_eq!((circuit.laps, circuit.opponents, circuit.difficulty), (Some(1), Some(3), Some(66)));
         assert_eq!(Settings::default().race_options(Mode::Drag).laps, None);
+    }
+
+    #[test]
+    fn a_split_screen_race_has_one_opponent_no_cops_and_only_the_circuits_laps() {
+        let settings = Settings { laps: 4, opponents: 3, ..Settings::default() };
+        let circuit = settings.split_options(Mode::Circuit);
+        assert_eq!(
+            (circuit.laps, circuit.opponents, circuit.catch_up, circuit.heat),
+            (Some(4), Some(1), Some(false), Some(0))
+        );
+        assert_eq!(
+            (circuit.difficulty, circuit.traffic),
+            (None, None),
+            "the race keeps its own traffic and difficulty"
+        );
+        assert_eq!(settings.split_options(Mode::Sprint).laps, None);
+        assert_eq!(split_rows(Mode::Circuit), [Row::Laps]);
+        assert!(split_rows(Mode::Drag).is_empty() && split_rows(Mode::SpeedTrap).is_empty());
     }
 }

@@ -72,6 +72,7 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<super::RadioHud>().add_systems(Update, super::radio::update.in_set(FrameSet::SceneUpdate));
         let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
+        super::split::install(app, &self.dir, &assets);
         let catalog = Catalog::load(&self.dir, &HUD_FILES);
         let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
             log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
@@ -143,6 +144,10 @@ fn sync(
         Some(s) => *state = s,
         // A scene without a HUD (a menu after the player quit the world): no race decides the map any more.
         None => state.map_source = MapSource::Stage,
+    }
+    // A split-screen race draws the two players' HUDs instead (`hud/split`).
+    if host.scene.split_active() {
+        state.visible = false;
     }
     // The unit is the player's setting, not the scene's: every HUD look reads it from here.
     state.use_mph = settings.speed_units == SpeedUnits::Imperial;
