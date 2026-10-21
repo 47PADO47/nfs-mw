@@ -91,6 +91,10 @@ impl Frontend {
         }
         let Some(request) = host.scene.take_career_request() else { return };
         log::info!("career: {request:?}");
+        // The first safe house visit (stage 16) plays its intro movie, then the rival bio (`flow_first_visit.rs`).
+        if matches!(request, CareerRequest::SafeHouse { .. }) && self.first_visit_intro(host) {
+            return;
+        }
         let (screen, args) = match request {
             CareerRequest::SafeHouse { .. } => (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() }),
             CareerRequest::CarLot { .. } => (CAR_SELECT, Args { safehouse: true, ..Args::default() }),

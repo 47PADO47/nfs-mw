@@ -24,6 +24,7 @@ use super::{
     RIVAL_BIO_CONTENT, RIVAL_CONTENT_START, RIVAL_LIST_READY, RIVAL_OPENED_CAREER, RIVAL_OPENED_PLAIN, post_opening,
 };
 use crate::career::CareerHandle;
+use crate::frontend::flow::flow_first_visit::{bio_continue, enter_first_bin_on_open};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
 use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
@@ -345,11 +346,15 @@ struct BioLogic {
     asked: u8,
     /// Whether the Remastered look draws the page (`Cx::vertical_look`).
     vertical: bool,
+    /// Opened in a Blacklist sequence (`Args::sequence`).
+    sequence: bool,
+    /// The first visit: this bio entered bin 15, and leaving it goes on with the sequence (`flow_first_visit.rs`).
+    first_visit: bool,
 }
 
 impl BioLogic {
     fn new(args: Args) -> Self {
-        Self { bin: FIRST_RIVAL_STAGE, asked: args.rival, vertical: false }
+        Self { bin: FIRST_RIVAL_STAGE, asked: args.rival, vertical: false, sequence: args.sequence, first_visit: false }
     }
 
     fn fill(&self, cx: &mut Cx) {
@@ -368,6 +373,9 @@ impl ScreenLogic for BioLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.vertical_look();
         post_opening(cx, &[RIVAL_OPENED_PLAIN, RIVAL_OPENED_CAREER, RIVAL_BIO_CONTENT]);
+        if self.sequence {
+            self.first_visit = enter_first_bin_on_open();
+        }
         if let Some(bin) = current_bin() {
             self.bin = start_bin(bin);
         }
@@ -412,6 +420,7 @@ impl ScreenLogic for BioLogic {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
+            PAD_ACCEPT | PAD_BACK if self.first_visit => cx.send(bio_continue()),
             PAD_ACCEPT | PAD_BACK => switch(cx, screen::MAIN_MENU_SUB),
             _ => {}
         }

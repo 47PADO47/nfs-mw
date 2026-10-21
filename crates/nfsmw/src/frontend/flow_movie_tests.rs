@@ -32,8 +32,8 @@ impl crate::viewer::Scene for Still {
 }
 
 /// The front end over `dir`, the settings it reads and a host with a renderer that draws nothing.
-struct Rig {
-    fe: Frontend,
+pub(super) struct Rig {
+    pub(super) fe: Frontend,
     host: Host,
     settings: Settings,
     changed: Partial,
@@ -50,7 +50,7 @@ impl Rig {
     }
 
     /// Runs `f` with the front end, the host and the environment the plugin gives them.
-    fn with<R>(&mut self, f: impl FnOnce(&mut Frontend, &mut Host, &mut Env) -> R) -> R {
+    pub(super) fn with<R>(&mut self, f: impl FnOnce(&mut Frontend, &mut Host, &mut Env) -> R) -> R {
         let mut env =
             Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
         f(&mut self.fe, &mut self.host, &mut env)
@@ -58,7 +58,7 @@ impl Rig {
 }
 
 /// A front end over the install, or `None` without `NFSMW_GAME_DIR`.
-fn install_rig() -> Option<Rig> {
+pub(super) fn install_rig() -> Option<Rig> {
     let root = std::env::var_os("NFSMW_GAME_DIR")?;
     let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
     let assets = UiAssets::load(&dir).unwrap();

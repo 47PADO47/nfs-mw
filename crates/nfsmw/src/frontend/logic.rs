@@ -5,6 +5,7 @@
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use blackbox_gfx::Capabilities;
 use glam::Vec2;
+use nfsmw_career::safehouse::BlacklistStepper;
 
 use super::confirm::{Alert, Confirm};
 use super::world_map::WorldMapFrame;
@@ -93,40 +94,8 @@ impl Footer {
     }
 }
 
-/// What a screen is opened with (the original passes an argument and reads the game mode).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Args {
-    /// Opened from the pause menu (the screens use their in-game look and return to the pause menu).
-    pub pause: bool,
-    /// The option categories instead of the screen's usual content (the pause menu shows them in the same package).
-    pub options: bool,
-    pub category: Category,
-    /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
-    pub safehouse: bool,
-    /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
-    pub rival: u8,
-    /// Which icon row `MainMenu_Sub.fng` shows when it is not the option categories or the safe house.
-    pub sub: Sub,
-    /// What the pause menu offers (the pause menu only).
-    pub pause_ctx: PauseCtx,
-    /// Opened by the custom race: `Car_Select.fng` then picks the car of the race, not a career car (`custom_race/`).
-    pub custom: bool,
-}
-
-impl Default for Args {
-    fn default() -> Self {
-        Self {
-            pause: false,
-            options: false,
-            category: Category::Audio,
-            safehouse: false,
-            rival: 0,
-            sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
-            custom: false,
-        }
-    }
-}
+mod args;
+pub use args::Args;
 
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
@@ -193,6 +162,9 @@ pub enum Command {
     ChallengeRival {
         bin: u8,
     },
+    /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
+    /// (`flow_first_visit.rs`).
+    BlacklistStep(BlacklistStepper),
     /// Ask for an alias name over the screen that is up (`name_entry.rs`); the answer is the command the purpose names.
     EnterName(super::name_entry::NameFor),
     /// Alias manager, Create: make a new alias, load it and say so (`flow_save.rs`).

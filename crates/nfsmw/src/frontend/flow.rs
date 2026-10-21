@@ -28,6 +28,8 @@ mod flow_bust;
 mod flow_career;
 #[path = "flow_custom.rs"]
 mod flow_custom;
+#[path = "flow_first_visit.rs"]
+pub(in crate::frontend) mod flow_first_visit;
 #[path = "flow_loading.rs"]
 mod flow_loading;
 #[path = "flow_movie.rs"]
@@ -420,6 +422,7 @@ impl Frontend {
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
                 Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
+                Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
