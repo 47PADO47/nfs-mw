@@ -7,7 +7,9 @@ use std::collections::VecDeque;
 
 use blackbox_text::StringTable;
 use glam::Vec3;
-use nfsmw_career::story::{AfterIntroNis, IntroContext, IntroStep, StoryFields, after_intro_nis, intro_steps};
+use nfsmw_career::story::{
+    AfterIntroNis, IntroContext, IntroStep, StoryFields, after_intro_nis, intro_steps, nis_shell_steps,
+};
 use nfsmw_data::gameplay::{RaceStory, RaceType};
 
 use super::{RaceSession, Stage};
@@ -189,6 +191,10 @@ pub(super) fn intro_end(nis_shell: bool) -> IntroEnd {
 /// The steps of a race's intro, in the order they run (`story-flow.md` sections 1.1 and 1.2).
 pub(super) fn intro_queue(session: &RaceSession) -> VecDeque<IntroStep> {
     let race = &session.origin.race.story;
+    // The NIS shell race has no racing: its intro is its cutscene alone (`race_life::nis_shell_steps`).
+    if race.nis_shell {
+        return nis_shell_steps(&story_fields(race)).into();
+    }
     let ctx = IntroContext {
         career: session.options.career,
         boss_race: race.boss_race,
@@ -247,11 +253,16 @@ impl WorldScene {
         if progress == Progress::Running {
             return true;
         }
-        match intro_end(env.nis_shell) {
+        self.after_intro(session, env.nis_shell);
+        true
+    }
+
+    /// Carries on from the end of the intro: the countdown, or the outro of the NIS shell race.
+    pub(super) fn after_intro(&mut self, session: &mut RaceSession, nis_shell: bool) {
+        match intro_end(nis_shell) {
             IntroEnd::Countdown => self.start_countdown(session),
             IntroEnd::Outro => self.shell_outro(session),
         }
-        true
     }
 
     /// Starts the countdown (or the rolling start) on the engine that stands on the grid.

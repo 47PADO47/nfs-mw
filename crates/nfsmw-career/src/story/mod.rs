@@ -20,7 +20,8 @@ pub mod race_life;
 
 pub use final_race::{EndGameStep, FinalRace, FinalRaceEvent, FinalRaceInput, GpsTarget, after_win};
 pub use race_life::{
-    AfterIntroNis, IntroContext, IntroStep, OutroStep, after_intro_nis, chain_after, intro_steps, outro_steps,
+    AfterIntroNis, IntroContext, IntroStep, OutroStep, after_intro_nis, chain_after, intro_steps, nis_shell_steps,
+    outro_steps,
 };
 
 /// The story fields of one race that the rules read (`career-scripts-events.md` section 1.1). `None` means the field

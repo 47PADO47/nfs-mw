@@ -123,7 +123,8 @@ impl WorldScene {
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.
         let steps = intro::intro_queue(session);
         if steps.is_empty() {
-            self.start_countdown(session);
+            let nis_shell = session.origin.race.story.nis_shell;
+            self.after_intro(session, nis_shell);
             return;
         }
         session.stage = Stage::Intro { steps, current: intro::Playing::Idle };

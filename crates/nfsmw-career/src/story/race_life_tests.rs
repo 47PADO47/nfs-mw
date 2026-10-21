@@ -216,3 +216,10 @@ fn the_post_race_chain_runs_only_after_a_win() {
         assert_eq!(chain_after(won, activity).as_deref(), expected, "{name}");
     }
 }
+
+#[test]
+fn the_nis_shell_plays_its_outro_nis_at_the_start_and_nothing_else() {
+    let story = StoryFields { outro_nis: Some("EndingNis03".to_owned()), ..StoryFields::default() };
+    assert_eq!(nis_shell_steps(&story), vec![IntroStep::Nis { scene: "EndingNis03".to_owned(), movie: None }]);
+    assert!(nis_shell_steps(&StoryFields::default()).is_empty(), "a shell with no cutscene has no steps");
+}

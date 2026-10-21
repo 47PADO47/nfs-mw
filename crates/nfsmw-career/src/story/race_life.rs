@@ -93,6 +93,13 @@ pub fn after_intro_nis(nis_shell: bool) -> AfterIntroNis {
     AfterIntroNis::Prerace
 }
 
+/// The steps of the NIS shell race (16.8.1), which has no racing: its cutscene is the outro NIS (`EndingNis03`), and the
+/// race plays it at its start, as its intro. The shell has no outro marker, so the outro rule would skip it
+/// (`outro_steps`). Its completion goes to the outro (`after_intro_nis`), and the race counts as won there.
+pub fn nis_shell_steps(story: &StoryFields) -> Vec<IntroStep> {
+    text(&story.outro_nis).map(|scene| IntroStep::Nis { scene: scene.to_owned(), movie: None }).into_iter().collect()
+}
+
 /// The post-race chain: the name of the race's `PostRaceActivity` to run next, or `None` when the chain stops
 /// (`story-flow.md` section 1.5, F-08, F-09).
 ///
