@@ -22,6 +22,8 @@ const EDGE_STOPS: [(f32, f32); 3] = [(0.0, 1.0), (0.6, 0.5), (1.0, 0.0)];
 /// The size of a blip's icon, in FEng units, and how much larger the focused one is drawn.
 const ICON: f32 = 16.0;
 const FOCUSED_SCALE: f32 = 1.3;
+/// The helicopter's icon: as large as the HUD package draws it (28 units), so it shows round the player's arrow.
+const HELICOPTER_ICON_SIZE: f32 = 28.0;
 /// The player's car icon.
 const PLAYER_ICON: &str = "Minimap_Icon_Car.tga";
 const PLAYER: f32 = 20.0;
@@ -101,7 +103,8 @@ fn live(parts: &mut Parts, frame: &WorldMapFrame, air: bool) {
             continue;
         }
         let icon = Image::new(car.icon()).with_tint(car.rgba(frame.clock)).with_rotation(car.bearing.to_radians());
-        parts.push(icon, Rect::new(x, y, ICON, ICON));
+        let size = if air { HELICOPTER_ICON_SIZE } else { ICON };
+        parts.push(icon, Rect::new(x, y, size, size));
     }
 }
 
