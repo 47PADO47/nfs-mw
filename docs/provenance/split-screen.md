@@ -56,3 +56,20 @@ Read for the menu flow in `frontend/custom_race/` (decomp `Frontend/MenuScreens/
 | `Car_Select.fng` dump | The "2 players" message `0x2cf6c390` reaches the player group `0xe3fe27fe`, whose string reads "Player 1". |
 
 Not read in the exe: the Press Start screen's own code (only its decomp and the package were read).
+
+## HUD packages (added with `specs/split-screen-hud.md`, 2026-10-21)
+
+- **Method:** `nfsmw dump-screen HUD_Player1.fng` (and `HUD_Player2.fng`, `HUD_Drag_Player1.fng`, `HUD_Drag_Player2.fng`, plus
+  `HUD_SingleRace.fng` and `HUD_Drag.fng` to compare) after adding `GLOBAL/InGameSplitScreen.bun` to the screen catalogue;
+  names resolved by hashing candidate names from the repository and the decomp with the FEng hash. A probe of the contents of
+  `GLOBAL/HUDTEXSPLIT.BIN`, `HUDTEXDRAGSPLIT.BIN`, `HUDTEXRACE.BIN` and `HUDTEXDRAG.BIN` (texture name hashes and sizes).
+- **Decomp files read:** `Frontend/HUD/FEPkg_Hud.cpp` (`FEngHud::FEngHud`, `HudResourceManager`, `SetWideScreenMode`,
+  `ChooseMaxRpmTextureNumber`), `FeTachometer.cpp`, `FETachometerDrag.cpp`, `FeNitrousGauge.cpp`, `FeSpeedometer.cpp`,
+  `FeShiftUpdater.cpp`, `FeEngineTempGauge.cpp`, `FeMinimap.cpp` (`Update`, `UpdatePlayer2Element`, `UpdateElementArt`,
+  `AdjustForWidescreen`). Nothing copied.
+- **Findings:** the four packages hold 95, 57, 60 and 60 objects; every one is authored on the whole 640 x 480 canvas in its own
+  half; the two texture packs are paired with the race and drag packages the other way round from the decomp's constant names;
+  `USER_SPLIT_SCREEN` (user mode 1) switches the tachometer to a width-scaled bar, the nitrous mask to 180 degrees, and stops the
+  minimap rotating; the minimap and its second arrow belong to player 1's package.
+- **Not read:** the exe's own HUD update for the split types (only the decomp's); the shift ratings that choose `PulseBlue`,
+  `PulseGreen` or `PulseRed`; the PC build's widescreen handling of the split packages in a capture.

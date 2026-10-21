@@ -20,13 +20,15 @@ const FENG_PACKAGE: u32 = 0x0003_0203;
 const FENG_COMPRESSED: u32 = 0x0003_0210;
 
 /// Files that hold screens, in the order they are searched.
-pub const SCREEN_FILES: [&str; 6] = [
+pub const SCREEN_FILES: [&str; 7] = [
     "FRONTEND/FrontB.lzc",
     "GLOBAL/InGameB.bun",
     "GLOBAL/GlobalB.lzc",
     "GLOBAL/GLOBALA.BUN",
     "GLOBAL/INGAMEC.BUN",
     "GLOBAL/WIDESCREEN_GLOBAL.BUN",
+    // The four split-screen HUD packages (`docs/specs/split-screen-hud.md`); no menu uses their names.
+    "GLOBAL/InGameSplitScreen.bun",
 ];
 
 /// Where a package came from.
