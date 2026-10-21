@@ -120,7 +120,7 @@ pub fn map_texture(event: &str) -> u32 {
 
 /// The points of a race's route on the picture (`GRaceParameters::GetBoundingBox` is the box of these): the start, the
 /// checkpoints and the finish, from physics space to the map's `0..1` units.
-fn route_on_map(data: &GameplayData, race: &Race, map: &Calibration) -> Vec<[f32; 2]> {
+pub fn route_on_map(data: &GameplayData, race: &Race, map: &Calibration) -> Vec<[f32; 2]> {
     let triggers = race.checkpoints.iter().chain(race.finish.iter()).filter_map(|key| data.trigger(*key));
     let points = race.start.iter().map(|s| s.position).chain(triggers.map(|t| t.position));
     // Physics space is x right, y up, z forward; the map's world is x forward, y left: `(z, -x)`.

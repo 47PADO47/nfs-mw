@@ -38,11 +38,23 @@ pub struct PoolCar {
     pub stats: Option<CarStats>,
 }
 
+/// A preset ride of the install (`BL10`, `M3GTRCAREERSTART`): a car with its paint and parts, which the custom race's car
+/// select lists in its Bonus and Preset lists.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PoolPreset {
+    /// The preset's name, which the car's parts are built from (`LoadOptions::preset`).
+    pub name: String,
+    /// The car the preset is made of. Its name is the front-end collection the preset points at (`cayman`), which the logos
+    /// are named after; the preset's own name when the catalogue has no such car.
+    pub car: PoolCar,
+}
+
 /// The cars Quick Play can pick from, with the stats of all of them (the stat bars fill relative to that population).
 #[derive(Debug, Default)]
 pub struct CarPool {
     pub cars: Vec<PoolCar>,
     pub population: Vec<CarStats>,
+    pub presets: Vec<PoolPreset>,
 }
 
 static CARS: OnceLock<Arc<CarPool>> = OnceLock::new();
@@ -94,7 +106,12 @@ impl CarPool {
             crate::career::car_stats(physics, &folder.to_ascii_lowercase())
         });
         let population = cars.iter().filter_map(|car| car.stats).collect();
-        Ok(CarPool { cars, population })
+        let rides = nfsmw_data::car::CarTables::load(dir).map(|tables| tables.presets.clone()).unwrap_or_default();
+        let presets = presets_of(&catalogue, &folders, &rides, |folder| {
+            let physics = physics.as_ref()?;
+            crate::career::car_stats(physics, &folder.to_ascii_lowercase())
+        });
+        Ok(CarPool { cars, population, presets })
     }
 }
 
@@ -123,6 +140,32 @@ pub fn cars_of(
                 folder,
                 rank,
             })
+        })
+        .collect()
+}
+
+/// The presets whose car has a folder, with the catalogue car their front-end key names (`PresetRide::fe_key`). The key of a
+/// preset is the one of the collection it was made from: `BL10` points at the Cayman's.
+pub fn presets_of(
+    catalogue: &[CatalogueCar],
+    folders: &[String],
+    rides: &[nfsmw_data::car::PresetRide],
+    stats_of: impl Fn(&str) -> Option<CarStats>,
+) -> Vec<PoolPreset> {
+    rides
+        .iter()
+        .filter_map(|ride| {
+            let folder = folders.iter().find(|f| f.eq_ignore_ascii_case(&ride.car_type_name))?.clone();
+            let made_from = catalogue.iter().find(|car| u64::from(car.key) == ride.fe_key);
+            let car = PoolCar {
+                name: made_from.and_then(|car| car.name.clone()).unwrap_or_else(|| ride.preset_name.clone()),
+                handle: vlt_hash(&ride.preset_name),
+                manufacturer: made_from.and_then(|car| car.manufacturer),
+                rank: made_from.and_then(|car| car.unlock_rank).unwrap_or(0),
+                stats: stats_of(&folder),
+                folder,
+            };
+            Some(PoolPreset { name: ride.preset_name.clone(), car })
         })
         .collect()
 }

@@ -21,6 +21,7 @@ use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 
 pub use board::load_in_background;
+pub(crate) use board::{map_texture, route_on_map};
 pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};
@@ -30,9 +31,9 @@ use crate::settings::Transmission;
 use crate::ui::Text;
 use board::{Board, Entry};
 use grid::{Grid, Step};
-use maps::Maps;
+pub(crate) use maps::Maps;
 use progress::Progress;
-use view::{Crop, Zoom};
+pub(crate) use view::{Crop, Zoom};
 
 /// The grid is four icons wide and three high (`ArrayScrollerMenu(sd, 4, 3, true)`).
 const WIDTH: usize = 4;
@@ -335,7 +336,11 @@ impl ChallengeSeries {
     fn tutorial(&mut self, cx: &mut Cx) {
         let Some(movie) = self.entry().and_then(|e| e.kind.tutorial()) else { return };
         cx.memory.insert(Self::memory_key(), self.grid.current);
-        cx.send(Command::PlayTutorial(movie.to_owned()));
+        cx.send(Command::PlayTutorial {
+            movie: movie.to_owned(),
+            back: screen::CHALLENGE_SERIES.to_owned(),
+            args: Args::default(),
+        });
     }
 
     /// A click on an icon selects it and presses it (the package's mouse-down message is `BUTTON_PRESSED`).
