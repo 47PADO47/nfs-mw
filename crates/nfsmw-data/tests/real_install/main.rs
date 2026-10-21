@@ -28,6 +28,7 @@ mod physics;
 mod pursuit;
 mod race_barrier_routes;
 mod race_barriers;
+mod race_story;
 mod reactions;
 mod sequences;
 mod sound;

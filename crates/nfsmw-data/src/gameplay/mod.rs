@@ -11,6 +11,7 @@ mod markers;
 mod milestones;
 mod params;
 mod races;
+mod story;
 mod triggers;
 
 pub use bins::{Bin, bins};
@@ -21,6 +22,7 @@ pub use milestones::{
 };
 pub use params::{Character, RaceParams};
 pub use races::{Placement, Race, RaceType};
+pub use story::RaceStory;
 pub use triggers::{BoxTrigger, SphereTrigger};
 
 use anyhow::{Context, Result};
