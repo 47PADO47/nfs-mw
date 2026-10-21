@@ -107,11 +107,11 @@ fn build_hello() -> PathBuf {
     let status = command.status().expect("run cargo build -p hello-mod");
     assert!(status.success(), "cargo build -p hello-mod failed");
 
+    // The test binary sits in `deps` or, with a separate build folder, in `build/<crate>/<hash>/out`: the library is in the
+    // profile folder above whichever it is.
     let exe = env::current_exe().expect("test binary path");
-    let profile_dir = exe.parent().and_then(Path::parent).expect("target profile folder");
-    let library = profile_dir.join(library_file_name());
-    assert!(library.is_file(), "built library not found at {}", library.display());
-    library
+    let library = exe.ancestors().skip(1).map(|dir| dir.join(library_file_name())).find(|path| path.is_file());
+    library.unwrap_or_else(|| panic!("built library not found above {}", exe.display()))
 }
 
 /// The manifest of the example, as committed in the repository.
