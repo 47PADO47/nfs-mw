@@ -68,3 +68,13 @@ other type posts `0x20D60DBF`. Otherwise it sets the bit and starts the movie th
 `EShowMessageScreen` hashes to `0xDE59505A` (index 116 of the event table); its handler `FUN_00631020` builds the event
 (`FUN_00625030`: the id at `+8`), and the event's teardown `FUN_00625090` opens `SixDaysLater.fng` through the screen
 manager (`FUN_005257f0`) with the id as the argument.
+
+### F-25: applying a reward
+
+`FUN_0062aa90` (the reward request) reads the reward collection (class `0x5CEA9D46`, key = the argument): a non-zero
+`0x0E0113FE` goes to the part unlock `FUN_00577680`; else a non-zero `0x06A077D5` goes to `FUN_005a62d0` on the marker
+inventory (`0x0091D928`) with the flag "apply now" = no race status, or the current race's `FUN_005fbe00` (`0xF2FE50D7`)
+false. `FUN_005a62d0`: the kind from `FUN_00577590(0x06A077D5 text, 0x3C2FDAAB text)`; apply now: `0x12` →
+`FUN_00573140("BL%d")` then `FUN_005a41e0(stable + 0x414, preset)`, `0x13` → profile `+0xB4` += truncated
+`0xAB0179F4`, other → `FUN_00576c50(kind)`; queued: `FUN_00576b80(kind, value)` (the pink slip queues its preset
+handle, the cash its amount).
