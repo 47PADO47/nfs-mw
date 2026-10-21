@@ -56,7 +56,8 @@ pub fn picture(parts: &mut Parts, frame: &WorldMapFrame) {
     let camera = frame.session.camera;
     let (x, y) = at(camera.to_view([0.5, 0.5]));
     let side = Picture::FULL.side * camera.zoom();
-    let map = Image::raw(resource_handle(frame.texture)).with_tint(PICTURE_TINT);
+    let key = frame.event_picture.unwrap_or_else(|| resource_handle(frame.texture));
+    let map = Image::raw(key).with_tint(PICTURE_TINT);
     parts.push(map, Rect::new(x, y, side, side));
     // A dark veil over it, so the roads read against the land and the icons stand out; and the left and right edges of the
     // picture fade into the ground instead of ending hard.
@@ -81,6 +82,20 @@ pub fn blips(parts: &mut Parts, frame: &WorldMapFrame) {
             false => ICON,
         };
         parts.push(Image::new(icon_name(blip.style)).with_tint(blip_rgba(blip.style)), Rect::new(x, y, size, size));
+    }
+    live(parts, frame);
+}
+
+/// The racers and the police cars, on every tab: the car arrow in their colour, turned to where they point.
+fn live(parts: &mut Parts, frame: &WorldMapFrame) {
+    let camera = frame.session.camera;
+    for car in &frame.live {
+        let (x, y) = at(camera.to_view(car.map));
+        if x.abs() > OFF_X || y.abs() > OFF_Y {
+            continue;
+        }
+        let icon = Image::new(car.icon()).with_tint(car.rgba(frame.clock)).with_rotation(car.bearing.to_radians());
+        parts.push(icon, Rect::new(x, y, ICON, ICON));
     }
 }
 
