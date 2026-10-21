@@ -210,6 +210,12 @@ Rules:
 
 ### 4.5 Rewards **[exe]** (CB 4.2, CET 6.5, SAVE 3.2, CSE 3)
 
+**[verified]** census of the races' reward lists (`crates/nfsmw-data`, real-install test `story_extras`): 88 entries on
+16 races: pink slip 14, out-of-jail-free 12, impound box 7, impound release 5, cash bonus 7, the rest back-room part
+items (a category text plus an item text; the upgrade-type field is never set). Each count is one below the earlier
+totals of CSE 3; the missing one of each kind is presumably the bin's own list (`race_bin_01/rewards`), granted on
+entering a bin rather than after a race **[unconfirmed]**. The cash bonus entries carry 0 in `0xAB0179F4`.
+
 | Kind | Reward | Where it goes |
 |---|---|---|
 | 0x11 | Get Out of Jail Free | Marker inventory, type 0x11, active flag 1 |
@@ -307,6 +313,9 @@ post-race return and screens **[exe]** (CB 7.1, CF 6, CSH 4, CR2 3).
 `SCENERY_GROUP_DOOR` (GR 3.1); whether this race lists it: F-33. Roles of the children: F-32.
 
 ### 5.3 Timers and triggers
+
+**[verified]** `win_trigger` stores dimensions (0, 0, 0): the win is a plane crossing tested by speed and angle, not a
+box containment (`lose_trigger` is a 30 x 50 x 60 box).
 
 | Event | Condition | Effect | Source |
 |---|---|---|---|
