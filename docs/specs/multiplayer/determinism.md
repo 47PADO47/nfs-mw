@@ -1,6 +1,7 @@
 # Determinism audit of the world sim (D1 to D8)
 
-Status: **audit and plan only; nothing here is applied.** Written 2026-10-21 by reading the code (no run). The requirements D1
+Status: written 2026-10-21 by reading the code. **Steps 1 and 2 of the fix order are applied** (police, sight, roadblocks,
+cop health and a running race tick with the physics; one random stream per traffic system); the rest is planned. The requirements D1
 to D8 come from [sync model](sync-model.md) section 6. This file checks the single-player world against them and gives the fix
 planned for each finding. The fixes belong to the `nfsmw-sim` extraction ([integration](integration.md) section 4). They change
 single-player behaviour only where a finding says so, and the frame-rate trace test (`drive/sim/tests/frame_rate.rs`) guards
@@ -18,9 +19,9 @@ The problems are in the scene code that will become `nfsmw-sim`.
 
 | Finding | Where | Effect | Planned fix |
 |---|---|---|---|
-| Police, sight, pursuit camera, roadblocks and cop health run **once per frame** with `steps * STEP`, also on frames with 0 ticks | `simulation.rs:82-122` | Results depend on how ticks group into frames | Call them inside the tick loop with `STEP`, after `physics_step`. Single player then matches any frame rate, as the car already does |
-| The sight test is sampled at frame boundaries (`sight_clock += dt`) | `ai/collide.rs:255-258` | As above | Move it to the tick loop with the others |
-| The race engine and racer emulation tick on float `sim_dt` per frame | `race/flow.rs:33,64,70` | Finish times and the grid release depend on frame boundaries | Step the race on ticks (`blackbox-race` already takes `dt`; pass `STEP` per tick). Loading and results screens stay on frame time |
+| ~~Police, sight, pursuit camera, roadblocks and cop health run once per frame with `steps * STEP`, also on frames with 0 ticks~~ | `simulation.rs` (`police_step`) | | **Done:** they run inside the tick loop with `STEP`, after `physics_step`. `ai/pursuit/tests/frame_rate.rs` checks a chase at 30, 60 and 144 FPS and after a stall |
+| ~~The sight test is sampled at frame boundaries~~ | `ai/collide.rs` | | **Done:** `update_sight` now gets `STEP` once per tick |
+| ~~The race engine and racer emulation tick on float `sim_dt` per frame~~ | `race/flow.rs` (`race_tick`) | | **Done:** a running race steps once per tick inside the tick loop, so a crossing is tested at the tick it happens. Loading, results and challenge races stay on frame time (a challenge is event-driven) |
 | Speedbreaker depletion uses real frame time; the speedbreaker ramp, cinematic moments and `game_speed` scale the tick rate | `drive/time_scale.rs:25-38,67-77`, `moment_world.rs:41-47`, `simulation.rs:58-71` | A session cannot slow time for one player | In a session, time scaling is off. Speedbreaker becomes a per-car effect or is disabled (features.md decides), and moments play on the client only. Single player keeps them |
 | The car spawns after a 10 s wall-clock wait | `drive_input.rs:20` (field in `mod.rs`) | Wall clock in the spawn | Count ticks instead; the wait belongs to the client's loading state |
 | The whole sim pauses until local streaming is ready; each AI car steps only if its collision is resident | `simulation.rs:50,59-60`, `ai/simulation.rs:89-93` | Local streaming state gates the shared world | The server keeps collision resident around every player ([integration](integration.md) section 2). Clients hold only their own car (`StreamingStall`) |
@@ -44,8 +45,8 @@ Three to check during the extraction:
 
 | Finding | Where | Effect | Planned fix |
 |---|---|---|---|
-| **One `SplitMix` stream for the whole traffic world** (seed `0x6E66_736D_7721`): navigation, spawns, model picks, stagger, roadblock lottery, helicopter, pursuit budget | `ai/mod.rs:241`, consumers in `ai/simulation.rs`, `ai/population.rs`, `ai/spawn.rs`, `ai/seek_spawn.rs`, `ai/search.rs`, `ai/pursuit.rs`, `ai/pursuit_budget.rs`, `ai/roadblock/*`, `ai/air.rs` | Any change in one consumer shifts every other decision | One stream per system, derived from a world seed by a fixed mix: `SplitMix(mix(world_seed, SYSTEM_ID))`. Systems: navigation, population, police, roadblocks, air. Single player passes today's seed as `world_seed` |
-| **The police draw 4 numbers from that stream every frame**, also on 0-tick frames | `ai/police/world.rs:73-84`, `ai/police/mod_feed.rs:82` | The whole AI stream depends on the frame rate | Fixed by moving the police into the tick loop (D2) and giving them their own stream |
+| ~~One `SplitMix` stream for the whole traffic world~~ | `ai/streams.rs` | | **Done:** `Streams` holds navigation, population, police, roadblock and air streams, each the world seed mixed with a system id by the SplitMix64 finaliser. The default world seed is the old shared seed `0x6E66_736D_7721`. A session will pass its own seed |
+| ~~The police draw 4 numbers from that stream every frame~~ | `ai/police/world.rs`, `ai/police/mod_feed.rs` | | **Done:** they draw once per tick, from the police stream |
 | Local fixed seeds | `ai/manager.rs:184` (`SplitMix(1)`), `libs/blackbox-roads/src/gps.rs:70` (`SplitMix(0)`) | Deterministic | Keep |
 | View-only generators | `ai/sirens.rs`, `libs/blackbox-pursuit/src/speech`, particles, `career/pursuit.rs` case ids | No sim effect | Keep on the client |
 
@@ -72,9 +73,9 @@ They belong to the protocol (`sim_build` in `Auth`) and the client prediction (q
 
 ## Order of the fixes
 
-1. Move police, sight, roadblocks, cop health and the race engine into the tick loop (D2). This also makes single-player AI
-   independent of the frame rate, a fix worth having on its own. Extend the frame-rate trace test to cover traffic and police.
-2. Split the AI random stream per system (D4).
+1. **Done.** Move police, sight, roadblocks, cop health and the race engine into the tick loop (D2). This also makes
+   single-player AI independent of the frame rate. The chase frame-rate test covers traffic and police.
+2. **Done.** Split the AI random stream per system (D4).
 3. Server entity ids and id-order stepping; the camera inputs become a set of views (D5).
 4. Session-only rules: no time scaling, server-side residency, server-side model choice (D2, D5).
 5. A headless test that runs 10 minutes of scripted free roam twice and compares state hashes ([integration](integration.md)
