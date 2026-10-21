@@ -2,14 +2,18 @@
 //! section 4). The values live in [`state`](super::state), not in the settings.
 
 use super::mode::Mode;
-use super::settings::{Row, Settings, rows as rows_of};
+use super::settings::{Row, Settings, rows as rows_of, split_rows};
 use super::state;
 use crate::frontend::ids::{LABEL_OFF, LABEL_ON};
 use crate::frontend::options::Data;
 
 /// The rows of the current mode's page.
 pub fn rows() -> Vec<Row> {
-    rows_of(state::mode()).to_vec()
+    let (mode, split) = state::with(|state| (state.mode, state.split.on));
+    match split {
+        true => split_rows(mode).to_vec(),
+        false => rows_of(mode).to_vec(),
+    }
 }
 
 /// Whether a row can be changed: the lap knockout's laps follow its opponents and are greyed out **[exe]**.
