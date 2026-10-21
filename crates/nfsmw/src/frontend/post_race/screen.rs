@@ -6,6 +6,7 @@ use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0, PAD_LTRIGGER, PAD_RTRIGGER};
 use blackbox_feng::runtime::pad;
 
 use super::pages::{Cell, Page, Table, table};
+use crate::frontend::confirm::Confirm;
 use crate::frontend::logic::{Command, Cx, ScreenLogic};
 use crate::ui::Text;
 use crate::viewer::{RaceAnswer, RaceReport};
@@ -186,7 +187,7 @@ impl ScreenLogic for PostRaceLogic {
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_ACCEPT | PAD_BUTTON0 => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
-            m if m == PAD_BUTTON0 + 1 => cx.send(Command::RaceAnswer(RaceAnswer::Restart)),
+            m if m == PAD_BUTTON0 + 1 => cx.send(Command::Confirm(Confirm::restart_results())),
             PAD_LTRIGGER => self.step(cx, -1),
             PAD_RTRIGGER => self.step(cx, 1),
             _ => {}

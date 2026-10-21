@@ -20,6 +20,9 @@ const RESTART_RACE: u32 = 0x4d33_99a8;
 /// The answers the original dialogs use (English table `0x70E01038` "Yes", `0x417B25E4` "No").
 pub const YES: u32 = 0x70e0_1038;
 pub const NO: u32 = 0x417b_25e4;
+/// The answers of the in-race restart question ("OK" `0x417B2601`, "Cancel" `0x1A294DAD`, the pair the game's alerts use).
+pub const OK: u32 = 0x417b_2601;
+pub const CANCEL: u32 = 0x1a29_4dad;
 
 /// The header and picture of a dialog (`feDialogScreen`, the dialog's title kind): the alert's "attention" over a
 /// triangle with a mark, the confirmation's "selection" over a question mark (docs/specs/challenge-series.md).
@@ -120,9 +123,18 @@ impl Confirm {
         Self::new(Text::Game(QUIT_MESSAGE), Command::QuitGame).looking(Look::Selection)
     }
 
-    /// The question before running the race again (`0x4D3399A8`).
-    pub fn restart_race() -> Self {
-        Self::new(Text::Game(RESTART_RACE), Command::RestartRace)
+    /// The restart question of the post-race screens: OK answers the race with a restart.
+    pub fn restart_results() -> Self {
+        Self::restart_race(Command::RaceAnswer(crate::viewer::RaceAnswer::Restart))
+    }
+
+    /// The question before running the race again (`0x4D3399A8`), as the game asks it: the attention header and triangle,
+    /// the answers OK and Cancel, Cancel focused. OK runs `on_ok` (the pause menu's restart, or the results screen's).
+    pub fn restart_race(on_ok: Command) -> Self {
+        let mut confirm = Self::new(Text::Game(RESTART_RACE), on_ok).looking(Look::Attention);
+        confirm.yes = Text::Game(OK);
+        confirm.no = Text::Game(CANCEL);
+        confirm
     }
 }
 
@@ -446,6 +458,18 @@ mod tests {
         assert_eq!(c.yes, Text::Game(YES));
         assert_eq!(c.no, Text::Game(NO));
         assert_eq!(*c.on_yes, Command::QuitTo(QuitTo::Main));
+    }
+
+    #[test]
+    fn the_restart_question_is_the_attention_dialog_with_ok_and_cancel() {
+        let c = Confirm::restart_race(Command::RestartRace);
+        assert_eq!(c.message, Text::Game(0x4d33_99a8));
+        assert_eq!((c.yes, c.no), (Text::Game(0x417b_2601), Text::Game(0x1a29_4dad)));
+        assert_eq!(c.title, Some(Text::Game(0x6fd9_1524)), "the attention header");
+        assert_eq!(c.look, Some(Look::Attention));
+        assert!(!c.focus_yes, "Cancel has the focus");
+        assert_eq!(*c.on_yes, Command::RestartRace);
+        assert_eq!(c.on_no, None, "Cancel only closes the dialog");
     }
 
     #[test]

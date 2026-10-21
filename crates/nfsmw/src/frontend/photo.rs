@@ -6,6 +6,7 @@
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0};
 
+use super::confirm::Confirm;
 use super::logic::{Command, Cx, ScreenLogic};
 use crate::settings::SpeedUnits;
 use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport};
@@ -168,7 +169,7 @@ impl ScreenLogic for PhotoLogic {
             (PAD_ACCEPT, Some(_)) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
             (PAD_ACCEPT, None) => cx.send(Command::Resume),
             (STATS, Some(report)) => cx.send(Command::ShowResults(report.clone())),
-            (RESTART, Some(_)) => cx.send(Command::RaceAnswer(RaceAnswer::Restart)),
+            (RESTART, Some(_)) => cx.send(Command::Confirm(Confirm::restart_results())),
             _ => {}
         }
     }
