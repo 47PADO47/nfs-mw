@@ -21,6 +21,7 @@ mod names;
 mod outro;
 mod report;
 mod restart;
+pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 mod start;
 

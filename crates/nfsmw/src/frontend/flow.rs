@@ -36,6 +36,8 @@ pub(in crate::frontend) mod flow_first_visit;
 mod flow_loading;
 #[path = "flow_movie.rs"]
 pub(super) mod flow_movie;
+#[path = "flow_prologue.rs"]
+mod flow_prologue;
 #[path = "flow_rival.rs"]
 mod flow_rival;
 #[path = "flow_save.rs"]
@@ -175,6 +177,8 @@ pub struct Frontend {
     /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
     /// (`world_built`).
     race_options: Option<crate::scenes::world::RaceOptions>,
+    /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
+    drive_to_safe_house: bool,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -219,6 +223,7 @@ impl Frontend {
             series: Default::default(),
             quick_car: None,
             race_options: None,
+            drive_to_safe_house: false,
             map_chrome: Default::default(),
         }
     }
@@ -425,6 +430,7 @@ impl Frontend {
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
                 Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
                 Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
+                Command::StartFirstDrive => self.start_first_drive(host, env),
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),

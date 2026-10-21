@@ -157,6 +157,11 @@ impl PhoneState {
     pub fn take_calls(&mut self) -> Vec<CellCallRequest> {
         std::mem::take(&mut self.calls)
     }
+
+    /// `ECellCall(id)` from a script (the scripted chase asks for call 10): the call is processed with the others.
+    pub fn request_call(&mut self, id: u32) {
+        self.calls.push(CellCallRequest { id });
+    }
 }
 
 impl WorldScene {

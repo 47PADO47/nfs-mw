@@ -10,24 +10,22 @@ use crate::frontend::ids::screen::{CAR_SELECT, DIALOG, MAIN_MENU_SUB, SAFEHOUSE_
 use crate::frontend::logic::{Args, Env, QuitTo, Sub};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
-use nfsmw_career::settings::PROLOGUE_STAGE;
 
 use super::Frontend;
 use super::flow_arrival;
 use super::flow_loading::LoadingScreen;
 
 impl Frontend {
-    /// Career menu, Resume Career: the loaded profile is played. A career still in its prologue starts the world at once (the
-    /// opening race restarts from the beginning); any other goes to the safe house menu, which stands before the world until
-    /// Resume Free Roam (`career-flow.md` section 4).
+    /// Career menu, Resume Career: the loaded profile is played. A career in its prologue starts the first prologue race it has
+    /// not won, as a career race (`story-flow.md` section 2.7); any other goes to the safe house menu, which stands before the
+    /// world until Resume Free Roam (`career-flow.md` section 4).
     pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
         self.career.begin_play();
         self.origin = QuitTo::Career;
-        let prologue = self.career.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false);
-        if prologue {
-            log::info!("career: resuming in the prologue");
+        if let Some(event) = self.resume_prologue_event() {
+            log::info!("career: resuming the prologue at {event}");
             self.save_settings(env.changed);
-            return self.start_free_roam(LoadingScreen::Tips, host, env);
+            return self.start_prologue_race(event, host, env);
         }
         log::info!("career: resuming at the safe house");
         self.career.set_prelude(true);
@@ -110,6 +108,8 @@ impl Frontend {
                 log::info!("career: the region screen waits for the arrival sequence");
                 return;
             }
+            // The car lot after the scripted chase of 16.2.1: Accept on the car picked starts the drive (`flow_prologue.rs`).
+            CareerRequest::FirstCarLot => (CAR_SELECT, Args { safehouse: true, first_car: true, ..Args::default() }),
             CareerRequest::RegionUnlock { .. } => {
                 (SAFEHOUSE_REGION_UNLOCK, Args { safehouse: true, ..Args::default() })
             }

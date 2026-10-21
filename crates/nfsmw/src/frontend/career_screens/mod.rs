@@ -4,6 +4,7 @@
 
 pub mod blacklist;
 pub mod car_lot;
+mod car_lot_first;
 pub mod car_select;
 mod car_select_view;
 pub mod career_menu;

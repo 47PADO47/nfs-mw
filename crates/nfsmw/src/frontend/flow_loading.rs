@@ -98,6 +98,9 @@ impl Frontend {
             let options = self.race_options.take().unwrap_or_default();
             world.queue_race(race, options);
         }
+        if std::mem::take(&mut self.drive_to_safe_house) {
+            world.start_drive_to_safe_house();
+        }
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());

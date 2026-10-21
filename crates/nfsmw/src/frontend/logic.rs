@@ -65,37 +65,48 @@ pub struct PauseCtx {
     pub quit: QuitTo,
 }
 
-/// What the footer of a screen offers besides what its package name gives (`prompts.rs`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Footer {
-    #[default]
-    Standard,
-    /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
-    /// Race menu, the safe house menu, the profile list).
-    BackOnly,
-    /// Back and Accept: the custom race's track list and the mode select of a mode with no tutorial.
-    BackAccept,
-    /// Back, Accept and `2 View Tutorial`: the mode select on a mode that has a tutorial movie.
-    Tutorial,
-    /// Back, Accept and `1 Defaults`: the custom race's options.
-    Defaults,
-    /// Back, Accept and `3 Showcase`: the custom race's car select.
-    CarSelect,
-    /// Back only, on the custom race's car select: the car shown is locked.
-    CarSelectLocked,
-    /// Back, `9 0 Zoom` and the arrows `View Car`: the Showcase.
-    Orbit,
-}
-
-impl Footer {
-    /// Whether the footer is one of the custom race's car select (`Car_Select.fng` also serves the career's car lot).
-    pub fn is_custom_car_select(self) -> bool {
-        matches!(self, Footer::CarSelect | Footer::CarSelectLocked)
-    }
-}
+pub use super::footer::Footer;
 
 mod args;
 pub use args::Args;
+/// What a screen is opened with (the original passes an argument and reads the game mode).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Args {
+    /// Opened from the pause menu (the screens use their in-game look and return to the pause menu).
+    pub pause: bool,
+    /// The option categories instead of the screen's usual content (the pause menu shows them in the same package).
+    pub options: bool,
+    pub category: Category,
+    /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
+    pub safehouse: bool,
+    /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
+    pub rival: u8,
+    /// Which icon row `MainMenu_Sub.fng` shows when it is not the option categories or the safe house.
+    pub sub: Sub,
+    /// What the pause menu offers (the pause menu only).
+    pub pause_ctx: PauseCtx,
+    /// Opened by the custom race: `Car_Select.fng` then picks the car of the race, not a career car (`custom_race/`).
+    pub custom: bool,
+    /// Opened by the scripted chase's `JumpToCarLot`: the car lot picks the car the first drive to the safe house is made in
+    /// (`flow_prologue.rs`). Accept on an owned car starts that drive.
+    pub first_car: bool,
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Self {
+            pause: false,
+            options: false,
+            category: Category::Audio,
+            safehouse: false,
+            rival: 0,
+            sub: Sub::Options,
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
+            custom: false,
+            first_car: false,
+        }
+    }
+}
 
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
@@ -139,6 +150,8 @@ pub enum Command {
     StartCustomRace(Box<CustomStart>),
     /// Close the pause menu and go on driving.
     Resume,
+    /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
+    StartFirstDrive,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
     SetWaypoint([f32; 2]),
     /// Show the lap table of a race (`PostRace_Results.fng`) in place of the screen on top (`photo.rs`).

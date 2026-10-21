@@ -6,6 +6,7 @@
 
 mod bust;
 mod cooling;
+mod drive_to_target;
 mod events;
 mod hud;
 mod ladder;
@@ -47,6 +48,10 @@ pub(super) struct WorldCareer {
     pub side_won: std::collections::BTreeSet<String>,
     /// The speed traps the car is inside (`speedtraps.rs`).
     pub traps: speedtraps::TrapWatch,
+    /// The drive to the first safe house, asked for and running (`drive_to_target.rs`).
+    pub safe_house_drive: drive_to_target::SafeHouseDrive,
+    /// The scripted chase of race 16.2.1 while that race runs (`race/scripted_chase.rs`).
+    pub chase: Option<super::race::scripted_chase::ChaseRun>,
     /// The milestones the last chase banked, until the front end takes them for the rewards screen.
     pub rewards: Option<crate::viewer::RewardsReport>,
     /// The speed trap the car has just crossed, until the front end takes it for the photo.
@@ -68,6 +73,8 @@ impl WorldScene {
         self.career_respawn();
         self.career_pursuit(dt);
         self.career_speed_traps();
+        self.update_scripted_chase(dt);
+        self.career_drive_to_target(dt);
         self.career_regions();
         self.career_hud();
         self.career_phone(dt);

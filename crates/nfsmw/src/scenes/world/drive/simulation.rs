@@ -62,7 +62,8 @@ impl Drive {
             None => self.presses.take_into(self.frame_input),
         }
         .during_arrest(self.arrested)
-        .on_grid(self.gridded);
+        .on_grid(self.gridded)
+        .sabotaged(self.sabotaged);
         let input = Self::assisted(self.assist_aim, sim, input);
         if input.pop {
             self.flames.pop();

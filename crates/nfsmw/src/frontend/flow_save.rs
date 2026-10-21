@@ -1,6 +1,6 @@
 //! The career's save commands: save, load, new and delete profiles (`MC_Main.fng`; `docs/specs/career-save-screens.md`).
-//! Each one answers with a notice over the screen that asked, except a load or a new career, which starts free roam
-//! with the career it made (`start_free_roam`, as `flow_career.rs` does for Career on the main menu).
+//! Each one answers with a notice over the screen that asked, except a new career, which starts its prologue
+//! (`flow_prologue.rs`).
 
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use crate::frontend::logic::{Command, Env, QuitTo};
 use crate::ui::Text;
 
 use super::Frontend;
-use super::flow_loading::LoadingScreen;
+use super::flow_prologue::FIRST_PROLOGUE_RACE;
 
 /// The notice when there is no per-user folder to keep profiles in.
 const NO_FOLDER: &str = "There is no per-user folder for the careers.";
@@ -63,7 +63,8 @@ impl Frontend {
         self.show_alert(alert, host, env);
     }
 
-    /// Makes a new career under `alias`, saves it and plays it: the world starts with the prologue.
+    /// Makes a new career under `alias`, saves it and plays it: the world starts with the first prologue race (`16.1.0`) in
+    /// the car it forces, and the chain of the prologue goes on from there (`flow_prologue.rs`).
     pub(super) fn career_new(&mut self, alias: &str, host: &mut Host, env: &mut Env) {
         let Some(profiles) = self.profiles.clone() else {
             return self.career_notice(NO_FOLDER.to_owned(), host, env);
@@ -77,8 +78,7 @@ impl Frontend {
         };
         log::info!("career: new career {alias}");
         self.career.set(career);
-        self.origin = QuitTo::Career;
-        self.start_free_roam(LoadingScreen::Tips, host, env);
+        self.start_prologue_race(FIRST_PROLOGUE_RACE, host, env);
     }
 
     /// The alias manager's Create: a new alias is made, saved and loaded, and the notice says so. It is not played: Career

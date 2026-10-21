@@ -10,6 +10,7 @@
 //! the shown car, Back leaves for the safe house menu. A purchase or sale is asked with a confirmation whose yes answer
 //! is a [`CarLotAction`]; the front end passes it to [`apply`] when the player says yes.
 
+use super::car_lot_first::pick_first_car;
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
 use nfsmw_career::carlot::sale::MAX_SALE_STAGE;
@@ -379,11 +380,13 @@ pub fn step(cursor: usize, len: usize, down: bool) -> usize {
 pub struct CarLotLogic {
     tab: Tab,
     cursor: usize,
+    /// Opened by the scripted chase: Accept on an owned car picks it for the first drive, and Back is refused.
+    first_car: bool,
 }
 
 impl CarLotLogic {
     fn new() -> Self {
-        Self { tab: Tab::Lot, cursor: 0 }
+        Self { tab: Tab::Lot, cursor: 0, first_car: false }
     }
 
     /// The rows of the current tab, or none outside career mode.
@@ -434,6 +437,12 @@ impl CarLotLogic {
     }
 
     fn accept(&self, cx: &mut Cx) {
+        if self.first_car && self.tab == Tab::Owned {
+            if pick_first_car(self.cursor) {
+                cx.send(Command::StartFirstDrive);
+            }
+            return;
+        }
         let start =
             CareerHandle::shared().with(|career| start_at(career, self.tab, self.cursor)).unwrap_or(Start::Nothing);
         match start {
@@ -460,7 +469,7 @@ impl ScreenLogic for CarLotLogic {
             PAD_RIGHT => self.move_car(cx, true),
             PAD_UP | PAD_DOWN => self.switch_tab(cx),
             PAD_ACCEPT => self.accept(cx),
-            PAD_BACK => {
+            PAD_BACK if !self.first_car => {
                 let back = Args { safehouse: true, ..Args::default() };
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), back));
             }
@@ -470,11 +479,16 @@ impl ScreenLogic for CarLotLogic {
 }
 
 /// The logic for `name` (lower case) when it is the car lot screen.
-pub fn make(name: &str, _args: Args) -> Option<Box<dyn ScreenLogic>> {
+pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if name != screen::CAR_SELECT.to_ascii_lowercase() {
         return None;
     }
-    Some(Box::new(CarLotLogic::new()))
+    let mut logic = CarLotLogic::new();
+    if args.first_car {
+        logic.first_car = true;
+        logic.tab = Tab::Owned;
+    }
+    Some(Box::new(logic))
 }
 
 #[cfg(test)]

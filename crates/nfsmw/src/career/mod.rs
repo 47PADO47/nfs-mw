@@ -39,6 +39,9 @@ pub enum CareerRequest {
     SafeHouse { zone: String },
     /// The player engaged a car lot: the car lot screen opens (`career-car-lot.md`).
     CarLot { zone: String },
+    /// The scripted chase of 16.2.1 is over: `JumpToCarLot` opens the car lot in first-car mode, where the player picks the
+    /// car the drive to the safe house is made in (`docs/specs/story-flow.md` section 2.3).
+    FirstCarLot,
     /// The player engaged an auto shop in career mode: the customization garage opens over the world, with no charge
     /// (the garage has no price data yet).
     AutoShop { zone: String },
