@@ -8,15 +8,23 @@
 //! - `pair`, `huds`, `plugin`: the two HUDs of a kind in one runtime, the app's resource, and the Bevy system.
 
 mod huds;
+#[cfg(test)]
+mod install_tests;
 mod map;
 mod names;
 mod package;
 mod pair;
 mod place;
 mod plugin;
+#[cfg(test)]
+mod raster_tests;
 mod seat;
 mod show;
 mod tach;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod tests;
 
 pub use package::{Kind, SPLIT_FILE, Seat};
 #[allow(unused_imports)] // for the app that draws the world's two pictures
