@@ -13,7 +13,7 @@ use super::resident::Placed;
 use super::scenery_groups::SceneryGroups;
 
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
-const REFERENCE_HEIGHT: f32 = 480.0;
+pub(super) const REFERENCE_HEIGHT: f32 = 480.0;
 
 /// The `prop_id` of a placed object that is not a registered prop. `PropWorld` hands out ids from 1 upwards
 /// (`PropWorld::add_tile`), so no lookup in it ever finds this id.
@@ -57,6 +57,7 @@ pub fn collect_unsorted_with_shadows<'a>(
 
 /// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
 /// The result is sorted by mesh.
+#[cfg(test)]
 pub fn collect_for_height<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,

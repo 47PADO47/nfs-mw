@@ -175,6 +175,7 @@ impl WorldScene {
                 gain_map,
                 breaker_visuals,
                 reflection_faces: std::array::from_fn(|_| Vec::new()),
+                reflection_scratch: Default::default(),
                 reflection_last: None,
                 clock: 0.0,
                 sun: sun::Sun::new(),
