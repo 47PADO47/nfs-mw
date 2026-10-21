@@ -3,6 +3,7 @@
 
 mod assists;
 mod burnout;
+mod coasting;
 mod contact;
 mod drift;
 mod drive_assists;
@@ -11,6 +12,8 @@ mod integration;
 mod jump;
 mod maneuver;
 mod reconfigure;
+mod retirement;
+mod rolling_chassis;
 mod settle;
 mod simple_chassis;
 mod spec;
@@ -26,6 +29,7 @@ pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
 pub use maneuver::ManeuverAssist;
+pub use rolling_chassis::RollingChassisConfig;
 pub use simple_chassis::SimpleChassisConfig;
 pub use spec::{Tunings, VehicleSpec};
 pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
@@ -53,6 +57,9 @@ pub struct Vehicle {
     pub config: ControlConfig,
     simple_chassis: Option<SimpleChassisConfig>,
     simple_max_steering: f32,
+    rolling_chassis: Option<RollingChassisConfig>,
+    coasting_tires: Option<crate::tires::CoastingTireResponse>,
+    retirement: retirement::Retirement,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
     /// recorded drive). `None` in play.
     pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
@@ -124,6 +131,9 @@ impl Vehicle {
             config: ControlConfig::default(),
             simple_chassis: None,
             simple_max_steering: 0.0,
+            rolling_chassis: None,
+            coasting_tires: None,
+            retirement: Default::default(),
             forced_wheel_angles: None,
             disabled: false,
             can_recharge_nos: true,
