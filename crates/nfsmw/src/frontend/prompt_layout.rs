@@ -5,6 +5,11 @@ use glam::{Mat4, Vec3};
 
 use super::ids::screen;
 
+/// The group of `Quick_Race_Brief.fng` that holds the Back and Accept hints, which the footer replaces.
+pub const BRIEF_FOOTER: u32 = 0x03CA_06E1;
+/// The group of `Quick_Race_Brief.fng` that holds the Randomize hint, which the footer replaces.
+pub const BRIEF_RANDOMIZE: u32 = 0x02DD_F58C;
+
 pub struct Frame {
     pub world: Mat4,
     pub width: f32,
@@ -32,6 +37,13 @@ impl Frame {
             "mc_list.fng" => {
                 let root = tree.nodes.iter().find(|n| n.name_hash == super::ids::QUIT_BUTTON)?;
                 return Some(Self::new(root, root.world, 150.0, 26.0, false));
+            }
+            // The Quick Play brief's footer has no bar of its own to centre on: Back and Accept share one group and
+            // Randomize has another, none with a box a click can hit. The hints go on the Back group's line, centred.
+            "quick_race_brief.fng" => {
+                let root = tree.nodes.iter().find(|n| n.name_hash == BRIEF_FOOTER)?;
+                let at = Vec3::new(0.0, root.world.w_axis.y, root.world.w_axis.z);
+                return Some(Self::new(root, Mat4::from_translation(at), 540.0, 26.0, true));
             }
             _ => return None,
         };

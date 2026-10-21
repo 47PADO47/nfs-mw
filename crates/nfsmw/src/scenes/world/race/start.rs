@@ -123,7 +123,7 @@ impl WorldScene {
         };
         self.traffic_manual = Some(cars);
         if let Some(traffic) = self.traffic.as_mut()
-            && !p.cops_in_race
+            && !p.pursuit_race
         {
             traffic.stop_pursuit();
         }

@@ -93,9 +93,20 @@ impl CarPool {
             let physics = physics.as_ref()?;
             crate::career::car_stats(physics, &folder.to_ascii_lowercase())
         });
+        let cars = drivable(cars, physics.is_some());
         let population = cars.iter().filter_map(|car| car.stats).collect();
         Ok(CarPool { cars, population })
     }
+}
+
+/// The cars that can be driven. The install's add-on cars (`levin`, `trueno`, `corollae88`) have no `pvehicle` or collision
+/// bounds, so no physics can be made for them and the world refuses to start with one. Only a readable physics database can
+/// tell, so without one (`physics_read` false) every car stays.
+pub fn drivable(mut cars: Vec<PoolCar>, physics_read: bool) -> Vec<PoolCar> {
+    if physics_read {
+        cars.retain(|car| car.stats.is_some());
+    }
+    cars
 }
 
 /// The pool cars of a catalogue: the offered cars with a folder, in catalogue order. `stats_of` measures a car by its folder.

@@ -260,3 +260,20 @@ fn the_pool_has_cars_with_folders_logos_and_stats_and_races_with_names() {
     assert!(reach(16) > 0 && reach(16) < cars.cars.len());
     assert_eq!(reach(1), cars.cars.len());
 }
+
+#[test]
+fn a_click_on_each_footer_word_presses_its_action() {
+    use crate::input::{Action, Bindings, InputDevice};
+    let Some((h, _, _)) = open() else { return };
+    let (bindings, device) = (Bindings::default(), InputDevice::Keyboard);
+    let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
+    for (word, action) in
+        [("Back", Action::MenuBack), ("Accept", Action::MenuAccept), ("Randomize", Action::MenuButton1)]
+    {
+        let shown: Vec<_> =
+            tree.nodes.iter().filter(|n| n.visible && n.text.as_deref().is_some_and(|t| t.trim() == word)).collect();
+        assert_eq!(shown.len(), 1, "{word} is drawn once: the package's own hint is hidden");
+        let point = shown[0].world.transform_point3(glam::Vec3::ZERO).truncate();
+        assert_eq!(h.screens.hint_at(point, &bindings, device), Some(action), "{word} at {point:?}");
+    }
+}

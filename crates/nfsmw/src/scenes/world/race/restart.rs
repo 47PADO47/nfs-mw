@@ -112,6 +112,15 @@ mod tests {
     }
 
     #[test]
+    fn only_a_pursuit_race_or_a_challenge_has_police() {
+        let plain = session(Stage::Running, RaceOptions::default(), None);
+        assert!(!plain.has_police(), "an ordinary race, whatever its CopsInRace says");
+        let mut pursuit = session(Stage::Running, RaceOptions::default(), None);
+        pursuit.origin.race.params.pursuit_race = true;
+        assert!(pursuit.has_police());
+    }
+
+    #[test]
     fn a_race_is_live_until_its_result_is_fixed() {
         assert!(Stage::Loading { waited: 3.0 }.is_live(), "staged: waiting for the grid");
         assert!(Stage::Running.is_live(), "the countdown and the race itself");

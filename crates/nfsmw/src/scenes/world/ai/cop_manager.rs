@@ -21,6 +21,8 @@ pub(super) const NO_COP_SPAWN_ZONE: u32 = 13;
 #[derive(Default)]
 pub(super) struct CopManager {
     lockout: f32,
+    /// A race with no police is on: no cop spawns or stays, and no lockout timer or 911 call lifts it.
+    barred: bool,
     no_spawn: Vec<TrackZone>,
     /// The free-roam 911 call (`roam.rs`).
     pub roam: roam::Roam911,
@@ -45,7 +47,12 @@ impl CopManager {
 
     /// Whether cops may spawn and stay (`VehicleSpawningEnabled`): false during the lockout.
     pub fn spawning_enabled(&self) -> bool {
-        self.lockout <= 0.0
+        !self.barred && self.lockout <= 0.0
+    }
+
+    /// Keeps the cops out (`true`) for as long as a race with no police runs, or lets the lockout rule again (`false`).
+    pub fn bar(&mut self, barred: bool) {
+        self.barred = barred;
     }
 
     /// Locks the cops out for the free-roam time after an evade, or a ticket paid (`LockoutCops(true)`).
@@ -142,6 +149,19 @@ mod tests {
         cops.lock_out();
         cops.unlock();
         assert!(cops.spawning_enabled(), "a chase that starts clears the lockout");
+    }
+
+    #[test]
+    fn a_race_with_no_police_bars_the_cops_whatever_clears_the_lockout() {
+        let mut cops = CopManager::default();
+        assert!(cops.spawning_enabled());
+        cops.bar(true);
+        assert!(!cops.spawning_enabled());
+        cops.unlock();
+        cops.tick(LOCKOUT_FREE_ROAM);
+        assert!(!cops.spawning_enabled(), "a 911 call or a timer does not lift the bar");
+        cops.bar(false);
+        assert!(cops.spawning_enabled(), "the race is over");
     }
 
     #[test]

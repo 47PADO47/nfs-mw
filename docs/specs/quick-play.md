@@ -55,7 +55,7 @@ collections of the same file, which have the for-sale flag by inheritance **[ver
 collection's name (`pool::folder_for`): the name itself, the name without underscores, the name up to its first underscore
 (`carrera_gt` is `CARRERAGT`, `a4_32` is `A4`). **[ours]**: the exe takes the folder from the car's record, which the
 catalogue does not link. In the installed (modified) catalogue 37 cars have a folder; `trueno`, `levin` and `corollae88`
-have no physics type under that name and so no stat bars.
+have no physics type under that name, so they cannot be driven and are not in the pool (`pool::drivable`).
 
 **The races.** The quick race board: the races the world runs, except the pursuit challenges. Only a race with a Blacklist bin
 from 1 to 15 is in the pool. The prologue (bin 16), the collectors (21), the online events (99) and the challenge series'
@@ -148,4 +148,6 @@ The package's responses: Accept `0x406415E3`, Back `0x911AB364`, Randomize `0xC5
   upcoming positions are in the pool), so the rewrite does.
 - The length unit of the reference screenshot (`6.9 Miles`): the exe's switch is the Speed units setting, which the rewrite
   follows. If the original prints the same number in miles, its stored length is not metres; not checked.
-- Cars with no physics type under their front-end name (`trueno`, `levin`, `corollae88` here) show empty bars.
+- Cars with no physics type under their front-end name (`trueno`, `levin`, `corollae88` here) are left out of the pool: the world
+  cannot build a car without a `pvehicle` or collision bounds (`levin` stopped free roam from starting), so Quick Play never
+  offers one. This holds only while the physics database reads; without it every car stays. **[ours]**
