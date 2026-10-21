@@ -1,8 +1,6 @@
 # Architecture
 
-The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This
-page covers how the workspace is split, how the install is found, how the city streams, the graphics
-backends, multi-platform support and testing. The structure follows [vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
+The Rust rewrite reads every asset from the user's own install at runtime and ships no game data. This page covers how the workspace is split, how the install is found, how the city streams, the graphics backends, multi-platform support and testing. The structure follows [vladtrc/iw4L](https://github.com/vladtrc/iw4L) ([research.md § 8](research.md#8-reference-projects-for-the-rust-rewrite)), scaled down.
 
 ## Two halves: `libs/` and `crates/`
 
@@ -30,6 +28,7 @@ backends, multi-platform support and testing. The structure follows [vladtrc/iw4
 | [`blackbox-sequence`](../libs/blackbox-sequence) | Event systems, states, action queues and timed event lists | — (event handlers and tag hashes supplied by the game) |
 | [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
 | [`blackbox-text`](../libs/blackbox-text) | Language string tables (`LANGUAGES/*.bin`) | — |
+| [`blackbox-anim`](../libs/blackbox-anim) | EAGL4 animation: objects, skeletons, animation banks, channel codecs and pose evaluation (being built) | — (bytes in, no layouts yet) |
 | [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music and its node graph, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |
 | [`blackbox-ginsu`](../libs/blackbox-ginsu) | The Ginsu granular engine-sound synthesiser and the tables of a `.gin` file | — |
 | [`blackbox-carsound`](../libs/blackbox-carsound) | Car sound controllers: telemetry in, engine mix out, on a fixed 60 Hz tick | — (tuning passed by the caller) |

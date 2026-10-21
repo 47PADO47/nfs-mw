@@ -9,6 +9,7 @@ members = ["libs/*", "crates/*", "xtask", "examples/mods/hello"]
 default-members = [
     "libs/blackbox-trace",
     "libs/blackbox-aems",
+    "libs/blackbox-anim",
     "libs/blackbox-attrib",
     "libs/blackbox-carparts",
     "libs/blackbox-damage",
@@ -60,6 +61,7 @@ publish = false
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 blackbox-aems = { path = "libs/blackbox-aems" }
+blackbox-anim = { path = "libs/blackbox-anim" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-carp = { path = "libs/blackbox-carp" }
