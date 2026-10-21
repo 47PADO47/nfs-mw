@@ -13,15 +13,15 @@ use crate::frontend::logic::Sub;
 use crate::frontend::quick_play::pool;
 use crate::frontend::quick_race;
 
-static TURN: Mutex<()> = Mutex::new(());
+pub(super) static TURN: Mutex<()> = Mutex::new(());
 
-fn install() -> Option<GameDir> {
+pub(super) fn install() -> Option<GameDir> {
     let root = std::env::var_os("NFSMW_GAME_DIR")?;
     Some(GameDir::open(std::path::PathBuf::from(root)).unwrap())
 }
 
 /// Reads the board and the cars, as the front end does in the background when it starts.
-fn read(dir: &GameDir) {
+pub(super) fn read(dir: &GameDir) {
     pool::load_now(dir);
     quick_race::load_in_background(dir);
     for _ in 0..2400 {
@@ -33,7 +33,7 @@ fn read(dir: &GameDir) {
     panic!("the quick race board was not read");
 }
 
-fn open_in(mode: Mode, name: &str, args: Args) -> Option<Harness> {
+pub(super) fn open_in(mode: Mode, name: &str, args: Args) -> Option<Harness> {
     let dir = install()?;
     read(&dir);
     state::with(|s| {
