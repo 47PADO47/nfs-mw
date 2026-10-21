@@ -9,7 +9,6 @@ use game_install::GameDir;
 use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
-use super::career_screens::save::{ListMode, list_aliases, set_list_mode};
 use super::loading;
 use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
 use super::look::Look;
@@ -33,12 +32,14 @@ mod flow_loading;
 mod flow_save;
 #[path = "flow_series.rs"]
 pub(super) mod flow_series;
+#[path = "flow_startup.rs"]
+mod flow_startup;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Start {
-    /// The whole boot flow: movies, the title screen, the main menu.
-    Boot,
+    /// The whole boot flow: movies (when `movies`), the title screen, the profile step, the main menu.
+    Boot { movies: bool },
     /// The main menu.
     Menu,
     /// One screen, as `view-screen` shows it.
@@ -48,7 +49,8 @@ pub enum Start {
     Browse(String),
     /// Straight into free roam.
     Drive,
-    /// Where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+    /// Where the boot flow ends: the profile step (the list of saved aliases, or the question to create one when there is
+    /// none), then the main menu. The explicit way to run that step without the movies and the title screen.
     Aliases,
 }
 
@@ -107,6 +109,8 @@ pub struct Frontend {
     start: Option<Start>,
     pub(super) stage: Stage,
     boot: VecDeque<Boot>,
+    /// The profile step of the boot flow is running: when its last screen closes the main menu follows (`poll_startup`).
+    startup: bool,
     pub(super) script: Option<UiScript>,
     pub(super) paused: PauseFlag,
     /// Hides the world while the loading screen is up (`loading.rs`).
@@ -172,6 +176,7 @@ impl Frontend {
             start: Some(start),
             stage: Stage::Menus,
             boot: VecDeque::new(),
+            startup: false,
             script,
             paused: PauseFlag::default(),
             conceal: ConcealFlag::default(),
@@ -210,8 +215,8 @@ impl Frontend {
             self.profiles = Some(ProfileDir::new(std::env::temp_dir().join("nfsmw-career-screenshot")));
         }
         match start {
-            Start::Boot => {
-                self.boot = BOOT.into();
+            Start::Boot { movies } => {
+                self.boot = flow_startup::boot_steps(movies);
                 self.next_boot(host, env);
             }
             Start::Menu => self.show_menu(host, env),
@@ -316,6 +321,7 @@ impl Frontend {
     pub(super) fn show_menu_at(&mut self, name: &str, args: Args, host: &mut Host, env: &mut Env) {
         self.latch = true;
         self.paused.set(false);
+        self.startup = false;
         self.screens.clear();
         self.career.end_play();
         self.in_safe_house = false;
@@ -345,22 +351,6 @@ impl Frontend {
         let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
         self.replace_scene(host, Box::new(scene), false);
         self.menu_in_window = true;
-    }
-
-    /// After the boot flow: the list of saved aliases to load one from, or the main menu when there are none
-    /// (`docs/specs/career-parity-menus.md`, section 2).
-    fn after_boot(&mut self, host: &mut Host, env: &mut Env) {
-        if self.career.is_loaded() || list_aliases().is_empty() {
-            return self.show_menu(host, env);
-        }
-        log::info!("boot: the alias list");
-        set_list_mode(ListMode::Load);
-        self.latch = true;
-        self.screens.clear();
-        self.show_backdrop(host);
-        let commands = self.screens.open(super::ids::screen::MC_LIST, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
     }
 
     /// Opens the pause menu over the frozen game.

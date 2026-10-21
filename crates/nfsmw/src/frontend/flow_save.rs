@@ -9,7 +9,7 @@ use game_install::GameDir;
 use nfsmw_career::settings::NewCareer;
 
 use crate::app::Host;
-use crate::career::{Career, CareerData, ProfileDir};
+use crate::career::{Career, CareerData, ProfileDir, Sources};
 use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::ids::screen::DIALOG;
 use crate::frontend::logic::{Command, Env, QuitTo};
@@ -40,10 +40,9 @@ impl Frontend {
     /// (the library's notice, `career-save-screens-2.md` section 9.5); from the list the game opened at the start the main menu
     /// follows it. A profile that fails the load checks is not loaded: its notice shows over the list, which stays.
     pub(super) fn career_load(&mut self, alias: &str, host: &mut Host, env: &mut Env) {
-        let Some(profiles) = self.profiles.clone() else {
-            return self.career_notice(NO_FOLDER.to_owned(), host, env);
-        };
-        let loaded = profiles.read(alias).and_then(|bytes| load_career(alias, &bytes, &self.dir));
+        // This build's folder first, then the original game's, which is only read (`career/sources.rs`).
+        let sources = Sources::with_own(self.profiles.clone());
+        let loaded = sources.read(alias).and_then(|bytes| load_career(alias, &bytes, &self.dir));
         let career = match loaded {
             Ok(career) => career,
             Err(e) => {

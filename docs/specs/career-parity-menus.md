@@ -28,7 +28,8 @@ Where the state changes:
 **Start-up.** After the title screen's Continue the game shows the profile list (`MC_List.fng`, "load") over the menu backdrop when
 at least one alias is saved. Picking one loads it and shows the notice "Load complete." (title "save/load", one button,
 Continue); Continue goes to the main menu. Back (Esc) goes to the main menu with no profile loaded. With no alias saved the
-main menu follows the title screen. **[exe]** for the screens and the notice (`MC_Bootup` then `MC_Main` in state `0x20`);
+game asks to create one before the main menu ([boot-profile-prompt.md](boot-profile-prompt.md), which also lists the original's saved
+profiles read only and says how `play` starts). **[exe]** for the screens and the notice (`MC_Bootup` then `MC_Main` in state `0x20`);
 **[ours]** for always showing the list: the original loads at once when there is exactly one alias and asks to create one when
 there is none (`career-save-screens-2.md` section 9.2). A profile that fails the load checks is not loaded and its notice shows
 over the list.

@@ -368,7 +368,8 @@ The menus are the install's own FEng screens run by the same runtime and drawn b
   original geometry), `WidgetMenu` (the option rows: titles, data strings, sliders), `Splash`. A screen with no
   logic of its own runs as its package says. `options.rs` maps rows to settings.
 - **Flow.** `Frontend` (a Bevy resource, driven in `FrameSet::Frontend`) decides what the window shows: the boot
-  movies (`ealogo`, `psa` through the movie scene), the title screen, the main menu over an empty backdrop,
+  movies (`ealogo`, `psa` through the movie scene), the title screen, the profile step (the list of saved profiles, or the
+  question to create one when none is saved: `flow_startup.rs`, [spec](specs/boot-profile-prompt.md)), the main menu over an empty backdrop,
   free roam (the world scene, wrapped in `Pausable` so Escape or Start freezes it under the pause menu) and the
   way back. Career starts or resumes a profile (`career::start_or_resume`) and then starts free roam with it. The
   safe house menu, the car lot and the region unlock screen open over the frozen world when the world asks for them
@@ -384,7 +385,7 @@ Settings: the option rows change `Settings` (the resource the console edits, so 
 overlay and the HUD apply at once) and record the change; the config file layer is written when a screen is left
 (`settings/write.rs` keeps `game_dir` and unknown keys).
 
-`nfsmw play` runs the whole flow (`--skip-boot`, `--drive`); `nfsmw view-screen NAME` shows one screen
+`nfsmw play` runs the whole flow (`--skip-boot`, `--drive`, `--aliases` for the profile step alone); `nfsmw view-screen NAME` shows one screen
 (`--category`, `--pause`, `--options`, `--ui-script`, `--screenshot`); `list-screens`, `dump-screen NAME` and
 `strings TEXT|0xHASH` read the install's screens and language table.
 

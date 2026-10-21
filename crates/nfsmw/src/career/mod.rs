@@ -7,8 +7,11 @@
 //! - [`start`]: Career on the main menu: resume the latest profile or start a new one.
 //! - [`autosave`]: the autosave triggers (roaming start, event start, pursuit evaded).
 //!
+//! - [`sources`]: the profile list at the start: this build's folder plus, read only, the original game's save folder.
+//!
 //! The profiles are written to this build's own folder (`career` next to the config file), never to the original
-//! game's `Documents\NFS Most Wanted`, so playing the rewrite cannot damage the original's saves.
+//! game's `Documents\NFS Most Wanted`, so playing the rewrite cannot damage the original's saves. That folder is only
+//! listed and read, so the original's saves can be picked at the start.
 
 // The world and the screens that use most of this come in later milestones.
 #![allow(dead_code)]
@@ -17,6 +20,7 @@ mod autosave;
 mod card;
 mod data;
 mod io;
+mod sources;
 mod start;
 mod state;
 
@@ -25,6 +29,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub use autosave::{AutosaveInputs, handle_autosave};
 pub use data::{CareerData, car_stats, event_id, race_event_id};
 pub use io::ProfileDir;
+pub use sources::Sources;
 pub use state::Career;
 
 /// What the career in the world asks the front end to do, taken once with `Scene::take_career_request`.
