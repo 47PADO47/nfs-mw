@@ -140,15 +140,17 @@ Tags: **[verified]** (CSE 1.1 done, CSE 3, RM 11 item 6, CB 3).
 
 ### 1.6 What a finish writes (career)
 
-Tags: **[exe]** (CB 4.2, SAVE 3.2) with **[verified]** for the lists. Conflict C-01 and C-02 in story-flow-2 section 7.
+Tags: **[exe]** (CB 4.2, SAVE 3.2, and the 2026-10-21 pass in [provenance/story-flow.md](../provenance/story-flow.md)) with **[verified]**
+for the lists. Conflicts C-01 and C-02 are settled by F-10: every step below except 2 runs only for a **human racer that
+finishes first** (the racer record's place, `+0x10`, equals 1).
 
 | Step | Output | When | Source |
 |---|---|---|---|
-| 1 | Record flag `0x2` ("completed in career") set. Node state bit 1 (value `0x2`), "won in the career", the completion test for story nodes 16.2.1 and 1.2.3. | On a finish in career. Placing test not seen: F-10. | CB 4.2, SAVE 3.2 |
+| 1 | Record flag `0x2` ("completed in career") set. Node state bit 1 (value `0x2`), "won in the career", the completion test for story nodes 16.2.1 and 1.2.3. | First place in career (bit 0, value `0x1`, outside the career). | CB 4.2, SAVE 3.2 |
 | 2 | Best result kept if it beats the stored one (time for sprint, drag and tollbooth; lap value for circuit and knockout; points for speed trap and cash grab; integer for type 6). | Each finish that beats it | CB 4.2 |
-| 3 | Profile cash += `CashValue` (attribute `0xD8BAA07B`, truncated). | CB 4.2 says every finish; RM 11 says first place only. F-10. | CB 4.2, RM 11 |
-| 4 | Reward list granted (attribute `0x50104D90`). Reward routing: section 4.5 (story-flow-2). | First completion only | CB 4.2 |
-| 5 | For each race in the unlock list (attribute `0xFC8995C8`): flag `0x4` set; flag `0x8` too unless attribute `0xA4E6FCFD`. | First completion only | CB 4.2 |
+| 3 | Profile cash += `CashValue` (attribute `0xD8BAA07B`, truncated). | Every first place in career, also on a repeat win. | CB 4.2, RM 11 |
+| 4 | Reward list granted (attribute `0x50104D90`). Reward routing: section 4.5 (story-flow-2). | First place, only when the node did not already carry `0x2` | CB 4.2 |
+| 5 | For each race in the unlock list (attribute `0xFC8995C8`): flag `0x4` set; flag `0x8` too unless attribute `0xA4E6FCFD`. | First place, only when the node did not already carry `0x2` | CB 4.2 |
 | 6 | Trigger icons refreshed. | Always | CB 4.2 |
 
 ### 1.7 Constants used by the race life cycle
