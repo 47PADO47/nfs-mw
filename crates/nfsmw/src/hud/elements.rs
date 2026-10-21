@@ -6,6 +6,8 @@
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
+use super::leaderboard::{self, Kind};
+use super::leaders::ROWS;
 use super::minimap::{ARROW, BACKING, GROUP};
 
 /// The speedometer group and the group of the tachometer (needle, face, gear, shift light, redline).
@@ -61,6 +63,8 @@ pub struct Shown {
     pub countdown: bool,
     /// A line of the generic message group is up.
     pub message: bool,
+    /// The leaderboard's rows that show (0 hides the board): `LeaderBoardGroup` and its first rows (`hud/leaderboard.rs`).
+    pub leaders: u8,
 }
 
 /// The elements and where they sit in the package.
@@ -90,6 +94,10 @@ pub struct Layout {
     race_progress: Vec<usize>,
     countdown: Vec<usize>,
     message: Vec<usize>,
+    /// The leaderboard's group, the objects of each row, and the online headset icons (held hidden: no online game).
+    leaders: Vec<usize>,
+    leader_rows: Vec<Vec<usize>>,
+    leader_icons: Vec<usize>,
     applied: Option<Shown>,
 }
 
@@ -133,6 +141,14 @@ impl Layout {
             race_progress: find(&[super::race::progress_hash()]),
             countdown: find(&[super::race::count_hash()]),
             message: find(&[super::race::message_hash()]),
+            leaders: find(&[leaderboard::GROUP]),
+            leader_rows: (0..ROWS)
+                .map(|k| {
+                    let row = [Kind::Data, Kind::Place, Kind::Backing].map(|kind| leaderboard::row_hashes(kind)[k]);
+                    find(&row)
+                })
+                .collect(),
+            leader_icons: find(&leaderboard::row_hashes(Kind::Icon)),
             applied: None,
         }
     }
@@ -167,6 +183,9 @@ impl Layout {
         }
         if want.message {
             roots.extend(&self.message);
+        }
+        if want.leaders > 0 {
+            roots.extend(&self.leaders);
         }
         if want.nitrous {
             roots.extend(&self.nitrous);
@@ -210,7 +229,13 @@ impl Layout {
             let race_part = (!want.race_laps && self.is_under_any(i, &self.race_lap))
                 || (want.race_laps && self.is_under_any(i, &self.race_progress))
                 || (!want.countdown && self.is_under_any(i, &self.countdown));
-            if held || race_part {
+            // The rows past the racers are hidden, and the online headsets always (there is no online game).
+            let unused_row = self
+                .leader_rows
+                .iter()
+                .enumerate()
+                .any(|(k, row)| k >= usize::from(want.leaders) && self.is_under_any(i, row));
+            if held || race_part || unused_row || self.is_under_any(i, &self.leader_icons) {
                 *slot = false;
             }
         }

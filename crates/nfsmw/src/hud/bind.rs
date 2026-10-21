@@ -63,6 +63,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 pub struct HudBinding {
     police: super::police::Binding,
     race: super::race::Binding,
+    leaderboard: super::leaderboard::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
     hiding_mark: super::hiding_mark::HidingMark,
     layout: Layout,
@@ -122,6 +123,7 @@ impl HudBinding {
         let mut b = Self {
             police: super::police::Binding::new(rt, package),
             race: super::race::Binding::new(rt, package),
+            leaderboard: super::leaderboard::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
             hiding_mark: super::hiding_mark::HidingMark::new(rt, package),
             layout: Layout::new(rt, package),
@@ -196,6 +198,7 @@ impl HudBinding {
     pub fn advance_mirror_fade(&mut self, dt: f32) {
         self.police.advance(dt);
         self.race.advance(dt);
+        self.leaderboard.advance(dt);
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
     }
 
@@ -222,6 +225,7 @@ impl HudBinding {
             race: s.race.is_some(),
             race_laps: s.race.is_some_and(|r| r.lap.is_some()),
             countdown: s.race.is_some_and(|r| r.count.is_some()),
+            leaders: s.leaders.as_ref().map_or(0, |l| l.shown_rows() as u8),
             message: s.message.is_some() || self.race.message_active(),
         };
         self.layout.update(rt, shown);
@@ -243,6 +247,7 @@ impl HudBinding {
         self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
         self.race.apply(rt, s.race);
+        self.leaderboard.apply(rt, s);
         self.race.show_message(rt, s.message.as_ref());
         self.pursuit_meter.apply(rt, s.pursuit);
         self.hiding_mark.apply(rt, s.pursuit.is_some_and(|p| p.hiding_shown()));

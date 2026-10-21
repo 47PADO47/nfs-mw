@@ -1,7 +1,7 @@
 //! The race card for the HUD: the place, the lap, the clocks and the banner, built from the race each frame.
 
 use super::Stage;
-use crate::hud::{Count, Message, RaceCard, RaceHud, ResultCard};
+use crate::hud::{Count, LeaderEntry, LeaderRow, Leaders, Message, RaceCard, RaceHud, ResultCard};
 use crate::scenes::world::WorldScene;
 
 /// The serial of the race-over line: past any banner's.
@@ -60,6 +60,31 @@ impl WorldScene {
             progress: done / (gates * laps as f32),
             count,
         })
+    }
+
+    /// The leaderboard of the HUD package: the four best placed racers with their progress (`hud/leaders.rs`). Shown from
+    /// the countdown to the race-over message, in every race type with more than one racer.
+    pub(in crate::scenes::world) fn race_leaders(&self) -> Option<Leaders> {
+        let session = self.race.as_ref()?;
+        if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
+            return None;
+        }
+        let engine = session.engine.as_ref()?;
+        let places = engine.places();
+        let alias = crate::career::CareerHandle::shared().with_loaded(|career| career.alias.clone());
+        let entries = engine.racers().iter().enumerate().map(|(i, racer)| {
+            let name = match (i, &alias) {
+                (0, Some(alias)) => alias.clone(),
+                _ => session.plan.get(i).map_or_else(String::new, |p| p.name.clone()),
+            };
+            let points = racer.traps.total();
+            LeaderEntry {
+                place: places[i],
+                player: i == 0,
+                row: LeaderRow { name, percent: racer.percent, points, out: racer.out_at.is_some(), busted: false },
+            }
+        });
+        Some(Leaders::pick(entries.collect(), engine.course().length(), engine.config().rank_by_points))
     }
 
     /// Draws the race card over the frame.
