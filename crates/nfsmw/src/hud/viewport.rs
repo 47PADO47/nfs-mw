@@ -25,7 +25,13 @@ impl HudViewport {
     /// `blip_icons` are the name hashes of the map blips' pool objects (`HudBinding::blip_icon_hashes`). The game
     /// draws a blip on the minimap and moves it with the minimap's group, so they take the minimap's side.
     pub fn new(tree: &UiTree, blip_icons: &[u32]) -> Self {
-        let sides = tree.nodes.iter().map(|node| side(tree, node.index, blip_icons)).collect();
+        Self::with_contexts(tree, &[], blip_icons)
+    }
+
+    /// As [`HudViewport::new`], and the objects named in `contexts` (name hash, side: -1 left, 1 right) move with their
+    /// side too. The split-screen packages have more than the two widescreen contexts of `HUD_SingleRace.fng`.
+    pub fn with_contexts(tree: &UiTree, contexts: &[(u32, i8)], blip_icons: &[u32]) -> Self {
+        let sides = tree.nodes.iter().map(|node| side(tree, node.index, contexts, blip_icons)).collect();
         Self { sides }
     }
 
@@ -50,9 +56,12 @@ impl HudViewport {
     }
 }
 
-fn side(tree: &UiTree, mut index: usize, blip_icons: &[u32]) -> i8 {
+fn side(tree: &UiTree, mut index: usize, contexts: &[(u32, i8)], blip_icons: &[u32]) -> i8 {
     for _ in 0..tree.nodes.len() {
         let Some(node) = tree.nodes.get(index) else { return 0 };
+        if let Some((_, side)) = contexts.iter().find(|(hash, _)| *hash == node.name_hash) {
+            return *side;
+        }
         match node.name_hash {
             LEFT_CONTEXT => return -1,
             RIGHT_CONTEXT => return 1,
