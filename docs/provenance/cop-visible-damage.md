@@ -35,3 +35,22 @@ pristine A-E from damaged A-D and retain the original missing E behavior.
 The health effect references name `emittergroup` records, not `effects`
 wrappers. This distinction is necessary even though both eventually consume
 the shared authored particle emitter format.
+
+The follow-up hood persistence regression checks the production actor after
+elapsed event ticks, subsequent contacts, LOD round trips and shared material
+rebuilding. Zone levels are monotonic, and fragment cleanup does not clear
+the owning actor's hidden-slot latch. This is a regression boundary, not a
+demonstrated cause of the reported hood snapping closed. A passing fixed-pose
+probe does not resolve the user's moving-camera appearance issue or establish
+original animated-panel parity.
+
+The subsequent timed-path audit identified a concrete mismatch: the installed
+hood action emits its fragment on its 20-second end tag, while fragment
+extraction unconditionally selected pristine A geometry. After rechecking
+program identity, PC `VehicleFragmentConn::UpdateModel` (`0x75AE10`) calls
+`VehicleRenderConn::FindPart` (`0x738960`) for the parent's slot; that helper
+reads the current slot/LOD model array. Fragment extraction now preserves the
+actor's selected damage variant. An installed collision-to-action-to-cargo
+regression checks the delayed replacement and permanent parent hiding after
+fragment cleanup. This establishes a plausible specific cause for the visible
+snap, while the exact user's moving-camera reproduction remains unverified.

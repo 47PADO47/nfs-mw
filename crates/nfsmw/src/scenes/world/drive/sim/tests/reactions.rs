@@ -1,3 +1,5 @@
+mod pc_selection;
+
 use nfsmw_data::car::physics::{AiCollisionReactions, CollisionReaction, CollisionReactions, GoalReaction};
 
 use super::*;
@@ -105,7 +107,7 @@ fn actual_player_roll_centre_does_not_depend_on_the_control_device() {
 }
 
 #[test]
-fn changing_goal_selects_a_profile_and_an_invalid_override_suppresses_it() {
+fn changing_goal_selects_a_profile_and_an_invalid_override_uses_the_default() {
     let mut ai = sim();
     ai.configure_ai();
     install(&mut ai);
@@ -115,7 +117,13 @@ fn changing_goal_selects_a_profile_and_an_invalid_override_suppresses_it() {
     ai.collision_goal = Some(1);
     assert!(ai.object_hit(Vec3::Z, Vec3::Z, false, true).centre.is_some());
     ai.collision_goal = Some(2);
-    assert!(ai.object_hit(Vec3::Z, Vec3::Z, false, true).centre.is_none());
+    let fallback = ai.object_hit(Vec3::Z, Vec3::Z, false, true);
+    ai.collision_goal = None;
+    let default = ai.object_hit(Vec3::Z, Vec3::Z, false, true);
+    assert_eq!(fallback.mass_scale, default.mass_scale);
+    assert_eq!(fallback.inertia_scale, default.inertia_scale);
+    assert_eq!(fallback.centre, default.centre);
+    assert_eq!(fallback.restitution, default.restitution);
 }
 
 #[test]

@@ -20,6 +20,9 @@ const CRASH_VIEW: f32 = 80.0;
 /// 5 mph in metres per second: a vehicle at this speed or faster starts a crash again when the car is already over.
 const CRASH_MIN_SPEED: f32 = 2.235_15;
 
+#[cfg(test)]
+mod installed_tests;
+
 /// Whether a hit starts a crash (`ai-traffic-obstacles.md` section 5.1): the party that hit the car is a human, a cop
 /// or a racer (classes 0, 2 and 3), not traffic, and the hit is within the view distance.
 pub(super) fn starts_crash(striker: DriverClass, from_camera: f32) -> bool {
@@ -186,8 +189,15 @@ impl AiCar {
             damage.since_player = 0.0;
         }
         let before = damage.wreck.damage();
+        let was_destroyed = damage.wreck.is_destroyed();
         if damage.wreck.impact(&damage.tuning, hit.force, hit.closing_speed, scale, from_camera) {
             damage.pending = true;
+        }
+        if !was_destroyed
+            && damage.wreck.is_destroyed()
+            && let Some(events) = self.sim.events.as_mut()
+        {
+            events.note_health_destroyed();
         }
         if damage.wreck.damage() != before {
             log::info!(

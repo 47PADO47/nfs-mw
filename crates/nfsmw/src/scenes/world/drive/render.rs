@@ -20,9 +20,14 @@ impl Drive {
                 DrawOptions {
                     damage: sim.events.as_ref().map(|e| e.source_levels()),
                     car: crate::scenes::world::keys::PLAYER_CAR,
-                    lamps: [self.headlights, self.brake_lamp > 0.0],
+                    lamps: [
+                        self.headlights,
+                        LampState { brake: self.brake_lamp, broken: sim.lamp_damage(), ..Default::default() }
+                            .brake_surfaces_on(),
+                    ],
                     detail,
-                    glass: 0,
+                    glass: self.cracked.mask(),
+                    broken_lights: sim.lamp_damage(),
                 },
                 out,
             );

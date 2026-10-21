@@ -155,7 +155,7 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
         scene.original_player_step = None;
         scene.seed_original_camera();
         scene.original_camera.reset();
-        scene.update_original_camera(super::super::drive::STEP, 0.0, Default::default(), false);
+        scene.update_original_camera(super::super::drive::STEP, 0.0, Default::default(), false, 1.0);
         let drive = scene.drive.as_ref().unwrap();
         let chase = drive.physics_camera();
         let expected = match original::index_of(mode) {

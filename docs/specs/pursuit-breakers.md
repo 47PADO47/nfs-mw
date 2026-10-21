@@ -33,8 +33,16 @@ its sequence and removes its children. Streaming out releases tile-owned art
 and children together. Vehicle fragments retain their separate 121-piece limit;
 scenery models use the PC model capacity of 2297.
 
-`EHideObject` hides drawing; `EKillObject` releases the current model/simulation;
-`EWakeObject` wakes it. `EHidePart` changes the named node's visibility. Respect
+Streaming out does not immediately regenerate a destroyed structure. The PC
+section cache preserves hidden spawner overrides across reloads for 180 simulated
+seconds, with strict expiry and an actively-racing gate. A preserved hidden
+placement has no running collapse or fragments after reload. Section restoration
+also restores that section's breaker icons. This is distinct from resident model
+cleanup and authored sequence kills; see [prop lifetime](prop-lifetime.md).
+
+`EHideObject` ends drawing and the attached physical simulation while retaining
+the logical model, sequence and children; `EKillObject` releases the current model/simulation;
+`EWakeObject` wakes it. `EHidePart` changes only the named node's visibility. Respect
 the distinction between model visibility and collision. Full rigid-body motion
 for events requesting simple physics is a documented adapter until that original
 solver is measured. No-physics fragments have no collision or integration.

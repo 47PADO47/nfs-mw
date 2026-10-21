@@ -18,6 +18,9 @@ mod damage_tests;
 #[cfg(test)]
 mod detail_tests;
 mod glass;
+pub use glass::SurfaceDamage;
+#[cfg(test)]
+mod surface_tests;
 mod upload;
 use crate::settings::CarShading;
 use upload::{upload_parts, upload_solids};
@@ -91,15 +94,14 @@ pub struct CarRig {
     flares: super::super::car_light_flares::CarLightFlares,
     /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
     scale: f32,
-    /// The impact zones whose glass is cracked (their windows show the cracked texture).
-    cracked_zones: Vec<usize>,
-    glass: RefCell<std::collections::BTreeMap<u16, glass::GlassVariant>>,
+    glass: RefCell<std::collections::BTreeMap<SurfaceDamage, glass::GlassVariant>>,
 }
 
 impl CarRig {
     /// Reuse the loaded geometry while a color picker is dragged.
     pub fn recolor(&mut self, renderer: &mut dyn RenderBackend, rgb: [u8; 3], sun: Vec3) -> anyhow::Result<()> {
         self.model.set_body_color(rgb)?;
+        self.clear_glass(renderer);
         let shading = self.appearance.get_mut().shading;
         let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), shading, sun);
         std::mem::replace(self.appearance.get_mut(), Appearance { parts, meshes, materials, shading })
@@ -126,7 +128,6 @@ impl CarRig {
             lights,
             flares,
             scale: 1.0,
-            cracked_zones: Vec::new(),
             glass: RefCell::default(),
         }
     }
@@ -164,47 +165,8 @@ impl CarRig {
         self.scale = scale;
     }
 
-    /// The texture swaps of the car with the cracked windows applied: the body's window placeholders of those
-    /// zones, and the diffuse textures of their window solids.
     fn swaps(&self) -> TextureSwaps {
-        self.swaps_for(self.cracked_zones.iter().copied())
-    }
-
-    /// Show the cracked-glass texture on the windows of these zones (see `zone_windows`). Only the solids that
-    /// draw a window whose texture changed are uploaded again; the textures are all uploaded with the car.
-    pub fn set_cracked_zones(&mut self, renderer: &mut dyn RenderBackend, zones: Vec<usize>, to_sun: Vec3) {
-        if zones == self.cracked_zones {
-            return;
-        }
-        let before = self.swaps();
-        self.cracked_zones = zones;
-        let after = self.swaps();
-        let affected = affected_solids(&self.model, &changed_textures(&before, &after));
-        let shading = self.appearance.get_mut().shading;
-        set_lighting(renderer, shading, to_sun);
-        self.reupload_solids(renderer, &affected, &after);
-    }
-
-    /// Upload the solids in `affected` again with `swaps`: their parts and meshes are replaced, the rest of the
-    /// car is kept as it is.
-    fn reupload_solids(&mut self, renderer: &mut dyn RenderBackend, affected: &HashSet<u32>, swaps: &TextureSwaps) {
-        if affected.is_empty() {
-            return;
-        }
-        let model = &self.model;
-        let appearance = self.appearance.get_mut();
-        appearance.parts.retain(|p| !affected.contains(&p.placement.solid));
-        appearance.meshes.retain(|&(solid, mesh)| {
-            if !affected.contains(&solid) {
-                return true;
-            }
-            renderer.destroy_mesh(mesh);
-            false
-        });
-        let (parts, meshes) = upload_solids(renderer, model, swaps, &appearance.materials, Some(affected));
-        appearance.parts.extend(parts);
-        appearance.meshes.extend(meshes);
-        appearance.parts.sort_by_key(|p| p.mesh);
+        self.model.swaps.clone()
     }
 
     /// The lamps of the car, as glows.
@@ -283,7 +245,7 @@ impl CarRig {
         draw: super::DrawOptions<'_>,
         out: &mut Vec<Instance>,
     ) {
-        let super::DrawOptions { car, lamps, detail, glass, damage } = draw;
+        let super::DrawOptions { car, lamps, detail, glass, broken_lights, damage } = draw;
         let damage_slots = damage
             .filter(|_| self.model.driving_lods.damage.enabled)
             .map_or(0, nfsmw_data::car::damage_parts::damaged_slots);
@@ -301,7 +263,7 @@ impl CarRig {
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
         let variants = self.glass.borrow();
-        let variant = variants.get(&glass);
+        let variant = variants.get(&SurfaceDamage::new(glass, broken_lights));
         for base in &self.appearance.borrow().parts {
             let part = variant.and_then(|v| v.parts.get(&(base.key, base.lod, base.damaged))).unwrap_or(base);
             if part.lod != lod {
@@ -329,14 +291,17 @@ impl CarRig {
         }
     }
 
-    pub fn fragment_instances(&self, slot: usize) -> Vec<Instance> {
+    pub fn fragment_instances(&self, slot: usize, damage: Option<&[u8; 10]>) -> Vec<Instance> {
+        let damaged = self.model.driving_lods.damage.enabled
+            && slot <= 22
+            && damage.is_some_and(|levels| nfsmw_data::car::damage_parts::damaged_slots(levels) & (1 << slot) != 0);
         self.appearance
             .borrow()
             .parts
             .iter()
             .filter_map(|part| {
                 let placement = &part.placement;
-                (part.lod == 0 && !part.damaged && placement.slot == slot).then_some(Instance::keyed(
+                (part.lod == 0 && part.damaged == damaged && placement.slot == slot).then_some(Instance::keyed(
                     part.mesh,
                     placement.transform,
                     keys::car_part(self.car, part.key),

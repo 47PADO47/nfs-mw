@@ -107,10 +107,11 @@ impl AiCar {
             &revealed,
             crate::scenes::world::drive::DrawOptions {
                 car: self.render_id,
+                lamps: [true, self.lamp_state().brake_surfaces_on()],
                 detail,
                 glass: self.glass_mask(),
+                broken_lights: self.lamp_state().broken,
                 damage: self.sim.events.as_ref().map(|e| e.source_levels()),
-                ..Default::default()
             },
             out,
         );

@@ -6,6 +6,11 @@ use glam::Vec3;
 use super::CarSim;
 
 impl CarSim {
+    #[cfg(test)]
+    pub fn physics_wheel_states(&self) -> [blackbox_vehicle::vehicle::WheelState; 4] {
+        std::array::from_fn(|index| self.vehicle.wheel(index))
+    }
+
     /// Original named joint node in this body's local frame.
     pub fn joint_anchor(&self, name: u32, male: bool) -> Option<Vec3> {
         self.geometry.as_ref()?.joint(name, male)
@@ -24,8 +29,18 @@ impl CarSim {
         self.configure_ai();
         // Trailers use their separate suspension behavior in the original.
         self.vehicle.set_simple_chassis(None);
+        let config = nfsmw_data::car::physics::trailer_chassis_config(self.vehicle.spec());
+        self.vehicle.set_rolling_chassis(Some(config));
         self.vehicle.config.auto_brake = false;
         self.vehicle.config.auto_reverse = false;
+    }
+
+    pub fn set_trailer_hitched(&mut self, hitched: bool) {
+        let cog = match hitched {
+            true => nfsmw_data::car::physics::trailer_cog(self.vehicle.spec()),
+            false => Vec3::ZERO,
+        };
+        self.vehicle.set_rolling_cog(cog);
     }
 
     /// The rigid body, for a joint.

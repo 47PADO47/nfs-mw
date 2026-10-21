@@ -26,6 +26,13 @@ the inputs, dispatch order and consumers of vehicle and prop contacts.
 - Cache police models by requested vehicle identity when they inherit geometry.
   Discard duplicate/orphaned results before GPU upload, preventing repeated Cross
   loading during high-heat pursuits.
+- Execute authored named lamp-damage actions, including installed cop light-bar
+  detachment triggers, and send damaged emergency lamps to the siren service.
+  Keep these flags independent of cosmetic panels and police health.
+- Retain the initial impact-sound azimuth while ongoing scrapes follow the view;
+  apply the original weak smokable-wall gate only when creating a scrape voice.
+- Restore successful-reset object-collision grace and its contact-sensitive
+  countdown, preserving ground support and world/barrier responses.
 
 Contracts and provenance are indexed in [specs](specs/README.md) and
 [provenance](provenance/README.md). Start with [native impacts](specs/native-impact-parity.md),

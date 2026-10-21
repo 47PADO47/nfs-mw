@@ -56,6 +56,13 @@ Subsequent noise/clearance use that posed sample, and presentation interpolates
 the resulting native camera keys. Custom views already carry their own shake
 and must not receive a second native pulse. A teleport resets the pulse.
 
+The host's physics-to-camera time mapping must include the same frame-frozen
+game-speed and pursuit-moment scale that advanced the physics clock. Preserve
+the integrated Speedbreaker ramp within the frame. A moment may start or end
+during physics ticks; reading its new scale after those ticks must not move the
+camera's input cursor ahead of the physics interval or consume later contacts.
+This is a host integration invariant, not a new original-game shake parameter.
+
 Read-only PC call-site inspection: camera action `0x472740`, anchor update
 `0x468FA0`, inside mover `0x476690`, outside mover `0x47D3C0`. These call sites
 establish the native producer and application order; they are static evidence,

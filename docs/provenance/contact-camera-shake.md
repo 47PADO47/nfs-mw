@@ -37,3 +37,20 @@ now feed that native admission path, in order after the body request. Synthetic
 checks cover radius boundaries, zero distance, real elapsed seconds and
 same-tick admission order. This does not establish live explosion timing or
 complete cinematic effect parity.
+
+## Wall-contact and pursuit-moment clock audit
+
+The 2026-10-21 source audit found that native acceleration and custom contact
+shake already read the completed player wall response. A regression now drives
+the actual player integrator into a synthetic resident collision barrier and
+checks native Bumper/Hood/Close/Far admission and custom presentation, rather
+than injecting a shake request. Low-load thresholds remain unchanged. This does
+not resolve an unrecorded report of a particular wall impact feeling too quiet.
+
+The audit also found a host-time mismatch: physics included the pursuit moment's
+speed multiplier, but the camera's within-frame sampling cursor omitted it.
+The camera now receives the frame-frozen multiplier used for those physics ticks,
+including any game-speed override, and retains the integrated Speedbreaker ramp.
+This prevents consuming later contact timestamps during a slow pursuit moment.
+The clock correction follows the written host invariant; no additional original
+binary behavior or universal camera-shake amplification is inferred from it.

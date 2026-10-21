@@ -55,9 +55,10 @@ impl WorldScene {
         self.seed_original_camera();
         let camera_ramp = self.speedbreaker_clock;
         let active = loaded && self.drive.as_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+        let simulation_scale = self.tuning.game_speed * self.moment.sim_speed();
         let sim_dt = match loaded {
             false => 0.0,
-            true => self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed * self.moment.sim_speed(),
+            true => self.speedbreaker_clock.advance(active, real_dt) * simulation_scale,
         };
         if loaded && let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.finish_time(input, sim_dt, real_dt);
@@ -137,7 +138,7 @@ impl WorldScene {
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
         if loaded {
-            self.update_original_camera(real_dt, sim_dt, camera_ramp, active);
+            self.update_original_camera(real_dt, sim_dt, camera_ramp, active, simulation_scale);
         }
         let speedbreaker_active = driving && self.drive.as_ref().is_some_and(|drive| drive.speedbreaker_active());
         if speedbreaker_active != self.sound_speedbreaker_active {
@@ -171,6 +172,7 @@ impl WorldScene {
             _ => None,
         };
         let player_advanced = player_step.is_some();
+        let mut world_sounds = Vec::new();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
@@ -178,6 +180,8 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
+            // Recycle may remove a car or loose trailer; keep its final completed callback first.
+            world_sounds.extend(traffic.take_collision_sounds());
             traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
@@ -195,9 +199,9 @@ impl WorldScene {
         }
         self.impact_fx.set_enabled(self.vehicle_effects[0]);
         self.impact_fx.step(self.physics.database(), visual_contacts, event_view, STEP);
-        let prop_sounds = props.take_sound_contacts();
-        if player_advanced && let Some(drive) = self.drive.as_mut() {
-            drive.append_world_sound_contacts(prop_sounds);
+        world_sounds.extend(props.take_sound_contacts());
+        if let Some(drive) = self.drive.as_mut() {
+            drive.append_world_sound_contacts(world_sounds, player_advanced);
         }
         let stops = props.update_scenery(&self.physics);
         let moments = props.take_moments();
@@ -220,8 +224,8 @@ impl WorldScene {
         let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces: &self.physics.surfaces }, view, STEP);
         self.play_moments(moments);
-        self.breaker_icons.fired(&fired);
         let (_, props) = self.residency.world_parts();
-        self.breaker_icons.step(STEP, props, &self.physics);
+        let restored = props.take_restored_sections();
+        self.breaker_icons.step(STEP, props, &self.physics, &fired, &restored);
     }
 }

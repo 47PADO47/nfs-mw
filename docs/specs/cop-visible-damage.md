@@ -31,7 +31,11 @@ is absent. This can remove damaged body parts at distant E detail.
 
 The appearance uses the original per-zone damage levels, not the rewrite's
 paint/panel/glass counters. Any positive zone level selects damaged part level
-1; levels only rise until repair. The slot membership is:
+1; levels only rise until repair. Later contacts, sequencer time, lower-detail
+round trips and shared material rebuilding must preserve the actor's selected
+damage state. An unavailable authored LOD can omit a part; returning to the
+same LOD must return its damaged replacement. Fragment expiry must not clear
+the owning actor's hidden-slot selection. The slot membership is:
 
 | Zones | Slots damaged |
 |---|---|
@@ -77,3 +81,18 @@ work. Exact emitter visibility culling and all engine-blown player paths need
 their own validation. Synthetic and installed integration tests can establish
 mesh/emitter selection and renderer delivery, but do not establish visual
 equivalence to an original-game playthrough.
+
+## Delayed panel detachment
+
+The installed `CopCar` front-zone `DAMAGE_1` response triggers the hood's
+separate action. Its 20-second action emits the hood fragment on the `end`
+tag, then hides the parent slot after successful spawning. A destroyed actor
+can still complete that already-running action; this is detachment, not repair.
+
+The native fragment connector finds the parent's current slot model, including
+its damaged replacement. The fragment must not substitute pristine geometry
+for a bent hood. Hidden-slot and duplicate-spawn gates still apply; successful
+cleanup of the detached body must not reveal the parent slot again. The
+remake's fragment path currently selects the correct actor damage variant at
+the canonical A detail. Original current-LOD and animated-pivot inheritance
+remain explicit gaps; a shared rig cannot hold one current LOD for all actors.

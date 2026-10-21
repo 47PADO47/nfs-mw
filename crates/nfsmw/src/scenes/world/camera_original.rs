@@ -6,6 +6,8 @@ use super::{View, WorldScene, drive::SpeedbreakerClock, space};
 use crate::viewer::camera::original::{self, CameraHit, Frame, PhysicsFrame};
 
 #[cfg(test)]
+mod contact_tests;
+#[cfg(test)]
 mod tests;
 
 fn wall_hit(collision: &blackbox_collision::CollisionWorld, from: glam::Vec3, to: glam::Vec3) -> Option<CameraHit> {
@@ -135,7 +137,14 @@ impl WorldScene {
         self.original_camera.physics_step(input);
     }
 
-    pub(super) fn update_original_camera(&mut self, real_dt: f32, sim_dt: f32, ramp: SpeedbreakerClock, active: bool) {
+    pub(super) fn update_original_camera(
+        &mut self,
+        real_dt: f32,
+        sim_dt: f32,
+        ramp: SpeedbreakerClock,
+        active: bool,
+        simulation_scale: f32,
+    ) {
         let view = original::index_of(self.camera_mode)
             .filter(|_| self.view == View::Chase)
             .and_then(|mode| self.camera_environment.views.as_ref().map(|views| (mode, &views.views[mode])));
@@ -149,14 +158,10 @@ impl WorldScene {
             speedbreaker: active,
             look_back: self.drive.as_ref().is_some_and(|drive| drive.camera_looking_back(self.camera_mode)),
         };
-        let speed = self.tuning.game_speed;
         let collision = self.residency.collision();
         self.original_camera.advance(
             frame,
-            |offset| {
-                let mut clock = ramp;
-                clock.advance(active, offset) * speed
-            },
+            |offset| simulation_offset(ramp, active, offset, simulation_scale),
             |from, to| wall_hit(collision, from, to),
             |query, center, radius| {
                 self.camera_ground.point_height(
@@ -171,4 +176,9 @@ impl WorldScene {
             },
         );
     }
+}
+
+/// Match the exact scale used before physics ticks, even if a moment changes during those ticks.
+fn simulation_offset(mut ramp: SpeedbreakerClock, active: bool, offset: f32, scale: f32) -> f32 {
+    ramp.advance(active, offset) * scale
 }

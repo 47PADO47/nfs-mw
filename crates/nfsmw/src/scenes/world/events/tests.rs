@@ -4,6 +4,8 @@ use blackbox_sequence::{Action, Engine, Event, Package, Response, State, System}
 use nfsmw_data::world::sequences::Sequence;
 
 use super::*;
+mod damage_pipeline;
+mod lights;
 
 fn event(id: u32) -> Event {
     Event { id, data: id.to_le_bytes().to_vec() }
@@ -65,6 +67,17 @@ fn hit() -> DamageHit {
         before_velocity: Vec3::X * 20.0,
         other: OtherBody::default(),
     }
+}
+
+#[test]
+fn destruction_and_repair_change_light_damage_without_guessing_from_cosmetic_zones() {
+    let mut events = engine();
+    events.damage.impact(0, 6, true);
+    assert_eq!(events.broken_lights(), 0, "panel and glass damage have their own state");
+    events.destroy();
+    assert_eq!(events.broken_lights(), u32::MAX);
+    events.repair_lights();
+    assert_eq!(events.broken_lights(), 0);
 }
 
 #[test]

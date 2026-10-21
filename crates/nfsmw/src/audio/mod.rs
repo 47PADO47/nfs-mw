@@ -51,6 +51,8 @@ mod trace;
 pub mod traffic;
 mod tuning;
 mod volume;
+mod world_effects;
+pub use world_effects::WorldEffectAudio;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -64,7 +66,8 @@ use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
 
 pub use car::{
-    CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, RoadContext, RoadTerrain,
+    CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, ContactVehicle, RoadContext,
+    RoadTerrain,
 };
 pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::{MusicInput, PursuitFeed};
@@ -123,6 +126,8 @@ pub struct Audio {
     sound_channels: HashMap<(String, usize), u16>,
     impact_counter: u32,
     prop_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
+    vehicle_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
+    world_effects: world_effects::Slot,
     /// The engine the `engine` console command plays, with the car it belongs to.
     pub test_engine: Option<(EngineHandle, CarSound)>,
     /// The engine of the car being driven.
@@ -167,6 +172,22 @@ impl CarEngine {
 }
 
 impl Audio {
+    fn contact_sound(
+        &mut self,
+        prop: u32,
+        vehicle: Option<ContactVehicle>,
+    ) -> Option<Arc<nfsmw_data::sound::CollisionSounds>> {
+        let Some(vehicle) = vehicle else {
+            return (prop != 0).then(|| self.prop_sound(prop)).flatten();
+        };
+        if let Some(sound) = self.vehicle_sounds.get(&vehicle.profile) {
+            return Some(sound.clone());
+        }
+        let database = self.database().ok()?;
+        let sound = Arc::new(nfsmw_data::sound::CollisionSounds::vehicle(&database, vehicle.profile));
+        self.vehicle_sounds.insert(vehicle.profile, sound.clone());
+        Some(sound)
+    }
     fn prop_sound(&mut self, profile: u32) -> Option<Arc<nfsmw_data::sound::CollisionSounds>> {
         if let Some(sound) = self.prop_sounds.get(&profile) {
             return Some(sound.clone());
@@ -207,6 +228,8 @@ impl Audio {
             sound_channels: HashMap::new(),
             impact_counter: 0,
             prop_sounds: HashMap::new(),
+            vehicle_sounds: HashMap::new(),
+            world_effects: world_effects::Slot::default(),
             test_engine: None,
             car: None,
             stitches: None,

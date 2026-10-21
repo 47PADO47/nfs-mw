@@ -79,6 +79,7 @@ pub(super) fn step(
                 }
                 sounds.push(CarContact {
                     sound_profile: spec.sound_profile,
+                    vehicle: None,
                     audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
                         prop.rigid.rotation().transpose() * hit.normal,
                     )),

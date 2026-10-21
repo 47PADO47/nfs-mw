@@ -14,11 +14,12 @@ pub struct DrawOptions<'a> {
     pub lamps: [bool; 2],
     pub detail: Option<&'a DetailView>,
     pub glass: u16,
+    pub broken_lights: u32,
     pub damage: Option<&'a [u8; 10]>,
 }
 impl Default for DrawOptions<'_> {
     fn default() -> Self {
-        Self { car: 0, lamps: [true, false], detail: None, glass: 0, damage: None }
+        Self { car: 0, lamps: [true, false], detail: None, glass: 0, broken_lights: 0, damage: None }
     }
 }
 

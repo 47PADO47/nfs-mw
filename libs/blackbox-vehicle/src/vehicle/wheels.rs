@@ -83,32 +83,43 @@ impl Vehicle {
                 let n = c.normal;
                 let f = dirs[i];
                 let flat = (f.cross(n)).cross(f);
-                let load = (4.0 * flat.dot(n) - 3.0).max(0.3) * f_spring;
+                let upness = match self.rolling_chassis.is_some_and(|config| config.load_from_up) {
+                    true => n.dot(up),
+                    false => flat.dot(n),
+                };
+                let load = (4.0 * upness - 3.0).max(0.3) * f_spring;
                 let lat_dir = {
                     let l = n.cross(f);
                     if l.length_squared() > 1e-8 { l.normalize() } else { rot.x_axis }
                 };
                 let fwd_speed = point_vel.dot(f);
                 let lat_speed = point_vel.dot(lat_dir);
-                let fy = self.tires[i].update_loaded(
-                    &self.params[i],
-                    &LoadedInput {
-                        lat_vel: lat_speed,
-                        fwd_vel: fwd_speed,
-                        body_speed,
-                        load,
-                        dt,
-                        quarter_mass: 0.25 * mass,
-                        surface: c.surface,
+                let input = LoadedInput {
+                    lat_vel: lat_speed,
+                    fwd_vel: fwd_speed,
+                    body_speed,
+                    load,
+                    dt,
+                    quarter_mass: 0.25 * mass,
+                    surface: c.surface,
+                };
+                let fy = match self.rolling_chassis {
+                    Some(config) => self.tires[i].update_rolling(&self.params[i], &input, config.tires),
+                    None => match self.coasting_tires {
+                        Some(response) => self.tires[i].update_coasting(&self.params[i], &input, response),
+                        None => self.tires[i].update_loaded(&self.params[i], &input),
                     },
-                );
+                };
                 let fy_limit = (lat_speed / dt).abs() * 0.25 * mass;
                 let lateral = lat_dir * fy.clamp(-fy_limit, fy_limit);
                 let drive_dir = lat_dir.cross(n);
                 let drive_dir = if drive_dir.length_squared() > 1e-8 { drive_dir.normalize() } else { rot.z_axis };
                 force = lateral + drive_dir * self.tires[i].longitudinal_force + up * f_spring;
             } else {
-                self.tires[i].update_free(&self.params[i], dt);
+                match self.rolling_chassis {
+                    Some(_) => self.tires[i].update_rolling_free(),
+                    None => self.tires[i].update_free(&self.params[i], dt),
+                }
             }
 
             // The force acts at the contact patch: the arm lowered by the unused ride height.
@@ -118,7 +129,11 @@ impl Vehicle {
             self.patch_positions[i] = patch;
             if force.is_finite() {
                 out.force += force;
-                out.torque += (patch - cog_point).cross(force);
+                let mut arm = patch - cog_point;
+                if let Some(config) = self.rolling_chassis {
+                    arm.y *= config.force_arm_height;
+                }
+                out.torque += arm.cross(force);
             }
         }
         self.wheels_on_ground = self.loaded.iter().filter(|l| **l).count();

@@ -13,6 +13,7 @@ mod phases;
 mod placed;
 pub(super) mod scenery;
 mod sounds;
+mod streaming;
 #[cfg(test)]
 mod tests;
 mod world_contacts;
@@ -109,6 +110,7 @@ pub struct PropWorld {
     knocked: FastMap<u32, f32>,
     grid: FastMap<Cell, Vec<u32>>,
     tiles: HashMap<usize, Vec<u32>>,
+    streaming: streaming::Streaming,
     next_id: u32,
     alpha: f32,
     fragments: std::collections::BTreeMap<u32, fragments::FragmentVisual>,
@@ -138,6 +140,7 @@ fn cells(bounds: &Aabb) -> impl Iterator<Item = Cell> {
 impl PropWorld {
     pub fn add_tile(&mut self, tile: usize, placed: &mut [Placed]) {
         self.remove_tile(tile);
+        let hidden = self.streaming.reload(tile);
         let mut ids = Vec::new();
         for p in placed {
             let Some(shape) = p.prop.clone() else { continue };
@@ -172,6 +175,9 @@ impl PropWorld {
                     effect_lifetime: std::rc::Rc::new(()),
                 },
             );
+            if let Some(&fired) = hidden.get(&id) {
+                self.restore_streamed_hidden(id, fired);
+            }
             self.regrid(id);
             ids.push(id);
         }
@@ -180,6 +186,7 @@ impl PropWorld {
 
     pub fn remove_tile(&mut self, tile: usize) {
         let Some(ids) = self.tiles.remove(&tile) else { return };
+        self.remember_streamed(tile, &ids);
         for id in ids {
             self.scenery.models.remove(&id);
             let Some(c) = self.colliders.remove(&id) else { continue };
@@ -320,11 +327,23 @@ impl PropWorld {
     }
 
     /// A vehicle transfers impulses to resident bodies, including previously fallen ones.
+    #[cfg(test)]
     pub fn collide_vehicle(
         &mut self,
         vehicle: &mut Vehicle,
         geometry: Option<BodyGeometryFrame<'_>>,
         impact: &mut Impact,
+    ) {
+        self.collide_vehicle_admitted(vehicle, geometry, impact, || true);
+    }
+
+    /// Object penetration admission runs only after finding an actual primitive contact.
+    pub fn collide_vehicle_admitted(
+        &mut self,
+        vehicle: &mut Vehicle,
+        geometry: Option<BodyGeometryFrame<'_>>,
+        impact: &mut Impact,
+        mut admit: impl FnMut() -> bool,
     ) {
         let centre = space::to_render(vehicle.position().to_array());
         let radius = geometry.map_or(vehicle.body().radius(), |g| {
@@ -346,6 +365,10 @@ impl PropWorld {
                     let first = contact::shape(vehicle.body(), geometry, i).unwrap();
                     let second = contact::shape(&p.rigid, Some(p.geometry_frame()), j).unwrap();
                     let Some(hit) = first.contact(&second) else { continue };
+                    if !admit() {
+                        continue;
+                    }
+                    vehicle.mark_object_contact();
                     let _surface = second.surface;
                     let velocity = vehicle.body().point_velocity(hit.point);
                     let was_attached = p.attached;
@@ -370,6 +393,7 @@ impl PropWorld {
                     let rot = vehicle.body().rotation();
                     let sound = CarContact {
                         sound_profile: 0,
+                        vehicle: None,
                         audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
                             rot.transpose() * hit.normal,
                         )),
@@ -428,8 +452,9 @@ impl PropWorld {
                     let delta_v = response.notification_delta_v[0];
                     impact.sounds.push(CarContact { delta_v, ..sound });
                     if spec.sound_profile != 0 {
-                        impact.sounds.push(CarContact {
+                        self.sound_contacts.push(CarContact {
                             sound_profile: spec.sound_profile,
+                            vehicle: None,
                             audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
                                 p.rigid.rotation().transpose() * -hit.normal,
                             )),
@@ -449,7 +474,7 @@ impl PropWorld {
                     impact.impulse = impact.impulse.max(delta_v * vehicle.body().mass());
                     impact.contacts.push(ContactPoint { point: hit.point, normal: hit.normal, kind });
                     if response.impulse_delta_v[0] > 0.0 {
-                        vehicle.notify_collision(response.impulse_delta_v[0]);
+                        vehicle.notify_object_collision(response.impulse_delta_v[0]);
                     }
                     self.contact_event(id, was_attached, closing);
                 }

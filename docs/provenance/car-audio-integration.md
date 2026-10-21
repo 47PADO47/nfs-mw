@@ -5,6 +5,13 @@ the existing engine/controller specifications and installed data readers.
 References: CC0 https://github.com/dbalatoni13/nfsmw and original PC 1.3 static
 collision-controller comparisons, researched 2026-10-14. No code or assets copied.
 
+- **2026-10-21 collision lifetime:** matched PC collision-event constructor and
+  collision sound object's process update corroborate the CC0 SoundCollision.cpp
+  and SFXObj_Collision.cpp behavior: the combined SMOKABLE/WALL description has
+  a creation-only quantized intensity gate, and impact event azimuth is captured
+  once while scrape azimuth remains live. The changes preserve authored levels
+  and do not establish perceptual loudness parity or owner-transform tracking.
+
 - **Implemented:** 2026-10-14, from the behavioral specification and existing readers.
 - **Automated coverage:** collision ancestry and response ramps; collision mixer
   precedence; contact coalescing; planar listener coordinates; filter open/closed,
@@ -49,3 +56,27 @@ collision-controller comparisons, researched 2026-10-14. No code or assets copie
   Speedbreaker audio treatment and component-specific upgrade crossfades remain
   incomplete. Continuous module parameters are batched on the game thread. See the
   specification for lifetime envelopes and backend filter approximations.
+
+- **Endpoint delivery correction:** host inspection found car/prop callbacks
+  stored both owners in the vehicle's returned impact, which AI/trailer stepping
+  discarded. Prop-owned contact records now enter the world queue at the shared
+  collision response, independent of the driver. A synthetic production collision
+  regression checks endpoint ownership, detachment, material and single drain;
+  this fixes delivery, without introducing new sound selection or loudness values.
+
+- **Vehicle endpoint continuation:** source inspection found AI/trailer callers
+  discarded vehicle impact records and pair audio was gated to the player.
+  The CC0 collision event reader accepts owner objects independently of the
+  primary camera target; target participation adds a description flag, rather
+  than enabling callback existence. Existing PC-verified effects listeners and
+  per-pvehicle linkage readers establish owner-specific selection. Traffic,
+  police and trailer contacts now retain their own profile and unique body ID
+  through fixed-tick audio delivery. Selection/output regressions are separate
+  from a live original-game loudness or voice-priority comparison.
+- **Heavy endpoint intensity:** the existing PC-verified object dispatcher
+  specification distinguishes physical response from notification intensity.
+  The CC0 `Effects.cpp` object listener forwards the corresponding endpoint's
+  reported scalar to hit audio. Pair audio previously used zero physical
+  response for an immobile endpoint; it now retains the positive notification.
+  Synthetic and installed heavy-vehicle tests exercise that distinction without
+  changing mass or collision response.

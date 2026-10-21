@@ -86,6 +86,7 @@ mod tests {
     fn contact(source: ContactSource, velocity: Vec3) -> CarContact {
         CarContact {
             sound_profile: 0,
+            vehicle: None,
             audio_zone: None,
             detached: false,
             source,

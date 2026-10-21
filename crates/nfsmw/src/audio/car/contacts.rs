@@ -11,7 +11,8 @@ use nfsmw_data::car::physics::SurfaceTable;
 use nfsmw_data::sound::{CarSound, ImpactSound};
 use std::collections::HashMap;
 
-type Key = (ContactSource, u64, u32, bool, bool, u32, Option<nfsmw_data::sound::CollisionZone>);
+type Key =
+    (ContactSource, u64, u32, bool, bool, u32, Option<nfsmw_data::sound::CollisionZone>, Option<super::ContactVehicle>);
 const SCRAPE_BANK: &str = "IG_GLOBAL/FX_Misc_MB.abk";
 
 struct Scrape {
@@ -51,7 +52,11 @@ pub(super) fn coalesced(contacts: &[CarContact]) -> Vec<CarContact> {
 }
 
 fn key(c: CarContact) -> Key {
-    (c.source, c.identity, c.surface, c.bottom, c.front, c.sound_profile, c.audio_zone)
+    (c.source, c.identity, c.surface, c.bottom, c.front, c.sound_profile, c.audio_zone, c.vehicle)
+}
+
+fn admits_scrape(sound: &ImpactSound, magnitude: f32) -> bool {
+    !sound.has("SMOKABLE") || !sound.has("WALL") || (magnitude.clamp(0.0, 1.0) * 127.0) as i32 > 9
 }
 
 impl ContactPlayback {
@@ -80,11 +85,8 @@ impl ContactPlayback {
         let default = SurfaceTable::hash_of("default");
         let mut events = Vec::new();
         for contact in coalesced(contacts) {
-            let owned = match contact.sound_profile {
-                0 => None,
-                profile => audio.prop_sound(profile),
-            };
-            if contact.sound_profile != 0 && owned.is_none() {
+            let owned = audio.contact_sound(contact.sound_profile, contact.vehicle);
+            if (contact.sound_profile != 0 || contact.vehicle.is_some()) && owned.is_none() {
                 continue;
             }
             let rules = owned.as_deref().unwrap_or(&sound.collision);
@@ -118,6 +120,7 @@ impl ContactPlayback {
             {
                 events.push(CarEvent {
                     sound_profile: contact.sound_profile,
+                    vehicle: contact.vehicle,
                     audio_zone: contact.audio_zone,
                     kind,
                     surface: contact.surface,
@@ -161,6 +164,9 @@ impl ContactPlayback {
                 continue;
             }
             if self.failed {
+                continue;
+            }
+            if !admits_scrape(selected, magnitude) {
                 continue;
             }
             let module =
@@ -228,3 +234,6 @@ impl ContactPlayback {
         });
     }
 }
+
+#[cfg(test)]
+mod tests;

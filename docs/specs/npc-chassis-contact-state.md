@@ -36,8 +36,10 @@ landing damping behavior.
 
 The game selects these coefficients when configuring an AI car. The generic
 vehicle library receives optional caller-supplied coefficients; absence retains
-its existing chassis behavior. Police, patrol and ordinary traffic physical cars
-share this NPC selection independently of their current pursuit goal.
+its existing chassis behavior. Police and patrol retain this selection
+independently of their current pursuit goal. Ordinary traffic and trailers use
+their separate [installed rolling mechanics](traffic-suspension-runtime.md).
+The host's remaining AI-racer chassis selection is a separate parity boundary.
 
 This does not implement the entire original simple suspension: tire slip and
 traction rules, per-wheel integration, catch-up aerodynamics, sleep behavior,

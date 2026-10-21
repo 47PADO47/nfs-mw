@@ -49,7 +49,7 @@ fn installed_cargo_release_preserves_uploaded_parts_and_world_pose() {
             let hidden = &sim.events.as_ref().unwrap().hidden_slots;
             let expected_parts: Vec<Instance> = hidden
                 .iter()
-                .flat_map(|&slot| rig.fragment_instances(slot))
+                .flat_map(|&slot| rig.fragment_instances(slot, None))
                 .map(|i| Instance::new(i.mesh, parent.transform() * i.transform))
                 .collect();
             let mut detached = Vec::new();

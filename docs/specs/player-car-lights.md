@@ -19,8 +19,36 @@ head/brake markers.
 
 Head intensity is one while enabled. Outer tail intensity is 0.5 at rest and
 one while braking; the centre brake lamp is dark at rest. Reverse lamps light
-only in reverse. Damage can independently suppress original lamp flags; until
-the remake supplies those flags, lamp breakage remains unimplemented.
+only in reverse. Damage independently suppresses original lamp flags after
+the on-state has been selected. Marker identities are left/right/centre head
+bits 1/2/4, left/right/centre brake bits 8/16/32, left/right reverse bits 64/128,
+and police red/blue/white bits 4096/8192/16384. Bright red/blue markers share
+their corresponding color's bit. A marker without a mapped VehicleFX bit
+does not acquire an invented damage classification.
+
+**[decomp]** The damage behavior reports every mapped lamp broken when the
+vehicle is explicitly destroyed; otherwise it reads a separate per-lamp damage
+mask. Destruction and repair must reach the renderer, including taillight trail
+copies, without inferring broken lamps from cosmetic panel/glass levels or an
+AI loss-of-control accident. The authored named-light producer and its
+collision path are specified in [vehicle lamp damage](vehicle-lamp-damage.md);
+do not add arbitrary zone-to-lamp thresholds outside those authored actions.
+
+## Native admission and occlusion boundary
+
+The ordinary native head-flare base is one for both traffic and other cars.
+The inspected suppression branch checks the cinematic `INIS` singleton, not
+an hour-of-day threshold; explicit light-on flags can override that base.
+The remake's custom day clock and its headlight hotkey remain extensions.
+Do not invent an original night switch from the sun phase or clock hour.
+
+The native point-admission helper tests six view-frustum planes. It is not a
+collision-world visibility ray or an asynchronous occlusion query. Normal
+flares then enter the ordinary textured polygon path; the rewrite's textured
+effects already depth test against scene geometry without writing depth.
+Keep authored Z bias and native clipping. A new CPU ray must not be described
+as original occlusion behavior without evidence of an original producer.
+Precise native render-state equivalence remains an optical validation item.
 
 ## Authored flare appearance
 
@@ -44,8 +72,8 @@ The PC view focal scale is half the current output width divided by the
 tangent of half the horizontal camera FOV. Equivalently, for the remake's
 vertical FOV, use half the current output height divided by its half-angle
 tangent. Do not substitute a fixed reference resolution. A zero-sized view
-produces no flare geometry. Exact original screen rotation, occlusion queries
-and reflection-view flares remain unverified.
+produces no flare geometry. Exact original screen rotation, native render-state
+equivalence and reflection-view flares remain unverified.
 
 ## Lamp surfaces
 
@@ -57,6 +85,11 @@ overwrites it with the front-window texture. Keep the available replacement
 when the authored glass texture is absent. Upload distinct variants once;
 state changes select existing meshes rather than upload geometry each frame.
 Missing variants retain the existing available texture, never a white fallback.
+The PC surface-state consumer keeps head replacements independent of broken
+head flags. Brake diffuse and glass replacements check each of bits 8/16/32
+independently. With the current shared brake mesh state, all three broken
+brake bits must select OFF even while the brake is held; partial-side surface
+selection remains open. Do not switch all head surfaces OFF on destruction.
 
 The PC textured headlight footprint is separate from lens flares and is gated
 by the caller's reflection flag. The normal player scene passes zero and must
@@ -67,6 +100,32 @@ below 0.707. The remake has no matching reflection-pass integration, so leave
 that footprint absent. Texture presence and the routine's existence do not
 establish its eligibility in normal gameplay. Exact auxiliary-pass depth,
 blend and surface behavior remain unverified.
+
+## Traffic and other AI vehicles
+
+**[decomp, PC checked]** Ordinary AI vehicles use the same directional marker
+flare renderer and installed head/reverse profiles. Installed car usage type 2
+selects `brakelight_traffic_inner` for brake markers; other usage types retain
+`brakelight_inner`. This is a model classification, not a police/pursuit role.
+Use the admitted [brake-lamp state](traffic-brake-lamps.md) for both flare
+intensity and cached brake surface selection. Steering does not change native
+head, brake or reverse flares.
+
+The world adapter must visit each independently posed trailer too. Use the
+trailer body's current brake input, which clears when its physics releases the
+coupling. Original reverse-light propagation through a tractor coupling remains
+unverified; do not infer it from tractor steering or motion direction.
+
+Keep existing authored cop-light particle emitters and emergency eligibility.
+Do not layer the placeholder fixed-period red/blue circles over those emitters.
+The optional amber steering indicators remain a clearly separate rewrite
+extension with their existing setting/timing. The normal scene must not add
+the former procedural traffic headlight wedges: native textured footprints
+belong to the auxiliary path described above. Named light-damage actions follow
+[vehicle lamp damage](vehicle-lamp-damage.md). General crash-triggered lamp
+failures, per-side damaged surface selection, hazard/indicator timing and exact
+optical equivalence remain separate parity gaps. Emergency modulation has its own
+evidence and installed-profile coverage.
 
 ## Unwanted HUD streaks
 

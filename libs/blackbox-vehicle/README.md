@@ -5,7 +5,7 @@ damper corners, a slip-based tire model, engine, clutch, automatic gearbox, diff
 forced induction, brakes, speed-sensitive steering with Ackermann geometry, aerodynamics, and driver-input
 shaping.
 
-- **Pure.** `f32` only, no I/O, no allocation in the step, no game-install access, no dependency on the
+- **Pure.** `f32` state, no I/O, no allocation in the step, no game-install access, no dependency on the
   collision library. The world is a `Ground` trait the caller implements. The same inputs always give the
   same state, bit for bit, on one machine.
 - **Plain parameters.** A `VehicleSpec` is a tree of plain structs in the units of the attribute data
@@ -61,6 +61,23 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | `ground` | the `Ground` trait, `GroundHit`, `SurfaceGrip`, and `FlatGround`, `SlopedGround`, `NoGround` |
 | `vehicle` | `Vehicle`, `VehicleSpec`, `Tunings`, `WheelState`; `VehicleSpec::example()` is a plausible rear-drive saloon for tests, not any game car |
 
+`RollingChassisConfig` optionally selects direct brake/axle controls, fixed steering,
+simple drag, a force-arm multiplier and an optional fixed centre of gravity.
+`RollingTireResponse` supplies linear or caller-configured curve grip independently
+of the racing slip solver. Its integer-turn angle lookup generates mathematical
+octant samples once with `f64`; normal simulation state and forces remain `f32`.
+Game-specific selection and coefficients belong to callers; see the
+[rolling chassis contract](../../docs/specs/traffic-suspension-runtime.md).
+
+`Vehicle::set_retirement_sleep_delay(Some(seconds))` optionally allows supported-body
+sleep after a caller-selected duration with more than half the wheels supported.
+The default is `None`. Call `finish_retirement_contacts` after external contacts;
+`mark_object_contact` records an admitted overlap without waking the body, while
+`notify_object_collision` also retains ordinary collision notification. The body's
+authored speed/angular/contact thresholds still decide sleep. Game-specific destroyed
+state and delay selection stay in the adapter; see the [contract](../../docs/specs/wreck-motion.md)
+and [provenance](../../docs/provenance/wreck-motion.md).
+
 Each file stays under 500 lines; modules with many tests keep them in a `tests` folder or file.
 
 `rigid_body::sphere_contact` and `sphere_box_contact` retain spherical geometry;
@@ -72,6 +89,7 @@ behavior and the coincident-centre exception are in `docs/specs/sphere-contacts.
 ```rust
 pub trait Ground {
     fn body_friction(&self, surface: u32) -> f32 { 1.0 }
+    fn world_friction(&self, surface: u32) -> f32 { 1.0 }
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit>;
 }
 pub struct GroundHit { pub distance: f32, pub normal: Vec3, pub surface: SurfaceGrip }
@@ -168,8 +186,8 @@ See [object contact verification](../../docs/provenance/pc-object-contact.md).
 Wall steering and airborne stabilizers now have caller-supplied configuration and
 original numeric vectors. Their world geometry and context producers need further comparison.
 Still missing here: invulnerability and reset-to-road, perfect launch and drag shift quality, engine heat and sabotage,
-catch-up cheats, forced stops, the understeer and oversteer read-outs, and the traffic and AI chassis
-variants. The yaw-control boost assumes the stability setting is on.
+catch-up cheats, forced stops, the understeer and oversteer read-outs, and complete
+alternative AI powertrains/task scheduling. The yaw-control boost assumes the stability setting is on.
 
 Ordinary racer drift friction/yaw damping and axle traction control follow the
 published chassis specification. The reference profile includes asymmetric burnout/fishtail.
@@ -206,3 +224,11 @@ mirrored turns, nitrous, the handbrake, a slope, a ledge, a flipped car, bit-exa
 NaN and infinite inputs, and random input across six drivetrain layouts.
 
 License: MIT OR Apache-2.0.
+
+`Vehicle::set_coasting_tires` selects a caller-configured loaded-tire response
+without powered slip or handbrake. It uses direct ordinary brakes and axle torque,
+rolling wheel speed, an angle ramp and a brake-dependent combined-force limit.
+The game selects this only for destroyed police; coefficients and limitations are
+in [the contract](../../docs/specs/destroyed-cop-tires.md) and
+[provenance](../../docs/provenance/destroyed-cop-tires.md). It is independent of
+retirement sleep and does not add a forced stop or extra coast drag.

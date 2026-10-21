@@ -10,7 +10,9 @@ is a reference to `collisionreactions`. Each `PlayerCollisions` entry is a
 16-byte `AICollisionReactionRecord`: a little-endian goal key at 0, followed
 by a 12-byte reference (class at 4, collection at 8, reserved at 12).
 Select the first entry matching the current goal; otherwise use the default.
-An explicit matching but invalid reference does not select the default.
+If that first matching reference is invalid, fall back to the default. Do not
+continue searching later duplicate goal keys. A missing or invalid default leaves
+no reaction profile.
 Goal keys are opaque `UCrc32` values, never guessed from model names.
 
 A profile contains `FRONT_REACTION`, `FRONTSIDE_REACTION`, `REAR_REACTION`,
@@ -61,3 +63,10 @@ four records, not just a small set of vehicle models. Runtime tests check
 profile selection, partner eligibility, centre/mass/inertia changes, and unchanged
 stored body parameters. Numerical and frame-rate checks do not establish full
 live original-game collision parity.
+
+
+The 2026-10-21 isolated PC selector audit exercises the exact binary float
+threshold and its adjacent representable values on both normal signs, the
+front/rear point seam and rotated bodies. Reaction selection uses the actual
+contact plane before penetration correction; damage-zone classification is a
+separate callback and must not substitute for this four-way selection.

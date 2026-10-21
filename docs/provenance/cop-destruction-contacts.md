@@ -1,5 +1,12 @@
 # Cop destruction collision evidence
 
+- **2026-10-21 health-to-lamp adapter:** the previously matched PC light query
+  checks the destroyed predicate before its independent lamp bits. Ordinary
+  damage accumulation and explicit Destroy have different visual effects:
+  the former retains per-hit zone updates; the latter fills every zone. The
+  host now forwards the first health-destroyed predicate to lamps without
+  inventing explicit-destruction visual tiers or a destruction event at equality.
+
 - **Spec:** [Cop destruction contact semantics](../specs/cop-destruction-contacts.md).
 - **Sources:** read-only inspection of the user's hashed PC 1.3 executable on
   2026-10-20, installed vehicle/damage/event records, and the CC0

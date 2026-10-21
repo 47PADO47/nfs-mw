@@ -11,6 +11,7 @@ impl PropWorld {
     /// One world tick; fallen props keep their render/collision identity.
     pub(in crate::scenes::world) fn begin_native(&mut self, dt: f32) {
         let _span = bevy_log::info_span!("world::props_step").entered();
+        self.streaming.advance(dt);
         self.knocked.retain(|_, left| {
             *left -= dt;
             *left > 0.0
@@ -107,6 +108,7 @@ impl PropWorld {
                 }
                 self.sound_contacts.push(CarContact {
                     sound_profile: spec.sound_profile,
+                    vehicle: None,
                     audio_zone: Some(nfsmw_data::sound::CollisionZone::from_local_normal(
                         prop.rigid.rotation().transpose() * contact.normal,
                     )),

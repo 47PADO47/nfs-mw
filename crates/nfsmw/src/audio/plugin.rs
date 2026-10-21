@@ -99,6 +99,7 @@ fn drive_car(
         audio.stop_music();
         audio.stop_traffic();
         audio.stop_explosion();
+        audio.stop_world_effect_audio();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
@@ -129,6 +130,7 @@ fn drive_car(
     for position in host.scene.take_explosions() {
         audio.play_explosion(position, view);
     }
+    audio.update_world_effect_audio(host.scene.take_world_effect_audio(), view, time.delta_secs());
     // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
     let pops = audio.take_sputter_pops();
     if pops > 0 {
