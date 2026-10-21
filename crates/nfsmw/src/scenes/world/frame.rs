@@ -53,7 +53,10 @@ impl WorldScene {
             traffic.lamp_instances(lamps, lens.position, self.residency.props(), &mut self.visible);
         }
         if let Some(drive) = &self.drive {
-            if render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode)) {
+            // The win photo is a picture of the car: it shows whatever camera mode the player drove with.
+            if self.photo_shot.is_some()
+                || render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+            {
                 drive.instances_with_detail(Some(&car_view), &mut self.visible);
             }
             if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {

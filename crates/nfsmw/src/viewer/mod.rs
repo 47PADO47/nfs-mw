@@ -5,6 +5,7 @@ pub mod camera;
 mod race_report;
 pub use race_report::{
     PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
+    photo_picture,
 };
 
 use anyhow::Result;

@@ -222,6 +222,14 @@ key's tangents with its neighbours' (the engine does it for keys that continue e
 the hybrid and car spaces, and the lens-to-angle conversion of the lens tangent (the rewrite curves the lens, the
 engine curves the angle; the two agree when the lens does not change).
 
+**Replay cameras (pack `0x8003B203`)**: one set (key `0x38D40DDF`) of 36 tracks named in the record header, not
+`Track <n>`: `Challenge`, `DefaultSpeed`, `DefaultFinish`, `DragFinish`, `SprintFinish`, `TollFinish`, `PHoldFin_00` to
+`PHoldFin_28` and more. Their keys put the eye and the look point in **car space** (the space bytes are 0): the player's
+car, +x forward, +y left, +z up, origin at the car model's; the win photo plays them
+([../specs/race-finish-effects.md](../specs/race-finish-effects.md) section 3, `ReplayCameras` in
+`crates/nfsmw-data/src/world/finish_fx.rs`). The rewrite applies car space only for that photo, and only the end of the
+track.
+
 **Known gaps in the dispatch:** `0x0047FB6F` (the shake branch of the second dispatch) is not read.
 `0x0047FB40` is not a function start in the Ghidra database, so the second site was not fully
 decoded.

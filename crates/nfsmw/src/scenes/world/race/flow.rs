@@ -231,8 +231,10 @@ impl WorldScene {
             }),
             None => Self::race_report(session),
         };
-        if session.report.is_none() {
-            return false;
+        let Some(report) = session.report.as_ref() else { return false };
+        // The win photo is the world seen from the replay camera the race names, through the photo screen's window.
+        if report.photo.is_some() {
+            self.start_photo_shot(session.origin.race.params.finish_camera.as_deref(), session.kind);
         }
         session.stage = Stage::PostRace { left: POST_RACE_WAIT };
         true

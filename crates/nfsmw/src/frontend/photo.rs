@@ -4,6 +4,7 @@
 //! photo. After a race win the buttons are Race Stats (the standings page of `post_race/`), Restart (which asks OK or
 //! Cancel first) and Continue; after a trap only Continue. `docs/provenance/race-mode.md` section 10 has what is known of the package.
 
+use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0};
 
 use super::confirm::Confirm;
@@ -23,8 +24,9 @@ const EVENT_HANDLER: u32 = 0x47FF_4E7C;
 const ENTRANCE: u32 = 0x0013_C37B;
 /// The speed trap's camera frame (`ROCKPORT POLICE VID CAM 01`), shown with its group.
 const CAMERA_FRAME: u32 = 0x857F_B472;
-/// The picture the package ships for the photo (`photofinish_toobooth.tga`): the frozen world is the photo here.
-const PLACEHOLDER_PICTURE: u32 = 0x286A_9CD4;
+/// The picture of the photo (`photofinish_toobooth.tga` as shipped): a polaroid on gravel whose window is transparent, so
+/// the world behind it, seen from the finish camera, is the photo. The race names the texture it is swapped for.
+const PICTURE: u32 = 0x286A_9CD4;
 /// The strings: the cash line and the time line of the sprint, rival and tollbooth groups, and the speed trap's.
 const SPRINT_CASH: u32 = 0x3D17_73DD;
 const SPRINT_TIME: u32 = 0xAB6A_AFDD;
@@ -47,17 +49,19 @@ pub struct PhotoLogic {
     /// The group has been faded in: the package's own first script rests it hidden, so the fade starts after the first
     /// frame.
     faded: bool,
+    /// The picture is swapped for the race's backdrop and shown (the install has the texture).
+    picture: bool,
 }
 
 impl PhotoLogic {
     /// The photo of a won race, with the lap table behind Race Stats.
     pub fn for_race(photo: PhotoReport, report: RaceReport) -> Self {
-        Self { photo, report: Some(report), faded: false }
+        Self { photo, report: Some(report), faded: false, picture: false }
     }
 
     /// The photo of a speed trap: Continue only.
     pub fn for_trap(photo: PhotoReport) -> Self {
-        Self { photo, report: None, faded: false }
+        Self { photo, report: None, faded: false, picture: false }
     }
 
     fn group(&self) -> u32 {
@@ -106,14 +110,32 @@ impl PhotoLogic {
         }
     }
 
-    /// Keeps every other group of the package hidden, and the shipped picture off the frozen world.
+    /// Swaps the package's picture for the race's backdrop (a polaroid with a transparent window, from
+    /// `HUDTEXTURESPHOTOFINISH.BIN`, which the UI assets hold). Without the texture the picture stays hidden and the
+    /// frozen world is shown whole.
+    fn set_picture(&mut self, cx: &mut Cx) {
+        let Some(name) = self.photo.picture else { return };
+        let Some(picture) = cx.object(PICTURE) else { return };
+        let key = fe_hash_upper(name);
+        if cx.assets.texture(key).is_none() {
+            log::warn!("photo: the backdrop {name} is not in the UI assets");
+            return;
+        }
+        cx.rt.set_texture(picture, key);
+        self.picture = true;
+    }
+
+    /// Keeps every other group of the package hidden, and the picture hidden unless it holds the race's backdrop.
     fn hold(&self, cx: &mut Cx) {
         let shown = self.group();
         for group in [SPRINT_GROUP, RIVAL_GROUP, TOLL_BOOTH_GROUP, SPEEDTRAP_GROUP] {
             cx.hide(group, group != shown);
         }
         cx.hide(CAMERA_FRAME, self.photo.kind != PhotoKind::SpeedTrap);
-        cx.hide(PLACEHOLDER_PICTURE, true);
+        cx.hide(PICTURE, !self.picture);
+        if let (true, Some(picture)) = (self.picture, cx.object(PICTURE)) {
+            cx.rt.set_alpha(picture, 255);
+        }
         // The group's own fade does not leave it visible (its colour stays at 0 after the script), so it is held at full
         // alpha, as the HUD holds its groups; its parts keep their scripts.
         for hash in [shown, CAMERA_FRAME] {
@@ -148,6 +170,7 @@ fn speed(mps: f32, units: SpeedUnits) -> String {
 impl ScreenLogic for PhotoLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.fill(cx);
+        self.set_picture(cx);
         self.hold(cx);
     }
 

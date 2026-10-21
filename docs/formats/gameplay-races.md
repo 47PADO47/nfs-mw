@@ -109,11 +109,13 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
   size (a box 80 m high) holds the road ([world-markers.md](../specs/world-markers.md) section 3). Finish lines have a first
   extent of 2 m in the samples read, with the second 25..65 m; `10_2_1_sprint` has `(3, 65, 5)`.
 - Trigger flags: `OneShot` and `FireOnExit` are False on `trigger` and `boxtrigger`, and `FireOnExit` is True on
-  `zonetrigger`; `ParticleEffect` is empty on `trigger` and `fxgame_flare_red` on `finishline`, with
-  `FlareSpacing` 5 there. **[verified]**
+  `zonetrigger`; `ParticleEffect` is empty on `trigger` and `fxgame_flare_red` on the `finishline` of 148 of the 217
+  races that have one (none on the tollbooth races but one, nor on two sprints), with a `FlareSpacing` of 4 to 16 m
+  (5 on `10_2_1_sprint`). **[verified]** The spacing is the distance of each of the two flares from the centre
+  ([race-finish-effects](../specs/race-finish-effects.md) section 1).
 - `Width` (the `wrongway` trigger, 150 m for `10_2_1_sprint`), `Directional`, `ResetsPlayer` describe the
   wrong-way reset trigger; `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
-  `fxgame_flare_red` with `FlareSpacing 5`).
+  `fxgame_flare_red` with a `FlareSpacing` of 4 to 16 m).
 
 ### 3.2 Start of the race
 
@@ -128,6 +130,8 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 | `TimeLimit` | seconds, 0 for 181 races; 13 races 50 s, 7 40 s, 7 55 s, 6 60 s, 6 30 s ... |
 | `KnockoutsPerLap` | 1 for the 20 knockout races |
 | `BustedLives` | player lives for being busted (1 in the templates) |
+| `FinishCamera` (hash `0x62DFC259`) | text: the replay camera of the win photo, `DefaultFinish` or one of the numbered `PHoldFin_00`..`PHoldFin_28` (an ICE track of `InGameB.bun`'s replay pack, section 5 of [race-finish-effects](../specs/race-finish-effects.md)) **[verified]** |
+| field `0x038A3B53` (name unknown) | text: the win photo's backdrop texture of `HudTexturesPhotoFinish.bin`: `PHOTOFINISH_SPRINT` (196 races), `PHOTOFINISH_TOOBOOTH` (69), `PHOTOFINISH_DRAG` (12), and 7 that name `PhotoFinish_Sprint.tga`, which no pack holds **[verified]** |
 
 ### 3.3 Opponents and difficulty
 

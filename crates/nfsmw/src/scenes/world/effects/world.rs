@@ -28,6 +28,7 @@ impl WorldScene {
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
         self.explosions.load(renderer, &self.dir, self.physics.database());
         self.heli_wash.load(renderer, &self.dir, self.physics.database());
+        self.finish_flares.maintain(renderer, &self.dir, self.physics.database());
         drive.effects.retain_sections(|s| self.residency.collision().pack(s).is_some());
         let car = drive.position();
         let (pose, bounds) = drive.spark_body();
@@ -77,6 +78,7 @@ impl WorldScene {
         drive.flames.geometry(position, forward, layer);
         self.explosions.textured(position, forward, &mut layer.textured);
         self.heli_wash.textured(position, forward, &mut layer.textured);
+        self.finish_flares.textured(position, forward, &mut layer.textured);
         self.object_fx.textured(position, forward, &mut layer.textured);
         self.car_damage_fx.textured(position, forward, &mut layer.textured);
         self.impact_fx.textured(forward, &mut layer.textured);

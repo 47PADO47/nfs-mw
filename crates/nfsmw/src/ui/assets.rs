@@ -29,7 +29,7 @@ const MAP_VARIANTS: [MapVariant; 3] = [MapVariant::Full, MapVariant::Unlock1, Ma
 const FENG_FONT: u32 = 0x0003_0201;
 
 /// Texture packs the screens draw from, first match wins.
-const TEXTURE_FILES: [&str; 8] = [
+const TEXTURE_FILES: [&str; 9] = [
     "GLOBAL/HUDTEXRACE.BIN",
     "GLOBAL/GLOBALA.BUN",
     "GLOBAL/InGameA.bun",
@@ -38,6 +38,8 @@ const TEXTURE_FILES: [&str; 8] = [
     "GLOBAL/HUDS_Custom_00.bin",
     "LANGUAGES/LanguageTextures.bin",
     "GLOBAL/INGAMEC.BUN",
+    // The backdrops of the win photo (`frontend/photo.rs`): four 1024 x 512 pictures, kept compressed until drawn.
+    "GLOBAL/HUDTEXTURESPHOTOFINISH.BIN",
 ];
 
 /// The rivals' pictures (`RIVAL_NN`, `RIVAL_NN_BG`, `RIVAL_NN_GRAF`; the pack also holds in-game `_IG` variants, which
