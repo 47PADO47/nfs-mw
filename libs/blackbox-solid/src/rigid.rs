@@ -17,6 +17,20 @@ pub struct RigidPart {
     pub vertices: Vec<Vertex>,
     /// Triangle list into [`RigidPart::vertices`].
     pub indices: Vec<u32>,
+    /// The part's triangles grouped by the shading group they came from, in index order. Each run is one draw
+    /// range, so the part can be drawn with the textures and shading of its groups.
+    pub runs: Vec<PartRun>,
+}
+
+/// A run of a part's triangles that came from one shading group.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartRun {
+    /// The index of the shading group in [`Solid::groups`].
+    pub group: usize,
+    /// The first index of the run in [`RigidPart::indices`].
+    pub first_index: u32,
+    /// The number of indices in the run (a multiple of three).
+    pub index_count: u32,
 }
 
 /// Splits a skinned solid by bone. Each triangle goes to the bone with the largest summed weight over its
@@ -28,7 +42,7 @@ pub fn rigid_split(solid: &Solid) -> Vec<RigidPart> {
         return Vec::new();
     };
     let mut parts: BTreeMap<u8, PartBuilder> = BTreeMap::new();
-    for group in &solid.groups {
+    for (group_index, group) in solid.groups.iter().enumerate() {
         let first = group.first_index as usize;
         let Some(indices) = solid.indices.get(first..first + group.num_indices as usize) else {
             continue;
@@ -41,10 +55,10 @@ pub fn rigid_split(solid: &Solid) -> Vec<RigidPart> {
             let bone = dominant_bone(corners.map(|v| skin[v as usize]));
             let part = parts.entry(bone).or_default();
             let local = corners.map(|v| part.local(&solid.vertices, v));
-            part.indices.extend(local);
+            part.push(group_index, local);
         }
     }
-    parts.into_iter().map(|(bone, part)| RigidPart { bone, vertices: part.vertices, indices: part.indices }).collect()
+    parts.into_iter().map(|(bone, part)| part.finish(bone)).collect()
 }
 
 /// The bone with the largest summed weight over the three vertices of a triangle (0 when every weight is 0).
@@ -69,11 +83,27 @@ fn dominant_bone(corners: [SkinVertex; 3]) -> u8 {
 struct PartBuilder {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
+    runs: Vec<PartRun>,
     /// Solid vertex index to index in [`PartBuilder::vertices`].
     local: BTreeMap<u32, u32>,
 }
 
 impl PartBuilder {
+    /// Appends one triangle, given its corners in the part's vertices, from shading group `group`. A triangle of the
+    /// same group as the last one extends that run.
+    fn push(&mut self, group: usize, corners: [u32; 3]) {
+        let first_index = self.indices.len() as u32;
+        self.indices.extend(corners);
+        match self.runs.last_mut() {
+            Some(run) if run.group == group => run.index_count += 3,
+            _ => self.runs.push(PartRun { group, first_index, index_count: 3 }),
+        }
+    }
+
+    fn finish(self, bone: u8) -> RigidPart {
+        RigidPart { bone, vertices: self.vertices, indices: self.indices, runs: self.runs }
+    }
+
     /// The part's index for solid vertex `v`, copying the vertex from `source` the first time it is used.
     fn local(&mut self, source: &[Vertex], v: u32) -> u32 {
         if let Some(&index) = self.local.get(&v) {

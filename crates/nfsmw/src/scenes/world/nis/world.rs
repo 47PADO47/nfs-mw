@@ -1,6 +1,7 @@
 //! The world's side of the NIS player: where a console-started scene stands, the skip and the bars, and the status line.
 //! The player's own rules are in `player.rs`.
 
+use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
 use super::player::NisKind;
@@ -58,6 +59,12 @@ impl WorldScene {
     /// The console line about the NIS player.
     pub(in crate::scenes::world) fn nis_status(&self) -> String {
         self.nis.status()
+    }
+
+    /// Uploads the playing scene's characters, with the world's shared textures, and frees the ones of scenes that
+    /// ended. Runs every frame, before the frame is built.
+    pub(in crate::scenes::world) fn update_nis_characters(&mut self, renderer: &mut dyn RenderBackend) {
+        self.nis.prepare_characters(renderer, &self.residency.shared.materials);
     }
 
     /// Reads the player's skip and plays the scene on real frame time. Runs before the world reads the frame's input,

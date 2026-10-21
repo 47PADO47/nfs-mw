@@ -15,6 +15,7 @@ impl WorldScene {
         // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
         self.update_arrest_nis();
         self.update_nis(input, dt);
+        self.update_nis_characters(renderer);
         self.update_story_movie(input, dt);
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.

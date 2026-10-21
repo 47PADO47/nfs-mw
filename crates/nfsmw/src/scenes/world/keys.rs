@@ -2,7 +2,8 @@
 //! between frames (and temporal methods that need last frame's pose) can follow them.
 //!
 //! Scenery is `(tile, index in the tile's placed list)`; the shared sets, which are not a tile, have
-//! their own group. A car is `(car, part)` in groups that start above every tile.
+//! their own group. A car is `(car, part)` in groups that start above every tile. A NIS character is
+//! `(actor, part)` in one group near the top of the range.
 
 use blackbox_gfx::InstanceKey;
 
@@ -10,6 +11,8 @@ use blackbox_gfx::InstanceKey;
 const SHARED_GROUP: u32 = 0x7FFF_FFFF;
 /// Car groups start here; a tile is a number below it.
 const CAR_GROUPS: u32 = 0x8000_0000;
+/// The group of the characters of a NIS scene. Car groups count up from [`CAR_GROUPS`] and never reach it.
+const CHARACTER_GROUP: u32 = 0xFFFF_0000;
 
 /// The car the player drives.
 pub const PLAYER_CAR: u32 = 0;
@@ -44,6 +47,11 @@ pub fn car_part(car: u32, part: usize) -> InstanceKey {
     InstanceKey::new(CAR_GROUPS + car, part as u32)
 }
 
+/// The `part`th placement of character `actor` of the playing NIS scene. The actor takes the high 16 bits of the index.
+pub fn character(actor: usize, part: usize) -> InstanceKey {
+    InstanceKey::new(CHARACTER_GROUP, ((actor as u32) << 16) | part as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,6 +70,9 @@ mod tests {
             car_part(first, 1),
             car_part(second, 0),
             car_part(second, 1),
+            character(0, 0),
+            character(0, 1),
+            character(1, 0),
         ];
         assert_eq!(car_part(first, 0).parts().0, car_part(first, 1).parts().0);
         for (i, a) in keys.iter().enumerate() {

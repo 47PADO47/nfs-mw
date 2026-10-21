@@ -7,6 +7,7 @@ use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use blackbox_chunk::ice::{CameraSample, Track};
+use blackbox_gfx::{Instance, RenderBackend};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
 use blackbox_sequence::Package;
 use game_install::GameDir;
@@ -18,6 +19,7 @@ use super::cars::{self, CarSpot, CarTrack, Target};
 use super::events::{NisEvent, NisEvents};
 use super::handlers::NisScreen;
 use crate::audio::nis::NisAudioRequest;
+use super::characters::{Characters, Materials};
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
 
@@ -122,6 +124,8 @@ struct Playing {
     audio: NisAudioRequest,
     /// Whether the scene's voice is playing, as the audio plugin last reported it.
     voice: bool,
+    /// The scene's characters (`characters.rs`), uploaded once the world prepares them.
+    characters: Characters,
 }
 
 impl Playing {
@@ -154,6 +158,8 @@ pub struct NisPlayer {
     final_cars: Option<Vec<(Target, CarSpot)>>,
     /// The flash and the overlay the playing scene shows; cleared when it ends.
     screen: NisScreen,
+    /// The characters of the scenes that ended, freed by the next [`NisPlayer::prepare_characters`].
+    retired: Vec<Characters>,
 }
 
 impl NisPlayer {
@@ -178,22 +184,25 @@ impl NisPlayer {
         let plan = Plan::new(&bundle.name, &bundle.scene, camera, marker, kind)
             .ok_or_else(|| format!("{scene} has neither a frame window nor a camera track"))?;
         let cars = cars::read_tracks(&bundle.anim.banks);
-        self.start_with_cars(plan, cars, bundle.sequence.clone())
+        let characters = Characters::from_bundle(&bundle);
+        self.start_with_cars(plan, cars, bundle.sequence.clone(), characters)
     }
 
     /// Starts a prepared scene with no cars and no events. Refused while another plays, or when the scene has no time to
     /// play.
     pub fn start(&mut self, plan: Plan) -> Result<(), String> {
-        self.start_with_cars(plan, Vec::new(), None)
+        self.start_with_cars(plan, Vec::new(), None, Characters::default())
     }
 
-    /// Starts a prepared scene with its car tracks and its event sequence, if it has one. Refused while another plays, or
-    /// when the scene has no time to play. The events start on the scene's `START` stimulus, and fire as the scene runs.
+    /// Starts a prepared scene with its car tracks, its event sequence (if it has one) and its characters. Refused while
+    /// another plays, or when the scene has no time to play. The events start on the scene's `START` stimulus, and fire
+    /// as the scene runs.
     fn start_with_cars(
         &mut self,
         plan: Plan,
         cars: Vec<CarTrack>,
         sequence: Option<Arc<Package>>,
+        characters: Characters,
     ) -> Result<(), String> {
         self.refuse_while_playing()?;
         let run = Playback::new(plan.clock, plan.kind.skippable());
@@ -218,6 +227,7 @@ impl NisPlayer {
             events,
             owner: Rc::new(()),
             voice: false,
+            characters,
         });
         Ok(())
     }
@@ -271,6 +281,34 @@ impl NisPlayer {
         self.outcome = Some(outcome);
         self.screen.clear();
         self.cut = true;
+        self.retired.push(playing.characters);
+    }
+
+    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, and frees the characters
+    /// of the scenes that ended. The world calls it every frame before it draws.
+    pub fn prepare_characters(&mut self, renderer: &mut dyn RenderBackend, shared: &Materials) {
+        for characters in self.retired.drain(..) {
+            characters.release(renderer);
+        }
+        if let Some(playing) = self.play.as_mut() {
+            playing.characters.prepare(renderer, shared);
+        }
+    }
+
+    /// Adds the playing scene's character instances to `out`, at the scene's time. Nothing is added when no scene plays.
+    pub fn character_instances(&self, out: &mut Vec<Instance>) {
+        let Some(playing) = self.play.as_ref() else { return };
+        playing.characters.instances(playing.run.scene_time(), &playing.anchor, out);
+    }
+
+    /// Frees the GPU resources of every scene's characters. The world calls it when it leaves the window.
+    pub fn release_gpu(&mut self, renderer: &mut dyn RenderBackend) {
+        for characters in self.retired.drain(..) {
+            characters.release(renderer);
+        }
+        if let Some(playing) = self.play.as_mut() {
+            std::mem::take(&mut playing.characters).release(renderer);
+        }
     }
 
     /// The flash and the overlay the playing scene shows.

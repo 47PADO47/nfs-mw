@@ -8,6 +8,8 @@ use anyhow::{Context, Result, anyhow};
 use blackbox_chunk::ids;
 use blackbox_nis::{Scene, find_scene};
 use blackbox_sequence::Package;
+use blackbox_solid::Solid;
+use blackbox_tpk::TexturePack;
 use game_install::GameDir;
 
 use crate::anim::AnimObjects;
@@ -17,6 +19,8 @@ use crate::read_unwrapped;
 const NIS_DIR: &str = "NIS";
 
 /// One NIS scene's data: the scene name as the file names it, the scene chunk, the EAGL objects and the event sequence.
+/// One NIS scene's data: the scene name as the file names it, the scene chunk, the EAGL objects, and the solids and
+/// texture packs the characters are drawn with (empty in the bundles without characters).
 #[derive(Debug, Clone)]
 pub struct NisBundle {
     /// The scene name, as in the bundle's file name (`IntroNis05` for `Scene_IntroNis05_BundleB.bun`).
@@ -27,6 +31,10 @@ pub struct NisBundle {
     pub anim: AnimObjects,
     /// The scene's CARP event sequence (its `0x0003B811` chunk), or `None` when the bundle has none.
     pub sequence: Option<Arc<Package>>,
+    /// The bundle's skinned solids (the character models).
+    pub solids: Vec<Solid>,
+    /// The bundle's texture packs.
+    pub textures: Vec<TexturePack>,
 }
 
 impl NisBundle {
@@ -46,7 +54,9 @@ impl NisBundle {
         let scene = find_scene(data)?.ok_or_else(|| anyhow!("the bundle has no AnimScene chunk"))?;
         let anim = AnimObjects::from_bytes(data)?;
         let sequence = read_sequence(data);
-        Ok(Self { name: name.to_owned(), scene, anim, sequence })
+        let solids = blackbox_solid::read_solids(data).context("the solids of the bundle")?;
+        let textures = blackbox_tpk::read_texture_packs(data).context("the texture packs of the bundle")?;
+        Ok(Self { name: name.to_owned(), scene, anim, sequence, solids, textures })
     }
 
     /// The scene names of every NIS bundle in the install, in file order.

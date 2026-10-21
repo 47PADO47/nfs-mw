@@ -1,7 +1,7 @@
 //! Solid upload: one GPU mesh per solid, one draw range per shading group.
 
 use blackbox_gfx::{BlendMode, DrawRange, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
-use blackbox_solid::Solid;
+use blackbox_solid::{RigidPart, Solid};
 
 /// Resolves a texture name hash to an uploaded texture and how to blend it.
 /// Unknown textures draw white and opaque.
@@ -40,11 +40,12 @@ impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
 /// The renderer vertices of a solid: the CPU half of an upload, which streamed solids get on their loader
 /// thread (`nfsmw-data`'s `SectionData::solid_vertices`).
 pub fn solid_vertices(solid: &Solid) -> Vec<Vertex> {
-    solid
-        .vertices
-        .iter()
-        .map(|v| Vertex { position: v.position, normal: v.normal, color_bgra: v.color_bgra, uv: v.uv })
-        .collect()
+    solid.vertices.iter().map(render_vertex).collect()
+}
+
+/// One solid vertex as a renderer vertex (the common attributes only).
+fn render_vertex(v: &blackbox_solid::Vertex) -> Vertex {
+    Vertex { position: v.position, normal: v.normal, color_bgra: v.color_bgra, uv: v.uv }
 }
 
 /// The draw ranges of a solid, indexing the vertices of [`solid_vertices`]. Textures resolve through
@@ -54,23 +55,59 @@ pub fn solid_mesh(solid: &Solid, materials: &impl MaterialLookup, shading: Shadi
         .groups
         .iter()
         .enumerate()
-        .filter(|(_, g)| g.diffuse_texture(solid).is_none_or(|h| materials.draws(h)))
-        .map(|(index, g)| {
-            let material = g.diffuse_texture(solid).and_then(|h| materials.material(h));
-            let light_material = solid.light_material_hashes.get(usize::from(g.light_material)).copied();
-            let shading = light_material
-                .and_then(|h| materials.shading(h))
-                .or_else(|| materials.group_shading(index))
-                .or_else(|| materials.effect_shading(g.effect_id))
-                .unwrap_or(shading);
-            DrawRange {
-                first_index: g.first_index,
-                index_count: g.num_indices,
-                base_vertex: g.base_vertex as i32,
-                texture: material.map(|(t, _)| t),
-                blend: material.map_or(BlendMode::Opaque, |(_, b)| b),
-                shading,
+        .filter(|(_, g)| is_drawn(solid, g, materials))
+        .map(|(index, g)| group_draw(solid, index, (g.first_index, g.num_indices, g.base_vertex), materials, shading))
+        .collect()
+}
+
+/// Whether a group's texture is drawn at all.
+fn is_drawn(solid: &Solid, group: &blackbox_solid::ShadingGroup, materials: &impl MaterialLookup) -> bool {
+    group.diffuse_texture(solid).is_none_or(|h| materials.draws(h))
+}
+
+/// The draw range of group `index` over the indices `(first, count, base vertex)` given, with the group's material
+/// and shading. The shading is the first of the group's light material, its group index and its effect that gives
+/// one, else `shading`.
+fn group_draw(
+    solid: &Solid,
+    index: usize,
+    (first_index, index_count, base_vertex): (u32, u32, u32),
+    materials: &impl MaterialLookup,
+    shading: Shading,
+) -> DrawRange {
+    let g = &solid.groups[index];
+    let material = g.diffuse_texture(solid).and_then(|h| materials.material(h));
+    let light_material = solid.light_material_hashes.get(usize::from(g.light_material)).copied();
+    let shading = light_material
+        .and_then(|h| materials.shading(h))
+        .or_else(|| materials.group_shading(index))
+        .or_else(|| materials.effect_shading(g.effect_id))
+        .unwrap_or(shading);
+    DrawRange {
+        first_index,
+        index_count,
+        base_vertex: base_vertex as i32,
+        texture: material.map(|(t, _)| t),
+        blend: material.map_or(BlendMode::Opaque, |(_, b)| b),
+        shading,
+    }
+}
+
+/// The draw ranges of one rigid part, indexing the part's own vertices: one range per run of its triangles.
+pub fn part_draws(
+    solid: &Solid,
+    part: &RigidPart,
+    materials: &impl MaterialLookup,
+    shading: Shading,
+) -> Vec<DrawRange> {
+    part.runs
+        .iter()
+        .filter_map(|run| {
+            let group = solid.groups.get(run.group)?;
+            if !is_drawn(solid, group, materials) {
+                return None;
             }
+            Some(group_draw(solid, run.group, (run.first_index, run.index_count, 0), materials, shading))
         })
         .collect()
 }
@@ -93,6 +130,32 @@ pub fn upload_solid(
         secondary_uvs: Some(&solid.secondary_uvs),
         tangents: Some(&solid.tangents),
         indices: &solid.indices,
+        draws,
+    }))
+}
+
+/// Upload one rigid part of a skinned solid (see `blackbox_solid::rigid_split`): its own vertices and triangles, drawn
+/// with the textures and shading of the groups its triangles came from. The part's indices are its own, so a part whose
+/// vertices do not fit 16-bit indices is not drawn (`None`), as are parts without triangles.
+pub fn upload_rigid_part(
+    backend: &mut dyn RenderBackend,
+    solid: &Solid,
+    part: &RigidPart,
+    materials: &impl MaterialLookup,
+    shading: Shading,
+) -> Option<MeshHandle> {
+    if part.vertices.is_empty() || part.indices.is_empty() {
+        return None;
+    }
+    let indices = part.indices.iter().map(|&i| u16::try_from(i).ok()).collect::<Option<Vec<u16>>>()?;
+    let vertices: Vec<Vertex> = part.vertices.iter().map(render_vertex).collect();
+    let draws = part_draws(solid, part, materials, shading);
+    Some(backend.create_mesh(&MeshDesc {
+        label: &solid.name,
+        vertices: &vertices,
+        secondary_uvs: None,
+        tangents: None,
+        indices: &indices,
         draws,
     }))
 }

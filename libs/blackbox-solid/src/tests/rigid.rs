@@ -48,3 +48,29 @@ fn an_unskinned_solid_has_no_parts() {
     let s = &read_solids(&file).unwrap()[0];
     assert!(rigid_split(s).is_empty());
 }
+
+#[test]
+fn each_part_records_its_triangles_per_group_as_runs() {
+    // Two groups: group 0 has one bone-5 triangle, group 1 has two bone-9 triangles, so each group is one run.
+    let vertices = skinned_vertex_buffer(&[
+        ([1.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        ([0.9, 0.1, 0.0], [0.0, 1.0, 0.0]),
+        ([0.3, 0.7, 0.0], [1.0, 2.0, 0.0]),
+        ([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        ([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        ([1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
+    ]);
+    let groups = [
+        Group { effect: 2, vertices: 6, indices: vec![0, 1, 2], bone_table: Some(TABLE) },
+        Group { effect: 2, vertices: 6, indices: vec![2, 3, 4, 2, 3, 4], bone_table: Some(TABLE) },
+    ];
+    let file = solid_file("RUNS", &groups, &[vertices]);
+    let s = &read_solids(&file).unwrap()[0];
+
+    let parts = rigid_split(s);
+    let [five, nine] = parts.as_slice() else {
+        panic!("two parts expected");
+    };
+    assert_eq!(five.runs.iter().map(|r| (r.group, r.first_index, r.index_count)).collect::<Vec<_>>(), [(0, 0, 3)]);
+    assert_eq!(nine.runs.iter().map(|r| (r.group, r.first_index, r.index_count)).collect::<Vec<_>>(), [(1, 0, 6)]);
+}
