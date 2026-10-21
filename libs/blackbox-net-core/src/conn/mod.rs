@@ -58,8 +58,8 @@ pub const CHANNELS: usize = 4;
 pub const MAX_FRAGMENT: usize = 1024;
 /// Most fragments in one message.
 pub const MAX_FRAGMENTS: usize = 16;
-/// Largest reliable message.
-pub const MAX_MESSAGE: usize = 16 * 1024;
+/// Largest reliable message: 16 fragments of data less the 2-byte total length in the first one (16,382 bytes).
+pub const MAX_MESSAGE: usize = MAX_FRAGMENTS * MAX_FRAGMENT - 2;
 /// Most unacknowledged messages per channel.
 pub const MAX_IN_FLIGHT: usize = 256;
 

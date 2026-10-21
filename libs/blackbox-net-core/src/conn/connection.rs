@@ -344,6 +344,10 @@ impl Connection {
     /// Applies the acknowledgement block: each newly acknowledged packet is reported and its fragments are marked
     /// delivered; the newest of them gives the RTT sample. Then the losses are scanned.
     fn apply_acks(&mut self, now_ms: u64, ack: u32, ack_bits: u32) {
+        // An acknowledgement of a number not yet sent is a peer bug or forgery; it must not write off packets in flight.
+        if self.next_number == 0 || !seq_newer(self.next_number, ack) {
+            return;
+        }
         let older = (0..32u32).filter(move |&i| (ack_bits >> i) & 1 == 1).map(|i| ack.wrapping_sub(i + 1));
         let mut newest_sent: Option<u64> = None;
         for number in std::iter::once(ack).chain(older) {

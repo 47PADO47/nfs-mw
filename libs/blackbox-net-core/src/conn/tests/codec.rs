@@ -161,7 +161,7 @@ fn fragment_counts_and_spans_hold_the_limits() {
     assert_eq!(fragment_count(MAX_FRAGMENT + 1), Some(2));
     assert_eq!(fragment_count(16_382), Some(16), "the largest message that fits");
     assert_eq!(fragment_count(16_383), None, "needs 17 fragments");
-    assert_eq!(fragment_count(MAX_MESSAGE), None);
+    assert_eq!(fragment_count(MAX_MESSAGE), Some(16));
     assert_eq!(fragment_count(MAX_MESSAGE + 1), None);
     assert_eq!(fragment_span(1025, 0), (0, 1022), "first chunk leaves room for the length");
     assert_eq!(fragment_span(1025, 1), (1022, 1025));

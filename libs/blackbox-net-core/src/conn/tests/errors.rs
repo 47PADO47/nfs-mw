@@ -218,3 +218,16 @@ fn timeout_and_keepalive_count_from_the_first_call() {
     assert!(!a.is_timed_out(14_999));
     assert!(a.is_timed_out(15_000), "10 s after the last packet heard");
 }
+
+#[test]
+fn an_ack_of_an_unsent_packet_writes_nothing_off() {
+    let (mut a, _) = pair();
+    for now in 0..5 {
+        packet(&mut a, now, &[]);
+    }
+    let mut forged = vec![0u8; HEADER_LEN];
+    let header = Header { flags: crate::conn::header::FLAG_ACK_VALID, conn_id: 1, number: 0, ack: 1000, ack_bits: 0 };
+    write_header(&mut forged, &header).expect("header fits");
+    assert!(read(&mut a, 6, &forged).0.is_ok());
+    assert_eq!(a.poll_event(), None, "packets 0 to 4 are still in flight");
+}
