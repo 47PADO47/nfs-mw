@@ -89,6 +89,17 @@ impl Roadblocks {
         self.list.len()
     }
 
+    /// Where the standing roadblocks are, in render space (`ROADBLOCK` map icons and the challenge series).
+    pub fn sites(&self) -> Vec<[f32; 2]> {
+        self.list
+            .iter()
+            .map(|rb| {
+                let at = crate::scenes::world::space::to_render(rb.standing.centre.to_array());
+                [at[0], at[1]]
+            })
+            .collect()
+    }
+
     /// How many spike strips lie across the standing roadblocks.
     pub fn strip_count(&self) -> usize {
         self.list.iter().map(|rb| rb.strips.len()).sum()

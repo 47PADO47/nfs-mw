@@ -54,6 +54,7 @@ impl WorldScene {
             true => 0.0,
             false => self.update_simulation(renderer, input, dt),
         };
+        self.update_race(renderer, input, sim_dt, dt);
         self.update_entry(input, dt);
         self.update_career(dt);
         self.feed_focus(renderer, sim_dt);

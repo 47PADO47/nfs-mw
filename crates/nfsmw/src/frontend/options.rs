@@ -62,6 +62,8 @@ pub enum Setting {
     RenderScale,
     Upscaler,
     UpscaleSharpness,
+    /// A row of Quick Race's track options (`quick_options.rs`); its value is the session's, not a setting.
+    Quick(super::quick_options::QuickRow),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
     Mod(u64),
     /// The on/off switch of a listed mod, by its position in the mod manager's list (`mod_options.rs`).
@@ -181,6 +183,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::AdvancedGraphics => Data::Text("Open F8".into()),
+            Setting::Quick(row) => Data::Text(super::quick_options::text(s, row)),
             Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Alias(setting) => Data::Text(setting.data().to_owned()),
@@ -315,6 +318,10 @@ impl Setting {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
+            Setting::Quick(row) => {
+                super::quick_options::step(s, changed, row, forward);
+                return true;
+            }
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),

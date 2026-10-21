@@ -138,6 +138,8 @@ pub struct Frontend {
     pub(super) in_safe_house: bool,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
+    /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
+    quick_race: Option<String>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -146,6 +148,7 @@ impl Frontend {
     pub fn new(screens: Screens, dir: GameDir, start: Start, script: Option<UiScript>) -> Self {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));
+        super::quick_race::load_in_background(&dir);
         Self {
             screens,
             dir,
@@ -171,6 +174,7 @@ impl Frontend {
             profiles: ProfileDir::default_dir(),
             in_safe_house: false,
             auto_shop_requested: false,
+            quick_race: None,
             map_chrome: Default::default(),
         }
     }
@@ -362,6 +366,11 @@ impl Frontend {
                     self.career.clear();
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
+                Command::StartQuickRace(race) => {
+                    self.career.clear();
+                    self.quick_race = Some(race);
+                    self.start_free_roam(LoadingScreen::Plain, host, env);
+                }
                 Command::StartCareer => self.start_career(host, env),
                 Command::Resume => self.resume_driving(env),
                 Command::SetWaypoint(target) => {
@@ -392,6 +401,8 @@ impl Frontend {
                 Command::SaveAlias => self.save_alias(host, env),
                 Command::LoadAlias => self.load_alias(host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host, env),
+                Command::RaceAnswer(answer) => self.race_answer(answer, host),
+                Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::Switch(..) | Command::Push(..) | Command::Pop | Command::Confirm(_) | Command::Alert(_) => {}
             }
         }

@@ -70,3 +70,114 @@ fn races_triggers_and_activity_zones_match_documented_numbers() {
     let respawn = zone.respawn.expect("respawn marker");
     assert!(close(respawn.heading_deg, 82.59451));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn race_parameters_and_characters_match_documented_numbers() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+
+    let sprint = data.race_named("race_bin_10/10_2_1_sprint").expect("10.2.1 sprint");
+    assert!(sprint.params.do_countdown && !sprint.params.rolling_start, "{:?}", sprint.params);
+    assert_eq!(sprint.params.difficulty, 100);
+    assert!(!sprint.params.opponents.is_empty(), "a rival");
+
+    let races = &data.races;
+    let with = |f: &dyn Fn(&gameplay::RaceParams) -> bool| races.iter().filter(|r| f(&r.params)).count();
+    assert_eq!(with(&|p| p.opponents.is_empty()), 108, "races without opponents");
+    assert_eq!(with(&|p| p.opponents.len() == 3), 101, "street races");
+    assert_eq!(with(&|p| p.rolling_start), 38, "rolling starts");
+    assert_eq!(with(&|p| p.do_countdown), 217, "countdown races");
+    assert_eq!(with(&|p| p.looping), 53, "looping races");
+    assert_eq!(with(&|p| p.knockouts_per_lap == 1), 20, "knockout races");
+    assert_eq!(with(&|p| p.rank_by_points), 32, "speed-trap ranking");
+    assert_eq!(with(&|p| p.traffic_pattern.as_deref() == Some("drag")), 11, "drag traffic");
+
+    for race in races {
+        for key in &race.params.opponents {
+            assert!(data.character(*key).is_some(), "{} names an unread opponent {key:08X}", race.name);
+        }
+    }
+    let street = data.character(sprint.params.opponents[0]).expect("an opponent");
+    assert!(street.skill_level > 0 && street.min_performance >= 0.0, "{street:?}");
+    assert!(data.characters.len() >= 300, "314 characters in the install, got {}", data.characters.len());
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn tollbooth_bonuses_and_speed_trap_spheres_are_read() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let toll = data.race_named("race_bin_01/2_4_3_r_tollbooth").expect("tollbooth race");
+    let bonus: Vec<f32> = toll.checkpoints.iter().filter_map(|k| data.trigger(*k)).map(|t| t.time_bonus).collect();
+    assert_eq!(bonus.len(), 15, "every checkpoint reads");
+    assert_eq!(bonus.iter().filter(|b| **b > 0.0).count(), 4, "four time bonus checkpoints: {bonus:?}");
+    assert!(bonus.contains(&160.0) && bonus.contains(&35.0) && bonus.contains(&25.0), "{bonus:?}");
+    let trap = data.race_named("race_bin_01/1_5_3_speedtrap").expect("speed trap race");
+    assert_eq!(trap.params.speed_traps.len(), 9);
+    for key in &trap.params.speed_traps {
+        let sphere = data.sphere(*key).expect("every trap is a sphere trigger");
+        assert!(sphere.radius >= 20.0 && sphere.threshold_speed == 88.0, "{sphere:?}");
+    }
+    let every_trap_resolves =
+        data.races.iter().flat_map(|r| r.params.speed_traps.iter()).all(|k| data.sphere(*k).is_some());
+    assert!(every_trap_resolves, "every speed trap of every race is a sphere");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn pursuit_challenges_carry_their_milestone_and_threshold() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let challenges: Vec<_> = data.races.iter().filter(|r| r.race_type == Some(RaceType::Challenge)).collect();
+    assert_eq!(challenges.len(), 36, "36 challenge events");
+    let mut names: Vec<&str> = challenges.iter().filter_map(|r| r.params.milestone.as_deref()).collect();
+    names.sort_unstable();
+    names.dedup();
+    println!("MILESTONES {names:?}");
+    let epic = data.race_named("race_bin_01/epic_pursuit").expect("the final race");
+    assert_eq!(epic.params.milestone.as_deref(), Some("pursuit_length"));
+    let hit = data.race_named("race_bin_challenge/challenge_18_cops_hit").expect("challenge 18");
+    assert_eq!(hit.params.threshold, 12.0);
+    assert_eq!(hit.params.force_heat_level, 4);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn post_race_activities_and_outros_are_read() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let chained: Vec<_> = data.races.iter().filter(|r| r.params.post_race_activity.is_some()).collect();
+    let outros: Vec<(String, &str)> =
+        data.races.iter().filter_map(|r| r.params.outro_nis.as_deref().map(|nis| (r.name.clone(), nis))).collect();
+    println!("CHAINED {} OUTROS {outros:?}", chained.len());
+    for race in &chained {
+        let next = race.params.post_race_activity.unwrap();
+        println!(
+            "CHAIN {} -> {}",
+            race.name,
+            data.races.iter().find(|r| r.key == next).map_or("?", |r| r.name.as_str())
+        );
+    }
+    assert!(!chained.is_empty(), "races chain through PostRaceActivity");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_challenge_ladders_have_their_unlock_lists_and_starts() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let id = |r: &gameplay::Race| r.event.clone().unwrap_or_else(|| r.name.clone());
+    let side = |r: &&gameplay::Race| ["18.", "19.", "21."].iter().any(|bin| id(r).starts_with(bin));
+    let mut open: Vec<String> =
+        data.races.iter().filter(side).filter(|r| r.params.initially_unlocked).map(id).collect();
+    open.sort();
+    println!("OPEN {open:?}");
+    for race in data.races.iter().filter(side).filter(|r| !r.params.unlock_races.is_empty()).take(4) {
+        let next: Vec<String> =
+            race.params.unlock_races.iter().filter_map(|k| data.races.iter().find(|r| r.key == *k)).map(id).collect();
+        println!("UNLOCKS {} -> {next:?}", id(race));
+    }
+    assert!(open.contains(&"19.8.1".to_owned()), "the first pursuit challenge starts open: {open:?}");
+    assert!(data.races.iter().filter(side).any(|r| !r.params.unlock_races.is_empty()), "a win opens races");
+}

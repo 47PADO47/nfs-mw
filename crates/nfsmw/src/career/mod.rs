@@ -22,7 +22,7 @@ mod state;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use autosave::{AutosaveInputs, handle_autosave};
-pub use data::{CareerData, event_id};
+pub use data::{CareerData, event_id, race_event_id};
 pub use io::ProfileDir;
 pub use start::start_or_resume;
 pub use state::Career;

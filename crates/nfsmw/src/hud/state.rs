@@ -71,6 +71,13 @@ pub struct HudState {
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
+    /// The race the player runs: the place, lap, clock and countdown. `None` outside a race.
+    pub race: Option<super::race::RaceHud>,
+    /// The race is a drag race: the HUD shows `HUD_Drag.fng` instead of `HUD_SingleRace.fng` (the layout number 2 of
+    /// `docs/specs/race-mode.md` section 6).
+    pub drag: bool,
+    /// The line the generic message group shows (`hud/race.rs`).
+    pub message: Option<super::race::Message>,
 }
 
 impl Default for HudState {
@@ -84,6 +91,9 @@ impl Default for HudState {
             busted: 0.0,
             busted_overlay: false,
             career_bounty: None,
+            race: None,
+            drag: false,
+            message: None,
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,
@@ -145,6 +155,18 @@ pub fn redline_rotation(max_rpm: f32, red_line: f32) -> f32 {
     table.iter().find(|(from, _)| red_line >= *from).map_or(0.0, |(_, angle)| *angle)
 }
 
+/// The same mask angle for the drag tachometer, from the executable's own table (the drag branch of the tach face routine, which picks
+/// it by the same `MAX_RPM` bands and red lines as the race HUD's, with these angles) **[exe]**.
+pub fn redline_rotation_drag(max_rpm: f32, red_line: f32) -> f32 {
+    let table: &[(f32, f32)] = match max_rpm {
+        m if m < 7000.0 => &[(6500.0, 39.25), (6000.0, 32.25), (5500.0, 26.0), (0.0, 19.25)],
+        m if m < 8000.0 => &[(7500.0, 40.0), (7000.0, 34.0), (6500.0, 28.25), (6000.0, 22.5), (0.0, 17.25)],
+        m if m < 9000.0 => &[(8500.0, 42.0), (8000.0, 37.0), (7500.0, 32.25), (7000.0, 27.0), (0.0, 22.0)],
+        _ => &[(9500.0, 41.5), (9000.0, 37.0), (8500.0, 31.5), (8000.0, 27.0), (0.0, 22.75)],
+    };
+    table.iter().find(|(from, _)| red_line >= *from).map_or(0.0, |(_, angle)| *angle)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +198,18 @@ mod tests {
         assert_eq!(s.rpm_fraction(), 1.0);
         let half = HudState { rpm: 4500.0, max_rpm: 8250.0, ..Default::default() };
         assert_eq!(half.rpm_fraction(), 0.5, "the face is the 9000 one");
+    }
+
+    #[test]
+    fn the_drag_redline_follows_the_executables_drag_table() {
+        // The constants of the drag branch: 0x42260000 is 41.5, 0x42140000 is 37, 0x41fc0000 is 31.5, 0x41d80000 is 27.
+        assert_eq!(redline_rotation_drag(9500.0, 9600.0), 41.5);
+        assert_eq!(redline_rotation_drag(9500.0, 9200.0), 37.0);
+        assert_eq!(redline_rotation_drag(10000.0, 8700.0), 31.5);
+        assert_eq!(redline_rotation_drag(8250.0, 8000.0), 37.0);
+        assert_eq!(redline_rotation_drag(8250.0, 8700.0), 42.0);
+        assert_eq!(redline_rotation_drag(7500.0, 7100.0), 34.0);
+        assert_eq!(redline_rotation_drag(6500.0, 5000.0), 19.25);
     }
 
     #[test]

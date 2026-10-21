@@ -72,6 +72,34 @@ pub enum MwEvent {
         /// Fine, in cash.
         fine: u32,
     },
+    /// A race began.
+    RaceStarted {
+        /// Frame number.
+        frame: u64,
+        /// The race id, as `nfsmw.races` lists it.
+        race: u32,
+        /// `RaceType` number.
+        kind: u32,
+        /// Racers on the grid, the player included.
+        racers: u32,
+        /// Laps.
+        laps: u32,
+    },
+    /// The player finished a race.
+    RaceFinished {
+        /// Frame number.
+        frame: u64,
+        /// The race id, as `nfsmw.races` lists it.
+        race: u32,
+        /// The player's place, 1 for first.
+        position: u32,
+        /// Whether the player won.
+        won: bool,
+        /// The player's race time, seconds.
+        time: f32,
+        /// Cash paid for the finish.
+        winnings: u32,
+    },
     /// Not an `nfsmw.*` event this SDK describes: another kind, or a payload too short for its kind.
     Unknown {
         /// The kind as the host sent it.
@@ -145,6 +173,31 @@ fn decode_known(kind: u32, frame: u64, payload: &[u8]) -> Option<MwEvent> {
                 frame,
                 infraction: Infraction::from_raw(u32_at(payload, 4)?)?,
                 fine: u32_at(payload, 8)?,
+            })
+        }
+        crate::abi::MW_EVENT_RACE_STARTED => {
+            if !covers(payload, 20) {
+                return None;
+            }
+            Some(MwEvent::RaceStarted {
+                frame,
+                race: u32_at(payload, 4)?,
+                kind: u32_at(payload, 8)?,
+                racers: u32_at(payload, 12)?,
+                laps: u32_at(payload, 16)?,
+            })
+        }
+        crate::abi::MW_EVENT_RACE_FINISHED => {
+            if !covers(payload, 24) {
+                return None;
+            }
+            Some(MwEvent::RaceFinished {
+                frame,
+                race: u32_at(payload, 4)?,
+                position: u32_at(payload, 8)?,
+                won: u32_at(payload, 12)? != 0,
+                time: f32_at(payload, 16)?,
+                winnings: u32_at(payload, 20)?,
             })
         }
         _ => None,

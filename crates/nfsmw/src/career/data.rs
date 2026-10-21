@@ -153,6 +153,12 @@ pub fn event_id(race_name: &str) -> String {
     format!("{}.{}.{}", parts[0], parts[1], parts[2])
 }
 
+/// The event id of a race: the one it stores (`19.8.18`, the challenges and the side bins), else the one its data name
+/// gives ([`event_id`]).
+pub fn race_event_id(race: &gameplay::Race) -> String {
+    race.event.clone().unwrap_or_else(|| event_id(&race.name))
+}
+
 /// A non-empty run of ASCII digits.
 fn is_number(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())

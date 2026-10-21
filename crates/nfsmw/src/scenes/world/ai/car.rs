@@ -11,6 +11,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
 use super::cop::{self, Target};
+use super::racer;
 use super::stop;
 use super::traffic::{self, Cruise, THINK_STEPS};
 use super::trailer::{Brakes, TrailerCar};
@@ -27,6 +28,7 @@ mod goal_drive;
 mod hits;
 mod original_camera;
 mod patrol;
+mod racing;
 mod setup;
 mod sound;
 mod speech;
@@ -176,7 +178,7 @@ impl AiCar {
             driver: Driver::new(
                 match role {
                     Role::Traffic => ControllerKind::Simple,
-                    Role::Cop(_) => ControllerKind::Pid,
+                    Role::Cop(_) | Role::Racer(_) => ControllerKind::Pid,
                 },
                 false,
             ),
@@ -292,9 +294,13 @@ impl AiCar {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
+        if self.racer_emulated() {
+            return;
+        }
         let think_steps = match self.role {
             Role::Traffic => THINK_STEPS,
             Role::Cop(_) => cop::THINK_STEPS,
+            Role::Racer(_) => super::racer::RACER_THINK_STEPS,
         };
         if (self.steps + self.stagger).is_multiple_of(think_steps) {
             self.think(ctx);
@@ -304,7 +310,7 @@ impl AiCar {
         self.shock = (self.shock - STEP / SHOCK_TIME).max(0.0);
         let reversing = self.driver.reverse_override_left() > 0.0;
         let flags = match (&self.role, reversing, self.searching) {
-            (Role::Cop(_), false, false) => DriveFlags::FULL,
+            (Role::Cop(_) | Role::Racer(_), false, false) => DriveFlags::FULL,
             _ => DriveFlags::SIMPLE,
         };
         let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
@@ -320,7 +326,7 @@ impl AiCar {
         if self.breaker_stop || self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }
-        if self.arrested {
+        if self.arrested || self.racer_held() {
             self.controls = AiControls { brake: 1.0, handbrake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
@@ -414,6 +420,25 @@ impl AiCar {
                 self.target = think.target;
                 self.speed = think.speed;
                 self.blocked = think.blocked;
+            }
+            Role::Racer(racer) => {
+                let pressing = self.controls.gas >= 0.5;
+                let reversing = self.driver.reverse_override_left() > 0.0;
+                let stuck = !racer.held
+                    && racer.stuck.update(cop::THINK_PERIOD, pressing, reversing, false, state.body.position);
+                if stuck {
+                    log::info!("race: {} is stuck, reversing", self.name);
+                    let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
+                    let at = state.body.position;
+                    let forward = Vec3::new(state.body.forward.x, 0.0, state.body.forward.y);
+                    if self.nav.init_at_point(ctx.net, ctx.index, at, forward, false) {
+                        self.nav.enable_trail(ctx.net);
+                    }
+                    shift(&mut self.sim, Some(gear));
+                }
+                let think = racer.think(ctx, &mut self.nav, &state, traffic::others(ctx.bodies, ctx.me, ctx.player));
+                self.target = think.target;
+                self.speed = think.speed;
             }
             Role::Cop(cop) => {
                 let Some(player) = ctx.player else {

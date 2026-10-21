@@ -156,3 +156,6 @@ remaining clock, geometry, context and live-comparison limits.
   sync model, bandwidth, transport, integration, online phases and the security design (see its own index).
 - [telemetry/README.md](telemetry/README.md): the optional telemetry server (milestone 13): channels, transport and privacy,
   control endpoints, the HTTP API and what carries over to multiplayer (see its own index).
+- [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap
+  races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
+  [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up.

@@ -57,7 +57,7 @@ impl Drive {
         for (zone, severity, glazed) in self.queued_hits.drain(..) {
             sim.inflict(zone, severity, glazed);
         }
-        if !sim.place(&ground, spawn) {
+        if !sim.place_moving(&ground, spawn, std::mem::take(&mut self.pending_speed)) {
             return false;
         }
         self.effects.disconnect();

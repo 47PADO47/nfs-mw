@@ -93,6 +93,8 @@ pub struct BbRaceDef {
     pub key: BbName,
     /// The name shown to the player.
     pub name: BbName,
+    /// Opponents on the grid besides the player, 0 to 7. A definition that ends before this field has none.
+    pub opponents: u32,
 }
 
 /// `race_count`: write the number of races to `out`.

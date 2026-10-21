@@ -2,7 +2,8 @@
 //! and colours are the HUD's own.
 
 use crate::hud::{
-    AUTO_SHOP, CAR_LOT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, CAR_LOT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, ROADBLOCK,
+    SAFE_HOUSE,
 };
 
 /// A tab of the map's legend. The map opens on [`Filter::DEFAULT`], which is [`Filter::Locations`].
@@ -12,14 +13,17 @@ pub enum Filter {
     Locations,
     /// The race events, of every type.
     Races,
+    /// The police roadblocks standing in a chase (the executable's pursuit mode).
+    Pursuit,
 }
 
 const LOCATION_STYLES: [&str; 3] = [AUTO_SHOP, SAFE_HOUSE, CAR_LOT];
+const PURSUIT_STYLES: [&str; 1] = [ROADBLOCK];
 const RACE_STYLES: [&str; 6] = [RACE_SPRINT, RACE_DRAG, RACE_CIRCUIT, RACE_KNOCKOUT, RACE_TOLLBOOTH, RACE_SPEEDTRAP];
 
 impl Filter {
     /// The tabs in the order the legend cycles them.
-    pub const ALL: [Filter; 2] = [Filter::Locations, Filter::Races];
+    pub const ALL: [Filter; 3] = [Filter::Locations, Filter::Races, Filter::Pursuit];
 
     /// The filter the map opens on.
     pub const DEFAULT: Filter = Filter::Locations;
@@ -28,6 +32,7 @@ impl Filter {
         match self {
             Filter::Locations => "Locations",
             Filter::Races => "Races",
+            Filter::Pursuit => "Pursuit",
         }
     }
 
@@ -36,6 +41,7 @@ impl Filter {
         match self {
             Filter::Locations => &LOCATION_STYLES,
             Filter::Races => &RACE_STYLES,
+            Filter::Pursuit => &PURSUIT_STYLES,
         }
     }
 

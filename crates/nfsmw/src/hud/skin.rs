@@ -10,6 +10,12 @@ pub fn tach_face_texture(max_rpm: f32, skin: u8) -> u32 {
     fe_hash_upper(&format!("{n}_LINES_{skin:02}"))
 }
 
+/// The drag tachometer's face texture: `DRAG_RPM_<n>_LINES`, one per scale, with no skins.
+pub fn drag_face_texture(max_rpm: f32) -> u32 {
+    let n = scale_rpm(max_rpm) as u32;
+    fe_hash_upper(&format!("DRAG_RPM_{n}_LINES"))
+}
+
 /// The needle texture of a skin.
 pub fn needle_texture(skin: u8) -> u32 {
     fe_hash_upper(&format!("TACH_NEEDLE_{skin:02}"))

@@ -36,9 +36,8 @@ fn section(action: Action) -> Section {
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
         | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
-        MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuQuit | Click => {
-            Section::Menus
-        }
+        MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
+        | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => Section::Menus,
         Cancel | Console | RadioToggle | RadioNext | RadioPrevious | Map => Section::General,
     }
 }
@@ -90,6 +89,10 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MenuAccept => ("Menu accept", ""),
         MenuBack => ("Menu back", ""),
         MenuStart => ("Start (pause, resume)", ""),
+        MenuButton1 => ("Menu button 1 (post-race: restart)", ""),
+        MenuButton2 => ("Menu button 2 (win photo: race stats)", ""),
+        MenuTriggerLeft => ("Menu left shoulder (post-race: previous racer)", ""),
+        MenuTriggerRight => ("Menu right shoulder (post-race: next racer)", ""),
         MenuQuit => ("Quit from the main menu", ""),
         Click => ("Skip a movie, continue at the title screen", ""),
         RadioToggle => ("Radio: pause / resume", "N"),

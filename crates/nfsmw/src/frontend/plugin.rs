@@ -103,6 +103,11 @@ fn pad_mask(actions: &ActionState) -> u32 {
         (Action::MenuAccept, pad::ACCEPT),
         (Action::MenuBack, pad::BACK),
         (Action::MenuStart, pad::START),
+        // Key 1 is Restart on both post-race screens: the lap table's button 1 and the photo's button 5.
+        (Action::MenuButton1, (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
+        (Action::MenuButton2, pad::BUTTON0 << 4),
+        (Action::MenuTriggerLeft, pad::LTRIGGER),
+        (Action::MenuTriggerRight, pad::RTRIGGER),
     ]
     .into_iter()
     .filter(|(action, _)| actions.pressed(*action))
@@ -320,6 +325,7 @@ fn update(
                 map.themes.world_map_view().clear();
             }
             fe.poll_bust(host, &mut env);
+            fe.poll_race(host, &mut env);
             fe.poll_career(host, &mut env);
             // An auto shop asks the garage to open on the next frame (`cursor.rs` opens it, as the start request does).
             if std::mem::take(&mut fe.auto_shop_requested) {

@@ -22,6 +22,7 @@ pub mod outbox;
 mod plugin;
 mod policy;
 pub mod pursuit_feed;
+pub mod races_feed;
 mod runtime;
 
 #[cfg(test)]

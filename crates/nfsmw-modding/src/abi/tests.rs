@@ -24,8 +24,10 @@ fn event_kinds_are_locked() {
             MW_EVENT_BUSTED,
             MW_EVENT_ESCAPED,
             MW_EVENT_INFRACTION_RECORDED,
+            MW_EVENT_RACE_STARTED,
+            MW_EVENT_RACE_FINISHED,
         ],
-        [0x1000, 0x1001, 0x1002, 0x1003, 0x1004, 0x1005]
+        [0x1000, 0x1001, 0x1002, 0x1003, 0x1004, 0x1005, 0x1006, 0x1007]
     );
 }
 
@@ -108,6 +110,15 @@ fn pursuit_event_payloads() {
     assert_eq!(size_of::<BbMwInfraction>(), 12);
     assert_eq!(offset_of!(BbMwInfraction, infraction), 4);
     assert_eq!(offset_of!(BbMwInfraction, fine), 8);
+
+    assert_eq!(size_of::<BbMwRaceStarted>(), 20);
+    assert_eq!(offset_of!(BbMwRaceStarted, race), 4);
+    assert_eq!(offset_of!(BbMwRaceStarted, laps), 16);
+
+    assert_eq!(size_of::<BbMwRaceFinished>(), 24);
+    assert_eq!(offset_of!(BbMwRaceFinished, position), 8);
+    assert_eq!(offset_of!(BbMwRaceFinished, time), 16);
+    assert_eq!(offset_of!(BbMwRaceFinished, winnings), 20);
 }
 
 #[test]
@@ -214,7 +225,8 @@ fn races_table_and_records() {
     assert_eq!(offset_of!(BbRaceState, elapsed), 24);
     assert_eq!(size_of::<BbRaceResult>(), 20);
     assert_eq!(offset_of!(BbRaceResult, winnings), 16);
-    assert_eq!(size_of::<BbRaceDef>(), 296);
+    assert_eq!(size_of::<BbRaceDef>(), 300);
+    assert_eq!(offset_of!(BbRaceDef, opponents), 296);
     assert_eq!(offset_of!(BbRaceDef, start_heading), 28);
     assert_eq!(offset_of!(BbRaceDef, key), 32);
     assert_eq!(offset_of!(BbRaceDef, name), 164);

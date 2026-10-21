@@ -2,6 +2,10 @@
 //! [`crate::app`]; input arrives as actions ([`crate::input`]).
 
 pub mod camera;
+mod race_report;
+pub use race_report::{
+    PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
+};
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -236,6 +240,22 @@ pub trait Scene {
     /// `None` otherwise.
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
         None
+    }
+    /// The finished race's results, once, when the front end should show the post-race screen; `None` otherwise.
+    fn take_race_report(&mut self) -> Option<RaceReport> {
+        None
+    }
+    /// The photo of a speed trap the car has just crossed in free roam, once, when the front end should show it.
+    fn take_trap_photo(&mut self) -> Option<PhotoReport> {
+        None
+    }
+    /// The milestones a finished chase banked, once, when the front end should show the rewards screen.
+    fn take_rewards_report(&mut self) -> Option<RewardsReport> {
+        None
+    }
+    /// The post-race screen's answer. `true` when a race was waiting on it.
+    fn answer_race(&mut self, _answer: RaceAnswer) -> bool {
+        false
     }
     /// The player pays the bust's fines on the ticket (`marker`: with a marker). `true` when the bust took the payment.
     fn pay_bust(&mut self, _marker: bool) -> bool {

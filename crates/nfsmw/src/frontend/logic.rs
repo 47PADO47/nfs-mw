@@ -25,6 +25,8 @@ pub enum Category {
     Discord,
     /// The alias manager, opened from the main menu's Alias Manager icon: save and load (`alias_options.rs`).
     AliasManager,
+    /// The rows of Quick Race's track options (`quick_options.rs`).
+    QuickRace,
     /// The rows the mods registered (`bb.menus`): listed on the page only when a mod has rows (`mod_options.rs`).
     Mods,
 }
@@ -64,12 +66,19 @@ pub enum Command {
     /// Leave the menus and drive, outside career mode.
     #[allow(dead_code)] // nothing sends it since Career starts a career; Quick Race will
     StartFreeRoam,
+    /// Quick Race: leave the menus and start this race (a gameplay collection name) in the world, outside career mode
+    /// (`quick_race.rs`, `track_options.rs`).
+    StartQuickRace(String),
     /// Career on the main menu: resume the latest profile or start a new career, then drive with it (`flow_career.rs`).
     StartCareer,
     /// Close the pause menu and go on driving.
     Resume,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
     SetWaypoint([f32; 2]),
+    /// Show the lap table of a race (`PostRace_Results.fng`) in place of the screen on top (`photo.rs`).
+    ShowResults(crate::viewer::RaceReport),
+    /// The post-race screen's answer: run the race again or leave it (`post_race.rs`).
+    RaceAnswer(crate::viewer::RaceAnswer),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
     /// game goes on driving when it does.
     PayBust {
@@ -158,6 +167,12 @@ impl Cx<'_> {
             self.rt.set_text(ObjectRef { package: self.package, index }, text);
         }
     }
+    /// Sets the text of the string object with this name hash (and nothing else). Nothing when the screen has none.
+    pub fn text_object(&mut self, name_hash: u32, text: &str) {
+        let Some(object) = self.object(name_hash) else { return };
+        self.rt.set_text(object, text);
+    }
+
     /// The object with this GUID in the screen's package.
     pub fn guid(&self, guid: u32) -> Option<ObjectRef> {
         self.rt.find_guid(self.package, guid)

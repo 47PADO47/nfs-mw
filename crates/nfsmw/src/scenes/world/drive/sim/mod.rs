@@ -138,6 +138,7 @@ impl CarSim {
     }
 
     /// Put the car on the road at `spawn`, standing still. False when `ground` has nothing there.
+    #[cfg(test)]
     pub fn place(&mut self, ground: &dyn Ground, spawn: Spawn) -> bool {
         self.place_moving(ground, spawn, 0.0)
     }

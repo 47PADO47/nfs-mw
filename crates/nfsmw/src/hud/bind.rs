@@ -8,8 +8,8 @@ use super::blips::BlipBinding;
 use super::elements::{Layout, Shown};
 use super::minimap::MinimapBinding;
 use super::pursuit::timer_text;
-use super::skin::{fill_texture, needle_texture, tach_face_texture};
-use super::state::{HudState, redline_rotation};
+use super::skin::{drag_face_texture, fill_texture, needle_texture, tach_face_texture};
+use super::state::{HudState, redline_rotation, redline_rotation_drag};
 
 /// The script an object plays when its condition is on, and the one it rests in.
 const SCRIPT_GREEN: u32 = 0x02DDC8F0;
@@ -39,6 +39,16 @@ const NOS_BAR_EMPTY_DEG: f32 = 175.0;
 /// The turbo needle swings across this range of angles for a gauge from `TURBO_MIN_PSI` to `TURBO_MAX_PSI`.
 const TURBO_DEG: (f32, f32) = (-45.0, 45.0);
 const TURBO_PSI: (f32, f32) = (-20.0, 20.0);
+/// The drag needle (`Drag_RPM_Needle` is named `3rdPersonNeedle` as well) rests at its authored 42 degrees and runs over
+/// the `Drag_RPM_10000_Lines` face; the sweep is the main needle's **[unconfirmed]**.
+const DRAG_NEEDLE_START_DEG: f32 = 42.0;
+const DRAG_SCALE_RPM: f32 = 10000.0;
+/// The drag HUD's "Perfect Shift!" group (`0x2579C809`) and the script that plays it (one of four of 1900 ms, which one
+/// the game picks for which shift is not read), and the share of the red line a shift has to be made above to count
+/// **[unconfirmed]**: the game's shift rating is not read.
+const PERFECT_SHIFT: u32 = 0x2579_C809;
+const PERFECT_SCRIPT: u32 = 0xC8D8_8528;
+const PERFECT_SHARE: f32 = 0.95;
 /// The gear digit's alpha while a gear change is in progress.
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The pursuit board's group (`PursuitBoardGroup`).
@@ -52,6 +62,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
     police: super::police::Binding,
+    race: super::race::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
     hiding_mark: super::hiding_mark::HidingMark,
     layout: Layout,
@@ -65,6 +76,11 @@ pub struct HudBinding {
     units: Option<ObjectRef>,
     gear: Option<ObjectRef>,
     needle: Option<ObjectRef>,
+    /// The drag HUD's "Perfect Shift!" group and the gear and rpm the last frame had (`perfect_shift`).
+    perfect: Option<ObjectRef>,
+    last_shift: (i32, f32),
+    /// The package is `HUD_Drag.fng`: its needle rests at 42 degrees and runs over a 10000 rpm face.
+    drag: bool,
     fill: Option<ObjectRef>,
     face: Option<ObjectRef>,
     redline: Option<ObjectRef>,
@@ -105,6 +121,7 @@ impl HudBinding {
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
             police: super::police::Binding::new(rt, package),
+            race: super::race::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
             hiding_mark: super::hiding_mark::HidingMark::new(rt, package),
             layout: Layout::new(rt, package),
@@ -119,6 +136,9 @@ impl HudBinding {
             units: find(rt, package, "3rdPersonSpeedUnits"),
             gear: find(rt, package, GEAR),
             needle: find(rt, package, "3rdPersonNeedle"),
+            perfect: rt.find(package, PERFECT_SHIFT),
+            last_shift: (0, 0.0),
+            drag: rt.package(package).is_some_and(|p| p.name.eq_ignore_ascii_case("HUD_Drag.fng")),
             fill: rt.find_guid(package, 0x456e),
             face: find(rt, package, "TAC_Lines_7500"),
             redline: find(rt, package, "RPM_REDLINE"),
@@ -175,6 +195,7 @@ impl HudBinding {
     /// Advances the mirror's fade-in by `dt` seconds. Called once per frame, before `apply`.
     pub fn advance_mirror_fade(&mut self, dt: f32) {
         self.police.advance(dt);
+        self.race.advance(dt);
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
     }
 
@@ -198,6 +219,10 @@ impl HudBinding {
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
             career: s.career_bounty.is_some(),
+            race: s.race.is_some(),
+            race_laps: s.race.is_some_and(|r| r.lap.is_some()),
+            countdown: s.race.is_some_and(|r| r.count.is_some()),
+            message: s.message.is_some() || self.race.message_active(),
         };
         self.layout.update(rt, shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
@@ -217,6 +242,8 @@ impl HudBinding {
         self.tachometer(rt, s);
         self.speedbreaker.update(rt, s.speedbreaker, s.speedbreaker_active);
         self.pursuit(rt, s);
+        self.race.apply(rt, s.race);
+        self.race.show_message(rt, s.message.as_ref());
         self.pursuit_meter.apply(rt, s.pursuit);
         self.hiding_mark.apply(rt, s.pursuit.is_some_and(|p| p.hiding_shown()));
         self.police.apply(rt, s, self.mirror_shown);
@@ -260,9 +287,13 @@ impl HudBinding {
             rt.set_colour_rgba(o, [0, 0, 0, alpha]);
         }
         if let Some(o) = self.needle {
-            let angle = NEEDLE_START_DEG + s.rpm_fraction() * NEEDLE_SWEEP_DEG;
+            let angle = match self.drag {
+                true => DRAG_NEEDLE_START_DEG + (s.rpm / DRAG_SCALE_RPM).clamp(0.0, 1.0) * NEEDLE_SWEEP_DEG,
+                false => NEEDLE_START_DEG + s.rpm_fraction() * NEEDLE_SWEEP_DEG,
+            };
             rt.set_rotation_z(o, angle.to_radians());
         }
+        self.perfect_shift(rt, s);
         if let Some(o) = self.shift_light
             && s.shift_light != self.shift_on
         {
@@ -275,16 +306,37 @@ impl HudBinding {
         }
         self.applied_face = Some(face_key);
         if let Some(o) = self.face {
-            rt.set_texture(o, tach_face_texture(s.max_rpm, s.skin));
+            let face = match self.drag {
+                true => drag_face_texture(s.max_rpm),
+                false => tach_face_texture(s.max_rpm, s.skin),
+            };
+            rt.set_texture(o, face);
         }
-        if let Some(o) = self.needle {
-            rt.set_texture(o, needle_texture(s.skin));
-        }
-        if let Some(o) = self.fill {
-            rt.set_texture(o, fill_texture(s.skin));
+        // The skins are the race HUD's; the drag gauge keeps its own needle.
+        if !self.drag {
+            if let Some(o) = self.needle {
+                rt.set_texture(o, needle_texture(s.skin));
+            }
+            if let Some(o) = self.fill {
+                rt.set_texture(o, fill_texture(s.skin));
+            }
         }
         if let Some(o) = self.redline {
-            rt.set_mask_rotation(o, redline_rotation(s.max_rpm, s.red_line));
+            let angle = match self.drag {
+                true => redline_rotation_drag(s.max_rpm, s.red_line),
+                false => redline_rotation(s.max_rpm, s.red_line),
+            };
+            rt.set_mask_rotation(o, angle);
+        }
+    }
+
+    /// A drag shift made close to the red line plays "Perfect Shift!".
+    fn perfect_shift(&mut self, rt: &mut Runtime, s: &HudState) {
+        let (gear, rpm) = self.last_shift;
+        self.last_shift = (s.gear, s.rpm);
+        let Some(o) = self.perfect.filter(|_| self.drag) else { return };
+        if s.gear > gear && gear >= 1 && rpm >= s.red_line * PERFECT_SHARE {
+            rt.run_script(o, PERFECT_SCRIPT);
         }
     }
 

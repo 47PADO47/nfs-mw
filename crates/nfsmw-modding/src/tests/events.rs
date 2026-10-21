@@ -6,9 +6,9 @@ use core::mem::size_of;
 use core::ptr::from_ref;
 
 use crate::abi::{
-    BbMwBusted, BbMwEscaped, BbMwHeatChanged, BbMwInfraction, BbMwPursuitEnded, BbMwPursuitStarted, MW_EVENT_BUSTED,
-    MW_EVENT_ESCAPED, MW_EVENT_HEAT_CHANGED, MW_EVENT_INFRACTION_RECORDED, MW_EVENT_PURSUIT_ENDED,
-    MW_EVENT_PURSUIT_STARTED,
+    BbMwBusted, BbMwEscaped, BbMwHeatChanged, BbMwInfraction, BbMwPursuitEnded, BbMwPursuitStarted, BbMwRaceFinished,
+    BbMwRaceStarted, MW_EVENT_BUSTED, MW_EVENT_ESCAPED, MW_EVENT_HEAT_CHANGED, MW_EVENT_INFRACTION_RECORDED,
+    MW_EVENT_PURSUIT_ENDED, MW_EVENT_PURSUIT_STARTED, MW_EVENT_RACE_FINISHED, MW_EVENT_RACE_STARTED,
 };
 use crate::host::mw_event;
 use crate::sdk::{EndReason, Infraction, MwEvent};
@@ -71,6 +71,25 @@ fn every_kind_decodes_from_the_bytes_the_host_writes() {
     assert_eq!(
         MwEvent::decode(MW_EVENT_INFRACTION_RECORDED, 6, bytes_of(&infraction)),
         MwEvent::InfractionRecorded { frame: 6, infraction: Infraction::Racing, fine: 250 }
+    );
+
+    let started = BbMwRaceStarted { size: size_of::<BbMwRaceStarted>() as u32, race: 12, kind: 2, racers: 4, laps: 3 };
+    assert_eq!(
+        MwEvent::decode(MW_EVENT_RACE_STARTED, 10, bytes_of(&started)),
+        MwEvent::RaceStarted { frame: 10, race: 12, kind: 2, racers: 4, laps: 3 }
+    );
+
+    let finished = BbMwRaceFinished {
+        size: size_of::<BbMwRaceFinished>() as u32,
+        race: 12,
+        position: 1,
+        won: 1,
+        time: 95.5,
+        winnings: 12_000,
+    };
+    assert_eq!(
+        MwEvent::decode(MW_EVENT_RACE_FINISHED, 11, bytes_of(&finished)),
+        MwEvent::RaceFinished { frame: 11, race: 12, position: 1, won: true, time: 95.5, winnings: 12_000 }
     );
 }
 

@@ -8,12 +8,15 @@ mod bust;
 mod cooling;
 mod events;
 mod hud;
+mod ladder;
 mod phone;
 mod pursuit;
 mod rap_tally;
 mod regions;
 mod respawn;
+mod rewards;
 mod safehouse;
+mod speedtraps;
 
 use std::collections::VecDeque;
 
@@ -35,10 +38,18 @@ pub(super) struct WorldCareer {
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
-    /// The paint cooling table of the install, read when the garage first fits a part (`None` inside: not readable).
     /// The respawn markers visited, and a respawn waiting for the game to run again after a bust.
     pub respawn: respawn::Respawns,
+    /// The paint cooling table of the install, read when the garage first fits a part (`None` inside: not readable).
     pub cooling: Option<Option<nfsmw_career::economy::cooling::CoolingTable>>,
+    /// The events of the challenge bin the player has won this session (`events.rs`).
+    pub side_won: std::collections::BTreeSet<String>,
+    /// The speed traps the car is inside (`speedtraps.rs`).
+    pub traps: speedtraps::TrapWatch,
+    /// The milestones the last chase banked, until the front end takes them for the rewards screen.
+    pub rewards: Option<crate::viewer::RewardsReport>,
+    /// The speed trap the car has just crossed, until the front end takes it for the photo.
+    pub trap_photo: Option<crate::viewer::PhotoReport>,
 }
 
 impl WorldScene {
@@ -55,6 +66,7 @@ impl WorldScene {
         }
         self.career_respawn();
         self.career_pursuit(dt);
+        self.career_speed_traps();
         self.career_regions();
         self.career_hud();
         self.career_phone(dt);

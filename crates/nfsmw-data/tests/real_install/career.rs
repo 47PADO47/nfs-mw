@@ -304,3 +304,13 @@ fn the_rap_sheet_thresholds_match_the_default_tables() {
     assert_eq!(t.single[2][14], 1.0);
     assert_eq!(t.single[9][14], 1_000.0);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_free_roam_speed_traps_state_their_trigger_radius() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let radii: Vec<Option<f32>> = data.speed_traps.iter().map(|t| t.radius).collect();
+    println!("RADII {radii:?}");
+    assert!(radii.iter().all(Option::is_some), "every trap states a radius");
+}

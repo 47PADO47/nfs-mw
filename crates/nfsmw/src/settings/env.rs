@@ -152,6 +152,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         turn_signals: None,
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
+        quick_race: None,
         discord: value(&get, DISCORD, parse_bool),
         discord_time_played: value(&get, DISCORD_TIME_PLAYED, parse_bool),
         mods: value(&get, MODS, super::mods::ModsMode::from_str),

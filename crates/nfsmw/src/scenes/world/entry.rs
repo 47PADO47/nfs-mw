@@ -38,6 +38,10 @@ impl WorldScene {
     /// and Interact enters the zone when its card is up. Interact is read only while the card is up, so a press on
     /// another control (the pad's South also handbrakes) does nothing here unless a prompt is on screen.
     pub(super) fn update_entry(&mut self, input: &ActionState, dt: f32) {
+        // A race holds every other entry: the card, the zones and the interiors wait for the result.
+        if self.race.is_some() {
+            return self.hold_card(dt);
+        }
         let ready = self.entry.interior.loading_tile().is_some_and(|tile| self.residency.pack_resident(tile));
         let commands = self.entry.interior.tick(dt, ready);
         self.run_interior(commands);
@@ -48,6 +52,20 @@ impl WorldScene {
             return self.update_outside(input, dt);
         }
         self.hold_card(dt);
+    }
+
+    /// A race zone was entered: the race starts. An open career race counts in the career; a race outside the career
+    /// (or one the Blacklist does not list) is a free run. A race that cannot start flashes why on the card.
+    fn enter_race_zone(&mut self, name: &str, career: bool) {
+        let options = super::race::RaceOptions { career, ..Default::default() };
+        match self.start_race(name, options) {
+            Ok(line) => log::info!("race: {line}"),
+            Err(why) => {
+                log::warn!("race {name}: {why}");
+                let card = Prompt { title: "Race".to_string(), line: why };
+                self.entry.popup.flash(card, PLACEHOLDER_SECS);
+            }
+        }
     }
 
     /// Nothing offers a card while the player goes into or out of a mod interior.
@@ -80,7 +98,10 @@ impl WorldScene {
             if locked {
                 flash_locked(&mut self.entry.popup, name);
             }
-            if !locked && !self.career_enter_zone(*kind, name) {
+            if !locked && *kind == ZoneKind::Race {
+                let career = race == RaceEntry::Open || self.career.handle.is_active();
+                self.enter_race_zone(name, career);
+            } else if !locked && !self.career_enter_zone(*kind, name) {
                 enter_stub(&mut self.entry.popup, *kind, name);
             }
         }

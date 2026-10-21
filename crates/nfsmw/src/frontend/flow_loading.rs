@@ -92,6 +92,9 @@ impl Frontend {
             Err(_) => return self.loading_failed("the loading thread panicked", host, env),
         };
         world.set_career(self.career.clone(), self.profiles.clone());
+        if let Some(race) = self.quick_race.take() {
+            world.queue_race(race, crate::frontend::quick_options::Choice::of(env.settings).race_options());
+        }
         self.paused.set(false);
         self.conceal.set(true);
         let scene = Pausable::new(Box::new(world), self.paused.clone()).with_conceal(self.conceal.clone());

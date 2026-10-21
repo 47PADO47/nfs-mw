@@ -91,11 +91,16 @@ impl WorldScene {
             (joined(garage_catalog), map_packs, interiors)
         });
         let garage_catalog = garage_catalog?;
-        let (map_blips, entry_zones) = match gameplay {
-            Ok(data) => (super::hud::static_blips(&data), entry_zones::EntryZones::from_data(&data)),
+        let (map_blips, race_starts, entry_zones, gameplay) = match gameplay {
+            Ok(data) => (
+                super::hud::interior_blips(&data),
+                super::hud::race_start_blips(&data),
+                entry_zones::EntryZones::from_data(&data),
+                Some(std::sync::Arc::new(data)),
+            ),
             Err(e) => {
-                log::warn!("race and interior blips and entry zones are off: {e:#}");
-                (Vec::new(), entry_zones::EntryZones::default())
+                log::warn!("race and interior blips, entry zones and races are off: {e:#}");
+                (Vec::new(), Vec::new(), entry_zones::EntryZones::default(), None)
             }
         };
         let entry_zones = entry_zones.with_interiors(interiors);
@@ -182,6 +187,11 @@ impl WorldScene {
                 drive: None,
                 traffic,
                 map_blips,
+                race_starts,
+                gameplay,
+                race: None,
+                queued_race: None,
+                race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 career: Default::default(),
                 scenery_groups: Default::default(),

@@ -48,6 +48,7 @@ pub use open::WorldLoad;
 #[cfg(test)]
 mod performance_tests;
 mod props;
+mod race;
 mod readiness;
 mod rear_view;
 mod reflections;
@@ -173,6 +174,16 @@ pub struct WorldScene {
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,
+    /// The races, their triggers and their opponents, when the install's gameplay data could be read.
+    /// The icons of the race starts with the race each marks; which show is decided each frame (`hud.rs`).
+    race_starts: Vec<(String, crate::hud::MapBlip)>,
+    gameplay: Option<std::sync::Arc<nfsmw_data::gameplay::GameplayData>>,
+    /// The race being run, if any (`race/`).
+    race: Option<race::RaceSession>,
+    /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
+    queued_race: Option<(String, race::RaceOptions)>,
+    /// What the mods set about the races and what they can read of them (`race/mods.rs`).
+    race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
     pub mod_blips: Vec<crate::hud::MapBlip>,
     /// The career being played, if any, and what it asks of the front end (`career/`).
@@ -232,4 +243,6 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
+pub use race::RaceOptions;
+
 pub const DEFAULT_CAR: &str = "BMWM3GTR";

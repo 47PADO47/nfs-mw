@@ -29,6 +29,14 @@ pub mod screen {
     pub const WORLD_MAP: &str = "WorldMapMain.fng";
     /// The ticket after a bust in free roam (`infractions.rs`). Opened by the bust sequence, not by a menu.
     pub const INFRACTIONS: &str = "Infractions.fng";
+    /// The results of a finished race (`post_race.rs`). Opened by the race flow, not by a menu.
+    pub const POST_RACE_RESULTS: &str = "PostRace_Results.fng";
+    /// The numbers of a pursuit challenge's chase (`pursuit_results.rs`). Opened by the end of the challenge.
+    pub const POST_RACE_PURSUIT: &str = "PostRace_Pursuit.fng";
+    /// The photo after a race win or a speed trap (`photo.rs`). Opened by the race or the trap, not by a menu.
+    pub const PHOTO: &str = "InGamePhotoMaster.fng";
+    /// What a chase banked (`rewards.rs`). Opened by the chase's end, not by a menu.
+    pub const MILESTONE_REWARDS: &str = "PostRace_MilestoneRewards.fng";
     /// The EA Trax playlist screen (`jukebox.rs`), opened from the audio category.
     pub const EA_TRAX_JUKEBOX: &str = "EA_Trax_Jukebox.fng";
     /// The credits roll (`credits.rs`), opened from the option categories.

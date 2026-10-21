@@ -78,7 +78,7 @@ name, 0 = none). Arrays are `Attrib::Array`s. Counts are over the 255 races **[v
 | `racestart` | key | the start-grid marker (class `startgrid`, parent `marker`): position and heading of the front of the grid |
 | `racefinish` | key | the finish-line trigger (box trigger). Absent in a few story shells |
 | `racestartReverse`, `racefinishReverse` | key | start and finish used when the player runs the race reversed (all 0 in this install; the reverse variants are separate `..._r_...` events) |
-| `Checkpoint` | key[] | the ordered checkpoints (box triggers), 0..15 per race (counts: 7 -> 58 races, 9 -> 23, 12 -> 19, 15 -> 18, 0 -> 39) |
+| `Checkpoint` | key[] | the ordered checkpoints (box triggers; in a tollbooth race `time_bonus_checkpoint*` triggers with an `Int32` `TimeBonus` of 25, 35 or 160 s stand among them **[verified]**), 0..15 per race (counts: 7 -> 58 races, 9 -> 23, 12 -> 19, 15 -> 18, 0 -> 39) |
 | `Shortcuts` | key[] | shortcut markers (class `shortcut`, parent `marker`), 0..28 per race (103 races have none) |
 | `BarrierExemptions` | key[] | markers; 6 races (the tollbooth ones) have one |
 | `Barriers` | text[] | names of track-path barriers enabled for the race; a leading `*` marks a barrier flagged as a player barrier (drive-through), plus entries like `SCENERY_GROUP_DOOR` |
@@ -86,7 +86,7 @@ name, 0 = none). Arrays are `Attrib::Array`s. Counts are over the 255 races **[v
 | `NumLaps` | int | 1 (201 races), 2 (15), 3 (36), 4 (2), 10 (1) |
 | `IsLoopingRace` | bool | True for the 53 circuit-type races; the laps then run through the same checkpoints |
 | `IsMarkerRace` | bool | 15 races |
-| `RaceTriggers`, `RandomSpawnTriggers`, `ZoneList`, `SpeedTrapList` | key[] | extra triggers: scripted traffic spawns, zones and the speed traps (4..10 per speed-trap race) |
+| `RaceTriggers`, `RandomSpawnTriggers`, `ZoneList`, `SpeedTrapList` | key[] | extra triggers: scripted traffic spawns, zones and the speed traps (4..10 per speed-trap race). A speed trap is a **sphere** (class `radiustrigger`: `Position`, `Radius` 20 to 30 m, `ThreshholdSpeed` 88 km/h in `1.5.3`), not a box **[verified]** |
 | `Region` | text | `college`, `coastal`, `city` (110 / 85 / 60 races) |
 
 Markers and triggers (`Position`, `Rotation`, `Dimensions`):
@@ -104,7 +104,9 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 - `Dimensions` (box triggers) are three extents. Over the 1,446 checkpoint-named box triggers **[verified]**: the
   first extent is 2 m (or 4 m or less) for 1,296; 143 are the 40 m cube kind `(40, 40, 40)`; 7 are other shapes.
   The `(2, W, 40)` kind has W 25..60 (`(2, 40, 40)` the most common). The first value is therefore the thin axis;
-  that it lies along the heading is still **[unconfirmed]** (see open question 1). Finish lines have a first
+  that it lies along the heading is still **[unconfirmed]** (see open question 1). The race code reads the three values
+  as **half** sizes: `checkpoint1` of `10.2.1` stands 22 m above the road with a stored height of 40, so only a half
+  size (a box 80 m high) holds the road ([world-markers.md](../specs/world-markers.md) section 3). Finish lines have a first
   extent of 2 m in the samples read, with the second 25..65 m; `10_2_1_sprint` has `(3, 65, 5)`.
 - Trigger flags: `OneShot` and `FireOnExit` are False on `trigger` and `boxtrigger`, and `FireOnExit` is True on
   `zonetrigger`; `ParticleEffect` is empty on `trigger` and `fxgame_flare_red` on `finishline`, with
@@ -119,7 +121,7 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 |---|---|
 | `DoCountdown` | True for 217 races: the 3-2-1 countdown with the cars held (staging). False for the 38 rolling-start ones |
 | `RollingStart` | True for 38 (boss, challenge and D-Day races): no countdown; every racer is placed already moving |
-| `InitialPlayerSpeed` | 0 (217), 40 (36) or 60 (2). Used as the start speed when a saved racer speed is 0. Unit not stated in the code; the vehicle layer takes metres per second, so 40 is about 144 km/h **[unconfirmed]** |
+| `InitialPlayerSpeed` | 0 (217), 40 (36) or 60 (2). Used as the start speed when a saved racer speed is 0. The only reader falls back to it where the vehicle speed slot is 0, so it is in the vehicle layer's unit, metres per second (40 is about 144 km/h) **[verified]** |
 | `StartTime`, `TOD` | time of day: `TOD -1` (245 races) leaves it unchanged; 1 (9) and 0.5 (1) set it. `StartTime 86` in the D-Day race |
 | `StartPercent` | 0.6 in the D-Day race only; the HUD progress starts there (`pct = 100 * start + (1 - start) * pct`) **[exe]** |
 | `PlayerCarType`, `PlayerCarPerformance` | a forced player car (177 races leave it empty) and its performance 0..1 (202 races: 1) |
@@ -138,7 +140,7 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 | `CatchUpSkill`, `CatchUpSpread` | **text**: a list of up to 11 floats separated by spaces or commas; `"0.2"` and `"1000"` in 235 and 234 races, `"1"` (17), `"0.5"` (3) and `"500"` (11), `"250"` (10) otherwise |
 | `CatchUpIntegral`, `CatchUpDerivative` | float gains; 5e-5 everywhere; 0.001 (251 races) or 0.005 (4) |
 | `CopsInRace`, `CopDensity`, `ScriptedCopsInRace`, `PursuitRace`, `UseWorldHeat`, `ForceHeatLevel`, `MaxHeatLevel`, `CopSpawnType`, `CopSpawnPoints` | police options; see the pursuit specs. `CopsInRace` is True for 108 races, `PursuitRace` for 37 |
-| `TrafficLevel`, `ForceTrafficDensity`, `TrafficPattern` | traffic density 0..100 percent (13 distinct values, 100 for 59 races, 30 for 31, 80 for 27 ...); `TrafficPattern "drag"` for drag races |
+| `TrafficLevel`, `ForceTrafficDensity`, `TrafficPattern` | traffic density 0..100 percent (13 distinct values, 100 for 59 races, 30 for 31, 80 for 27 ...); `TrafficPattern "drag"` for drag races. `StartRace` reads `ForceTrafficDensity` (attribute `0x5E161BBA`, an int): above 0 it sets the density, and a drag race sets 0 **[exe]** |
 | `RankPlayersByPoints`, `RankPlayersByDistance` | how positions are ordered ([ai-racers-route.md](../specs/ai-racers-route.md)): points for the 32 speed-trap races, otherwise laps then progress |
 
 The shipped data never switches `CatchUpOverride` on, so the `CatchUpSkill`, `CatchUpSpread`,
@@ -196,6 +198,18 @@ skill 0; unnamed `opponent`s with `OPM_*` presets).
   `KnockoutRacer`, `NotifyRaceFinished` and `RestoreStartPositions` on the engine. The bytecode is not
   decompiled; the engine side of these calls is in the specs.
 
+## 5b. Fields the race run reads (`RaceParams`, `Character`, `SphereTrigger`) **[verified]**
+
+`crates/nfsmw-data/src/gameplay/params.rs` reads, per race: `DoCountdown`, `RollingStart`, `InitialPlayerSpeed`,
+`IsLoopingRace`, `KnockoutsPerLap`, `TimeLimit`, `OvertimePenaltyPerSec`, `DifficultyLevel`, `TrafficLevel`,
+`ForceTrafficDensity`, `ForceHeatLevel` (attribute `0xE4211F4F`, the heat the racers start at, read by `StartRace`
+**[exe]**), `CopsInRace`, `PursuitRace`, `CatchUp`, `RankPlayersByPoints`, `TrafficPattern`, `Opponents`,
+`SpeedTrapList`, `Shortcuts` and `CashValue`. The install test checks the counts of section 3 (38 rolling starts, 217
+countdown races, 53 looping races, 20 knockout races, 32 ranked by points, 11 drag traffic patterns, 108 races
+without opponents and 101 with three). Per opponent: `SkillLevel`, `MinimumAIPerformance`, `PresetRide`, `CarType`,
+`IsBoss`, `ForceStartPosition`. Per box trigger: `TimeBonus` (an `Int32`) and `ResetsPlayer`; per sphere trigger
+(`radiustrigger`): `Position`, `Radius`, `ThreshholdSpeed`.
+
 ## 6. Reading the gameplay class (`crates/nfsmw-data/src/gameplay`) **[verified]**
 
 - `gameplay::load(&GameDir)` reads `GLOBAL/ATTRIBUTES.BIN` (the class) and `GLOBAL/gameplay.bin` (the
@@ -245,7 +259,8 @@ Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`
    the strings is `FUN_*`. A Ghidra pass over the box-containment routine is needed; until then the trigger test
    is **[unconfirmed]**.
    *Status:* the rewrite's working rule is in [world-markers.md](../specs/world-markers.md) section 3 (the first extent
-   along the heading, full sizes, fitted to the data, not read from the code). It is not used for any entry yet.
+   along the heading, fitted to the data, not read from the code). The race code reads the stored values as half
+   sizes (measured: the first checkpoint of `10.2.1` stands 22 m above its road); no entry zone uses a box.
 2. The unit of `InitialPlayerSpeed` (m/s assumed).
 3. The Lua state graphs (what ends a knockout lap, when the countdown starts the engines): decompile the
    bytecode (Lua 5.0 chunk) and describe them.
@@ -253,3 +268,15 @@ Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`
 5. The meaning of the zone field `0x6CE23062` (Int32, 8..16) and of `0x883C65E3` (Bool), and the field name of
    the respawn key `0x2241F4CD`. The field names are not in the database; they are matched by their hashes only.
 6. Whether the auto shop and safe house map icons are chosen by `ZoneType` alone or by the zone's index.
+
+## 9. Challenge fields **[verified]** (install)
+
+The 36 `challenge` races (event icon `challenge`) carry these fields, read by `RaceParams` and `Race::event`:
+`MilestoneName` (`0x704F72E8`: `pursuit_length`, `cops_damaged`, `cost_to_state_in_pursuit`, `bounty_in_pursuit`,
+`total_infractions`, `roadblocks_dodged`, `pursuit_evasion_time` or `tire_spikes_dodged`), `ThreshholdValue`
+(`0x4E90219D`), `ForceHeatLevel`, `PlayerCarType`, `Reputation` (`0x477EC5AA`) and `CopSpawnPoints` (`0xF124B151`, the
+keys of the cop car markers). The event id the Blacklist and the side bins use, `19.8.18`, is the text field
+`0xA78403EC` (name unknown): the data names of these races (`challenge_18_cops_hit`) do not hold it. The ladder fields
+are `InitiallyUnlocked` (`0xEA855EAF`, a bool, set on `19.8.1`, `19.8.32` and `19.9.70` among the side bins) and
+`UnlockRaces` (`0xFC8995C8`, the keys of the races a win opens, for example `19.8.11` opens `19.8.12` and `19.8.43`),
+read by `RaceParams`.

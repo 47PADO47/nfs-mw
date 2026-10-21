@@ -2,6 +2,7 @@
 
 use blackbox_attrib::{CollectionRef, Database, Value};
 
+use super::params::RaceParams;
 use super::{collection, instances, key_array, key_field, name_of, placement, text};
 
 /// Where something stands: a position in physics space and the heading in degrees (see [`super::world_heading`]).
@@ -59,6 +60,9 @@ impl RaceType {
     }
 }
 
+/// The field of a race that holds its event id, `19.8.18` (name unknown).
+const EVENT_FIELD: u32 = 0xA784_03EC;
+
 /// One race or challenge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Race {
@@ -70,6 +74,9 @@ pub struct Race {
     pub event_icon: String,
     /// The type of `event_icon`; `None` when the icon is empty or not in the game's table.
     pub race_type: Option<RaceType>,
+    /// The event id the race stores (`19.8.18`), field `0xA78403EC` (name not known). The pursuit challenges and the
+    /// side bins carry it; their data names do not hold it.
+    pub event: Option<String>,
     /// `Region` (`college`, `coastal`, `city`).
     pub region: Option<String>,
     /// `NumLaps`.
@@ -84,6 +91,8 @@ pub struct Race {
     /// `Barriers[]`: the track-path barrier names this race enables, as written (a leading `*` is kept, and
     /// entries are not trimmed). Spec: `docs/specs/career-regions.md` section 3.4. The career crate parses them.
     pub barriers: Vec<String>,
+    /// The start, clock, opponent and rank rules of the run (`docs/specs/race-mode.md`).
+    pub params: RaceParams,
 }
 
 /// The races of a database, in database order. Empty when the database has no `gameplay` class.
@@ -100,12 +109,14 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         name: name_of(c),
         race_type: RaceType::from_icon(&event_icon),
         event_icon,
+        event: c.get_by_key(EVENT_FIELD).and_then(Value::as_str).filter(|id| !id.is_empty()).map(str::to_owned),
         region: text(c, "Region"),
         laps: c.get_i32("NumLaps").unwrap_or(0),
         start: collection(db, start_key).map(placement),
         finish: key_field(c, "racefinish"),
         checkpoints: key_array(c, "Checkpoint"),
         barriers: text_items(c.get("Barriers")),
+        params: RaceParams::read(c),
     })
 }
 
