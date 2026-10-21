@@ -32,6 +32,10 @@ pub struct ReportRacer {
     pub collisions: u32,
     /// The race time at each checkpoint the racer reached (the tollbooths of a tollbooth race).
     pub checkpoints: Vec<f32>,
+    /// The racer was knocked out (a lap knockout, or totalled).
+    pub knocked_out: bool,
+    /// The speed through each speed trap, m/s, `None` for a trap not passed.
+    pub traps: Vec<Option<f32>>,
 }
 
 impl ReportRacer {
@@ -47,6 +51,8 @@ impl ReportRacer {
             time_behind: None,
             collisions: 0,
             checkpoints: Vec::new(),
+            knocked_out: false,
+            traps: Vec::new(),
         }
     }
 }
@@ -183,7 +189,8 @@ impl RaceReport {
         }
     }
 
-    /// A circuit report for `nfsmw view-screen`: the player and three opponents over three laps.
+    /// A circuit report: the player and three opponents over three laps.
+    #[cfg(test)]
     pub fn sample_circuit() -> Self {
         let lap = |time: f32, place: u32| ReportLap { time, place };
         let racer = |name: &str, place: u32, laps: Vec<ReportLap>| {

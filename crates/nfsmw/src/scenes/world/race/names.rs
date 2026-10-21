@@ -39,7 +39,7 @@ pub(super) fn name_opponents(plan: &mut [super::RacerPlan], dir: &game_install::
     let table = nfsmw_data::shared::language(dir).ok().and_then(|bytes| StringTable::from_file(&bytes).ok());
     let pool = pool(table.as_ref(), crate::modding::content::racer_names());
     let Some((player, rest)) = plan.split_first_mut() else { return };
-    let names = assign(&pool, &[player.name.clone()], rest.len(), seed);
+    let names = assign(&pool, std::slice::from_ref(&player.name), rest.len(), seed);
     for (racer, name) in rest.iter_mut().zip(names) {
         racer.name = name;
     }

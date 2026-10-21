@@ -73,6 +73,8 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collision
                 time_behind: time_behind(time, winner),
                 collisions: if i == 0 { collisions } else { 0 },
                 checkpoints: racer.checkpoint_times.clone(),
+                knocked_out: racer.out_at.is_some(),
+                traps: racer.traps.slots().to_vec(),
             }
         })
         .collect();

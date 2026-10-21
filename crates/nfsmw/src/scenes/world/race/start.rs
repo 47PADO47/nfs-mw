@@ -193,6 +193,13 @@ fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
 }
 
 /// The racers' plans: the player first, then the opponents on the grid. Without a road network there are no opponents.
+/// What the player is called in the race's results: the loaded profile's alias (a Quick Race runs with a profile that is
+/// loaded but not played, so `with_loaded`), else `player`.
+fn player_name() -> String {
+    let alias = crate::career::CareerHandle::shared().with_loaded(|career| career.alias.clone());
+    alias.unwrap_or_else(|| "player".into())
+}
+
 fn plan_racers(
     race: &Race,
     start: &nfsmw_data::gameplay::Placement,
@@ -205,7 +212,7 @@ fn plan_racers(
         heading: setup::spawn_heading(placement.heading_deg),
     };
     let mut plan = vec![RacerPlan {
-        name: "player".into(),
+        name: player_name(),
         model: None,
         spawn: slot(start),
         skill: 1.0,
