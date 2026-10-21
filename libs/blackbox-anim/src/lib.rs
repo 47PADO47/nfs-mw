@@ -9,6 +9,7 @@
 
 pub mod bank;
 mod bytes;
+pub mod codec;
 pub mod compound;
 mod error;
 pub mod object;

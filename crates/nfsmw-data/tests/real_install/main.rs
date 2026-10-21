@@ -8,6 +8,7 @@
 //! Without `NFSMW_GAME_DIR` they pass without checking anything.
 
 mod anim_banks;
+mod anim_codecs;
 mod anim_skeletons;
 mod career;
 mod carparts;

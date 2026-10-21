@@ -1,6 +1,8 @@
-//! Tests for the object, pose and skeleton readers. Every object is built in memory by `elf_builder`; no install data is read.
+//! Tests for the object, bank, codec, pose and skeleton readers. Every object is built in memory by
+//! `elf_builder`; no install data is read.
 
 mod bank;
+mod codec;
 mod compound;
 mod elf_builder;
 mod fixture;
