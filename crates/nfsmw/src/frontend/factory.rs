@@ -5,6 +5,7 @@ use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
 use super::credits::CreditsLogic;
 use super::custom_race::car_select::CarSelect as CustomCarSelect;
+use super::custom_race::press_start::PressStart;
 use super::custom_race::showcase::Showcase;
 use super::custom_race::track_options::TrackOptions;
 use super::custom_race::track_select::TrackSelect;
@@ -39,10 +40,13 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
         return super::career_screens::safehouse_menu::make(args);
     }
     if is(screen::CAR_SELECT) && args.custom {
-        return Box::new(CustomCarSelect::default());
+        return Box::new(CustomCarSelect::new(args));
+    }
+    if is(screen::PRESS_START) {
+        return Box::new(PressStart::new(args));
     }
     if is(screen::SHOWCASE) {
-        return Box::new(Showcase::default());
+        return Box::new(Showcase::new(args));
     }
     if let Some(logic) = super::career_screens::make(&name, args) {
         return logic;

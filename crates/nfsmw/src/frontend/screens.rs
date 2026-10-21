@@ -21,6 +21,7 @@ use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
 
 mod command;
+mod start;
 mod text;
 mod vertical;
 
@@ -62,6 +63,8 @@ pub struct Screens {
     pointer: Option<Vec2>,
     /// The last frame's pad mask, for `ScreenLogic::pad_pressed`.
     last_pad: u32,
+    /// The device whose Start went down this frame, until `update` hands it to the top screen (`screens/start.rs`).
+    start_press: Option<crate::input::PlayerDevice>,
 }
 
 impl Screens {
@@ -86,6 +89,7 @@ impl Screens {
             aspect: DEFAULT_ASPECT,
             pointer: None,
             last_pad: 0,
+            start_press: None,
         }
     }
 
@@ -241,6 +245,7 @@ impl Screens {
         if let Some(top) = self.stack.last().map(|s| s.id).filter(|_| pressed != 0) {
             self.with_logic(top, env, &mut commands, |logic, cx| logic.pad_pressed(cx, pressed));
         }
+        self.deliver_start_press(env, &mut commands);
         for out in self.runtime.take_outgoing() {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
