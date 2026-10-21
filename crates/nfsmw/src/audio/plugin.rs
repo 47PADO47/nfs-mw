@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use game_install::GameDir;
 
+use super::cell_call;
 use super::oneshot::{self, OneShotPlayer};
 use super::preview_play::PreviewPlayer;
 use super::{Audio, MusicInput, Volumes};
@@ -39,6 +40,7 @@ impl Plugin for AudioPlugin {
                 drive_car.in_set(FrameSet::Ui),
                 play_preview.in_set(FrameSet::Ui),
                 play_one_shots.in_set(FrameSet::Ui),
+                play_cell_calls.in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -82,6 +84,12 @@ fn play_preview(host: NonSendMut<Host>, mut audio: NonSendMut<Audio>, mut player
 fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>) {
     let _trace = blackbox_trace::scope("Audio: one shots");
     oneshot::service(&mut audio, &mut player);
+}
+
+/// The voices of the phone calls and messages asked for since the last frame (`cell_call.rs`).
+fn play_cell_calls(mut audio: NonSendMut<Audio>) {
+    let _trace = blackbox_trace::scope("Audio: cell call voices");
+    cell_call::service(&mut audio);
 }
 
 /// The scene's car plays its engine.

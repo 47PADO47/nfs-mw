@@ -30,6 +30,7 @@ mod speedbreaker;
 mod view;
 mod wet;
 pub use view::AudioView;
+pub mod cell_call;
 pub mod commands;
 mod coverage;
 mod engine;

@@ -1,13 +1,14 @@
 //! The text message that opens over the game when the phone delivers it (`docs/specs/story-flow-2.md` section 3.7,
 //! `docs/specs/career-phone.md` section 3.6). The screen is `SMS_Message.fng`, the inbox's message screen; this logic
-//! shows the message and closes it with Back or the focused Done button, which resumes the game. Replay and delete do
-//! nothing here: the voice is not played yet, and delete is an action of the inbox.
+//! shows the message and closes it with Back or the focused Done button, which resumes the game. The first showing
+//! plays a story message's voice; Replay (button 4) plays it again, and Delete (button 5) empties the slot and closes
+//! the popup.
 
 use blackbox_feng::ids::PAD_BACK;
 use blackbox_feng::runtime::pad;
 
-use super::sms::show_message;
-use crate::frontend::ids::INPUT_ENABLE;
+use super::sms::{DELETE, REPLAY, delete, open_message, replay_voice, show_message};
+use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE};
 use crate::frontend::logic::{Command, Cx, ScreenLogic};
 
 /// The Done button's group in `SMS_Message.fng` (`nfsmw dump-screen SMS_Message.fng`).
@@ -44,6 +45,16 @@ impl ScreenLogic for SmsPopup {
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if closes_on(message) {
             cx.send(Command::Resume);
+            return;
+        }
+        match message {
+            INIT_COMPLETE => open_message(self.id),
+            REPLAY => replay_voice(self.id),
+            DELETE => {
+                delete(self.id);
+                cx.send(Command::Resume);
+            }
+            _ => {}
         }
     }
 
@@ -69,7 +80,9 @@ mod tests {
     fn back_closes_and_the_replay_and_delete_buttons_do_not() {
         assert!(closes_on(PAD_BACK));
         assert!(!closes_on(0xC519_BFC3), "button 4 replays the voice");
-        assert!(!closes_on(0xC519_BFC4), "button 5 asks to delete");
+        assert!(!closes_on(0xC519_BFC4), "button 5 deletes the message");
+        assert_eq!(REPLAY, 0xC519_BFC3);
+        assert_eq!(DELETE, 0xC519_BFC4);
     }
 
     #[test]

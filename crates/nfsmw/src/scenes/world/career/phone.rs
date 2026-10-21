@@ -12,6 +12,7 @@ use nfsmw_career::phone::{
 };
 use nfsmw_career::settings::SmsInbox;
 
+use crate::audio::cell_call;
 use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 
@@ -169,6 +170,9 @@ impl WorldScene {
                 // Ids from the calls are small positive numbers, so the `i32` cast is exact.
                 let outcome = process_cell_call(inbox, call.id as i32, phone.language, ctx.overlay_allowed);
                 log_call(call.id, outcome);
+                if let CellCallOutcome::Speak(_) = outcome {
+                    cell_call::request(call.id);
+                }
             }
             phone.flush(inbox, &ctx)
         });
@@ -189,7 +193,8 @@ impl WorldScene {
     }
 }
 
-/// Logs what an `ECellCall` request did. The speech and the inbox screen are not wired to the world yet.
+/// Logs what an `ECellCall` request did. A voice call is said by the audio plugin (`cell_call.rs`); the text-language
+/// outcomes wait for the text-language flow.
 fn log_call(id: u32, outcome: CellCallOutcome) {
     match outcome {
         CellCallOutcome::OpenInbox { at } => log::info!("phone: call {id} opens the inbox at {at:?}"),
