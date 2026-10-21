@@ -45,9 +45,10 @@ conditions and constants, and the outputs. A row tagged **[unconfirmed]** is not
    (story-flow-2 section 5).
 2. The rules come from the Lua state graphs in `gameplay.bin`. The screens and native hooks in `speed.exe` supply the
    rest. **[verified]** + **[exe]**.
-3. Several points block a faithful build. The most important are: the prologue lists a movie and an NIS for the same
-   race (F-01); a race finish may set the "won" flag on any placing (F-10); the intro movie's exit target (F-02); the
-   stepper's resume point after the first visit (F-18). All are in story-flow-2 section 6.
+3. Settled in this pass from the Lua: the prologue passes its movie to the NIS player, then plays its NIS (F-01); the intro movie exits to the
+   NIS (F-02); a loss stays in raceover and never reaches the post-race chain (F-08, F-09). Still open: a race finish may
+   set the "won" flag on any placing (F-10, see 1.6); the stepper's resume point after the first visit (F-18). Section 6
+   of story-flow-2 holds the answers.
 4. Nothing in the code moves the stage from bin N to bin N-1 after a rival is beaten (CB 5.3). The rewrite enters bin
    N-1 when bin N is done. This is a choice, **[unconfirmed]**.
 
@@ -61,18 +62,18 @@ Tags: **[verified]** for the state graph (CSE 1.1, CSE 1.2, RM 2, RM 11); **[exe
 |---|---|---|
 | initial | Set the career flag from the play mode. In career, if the race's time of day differs, ask for the change: reload the world and stop; the same state runs again after the load. The special-setup hook may also reload the world (section 2.2). Cops on or off (`CopsInRace`). Chance of rain. Clear racers. Create racers on the start grid and count them. Clear the busted flag and the "has been won" byte. | tutorial (always) |
 | tutorial | D-Day races skip this state. Any other race calls `PlayTutorial` and waits for a movie-finished message. What the native call does when no tutorial is due: **[unconfirmed]** F-03. | intro_message on the message |
-| intro_message | If `IntroMessageID` is not -1, show that message screen first (screen: **[unconfirmed]** F-04). Then choose the intro by rule 1.2. | intromovie or intronis |
-| intromovie | Play `IntroMovie`. | on movie finished: intronis (diagram) **[unconfirmed]** F-02 |
-| intronis | Play `IntroNIS` at the start marker. With no marker, or in split screen, warp the player to the start trigger. On exit save the start positions. | prerace when the NIS completes (`niscomplete`) |
+| intro_message | If `IntroMessageID` is not -1, show that message screen first (screen: **[unconfirmed]** F-04). The choice of rule 1.2 runs when that message is done (or at once when there is none). | intromovie or intronis |
+| intromovie | Play `IntroMovie`. | on movie finished: intronis, always **[verified]** (F-02) |
+| intronis | Play the NIS (`IntroNIS`, or `QuickRaceNIS` in a quick boss race) at the start marker, passing `IntroMovie` as its movie argument (empty in a quick boss race). Warp the player to the start trigger when the NIS name is empty, or in split screen. On exit save the start positions. **[verified]** (Lua) | prerace when the NIS completes (`niscomplete`), unless `NISShell` is set |
 | prerace | Reset cops, the per-racer goal list, laps left and in-race flag. Reset knockout allowances. Checkpoint list: each checkpoint, then the finish. Online flag off. Restore start positions. Wait until the world has loaded. | countdown |
 | countdown | If `RollingStart`, the first two racers go under AI control. If `DoCountdown`, staging is held and the 3-2-1 board runs. Otherwise go straight on. | racing on `countdowndone`, or at once with no countdown |
 | racing | Section 1.4. | raceover when every human player is done or the race ends |
-| raceover | Show the race-over message for `RaceOverMessageDuration`. Losing path: call the losing-screen hook (a stub in this build). | postrace **[unconfirmed]** F-08 |
+| raceover | Show the race-over message for `RaceOverMessageDuration` (3 s offline). Each tick: when the pause flag is set, call the losing-screen hook (a stub in this build) and clear the flag. Go to postrace only while the race's `ShowPostRace` flag is set. A loss clears it, so the race waits here **[verified]** (F-08). | postrace when `ShowPostRace` is set; restartrace to prerace; abandon to done |
 | postrace | Call the native post-race flow once (results and rewards screens). Set the audio flag. | flowreadyforoutro to outronis; restartrace to prerace; enterfreeroam to done |
 | outronis | If `OutroNIS` is set and its marker exists, play the outro NIS. Otherwise skip. | outro_message |
 | outro_message | Optional outro message screen. | outromovie |
 | outromovie | If an outro movie is set, play it. | done |
-| done | Call the special-finalisation hook. Disable the race's barriers and re-enable the current bin's barriers. If the race was abandoned, return to roaming. In career, if `PostRaceActivity` is set, run that activity (section 1.5). Otherwise `SetRoaming` (free roam, autosave). | end |
+| done | Call the special-finalisation hook. Disable the race's barriers and re-enable the current bin's barriers. If the race was abandoned, return to roaming. In career, if `PostRaceActivity` is set and the race was not abandoned, run that activity (section 1.5). It tests no win (F-09). Otherwise `SetRoaming` (free roam, autosave). | end |
 | abandoned | Reached from any state. Mark abandoned, stop racing, cops on, `AbandonRace`. | done |
 
 Online states (`onlineover`) do not occur in career.
@@ -81,13 +82,23 @@ Online states (`onlineover`) do not occur in career.
 
 Tags: **[verified]** (CSE 1.1, CSE 2.1, CSE 4). The boss test is the node's `BossRace` field (hash `0xFF5EE5D6`, CF 8).
 
-1. At intro_message, after the message in its `IntroMessageID`, test in this order.
-2. If the session is a quick race and the race is a boss race, play `QuickRaceNIS`. The movie is never used. Stop.
-3. Else, if `IntroMovie` is set and `IntroNIS` is not set, go to intromovie.
-4. Else go to intronis with `IntroNIS`. If that is empty too, the state still runs and only warps the player.
+1. At intro_message, after the message in its `IntroMessageID` (if any), test in this order. An empty text counts as not
+   set. The test reads `IntroNIS` first, then `IntroMovie`, then `BossRace` and `IsCareerMode`. Nothing compares
+   `IntroNIS` with `QuickRaceNIS`. **[verified]** (Lua intro_message, F-01)
+2. If `BossRace` is set and the session is not career (`Game.IsCareerMode()` false), this is a quick boss race. The NIS is
+   `QuickRaceNIS` and the movie is empty. Go to intronis. If `QuickRaceNIS` is empty, intronis still runs and only warps
+   the player. Stop. **[verified]** (F-06)
+3. Else, if `IntroMovie` is not set, go to intronis with `IntroNIS` (if that is empty too, it only warps the player).
+4. Else, if `IntroNIS` is set, go to intronis with `IntroNIS` and `IntroMovie`. Intronis passes the movie to the NIS player
+   as its movie argument, so the movie is part of the same intro. **[verified]** (the argument position). The order
+   inside the NIS player is native **[unconfirmed]**.
+5. Else (movie set, NIS empty), go to intromovie: `EPlayRaceMovie(IntroMovie)`, then intronis on the movie-finished
+   message. Intronis then passes the movie to the NIS player again with an empty NIS name. Whether that replays the movie
+   is native **[unconfirmed]**. The 1.8.1 final race is this case.
 
-**Check:** the prologue table in CSE 2.1 lists both a movie and an NIS for races 16.1.0, 16.2.2, 16.2.3 and 16.2.1. Rule 3
-then never plays those movies. See F-01.
+**Settled (F-01):** the prologue races 16.1.0, 16.2.2, 16.2.3 and 16.2.1 each set a movie and an NIS. Rule 4 sends them
+to intronis, which plays the NIS with the movie as its argument, so the movie plays. The NIS completion goes to prerace.
+An earlier reading (rule 3 skips the movie) was wrong.
 
 ### 1.3 Race kinds at start and end
 
@@ -133,7 +144,7 @@ Tags: **[verified]** (CSE 1.1 done, CSE 3, RM 11 item 6, CB 3).
    race ends.
 2. A career race that is won (and every prologue race) starts its `PostRaceActivity` at once. 29 races of the install
    chain this way: the prologue, and the boss approaches.
-3. A lost race: whether the chain stops is **[unconfirmed]** F-09.
+3. A lost race never reaches `done`, so the chain stops there (F-08, F-09). **[verified]**
 4. The gauntlets of section 4 (story-flow-2) use this chain: each boss race names the next one. The last race of the
    gauntlet carries the reward set.
 5. Chain end: `SetRoaming`.
@@ -160,9 +171,9 @@ Tags: **[verified]** unless marked.
 | Name | Value | Source |
 |---|---|---|
 | `RaceOverMessageDuration` | 3 s; 0.5 s online; 1 s or 2 s after a destroyed car | CSE 1.1 |
-| Countdown length | 3 s, one second per number (the rewrite's choice) **[unconfirmed]** | RM 2, F-07 |
-| Blown engine timer | 1 s, then the race ends | CSE 1.2 |
-| Call-start fade (prologue) | 8 s after the call starts, then the race ends | CP 5.2 **[unconfirmed]** F-16 |
+| Countdown length | 3 s, one second per number (the rewrite's choice) **[unconfirmed]**; the Lua sets no length | RM 2, F-07 |
+| Blown engine timer | 1 s, then the race ends (`eblown` timer, then postrace) | CSE 1.2, F-16 **[verified]** |
+| Call-start fade (prologue) | 8 s after the call starts, then 3 s more (`killrace`), then postrace; the engine-blown timer may end it first | CP 5.2, F-16 **[verified]** |
 | `InitialPlayerSpeed` | 0 (217 races), 40 (36), 60 (2); unit taken as m/s **[unconfirmed]** | GR 3.2 |
 | `TimeLimit` template | 0 (no limit); tollbooth 90 with races at 40 to 70 | GR 1 |
 | Time bonus values | 25, 35 and 160 s | RM 5, GR 3.1 |
@@ -184,7 +195,7 @@ Tags: **[verified]** (CSE 2.1; CF 3; CB 9; the race and trigger names, this pass
 | 6 | 16.2.1 | `16_2_1_d_day_intro` | `storyfmv_pin11` | `IntroNis04` | `storyfmv_bus12` | 0 | The scripted chase (section 2.4). |
 
 Every prologue race forces the preset car `M3GTRCAREERSTART` (section 2.2). The reputation attribute is 0 for all six.
-The movie and NIS columns follow CSE 2.1; the rule in section 1.2 disagrees, see F-01.
+The movie and NIS columns follow CSE 2.1. Each row's movie is passed to the NIS player (section 1.2, F-01).
 
 ### 2.2 Forced car and the flag test
 
@@ -222,16 +233,15 @@ Trigger names in the install (this pass): `call_from_mia`, `kill_engine`, `cop_s
 | Player enters `call_from_mia` | The marker is triggered | Request phone call 10 (`ECellCall`). Set `WaitForCallLoad`. Start a 15 s backup timer. |
 | Backup timer reaches 15 s | Engine not yet sabotaged | `SabotageEngine` at level 5. |
 | Player enters `kill_engine` | Before the backup timer ends | `SabotageEngine` at once. |
-| Call started (`notifycellcallstarted`) | `WaitForCallLoad` set | Start an 8 s `fade` timer. The screen fades out and the race ends. **[unconfirmed]** which fade applies: F-16. |
-| Engine blown (`notifyengineblown`) | Any | Start a 1 s timer. Fade out, then go to postrace. |
+| Call started (`notifycellcallstarted`) | `WaitForCallLoad` set | Start an 8 s `fade` timer. When it fires, fade the screen on and start a 3 s `killrace` timer; `killrace` fades off and goes to postrace (11 s in all). **[verified]** (F-16) |
+| Engine blown (`notifyengineblown`) | Any | Start a 1 s `eblown` timer. When it fires: kill the timer, fade out, go to postrace. **[verified]** (F-16) |
 | Player enters `cop_spawn_trigger` | Any | Cops on. Spawn two mid-size cops (`cop_spawn_1`, `cop_spawn_2`). |
-| Player enters `bail_trigger` | Any | Call `EDispIntroRace`, call `EBailPursuit(1, 1)`, block new pursuits. The blocking hook: F-15. |
+| Player enters `bail_trigger` | Any | Call `EDispIntroRace()`, call `EBailPursuit(1.0, 1.0)`, then `Game.NoNewPursuitsOrCops()` (the block; its effect native). **[verified]** (F-15) |
 | Done, `PostRaceActivity` empty | Race finished | `JumpToCarLot` (section 2.3). |
 
 ### 2.5 Drive to the safe house (machine D)
 
-Tags: **[verified]** (CSE 7.1; CS 1.2 state list; CF 6); the `activate_gps` and `outro_movie` states have no described
-behaviour **[unconfirmed]** F-17.
+Tags: **[verified]** (CSE 7.1; CS 1.2 state list; CF 6; Lua for the states, F-17).
 
 Race bin 16 has an entry activity `drive_to_safe_house` (names, this pass: `race_bin_16/drive_to_safe_house` with
 child `gpstarget`). The bin waits for the activity to finish (CS 3.2).
@@ -239,10 +249,10 @@ child `gpstarget`). The bin waits for the activity to finish (CS 3.2).
 | State | Entry actions | Transitions |
 |---|---|---|
 | initial | Cops off. If GPS is set to auto, go to activate_gps; else driving. If `SkipCareerIntro` is false, send message 15 (`EAddSMS`). | activate_gps or driving |
-| activate_gps | Not described **[unconfirmed]** F-17. | driving |
+| activate_gps | Show the GPS; navigate to `target` with the minimap item. **[verified]** (F-17) | driving |
 | driving | Timer `cellusage` 0.25 s: show the GPS to the target, and a second hint with a 2,000 m offset. Timer `hurry` 120 s: send message 121. | at_target on entering `gpstarget` |
-| at_target | Stop both timers. Call `DoSafeHouseIntro(RespawnMarker)` with `menu_gate_safehouse/zone_safehouse_1/respawn` (CurrentBin 16). | outro_movie or done **[unconfirmed]** F-17 |
-| outro_movie | Not described **[unconfirmed]** F-17. | done |
+| at_target | Stop both timers. Call `DoSafeHouseIntro(RespawnMarker)` with `menu_gate_safehouse/zone_safehouse_1/respawn` (CurrentBin 16). Sends no state change in the Lua; the safe house intro takes over (F-17, F-18). **[verified]** | none in the graph |
+| outro_movie | Empty handlers. No handler sends a change to this state, so this build never enters it. **[verified]** (F-17) | none |
 | done | Cops back on. GPS off. | end |
 
 `SkipCareerIntro` is true when the debug flag is set or settings flag bit 5 (`0x20`, "opening seen") is set (CF 6).

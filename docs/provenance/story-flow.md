@@ -42,3 +42,15 @@ preset's stable record and its first word goes to the current car (`+0xA8`); ret
 | front-end entry | `FUN_00562ff0`, call at `0x005630E2` | calls the stepper when the request flags (`DAT_0091cbac`) carry `0x400000` |
 | rival bio, Accept | code at `0x00551D1A` (vtable `0x0089F0A8`, slot 1 `0x00551C80`, no function defined) | on `PAD_ACCEPT` (`0x406415E3`) with context bit 17: a counter of -1 becomes 4 (`0x00551D3D`), then the stepper is called |
 | movie screen teardown | `FUN_00622600` | calls the stepper when the counter is 6 |
+
+### F-01: the movie on the NIS path
+
+The event table (hashes at `0x008A5418`, constructors at `0x008F61C8`, handlers at `0x008F5F40`) holds `EPlayRaceNIS`
+(`0x66666DC8`, index 81; constructor `0x00623DB0`, handler `FUN_00641520`) and `EPlayRaceMovie` (`0xF4A034F9`,
+index 14). The handler builds the event record in `FUN_00640f00`: marker, scene name, kind text, two words, then two
+more texts (the race's `IntroMovie` is the first of these in the Lua call). It returns at once when the scene name is
+empty or unknown; the kind text maps to 0 `Intro`, 1 `Arrest`, 2 `Outro`, 4 `Moment` (a moment also needs a cop car
+near the player); then it gets the `NISActivity`, registers `car1`..`car8` (unless a moment), places the scene at the
+marker (or the player car when there is none) and starts it with the scene name and the track word. Where the
+activity plays the movie text (the "NIS Play Story" state label at `0x008B0754`, used by `FUN_006f7230`) is
+**[unconfirmed]**; the rewrite plays the movie first, then the scene.
