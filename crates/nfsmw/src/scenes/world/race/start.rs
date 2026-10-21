@@ -94,7 +94,8 @@ impl WorldScene {
         let opponents = setup::opponents_of(&data, &race, &options, &resolve_preset);
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
-        let plan = plan_racers(&race, &start, &opponents, &pool, has_road);
+        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
+        super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
         let p = &race.params;
         let prepared = Prepared {
             course,
@@ -174,6 +175,11 @@ impl WorldScene {
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
+}
+
+/// A seed that differs from run to run, so the same race does not always bring the same names.
+fn clock_seed() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos())
 }
 
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.

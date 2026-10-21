@@ -116,6 +116,24 @@ always = true                      # play even when the custom music setting is 
 | Replace track | a file in `files/` with the install's path replaces the original (overlay), no registration | G | VFS overlay |
 | Planned: speech line | `content.speech().register(key, file)` for `audio.speak` | G | not built |
 
+### Racer names
+
+A mod adds names to the pool the computer-driven racers of every race draw from (the game's own list has 150):
+
+```toml
+[racers]
+names = ["MAVERICK", "DEE DEE"]
+```
+
+- A name is 1 to 24 characters with no control character and is listed once. A bad table adds nothing and the log says why.
+- A race never gives one name twice, and never the player's. Names that equal one of the game's, ignoring case, are dropped.
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Racer names | `[racers] names` in `mod.toml` | G (schema), MW (pool) | `libs/blackbox-modding/src/content/racers.rs`, `crates/nfsmw/src/modding/content/racers.rs`, `scenes/world/race/names.rs` |
+
+[How the original names racers](../provenance/race-names.md).
+
 ### Fonts
 
 | Entry | Signature sketch | Scope | Implemented in |

@@ -15,6 +15,7 @@ mod finish;
 mod flow;
 mod load;
 pub(super) mod mods;
+mod names;
 mod report;
 mod restart;
 mod setup;
