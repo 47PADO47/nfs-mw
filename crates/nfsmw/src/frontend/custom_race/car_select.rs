@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
-use nfsmw_career::carlot::stats;
+use nfsmw_career::carlot::{self, stats};
 use nfsmw_career::settings::Flags;
 
 use super::car_list::{self, Entry, List, Progress};
@@ -48,6 +48,13 @@ const LOCKED_TEXT: u32 = 0x2D25_B2C4;
 const HIDDEN: [u32; 8] =
     [0xD6D3_2016, 0x79D6_E45C, 0x64F6_D21F, 0xBDE6_E3BA, 0x1939_8802, 0x1930_B057, 0x20D1_13DC, 0x20C8_3C31];
 const BLANKED: [u32; 3] = [0xD6D3_2016, 0x79D6_E45C, 0xC5E1_D8A4];
+/// The "no cars" panel of an empty list: shown and hidden by these messages, its sentence is the string `0x36C1E04D` (the My
+/// Cars list says how to fill it, the others say `0x58BBED2A`) **[decomp]**.
+const NO_CARS_ON: u32 = 0xD942_0CD5;
+const NO_CARS_OFF: u32 = 0x7C45_83DC;
+const NO_CARS_TEXT: u32 = 0x36C1_E04D;
+const NO_CARS: u32 = 0x58BB_ED2A;
+const NO_MY_CARS: u32 = 0x0DA8_7B01;
 const SCRIPT_SHOW: u32 = 0x001C_A7C0;
 const SCRIPT_HIDE: u32 = 0x0016_A259;
 /// `Select your transmission.`, Manual and Auto.
@@ -79,10 +86,21 @@ impl Default for CarSelect {
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
 pub(crate) fn progress() -> Progress {
-    let (stage, career_won) = CareerHandle::shared()
-        .with_loaded(|career| (career.stage(), career.settings.flags.contains(Flags::GAME_OVER)))
-        .unwrap_or((PROLOGUE_STAGE, false));
-    Progress { stage, career_won, open_all: super::tracks::unlock_all() }
+    let (stage, career_won, owned) = CareerHandle::shared()
+        .with_loaded(|career| {
+            let owned = career
+                .stable
+                .cars
+                .iter()
+                .filter(|car| !car.is_free() && car.is_owned())
+                .filter_map(|car| {
+                    carlot::by_frontend_key(&career.data.cars, car.frontend_key).map(|lot| lot.name.clone())
+                })
+                .collect();
+            (career.stage(), career.settings.flags.contains(Flags::GAME_OVER), owned)
+        })
+        .unwrap_or((PROLOGUE_STAGE, false, Vec::new()));
+    Progress { stage, career_won, open_all: super::tracks::unlock_all(), owned }
 }
 
 impl CarSelect {
@@ -95,7 +113,7 @@ impl CarSelect {
         let Some(pool) = pool::cars() else { return };
         let progress = progress();
         let remembered = state::with(|s| s.car.name.clone());
-        let found = remembered.as_deref().and_then(|name| car_list::find(&pool, progress, name));
+        let found = remembered.as_deref().and_then(|name| car_list::find(&pool, &progress, name));
         let (list, at) = found.unwrap_or((List::Preset, 0));
         self.pool = Some(pool);
         self.open_list(cx, list, at);
@@ -104,7 +122,7 @@ impl CarSelect {
     fn open_list(&mut self, cx: &mut Cx, list: List, at: usize) {
         let Some(pool) = &self.pool else { return };
         self.list = list;
-        self.entries = car_list::entries(list, pool, progress());
+        self.entries = car_list::entries(list, pool, &progress());
         self.at = at.min(self.entries.len().saturating_sub(1));
         self.choose(cx);
     }
@@ -152,10 +170,14 @@ impl CarSelect {
         for name in BLANKED {
             cx.text_object(name, "");
         }
-        let (Some(pool), Some(entry)) = (self.pool.clone(), self.entry().cloned()) else { return };
+        let (Some(pool), Some(entry)) = (self.pool.clone(), self.entry().cloned()) else {
+            return self.show_empty(cx);
+        };
+        cx.rt.post_to_package(cx.package, NO_CARS_OFF);
         let (maker, model) = logo_textures(cx.assets, &entry.car);
         for (name, texture) in [(MAKER_LOGO, maker), (MODEL_LOGO, model)] {
             if let Some(o) = cx.object(name) {
+                cx.rt.set_hidden(o, false);
                 cx.rt.set_texture(o, texture);
             }
         }
@@ -167,6 +189,22 @@ impl CarSelect {
         set_bar(cx, &ACCELERATION_STRIPS, acceleration);
         set_bar(cx, &HANDLING_STRIPS, handling);
         self.show_unlock(cx, &entry);
+    }
+
+    /// A list with no car: the package's "no cars" panel with the list's own sentence, no logos and empty bars.
+    fn show_empty(&self, cx: &mut Cx) {
+        cx.rt.post_to_package(cx.package, NO_CARS_ON);
+        let label = if self.list == List::MyCars { NO_MY_CARS } else { NO_CARS };
+        if let Some(o) = cx.object(NO_CARS_TEXT) {
+            cx.label(o, label);
+        }
+        for name in [MAKER_LOGO, MODEL_LOGO] {
+            cx.hide(name, true);
+        }
+        for strips in [&TOP_SPEED_STRIPS, &ACCELERATION_STRIPS, &HANDLING_STRIPS] {
+            set_bar(cx, strips, 0.0);
+        }
+        cx.script(LOCKED_GROUP, SCRIPT_HIDE);
     }
 
     /// The locked notice: shown with its sentence for a locked car, hidden otherwise (the group's own scripts).

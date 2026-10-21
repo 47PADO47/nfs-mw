@@ -1,7 +1,8 @@
 //! The cars of the custom race's car select, in the lists the player scrolls through with up and down
-//! (`docs/specs/custom-race.md` section 5). The original has six lists (`FE_CAR_FILTER_LIST_*`); the ones this build can fill are
-//! Stock (every car of the catalogue), Bonus (the rivals' cars and the unlockable specials) and Preset (the career-start M3
-//! GTR). The Career and My Cars lists need a garage of the player's own, which the Quick Race menu does not open here.
+//! (`docs/specs/custom-race.md` section 5). The original has six lists (`FE_CAR_FILTER_LIST_*`): Stock (every car of the
+//! catalogue), Career (the cars of the loaded profile), My Cars (the quick race garage, which this build does not have: the list
+//! is always empty), Bonus (the rivals' cars and the unlockable specials), Preset (the career-start M3 GTR) and a debug list,
+//! which is not offered.
 
 use super::super::quick_play::pool::{CarPool, PoolCar, car_unlocked};
 use super::super::quick_play::text::{self, Unlock};
@@ -13,12 +14,14 @@ pub const DEFAULT_PRESET: &str = "M3GTRCAREERSTART";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum List {
     Stock,
+    Career,
+    MyCars,
     Bonus,
     Preset,
 }
 
 impl List {
-    pub const ALL: [List; 3] = [List::Stock, List::Bonus, List::Preset];
+    pub const ALL: [List; 5] = [List::Stock, List::Career, List::MyCars, List::Bonus, List::Preset];
 
     pub fn index(self) -> usize {
         Self::ALL.iter().position(|list| *list == self).unwrap_or(0)
@@ -41,6 +44,8 @@ impl List {
     pub fn label(self) -> u32 {
         match self {
             List::Stock => 0xD9D6_B954,
+            List::Career => 0xEE05_3562,
+            List::MyCars => 0x2414_DE28,
             List::Bonus => 0xD8A0_58F7,
             List::Preset => 0x0D85_00C3,
         }
@@ -49,6 +54,8 @@ impl List {
     pub fn icon(self) -> u32 {
         match self {
             List::Stock => 0x3A54_1F7F,
+            List::Career => 0xF0BD_DECD,
+            List::MyCars => 0x9996_CA1E,
             List::Bonus => 0xBE5A_D8A2,
             List::Preset => 0x0370_4F3D,
         }
@@ -69,7 +76,7 @@ pub struct Entry {
 }
 
 /// What the career has done that opens the bonus cars.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Progress {
     /// The Blacklist stage (16 before the first rival, 1 for the last).
     pub stage: u8,
@@ -77,12 +84,27 @@ pub struct Progress {
     pub career_won: bool,
     /// Every car is open, a developer's switch.
     pub open_all: bool,
+    /// The catalogue names of the cars the loaded profile owns, for the Career list.
+    pub owned: Vec<String>,
 }
 
 /// The cars of a list.
-pub fn entries(list: List, pool: &CarPool, progress: Progress) -> Vec<Entry> {
+pub fn entries(list: List, pool: &CarPool, progress: &Progress) -> Vec<Entry> {
     match list {
         List::Stock => pool.cars.iter().map(|car| stock_entry(car, progress)).collect(),
+        List::Career => progress
+            .owned
+            .iter()
+            .filter_map(|name| pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name)))
+            .map(|car| Entry {
+                car: car.clone(),
+                preset: None,
+                key: format!("career:{}", car.name),
+                locked: false,
+                unlock: Unlock::None,
+            })
+            .collect(),
+        List::MyCars => Vec::new(),
         List::Bonus => {
             pool.presets.iter().filter_map(|preset| bonus_entry(&preset.name, &preset.car, progress)).collect()
         }
@@ -106,7 +128,7 @@ pub fn entries(list: List, pool: &CarPool, progress: Progress) -> Vec<Entry> {
 const STARTERS: [&str; 11] =
     ["RX8", "IMPREZAWRX", "IMPREZZAWRX", "MUSTANGGT", "SL500", "997S", "IS300", "GTI", "GALLARDO", "COBALTSS", "PUNTO"];
 
-fn stock_entry(car: &PoolCar, progress: Progress) -> Entry {
+fn stock_entry(car: &PoolCar, progress: &Progress) -> Entry {
     let starter = STARTERS.iter().any(|name| name.eq_ignore_ascii_case(&car.folder));
     let open = progress.open_all || starter || car_unlocked(car.rank, progress.stage);
     Entry {
@@ -121,7 +143,7 @@ fn stock_entry(car: &PoolCar, progress: Progress) -> Entry {
 /// How a bonus car opens **[decomp]** (`QuickRaceUnlocker::IsCarUnlocked`): a rival's car when rival `n` is beaten (the stage is
 /// below `n`), the C6R when the career is won, the SL65 and the GT2 for achievements this build does not record, the Castrol
 /// GT for an easter egg, the collector's cars never.
-fn bonus_entry(preset: &str, car: &PoolCar, progress: Progress) -> Option<Entry> {
+fn bonus_entry(preset: &str, car: &PoolCar, progress: &Progress) -> Option<Entry> {
     let upper = preset.to_ascii_uppercase();
     let (open, unlock) = match upper.as_str() {
         "BONUS_C6R" => (progress.career_won, Unlock::Label(0xBD8B_AC94)),
@@ -143,7 +165,7 @@ fn bonus_entry(preset: &str, car: &PoolCar, progress: Progress) -> Option<Entry>
 }
 
 /// The list and position of the car remembered under `key`, in the lists of a pool; `None` when no list has it.
-pub fn find(pool: &CarPool, progress: Progress, key: &str) -> Option<(List, usize)> {
+pub fn find(pool: &CarPool, progress: &Progress, key: &str) -> Option<(List, usize)> {
     List::ALL.into_iter().find_map(|list| {
         let at = entries(list, pool, progress).iter().position(|entry| entry.key.eq_ignore_ascii_case(key))?;
         Some((list, at))
@@ -169,13 +191,13 @@ mod tests {
     }
 
     fn progress(stage: u8) -> Progress {
-        Progress { stage, career_won: false, open_all: false }
+        Progress { stage, career_won: false, open_all: false, owned: Vec::new() }
     }
 
     #[test]
     fn the_stock_list_opens_by_rank_and_for_the_starter_cars() {
         let locked =
-            |stage| entries(List::Stock, &pool(), progress(stage)).iter().map(|e| e.locked).collect::<Vec<_>>();
+            |stage| entries(List::Stock, &pool(), &progress(stage)).iter().map(|e| e.locked).collect::<Vec<_>>();
         assert_eq!(
             locked(16),
             [false, true, true],
@@ -187,20 +209,31 @@ mod tests {
 
     #[test]
     fn a_rivals_car_opens_when_the_rival_is_beaten() {
-        let bonus = |stage| entries(List::Bonus, &pool(), progress(stage));
+        let bonus = |stage| entries(List::Bonus, &pool(), &progress(stage));
         assert_eq!(bonus(16).iter().map(|e| e.key.as_str()).collect::<Vec<_>>(), ["BL6", "BONUS_C6R"]);
         assert!(bonus(16)[0].locked);
         assert_eq!(bonus(16)[0].unlock, Unlock::Rival(6));
         assert!(!bonus(5)[0].locked);
         assert_eq!(bonus(5)[0].unlock, Unlock::None);
         assert!(bonus(1)[1].locked, "the C6R needs the career won");
-        let won = entries(List::Bonus, &pool(), Progress { career_won: true, ..progress(1) });
+        let won = entries(List::Bonus, &pool(), &Progress { career_won: true, ..progress(1) });
         assert!(!won[1].locked);
     }
 
     #[test]
+    fn the_career_list_holds_the_cars_the_profile_owns_and_my_cars_is_empty() {
+        let owned = Progress { owned: vec!["cobaltss".into(), "unknown".into()], ..progress(16) };
+        let career = entries(List::Career, &pool(), &owned);
+        assert_eq!(career.len(), 1, "a car the pool does not know is left out");
+        assert_eq!(career[0].car.name, "cobaltss");
+        assert!(!career[0].locked);
+        assert!(entries(List::Career, &pool(), &progress(16)).is_empty());
+        assert!(entries(List::MyCars, &pool(), &owned).is_empty());
+    }
+
+    #[test]
     fn the_preset_list_holds_the_career_start_car() {
-        let list = entries(List::Preset, &pool(), progress(16));
+        let list = entries(List::Preset, &pool(), &progress(16));
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].preset.as_deref(), Some(DEFAULT_PRESET));
         assert!(!list[0].locked);
@@ -210,8 +243,9 @@ mod tests {
     fn the_lists_step_round_and_a_remembered_car_is_found() {
         assert_eq!(List::Stock.step(false), List::Preset);
         assert_eq!(List::Preset.step(true), List::Stock);
-        assert_eq!(find(&pool(), progress(16), "BL6"), Some((List::Bonus, 0)));
-        assert_eq!(find(&pool(), progress(16), "a3"), Some((List::Stock, 2)));
-        assert_eq!(find(&pool(), progress(16), "nothing"), None);
+        assert_eq!(List::Stock.step(true), List::Career);
+        assert_eq!(find(&pool(), &progress(16), "BL6"), Some((List::Bonus, 0)));
+        assert_eq!(find(&pool(), &progress(16), "a3"), Some((List::Stock, 2)));
+        assert_eq!(find(&pool(), &progress(16), "nothing"), None);
     }
 }

@@ -31,8 +31,9 @@ impl Showcase {
     fn take_car(&mut self, cx: &mut Cx) {
         let Some(pool) = pool::cars() else { return };
         let Some(name) = state::with(|s| s.car.name.clone()) else { return };
-        let Some((list, at)) = car_list::find(&pool, progress(), &name) else { return };
-        let Some(entry) = car_list::entries(list, &pool, progress()).get(at).cloned() else { return };
+        let progress = progress();
+        let Some((list, at)) = car_list::find(&pool, &progress, &name) else { return };
+        let Some(entry) = car_list::entries(list, &pool, &progress).get(at).cloned() else { return };
         let (maker, model) = logo_textures(cx.assets, &entry.car);
         for (hash, texture) in [(MAKER_LOGO, maker), (MODEL_LOGO, model)] {
             if let Some(o) = cx.object(hash) {
