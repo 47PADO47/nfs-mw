@@ -71,13 +71,14 @@ pub enum Command {
     /// Play (the default with no command): the boot movies, the title screen, the main menu, free roam (Esc or
     /// Start pauses) and the settings.
     Play {
-        /// Start at the main menu instead of the boot movies and the title screen.
+        /// Start at the main menu instead of the boot movies, the title screen and the profile step.
         #[arg(long)]
         skip_boot: bool,
         /// Start driving at once (free roam with the stock car).
         #[arg(long, conflicts_with = "skip_boot")]
         drive: bool,
-        /// Start where the boot flow ends: the list of saved aliases, or the main menu when there are none.
+        /// Start at the profile step of the boot flow: the list of saved aliases, or the question to create one when none
+        /// is saved, then the main menu (for tests and screenshots, with a --ui-script).
         #[arg(long, hide = true, conflicts_with_all = ["skip_boot", "drive"])]
         aliases: bool,
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
