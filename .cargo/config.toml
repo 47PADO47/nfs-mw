@@ -17,3 +17,8 @@ codegen-backend = "cranelift"
 
 [profile.dev.package."*"]
 codegen-backend = "llvm"
+
+# Tests stay on LLVM: Cranelift cannot unwind a panic on Windows, so a should_panic test or a failed assertion would kill the
+# whole test process (exit code 0xE06D7363 or an access violation) instead of failing one test.
+[profile.test]
+codegen-backend = "llvm"
