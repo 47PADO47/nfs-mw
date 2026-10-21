@@ -235,13 +235,16 @@ section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`do
    for drag races: seconds at the speed at the line; `TOLL_BOOTH_GROUP`: speed, time left, cash and the bonus time)
    **[unconfirmed]** which race kinds take which group. Its buttons are Continue (Enter), Race Stats (key 2) and
    Restart (key 1).
-3. Race Stats, or a race that was not won, shows `PostRace_Results.fng` (`frontend/post_race.rs`). It lists the lap, the place held
-   at the end of the lap and the lap time of one racer, 10 laps at most; the shoulder buttons (Page Up and Page Down,
-   the pad's L1 and R1) look at the next racer. A win and a loss take the same screen: the Lua graph sends a loss to a
-   "losing screen" hook that is a stub in this build, and the native summary offers retry and quit **[unconfirmed]**.
-4. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button, to free roam), or `restartrace`
-   (Restart: the key 1 or the pad's second button, to `prerace`, which starts the same race again). The stats page, the
-   online gamer card, mute and feedback buttons are hidden.
+3. Race Stats, or a race that was not won, shows `PostRace_Results.fng` (`frontend/post_race/`): the **standings** page first
+   (place, name, finishing time), and the second button (key 2) walks on to the statistics, the stages and back; the full
+   rules are [race-results.md](race-results.md). The old lap table of one racer is now the stages page of a circuit. A win
+   and a loss take the same screen: the Lua graph sends a loss to a "losing screen" hook that is a stub in this build, and
+   the native summary offers retry and quit **[unconfirmed]**.
+4. The screen answers `enterfreeroam` (Exit: Enter or the pad's first button), or `restartrace` (Restart: the key 1 or
+   the pad's second button, to `prerace`, which starts the same race again) after the in-race question (header
+   ATTENTION, OK and Cancel, Cancel focused). Exit goes to free roam, except for an event of the challenge series (the
+   series screen) and a race started from the Quick Race menu (back to that menu, the world unloaded). The console
+   footer's stats button, the online gamer card, mute and feedback buttons are hidden.
 5. `outronis` (a cutscene at the race's `OutroNIS` marker), the outro message and movie: **not done, blocked**. Only
    one race of the install sets `OutroNIS` (`16_nis_rog_razor`, `EndingNis03`) and the final pursuit uses `EndingNis04`
    (the Lua graph); the install has no other outro. The rewrite has no NIS player: the cutscene bundles
@@ -276,7 +279,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 | The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
 | The place, lap, clock, progress and 3-2-1-GO | `hud/race.rs` (the HUD package's objects) |
 | The banner, the points and the race-over message | `hud/race_card.rs` (egui) |
-| The post-race screen, the rewards screen | `frontend/post_race.rs`, `frontend/rewards.rs`, `race/report.rs` |
+| The post-race screen (three pages), the rewards screen | `frontend/post_race/`, `frontend/rewards.rs`, `race/report.rs`, `libs/blackbox-race/src/stats.rs` |
 | The mods' view of the races | `modding/races_feed.rs`, `backends/races.rs`, `race/mods.rs` |
 | The minimap blips (next checkpoint, racers, speed traps, race starts) | `race/blips.rs`, `hud.rs` |
 | The console | `race list|start|status|stop|mod`; `race start <race> demo` puts the player's car at each gate in turn (a test aid, not original behaviour), so a whole race, its result card and its career glue can be run offscreen. The install test `every_install_course_can_be_finished_by_walking_through_its_gates` walks all 212 courses (laps included) through the same rules |

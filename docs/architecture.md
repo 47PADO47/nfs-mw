@@ -372,7 +372,8 @@ The menus are the install's own FEng screens run by the same runtime and drawn b
   free roam (the world scene, wrapped in `Pausable` so Escape or Start freezes it under the pause menu) and the
   way back. Career starts or resumes a profile (`career::start_or_resume`) and then starts free roam with it. The
   safe house menu, the car lot and the region unlock screen open over the frozen world when the world asks for them
-  (`poll_career`). Quick Race starts nothing yet: there is no race engine, and the `StartFreeRoam` command has no sender.
+  (`poll_career`). Quick Race starts a race in the world; a finished race opens the three-page results screen
+  (`post_race/`, [specs/race-results.md](specs/race-results.md)), and Exit returns to the Quick Race menu.
 - **Input.** The `Menu*` actions of the input layer (arrows or WASD or the D-pad, Enter or Space or A, Escape or B,
   Start or P, Q on the main menu) become a pad mask for the runtime, which sends the engine's messages and moves the
   focus by geometry. `--ui-script` replaces input and clock for screenshots and tests.
