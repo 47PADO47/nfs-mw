@@ -115,10 +115,35 @@ A player holds a device, as the original maps a player to a controller port **[d
 | The two views | `scenes/world/split_view.rs`, `app/split.rs` |
 | The HUDs | `hud/split/` |
 
-## 7. Open questions
+## 7. What the world does (built)
+
+- **The second human is a racer.** `race start <race> split=<CAR>` (console) or the front end's `queue_split_race` makes a race with
+  one opponent: player 2's car, on the next grid slot, driven by a person (`RacerState::human`, `AiCar::seat_person`). The AI
+  think, the driver, the emulation of far racers and the catch-up leave it alone; the grid hold, wrecks and the finish are the
+  race's. The race engine marks both racers human, so it ends when both have finished (`blackbox-race`, `check_over`). **[ours]**
+- **Controls.** The car takes the player's own control set-up (`CarSim::configure_human`: dead zone, automatic reverse, idle
+  braking, the pad's steering response, the full chassis) and the player 2's gearbox. Their pedals are `DriveInput::from_actions`
+  of `SplitInput::second`, set before each physics step (`feed_second_player`). Nitrous, handbrake, gears and reset work as for
+  player 1; headlights, the speed breaker and the camera cycle do not.
+- **Cameras.** Player 1 keeps the gameplay camera of the camera setting; player 2 has the plain chase camera
+  (`viewer/camera/chase.rs`) after their racer, with look back. **[ours]**
+- **Streaming** follows the middle of the two cars (`split_focus`), so the world around both stays loaded while they are within a
+  streaming radius of each other. A car left far behind sees unloaded city (open question 6).
+- **The views.** `Scene::split_view(player, aspect)` builds one half's frame (`scenes/world/split/view.rs`, sharing `fill_view` with the
+  single-player frame); `app/split.rs` captures both off-screen at (window width) x (half height), uploads them as UI textures and puts
+  two quads under the HUD layer. While a split race is on the main frame is blank, the speed streaks and the mirror are off.
+- **HUD state.** Player 1's is the single-player HUD state; player 2's gauges come from their car's telemetry and their race card
+  from the engine's numbers for racer 1 (`race_hud_for`, `race_leaders_for`, `race_message_for`).
+- **Restart and end.** A pause-menu Restart and the post-race Restart race again with the same two players; leaving the race ends the match.
+- **Not done:** the front-end screens (section 2) and the HUD packages (section 4.1) are built on their own branches; the two-player
+  sound mix, split-screen records and the second player's headlights.
+
+## 8. Open questions
 
 1. Backend viewports instead of two captures (cost and latency, section 4).
 2. The exact half rectangles of the PC build (section 4).
 3. A pad unplugged mid-race: pause as the single-player game does for the active pad.
 4. The two-player sound mix.
 5. Split-screen records and the "2 players" statistics page of the post-race screen.
+6. A second streaming focus instead of the middle point, for cars that are far apart.
+7. The camera collision for player 2 (their chase camera does not test walls).
