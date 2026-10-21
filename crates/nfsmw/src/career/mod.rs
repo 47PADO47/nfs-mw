@@ -52,6 +52,9 @@ pub enum CareerRequest {
     /// A text message was delivered in free roam: `SMS_Message.fng` opens over the frozen world at message `id`
     /// (`career-phone.md` section 3.6, `story-flow-2.md` section 3.7).
     Sms { id: u32 },
+    /// The final race is won and its results are answered: the end-game chain runs in the front end (`flow_endgame.rs`,
+    /// `story-flow-2.md` section 5.4).
+    EndGame,
 }
 
 /// The profile the player picked and whether it is being played, shared by the front end, the world scene and the mod

@@ -11,6 +11,8 @@ mod command;
 mod demo;
 mod drag;
 mod emulate;
+mod final_race;
+mod final_race_events;
 mod finish;
 mod flares;
 mod flow;

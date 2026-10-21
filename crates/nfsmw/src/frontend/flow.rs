@@ -20,6 +20,7 @@ use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
 use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
+use nfsmw_career::rapsheet::EndGame;
 
 // Career on the main menu: starting or resuming a career (`start_career`).
 #[path = "flow_arrival.rs"]
@@ -30,6 +31,8 @@ mod flow_bust;
 mod flow_career;
 #[path = "flow_custom.rs"]
 mod flow_custom;
+#[path = "flow_endgame.rs"]
+mod flow_endgame;
 #[path = "flow_first_visit.rs"]
 pub(in crate::frontend) mod flow_first_visit;
 #[path = "flow_loading.rs"]
@@ -163,6 +166,10 @@ pub struct Frontend {
     pub(super) in_safe_house: bool,
     /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
     pub(super) origin: QuitTo,
+    /// The end-game chain is running: its next page opens once the page it opened last is no longer on top (`flow_endgame.rs`).
+    end_game: Option<EndGame>,
+    /// The screen the end-game chain opened last.
+    end_game_shown: Option<String>,
     /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
     pub(super) look: Look,
     /// A look the command line fixed (`view-screen --look`): the screens do not change it.
@@ -219,6 +226,8 @@ impl Frontend {
             look: Look::Main,
             look_override: None,
             auto_shop_requested: false,
+            end_game: None,
+            end_game_shown: None,
             quick_race: None,
             series: Default::default(),
             quick_car: None,

@@ -397,6 +397,7 @@ fn update(
             fe.apply(commands, host, &mut env);
             // The profile step of the boot flow is over when its last screen closed: the main menu follows.
             fe.poll_startup(host, &mut env);
+            fe.end_game_frame(host, &mut env);
             fe.sync_backdrop(host);
             // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
             let took = started.elapsed();

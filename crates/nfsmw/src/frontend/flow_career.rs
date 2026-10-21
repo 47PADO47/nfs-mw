@@ -120,6 +120,8 @@ impl Frontend {
             }
             // The message screen is opened with its own logic, which closes back to the game (`flow_sms.rs`).
             CareerRequest::Sms { id } => return self.open_sms(id, host, env),
+            // The final race is won: the end-game chain runs over the game (`flow_endgame.rs`).
+            CareerRequest::EndGame => return self.start_end_game(host, env),
         };
         self.in_safe_house = screen == MAIN_MENU_SUB;
         self.latch = true;

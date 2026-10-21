@@ -30,7 +30,7 @@ impl WorldScene {
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
             Stage::Intro { .. } => self.race_intro(&mut session, frame_dt),
-            Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session),
+            Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session, sim_dt),
             Stage::Running => self.race_running(&mut session, sim_dt),
             Stage::Results { .. } => self.race_results(&mut session, input, frame_dt),
             Stage::PostRace { .. } => self.race_post(&mut session, frame_dt),

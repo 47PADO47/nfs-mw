@@ -151,7 +151,7 @@ fn a_negative_bin_count_drops_the_bin() {
 fn event_ids_come_from_the_first_three_numbers_of_the_leaf() {
     assert_eq!(event_id("race_bin_10/10_2_1_sprint"), "10.2.1");
     assert_eq!(event_id("1_5_2"), "1.5.2");
-    assert_eq!(event_id("race_bin_01/epic_pursuit"), "epic_pursuit");
+    assert_eq!(event_id("race_bin_01/epic_pursuit"), "1.8.1", "the final race is event 1.8.1");
     assert_eq!(event_id("race_bin_01/1_x_2"), "1_x_2");
 }
 

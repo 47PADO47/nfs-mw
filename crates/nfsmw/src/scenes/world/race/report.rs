@@ -1,8 +1,10 @@
 //! The post-race report: the racers' laps and places for `PostRace_Results.fng`, and the screen's answer.
 
 use blackbox_race::Race;
+use nfsmw_career::blacklist::FINAL_RACE_EVENT;
 
 use super::{RaceSession, Stage, outro};
+use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 use nfsmw_data::gameplay::RaceType;
 
@@ -39,6 +41,11 @@ impl WorldScene {
                 // A race is won when it placed first with a time. The outro plays first; the race's chain runs after it
                 // (`story-flow.md` sections 1.1 and 1.5). A lost race leaves the chain (`outro.rs`).
                 let won = session.result.is_some_and(|r| r.place == 1 && r.time.is_some());
+                // The final race's win ends the game: its end-game chain is due now, once the results are answered
+                // (`story-flow-2.md` section 5.4, `frontend/flow_endgame.rs`).
+                if won && session.options.career && session.event == FINAL_RACE_EVENT {
+                    self.career.requests.push_back(CareerRequest::EndGame);
+                }
                 outro::begin(&mut session, won);
                 self.race = Some(session);
             }
