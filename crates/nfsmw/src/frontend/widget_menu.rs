@@ -381,13 +381,8 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Video, true) => 0xD94E_A03F,
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
-            (
-                super::logic::Category::Controls
-                | super::logic::Category::Discord
-                | super::logic::Category::Mods
-                | super::logic::Category::QuickRace,
-                _,
-            ) => 0,
+            (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
+            (super::logic::Category::CustomRace, _) => super::custom_race::state::mode().options_title(),
         };
         self.heading = vertical::heading(cx, self.args.category, title);
         cx.label_group(ids::HEADER_TEXT, title);

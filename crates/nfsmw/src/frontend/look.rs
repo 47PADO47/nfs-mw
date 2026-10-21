@@ -48,10 +48,13 @@ pub enum Look {
     Car(CarLook),
     /// The career car in the safe house interior: the safe house menu and the screens it opens.
     SafeHouse(CarLook),
+    /// A car in the stage room that the arrow keys turn and the zoom keys bring nearer: the Showcase of the custom race's car
+    /// select (`Showcase.fng`, docs/specs/custom-race.md section 6).
+    Showcase(CarLook),
 }
 
 impl Look {
-    /// A look from the command line (`view-screen --look KIND --car CAR[:PRESET]`): `main`, `car` or `safehouse`. The car
+    /// A look from the command line (`view-screen --look KIND --car CAR[:PRESET]`): `main`, `car`, `safehouse` or `showcase`. The car
     /// of the last two is `car` when given (a `CARS/` folder and an optional preset), else [`CarLook::default_car`].
     pub fn from_cli(kind: &str, car: Option<&str>) -> anyhow::Result<Look> {
         let car = match car.map(|car| car.split_once(':').unwrap_or((car, ""))) {
@@ -63,7 +66,8 @@ impl Look {
             "main" => Ok(Look::Main),
             "car" => Ok(Look::Car(car)),
             "safehouse" => Ok(Look::SafeHouse(car)),
-            other => anyhow::bail!("unknown look {other:?} (main, car, safehouse)"),
+            "showcase" => Ok(Look::Showcase(car)),
+            other => anyhow::bail!("unknown look {other:?} (main, car, safehouse, showcase)"),
         }
     }
 }

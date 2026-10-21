@@ -72,7 +72,7 @@ impl MenuScene {
     fn load_car(&self, dir: &GameDir) -> Option<(CarModel, LoadOptions)> {
         let (car, preset) = match &self.look {
             Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
-            Look::Car(look) | Look::SafeHouse(look) => look.resolve(dir),
+            Look::Car(look) | Look::SafeHouse(look) | Look::Showcase(look) => look.resolve(dir),
         };
         let default = CarLook::default_car();
         let attempts = [(car, preset), (default.car, default.preset)];
@@ -165,9 +165,13 @@ impl Scene for MenuScene {
         car.reshow(renderer);
     }
 
-    fn update(&mut self, renderer: &mut dyn RenderBackend, _input: &ActionState, dt: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
         if self.pose.is_some() {
+            return car.update(renderer, &ActionState::default(), dt);
+        }
+        if matches!(self.look, Look::Showcase(_)) {
+            showcase_camera(car, input, self.rest, dt);
             return car.update(renderer, &ActionState::default(), dt);
         }
         // The backdrop takes no input and the car stands still: only the camera moves, once, into its rest pose.
@@ -210,6 +214,28 @@ impl Scene for MenuScene {
         parts.sort_by_key(|i| i.mesh);
         (params, parts.as_slice())
     }
+}
+
+/// Radians a second the arrow keys turn the Showcase camera, and the share of the distance a second the zoom keys cover.
+const SHOWCASE_TURN: f32 = 1.6;
+const SHOWCASE_ZOOM: f32 = 0.9;
+/// The nearest and farthest the Showcase camera goes, as shares of the menu camera's distance, and how far it tilts (radians).
+const SHOWCASE_DISTANCE: (f32, f32) = (0.45, 1.6);
+const SHOWCASE_PITCH: (f32, f32) = (-0.05, 1.1);
+
+/// The Showcase's camera: left and right turn it round the car, up and down tilt it, and the zoom keys move it nearer or
+/// farther (`Showcase.fng`'s footer: `9 0 Zoom`, arrows `View Car`).
+fn showcase_camera(car: &mut CarScene, input: &ActionState, rest: (f32, f32), dt: f32) {
+    use crate::input::Action;
+    let axis = |plus: Action, minus: Action| {
+        f32::from(u8::from(input.pressed(plus))) - f32::from(u8::from(input.pressed(minus)))
+    };
+    let camera = car.camera_mut();
+    camera.yaw -= axis(Action::MenuRight, Action::MenuLeft) * SHOWCASE_TURN * dt;
+    camera.pitch = (camera.pitch + axis(Action::MenuUp, Action::MenuDown) * SHOWCASE_TURN * dt)
+        .clamp(SHOWCASE_PITCH.0, SHOWCASE_PITCH.1);
+    let zoom = 1.0 - axis(Action::MenuZoomIn, Action::MenuZoomOut) * SHOWCASE_ZOOM * dt;
+    camera.distance = (camera.distance * zoom).clamp(rest.1 * SHOWCASE_DISTANCE.0, rest.1 * SHOWCASE_DISTANCE.1);
 }
 
 /// The part of the car an instance belongs to: the placeholder floor is keyed with its own part number.

@@ -60,8 +60,8 @@ pub enum Setting {
     RenderScale,
     Upscaler,
     UpscaleSharpness,
-    /// A row of Quick Race's track options (`quick_options.rs`); its value is the session's, not a setting.
-    Quick(super::quick_options::QuickRow),
+    /// A row of the custom race's options (`custom_race/settings.rs`); its value is the session's, not a setting.
+    Custom(super::custom_race::settings::Row),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
     Mod(u64),
     /// The on/off switch of a listed mod, by its position in the mod manager's list (`mod_options.rs`).
@@ -164,6 +164,7 @@ impl Setting {
         match self {
             // With vsync on the display paces the frames, so the limiter is greyed out.
             Setting::MaxFps => !s.vsync,
+            Setting::Custom(row) => super::custom_race::options::enabled(row),
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
             Setting::SmokeQuality => s.tire_smoke,
@@ -181,7 +182,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::AdvancedGraphics => Data::Text("Open F8".into()),
-            Setting::Quick(row) => Data::Text(super::quick_options::text(s, row)),
+            Setting::Custom(row) => super::custom_race::options::data(row),
             Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
             Setting::Input(setting) => setting.data(s),
             Setting::Post(setting) => setting.data(s),
@@ -315,8 +316,8 @@ impl Setting {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
-            Setting::Quick(row) => {
-                super::quick_options::step(s, changed, row, forward);
+            Setting::Custom(row) => {
+                super::custom_race::options::step(row, forward);
                 return true;
             }
             Setting::Input(setting) => return setting.step(s, changed, forward),

@@ -26,7 +26,7 @@ impl Look {
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
-            Look::Main | Look::Car(_) => Stage::Crib,
+            Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
         }
     }
 }

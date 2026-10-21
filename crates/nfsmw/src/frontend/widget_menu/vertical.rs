@@ -82,7 +82,7 @@ pub(super) fn heading(cx: &Cx, category: super::super::logic::Category, label: u
         Category::Controls => "Control Options".into(),
         Category::Discord => "Discord".into(),
         Category::Mods => "Mods".into(),
-        Category::QuickRace => "Track Options".into(),
+        Category::CustomRace => "Track Options".into(),
         _ => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
     }
 }

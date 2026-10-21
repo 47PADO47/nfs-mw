@@ -98,9 +98,9 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         }
         // The rows of the Mods page are the mods' own (`bb.menus`), read from the bridge by `widget_menu.rs`.
         Category::Mods => Vec::new(),
-        Category::QuickRace => crate::frontend::quick_options::QuickRow::ALL
+        Category::CustomRace => crate::frontend::custom_race::options::rows()
             .into_iter()
-            .map(|quick| row(Setting::Quick(quick), Title::Text(quick.title())))
+            .map(|custom| row(Setting::Custom(custom), Title::Label(custom.title())))
             .collect(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
