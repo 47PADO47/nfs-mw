@@ -136,7 +136,7 @@ const UPSCALERS: [UpscaleMode; 6] = [
 const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMetrics::Advanced];
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// The most values any row cycles through; `advance` gives up after that many steps.
-const MAX_VALUES: usize = 8;
+const MAX_VALUES: usize = 16;
 fn on_off(on: bool) -> Data {
     Data::Label(if on { LABEL_ON } else { LABEL_OFF })
 }
