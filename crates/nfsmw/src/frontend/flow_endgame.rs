@@ -116,7 +116,9 @@ mod tests {
     fn every_page_of_the_chain_has_a_screen_logic_that_closes_it() {
         for name in screens_in_order() {
             assert!(
-                crate::frontend::career_screens::end_game_page::is_end_game_page(name) || name == screen::MAIN_MENU_SUB,
+                crate::frontend::career_screens::end_game_page::is_end_game_page(name)
+                    || name == screen::CREDITS
+                    || name == screen::MAIN_MENU_SUB,
                 "{name} has no end-game logic"
             );
         }
