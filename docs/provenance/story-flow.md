@@ -78,3 +78,13 @@ false. `FUN_005a62d0`: the kind from `FUN_00577590(0x06A077D5 text, 0x3C2FDAAB t
 `FUN_00573140("BL%d")` then `FUN_005a41e0(stable + 0x414, preset)`, `0x13` → profile `+0xB4` += truncated
 `0xAB0179F4`, other → `FUN_00576c50(kind)`; queued: `FUN_00576b80(kind, value)` (the pink slip queues its preset
 handle, the cash its amount).
+
+### F-24: the markers screen
+
+Constructor `FUN_007b9a80` (vtable `0x008B7DF8`): reads the popup queue (`FUN_00576b50`, 6 slots of kind and value),
+looks each kind up in a table at `0x00905EE0` (7 words per row, category hash in word 2) and appends the cards in the
+order of four category hashes, then swaps three cards with random indices in 0..2 (`FUN_0045da30(3)`). Message handler
+`FUN_007b3cd0` (created in this pass at `0x007B3CD0`, slot 1): on the select message `0x0C407210`, if two cards are
+already revealed (`FUN_007a77c0`) it refuses; else it reveals the focused card and applies it (`0x12` →
+`FUN_005a41e0(stable + 0x414, value)`, `0x13` → cash `+0xB4` += value, else `FUN_00576c50(kind, value)`); on
+`0xE1FDE1D1` it clears the queue (`FUN_00576bd0`) and calls the arrival stepper.
