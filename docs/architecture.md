@@ -343,8 +343,9 @@ with `Scene::hud_state`; nothing else knows FEng.
   retail game has no speed zoom. `minimap = fixed|rotating|off` (config file, `NFSMW_MINIMAP`, console `set minimap`;
   fixed, as the original's free roam). Blips of cops and racers wait for milestone 7 (`blackbox_minimap::place_blip`).
 - **Hidden:** the elements that need the race and pursuit state of milestone 7 (radar detector, pursuit, heat, busted,
-  cost-to-state, milestone and race boards, countdown, infractions, speed breaker meter, the wrong-way sign, online
-  fields); the engine temperature gauge (drag HUD only). The runtime still runs their scripts.
+  cost-to-state, milestone board, infractions, speed breaker meter, the wrong-way sign, online fields); the engine
+  temperature gauge (drag HUD only). A race shows the place, clock, progress or lap, countdown and leaderboard
+  ([race-mode](specs/race-mode.md) section 10). The runtime still runs the scripts of what is hidden.
 - **HUD layout:** Gameplay's [HUD Layout](hud-layout.md) chooses PC wide placement, centered 4:3 or the Xbox
   addon's 92% wide scale. A HUD-only viewport shifts the map and all gauge descendants together after their
   rotations; resizing and live preset changes leave package state untouched ([spec](specs/hud-viewport.md)).
