@@ -51,6 +51,7 @@ Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 | [Career text](career-text.md) | [specs/career-text.md](../specs/career-text.md), [specs/career-text-2.md](../specs/career-text-2.md) | `English.bin` and `Labels.bin` (private decoder); `speed.exe` 1.3 label formats (Ghidra, read only) |
 | [Career phone](career-phone.md) | [specs/career-phone.md](../specs/career-phone.md) | `speed.exe` 1.3 (Ghidra, read only); `English.bin`, `gameplay.bin`, saves |
 | [Career rap sheet](career-rapsheet.md) | [specs/career-rapsheet.md](../specs/career-rapsheet.md), [specs/career-rapsheet-2.md](../specs/career-rapsheet-2.md) | `speed.exe` 1.3 (Ghidra, read only); the install's FEng packages |
+| [Boot profile prompt](boot-profile-prompt.md) | [specs/boot-profile-prompt.md](../specs/boot-profile-prompt.md) | `speed.exe` 1.3 (Ghidra MCP, read only; the boot flow's screen list, the start-up list-ready step) |
 | [Career parity menus](career-parity-menus.md) | [specs/career-parity-menus.md](../specs/career-parity-menus.md) | `speed.exe` 1.3 (Ghidra MCP, read only; label and texture keys hashed against `FrontB.lzc`) |
 | [Career save screens](career-save-screens.md) | [specs/career-save-screens.md](../specs/career-save-screens.md), [specs/career-save-screens-2.md](../specs/career-save-screens-2.md) | `speed.exe` 1.3 (Ghidra, read only; disassembly of the file library) |
 | [Career regions](career-regions.md) | [specs/career-regions.md](../specs/career-regions.md) | `speed.exe` 1.3 (Ghidra, read only); `gameplay.bin`, `Rivals.bin`, `TrackMaps.bin` |
