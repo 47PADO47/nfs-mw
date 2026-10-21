@@ -10,6 +10,7 @@ use blackbox_text::label_hash;
 use glam::Vec2;
 
 use super::mode::Mode;
+use super::records;
 use super::state;
 use super::tracks::{self, Listed};
 use crate::career::CareerHandle;
@@ -45,6 +46,7 @@ const REGION_ARROWS: [u32; 2] = [0x091C_4A50, 0x2D14_5BE3];
 /// `Unlock this track by beating %s, Blacklist member %d.`, and `--:--.--` for a list with no track.
 const UNLOCK_LABEL: u32 = 0xBD56_3BE5;
 const NO_RECORD: u32 = 0x472A_A00A;
+const KMH_TO_MPH: f32 = 0.621_371;
 /// The units of a speed record: kilometres and miles per hour.
 const KPH_LABEL: u32 = 0x8569_A25F;
 const MPH_LABEL: u32 = 0x8569_AB44;
@@ -177,7 +179,7 @@ impl TrackSelect {
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
         let unit = Text::Game(text::unit_label(metric)).resolve(cx.assets).unwrap_or_default();
         cx.text_object(LENGTH, &text::length_text(track.brief_length(), metric, &unit));
-        let record = record_text(cx, mode, metric);
+        let record = record_text(cx, mode, metric, &track.event);
         cx.text_object(RECORD, &record);
         if let Some(label) = mode.record_label()
             && let Some(o) = cx.object(RECORD_LABEL)
@@ -226,13 +228,16 @@ fn unlock_sentence(cx: &Cx, track: &Track) -> String {
     text::fill_sentence(&template, &alias, bin)
 }
 
-/// The record line: no record is kept yet, so a time reads `0.00` and a speed `0 MPH`/`0 KPH` **[verified]**.
-fn record_text(cx: &Cx, mode: Mode, metric: bool) -> String {
+/// The record line: the best time, or for the speedtrap the best speed in the speed unit; an event never raced reads `0.00` or
+/// `0 MPH`/`0 KPH` **[verified]**.
+fn record_text(cx: &Cx, mode: Mode, metric: bool, event: &str) -> String {
+    let best = records::best(event);
     if mode != Mode::SpeedTrap {
-        return "0.00".to_owned();
+        return records::time_text(best.time);
     }
     let unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
-    format!("0 {unit}")
+    let speed = best.speed.unwrap_or(0.0) * if metric { 1.0 } else { KMH_TO_MPH };
+    format!("{speed:.0} {unit}")
 }
 
 impl ScreenLogic for TrackSelect {

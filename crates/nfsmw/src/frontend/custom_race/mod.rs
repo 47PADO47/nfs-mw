@@ -10,6 +10,7 @@ pub mod car_list;
 pub mod car_select;
 pub mod mode;
 pub mod options;
+pub mod records;
 pub mod region;
 pub mod settings;
 pub mod showcase;

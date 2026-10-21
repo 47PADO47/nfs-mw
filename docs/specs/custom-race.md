@@ -52,8 +52,11 @@ saved to the config file (the old `quick_race` config key and its four rows are 
   a click on the arrows beside the label).
 - **Left and right** step through the tracks with wrap-around; the track name is the label `TRACKNAME_<id>` or the event id.
 - **Length** `%.1f` of the stored `RaceLength` in KMs or Miles (the Speed units setting) **[decomp]**, as the Quick Play brief does.
-- **Record:** `Best Time:` / `Best Lap:` (circuit and knockout) with `0.00`, or `Best Speed:` with `0 MPH` (the speedtrap), the
-  numbers the screenshots show for a track with no record **[verified]**. No records are kept yet.
+- **Record:** `Best Time:` with the best finish time (`m:ss.cc`), or `Best Speed:` with the best speed through a speed trap in the
+  Speed units setting (the speedtrap); `0.00` and `0 MPH` for an event never raced, as the screenshots show **[verified]**.
+  The decomp says `Best Lap:` for the circuit and the knockout **[decomp]**; this build keeps the finish time and leaves the
+  package's `Best Time:` **[ours]**. The records are `records.toml` next to the config file (`custom_race/records.rs`), noted by the
+  world when a race ends (any race, as the original's race scores are) and on each speed-trap pass; only a better one is kept.
 - **Map:** `TRACK_MAP_<event id>` of `TrackMaps.bin`, eased to the route's box as the challenge series does
   ([challenge-series.md](challenge-series.md) section 3).
 - **Locked tracks.** A track of bin `b` is open once rival `b` is beaten, i.e. the career's stage is below `b`; a race open from the
@@ -149,7 +152,7 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 
 - The exe's `IsQuickRaceUnlocked` and the profile's race score flags were not traced; the unlock rule above is the decomp's
   arithmetic for the rivals' cars applied to the tracks.
-- Best times and speeds are not recorded.
+- A circuit's best lap (the decomp's `Best Lap:`): only the finish time is recorded.
 - Heat Level's exact meaning: the screenshot shows the row, the exe's setup does not.
 - The Career and My Cars lists; the career's own unlocks for the SL65, GT2 and Castrol GT.
 - Heat Level Moderate and Maximum do not yet start a pursuit; the police are those of free roam.

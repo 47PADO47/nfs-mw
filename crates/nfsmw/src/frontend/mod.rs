@@ -21,7 +21,7 @@ mod icon_menu;
 mod icon_window;
 mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).
-mod custom_race;
+pub(crate) mod custom_race;
 mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
