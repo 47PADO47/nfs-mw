@@ -88,13 +88,20 @@ impl Object {
         u32::try_from(offset).is_ok_and(|offset| self.pointers.binary_search(&offset).is_ok())
     }
 
-    /// The pointer at `offset`. Returns `None` for a zero word that was not relocated. Otherwise returns the
-    /// target offset in `.data`. A target past the end of `.data` is an error; a target equal to the end is
-    /// accepted.
+    /// The pointer at `offset`, read as a relocated word.
+    ///
+    /// - A zero word that was not relocated is a null pointer: `Ok(None)`.
+    /// - A relocated word is a pointer: `Ok(Some(target))`, the target offset in `.data`. A relocated zero is
+    ///   `Some(0)`, not null. A target past the end of `.data` is an error; a target equal to the end is accepted.
+    /// - A non-zero word that was not relocated is not a pointer at all: `Err(Error::Invalid)`. Reading a plain
+    ///   field as a pointer fails here instead of yielding a bogus target.
     pub fn ptr_at(&self, offset: usize) -> Result<Option<u32>> {
         let word = self.u32_at(offset)?;
-        if word == 0 && !self.is_pointer(offset) {
-            return Ok(None);
+        if !self.is_pointer(offset) {
+            if word == 0 {
+                return Ok(None);
+            }
+            return Err(Error::Invalid(format!("word at {offset:#x} is {word:#x} but not a relocated pointer")));
         }
         if word as usize > self.data.len() {
             return Err(Error::Invalid(format!(

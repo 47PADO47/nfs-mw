@@ -48,6 +48,17 @@ fn detects_pointers_and_reads_targets() {
 }
 
 #[test]
+fn ptr_at_separates_null_pointers_from_plain_words() {
+    // A relocated zero points at offset 0; an unrelocated zero is null; an unrelocated non-zero word is no pointer.
+    let object = Object::read(&Builder::new(&[0u8; 8]).reloc(0).padded()).unwrap();
+    assert_eq!(object.ptr_at(0), Ok(Some(0)), "a relocated zero is a pointer to offset 0");
+    assert_eq!(object.ptr_at(4), Ok(None), "an unrelocated zero is null");
+
+    let object = Object::read(&sample_builder().padded()).unwrap();
+    assert!(matches!(object.ptr_at(4), Err(Error::Invalid(_))), "42 at offset 4 is a plain word, not a pointer");
+}
+
+#[test]
 fn pad_is_optional() {
     let builder = sample_builder();
     let padded = Object::read(&builder.padded()).unwrap();
