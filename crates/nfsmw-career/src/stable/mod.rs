@@ -89,6 +89,13 @@ impl Stable {
         out
     }
 
+    /// The first customization record no car uses, `None` when all [`CUSTOMIZATION_SLOTS`] are in use. **[unconfirmed]**
+    /// which free record the original takes; the car lot and the rewards both take this one.
+    pub fn free_customization(&self) -> Option<u8> {
+        let used = |index: u8| self.cars.iter().any(|car| !car.is_free() && car.customization_index == index);
+        (0..CUSTOMIZATION_SLOTS).filter_map(|slot| u8::try_from(slot).ok()).find(|index| !used(*index))
+    }
+
     /// The car record with this handle (free slots never match).
     pub fn car_by_handle(&self, handle: u32) -> Option<&CarRecord> {
         if handle == FREE_HANDLE {

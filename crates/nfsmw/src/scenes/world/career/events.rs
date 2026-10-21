@@ -4,16 +4,13 @@
 //! (sections 2.3 and 5.2), a boss race once its rival is unlocked or beaten (section 2.6). An open race raises the
 //! autosave for an event start. Races are not built yet, so an open race still reaches the stub in `entry.rs`.
 
-use nfsmw_career::blacklist::{
-    BinRecord, BinState, Blacklist, EventResult, Reward, RewardEffect, apply_event_result, grant_gauntlet_rewards,
-};
-use nfsmw_career::economy::markers::MarkerInventory;
+use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, EventResult, Reward, RewardEffect, apply_event_result};
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
 use nfsmw_data::gameplay::RewardRecord;
 
-use crate::career::{AutosaveInputs, Career, event_id, handle_autosave, race_event_id};
+use crate::career::{AutosaveInputs, Career, event_id, grant_rewards, handle_autosave, race_event_id};
 use crate::scenes::world::WorldScene;
 
 /// The Blacklist's bins, 1 to 15 (`FIRST_RIVAL_STAGE`).
@@ -177,20 +174,11 @@ const RELEASE_SMS: u32 = 120;
 
 /// Grants the reward list of a gauntlet's last race once its rival is beaten (`story-flow-2.md` section 4.5, F-10). The
 /// rewards go to the career at once, or to the popup queue when the race defers them. A pink slip names the rival's
-/// preset car (`BL<bin>`); it is reported and not added, because the stable has no add call by preset name yet.
+/// preset car (`BL<bin>`); `grant_rewards` adds that car to the stable.
 fn grant_gauntlet(career: &mut Career, rewards: &[RewardRecord], bin: u8, deferred: bool) {
     let list: Vec<Reward> = rewards.iter().map(|record| reward_of(record, bin)).collect();
-    let effects = grant_gauntlet_rewards(&list, true, deferred, &mut career.settings, &mut career.popups, |_| false);
-    // The marker inventory is written back from `markers` when the profile is saved, so it reads the new entries.
-    match MarkerInventory::from_table(&career.settings.inventory[..]) {
-        Ok(markers) => career.markers = markers,
-        Err(e) => log::warn!("the marker inventory could not be read after the rewards: {e:?}"),
-    }
-    for effect in effects {
+    for effect in grant_rewards(career, &list, deferred) {
         match effect {
-            RewardEffect::AddCar { preset } => {
-                log::warn!("reward: pink slip {preset} is not added to the stable (no add call by preset yet)")
-            }
             RewardEffect::Unknown(reward) | RewardEffect::InventoryFull(reward) | RewardEffect::QueueFull(reward) => {
                 log::warn!("reward {reward:?} is not granted")
             }

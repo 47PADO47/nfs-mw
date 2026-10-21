@@ -18,7 +18,7 @@ use nfsmw_career::carlot::stats::{self, CarStats};
 use nfsmw_career::carlot::{self, Delivery, Limits, LotCar, LotState, PurchaseError, PurchasePrompt, SaleError};
 use nfsmw_career::economy::sale_proceeds;
 use nfsmw_career::settings::CareerSettings;
-use nfsmw_career::stable::{CUSTOMIZATION_SLOTS, Stable};
+use nfsmw_career::stable::Stable;
 
 use crate::career::{Career, CareerHandle};
 use crate::frontend::confirm::{Alert, Confirm};
@@ -343,6 +343,8 @@ fn buy_text(error: PurchaseError) -> Text {
         PurchaseError::GarageFull | PurchaseError::NoCareerSlot | PurchaseError::NoCarSlot => label("CAR_LOT_NO_ROOM"),
         PurchaseError::NotOffered => Text::Custom("This car is not for sale.".into()),
         PurchaseError::Locked => Text::Custom("This car is not available yet.".into()),
+        // The lot offers no car the player owns; only a preset car from a reward can be a duplicate.
+        PurchaseError::AlreadyOwned => Text::Custom("You already own this car.".into()),
     }
 }
 
@@ -359,8 +361,7 @@ fn sell_text(error: SaleError) -> Text {
 /// The first customization record no car uses (`[unconfirmed]`: the spec takes a free record; which one is the port's
 /// choice). `None` when all are in use.
 pub fn free_customization(stable: &Stable) -> Option<u8> {
-    let used = |index: u8| stable.cars.iter().any(|car| !car.is_free() && car.customization_index == index);
-    (0..CUSTOMIZATION_SLOTS).filter_map(|slot| u8::try_from(slot).ok()).find(|index| !used(*index))
+    stable.free_customization()
 }
 
 /// One step of the highlight through `len` rows, clamped to the list (no wrap). An empty list keeps 0.

@@ -20,6 +20,7 @@ mod autosave;
 mod card;
 mod data;
 mod io;
+mod rewards;
 mod sources;
 mod start;
 mod state;
@@ -29,6 +30,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub use autosave::{AutosaveInputs, handle_autosave};
 pub use data::{CareerData, car_stats, event_id, race_event_id};
 pub use io::ProfileDir;
+pub use rewards::grant_rewards;
 pub use sources::Sources;
 pub use state::Career;
 

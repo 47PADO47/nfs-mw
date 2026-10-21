@@ -14,7 +14,7 @@ use nfsmw_career::settings::PROLOGUE_STAGE;
 use crate::app::Host;
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen::{
-    MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_REGION_UNLOCK,
+    MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_MARKERS, SAFEHOUSE_REGION_UNLOCK,
 };
 use crate::frontend::logic::{Args, Command, Env};
 
@@ -102,11 +102,8 @@ impl Frontend {
                 self.sequence_screen(SAFEHOUSE_REGION_UNLOCK, safe_house_args(), stepper, host, env)
             }
             StepAction::RivalBio => self.sequence_screen(SAFE_HOUSE_RIVAL_BIO, safe_house_args(), stepper, host, env),
-            // The marker choice (step 1) has no screen yet, and the autosave (step 3) writes the profile with no screen.
-            StepAction::Markers => {
-                log::info!("career: the marker choice is not built; its step is skipped");
-                self.blacklist_step(stepper, host, env);
-            }
+            StepAction::Markers => self.sequence_screen(SAFEHOUSE_MARKERS, safe_house_args(), stepper, host, env),
+            // The autosave (step 3) writes the profile with no screen.
             StepAction::AutosaveFlow => {
                 self.sequence_save();
                 self.blacklist_step(stepper, host, env);

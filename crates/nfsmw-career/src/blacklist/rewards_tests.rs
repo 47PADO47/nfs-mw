@@ -291,3 +291,15 @@ fn a_deferred_gauntlet_win_queues_the_list() {
     assert_eq!(effects, vec![RewardEffect::Queued(marker(0x15))]);
     assert_eq!(popups.entries(), &rewards);
 }
+
+#[test]
+fn clearing_the_queue_empties_it_and_a_cleared_queue_takes_new_rewards() {
+    let mut popups = PopupQueue::new();
+    let mut career = CareerSettings::new_career();
+    grant(&[cash(10), pink("BL05"), marker(0x11)], true, &mut career, &mut popups, nobody_owns);
+    assert_eq!(popups.entries().len(), 3);
+    popups.clear();
+    assert!(popups.entries().is_empty());
+    assert!(popups.push(marker(0x14)).is_ok());
+    assert_eq!(popups.entries().len(), 1);
+}

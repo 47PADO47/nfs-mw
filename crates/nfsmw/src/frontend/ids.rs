@@ -49,6 +49,8 @@ pub mod screen {
     pub const SAFE_HOUSE_RIVAL_CHALLENGE: &str = "SafeHouseRivalChallenge.fng";
     pub const SAFE_HOUSE_RIVAL_BIO: &str = "SafeHouseRivalBio.fng";
     pub const SAFEHOUSE_REGION_UNLOCK: &str = "SafehouseRegionUnlock.fng";
+    /// The marker choice after a rival is beaten (`career_screens/markers.rs`, step 1 of the arrival sequence).
+    pub const SAFEHOUSE_MARKERS: &str = "SafeHouseMarkers.fng";
     pub const RAP_SHEET_LOGIN: &str = "RapSheetLogin.fng";
     pub const RAP_SHEET_MAIN: &str = "RapSheetMain.fng";
     pub const RAP_SHEET_US: &str = "RapSheetUS.fng";

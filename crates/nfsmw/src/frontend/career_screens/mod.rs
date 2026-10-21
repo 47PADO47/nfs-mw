@@ -8,6 +8,7 @@ mod car_lot_first;
 pub mod car_select;
 mod car_select_view;
 pub mod career_menu;
+pub mod markers;
 pub mod rap_sheet;
 pub mod region_unlock;
 pub mod safehouse_menu;
@@ -23,6 +24,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         .or_else(|| car_lot::make(name, args))
         .or_else(|| rap_sheet::make(name, args))
         .or_else(|| region_unlock::make(name, args))
+        .or_else(|| markers::make(name, args))
         .or_else(|| save::make(name, args))
         .or_else(|| sms::make(name, args))
 }

@@ -286,3 +286,50 @@ fn a_sale_is_refused_without_a_career_record_or_a_price() {
     stable.cars[1].career_index = 1;
     assert_eq!(sell(&mut s, &mut stable, &[], 0x10, true), Err(SaleError::NoPrice));
 }
+
+#[test]
+fn a_preset_car_is_added_without_taking_cash_or_checking_the_price() {
+    let cat = catalogue();
+    let mut stable = Stable::empty();
+    let added = add_preset_car(&mut stable, &cat[0], 4);
+    assert_eq!(added, Ok(Purchase { handle: 0x10, car_slot: 0, career_index: 0, price: 0 }));
+    let car = stable.cars[0];
+    assert_eq!((car.handle, car.frontend_key, car.vehicle_key), (0x10, 0xC0, 0xC1));
+    assert_eq!(
+        (car.flags, car.customization_index, car.career_index),
+        (CarRecord::CLASS_MASK | CarRecord::FLAG_OWNED, 4, 0)
+    );
+    assert!(!stable.careers[0].is_unused());
+    assert_eq!(owned_count(&stable), 1);
+}
+
+#[test]
+fn a_preset_car_the_stable_already_holds_is_not_added_twice() {
+    let cat = catalogue();
+    let mut stable = Stable::empty();
+    assert!(add_preset_car(&mut stable, &cat[0], 4).is_ok());
+    let before = stable.clone();
+    assert_eq!(add_preset_car(&mut stable, &cat[0], 5), Err(PurchaseError::AlreadyOwned));
+    assert_eq!(stable, before, "a refused preset car writes nothing");
+}
+
+#[test]
+fn a_preset_car_needs_a_free_career_record_and_car_slot() {
+    let cat = catalogue();
+    let mut stable = Stable::empty();
+    for index in 0..CAREER_SLOTS {
+        stable.careers[index] = CareerRecord::new(index as u8);
+    }
+    let before = stable.clone();
+    assert_eq!(add_preset_car(&mut stable, &cat[0], 4), Err(PurchaseError::NoCareerSlot));
+    assert_eq!(stable, before, "a refused preset car writes nothing");
+}
+
+#[test]
+fn the_free_customization_record_is_the_first_one_no_car_uses() {
+    let mut stable = Stable::empty();
+    assert_eq!(stable.free_customization(), Some(0));
+    put_car(&mut stable, 0, 0x10, 0, 0xC0);
+    stable.cars[0].customization_index = 0;
+    assert_eq!(stable.free_customization(), Some(1));
+}

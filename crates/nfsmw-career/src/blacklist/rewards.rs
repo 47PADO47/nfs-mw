@@ -120,6 +120,11 @@ impl PopupQueue {
         Ok(())
     }
 
+    /// Empties the queue. The markers screen does this on Continue: the rewards it did not hand out are lost.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
     /// Takes the reward at `index` out of the queue. **[unconfirmed]** the order of the rest is kept; the original's
     /// removal is not seen. Returns `None` when `index` is outside the queue.
     pub fn take(&mut self, index: usize) -> Option<Reward> {
