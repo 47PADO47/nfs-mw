@@ -226,6 +226,15 @@ impl TrafficWorld {
         self.cops.lockout_left()
     }
 
+    /// Keeps the cops out of the world (`true`) while a race with no police runs, ending a chase that is on; `false`
+    /// lets the lockout rule again.
+    pub fn bar_cops(&mut self, barred: bool) {
+        self.cops.bar(barred);
+        if barred && self.is_pursuing() {
+            self.stop_pursuit();
+        }
+    }
+
     /// Ends the chase without a result (the `pursuit off` command) and removes the cops.
     pub fn stop_pursuit(&mut self) {
         self.end_pursuit(EndReason::None);
