@@ -1,74 +1,50 @@
 //! A sans-IO connection (protocol.md section 5, ADR 0009 sections 3 and 5): it turns bytes into bytes and never touches a
 //! socket or a clock. The caller moves datagrams through a [`crate::link::Link`] and passes `now_ms`.
 //!
-//! CONTRACT (to implement; the skeleton only fixes the constants and the frame rule):
-//!
 //! **Packet layout** (all multi-byte integers little-endian):
 //!
 //! | Offset | Size | Field |
 //! |---|---|---|
-//! | 0 | 1 | flags: bit 7 = 0 (data packet), bits 3..0 = format 0, others 0 |
+//! | 0 | 1 | flags: bit 7 = 0 (data packet), bits 3..1 = format 0, bit 0 = ack block valid (see below), bits 6..4 zero |
 //! | 1 | 2 | connection id of the receiver |
 //! | 3 | 4 | packet number (starts at 0, +1 per packet) |
 //! | 7 | 4 | `ack`: largest packet number received from the peer (0 with `ack_bits` 0 before any) |
 //! | 11 | 4 | `ack_bits`: bit `i` set means packet `ack - 1 - i` was received |
 //! | 15 | n | frames, at most [`FRAME_SPACE`] bytes, so a 16-byte seal tag still fits in [`crate::MAX_DATAGRAM`] later |
 //!
+//! Flag bit 0 (`FLAG_ACK_VALID`) is set once the sender has received at least one packet. A receiver ignores the ack
+//! block while it is clear, so "nothing received yet" is not confused with "packet 0 received". It takes the lowest bit
+//! of the format field, which therefore sits in bits 3..1 and is 0 for format 0. protocol.md section 5.1 gives bits 3..0
+//! to the format and has no such flag; the sealed header must settle this before the crypto layer lands.
+//!
 //! **Frames** (ADR 0009 section 4): `type` u8, then the payload length as a byte-aligned LEB128 varint (7 bits per byte,
 //! low group first, top bit = more, canonical, at most 3 bytes), then the payload. Type `0x00` is one padding byte with no
 //! length. Every other type has a length, so any receiver can skip any frame. The connection owns [`FRAME_RELIABLE`],
-//! [`FRAME_DISCONNECT`] and the reserved `0x12`/`0x13`; every other frame is handed to the caller in order.
+//! [`FRAME_DISCONNECT`] and the reserved `0x12`/`0x13` (ignored); every other frame is handed to the caller in order.
 //!
 //! **Reliable frame payload:** byte 0 = channel (bits 7..6), first (bit 5), last (bit 4), bits 3..0 zero; bytes 1..3 =
 //! `msg_id` u16 (per channel, +1 per fragment, wrapping); then data. A message larger than [`MAX_FRAGMENT`] is split into
 //! up to [`MAX_FRAGMENTS`] fragments with consecutive ids; the first fragment's data starts with the total message length
 //! as u16, checked against [`MAX_MESSAGE`] before any buffer grows. Delivery is ordered and exactly once per channel.
+//! The two length bytes leave 1,022 message bytes in the first fragment, so the largest message that fits in
+//! [`MAX_FRAGMENTS`] fragments is 16,382 bytes; longer ones return [`ConnError::MessageTooLarge`].
 //!
-//! **Files:**
-//!
-//! - `acks.rs`: `pub struct SequenceBuffer<T>` (a ring of `Option<T>` keyed by `u32` with a fixed capacity:
-//!   `with_capacity(n)`, `insert(seq, value)` (overwrites the slot), `get`, `get_mut`, `remove`, `contains`), and the
-//!   received-window tracker that builds `ack`/`ack_bits` and rejects duplicates and numbers more than 1024 older than the
-//!   newest ([`ConnError::Duplicate`], [`ConnError::TooOld`]). Wrap-aware comparison `seq_newer(a, b)`.
-//! - `rtt.rs`: smoothed RTT and variance (RFC 6298 gains 1/8 and 1/4; first sample sets both; initial 100 ms), loss as an
-//!   exponential average (gain 1/16) of lost (1) and delivered (0) outcomes.
-//! - `channel.rs`: send side (a queue of at most [`MAX_IN_FLIGHT`] unacknowledged messages per channel, fragment state,
-//!   last send time; a fragment is due when never sent or when `now - last_sent >= max(20, 1.5 * srtt)` ms) and receive side
-//!   (out-of-order fragments buffered within the 256-message window, reassembly, in-order delivery). Buffers are created
-//!   once and reused; delivered messages are copied out.
-//! - `fragment.rs`: split and reassemble, with all limits checked before allocating.
-//! - `header.rs`: write and parse the 15-byte header and the frame type/length prefix.
-//! - `mod.rs` (this file): `pub struct ConnConfig { local_id: u16, remote_id: u16, idle_timeout_ms: u64 (10_000),
-//!   keepalive_ms: u64 (2_000) }` (`pub` fields, `Default`), and `pub struct Connection` with:
-//!   - `new(config) -> Self`;
-//!   - `send_message(&mut self, channel: u8, msg: &[u8]) -> Result<(), ConnError>` (`BadChannel`, `MessageTooLarge`,
-//!     `QueueFull`);
-//!   - `write_packet(&mut self, now_ms: u64, app_frames: &[(u8, &[u8])], out: &mut [u8]) -> Result<Sent, ConnError>`:
-//!     `out.len() >= MAX_DATAGRAM`; header and acks, then the caller's frames (`FrameTooLarge` if they do not fit in
-//!     [`FRAME_SPACE`]), then a pending disconnect, then due reliable fragments oldest first while they fit. Always writes
-//!     a packet (acks only if nothing else). Records what each packet carried in a `SequenceBuffer`.
-//!     `pub struct Sent { pub number: u32, pub len: usize }`;
-//!   - `read_packet<'a, F: FnMut(u8, &'a [u8])>(&mut self, now_ms: u64, datagram: &'a [u8], on_frame: F) ->
-//!     Result<u32, ConnError>`: checks length (`Truncated`), flags (`BadHeader`), connection id (`WrongConnection`), the
-//!     window, then every frame (`BadFrame` stops parsing; frames already handed out stay handed out); applies the acks:
-//!     each newly acknowledged packet gives `ConnEvent::Delivered(number)`, marks its reliable fragments delivered and
-//!     feeds one RTT sample; an unacknowledged packet at least 3 below the newest acknowledged one, or older than 1 s,
-//!     gives `ConnEvent::Lost(number)` once;
-//!   - `poll_event(&mut self) -> Option<ConnEvent>`; `pub enum ConnEvent { Delivered(u32), Lost(u32),
-//!     Disconnected(u8) }`;
-//!   - `recv_message(&mut self, out: &mut Vec<u8>) -> Option<u8>`: clears `out`, copies the next complete message
-//!     (channels 0 to 3 in order) and returns its channel;
-//!   - `close(&mut self, reason: u8)` (sends one DISCONNECT frame, payload = the reason byte, in the next packet);
-//!   - `is_timed_out(now_ms) -> bool`, `wants_keepalive(now_ms) -> bool`, `has_due_reliable(now_ms) -> bool`,
-//!     `rtt_ms() -> f64`, `loss() -> f64`, `bytes_sent() -> u64`, `bytes_received() -> u64`.
-//!   - `pub enum ConnError { Truncated, BadHeader, WrongConnection, Duplicate, TooOld, BadFrame, BadChannel,
-//!     MessageTooLarge, QueueFull, FrameTooLarge, BufferTooSmall }` with `Display` and `std::error::Error`.
-//! - `tests/`: two connections wired by a test harness that moves datagrams and drops, delays, duplicates and reorders
-//!   them with [`crate::rng::SplitMix64`] (no `Link` needed). At 0, 2, 5 and 10 % loss, 2,000 messages of 1 byte to 16 KiB
-//!   on all four channels arrive in order exactly once, and the send queues drain to empty. Delivered/Lost events cover
-//!   every sent packet exactly once. A seeded fuzz loop (100,000 random and mutated datagrams) never panics. With no
-//!   reliable traffic, `write_packet` and `read_packet` do not allocate after the first 100 packets (checked in A6's
-//!   allocation test; keep the hot path free of `Vec` growth).
+//! **Files:** `header.rs` (header and frame prefix), `acks.rs` (sequence buffer and receive window), `rtt.rs` (RTT and
+//! loss), `channel.rs` (send and receive side of the reliable channels), `fragment.rs` (split and reassemble limits),
+//! `connection.rs` ([`Connection`] itself). Tests live in `tests/`.
+
+mod acks;
+mod channel;
+mod connection;
+mod fragment;
+mod header;
+mod rtt;
+#[cfg(test)]
+mod tests;
+
+use std::fmt;
+
+pub use connection::Connection;
 
 /// Bytes of the packet header and acknowledgement block.
 pub const HEADER_LEN: usize = 15;
@@ -93,3 +69,92 @@ pub const FRAME_PADDING: u8 = 0x00;
 pub const FRAME_RELIABLE: u8 = 0x10;
 /// Frame type: the sender closes the connection; payload is one reason byte.
 pub const FRAME_DISCONNECT: u8 = 0x11;
+
+/// Static configuration of one connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConnConfig {
+    /// The connection id this side answers to; packets naming another id are refused.
+    pub local_id: u16,
+    /// The connection id the peer answers to; written into every packet.
+    pub remote_id: u16,
+    /// Silence after which [`Connection::is_timed_out`] turns true.
+    pub idle_timeout_ms: u64,
+    /// Silence after which [`Connection::wants_keepalive`] turns true.
+    pub keepalive_ms: u64,
+}
+
+impl Default for ConnConfig {
+    fn default() -> Self {
+        Self { local_id: 0, remote_id: 0, idle_timeout_ms: 10_000, keepalive_ms: 2_000 }
+    }
+}
+
+/// Why a datagram or call was refused. A refused call leaves the connection unchanged, except where a method says
+/// otherwise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnError {
+    /// The datagram is shorter than the header.
+    Truncated,
+    /// Reserved flag bits are set.
+    BadHeader,
+    /// The packet names another connection id.
+    WrongConnection,
+    /// The packet number was already received.
+    Duplicate,
+    /// The packet number is more than 1024 behind the newest received.
+    TooOld,
+    /// A frame is malformed: a length runs past the datagram, a varint is not canonical, or a reliable frame is invalid.
+    BadFrame,
+    /// The channel index is above 3.
+    BadChannel,
+    /// The message is above [`MAX_MESSAGE`] bytes or would need more than [`MAX_FRAGMENTS`] fragments.
+    MessageTooLarge,
+    /// The channel already has [`MAX_IN_FLIGHT`] unacknowledged messages.
+    QueueFull,
+    /// The application frames do not fit in [`FRAME_SPACE`].
+    FrameTooLarge,
+    /// The output buffer is smaller than [`crate::MAX_DATAGRAM`].
+    BufferTooSmall,
+}
+
+impl fmt::Display for ConnError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::Truncated => "datagram shorter than the header",
+            Self::BadHeader => "reserved header bits set",
+            Self::WrongConnection => "packet names another connection",
+            Self::Duplicate => "packet number already received",
+            Self::TooOld => "packet number more than 1024 behind the newest",
+            Self::BadFrame => "malformed frame",
+            Self::BadChannel => "channel index above 3",
+            Self::MessageTooLarge => "message too large for the reliable channels",
+            Self::QueueFull => "channel has too many unacknowledged messages",
+            Self::FrameTooLarge => "application frames exceed the frame space",
+            Self::BufferTooSmall => "output buffer smaller than one datagram",
+        };
+        f.write_str(text)
+    }
+}
+
+impl std::error::Error for ConnError {}
+
+/// Something the caller learns about its own packets or the peer, read with [`Connection::poll_event`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnEvent {
+    /// The peer acknowledged this packet number.
+    Delivered(u32),
+    /// This packet number is written off: 3 newer packets were acknowledged, or it is older than 1 s without an
+    /// acknowledgement. Its reliable fragments are resent on their own timers.
+    Lost(u32),
+    /// The peer sent a disconnect with this reason byte.
+    Disconnected(u8),
+}
+
+/// What [`Connection::write_packet`] wrote.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sent {
+    /// The packet number that was used.
+    pub number: u32,
+    /// Bytes written at the start of the output buffer.
+    pub len: usize,
+}
