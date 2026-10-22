@@ -36,6 +36,8 @@ pub struct CoopSession {
     pub tether: Tether,
     /// The player offered the "Press Reset to catch up" prompt this frame, if any (`catch_up.rs`).
     pub catch_up: Option<PlayerId>,
+    /// The shared chase: its targets, its primary and the per-target busts (`chase.rs`).
+    pub chase: super::chase::CoopChase,
     /// The device the guest drives with (`CoopSetup::device`).
     pub device: CoopDevice,
 }
@@ -89,6 +91,7 @@ impl WorldScene {
             tether: Tether::default(),
             device: setup.device,
             catch_up: None,
+            chase: Default::default(),
         });
         self.second_view = super::super::split::SecondView::new();
     }

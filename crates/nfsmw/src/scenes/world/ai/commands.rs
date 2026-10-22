@@ -164,7 +164,8 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     if !traffic.police.can_begin() {
         return;
     }
-    let Some(drive) = scene.players.lead() else { return };
+    // The police watch the chase's primary: the lead outside co-op (`players/chase.rs`).
+    let Some(drive) = scene.players.get(scene.chase_primary()) else { return };
     // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
     let heat = traffic.police.patrol_heat();
     let sight = Sighting { player_speed: drive.speed().abs(), ..traffic.sighting(heat) };

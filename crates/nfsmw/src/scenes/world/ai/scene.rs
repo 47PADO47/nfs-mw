@@ -7,9 +7,9 @@ use crate::scenes::world::{View, WorldScene};
 use crate::settings::TrafficSettings;
 
 impl WorldScene {
-    /// Where traffic spawns around: the car, or the free camera.
+    /// Where traffic spawns around: the car the police follow (the lead outside co-op), or the free camera.
     pub(in crate::scenes::world) fn traffic_focus(&self) -> Focus {
-        match (self.players.lead(), self.view) {
+        match (self.players.get(self.chase_primary()), self.view) {
             (Some(drive), View::Chase) => {
                 let (p, heading, speed) = (drive.position(), drive.heading(), drive.speed());
                 let body = drive.ai_body();
@@ -24,14 +24,16 @@ impl WorldScene {
         }
     }
 
-    /// Each co-op guest as the traffic sees it: its car as a focus and its camera (`population/guests.rs`).
+    /// Every other player as the traffic sees it (all but the car the police follow): its car as a focus and its
+    /// camera (`population/guests.rs`).
     fn guest_traffic_views(&self) -> Vec<(Focus, crate::viewer::camera::Lens)> {
         if self.view != View::Chase {
             return Vec::new();
         }
+        let primary = self.chase_primary();
         self.players
-            .guests()
-            .filter(|guest| guest.drive.has_sim())
+            .iter()
+            .filter(|guest| guest.id != primary && guest.drive.has_sim())
             .map(|guest| {
                 let drive = &guest.drive;
                 let p = drive.position();

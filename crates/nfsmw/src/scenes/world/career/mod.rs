@@ -6,6 +6,7 @@
 
 mod bust;
 mod cooling;
+mod coop_bust;
 mod drive_to_target;
 mod events;
 mod hud;

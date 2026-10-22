@@ -9,6 +9,7 @@ mod collide;
 mod collide_guests;
 mod collision_sounds;
 mod commands;
+pub(in crate::scenes::world) mod coop_chase;
 mod cop;
 mod cop_aims;
 mod cop_health;
@@ -201,6 +202,12 @@ pub struct TrafficWorld {
     guests: Vec<(Focus, crate::viewer::camera::Lens)>,
     /// Which player the population manager spawns around next (`population/guests.rs`).
     spawn_turn: usize,
+    /// A co-op chase's targets after the primary (`coop_chase.rs`); empty outside co-op.
+    secondary_targets: Vec<(blackbox_pursuit::targets::TargetId, Body)>,
+    /// A cop sees a secondary target: the cool-down waits (`coop_chase.rs`).
+    secondary_seen: bool,
+    /// The world runs a busted meter per target, so the police's own holds (`coop_chase.rs`).
+    shared_bust_held: bool,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -279,6 +286,9 @@ impl TrafficWorld {
             player_hits: Default::default(),
             guests: Vec::new(),
             spawn_turn: 0,
+            secondary_targets: Vec::new(),
+            secondary_seen: false,
+            shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),

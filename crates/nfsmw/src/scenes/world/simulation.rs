@@ -5,6 +5,7 @@ use blackbox_pursuit::health_bar::{Frame, Gates};
 
 use glam::Vec3;
 
+use super::players::LEAD;
 use super::{View, WorldScene, ai, drive::STEP, space};
 use crate::input::ActionState;
 use crate::viewer::camera::PursuitFeed;
@@ -131,6 +132,8 @@ impl WorldScene {
         if self.players.is_empty() {
             return;
         }
+        self.coop_chase_tick();
+        let primary = self.chase_primary();
         let (collision, _) = self.residency.world_parts();
         if let Some(traffic) = self.traffic.as_mut() {
             let cast = super::drive::sight::sight_cast(collision);
@@ -140,7 +143,7 @@ impl WorldScene {
         // The helicopter's sight asks the world whether the line to the player is clear.
         let (collision, _) = self.residency.world_parts();
         let mut roadblock_view = None;
-        if let (Some(drive), Some(traffic)) = (self.players.lead_mut(), self.traffic.as_mut()) {
+        if let (Some(drive), Some(traffic)) = (self.players.get_mut(primary), self.traffic.as_mut()) {
             let view = drive.player_view();
             roadblock_view = Some(view);
             // The reset key starts the post-reset blink, which the busted timer reads this tick.
@@ -168,7 +171,7 @@ impl WorldScene {
             camera_forward: camera.forward,
             gates: Gates {
                 pursuing: false,
-                shot_running: self.players.lead().is_some_and(|drive| drive.pursuit_shot_running()),
+                shot_running: self.players.get(primary).is_some_and(|drive| drive.pursuit_shot_running()),
                 hud_visible: self.hud_shown(),
             },
         };
@@ -178,6 +181,7 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32), guest_looks: &[(f32, f32)]) {
         let _span = bevy_log::info_span!("world::physics_step").entered();
+        let primary = self.chase_primary();
         let focus = self.traffic_focus();
         let camera = self.simulation_lens(self.physics_aspect);
         let shown = self.gameplay_lens(self.physics_aspect);
@@ -201,14 +205,15 @@ impl WorldScene {
             false => Vec::new(),
         };
         let mut world_sounds = Vec::new();
+        // The car the police follow takes the traffic's player contacts (the lead outside co-op); the others collide
+        // with the traffic as guests.
         let (lead, guests) = self.players.lead_and_guests_mut();
-        let mut lead = lead.filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
-        let mut guest_sims: Vec<_> = guests
-            .iter_mut()
-            .zip(&guest_steps)
-            .filter(|(_, step)| step.is_some())
-            .filter_map(|(guest, _)| guest.drive.sim_mut())
-            .collect();
+        let lead = lead.filter(|_| player_step.is_some()).and_then(|d| d.sim_mut()).map(|sim| (LEAD, sim));
+        let stepped = guests.iter_mut().zip(&guest_steps).filter(|(_, step)| step.is_some());
+        let mut sims: Vec<_> =
+            lead.into_iter().chain(stepped.filter_map(|(guest, _)| Some((guest.id, guest.drive.sim_mut()?)))).collect();
+        let mut lead = sims.iter().position(|(id, _)| *id == primary).map(|at| sims.remove(at).1);
+        let mut guest_sims: Vec<_> = sims.into_iter().map(|(_, sim)| sim).collect();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));

@@ -56,6 +56,13 @@ impl TrafficWorld {
         if let Some(player) = target.as_ref() {
             self.cop_aims(player, &mut aims);
         }
+        let chasers = self.secondary_assignments(target);
+        for (aim, chaser) in aims.iter_mut().zip(&chasers) {
+            // A cop sent after a secondary target drives at it (`None` is the car it chases).
+            if chaser.is_some() {
+                *aim = None;
+            }
+        }
         self.population_stats.waiting_collision = 0;
         let searching = !self.police.is_perp_in_sight();
         let search_cruise = self.search_cruise();
@@ -81,7 +88,7 @@ impl TrafficWorld {
                 bodies: &bodies,
                 me,
                 player: match car.is_cop() && !car.is_searching() {
-                    true => target,
+                    true => chasers.get(me).copied().flatten().or(target),
                     false => focus.body,
                 },
                 aims: &aims,
