@@ -73,6 +73,19 @@ fn the_rooms_draw_the_solids_their_stage_names() {
 }
 
 #[test]
+fn the_room_is_drawn_in_its_files_order_whatever_the_mesh_handles_are() {
+    use crate::frontend::room::Room;
+    let Some(dir) = install() else { return };
+    // The handles fall as the meshes are made, as a renderer that reuses freed slots may hand them out.
+    let mut renderer = backend().with_descending_meshes();
+    let room = Room::load(&mut renderer, &dir, Stage::SafeHouse).unwrap();
+    let drawn: Vec<&str> = room.instances().iter().map(|i| renderer.mesh_labels[&i.mesh].as_str()).collect();
+    // The mirrored garage and the sky come first, so the floor blends over them.
+    assert_eq!(drawn, ["BACKDROP_REFLECTION", "BACKDROP_CURRGEN", "BACKDROP_CRIB"]);
+    room.destroy(&mut renderer);
+}
+
+#[test]
 fn switching_looks_over_and_over_leaks_nothing() {
     let Some(dir) = install() else { return };
     let mut renderer = backend();

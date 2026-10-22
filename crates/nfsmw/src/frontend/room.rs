@@ -58,11 +58,13 @@ impl Room {
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
             instances.push(Instance::keyed(mesh, Mat4::IDENTITY, key));
         }
-        // The renderer wants instances of one mesh next to each other.
-        instances.sort_by_key(|i| i.mesh);
         Ok(Self { meshes, textures, instances })
     }
 
+    /// The room's parts in the order the stage file lists its solids, one instance per mesh. The renderer draws blended
+    /// parts in the order it is given them, so this order is the picture: the mirrored garage and the sky come before
+    /// the floor that is see-through over them. It must not be sorted by mesh handle: the handles come from a free list
+    /// that reuses what the last backdrop freed, so their order says nothing about the file's.
     pub fn instances(&self) -> &[Instance] {
         &self.instances
     }

@@ -78,6 +78,12 @@ of the picture, so they are skipped **[ours]**. Without `BACKDROP_CURRGEN` the w
 its bright reflection; with it the picture has the pale floor and the white windows the safe house is remembered for
 (provenance, section 5). All three solids are pre-lit like the crib (`Shading::Prelit`).
 
+The room is drawn in the file's order (`BACKDROP_REFLECTION`, `BACKDROP_CURRGEN`, `BACKDROP_CRIB`), before the car. The floor and the
+windows are alpha-blended and the renderer draws blended parts in the order it is given them, so the floor must come after the mirrored
+garage it is see-through over; with the reflection last, its windows lie on the floor at full strength as bright panes. The order is not
+the mesh handles' order: they come from a free list that reuses what the last backdrop freed, so they are in the file's order on a fresh
+renderer (`view-screen`) and can be reversed after another backdrop was freed. **[verified: `backdrop_tests`, descending handles; not yet seen in the game itself]**
+
 ## 4. How the original stands the car and the camera **[exe + verified]**
 
 ### 4.1 The car
@@ -170,4 +176,6 @@ nfsmw view-screen MainMenu_Sub.fng --look car --car BMWM3GTRE46:M3GTRCAREERSTART
 - The roll's direction (positive turns the up vector towards the camera's right) follows the axis-angle routine's convention, not a
   comparison with the original's picture. **[unverified]**
 - The poses of the other platforms (customization shop, back room, car lot) are in the attributes but their rooms are not drawn.
+- One group of `BACKDROP_CRIB` (96 indices) and of `BACKDROP_REFLECTION` (213) names the texture `0x00163C76`, which is in neither the stage file's
+  texture pack nor found elsewhere yet; it draws white. **[unverified]**
 - `BACKDROP_CURRGEN` is the sky only by its shape and its effect; the original's draw order and blending for it are not read.
