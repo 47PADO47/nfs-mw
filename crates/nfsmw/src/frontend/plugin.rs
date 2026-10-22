@@ -1,7 +1,5 @@
 //! The Bevy side of the front end: drives the flow every frame and draws the screens.
 
-use std::sync::Arc;
-
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
@@ -21,7 +19,7 @@ use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
 use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
 use super::pointer::{self, feng_point};
-use super::screens::{Presented, Screens};
+use super::screens::{MenuLayers, Presented, Screens};
 use super::script::{self, UiScript};
 use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
@@ -452,15 +450,13 @@ fn present(
     input: Res<InputPresentation>,
     themes: Res<UiThemes>,
     time: Res<Time>,
+    mut layers: Local<MenuLayers>,
 ) {
     let _trace = blackbox_trace::scope("Frontend: present");
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     // The presenter puts what it draws below what is already there, so the top screen goes first.
     let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
     let frame = themes.frame();
-    for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu()) {
-        frame.clear_menu(slot.slot());
-    }
     let lists = themes.menu_lists();
     lists.clear();
     let time_s = time.elapsed_secs();
@@ -477,7 +473,8 @@ fn present(
         }
     }
     let mut claimed: Vec<ElementId> = Vec::new();
-    for Presented { tree, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
+    let reusable = themes.menus_are_static();
+    for Presented { tree, serial, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
         // The themed full-screen map replaces the FEng map screen, in its place in the stack (a dialog over it stays on top).
         if chrome == Chrome::Drawn && name.eq_ignore_ascii_case(super::ids::screen::WORLD_MAP) {
             presenter.0.present(&slot_layer(&themes, ElementId::WorldMapChrome, time_s), &assets.0, screen, &mut out);
@@ -490,11 +487,18 @@ fn present(
                 if let Some(list) = list {
                     lists.set(slot.slot(), list);
                 }
-                frame.set_menu(slot.slot(), Arc::new(tree));
-                slot_layer(&themes, slot, time_s)
+                frame.set_menu(slot.slot(), tree);
+                // Under the Original theme the layer is the screen's tree, so it is composed again only for a new tree.
+                layers.layer(slot, serial, reusable, || slot_layer(&themes, slot, time_s))
             }
             _ => tree,
         };
         presenter.0.present(&layer, &assets.0, screen, &mut out);
+    }
+    // A closed screen leaves no tree behind: the menu slots no screen took this frame are emptied (a slot that is not
+    // set leaves the cell, and its generation, as it was).
+    layers.keep_only(&claimed);
+    for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu() && !claimed.contains(slot)) {
+        frame.clear_menu(slot.slot());
     }
 }

@@ -142,7 +142,14 @@ impl FrameCell {
     /// The frontend plugin calls this once per frame for each screen on the stack that maps to the slot, and calls
     /// [`Self::clear_menu`] for every other menu slot (`docs/specs/ui-themes-menus.md`, section 3).
     pub(crate) fn set_menu(&self, slot: SlotId, tree: Arc<UiTree>) {
-        self.menus_lock().insert(slot, tree);
+        {
+            let mut menus = self.menus_lock();
+            // The same tree again (a screen that did not change) leaves the cell, and its generation, alone.
+            if menus.get(&slot).is_some_and(|kept| Arc::ptr_eq(kept, &tree)) {
+                return;
+            }
+            menus.insert(slot, tree);
+        }
         self.bump();
     }
 
