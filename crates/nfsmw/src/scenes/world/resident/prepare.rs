@@ -171,7 +171,6 @@ mod tests {
         let data = SectionData {
             index: 0,
             solids: Vec::new(),
-            solid_vertices: Vec::new(),
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
@@ -193,7 +192,6 @@ mod tests {
         let mut data = SectionData {
             index: 0,
             solids: Vec::new(),
-            solid_vertices: Vec::new(),
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),

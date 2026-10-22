@@ -130,7 +130,7 @@ impl SharedUpload {
             Stage::GlobalSolids => {
                 // The shared models of InGameA.bun (sky domes and the other SKY_* models); a stream solid of the
                 // same name wins.
-                self.shared.upload_solid_list(renderer, &self.globals.solids, None, &empty, true);
+                self.shared.upload_solid_list(renderer, &self.globals.solids, &empty, true);
                 let solids = self.pending.iter().flat_map(|data| &data.solids).chain(&self.globals.solids);
                 self.sky = Some(super::super::sky::Sky::upload(renderer, solids, &self.shared));
                 self.stage = Stage::Place;
@@ -232,7 +232,6 @@ mod tests {
         SectionData {
             index: 0,
             solids: Vec::new(),
-            solid_vertices: Vec::new(),
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),

@@ -5,7 +5,11 @@
 pub const BASE_VERTEX_STRIDE: usize = 36;
 
 /// One vertex's common attributes (the first 36 bytes of every vertex format).
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// `repr(C)` and `Pod` so a renderer whose vertex has the same 36 bytes can borrow
+/// [`Solid::vertices`] as it is (`bytemuck::cast_slice`) instead of copying them.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
@@ -109,15 +113,30 @@ pub struct Solid {
     /// shading group is skinned. When some buffers are skinned and others are not, the unskinned vertices get
     /// `weights: [1, 0, 0]` and `bones: [0, 0, 0]` (the root, rigidly).
     pub skin: Option<Vec<SkinVertex>>,
-    /// Independent second UVs where established by the layout; primary UV otherwise.
-    pub secondary_uvs: Vec<[f32; 2]>,
-    /// Tangent xyz and handedness for verified declarations; zero for unknown layouts.
-    pub tangents: Vec<[f32; 4]>,
+    /// Independent second UVs where established by the layout; the primary UV for the vertices of the other
+    /// buffers. `None` when no buffer has a second UV set, otherwise one per vertex of [`Solid::vertices`].
+    /// [`Solid::secondary_uv`] reads it with that fallback.
+    pub secondary_uvs: Option<Vec<[f32; 2]>>,
+    /// Tangent xyz and handedness for verified declarations; zero for the vertices of the other buffers. `None`
+    /// when no buffer has tangents, otherwise one per vertex of [`Solid::vertices`]. [`Solid::tangent`] reads it
+    /// with that fallback.
+    pub tangents: Option<Vec<[f32; 4]>>,
     pub indices: Vec<u16>,
     pub groups: Vec<ShadingGroup>,
 }
 
 impl Solid {
+    /// The second UV of a vertex: the stored one, or the primary UV when the solid has none (or no such vertex).
+    pub fn secondary_uv(&self, vertex: usize) -> [f32; 2] {
+        let stored = self.secondary_uvs.as_ref().and_then(|uvs| uvs.get(vertex));
+        stored.copied().unwrap_or_else(|| self.vertices.get(vertex).map_or([0.0; 2], |v| v.uv))
+    }
+
+    /// The tangent (xyz and handedness) of a vertex: the stored one, or zero when the solid has none.
+    pub fn tangent(&self, vertex: usize) -> [f32; 4] {
+        self.tangents.as_ref().and_then(|tangents| tangents.get(vertex)).copied().unwrap_or([0.0; 4])
+    }
+
     /// The first marker named by `name_hash`.
     pub fn marker(&self, name_hash: u32) -> Option<&PositionMarker> {
         self.markers.iter().find(|m| m.name_hash == name_hash)

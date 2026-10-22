@@ -2,10 +2,8 @@
 
 use std::collections::HashMap;
 
-use blackbox_gfx::{BlendMode, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
-use blackbox_scene::{
-    Aabb, MaterialLookup, Sidedness, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded_mips,
-};
+use blackbox_gfx::{BlendMode, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
+use blackbox_scene::{Aabb, Sidedness, blend_mode, upload_solid, upload_texture_predecoded_mips};
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
@@ -150,26 +148,23 @@ impl SectionResources {
 
     /// Upload solids, resolving textures here first and then in `fallback` (the shared sets).
     pub fn upload_meshes(&mut self, renderer: &mut dyn RenderBackend, data: &SectionData, fallback: &SectionResources) {
-        self.upload_solid_list(renderer, &data.solids, Some(&data.solid_vertices), fallback, false);
+        self.upload_solid_list(renderer, &data.solids, fallback, false);
     }
 
-    /// Upload solids, resolving textures here first and then in `fallback`. `vertices` are the solids' renderer
-    /// vertices in the same order, built on the loader thread; without them each solid is converted here. With
-    /// `keep_existing`, a solid whose name hash is already resident is skipped (the first upload wins, as the
-    /// textures do).
+    /// Upload solids, resolving textures here first and then in `fallback`. The renderer reads each solid's
+    /// vertices in place. With `keep_existing`, a solid whose name hash is already resident is skipped (the
+    /// first upload wins, as the textures do).
     pub fn upload_solid_list(
         &mut self,
         renderer: &mut dyn RenderBackend,
         solids: &[Solid],
-        vertices: Option<&[Vec<Vertex>]>,
         fallback: &SectionResources,
         keep_existing: bool,
     ) {
-        debug_assert!(vertices.is_none_or(|v| v.len() == solids.len()));
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
         let sides = |hash: u32| self.sides.get(&hash).or_else(|| fallback.sides.get(&hash)).copied();
         let mut meshes = Vec::new();
-        for (i, solid) in solids.iter().enumerate() {
+        for solid in solids {
             if keep_existing && self.meshes.contains_key(&solid.name_hash) {
                 continue;
             }
@@ -187,11 +182,7 @@ impl SectionResources {
             let sky = solid.name.starts_with("SKY");
             let materials = super::materials::Lookup(&lookup, sky, normal_materials, &sides);
             let shading = shading_for(&solid.name);
-            let mesh = match vertices {
-                Some(prepared) => upload_prepared(renderer, solid, &prepared[i], &materials, shading),
-                None => upload_solid(renderer, solid, &materials, shading),
-            };
-            if let Some(mesh) = mesh {
+            if let Some(mesh) = upload_solid(renderer, solid, &materials, shading) {
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
@@ -248,29 +239,6 @@ impl SectionResources {
             renderer.destroy_texture(texture);
         }
     }
-}
-
-/// Upload a solid whose renderer vertices were built ahead of time. Only the draw ranges are made here, since
-/// they need the textures this thread has uploaded. Returns `None` for solids without geometry.
-fn upload_prepared(
-    renderer: &mut dyn RenderBackend,
-    solid: &Solid,
-    vertices: &[Vertex],
-    materials: &impl MaterialLookup,
-    shading: Shading,
-) -> Option<MeshHandle> {
-    if vertices.is_empty() || solid.indices.is_empty() {
-        return None;
-    }
-    let draws = solid_mesh(solid, materials, shading);
-    Some(renderer.create_mesh(&MeshDesc {
-        label: &solid.name,
-        vertices,
-        secondary_uvs: Some(&solid.secondary_uvs),
-        tangents: Some(&solid.tangents),
-        indices: &solid.indices,
-        draws,
-    }))
 }
 
 /// Sky domes (`SKYDOME`, `SKYDOME_XENON`, `SKY_SPECULAR`) are world-space models

@@ -3,7 +3,7 @@
 
 use blackbox_gfx::{
     BlendMode, DrawRange, Instance, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, SkyLayerKind,
-    SkyMaterialDesc, SkyState, TextureHandle, Vertex,
+    SkyMaterialDesc, SkyState, TextureHandle,
 };
 use blackbox_hash::bstring_hash;
 use glam::{Mat4, Vec3};
@@ -83,21 +83,12 @@ fn upload(
         .collect::<Option<_>>()?;
     if solid.vertices.is_empty()
         || solid.indices.is_empty()
-        || solid.secondary_uvs.len() != solid.vertices.len()
+        || solid.secondary_uvs.as_ref().is_none_or(|uvs| uvs.len() != solid.vertices.len())
         || solid.vertex_buffers.iter().any(|buffer| buffer.stride != 44)
     {
         return None;
     }
-    let vertices: Vec<_> = solid
-        .vertices
-        .iter()
-        .map(|vertex| Vertex {
-            position: vertex.position,
-            normal: vertex.normal,
-            color_bgra: vertex.color_bgra,
-            uv: vertex.uv,
-        })
-        .collect();
+    let vertices = blackbox_scene::solid_vertices(solid);
     let mut materials = Vec::new();
     let mut layers = Vec::new();
     for (index, kind) in [SkyLayerKind::Base, SkyLayerKind::Cloud2, SkyLayerKind::Cloud3].into_iter().enumerate() {
@@ -126,8 +117,8 @@ fn upload(
         }
         layers.push(renderer.create_mesh(&MeshDesc {
             label: "original sky layer",
-            vertices: &vertices,
-            secondary_uvs: Some(&solid.secondary_uvs),
+            vertices,
+            secondary_uvs: solid.secondary_uvs.as_deref(),
             tangents: None,
             indices: &solid.indices,
             draws,
@@ -282,9 +273,10 @@ mod tests {
         let solids = blackbox_solid::read_solids(&bytes).unwrap();
         let solid = solids.iter().find(|solid| solid.name == "SKYDOME_XENON").expect("programmable PC sky model");
         assert!(!solid.vertices.is_empty() && !solid.groups.is_empty());
-        assert_eq!(solid.vertices.len(), solid.secondary_uvs.len());
+        let secondary_uvs = solid.secondary_uvs.as_ref().expect("the sky model has second UVs");
+        assert_eq!(solid.vertices.len(), secondary_uvs.len());
         assert!(solid.vertex_buffers.iter().all(|buffer| buffer.stride == 44));
-        assert!(solid.vertices.iter().zip(&solid.secondary_uvs).any(|(vertex, &secondary)| vertex.uv != secondary));
+        assert!(solid.vertices.iter().zip(secondary_uvs).any(|(vertex, &secondary)| vertex.uv != secondary));
         assert!(solid.groups.iter().all(|group| group.effect_id == 19));
         for group in &solid.groups {
             let hash = group.diffuse_texture(solid).expect("authored programmable sky diffuse");

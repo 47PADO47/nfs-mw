@@ -75,7 +75,7 @@ pub(super) fn normal_materials(
                 return None;
             }
             let buffer = solid.vertex_buffers.get(group.vertex_buffer as usize)?;
-            if buffer.stride != 60 || solid.tangents.len() < solid.vertices.len() {
+            if buffer.stride != 60 || solid.tangents.as_ref().is_none_or(|t| t.len() < solid.vertices.len()) {
                 return None;
             }
             let textures: Option<Vec<TextureHandle>> = [0, 1, 3]

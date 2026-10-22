@@ -76,8 +76,8 @@ fn solid() -> Solid {
             };
             3
         ],
-        secondary_uvs: vec![[0.0; 2]; 3],
-        tangents: vec![[1.0, 0.0, 0.0, -1.0]; 3],
+        secondary_uvs: Some(vec![[0.0; 2]; 3]),
+        tangents: Some(vec![[1.0, 0.0, 0.0, -1.0]; 3]),
         indices: vec![0, 1, 2],
         groups: vec![group.clone(), group],
         skin: None,

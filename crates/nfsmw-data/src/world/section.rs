@@ -15,9 +15,6 @@ pub struct SectionData {
     /// Index into [`super::WorldIndex::sections`].
     pub index: usize,
     pub solids: Vec<Solid>,
-    /// The renderer vertices of each solid in `solids`, in the same order. The loader thread builds them
-    /// (the CPU half of a solid upload), so the render thread only copies them to the GPU.
-    pub solid_vertices: Vec<Vec<Vertex>>,
     pub textures: Vec<Texture>,
     /// The RGBA8 of each texture in `textures` that the renderer needs decoded (`Texture::needs_decode`), in the
     /// same order; `None` for the others. The loader thread fills it ([`SectionData::decode_for_upload`]), so the
@@ -42,9 +39,10 @@ pub fn texture_upload_bytes(textures: &[Texture], decoded: &[Option<Vec<u8>>]) -
     textures.iter().enumerate().map(bytes).sum()
 }
 
-/// The bytes an upload of `solids` writes as meshes: vertices and indices.
-pub fn solid_upload_bytes(solids: &[Solid], vertices: &[Vec<Vertex>]) -> usize {
-    let vertices: usize = vertices.iter().map(|v| v.len() * std::mem::size_of::<Vertex>()).sum();
+/// The bytes an upload of `solids` writes as meshes: vertices and indices. The renderer vertex is the solid vertex
+/// as it is (`blackbox_scene::solid_vertices`), so there is no separate copy to count.
+pub fn solid_upload_bytes(solids: &[Solid]) -> usize {
+    let vertices: usize = solids.iter().map(|s| s.vertices.len() * std::mem::size_of::<Vertex>()).sum();
     let indices: usize = solids.iter().map(|s| s.indices.len() * std::mem::size_of::<u16>()).sum();
     vertices + indices
 }
@@ -63,7 +61,7 @@ impl SectionData {
 
     /// The vertex and index part of [`SectionData::upload_bytes`].
     pub fn mesh_bytes(&self) -> usize {
-        solid_upload_bytes(&self.solids, &self.solid_vertices)
+        solid_upload_bytes(&self.solids)
     }
 
     /// Decode the textures the renderer cannot draw block-compressed, into `decoded`. `bc_supported` is the renderer's
@@ -81,7 +79,6 @@ impl SectionData {
 /// alignment computed from the start of `bytes` matches the file's.
 pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     let solids = blackbox_solid::read_solids(bytes).context("solids")?;
-    let solid_vertices: Vec<Vec<Vertex>> = solids.iter().map(gpu_vertices).collect();
     let mut textures = Vec::new();
     for pack in blackbox_tpk::read_texture_packs(bytes).context("texture packs")? {
         for (hash, why) in &pack.failed {
@@ -96,27 +93,7 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     let anims = blackbox_tpk::read_texture_anims(bytes);
     let collision = blackbox_collision::read_collision_packs(bytes).context("collision")?;
     let decoded = vec![None; textures.len()];
-    Ok(SectionData {
-        index,
-        solids,
-        solid_vertices,
-        textures,
-        decoded,
-        anims,
-        scenery,
-        spawners,
-        collision,
-        prepared: None,
-    })
-}
-
-/// A solid's renderer vertices, the copy `blackbox_scene` makes for an upload.
-fn gpu_vertices(solid: &Solid) -> Vec<Vertex> {
-    solid
-        .vertices
-        .iter()
-        .map(|v| Vertex { position: v.position, normal: v.normal, color_bgra: v.color_bgra, uv: v.uv })
-        .collect()
+    Ok(SectionData { index, solids, textures, decoded, anims, scenery, spawners, collision, prepared: None })
 }
 
 /// Read and parse one section from the open stream file.
@@ -221,7 +198,6 @@ mod tests {
         SectionData {
             index: 0,
             solids: Vec::new(),
-            solid_vertices: Vec::new(),
             decoded: Vec::new(),
             textures,
             anims: Vec::new(),

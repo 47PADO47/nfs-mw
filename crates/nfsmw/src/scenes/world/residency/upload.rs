@@ -71,7 +71,6 @@ mod tests {
         SectionData {
             index,
             solids: Vec::new(),
-            solid_vertices: Vec::new(),
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
