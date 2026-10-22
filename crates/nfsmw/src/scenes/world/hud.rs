@@ -86,11 +86,17 @@ impl WorldScene {
 
     /// The end-of-pursuit card, drawn over the frame while it is up. Not in the fly view.
     pub(super) fn show_pursuit_end(&self, ctx: &egui::Context) {
-        if self.view == View::Fly {
-            return;
-        }
-        let Some(card) = self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card()) else { return };
+        let Some(card) = self.pursuit_end() else { return };
         crate::hud::show_pursuit_end(ctx, &card);
+    }
+
+    /// The end-of-pursuit card that is up, if one is; none in the fly view. [`Self::show_pursuit_end`] draws it and
+    /// the scene's `wants_ui` asks for it.
+    pub(super) fn pursuit_end(&self) -> Option<crate::hud::PursuitEndCard> {
+        if self.view == View::Fly {
+            return None;
+        }
+        self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card())
     }
 }
 
