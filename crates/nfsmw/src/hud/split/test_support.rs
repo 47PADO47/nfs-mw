@@ -20,9 +20,7 @@ const RIGHT_CONTEXT_GAUGES: u32 = 0x2FE4_FF9C;
 
 /// The guids of the objects the tests look at.
 pub mod guid {
-    pub const GAUGES: u32 = 1;
     pub const CLUSTER: u32 = 3;
-    pub const UNITS: u32 = 4;
     pub const GEAR: u32 = 5;
     pub const SHIFT_LIGHT: u32 = 6;
     pub const BAR: u32 = 8;
@@ -30,13 +28,11 @@ pub mod guid {
     pub const DIGIT_2: u32 = 11;
     pub const DIGIT_3: u32 = 12;
     pub const NITROUS: u32 = 13;
-    pub const NITROUS_ICON: u32 = 14;
     pub const NITROUS_BAR: u32 = 15;
     pub const INFO: u32 = 16;
     pub const CLOCK: u32 = 17;
     pub const PLACE: u32 = 19;
     pub const CLOCK_ICON: u32 = 20;
-    pub const MESSAGE_BOX: u32 = 21;
     pub const MESSAGE: u32 = 22;
     pub const COUNTDOWN: u32 = 24;
     pub const WRONG_WAY: u32 = 25;

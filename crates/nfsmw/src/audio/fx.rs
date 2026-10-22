@@ -131,11 +131,8 @@ impl Audio {
         _view: &super::AudioView,
     ) {
         let default = SurfaceTable::hash_of("default");
-        let owned = match event.sound_profile {
-            0 => None,
-            profile => self.prop_sound(profile),
-        };
-        if event.sound_profile != 0 && owned.is_none() {
+        let owned = self.contact_sound(event.sound_profile, event.vehicle);
+        if (event.sound_profile != 0 || event.vehicle.is_some()) && owned.is_none() {
             return;
         }
         let rules = owned.as_deref().unwrap_or(&car.sound.collision);

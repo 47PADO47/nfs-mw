@@ -21,6 +21,7 @@ impl Pair {
             let sign = [1.0, -1.0][i];
             out.push(CarContact {
                 sound_profile: profile,
+                vehicle: None,
                 audio_zone: Some(self.zones[i]),
                 detached: self.detached[i],
                 source: ContactSource::Object,

@@ -1,0 +1,15 @@
+[package]
+name = "blackbox-anim"
+description = "EAGL4 animation of EA Black Box games: objects, skeletons, animation banks, channel codecs and pose evaluation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

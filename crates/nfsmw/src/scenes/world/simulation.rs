@@ -55,9 +55,10 @@ impl WorldScene {
         self.seed_original_camera();
         let camera_ramp = self.speedbreaker_clock;
         let active = loaded && self.drive.as_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+        let simulation_scale = self.tuning.game_speed * self.moment.sim_speed();
         let sim_dt = match loaded {
             false => 0.0,
-            true => self.speedbreaker_clock.advance(active, real_dt) * self.tuning.game_speed * self.moment.sim_speed(),
+            true => self.speedbreaker_clock.advance(active, real_dt) * simulation_scale,
         };
         if loaded && let Some(drive) = self.drive.as_mut().filter(|_| driving) {
             drive.finish_time(input, sim_dt, real_dt);
@@ -69,57 +70,15 @@ impl WorldScene {
         }
         let steps = self.physics_clock.advance(sim_dt);
         let look = self.drive.as_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
+        // The police, the sight test, the roadblocks, the cop health bars and a running race tick with the physics, so
+        // their state and the random numbers they draw do not depend on how ticks group into frames
+        // (`docs/specs/multiplayer/determinism.md`, D2 and D4).
         for _ in 0..steps {
             self.physics_step(driving, look);
+            self.police_step(renderer);
+            self.race_tick();
         }
         self.step_moment(sim_dt);
-        // The speeding trigger reads the sighting the collision step just made, checked against the walls.
-        if self.drive.is_some() {
-            let (collision, _) = self.residency.world_parts();
-            if let Some(traffic) = self.traffic.as_mut() {
-                let cast = super::drive::sight::sight_cast(collision);
-                traffic.update_sight(steps as f32 * STEP, &cast);
-            }
-            ai::speeding_pursuit(self, renderer);
-            // The helicopter's sight asks the world whether the line to the player is clear.
-            let (collision, _) = self.residency.world_parts();
-            let mut roadblock_view = None;
-            if let (Some(drive), Some(traffic)) = (self.drive.as_mut(), self.traffic.as_mut()) {
-                let view = drive.player_view();
-                roadblock_view = Some(view);
-                // The reset key starts the post-reset blink, which the busted timer reads this frame.
-                if drive.take_manual_resets() > 0 {
-                    traffic.note_manual_reset();
-                }
-                let cast = super::drive::sight::sight_cast(collision);
-                let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
-                // The simulated time of this update, as the traffic gets it: a screenshot run has no frame time, so
-                // a per-frame dt would stop the police clock offscreen.
-                traffic.note_player_height(drive.half_height());
-                traffic.update_police(steps as f32 * STEP, &view, &clear);
-                // The pursuit camera reads the bust after the police's tick, on the same clock.
-                drive.update_pursuit(steps as f32 * STEP, pursuit_feed(traffic, view.position));
-            }
-            // The cop manager's roadblock work on the same clock: the request lottery and the latch, the heavy support
-            // request, and for each standing roadblock the dodge, the cheat rule and the release.
-            if let (Some(view), Some(traffic)) = (roadblock_view, self.traffic.as_mut()) {
-                let (collision, props) = self.residency.world_parts();
-                traffic.update_roadblocks(steps as f32 * STEP, view, collision, Some(props), &self.physics.surfaces);
-            }
-            // The cop health bars step on the same clock as the police, after its tick (`effects/cop_health.rs`). The
-            // traffic reads the chase gate itself, so `pursuing` here is not used.
-            let camera = self.simulation_lens(self.physics_aspect);
-            let frame = Frame {
-                camera_pos: camera.position,
-                camera_forward: camera.forward,
-                gates: Gates {
-                    pursuing: false,
-                    shot_running: self.drive.as_ref().is_some_and(|drive| drive.pursuit_shot_running()),
-                    hud_visible: self.hud_shown(),
-                },
-            };
-            self.cop_health.step(self.traffic.as_ref(), frame, steps as f32 * STEP);
-        }
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {
             true => 1.0,
@@ -137,7 +96,7 @@ impl WorldScene {
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
         if loaded {
-            self.update_original_camera(real_dt, sim_dt, camera_ramp, active);
+            self.update_original_camera(real_dt, sim_dt, camera_ramp, active, simulation_scale);
         }
         let speedbreaker_active = driving && self.drive.as_ref().is_some_and(|drive| drive.speedbreaker_active());
         if speedbreaker_active != self.sound_speedbreaker_active {
@@ -149,6 +108,57 @@ impl WorldScene {
         self.sound_speedbreaker_active = speedbreaker_active;
         self.common_sounds.extend(self.residency.world_parts().1.take_common_sounds());
         sim_dt
+    }
+
+    /// One tick of the police and what reads it, after the physics tick: the sight test, the speeding trigger, the
+    /// helicopter's line of sight and the busted timer, the pursuit camera, the roadblocks and the cop health bars.
+    /// The speeding trigger reads the sighting the collision step just made, checked against the walls.
+    fn police_step(&mut self, renderer: &mut dyn RenderBackend) {
+        if self.drive.is_none() {
+            return;
+        }
+        let (collision, _) = self.residency.world_parts();
+        if let Some(traffic) = self.traffic.as_mut() {
+            let cast = super::drive::sight::sight_cast(collision);
+            traffic.update_sight(STEP, &cast);
+        }
+        ai::speeding_pursuit(self, renderer);
+        // The helicopter's sight asks the world whether the line to the player is clear.
+        let (collision, _) = self.residency.world_parts();
+        let mut roadblock_view = None;
+        if let (Some(drive), Some(traffic)) = (self.drive.as_mut(), self.traffic.as_mut()) {
+            let view = drive.player_view();
+            roadblock_view = Some(view);
+            // The reset key starts the post-reset blink, which the busted timer reads this tick.
+            if drive.take_manual_resets() > 0 {
+                traffic.note_manual_reset();
+            }
+            let cast = super::drive::sight::sight_cast(collision);
+            let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
+            traffic.note_player_height(drive.half_height());
+            traffic.update_police(STEP, &view, &clear);
+            // The pursuit camera reads the bust after the police's tick, on the same clock.
+            drive.update_pursuit(STEP, pursuit_feed(traffic, view.position));
+        }
+        // The cop manager's roadblock work on the same clock: the request lottery and the latch, the heavy support
+        // request, and for each standing roadblock the dodge, the cheat rule and the release.
+        if let (Some(view), Some(traffic)) = (roadblock_view, self.traffic.as_mut()) {
+            let (collision, props) = self.residency.world_parts();
+            traffic.update_roadblocks(STEP, view, collision, Some(props), &self.physics.surfaces);
+        }
+        // The cop health bars step on the same clock as the police, after its tick (`effects/cop_health.rs`). The
+        // traffic reads the chase gate itself, so `pursuing` here is not used.
+        let camera = self.simulation_lens(self.physics_aspect);
+        let frame = Frame {
+            camera_pos: camera.position,
+            camera_forward: camera.forward,
+            gates: Gates {
+                pursuing: false,
+                shot_running: self.drive.as_ref().is_some_and(|drive| drive.pursuit_shot_running()),
+                hud_visible: self.hud_shown(),
+            },
+        };
+        self.cop_health.step(self.traffic.as_ref(), frame, STEP);
     }
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
@@ -171,6 +181,7 @@ impl WorldScene {
             _ => None,
         };
         let player_advanced = player_step.is_some();
+        let mut world_sounds = Vec::new();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
@@ -178,6 +189,8 @@ impl WorldScene {
             let player = self.drive.as_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
             traffic.collide(player);
             traffic.update_events(props, &self.physics, event_view);
+            // Recycle may remove a car or loose trailer; keep its final completed callback first.
+            world_sounds.extend(traffic.take_collision_sounds());
             traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
@@ -195,9 +208,9 @@ impl WorldScene {
         }
         self.impact_fx.set_enabled(self.vehicle_effects[0]);
         self.impact_fx.step(self.physics.database(), visual_contacts, event_view, STEP);
-        let prop_sounds = props.take_sound_contacts();
-        if player_advanced && let Some(drive) = self.drive.as_mut() {
-            drive.append_world_sound_contacts(prop_sounds);
+        world_sounds.extend(props.take_sound_contacts());
+        if let Some(drive) = self.drive.as_mut() {
+            drive.append_world_sound_contacts(world_sounds, player_advanced);
         }
         let stops = props.update_scenery(&self.physics);
         let moments = props.take_moments();
@@ -220,8 +233,8 @@ impl WorldScene {
         let (collision, props) = self.residency.world_parts();
         props.update_lifetimes(&super::drive::WorldGround { collision, surfaces: &self.physics.surfaces }, view, STEP);
         self.play_moments(moments);
-        self.breaker_icons.fired(&fired);
         let (_, props) = self.residency.world_parts();
-        self.breaker_icons.step(STEP, props, &self.physics);
+        let restored = props.take_restored_sections();
+        self.breaker_icons.step(STEP, props, &self.physics, &fired, &restored);
     }
 }

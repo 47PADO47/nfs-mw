@@ -27,6 +27,8 @@ pub(super) struct Group {
     pub vertices: u32,
     /// Indices relative to the group's vertex buffer.
     pub indices: Vec<u16>,
+    /// The record's 16-entry bone table (record bytes 0x1E to 0x2D), when the group has one.
+    pub bone_table: Option<[u8; 16]>,
 }
 
 fn group_record(g: &Group, first_index: u32) -> Vec<u8> {
@@ -37,7 +39,25 @@ fn group_record(g: &Group, first_index: u32) -> Vec<u8> {
     r[0x40..0x44].copy_from_slice(&(g.indices.len() as u32 / 3).to_le_bytes());
     r[0x44..0x48].copy_from_slice(&first_index.to_le_bytes());
     r[0x5C..0x60].copy_from_slice(&(g.indices.len() as u32).to_le_bytes());
+    if let Some(table) = g.bone_table {
+        r[0x1E..0x2E].copy_from_slice(&table);
+    }
     r
+}
+
+/// A vertex buffer in the 60-byte skinned layout: vertex `i` has x = `i`, then the given blend weights and blend slots.
+pub(super) fn skinned_vertex_buffer(vertices: &[([f32; 3], [f32; 3])]) -> Vec<u8> {
+    let mut vb = Vec::new();
+    for (i, (weights, slots)) in vertices.iter().enumerate() {
+        let mut v = vec![0u8; 60];
+        v[0..4].copy_from_slice(&(i as f32).to_le_bytes());
+        v[24..28].copy_from_slice(&[1, 2, 3, 4]);
+        for (k, f) in weights.iter().chain(slots).enumerate() {
+            v[36 + k * 4..40 + k * 4].copy_from_slice(&f.to_le_bytes());
+        }
+        vb.extend_from_slice(&v);
+    }
+    vb
 }
 
 /// A vertex buffer of `count` vertices of `stride` bytes; vertex `i` has x = `x0 + i`.

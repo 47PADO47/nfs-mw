@@ -1,6 +1,9 @@
 # 0006 — Multiplayer netcode: a host-authoritative server over our own UDP layer
 
-- **Status:** proposed (2026-10-16). Design only; nothing is built. Needs the owner's answers in "Owner decisions".
+- **Status:** proposed (2026-10-16). **Amended by [ADR 0009](0009-multiplayer-netcode-revisions.md) (2026-10-21)**: 16-bit gap-coded entity
+  ids, shared delta encoding, explicit layers with an in-memory link for the listen host, skippable frames, open registries, the
+  session state machine; owner decision 3 dropped. Where they disagree, 0009 wins. The generic layer is being built in
+  `libs/blackbox-net-core`; the rest is design. Needs the owner's answers in "Owner decisions".
 - **Milestone:** 10 (LAN multiplayer) and 11 (online multiplayer).
 - **Companions** (all in [docs/specs/multiplayer/](../specs/multiplayer/README.md)): [features](../specs/multiplayer/features.md)
   (requirements, priorities), [protocol](../specs/multiplayer/protocol.md) (packet layouts, messages, versioning),
@@ -253,7 +256,7 @@ Bit-identical simulation across machines is **not** required, because the server
 design does need (list and status in [sync model](../specs/multiplayer/sync-model.md) section 6): fixed steps only, no wall-clock in the
 sim, no hash-order iteration in results, seeded per-system random streams derived from the session seed, entity processing in id order,
 quantised inputs used by the prediction, and a `sim_build` id in the handshake. One `Instant` was found in the world scene
-(`scenes/world/drive_input.rs`, outside the sim); the rest needs an audit. On one build and platform the client and server agree
+(used in `scenes/world/drive_input.rs`, the field is in `scenes/world/mod.rs`; outside the sim); the rest needs an audit. On one build and platform the client and server agree
 exactly; across builds or operating systems, standard-library maths can differ in the last bits, so corrections are more frequent but the
 game stays correct. Replays on one build can be exact.
 

@@ -10,17 +10,9 @@ use crate::{Error, PositionMarker, Result, Solid};
 /// Parse one `SolidPack` (`0x80134010`) chunk.
 pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
     let err = |detail: String| Error::Solid { offset: pack.offset, detail };
-
-    let info_chunk = pack.child(ids::SOLID_INFO).ok_or_else(|| err("no SolidInfo".into()))?;
-    // Every known layout aligns SolidInfo to 0x10; the version byte then picks the layout.
-    let info = info_chunk.aligned_payload(0x10);
-    let version = *info.get(VERSION_OFFSET).ok_or_else(|| err("SolidInfo too short".into()))?;
-    let layout = layout::for_version(version).ok_or(Error::UnsupportedVersion { offset: pack.offset, version })?;
+    let (info, layout) = header(pack)?;
+    let version = layout.version;
     let l = &layout.info;
-    let info = info_chunk.aligned_payload(l.align);
-    if info.len() < l.name {
-        return Err(err(format!("SolidInfo too short ({} bytes)", info.len())));
-    }
     let mut transform = [0f32; 16];
     for (i, t) in transform.iter_mut().enumerate() {
         *t = f32_at(info, l.transform + i * 4);
@@ -45,6 +37,7 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         markers: pack.child(ids::SOLID_MARKERS).map(|c| read_markers(c, &layout.marker)).unwrap_or_default(),
         vertex_buffers: Vec::new(),
         vertices: Vec::new(),
+        skin: None,
         secondary_uvs: Vec::new(),
         tangents: Vec::new(),
         indices: Vec::new(),
@@ -54,6 +47,26 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         super::mesh::read_mesh(mesh, layout, &mut solid).map_err(err)?;
     }
     Ok(solid)
+}
+
+pub(super) fn name_hash(pack: Chunk<'_>) -> Result<u32> {
+    let (info, layout) = header(pack)?;
+    Ok(u32_at(info, layout.info.name_hash))
+}
+
+fn header(pack: Chunk<'_>) -> Result<(&[u8], &'static layout::SolidLayout)> {
+    let err = |detail: String| Error::Solid { offset: pack.offset, detail };
+    let info_chunk = pack.child(ids::SOLID_INFO).ok_or_else(|| err("no SolidInfo".into()))?;
+    // Every known layout aligns SolidInfo to 0x10; the version byte then picks the layout.
+    let info = info_chunk.aligned_payload(0x10);
+    let version = *info.get(VERSION_OFFSET).ok_or_else(|| err("SolidInfo too short".into()))?;
+    let layout = layout::for_version(version).ok_or(Error::UnsupportedVersion { offset: pack.offset, version })?;
+    let l = &layout.info;
+    let info = info_chunk.aligned_payload(l.align);
+    if info.len() < l.name {
+        return Err(err(format!("SolidInfo too short ({} bytes)", info.len())));
+    }
+    Ok((info, layout))
 }
 
 /// `SolidMarkers`: fixed-size records after the alignment padding.

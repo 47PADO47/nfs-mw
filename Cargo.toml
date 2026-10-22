@@ -9,6 +9,7 @@ members = ["libs/*", "crates/*", "xtask", "examples/mods/hello"]
 default-members = [
     "libs/blackbox-trace",
     "libs/blackbox-aems",
+    "libs/blackbox-anim",
     "libs/blackbox-attrib",
     "libs/blackbox-carparts",
     "libs/blackbox-damage",
@@ -24,6 +25,7 @@ default-members = [
     "libs/blackbox-minimap",
     "libs/blackbox-mixmap",
     "libs/blackbox-modding",
+    "libs/blackbox-net-core",
     "libs/blackbox-paramap",
     "libs/blackbox-fxedit",
     "libs/blackbox-playlist",
@@ -31,6 +33,7 @@ default-members = [
     "libs/blackbox-race",
     "libs/blackbox-speedfx",
     "libs/blackbox-movie",
+    "libs/blackbox-nis",
     "libs/blackbox-render",
     "libs/blackbox-scene",
     "libs/blackbox-scenery",
@@ -60,6 +63,7 @@ publish = false
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 blackbox-aems = { path = "libs/blackbox-aems" }
+blackbox-anim = { path = "libs/blackbox-anim" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
 blackbox-carparts = { path = "libs/blackbox-carparts" }
 blackbox-carp = { path = "libs/blackbox-carp" }
@@ -85,6 +89,7 @@ blackbox-pursuit = { path = "libs/blackbox-pursuit" }
 blackbox-race = { path = "libs/blackbox-race" }
 blackbox-speedfx = { path = "libs/blackbox-speedfx" }
 blackbox-movie = { path = "libs/blackbox-movie" }
+blackbox-nis = { path = "libs/blackbox-nis" }
 blackbox-particles = { path = "libs/blackbox-particles" }
 blackbox-render = { path = "libs/blackbox-render" }
 blackbox-roads = { path = "libs/blackbox-roads" }

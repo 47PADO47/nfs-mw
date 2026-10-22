@@ -54,6 +54,9 @@ pub enum PurchaseError {
     NoCareerSlot,
     /// No free car slot in the stable (200 slots). Not in the spec.
     NoCarSlot,
+    /// The stable already holds a car under this handle, so a preset car is not added twice ([`add_preset_car`]). The
+    /// lot never offers a car the player owns, so [`buy`] does not return it.
+    AlreadyOwned,
 }
 
 /// What a purchase created.
@@ -97,6 +100,35 @@ pub fn buy(
     if used_career_records(stable) >= limits.career_records {
         return Err(PurchaseError::NoCareerSlot);
     }
+    let (career_index, car_slot) = write_car(stable, car, customization_index)?;
+
+    // The cash check above covers the price, so the spend cannot clamp.
+    let paid = settings.spend_cash(car.price);
+    debug_assert!(paid, "the cash check covers the price");
+    if delivery == Delivery::DriveNow {
+        settings.car_handle = car.handle;
+    }
+    Ok(Purchase { handle: car.handle, car_slot, career_index, price: car.price })
+}
+
+/// Adds the preset car `car` to the stable, the way a rival's pink slip gives it (`docs/specs/story-flow-2.md` F-25). The
+/// record is the one [`buy`] writes, with `customization_index` as its customization record. No cash is taken, and the
+/// offer, price and garage checks of a purchase do not apply. A car the stable already holds under the same handle is
+/// refused with [`PurchaseError::AlreadyOwned`] and nothing is written.
+///
+/// **[unconfirmed]** whether a full garage refuses a pink slip: the spec does not say, so the garage limit is not checked
+/// here. The returned [`Purchase`] has a price of 0.
+pub fn add_preset_car(stable: &mut Stable, car: &LotCar, customization_index: u8) -> Result<Purchase, PurchaseError> {
+    if stable.car_by_handle(car.handle).is_some() {
+        return Err(PurchaseError::AlreadyOwned);
+    }
+    let (career_index, car_slot) = write_car(stable, car, customization_index)?;
+    Ok(Purchase { handle: car.handle, car_slot, career_index, price: 0 })
+}
+
+/// Writes the owned record of `car` into the first free car slot, with a fresh career record for it. Returns the career
+/// record index and the car slot. Nothing is written when there is no free career record or car slot.
+fn write_car(stable: &mut Stable, car: &LotCar, customization_index: u8) -> Result<(u8, usize), PurchaseError> {
     let career_index = stable.careers.iter().position(CareerRecord::is_unused).ok_or(PurchaseError::NoCareerSlot)?;
     let career_index = u8::try_from(career_index).map_err(|_| PurchaseError::NoCareerSlot)?;
     let car_slot = stable.cars.iter().position(CarRecord::is_free).ok_or(PurchaseError::NoCarSlot)?;
@@ -114,14 +146,7 @@ pub fn buy(
     *slot = record;
     let career = stable.careers.get_mut(usize::from(career_index)).ok_or(PurchaseError::NoCareerSlot)?;
     *career = CareerRecord::new(career_index);
-
-    // The cash check above covers the price, so the spend cannot clamp.
-    let paid = settings.spend_cash(car.price);
-    debug_assert!(paid, "the cash check covers the price");
-    if delivery == Delivery::DriveNow {
-        settings.car_handle = car.handle;
-    }
-    Ok(Purchase { handle: car.handle, car_slot, career_index, price: car.price })
+    Ok((career_index, car_slot))
 }
 
 /// The lot state of the car must be buyable at this stage (spec 1).

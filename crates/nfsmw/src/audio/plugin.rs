@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use game_install::GameDir;
 
+use super::cell_call;
 use super::oneshot::{self, OneShotPlayer};
 use super::preview_play::PreviewPlayer;
 use super::{Audio, MusicInput, Volumes};
@@ -39,6 +40,7 @@ impl Plugin for AudioPlugin {
                 drive_car.in_set(FrameSet::Ui),
                 play_preview.in_set(FrameSet::Ui),
                 play_one_shots.in_set(FrameSet::Ui),
+                play_cell_calls.in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -84,6 +86,12 @@ fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>
     oneshot::service(&mut audio, &mut player);
 }
 
+/// The voices of the phone calls and messages asked for since the last frame (`cell_call.rs`).
+fn play_cell_calls(mut audio: NonSendMut<Audio>) {
+    let _trace = blackbox_trace::scope("Audio: cell call voices");
+    cell_call::service(&mut audio);
+}
+
 /// The scene's car plays its engine.
 fn drive_car(
     mut host: NonSendMut<Host>,
@@ -99,10 +107,15 @@ fn drive_car(
         audio.stop_music();
         audio.stop_traffic();
         audio.stop_explosion();
+        audio.stop_world_effect_audio();
+        audio.stop_nis();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
     audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
+    // The NIS player asks for the stream of the scene it plays, and hears back whether the stream still plays.
+    audio.update_nis(host.scene.nis_audio().and_then(|request| request.scene.as_deref()));
+    host.scene.note_nis_audio(audio.nis_playing());
     audio.trace.advance(time.delta_secs());
     let traffic = host.scene.take_traffic_sounds();
     if let Some(state) = &car {
@@ -129,6 +142,7 @@ fn drive_car(
     for position in host.scene.take_explosions() {
         audio.play_explosion(position, view);
     }
+    audio.update_world_effect_audio(host.scene.take_world_effect_audio(), view, time.delta_secs());
     // The sputter pops of this frame reach the scene, which lights the tail pipes for them.
     let pops = audio.take_sputter_pops();
     if pops > 0 {

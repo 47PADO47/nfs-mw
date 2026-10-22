@@ -20,20 +20,37 @@ use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
 use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
+use nfsmw_career::rapsheet::EndGame;
 
+#[path = "flow_backdrop.rs"]
+mod flow_backdrop;
 // Career on the main menu: starting or resuming a career (`start_career`).
+#[path = "flow_arrival.rs"]
+mod flow_arrival;
 #[path = "flow_bust.rs"]
 mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
 #[path = "flow_custom.rs"]
 mod flow_custom;
+#[path = "flow_endgame.rs"]
+mod flow_endgame;
+#[path = "flow_first_visit.rs"]
+pub(in crate::frontend) mod flow_first_visit;
 #[path = "flow_loading.rs"]
 mod flow_loading;
+#[path = "flow_movie.rs"]
+pub(super) mod flow_movie;
+#[path = "flow_prologue.rs"]
+mod flow_prologue;
+#[path = "flow_rival.rs"]
+mod flow_rival;
 #[path = "flow_save.rs"]
 mod flow_save;
 #[path = "flow_series.rs"]
 pub(super) mod flow_series;
+#[path = "flow_sms.rs"]
+mod flow_sms;
 #[path = "flow_split.rs"]
 mod flow_split;
 #[path = "flow_startup.rs"]
@@ -71,7 +88,7 @@ pub enum Boot {
 pub const BOOT: [Boot; 3] =
     [Boot::Movie { name: "ealogo", bypass: false }, Boot::Movie { name: "psa", bypass: true }, Boot::Splash];
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Stage {
     Boot(Boot),
     Menus,
@@ -82,8 +99,11 @@ pub enum Stage {
     Paused,
     /// The world map is open over the frozen game (`world_map/control.rs`).
     Map,
-    /// A tutorial movie plays full screen over the menus (`flow_series.rs`).
-    Tutorial,
+    /// A movie (a tutorial or a story movie) plays full screen over the menus, then `then` says what the flow does
+    /// (`flow_movie.rs`).
+    Movie {
+        then: flow_movie::AfterMovie,
+    },
 }
 
 use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
@@ -150,6 +170,10 @@ pub struct Frontend {
     pub(super) in_safe_house: bool,
     /// The menu the game in progress was started from: where Quit goes and what the item says (`pause`).
     pub(super) origin: QuitTo,
+    /// The end-game chain is running: its next page opens once the page it opened last is no longer on top (`flow_endgame.rs`).
+    end_game: Option<EndGame>,
+    /// The screen the end-game chain opened last.
+    end_game_shown: Option<String>,
     /// What the menu backdrop shows, in the window or parked while the world has it (`sync_backdrop`).
     pub(super) look: Look,
     /// A look the command line fixed (`view-screen --look`): the screens do not change it.
@@ -166,8 +190,8 @@ pub struct Frontend {
     race_options: Option<crate::scenes::world::RaceOptions>,
     /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
     split: Option<crate::scenes::world::SplitSetup>,
-    /// Where the tutorial movie that is playing returns to (`flow_series.rs`).
-    tutorial_back: Option<(String, Args)>,
+    /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
+    drive_to_safe_house: bool,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -208,12 +232,14 @@ impl Frontend {
             look: Look::Main,
             look_override: None,
             auto_shop_requested: false,
+            end_game: None,
+            end_game_shown: None,
             quick_race: None,
             series: Default::default(),
             quick_car: None,
             race_options: None,
             split: None,
-            tutorial_back: None,
+            drive_to_safe_house: false,
             map_chrome: Default::default(),
         }
     }
@@ -250,43 +276,6 @@ impl Frontend {
         let commands = self.screens.open(name, Args::default(), true, env);
         self.stage = Stage::Menus;
         self.apply(commands, host, env);
-    }
-
-    /// Puts `scene` in the window. With `park`, a menu backdrop being replaced is kept for the menus that come back
-    /// (`Host::replace_scene_parking_old`); any other scene is released.
-    fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>, park: bool) -> bool {
-        let parks_menu = park && self.menu_in_window;
-        let result = match parks_menu {
-            true => host.replace_scene_parking_old(scene),
-            false => host.replace_scene(scene),
-        };
-        match result {
-            Ok(()) => {
-                self.menu_in_window = false;
-                true
-            }
-            Err(e) => {
-                log::error!("cannot change the scene: {e:#}");
-                false
-            }
-        }
-    }
-
-    /// Puts the menu backdrop in the window. A backdrop already there is kept, and so is one parked while free roam
-    /// had the window: building one reads the car from the install and uploads it (`MenuScene::init`, ~150-190 ms),
-    /// which the menus that follow would only repeat.
-    fn show_backdrop(&mut self, host: &mut Host) {
-        if self.menu_in_window {
-            return;
-        }
-        if host.restore_parked_menu() {
-            self.menu_in_window = true;
-            return;
-        }
-        if !self.replace_scene(host, Box::new(MenuScene::with_look(Some(self.dir.clone()), self.look.clone())), false) {
-            return;
-        }
-        self.menu_in_window = true;
     }
 
     /// Goes on in the boot flow; after the last step the main menu.
@@ -409,7 +398,10 @@ impl Frontend {
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartChallenge { race, transmission } => self.start_challenge(race, transmission, host, env),
-                Command::PlayTutorial { movie, back, args } => self.play_tutorial(&movie, (back, args), host),
+                Command::PlayTutorial { movie, back, args } => {
+                    self.play_movie(&movie, flow_movie::AfterMovie::Open(back, args), host)
+                }
+                Command::PlayMovie { movie, then } => self.play_movie(&movie, then, host),
                 Command::CustomDefaults => crate::frontend::custom_race::state::with(|state| state.reset_settings()),
                 Command::StartCustomRace(start) => self.start_custom_race(*start, host, env),
                 Command::SplitFirstCar(transmission) => self.split_first_car(transmission, host, env),
@@ -419,6 +411,9 @@ impl Frontend {
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
+                Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
+                Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
+                Command::StartFirstDrive => self.start_first_drive(host, env),
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),

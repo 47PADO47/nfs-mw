@@ -33,6 +33,8 @@ Zero-OnCycle forced emitters stay on and use life-scaled batches, as confirmed
 with isolated original PC instructions. Wrapper intensity, inherited velocity,
 group activation ranges and quantized atlas frames follow
 `prop-particle-attributes.md`. Exact original pixels, global resource competition,
-complete model-effect/audio integration and matched live captures remain open.
+keyed model-effect audio and matched live captures remain open. Standalone
+sequenced one-shot audio now follows [scenery effect audio](scenery-effect-audio.md)
+independently of the particle group.
 Avoid duplicating the old petrol-station visual fallback when the authored event
 successfully resolves a particle group; retain its explosion audio notification.

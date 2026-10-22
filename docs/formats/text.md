@@ -58,18 +58,24 @@ Editors: [SpeedReflect/Nikki](https://github.com/SpeedReflect/Nikki) `STRBlock` 
 | Offset | Type | Field |
 |---|---|---|
 | 0x00 | u16 | startTime; **0xFFFF ends the list** |
-| 0x02 | u16 | padding (0 or 0x87 on disk) |
-| 0x04 | u32 | stringHash: `bStringHash` of the label, looked up in `Language` |
+| 0x02 | u16 | padding: 0x87 in the first record of each file, 0 in the others **[verified]** |
+| 0x04 | u32 | stringHash: upper-case label hash (`FEHashUpper`, see [subtitles.md](../specs/subtitles.md#5-label-hashes-and-text-lookup)), looked up in `Language` |
 
-- 317 records in 30 files, each ending in a `0xFFFF` record. Hash `0x001A20BA` (not in any string
+- There is no header: the array starts at byte 0 and its first record is an ordinary cue (time 0, or 5.4 s in the
+  tutorials). 317 records in 30 files, 30 of them `0xFFFF` terminators. Hash `0x001A20BA` (not in any string
   table) appears between lines and means "clear the subtitle". **[verified]**
 - Example `blacklist_01`: `SUBTITLE_BL` "Blacklist^" → `SUBTITLE_BL_1` "Hails: Beacon Point" →
   `SUBTITLE_BL_NUM_1` "Blacklist #1".
-- The time unit is probably **0.1 s**: in story FMVs the last start time is 0.72–0.99 of the movie
-  length if read as tenths (e.g. `storyfmv_bus12`: last start 1,483, movie 156.1 s) **[unconfirmed]**.
+- The time unit is **0.1 s**, the time since the movie's first frame by the wall clock. **[decomp]** The
+  install agrees: every file's last record (always a clear) falls 0.26 to 18.2 s before the movie ends, so
+  `storyfmv_bus12` ends its last clear at 148.3 s of a 156.05 s movie. Not a frame count. **[verified]** See
+  [subtitles.md](../specs/subtitles.md#3-clock-and-cue-timing).
 - 10 hashes in the five `*_tutorial` files (consecutive pairs such as `0x3C4746A0`/`A1`) are in
-  neither `English.bin` nor `Labels.bin` **[verified]**. Tutorial text is probably resolved some other
-  way **[unconfirmed]**.
+  neither `English.bin` nor `Labels.bin` **[verified]**. They are base labels (`TUTORIAL_<MOVIE>_PAGE<n>`).
+  The two lines are the labels base + `_A` and base + `_B`, hashed with the base as the seed; those labels
+  are in `English.bin` **[decomp + verified]**.
+- Subtitles show only when the language is not English, except in the tutorials **[decomp]**. Full spec:
+  [subtitles.md](../specs/subtitles.md).
 - Runtime: `Frontend/SubTitle.hpp` (`SubTitler`). The chunk IDs `0x00039010 Subtitles` /
   `0x00039020 MovieCatalogEntry` exist in the decomp's list, but PC uses the loose files above.
 

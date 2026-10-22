@@ -88,9 +88,11 @@ Prepare the first primitive from the body's current pose at the start of its
 outer iteration. Prepare each second primitive when its pair is visited. Run
 response immediately for every successful narrow phase; do not retain only the
 deepest overlap. Keep the original previous primitive centres for the fixed tick.
-Separation also translates the prepared current collision centres. Repreparing
-from the updated poses before the next pair retains this position change;
-the response does not rotate either body pose.
+Prepared geometry owns a copy of its centre: the first primitive remains its
+outer-iteration snapshot after separation. The next second primitive is prepared
+from its updated body position. The next first primitive is refreshed when its
+outer iteration begins. Keep these preparation boundaries; response does not
+rotate either body pose.
 An earlier separation can change a subsequent primitive's position and travel,
 even when its impulse solver reports no approaching contact.
 

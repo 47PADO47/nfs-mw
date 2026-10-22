@@ -8,12 +8,13 @@
 
 use std::sync::Arc;
 
-use blackbox_chunk::ice::{CameraSample, Space, Track};
+use blackbox_chunk::ice::{CameraSample, Track};
 use game_install::GameDir;
 use glam::Vec3;
-use nfsmw_data::world::moment::{Marker, MomentData, scene_hash};
+use nfsmw_data::world::moment::{MomentData, scene_hash};
 
-use crate::viewer::camera::{Lens, original};
+use super::scene_space::{Anchor, anchor_of, lens_of};
+use crate::viewer::camera::Lens;
 
 /// The scene's marker must score under this (metres): its distance plus the turn penalty.
 pub const MARKER_RANGE: f32 = 75.0;
@@ -22,8 +23,6 @@ pub const TOUCH_WINDOW: f32 = 2.0;
 /// A chasing cop must be this close behind the player's car, and up to [`REACH_AHEAD`] when it is right ahead.
 const REACH_BEHIND: f32 = 80.0;
 const REACH_AHEAD: f32 = 20.0;
-/// One quarter turn in 16-bit angle units: the scene faces its marker's angle turned this far.
-const QUARTER_TURN: u16 = 16384;
 
 /// Why a moment did not play.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,23 +70,6 @@ pub fn pursuer_in_reach(player: Vec3, forward: Vec3, pursuers: &[Vec3]) -> bool 
 pub fn heading_angle(forward: Vec3) -> u16 {
     let turns = forward.y.atan2(forward.x) / std::f32::consts::TAU;
     ((turns.rem_euclid(1.0) * 65536.0) as u32 & 0xFFFF) as u16
-}
-
-/// The scene's origin and heading: where the markers' scene is stood on the ground.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Anchor {
-    origin: Vec3,
-    /// The marker's angle less a quarter turn, as 16-bit units.
-    turn: u16,
-}
-
-impl Anchor {
-    /// A scene-space point in render space: turned about the up axis, then moved to the origin.
-    fn to_render(self, point: [f32; 3]) -> Vec3 {
-        let (sin, cos) = (f32::from(self.turn) / 65536.0 * std::f32::consts::TAU).sin_cos();
-        let (x, y) = (point[0], point[1]);
-        self.origin + Vec3::new(x * cos - y * sin, x * sin + y * cos, point[2])
-    }
 }
 
 struct Playing {
@@ -220,12 +202,7 @@ impl Moment {
     /// The camera of the cut, `aspect` being width over height.
     pub fn lens(&self, aspect: f32) -> Option<Lens> {
         let play = self.play.as_ref()?;
-        let sample = play.sample()?;
-        let eye = place(&play.anchor, sample.eye_space, sample.eye)?;
-        let target = place(&play.anchor, sample.look_space, sample.look)?;
-        let forward = (target - eye).normalize_or_zero();
-        let up = roll(Vec3::Z, forward, sample.roll);
-        Some(original::native_lens(original::Sample { eye, target, up, fov_bangle: f32::from(sample.fov) }, aspect))
+        lens_of(&play.anchor, &play.sample()?, aspect)
     }
 
     /// One line for the console.
@@ -242,30 +219,6 @@ impl Moment {
         };
         format!("cinematic moment: {now}; last: {}", self.last.as_deref().unwrap_or("none"))
     }
-}
-
-/// The marker's scene anchor: its position stood on the ground under it, its angle less a quarter turn.
-fn anchor_of(marker: Marker, ground: impl Fn(Vec3) -> Option<f32>) -> Anchor {
-    let z = ground(marker.position).unwrap_or(marker.position.z);
-    Anchor { origin: Vec3::new(marker.position.x, marker.position.y, z), turn: marker.angle.wrapping_sub(QUARTER_TURN) }
-}
-
-/// A track point in render space. Only the scene's own space is placed: car, world and hybrid spaces belong to
-/// cameras that follow a car, and no moment uses them.
-fn place(anchor: &Anchor, space: Space, point: [f32; 3]) -> Option<Vec3> {
-    match space {
-        Space::Scene => Some(anchor.to_render(point)),
-        Space::World => Some(Vec3::from_array(point)),
-        Space::Car | Space::Hybrid => None,
-    }
-}
-
-/// `up` turned about `forward` by `roll` (16-bit units).
-pub(super) fn roll(up: Vec3, forward: Vec3, roll: u16) -> Vec3 {
-    if roll == 0 || forward == Vec3::ZERO {
-        return up;
-    }
-    glam::Quat::from_axis_angle(forward, f32::from(roll) / 65536.0 * std::f32::consts::TAU) * up
 }
 
 #[cfg(test)]

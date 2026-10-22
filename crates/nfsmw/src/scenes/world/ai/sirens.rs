@@ -44,6 +44,7 @@ pub(super) struct CarFacts {
     pub roadblock: bool,
     pub lights_on: bool,
     pub wrecked: bool,
+    pub broken_lights: u32,
 }
 
 /// Where the chase is as far as the siren cares: the opening exchange, lost contact, or the chase proper.
@@ -120,6 +121,10 @@ impl Sirens {
             let random = self.next_random();
             let machine = self.machines.entry(car.id).or_insert_with(|| Machine::new(now));
             let state = machine.update(now, &input(chase, intense, car), &tuning, &mut self.gap, random);
+            let state = match car.broken_lights & 0x7000 != 0 {
+                true => State::Die,
+                false => state,
+            };
             sources.push(SirenSource { id: car.id, state, position: car.position, velocity: car.velocity });
         }
         self.states = sources.iter().map(|s| (s.id, s.state)).collect();
@@ -159,6 +164,7 @@ impl TrafficWorld {
                     roadblock: car.is_roadblock(),
                     lights_on: car.emergency_lights(),
                     wrecked: car.is_wrecked(),
+                    broken_lights: car.lamp_state().broken,
                 }
             })
             .collect();

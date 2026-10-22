@@ -8,6 +8,7 @@ mod breaker_camera;
 mod car_detail;
 mod clock;
 mod grid;
+mod sabotage;
 pub(super) use car_detail::{DetailView, DrawOptions};
 mod cracked;
 mod debug;
@@ -19,6 +20,7 @@ mod input;
 #[cfg(test)]
 mod lamp_tests;
 mod look;
+mod nis_pose;
 mod original_camera;
 mod placement;
 #[cfg(test)]
@@ -57,6 +59,7 @@ use fall::FallWatch;
 pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
+pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 pub(super) use sim::CarSim;
@@ -114,6 +117,8 @@ pub struct Drive {
     frame_input: DriveInput,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
+    /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
+    sabotaged: bool,
     /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
     gridded: bool,
     /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
@@ -123,6 +128,8 @@ pub struct Drive {
     pending_speed: f32,
     previous: CarPose,
     current: CarPose,
+    /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
+    nis_pose: Option<CarPose>,
     telemetry: Telemetry,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,
@@ -200,11 +207,13 @@ impl Drive {
             alpha: 0.0,
             frame_input: DriveInput::default(),
             arrested: false,
+            sabotaged: false,
             gridded: false,
             assist_aim: None,
             pending_speed: 0.0,
             previous: pose,
             current: pose,
+            nis_pose: None,
             telemetry: Telemetry::default(),
             breaker: speedbreaker::SpeedBreaker::default(),
             breaker_camera: breaker_camera::Zoom::default(),
@@ -244,12 +253,13 @@ impl Drive {
     pub fn lamp_source(&self) -> (CarLights, super::car_light_flares::CarLightFlares, Mat4, LampState) {
         let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
         let state = LampState {
+            broken: self.sim.as_ref().map_or(0, |s| s.lamp_damage()),
+            emergency: 0,
             brake: self.brake_lamp,
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights,
             turn_signals: false,
-            siren: false,
             time: self.lamp_time,
         };
         (self.rig.lights().clone(), self.rig.flares().clone(), self.pose().transform(), state)
@@ -441,7 +451,10 @@ impl Drive {
 
     /// What the car sound needs of the drive; `None` while there is no car yet.
     pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        self.sim.as_ref()?;
+        if self.sim.is_none() {
+            self.sound.clear();
+            return None;
+        }
         Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
     }
 

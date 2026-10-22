@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 use blackbox_attrib::{Database, vlt_hash};
 use blackbox_vehicle::performance::measure_with_integration;
 use game_install::GameDir;
-use nfsmw_career::blacklist::BinDef;
+use nfsmw_career::blacklist::{BinDef, FINAL_RACE_EVENT};
 use nfsmw_career::carlot::stats::{CarStats, SPEED_100_MPH, time_to_speed};
 use nfsmw_career::carlot::{LotCar, LotClass};
 use nfsmw_career::milestones::speedtrap::{self, SpeedTrapDef};
@@ -138,13 +138,19 @@ fn race_name(gameplay: &GameplayData, key: u32) -> Option<&str> {
     gameplay.races.iter().find(|race| race.key == key).map(|race| race.name.as_str())
 }
 
+/// The leaf name of the final race, `race_bin_01/epic_pursuit` (event `1.8.1`).
+const FINAL_RACE_LEAF: &str = "epic_pursuit";
+
 /// The event id the Blacklist uses for a race, from its data name: the first three numbers of the leaf name joined
 /// with dots. `race_bin_10/10_2_1_sprint` gives `10.2.1`.
 ///
-/// A leaf without three leading numbers (for example `epic_pursuit`) gives the leaf name itself. **[unconfirmed]**:
-/// the specs name `1.8.1` as the final race, but the data name of that race is not checked here, so it may not match.
+/// A leaf without three leading numbers gives the leaf name itself, except the final race: `race_bin_01/epic_pursuit` is
+/// event `1.8.1` (`story-flow-2.md` section 5.1).
 pub fn event_id(race_name: &str) -> String {
     let leaf = race_name.rsplit('/').next().unwrap_or(race_name);
+    if leaf == FINAL_RACE_LEAF {
+        return FINAL_RACE_EVENT.to_owned();
+    }
     let parts: Vec<&str> = leaf.split('_').take(3).collect();
     let numeric = parts.len() == 3 && parts.iter().all(|part| is_number(part));
     if !numeric {

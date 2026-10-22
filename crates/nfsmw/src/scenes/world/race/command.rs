@@ -72,7 +72,7 @@ fn list(scene: &WorldScene, filter: &str) -> Result<String, String> {
     let lines: Vec<String> = data
         .races
         .iter()
-        .filter(|r| super::setup::runnable(r.race_type) && r.name.to_ascii_lowercase().contains(&filter))
+        .filter(|r| super::startable::can_start(r) && r.name.to_ascii_lowercase().contains(&filter))
         .map(|r| {
             let plural = |n: usize| if n == 1 { "" } else { "s" };
             format!(

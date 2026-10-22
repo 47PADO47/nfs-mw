@@ -26,6 +26,7 @@ fn race(name: &str, start: Option<Placement>) -> Race {
         checkpoints: Vec::new(),
         barriers: Vec::new(),
         params: Default::default(),
+        story: Default::default(),
     }
 }
 

@@ -29,10 +29,12 @@ pub const V16: SolidLayout = SolidLayout {
         num_triangles: 0x40,
         first_index: 0x44,
         num_indices: 0x5C,
+        bone_table: 0x1E,
     },
     marker: MarkerLayout { len: 0x50, align: 0x10, name_hash: 0x00, int_param: 0x04, float_params: 0x08, matrix: 0x10 },
     groups_align: 0x10,
     indices_align: 0x10,
     tangent_effects: &[1, 3],
+    skinned_effects: &[2],
     vertices_align: 0x80,
 };

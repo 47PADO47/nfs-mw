@@ -56,8 +56,7 @@ mod tests {
     #[test]
     fn the_closing_speeds_set_the_pace_by_gap() {
         let p = Player { velocity: Vec3::ZERO, ..player() };
-        let mut gains = Gains::default();
-        gains.closing_speed = [5.0, 6.0, 7.0];
+        let gains = Gains { closing_speed: [5.0, 6.0, 7.0], ..Gains::default() };
         let far = follow(Vec3::new(-500.0, 80.0, 0.0), &p, -20.0, false, &gains).speed;
         let mid = follow(Vec3::new(-100.0, 80.0, 0.0), &p, -20.0, false, &gains).speed;
         assert!((far - 7.0).abs() < 1e-3 && (mid - 6.0).abs() < 1e-3, "{far} {mid}");

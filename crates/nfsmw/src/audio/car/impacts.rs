@@ -26,8 +26,16 @@ struct Impact {
 }
 
 enum Source {
-    Collision { mixer: Option<Box<CollisionMixer>>, sound: Box<ImpactSound>, event: CarEvent, volume: i32 },
-    Landing { volume: i32 },
+    Collision {
+        mixer: Option<Box<CollisionMixer>>,
+        sound: Box<ImpactSound>,
+        event: CarEvent,
+        volume: i32,
+        initial_azimuth: Option<u16>,
+    },
+    Landing {
+        volume: i32,
+    },
 }
 
 #[derive(Default)]
@@ -99,14 +107,27 @@ impl ImpactPlayback {
         mixer: Option<&CarMixer>,
         volume: i32,
     ) {
+        self.collision_with_mixer(audio, stitch, sound, event, mixer.map(CarMixer::collision), volume);
+    }
+
+    pub(in crate::audio) fn collision_with_mixer(
+        &mut self,
+        audio: &mut Audio,
+        stitch: &Stitch,
+        sound: &ImpactSound,
+        event: CarEvent,
+        mixer: Option<CollisionMixer>,
+        volume: i32,
+    ) {
         self.start(
             audio,
             stitch,
             Source::Collision {
-                mixer: mixer.map(|m| Box::new(m.collision())),
+                mixer: mixer.map(Box::new),
                 sound: Box::new(sound.clone()),
                 event,
                 volume,
+                initial_azimuth: None,
             },
         );
     }
@@ -143,7 +164,7 @@ impl ImpactPlayback {
     ) {
         self.active.retain_mut(|impact| {
             let (volume, azimuth, wet) = match &mut impact.source {
-                Source::Collision { mixer, sound, event, volume } => {
+                Source::Collision { mixer, sound, event, volume, initial_azimuth } => {
                     let levels = mixer.as_mut().map(|m| {
                         m.update(
                             dt,
@@ -158,7 +179,8 @@ impl ImpactPlayback {
                         )
                     });
                     let map = (levels.map_or(1.0, |l| l.volume) * 32767.0).round() as i32;
-                    ((map * *volume) >> 15, levels.map_or(0, |l| l.azimuth), levels.map_or(0.0, |l| l.wet))
+                    let azimuth = *initial_azimuth.get_or_insert_with(|| levels.map_or(0, |l| l.azimuth));
+                    ((map * *volume) >> 15, azimuth, levels.map_or(0.0, |l| l.wet))
                 }
                 Source::Landing { volume } => {
                     (((landing_level.0 * 32767.0).round() as i32 * *volume) >> 15, landing_level.1, 0.0)
@@ -182,3 +204,6 @@ impl ImpactPlayback {
         self.active.len()
     }
 }
+
+#[cfg(test)]
+mod tests;

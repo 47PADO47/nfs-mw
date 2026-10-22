@@ -11,7 +11,7 @@ fn spec(dropout: [f32; 2], kill: f32) -> Arc<PropDynamics> {
 }
 
 fn observation(fragment: bool, visible: bool) -> Observation {
-    Observation { fragment, visible, in_world: true, resting: false }
+    Observation { fragment, vehicle_part: fragment, visible, in_world: true, resting: false }
 }
 
 #[test]
@@ -160,4 +160,60 @@ fn expired_fragments_release_their_cells_and_do_not_restore_the_parent() {
     assert!(world.pose(id).is_none());
     assert!(world.colliders.is_empty() && world.grid.is_empty());
     assert_eq!(std::rc::Rc::strong_count(&owner), 1);
+}
+
+#[test]
+fn resting_scenery_fragments_stop_their_countdown_but_vehicle_parts_keep_their_model_clock() {
+    let p = placement(9, Vec3::Y, 100.0, false, 0.0);
+    let shape = p.prop.unwrap();
+    let spec = spec([0.0; 2], 1.0);
+    let owner = std::rc::Rc::new(());
+    let mut world = PropWorld::default();
+    let mut ids = Vec::new();
+    for scenery in [false, true] {
+        let mut body = PropBody::fragment(
+            shape.bounds.as_ref().unwrap(),
+            0,
+            &spec,
+            (Vec3::Y * 0.5, Quat::IDENTITY),
+            Mat4::IDENTITY,
+        )
+        .unwrap();
+        body.rigid.state = BodyState::Asleep;
+        let id = world
+            .insert_fragment_with(body, spec.clone(), Vec::new(), std::rc::Rc::downgrade(&owner), scenery)
+            .unwrap();
+        ids.push(id);
+    }
+    let ground = FlatGround::new(0.0);
+    for _ in 0..12 {
+        world.update_lifetimes(&ground, Mat4::IDENTITY, 1.0 / 60.0);
+    }
+    assert!(world.colliders[&ids[0]].body.as_ref().unwrap().lifetime.active);
+    assert!(!world.colliders[&ids[1]].body.as_ref().unwrap().lifetime.active);
+    let offscreen = Mat4::from_translation(Vec3::X * 1000.0);
+    for _ in 0..120 {
+        world.update_lifetimes(&ground, offscreen, 1.0 / 60.0);
+    }
+    assert!(!world.colliders.contains_key(&ids[0]), "vehicle-part clock still expires after rest");
+    assert!(world.colliders.contains_key(&ids[1]), "scenery debris waits for reactivation or parent cleanup");
+    drop(owner);
+    world.remove_orphaned_fragments();
+    assert!(world.colliders.is_empty() && world.grid.is_empty());
+}
+
+#[test]
+fn visible_dropout_waits_for_looking_away_instead_of_disabling_cleanup_forever() {
+    let spec = spec([0.5, 2.0], 0.0);
+    let mut life = Lifetime::default();
+    life.activate(&spec);
+    let mut visible = observation(false, true);
+    visible.resting = true;
+    for _ in 0..120 {
+        assert!(matches!(life.tick(&spec, visible, 1.0 / 60.0), Change::Keep));
+    }
+    assert!(life.active && !life.sinking);
+    visible.visible = false;
+    assert!(matches!(life.tick(&spec, visible, 1.0 / 60.0), Change::Keep));
+    assert!(life.sinking, "the pending dropout starts when visibility permits it");
 }

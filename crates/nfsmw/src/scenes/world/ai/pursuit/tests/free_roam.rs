@@ -108,10 +108,10 @@ fn police_switch_to_road_search_and_back_without_replacing_or_teleporting() {
     let car = &mut world.cars[0];
     let before = (car.audio_emitter().id, car.physics_position(), car.body().velocity);
     let cruise = Cruise::patrol(10.0, 20.0);
-    car.search_mode(true, cruise, &world.network, &world.index, &mut world.rng);
+    car.search_mode(true, cruise, &world.network, &world.index, &mut world.rng.nav);
     assert!(car.is_searching());
     assert_eq!((car.audio_emitter().id, car.physics_position(), car.body().velocity), before);
-    car.search_mode(false, cruise, &world.network, &world.index, &mut world.rng);
+    car.search_mode(false, cruise, &world.network, &world.index, &mut world.rng.nav);
     assert!(!car.is_searching());
     assert_eq!((car.audio_emitter().id, car.physics_position(), car.body().velocity), before);
 }

@@ -32,6 +32,7 @@ impl Default for Lifetime {
 #[derive(Clone, Copy)]
 pub(super) struct Observation {
     pub fragment: bool,
+    pub vehicle_part: bool,
     pub visible: bool,
     pub in_world: bool,
     pub resting: bool,
@@ -66,7 +67,7 @@ impl Lifetime {
             }
             return Change::Sink(-dt * spec.dropout[1]);
         }
-        if view.fragment && spec.kill_off_screen > 0.0 {
+        if view.vehicle_part && spec.kill_off_screen > 0.0 {
             self.part_offscreen = match view.visible {
                 true => 0.0,
                 false => self.part_offscreen + dt,
@@ -75,7 +76,7 @@ impl Lifetime {
                 return Change::Release;
             }
         }
-        if !view.fragment && self.offscreen > 0.0 {
+        if !view.vehicle_part && self.offscreen > 0.0 {
             self.offscreen = match view.visible {
                 true => spec.kill_off_screen,
                 false => self.offscreen - dt,
@@ -100,12 +101,15 @@ impl Lifetime {
             return Change::Keep;
         }
         // A rewrite choice: a visible prop stays where it came to rest, so the sink and placement restore wait for it to leave the view.
-        if spec.dropout[0] > 0.0 && !view.visible {
+        if spec.dropout[0] > 0.0 {
+            if view.visible {
+                return Change::Keep;
+            }
             self.sinking = true;
             self.sink = spec.dropout[0];
             return Change::Keep;
         }
-        if !view.fragment {
+        if !view.vehicle_part {
             self.active = false;
         }
         Change::Keep
@@ -145,6 +149,7 @@ impl super::PropWorld {
             let in_world = spec.allow_off_world || ground.hit(top, glam::Vec3::NEG_Y, 10000.0).is_some();
             let observation = Observation {
                 fragment: self.fragments.contains_key(&id),
+                vehicle_part: self.fragments.get(&id).is_some_and(|fragment| !fragment.scenery),
                 visible,
                 in_world,
                 resting: body.rigid.state == blackbox_vehicle::rigid_body::BodyState::Asleep

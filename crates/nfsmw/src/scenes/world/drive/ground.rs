@@ -24,6 +24,10 @@ impl Ground for WorldGround<'_> {
         self.surfaces.body_friction(surface)
     }
 
+    fn world_friction(&self, surface: u32) -> f32 {
+        self.surfaces.world_friction(surface)
+    }
+
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit> {
         // Tyres meet faces only; walls are the body's business. Faces flagged 0x08 are not ground (the
         // original's ground-height queries skip them), and scenery-group geometry is off in free roam.

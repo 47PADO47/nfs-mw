@@ -1,6 +1,9 @@
 //! Career on the main menu: the flow starts or resumes the career, then goes on to free roam with it
 //! (`career-flow.md` sections 2 to 4). The start itself is `career::start_or_resume`.
 
+use nfsmw_career::blacklist::FINAL_RACE_EVENT;
+use nfsmw_career::story::final_resume::resume_final_race;
+
 use crate::app::Host;
 use crate::career::{AutosaveInputs, CareerRequest, handle_autosave};
 use crate::frontend::career_screens::car_lot::{self, CarLotAction};
@@ -10,23 +13,28 @@ use crate::frontend::ids::screen::{CAR_SELECT, DIALOG, MAIN_MENU_SUB, SAFEHOUSE_
 use crate::frontend::logic::{Args, Env, QuitTo, Sub};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
-use nfsmw_career::settings::PROLOGUE_STAGE;
 
 use super::Frontend;
+use super::flow_arrival;
 use super::flow_loading::LoadingScreen;
 
 impl Frontend {
-    /// Career menu, Resume Career: the loaded profile is played. A career still in its prologue starts the world at once (the
-    /// opening race restarts from the beginning); any other goes to the safe house menu, which stands before the world until
-    /// Resume Free Roam (`career-flow.md` section 4).
+    /// Career menu, Resume Career: the loaded profile is played. A career in its prologue starts the first prologue race it has
+    /// not won, as a career race (`story-flow.md` section 2.7); a finished Blacklist (race 1.2.3 won, career not completed)
+    /// starts the final race 1.8.1; any other goes to the safe house menu, which stands before the world until Resume Free
+    /// Roam (`career-flow.md` section 4).
     pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
         self.career.begin_play();
         self.origin = QuitTo::Career;
-        let prologue = self.career.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false);
-        if prologue {
-            log::info!("career: resuming in the prologue");
+        if let Some(event) = self.resume_prologue_event() {
+            log::info!("career: resuming the prologue at {event}");
             self.save_settings(env.changed);
-            return self.start_free_roam(LoadingScreen::Tips, host, env);
+            return self.start_career_race(event, host, env);
+        }
+        if self.resume_final_race_due() {
+            log::info!("career: resuming at the final race {FINAL_RACE_EVENT}");
+            self.save_settings(env.changed);
+            return self.start_career_race(FINAL_RACE_EVENT, host, env);
         }
         log::info!("career: resuming at the safe house");
         self.career.set_prelude(true);
@@ -63,6 +71,12 @@ impl Frontend {
         self.start_free_roam(LoadingScreen::Plain, host, env);
     }
 
+    /// Whether the loaded career resumes at the final race: race 1.2.3 is won and the career is not completed
+    /// (`story-flow.md` section 2.7).
+    fn resume_final_race_due(&self) -> bool {
+        self.career.with(|career| resume_final_race(&career.settings.nodes(), career.settings.flags)).unwrap_or(false)
+    }
+
     /// Leaves the game in progress for the menu it was started from (the pause menu's Quit).
     pub(in crate::frontend) fn quit_to(&mut self, to: QuitTo, host: &mut Host, env: &mut Env) {
         match to {
@@ -91,9 +105,26 @@ impl Frontend {
         }
         let Some(request) = host.scene.take_career_request() else { return };
         log::info!("career: {request:?}");
+        // The first safe house visit (stage 16) plays its intro movie, then the rival bio (`flow_first_visit.rs`).
+        if matches!(request, CareerRequest::SafeHouse { .. }) && self.first_visit_intro(host) {
+            return;
+        }
         let (screen, args) = match request {
-            CareerRequest::SafeHouse { .. } => (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() }),
+            // A rival beaten since the last safe house visit: its arrival sequence runs in place of the menu.
+            CareerRequest::SafeHouse { .. } => {
+                if flow_arrival::take_due(&self.career) {
+                    return self.start_arrival(host, env);
+                }
+                (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() })
+            }
             CareerRequest::CarLot { .. } => (CAR_SELECT, Args { safehouse: true, ..Args::default() }),
+            // The arrival sequence shows this screen at its region step, in the safe house.
+            CareerRequest::RegionUnlock { .. } if flow_arrival::is_due(&self.career) => {
+                log::info!("career: the region screen waits for the arrival sequence");
+                return;
+            }
+            // The car lot after the scripted chase of 16.2.1: Accept on the car picked starts the drive (`flow_prologue.rs`).
+            CareerRequest::FirstCarLot => (CAR_SELECT, Args { safehouse: true, first_car: true, ..Args::default() }),
             CareerRequest::RegionUnlock { .. } => {
                 (SAFEHOUSE_REGION_UNLOCK, Args { safehouse: true, ..Args::default() })
             }
@@ -102,6 +133,10 @@ impl Frontend {
                 self.auto_shop_requested = true;
                 return;
             }
+            // The message screen is opened with its own logic, which closes back to the game (`flow_sms.rs`).
+            CareerRequest::Sms { id } => return self.open_sms(id, host, env),
+            // The final race is won: the end-game chain runs over the game (`flow_endgame.rs`).
+            CareerRequest::EndGame => return self.start_end_game(host, env),
         };
         self.in_safe_house = screen == MAIN_MENU_SUB;
         self.latch = true;
@@ -127,10 +162,17 @@ impl Frontend {
         handle_autosave(&self.career, self.profiles.as_ref(), Trigger::RoamingStart, inputs);
     }
 
-    /// Carries out a confirmed car lot purchase or sale on the career; a refusal is shown in an alert.
+    /// Carries out a confirmed car lot purchase or sale on the career; a refusal is shown in an alert. The first car of the
+    /// prologue starts the drive to the first safe house once it is bought (`start_first_drive`).
     pub(super) fn car_lot_action(&mut self, action: CarLotAction, host: &mut Host, env: &mut Env) {
-        let Some(Err(text)) = self.career.with(|career| car_lot::apply(career, &action)) else { return };
-        let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);
-        self.apply(commands, host, env);
+        let first_drive = action.starts_first_drive();
+        match self.career.with(|career| car_lot::apply(career, &action)) {
+            Some(Ok(())) if first_drive => self.start_first_drive(host, env),
+            Some(Err(text)) => {
+                let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);
+                self.apply(commands, host, env);
+            }
+            _ => {}
+        }
     }
 }

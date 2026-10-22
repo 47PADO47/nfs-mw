@@ -1,4 +1,6 @@
 //! Capture lifecycle and hotkeys. Rendering never writes files or waits for the export worker.
+mod health;
+mod identity;
 mod phases;
 mod samples;
 #[cfg(test)]
@@ -106,16 +108,18 @@ impl Recorder {
     }
 
     fn stop(&mut self) {
-        if self.started.take().is_none() {
-            return;
-        }
+        let Some(started) = self.started.take() else { return };
+        let ended = Instant::now();
+        let ended_unix_ms = health::unix_ms();
         let Some(capture) = blackbox_trace::global().stop() else { return };
         self.last_counts = (capture.events(), capture.dropped());
         self.message = format!("Saving {} events ({} dropped)…", capture.events(), capture.dropped());
         let path = capture_path();
         match std::thread::Builder::new().name("performance-trace-writer".into()).spawn(move || {
             let path = path.ok_or("No per-user log directory is available")?;
-            save(capture, path)
+            let saved = save(capture, path)?;
+            identity::save_context(&saved, started, ended, ended_unix_ms)?;
+            Ok(saved)
         }) {
             Ok(writer) => self.writer = Some(writer),
             Err(error) => self.message = format!("Could not start trace writer: {error}"),
@@ -170,7 +174,7 @@ impl Recorder {
                     });
             });
         });
-        ui.small("CPU phases, frame/wait timings, delayed GPU samples, activity, settings and actual FG presentation counts. Stops automatically; export runs in the background.");
+        ui.small("Frame/wait timings, hitch markers, GPU/activity, resources and memory. A companion context JSON includes build identity and up to ten minutes of memory history. Export runs in the background.");
         ui.label(&self.message);
         if let Some(path) = &self.last_path {
             ui.horizontal_wrapped(|ui| {

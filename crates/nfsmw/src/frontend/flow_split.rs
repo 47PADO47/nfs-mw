@@ -39,12 +39,12 @@ impl Frontend {
     /// The devices the input layer seats now: both players' while a split-screen race is loading, running or paused. Back in
     /// the menus the race is over, the setup is forgotten and the seats are given up (menu input is allowed from any device).
     pub(in crate::frontend) fn split_seats(&mut self) -> Option<[PlayerDevice; 2]> {
-        seats(self.stage, &mut self.split)
+        seats(&self.stage, &mut self.split)
     }
 }
 
-fn seats(stage: Stage, split: &mut Option<SplitSetup>) -> Option<[PlayerDevice; 2]> {
-    let in_world = matches!(stage, Stage::Loading | Stage::Playing | Stage::Paused | Stage::Map);
+fn seats(stage: &Stage, split: &mut Option<SplitSetup>) -> Option<[PlayerDevice; 2]> {
+    let in_world = matches!(*stage, Stage::Loading | Stage::Playing | Stage::Paused | Stage::Map);
     if !in_world {
         *split = None;
     }
@@ -68,19 +68,19 @@ mod tests {
         let mut split = Some(setup());
         for stage in [Stage::Loading, Stage::Playing, Stage::Paused, Stage::Map] {
             assert_eq!(
-                seats(stage, &mut split),
+                seats(&stage, &mut split),
                 Some([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]),
                 "{stage:?}"
             );
         }
-        assert_eq!(seats(Stage::Menus, &mut split), None, "the race is over");
+        assert_eq!(seats(&Stage::Menus, &mut split), None, "the race is over");
         assert!(split.is_none(), "the setup is forgotten with the seats");
-        assert_eq!(seats(Stage::Playing, &mut split), None, "a plain free roam seats nobody");
+        assert_eq!(seats(&Stage::Playing, &mut split), None, "a plain free roam seats nobody");
     }
 
     #[test]
     fn a_race_started_from_the_menus_is_not_split_screen() {
         let mut none = None;
-        assert_eq!(seats(Stage::Loading, &mut none), None);
+        assert_eq!(seats(&Stage::Loading, &mut none), None);
     }
 }

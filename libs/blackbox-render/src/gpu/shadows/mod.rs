@@ -18,6 +18,8 @@ mod pipelines;
 mod projected;
 mod projected_fit;
 #[cfg(test)]
+mod retention_tests;
+#[cfg(test)]
 mod sampling_tests;
 #[cfg(test)]
 mod stability_tests;
@@ -112,9 +114,13 @@ impl Renderer {
         };
         let detail = (fit.is_some() && settings.shadow_projection.is_none() && settings.wide_shadow_detail)
             .then_some(settings.shadow_detail_resolution);
-        if self.shared.shadows.resolution != resolution
-            || self.shared.shadows.layer_count != layers
-            || self.shared.shadows.detail_resolution != detail
+        // UI/clip-space views cannot fit sun shadows. Keep the world atlas until
+        // an explicit disable or a different active configuration replaces it.
+        let retain_maps = fit.is_none() && settings.sun_shadows && stats.supported;
+        if !retain_maps
+            && (self.shared.shadows.resolution != resolution
+                || self.shared.shadows.layer_count != layers
+                || self.shared.shadows.detail_resolution != detail)
         {
             self.shared.shadows = maps::Maps::new(
                 &self.device,
@@ -129,9 +135,10 @@ impl Renderer {
                 glossy.rebind_shadows(&self.device, &self.shared.shadows);
             }
         }
-        let pixels = match detail {
-            Some(size) => size * size * 2 + resolution * resolution * (layers - 2),
-            None => resolution * resolution * layers,
+        let maps = &self.shared.shadows;
+        let pixels = match maps.detail_resolution {
+            Some(size) => size * size * 2 + maps.resolution * maps.resolution * (maps.layer_count - 2),
+            None => maps.resolution * maps.resolution * maps.layer_count,
         };
         stats.map_mib = pixels * 4 / (1024 * 1024);
         let mut params = fit.as_ref().map_or_else(fit::Params::zeroed, |f| f.params);
@@ -174,7 +181,10 @@ impl Renderer {
         self.queue.write_buffer(&self.shared.shadows.buffer, 0, bytemuck::bytes_of(&params));
         let Some(fit) = fit.filter(|_| settings.sun_shadows && stats.supported) else {
             if let Some(shadows) = &mut self.shadows {
-                shadows.cache = cache::Cache::default();
+                if !retain_maps || !settings.cached_shadows {
+                    shadows.cache = cache::Cache::default();
+                }
+                stats.map_mib += shadows.cache.mib();
             }
             self.experiment_stats = stats;
             return;
@@ -189,6 +199,10 @@ impl Renderer {
         }
         stats.cascades = fit.count as u32;
         for cascade in 0..fit.count {
+            let _trace = blackbox_trace::scope(
+                ["Shadow CPU: cascade 0", "Shadow CPU: cascade 1", "Shadow CPU: cascade 2", "Shadow CPU: cascade 3"]
+                    [cascade],
+            );
             let mut matrix = Mat4::from_cols_array(&fit.params.matrices[cascade]);
             if settings.shadow_projection.is_some() {
                 // Match the integer-center source raster grid, paired with the

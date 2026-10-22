@@ -6,6 +6,7 @@ mod activation;
 mod air;
 mod car;
 mod collide;
+mod collision_sounds;
 mod commands;
 mod cop;
 mod cop_aims;
@@ -25,6 +26,7 @@ mod manager;
 mod model_loader;
 mod models;
 mod moment_feed;
+mod nis_poses;
 mod original_camera;
 mod pattern;
 mod police;
@@ -51,6 +53,7 @@ mod spawn;
 mod spawn_requests;
 mod spikes;
 mod stop;
+mod streams;
 mod support;
 mod tally;
 mod traffic;
@@ -62,7 +65,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use blackbox_render::{EffectVertex, Instance};
-use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController, SplitMix};
+use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController};
 use glam::Vec3;
 use nfsmw_data::car::physics::CarPhysics;
 
@@ -137,7 +140,8 @@ pub struct TrafficWorld {
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
     cars: Vec<AiCar>,
-    rng: SplitMix,
+    /// One random stream per system (`streams.rs`).
+    rng: streams::Streams,
     alpha: f32,
     /// How many cars the manager keeps on the road.
     target: usize,
@@ -237,7 +241,7 @@ impl TrafficWorld {
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),
-            rng: SplitMix(0x6E66_736D_7721),
+            rng: streams::Streams::default(),
             alpha: 0.0,
             target: 0,
             policy: Default::default(),
@@ -378,10 +382,10 @@ impl TrafficWorld {
         }
     }
 
-    /// Appends the headlight beams of every car.
-    pub fn car_beams(&self, out: &mut Vec<EffectVertex>) {
+    /// Authored directional head, brake and reverse flares of every actor and trailer.
+    pub fn car_flares(&self, view: super::car_light_flares::FlareView, out: &mut Vec<blackbox_render::TexturedEffect>) {
         for car in &self.cars {
-            car.beams(self.alpha, out);
+            car.flares(self.alpha, view, out);
         }
     }
 

@@ -33,6 +33,15 @@ samples of SIREN_MB.abk
 The state numbers are `off = -1, wail = 0, yelp = 1, scream = 2, die = 3` **[decomp]**; the same numbers are the
 `TYPE` word of the siren sound, with off sent as 0 (see 3).
 
+### Damaged emergency lamps
+
+**[decomp, PC checked]** After copying the pursuit siren state, `SoundCop::OnService`
+queries the damage interface for the combined `LIGHT_COPS` mask (red, blue and
+white). Any damaged bit overrides the sound packet with `die`, independently of
+health, current pursuit membership or whether the bar is enabled. Destruction
+also satisfies that query. A healthy dark bar still follows the ordinary state
+machine. Do not turn a broken lamp into additional physical or cosmetic damage.
+
 ## 2. The state machine (`UpdateSiren`) **[decomp]**
 
 Per car it keeps the state, a flag "starting", and three clocks: **start** (restarts when contact is lost and after each

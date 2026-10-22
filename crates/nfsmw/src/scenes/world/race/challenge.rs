@@ -6,6 +6,7 @@
 
 use nfsmw_data::gameplay::Race;
 
+use super::final_race::{self, FinalRun, Place};
 use super::{Banner, RaceResult, RaceSession, Stage};
 use crate::scenes::world::{WorldScene, space};
 use crate::viewer::PursuitReport;
@@ -66,6 +67,8 @@ pub(in crate::scenes::world) struct Challenge {
     pub spikes_dodged: u32,
     /// The chase's numbers as of the last frame, for the result screen.
     pub last: Option<PursuitReport>,
+    /// The final race's run, when this challenge is the final race: its win trigger decides it, not the statistic.
+    pub(super) final_run: Option<FinalRun>,
 }
 
 impl Challenge {
@@ -81,6 +84,7 @@ impl Challenge {
             roadblocks_dodged: 0,
             spikes_dodged: 0,
             last: None,
+            final_run: None,
         }
     }
 
@@ -94,6 +98,9 @@ impl Challenge {
 
     /// The row of the result screen the challenge's statistic is on, and the value it had to reach.
     pub(super) fn goal(&self) -> Option<(usize, f32)> {
+        if self.final_run.is_some() {
+            return None;
+        }
         let row = match self.stat {
             Stat::PursuitLength => 0,
             Stat::EvasionTime => 1,
@@ -169,12 +176,17 @@ impl WorldScene {
     /// Starts a pursuit challenge: the car goes to the race's start at its rolling speed and the chase begins on the
     /// first frame the car stands (`challenge_running`).
     pub(super) fn start_challenge(&mut self, race: &Race, options: super::RaceOptions) -> Result<String, String> {
-        if race.name.ends_with("/epic_pursuit") {
-            return Err("the final pursuit ends at its win trigger, which this version does not run".into());
-        }
         let params = &race.params;
-        let name = params.milestone.as_deref().ok_or("the challenge has no statistic to reach")?;
-        let stat = Stat::of(name).ok_or_else(|| format!("the challenge statistic {name:?} is not known"))?;
+        let final_pursuit = final_race::is_final_race(race);
+        // The final race has no statistic to reach: its win trigger ends it (`final_race.rs`).
+        let (stat, threshold, label) = match final_pursuit {
+            true => (Stat::PursuitLength, 0.0, "the final pursuit".to_owned()),
+            false => {
+                let name = params.milestone.as_deref().ok_or("the challenge has no statistic to reach")?;
+                let stat = Stat::of(name).ok_or_else(|| format!("the challenge statistic {name:?} is not known"))?;
+                (stat, params.threshold, format!("{name} {}", params.threshold))
+            }
+        };
         let start = race.start.ok_or("the race has no start")?;
         if self.traffic.is_none() {
             return Err("this track has no road network, so no cops can chase".into());
@@ -185,6 +197,10 @@ impl WorldScene {
             heading: super::setup::spawn_heading(start.heading_deg),
         };
         let speed = params.initial_speed.max(0.0);
+        let mut challenge = Challenge::new(stat, threshold, heat);
+        if final_pursuit {
+            challenge.final_run = Some(self.final_run_for(race, Place { spawn, speed })?);
+        }
         if let Some(drive) = self.drive.as_mut() {
             drive.place_exactly(spawn, speed);
         }
@@ -219,23 +235,24 @@ impl WorldScene {
             chain: None,
             cash_value: params.cash_value,
             pool: Vec::new(),
-            challenge: Some(Challenge::new(stat, params.threshold, heat)),
+            challenge: Some(challenge),
             walls: self.raise_race_walls(&race.barriers),
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
         });
-        Ok(format!("{}: pursuit challenge, {name} {} at heat {heat}", race.name, params.threshold))
+        Ok(format!("{}: pursuit challenge, {label} at heat {heat}", race.name))
     }
 
     /// One frame of a challenge: the chase starts once the car stands, the statistic is watched and the end of the chase
-    /// decides the result.
+    /// decides the result. `sim_dt` is the simulated time of the frame, which stops while a scene plays.
     pub(super) fn challenge_running(
         &mut self,
         renderer: &mut dyn blackbox_gfx::RenderBackend,
         session: &mut RaceSession,
+        sim_dt: f32,
     ) -> bool {
         let Some(mut challenge) = session.challenge.take() else { return false };
-        let keep = self.challenge_step(renderer, session, &mut challenge);
+        let keep = self.challenge_step(renderer, session, &mut challenge, sim_dt);
         session.challenge = Some(challenge);
         keep
     }
@@ -245,7 +262,13 @@ impl WorldScene {
         renderer: &mut dyn blackbox_gfx::RenderBackend,
         session: &mut RaceSession,
         challenge: &mut Challenge,
+        sim_dt: f32,
     ) -> bool {
+        if let Some(run) = challenge.final_run.as_mut()
+            && let Some((car, place)) = run.take_car()
+        {
+            self.give_final_car(renderer, car, place);
+        }
         if !challenge.began {
             let standing = self.drive.as_ref().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none());
             if !standing {
@@ -289,6 +312,11 @@ impl WorldScene {
             infractions: traffic.infractions().count(),
             goal: challenge.goal(),
         });
+        if let Some(mut run) = challenge.final_run.take() {
+            let keep = self.final_race_frame(session, &mut run, sim_dt);
+            challenge.final_run = Some(run);
+            return keep;
+        }
         let was_reached = challenge.reached;
         let verdict = challenge.judge(value, reason);
         if challenge.reached && !was_reached {
@@ -305,7 +333,7 @@ impl WorldScene {
     }
 
     /// The challenge is over: the career hears of a win, the chase is let go and the result shows.
-    fn finish_challenge(&mut self, session: &mut RaceSession, won: bool, secs: f32) {
+    pub(super) fn finish_challenge(&mut self, session: &mut RaceSession, won: bool, secs: f32) {
         let place: u32 = if won { 1 } else { 2 };
         session.result = Some(RaceResult { place, racers: 2, time: won.then_some(secs) });
         session.stage = Stage::Results { left: 3.0 };

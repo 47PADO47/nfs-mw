@@ -1,10 +1,12 @@
-//! Player lens flares from installed profiles and marker directions.
+//! Vehicle lens flares from installed profiles and marker directions.
 
 use blackbox_gfx::{BlendMode, EffectLayer, RenderBackend, TextureHandle, TexturedEffect};
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::{CarModel, lights::FlareProfile};
 
 use super::car_lights::{CarLights, Kind, LampState};
+pub(super) mod emergency;
+mod intensity;
 
 #[derive(Clone)]
 struct Profile {
@@ -31,10 +33,20 @@ impl CarLightFlares {
     pub fn upload(renderer: &mut dyn RenderBackend, model: &CarModel) -> Self {
         let mut set = Self::default();
         let mut uploaded = std::collections::HashMap::new();
+        let brakes = match model.driving_lods.traffic {
+            true => &model.flare_profiles.traffic_brake,
+            false => &model.flare_profiles.brake,
+        };
         for (kind, profiles) in [
             (Kind::Head, &model.flare_profiles.head),
-            (Kind::Tail, &model.flare_profiles.brake),
+            (Kind::Tail, brakes),
             (Kind::Reverse, &model.flare_profiles.reverse),
+            (Kind::Siren(true), &model.flare_profiles.cop_red),
+            (Kind::Siren(false), &model.flare_profiles.cop_blue),
+            (Kind::SirenBright(true), &model.flare_profiles.cop_bright_red),
+            (Kind::SirenBright(false), &model.flare_profiles.cop_bright_blue),
+            (Kind::SirenWhite, &model.flare_profiles.cop_white),
+            (Kind::SirenOrange, &model.flare_profiles.cop_orange),
         ] {
             for spec in profiles {
                 let Some(texture) = model.textures.get(&spec.texture) else { continue };
@@ -96,13 +108,14 @@ impl CarLightFlares {
         let Some(focal) = focal_scale(height, fov_degrees) else { return };
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::Y);
         let up = right.cross(forward).normalize_or(Vec3::Z);
+        let samples = intensity::samples(lamps, state);
         for profile in &self.profiles {
             if tails_only && profile.kind != Kind::Tail {
                 continue;
             }
             let mut vertices = Vec::new();
             for world in frames.clone() {
-                for lamp in lamps.lamps() {
+                for (lamp, intensity) in samples.clone() {
                     let kind = match lamp.kind {
                         Kind::CentreBrake => Kind::Tail,
                         other => other,
@@ -110,27 +123,18 @@ impl CarLightFlares {
                     if kind != profile.kind {
                         continue;
                     }
-                    let intensity = match lamp.kind {
-                        Kind::Head => u8::from(state.headlights) as f32,
-                        Kind::Tail => {
-                            if state.brake > 0.0 {
-                                1.0
-                            } else {
-                                0.5
-                            }
-                        }
-                        Kind::CentreBrake => u8::from(state.brake > 0.0) as f32,
-                        Kind::Reverse => u8::from(state.reverse) as f32,
-                        _ => 0.0,
-                    };
                     let at = world.transform_point3(lamp.at);
                     let to_eye = camera - at;
                     let depth = (-to_eye).dot(forward);
                     if depth <= 0.3 || !depth.is_finite() {
                         continue;
                     }
-                    let facing =
-                        world.transform_vector3(lamp.direction).normalize_or_zero().dot(to_eye.normalize_or_zero());
+                    let facing = match lamp.kind {
+                        Kind::Siren(_) | Kind::SirenBright(_) | Kind::SirenWhite | Kind::SirenOrange => 1.0,
+                        _ => {
+                            world.transform_vector3(lamp.direction).normalize_or_zero().dot(to_eye.normalize_or_zero())
+                        }
+                    };
                     let Some((radius, color)) =
                         appearance(&profile.spec, intensity, facing, depth / focal, to_eye.length_squared())
                     else {

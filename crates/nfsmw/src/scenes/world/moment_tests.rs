@@ -1,5 +1,7 @@
 use super::*;
-use blackbox_chunk::ice::Key;
+use crate::scenes::world::scene_space::place;
+use blackbox_chunk::ice::{Key, Space};
+use nfsmw_data::nis::CameraLibrary;
 use nfsmw_data::world::moment::{MARKER_NAMES, Marker};
 
 const SCENE: &str = "WMGasStation";
@@ -37,7 +39,9 @@ fn moment(sim_speed: u8) -> Moment {
         length: 3.0,
         keys: vec![key([[0.0, -8.0, 5.0], [10.0, -8.0, 2.0]], [[0.0, 3.0, 2.0], [0.0, 3.0, 2.0]], sim_speed)],
     };
-    data.cameras.insert(hash, vec![track]);
+    let mut cameras = CameraLibrary::default();
+    cameras.insert_nis(hash, vec![track]);
+    data.cameras = Arc::new(cameras);
     Moment { data: Some(Arc::new(data)), ..Default::default() }
 }
 

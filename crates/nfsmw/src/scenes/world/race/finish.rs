@@ -68,6 +68,11 @@ impl WorldScene {
     /// What a race holds on the world, given back: the racers, the race's walls, the traffic count a console command had
     /// set, the grid hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
     pub(super) fn release_race(&mut self, session: &mut RaceSession) {
+        // A race given up in its intro or outro takes the movie or NIS it plays with it.
+        if matches!(session.stage, Stage::Intro { .. } | Stage::Outro { .. }) {
+            self.stop_nis();
+            self.stop_story_movie();
+        }
         self.lower_race_walls(std::mem::take(&mut session.walls));
         self.finish_flares.clear();
         self.end_photo_shot();

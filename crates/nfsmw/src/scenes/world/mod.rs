@@ -37,6 +37,7 @@ mod materials;
 mod mod_hooks;
 mod moment;
 mod moment_world;
+mod nis;
 mod photo_shot;
 mod tail_light_trails;
 #[cfg(test)]
@@ -59,11 +60,13 @@ mod race_restart_tests;
 mod readiness;
 mod rear_view;
 mod reflections;
+mod reflections_visibility;
 mod residency;
 mod resident;
 mod road;
 mod rotor;
 mod scene;
+mod scene_space;
 mod scenery_groups;
 mod shadow_feed;
 mod sign_lamps;
@@ -75,6 +78,7 @@ mod speech_look;
 mod speed_trails;
 mod split;
 mod start;
+mod story_movie;
 mod sun;
 mod teardown;
 mod update;
@@ -162,6 +166,7 @@ pub struct WorldScene {
     gain_map: Option<blackbox_gfx::RgbaImage>,
     breaker_visuals: breaker_visuals::Presentation,
     reflection_faces: [Vec<Instance>; 6],
+    reflection_scratch: reflections_visibility::Scratch,
     reflection_last: Option<reflections::CaptureStamp>,
     wet_road: wet_reflections::WetRoad,
     /// Seconds since the scene started, for texture animations.
@@ -250,6 +255,10 @@ pub struct WorldScene {
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
     moment: moment::Moment,
+    /// The NIS cutscene player: the camera of a cutscene scene while it plays (`nis/`).
+    nis: nis::NisPlayer,
+    /// The movie the world plays over its view, and the tutorials seen (`story_movie.rs`).
+    story_movie: story_movie::StoryMovie,
     /// The camera of the win photo while the post-race screen shows it (`photo_shot.rs`).
     photo_shot: Option<photo_shot::PhotoShot>,
     /// The pursuit breakers' minimap icons (`breaker_icons.rs`).

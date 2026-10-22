@@ -17,6 +17,7 @@ impl WorldScene {
         renderer.set_projected_reflection_scene(None);
         self.wet_road.instances.clear();
         self.residency.release(renderer);
+        self.nis.release_gpu(renderer);
         if let Some(drive) = self.drive.take() {
             drive.release(renderer);
         }

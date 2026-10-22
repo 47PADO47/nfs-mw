@@ -14,6 +14,15 @@ pub struct Vertex {
     pub uv: [f32; 2],
 }
 
+/// One vertex's skin: up to three bone influences. The fourth weight is implied 0.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkinVertex {
+    /// Blend weights in stored order. They sum to 1.
+    pub weights: [f32; 3],
+    /// Skeleton bone numbers, resolved through the group's [`ShadingGroup::bone_table`]. Bone 0 is the root.
+    pub bones: [u8; 3],
+}
+
 /// One on-disk vertex buffer, after decoding into [`Solid::vertices`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VertexBuffer {
@@ -45,6 +54,8 @@ pub struct ShadingGroup {
     pub base_vertex: u32,
     /// Which entry of [`Solid::vertex_buffers`] the group draws from.
     pub vertex_buffer: u32,
+    /// For a skinned group (effect id 2): the bone number of each of its 16 blend slots. `None` for other groups.
+    pub bone_table: Option<[u8; 16]>,
 }
 
 impl ShadingGroup {
@@ -94,6 +105,10 @@ pub struct Solid {
     pub vertex_buffers: Vec<VertexBuffer>,
     /// Every vertex buffer decoded and concatenated, in buffer order.
     pub vertices: Vec<Vertex>,
+    /// The skin of every vertex in [`Solid::vertices`], in the same order and of the same length. `None` when no
+    /// shading group is skinned. When some buffers are skinned and others are not, the unskinned vertices get
+    /// `weights: [1, 0, 0]` and `bones: [0, 0, 0]` (the root, rigidly).
+    pub skin: Option<Vec<SkinVertex>>,
     /// Independent second UVs where established by the layout; primary UV otherwise.
     pub secondary_uvs: Vec<[f32; 2]>,
     /// Tangent xyz and handedness for verified declarations; zero for unknown layouts.

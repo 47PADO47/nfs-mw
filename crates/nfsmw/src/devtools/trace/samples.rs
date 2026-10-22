@@ -11,6 +11,8 @@ pub(crate) struct Samples {
     activity_sample: u64,
     observation: u64,
     last_observation: Option<Instant>,
+    last_health: Option<Instant>,
+    health_sample: u64,
 }
 
 pub(crate) fn observe(
@@ -21,13 +23,26 @@ pub(crate) fn observe(
     focused: bool,
 ) {
     let trace = blackbox_trace::global();
+    let now = Instant::now();
+    if state.last_health.is_none_or(|last| now.duration_since(last).as_secs_f32() >= 1.0) {
+        state.last_health = Some(now);
+        super::health::observe(renderer, host);
+    }
     let session = trace.session();
     if session == 0 {
         return;
     }
     if state.session != session {
-        *state = Samples { session, ..Default::default() };
+        let last_health = state.last_health;
+        *state = Samples { session, last_health, ..Default::default() };
         trace.note("Backend", &format!("{:?}; debug_assertions={}", renderer.info(), cfg!(debug_assertions)));
+        trace.note(
+            "Clock",
+            &format!(
+                "capture observation unix_ms={}; companion context contains monotonic-relative history",
+                super::health::unix_ms()
+            ),
+        );
     }
     if state.settings.as_ref() != Some(settings) {
         state.settings = Some(*settings);
@@ -49,6 +64,21 @@ pub(crate) fn observe(
     let now = Instant::now();
     let elapsed = state.last_observation.replace(now).map(|last| now.duration_since(last).as_secs_f64() * 1000.0);
     state.observation += 1;
+    if elapsed.is_some_and(|ms| ms >= 25.0) {
+        trace.counter(
+            "Hitch observation (25 ms threshold)",
+            &[
+                ("observation_id", state.observation as f64),
+                ("frame_interval_ms", elapsed.unwrap_or_default()),
+                ("acquire_wait_ms", render_timing(performance.acquire_wait_ms)),
+                ("present_wait_ms", render_timing(performance.present_wait_ms)),
+                ("driver_pacing_ms", f64::from(host.reflex_sleep_ms)),
+                ("gpu_readback_id", performance.gpu_sample as f64),
+                ("focused", u8::from(focused).into()),
+            ],
+        );
+    }
+    super::health::record(&mut state.health_sample);
     trace.counter(
         "Frame observations",
         &[

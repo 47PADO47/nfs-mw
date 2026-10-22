@@ -7,6 +7,12 @@
 //!
 //! Without `NFSMW_GAME_DIR` they pass without checking anything.
 
+mod anim_banks;
+mod anim_clips;
+mod anim_codecs;
+mod anim_codecs_f;
+mod anim_objects;
+mod anim_skeletons;
 mod career;
 mod carparts;
 mod cars;
@@ -22,16 +28,24 @@ mod load_timing;
 mod manual;
 mod minimap;
 mod music;
+mod nis_audio;
+mod nis_bundles;
+mod nis_cameras;
+mod nis_scenes;
 mod objects;
 mod physics;
 mod pursuit;
 mod race_barrier_routes;
 mod race_barriers;
+mod race_story;
 mod reactions;
 mod sequences;
+mod skin;
 mod sound;
 mod spawners;
 mod speech;
+mod story_extras;
+mod subtitles;
 mod textures;
 mod tire_profile;
 mod traffic;

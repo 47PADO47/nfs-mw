@@ -42,7 +42,7 @@ impl TrafficWorld {
             return Err("there is no cop road under the target".into());
         }
         nav.half_width = 0.0;
-        nav.advance(&self.network, AHEAD, heading, &mut self.rng);
+        nav.advance(&self.network, AHEAD, heading, &mut self.rng.roadblock);
         if nav.dead_end || nav.position.distance(target) < MIN_DISTANCE {
             return Err("the road ends before a roadblock site".into());
         }

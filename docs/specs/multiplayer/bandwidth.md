@@ -1,6 +1,7 @@
 # Multiplayer bandwidth budget
 
-Status: **design only**. Nothing is built or measured. Written 2026-10-16. The arithmetic behind
+Status: written 2026-10-16 as design arithmetic; section 7 adds the first measurements of the built codec (2026-10-21,
+[ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md)). The arithmetic behind
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) section 8. All sizes are computed from the field widths of the
 [protocol](protocol.md) (section 6); the tests of the ADR ("How we will know") replace the estimates with measurements.
 Averages marked *estimate* are guesses from field widths, not data.
@@ -124,3 +125,28 @@ more than 1 GB/s on a desktop CPU, so well under 1 ms per second). The budget is
 In order of use: lower the snapshot rate for far entities; widen the quantisation steps of traffic and police (position 2 cm to
 5 cm saves 6 bits each); reduce the mid-tier range; drop traffic detail by priority; lower the player-car rate to 15 Hz; reduce the
 number of traffic cars per player (the density setting). Each has a setting and a counter in the status line (MP-82).
+
+## 7. ADR 0009 changes and first measurements
+
+**Entry header.** ADR 0006 spent 16 bits per listed entity on an 8-bit id and an 8-bit group mask. ADR 0009 spends an id gap
+(4 bits for consecutive ids, 8 bits for gaps under 64), a 2-bit operation and a mask of one bit per field. For the player car
+(about 20 fields) that is about the same as before. For traffic and police (6 to 8 fields) it is 4 to 6 bits cheaper. Frame
+lengths add 1 or 2 bytes per frame. Difference-coded positions cost about 8 to 12 bits per axis for a car moving at road speed
+between 20 Hz snapshots, against 20 bits raw. The record sizes of section 1 are therefore upper bounds for moving entities.
+
+**Measured, synthetic scene** (`cargo run --release -p blackbox-net-core --example net_bench`, and the loopback test
+`libs/blackbox-net-core/tests/loopback.rs`). Setup: 16 clients, 300 entities moving on circles, 20 Hz snapshots, 400 m
+relevancy. The kinds are small: a car-like kind of 6 fields (84 bits full) and a traffic-like kind of 4 fields. They are not the
+game's schema, so the byte figures measure the codec, not case A or B.
+
+| Measure | Value |
+|---|---|
+| Snapshot payload per client (bench, no loss) | 144 B average, 2.9 KB/s |
+| Snapshot payload per client (loopback, 2 % loss, 20 ms ± 5 ms) | 154 B average, 3.4 KB/s per client including headers |
+| Encode time per snapshot tick, all 16 clients, shared cache | 0.032 ms |
+| The same with a cache reset before every client (no sharing) | 0.056 ms (sharing is 1.76× faster) |
+| Encode-cache hit rate | 86 to 88 % |
+| Snapshots received per client (loopback, 2 % loss) | 582 to 593 of 600 |
+| Allocations per tick after warm-up (8 clients, 300 entities: history, encode, packet write and read, decode) | 0 (`tests/alloc.rs`) |
+
+The game's figures follow when `nfsmw-net` registers the real schema. The bench will then be rerun against cases A to C.

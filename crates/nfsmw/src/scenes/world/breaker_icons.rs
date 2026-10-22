@@ -4,6 +4,7 @@
 
 use glam::{Vec2, Vec3};
 use nfsmw_data::car::physics::PhysicsData;
+use std::collections::BTreeSet;
 
 use super::props::PropWorld;
 use super::space;
@@ -18,36 +19,51 @@ const REFRESH: f32 = 1.0;
 #[derive(Default)]
 pub(super) struct BreakerIcons {
     /// Physics-space positions of the breakers that show an icon.
-    shown: Vec<Vec3>,
-    /// Where breakers fired: icons within [`HIDE_RADIUS`] stay hidden.
-    fired: Vec<Vec3>,
+    shown: Vec<Icon>,
+    /// Hidden icons retain their section identity across streaming.
+    hidden: BTreeSet<(usize, u32)>,
     age: f32,
     looked: bool,
 }
 
+#[derive(Clone, Copy)]
+struct Icon {
+    section: usize,
+    id: u32,
+    position: Vec3,
+}
+
 impl BreakerIcons {
     /// Looks the resident breakers up once a second.
-    pub fn step(&mut self, dt: f32, props: &PropWorld, data: &PhysicsData) {
+    pub fn step(&mut self, dt: f32, props: &PropWorld, data: &PhysicsData, fired: &[Vec3], restored: &[usize]) {
         self.age += dt;
-        if self.looked && self.age < REFRESH {
+        self.hidden.retain(|(section, _)| !restored.contains(section));
+        if self.looked && self.age < REFRESH && fired.is_empty() && restored.is_empty() {
             return;
         }
         self.age = 0.0;
         self.looked = true;
         let sites = props.breaker_sites(data, Vec2::ZERO);
-        self.shown = sites.iter().filter(|s| !s.fired).map(|s| s.position).collect();
-        self.apply_fired();
+        self.shown = sites
+            .iter()
+            .filter(|s| !s.fired)
+            .filter_map(|s| Some(Icon { section: props.section_for(s.id)?, id: s.id, position: s.position }))
+            .collect();
+        self.fired(fired);
     }
 
     /// Breakers opened zones at these places (physics space): their icons and the icons near them go.
     pub fn fired(&mut self, places: &[Vec3]) {
-        self.fired.extend_from_slice(places);
-        self.apply_fired();
+        for icon in &self.shown {
+            if places.iter().any(|p| p.distance(icon.position) <= HIDE_RADIUS) {
+                self.hidden.insert((icon.section, icon.id));
+            }
+        }
+        self.apply_hidden();
     }
 
-    fn apply_fired(&mut self) {
-        let fired = &self.fired;
-        self.shown.retain(|p| fired.iter().all(|f| f.distance(*p) > HIDE_RADIUS));
+    fn apply_hidden(&mut self) {
+        self.shown.retain(|icon| !self.hidden.contains(&(icon.section, icon.id)));
     }
 
     /// The icons for the minimap, while a chase is on. Nearest first is the style's business.
@@ -55,8 +71,8 @@ impl BreakerIcons {
         if !pursuing {
             return;
         }
-        for &at in &self.shown {
-            let render = space::to_render(at.to_array());
+        for icon in &self.shown {
+            let render = space::to_render(icon.position.to_array());
             out.push(MapBlip { style: PURSUIT_BREAKER, position: [render.x, render.y], active: false, heading: None });
         }
     }
@@ -64,7 +80,7 @@ impl BreakerIcons {
     /// How many icons stand within `radius` metres of `place` (physics space).
     #[cfg(test)]
     pub fn shown_near(&self, place: Vec3, radius: f32) -> usize {
-        self.shown.iter().filter(|p| p.distance(place) <= radius).count()
+        self.shown.iter().filter(|p| p.position.distance(place) <= radius).count()
     }
 
     #[cfg(test)]
@@ -78,7 +94,15 @@ mod tests {
     use super::*;
 
     fn icons(places: &[Vec3]) -> BreakerIcons {
-        BreakerIcons { shown: places.to_vec(), looked: true, ..Default::default() }
+        BreakerIcons {
+            shown: places
+                .iter()
+                .enumerate()
+                .map(|(id, &position)| Icon { section: 0, id: id as u32, position })
+                .collect(),
+            looked: true,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -110,10 +134,25 @@ mod tests {
 
     #[test]
     fn a_fired_place_keeps_hiding_after_the_next_look() {
-        let mut icons = icons(&[]);
+        let mut icons = icons(&[Vec3::new(5.0, 0.0, 0.0), Vec3::new(50.0, 0.0, 0.0)]);
+        let resident = icons.shown.clone();
         icons.fired(&[Vec3::ZERO]);
-        icons.shown = vec![Vec3::new(5.0, 0.0, 0.0), Vec3::new(50.0, 0.0, 0.0)];
-        icons.apply_fired();
+        icons.shown = resident;
+        icons.apply_hidden();
         assert_eq!(icons.len(), 1);
+    }
+
+    #[test]
+    fn a_section_reset_restores_only_its_own_icons() {
+        let mut icons = icons(&[Vec3::ZERO, Vec3::X]);
+        icons.shown[1].section = 1;
+        let resident = icons.shown.clone();
+        icons.fired(&[Vec3::ZERO]);
+        assert_eq!(icons.len(), 0);
+        icons.hidden.retain(|(section, _)| *section != 0);
+        icons.shown = resident;
+        icons.apply_hidden();
+        assert_eq!(icons.len(), 1);
+        assert_eq!(icons.shown[0].section, 0);
     }
 }

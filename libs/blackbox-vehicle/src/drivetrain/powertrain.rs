@@ -166,6 +166,11 @@ impl Powertrain {
         &self.trans
     }
 
+    /// Select the caller's normalized front axle share for engine/wheel coupling.
+    pub fn set_front_drive_share(&mut self, share: f32) {
+        self.trans.torque_split = share.clamp(0.0, 1.0);
+    }
+
     /// Current gear id (0 reverse, 1 neutral, 2 first, ...).
     pub fn gear(&self) -> usize {
         self.gear

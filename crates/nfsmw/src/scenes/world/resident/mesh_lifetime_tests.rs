@@ -87,5 +87,6 @@ fn solid(name: &str, name_hash: u32) -> Solid {
         tangents: vec![],
         indices: vec![0, 0, 0],
         groups: vec![],
+        skin: None,
     }
 }

@@ -25,10 +25,10 @@ pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
-mod impacts;
+pub(super) mod impacts;
 pub(super) mod transmission;
 pub(super) mod tyres;
-pub use contact::{CarContact, ContactSource};
+pub use contact::{CarContact, ContactSource, ContactVehicle};
 
 /// Every physics state since the previous audio update, in simulation order.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,6 +43,7 @@ pub struct CarSoundTick {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CarEvent {
     pub sound_profile: u32,
+    pub vehicle: Option<contact::ContactVehicle>,
     pub audio_zone: Option<nfsmw_data::sound::CollisionZone>,
     pub kind: EventKind,
     /// The `simsurface` hash of the surface involved.

@@ -9,6 +9,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+sha2.workspace = true
+serde_json = "1"
 blackbox-trace.workspace = true
 blackbox-hash.workspace = true
 anyhow.workspace = true
@@ -25,6 +27,7 @@ bevy_window.workspace = true
 bevy_winit.workspace = true
 blackbox-aems.workspace = true
 blackbox-bevy-render = { workspace = true, optional = true }
+blackbox-anim.workspace = true
 blackbox-attrib.workspace = true
 blackbox-carsound.workspace = true
 blackbox-chunk.workspace = true
@@ -38,6 +41,7 @@ blackbox-feng.workspace = true
 blackbox-gfx.workspace = true
 ini-tuning.workspace = true
 blackbox-minimap.workspace = true
+blackbox-nis.workspace = true
 blackbox-playlist.workspace = true
 blackbox-mixmap.workspace = true
 blackbox-modding = { workspace = true, features = ["host"] }
@@ -109,3 +113,6 @@ fsr3 = ["renderer-bevy", "blackbox-bevy-render/fsr3"]
 workspace = true
 
 [dev-dependencies]
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", default-features = false, features = ["Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading"] }

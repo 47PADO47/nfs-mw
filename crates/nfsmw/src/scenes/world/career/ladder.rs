@@ -59,6 +59,7 @@ mod tests {
             key,
             event: Some(event.to_owned()),
             params: RaceParams { initially_unlocked: open, unlock_races: unlocks.to_vec(), ..RaceParams::default() },
+            story: Default::default(),
             name: event.to_owned(),
             event_icon: String::new(),
             race_type: None,

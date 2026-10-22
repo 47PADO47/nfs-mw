@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use nfsmw_career::blacklist::Blacklist;
+use nfsmw_career::blacklist::{Blacklist, PopupQueue};
 use nfsmw_career::economy::markers::MarkerInventory;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
 use nfsmw_career::milestones::{Milestone, MilestoneSet, STAT_COUNT, StatValue};
@@ -45,6 +45,13 @@ pub struct Career {
     /// The markers held: Get Out of Jail Free, Extra Impound Strike, Impound Release. Kept in the popup table of the
     /// settings, which [`Career::profile_bytes`] writes back.
     pub markers: MarkerInventory,
+    /// The rewards of deferred races, waiting for the safe house markers screen (`nfsmw_career::blacklist::PopupQueue`).
+    /// Not saved: the queue starts empty with each load.
+    pub popups: PopupQueue,
+    /// The rival just beaten, whose arrival sequence the next safe house entry runs (`flow_arrival.rs`). Not saved.
+    pub rival_beaten: Option<u8>,
+    /// Whether the autosave was possible when the arrival sequence started: step 3 of the sequence reads it. Not saved.
+    pub arrival_autosave: bool,
     /// The autosave gate.
     pub autosave: AutosaveManager,
     /// The career tables read from the install.
@@ -73,6 +80,9 @@ impl Career {
             milestones,
             traps,
             markers,
+            popups: PopupQueue::new(),
+            rival_beaten: None,
+            arrival_autosave: false,
             autosave: AutosaveManager::default(),
             data,
             profile,
@@ -102,6 +112,9 @@ impl Career {
             milestones,
             traps,
             markers,
+            popups: PopupQueue::new(),
+            rival_beaten: None,
+            arrival_autosave: false,
             autosave: AutosaveManager::default(),
             data,
             profile,

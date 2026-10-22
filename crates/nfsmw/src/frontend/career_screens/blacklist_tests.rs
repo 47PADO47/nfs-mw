@@ -170,3 +170,19 @@ fn a_rival_entry_names_the_portrait_by_rank() {
     assert_eq!(fe_hash_upper("RIVAL_07"), fe_hash_upper(&format!("RIVAL_{:02}", 7)));
     assert_eq!(rival_key(7, "NAME"), "BLACKLIST_RIVAL_07_NAME");
 }
+
+#[test]
+fn accept_on_an_active_challenge_button_starts_the_rivals_boss_race() {
+    let mut bl = blacklist(16);
+    bl.enter_bin(14);
+    let rows = rival_rows(&bl, Flags(0));
+    assert_eq!(challenge_command(row(&rows, 15)), Some(Command::ChallengeRival { bin: 15 }));
+}
+
+#[test]
+fn accept_on_an_inactive_challenge_button_sends_nothing() {
+    let mut bl = blacklist(16);
+    bl.enter_bin(14);
+    let rows = rival_rows(&bl, Flags(0));
+    assert_eq!(challenge_command(row(&rows, 14)), None, "the current rival is locked and has no boss race open");
+}

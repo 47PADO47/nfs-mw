@@ -14,6 +14,12 @@ impl WorldScene {
         let _trace = blackbox_trace::scope("World: effects / uploads");
         let lens = self.gameplay_lens(self.physics_aspect);
         let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
+        let flare_view = super::super::car_light_flares::FlareView {
+            camera: position,
+            forward,
+            fov_degrees: fov,
+            height: renderer.surface_size()[1],
+        };
         self.object_fx.maintain(renderer, &self.dir, self.physics.database());
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
@@ -22,6 +28,12 @@ impl WorldScene {
             self.object_fx.textured(position, forward, &mut layer.textured);
             self.car_damage_fx.textured(position, forward, &mut layer.textured);
             self.impact_fx.textured(forward, &mut layer.textured);
+            if let Some(traffic) = &self.traffic {
+                traffic.car_flares(flare_view, &mut layer.textured);
+                traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
+                traffic.cop_particles(position, forward, &mut layer.textured);
+                traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
+            }
             renderer.set_effects(&layer);
             return;
         };
@@ -49,12 +61,6 @@ impl WorldScene {
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
-        let flare_view = super::super::car_light_flares::FlareView {
-            camera: position,
-            forward,
-            fov_degrees: fov,
-            height: renderer.surface_size()[1],
-        };
         flares.draw(&lamps, lamp_frame, lamp_state, flare_view, &mut layer.textured);
         if trails_visible {
             flares.draw_trails(&lamps, &drive.tail_trails, lamp_frame, lamp_state, flare_view, &mut layer.textured);
@@ -69,7 +75,7 @@ impl WorldScene {
         if let Some(traffic) = &self.traffic {
             traffic.spike_geometry(&mut layer.streaks);
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
-            traffic.car_beams(&mut layer.streaks);
+            traffic.car_flares(flare_view, &mut layer.textured);
             traffic.cop_particles(position, forward, &mut layer.textured);
             traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
         }

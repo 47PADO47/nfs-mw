@@ -102,15 +102,16 @@ impl AiCar {
     ) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
         self.rig.instances_detail(
-            &self.pose(alpha),
+            &self.render_pose(alpha),
             self.sim.events.as_ref().map(|e| &e.hidden_slots),
             &revealed,
             crate::scenes::world::drive::DrawOptions {
                 car: self.render_id,
+                lamps: [true, self.lamp_state().brake_surfaces_on()],
                 detail,
                 glass: self.glass_mask(),
+                broken_lights: self.lamp_state().broken,
                 damage: self.sim.events.as_ref().map(|e| e.source_levels()),
-                ..Default::default()
             },
             out,
         );
@@ -118,7 +119,7 @@ impl AiCar {
 
     /// A trailer, including one that came loose, keeps its own root and interpolation.
     pub(in crate::scenes::world::ai) fn road_reflection_instances(&self, alpha: f32, out: &mut Vec<Instance>) {
-        crate::scenes::world::wet_reflections::vehicles::append(self.pose(alpha).transform(), out, |out| {
+        crate::scenes::world::wet_reflections::vehicles::append(self.render_pose(alpha).transform(), out, |out| {
             self.body_instances(alpha, out);
         });
         if let Some(trailer) = &self.trailer {

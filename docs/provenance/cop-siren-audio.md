@@ -1,5 +1,17 @@
 # Cop siren audio (state machine, voice follower, SIREN module playback)
 
+## Damaged light service override, 21 October 2026
+
+The CC0 `SoundCar.cpp` SoundCop service independently overrides the pursuit
+state with SIREN_DIE when its damage interface reports any LIGHT_COPS bit.
+The matched PC function at 0x694660 is not defined in the saved Ghidra database;
+bounded static disassembly of its 108 bytes confirms the 0x7000 mask query and
+the subsequent packet state 3 assignment. These bytes are identical in the
+privately identified D and selected E executables. This is static consumer
+evidence, not an original-game acoustic comparison. Implement the override in
+the world sound feed after the ordinary pursuit state machine, without changing
+police health or interpreting cosmetic panels as damaged lamps.
+
 - **Spec:** [docs/specs/cop-siren-audio.md](../specs/cop-siren-audio.md); the short form is section 10 of
   [ai-pursuit-speech.md](../specs/ai-pursuit-speech.md).
 - **Sources read for the spec:** dbalatoni13/nfsmw (CC0, decompiled), `src/Speed/Indep/Src/`: `AI/Common/AIVehiclePursuit.cpp`

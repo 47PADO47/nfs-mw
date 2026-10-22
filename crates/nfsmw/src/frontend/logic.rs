@@ -5,6 +5,7 @@
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 use blackbox_gfx::Capabilities;
 use glam::Vec2;
+use nfsmw_career::safehouse::BlacklistStepper;
 
 use super::confirm::{Alert, Confirm};
 use super::world_map::WorldMapFrame;
@@ -64,73 +65,10 @@ pub struct PauseCtx {
     pub quit: QuitTo,
 }
 
-/// What the footer of a screen offers besides what its package name gives (`prompts.rs`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Footer {
-    #[default]
-    Standard,
-    /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
-    /// Race menu, the safe house menu, the profile list).
-    BackOnly,
-    /// Back and Accept: the custom race's track list and the mode select of a mode with no tutorial.
-    BackAccept,
-    /// Back, Accept and `2 View Tutorial`: the mode select on a mode that has a tutorial movie.
-    Tutorial,
-    /// Back, Accept and `1 Defaults`: the custom race's options.
-    Defaults,
-    /// Back, Accept and `3 Showcase`: the custom race's car select.
-    CarSelect,
-    /// Back only, on the custom race's car select: the car shown is locked.
-    CarSelectLocked,
-    /// Back, `9 0 Zoom` and the arrows `View Car`: the Showcase.
-    Orbit,
-}
+pub use super::footer::Footer;
 
-impl Footer {
-    /// Whether the footer is one of the custom race's car select (`Car_Select.fng` also serves the career's car lot).
-    pub fn is_custom_car_select(self) -> bool {
-        matches!(self, Footer::CarSelect | Footer::CarSelectLocked)
-    }
-}
-
-/// What a screen is opened with (the original passes an argument and reads the game mode).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Args {
-    /// Opened from the pause menu (the screens use their in-game look and return to the pause menu).
-    pub pause: bool,
-    /// The option categories instead of the screen's usual content (the pause menu shows them in the same package).
-    pub options: bool,
-    pub category: Category,
-    /// Opened in the career's safe house (the safe house menu and the screens it opens; `career-safehouse-2.md`).
-    pub safehouse: bool,
-    /// The rival the bio shows (a bin, 15 down to 1); 0 for the one of the career's current bin.
-    pub rival: u8,
-    /// Which icon row `MainMenu_Sub.fng` shows when it is not the option categories or the safe house.
-    pub sub: Sub,
-    /// What the pause menu offers (the pause menu only).
-    pub pause_ctx: PauseCtx,
-    /// Opened by the custom race: `Car_Select.fng` then picks the car of the race, not a career car (`custom_race/`).
-    pub custom: bool,
-    /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
-    pub player: u8,
-}
-
-impl Default for Args {
-    fn default() -> Self {
-        Self {
-            pause: false,
-            options: false,
-            category: Category::Audio,
-            safehouse: false,
-            rival: 0,
-            sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
-            custom: false,
-            player: 0,
-        }
-    }
-}
-
+mod args;
+pub use args::Args;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
@@ -159,6 +97,13 @@ pub enum Command {
         back: String,
         args: Args,
     },
+    /// Play any movie (`MOVIES/<name>`, a tutorial or a story movie) full screen, then do what `then` says: open a screen
+    /// or run a command (`flow_movie.rs`). The career sends it for the story movies.
+    #[allow(dead_code)] // no caller yet; the career's story movies will send it
+    PlayMovie {
+        movie: String,
+        then: super::flow::flow_movie::AfterMovie,
+    },
     /// The custom race's options page, Defaults answered Yes: the current mode's options go back to their defaults.
     CustomDefaults,
     /// Custom Race, after the transmission: start this race (a gameplay collection name) with this car and options
@@ -174,6 +119,8 @@ pub enum Command {
     },
     /// Close the pause menu and go on driving.
     Resume,
+    /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
+    StartFirstDrive,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
     SetWaypoint([f32; 2]),
     /// Show the lap table of a race (`PostRace_Results.fng`) in place of the screen on top (`photo.rs`).
@@ -193,6 +140,13 @@ pub enum Command {
     ResumeCareer,
     /// Leave the safe house menu that stands before the world for the career menu (its Back).
     LeaveSafeHouse,
+    /// The Blacklist's challenge button, accepted for this bin: the world starts its first boss race (`flow_rival.rs`).
+    ChallengeRival {
+        bin: u8,
+    },
+    /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
+    /// (`flow_first_visit.rs`).
+    BlacklistStep(BlacklistStepper),
     /// Ask for an alias name over the screen that is up (`name_entry.rs`); the answer is the command the purpose names.
     EnterName(super::name_entry::NameFor),
     /// Alias manager, Create: make a new alias, load it and say so (`flow_save.rs`).

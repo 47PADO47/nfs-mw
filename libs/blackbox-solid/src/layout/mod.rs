@@ -40,6 +40,8 @@ pub struct GroupLayout {
     pub num_triangles: usize,
     pub first_index: usize,
     pub num_indices: usize,
+    /// 16 one-byte bone numbers: the blend-slot table of a skinned group.
+    pub bone_table: usize,
 }
 
 /// Field offsets inside one position-marker record (`SolidMarkers`).
@@ -71,6 +73,8 @@ pub struct SolidLayout {
     pub vertices_align: usize,
     /// Effect declarations with UV1 at36 and tangent FLOAT4 at44 in a60-byte vertex.
     pub tangent_effects: &'static [u32],
+    /// Effect declarations whose 60-byte vertices carry blend weights and blend slots (WorldBoneShader).
+    pub skinned_effects: &'static [u32],
 }
 
 /// All supported layouts.

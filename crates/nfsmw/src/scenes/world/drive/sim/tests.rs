@@ -4,11 +4,17 @@ use nfsmw_data::car::physics::CarBounds;
 
 use super::*;
 
+mod coasting;
 mod contact_order;
 mod damage_callbacks;
 mod frame_rate;
 mod geometry;
+mod impact_matrix;
+mod lights;
+mod pair_dispatch;
 mod reactions;
+mod reset_collision;
+mod retirement;
 mod simple_chassis;
 mod traffic_placement;
 

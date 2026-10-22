@@ -30,7 +30,7 @@ impl WorldScene {
         if racer > 0 {
             return self.other_racer_message(session, racer);
         }
-        if let (Stage::Results { .. }, Some(result)) = (session.stage, session.result) {
+        if let (Stage::Results { .. }, Some(result)) = (&session.stage, session.result) {
             let card = ResultCard {
                 place: result.place,
                 racers: result.racers,
@@ -56,6 +56,9 @@ impl WorldScene {
     /// The race card of racer `racer`.
     pub(in crate::scenes::world) fn race_hud_for(&self, racer: usize) -> Option<RaceHud> {
         let session = self.race.as_ref()?;
+        if matches!(session.stage, Stage::Intro { .. }) {
+            return None;
+        }
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
         }
@@ -86,6 +89,9 @@ impl WorldScene {
     /// The leaderboard of racer `racer`'s HUD: the same four racers, with that racer marked as the player.
     pub(in crate::scenes::world) fn race_leaders_for(&self, viewer: usize) -> Option<Leaders> {
         let session = self.race.as_ref()?;
+        if matches!(session.stage, Stage::Intro { .. }) {
+            return None;
+        }
         if session.result.is_some() && !matches!(session.stage, Stage::Results { .. }) {
             return None;
         }

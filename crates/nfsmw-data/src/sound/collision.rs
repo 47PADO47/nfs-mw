@@ -112,7 +112,7 @@ fn word(bytes: &[u8], at: usize) -> u32 {
 }
 
 impl ImpactSound {
-    fn read(c: CollectionRef<'_>) -> Self {
+    pub(super) fn read(c: CollectionRef<'_>) -> Self {
         let fields = Fields(c);
         let level = |name: &str| -> Vec<u32> { fields.raw_items(name).iter().map(|b| word(b, 0)).collect() };
         let volumes = fields.raw_items("Volumes").first().map_or([0.0; 4], |b| {
@@ -248,6 +248,12 @@ impl CollisionSounds {
     pub fn prop(db: &Database, profile: u32) -> Self {
         let Some(prop) = db.collection_by_key(vlt_hash("smackable"), profile) else { return Self::default() };
         Self::from_collection(db, prop)
+    }
+
+    /// Read the owning non-player vehicle directly, without resolving a visual-model alias.
+    pub fn vehicle(db: &Database, profile: u32) -> Self {
+        let Some(car) = db.collection_by_key(vlt_hash("pvehicle"), profile) else { return Self::default() };
+        Self::from_collection(db, car)
     }
 
     fn from_collection(db: &Database, car: CollectionRef<'_>) -> Self {

@@ -1441,6 +1441,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-anim"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-attrib"
 version = "0.1.0"
 dependencies = [
@@ -1639,6 +1647,19 @@ version = "0.1.0"
 dependencies = [
  "nihav_core",
  "nihav_duck",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-net-core"
+version = "0.1.0"
+
+[[package]]
+name = "blackbox-nis"
+version = "0.1.0"
+dependencies = [
+ "blackbox-chunk",
+ "glam 0.34.1",
  "thiserror 2.0.21",
 ]
 
@@ -3859,6 +3880,7 @@ dependencies = [
  "bevy_window",
  "bevy_winit",
  "blackbox-aems",
+ "blackbox-anim",
  "blackbox-attrib",
  "blackbox-bevy-render",
  "blackbox-carsound",
@@ -3875,6 +3897,7 @@ dependencies = [
  "blackbox-mixmap",
  "blackbox-modding",
  "blackbox-movie",
+ "blackbox-nis",
  "blackbox-paramap",
  "blackbox-particles",
  "blackbox-playlist",
@@ -3914,15 +3937,19 @@ dependencies = [
  "raw-window-handle",
  "save-store",
  "serde",
+ "serde_json",
+ "sha2",
  "symphonia",
  "toml 0.9.12+spec-1.1.0",
  "wgpu",
+ "windows",
 ]
 
 [[package]]
 name = "nfsmw-career"
 version = "0.1.0"
 dependencies = [
+ "blackbox-attrib",
  "save-store",
  "thiserror 2.0.21",
 ]
@@ -3932,6 +3959,7 @@ name = "nfsmw-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-anim",
  "blackbox-attrib",
  "blackbox-carparts",
  "blackbox-chunk",
@@ -3941,12 +3969,14 @@ dependencies = [
  "blackbox-ginsu",
  "blackbox-hash",
  "blackbox-minimap",
+ "blackbox-nis",
  "blackbox-particles",
  "blackbox-roads",
  "blackbox-scenery",
  "blackbox-sequence",
  "blackbox-solid",
  "blackbox-streaming",
+ "blackbox-text",
  "blackbox-tpk",
  "blackbox-trace",
  "blackbox-vehicle",

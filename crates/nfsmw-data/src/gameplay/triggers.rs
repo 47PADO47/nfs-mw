@@ -85,7 +85,8 @@ pub(crate) fn triggers(db: &Database) -> Vec<BoxTrigger> {
     instances(db).filter(|c| inherits(*c, "boxtrigger")).map(trigger).collect()
 }
 
-fn trigger(c: CollectionRef<'_>) -> BoxTrigger {
+/// Reads one box trigger from its collection.
+pub(super) fn trigger(c: CollectionRef<'_>) -> BoxTrigger {
     let p = placement(c);
     BoxTrigger {
         key: c.key(),

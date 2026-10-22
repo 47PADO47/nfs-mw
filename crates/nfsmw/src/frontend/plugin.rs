@@ -324,15 +324,7 @@ fn update(
                 fe.next_boot(host, &mut env);
             }
         }
-        Stage::Tutorial => {
-            let skip = actions.just_pressed(Action::MenuAccept)
-                || actions.just_pressed(Action::MenuStart)
-                || actions.just_pressed(Action::MenuBack)
-                || actions.just_pressed(Action::Click);
-            if host.scene.finished() || skip {
-                fe.end_tutorial(host, &mut env);
-            }
-        }
+        Stage::Movie { .. } => fe.movie_frame(&actions, host, &mut env),
         // Nothing pauses or skips the loading screen: the pad only drives its animation (mask 0 below).
         Stage::Loading => fe.loading_frame(dt, host, &mut env),
         Stage::Playing => {
@@ -410,6 +402,7 @@ fn update(
             fe.apply(commands, host, &mut env);
             // The profile step of the boot flow is over when its last screen closed: the main menu follows.
             fe.poll_startup(host, &mut env);
+            fe.end_game_frame(host, &mut env);
             fe.sync_backdrop(host);
             // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
             let took = started.elapsed();

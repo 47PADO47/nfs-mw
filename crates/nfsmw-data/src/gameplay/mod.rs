@@ -7,13 +7,17 @@
 //! vector.
 
 mod bins;
+mod final_race;
 mod markers;
 mod milestones;
 mod params;
 mod races;
+mod rewards;
+mod story;
 mod triggers;
 
 pub use bins::{Bin, bins};
+pub use final_race::{EventMarker, FinalRaceMarkers};
 pub use markers::{ActivityKind, ActivityMarker};
 pub use milestones::{
     Milestone, MilestoneType, RivalRequirements, SpeedTrap, milestone_types, milestones, rival_requirements,
@@ -21,6 +25,8 @@ pub use milestones::{
 };
 pub use params::{Character, RaceParams};
 pub use races::{Placement, Race, RaceType};
+pub use rewards::RewardRecord;
+pub use story::RaceStory;
 pub use triggers::{BoxTrigger, SphereTrigger};
 
 use anyhow::{Context, Result};
@@ -57,6 +63,8 @@ pub struct GameplayData {
     pub speed_traps: Vec<SpeedTrap>,
     /// The 30 milestone statistic types (from `attributes.bin`, which [`load`] puts in the database).
     pub milestone_types: Vec<MilestoneType>,
+    /// The final race's markers (`race_bin_01/epic_pursuit`); `None` when the database has no such race.
+    pub final_race: Option<FinalRaceMarkers>,
 }
 
 impl GameplayData {
@@ -80,6 +88,12 @@ impl GameplayData {
         self.races.iter().find(|r| r.name == name)
     }
 
+    /// The `respawn` marker of the activity zone with this full name (for example
+    /// `menu_gate_safehouse/zone_safehouse_1`): where the car goes back to after a bust there.
+    pub fn zone_respawn(&self, zone: &str) -> Option<Placement> {
+        self.markers.iter().find(|m| m.name == zone)?.respawn
+    }
+
     /// Read a database that holds `attributes.bin` and `gameplay.bin` (see [`load`]).
     pub fn from_database(db: &Database) -> Self {
         Self {
@@ -92,6 +106,7 @@ impl GameplayData {
             milestones: milestones::milestones(db),
             speed_traps: milestones::speed_traps(db),
             milestone_types: milestones::milestone_types(db),
+            final_race: final_race::final_race(db),
         }
     }
 }
@@ -174,11 +189,22 @@ pub(crate) fn key_field(c: CollectionRef<'_>, field: &str) -> Option<u32> {
 
 /// An array of `GCollectionKey`s, in order, without the empty entries.
 pub(crate) fn key_array(c: CollectionRef<'_>, field: &str) -> Vec<u32> {
-    match c.get(field) {
+    key_array_at(c, vlt_hash(field))
+}
+
+/// Like [`key_array`], for a field known only by its key.
+pub(crate) fn key_array_at(c: CollectionRef<'_>, field_key: u32) -> Vec<u32> {
+    match c.get_by_key(field_key) {
         Some(Value::Array(items)) => items.iter().filter_map(key_of).filter(|k| *k != 0).collect(),
         Some(value) => key_of(value).filter(|k| *k != 0).into_iter().collect(),
         None => Vec::new(),
     }
+}
+
+/// The key of the child `child` of `c`: the collection named `<c's name>/<child>`, as the race children are named
+/// (for example `race_bin_16/16_1_1_circuit/outro_nis_marker`).
+pub(crate) fn child_key(c: CollectionRef<'_>, child: &str) -> u32 {
+    vlt_hash(&format!("{}/{child}", name_of(c)))
 }
 
 #[cfg(test)]

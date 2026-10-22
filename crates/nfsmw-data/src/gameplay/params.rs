@@ -78,8 +78,6 @@ pub struct RaceParams {
     pub localization_tag: i32,
     /// `ChallengeSeriesRace`: the event belongs to the challenge series (its money is not paid in a career).
     pub challenge_series: bool,
-    /// `OutroNIS`: the cutscene the career plays after the race, when it has one.
-    pub outro_nis: Option<String>,
     /// `RaceLength` (hash `0x7C11C52E`): the route in metres as the editor stored it, 0 when it has none. The Quick Play
     /// brief's `Length:` line reads it (`docs/specs/quick-play.md` section 5).
     pub route_length: f32,
@@ -122,7 +120,6 @@ impl Default for RaceParams {
             milestone: None,
             threshold: 0.0,
             post_race_activity: None,
-            outro_nis: None,
             initially_unlocked: false,
             quick_race_open: false,
             never_in_quick_race: false,
@@ -171,7 +168,6 @@ impl RaceParams {
             unlock_races: key_array(c, "UnlockRaces"),
             localization_tag: c.get_i32("LocalizationTag").unwrap_or(0),
             challenge_series: c.get_bool("ChallengeSeriesRace").unwrap_or(false),
-            outro_nis: text(c, "OutroNIS").filter(|name| !name.is_empty()),
             route_length: c.get_f32("RaceLength").unwrap_or(d.route_length),
             finish_camera: text(c, "FinishCamera"),
             photo_texture: c

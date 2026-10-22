@@ -104,7 +104,16 @@ fn installed_arrest_locks_player_input_until_the_ticket_is_paid() {
     let world = scene.traffic.as_ref().unwrap();
     assert!(world.arrest_active() && world.is_busted());
     assert!(world.cars.iter().any(|car| car.audio_emitter().id == identity && !car.emergency_lights()));
-    assert!(scene.take_bust_ticket().is_some(), "the normal world clock reaches the ticket");
+    // The arrest scene plays as the NIS: the world waits for its end, then the normal world clock reaches the ticket.
+    let mut ticket = None;
+    for _ in 0..3600 {
+        scene.update(&mut renderer, &held, STEP);
+        ticket = scene.take_bust_ticket();
+        if ticket.is_some() {
+            break;
+        }
+    }
+    assert!(ticket.is_some(), "the arrest scene ends and the ticket follows");
     assert!(scene.take_bust_ticket().is_none());
     assert!(scene.pay_bust(false));
     assert!(!scene.traffic.as_ref().unwrap().arrest_active());

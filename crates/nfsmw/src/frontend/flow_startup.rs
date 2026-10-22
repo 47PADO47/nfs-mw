@@ -57,8 +57,8 @@ pub(super) fn boot_steps(movies: bool) -> VecDeque<Boot> {
 }
 
 /// True when the profile step is over because its last screen closed (Back, No, or the notice after a load or a create).
-pub(super) fn is_over(startup: bool, stage: Stage, top: Option<&str>) -> bool {
-    startup && stage == Stage::Menus && top.is_none()
+pub(super) fn is_over(startup: bool, stage: &Stage, top: Option<&str>) -> bool {
+    startup && *stage == Stage::Menus && top.is_none()
 }
 
 /// The question asked when no alias is saved. Yes shows the two autosave notices, then asks for the name, which makes,
@@ -120,7 +120,7 @@ impl Frontend {
 
     /// Goes on to the main menu when the profile step's last screen has closed. Called every frame of the menus.
     pub(in crate::frontend) fn poll_startup(&mut self, host: &mut Host, env: &mut Env) {
-        if !is_over(self.startup, self.stage, self.screens.top()) {
+        if !is_over(self.startup, &self.stage, self.screens.top()) {
             return;
         }
         log::info!("boot: the profile step is over");

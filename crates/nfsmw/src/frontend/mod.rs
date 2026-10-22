@@ -22,6 +22,7 @@ mod icon_window;
 mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).
 pub(crate) mod custom_race;
+mod footer;
 mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
@@ -68,6 +69,8 @@ mod capability_tests;
 mod disabled_rows_tests;
 #[cfg(test)]
 mod exhaust_flames_tests;
+#[cfg(test)]
+mod flow_movie_tests;
 #[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]

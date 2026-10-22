@@ -62,7 +62,8 @@ impl Drive {
             None => self.presses.take_into(self.frame_input),
         }
         .during_arrest(self.arrested)
-        .on_grid(self.gridded);
+        .on_grid(self.gridded)
+        .sabotaged(self.sabotaged);
         let input = Self::assisted(self.assist_aim, sim, input);
         if input.pop {
             self.flames.pop();
@@ -113,10 +114,11 @@ impl Drive {
             );
         }
         let finite = sim.is_finite();
+        let reset_allowed = !sim.reset_collision_active();
         if self.batch_run && self.script_finished() {
             log::info!("tire effects at script end: {}", self.effects.status());
         }
-        if input.reset {
+        if input.reset && reset_allowed {
             self.manual_resets += 1;
             let at = self.current.position;
             log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);

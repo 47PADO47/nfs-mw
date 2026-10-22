@@ -17,7 +17,7 @@ fn installed_truck_startup_motion_is_measured_before_suspension_settling() {
         let pivots = (physics.bounds.pivot, trailer_physics.bounds.pivot);
         let mut a = CarSim::new(physics, [0.5; 4]);
         let mut b = CarSim::new(trailer_physics, [0.5; 4]);
-        a.configure_ai();
+        a.configure_traffic();
         b.configure_trailer();
         assert!(a.place_moving(&ground, spawn(), speed));
         let mut coupling = Coupling::new(&a, &b).unwrap();

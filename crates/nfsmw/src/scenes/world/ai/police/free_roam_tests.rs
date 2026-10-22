@@ -57,6 +57,8 @@ fn another_automatic_pursuit_waits_for_the_arrest_and_ticket_to_finish() {
     assert!(!police.can_begin());
     police.tick_bust(3.1);
     assert!(!police.can_begin());
+    // The arrest scene is answered as unavailable, so the bust goes on to its ticket after the hold.
+    let _ = police.bust.arrest_scene_over();
     police.tick_bust(3.1);
     assert!(!police.can_begin());
     police.bust.pay(busted::Payment::Cash, 0).unwrap();

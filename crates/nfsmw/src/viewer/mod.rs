@@ -337,8 +337,18 @@ pub trait Scene {
     fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
         None
     }
+    /// The NIS player's audio request: the scene whose stream plays now, if any (see `audio::nis`). Scenes without
+    /// NIS ignore it.
+    fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
+        None
+    }
+    /// Whether the NIS audio still plays after this frame's update. Called every frame. Scenes without NIS ignore it.
+    fn note_nis_audio(&mut self, _playing: bool) {}
     /// Positions of petrol-station blasts since the last call, in render space.
     fn take_explosions(&mut self) -> Vec<glam::Vec3> {
+        Vec::new()
+    }
+    fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
         Vec::new()
     }
     /// The sound viewer's transport, when the scene has one: the audio plugin plays what it asks for.

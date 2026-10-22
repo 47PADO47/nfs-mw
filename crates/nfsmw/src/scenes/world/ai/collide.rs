@@ -119,26 +119,26 @@ impl TrafficWorld {
                 let distance = player.body().position.distance(part.sim.body().position);
                 let player_speed = player.body().linear_velocity.length();
                 let closing = (player.body().linear_velocity - part.sim.body().linear_velocity).length();
-                if near(player, part.sim)
-                    && let Some(hit) = player.collide_with(part.sim)
-                {
-                    let from_camera = far(&*part.sim);
-                    hits.push(Hit {
-                        owner: part.owner,
-                        impulse: hit.impulse,
-                        damage: hit.damage[1],
-                        by_player: true,
-                        from_camera,
-                        striker: DriverClass::Human,
-                        speed: player_speed,
-                        contact: hit.pair,
+                let owner = part.owner;
+                let collided = near(player, part.sim)
+                    && player.collide_with_each(part.sim, |hit, _, target| {
+                        hits.push(Hit {
+                            owner,
+                            impulse: hit.impulse,
+                            damage: hit.damage[1],
+                            by_player: true,
+                            from_camera: far(target),
+                            striker: DriverClass::Human,
+                            speed: player_speed,
+                            contact: hit.pair,
+                        });
                     });
-                    if part.class == DriverClass::Traffic {
-                        traffic_hits.push((part.owner, closing));
-                    }
-                } else if distance < events.near_miss_distance {
+                if collided && part.class == DriverClass::Traffic {
+                    traffic_hits.push((owner, closing));
+                }
+                if !collided && distance < events.near_miss_distance {
                     passes.push(Pass {
-                        owner: part.owner,
+                        owner,
                         distance,
                         relative_speed: planar_relative_speed(
                             player.body().linear_velocity,
@@ -156,29 +156,29 @@ impl TrafficWorld {
                 }
                 let speed_a = part.sim.body().linear_velocity.length();
                 let speed_b = other.sim.body().linear_velocity.length();
-                if let Some(hit) = part.sim.collide_with(other.sim) {
-                    let (near_a, near_b) = (far(&*part.sim), far(&*other.sim));
+                let (owner_a, owner_b, class_a, class_b) = (part.owner, other.owner, part.class, other.class);
+                part.sim.collide_with_each(other.sim, |hit, a, b| {
                     hits.push(Hit {
-                        owner: part.owner,
+                        owner: owner_a,
                         impulse: hit.impulse,
                         damage: hit.damage[0],
                         by_player: false,
-                        from_camera: near_a,
-                        striker: other.class,
+                        from_camera: far(a),
+                        striker: class_b,
                         speed: speed_b,
                         contact: hit.pair,
                     });
                     hits.push(Hit {
-                        owner: other.owner,
+                        owner: owner_b,
                         impulse: hit.impulse,
                         damage: hit.damage[1],
                         by_player: false,
-                        from_camera: near_b,
-                        striker: part.class,
+                        from_camera: far(b),
+                        striker: class_a,
                         speed: speed_a,
                         contact: hit.pair,
                     });
-                }
+                });
             }
         }
         drop(parts);
@@ -243,7 +243,7 @@ impl TrafficWorld {
         self.player_position = player.as_deref().map(|p| p.body().position);
     }
 
-    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a frame.
+    /// What the player struck since the last call: a cop for the first time, or a prop. The police read it once a tick.
     pub fn take_strikes(&mut self) -> Strikes {
         std::mem::take(&mut self.strikes)
     }

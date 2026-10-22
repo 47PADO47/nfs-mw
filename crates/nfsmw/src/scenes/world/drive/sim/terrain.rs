@@ -110,6 +110,10 @@ impl Ground for PreparedGround<'_> {
         self.fallback.body_friction(tag)
     }
 
+    fn world_friction(&self, tag: u32) -> f32 {
+        self.fallback.world_friction(tag)
+    }
+
     fn surface_grip(&self, tag: u32) -> SurfaceGrip {
         self.fallback.surface_grip(tag)
     }

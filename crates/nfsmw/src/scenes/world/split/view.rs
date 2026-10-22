@@ -113,6 +113,8 @@ impl WorldScene {
         {
             out.push(arrow);
         }
+        // The NIS scene's characters: placed with the rest, so they sort by mesh with them.
+        self.nis.character_instances(out);
         // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
         visibility::sort_by_mesh(out);
     }

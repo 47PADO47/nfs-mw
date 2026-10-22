@@ -207,6 +207,6 @@ impl TrafficWorld {
     /// A uniform number in `0..1` from the world's generator.
     fn rng_unit(&mut self) -> f32 {
         use blackbox_roads::RandomSource;
-        self.rng.next_f32()
+        self.rng.roadblock.next_f32()
     }
 }

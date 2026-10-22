@@ -6,7 +6,7 @@ use blackbox_text::label_hash;
 use nfsmw_data::gameplay::RaceType;
 
 use super::*;
-use crate::frontend::career_screens::car_lot::strip_fills;
+use crate::frontend::career_screens::car_lot_bars::strip_fills;
 use crate::frontend::look::Look;
 use crate::frontend::quick_play::pool::{self, CarPool};
 use crate::frontend::quick_play::{fill, text};

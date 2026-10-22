@@ -1,5 +1,6 @@
 //! What the viewer can show.
 
+pub mod anim_view;
 pub mod assets;
 pub mod car;
 pub mod feng;

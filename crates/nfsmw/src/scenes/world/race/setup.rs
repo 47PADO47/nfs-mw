@@ -253,6 +253,7 @@ mod tests {
             checkpoints: vec![11, 12],
             barriers: Vec::new(),
             params: RaceParams { opponents, ..Default::default() },
+            story: Default::default(),
         }
     }
 

@@ -98,9 +98,9 @@ audio behaviours are the `Traffic` variants. All numbers below are **[verified]*
   its kingpin on the hitch, and is removed with it. A tractor whose test says "invalid" is kept while its trailer
   is valid (section 8 of the spawning spec) and a trailer that has come loose and is invalid is removed on its own.
   For the other cars a hitched tractor and trailer count as one long body (nose to tail) in the avoidable list.
-  After the joint is released the trailer is a free body: it brakes fully (a trailer's spring brakes apply
-  when its air line breaks), collides with everything including its former tractor, and is not part of the
-  tractor's body any more.
+  After the joint is released the trailer is a free body: its brake and handbrake inputs clear, it collides
+  with everything including its former tractor, and it is not part of the tractor's body any more.
+  The pair shares one off-ground timer; see [trailer release controls](trailer-release-controls.md).
 - Sound / render ids carried by the data: `HornType` 5, 6 (a few cars) or 11 (trucks, semis), `TrafficEngType` 0
   (cars), 2 (vans, pickups, wagons, trucks `trafcemtr` `trafdmptr`), 8 (`trafgarb`, `traffire`), `WooshType` 9 (cars,
   vans) or 6 (trucks, semis, ambulance) **[verified]**. See [ai-traffic-world.md](ai-traffic-world.md#3-horns-engine-and-drive-by-sounds).

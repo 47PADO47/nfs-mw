@@ -42,7 +42,7 @@ impl Canvas {
         let Some(layer) = out.layer.as_ref() else { return };
         for mesh in &layer.meshes {
             let Some((tw, th, texels)) = textures.0.get(&mesh.texture.0) else { continue };
-            for triangle in mesh.indices.chunks_exact(3) {
+            for triangle in mesh.indices.as_chunks::<3>().0 {
                 let v = [0, 1, 2].map(|k| &mesh.vertices[triangle[k] as usize]);
                 self.triangle(v.map(|v| (v.position, v.uv, v.color_rgba)), (*tw, *th, texels));
             }

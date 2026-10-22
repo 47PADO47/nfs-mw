@@ -24,7 +24,7 @@ the sequence after that point. The rewrite's current state is in the last sectio
    handler. It picks an arrest scene from a fixed list of 26 bundles, looks for an arrest spot next to the player, and
    plays the scene with the player's car bound as the actor. **[decomp]**
 3. If there is no spot and the player is in free roam, the game pushes the front-end screen `Infractions.fng`. If the
-   player is in a race, a request object is made instead (its use is not decoded). **[decomp]**
+   player is in a race, the game posts `EPause(0, 1, 0)` instead: the race pauses. **[decomp]** ([nis-player.md](nis-player.md))
 4. The arrest is an NIS (cutscene), not an FMV. No busted movie exists in the install. **[verified]**
 5. After the NIS the game shows the infractions screen (`Infractions.fng`, pay with cash or a marker), an in-game
    dialog (`InGameBusted.fng`, not named anywhere in `speed.exe`) and an in-game overlay (`BUSTED_OVERLAY.fng`, a
@@ -60,7 +60,7 @@ Times are game time from the moment the busted meter fills (`busted_timer > 5.0`
 | 5 | T0 + 3 s | The handler looks for an arrest spot next to the player (`0x0044da10`). | [decomp] |
 | 6a | spot found | The NIS activity is created (name hash of `NISActivity`), the NIS component is found, and the player's perp handle is passed to its play call. The NIS plays the chosen scene. | [decomp] |
 | 6b | no spot, free roam | `Infractions.fng` is queued as a front-end screen (mode 2). No NIS, no arrest camera. | [decomp] |
-| 6c | no spot, race | A small request object is made (its consumer is not decoded). The community summary says the race pauses. | [decomp], [community] |
+| 6c | no spot, race | `EPause(0, 1, 0)` is posted: the race pauses ([nis-player.md](nis-player.md)). | [decomp] |
 | 7 | during the NIS | The NIS runs its own camera and event track (section 4.3). The port's procedural arrest camera covers this in the rewrite. | [decomp], [unconfirmed] for the camera |
 | 8 | NIS end | Not located. The screen the player sees next is open (see Next leads). | [unconfirmed] |
 | 9 | after | The infractions screen (`Infractions.fng`) offers pay with cash or a marker (section 6.3). | [verified] text, [unconfirmed] route |
@@ -105,7 +105,7 @@ The chooser (`0x0044d770`) fills a 32-byte name buffer and sets the NIS scene by
 the NIS manager object at `0x008ee320`, which the animation spec also names as the camera pack owner). It reads two
 inputs:
 
-- a **class** value (0 to 3, or other) read through the perp car's interface. Classes 0 and 1 take one path; class 2
+- a **heat** value (0 to 3, or other) read through the perp car's interface (`GetHeat`; earlier versions of this page called it a class). Classes 0 and 1 take one path; class 2
   and class 3 (or any other value) take the other.
 - a **variant** index, 0 to 7, from a random helper (`0x0045da70` called with 0.99, rounded by `0x007c4b80`). The exact
   rule is **[unconfirmed]**.
@@ -152,8 +152,11 @@ Example `NIS/Scene_ArrestF02_BundleB.bun`, read with `tools/chunkdump.py`:
   `AnimScene (NisScene)` root.
 - No camera chunk in the bundle. The camera for the scene is not in this file.
 
-### 4.4 Camera **[unconfirmed]**
+### 4.4 Camera **[decomp + verified]**
 
+- The chooser always asks for camera track 0; the scene's track comes from the NIS camera pack of `GLOBAL/InGameB.bun`,
+  keyed by the hash of the scene name ([nis-player-2.md](nis-player-2.md), [nis-scenes.md](nis-scenes.md)). The
+  notes below are the earlier reading.
 - The arrest NIS has no camera data in its own bundle (section 4.3).
 - The docs record ICE camera packs `0x8003B200` to `0x8003B203` in `GLOBAL/InGameB.bun` (NIS, FMV and replay
   cameras; [animation.md](../formats/animation.md)). The chooser of a camera track for arrests was not located, so the
@@ -364,16 +367,14 @@ runs were allowed in this pass); its parts have unit tests.
   The original's handler tells the two apart by those object name hashes. The press also disables the package's input
   until its own timed script re-enables it (response `button 0x101`).
 
-### 10.3 Missing
+### 10.3 Missing or partly built
 
-- **The NIS player.** NIS player needed. The 26 `Arrest*` bundles (`NIS/Scene_Arrest*_BundleB.bun`) play through a
-  scene player that does not exist in the port: `blackbox-chunk` only reads the EAGL and camera chunk ids, and
-  `blackbox-sequence` is the CARP event runtime, not a scene player. Until it exists the arrest stays on the procedural
-  arrest camera, which is the stand-in. The player needs to load a bundle's EAGL skeletons, animations, event sequence
-  and `AnimScene` root, play the chosen scene at the arrest spot, and bind the perp car as the actor. `arrest_scene()`
-  already gives the name.
-- **The arrest spot** (section 4.2). The spot search is not built. The NIS path needs it; the flow always takes the
-  free-roam or race route.
+- **The NIS player** (built). The arrest scene plays as a NIS in the world (`scenes/world/nis`, from the `Arrest*`
+  bundles in `NIS/`). The bust flow holds the car for the arrest shot, hands the chosen scene to the player, and waits
+  for the scene to end, or to be refused, before the infractions ticket (`busted/flow.rs`, `arrest_scene_over`). The
+  arrest spot is the player's pose. Open items of the player, such as the framing not checked on screen, are in
+  [provenance/nis-player.md](../provenance/nis-player.md).
+- **The arrest spot** (section 4.2). The spot search is not built. The arrest uses the player's pose as its spot instead.
 - **Career state.** Done in a career: see [busted-aftermath.md](busted-aftermath.md) (cash, strikes, impound, markers,
   the notices, the car select and the respawn). Free roam without a career has none of it and resumes driving.
 - **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and

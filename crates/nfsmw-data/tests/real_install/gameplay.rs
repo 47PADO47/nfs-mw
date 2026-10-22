@@ -201,7 +201,7 @@ fn post_race_activities_and_outros_are_read() {
     let data = gameplay::load(&dir).expect("gameplay data");
     let chained: Vec<_> = data.races.iter().filter(|r| r.params.post_race_activity.is_some()).collect();
     let outros: Vec<(String, &str)> =
-        data.races.iter().filter_map(|r| r.params.outro_nis.as_deref().map(|nis| (r.name.clone(), nis))).collect();
+        data.races.iter().filter_map(|r| r.story.outro_nis.as_deref().map(|nis| (r.name.clone(), nis))).collect();
     println!("CHAINED {} OUTROS {outros:?}", chained.len());
     for race in &chained {
         let next = race.params.post_race_activity.unwrap();
