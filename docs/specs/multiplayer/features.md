@@ -1,6 +1,6 @@
 # Multiplayer: requirements and feature catalogue
 
-Status: **design only**. Nothing is built. Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
+Status: **design**, with the wire foundation of `crates/nfsmw-net` built on 2026-10-22 (rows marked **Built** say what). Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
 [roadmap](../../roadmap.md) are not started. Written 2026-10-16. The netcode decisions are in
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md); the wire format is in [protocol](protocol.md); the sync
 algorithms are in [sync model](sync-model.md). Security is a separate document, `security.md` in this folder (written
@@ -37,7 +37,7 @@ police simulated by the server.
 
 Target milestone: **M10** (LAN), **M11** (online). A P1 feature may be M11-only.
 
-Status words: **not built** for every item. A **blocked on** note names the system that must exist first.
+Status words: **not built** unless a **Built** note says which part exists (the wire format or the check, not the play). A **blocked on** note names the system that must exist first.
 
 ## 3. Feature catalogue
 
@@ -76,8 +76,8 @@ Status words: **not built** for every item. A **blocked on** note names the syst
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-30 | P0 | **Car selection** | The client sends a loadout: a car type id and a parts selection (ids, not tuning numbers). The server rebuilds the vehicle parameters from its own copy of the game data, so a client cannot invent numbers. Both sides build the same `VehicleSpec` from the same ids |
-| MP-31 | P1 | **Car and class restrictions** | The server setting names an allowed set of cars, a class or a performance cap. A client with a car outside it is refused in the lobby, with a reason code |
+| MP-30 | P0 | **Car selection** | The client sends a loadout: a car type id and a parts selection (ids, not tuning numbers). The server rebuilds the vehicle parameters from its own copy of the game data, so a client cannot invent numbers. Both sides build the same `VehicleSpec` from the same ids. **Built (wire):** the `Loadout` message and `Loadout::to_join` in `nfsmw-net`; the server's rebuild from ids is not |
+| MP-31 | P1 | **Car and class restrictions** | The server setting names an allowed set of cars, a class or a performance cap. A client with a car outside it is refused in the lobby, with a reason code. **Built (check):** `loadout::validate` over a `Catalog` the game implements, with reason codes ([protocol messages](protocol-messages.md) 7.4); the game's catalogue and class ratings are not |
 | MP-32 | P1 | **Catch-up on or off** | Optional rubber-banding rules for races (a boost for trailing players). The original has none for human racers, so it is **off by default** and a server setting. The server applies it; clients display it |
 | MP-33 | P1 | **Collisions on, off, or ghost** | Per session and per phase: full car-to-car collisions, collisions off between racers (ghost cars, semi-transparent), or ghost only during the first seconds of a start. Traffic and world collisions are unaffected |
 | MP-34 | P1 | **Nitrous and damage rules** | Per session toggles for nitrous, damage visuals, and repair at the lobby. Damage stays visual |
@@ -108,11 +108,11 @@ Status words: **not built** for every item. A **blocked on** note names the syst
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-60 | P0 | **Protocol version check** | The first exchange carries a protocol version and the reject reason when it differs. No client of another major version enters a session |
-| MP-61 | P0 | **Game data check** | The server and each client compare a data id: the identified `speed.exe` hash (v1.3 is the only supported build) plus a hash of the list of required files. A different data set is refused before the join |
-| MP-62 | P1 | **Sim build check** | The handshake carries the sim build id. The same build predicts accurately. A different build, or a different operating system, may join and play; the server is authoritative, so the only effect is more corrections (ADR 0006, determinism). A server setting can require an exact match for competitive sessions |
-| MP-63 | P1 | **Mod compatibility** | A server lists the mods that change gameplay (ids, versions, content hashes). A client must have the same set. Client-only mods (HUD, audio, ReShade) are marked safe and are not compared. Blocked on the mod API (milestone 12); until then the list is empty and the check passes |
-| MP-64 | P1 | **Cross-version policy** | The server accepts a range of minor protocol versions. A newer client talking to an older server falls back to the older feature set. A major bump is a hard reject. See [protocol](protocol.md) section 8 |
+| MP-60 | P0 | **Protocol version check** | The first exchange carries a protocol version and the reject reason when it differs. No client of another major version enters a session. **Built (check):** `version::check_join` and the `JoinRejected` reason codes; the handshake that carries it is not |
+| MP-61 | P0 | **Game data check** | The server and each client compare a data id: the identified `speed.exe` hash (v1.3 is the only supported build) plus a hash of the list of required files. A different data set is refused before the join. **Built (check):** `DataId::compute` and the join check; reading the file list from the install is not |
+| MP-62 | P1 | **Sim build check** | The handshake carries the sim build id. The same build predicts accurately. A different build, or a different operating system, may join and play; the server is authoritative, so the only effect is more corrections (ADR 0006, determinism). A server setting can require an exact match for competitive sessions. **Built (check):** `SimBuild` and the `SimBuildMismatch` reason |
+| MP-63 | P1 | **Mod compatibility** | A server lists the mods that change gameplay (ids, versions, content hashes). A client must have the same set. Client-only mods (HUD, audio, ReShade) are marked safe and are not compared. Blocked on the mod API (milestone 12); until then the list is empty and the check passes. **Built (check):** the manifest entry and the off, lenient and strict comparison (`compare_mods`) |
+| MP-64 | P1 | **Cross-version policy** | The server accepts a range of minor protocol versions. A newer client talking to an older server falls back to the older feature set. A major bump is a hard reject. See [protocol](protocol.md) section 8. **Built (check):** minor negotiation, the oldest served minor, and the feature-by-minor table (empty so far) |
 
 ### 3.7 Records, stats and replays
 
