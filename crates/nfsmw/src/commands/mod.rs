@@ -2,6 +2,8 @@
 
 mod dump_anim;
 mod install;
+#[cfg(feature = "multiplayer")]
+mod net;
 mod setup;
 mod start;
 
@@ -13,17 +15,30 @@ use crate::input::Bindings;
 use crate::scenes::{car::CarScene, world::WorldScene};
 use crate::settings::{Partial, Settings};
 
+/// The LAN switches the game starts with (`--host`, `--connect`); nothing without multiplayer.
+#[cfg(feature = "multiplayer")]
+type NetLaunch = crate::cli::NetArgs;
+#[cfg(not(feature = "multiplayer"))]
+#[derive(Default)]
+struct NetLaunch;
+
 /// Runs the window with the front end on top of an empty backdrop.
 fn run_front_end(
     dir: &game_install::GameDir,
     mods: crate::modding::Mods,
-    start: crate::frontend::Start,
+    (start, launch): (crate::frontend::Start, &NetLaunch),
     script: Option<&str>,
     look: Option<crate::frontend::Look>,
     view: &crate::cli::ViewArgs,
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true).with_mods(mods);
+    #[cfg(feature = "multiplayer")]
+    {
+        options.net = Some(net::plugin(dir, launch));
+    }
+    #[cfg(not(feature = "multiplayer"))]
+    let _ = launch;
     options.frontend = Some(crate::frontend::FrontendPlugin {
         dir: dir.clone(),
         start,
@@ -41,6 +56,14 @@ fn run_front_end(
 
 pub fn run(cli: Cli) -> Result<()> {
     let game_dir = cli.game_dir.as_deref();
+    #[cfg(feature = "multiplayer")]
+    if let Some(result) = net::run_without_window(&cli.net, game_dir) {
+        return result;
+    }
+    #[cfg(feature = "multiplayer")]
+    let launch = cli.net.clone();
+    #[cfg(not(feature = "multiplayer"))]
+    let launch = NetLaunch;
     // No command at all: the game, as `play` starts it.
     let command = cli.command.unwrap_or_else(Command::play);
     match command {
@@ -102,8 +125,8 @@ pub fn run(cli: Cli) -> Result<()> {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
             let scripted = skip_boot || ui_script.is_some();
-            let start = start::of(drive, aliases, scripted, skip_intro);
-            run_front_end(&dir, mods, start, ui_script.as_deref(), None, &view)
+            let start = start::of(drive || session_starts(&launch), aliases, scripted, skip_intro);
+            run_front_end(&dir, mods, (start, &launch), ui_script.as_deref(), None, &view)
         }
         Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -127,7 +150,7 @@ pub fn run(cli: Cli) -> Result<()> {
             );
             let settle = view.screenshot.is_some().then_some("wait 2");
             let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;
-            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), look, &view)
+            run_front_end(&dir, mods, (start, &launch), ui_script.as_deref().or(settle), look, &view)
         }
         Command::FengViewer { name, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -196,4 +219,15 @@ pub fn run(cli: Cli) -> Result<()> {
             )
         }
     }
+}
+
+/// `--host` and `--connect` go straight into free roam, where the session's world runs.
+#[cfg(feature = "multiplayer")]
+fn session_starts(launch: &NetLaunch) -> bool {
+    launch.starts_session()
+}
+
+#[cfg(not(feature = "multiplayer"))]
+fn session_starts(_launch: &NetLaunch) -> bool {
+    false
 }
