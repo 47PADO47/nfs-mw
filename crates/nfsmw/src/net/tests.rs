@@ -4,7 +4,7 @@
 //! `scenes/world/net_client/installed.rs`.
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use blackbox_net_core::endpoint::EndpointConfig;
 use blackbox_net_core::secure::IdentityKey;
@@ -18,9 +18,6 @@ use nfsmw_sim::toy::{ToyConfig, ToyWorld};
 use nfsmw_sim::{EntityView, PlayerId, WorldSim};
 
 use super::client::NetClient;
-
-/// Real time each tick leaves the net threads.
-const TICK_SLEEP: Duration = Duration::from_millis(1);
 
 fn config() -> ServerConfig {
     let mut config = ServerConfig::from_toml("countdown_seconds = 1\nstatus_seconds = 0\n").unwrap();
@@ -46,7 +43,10 @@ fn the_game_client_joins_the_real_server_over_the_listen_host_link() {
     let session = SessionConfig::new(Name::new("host").unwrap(), Loadout::stock(0), build.sim_build, build.data_id);
     let mut client = NetClient::new(link, session, true);
     let mut bot: Option<Bot> = None;
-    for tick in 0..60 * 8 {
+    // The fake clock is paced to the wall clock: the net threads run in real time, and a clock that outruns them (a
+    // loaded machine) makes every datagram look late (`docs/specs/multiplayer/game-wiring.md` section 6).
+    let started = Instant::now();
+    for tick in 0..60 * 6 {
         if bot.is_none() && client.session().slot().is_some() {
             let link = server.connect_local(IdentityKey::generate().unwrap().key_id(), EndpointConfig::default());
             bot = Some(Bot::over(link.unwrap(), BotConfig::new(1, 9)));
@@ -60,7 +60,8 @@ fn the_game_client_joins_the_real_server_over_the_listen_host_link() {
         // Neutral input every due tick: no world is lent, so a step leaves the car and every own block corrects it to
         // the server's state.
         client.session_mut().drive(|_| InputState::default());
-        thread::sleep(TICK_SLEEP);
+        let due = started + Duration::from_micros((tick + 1) * 1_000_000 / 60);
+        thread::sleep(due.saturating_duration_since(Instant::now()));
     }
     assert_eq!(server.lobby().wire_phase(), SessionPhase::Running, "the client's ready started the session");
     assert_eq!(client.session().slot(), Some(0), "the listen host's player is slot 0, the world's lead");
