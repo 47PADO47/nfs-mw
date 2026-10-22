@@ -3,7 +3,7 @@
 use super::setup::RaceOptions;
 use crate::scenes::world::WorldScene;
 
-const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] [split=CAR] | race status | race stop | race mod [demo]";
+const USAGE: &str = "usage: race list [filter] | race start <race> [laps=N] [opponents=N] [difficulty=N] [traffic=N] [heat=0-3] [split=CAR] | race status | race stop | race mod [demo]";
 
 /// Runs `race ...`.
 pub(in crate::scenes::world) fn race_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
@@ -58,6 +58,10 @@ fn parse_options(args: &[&str]) -> Result<RaceOptions, String> {
             }
             "difficulty" => options.difficulty = Some(number("difficulty")?.clamp(0, 100)),
             "traffic" => options.traffic = Some(number("traffic")?.clamp(0, 100)),
+            "heat" => {
+                let level = u8::try_from(number("heat")?).ok().filter(|level| *level <= 3);
+                options.heat = Some(level.ok_or("heat is 0 (none) to 3 (maximum)")?);
+            }
             "career" => options.career = true,
             "demo" => options.demo = true,
             _ => return Err(format!("unknown option {arg:?}; {USAGE}")),
@@ -124,6 +128,13 @@ mod tests {
         assert_eq!(options.traffic, Some(0));
         assert!(options.career);
         assert!(parse_options(&["demo"]).unwrap().demo);
+    }
+
+    #[test]
+    fn heat_is_a_level_from_none_to_maximum() {
+        assert_eq!(parse_options(&["heat=3"]).unwrap().heat, Some(3));
+        assert_eq!(parse_options(&["heat=0"]).unwrap().heat, Some(0));
+        assert!(parse_options(&["heat=4"]).is_err());
     }
 
     #[test]
