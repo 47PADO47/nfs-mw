@@ -1,6 +1,6 @@
 # Multiplayer: requirements and feature catalogue
 
-Status: **design**, with the wire foundation of `crates/nfsmw-net` built on 2026-10-22 (rows marked **Built** say what). Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
+Status: **design**, with the wire foundation and the gameplay rules of `crates/nfsmw-net` built on 2026-10-22 (rows marked **Built** say what; the modes, fairness rules, results and replays as built are in [modes](modes.md)). Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
 [roadmap](../../roadmap.md) are not started. Written 2026-10-16. The netcode decisions are in
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md); the wire format is in [protocol](protocol.md); the sync
 algorithms are in [sync model](sync-model.md). Security is a separate document, `security.md` in this folder (written
@@ -45,17 +45,17 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 
 | ID | P | Mode | Notes and dependencies |
 |---|---|---|---|
-| MP-01 | P0 | **Free roam** | Everybody drives the open city with traffic. The simplest mode and the first to build: it needs only players, traffic, collisions between cars and chat. Pursuits can be switched off in the session settings |
-| MP-02 | P0 | **Circuit race** | Laps over a checkpoint loop; positions, lap times, finish order. Blocked on the single-player race system (roadmap milestone 7, items "races" and "race checkpoints"). Race rules must be written as pure server-side rules from the start, so single player and multiplayer share them |
-| MP-03 | P0 | **Sprint race** | Point-to-point. Same dependency as MP-02 |
-| MP-04 | P1 | **Drag race** | Straight strip, launch and shift timing, reaction time. Blocked on the drag-race reimplementation (milestone 7, "reimplement drag races and their features"). The server needs the sim tick of the start light to score reaction time |
-| MP-05 | P1 | **Speedtrap race** | Sum or best of speed readings at trap gates. Blocked on the speedtrap event data (milestone 7, "event icons") |
-| MP-06 | P1 | **Knockout** | Last place at the end of each lap is out; eliminated players become spectators. An original event type (its minimap icon exists in the game); blocked like MP-02 |
-| MP-07 | P1 | **Pursuit co-op** | Several players share one pursuit against AI police. One pursuit entity with several targets; heat and busted are tracked per player, the pursuit ends when no target remains. Built on `blackbox-pursuit`, which is pure functions, so the server can run it as it is. Amended by ADR 0010: heat, cooldown, helicopter and roadblocks are shared; busted meter and bust are per target; built first for split-screen co-op. |
-| MP-08 | P1 | **Cops vs racers** | Some players drive police cars against the others. Player cops use the same car simulation as racers with a role flag; they get cop tools (siren, roadblock call, spike strip, busted contact). Blocked on a decision for what a human cop can do (open question 2) |
-| MP-09 | P2 | **Tag** | One player is "it" and holds a timer; contact with a free player (a relative-speed and distance rule evaluated on the server) passes the tag. A new mode, not in the original |
+| MP-01 | P0 | **Free roam** | Everybody drives the open city with traffic. The simplest mode and the first to build: it needs only players, traffic, collisions between cars and chat. Pursuits can be switched off in the session settings. **Built (rules):** `modes::FreeRoam` |
+| MP-02 | P0 | **Circuit race** | Laps over a checkpoint loop; positions, lap times, finish order. Blocked on the single-player race system (roadmap milestone 7, items "races" and "race checkpoints"). Race rules must be written as pure server-side rules from the start, so single player and multiplayer share them. **Built (rules):** `modes::Race` over the world's lap and finish events, with reset penalties and ties ([modes](modes.md)) |
+| MP-03 | P0 | **Sprint race** | Point-to-point. Same dependency as MP-02. **Built (rules):** `modes::Race` |
+| MP-04 | P1 | **Drag race** | Straight strip, launch and shift timing, reaction time. Blocked on the drag-race reimplementation (milestone 7, "reimplement drag races and their features"). The server needs the sim tick of the start light to score reaction time. **Not built** (ADR 0011 section 5): the lobby refuses it (`Unsupported::Drag`) |
+| MP-05 | P1 | **Speedtrap race** | Sum or best of speed readings at trap gates. Blocked on the speedtrap event data (milestone 7, "event icons"). **Built (rules):** `modes::Speedtrap` |
+| MP-06 | P1 | **Knockout** | Last place at the end of each lap is out; eliminated players become spectators. An original event type (its minimap icon exists in the game); blocked like MP-02. **Built (rules):** `modes::Knockout` |
+| MP-07 | P1 | **Pursuit co-op** | Several players share one pursuit against AI police. One pursuit entity with several targets; heat and busted are tracked per player, the pursuit ends when no target remains. Built on `blackbox-pursuit`, which is pure functions, so the server can run it as it is. Amended by ADR 0010: heat, cooldown, helicopter and roadblocks are shared; busted meter and bust are per target; built first for split-screen co-op. **Built (rules):** `modes::PursuitCoop` over `modes::PursuitTracker` |
+| MP-08 | P1 | **Cops vs racers** | Some players drive police cars against the others. Player cops use the same car simulation as racers with a role flag; they get cop tools (siren, roadblock call, spike strip, busted contact). Blocked on a decision for what a human cop can do (open question 2). **Not built** (ADR 0011 section 5): refused as `Unsupported::CopsVsRacers` |
+| MP-09 | P2 | **Tag** | One player is "it" and holds a timer; contact with a free player (a relative-speed and distance rule evaluated on the server) passes the tag. A new mode, not in the original. **Built (rules):** `modes::Tag` (4 m, 1 m/s, no tag-back for 3 s) |
 | MP-10 | P2 | **Last standing / elimination by damage** | Optional. Needs the damage model to be a gameplay value, which it is not today (damage is visual, `blackbox-damage`) |
-| MP-11 | P2 | **Custom rules** | Server settings: laps, traffic density, cop level cap, time of day, nitrous on or off. Later exposed to scripts through the mod API (milestone 12) |
+| MP-11 | P2 | **Custom rules** | Server settings: laps, traffic density, cop level cap, time of day, nitrous on or off. Later exposed to scripts through the mod API (milestone 12). **Built (check):** `modes::CustomRules::validate` |
 
 ### 3.2 Lobby, discovery and sessions
 
@@ -78,10 +78,10 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 |---|---|---|---|
 | MP-30 | P0 | **Car selection** | The client sends a loadout: a car type id and a parts selection (ids, not tuning numbers). The server rebuilds the vehicle parameters from its own copy of the game data, so a client cannot invent numbers. Both sides build the same `VehicleSpec` from the same ids. **Built (wire):** the `Loadout` message and `Loadout::to_join` in `nfsmw-net`; the server's rebuild from ids is not |
 | MP-31 | P1 | **Car and class restrictions** | The server setting names an allowed set of cars, a class or a performance cap. A client with a car outside it is refused in the lobby, with a reason code. **Built (check):** `loadout::validate` over a `Catalog` the game implements, with reason codes ([protocol messages](protocol-messages.md) 7.4); the game's catalogue and class ratings are not |
-| MP-32 | P1 | **Catch-up on or off** | Optional rubber-banding rules for races (a boost for trailing players). The original has none for human racers, so it is **off by default** and a server setting. The server applies it; clients display it |
-| MP-33 | P1 | **Collisions on, off, or ghost** | Per session and per phase: full car-to-car collisions, collisions off between racers (ghost cars, semi-transparent), or ghost only during the first seconds of a start. Traffic and world collisions are unaffected |
-| MP-34 | P1 | **Nitrous and damage rules** | Per session toggles for nitrous, damage visuals, and repair at the lobby. Damage stays visual |
-| MP-35 | P1 | **Wrong-way and reset rules** | Reset-to-track (the existing `ResetCar` action) is a server-validated respawn with a time penalty in races. A reset in free roam is free |
+| MP-32 | P1 | **Catch-up on or off** | Optional rubber-banding rules for races (a boost for trailing players). The original has none for human racers, so it is **off by default** and a server setting. The server applies it; clients display it. **Built (rule):** `fairness::CatchUpRule` |
+| MP-33 | P1 | **Collisions on, off, or ghost** | Per session and per phase: full car-to-car collisions, collisions off between racers (ghost cars, semi-transparent), or ghost only during the first seconds of a start. Traffic and world collisions are unaffected. **Built (rule):** `fairness::pair_collides` |
+| MP-34 | P1 | **Nitrous and damage rules** | Per session toggles for nitrous, damage visuals, and repair at the lobby. Damage stays visual. **Built (rule):** `fairness::Toggles` |
+| MP-35 | P1 | **Wrong-way and reset rules** | Reset-to-track (the existing `ResetCar` action) is a server-validated respawn with a time penalty in races. A reset in free roam is free. **Built (rule):** `fairness::ResetRule` and the `fairness::WrongWay` notice |
 | MP-36 | P2 | **Handicap by class** | Scaled grip or power to equalise cars. Needs a design for what is fair; do not build before MP-31 is played |
 
 ### 3.4 Communication
@@ -118,11 +118,11 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-70 | P1 | **Race results and session stats** | Finish order, best lap, top speed, damage, busted count, pursuit time. Written by the server at the end of each race. Sent to clients as an event and shown in the results screen |
-| MP-71 | P1 | **Server-side replay recording** | The server writes its snapshot stream to a file (the stream is the replay). Playback reuses the client interpolation code. Shares the recorder with telemetry F-33 |
-| MP-72 | P1 | **Client-side recording** | A client can record the snapshots it received, plus its own inputs and predicted states, for netcode debugging and for a personal replay |
+| MP-70 | P1 | **Race results and session stats** | Finish order, best lap, top speed, damage, busted count, pursuit time. Written by the server at the end of each race. Sent to clients as an event and shown in the results screen. **Built (format):** `results::RaceRecord` (versioned, encode and decode, `to_message`), `results::Tally` |
+| MP-71 | P1 | **Server-side replay recording** | The server writes its snapshot stream to a file (the stream is the replay). Playback reuses the client interpolation code. Shares the recorder with telemetry F-33. **Built (format):** `record::Recorder` and `record::Replay` |
+| MP-72 | P1 | **Client-side recording** | A client can record the snapshots it received, plus its own inputs and predicted states, for netcode debugging and for a personal replay. **Built (format):** the client kind of `record` |
 | MP-73 | P2 | **Replay viewer in the game** | A free camera over a recorded session. Blocked on the replay playback of telemetry F-34 |
-| MP-74 | P2 | **Persistent stats and rankings** | Needs identities and a database. M11 and later; the format of the per-race result record is fixed now so it can be stored later |
+| MP-74 | P2 | **Persistent stats and rankings** | Needs identities and a database. M11 and later; the format of the per-race result record is fixed now so it can be stored later (format 1, [modes](modes.md) section 5) |
 | MP-75 | P2 | **Career-lite sharing** | Share a car or a time. The career model now exists (`crates/nfsmw-career`), and co-op career shares one profile ([ADR 0010](../../decisions/0010-coop-and-the-n-player-world.md)). The sharing itself is not built |
 
 ### 3.8 Quality of play

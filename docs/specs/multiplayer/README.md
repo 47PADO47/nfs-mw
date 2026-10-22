@@ -10,7 +10,8 @@ the algorithms and the security design it refers to.
 Read in this order:
 
 1. [features.md](features.md): scope, the priority legend (P0, P1, P2), the feature catalogue (modes, lobby, discovery, chat,
-   spectators, reconnect, replays, checks), the latency, loss, player-count and bandwidth targets, and the open questions.
+   spectators, reconnect, replays, checks), the latency, loss, player-count and bandwidth targets, and the open questions;
+   [modes.md](modes.md): the game modes, fairness rules, result record and replay format as built in `crates/nfsmw-net`.
 2. [ADR 0006](../../decisions/0006-multiplayer-netcode.md): topology, tick rate, what is simulated where, prediction, snapshots,
    transport, serialization, clocks, determinism, the Bevy mapping, the crate split, and what is kept of the original LAN protocol
    (nothing).
