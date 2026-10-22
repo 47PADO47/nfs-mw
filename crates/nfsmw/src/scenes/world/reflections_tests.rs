@@ -163,6 +163,26 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
     world.refresh_effects(&mut renderer);
     assert!(world.reflection_last.is_some());
     assert_eq!(world.clock, 0.0, "refresh must not advance simulation");
+    for tuning in [
+        [3.0, 2.0, 1.0, 1.0, 1.0],
+        [3.0, 2.5, 1.0, 1.0, 1.0],
+        [3.0, 2.5, 0.5, 1.0, 1.0],
+        [3.0, 2.5, 0.5, 0.5, 1.0],
+        [3.0, 2.5, 0.5, 0.5, 1.5],
+    ] {
+        let mut options = renderer.render_experiments();
+        [
+            options.sky_wind_speed,
+            options.sky_sun_size,
+            options.sky_sun_brightness,
+            options.sky_brightness,
+            options.sky_sunset_warmth,
+        ] = tuning;
+        renderer.set_render_experiments(options);
+        world.refresh_effects(&mut renderer);
+        assert_eq!(world.reflection_last.unwrap().sky_tuning, tuning, "sky edits refresh a frozen probe");
+        assert_eq!(world.clock, 0.0);
+    }
     world.set_rain(true, 0.4);
     assert_eq!(world.rain.target(), 1.0);
     world.set_rain(false, 0.4);

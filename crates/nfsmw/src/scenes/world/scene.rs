@@ -172,7 +172,7 @@ impl Scene for WorldScene {
     }
 
     fn prepare_frame(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
-        self.original_sky = renderer.render_experiments().original_world_materials;
+        self.update_sky(renderer);
         self.update_wet_reflections(renderer, aspect);
     }
 

@@ -28,6 +28,8 @@ pub(super) struct CaptureStamp {
     scenery: u64,
     original_shadows: bool,
     original_sky: bool,
+    enhanced_sky: bool,
+    sky_tuning: [f32; 5],
     distance: ReflectionDistance,
     lod: ReflectionLod,
     content: ReflectionContent,
@@ -52,6 +54,14 @@ impl WorldScene {
         // Cadence and resolution are rewrite choices; all faces share one snapshot. Never accumulate
         // temporal history: at high speed the previous world must not trail across the paint.
         let cached = renderer.render_experiments().cached_reflections;
+        let options = renderer.render_experiments();
+        let sky_tuning = [
+            options.sky_wind_speed,
+            options.sky_sun_size,
+            options.sky_sun_brightness,
+            options.sky_brightness,
+            options.sky_sunset_warmth,
+        ];
         let origin = drive.pose().position + Vec3::Z * 0.95;
         let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
@@ -67,6 +77,8 @@ impl WorldScene {
                 && last.scenery == scenery
                 && last.original_shadows == self.original_shadows
                 && last.original_sky == self.original_sky
+                && last.enhanced_sky == renderer.render_experiments().enhanced_sky
+                && last.sky_tuning == sky_tuning
                 && cadence::reuse(cached, quality, last.seconds, self.clock, last.origin.distance_squared(origin))
         }) {
             return;
@@ -152,6 +164,8 @@ impl WorldScene {
             scenery,
             original_shadows: self.original_shadows,
             original_sky: self.original_sky,
+            enhanced_sky: renderer.render_experiments().enhanced_sky,
+            sky_tuning,
             distance,
             lod,
             content,

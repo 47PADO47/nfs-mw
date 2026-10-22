@@ -27,6 +27,13 @@ impl std::fmt::Display for LightingDebug {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RenderExperiments {
+    /// Procedural atmosphere and sun-lit cloud volume in the native sky pass.
+    pub enhanced_sky: bool,
+    pub sky_wind_speed: f32,
+    pub sky_sun_size: f32,
+    pub sky_sun_brightness: f32,
+    pub sky_brightness: f32,
+    pub sky_sunset_warmth: f32,
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
     pub sun_shadows: bool,
@@ -76,6 +83,12 @@ pub struct RenderExperiments {
 impl Default for RenderExperiments {
     fn default() -> Self {
         Self {
+            enhanced_sky: true,
+            sky_wind_speed: 2.0,
+            sky_sun_size: 2.0,
+            sky_sun_brightness: 1.0,
+            sky_brightness: 1.0,
+            sky_sunset_warmth: 1.0,
             original_world_materials: false,
             sun_shadows: false,
             cached_shadows: false,
@@ -113,6 +126,11 @@ impl Default for RenderExperiments {
 impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
+            sky_wind_speed: finite(self.sky_wind_speed, 2.0).clamp(0.0, 12.0),
+            sky_sun_size: finite(self.sky_sun_size, 2.0).clamp(0.5, 3.0),
+            sky_sun_brightness: finite(self.sky_sun_brightness, 1.0).clamp(0.0, 3.0),
+            sky_brightness: finite(self.sky_brightness, 1.0).clamp(0.25, 2.0),
+            sky_sunset_warmth: finite(self.sky_sunset_warmth, 1.0).clamp(0.0, 2.0),
             shadow_resolution: self.shadow_resolution.clamp(512, 8192).next_power_of_two(),
             shadow_detail_resolution: self
                 .shadow_detail_resolution
