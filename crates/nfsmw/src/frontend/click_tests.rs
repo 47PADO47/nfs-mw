@@ -2,9 +2,12 @@
 
 use super::*;
 
+#[path = "overview_click_tests.rs"]
+mod overview_click_tests;
+
 impl Harness {
     /// A click at a point of the screen, as the front end hands it over; false when the screen does not take it.
-    fn click(&mut self, point: glam::Vec2) -> bool {
+    pub(in crate::frontend) fn click(&mut self, point: glam::Vec2) -> bool {
         let mut env =
             Env { settings: &mut self.settings, changed: &mut self.changed, caps: test_caps::native(), mods: None };
         let Some(commands) = self.screens.click(point, &mut env) else { return false };

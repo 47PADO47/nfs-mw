@@ -125,6 +125,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
+- [career-reputation-overview.md](career-reputation-overview.md): the Original look's Blacklist page behind the safe house item (rival panel, options, key 2).
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
 - [boot-profile-prompt.md](boot-profile-prompt.md): the profile step after the title screen: the load list of saved profiles (this build's and the original's, read only), or the create question and name prompt when none is saved; how `play` starts.
 - [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.

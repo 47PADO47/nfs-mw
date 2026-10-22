@@ -5,6 +5,7 @@
 use nfsmw_career::economy::aftermath::CarSelectEntry;
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::safehouse::menu::{MenuItem, MenuTarget, visible_items};
+use nfsmw_career::settings::FIRST_RIVAL_STAGE;
 
 use super::car_select::CarSelectAction;
 use crate::career::CareerHandle;
@@ -111,7 +112,7 @@ pub fn press(cx: &mut Cx, args: Args, id: Id) {
         return;
     }
     let target = select(item);
-    cx.send(command_for(target, Args { safehouse: true, ..args }));
+    cx.send(command_for(target, Args { safehouse: true, ..args }, cx.vertical_look()));
 }
 
 /// The menu item an icon stands for; none for the icons of other menus.
@@ -135,14 +136,21 @@ fn select(item: MenuItem) -> MenuTarget {
 }
 
 /// The command a target opens. Resume Free Roam asks first, and the answer's command is `Resume`: the flow then
-/// runs `safehouse::resume_free_roam` (the prologue check needs the career's node progress).
-fn command_for(target: MenuTarget, args: Args) -> Command {
+/// runs `safehouse::resume_free_roam` (the prologue check needs the career's node progress). `vertical` is the
+/// Remastered look, which has no overview page and shows its list of rivals instead.
+fn command_for(target: MenuTarget, args: Args, vertical: bool) -> Command {
     match target {
         MenuTarget::ConfirmResume => Command::Confirm(Confirm::new(Text::Game(CONFIRM_RESUME_LABEL), Command::Resume)),
-        // The stage the screen shows is the career's own stage, which the target carries too.
-        // The original opens `SafehouseReputationOverview.fng` (`career-safehouse.md` 5.1), which has no logic here
-        // yet; the Blacklist stepper it leads to opens straight away.
-        MenuTarget::ReputationOverview { .. } => Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args),
+        // The original opens `SafeHouseReputationOverview.fng` at the career's own stage, which the target carries
+        // (`career-safehouse.md` 5.1, `reputation_overview.rs`). The Remastered look lists the rivals on the
+        // Blacklist stepper's package instead.
+        MenuTarget::ReputationOverview { .. } if vertical => {
+            Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args)
+        }
+        MenuTarget::ReputationOverview { stage } => Command::Switch(
+            screen::SAFE_HOUSE_REPUTATION_OVERVIEW.into(),
+            Args { rival: stage.clamp(1, FIRST_RIVAL_STAGE), ..args },
+        ),
         // The safe house's Car Select is the career select mode of the package (choose, release, sell); the car lot zone
         // opens the lot mode (`car_select.rs`, `docs/specs/busted-aftermath.md` section 3).
         MenuTarget::CarSelect => Command::CareerCar(CarSelectAction::Open(CarSelectEntry::Plain)),
@@ -153,7 +161,7 @@ fn command_for(target: MenuTarget, args: Args) -> Command {
 
 /// The bounty as the menu shows it: the amount with commas, no currency sign (the label format is `%$d`, career-rapsheet-2
 /// section 4; the sign is not in the label's text).
-fn money_text(bounty: u64) -> String {
+pub(super) fn money_text(bounty: u64) -> String {
     money(u32::try_from(bounty).unwrap_or(u32::MAX))
 }
 

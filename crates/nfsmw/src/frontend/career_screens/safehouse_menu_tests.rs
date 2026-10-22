@@ -70,20 +70,29 @@ fn before_the_world_exists_car_select_is_greyed_out() {
 fn each_item_opens_the_documented_target_in_the_safe_house() {
     let args = Args { safehouse: true, ..Args::default() };
     assert_eq!(
-        command_for(select(MenuItem::ResumeFreeRoam), args),
+        command_for(select(MenuItem::ResumeFreeRoam), args, false),
         Command::Confirm(Confirm::new(Text::Game(label_hash("CONFIRM_RESUME_FREE_ROAM")), Command::Resume))
     );
     assert_eq!(
-        command_for(select(MenuItem::Blacklist(9)), args),
-        Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args)
+        command_for(select(MenuItem::Blacklist(9)), args, false),
+        Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.into(), Args { rival: 9, ..args }),
+        "the Original look opens the overview at the career's stage"
     );
     assert_eq!(
-        command_for(select(MenuItem::CarSelect), args),
+        command_for(select(MenuItem::Blacklist(9)), args, true),
+        Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.into(), args),
+        "the Remastered look keeps its list of rivals"
+    );
+    assert_eq!(
+        command_for(select(MenuItem::CarSelect), args, false),
         Command::CareerCar(CarSelectAction::Open(CarSelectEntry::Plain)),
         "the safe house opens the career select mode, not the lot"
     );
-    assert_eq!(command_for(select(MenuItem::RapSheet), args), Command::Switch(screen::RAP_SHEET_LOGIN.into(), args));
-    assert_eq!(command_for(select(MenuItem::Save), args), Command::Switch(screen::MC_MAIN.into(), args));
+    assert_eq!(
+        command_for(select(MenuItem::RapSheet), args, false),
+        Command::Switch(screen::RAP_SHEET_LOGIN.into(), args)
+    );
+    assert_eq!(command_for(select(MenuItem::Save), args, false), Command::Switch(screen::MC_MAIN.into(), args));
 }
 
 #[test]
