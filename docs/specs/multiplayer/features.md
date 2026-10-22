@@ -1,6 +1,6 @@
 # Multiplayer: requirements and feature catalogue
 
-Status: **design**, with the wire foundation of `crates/nfsmw-net` built on 2026-10-22 (rows marked **Built** say what). Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
+Status: **design**, with the wire foundation and the server-side session rules of `crates/nfsmw-net` built on 2026-10-22 (rows marked **Built** say what; the session rules are pure state machines, not yet driven by a server). Milestone 10 (LAN multiplayer) and milestone 11 (online multiplayer) in the
 [roadmap](../../roadmap.md) are not started. Written 2026-10-16. The netcode decisions are in
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md); the wire format is in [protocol](protocol.md); the sync
 algorithms are in [sync model](sync-model.md). Security is a separate document, `security.md` in this folder (written
@@ -62,13 +62,13 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 | ID | P | Feature | Notes |
 |---|---|---|---|
 | MP-20 | P0 | **LAN discovery** | A client broadcasts a small discovery request on the game port and servers answer with name, mode, players, version and password flag. No internet service is involved. Direct connect by address also works. Formats in [protocol](protocol.md) section 3 |
-| MP-21 | P0 | **Lobby** | Before the session starts: player list, car choice, ready state, session settings, host or admin rights, chat. The same lobby state is the pause-screen state between races |
-| MP-22 | P0 | **Ready-up and start countdown** | A player is ready or not; the host (or an admin) starts when all are ready, or a timer does. The server sets the start tick so every client counts down to the same sim tick |
-| MP-23 | P0 | **Join in progress policy** | Per session: closed after start, open in free roam, open between races. A joiner in a running race becomes a spectator until the next race (MP-41) |
-| MP-24 | P0 | **Player limits** | 8 players are the LAN target. The id spaces and the budgets are designed for 16 (ADR 0006). Spectators are counted separately |
-| MP-25 | P1 | **Server settings and passwords** | Name, password, mode, track, laps, traffic density, cop cap, player limit, public or LAN-only. Stored in a TOML file for a dedicated server; edited in the lobby UI by the host |
-| MP-26 | P1 | **Roles and permissions** | Host and admins can kick, mute, change settings. Players cannot. Roles are checked by the server on each command |
-| MP-27 | P1 | **Vote system** | Vote for track, restart, kick. Simple majority; the server counts |
+| MP-21 | P0 | **Lobby** | Before the session starts: player list, car choice, ready state, session settings, host or admin rights, chat. The same lobby state is the pause-screen state between races. **Built (rules):** `lobby::Lobby` over the `blackbox-net-core` phase machine: roster, cars, ready, roles, row flags, `LobbyState`/`LobbyDelta` |
+| MP-22 | P0 | **Ready-up and start countdown** | A player is ready or not; the host (or an admin) starts when all are ready, or a timer does. The server sets the start tick so every client counts down to the same sim tick. **Built (rules):** `Lobby::start`, `cancel`, `LobbyConfig::auto_start`, `StartCountdown`, the load barrier and `StartAt` |
+| MP-23 | P0 | **Join in progress policy** | Per session: closed after start, open in free roam, open between races. A joiner in a running race becomes a spectator until the next race (MP-41). **Built (rules):** `join::placement` and the admission order of `JoinGate::admit` |
+| MP-24 | P0 | **Player limits** | 8 players are the LAN target. The id spaces and the budgets are designed for 16 (ADR 0006). Spectators are counted separately. **Built (rules):** the lobby and admission limits |
+| MP-25 | P1 | **Server settings and passwords** | Name, password, mode, track, laps, traffic density, cop cap, player limit, public or LAN-only. Stored in a TOML file for a dedicated server; edited in the lobby UI by the host. **Built (rules):** `settings::validate`, `apply_patch` (rank, phase lock, head counts) and the flat key form `to_pairs`/`from_pairs`; the TOML file and the password itself (PAKE) are not |
+| MP-26 | P1 | **Roles and permissions** | Host and admins can kick, mute, change settings. Players cannot. Roles are checked by the server on each command. **Built (rules):** `roles::permits`, `may_target`, `Bans`, `Lobby::command` and `set_admin` |
+| MP-27 | P1 | **Vote system** | Vote for track, restart, kick. Simple majority; the server counts. **Built (rules):** `vote::VoteBox` (fixed electorate, one vote each, majority of the electorate, 30 s) and `Lobby::apply_vote` |
 | MP-28 | P2 | **Server list** | A list of public servers kept by a master service. Online only (M11); needs the identity and heartbeat design in `security.md`. LAN discovery stays local |
 | MP-29 | P2 | **Invite by link or code** | A short code that resolves to an address through the master service. M11 |
 
@@ -76,11 +76,11 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-30 | P0 | **Car selection** | The client sends a loadout: a car type id and a parts selection (ids, not tuning numbers). The server rebuilds the vehicle parameters from its own copy of the game data, so a client cannot invent numbers. Both sides build the same `VehicleSpec` from the same ids. **Built (wire):** the `Loadout` message and `Loadout::to_join` in `nfsmw-net`; the server's rebuild from ids is not |
+| MP-30 | P0 | **Car selection** | The client sends a loadout: a car type id and a parts selection (ids, not tuning numbers). The server rebuilds the vehicle parameters from its own copy of the game data, so a client cannot invent numbers. Both sides build the same `VehicleSpec` from the same ids. **Built (wire):** the `Loadout` message and `Loadout::to_join` in `nfsmw-net`, and the lobby's car choice (`Lobby::select_loadout`); the server's rebuild from ids is not |
 | MP-31 | P1 | **Car and class restrictions** | The server setting names an allowed set of cars, a class or a performance cap. A client with a car outside it is refused in the lobby, with a reason code. **Built (check):** `loadout::validate` over a `Catalog` the game implements, with reason codes ([protocol messages](protocol-messages.md) 7.4); the game's catalogue and class ratings are not |
 | MP-32 | P1 | **Catch-up on or off** | Optional rubber-banding rules for races (a boost for trailing players). The original has none for human racers, so it is **off by default** and a server setting. The server applies it; clients display it |
-| MP-33 | P1 | **Collisions on, off, or ghost** | Per session and per phase: full car-to-car collisions, collisions off between racers (ghost cars, semi-transparent), or ghost only during the first seconds of a start. Traffic and world collisions are unaffected |
-| MP-34 | P1 | **Nitrous and damage rules** | Per session toggles for nitrous, damage visuals, and repair at the lobby. Damage stays visual |
+| MP-33 | P1 | **Collisions on, off, or ghost** | Per session and per phase: full car-to-car collisions, collisions off between racers (ghost cars, semi-transparent), or ghost only during the first seconds of a start. Traffic and world collisions are unaffected. **Built (setting):** the `collision` field and its phase lock; the ghosting itself is not |
+| MP-34 | P1 | **Nitrous and damage rules** | Per session toggles for nitrous, damage visuals, and repair at the lobby. Damage stays visual. **Built (setting):** the toggles and their phase lock |
 | MP-35 | P1 | **Wrong-way and reset rules** | Reset-to-track (the existing `ResetCar` action) is a server-validated respawn with a time penalty in races. A reset in free roam is free |
 | MP-36 | P2 | **Handicap by class** | Scaled grip or power to equalise cars. Needs a design for what is fair; do not build before MP-31 is played |
 
@@ -88,21 +88,21 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-40 | P0 | **Text chat** | Reliable, ordered, rate-limited, length-limited. Lobby chat, in-race chat, and system notices (join, leave, kick, result). Printed in the HUD and in the F12 console log |
-| MP-41 | P1 | **Spectator** | A player who is not in the session can watch: a free camera, a follow camera on any racer, a leaderboard. A spectator receives snapshots at the spectator rate and sends no inputs. Used for knockout (eliminated players), late joiners, and a live broadcast view |
-| MP-42 | P1 | **Mute and block** | Per player, local only for chat; the server enforces the host's mute |
+| MP-40 | P0 | **Text chat** | Reliable, ordered, rate-limited, length-limited. Lobby chat, in-race chat, and system notices (join, leave, kick, result). Printed in the HUD and in the F12 console log. **Built (rules):** `chat::ChatGate` (mute, 1/s burst 3, whisper target, `normalise`) and `chat::notice`; NFKC and grapheme counting are not done |
+| MP-41 | P1 | **Spectator** | A player who is not in the session can watch: a free camera, a follow camera on any racer, a leaderboard. A spectator receives snapshots at the spectator rate and sends no inputs. Used for knockout (eliminated players), late joiners, and a live broadcast view. **Built (rules):** `spectate` (limits, the 10 Hz spectator rate, `FollowCam`) and `Lobby::make_spectator` |
+| MP-42 | P1 | **Mute and block** | Per player, local only for chat; the server enforces the host's mute. **Built (rules):** the server mute on the lobby member and `roles::LocalMutes` |
 | MP-43 | P2 | **Voice chat** | Push to talk over an unreliable channel, Opus. Not in v1. The packet format reserves a frame type (protocol, section 5.2). The codec and licence check is a separate decision; voice is a privacy topic and goes through `security.md` |
-| MP-44 | P2 | **Quick messages and emotes** | Preset lines for the pursuit ("police behind me"), sent as ids. Cheap and moderation-free |
+| MP-44 | P2 | **Quick messages and emotes** | Preset lines for the pursuit ("police behind me"), sent as ids. Cheap and moderation-free. **Built (check):** `chat::is_quick_id` and the shared chat bucket; the catalogue has no server-to-client quick message yet |
 
 ### 3.5 Robustness
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-50 | P0 | **Disconnect handling** | A timeout (default 10 s without any datagram) or a disconnect message removes the player cleanly: the car is removed or parked, pursuits and races update, chat prints a notice |
-| MP-51 | P1 | **Reconnect** | A dropped player can rejoin the same session within 30 s with a resume token and get its slot back. The car is kept as a non-colliding ghost during that time. A reconnect after the window is a normal join |
+| MP-50 | P0 | **Disconnect handling** | A timeout (default 10 s without any datagram) or a disconnect message removes the player cleanly: the car is removed or parked, pursuits and races update, chat prints a notice. **Built (rules):** `drop::Presence` and the `DropAction`s of `on_drop` and `on_expiry` |
+| MP-51 | P1 | **Reconnect** | A dropped player can rejoin the same session within 30 s with a resume token and get its slot back. The car is kept as a non-colliding ghost during that time. A reconnect after the window is a normal join. **Built (rules):** `drop::ResumeBook` (single use, bound to the player id, hashed) and `on_resume` |
 | MP-52 | P2 | **Host migration** | If a listen-server host quits, the session ends in v1. A dedicated server avoids the problem. A design for a soft migration (hand the session to another machine) is in ADR 0006 and is P2 because the AI state is not portable today |
-| MP-53 | P1 | **Late join sync** | A joiner receives the session state (a bulk transfer on a reliable channel) and then the snapshot stream from a full baseline. No client simulates traffic, so there is no world state to download beyond ids and seeds |
-| MP-54 | P1 | **Pause rules** | The server never pauses: a game pause menu in a multiplayer session does not stop the sim. Only the host-requested "everyone wait" in the lobby exists |
+| MP-53 | P1 | **Late join sync** | A joiner receives the session state (a bulk transfer on a reliable channel) and then the snapshot stream from a full baseline. No client simulates traffic, so there is no world state to download beyond ids and seeds. **Built (rules):** `drop::SessionData` and the paced `BulkSender` and checked `BulkReceiver` |
+| MP-54 | P1 | **Pause rules** | The server never pauses: a game pause menu in a multiplayer session does not stop the sim. Only the host-requested "everyone wait" in the lobby exists. **Built (rules):** `Lobby::hold` |
 
 ### 3.6 Compatibility checks
 
