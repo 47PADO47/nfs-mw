@@ -227,3 +227,10 @@ including auxiliary and SDK/FG queues. A background worker samples once a second
 missing or stale counters remain unknown. Headless rendering does not start it.
 These percentages complement render timestamps; neither is shader occupancy.
 See [graphics lab](../../docs/graphics-lab.md) for scope and API references.
+
+Custom opted-in surfaces can use GGX highlights and a bounded, deterministic
+GGX-filtered environment cube, with separate encoded and linear views. Generic
+layer kinds separate glass, composites, conductors, rubber and coated finishes.
+Indirect diffuse combines linear albedo and occlusion. Legacy and Original
+material equations retain the raw environment. See
+[car materials](../../docs/specs/custom-car-materials.md).

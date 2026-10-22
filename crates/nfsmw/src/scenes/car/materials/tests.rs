@@ -51,10 +51,16 @@ fn installed_original_car_materials_resolve_paint_glass_and_custom_parts() {
                         };
                         let actual = renderer.glossy_materials[&handle];
                         assert_eq!(actual.model, expected_model);
-                        let expected = match mode.is_original() {
+                        let mut expected = match mode.is_original() {
                             true => original_material(authored, expected_model),
                             false => glossy_material(authored),
                         };
+                        if mode == CarShading::Glossy && Some(actual_hash) == materials.paint && model.paintable {
+                            expected.surface = model.paint.as_ref().and_then(super::super::paint_surface::response);
+                        }
+                        if mode == CarShading::Glossy && Some(actual_hash) != materials.paint {
+                            expected.surface = super::super::material_response::response(authored);
+                        }
                         assert_eq!(actual, expected, "{folder} {} {}", solid.name, authored.name);
                         resolved += 1;
                         paint_groups += usize::from(hash == CARSKIN);

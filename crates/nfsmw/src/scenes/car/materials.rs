@@ -64,10 +64,16 @@ impl CarMaterials {
             .into_iter()
             .filter_map(|hash| {
                 let material = model.light_materials.get(&hash)?;
-                let material = match shading.is_original() {
+                let mut material = match shading.is_original() {
                     true => original_material(material, model_kind),
                     false => glossy_material(material),
                 };
+                if shading == CarShading::Glossy && Some(hash) == paint && model.paintable {
+                    material.surface = model.paint.as_ref().and_then(super::paint_surface::response);
+                }
+                if shading == CarShading::Glossy && Some(hash) != paint {
+                    material.surface = super::material_response::response(&model.light_materials[&hash]);
+                }
                 Some((hash, renderer.create_glossy_material(&material)))
             })
             .collect();

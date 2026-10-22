@@ -134,6 +134,14 @@ fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         }
     }
     ui.add_enabled_ui(dependencies.custom_car, |ui| {
+        ui.add_enabled_ui(settings.renderer == crate::settings::RendererKind::Blackbox, |ui| {
+            super::controls::checkbox(
+                ui,
+                &mut lab.options.paint_response,
+                "Car material response",
+                defaults.paint_response,
+            );
+        });
         super::controls::checkbox(ui, &mut lab.options.clearcoat, "Car clearcoat experiment", defaults.clearcoat);
         super::controls::checkbox(ui, &mut lab.options.car_skylight, "Car sky and ground light", defaults.car_skylight);
         ui.add_enabled_ui(lab.options.car_skylight, |ui| {

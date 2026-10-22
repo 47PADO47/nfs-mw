@@ -63,11 +63,41 @@ pub enum GlossyModel {
     Shadowed,
 }
 
+/// Opt-in surface response for the Custom arithmetic family.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct GlossySurface {
+    /// Perceptual roughness, in 0..1, independent of authored material ramp exponents.
+    pub roughness: f32,
+    /// Scales the optional global coat experiment, in 0..1.
+    pub coat: f32,
+    /// Generic layer model; Legacy retains the earlier rough-surface response.
+    pub kind: SurfaceKind,
+}
+
+/// Material layers, independently selected from the legacy arithmetic family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum SurfaceKind {
+    #[default]
+    Legacy = 1,
+    Coated = 2,
+    Metallic = 3,
+    Pearl = 4,
+    Conductor = 5,
+    Glass = 6,
+    Composite = 7,
+    PaintedMetal = 8,
+    Rubber = 9,
+    Diffuse = 10,
+}
+
 /// Shading constants of one material. Each ramp runs from its `min` where the surface is seen
 /// edge-on to `min + range` where it faces the viewer head-on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GlossyMaterial {
     pub model: GlossyModel,
+    /// Optional Custom-only surface response. None preserves the legacy equations.
+    pub surface: Option<GlossySurface>,
     /// RGBA multiplier of the lit texture; alpha scales the highlight and the reflection, and
     /// the blended draw's opacity.
     pub diffuse_min: [f32; 4],
@@ -88,6 +118,7 @@ impl Default for GlossyMaterial {
     fn default() -> Self {
         Self {
             model: GlossyModel::Custom,
+            surface: None,
             diffuse_min: [1.0; 4],
             diffuse_range: [0.0; 4],
             specular_min: [0.2; 3],

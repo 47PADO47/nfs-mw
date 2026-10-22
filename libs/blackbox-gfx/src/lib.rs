@@ -53,7 +53,9 @@ pub use handles::{
     CaptureId, GlossyMaterialHandle, MeshHandle, NormalMaterialHandle, SkyMaterialHandle, TextureHandle, UiTextureId,
     WindowMaterialHandle,
 };
-pub use material::{DirectionalLight, Environment, GlossyMaterial, GlossyModel, LightingRig, SkyGradient};
+pub use material::{
+    DirectionalLight, Environment, GlossyMaterial, GlossyModel, GlossySurface, LightingRig, SkyGradient, SurfaceKind,
+};
 pub use mesh::{BlendMode, DrawRange, MeshDesc, Shading, Vertex};
 pub use normal::{NormalMaterialDesc, NormalModel};
 pub use reflection::{ReflectionQuality, ReflectionScene};
