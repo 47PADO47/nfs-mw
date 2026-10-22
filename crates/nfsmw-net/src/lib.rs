@@ -2,6 +2,7 @@
 //! rule runs in a unit test without a window, a GPU, a socket or a game install.
 
 pub mod input;
+pub mod loadout;
 pub mod message;
 pub mod schema;
 pub mod version;
