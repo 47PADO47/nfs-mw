@@ -2,7 +2,9 @@
 # The project is MIT OR Apache-2.0; see docs/licensing.md for what may be linked.
 
 [graph]
-all-features = false
+# Every optional feature is checked, so the crypto crates behind blackbox-net-core's `netcode` feature are
+# covered even though no default build pulls them (docs/specs/multiplayer/integration.md section 3).
+all-features = true
 
 [licenses]
 # Permissive licenses only. MPL-2.0 is file-level copyleft and is fine as long as
