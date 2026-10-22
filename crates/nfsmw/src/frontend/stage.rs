@@ -1,7 +1,6 @@
 //! The stage a backdrop look stands the car on: the front-end platform file, which of its solids are drawn, how the car
 //! stands in it and where the camera is. Spec: `docs/specs/menu-backdrop-looks.md`.
 
-use super::camera_pose::{self, CameraPose};
 use super::look::Look;
 
 /// A front-end platform (`FRONTEND/PLATFORMS/*.BIN`, `docs/specs/menu-backdrop.md` section 1).
@@ -21,12 +20,27 @@ pub struct CarStand {
     pub sink: f32,
 }
 
+/// How the car stands on the platforms here (the crib and the safe house share it). [exe]
+pub const CAR_STAND: CarStand = CarStand { yaw: 304.97, sink: 0.025 };
+
 impl Look {
     /// The stage the look stands on.
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
             Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
+        }
+    }
+
+    /// The name of the look's camera intro, which runs from `angle_entry_<name>` onto `angle_final_<name>`, or `None` for
+    /// the Showcase, whose camera the player turns. [exe] The original names the crib's by the front end's context: the
+    /// career menu's is `career_manager`, the others' `main_fe`.
+    pub fn camera_intro(&self) -> Option<&'static str> {
+        match self {
+            Look::Main => Some("main_fe"),
+            Look::Car(_) => Some("career_manager"),
+            Look::SafeHouse(_) => Some("career_safehouse"),
+            Look::Showcase(_) => None,
         }
     }
 }
@@ -37,6 +51,17 @@ impl Stage {
         match self {
             Stage::Crib => "FRONTEND/PLATFORMS/PlatformCrib.BIN",
             Stage::SafeHouse => "FRONTEND/PLATFORMS/CAREER_SAFEHOUSE.BIN",
+        }
+    }
+
+    /// Degrees the room is turned about the vertical axis from where its file puts it, so the camera poses of the original
+    /// (which turn about the car) see the room as its pictures show it. [unverified] Fitted against pictures of the original's
+    /// main menu and career menu, where the crib's houses stand behind the car; the executable gives no such turn. The
+    /// safe house needs none.
+    pub fn room_yaw(self) -> f32 {
+        match self {
+            Stage::Crib => 180.0,
+            Stage::SafeHouse => 0.0,
         }
     }
 
@@ -51,22 +76,6 @@ impl Stage {
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
             }
-        }
-    }
-
-    /// The camera pose of the stage's menu, or `None` for the crib, whose camera is the car viewer's orbit camera.
-    pub fn camera(self) -> Option<CameraPose> {
-        match self {
-            Stage::Crib => None,
-            Stage::SafeHouse => Some(camera_pose::SAFE_HOUSE),
-        }
-    }
-
-    /// How the car stands on the stage, or `None` for the crib, where the car viewer's own placement stays. [exe]
-    pub fn car_stand(self) -> Option<CarStand> {
-        match self {
-            Stage::Crib => None,
-            Stage::SafeHouse => Some(CarStand { yaw: 304.97, sink: 0.025 }),
         }
     }
 }
@@ -94,8 +103,11 @@ mod tests {
     }
 
     #[test]
-    fn only_the_safe_house_has_its_own_camera_and_car_stand() {
-        assert!(Stage::Crib.camera().is_none() && Stage::Crib.car_stand().is_none());
-        assert!(Stage::SafeHouse.camera().is_some() && Stage::SafeHouse.car_stand().is_some());
+    fn every_look_but_the_showcase_has_a_camera_intro() {
+        let car = CarLook::default_car;
+        assert_eq!(Look::Main.camera_intro(), Some("main_fe"));
+        assert_eq!(Look::Car(car()).camera_intro(), Some("career_manager"));
+        assert_eq!(Look::SafeHouse(car()).camera_intro(), Some("career_safehouse"));
+        assert_eq!(Look::Showcase(car()).camera_intro(), None);
     }
 }

@@ -21,6 +21,7 @@ use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
 use crate::ui::{Catalog, UiAssets};
 
 mod command;
+mod pose;
 mod start;
 mod text;
 mod vertical;
@@ -33,6 +34,8 @@ struct Screen {
     slot: Option<ElementId>,
     /// The backdrop the screen wants behind it, or `None` when it keeps whatever is there (`look.rs`).
     look: Option<Look>,
+    /// The pose the screen asks the camera for (`factory::pose_for`), or `None` when it keeps the camera where it is.
+    pose: Option<&'static str>,
 }
 
 /// One stack screen's tree for the frame, with the menu slot it is drawn for.
@@ -113,11 +116,6 @@ impl Screens {
         self.stack.last().map(|s| s.name.as_str())
     }
 
-    /// The backdrop the stack wants: the look of the topmost screen that names one (its own, or the one its file name has).
-    pub fn look(&self) -> Option<Look> {
-        self.stack.iter().rev().find_map(|s| s.logic.look().or_else(|| s.look.clone()))
-    }
-
     /// Unloads every screen.
     pub fn clear(&mut self) {
         while let Some(s) = self.stack.pop() {
@@ -130,16 +128,16 @@ impl Screens {
     pub fn open(&mut self, name: &str, args: Args, replace: bool, env: &mut Env) -> Vec<Command> {
         let mod_rows = env.mods.is_some_and(crate::modding::Mods::has_mods_page);
         let slot = factory::slot_for(name, &args);
-        let look = factory::look_for(name, &args);
+        let (look, pose) = (factory::look_for(name, &args), factory::pose_for(name, &args));
         let logic = factory::make(name, args, mod_rows);
-        self.open_as(name, logic, slot, look, replace, env)
+        self.open_as(name, logic, slot, (look, pose), replace, env)
     }
 
     /// Like [`Self::open`], with the logic already chosen (a confirmation dialog carries its question). Its menu slot is
     /// the one its package has by name (`factory::slot_for`), with no `Args`.
     pub fn open_with(&mut self, name: &str, logic: Box<dyn ScreenLogic>, replace: bool, env: &mut Env) -> Vec<Command> {
         let slot = factory::slot_for(name, &Args::default());
-        self.open_as(name, logic, slot, None, replace, env)
+        self.open_as(name, logic, slot, (None, None), replace, env)
     }
 
     fn open_as(
@@ -147,7 +145,7 @@ impl Screens {
         name: &str,
         mut logic: Box<dyn ScreenLogic>,
         slot: Option<ElementId>,
-        look: Option<Look>,
+        (look, pose): (Option<Look>, Option<&'static str>),
         replace: bool,
         env: &mut Env,
     ) -> Vec<Command> {
@@ -180,7 +178,7 @@ impl Screens {
             name: &file_name,
         };
         logic.start(&mut cx);
-        self.stack.push(Screen { id, name: file_name, logic, slot, look });
+        self.stack.push(Screen { id, name: file_name, logic, slot, look, pose });
         self.await_release = true;
         self.give_control();
         commands

@@ -21,9 +21,15 @@ fn run_front_end(
     script: Option<&str>,
     look: Option<crate::frontend::Look>,
     view: &crate::cli::ViewArgs,
+    settled: bool,
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true).with_mods(mods);
+    // The picture of a screen (`view-screen --screenshot`) shows the camera where its intro ends.
+    let camera = match settled {
+        true => crate::frontend::CameraRig::settled(),
+        false => crate::frontend::CameraRig::default(),
+    };
     options.frontend = Some(crate::frontend::FrontendPlugin {
         dir: dir.clone(),
         start,
@@ -31,9 +37,10 @@ fn run_front_end(
         browse: None,
         career: crate::career::CareerHandle::shared(),
         look: look.clone(),
+        camera: camera.clone(),
     });
     crate::app::run(
-        Box::new(crate::frontend::MenuScene::with_look(Some(dir.clone()), look.unwrap_or_default())),
+        Box::new(crate::frontend::MenuScene::with_look(Some(dir.clone()), look.unwrap_or_default()).with_rig(camera)),
         &Settings::load(view.settings_layer()),
         options,
     )
@@ -103,7 +110,7 @@ pub fn run(cli: Cli) -> Result<()> {
             let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
             let scripted = skip_boot || ui_script.is_some();
             let start = start::of(drive, aliases, scripted, skip_intro);
-            run_front_end(&dir, mods, start, ui_script.as_deref(), None, &view)
+            run_front_end(&dir, mods, start, ui_script.as_deref(), None, &view, false)
         }
         Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -127,7 +134,7 @@ pub fn run(cli: Cli) -> Result<()> {
             );
             let settle = view.screenshot.is_some().then_some("wait 2");
             let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;
-            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), look, &view)
+            run_front_end(&dir, mods, start, ui_script.as_deref().or(settle), look, &view, view.screenshot.is_some())
         }
         Command::FengViewer { name, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -143,6 +150,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 browse: Some(scene.browse()),
                 career: crate::career::CareerHandle::shared(),
                 look: None,
+                camera: Default::default(),
             };
             let mut options = view.run_options(&dir, true).with_mods(mods);
             options.frontend = Some(plugin);

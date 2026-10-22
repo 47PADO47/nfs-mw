@@ -109,6 +109,48 @@ Poses read (pitch, yaw, distance, roll, field of view, target):
 | `angle22` (`career_safehouserivalchallenge`) | 94.4 | -134 | 4.5 | -3.1 | 35 | 2.9, -3.7, 1.4 |
 | `angle4_d` (`career_car_select`) | 101.6 | -75 | 6 | 0 | 49 | -1.7, 0, 0.4 |
 
+### 3.6 The move and the safe house intro
+
+- `FUN_004769E0` state 0 (`0x004769E0`): `this+0x134` is the clock (adds the frame time), `+0x138` the duration, `+0x12C` the
+  decay (float), `+0x130` the order (int). `t` is `clock / duration` while `0 < duration` and `clock < duration`, else 1.
+  The decompile writes `1 - 2^(-t^2 k log2 e) * cos((n + 0.5) t^2 pi)` (`fcos`, `f2xm1`, `fscale`); `3.1415925` is its pi.
+  The blend writes `+0x90` pitch, `+0x94` yaw, `+0x98` distance, `+0x9C` roll, **`+0xA0` field of view**, and `+0xB0..+0xB8`
+  the target, each as `s * goal + (1 - s) * start` (the target as `start + (goal - start) * s`), then wraps yaw and roll
+  (`> 360` subtract 360, `< 0` add 360) and sets state 2 once `t >= 1`. The view's field of view is `+0xA0 * 65536 / 360`
+  (`0x00476E10`).
+- `FUN_004770B0` (`0x004770B0`): sets state 0, copies the current `+0x90..` into the start (`+0xC0..`, roll `+0xCC`, field of
+  view `+0xD0`, target `+0xE0..`), stores the goal at `+0xF0..` and `+0x110..`, the decay and order, and runs `FUN_0046B980`
+  on the goal's pitch, yaw and roll against the start's. `FUN_0046B980` returns `goal`, `goal + 360` or `goal - 360`,
+  whichever is nearest the start. The mover's constructor (`FUN_00476870`) zeroes the pose, starts in state 1 and has
+  decay 10, order 2 and duration 1.
+- `FUN_007A94C0` (`0x007A94C0`, called from `FUN_007A9620` for `GarageMain.fng`, `FUN_007A9D60`, `0x0053203C`, `0x00532643`,
+  `0x0055A0A5`, `0x007BFDEF`): when the scene's `+0x58` flag or its argument is set, builds `angle_entry_<stage>` and
+  `angle_final_<stage>` through `FUN_007A8F20` (the stage name `career_safehouse` is at `0x008B722C`), writes the entry
+  pose with `FUN_0046B920` and starts the move to the final pose with `FUN_004770B0` (its duration, decay and order), then
+  clears the flag. `FUN_007B9EA0` sets a move for a screen's own pose only when the flag is clear, but records the pose
+  hash either way. `FUN_00476F30` enters the user rotate (state 1) after a 0.555 s move to roll 0, field of view 45 and target (0, 0, 0.75); not read further.
+- `FE_ATTRIB.bin` (`frontend_camera` reader): `angle_entry_career_safehouse` decay 8, duration 0.6, order 3;
+  `angle_final_career_safehouse` decay 9, duration 3.15, order 1; `angle10` decay 8, duration 0.6, order 2. Only a
+  `testscreen` collection names the entry pose, and no collection names the final one: both are reached by the
+  string-built names above.
+- The stage name comes from `FUN_007A1E70` (`0x007A1E70`) by the platform id: 2 `career_safehouse`, 3 `customization_shop`,
+  4 `backroom`, 5 `car_lot`, else (the crib, 1) `career_manager` when the context word bit 8 is set and `main_fe` when not.
+  A name with no collection gives `0xF907E767`. The intro poses of every stage, read from `FE_ATTRIB.bin` (pitch, yaw,
+  distance, roll, field of view; target; decay, duration, order):
+
+  | Stage | Entry pose | Final pose |
+  |---|---|---|
+  | `main_fe` | 93.1, -58, 18, -7.3, 65; -3.4, -0.3, 1.6; 8, 0.55, 2 | 97.7, -3, 5.5, 7.3, 55; 1.2, -0.3, 0.3; 8, **6.0**, 1 |
+  | `career_manager` | 94.4, -70, 16, -27.6, 65; 2.3, -0.3, 1; 8, 0.6, 3 | 95.8, 64, 4.5, 24.7, 65; 1.2, -1.3, 0.5; 8, 3.5, 2 |
+  | `career_safehouse` | 94.4, -58, 9, -13.1, 55; 2.3, -0.3, 1; 8, 0.6, 3 | 97.3, 110, 4.25, 16, 65; -0.2, -0.5, 0.3; 9, 3.15, 1 |
+  | `customization_shop` | 92.9, -6, 21, -1.7, 65; 0.2, -2.6, 1.9; 8, 0.6, 2 | 94.4, -6, 5.5, 20.3, 55; 1, -0.6, 0.5; 8, 4.0, 1 |
+  | `backroom` | 99.2, 139, 22, 0, 80; 1.1, 0.5, 1.1; 8, 0.6, 2 | 98.7, 110, 6, 21.8, 70; -2.2, 0.3, 0.9; 8, 3.5, 1 |
+  | `car_lot` | 94.4, -180, 22, -16, 55; -5, -2.1, 1; 8, 0.65, 2 | 95.8, -116, 6, 1, 49; 0.7, 0, 0.8; 9, 6.0, 1 |
+
+  The main menu's final pose is `angle3` (`mainmenu`) with a 6 s intro; the crib's camera is not played yet.
+- Not read: which of the six callers of `FUN_007A94C0` sets the flag when the safe house opens (the garage's is
+  `FUN_007A9620`), so "the move begins when the menu opens" is [unverified] for a safe house entered from free roam.
+
 ## 4. The cars rendered to pick the default
 
 `nfsmw view-car <folder> [--preset P] --yaw 35 --screenshot out.png`:

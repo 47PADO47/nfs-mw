@@ -185,6 +185,42 @@ pub fn look_for(name: &str, args: &Args) -> Option<Look> {
     safehouse_screen.then(|| Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())))
 }
 
+/// The pose collection the package called `name` asks the camera for (`FE_ATTRIB.bin`, class `frontend`; the collection
+/// names are the screens' file stems with the front end's context in front, `menu-backdrop-looks.md` section 4.2), or
+/// `None` when the screen keeps the camera where it is: the dialogs, the lists, the screens whose pose is not read.
+/// Like [`look_for`] it reads the file name and the `Args` only.
+pub fn pose_for(name: &str, args: &Args) -> Option<&'static str> {
+    let name = name.to_ascii_lowercase();
+    let is = |file: &str| name == file.to_ascii_lowercase();
+    if is(screen::MAIN_MENU) {
+        return Some("mainmenu");
+    }
+    if is(screen::MAIN_MENU_SUB) {
+        return match (args.pause, args.safehouse, args.sub) {
+            (true, _, _) => None,
+            // The safe house menu is the career's sub menu; the career menu in the crib is the career manager's.
+            (_, true, _) => Some("career_mainmenu_sub"),
+            (_, _, Sub::Career) => Some("career_manager"),
+            (_, _, Sub::QuickRace) => Some("quickracemain_mainmenu_sub"),
+            (_, _, Sub::CustomRace) => Some("quickrace_mainmenu_sub"),
+            (_, _, Sub::Options) => Some("options_mainmenu_sub"),
+        };
+    }
+    let poses = [
+        (screen::OPTIONS, "options_options"),
+        (screen::CONTROLS, "options_ui_optionscontroller"),
+        (screen::CREDITS, "options_credits"),
+        (screen::EA_TRAX_JUKEBOX, "options_ea_trax_jukebox"),
+        (screen::QUICK_RACE_BRIEF, "quickracemain_quick_race_brief"),
+        (screen::CHALLENGE_SERIES, "quickracemain_challengeseries"),
+        (screen::TRACK_SELECT, "quickrace_track_select"),
+        (screen::TRACK_OPTIONS, "quickrace_track_options"),
+        (screen::MC_PROFILE_MANAGER, "mc_profilemanager"),
+        (screen::SAFE_HOUSE_RIVAL_CHALLENGE, "career_safehouserivalchallenge"),
+    ];
+    poses.iter().find(|(file, _)| is(file)).map(|(_, pose)| *pose)
+}
+
 /// The slot of a career screen, by its lower-case file name.
 fn career_slot(name: &str) -> Option<ElementId> {
     let is = |file: &str| name == file.to_ascii_lowercase();
