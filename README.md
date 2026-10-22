@@ -115,6 +115,10 @@ blips restyled.
 Video options include opt-in [experimental ambient occlusion](docs/ambient-occlusion.md), with quality,
 intensity and a live split comparison. Start with `nfsmw play --ao medium`; it needs only base-game assets.
 
+LAN play has its own keys (`net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`,
+`net_identity_file`) and console commands (`net.host`, `net.connect`, `net.stats`, `net.sim`, ...); the main menu's LAN icon
+opens its menu ([LAN front end](docs/specs/multiplayer/frontend.md)).
+
 ## Repository
 
 | Path | Contents |

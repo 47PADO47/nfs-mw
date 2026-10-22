@@ -26,7 +26,9 @@ Read in this order:
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
    order of work for milestone 10; [client-session.md](client-session.md): the client's session driver as built (API and
-   lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it.
+   lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it;
+   [frontend.md](frontend.md): the LAN menu, the lobby, the session HUD, the `net.*` console commands and the `net_*` settings as
+   built, and the `NetFrontend` seam they use.
 8. [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md): the revisions made before building (16-bit ids, shared delta
    encoding, layers, skippable frames, registries, the session state machine). It overrides the files above where they disagree.
 9. [determinism.md](determinism.md): the audit of the sim against D1 to D8 and the planned fix for each finding.
