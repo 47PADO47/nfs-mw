@@ -122,7 +122,11 @@ fn an_open_track_goes_on_to_the_options_and_the_options_step_and_reset() {
     h.press(pad::DOWN);
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
-    assert_eq!(state::with(|s| s.settings().opponents), 1, "the third row is the opponents and wraps");
+    assert_eq!(
+        state::with(|s| s.settings().opponents),
+        4,
+        "the third row is the opponents, up to 15 since sixteen racers"
+    );
     // Accept without a picked track goes nowhere.
     h.press(pad::ACCEPT);
     assert_eq!(h.screens.top(), Some(screen::TRACK_OPTIONS));
