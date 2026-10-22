@@ -10,6 +10,17 @@ fn close(a: f32, b: f32) -> bool {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_career_start_is_the_documented_point() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    // `career_start_l2ra`: (981.90, 2148.45, 152.29) in map coordinates, heading 53.08 (career-flow.md section 6).
+    let start = data.career_start.expect("the install has a career start");
+    assert!(close(start.position.x, -2148.45) && close(start.position.z, 981.90), "{start:?}");
+    assert!(close(start.position.y, 152.29) && close(start.heading_deg, 53.08), "{start:?}");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn races_triggers_and_activity_zones_match_documented_numbers() {
     let Some(dir) = install() else { return };
     let data = gameplay::load(&dir).expect("gameplay data");
