@@ -10,6 +10,8 @@ use crate::{Antialiasing, PostSettings, Tonemap};
 
 #[path = "focus_tests.rs"]
 mod focus_tests;
+#[path = "fusion_tests.rs"]
+mod fusion_tests;
 #[path = "treatment_tests.rs"]
 mod treatment_tests;
 
@@ -32,7 +34,7 @@ fn the_effect_shaders_validate_and_expose_their_entry_points() {
     for (name, source, entries) in [
         ("tonemap", &tonemap, &["vs_main", "fs_main"][..]),
         ("fxaa", &fxaa, &["vs_main", "fs_main"][..]),
-        ("bloom", &bloom, &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_composite"][..]),
+        ("bloom", &bloom, &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_composite", "fs_composite_tonemap"][..]),
     ] {
         let module = validate(name, source);
         for entry in entries {
