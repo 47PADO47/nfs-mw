@@ -30,16 +30,34 @@
 //! - [`chat`]: chat rate and text rules, quick messages and system notices.
 //! - [`drop`]: disconnects, resume tokens, and the late-join bulk transfer.
 //! - [`spectate`]: who may watch, the spectator rate and the follow camera.
+//!
+//! The client's netcode (`docs/specs/multiplayer/sync-model.md`), driven by the caller's times:
+//!
+//! - [`predict`]: the owner's car run ahead of the server, with the ring of unacknowledged ticks.
+//! - [`reconcile`]: comparison with the server's own-car block, rewind and replay, the smoothed correction offset,
+//!   correction statistics and the [`reconcile::Tuning`] values.
+//! - [`interp`]: snapshot buffers of remote cars, traffic and police, the adaptive display delay, interpolation and
+//!   bounded extrapolation.
+//! - [`clock`]: the estimated server tick from PING and PONG, the ping schedule and the input lead.
+//! - [`netstats`]: the counters of the network overlay line.
+//! - [`netsim`]: the `net.sim` bad-network setting for the link simulator.
 
 pub mod chat;
+pub mod clock;
 pub mod drop;
 pub mod fairness;
+mod geom;
 pub mod input;
+pub mod interp;
 pub mod join;
 pub mod loadout;
 pub mod lobby;
 pub mod message;
 pub mod modes;
+pub mod netsim;
+pub mod netstats;
+pub mod predict;
+pub mod reconcile;
 pub mod record;
 pub mod results;
 pub mod roles;

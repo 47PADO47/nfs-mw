@@ -129,10 +129,10 @@ Status words: **not built** unless a **Built** note says which part exists (the 
 
 | ID | P | Feature | Notes |
 |---|---|---|---|
-| MP-80 | P0 | **Client prediction of the own car** | The own car responds on the frame the input is read. Corrections from the server are smoothed. See [sync model](sync-model.md) |
-| MP-81 | P0 | **Interpolated remote cars** | Other players, traffic and police are shown slightly in the past between two snapshots, with a short extrapolation when a snapshot is late |
-| MP-82 | P0 | **Network overlay** | The metrics overlay gains a line: RTT, jitter, loss, snapshot age, correction count, bandwidth in and out. Part of the advanced level of `--show-metrics` |
-| MP-83 | P1 | **Simulated bad network** | Debug settings that add latency, jitter and loss on send and receive, for tests (also usable on LAN). Console commands `net.sim`; required for the test plan |
+| MP-80 | P0 | **Client prediction of the own car** | The own car responds on the frame the input is read. Corrections from the server are smoothed. See [sync model](sync-model.md). **Built (logic):** `predict`, `reconcile` and `clock` in `nfsmw-net`, tested against the toy world through the link simulator ([sync model](sync-model.md) section 10); the game's `PredictedCar` and the wiring are not |
+| MP-81 | P0 | **Interpolated remote cars** | Other players, traffic and police are shown slightly in the past between two snapshots, with a short extrapolation when a snapshot is late. **Built (logic):** `interp` in `nfsmw-net`; drawing the poses in the scene is not |
+| MP-82 | P0 | **Network overlay** | The metrics overlay gains a line: RTT, jitter, loss, snapshot age, correction count, bandwidth in and out. Part of the advanced level of `--show-metrics`. **Built (data):** `netstats::NetStats` and its one-line `NetLine`; the overlay is not |
+| MP-83 | P1 | **Simulated bad network** | Debug settings that add latency, jitter and loss on send and receive, for tests (also usable on LAN). Console commands `net.sim`; required for the test plan. **Built (setting):** `netsim::NetSim` (parse, validate, map to the link simulator); the console command is not |
 | MP-84 | P1 | **Headless dedicated server** | `nfsmw-server` runs without a window or audio, reads a TOML file, logs to a file, and exposes the telemetry server (read-only) for monitoring |
 | MP-85 | P1 | **Telemetry bridge** | The telemetry server (milestone 13) can read a client's view of a session and, on the server, the whole session; it stays read-only ([multiplayer reuse](../telemetry/multiplayer-reuse.md)) |
 | MP-86 | P2 | **Region and ping display** | Online server list column. M11 |
@@ -156,6 +156,10 @@ These are the numbers the design is checked against. They are targets, not measu
 | Server tick | 60 Hz, the physics step | 60 Hz |
 | Server CPU at 16 players | under 25 % of one core of a 2018 desktop CPU, [unconfirmed, to measure] | under 40 % of one vCPU |
 | Join time to first snapshot | under 2 s on LAN, excluding world load | under 4 s |
+
+**Checked so far (toy world, 2026-10-22):** the correction and snap rows, with the toy car standing in for the real one,
+at 2 and 5 % loss and 20 to 150 ms round trip: median under 1.7 cm, p95 under 3 cm, no snaps, so the LAN targets hold even
+at the online conditions. Figures and limits in [sync model](sync-model.md) section 10. The real car is still to measure.
 
 ## 5. Summary
 
