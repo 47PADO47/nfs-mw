@@ -180,6 +180,7 @@ impl WorldScene {
         let laps = session.engine.as_ref().map_or(1, |e| e.course().laps);
         for event in events {
             log::debug!("race: {event:?}");
+            note_gate(session, &event);
             match event {
                 RaceEvent::Count(n) => flash(&mut session.banner, n.to_string(), 1.0),
                 RaceEvent::Go => {
@@ -271,6 +272,23 @@ impl WorldScene {
         let left = left - dt;
         session.stage = Stage::PostRace { left };
         left > 0.0
+    }
+}
+
+/// The player's checkpoints, finish and the end of the race at the info level, with where the car stands, so a log
+/// shows what a run was doing when it ended (`docs/specs/race-goals.md` section 4).
+fn note_gate(session: &RaceSession, event: &RaceEvent) {
+    let Some(engine) = session.engine.as_ref() else { return };
+    let (at, total) = (engine.racers()[0].position, engine.course().checkpoints.len());
+    let place = format!("({:.0}, {:.0}, {:.0}) at {:.1} s", at.x, at.y, at.z, engine.elapsed());
+    match event {
+        RaceEvent::Checkpoint { racer: 0, number } => log::info!("race: checkpoint {number}/{total} {place}"),
+        RaceEvent::Finished { racer: 0, .. } => log::info!("race: the player crossed the finish line {place}"),
+        RaceEvent::Over => {
+            let finished = engine.racers()[0].finished_at.is_some();
+            log::info!("race: over {place}, the player {}", if finished { "finished" } else { "did not finish" })
+        }
+        _ => {}
     }
 }
 

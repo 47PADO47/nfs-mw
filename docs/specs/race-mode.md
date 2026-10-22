@@ -53,6 +53,8 @@ small state machine, section 2, and the rest of this page.
 
 A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a finish line (`racefinish`).
 
+- **The order, and the moment a sprint ends** are in [race-goals.md](race-goals.md): the listed checkpoints, then the finish line,
+  decided by the `basicrace` script, not the executable.
 - **Reached in order only.** The racer keeps a counter of the checkpoints it has reached this lap. Reporting
   checkpoint `n` counts only when `n` equals the counter plus one; any other report does nothing to the counter
   **[exe]** (`NotifyCheckpointReached` stores the time and sets the counter only for the next index). Checkpoints are

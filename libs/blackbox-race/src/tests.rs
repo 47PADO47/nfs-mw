@@ -207,3 +207,46 @@ fn speed_and_distance_count_only_while_racing() {
     assert_eq!((stats.top_speed, stats.distance), (40.0, 60.0));
     assert_eq!(stats.sixty_at, Some(0.0), "40 m/s is past 60 mph");
 }
+
+/// The last checkpoint is a goal like the others; the race ends at the finish line after it, never at the checkpoint
+/// (`docs/specs/race-goals.md` section 2).
+#[test]
+fn the_last_checkpoint_of_a_sprint_does_not_end_the_race() {
+    let mut race = started(1, RaceConfig::default(), &[true, false]);
+    race.tick(30.0);
+    let events = drive(&mut race, 0, 0.0, &[10.0, 150.0, 250.0]);
+    assert_eq!(events, [RaceEvent::Checkpoint { racer: 0, number: 1 }, RaceEvent::Checkpoint { racer: 0, number: 2 }]);
+    assert!(!race.is_over() && race.racers()[0].racing());
+    assert_eq!(race.racers()[0].progress.reached, 2, "all the checkpoints, none of the finish");
+    let events = drive(&mut race, 0, 0.0, &[250.0, 350.0]);
+    assert_eq!(events.last(), Some(&RaceEvent::Over), "the finish line after it ends the race");
+}
+
+#[test]
+fn standing_in_the_last_checkpoint_does_not_finish_the_race() {
+    let mut race = started(1, RaceConfig::default(), &[true]);
+    drive(&mut race, 0, 0.0, &[10.0, 150.0, 199.0]);
+    for step in 0..600 {
+        let z = 199.0 + (step % 3) as f32 * 0.5;
+        assert!(race.move_racer(0, Vec3::new(0.0, 0.0, z)).iter().all(|e| !matches!(e, RaceEvent::Finished { .. })));
+    }
+    assert!(!race.is_over());
+}
+
+#[test]
+fn a_far_finish_line_after_a_wide_last_checkpoint_is_reached_on_its_own() {
+    // The prologue's sprint: a wide cube for the last checkpoint and the finish line hundreds of metres on.
+    let cube = Gate::new(Vec3::new(0.0, 0.0, 1000.0), Vec3::Z, Vec3::Y, [80.0, 80.0, 80.0]);
+    let finish = Gate::new(Vec3::new(0.0, 0.0, 1590.0), Vec3::Z, Vec3::Y, [6.0, 80.0, 6.0]);
+    let course = Course::new(Vec3::ZERO, vec![cube], Some(finish), 1);
+    let mut race = Race::new(course, RaceConfig::default(), &[(true, Vec3::ZERO)]);
+    race.start_now();
+    let mut events = Vec::new();
+    for z in (0..1700).step_by(2) {
+        events.extend(race.move_racer(0, Vec3::new(0.0, 0.0, z as f32)));
+    }
+    let checkpoint = events.iter().position(|e| matches!(e, RaceEvent::Checkpoint { number: 1, .. })).unwrap();
+    let finished = events.iter().position(|e| matches!(e, RaceEvent::Finished { .. })).unwrap();
+    assert!(finished > checkpoint, "the checkpoint comes first and the finish line is its own crossing");
+    assert_eq!(events.iter().filter(|e| matches!(e, RaceEvent::Checkpoint { .. })).count(), 1);
+}
