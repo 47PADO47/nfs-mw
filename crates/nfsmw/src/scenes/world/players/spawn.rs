@@ -46,7 +46,7 @@ impl WorldScene {
         drive.vehicle_effects.set_enabled(self.vehicle_effects[0], car_trails);
         drive.vehicle_effects.set_style(self.spark_style);
         drive.flames.set_enabled(self.exhaust_flames);
-        self.players.insert(Player { id, drive });
+        self.players.insert(Player::new(id, drive));
         Ok(())
     }
 

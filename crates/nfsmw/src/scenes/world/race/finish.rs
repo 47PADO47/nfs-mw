@@ -63,6 +63,7 @@ impl WorldScene {
     pub(super) fn end_race(&mut self, mut session: RaceSession) {
         self.release_race(&mut session);
         self.end_split();
+        self.unpark_guest_after_race();
         log::info!("race: {} ended", session.name);
         if session.options.career {
             self.career_race_left();

@@ -8,6 +8,7 @@ pub(super) mod command;
 mod contact;
 pub mod coop;
 pub mod inputs;
+mod race;
 pub mod spawn;
 mod step;
 pub mod tether;
@@ -25,6 +26,15 @@ pub const LEAD: PlayerId = PlayerId(0);
 pub struct Player<D = Drive> {
     pub id: PlayerId,
     pub drive: D,
+    /// Out of play for now: the car neither steps, collides nor shows, and no system counts the player (a co-op guest
+    /// during a race, where they drive a race seat, or during a cutscene).
+    pub parked: bool,
+}
+
+impl<D> Player<D> {
+    pub fn new(id: PlayerId, drive: D) -> Self {
+        Self { id, drive, parked: false }
+    }
 }
 
 /// The players in id order; the lead is first when present. Generic over the car so the seat rules are tested
@@ -55,7 +65,7 @@ impl<D> Players<D> {
 
     /// Put `drive` in the lead's seat, replacing the car there.
     pub fn set_lead(&mut self, drive: D) {
-        self.insert(Player { id: LEAD, drive });
+        self.insert(Player::new(LEAD, drive));
     }
 
     /// Take the lead's car out of the world.
@@ -87,13 +97,25 @@ impl<D> Players<D> {
         Some(self.list.remove(at).drive)
     }
 
-    /// The players after the lead (co-op guests), in id order.
+    /// The players after the lead (co-op guests) in play, in id order.
     pub fn guests(&self) -> impl Iterator<Item = &Player<D>> {
-        self.list.iter().filter(|p| p.id != LEAD)
+        self.list.iter().filter(|p| p.id != LEAD && !p.parked)
     }
 
     pub fn guests_mut(&mut self) -> impl Iterator<Item = &mut Player<D>> {
-        self.list.iter_mut().filter(|p| p.id != LEAD)
+        self.list.iter_mut().filter(|p| p.id != LEAD && !p.parked)
+    }
+
+    /// Takes player `id` out of play (`true`) or puts it back. Returns whether there is such a player.
+    pub fn park(&mut self, id: PlayerId, parked: bool) -> bool {
+        let Some(player) = self.list.iter_mut().find(|p| p.id == id) else { return false };
+        player.parked = parked;
+        true
+    }
+
+    /// Whether player `id` is in the world but out of play.
+    pub fn is_parked(&self, id: PlayerId) -> bool {
+        self.list.iter().any(|p| p.id == id && p.parked)
     }
 
     /// The first guest's car: the second view of a split screen.
@@ -105,12 +127,13 @@ impl<D> Players<D> {
         self.guests().next().is_some()
     }
 
-    /// The lead's car and the guests at once, for steps that touch both.
-    pub fn lead_and_guests_mut(&mut self) -> (Option<&mut D>, &mut [Player<D>]) {
-        match self.list.split_first_mut() {
+    /// The lead's car and the guests in play at once, for steps that touch both.
+    pub fn lead_and_guests_mut(&mut self) -> (Option<&mut D>, Vec<&mut Player<D>>) {
+        let (lead, rest) = match self.list.split_first_mut() {
             Some((first, rest)) if first.id == LEAD => (Some(&mut first.drive), rest),
             _ => (None, &mut self.list[..]),
-        }
+        };
+        (lead, rest.iter_mut().filter(|p| !p.parked).collect())
     }
 
     /// Every player's car, the lead first.
@@ -119,12 +142,14 @@ impl<D> Players<D> {
         self.list.iter().map(|p| &p.drive)
     }
 
+    /// Every car in play, the lead first.
     pub fn drives_mut(&mut self) -> impl Iterator<Item = &mut D> {
-        self.list.iter_mut().map(|p| &mut p.drive)
+        self.list.iter_mut().filter(|p| !p.parked).map(|p| &mut p.drive)
     }
 
+    /// Every player in play, the lead first.
     pub fn iter(&self) -> impl Iterator<Item = &Player<D>> {
-        self.list.iter()
+        self.list.iter().filter(|p| !p.parked)
     }
 
     /// Take every player out of the world, the lead first.
@@ -149,11 +174,28 @@ mod tests {
     #[test]
     fn the_lead_is_player_zero() {
         let mut players = Players::default();
-        players.insert(Player { id: PlayerId(1), drive: "two" });
+        players.insert(Player::new(PlayerId(1), "two"));
         assert_eq!(players.lead(), None);
         players.set_lead("one");
         assert_eq!(players.lead(), Some(&"one"));
         assert_eq!(players.drives().copied().collect::<Vec<_>>(), ["one", "two"]);
+    }
+
+    #[test]
+    fn guests_are_everyone_in_play_but_the_lead() {
+        let mut players = Players::default();
+        players.insert(Player::new(PlayerId(2), 3));
+        players.set_lead(1);
+        players.insert(Player::new(PlayerId(1), 2));
+        assert_eq!(players.guests().map(|p| p.drive).collect::<Vec<_>>(), [2, 3]);
+        let (lead, guests) = players.lead_and_guests_mut();
+        assert_eq!(lead.copied(), Some(1));
+        assert_eq!(guests.len(), 2);
+        assert!(players.park(PlayerId(1), true));
+        assert!(players.is_parked(PlayerId(1)));
+        assert_eq!(players.guests().map(|p| p.drive).collect::<Vec<_>>(), [3], "a parked guest is out of play");
+        assert_eq!(players.lead_and_guests_mut().1.len(), 1);
+        assert_eq!(players.get(PlayerId(1)), Some(&2), "a parked guest keeps its car");
     }
 
     #[test]
@@ -169,7 +211,7 @@ mod tests {
     fn remove_and_take_all_empty_the_list() {
         let mut players = Players::default();
         players.set_lead(1);
-        players.insert(Player { id: PlayerId(1), drive: 2 });
+        players.insert(Player::new(PlayerId(1), 2));
         assert_eq!(players.remove(PlayerId(1)), Some(2));
         assert_eq!(players.take_lead(), Some(1));
         assert!(players.is_empty());

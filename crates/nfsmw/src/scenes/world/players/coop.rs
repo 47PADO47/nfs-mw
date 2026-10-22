@@ -32,6 +32,9 @@ pub struct CoopSession {
     pub names: Vec<String>,
     /// The guest car's career record handle (`CoopSetup::car_handle`).
     pub guest_handle: Option<u32>,
+    /// The guest's car folder and gearbox, for the race seat it drives in a race (`race.rs`).
+    pub guest_car: String,
+    pub transmission: Transmission,
     /// The soft catch-up distance.
     pub tether: Tether,
     /// The player offered the "Press Reset to catch up" prompt this frame, if any (`catch_up.rs`).
@@ -88,6 +91,8 @@ impl WorldScene {
         self.coop = Some(CoopSession {
             names,
             guest_handle: setup.car_handle,
+            guest_car: folder.clone(),
+            transmission: setup.transmission,
             tether: Tether::default(),
             device: setup.device,
             catch_up: None,

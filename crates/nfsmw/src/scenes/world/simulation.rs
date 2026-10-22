@@ -207,7 +207,7 @@ impl WorldScene {
         let mut world_sounds = Vec::new();
         // The car the police follow takes the traffic's player contacts (the lead outside co-op); the others collide
         // with the traffic as guests.
-        let (lead, guests) = self.players.lead_and_guests_mut();
+        let (lead, mut guests) = self.players.lead_and_guests_mut();
         let lead = lead.filter(|_| player_step.is_some()).and_then(|d| d.sim_mut()).map(|sim| (LEAD, sim));
         let stepped = guests.iter_mut().zip(&guest_steps).filter(|(_, step)| step.is_some());
         let mut sims: Vec<_> =
