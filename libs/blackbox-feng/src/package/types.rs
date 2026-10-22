@@ -96,16 +96,26 @@ impl ObjectData {
         self.words.get(word).copied().unwrap_or(0) as i32
     }
 
-    pub fn set_f32(&mut self, word: usize, v: f32) {
-        if let Some(w) = self.words.get_mut(word) {
-            *w = v.to_bits();
+    /// Writes the raw bits of a word. Returns whether the word existed and held other bits, so a caller that tracks
+    /// changes (the runtime's revision) can tell a real write from a repeat.
+    fn put(&mut self, word: usize, bits: u32) -> bool {
+        match self.words.get_mut(word) {
+            Some(w) if *w != bits => {
+                *w = bits;
+                true
+            }
+            _ => false,
         }
     }
 
-    pub fn set_i32(&mut self, word: usize, v: i32) {
-        if let Some(w) = self.words.get_mut(word) {
-            *w = v as u32;
-        }
+    /// Sets a float word; returns whether the value changed.
+    pub fn set_f32(&mut self, word: usize, v: f32) -> bool {
+        self.put(word, v.to_bits())
+    }
+
+    /// Sets an integer word; returns whether the value changed.
+    pub fn set_i32(&mut self, word: usize, v: i32) -> bool {
+        self.put(word, v as u32)
     }
 
     fn vec3(&self, word: usize) -> Vec3 {
@@ -118,8 +128,8 @@ impl ObjectData {
         [c(2), c(1), c(0), c(3)]
     }
 
-    pub fn set_alpha(&mut self, alpha: i32) {
-        self.set_i32(word::COLOUR + 3, alpha);
+    pub fn set_alpha(&mut self, alpha: i32) -> bool {
+        self.set_i32(word::COLOUR + 3, alpha)
     }
 
     pub fn alpha(&self) -> i32 {
@@ -148,22 +158,28 @@ impl ObjectData {
         if q.length_squared() > 1e-12 { q.normalize() } else { Quat::IDENTITY }
     }
 
-    pub fn set_rotation(&mut self, q: Quat) {
+    pub fn set_rotation(&mut self, q: Quat) -> bool {
+        let mut changed = false;
         for (i, v) in [q.x, q.y, q.z, q.w].into_iter().enumerate() {
-            self.set_f32(word::ROTATION + i, v);
+            changed |= self.set_f32(word::ROTATION + i, v);
         }
+        changed
     }
 
-    pub fn set_position(&mut self, p: Vec3) {
+    pub fn set_position(&mut self, p: Vec3) -> bool {
+        let mut changed = false;
         for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
-            self.set_f32(word::POSITION + i, v);
+            changed |= self.set_f32(word::POSITION + i, v);
         }
+        changed
     }
 
-    pub fn set_pivot(&mut self, p: Vec3) {
+    pub fn set_pivot(&mut self, p: Vec3) -> bool {
+        let mut changed = false;
         for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
-            self.set_f32(word::PIVOT + i, v);
+            changed |= self.set_f32(word::PIVOT + i, v);
         }
+        changed
     }
 
     /// The texture rectangle `[u0, v0, u1, v1]` of one of a multi image's three textures (0 is its mask); the unit
@@ -176,14 +192,16 @@ impl ObjectData {
         [self.f32_at(tl), self.f32_at(tl + 1), self.f32_at(br), self.f32_at(br + 1)]
     }
 
-    pub fn set_multi_uv(&mut self, slot: usize, uv: [f32; 4]) {
+    pub fn set_multi_uv(&mut self, slot: usize, uv: [f32; 4]) -> bool {
         if slot >= 3 {
-            return;
+            return false;
         }
         let (tl, br) = (word::MULTI_TOP_LEFT + slot * 2, word::MULTI_BOTTOM_RIGHT + slot * 2);
+        let mut changed = false;
         for (i, v) in [(tl, uv[0]), (tl + 1, uv[1]), (br, uv[2]), (br + 1, uv[3])] {
-            self.set_f32(i, v);
+            changed |= self.set_f32(i, v);
         }
+        changed
     }
 
     /// UV rectangle `[u0, v0, u1, v1]` (upper-left, lower-right) of an image; the unit square if absent.

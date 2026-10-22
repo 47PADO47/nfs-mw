@@ -1,7 +1,6 @@
 //! The retained tree a host draws: one node per object with its transform, colour, kind and draw order.
 //! Rules: `docs/specs/feng-runtime.md` section 6. Nothing here knows about rendering.
 
-use blackbox_ui::DrawList;
 use glam::Mat4;
 
 use crate::package::{ObjectKind, ResourceKind, word};
@@ -26,21 +25,50 @@ fn mul_colour(a: [u8; 4], b: [u8; 4]) -> [u8; 4] {
     [mul_channel(a[0], b[0]), mul_channel(a[1], b[1]), mul_channel(a[2], b[2]), mul_channel(a[3], b[3])]
 }
 
+/// Stores `text` in `slot`, reusing the buffer it already holds.
+fn assign(slot: &mut Option<String>, text: &str) {
+    match slot {
+        Some(buffer) => {
+            buffer.clear();
+            buffer.push_str(text);
+        }
+        None => *slot = Some(text.to_owned()),
+    }
+}
+
 impl Runtime {
     /// Builds the tree of a package from its current state.
     pub fn tree(&self, id: PackageId) -> UiTree {
-        let Some(p) = self.running(id) else { return UiTree::default() };
+        let mut tree = UiTree::default();
+        self.tree_into(id, &mut tree);
+        tree
+    }
+
+    /// Builds the tree of a package into `out`, replacing what it holds and reusing its buffers (the node list, the
+    /// draw order and the text of each string node). The result is the one [`Runtime::tree`] returns. A host that
+    /// draws every frame keeps one tree and calls this only when [`Runtime::revision`] has moved.
+    pub fn tree_into(&self, id: PackageId, out: &mut UiTree) {
+        let Some(p) = self.running(id) else {
+            out.nodes.clear();
+            out.draw_order.clear();
+            return;
+        };
         let def = &p.def;
-        let mut nodes: Vec<Option<UiNode>> = vec![None; def.objects.len()];
-        // Parents are visited before children: walk the update order, which is depth first.
-        for &i in &p.order {
+        let count = def.objects.len();
+        out.nodes.resize_with(count, UiNode::default);
+        // Parents are visited before children: walk the update order, which is depth first. A node is written in its
+        // object's place, and a parent's place always holds this call's node by the time a child reads it.
+        for &i in p.order.iter() {
             let (def_obj, state) = (&def.objects[i], &p.objects[i]);
             let parent = def_obj
                 .parent
                 .and_then(|g| p.by_guid.get(&g).copied())
                 .filter(|pi| *pi != i && def.objects[*pi].kind == ObjectKind::Group);
-            let (ctx, ctx_colour, parent_visible) = match parent.and_then(|pi| nodes[pi].as_ref()) {
-                Some(pn) => (pn.world, pn.world_colour, pn.visible),
+            let (ctx, ctx_colour, parent_visible) = match parent {
+                Some(pi) => {
+                    let parent_node = &out.nodes[pi];
+                    (parent_node.world, parent_node.world_colour, parent_node.visible)
+                }
                 None => (Mat4::IDENTITY, [255; 4], true),
             };
             let data = &state.data;
@@ -80,16 +108,21 @@ impl Runtime {
                 },
                 _ => NodeKind::Other,
             };
-            let text = def_obj.string.as_ref().map(|s| {
-                if let Some(t) = &state.text {
-                    t.clone()
-                } else if def_obj.flags & 2 == 0 && state.label != 0 {
-                    self.resolve_label(state.label).unwrap_or_else(|| s.text.clone())
-                } else {
-                    s.text.clone()
-                }
-            });
-            nodes[i] = Some(UiNode {
+            // The text buffer of last time's node is reused, so a string that did not change costs a copy, not an
+            // allocation.
+            let mut text = std::mem::take(&mut out.nodes[i].text);
+            match def_obj.string.as_ref() {
+                None => text = None,
+                Some(s) => match &state.text {
+                    Some(t) => assign(&mut text, t),
+                    None if def_obj.flags & 2 == 0 && state.label != 0 => match self.resolve_label(state.label) {
+                        Some(resolved) => text = Some(resolved),
+                        None => assign(&mut text, &s.text),
+                    },
+                    None => assign(&mut text, &s.text),
+                },
+            }
+            out.nodes[i] = UiNode {
                 index: i,
                 guid: def_obj.guid,
                 name_hash: def_obj.name_hash,
@@ -107,15 +140,26 @@ impl Runtime {
                 z,
                 visible,
                 clip: None,
+            };
+        }
+        // An object the walk never reached (a cycle of groups in corrupt data) has no node.
+        if p.order.len() != count {
+            let mut reached = vec![false; count];
+            for &i in p.order.iter() {
+                reached[i] = true;
+            }
+            let mut at = 0;
+            out.nodes.retain(|_| {
+                at += 1;
+                reached[at - 1]
             });
         }
-        let mut list = DrawList::new();
-        for node in nodes.into_iter().flatten() {
-            list.push(node);
-        }
         // The drawn nodes are the visible ones in front of the screen plane that are not groups or unsupported
-        // objects. `into_tree` sorts them farthest first, stable: objects later in the list draw over earlier ones.
-        list.into_tree(is_drawn)
+        // objects, farthest first. Ties keep the object order: objects later in the list draw over earlier ones.
+        out.draw_order.clear();
+        out.draw_order.extend(out.nodes.iter().enumerate().filter(|(_, node)| is_drawn(node)).map(|(k, _)| k));
+        let nodes = &out.nodes;
+        out.draw_order.sort_unstable_by(|a, b| nodes[*b].z.total_cmp(&nodes[*a].z).then(a.cmp(b)));
     }
 }
 

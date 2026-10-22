@@ -39,7 +39,7 @@ pub struct Running {
     pub by_guid: FastMap<u32, usize>,
     pub by_name: FastMap<u32, usize>,
     /// Depth-first order: the order objects are updated in.
-    pub order: Vec<usize>,
+    pub order: Arc<[usize]>,
     pub current_button: Option<usize>,
     pub input_enabled: bool,
     /// Objects flagged as buttons, in file order.
@@ -49,6 +49,9 @@ pub struct Running {
     pub start_equals_accept: bool,
     /// The button each pad bit was pressed on, for the release message.
     pub pressed_on: [Option<usize>; 19],
+    /// Counts the changes to anything the tree reads (object data, hidden flags, texts, labels, textures, the language
+    /// table). A host that saw the same value last frame can reuse what it built from the tree.
+    pub revision: u64,
 }
 
 impl Running {
@@ -107,14 +110,20 @@ impl Running {
             objects,
             by_guid,
             by_name,
-            order,
+            order: order.into(),
             current_button: None,
             input_enabled: true,
             buttons,
             control: true,
             start_equals_accept: false,
             pressed_on: [None; 19],
+            revision: 1,
         }
+    }
+
+    /// Records a change to what the tree reads.
+    pub fn touch(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 }
 

@@ -13,12 +13,13 @@ use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
 use super::event_tiles::{EventTiles, install_loader};
+use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
 use super::minimap::MinimapBinding;
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
-use super::viewport::HudViewport;
+use super::viewport::{HudViewport, parameters};
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
@@ -59,6 +60,8 @@ struct Hud {
     overlay: Option<BustedOverlay>,
     /// The drag race HUD, when the install has it: it takes the place of the race HUD while a drag race runs.
     drag: Option<DragHud>,
+    /// What the trees in the frame cell were built from, and the layers composed from them (`frame_cache.rs`).
+    cache: FrameCache,
 }
 
 /// `HUD_Drag.fng` with its own binding and viewport, in the same runtime.
@@ -120,6 +123,7 @@ impl Plugin for HudPlugin {
             trax,
             overlay,
             drag,
+            cache: FrameCache::default(),
         })
         .insert_non_send(self.career.clone())
         .insert_resource(self.initial.clone())
@@ -193,7 +197,9 @@ fn present(
     let hud = &mut *hud;
     // The RadioCard slot decides the radio look. The EA Trax chyron plays and is drawn only where the active theme
     // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.
-    let chyron_shown = themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
+    // Under the Original theme every slot is Original's, so no slot has to be resolved to know it.
+    let static_hud = themes.hud_is_static();
+    let chyron_shown = static_hud || themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
     // A drag race shows its own package; the other package rests (its objects are not updated or drawn).
     let drag = hud.drag.as_mut().filter(|_| state.drag);
     let (package, binding, viewport) = match drag {
@@ -220,31 +226,43 @@ fn present(
     themes.radio().set(&radio, screen, settings.hud_layout);
     // The Custom speedometer and tachometer read the drive state the same way.
     themes.drive().set(&state, screen);
+    // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the
+    // cell then keeps its generation and the composed layers below are reused as well.
+    let placement = parameters(screen, settings.hud_layout);
+    let key = |package: PackageId, runtime: &Runtime| TreeKey::new(package, runtime.revision(package), placement);
     match (chyron_shown, hud.trax.as_ref()) {
         (true, Some(trax)) => {
-            let mut chyron = hud.runtime.tree(trax.package());
-            trax.place(&mut chyron, screen, settings.hud_layout);
-            frame.set(FengSource::Chyron, chyron);
+            let chyron = trax.package();
+            hud.cache.refresh(&frame, FengSource::Chyron, key(chyron, &hud.runtime), |tree| {
+                hud.runtime.tree_into(chyron, tree);
+                trax.place(tree, screen, settings.hud_layout);
+            });
         }
-        _ => frame.clear(FengSource::Chyron),
+        _ => hud.cache.clear(&frame, FengSource::Chyron),
     }
     // The viewport is applied to the source tree (its `index` is the position), never to the composed tree.
-    let mut tree = hud.runtime.tree(package);
-    viewport.apply(&mut tree, screen, settings.hud_layout);
-    frame.set(FengSource::Hud, tree);
-    match hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
-        Some(overlay) => frame.set(FengSource::BustedOverlay, overlay),
-        None => frame.clear(FengSource::BustedOverlay),
+    hud.cache.refresh(&frame, FengSource::Hud, key(package, &hud.runtime), |tree| {
+        hud.runtime.tree_into(package, tree);
+        viewport.apply(tree, screen, settings.hud_layout);
+    });
+    match hud.overlay.as_ref().and_then(BustedOverlay::shown) {
+        Some(overlay) => {
+            let key = TreeKey::new(overlay, hud.runtime.revision(overlay), (1.0, 0.0));
+            hud.cache.refresh(&frame, FengSource::BustedOverlay, key, |tree| hud.runtime.tree_into(overlay, tree));
+        }
+        None => hud.cache.clear(&frame, FengSource::BustedOverlay),
     }
     // The presenter puts each call's meshes over the ones of the calls before it, so the chyron (or the card) goes
     // first, the HUD over it, and the busted overlay last, as the presenter always drew them.
     let time_s = time.elapsed_secs();
-    let layers = [
-        slot_layer(&themes, ElementId::RadioCard, time_s),
-        hud_layer(&themes, time_s),
-        slot_layer(&themes, ElementId::BustedOverlay, time_s),
-    ];
-    for layer in &layers {
+    let layers = hud.cache.layers(frame.generation(), static_hud, || {
+        [
+            slot_layer(&themes, ElementId::RadioCard, time_s),
+            hud_layer(&themes, time_s),
+            slot_layer(&themes, ElementId::BustedOverlay, time_s),
+        ]
+    });
+    for layer in layers {
         if layer.nodes.is_empty() {
             continue;
         }
