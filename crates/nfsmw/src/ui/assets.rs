@@ -2,6 +2,7 @@
 //! strings. Shared by the HUD and the menus.
 
 mod load;
+pub(crate) use load::read_wanted;
 
 use std::collections::{HashMap, HashSet};
 

@@ -65,7 +65,7 @@ pub(super) fn texture_files(dir: &GameDir, font_textures: &HashSet<u32>) -> (Tex
 
 /// The wanted textures of the pack file `rel`, read through byte ranges when the file has no compression wrapper (only
 /// the headers and the wanted textures are read, however big the file is) and through a whole read otherwise.
-pub(super) fn read_wanted(dir: &GameDir, rel: &str, keep: impl Fn(u32) -> bool) -> Result<Vec<Texture>> {
+pub(crate) fn read_wanted(dir: &GameDir, rel: &str, keep: impl Fn(u32) -> bool) -> Result<Vec<Texture>> {
     let mut file = dir.open_file(rel).with_context(|| format!("opening {rel}"))?;
     let mut magic = [0u8; 4];
     let wrapped = match file.read_exact(&mut magic) {

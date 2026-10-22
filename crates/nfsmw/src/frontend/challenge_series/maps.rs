@@ -5,7 +5,7 @@
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use blackbox_tpk::{Texture, read_texture_packs_filtered};
+use blackbox_tpk::Texture;
 
 use super::board;
 use crate::ui::UiAssets;
@@ -78,16 +78,10 @@ impl Maps {
     }
 }
 
+/// Reads only the wanted pictures' bytes (`read_wanted`): the file is 63 MB and a series shows a few of its maps.
 fn read(dir: &game_install::GameDir, wanted: &[u32]) -> Vec<Texture> {
-    let data = match nfsmw_data::shared_unwrapped(dir, FILE) {
-        Ok(data) => data,
-        Err(e) => {
-            log::warn!("map pictures: {FILE}: {e:#}");
-            return Vec::new();
-        }
-    };
-    match read_texture_packs_filtered(&data, |hash| wanted.contains(&hash)) {
-        Ok(packs) => packs.into_iter().flat_map(|pack| pack.textures).collect(),
+    match crate::ui::read_wanted(dir, FILE, |hash| wanted.contains(&hash)) {
+        Ok(textures) => textures,
         Err(e) => {
             log::warn!("map pictures: {FILE}: {e:#}");
             Vec::new()
