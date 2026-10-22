@@ -80,6 +80,8 @@ pub fn report(results: &RaceResults, lobby: &LobbyView) -> RaceReport {
         laps: settings.map_or(1, |s| u32::from(s.laps.max(1))),
         photo: None,
         pursuit: None,
+        // A session race is not a career race: nothing is asked after a loss.
+        retry: nfsmw_career::story::LossRule::Leave,
     }
 }
 
