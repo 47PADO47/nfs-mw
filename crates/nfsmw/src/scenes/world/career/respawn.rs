@@ -11,6 +11,16 @@ use glam::Vec3;
 
 use super::WorldScene;
 use crate::scenes::world::entry_zones::ZoneKind;
+use crate::scenes::world::players::tether;
+
+/// How far behind the lead the guests are put after the lead's respawn, in metres (as a co-op guest joins).
+const GUEST_BEHIND_M: f32 = 12.0;
+
+/// The place a guest is put at behind a lead at `position` facing `heading` (radians from +X, render space).
+fn guest_spot(position: Vec3, heading: f32) -> Vec3 {
+    let forward = Vec3::new(heading.cos(), heading.sin(), 0.0);
+    tether::behind(position, forward, GUEST_BEHIND_M)
+}
 
 /// The respawn markers the player has visited, in render space.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -21,6 +31,8 @@ pub(in crate::scenes::world) struct Respawns {
     pub safe_house: Option<Vec3>,
     /// A bust was paid: the car goes to the marker when the game runs again.
     pub pending: bool,
+    /// The lead was moved to a marker: the guests follow once the lead stands on the road.
+    pub guests_behind: bool,
 }
 
 impl Respawns {
@@ -48,6 +60,7 @@ impl WorldScene {
 
     /// The game runs again after a paid bust: the car goes to the respawn marker.
     pub(super) fn career_respawn(&mut self) {
+        self.career_guests_behind_lead();
         if !std::mem::take(&mut self.career.respawn.pending) {
             return;
         }
@@ -57,7 +70,26 @@ impl WorldScene {
         };
         let Some(drive) = self.players.lead_mut() else { return };
         drive.respawn_near([at.x, at.y], None);
+        self.career.respawn.guests_behind = true;
         log::info!("career: busted, the car goes back to the respawn marker at ({:.0}, {:.0})", at.x, at.y);
+    }
+
+    /// Once the lead stands on the road after a move to a marker, every guest is put 12 m behind it, facing the lead's
+    /// heading. The lead's road is only known when its placement ends, so the guests wait for it.
+    fn career_guests_behind_lead(&mut self) {
+        if !self.career.respawn.guests_behind {
+            return;
+        }
+        let Some(lead) = self.players.lead().filter(|drive| drive.has_sim() && drive.waiting_for_road().is_none())
+        else {
+            return;
+        };
+        let heading = lead.heading();
+        let spot = guest_spot(lead.position(), heading);
+        self.career.respawn.guests_behind = false;
+        for guest in self.players.guests_mut() {
+            guest.drive.respawn_near([spot.x, spot.y], Some(heading));
+        }
     }
 }
 
@@ -87,6 +119,14 @@ mod tests {
         let mut respawns = Respawns::default();
         respawns.visit(ZoneKind::SafeHouse, None);
         assert_eq!(respawns, Respawns::default());
+    }
+
+    #[test]
+    fn a_guest_stands_12_metres_behind_the_lead() {
+        let spot = guest_spot(Vec3::new(10.0, 0.0, 1.5), 0.0);
+        assert!((spot - Vec3::new(-2.0, 0.0, 1.5)).length() < 1e-4, "{spot:?}");
+        let spot = guest_spot(Vec3::new(10.0, 0.0, 1.5), std::f32::consts::FRAC_PI_2);
+        assert!((spot - Vec3::new(10.0, -12.0, 1.5)).length() < 1e-3, "{spot:?}");
     }
 }
 
