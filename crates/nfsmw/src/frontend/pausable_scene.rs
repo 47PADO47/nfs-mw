@@ -79,6 +79,14 @@ impl Scene for Pausable {
         self.inner.split_hud_state(player)
     }
 
+    // A menu over the world takes the devices back, as it does for a split-screen race.
+    fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.coop_second_device()
+    }
+
     // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()

@@ -1,5 +1,5 @@
 //! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug`,
-//! `race`, `nis`, `movie` and `story`.
+//! `race`, `nis`, `movie`, `story` and `coop`.
 
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
@@ -48,6 +48,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ),
     ("movie <name> | movie stop", "play a movie full screen over the world (a name or part of one), or stop it"),
     (
+        "coop on <CAR[:PRESET]> [arrows|pad] | coop off | coop",
+        "co-op without the menus: player 2 joins behind the lead on the arrow block (default) or the first pad; off ends it; no argument: who plays",
+    ),
+    (
         "story status | race <event id> | arrival | firstvisit",
         "the story flow: its state (stage, prologue resume, rival beaten, final race on resume), a career race with its intro (16.1.0, 1.8.1), the safe house arrival, the first visit",
     ),
@@ -74,6 +78,7 @@ pub(super) fn run(
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),
+        "coop" => super::players::command::coop(scene, renderer, args),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),
         "traffic" => ai::traffic_command(scene, args),

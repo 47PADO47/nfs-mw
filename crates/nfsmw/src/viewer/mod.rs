@@ -216,6 +216,11 @@ pub trait Scene {
     fn set_traffic(&mut self, _traffic: crate::settings::TrafficSettings) {}
     /// The second player's actions for this frame, told before `update` while a split-screen race is on.
     fn set_second_input(&mut self, _input: &ActionState) {}
+    /// The device a co-op guest (player 2) drives with, told to the input layer's seating every frame; `None` outside
+    /// co-op. While it is set, player 1 keeps the WASD block (or the keyboard) and the guest holds this device.
+    fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
+        None
+    }
     /// A split-screen race is on: the picture is two views, one per player (`split_view`), each with its own HUD
     /// (`split_hud_state`), and the main `frame` draws nothing of its own.
     fn split_active(&self) -> bool {

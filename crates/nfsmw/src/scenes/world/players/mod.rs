@@ -3,6 +3,7 @@
 //! [`Drive`] of its own, the same path a remote player of a network session takes later.
 
 mod catch_up;
+pub(super) mod command;
 mod contact;
 pub mod coop;
 pub mod inputs;
