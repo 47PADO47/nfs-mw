@@ -1,8 +1,8 @@
 //! A set of loaded collision packs plus the grid that finds them: the engine's `WCollisionAssets`
 //! and `WCollisionMgr` in one value.
 
-use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::sync::{Mutex, MutexGuard, TryLockError};
 
 use crate::grid::{Grid, InstanceRef};
 use crate::groups::GroupSet;
@@ -36,11 +36,15 @@ pub struct CollisionWorld {
     pub(crate) revision: u64,
     /// The grid's candidate list of the last cast, kept so casts after warm-up do not allocate. A cast takes the
     /// buffer out and puts it back, so a predicate that casts again never meets a live borrow.
-    candidates: RefCell<Vec<InstanceRef>>,
+    ///
+    /// The caches are behind locks only so the world can be shared by threads that cast at once (each with its own
+    /// window, [`Self::ray_cast_in`]). A cast never waits for one: when another thread holds it, the cast runs without
+    /// the cache, which gives the same answer (the `cache` helper below).
+    candidates: Mutex<Vec<InstanceRef>>,
     /// The candidate set the last short ray cast used. A car's probes and corner rays, and the cars near it, fall in
     /// the same few cells, so the next cast reuses it when it covers the ray and the revision still matches.
-    pub(crate) window: RefCell<CandidateSet>,
-    resident: RefCell<ResidentCache>,
+    pub(crate) window: Mutex<CandidateSet>,
+    resident: Mutex<ResidentCache>,
     /// Scenery groups (`group != 0`) that are in the world: their instances collide when a query skips groups
     /// ([`RayOptions::skip_groups`]). Kept here so it survives packs being inserted and removed.
     pub(crate) enabled_groups: GroupSet,
@@ -55,9 +59,9 @@ impl CollisionWorld {
             slots: Vec::new(),
             ungridded: Vec::new(),
             revision: 0,
-            candidates: RefCell::default(),
-            window: RefCell::default(),
-            resident: RefCell::default(),
+            candidates: Mutex::default(),
+            window: Mutex::default(),
+            resident: Mutex::default(),
             enabled_groups: GroupSet::default(),
         }
     }
@@ -158,12 +162,14 @@ impl CollisionWorld {
     /// Takes the candidate buffer out for a cast. Pair with [`Self::return_candidates`]; a cast that finds it
     /// already taken (a predicate casting again) gets an empty buffer and allocates its own.
     pub(crate) fn take_candidates(&self) -> Vec<InstanceRef> {
-        self.candidates.take()
+        cache(&self.candidates).map(|mut buffer| std::mem::take(&mut *buffer)).unwrap_or_default()
     }
 
     /// Puts a buffer from [`Self::take_candidates`] back so the next cast reuses its capacity.
     pub(crate) fn return_candidates(&self, refs: Vec<InstanceRef>) {
-        *self.candidates.borrow_mut() = refs;
+        if let Some(mut buffer) = cache(&self.candidates) {
+            *buffer = refs;
+        }
     }
 
     /// Whether every instance referenced by the grid near `point` has a resident pack.
@@ -180,24 +186,29 @@ impl CollisionWorld {
         let (r0, c0) = grid.cell_of(point[0] - radius, point[2] - radius);
         let (r1, c1) = grid.cell_of(point[0] + radius, point[2] + radius);
         let block = [r0, c0, r1, c1];
-        let mut cache = self.resident.borrow_mut();
-        if cache.revision != self.revision {
-            cache.blocks.clear();
-            cache.revision = self.revision;
+        let Some(mut answers) = cache(&self.resident) else { return Some(self.block_resident(grid, block)) };
+        if answers.revision != self.revision {
+            answers.blocks.clear();
+            answers.revision = self.revision;
         }
-        if let Some(&ready) = cache.blocks.get(&block) {
+        if let Some(&ready) = answers.blocks.get(&block) {
             return Some(ready);
         }
-        let ready = (r0..=r1).all(|row| {
+        let ready = self.block_resident(grid, block);
+        if answers.blocks.len() >= RESIDENT_CACHE_LIMIT {
+            answers.blocks.clear();
+        }
+        answers.blocks.insert(block, ready);
+        Some(ready)
+    }
+
+    /// Whether every instance the cells of `block` list has a resident pack: the uncached answer of `resident_near`.
+    fn block_resident(&self, grid: &Grid, [r0, c0, r1, c1]: [u32; 4]) -> bool {
+        (r0..=r1).all(|row| {
             (c0..=c1)
                 .filter_map(|col| grid.node(grid.node_index(row, col)))
                 .all(|node| node.instances.iter().all(|reference| self.slot_of(reference.section()).is_some()))
-        });
-        if cache.blocks.len() >= RESIDENT_CACHE_LIMIT {
-            cache.blocks.clear();
-        }
-        cache.blocks.insert(block, ready);
-        Some(ready)
+        })
     }
 
     /// The nearest hit along the segment from `from` to `to` (physics space: x right, y up,
@@ -235,7 +246,7 @@ impl CollisionWorld {
         let mut best: Option<Hit> = None;
         match &self.grid {
             Some(grid) => {
-                let mut refs = self.candidates.take();
+                let mut refs = self.take_candidates();
                 grid.instances_along_into(seg.0, seg.1, &mut refs);
                 for r in &refs {
                     let Some(pack) = self.slot_of(r.section()).and_then(|slot| self.packs.get(slot as usize)) else {
@@ -243,7 +254,7 @@ impl CollisionWorld {
                     };
                     self.test_instance(pack, r.index(), seg, opts, accept, &mut best);
                 }
-                *self.candidates.borrow_mut() = refs;
+                self.return_candidates(refs);
             }
             None => {
                 for pack in &self.packs {
@@ -295,6 +306,16 @@ impl CollisionWorld {
     pub fn ground(&self, x: f32, z: f32, top: f32, bottom: f32) -> Option<Hit> {
         let opts = RayOptions { barriers: false, ..RayOptions::default() };
         self.ray_cast([x, top, z], [x, bottom, z], &opts)
+    }
+}
+
+/// The cache behind `lock`, or `None` while another thread holds it: the caller then works without the cache. A cache
+/// only saves work (every cached answer equals the uncached one), so a poisoned lock is still a usable cache.
+pub(crate) fn cache<T>(lock: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    match lock.try_lock() {
+        Ok(guard) => Some(guard),
+        Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
+        Err(TryLockError::WouldBlock) => None,
     }
 }
 

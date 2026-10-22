@@ -262,3 +262,51 @@ fn group_set_matches_a_plain_set() {
     world.set_group_enabled(2, false);
     assert_ne!(world.revision(), revision);
 }
+
+/// Short rays around random points, as a car casts them, each answered by `cast`: the hits must equal the grid walk.
+fn car_rays(world: &CollisionWorld, seed: u64, mut cast: impl FnMut([f32; 3], [f32; 3], &RayOptions) -> Option<Hit>) {
+    let mut rng = Lcg(seed);
+    for _ in 0..40 {
+        let centre = random_point(&mut rng);
+        for k in 0..8 {
+            let angle = k as f32 * std::f32::consts::FRAC_PI_4;
+            let probe = [centre[0] + 3.0 * angle.cos(), centre[1], centre[2] + 3.0 * angle.sin()];
+            let down = [centre[0] + 1.5 * angle.sin(), 8.0, centre[2] + 2.5 * angle.cos()];
+            for opts in options() {
+                assert_eq!(cast(centre, probe, &opts), world.ray_cast_walk(centre, probe, &opts, |_| true));
+                let bottom = [down[0], -8.0, down[2]];
+                assert_eq!(cast(down, bottom, &opts), world.ray_cast_walk(down, bottom, &opts, |_| true));
+            }
+        }
+        // A long ray, which walks the grid whatever window it is given.
+        let (from, to) = (random_point(&mut rng), random_point(&mut rng));
+        assert_eq!(cast(from, to, &options()[0]), world.ray_cast_walk(from, to, &options()[0], |_| true));
+    }
+}
+
+#[test]
+fn a_caller_window_matches_the_grid_walk_and_survives_world_changes() {
+    let mut world = world();
+    let mut window = CandidateSet::default();
+    car_rays(&world, 0xCA5, |from, to, opts| world.ray_cast_in(from, to, opts, &mut window));
+    world.set_group_enabled(5, true);
+    world.remove(7);
+    car_rays(&world, 0xCA6, |from, to, opts| world.ray_cast_in(from, to, opts, &mut window));
+}
+
+#[test]
+fn threads_cast_at_once_with_their_own_windows_and_the_shared_one() {
+    let world = world();
+    let resident = world.resident_near([-90.0, 0.0, -40.0], 5.0);
+    std::thread::scope(|scope| {
+        for seed in 0..4u64 {
+            let world = &world;
+            scope.spawn(move || {
+                let mut window = CandidateSet::default();
+                car_rays(world, 0x100 + seed, |from, to, opts| world.ray_cast_in(from, to, opts, &mut window));
+                car_rays(world, 0x200 + seed, |from, to, opts| world.ray_cast(from, to, opts));
+                assert_eq!(world.resident_near([-90.0, 0.0, -40.0], 5.0), resident);
+            });
+        }
+    });
+}

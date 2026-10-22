@@ -30,6 +30,7 @@ mod models;
 mod moment_feed;
 mod nis_poses;
 mod original_camera;
+mod parallel;
 mod pattern;
 mod police;
 mod policy;
@@ -212,6 +213,9 @@ pub struct TrafficWorld {
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
+    /// When the step integrates the cars on several threads, and the starts of their steps by car index (`parallel.rs`).
+    parallel: parallel::Parallel,
+    starts: Vec<Option<super::drive::StepStart>>,
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
@@ -294,6 +298,8 @@ impl TrafficWorld {
             shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
+            parallel: parallel::Parallel::default(),
+            starts: Vec::new(),
             hits: Vec::new(),
             passes: Vec::new(),
             window_requests: Default::default(),

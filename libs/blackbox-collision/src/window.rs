@@ -9,7 +9,7 @@
 use crate::grid::{Grid, InstanceRef};
 use crate::math::Vec3;
 use crate::query::prepare_segment;
-use crate::world::CollisionWorld;
+use crate::world::{CollisionWorld, cache};
 use crate::{Hit, RayOptions};
 
 /// Cells a set can span: one bit of an instance's cell mask each.
@@ -118,6 +118,18 @@ impl CollisionWorld {
         self.cast_in(set, mask, seg, opts, &mut accept)
     }
 
+    /// The nearest hit of the segment `from`-`to`, as [`Self::ray_cast`], keeping the candidate window in `window`
+    /// instead of the world's own. A thread that casts while others do passes its own window, so the casts neither
+    /// wait for each other nor rebuild each other's window; the hits are the same as [`Self::ray_cast`]'s.
+    pub fn ray_cast_in(&self, from: Vec3, to: Vec3, opts: &RayOptions, window: &mut CandidateSet) -> Option<Hit> {
+        let seg = prepare_segment(from, to)?;
+        let mut accept = |_: &Hit| true;
+        if let Some(result) = self.cast_windowed_in(window, seg, opts, &mut accept) {
+            return result;
+        }
+        self.cast_walk(seg, opts, &mut accept)
+    }
+
     /// The cast of a short ray against the world's automatic window, rebuilt around the ray when it does not cover it.
     /// `None` when the window does not apply (no grid, a non-finite or long ray) and the caller walks the grid.
     pub(crate) fn cast_windowed(
@@ -126,16 +138,31 @@ impl CollisionWorld {
         opts: &RayOptions,
         accept: &mut impl FnMut(&Hit) -> bool,
     ) -> Option<Option<Hit>> {
+        self.grid.as_ref()?;
+        // Taken out for the cast, so a predicate that casts again (or another thread) finds an empty window and
+        // builds its own.
+        let mut window = cache(&self.window).map(|mut kept| std::mem::take(&mut *kept)).unwrap_or_default();
+        let result = self.cast_windowed_in(&mut window, seg, opts, accept);
+        if let Some(mut kept) = cache(&self.window) {
+            *kept = window;
+        }
+        result
+    }
+
+    /// [`Self::cast_windowed`] with the caller's window.
+    fn cast_windowed_in(
+        &self,
+        window: &mut CandidateSet,
+        seg: (Vec3, Vec3),
+        opts: &RayOptions,
+        accept: &mut impl FnMut(&Hit) -> bool,
+    ) -> Option<Option<Hit>> {
         let grid = self.grid.as_ref()?;
         if !finite_segment(seg.0, seg.1) {
             return None;
         }
-        // Taken out for the cast, so a predicate that casts again finds an empty window and builds its own.
-        let mut window = self.window.take();
-        let mask = window.mask_for(grid, self.revision, seg).or_else(|| self.rebuild_window(grid, &mut window, seg));
-        let result = mask.map(|mask| self.cast_in(&window, mask, seg, opts, accept));
-        *self.window.borrow_mut() = window;
-        result
+        let mask = window.mask_for(grid, self.revision, seg).or_else(|| self.rebuild_window(grid, window, seg))?;
+        Some(self.cast_in(window, mask, seg, opts, accept))
     }
 
     /// Gathers `window` around `seg` and returns the segment's mask, or `None` when the block would be too large.

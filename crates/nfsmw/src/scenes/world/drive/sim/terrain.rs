@@ -3,17 +3,21 @@
 #[cfg(test)]
 mod tests;
 
-use blackbox_collision::CollisionWorld;
 use blackbox_collision::ground_reference::{
-    GroundFace, GroundFaceCache, GroundReferenceSettings, PointQuerySettings, RegionSettings,
+    GroundFace, GroundFaceCache, GroundReferenceCache, GroundReferenceSettings, PointQuerySettings, RegionSettings,
 };
+use blackbox_collision::{CandidateSet, CollisionWorld};
 use blackbox_vehicle::ground::{Ground, GroundHit, SurfaceGrip, WheelPlane};
+use blackbox_vehicle::rigid_body::BodyState;
 use blackbox_vehicle::vehicle::GroundReference;
-use blackbox_vehicle::{FIXED_STEP, InputState};
+use blackbox_vehicle::{FIXED_STEP, InputState, Vehicle};
 use glam::Vec3;
+use nfsmw_data::car::physics::SurfaceTable;
 use std::cell::RefCell;
 
 use super::CarSim;
+use super::step::StepStart;
+use crate::scenes::world::drive::ground::{WindowedGround, WorldGround};
 
 const SETTINGS: GroundReferenceSettings = GroundReferenceSettings {
     region: RegionSettings {
@@ -53,45 +57,142 @@ impl CarSim {
         0x40
     }
 
-    pub(super) fn step_with_ground(&mut self, input: &InputState, ground: &dyn Ground, prepared: bool) {
-        if !prepared {
-            self.vehicle.step(FIXED_STEP, input, ground);
-            return;
-        }
-        let ground =
-            PreparedGround { fallback: ground, faces: self.ground_reference.faces(), wheels: &self.wheel_ground };
-        self.vehicle.step(FIXED_STEP, input, &ground);
-    }
-
-    pub(super) fn refresh_ground_reference(&mut self, world: Option<&CollisionWorld>) {
-        let Some(world) = world else {
-            self.vehicle.ground_reference = None;
-            return;
-        };
+    /// The terrain query of this step, taken at the start of the step: an explosion later in the step can wake a
+    /// sleeping body, and a sleeping body's query is another one.
+    pub(super) fn terrain_query(&self) -> TerrainQuery {
         let radius = self.geometry.as_ref().map_or(self.half_extents().length().max(3.0), |geometry| {
             geometry.body.primitives.iter().map(|p| p.half.length() + p.centre.length()).fold(3.0, f32::max)
         });
-        let settings = GroundReferenceSettings { instance_exclusion: self.terrain_exclusion(), ..SETTINGS };
-        let plane = match self.vehicle.body().state {
-            blackbox_vehicle::rigid_body::BodyState::Asleep => {
-                // The original no-collider WWorldPos path creates WCollisionMgr(0, 3),
-                // independently of the role mask used by the awake rigid-body collider.
-                self.ground_reference
-                    .update_global(world, self.vehicle.position().to_array(), &POINT_SETTINGS, |_| false)
-            }
-            _ => self.ground_reference.update(
-                world,
-                self.vehicle.position().to_array(),
-                radius,
-                &settings,
-                // Matches the current free-roam adapter; dynamic group activation is not yet modeled.
-                |_| false,
-            ),
-        };
-        // The original chassis reads the retained normal/separation even after a fresh miss.
-        self.vehicle.ground_reference =
-            Some(GroundReference { normal: Vec3::from_array(plane.normal), separation: plane.separation });
+        TerrainQuery {
+            position: self.vehicle.position().to_array(),
+            asleep: matches!(self.vehicle.body().state, BodyState::Asleep),
+            radius,
+            exclusion: self.terrain_exclusion(),
+        }
     }
+
+    /// Refreshes the terrain plane now, as a step's integration does.
+    #[cfg(test)]
+    fn refresh_ground_reference(&mut self, world: Option<&CollisionWorld>) {
+        let terrain = world.map(|world| (world, self.terrain_query()));
+        refresh_ground_reference(&mut self.vehicle, &mut self.ground_reference, terrain);
+    }
+
+    /// The part of the step that touches only the body, its terrain caches and the static collision.
+    pub(in crate::scenes::world) fn integration(&mut self) -> Integration<'_> {
+        Integration {
+            vehicle: &mut self.vehicle,
+            ground_reference: &mut self.ground_reference,
+            wheel_ground: &mut self.wheel_ground,
+            window: &mut self.ground_window,
+        }
+    }
+}
+
+/// Where the body looks for its terrain in a step (`CarSim::terrain_query`).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct TerrainQuery {
+    position: [f32; 3],
+    asleep: bool,
+    radius: f32,
+    exclusion: u16,
+}
+
+/// The integration of one step: the body against the ground, reading only the car's own body and terrain caches and
+/// the static collision. It holds nothing else of the car, so the cars' integrations can run on several threads at
+/// once (`ai/parallel.rs`).
+pub(in crate::scenes::world) struct Integration<'a> {
+    vehicle: &'a mut Vehicle,
+    ground_reference: &'a mut GroundReferenceCache,
+    wheel_ground: &'a mut RefCell<[GroundFaceCache; 4]>,
+    /// The car's own candidate window for [`Self::run_windowed`].
+    window: &'a mut CandidateSet,
+}
+
+impl Integration<'_> {
+    /// Refreshes the terrain plane and integrates the body over `ground`, as the start of the step left them.
+    pub(in crate::scenes::world) fn run(
+        &mut self,
+        start: &StepStart,
+        ground: &dyn Ground,
+        world: Option<&CollisionWorld>,
+    ) {
+        refresh_ground_reference(self.vehicle, self.ground_reference, world.zip(start.terrain));
+        step_with_ground(
+            self.vehicle,
+            self.ground_reference,
+            self.wheel_ground,
+            &start.input,
+            ground,
+            start.prepared(),
+        );
+    }
+
+    /// [`Self::run`] over the world's ground cast through the car's own window, for a car integrated beside others.
+    /// The hits, and so the step, are the same.
+    pub(in crate::scenes::world) fn run_windowed(
+        &mut self,
+        start: &StepStart,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        refresh_ground_reference(self.vehicle, self.ground_reference, Some(collision).zip(start.terrain));
+        let ground =
+            WindowedGround { world: WorldGround { collision, surfaces }, window: RefCell::new(&mut *self.window) };
+        step_with_ground(
+            self.vehicle,
+            self.ground_reference,
+            self.wheel_ground,
+            &start.input,
+            &ground,
+            start.prepared(),
+        );
+    }
+}
+
+fn step_with_ground(
+    vehicle: &mut Vehicle,
+    ground_reference: &GroundReferenceCache,
+    wheel_ground: &RefCell<[GroundFaceCache; 4]>,
+    input: &InputState,
+    ground: &dyn Ground,
+    prepared: bool,
+) {
+    if !prepared {
+        vehicle.step(FIXED_STEP, input, ground);
+        return;
+    }
+    let ground = PreparedGround { fallback: ground, faces: ground_reference.faces(), wheels: wheel_ground };
+    vehicle.step(FIXED_STEP, input, &ground);
+}
+
+/// The body's terrain plane from `terrain`'s world and query; none without a world.
+fn refresh_ground_reference(
+    vehicle: &mut Vehicle,
+    cache: &mut GroundReferenceCache,
+    terrain: Option<(&CollisionWorld, TerrainQuery)>,
+) {
+    let Some((world, query)) = terrain else {
+        vehicle.ground_reference = None;
+        return;
+    };
+    let settings = GroundReferenceSettings { instance_exclusion: query.exclusion, ..SETTINGS };
+    let plane = match query.asleep {
+        // The original no-collider WWorldPos path creates WCollisionMgr(0, 3),
+        // independently of the role mask used by the awake rigid-body collider.
+        true => cache.update_global(world, query.position, &POINT_SETTINGS, |_| false),
+        false => cache.update(
+            world,
+            query.position,
+            query.radius,
+            &settings,
+            // Matches the current free-roam adapter; dynamic group activation is not yet modeled.
+            |_| false,
+        ),
+    };
+    // The original chassis reads the retained normal/separation even after a fresh miss.
+    vehicle.ground_reference =
+        Some(GroundReference { normal: Vec3::from_array(plane.normal), separation: plane.separation });
 }
 
 /// Four face histories consume the same body collider region without rebuilding it per wheel.
