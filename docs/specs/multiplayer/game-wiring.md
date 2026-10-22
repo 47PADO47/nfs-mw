@@ -70,6 +70,13 @@ the screens (`NetFrontend::take_events`). The front end, the session and the wor
 While no world drives it (the menus), `update_session` pumps the client (`ClientSession::update` and its events). Once a world
 scene that has a car of its own takes it (`Scene::attach_net_client`, forwarded by the pause wrapper), the scene drives it.
 
+### Who the player is
+
+The player's name is `net_name`, a host's default port `net_port`, and the identity key the 32 secret bytes in
+`net_identity_file` (`identity.key` in the config folder by default; `net/identity.rs`): made and written the first time,
+read every time after, so a server knows the player across runs. A broken file is left alone and the run uses a new key. A
+loadout's car id is `frontend/lan/car.rs`'s `car_type` of the folder.
+
 ### What both ends check
 
 `net/build.rs`: the sim build is `nfsmw-<version>` on the machine's architecture; the data id is the hash of the install's car
@@ -162,7 +169,7 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | What | Where | Needs the install |
 |---|---|---|
 | The command line | `cli/net_tests.rs` | no |
-| Build and data ids, the car catalogue, server options, discovery lines | `net/build.rs`, `net/options.rs`, `net/discover.rs` | no |
+| Build and data ids, the car catalogue, server options, discovery lines, the identity key file | `net/build.rs`, `net/options.rs`, `net/discover.rs`, `net/identity.rs` | no |
 | The game's `NetClient` joins the real server (toy world) over the listen host's in-memory link as slot 0, the session starts, its car follows the server's corrections, the bot is a remote entity | `net/tests.rs` | no |
 | `CarSim` save and restore give the same steps bit for bit; a motion reads back; a broken one is ignored | `drive/sim/tests/predict.rs` | no |
 | `GameCar` outside a lend, shared clones, state mapping, input edges, which entities are cars | `net_client/tests.rs` | no |

@@ -61,6 +61,17 @@ config file written by `setup`, or the retail registry key ([details](docs/archi
 | `asset-viewer [CAR]` | Every car in the install in a searchable list on the left; click one to show it on the right, its wheels turning and the front pair steering. Drag to rotate, scroll to zoom, Esc quits |
 | `view-world` | Fly through the city: WASD, Space/C, Shift, mouse to look (Esc frees the cursor, click to capture it again), scroll for speed. Options: `--at X,Y`, `--height`, `--heading`, `--pitch`, `--fog-distance`, and `--drive [CAR]` to drive instead (W/S, A/D, Space handbrake, E/Q gears, Left Shift nitrous, R reset, F free camera; pad: triggers, left stick) |
 
+LAN play (milestone 10, [details](docs/specs/multiplayer/game-wiring.md)):
+
+| Switch | What it does |
+|---|---|
+| `--host` | Free roam with a LAN server on this PC and you in it; others join with `--connect`. `--port N`, `--name S`, `--server-config FILE` set the server up |
+| `--connect ADDR` | Joins the LAN game at `ADDR` (`192.168.1.5`, `host:9760`; the default port is 9750) |
+| `--dedicated` | A LAN server without a window, sound or GPU; Ctrl-C (or `--seconds N`) stops it |
+| `--discover` | Lists the LAN servers that answer, then quits |
+
+The main menu's LAN entry hosts and joins from the game too.
+
 Options for both viewers:
 
 - `--backend auto|vulkan|dx12|gl` picks the graphics API ([details](docs/architecture.md#graphics-backends)).
