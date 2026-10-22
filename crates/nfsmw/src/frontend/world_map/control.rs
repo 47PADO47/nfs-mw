@@ -156,9 +156,9 @@ pub fn format_metres(metres: f32) -> String {
 /// Opens the map over the frozen world. The blips and the player are read before the world freezes (a paused scene
 /// reports no blips), and stay as they were while it is paused.
 pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
-    let (blips, player, event) = match host.scene.hud_state() {
-        Some(hud) => (hud.blips.clone(), hud.minimap, hud.map_source.event().map(str::to_owned)),
-        None => (Vec::new(), None, None),
+    let (blips, player, second, event) = match host.scene.hud_state() {
+        Some(hud) => (hud.blips.clone(), hud.minimap, hud.second_player, hud.map_source.event().map(str::to_owned)),
+        None => (Vec::new(), None, None, None),
     };
     let calibration = match nfsmw_data::minimap::open_city_calibration(&fe.dir) {
         Ok(calibration) => Some(calibration),
@@ -168,7 +168,7 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
         }
     };
     overlay.open(calibration);
-    overlay.refresh(&blips, player.as_ref());
+    overlay.refresh(&blips, player.as_ref(), second.as_ref());
     let helicopters = overlay.live.iter().filter(|blip| blip.style == crate::hud::HELICOPTER).count();
     log::info!(
         "world map open: {} blips, {} moving ({helicopters} helicopter)",

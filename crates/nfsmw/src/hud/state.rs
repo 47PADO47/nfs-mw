@@ -57,6 +57,9 @@ pub struct HudState {
     pub boost_psi: f32,
     /// The minimap shows this place; `None` hides it (a scene that has no map position).
     pub minimap: Option<MapPosition>,
+    /// The second co-op player's car, for the world map's second mark (`scenes/world/hud.rs`); `None` outside a co-op
+    /// session.
+    pub second_player: Option<MapPosition>,
     /// The cops, racers, checkpoint and helicopter on the map (`docs/specs/hud-minimap.md` section 7).
     pub blips: Vec<MapBlip>,
     /// A police car is near: the radar's green laser shows over the base radar. The world sets it while a chase is on.
@@ -117,6 +120,7 @@ impl Default for HudState {
             has_turbo: false,
             boost_psi: 0.0,
             minimap: None,
+            second_player: None,
             blips: Vec::new(),
             cop_nearby: false,
             pursuit: None,

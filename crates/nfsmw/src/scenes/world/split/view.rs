@@ -121,9 +121,12 @@ impl WorldScene {
         for guest in self.players.guests() {
             guest.drive.instances_with_detail(Some(&car_view), out);
         }
-        if viewer == Viewer::First
-            && let Some(arrow) = self.route_arrow()
-        {
+        // Each half shows its own player's route arrow: the first player's in theirs, a co-op guest's in the second.
+        let arrow = match viewer {
+            Viewer::First => self.route_arrow(),
+            Viewer::Second => self.players.guests().next().and_then(|guest| self.route_arrow_for(guest.id)),
+        };
+        if let Some(arrow) = arrow {
             out.push(arrow);
         }
         // The NIS scene's characters: placed with the rest, so they sort by mesh with them.
