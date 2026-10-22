@@ -6,4 +6,5 @@ mod harness;
 mod lossy;
 mod packets;
 mod sealing;
+mod tokens;
 mod trust;
