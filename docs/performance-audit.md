@@ -170,12 +170,13 @@ Back faces are culled by the original's rule: opaque textures are single-sided u
 | Section vertices were held twice, and every vertex carried a second UV and a tangent. | The solid's Vertex is Pod with the GPU layout and uploads by a cast; the extra channels are optional; one reservation. |
 | Inflated textures were copied once more, GameDir clones copied the 2,084-entry index, and play loaded its settings and discovered the mods twice. | The inflated block becomes the image; the index is shared by an Arc; settings and mods load once. |
 
-The front end's assets still load before the first screen (in parallel now): the screens, the HUD and the pointer
-expect them from the start.
+The first start after a shader or driver change compiles every pipeline the settings use before the world is shown
+(prewarm), where it used to spread the same compilation over the first frames as hitches. The scene and material
+pipeline tables compile in parallel, one thread per core: with cold caches, creating the renderer went from 12 s to
+2.9 s and the prewarm from 13.2 s to 4.4 s on an RTX 4070 SUPER; with warm caches both take under 0.4 s.
 
-Known limit of the round: the first start after a shader or driver change compiles every pipeline the settings use
-while the loading screen is up (prewarm), where it used to spread the same compilation over the first frames as
-hitches. With a warm Vulkan pipeline cache this takes under a second.
+The UI assets, the screens' catalog and the HUD's packages load on threads after the window is up: the front end and
+the HUD start when their loads are done, and screenshots and benchmarks wait for them.
 
 ## How to measure
 
