@@ -8,7 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-blackbox-net-core.workspace = true
+blackbox-net-core = { workspace = true, features = ["netcode"] }
 blackbox-pursuit.workspace = true
 blackbox-race.workspace = true
 blackbox-vehicle.workspace = true

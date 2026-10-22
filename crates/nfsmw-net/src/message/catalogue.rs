@@ -122,6 +122,7 @@ catalogue! {
     StreamingStall = 0x001E, Control, 1;
     ResultRequest = 0x001F, Control, 1;
     ResetRequest = 0x0020, Control, 1;
+    BaselineLost = 0x0021, Control, 1;
     // Chat and bulk, core namespace.
     ChatSend = 0x0200, Chat, 1;
     ChatMessage = 0x0201, Chat, 1;

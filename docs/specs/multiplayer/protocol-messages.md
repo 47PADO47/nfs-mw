@@ -81,6 +81,7 @@ nothing else (`security.md` 4.6 and 4.8).
 | 0x001E | StreamingStall | C | `stalled` |
 | 0x001F | ResultRequest | C | ask for the last result record again (after a reconnect) |
 | 0x0020 | ResetRequest | C | `tick`; at most one per 10 s; the server validates and answers with a `Respawn` event |
+| 0x0021 | BaselineLost | C | `tick` of a snapshot the client could not decode because its baseline is gone; the server forgets the client's views and sends the next snapshot full. At most one per 500 ms (added 2026-10-22 with the client session) |
 
 `phase` is the session machine of ADR 0009 section 6: 0 lobby, 1 loading, 2 wait loads, 3 intro, 4 countdown, 5 running, 6 results.
 

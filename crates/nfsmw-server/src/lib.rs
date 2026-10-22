@@ -2,7 +2,9 @@
 //!
 //! - [`ServerConfig`]: the TOML config file and its checks (MP-25, MP-84).
 //! - [`logging`]: the `log` backend (stderr and a file). [`timer`]: the drift-free tick timer.
+//! - [`bot`]: scripted bot clients over the client session.
 
+pub mod bot;
 pub mod config;
 pub mod logging;
 pub mod timer;
