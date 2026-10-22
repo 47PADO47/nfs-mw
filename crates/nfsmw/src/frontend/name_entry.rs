@@ -3,6 +3,7 @@
 //! the PC reads the typed text, which this notice shows as it is typed. Accept takes the name, Back leaves.
 
 use blackbox_feng::ids::PAD_BACK;
+use nfsmw_career::savefile::state::ALIAS_MAX_CHARS;
 
 use super::career_screens::save::{list_aliases, next_alias};
 use super::confirm::{Alert, set_text};
@@ -14,8 +15,6 @@ use crate::ui::{Text, UiAssets};
 /// "Enter name:" (`0x22729437`), the prompt, and the game's "Alias Manager" (`0xBCB18F38`), the header.
 const PROMPT: u32 = 0x2272_9437;
 const HEADER: u32 = 0xBCB1_8F38;
-/// The longest alias the profile list shows: shorter than 8 characters (`career/io.rs`).
-pub const MAX_LEN: usize = 7;
 
 /// What the typed name is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,7 +113,7 @@ impl ScreenLogic for NameEntry {
             TextKey::Backspace => {
                 self.text.pop();
             }
-            TextKey::Char(c) if allowed(c) && self.text.len() < MAX_LEN => self.text.push(c),
+            TextKey::Char(c) if allowed(c) && self.text.chars().count() < ALIAS_MAX_CHARS => self.text.push(c),
             TextKey::Char(_) => {}
         }
         self.refresh(cx);

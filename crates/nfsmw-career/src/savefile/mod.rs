@@ -9,7 +9,7 @@
 //!   the run and the failure handling. It replaces the earlier `safehouse::autosave` model.
 //! - [`write`]: the three ordered chunks of the file and the rule that only a failed open is reported.
 //! - [`load`]: [`check_load`], the load checks in the original order.
-//! - [`state`]: the alias rules (31 characters, listed when shorter than 8 and without a space) and the bytes a
+//! - [`state`]: the alias rules (31 characters, listed when they have no space) and the bytes a
 //!   save changes.
 
 pub mod autosave;

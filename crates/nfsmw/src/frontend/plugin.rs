@@ -49,6 +49,9 @@ pub struct FrontendPlugin {
     pub career: crate::career::CareerHandle,
     /// A backdrop look that stays whatever the screens ask for (`view-screen --look`, for checking the looks offscreen).
     pub look: Option<super::look::Look>,
+    /// The camera of the backdrop the command line puts in the window, which the screens move (`view-screen`). Other
+    /// runs build their backdrops themselves and leave it empty.
+    pub camera: super::camera_rig::CameraRig,
 }
 
 impl Plugin for FrontendPlugin {
@@ -61,6 +64,7 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();
+        frontend.camera = self.camera.clone();
         if let Some(look) = &self.look {
             frontend.look = look.clone();
             frontend.look_override = Some(look.clone());

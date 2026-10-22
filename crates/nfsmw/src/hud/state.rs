@@ -43,6 +43,8 @@ pub struct HudState {
     pub shift_light: bool,
     /// Tachometer skin (the `HUDS_Custom_NN` pack, 0..=10).
     pub skin: u8,
+    /// Backing, needle and digits. None keeps the authored color.
+    pub gauge_colors: [Option<[u8; 3]>; 3],
     /// The car has a nitrous system: the nitrous gauge is shown.
     pub has_nos: bool,
     /// Nitrous left, 0..1.
@@ -113,6 +115,7 @@ impl Default for HudState {
             shifting: false,
             shift_light: false,
             skin: 0,
+            gauge_colors: [None; 3],
             has_nos: false,
             nos: 0.0,
             speedbreaker: 0.0,

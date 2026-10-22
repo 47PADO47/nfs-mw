@@ -19,6 +19,7 @@ mod cars;
 mod compare;
 mod exhaust;
 mod explosion;
+mod frontend_camera;
 mod gameplay;
 mod geometry;
 mod ginsu;

@@ -12,6 +12,24 @@ fn fixture() -> (Model, Selection) {
         language_hash: None,
         carbon: true,
     });
+    for slot in [5, 6] {
+        catalog.choices[slot].push(customization::Choice {
+            hash: 200 + slot as u32,
+            label: "Appearance".into(),
+            language_hash: None,
+            carbon: false,
+        });
+    }
+    for slot in [4, 7, 8] {
+        catalog.choices[slot].push(customization::Choice {
+            hash: 300 + slot as u32,
+            label: "New appearance".into(),
+            language_hash: None,
+            carbon: false,
+        });
+    }
+    catalog.paintable_wheels.insert(304);
+    catalog.gauge_skins = vec![0, 3];
     car.parts = Some(catalog);
     let mut selection = Selection {
         car: car.folder.clone(),
@@ -19,9 +37,22 @@ fn fixture() -> (Model, Selection) {
         performance: PerformancePackage { levels: [3; 7], junkman: 127 },
         ..Default::default()
     };
+    selection.gauges = crate::garage::GaugeSelection {
+        skin: 3,
+        backing: Some([10, 20, 30]),
+        needle: None,
+        digits: Some([200, 100, 50]),
+    };
+    selection.parts.vinyl_colors = [Some([40, 50, 60]), None, Some([70, 80, 90])];
     selection.tuning.profiles = [[-5; 7], [0; 7], [5; 7]];
     selection.tuning.active = 2;
+    selection.parts.parts[4] = Some(304);
+    selection.parts.parts[7] = Some(307);
+    selection.parts.parts[8] = Some(308);
+    selection.parts.rim_color = Some([20, 40, 200]);
     selection.parts.parts[2] = Some(123);
+    selection.parts.parts[5] = Some(205);
+    selection.parts.parts[6] = Some(206);
     (Model { cars: vec![car], ..Default::default() }, selection)
 }
 
@@ -49,4 +80,13 @@ fn unavailable_equipment_bad_tuning_and_future_schemas_are_rejected() {
     model.cars[0].performance.categories[0].max_level = 2;
     assert!(decode(&text, &model).is_err());
     assert!(model.draft.car.is_empty() && model.applied.car.is_empty());
+}
+
+#[test]
+fn legacy_presets_default_new_appearance_fields() {
+    let (model, _) = fixture();
+    let text = "version = 1\ncar = 'RACER'\nlevels = [0,0,0,0,0,0,0]\njunkman = 0\ntuning = [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]\nactive_tuning = 0\nparts = []\n";
+    let restored = decode(text, &model).unwrap();
+    assert_eq!(restored.gauges, Default::default());
+    assert!(restored.parts.is_stock());
 }

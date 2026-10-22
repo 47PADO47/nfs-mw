@@ -53,6 +53,8 @@ pub struct EntryZones {
     pub(super) zones: Vec<Zone>,
     /// The mods' interiors: each has an entry zone in render space (`ModInterior::entry`).
     pub(super) interiors: Vec<ModInterior>,
+    /// The career's start point (`career_start_<region>`), in render space: where a world starts when no zone was visited.
+    pub career_start: Option<Vec3>,
 }
 
 impl EntryZones {
@@ -80,7 +82,11 @@ impl EntryZones {
                 radius: RACE_RADIUS,
                 respawn: None,
             });
-        Self { zones: interiors.chain(races).collect(), interiors: Vec::new() }
+        Self {
+            zones: interiors.chain(races).collect(),
+            interiors: Vec::new(),
+            career_start: data.career_start.map(|placement| render(placement.position)),
+        }
     }
 
     /// The same zones with the mods' interiors added.

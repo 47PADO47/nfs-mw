@@ -16,6 +16,10 @@ pub(super) fn part_of(category: Category) -> CoolingPart {
         Category::Hood => CoolingPart::Hood,
         Category::Roof => CoolingPart::RoofScoop,
         Category::Wheels => CoolingPart::Rim,
+        Category::Paint => CoolingPart::Paint,
+        Category::WindowTint => CoolingPart::WindowTint,
+        Category::RimPaint => CoolingPart::RimPaint,
+        Category::Vinyl => CoolingPart::Vinyl,
     }
 }
 
@@ -30,7 +34,13 @@ pub(super) fn fitted_parts(old: &Selection, new: &Selection) -> Vec<CoolingPart>
         .filter(|category| old.parts.parts[*category as usize] != new.parts.parts[*category as usize])
         .map(part_of)
         .collect();
-    if old.color != new.color {
+    if old.parts.rim_color != new.parts.rim_color && !fitted.contains(&CoolingPart::RimPaint) {
+        fitted.push(CoolingPart::RimPaint);
+    }
+    if old.parts.vinyl_colors != new.parts.vinyl_colors && !fitted.contains(&CoolingPart::Vinyl) {
+        fitted.push(CoolingPart::Vinyl);
+    }
+    if old.color != new.color && !fitted.contains(&CoolingPart::Paint) {
         fitted.push(CoolingPart::Paint);
     }
     fitted

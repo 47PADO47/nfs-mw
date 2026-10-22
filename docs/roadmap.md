@@ -111,7 +111,7 @@ Open:
 - The NIS audio take mapping for rival intros, arrests and endings: one shared take per branch.
 - The FEng overlay packages in a NIS are drawn as text.
 - NIS character lights and hide events.
-- The `SafehouseReputationOverview` screen is a stand-in.
+- The overview's race, milestone and bounty sheets (`SafeHouseRaceSheet`, `SafeHouseMilestones`, `SafeHouseBounty`) are not built; their options are greyed.
 - The NIS framing is not yet checked on screen.
 - The arrest-spot search (the arrest uses the player's pose instead).
 - Delete confirmation in the inbox.

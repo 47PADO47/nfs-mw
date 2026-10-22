@@ -50,6 +50,7 @@ struct Material {
     specular_range: vec4<f32>,
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
+    surface: vec4<f32>, // roughness, coat scale, reflection intensity, SurfaceKind
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -154,7 +155,16 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     let diff = material.diffuse_min + material.diffuse_range * f;
     let spec = material.specular_min.xyz + material.specular_range.xyz * pow(f, material.params.x);
-    let env_strength = material.params.y + material.params.z * pow(f, material.params.w);
+    let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5;
+    let layered = finish_on && material.surface.w > 1.5;
+    var diffuse_rgb = occlusion * light * diff.rgb * tex.rgb;
+    if finish_on {
+        diffuse_rgb = surface_diffuse(occlusion * direct * diff.rgb * tex.rgb,
+            indirect * ao, diff.rgb * tex.rgb, occlusion);
+    }
+    var env_power = material.params.w;
+    if material.surface.w > 0.5 && !finish_on { env_power *= material.surface.z; }
+    let env_strength = material.params.y + material.params.z * pow(f, env_power);
 
     // Sun highlight: the sun mirrored about the normal, against the view direction. Only for
     // surfaces the sun reaches.
@@ -165,23 +175,68 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
-    let env = hybrid_environment(in.world, n, reflected, textureSample(env_map, env_sampler, reflected).rgb);
+    let sharp_env = textureSample(env_map, env_sampler, reflected).rgb;
+    var env = sharp_env;
+    var sun_specular = glint * spec;
+    var coat_scale = 1.0;
+    var reflection_intensity = 1.0;
+    var reflection_gain = env_strength * 0.5;
+    if finish_on && !layered {
+        let roughness = material.surface.x;
+        env = surface_environment(reflected, roughness, sharp_env);
+        // Unfiltered screen rays cannot describe a broad reflection lobe.
+        if roughness < 0.5 {
+            let screen_env = hybrid_environment(in.world, n, reflected, env);
+            env = mix(env, screen_env, 1.0 - smoothstep(0.15, 0.5, roughness));
+        }
+        sun_specular = visibility * rig.color[0].xyz * surface_highlight(n, v, sun, roughness, spec);
+        coat_scale = material.surface.y;
+        reflection_intensity = material.surface.z;
+        // Rough dielectric paint still reflects light when the old authored ramp is zero.
+        let grazing = max(1.0 - roughness, 0.04);
+        let dielectric = 0.04 + (grazing - 0.04) * pow(1.0 - saturate(dot(n, v)), 5.0);
+        reflection_gain = max(reflection_gain, dielectric);
+    }
+    if !finish_on { env = hybrid_environment(in.world, n, reflected, env); }
 
     var out: Shaded;
-    out.rgb = occlusion * light * diff.rgb * tex.rgb
-        + glint * diff.a * occlusion * spec
-        + env * (occlusion * env_strength * diff.a * 0.5);
-    if shadow_data.options.w > 0.5 {
+    out.rgb = diffuse_rgb
+        + sun_specular * diff.a * occlusion
+        + env * (occlusion * reflection_gain * diff.a * reflection_intensity);
+    let rough_paint = finish_on && !layered && material.surface.x >= 0.45;
+    var surface_alpha = diff.a;
+    if layered {
+        let color = layered_material(n, v, sun, diffuse_rgb, diff.rgb * tex.rgb, diff.a,
+            visibility, occlusion, in.uv, sharp_env, in.world);
+        out.rgb = color.rgb;
+        surface_alpha = color.a;
+    }
+    if rough_paint {
+        out.rgb = rough_paint_color(diffuse_rgb, env, sun_specular,
+            reflection_gain, reflection_intensity, occlusion, diff.a);
+        if shadow_data.options.w > 0.5 && coat_scale > 0.0 {
+            let coat_roughness = max(material.surface.x * 0.85, 0.35);
+            let coat_env = surface_environment(reflected, coat_roughness, sharp_env);
+            let fresnel = 0.04 + (1.0 - coat_roughness - 0.04) * pow(1.0 - f, 5.0);
+            let coat_sun = visibility * rig.color[0].xyz * surface_highlight(n, v, sun, coat_roughness, vec3<f32>(0.0));
+            let underlying = paint_linear(out.rgb) * (1.0 - fresnel * coat_scale);
+            out.rgb = paint_encoded(underlying + coat_scale * occlusion * diff.a
+                * (paint_linear(coat_env) * fresnel * reflection_intensity + coat_sun));
+        }
+    }
+    if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0 {
         let fresnel = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, v)), 5.0);
         let h = normalize(v + rig.to_light[0].xyz);
         let ndh = saturate(dot(n, h));
         let a2 = 0.0144;
         let d = a2 / (3.14159265 * pow(ndh * ndh * (a2 - 1.0) + 1.0, 2.0));
         let coat = min(d * 0.04 * saturate(n_sun) * 0.25, 2.0) * visibility;
-        out.rgb = out.rgb * (1.0 - fresnel * 0.4) + env * fresnel * 0.4 + rig.color[0].xyz * coat;
+        let coat_env = select(env, sharp_env, finish_on);
+        out.rgb = out.rgb * (1.0 - fresnel * 0.4 * coat_scale)
+            + coat_env * fresnel * 0.4 * coat_scale * reflection_intensity + rig.color[0].xyz * coat * coat_scale;
     }
     out.texture_alpha = tex.a;
-    out.alpha = tex.a * diff.a;
+    out.alpha = tex.a * surface_alpha;
 
     if main_view && shadow_data.debug.x > 0.5 {
         out.rgb = lighting_debug_colour(in.world, receiver, in.clip.xy);

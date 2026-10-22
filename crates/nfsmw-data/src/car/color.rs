@@ -12,11 +12,7 @@ impl CarModel {
         let skins: Vec<_> = self
             .textures
             .iter()
-            .filter(|(_, texture)| {
-                (texture.name.ends_with("_SKIN1") || texture.name == "ROOF_SKIN")
-                    && texture.width == 4
-                    && texture.height == 4
-            })
+            .filter(|(_, texture)| texture.name.ends_with("_SKIN1") || texture.name == "ROOF_SKIN")
             .map(|(hash, texture)| (*hash, texture.name.clone()))
             .collect();
         ensure!(!skins.is_empty(), "{} has no generated body skin", self.name);
@@ -24,7 +20,7 @@ impl CarModel {
         for (hash, name) in skins {
             self.textures.insert(hash, paint.texture(&name));
         }
-        Ok(())
+        super::vinyl::repaint(self)
     }
 }
 

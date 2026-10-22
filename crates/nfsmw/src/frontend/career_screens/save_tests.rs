@@ -105,3 +105,33 @@ fn the_list_mode_is_read_back_as_set() {
     set_list_mode(ListMode::Load);
     assert_eq!(list_mode(), ListMode::Load);
 }
+
+/// The prompt's package answers Left and Right for the game but not Accept or Back (skipped without `NFSMW_GAME_DIR`).
+#[test]
+fn accept_and_back_on_the_prompt_leave_for_the_safe_house_menu() {
+    use std::sync::Arc;
+
+    use crate::frontend::screens::Screens;
+    use crate::settings::{Partial, Settings, test_caps};
+    use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+
+    let Some(root) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let assets = Arc::new(UiAssets::load(&dir).unwrap());
+    for button in [pad::ACCEPT, pad::BACK] {
+        let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
+        let (mut settings, mut changed) = (Settings::from(Partial::default()), Partial::default());
+        let mut env = crate::frontend::logic::Env {
+            settings: &mut settings,
+            changed: &mut changed,
+            caps: test_caps::native(),
+            mods: None,
+        };
+        let args = Args { safehouse: true, ..Args::default() };
+        screens.open(screen::MC_MAIN, args, true, &mut env);
+        for mask in std::iter::repeat_n(0, 60).chain([button; 3]).chain([0; 3]).chain(std::iter::repeat_n(0, 60)) {
+            screens.update(1.0 / 60.0, mask, &mut env);
+        }
+        assert_eq!(screens.top(), Some(screen::MAIN_MENU_SUB), "mask {button:#x} leaves the prompt");
+    }
+}

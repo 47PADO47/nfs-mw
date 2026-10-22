@@ -7,10 +7,13 @@ mod irradiance_tests;
 mod layout;
 #[cfg(test)]
 mod original_tests;
+mod prefilter;
 mod screen;
 pub(in crate::gpu) mod screen_draw;
 #[cfg(test)]
 mod screen_tests;
+#[cfg(test)]
+mod surface_tests;
 mod uniforms;
 #[cfg(test)]
 mod validation_tests;
@@ -25,8 +28,14 @@ use crate::{GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 use uniforms::{MaterialUniform, RigUniform};
 
 /// The WGSL source of the glossy pipelines.
-pub(super) const SHADER: &str =
-    concat!(include_str!("../../shaders/glossy.wgsl"), "\n", include_str!("../../shaders/reflection_screen.wgsl"));
+pub(super) const SHADER: &str = concat!(
+    include_str!("../../shaders/glossy.wgsl"),
+    "\n",
+    include_str!("../../shaders/reflection_screen.wgsl"),
+    "\n",
+    include_str!("../../shaders/paint_surface.wgsl"),
+    include_str!("../../shaders/material_layers.wgsl")
+);
 
 /// Side of the generated sky cube's faces.
 const SKY_FACE_SIZE: u32 = 64;
@@ -44,6 +53,7 @@ pub(super) struct Glossy {
     pub(in crate::gpu) screen: screen::Screen,
     static_environment: wgpu::TextureView,
     irradiance: irradiance::Irradiance,
+    filtered: Option<prefilter::Prefilter>,
     /// Group 3 per material.
     materials: Slots<Material>,
     /// The vehicle reflection brightness the material blocks were last packed with.
@@ -84,13 +94,26 @@ impl Glossy {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
         let faces = env::sky_faces(&SkyGradient::default(), SKY_FACE_SIZE);
         let (view, face_view) = environment_view(device, queue, SKY_FACE_SIZE, &faces.each_ref().map(Vec::as_slice));
         let irradiance = irradiance::Irradiance::new(device, cache);
         let screen = screen::Screen::new(device);
-        let scene = scene_group(device, &layouts, &rig, &view, &face_view, &sampler, &irradiance.buffer, &screen);
+        let filtered = prefilter::Prefilter::new(device, cache);
+        let scene = scene_group(
+            device,
+            &layouts,
+            &rig,
+            &view,
+            &face_view,
+            &sampler,
+            &irradiance.buffer,
+            &screen,
+            filtered.as_ref().map_or(&view, |f| &f.view),
+            filtered.as_ref().map_or(&view, |f| &f.linear_view),
+        );
         Self {
             layouts,
             rig,
@@ -103,6 +126,7 @@ impl Glossy {
             screen,
             static_environment: view,
             irradiance,
+            filtered,
             materials: Slots::new(),
             brightness: 1.0,
         }
@@ -124,10 +148,15 @@ impl Glossy {
             &self.sampler,
             &self.irradiance.buffer,
             &self.screen,
+            self.filtered.as_ref().map_or(view, |f| &f.view),
+            self.filtered.as_ref().map_or(view, |f| &f.linear_view),
         );
         self.environment = view.clone();
         self.faces = face_view.clone();
         self.irradiance.dirty = true;
+        if let Some(filter) = &mut self.filtered {
+            filter.dirty = true;
+        }
     }
 
     pub(super) fn restore_environment(&mut self) {
@@ -135,6 +164,9 @@ impl Glossy {
         self.environment = self.static_environment.clone();
         self.faces = self.static_faces.clone();
         self.irradiance.dirty = true;
+        if let Some(filter) = &mut self.filtered {
+            filter.dirty = true;
+        }
     }
 
     pub(super) fn bind_scene(&self, pass: &mut wgpu::RenderPass<'_>) {
@@ -179,6 +211,8 @@ fn scene_group(
     sampler: &wgpu::Sampler,
     irradiance: &wgpu::Buffer,
     screen: &screen::Screen,
+    filtered: &wgpu::TextureView,
+    linear_filtered: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("glossy scene"),
@@ -192,6 +226,8 @@ fn scene_group(
             wgpu::BindGroupEntry { binding: 5, resource: screen.control.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&screen.color) },
             wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&screen.depth) },
+            wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(filtered) },
+            wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::TextureView(linear_filtered) },
         ],
     })
 }
@@ -259,6 +295,16 @@ impl Renderer {
     }
     pub(in crate::gpu) fn update_irradiance(&mut self) {
         let _trace = blackbox_trace::scope("Renderer CPU: update irradiance");
+        if self.experiments.paint_response
+            && let Some(glossy) = &mut self.glossy
+            && glossy
+                .materials
+                .iter_mut()
+                .any(|m| m.source.model == blackbox_gfx::GlossyModel::Custom && m.source.surface.is_some())
+            && let Some(filter) = &mut glossy.filtered
+        {
+            filter.update(&self.device, &self.queue, &glossy.environment, &glossy.sampler);
+        }
         if !self.experiments.car_skylight || !self.supports_irradiance() {
             return;
         }
@@ -313,12 +359,17 @@ impl Renderer {
             &glossy.sampler,
             &glossy.irradiance.buffer,
             &glossy.screen,
+            glossy.filtered.as_ref().map_or(&view, |f| &f.view),
+            glossy.filtered.as_ref().map_or(&view, |f| &f.linear_view),
         );
         glossy.faces = face_view.clone();
         glossy.static_faces = face_view;
         glossy.environment = view.clone();
         glossy.static_environment = view;
         glossy.irradiance.dirty = true;
+        if let Some(filter) = &mut glossy.filtered {
+            filter.dirty = true;
+        }
         glossy.static_scene = glossy.scene.clone();
     }
 
@@ -327,10 +378,15 @@ impl Renderer {
         let brightness = self.graphics.vehicle_reflection_brightness.0;
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
+        let mut source = *material;
+        if glossy.filtered.is_none() {
+            source.surface = None;
+        }
+        let material = &source;
         let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glossy material"),
             contents: bytemuck::bytes_of(&MaterialUniform::new(material, brightness)),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let group = self.shared.shadows.material_group(&self.device, &glossy.layouts.material, &buffer);
         GlossyMaterialHandle::from_raw(glossy.materials.insert(Material {
