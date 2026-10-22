@@ -15,9 +15,9 @@ the [provenance file](../provenance/menu-backdrop-looks.md).
 
 | Look | Shown for | Room | Car | Camera |
 |---|---|---|---|---|
-| `Look::Main` | main menu, options, quick race menus, alias manager | crib (`PlatformCrib.BIN`) | the career-start preset `M3GTRCAREERSTART` of `BMWM3GTRE46` | the car viewer's orbit camera with its 0.5 s settle **[ours]**; unchanged |
-| `Look::Car(car)` | the career menu, the quick play brief | crib | the look's car | the same as `Main` |
-| `Look::SafeHouse(car)` | the safe house menu and the screens it opens | safe house (`CAREER_SAFEHOUSE.BIN`) | the look's car, turned as the safe house stands it | the safe house pose of section 4 |
+| `Look::Main` | main menu, options, quick race menus, alias manager | crib (`PlatformCrib.BIN`) | the career-start preset `M3GTRCAREERSTART` of `BMWM3GTRE46` | the front end's camera (section 4.4): the `main_fe` intro, then the pose of each screen |
+| `Look::Car(car)` | the career menu, the quick play brief | crib | the look's car | the same camera as `Main` (a first menu of this look plays the `career_manager` intro) |
+| `Look::SafeHouse(car)` | the safe house menu and the screens it opens | safe house (`CAREER_SAFEHOUSE.BIN`) | the look's car, turned as the safe house stands it | the same camera: the `career_safehouse` intro, then the screens' poses |
 
 `MenuScene::with_look(dir, look)` builds the backdrop (`frontend/scene.rs`); `Frontend::sync_backdrop` swaps it when the screen
 on top asks for another look. A car that cannot be loaded gives way to the default car; if that is missing too, the flat dark
@@ -70,13 +70,19 @@ files), and the placement is in the executable (section 4) and the `frontend` at
 
 | File | Solids | Drawn |
 |---|---|---|
-| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room) | all five, as before |
+| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five, each placed by its pivot matrix |
 | `CAREER_SAFEHOUSE.BIN` (stage 2) | `BACKDROP_CRIB` (the garage, 4,387 vertices, x -15..12.7, y -12..11.3, z 0..8.5), `BACKDROP_REFLECTION` (the garage mirrored under the floor), `BACKDROP_CURRGEN` (the bright sky outside the windows), four `BACKDROP_CAST_SHADOW_MAP*` and `BACKDROP_CAST_SHADOW_MAP_NEXTGEN` (shadow caster geometry), seven `STEAM EMITTER*` (particle markers) | the first three |
 
 The shadow casters are what the original draws its shadow maps from, and the emitters are markers; neither is a visible part
 of the picture, so they are skipped **[ours]**. Without `BACKDROP_CURRGEN` the windows show the clear colour and the floor loses
 its bright reflection; with it the picture has the pale floor and the white windows the safe house is remembered for
 (provenance, section 5). All three solids are pre-lit like the crib (`Shading::Prelit`).
+
+**Each solid is placed by its pivot matrix** (`Solid::transform`, translation in the last row, as stored). The safe house's drawn
+solids have the identity; the crib's room is stored about 26 times smaller than it stands and its pivot scales it up
+(26.04 on every axis), so drawn unscaled it is a small box round the car with its houses a few metres away. The earlier
+backdrop (the orbit camera in a too small room) did not show it; the original's camera poses (section 4.4) put the camera
+inside the unscaled houses. **[verified: render against a picture of the original's main menu]**
 
 ## 4. How the original stands the car and the camera **[exe + verified]**
 
@@ -115,7 +121,8 @@ shape the move onto the pose, section 4.4). The camera is built each frame as fo
 
 - the eye is `-distance * (sin(yaw) * sin(pitch), cos(yaw) * sin(pitch), cos(pitch))` from the stage origin;
 - it looks at the target;
-- its up vector is world up turned about the view direction by the roll;
+- its up vector is world up turned about the view direction by the roll, against the right-handed sense: a positive roll lets
+  the horizon fall to the right of the picture **[verified: the original's main menu (roll 7.3) and career menu (roll 24.7)]**;
 - the field of view is the pose's `[0x24]` value, and 16-bit angle units (65,536 per turn) round every angle first.
 
 `CameraPose` (`frontend/camera_pose.rs`) holds these and builds the lens.
@@ -171,15 +178,50 @@ from `FE_ATTRIB.bin` (provenance, section 3.6):
 A later screen with another pose hash starts a 0.4 to 1 s move from wherever the camera is; the rewrite shows one pose for
 all safe house screens **[ours]**, so only the intro is played. **[verified: `real_install` test reads the values]**
 
-`CameraMove` (`frontend/camera_move.rs`) implements the blend; `Stage::camera` builds it from the install
-(`nfsmw_data::frontend_camera`) when `MenuScene` is built, and `MenuScene::update` advances it with the frame time.
-The move begins when the backdrop is built, which is when the safe house menu opens; a parked backdrop that is shown again
-keeps its clock **[ours]**.
+`CameraMove` (`frontend/camera_move.rs`) implements the blend. The camera is one object for the whole front end,
+`CameraRig` (`frontend/camera_rig.rs`), because the original's mover outlives its screens while a `MenuScene` is rebuilt
+when the look changes (the main menu to the career menu): the front end and every backdrop hold a handle on it, the
+backdrop's `update` advances it with the frame time and its `frame` takes the pose. The poses are read from the install
+once (`nfsmw_data::frontend_camera::PoseBook`).
+
+**The crib.** The stage name of `0x007A1E70` is `main_fe` in the crib and `career_manager` with the career context bit 8; the
+rewrite plays `career_manager` when the first backdrop of a session is the career menu's (`Look::Car`) and `main_fe` for
+every other crib look **[ours]**. `main_fe` runs 6 s from `angle_entry_main_fe` (93.1, -58, 18, ...) onto
+`angle_final_main_fe`, which is `angle3`, the main menu's pose. The career menu in the crib is the career manager's screen
+(`career_manager` -> `angle_career_manager`: roll 24.7, yaw 64, 4.5 m, the strongly tilted side view of the car) **[verified:
+a picture of the original's career menu]**; the safe house menu is `career_mainmenu_sub` -> `angle10`.
+
+**Screens.** A screen names its pose collection from its file name and arguments (`factory::pose_for`, the collection
+names of section 4.2): `MainMenu` `mainmenu`, the career menu `career_manager`, the safe house menu `career_mainmenu_sub`,
+the Quick Race sub menu `quickracemain_mainmenu_sub` **[unverified: which of the `quickrace_` and `quickracemain_` prefixes
+the original uses where]**, Options `options_*`, the Quick Play brief, the challenge series, the track screens, the rival
+challenge, the alias manager. A screen with no pose (dialogs, lists, the rest) keeps the camera. The stack gives the pose
+of the topmost screen that has one (`Screens::pose`), and the front end hands it to the rig every frame
+(`Frontend::sync_backdrop`): a pose that differs from the last one starts a move from where the camera is with the new
+pose's decay, duration and order, so opening a screen and backing out of it both ease, to the pose of the screen that
+is then on top. The first screen of a stage only notes its pose while the intro runs its first move, as the original's intro
+flag does **[ours: the flag's other callers were not read]**.
+
+A backdrop built from nothing (the menus coming up after free roam or a race) resets the rig, so its stage plays its intro;
+a backdrop swapped for another look of the same stage keeps the camera. The Showcase keeps the car viewer's orbit camera
+(the player turns it) **[ours]**. `view-screen --screenshot` starts the camera at the end of its intro (`CameraRig::settled`);
+a scripted `play` run plays the intros.
+The car stands as in section 4.1 in the crib too (yaw 304.97, platform 1).
+
+**The room's turn.** With the car, the camera and the poses as above, the crib's houses stood in front of the camera. Turning
+the room 180 degrees about the vertical axis puts Squidward's house behind the car's front bumper with its door under
+the windows, and the pineapple behind the car in the career menu, as the original's two pictures show them
+(`Stage::room_yaw`). The angle was found by trial against the pictures (180 +- 10 degrees); the executable was not found
+to turn the room. The safe house needs none. **[unverified cause; verified against the pictures]**
 
 ## 5. Light, cost and leaks
 
 - The car is lit by the front end's light rig, the same as the crib's (`original_lighting::frontend`). The original's safe house
   default matches it ([car-lighting.md](car-lighting.md)). The room is pre-lit. **[ours]**
+- Per platform or per screen? The light research found one front-end rig (world-space entries, ambient zero) in the car lot, the
+  safe house and the shop, with the back room's theta negated; the crib uses the same default, so the crib and the safe
+  house need no different light. No per-screen light was found; the executable's light selection (`car-lighting.md`) was not
+  re-read for this look. **[exe, from the lighting spec; unverified for the crib by a picture]**
 - Building a backdrop reads the car and the room and uploads them: 64 to 130 ms for the crib looks and 90 to 190 ms for the
   safe house on a warm run (the first build of a session also reads the car tables, about 0.5 s). Nothing is added per frame:
   the safe house camera is one matrix. **[verified: install test timings]**
@@ -201,16 +243,17 @@ nfsmw view-screen MainMenu_Sub.fng --look car --car BMWM3GTRE46:M3GTRCAREERSTART
 
 - The original's reflection of the car in the floor (`BACKDROP_REFLECTION` is the room's; the car's own mirror image is drawn by
   the front end's reflection pass) is not drawn. **[unverified]**
-- The safe house intro of section 4.4 is played; the move between two safe house screens (0.4 to 1 s) and the user's rotate
-  and zoom of the car on some screens (state 1) are not.
+- The intros and the screen moves of section 4.4 are played; the user's rotate and zoom of the car on some screens (state 1) are
+  not, and the poses of the screens that `factory::pose_for` does not list (the rap sheet pages, the safe house sub
+  screens other than the rival challenge, the customization shop) are not used: those screens keep the camera.
 - The field of view is read as the horizontal angle of a 4:3 picture and kept as the vertical angle it implies at every window
   shape (65 degrees across give 51.1 up). The original does not say; the executable only converts the angle to 16-bit units
   for the view (`0x00476E10`). The car looks about 1.4 times as tall in the original's picture than with 65 read as vertical,
-  which the 4:3 reading puts at 1.33; a picture at a known window shape would settle it. **[unverified]**
-- The crib's camera (main menu, career menu, options and the others) is still the car viewer's orbit camera. The original runs
-  the same mover there: an intro from `angle_entry_main_fe` onto `angle_final_main_fe` (6 s), and a move to the pose of
-  each screen when it opens or is backed out to (provenance, sections 3.4 and 3.6). Not played. **[not done]**
-- The roll's direction (positive turns the up vector towards the camera's right) follows the axis-angle routine's convention, not a
-  comparison with the original's picture. **[unverified]**
+  which the 4:3 reading puts at 1.33. The original's main menu picture (1920x1080, pose `angle3`, 55 degrees) has the car
+  0.40 of the picture high and the render of this reading 0.44, so the original's angle is a little wider still. A picture
+  at a known window shape would settle it. **[unverified]**
+- The pictures of the original show the main menu's car red and the crib's floor sand-coloured; the render stands the white
+  career-start preset (section 1) on a dark floor strip with other textures. Neither is looked at here; the car and the
+  textures are other work. **[unverified]**
 - The poses of the other platforms (customization shop, back room, car lot) are in the attributes but their rooms are not drawn.
 - `BACKDROP_CURRGEN` is the sky only by its shape and its effect; the original's draw order and blending for it are not read.
