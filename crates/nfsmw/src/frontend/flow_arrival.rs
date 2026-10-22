@@ -87,7 +87,7 @@ impl Frontend {
         else {
             return;
         };
-        match profiles.write(&alias, &bytes) {
+        match profiles.save(&alias, &bytes) {
             Ok(()) => log::info!("arrival: autosaved {alias}"),
             Err(e) => log::warn!("arrival: the autosave of {alias} failed: {e:#}"),
         }

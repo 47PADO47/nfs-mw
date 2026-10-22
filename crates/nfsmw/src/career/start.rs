@@ -59,7 +59,7 @@ fn new_career(alias: &str, data: Arc<CareerData>, profiles: &ProfileDir) -> anyh
     let opts = NewCareer::default();
     let mut career =
         Career::new(alias, data, &opts).with_context(|| format!("the career {alias} could not be made"))?;
-    profiles.write(alias, &career.profile_bytes()).with_context(|| format!("the career {alias} could not be saved"))?;
+    profiles.save(alias, &career.profile_bytes()).with_context(|| format!("the career {alias} could not be saved"))?;
     Ok(career)
 }
 

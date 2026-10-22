@@ -66,7 +66,7 @@ pub fn autosave(
 /// Serialises the career and writes it under its alias, then reports the outcome to the manager.
 fn write_profile(career: &mut Career, profiles: &ProfileDir) -> anyhow::Result<()> {
     let bytes = career.profile_bytes();
-    match profiles.write(&career.alias, &bytes) {
+    match profiles.save(&career.alias, &bytes) {
         Ok(()) => {
             career.autosave.write_completed();
             Ok(())

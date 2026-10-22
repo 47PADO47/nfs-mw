@@ -4,9 +4,11 @@
 //! (1), the body length (u64, little endian), then the body. The body belongs to the mod. A write goes to a temporary
 //! file that then replaces the blob, so a failed write leaves the old blob whole.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
 
 use save_store::digest;
 
@@ -73,9 +75,7 @@ impl ModData {
     /// Replaces the blob of `key` with `body`.
     pub fn write(&self, key: &str, body: &[u8]) -> Result<(), ModDataError> {
         let path = self.path(key)?;
-        if body.len() > MAX_BODY {
-            return Err(ModDataError::TooLarge(body.len()));
-        }
+        check_body(body)?;
         let file = digest::with_prefix(&encode(body));
         fs::create_dir_all(&self.dir).map_err(|source| ModDataError::Io(source, self.dir.clone()))?;
         let temp = path.with_extension(format!("{EXTENSION}.tmp"));
@@ -111,6 +111,14 @@ fn check_key(key: &str) -> Result<(), ModDataError> {
     Err(ModDataError::BadKey(key.to_owned()))
 }
 
+/// Refuses a body over [`MAX_BODY`].
+fn check_body(body: &[u8]) -> Result<(), ModDataError> {
+    if body.len() > MAX_BODY {
+        return Err(ModDataError::TooLarge(body.len()));
+    }
+    Ok(())
+}
+
 /// The body with its magic, version and length in front of it (the file without the digest).
 fn encode(body: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(16 + body.len());
@@ -133,6 +141,60 @@ fn decode(file: &[u8]) -> Result<&[u8], ModDataError> {
         return Err(ModDataError::Corrupt);
     }
     Ok(rest)
+}
+
+/// The changes mods have made to their blobs since their profile was last saved: by alias, then by mod id. `Some` is a
+/// new body and `None` a removal. A change is kept here until [`flush`] writes it with the profile
+/// (`docs/specs/mod-save-data.md`, section 5).
+type Staged = BTreeMap<(String, String), Option<Vec<u8>>>;
+
+/// The staged changes of every profile. Only the game's main thread calls the mod interfaces, but the lock keeps this
+/// correct regardless.
+static STAGED: Mutex<Staged> = Mutex::new(BTreeMap::new());
+
+/// The staged changes, locked. A poisoned lock still gives its data: a panic elsewhere must not lose the changes.
+fn staged() -> MutexGuard<'static, Staged> {
+    STAGED.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Stage a new body for the blob of `owner` in the profile `alias`, or its removal (`None`). The key and the size are
+/// checked here, so a bad change is refused before it is kept.
+pub fn stage(alias: &str, owner: &str, body: Option<Vec<u8>>) -> Result<(), ModDataError> {
+    check_key(owner)?;
+    if let Some(body) = &body {
+        check_body(body)?;
+    }
+    staged().insert((alias.to_owned(), owner.to_owned()), body);
+    Ok(())
+}
+
+/// What the profile `alias` has staged for `owner`: `None` when nothing is staged, `Some(None)` when it is staged for
+/// removal, `Some(Some(body))` when a new body is staged.
+pub fn staged_for(alias: &str, owner: &str) -> Option<Option<Vec<u8>>> {
+    staged().get(&(alias.to_owned(), owner.to_owned())).cloned()
+}
+
+/// Write the staged changes of `alias` to `blobs`, the blobs of that profile. Each one that is written leaves the
+/// staged set; on the first failure the rest stay staged, so the next save tries them again.
+pub fn flush(blobs: &ModData, alias: &str) -> Result<(), ModDataError> {
+    let pending: Vec<(String, Option<Vec<u8>>)> = staged()
+        .iter()
+        .filter(|((staged_alias, _), _)| staged_alias == alias)
+        .map(|((_, owner), body)| (owner.clone(), body.clone()))
+        .collect();
+    for (owner, body) in pending {
+        match &body {
+            Some(body) => blobs.write(&owner, body)?,
+            None => blobs.remove(&owner)?,
+        }
+        staged().remove(&(alias.to_owned(), owner));
+    }
+    Ok(())
+}
+
+/// Drop what `alias` has staged without writing it: a profile that is left or reloaded without a save keeps no changes.
+pub fn discard(alias: &str) {
+    staged().retain(|(staged_alias, _), _| staged_alias != alias);
 }
 
 #[cfg(test)]

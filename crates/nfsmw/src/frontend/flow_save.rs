@@ -31,7 +31,7 @@ impl Frontend {
         else {
             return self.career_notice("There is no alias to save.".to_owned(), host, env);
         };
-        let result = profiles.write(&alias, &bytes);
+        let result = profiles.save(&alias, &bytes);
         let message = saved_message(&alias, &result);
         self.career_notice(message, host, env);
     }
@@ -136,7 +136,7 @@ fn load_career(alias: &str, bytes: &[u8], dir: &GameDir) -> Result<Career> {
 fn new_saved(alias: &str, dir: &GameDir, profiles: &ProfileDir) -> Result<Career> {
     let data = Arc::new(CareerData::load(dir)?);
     let mut career = Career::new(alias, data, &NewCareer::default())?;
-    profiles.write(alias, &career.profile_bytes())?;
+    profiles.save(alias, &career.profile_bytes())?;
     Ok(career)
 }
 

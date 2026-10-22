@@ -14,6 +14,8 @@ use nfsmw_career::save::layout::{PROFILE_AT, profile};
 use nfsmw_career::savefile::check_load;
 use nfsmw_career::savefile::state::{ALIAS_MAX_CHARS, is_listable_alias};
 
+use super::mod_data::{ModData, flush};
+
 /// The environment variable that overrides the profile folder.
 const DIR_ENV: &str = "NFSMW_CAREER_DIR";
 /// The folder name next to the config file.
@@ -104,6 +106,14 @@ impl ProfileDir {
             let _ = fs::remove_file(&tmp);
         }
         renamed.with_context(|| format!("cannot replace {}", file.display()))
+    }
+
+    /// Saves the profile of `alias` with `bytes`. The mod data staged for the profile is written first, then the profile
+    /// (`docs/specs/mod-save-data.md`, section 5). When a mod write fails, the profile is not written.
+    pub fn save(&self, alias: &str, bytes: &[u8]) -> Result<()> {
+        let blobs = ModData::new(self.mod_data_dir(alias)?);
+        flush(&blobs, alias).with_context(|| format!("the mod data of {alias} could not be saved"))?;
+        self.write(alias, bytes)
     }
 
     /// The folder that holds the mod data of `alias`: `<root>/<alias>/mods` (`docs/specs/mod-save-data.md`, section 2).
