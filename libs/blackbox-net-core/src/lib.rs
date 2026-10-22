@@ -21,7 +21,7 @@
 //! - `handoff` (feature `handoff`): the bounded drop-oldest ring and the latest-value cell between the net thread and
 //!   the game thread.
 //! - `secure` (feature `netcode`): the cookie, the Noise handshake, sealed packets with rekeying, identity keys and
-//!   trust on first use.
+//!   trust on first use, connect tokens and the room password.
 //!
 //! No game names, no threads and no wall clock: every function that needs the time takes `now_ms` from the caller, so
 //! tests are deterministic. The default build is standard library only; `handoff` adds `crossbeam-queue` and
