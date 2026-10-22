@@ -367,7 +367,8 @@ impl Frontend {
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
         let coop = crate::career::coop_players() > 1;
-        let pause_ctx = PauseCtx { race, quit: self.origin, coop };
+        let coop_locked = host.scene.coop_end_locked();
+        let pause_ctx = PauseCtx { race, quit: self.origin, coop, coop_locked };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -429,7 +430,8 @@ impl Frontend {
                 Command::Resume => self.resume_driving(env),
                 Command::EndCoop => {
                     host.scene.end_coop();
-                    crate::career::set_coop_players(1);
+                    // The front end's co-op state goes too: player 2's device is unseated and the count is one again.
+                    self.end_coop();
                     self.resume_driving(env);
                 }
                 Command::SetWaypoint(target) => {

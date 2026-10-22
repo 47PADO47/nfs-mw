@@ -183,7 +183,8 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
     if ctx.coop {
-        list.push(icon(Id::EndCoop, QUIT_TEXTURE, 0, true));
+        // Greyed out while player 2 races or is chased: their car cannot leave a race or a chase halfway.
+        list.push(icon(Id::EndCoop, QUIT_TEXTURE, 0, !ctx.coop_locked));
     }
     let quit = match ctx.quit {
         QuitTo::Main => 0xE950_B7AF,
@@ -278,6 +279,9 @@ mod tests {
         assert!(end[0].enabled);
         assert_eq!(coop.len(), solo.len() + 1, "End Co-op is the only extra row");
         assert_eq!(coop.last().map(|i| i.id), Some(Id::Quit(QuitTo::Main)), "Quit stays last");
+        let locked = pause_icons(PauseCtx { coop: true, coop_locked: true, ..PauseCtx::default() });
+        let end = locked.iter().find(|i| i.id == Id::EndCoop).expect("End Co-op is still listed");
+        assert!(!end.enabled, "greyed out while player 2 races or is chased");
     }
 
     #[test]

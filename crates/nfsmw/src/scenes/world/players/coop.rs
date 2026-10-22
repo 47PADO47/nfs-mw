@@ -118,6 +118,12 @@ impl WorldScene {
         self.second_view = super::super::split::SecondView::new();
     }
 
+    /// Whether co-op may not end now: player 2 races (its free-roam car is parked for the race) or is chased.
+    pub(in crate::scenes::world) fn coop_end_locked(&self) -> bool {
+        let Some(session) = self.coop.as_ref() else { return false };
+        (self.race.is_some() && self.players.is_parked(GUEST)) || session.chase.is_chased(GUEST)
+    }
+
     /// End co-op: player 2's car leaves the world and the screen is whole again.
     pub fn end_coop(&mut self, renderer: &mut dyn RenderBackend) {
         self.queued_coop = None;

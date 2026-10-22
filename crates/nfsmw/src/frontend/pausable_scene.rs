@@ -92,6 +92,10 @@ impl Scene for Pausable {
         self.inner.end_coop();
     }
 
+    fn coop_end_locked(&self) -> bool {
+        self.inner.coop_end_locked()
+    }
+
     // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()

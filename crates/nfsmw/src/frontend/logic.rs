@@ -59,12 +59,14 @@ pub enum QuitTo {
 }
 
 /// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam), where Quit
-/// goes, and whether a co-op session is on (End Co-op).
+/// goes, whether a co-op session is on (End Co-op), and whether it may end now (`coop_locked`: player 2 is racing or
+/// chased, `docs/specs/coop-career.md` section 3.2).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PauseCtx {
     pub race: bool,
     pub quit: QuitTo,
     pub coop: bool,
+    pub coop_locked: bool,
 }
 
 pub use super::footer::Footer;

@@ -214,6 +214,10 @@ impl Scene for WorldScene {
         self.queue_end_coop();
     }
 
+    fn coop_end_locked(&self) -> bool {
+        self.coop_end_locked()
+    }
+
     fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {
         self.split_frame(player, aspect)
     }

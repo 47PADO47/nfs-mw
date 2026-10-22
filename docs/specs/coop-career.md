@@ -71,8 +71,8 @@ events. The rules are written so that LAN players use the same rules later ([mul
 
 - **"End co-op"** is in the pause menu. P2's car leaves the world, P2's device is unseated, and P1 carries on
   alone. The save is not touched. **[ours]**
-- **In a race or a chase.** As built, End co-op is offered at any time; refusing it while P2 races or is chased is open
-  question 6. **[ours]**
+- **Refused** while P2 is in a race or is a pursuit target: the row is shown greyed out and cannot be chosen
+  (`coop_end_locked`). **[ours]**
 - **Main menu.** Going to the main menu ends co-op for the session. **[ours]**
 - **Saving.** A manual save or an autosave while co-op is on writes the career as usual. P2's car is not written.
   [career-flow.md](career-flow.md) section 0 item 6 gives the autosave triggers. **[ours]**
@@ -227,7 +227,8 @@ What changes when a seat is remote. The rules above do not change.
 4. **Human cops.** A player driving a cop car is not in this design.
 5. **Short wallet at a bust.** The fine is paid from the shared wallet. What happens when the wallet is short is not
    settled here.
-6. **End co-op in a race or chase.** Refused in this design (section 3.2). Confirm the rule.
+6. **End co-op in a race or chase.** Refused (section 3.2): the row is greyed out. Whether the menu should also say why
+   is open.
 7. **Other events.** The Blacklist field is set. Other events with a rival (and any event with a fixed field) need their
    own rule.
 8. **Catch-up after a declined prompt.** This design re-offers the prompt only after the players close to within 500 m.
