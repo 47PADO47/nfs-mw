@@ -73,3 +73,30 @@ What it says:
 The steady frame in the P1 trace (mean 7.56 ms with the shared GPU): 3.3 ms waiting on present, 2.3 ms scene update of
 which 1.4 ms are the reflection views, 1.1 ms render recording plus 0.7 ms in wgpu's encoder finish, 0.5 ms HUD (0.45 ms
 of it theme composition). Those are the targets of P2.
+
+## After P2, P3 and P4
+
+Same command and settings ("user"), 20 s runs, the four builds alternated in one session. The machine was shared with
+other workloads that kept the CPU at up to 100 % and the GPU at about 55 % busy, so the frame time sat at 6.3-7.5 ms
+on every build and the hitch counts varied from 0 to 150 between runs of the same binary. The process CPU time per
+frame, which does not count waiting, is the comparable figure.
+
+| Build | CPU ms per frame (runs) | Main thread busy | GPU base render |
+| --- | --- | --- | --- |
+| P1 | 4.21, 4.48 | 61-100 % | 2.58-2.94 ms |
+| P2 (steady-frame CPU) | 3.56, 3.55 | 51-56 % | 2.58-2.76 ms |
+| P3 (GPU passes) | 3.31, 3.17 | 39-55 % | 2.59-2.88 ms |
+| P4 (load and memory) | 3.37, 3.66, 3.54 | 47-51 % | 2.58-2.63 ms |
+
+What it says:
+
+- **P2 cuts about a fifth of the CPU per frame** (4.2-4.5 to 3.55 ms) and frees the main thread: it is no longer
+  busy all the time, so on an idle machine the frame is no longer bound by it.
+- **P3 trims the CPU a little further** (bind groups, fewer passes and submits). Its GPU savings (shadows, AO, SMAA,
+  motion) do not show at these settings, which turn shadows and AO off; the GPU base render is the same within noise.
+- **P4 is about loading and memory**: the resident set at the end of a run is lower (720-800 MiB against 820-890 MiB
+  on P2 and P3), and a run is ready as fast as before.
+- **First start after a shader change:** the first P2 and P3 runs waited 14-18 s before the world was ready, which is
+  the prewarm compiling every pipeline with a cold Vulkan cache. The next runs were ready in 0.9-1.1 s.
+- **Not measured on an idle machine:** the frame-time gain itself. Rerun the table's command with nothing else
+  running to read it.
