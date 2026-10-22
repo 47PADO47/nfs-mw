@@ -79,7 +79,8 @@ a new interface id suffix, so two majors can be offered side by side during a de
 
 **Interfaces are the capability unit.** Everything beyond logging comes from `query_interface`, by a string id
 such as `bb.commands`, `bb.events`, `bb.input`, `bb.time`, `bb.map`, `bb.menus`, `bb.content`, `bb.vehicles`,
-`bb.hud`, `bb.audio`, `bb.camera`, `bb.world`, and, for the game-specific extension, `nfsmw.career`,
+`bb.hud`, `bb.audio`, `bb.camera`, `bb.world`, `bb.saves` (the mod's own blob in the career profile,
+[mod-save-data.md](../specs/mod-save-data.md)), and, for the game-specific extension, `nfsmw.career`,
 `nfsmw.pursuit`, `nfsmw.races`. An interface table is one `BbIface` header plus its function pointers. The ids
 of `bb.*` belong to `blackbox-modding` and mean the same in every Black Box game; the ids of `nfsmw.*` belong to
 `nfsmw-modding`. A game offers the `bb.*` interfaces it can implement and none it cannot: asking for an absent

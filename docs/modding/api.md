@@ -175,6 +175,21 @@ the hour changes lights, sun and shadow, not every sky detail.
 
 Related: `world.set_time_scale` (slow motion) is in [api-world.md](api-world.md#world-state).
 
+## Saves
+
+`bb.saves`. A mod keeps one blob of its own in the career profile that is loaded: the blob is named by the mod's id,
+so a mod reads and writes only its own data. The file and its rules are in
+[mod-save-data.md](../specs/mod-save-data.md). With no profile loaded every call returns `NotReady`.
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Read | `saves.read() -> Result<Option<Vec<u8>>>`; `None` when the mod has written nothing. A write made since the last save reads back as written | G | `libs/blackbox-modding/src/sdk/saves.rs`, `host/table/saves.rs`; `crates/nfsmw/src/modding/backends/saves.rs` |
+| Write | `saves.write(body: &[u8]) -> Result<()>` **staged**: written with the next profile save, before the profile. At most 256 KiB (`Arg` otherwise) | G | same |
+| Remove | `saves.remove() -> Result<()>` **staged**, like `write` | G | same |
+
+A stored blob that fails its check reads as `Corrupt` and is left in place until the mod writes a new one. A write
+that is not saved (the game quits first) is lost; a save that fails to write a mod's blob does not write the profile.
+
 ## Wire numbers (ABI 0.1)
 
 The numbers below are the ones in `libs/blackbox-modding/src/abi`. Each is locked by a snapshot test

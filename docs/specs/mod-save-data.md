@@ -6,9 +6,13 @@ a career flag (section 9). This spec is the design for both: where the data live
 format, and what happens on save, load and delete. It builds on [ADR 0005](../decisions/0005-native-mod-plugins.md) (mods, the ABI
 and the interfaces) and on [career-save.md](../formats/career-save.md) (the profile file it must leave alone).
 
-**Status.** Built: the blob file and its checks (`crates/nfsmw/src/career/mod_data.rs`, sections 4 and 3's key and size
-rules), and the delete of a profile's mod data (section 2). Not built yet: the `bb.saves` and `nfsmw.career` interfaces
-(sections 3 and 9), the save-path write order (section 5), and the decisions in section 8.
+**Status.** Built: the blob file and its checks (`crates/nfsmw/src/career/mod_data.rs`, section 4), the delete of a
+profile's mod data (section 2), the `bb.saves` interface (section 3: ABI in `libs/blackbox-modding/src/abi/iface/saves.rs`,
+host in `host/table/saves.rs`, SDK in `sdk/saves.rs`, game port in `crates/nfsmw/src/modding/backends/saves.rs`), and the
+save-path write order (section 5: `ProfileDir::save` flushes the staged blobs before the profile). Section 9 is mostly
+built already: the `nfsmw.career` port in `crates/nfsmw/src/modding/backends/career.rs` offers the typed calls. Open:
+the decisions in section 8, and discarding staged changes when a profile is left without a save (`mod_data::discard`
+exists and is tested, but nothing calls it yet).
 
 This is a design of this project, not a behaviour of the original game. The original game reads only its own profile
 file and never looks at the files this spec adds.
@@ -47,17 +51,22 @@ does not change the ADR's decisions.
 
 | Call | Meaning |
 |---|---|
-| `read(key) -> bytes or none` | the mod's blob for the loaded profile; none when the mod has not written one |
-| `write(key, bytes)` | replace the mod's blob; written with the next profile save or at once, see section 5 |
-| `remove(key)` | delete the mod's blob |
+| Call | Meaning |
+|---|---|
+| `read() -> bytes or none` | the mod's blob for the loaded profile; none when the mod has not written one. Reads a staged write back first |
+| `write(bytes)` | stage the mod's blob; written with the next profile save, before the profile (section 5) |
+| `remove()` | stage the removal of the mod's blob |
 
-- `key` is the mod's own id from `mod.toml` (`[a-z0-9_.-]`, lower case, up to 64 characters). The host never builds a
-  path from it except after checking it against that pattern, so it cannot reach outside the `mods` folder.
+The calls take no key. The host names the blob after the mod that calls (its id from `mod.toml`, `[a-z0-9_.-]`, lower
+case, up to 64 characters), so a mod cannot reach another mod's blob. The id is checked again before it is used as a
+file name, so it cannot reach outside the `mods` folder. This replaces the key of the first draft: one blob per mod.
+
 - The bytes cross the ABI as a pointer and a `u64` length (ADR 0005 section 1). `bytes` is opaque to the host.
-- With no career profile loaded, every call fails with a status code; a mod that needs a profile checks first.
-- A blob is at most **256 KiB** (proposal). A larger write fails with a status code and changes nothing.
-- The calls are refused in an online session when the career gameplay interface is switched off (ADR 0005 section 6).
-  Saves are local, so this does not affect what a session sends.
+- Status codes: `BB_ERR_NOT_READY` when no profile is loaded, `BB_ERR_NOT_FOUND` for a blob that does not exist,
+  `BB_ERR_CORRUPT` (new, `-15`) for a blob that fails its check, `BB_ERR_ARG` for a bad id or a body over the limit.
+- A blob is at most **256 KiB** (`MAX_BLOB_BYTES`). A larger write fails with `BB_ERR_ARG` and changes nothing.
+- Not gated for multiplayer: the blob is local and never sent to a peer, so the online rule does not apply to it. The
+  career calls of section 9 keep their own gate.
 
 ## 4. The file
 
@@ -83,10 +92,12 @@ code, so the mod can react, and the file is left in place. A later write replace
 - **Write.** `write` stores the blob in memory until the next profile save. A profile save (manual, or autosave) first
   writes every changed blob, then the profile file. The profile file is the commit point: if a blob write fails, the
   profile save stops and the profile is not written, so the mod data and the profile never go out of step.
-- **Write-through option.** A mod that needs its data on disk before the next save may ask for an immediate write. This
-  is the same atomic write (temporary file, then rename) as the profile, so a crash leaves the old blob whole.
-- **Read.** `read` loads the file the first time it is asked, when the profile is loaded. A profile with no `mods`
-  folder gives none for every key.
+- **Write-through: not built.** Writes are staged only (decided, section 8 item 3). The blob write itself is atomic
+  (temporary file, then rename), so a crash leaves the old blob whole.
+- **Read.** A read checks the staged change first, then the file. A profile with no `mods` folder gives none.
+- **Save path.** `ProfileDir::save` (`career/io.rs`) is the one way a profile is written: it flushes the staged blobs
+  of the profile (`mod_data::flush`), then writes the profile. The five callers (autosave, start, arrival, the two
+  save paths of the manual save) use it. A blob that fails stays staged, and the profile is not written.
 - **Remove.** `remove` deletes the file at the next profile save, not at once, so a save that fails leaves the old blob.
 - **Deleting a profile** removes its folder (section 2). No blob survives a deleted profile.
 - **Uninstalled mods.** A blob whose mod is no longer installed stays on disk. Nothing reads it, and the player can delete
@@ -119,9 +130,8 @@ code, so the mod can react, and the file is left in place. A later write replace
 1. Accept the own-folder-only location (section 2), or also allow an option to store mod data beside the original's
    folder. The proposal is own folder only, because the original's folder is never written.
 2. The blob size limit of 256 KiB (section 3).
-3. Whether a mod may write immediately (section 5, write-through) in the first version, or only with the profile save.
-   The proposal is to include it, since it uses the same atomic write.
-4. Whether to amend ADR 0005 with `bb.saves` now or with the first implementation.
+3. Decided: writes are staged only, with the profile save. Write-through is not built.
+4. Decided: ADR 0005 lists `bb.saves` now (its interface list, section 8).
 5. Whether a deleted profile's mod data is removed with it (section 2). The proposal is yes: the delete removes the
    `mods` folder too, so a new profile with the same name starts empty.
 6. The first list of game fields that mods may read and write (section 9). The proposal is the operations the game
