@@ -1,5 +1,6 @@
-//! A renderer that draws nothing, for tests of the code around the renderer (console, menus). It reports the
-//! capabilities it is given and resolves graphics requests against them like a real backend.
+//! A renderer that draws nothing: the headless backend of a multiplayer server's world (`scenes::world::net`, ADR 0011)
+//! and of the tests of the code around the renderer (console, menus, the world). It reports the capabilities it is given
+//! and resolves graphics requests against them like a real backend. Tests reach it as `app::test_backend` as well.
 
 use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,

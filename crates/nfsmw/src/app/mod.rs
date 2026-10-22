@@ -11,15 +11,19 @@ mod graphics;
 mod host;
 mod latency;
 pub(crate) mod mirror;
+// The world host of a multiplayer server (`scenes::world::net`) draws with it; the listen host and the dedicated server
+// that drive that host are wired in later (ADR 0011), so outside the tests nothing reaches it yet.
+#[allow(dead_code)]
+pub(crate) mod null_backend;
 pub mod pacing;
 pub(crate) mod render;
 mod screenshot;
 mod split;
 mod streaks;
 #[cfg(test)]
-pub use screenshot::Plan;
+pub(crate) use null_backend as test_backend;
 #[cfg(test)]
-pub(crate) mod test_backend;
+pub use screenshot::Plan;
 pub mod window;
 
 pub use cursor::update as cursor_update;
