@@ -133,6 +133,7 @@ pub fn all() -> Vec<Message> {
         StreamingStall { stalled: false }.into(),
         ResultRequest {}.into(),
         ResetRequest { tick: 5000 }.into(),
+        BaselineLost { tick: 4999 }.into(),
         ChatSend { channel: ChatChannel::Whisper, to_slot: Some(4), text: ChatText::new("nice drift").unwrap() }.into(),
         ChatMessage { from_slot: 2, channel: ChatChannel::All, text: ChatText::new("gg ✓").unwrap(), tick: 77 }.into(),
         SystemNotice { code: NoticeCode::Vote, args: List::new(vec![1, 2]).unwrap() }.into(),

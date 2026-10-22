@@ -280,8 +280,16 @@ The field widths of the player car are in [bandwidth](bandwidth.md) section 1.1 
 > type 16. Helicopter: position 3 × 20 d, orientation 32, flags 24, type 16. Roadblock: position 3 × 20 (raw), yaw 8, flags 8,
 > type 16. Moving prop: position 3 × 20 d, orientation 32, flags 8, type 16. Owner is 0 for none, else the player id plus one.
 > Speeds are signed forward speeds over -32..96 m/s. The own block is built as listed above (226 bits used, 30 reserved zero). The
-> global block is not built. `schema_id` is a 64-bit FNV-1a over the replicate schema id, the position range and the fixed
+> global block is built in module `frames` (below). `schema_id` is a 64-bit FNV-1a over the replicate schema id, the position range and the fixed
 > ranges.
+
+> **Built** (`nfsmw-net`, module `frames`, 2026-10-22): the payload is `part` 4, `parts` 4, `flags` 8 (bit 0 own block, bit 1
+> global block, bits 2 to 7 zero; the cause is inside the own block), `ack_input` 16, the own block (part 0 only), the global
+> block (part 0 only), then the replicate body (tick 32, baseline distance varint, entry count varint, entries) zero padded to
+> the byte; every block is a whole number of bytes. The global block is 96 bits: phase 4, heat 4, busted 8, cooldown 8,
+> pursuit status 3, place 5, lap 6, checkpoint 8, time of day 16 (minutes × 45), 34 reserved zero. `PING` is seq 8 and
+> client time 32; `PONG` adds the receive and send ticks as 32 + 8 bits each. Each part's body names the same tick and
+> distance and holds a disjoint, ascending set of entities; the client applies part 0 to the baseline, part 1 to that, and so on.
 
 **Parts.** A snapshot too large for one datagram is split into parts. Each part repeats `tick`, `baseline` and `flags` (without the
 own and global bits); part 0 carries those blocks; every part holds complete entities. A client applies parts in any order and treats

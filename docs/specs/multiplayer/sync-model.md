@@ -2,7 +2,8 @@
 
 Status: **client side built** (2026-10-22) in `crates/nfsmw-net`, without the game wiring: prediction (`predict`),
 reconciliation and smoothing (`reconcile`), interpolation (`interp`), clock and lead (`clock`), the overlay counters
-(`netstats`) and the `net.sim` setting (`netsim`). The session lifecycle rules of section 7 are built (see the note there).
+(`netstats`) and the `net.sim` setting (`netsim`), all driven from the wire by `client_session::ClientSession`
+([client session](client-session.md)). The session lifecycle rules of section 7 are built (see the note there).
 Notes marked **Built** below say what exists and where it departs from the text; section 10 has the measured figures.
 Written 2026-10-16. This file holds the algorithms that
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) decides on. The ADR gives the reasons and the budgets; this file
@@ -131,6 +132,12 @@ For each remote entity the client keeps a ring of the last 16 received records (
 tick. With deltas, the client reconstructs the full record at each received tick (baseline plus delta) before storing it.
 Entities not mentioned in a delta keep their baseline record, and the record is stored again for the new tick (so
 the buffer always has the state at each received tick).
+
+**Session (built):** `ClientSession` decodes each complete snapshot (all parts, merged in part order) into its view of that
+tick, kept for 64 ticks as the baselines later snapshots name, then pushes every entity of the view except the own car to
+the interpolator and marks entities that left the view as removed at that tick. A snapshot older than the newest one fed
+is kept as a view but not fed. A missing baseline is reported with `BaselineLost`; the client sends no acknowledgement of
+its own, because the server reads delivery from the packet acknowledgements of the parts.
 
 ### 3.2 Choosing the display time
 
@@ -274,6 +281,10 @@ the server's 12-tick early limit). A missing input counts like a late one.
 Race start, countdowns, and pursuit state changes carry a target server tick `T`. The client acts when its `S_est >= T`.
 Only the owner's launch matters: the owner's inputs before `T` are held neutral by the server, and the client holds them
 neutral until its predicted `C >= T` (not `S_est`), so the car starts when the lights change on the owner's own clock.
+
+**Session (built):** `ClientSession` holds a gameplay event with a nonzero `target_tick` until `S_est` reaches it and drops
+a `seq` it has seen (per connection). `StartAt` and `RaceStart` set the start tick at once, so input for every predicted
+tick before it is replaced by neutral input before quantising.
 
 ## 6. Determinism requirements
 

@@ -287,3 +287,11 @@ wire_struct! {
         pub tick: u32,
     }
 }
+
+wire_struct! {
+    /// The client could not decode the snapshot of `tick` because its baseline is gone: the server forgets the client's
+    /// views (`ClientState::reset`) and sends the next snapshot full. At most one per 500 ms.
+    pub struct BaselineLost {
+        pub tick: u32,
+    }
+}
