@@ -1,8 +1,12 @@
 //! Turning a typed line into a [`Command`]. Pure text in, plain data out.
 
+use super::net_parse::{self, NET_COMMANDS, NetCommand};
+
 /// A console command. Scene-specific ones (`car`, `freecam`…) are passed on by name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
+    /// A `net.*` command of LAN play (`net_parse.rs`).
+    Net(NetCommand),
     Help,
     Clear,
     Quit,
@@ -170,6 +174,9 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
     if matches!(name.as_str(), "bind" | "addbind" | "unbind" | "bind-reset" | "bind-save") {
         return Ok(Some(Command::Bindings { name, args: args.iter().map(|a| (*a).to_owned()).collect() }));
     }
+    if let Some(net) = net_parse::parse(&name, &args) {
+        return net.map(|command| Some(Command::Net(command)));
+    }
     Ok(Some(match name.as_str() {
         "help" | "?" => Command::Help,
         "clear" | "cls" => Command::Clear,
@@ -232,8 +239,12 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
 /// The built-in and scene command names that start with `prefix`, for Tab.
 pub fn complete(prefix: &str, scene_commands: &[(&str, &str)]) -> Vec<String> {
     let first = |usage: &str| usage.split_whitespace().next().unwrap_or("").to_owned();
-    let mut names: Vec<String> =
-        BUILT_IN.iter().map(|(u, _)| first(u)).chain(scene_commands.iter().map(|(u, _)| first(u))).collect();
+    let mut names: Vec<String> = BUILT_IN
+        .iter()
+        .chain(&NET_COMMANDS)
+        .map(|(u, _)| first(u))
+        .chain(scene_commands.iter().map(|(u, _)| first(u)))
+        .collect();
     names.retain(|n| n.starts_with(&prefix.to_ascii_lowercase()));
     names.sort();
     names.dedup();
@@ -332,5 +343,16 @@ mod tests {
         assert_eq!(complete("hd_", &scene), ["hd_cursor", "hd_fmv", "hd_fonts"]);
         assert_eq!(complete("vo", &scene), ["volume"]);
         assert!(complete("zzz", &scene).is_empty());
+        assert_eq!(
+            complete("net.s", &scene),
+            ["net.say", "net.scan", "net.servers", "net.sim", "net.stats", "net.status"]
+        );
+    }
+
+    #[test]
+    fn net_commands_are_parsed_here_and_their_errors_reported() {
+        assert_eq!(ok("NET.Lead"), Command::Net(NetCommand::Lead));
+        assert_eq!(ok("net.kick 2"), Command::Net(NetCommand::Kick(2)));
+        assert!(parse("net.kick").is_err());
     }
 }

@@ -7,9 +7,12 @@
 //! - `mock`: [`mock::MockNetFrontend`] for the tests.
 
 pub mod backend;
+pub mod car;
 pub mod handle;
+pub mod host_options;
 #[cfg(test)]
 pub mod mock;
+pub mod text;
 
 pub use backend::{Disconnect, HostOptions, LeadInfo, NetFrontend, NetStatus, ServerEntry};
 pub use handle::LanBackend;

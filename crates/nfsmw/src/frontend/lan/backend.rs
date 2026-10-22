@@ -137,7 +137,9 @@ pub trait NetFrontend {
     /// The lobby mirror while a session exists.
     fn lobby(&self) -> Option<&LobbyView>;
 
-    /// The events since the last call, oldest first. The screens and the session HUD read them once a frame.
+    /// The events since the last call, oldest first: the front end's own queue, drained once a frame by the LAN system
+    /// (lobby, feed, votes, results). The session acts on its events itself (admission, load, start, gameplay) and keeps a
+    /// copy here for the screens, so draining it never takes an event from the world.
     fn take_events(&mut self) -> Vec<SessionEvent>;
 
     /// The last race result record.
