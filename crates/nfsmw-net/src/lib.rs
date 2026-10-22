@@ -41,11 +41,14 @@
 //! - [`clock`]: the estimated server tick from PING and PONG, the ping schedule and the input lead.
 //! - [`netstats`]: the counters of the network overlay line.
 //! - [`netsim`]: the `net.sim` bad-network setting for the link simulator.
+//! - [`frames`]: the `SNAPSHOT`, `PING` and `PONG` payloads and the snapshot's global block, written by the server and
+//!   read by the client.
 
 pub mod chat;
 pub mod clock;
 pub mod drop;
 pub mod fairness;
+pub mod frames;
 mod geom;
 pub mod input;
 pub mod interp;
