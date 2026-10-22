@@ -82,7 +82,8 @@ panel, the sheets) are tested in `reputation_overview_tests.rs`. Differences fro
 - The Remastered look has no overview page: the item opens the rival list of `SafeHouseRivalChallenge.fng`.
 - The first-visit sequence still ends in the safe house menu rather than on this page ([story-flow-2.md](story-flow-2.md)
   step 15).
-- Mouse clicks on the page are not wired.
+- The mouse takes the two chevrons, the two arrows, the option and the Challenge Rival button (the original's handler
+  has no mouse code of its own; the package's buttons are off screen), and the footer's Back and Accept.
 
 ## 5. Open questions
 

@@ -8,10 +8,11 @@
 //! Accept opens it; key 2 (`PAD_BUTTON4`) opens the rival challenge when the button is on; Back leaves for the safe
 //! house menu. The rules are pure functions below, tested in `reputation_overview_tests.rs`.
 
-use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_feng::runtime::pad;
+use blackbox_feng::{ObjectRef, fe_hash_upper};
 use blackbox_text::label_hash;
+use glam::Vec2;
 use nfsmw_career::blacklist::Counters;
 use nfsmw_career::settings::{FIRST_RIVAL_STAGE, Flags};
 
@@ -34,6 +35,8 @@ const BUTTON_GROUP: u32 = 0x55f6_aa1a;
 const STEPPER_UP: u32 = 0x47b2_2fca;
 const STEPPER_DOWN: u32 = 0x72ad_598c;
 const OPTION_TITLE: u32 = 0x5e7b_09c9;
+/// What a click on the option takes: its icon, its plate and its title.
+const OPTION_PARTS: [u32; 3] = [0xb046_69e3, 0xb39a_7599, 0x0c07_934e];
 const ARROW_LEFT: u32 = 0x3df3_9a82;
 const ARROW_RIGHT: u32 = 0xfcd5_b255;
 const TICKER_BOUNTY: u32 = 0xb514_e2d8;
@@ -196,6 +199,31 @@ fn read(bin: u8) -> Option<Panel> {
     })
 }
 
+/// The object named `name` and everything inside it.
+fn parts(cx: &Cx, name: u32) -> Vec<ObjectRef> {
+    let (Some(root), Some(def)) = (cx.object(name), cx.rt.package(cx.package)) else { return Vec::new() };
+    let root_guid = def.objects[root.index].guid;
+    let inside = |index: usize| {
+        let mut at = Some(def.objects[index].guid);
+        while let Some(guid) = at {
+            if guid == root_guid {
+                return true;
+            }
+            at = cx.rt.find_guid(cx.package, guid).and_then(|o| def.objects[o.index].parent);
+        }
+        false
+    };
+    (0..def.objects.len())
+        .filter(|&index| inside(index))
+        .map(|index| ObjectRef { package: cx.package, index })
+        .collect()
+}
+
+/// Whether a shown part of the object named `name` lies under `point`.
+fn hit(cx: &Cx, name: u32, point: Vec2) -> bool {
+    cx.rt.object_at(&parts(cx, name), point).is_some()
+}
+
 struct Overview {
     shown: u8,
     low: u8,
@@ -331,6 +359,36 @@ impl ScreenLogic for Overview {
         if bits & pad::ACCEPT != 0 {
             self.accept(cx);
         }
+    }
+
+    // The mouse takes the screen's own buttons: the two chevrons, the two arrows, the option and the challenge button
+    // (the footer's Back and Accept are taken by the front end).
+    fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if hit(cx, STEPPER_UP, point) {
+            self.step_rival(cx, true);
+            return true;
+        }
+        if hit(cx, STEPPER_DOWN, point) {
+            self.step_rival(cx, false);
+            return true;
+        }
+        if hit(cx, ARROW_LEFT, point) {
+            self.step_sheet(cx, false);
+            return true;
+        }
+        if hit(cx, ARROW_RIGHT, point) {
+            self.step_sheet(cx, true);
+            return true;
+        }
+        if hit(cx, BUTTON_GROUP, point) {
+            self.challenge(cx);
+            return true;
+        }
+        if OPTION_PARTS.iter().any(|&part| hit(cx, part, point)) {
+            self.accept(cx);
+            return true;
+        }
+        false
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
