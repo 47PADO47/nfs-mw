@@ -198,7 +198,9 @@ pub fn draw(
     };
     let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;
-        if host.pending_capture.is_none() && (host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture) {
+        if host.pending_capture.is_none()
+            && (host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture || host.ui_loading)
+        {
             return;
         }
         let started = match host.pending_capture.take() {

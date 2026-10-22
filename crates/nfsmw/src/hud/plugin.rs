@@ -27,7 +27,7 @@ use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
 use crate::ui::theme::original::FengSource;
 use crate::ui::theme::{ElementId, UiThemes, hud_layer, slot_layer};
-use crate::ui::{Catalog, Presenter, SharedAssets};
+use crate::ui::{AssetsLoad, Catalog, Job, Presenter, SharedAssets, UiAssets, UiLoading};
 
 /// The package that is the in-game HUD, and the files that hold it.
 const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
@@ -74,61 +74,109 @@ struct DragHud {
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<super::RadioHud>().add_systems(Update, super::radio::update.in_set(FrameSet::SceneUpdate));
-        let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
-        super::split::install(app, &self.dir, &assets);
-        let catalog = Catalog::load(&self.dir, &HUD_FILES);
-        let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
-            log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
-            return;
-        };
-        log::info!(
-            "HUD: {} objects, {} resources without a texture",
-            package.objects.len(),
-            assets.missing_resources(&package).len()
-        );
-        let mut runtime = crate::ui::runtime();
-        if let Some(strings) = assets.strings.clone() {
-            runtime.set_string_resolver(move |label| strings.get(label));
-        }
-        let package = runtime.load(package);
-        let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
-        // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
-        let map_variants: Vec<MapVariant> = [MapVariant::Unlock1, MapVariant::Unlock2]
-            .into_iter()
-            .filter(|v| MinimapBinding::open_variant(&runtime, package, &self.dir, &assets, *v).is_some())
-            .chain(minimap.is_some().then_some(MapVariant::Full))
-            .collect();
-        let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
-        // Before the viewport: its icons take the minimap's side with the others.
-        for style in blip_styles::map_icon_styles() {
-            binding.add_blip_style(&mut runtime, package, style);
-        }
-        let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
-        let trax = trax::load(&self.dir, &mut runtime);
-        let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
-        let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
-            let package = runtime.load(drag);
-            let binding = HudBinding::new(&mut runtime, package);
-            let viewport = HudViewport::new(&runtime.tree(package), &[]);
-            DragHud { package, binding, viewport }
-        });
-        let event_tiles = EventTiles::new(install_loader(self.dir.clone()));
-        app.insert_resource(Hud {
-            runtime,
-            package,
-            binding,
-            viewport,
-            map_variants,
-            event_tiles,
-            trax,
-            overlay,
-            drag,
-            cache: FrameCache::default(),
-        })
-        .insert_non_send(self.career.clone())
-        .insert_resource(self.initial.clone())
-        .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
-        .add_systems(Update, present.in_set(FrameSet::Hud));
+        // The HUD is built on a background thread once the UI assets are read, so the window opens at once. Its
+        // systems wait for it (`ui/loading.rs`).
+        let assets = crate::ui::ensure(app, &self.dir);
+        let dir = self.dir.clone();
+        app.world_mut().resource_mut::<UiLoading>().begin(LOAD);
+        let ready = resource_exists::<Hud>;
+        app.insert_resource(PendingHud(Job::spawn("hud-load", move || load(&dir, &assets))))
+            .insert_non_send(self.career.clone())
+            .insert_resource(self.initial.clone())
+            .add_systems(Update, poll.in_set(FrameSet::Prepare).run_if(resource_exists::<PendingHud>))
+            .add_systems(
+                Update,
+                sync.in_set(FrameSet::SceneUpdate).run_if(ready).run_if(resource_exists::<SharedAssets>),
+            )
+            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>));
+        super::split::install(app);
+    }
+}
+
+/// The name of the HUD's load in [`UiLoading`].
+const LOAD: &str = "the HUD";
+
+/// What the HUD's loader thread builds: the split-screen HUDs and the HUD, each `None` when the install lacks it.
+#[derive(Default)]
+struct Loaded {
+    split: Option<super::split::SplitHuds>,
+    hud: Option<Hud>,
+}
+
+/// The HUD being built on its loader thread.
+#[derive(Resource)]
+struct PendingHud(Job<Loaded>);
+
+/// Reads the HUD's packages, waits for the UI assets that load beside them, and builds the HUDs over both. On the
+/// loader thread.
+fn load(dir: &GameDir, assets: &AssetsLoad) -> Loaded {
+    let catalog = Catalog::load(dir, &HUD_FILES);
+    let Some(assets) = assets.wait() else { return Loaded::default() };
+    Loaded { split: super::split::load(dir, &assets), hud: build(dir, &assets, &catalog) }
+}
+
+/// The HUD of the install, `None` when it has no race HUD.
+fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
+    let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
+        log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
+        return None;
+    };
+    log::info!(
+        "HUD: {} objects, {} resources without a texture",
+        package.objects.len(),
+        assets.missing_resources(&package).len()
+    );
+    let mut runtime = crate::ui::runtime();
+    if let Some(strings) = assets.strings.clone() {
+        runtime.set_string_resolver(move |label| strings.get(label));
+    }
+    let package = runtime.load(package);
+    let minimap = MinimapBinding::open_city(&runtime, package, dir, assets);
+    // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
+    let map_variants: Vec<MapVariant> = [MapVariant::Unlock1, MapVariant::Unlock2]
+        .into_iter()
+        .filter(|v| MinimapBinding::open_variant(&runtime, package, dir, assets, *v).is_some())
+        .chain(minimap.is_some().then_some(MapVariant::Full))
+        .collect();
+    let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
+    // Before the viewport: its icons take the minimap's side with the others.
+    for style in blip_styles::map_icon_styles() {
+        binding.add_blip_style(&mut runtime, package, style);
+    }
+    let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
+    let trax = trax::load(dir, &mut runtime);
+    let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
+    let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
+        let package = runtime.load(drag);
+        let binding = HudBinding::new(&mut runtime, package);
+        let viewport = HudViewport::new(&runtime.tree(package), &[]);
+        DragHud { package, binding, viewport }
+    });
+    let event_tiles = EventTiles::new(install_loader(dir.clone()));
+    Some(Hud {
+        runtime,
+        package,
+        binding,
+        viewport,
+        map_variants,
+        event_tiles,
+        trax,
+        overlay,
+        drag,
+        cache: FrameCache::default(),
+    })
+}
+
+/// Puts the HUDs in place once they are built.
+fn poll(mut commands: Commands, mut pending: ResMut<PendingHud>, mut loading: ResMut<UiLoading>) {
+    let Some(loaded) = pending.0.take() else { return };
+    commands.remove_resource::<PendingHud>();
+    loading.end(LOAD);
+    if let Some(split) = loaded.split {
+        commands.insert_resource(split);
+    }
+    if let Some(hud) = loaded.hud {
+        commands.insert_resource(hud);
     }
 }
 

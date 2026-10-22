@@ -9,6 +9,7 @@ pub(crate) mod discord_icon;
 pub mod fonts;
 pub(crate) mod input_icons;
 mod late_textures;
+mod loading;
 pub(crate) mod mod_icon;
 pub mod present;
 pub(crate) mod prompts;
@@ -21,6 +22,7 @@ pub(crate) mod tips;
 
 pub use assets::UiAssets;
 pub use catalog::{Catalog, SCREEN_FILES};
+pub use loading::{AssetsLoad, Job, UiLoading};
 pub use shared::{Presenter, SharedAssets, ensure};
 pub use strings::Text;
 pub use text::text_size;

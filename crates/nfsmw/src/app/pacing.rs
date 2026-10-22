@@ -129,7 +129,9 @@ pub fn end_of_frame(
     let _trace = blackbox_trace::scope("Frame: title / benchmark / limiter");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
-    let ready = host.scene.benchmark_ready();
+    // The measured frames start after the UI's background loads (`ui/loading.rs`), as they did when those loads ran before
+    // the window opened.
+    let ready = host.scene.benchmark_ready() && !host.ui_loading;
     if let Some(report) = host.bench.as_mut().and_then(|bench| bench.frame(ready)) {
         report.lines(renderer.info().renderer).iter().for_each(|line| println!("{line}"));
         println!("bench: backend {}", renderer.info().summary());

@@ -19,7 +19,7 @@ use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
 use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
 use super::pointer::{self, feng_point};
-use super::screens::{MenuLayers, Presented, Screens};
+use super::screens::{MenuLayers, Presented};
 use super::script::{self, UiScript};
 use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
@@ -60,23 +60,17 @@ impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
         super::jukebox::prime(&self.dir);
         super::credits::prime(&self.dir);
-        let Some(screens) = Screens::load(app, &self.dir) else { return };
-        let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
-        frontend.browse = self.browse.clone();
-        frontend.career = self.career.clone();
-        frontend.camera = self.camera.clone();
-        if let Some(look) = &self.look {
-            frontend.look = look.clone();
-            frontend.look_override = Some(look.clone());
-        }
-        app.insert_resource(frontend)
-            .init_resource::<WorldMapOverlay>()
+        // The screens and the UI assets load on background threads, so the window opens at once. The systems below wait
+        // for what they draw with (`pending.rs`).
+        super::pending::install(app, self);
+        let ready = resource_exists::<Frontend>;
+        app.init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .init_resource::<TypedKeys>()
-            .add_systems(Update, collect_typed.before(update))
-            .add_systems(Update, update.in_set(FrameSet::Frontend))
-            .add_systems(Update, present.in_set(FrameSet::Hud))
-            .add_systems(Update, pointer::apply);
+            .add_systems(Update, collect_typed.before(update).run_if(ready))
+            .add_systems(Update, update.in_set(FrameSet::Frontend).run_if(ready))
+            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
+            .add_systems(Update, pointer::apply.run_if(resource_exists::<SharedAssets>));
     }
 }
 

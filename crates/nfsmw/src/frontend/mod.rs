@@ -35,6 +35,7 @@ mod look;
 mod mod_options;
 mod name_entry;
 mod options;
+mod pending;
 mod photo;
 mod plugin;
 mod plugin_keys;
