@@ -2,7 +2,8 @@
 
 Status: written 2026-10-16, revised 2026-10-21 by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md). Steps 1 and 2
 of section 5 (`libs/blackbox-net-core`, then its handshake, sealing, rate limits and hand-off queues) are built, and so is the net
-thread of section 1 (2026-10-22, "as built" there); the rest is design. How the netcode of
+thread of section 1 (2026-10-22, "as built" there); the server side of steps 3 and 4 is built in `nfsmw-server`
+([server](server.md)); the rest is design. How the netcode of
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) fits the existing program: the Bevy shell and `Scene` trait
 ([architecture.md](../../architecture.md), [ADR 0001](../../decisions/0001-bevy.md)), the `libs/` and `crates/` rules
 ([AGENTS.md](../../../AGENTS.md)), and the telemetry server ([multiplayer reuse](../telemetry/multiplayer-reuse.md)).
@@ -181,8 +182,8 @@ Fallback if step 4 proves too large: the first multiplayer release ships the **l
 | 0 | Sim benchmarks; determinism audit (D1 to D6); the sim extraction (section 4) | Single-player frame-rate trace unchanged |
 | 1 | `blackbox-net-core`: bit packing, quantisers, links and the packet simulator, the connection layer (reliability, fragments), replication codec and per-client views, clock filter, session state machine, discovery; seeded round-trip, loss and fuzz tests; `net_bench` | **Built 2026-10-21** (ADR 0009) |
 | 2 | Handshake and sealing (`snow`) around the built connection layer; fuzz targets for every pre-authentication parser; the hand-off queues. (The reliability suite moved to step 1; the `renet` spike is dropped by ADR 0009) | **Built 2026-10-22**: seeded garbage tests in `cargo test`, `cargo-fuzz` targets in `libs/blackbox-net-core/fuzz`; `cargo deny` passes with the crypto crates |
-| 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window |
-| 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic |
+| 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window. **Server side built 2026-10-22** ([server](server.md)): `Server<W>` over any `WorldSim`, the TOML config, logging, the toy-world binary with `--bots N`; tested with 16 raw clients and with the bots over loopback UDP. Two processes with a game window wait for the game's `NetSession` |
+| 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic. **Server side built 2026-10-22**: deltas against the acknowledged view, relevancy by spatial hash, the per-client budget; 3 to 12 KB/s per client with 8 players on the toy world ([server](server.md) section 7). The remote cars in the game wait for the game's client mode |
 | 5 | Prediction and reconciliation for the owner; clock sync; the bad-network suite | Targets of [features](features.md) section 4 |
 | 6 | Pursuit co-op, race rules (when milestone 7 provides them), results | Server-authoritative pursuit and race tests |
 | 7 | Spectators, reconnect, recording, console and overlay polish | P1 items |
