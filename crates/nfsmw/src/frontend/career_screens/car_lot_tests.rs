@@ -55,14 +55,14 @@ fn each_tab_has_its_own_title_label() {
 #[test]
 fn a_purchase_the_cash_cannot_cover_is_refused_with_the_no_cash_notice() {
     let car = lot("cobaltss", 0xC0, 26_000);
-    let refusal = buy_refusal(&settings(25_999), &Stable::empty(), &car);
+    let refusal = buy_refusal(&settings(25_999), &Stable::empty(), &car, &Limits::SPEC);
     assert_eq!(refusal, Some(Text::Game(label_hash("CAR_LOT_NO_CASH"))));
 }
 
 #[test]
 fn a_purchase_with_the_cash_for_it_may_be_asked() {
     let car = lot("cobaltss", 0xC0, 26_000);
-    assert_eq!(buy_refusal(&settings(26_000), &Stable::empty(), &car), None);
+    assert_eq!(buy_refusal(&settings(26_000), &Stable::empty(), &car, &Limits::SPEC), None);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn a_purchase_with_no_free_career_record_is_refused_with_the_no_room_notice() {
     for record in stable.careers.iter_mut() {
         *record = CareerRecord::new(0);
     }
-    let refusal = buy_refusal(&settings(100_000), &stable, &car);
+    let refusal = buy_refusal(&settings(100_000), &stable, &car, &Limits::SPEC);
     assert_eq!(refusal, Some(Text::Game(label_hash("CAR_LOT_NO_ROOM"))));
 }
 
@@ -173,7 +173,40 @@ fn only_the_first_car_purchase_starts_the_first_drive() {
 fn the_first_car_is_affordable_with_the_prologue_prize_money() {
     // Three prologue wins pay 10,000 each (`story-flow-2.md` F-13): 30,000 in all.
     let car = lot("prize", 0xC1, 30_000);
-    let refusal = buy_refusal(&settings(29_999), &Stable::empty(), &car);
+    let refusal = buy_refusal(&settings(29_999), &Stable::empty(), &car, &Limits::SPEC);
     assert_eq!(refusal, Some(Text::Game(label_hash("CAR_LOT_NO_CASH"))));
-    assert_eq!(buy_refusal(&settings(30_000), &Stable::empty(), &car), None);
+    assert_eq!(buy_refusal(&settings(30_000), &Stable::empty(), &car, &Limits::SPEC), None);
+}
+
+/// A stable holding `count` owned career cars, each with its own career record.
+fn owned_garage(count: usize) -> Stable {
+    let mut stable = Stable::empty();
+    for slot in 0..count {
+        stable.cars[slot] = CarRecord {
+            handle: 0x100 + slot as u32,
+            frontend_key: 0xC0,
+            vehicle_key: 0xC1,
+            flags: CarRecord::CLASS_MASK | CarRecord::FLAG_OWNED,
+            career_index: slot as u8,
+            ..CarRecord::free()
+        };
+        stable.careers[slot] = CareerRecord::new(slot as u8);
+    }
+    stable
+}
+
+#[test]
+fn ten_owned_cars_fill_a_single_players_garage() {
+    let car = lot("cobaltss", 0xC0, 26_000);
+    let stable = owned_garage(10);
+    assert_eq!(carlot::owned_count(&stable), 10);
+    let refusal = buy_refusal(&settings(100_000), &stable, &car, &Limits::for_players(1));
+    assert_eq!(refusal, Some(Text::Game(label_hash("CAR_LOT_NO_ROOM"))));
+}
+
+#[test]
+fn a_two_player_garage_takes_an_eleventh_car() {
+    let car = lot("cobaltss", 0xC0, 26_000);
+    let stable = owned_garage(10);
+    assert_eq!(buy_refusal(&settings(100_000), &stable, &car, &Limits::for_players(2)), None);
 }

@@ -20,7 +20,7 @@ use nfsmw_career::economy::sale_proceeds;
 use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::Stable;
 
-use crate::career::{Career, CareerHandle};
+use crate::career::{Career, CareerHandle, coop_players};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
@@ -224,7 +224,8 @@ fn buy_start(career: &Career, key: u32, first_drive: bool) -> Start {
     if car.state_at(career.settings.stage) != LotState::Buyable {
         return Start::Nothing;
     }
-    if let Some(text) = buy_refusal(&career.settings, &career.stable, car) {
+    let limits = Limits::for_players(coop_players());
+    if let Some(text) = buy_refusal(&career.settings, &career.stable, car, &limits) {
         return Start::Refused(text);
     }
     let (message, delivery) = match carlot::prompt_for(career.settings.stage) {
@@ -241,12 +242,13 @@ fn buy_start(career: &Career, key: u32, first_drive: bool) -> Start {
 }
 
 /// The notice that refuses a purchase before the question: not enough cash, or no room in the Safe House (the owned
-/// cars at the limit, or no free career record). `None` when the purchase may be asked.
-pub fn buy_refusal(settings: &CareerSettings, stable: &Stable, car: &LotCar) -> Option<Text> {
+/// cars at the limit, or no free career record). `None` when the purchase may be asked. The limits come from the caller:
+/// [`Limits::for_players`] for the players sharing the career.
+pub fn buy_refusal(settings: &CareerSettings, stable: &Stable, car: &LotCar, limits: &Limits) -> Option<Text> {
     if car.price > settings.cash {
         return Some(label("CAR_LOT_NO_CASH"));
     }
-    let owned_full = carlot::owned_count(stable) >= Limits::SPEC.owned_cars;
+    let owned_full = carlot::owned_count(stable) >= limits.owned_cars;
     let no_record = stable.careers.iter().all(|record| !record.is_unused());
     if owned_full || no_record {
         return Some(label("CAR_LOT_NO_ROOM"));
@@ -277,17 +279,20 @@ pub(super) fn sell_start(career: &Career, handle: u32) -> Start {
 pub fn apply(career: &mut Career, action: &CarLotAction) -> Result<(), Text> {
     let data = career.data.clone();
     match *action {
-        CarLotAction::Buy { frontend_key, delivery, .. } => buy_car(career, &data.cars, frontend_key, delivery),
+        CarLotAction::Buy { frontend_key, delivery, .. } => {
+            let limits = Limits::for_players(coop_players());
+            buy_car(career, &data.cars, frontend_key, delivery, &limits)
+        }
         CarLotAction::Sell { handle } => sell_car(career, &data.cars, handle),
     }
 }
 
-fn buy_car(career: &mut Career, cars: &[LotCar], key: u32, delivery: Delivery) -> Result<(), Text> {
+fn buy_car(career: &mut Career, cars: &[LotCar], key: u32, delivery: Delivery, limits: &Limits) -> Result<(), Text> {
     let Some(car) = carlot::by_frontend_key(cars, key) else {
         return Err(Text::Custom("That car is not in the car lot.".into()));
     };
     let Some(customization) = free_customization(&career.stable) else { return Err(label("CAR_LOT_NO_ROOM")) };
-    let bought = carlot::buy(&mut career.settings, &mut career.stable, car, delivery, customization, &Limits::SPEC);
+    let bought = carlot::buy(&mut career.settings, &mut career.stable, car, delivery, customization, limits);
     bought.map(|_| ()).map_err(buy_text)
 }
 
