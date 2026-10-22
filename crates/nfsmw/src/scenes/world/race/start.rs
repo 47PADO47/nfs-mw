@@ -4,6 +4,7 @@
 use blackbox_race::{CatchUpGains, Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
+use super::heat::{self, HeatChase, Police};
 use super::setup::{self, RaceOptions};
 use super::startable;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
@@ -48,10 +49,6 @@ pub(super) fn resolve<'a>(data: &'a GameplayData, query: &str) -> Result<&'a Rac
     }
     Err(format!("no race matches {query:?} (race list shows them)"))
 }
-
-/// The heat a custom race's Moderate and Maximum Heat Level give the car **[ours]**.
-const MODERATE_RACE_HEAT: f32 = 3.0;
-const MAX_RACE_HEAT: f32 = 5.0;
 
 impl WorldScene {
     /// Asks for a race to start as soon as the player's car exists: the front end uses it for a quick race, which opens
@@ -145,17 +142,21 @@ impl WorldScene {
             false => (self.traffic_setting.cars * level as u32 / 100) as usize,
         };
         self.traffic_manual = Some(cars);
-        // A custom race's Heat Level of Moderate or Maximum leaves the police on the road; below that only a pursuit race keeps
-        // them (`docs/specs/custom-race.md` section 4).
-        let police = split.is_none() && (p.pursuit_race || options.heat.is_some_and(|heat| heat >= 2));
+        // A Heat Level above None starts a chase at the green light (`heat.rs`) and the car carries its heat into any later
+        // chase; None calls off a chase unless the race is a pursuit race (`docs/specs/custom-race.md` section 4). A split-screen
+        // race has no police (`docs/specs/split-screen.md`).
+        let police = match split.is_some() {
+            true => Police::CallOff,
+            false => heat::police_of(options.heat, p.pursuit_race),
+        };
         if let Some(traffic) = self.traffic.as_mut() {
-            match options.heat.filter(|heat| *heat >= 2) {
-                // The heat the player's car carries into a chase that starts during the race: 3 for Moderate, the top for Maximum.
-                Some(heat) => traffic.set_carried_heat(if heat >= 3 { MAX_RACE_HEAT } else { MODERATE_RACE_HEAT }),
-                None if !police => traffic.stop_pursuit(),
-                None => {}
+            match police {
+                Police::Chase(heat) => traffic.set_carried_heat(heat as f32),
+                Police::CallOff => traffic.stop_pursuit(),
+                Police::Keep => {}
             }
         }
+        let heat_chase = police.chase().map(HeatChase::Waiting);
         log::info!(
             "race: {} ({:?}), {} lap(s), {} opponent(s), traffic {} car(s)",
             race.name,
@@ -205,6 +206,7 @@ impl WorldScene {
             cash_value: options.cash.unwrap_or(p.cash_value),
             pool,
             challenge: None,
+            heat_chase,
             walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },

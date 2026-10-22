@@ -93,6 +93,7 @@ mod tests {
             engine: None,
             plan: Vec::new(),
             setup: None,
+            heat_chase: None,
             previous_traffic: None,
             glue: Vec::new(),
             catch_up: false,
