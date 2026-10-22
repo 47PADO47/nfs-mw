@@ -354,13 +354,28 @@ PNG screenshots are SDR previews. See [the HDR contract](specs/hdr-output.md) an
 ## Revised quality budgets
 
 All quality levels retain 16× anisotropic filtering, the selected colour treatment,
-AA, HDR calibration and gameplay settings. Quality does not switch AO on if it
-was deliberately disabled. High uses wide 4K cascades and dense penumbra filtering;
+AA, HDR calibration and gameplay settings. Overall Quality selects its AO budget;
+feature-level Off remains available. High uses wide 4K cascades and dense penumbra filtering;
 Very High raises the first two maps to 8K while retaining 4K distant maps. Its
 640 MiB atlas and higher shadow time are explicit costs, not a different art style.
 Balanced uses 4K detail / 2K distant maps. Low uses regular 1K maps without PCSS
 or contact detail. Legacy tight focus is disabled by presets. Road capture sizes
 are original / 2× / 2× / 4×; reflection content remains independently selectable.
+F8 separates **Visual style** (overall look), **Overall quality** (cost),
+**Saved graphics** (complete named snapshots) and **Lighting comparisons**
+(diagnostic combinations under Comparison tools). The game Video menu offers
+**Overall Quality**, **Shadow Quality**, **Reflection Quality** and **Ambient Occlusion**.
+Overall Quality applies the shared feature budgets; feature overrides display
+Custom overall. The redundant old graphics-preset selector is not shown.
+Detailed shadow/capture/material controls remain in F8. The vehicle reflection
+brightness control is not exposed in either menu; saved values remain compatible.
+For native Enhanced car materials, Low / Balanced / High / Very High select
+100 / 200 / 300 / 500 m reflection range. This covers both car and mirror captures.
+Reflection presets also choose 128 / 512 / 1024 / 1024 square face sizes.
+Optional cached-update settings retain their manual values.
+Advanced capture settings still allow unlimited range; loading saved settings does
+not reapply a quality preset. Original PC, Simple and Bevy retain their requested
+range because their capture paths do not share the Enhanced distance fade.
 Enhanced now defaults to SMAA, XeGTAO with depth prefiltering, 0.55° sun, filter
 width 1.0 and the tested car sky/ground lighting. Bevy quality changes only shared
 budgets and preserves Black Box experiments. Original PC retains its projected

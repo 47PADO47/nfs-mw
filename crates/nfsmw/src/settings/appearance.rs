@@ -1,4 +1,5 @@
 //! Canonical style/quality requests shared by the menu, F8 and render bridge.
+mod budgets;
 pub mod display;
 mod persistence;
 pub mod registry;
@@ -141,8 +142,8 @@ impl Settings {
                     car_skylight: true,
                     clearcoat: true,
                     original_shadows: false,
-                    sky_strength: 0.76,
-                    ground_strength: 1.12,
+                    sky_strength: 0.85,
+                    ground_strength: 0.45,
                     shadow_filter: 1.0,
                     sun_angle: 0.55,
                     ..self.appearance.lighting
@@ -174,6 +175,7 @@ impl Settings {
             Quality::High | Quality::VeryHigh => (4096, 320.0, 0.8, ReflectionQuality::High, AoQuality::High),
         };
         self.reflections = reflection;
+        self.select_reflection_budget(Some(quality));
         if self.ao != AoQuality::Off {
             self.ao = ao;
         }
@@ -257,6 +259,8 @@ impl Settings {
             post_bloom: Some(self.post_bloom),
             post_aa: Some(self.post_aa),
             reflections: Some(self.reflections),
+            reflection_cube_size: Some(self.reflection_cube_size),
+            reflection_distance: Some(self.reflection_extra.distance),
             texture_filtering: Some(self.texture_filtering),
             road_reflections: Some(self.road_reflections),
             road_reflection_resolution: Some(self.road_reflection_resolution),
@@ -290,11 +294,9 @@ impl Settings {
             cop_share: Some(self.cop_share),
             traffic_lights: Some(self.traffic_lights),
             traffic_avoidance: Some(self.traffic_avoidance),
-            reflection_cube_size: Some(self.reflection_cube_size),
             reflection_mirror_size: Some(self.reflection_mirror_size),
             reflection_pow2: Some(self.reflection_pow2),
             mirror_tint: Some(self.mirror_tint),
-            reflection_distance: Some(self.reflection_extra.distance),
             reflection_lod: Some(self.reflection_extra.lod),
             reflection_content: Some(self.reflection_extra.content),
             vehicle_reflection_brightness: Some(self.reflection_extra.brightness),

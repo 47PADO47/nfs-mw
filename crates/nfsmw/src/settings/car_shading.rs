@@ -23,10 +23,10 @@ impl FromStr for CarShading {
     fn from_str(s: &str) -> Result<Self, String> {
         match s {
             "simple" => Ok(Self::Simple),
-            "glossy" => Ok(Self::Glossy),
+            "glossy" | "enhanced" => Ok(Self::Glossy),
             "original" => Ok(Self::Original),
             "original-unshadowed" => Ok(Self::OriginalUnshadowed),
-            _ => Err(format!("expected simple, glossy, original or original-unshadowed, got {s:?}")),
+            _ => Err(format!("expected enhanced, glossy, simple, original or original-unshadowed, got {s:?}")),
         }
     }
 }
@@ -47,7 +47,7 @@ impl CarShading {
     pub fn label(self) -> &'static str {
         match self {
             Self::Simple => "Simple",
-            Self::Glossy => "Custom Glossy",
+            Self::Glossy => "Enhanced",
             Self::Original => "Original PC",
             Self::OriginalUnshadowed => "Original PC (shadowless)",
         }

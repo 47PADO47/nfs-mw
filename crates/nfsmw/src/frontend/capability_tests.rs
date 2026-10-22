@@ -27,7 +27,7 @@ fn text(s: &'static str) -> Title {
 fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     let native = test_caps::native();
     let video = titles(Category::Video, &native);
-    assert_eq!(video.len(), 51);
+    assert!(video.len() < 40, "fine controls belong in F8");
     for hidden in ["Upscale Quality", "Front-End Shadows"] {
         assert!(!video.contains(&text(hidden)), "{hidden} needs a renderer that offers it");
     }
@@ -45,9 +45,9 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
         "renderer choices sit with the display controls"
     );
     assert_eq!(video[5], text("Visual Style"));
-    assert_eq!(video[6], text("Graphics Quality"));
+    assert_eq!(video[6], text("Overall Quality"));
     assert_eq!(video[7], text("Advanced Graphics"));
-    assert!(video.contains(&text("Enhanced Sun Shadows")));
+    assert!(video.contains(&text("Shadow Quality")));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 8);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
@@ -57,33 +57,24 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     let video = titles(Category::Video, &test_caps::full());
-    assert_eq!(video.len(), 51);
+    assert!(video.len() < 40, "fine controls belong in F8");
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
-    assert_eq!(at("World Level of Detail"), at("Car Shading") + 1);
     assert_eq!(at("Car Geometry Detail"), at("World Level of Detail") + 1);
     assert_eq!(at("Traffic Range Preset"), at("Car Geometry Detail") + 1);
-    assert_eq!(
-        at("Front-End Shadows"),
-        at("Enhanced Sun Shadows") + 1,
-        "the front-end row sits beside the shadows row"
-    );
+    assert_eq!(at("Reflection Quality"), at("Shadow Quality") + 1);
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
-    assert_eq!(at("HD Fonts"), at("Custom Fonts") + 1, "the HD content rows follow the custom fonts row");
-    assert_eq!(at("HD Movies"), at("HD Fonts") + 2);
-    assert_eq!(at("Ray Tracing"), at("Motion Blur Strength") + 1, "ray tracing follows the post-processing rows");
-    assert_eq!(
-        at("Car Cubemap Resolution (Per Face)"),
-        at("Road Reflection Detail") + 1,
-        "the HD reflection rows follow the reflection row"
-    );
-    assert_eq!(at("Enhanced Sun Shadows"), at("Mirror Tint") + 1);
-    assert_eq!(at("Vehicle Reflection Brightness"), at("Power-of-Two Cube Size") + 1, "beside the cube rows");
-    assert_eq!(
-        at("Mirror Reflection Size"),
-        at("Reflection Distance") + 1,
-        "the reach row sits beside the mirror size"
-    );
+    for hidden in [
+        "Graphics Preset",
+        "Car Shading",
+        "Reflection Distance",
+        "Mirror Tint",
+        "Sun Shadow Base Resolution",
+        "SDR Tone Mapping",
+        "Motion Blur Strength",
+    ] {
+        assert!(!video.contains(&text(hidden)), "{hidden} belongs in F8");
+    }
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
     assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
@@ -278,7 +269,7 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
     use crate::settings::{AoQuality, Percent};
     let native = test_caps::native();
     let unsupported = blackbox_gfx::Capabilities { ambient_occlusion: false, ..native };
-    let title = "Ambient Occlusion (Experimental)";
+    let title = "Ambient Occlusion";
     assert!(titles(Category::Video, &native).contains(&text(title)));
     assert!(!titles(Category::Video, &unsupported).contains(&text(title)));
     for title in ["AO Intensity", "AO Comparison"] {

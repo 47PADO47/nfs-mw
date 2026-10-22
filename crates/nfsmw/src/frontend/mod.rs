@@ -16,6 +16,7 @@ mod controls_screen;
 mod credits;
 pub mod dump;
 mod factory;
+mod feature_presets;
 mod flow;
 pub(crate) mod graphics_options;
 mod icon_items;
