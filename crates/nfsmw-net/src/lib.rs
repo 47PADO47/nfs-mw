@@ -10,9 +10,16 @@
 //! - [`message`]: every reliable message of the protocol and its bounded, versioned codec.
 //! - [`version`]: protocol versions, the game-data and sim-build ids, the mod list and the join compatibility decision.
 //! - [`loadout`]: car selection by ids and its validation against the caller's game data.
+//!
+//! The client's netcode (`docs/specs/multiplayer/sync-model.md`), driven by the caller's times:
+//!
+//! - [`predict`]: the owner's car run ahead of the server, with the ring of unacknowledged ticks.
 
 pub mod input;
 pub mod loadout;
 pub mod message;
 pub mod schema;
 pub mod version;
+
+mod geom;
+pub mod predict;
