@@ -20,6 +20,7 @@ pub mod menu_store;
 pub mod menus;
 mod nfsmw_pursuit;
 mod races;
+mod saves;
 mod time;
 pub mod ui;
 mod vehicles;
@@ -41,6 +42,8 @@ mod map_tests;
 mod menus_tests;
 #[cfg(test)]
 mod nfsmw_pursuit_tests;
+#[cfg(test)]
+mod saves_tests;
 #[cfg(test)]
 pub(crate) mod support;
 #[cfg(test)]
@@ -83,7 +86,8 @@ pub fn interfaces() -> Interfaces {
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))
         .add_audio(Rc::new(audio::AudioPort))
         .add_world(Rc::new(world::WorldPort(bridge.clone())))
-        .add_ui(Rc::new(ui::UiPort(bridge.clone())));
+        .add_ui(Rc::new(ui::UiPort(bridge.clone())))
+        .add_saves(Rc::new(saves::SavesPort::new(crate::career::ProfileDir::default_dir())));
     let pursuit_bridge = bridge.clone();
     let career_handle = crate::career::CareerHandle::shared();
     registry
