@@ -12,17 +12,18 @@ pub(super) struct Scratch {
     parts: Vec<Instance>,
 }
 
-/// The caller applies origin-distance and authored-overlay rules once before
+/// The caller applies authored-overlay rules once before
 /// this traversal. Each face still chooses its own LOD and frustum membership.
 pub(super) fn collect<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     cameras: &[visibility::Camera; 6],
     rules: &LodRules,
     props: &PropWorld,
-    height: f32,
+    capture: (f32, Option<f32>),
     faces: &mut [Vec<Instance>; 6],
     scratch: &mut Scratch,
 ) {
+    let (height, far) = capture;
     let _trace = blackbox_trace::scope("Reflection visibility: scenery traversal");
     let frustums = cameras.each_ref().map(|c| Frustum::from_view_proj(&c.view_proj));
     let views = cameras.each_ref().map(|c| LodView {
@@ -39,6 +40,9 @@ pub(super) fn collect<'a>(
             continue;
         }
         let Some((transform, bounds)) = visibility::current_pose(p, props) else { continue };
+        if far.is_some_and(|far| bounds.distance_to(cameras[0].position.into()) > far) {
+            continue;
+        }
         let position = transform.w_axis.truncate().to_array();
         let slots = p.lods.map(|mesh| mesh.is_some());
         let selected: [Option<usize>; 6] = std::array::from_fn(|face| {

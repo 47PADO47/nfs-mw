@@ -153,8 +153,8 @@ impl Renderer {
         }
         params.environment = [
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
-            settings.sky_strength,
-            settings.ground_strength,
+            settings.sky_strength * settings.indirect_strength,
+            settings.ground_strength * settings.indirect_strength,
             u8::from(settings.paint_response) as f32,
         ];
         params.world = [

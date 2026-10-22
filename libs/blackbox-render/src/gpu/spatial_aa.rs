@@ -18,7 +18,6 @@ impl Renderer {
         instances: &[Instance],
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: record / submit");
-        self.update_irradiance();
         self.begin_temporal(scene.is_none(), frame);
         let device = self.device.clone();
         let queue = self.queue.clone();

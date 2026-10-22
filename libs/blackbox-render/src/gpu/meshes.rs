@@ -17,6 +17,7 @@ pub(super) struct GpuMesh {
 
 impl Renderer {
     pub fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
+        self.draw_revision = self.draw_revision.wrapping_add(1);
         let vertices = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(desc.label),
             contents: bytemuck::cast_slice(desc.vertices),
@@ -85,6 +86,7 @@ impl Renderer {
     }
 
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {
+        self.draw_revision = self.draw_revision.wrapping_add(1);
         self.meshes.remove(handle.raw());
     }
 }

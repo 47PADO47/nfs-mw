@@ -22,10 +22,10 @@ impl Irradiance {
         }
     }
 
-    pub fn update(
+    pub fn encode(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         cube: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
     ) {
@@ -55,8 +55,6 @@ impl Irradiance {
                 wgpu::BindGroupEntry { binding: 2, resource: self.buffer.as_entire_binding() },
             ],
         });
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("diffuse probe update") });
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("diffuse probe update"),
@@ -66,7 +64,6 @@ impl Irradiance {
             pass.set_bind_group(0, &inputs, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
-        queue.submit([encoder.finish()]);
         self.dirty = false;
     }
 }

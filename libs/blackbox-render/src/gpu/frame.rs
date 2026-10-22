@@ -164,6 +164,8 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 3);
         }
+        self.encode_reflections(encoder, true);
+        self.encode_irradiance(encoder);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 6);
         }
@@ -202,6 +204,7 @@ impl Renderer {
             glossy.screen.disable(&self.queue);
         }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
+        let lit_cube = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::LitCube);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
         // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
@@ -249,6 +252,7 @@ impl Renderer {
                 fog_end,
                 mip_bias,
                 match (projected, reflection || reduced) {
+                    _ if lit_cube => 3.0,
                     (true, _) => 2.0,
                     (_, true) => 1.0,
                     _ => 0.0,
@@ -300,6 +304,7 @@ impl Renderer {
         {
             window.prepare(&self.device, format, self.pipeline_cache.as_ref());
         }
+        self.draw_list.build(instances, self.draw_revision, &self.meshes, &self.redirects, &self.textures);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -332,24 +337,38 @@ impl Renderer {
         pass.set_bind_group(0, &bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
         if let Some(sky) = &self.sky {
-            sky.draw(&mut pass, format, &self.meshes, instances);
+            sky.draw(&mut pass, format, &self.meshes, self.draw_list.sky());
         }
 
         // Every instance run and draw was sorted into its pipeline's bucket up front. A draw is only skipped
         // here when this view's rules (projected, reflection, original materials) exclude it.
-        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
+
         let original = self.experiments.original_world_materials;
         for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
             if original
                 && !projected
                 && let Some(normal) = &self.normal
             {
-                normal.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
+                normal.draw(
+                    &mut pass,
+                    format,
+                    mode,
+                    &self.meshes,
+                    self.draw_list.normal(mode),
+                    &self.shared.shadows.fallback,
+                );
             }
             if (original || projected)
                 && let Some(window) = &self.window
             {
-                window.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
+                window.draw(
+                    &mut pass,
+                    format,
+                    mode,
+                    &self.meshes,
+                    self.draw_list.window(mode),
+                    &self.shared.shadows.fallback,
+                );
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
                 if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))

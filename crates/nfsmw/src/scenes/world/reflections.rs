@@ -31,6 +31,7 @@ pub(super) struct CaptureStamp {
     distance: ReflectionDistance,
     lod: ReflectionLod,
     content: ReflectionContent,
+    custom: bool,
 }
 
 impl WorldScene {
@@ -64,6 +65,7 @@ impl WorldScene {
                 && last.distance == distance
                 && last.lod == lod
                 && last.content == content
+                && last.custom != self.car_shading.is_original()
                 && last.scenery == scenery
                 && last.original_shadows == self.original_shadows
                 && last.original_sky == self.original_sky
@@ -105,7 +107,8 @@ impl WorldScene {
             .residency
             .placed()
             .filter(|p| self.original_shadows || !p.original_shadow)
-            .filter(|p| within(origin, p.transform.w_axis.truncate(), far));
+            // The Original PC capture keeps its documented origin-distance selection.
+            .filter(|p| !self.car_shading.is_original() || within(origin, p.transform.w_axis.truncate(), far));
         let height = match lod.uses_main_view() {
             true => visibility::REFERENCE_HEIGHT,
             false => face_size,
@@ -115,7 +118,13 @@ impl WorldScene {
             &cameras,
             &blackbox_scenery::layout::MOST_WANTED.lod,
             self.residency.props(),
-            height,
+            (
+                height,
+                match self.car_shading.is_original() {
+                    true => None,
+                    false => far,
+                },
+            ),
             &mut self.reflection_faces,
             &mut self.reflection_scratch,
         );
@@ -138,6 +147,11 @@ impl WorldScene {
             visibility::sort_by_mesh(&mut self.reflection_faces[face]);
         }
         renderer.set_reflection_scene(Some(ReflectionScene {
+            sun_shadows: !self.car_shading.is_original(),
+            fade_distance: match self.car_shading.is_original() {
+                true => None,
+                false => far,
+            },
             origin,
             quality,
             frame: template,
@@ -155,6 +169,7 @@ impl WorldScene {
             distance,
             lod,
             content,
+            custom: !self.car_shading.is_original(),
         });
     }
 }

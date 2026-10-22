@@ -195,6 +195,23 @@ fn sun_sample(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return sample;
 }
 
+// Capture coordinates are unrelated to main-view screen masks. Reuse only current atlas depth.
+// Behind-camera receivers select by atlas containment instead of camera-forward depth.
+fn capture_sun_visibility(world: vec3<f32>, normal: vec3<f32>) -> f32 {
+    if shadow_data.options.x < 0.5 { return 1.0; }
+    if shadow_data.projected.x > 0.5 { return projected_visibility(world); }
+    let n = select(normal, -normal, dot(normal, shadow_data.sun.xyz) < 0.0);
+    for (var i = 0u; i < u32(shadow_data.camera.w); i++) {
+        let biased = world + n * shadow_data.texels[i] * 0.3;
+        let clip = shadow_data.matrices[i] * vec4<f32>(biased, 1.0);
+        let position = clip.xyz / clip.w;
+        let uv = vec2<f32>(position.x, -position.y) * 0.5 + vec2<f32>(0.5);
+        if any(uv < vec2<f32>(0.01)) || any(uv > vec2<f32>(0.99)) || position.z < 0.0 || position.z > 1.0 { continue; }
+        return shadow_compare(uv, i, position.z - 0.0001);
+    }
+    return 1.0;
+}
+
 fn sun_visibility(world: vec3<f32>, normal: vec3<f32>) -> f32 {
     return sun_sample(world,normal).x;
 }

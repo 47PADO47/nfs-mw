@@ -234,3 +234,7 @@ layer kinds separate glass, composites, conductors, rubber and coated finishes.
 Indirect diffuse combines linear albedo and occlusion. Legacy and Original
 material equations retain the raw environment. See
 [car materials](../../docs/specs/custom-car-materials.md).
+
+Local captures can retain six-face depth for current-frame parallax correction.
+Structural draw selection reuses CPU preparation without reusing reflected images.
+See [custom reflections and lighting](../../docs/custom-reflections-lighting.md).

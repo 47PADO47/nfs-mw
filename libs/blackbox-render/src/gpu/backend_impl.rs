@@ -48,8 +48,15 @@ impl RenderBackend for Renderer {
         Renderer::set_sky_state(self, state);
     }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
-        let old_screen = self.experiments.screen_reflections;
+        let previous = self.experiments;
+        let old_screen = previous.screen_reflections;
         self.experiments = options.sanitized();
+        if (previous.sun_angle != self.experiments.sun_angle
+            || previous.local_reflection_correction != self.experiments.local_reflection_correction)
+            && let Some(glossy) = &self.glossy
+        {
+            glossy.sync_probe_options(&self.queue, &self.experiments);
+        }
         if old_screen != self.experiments.screen_reflections {
             self.refresh_targets();
         }
@@ -94,7 +101,7 @@ impl RenderBackend for Renderer {
         self.capture_projected(scene);
     }
     fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
-        self.capture_reflections(scene);
+        self.queue_reflections(scene);
     }
     fn info(&self) -> &BackendInfo {
         &self.info

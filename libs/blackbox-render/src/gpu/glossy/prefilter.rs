@@ -44,10 +44,10 @@ impl Prefilter {
         Some(Self { view, linear_view, texture, pipeline: None, cache: cache.cloned(), dirty: true })
     }
 
-    pub fn update(
+    pub fn encode(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         source: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
     ) {
@@ -68,8 +68,6 @@ impl Prefilter {
                 cache: self.cache.as_ref(),
             })
         });
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("specular probe update") });
         for level in 0..LEVELS {
             let size = SIZE >> level;
             let output = self.texture.create_view(&wgpu::TextureViewDescriptor {
@@ -101,7 +99,6 @@ impl Prefilter {
             pass.set_bind_group(0, &group, &[]);
             pass.dispatch_workgroups(size.div_ceil(8), size.div_ceil(8), 12);
         }
-        queue.submit([encoder.finish()]);
         self.dirty = false;
     }
 }

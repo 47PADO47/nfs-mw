@@ -31,6 +31,10 @@ mod pipeline_cache;
 mod pipelines;
 mod post;
 mod projected;
+mod reflection_queue;
+mod reflection_store;
+#[cfg(test)]
+mod reflection_store_tests;
 #[cfg(test)]
 mod reflection_tests;
 mod reflections;
@@ -92,6 +96,7 @@ pub struct Renderer {
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     reflections: Option<reflections::ReflectionCapture>,
+    pending_reflections: Option<reflection_queue::Pending>,
     projected: Option<projected::ProjectedCapture>,
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,
@@ -128,6 +133,7 @@ pub struct Renderer {
     redirects: std::collections::HashMap<usize, usize>,
     /// The colour pass's draws, bucketed by pipeline. Rebuilt by each scene pass; kept for its capacity.
     draw_list: draw_list::DrawList,
+    draw_revision: u64,
     /// The driver's pipeline cache (Vulkan), which every pipeline built by this renderer takes.
     pipeline_cache: Option<wgpu::PipelineCache>,
     /// The file `pipeline_cache` is saved to, when `RendererOptions::pipeline_cache_dir` gave a directory.

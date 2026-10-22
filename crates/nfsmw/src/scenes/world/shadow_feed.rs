@@ -34,10 +34,11 @@ impl WorldScene {
                 self.car_specular_scale(),
             ));
         }
-        if !self.car_shading.is_original()
-            && (settings.sun_shadows || settings.contact_shadows || settings.car_skylight)
-        {
-            renderer.set_lighting_rig(&crate::scenes::car::lighting::rig(self.sun.to_sun()));
+        if !self.car_shading.is_original() {
+            renderer.set_lighting_rig(&crate::scenes::car::lighting::world_rig(
+                self.sun.to_sun(),
+                settings.weather_car_lighting.then(|| self.surface_light()).flatten(),
+            ));
         }
         self.shadow_feed.casters.clear();
         self.shadow_feed.fed = false;

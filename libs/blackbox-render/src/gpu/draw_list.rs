@@ -12,12 +12,6 @@ use crate::{BlendMode, DrawRange, Instance, Shading, TextureHandle};
 /// One bucket per (blend, shading) pair, in draw order.
 const BUCKETS: usize = BLEND_ORDER.len() * SHADINGS.len();
 
-/// The (blend, shading) pairs in draw order: blend modes outermost, shadings inside. The position of a
-/// pair is its bucket index.
-pub(super) fn combinations() -> impl Iterator<Item = (BlendMode, Shading)> {
-    BLEND_ORDER.into_iter().flat_map(|b| SHADINGS.into_iter().map(move |s| (b, s)))
-}
-
 /// Whether a draw of shading `draw` belongs in the bucket of pipeline `bucket`: the draws that share it, and the
 /// neighbours a view may borrow (the frame's draw rules pick among them).
 pub(super) fn takes(draw: Shading, bucket: Shading) -> bool {
@@ -44,6 +38,11 @@ pub(super) struct Cmd {
 #[derive(Default)]
 pub(super) struct DrawList {
     buckets: Vec<Vec<Cmd>>,
+    normal: [Vec<Cmd>; 4],
+    window: [Vec<Cmd>; 4],
+    meshes: Vec<crate::MeshHandle>,
+    revision: Option<u64>,
+    sky: Vec<Cmd>,
 }
 
 impl DrawList {
@@ -53,20 +52,43 @@ impl DrawList {
         bucket
     }
 
+    pub(super) fn sky(&self) -> &[Cmd] {
+        &self.sky
+    }
+
+    pub(super) fn normal(&self, mode: BlendMode) -> &[Cmd] {
+        &self.normal[blend_index(mode)]
+    }
+
+    pub(super) fn window(&self, mode: BlendMode) -> &[Cmd] {
+        &self.window[blend_index(mode)]
+    }
+
     /// Sort the draws of `instances` into the buckets, replacing what an earlier build put there.
     pub(super) fn build(
         &mut self,
         instances: &[Instance],
+        revision: u64,
         meshes: &Slots<GpuMesh>,
         redirects: &HashMap<usize, usize>,
         textures: &Slots<wgpu::BindGroup>,
-    ) {
+    ) -> bool {
         let _trace = blackbox_trace::scope("Renderer CPU: build draw list");
+        if self.revision == Some(revision)
+            && self.meshes.len() == instances.len()
+            && self.meshes.iter().zip(instances).all(|(mesh, instance)| *mesh == instance.mesh)
+        {
+            return false;
+        }
+        self.meshes.clear();
+        self.meshes.extend(instances.iter().map(|i| i.mesh));
+        self.revision = Some(revision);
         self.fill(
             instances,
             |slot| meshes.get(slot).map(|mesh| mesh.draws.as_slice()),
             |texture| resolve_texture(texture, redirects, textures),
         );
+        true
     }
 
     /// The walk behind [`Self::build`], over plain draw lists so the tests need no device. `draws_of`
@@ -77,8 +99,12 @@ impl DrawList {
         draws_of: impl Fn(usize) -> Option<&'a [DrawRange]>,
         texture_of: impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
+        self.sky.clear();
         self.buckets.resize_with(BUCKETS, Vec::new);
         for bucket in &mut self.buckets {
+            bucket.clear();
+        }
+        for bucket in self.normal.iter_mut().chain(self.window.iter_mut()) {
             bucket.clear();
         }
         let mut start = 0;
@@ -102,14 +128,34 @@ impl DrawList {
         texture_of: &impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
         for (index, d) in draws.iter().enumerate() {
-            let Some(texture) = texture_of(d.texture) else { continue };
-            let cmd = Cmd { mesh, draw: index as u32, texture, instances };
-            for (bucket, (blend, shading)) in self.buckets.iter_mut().zip(combinations()) {
-                if d.blend == blend && takes(d.shading, shading) {
-                    bucket.push(cmd);
+            let resolved = texture_of(d.texture);
+            let cmd = Cmd { mesh, draw: index as u32, texture: resolved.unwrap_or(0), instances };
+            let mode = blend_index(d.blend);
+            match d.shading {
+                Shading::WorldNormal(_) => self.normal[mode].push(cmd),
+                Shading::WorldWindow(_) => self.window[mode].push(cmd),
+                Shading::SkyLayer(_) => self.sky.push(cmd),
+                _ => {}
+            }
+            if resolved.is_none() {
+                continue;
+            }
+            // Only walk the shading family once; blend modes cannot overlap.
+            for (index, shading) in SHADINGS.into_iter().enumerate() {
+                if takes(d.shading, shading) {
+                    self.buckets[mode * SHADINGS.len() + index].push(cmd);
                 }
             }
         }
+    }
+}
+
+fn blend_index(mode: BlendMode) -> usize {
+    match mode {
+        BlendMode::Opaque => 0,
+        BlendMode::AlphaTest => 1,
+        BlendMode::AlphaBlend => 2,
+        BlendMode::Additive => 3,
     }
 }
 
@@ -235,6 +281,24 @@ mod tests {
     }
 
     #[test]
+    fn retained_families_preserve_runs_and_blend_order_without_a_generic_texture() {
+        let mut list = DrawList::default();
+        let draws = [
+            draw(BlendMode::Opaque, Shading::WorldNormal(blackbox_gfx::NormalMaterialHandle::from_raw(1)), None),
+            draw(BlendMode::AlphaBlend, Shading::WorldWindow(blackbox_gfx::WindowMaterialHandle::from_raw(2)), None),
+            draw(BlendMode::Additive, Shading::SkyLayer(blackbox_gfx::SkyMaterialHandle::from_raw(3)), None),
+        ];
+        list.fill(&instances(&[0, 0, 1, 0]), |mesh| (mesh == 0).then_some(draws.as_slice()), |_| None);
+        assert_eq!(list.normal(BlendMode::Opaque).iter().map(|c| c.instances).collect::<Vec<_>>(), [(0, 2), (3, 4)]);
+        assert_eq!(
+            list.window(BlendMode::AlphaBlend).iter().map(|c| c.instances).collect::<Vec<_>>(),
+            [(0, 2), (3, 4)]
+        );
+        assert_eq!(list.sky().iter().map(|c| c.instances).collect::<Vec<_>>(), [(0, 2), (3, 4)]);
+        assert!(flatten(&list).is_empty());
+    }
+
+    #[test]
     fn texture_slots_follow_redirects_then_fall_back_to_white() {
         let textures = test_textures();
         let redirects = HashMap::from([(5usize, 1usize), (6usize, 9usize)]);
@@ -254,3 +318,7 @@ mod tests {
         assert_eq!(resolve_texture(None, &HashMap::new(), &textures), None);
     }
 }
+
+#[cfg(test)]
+#[path = "draw_list_cache_tests.rs"]
+mod cache_tests;

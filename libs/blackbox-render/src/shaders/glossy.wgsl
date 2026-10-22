@@ -38,7 +38,7 @@ fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
 
 // Three lights: direction towards the light (xyz), colour (xyz), then the ambient colour.
 struct Rig {
-    to_light: array<vec4<f32>, 3>,
+    to_light: array<vec4<f32>, 3>, // light 0 w: custom sun angular slope variance
     color: array<vec4<f32>, 3>,
     ambient: vec4<f32>, // w = vertex-lit material specular scale
 };
@@ -175,7 +175,9 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
-    let sharp_env = textureSample(env_map, env_sampler, reflected).rgb;
+    var probe_ray = reflected;
+    if finish_on { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
+    let sharp_env = textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb;
     var env = sharp_env;
     var sun_specular = glint * spec;
     var coat_scale = 1.0;
@@ -183,7 +185,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     var reflection_gain = env_strength * 0.5;
     if finish_on && !layered {
         let roughness = material.surface.x;
-        env = surface_environment(reflected, roughness, sharp_env);
+        env = surface_environment(probe_ray, roughness, sharp_env);
         // Unfiltered screen rays cannot describe a broad reflection lobe.
         if roughness < 0.5 {
             let screen_env = hybrid_environment(in.world, n, reflected, env);
@@ -216,7 +218,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
             reflection_gain, reflection_intensity, occlusion, diff.a);
         if shadow_data.options.w > 0.5 && coat_scale > 0.0 {
             let coat_roughness = max(material.surface.x * 0.85, 0.35);
-            let coat_env = surface_environment(reflected, coat_roughness, sharp_env);
+            let coat_env = surface_environment(probe_ray, coat_roughness, sharp_env);
             let fresnel = 0.04 + (1.0 - coat_roughness - 0.04) * pow(1.0 - f, 5.0);
             let coat_sun = visibility * rig.color[0].xyz * surface_highlight(n, v, sun, coat_roughness, vec3<f32>(0.0));
             let underlying = paint_linear(out.rgb) * (1.0 - fresnel * coat_scale);

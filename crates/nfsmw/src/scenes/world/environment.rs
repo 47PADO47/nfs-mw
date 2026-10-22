@@ -69,6 +69,15 @@ mod tests {
         assert_eq!((overcast.sun_phase, overcast.cloud_intensity, overcast.cloud_target), (0.3, 1.0, 1.0));
         assert_eq!(world.surface_light().unwrap().reflective_specular_scale, 0.0);
         assert!(world.scattering().is_some());
+        world.car_shading = crate::settings::CarShading::Glossy;
+        let mut renderer = crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native());
+        world.update_shadow_casters(&mut renderer);
+        let cloudy_rig = renderer.lighting_rig.unwrap();
+        assert!(
+            cloudy_rig.lights[0]
+                .color
+                .abs_diff_eq(glam::Vec3::from_array(world.surface_light().unwrap().diffuse), 1e-6)
+        );
         let old_sun = overcast.sun_direction;
         state.cloud_override = Some(0.0);
         state.sun_phase = 0.5;
@@ -76,11 +85,83 @@ mod tests {
         let sunny = world.environment().unwrap();
         assert_eq!((sunny.cloud_intensity, sunny.cloud_target), (0.0, 0.0));
         assert_eq!(world.surface_light().unwrap().reflective_specular_scale, 1.0);
+        world.update_shadow_casters(&mut renderer);
+        let sunny_rig = renderer.lighting_rig.unwrap();
+        assert_ne!(sunny_rig.lights, cloudy_rig.lights);
+        assert!(
+            sunny_rig.lights[0].color.abs_diff_eq(glam::Vec3::from_array(world.surface_light().unwrap().diffuse), 1e-6)
+        );
+        use blackbox_gfx::RenderBackend;
+        let mut options = renderer.render_experiments();
+        options.weather_car_lighting = false;
+        renderer.set_render_experiments(options);
+        world.update_shadow_casters(&mut renderer);
+        assert_eq!(renderer.lighting_rig.unwrap(), crate::scenes::car::lighting::rig(world.sun.to_sun()));
         assert_ne!(sunny.sun_direction, old_sun);
         assert!(!sunny.settle_clouds);
         assert_eq!(world.clock, before_clock, "comparison changes must not advance simulation");
         state.cloud_override = Some(f32::NAN);
         world.set_environment(state);
         assert_eq!(world.environment().unwrap(), sunny, "invalid selections hold the last complete state");
+    }
+}
+
+/// Reproducible comparisons use the same state as the Environment panel.
+pub(super) fn command(world: &mut WorldScene, args: &[&str]) -> Result<String, String> {
+    use crate::viewer::Scene;
+    let mut state = world.environment().ok_or("environment unavailable")?;
+    apply(&mut state, args)?;
+    world.set_environment(state);
+    Ok(format!(
+        "Environment: hour {:.2}, clouds {:.2}",
+        world.environment().unwrap().hour,
+        world.environment().unwrap().cloud_intensity
+    ))
+}
+
+fn apply(state: &mut crate::viewer::Environment, args: &[&str]) -> Result<(), String> {
+    use crate::viewer::SunMode;
+    match args {
+        ["clouds", "location"] => {
+            state.cloud_override = None;
+            state.settle_clouds = true;
+        }
+        ["clouds", amount] => {
+            let amount: f32 = amount.parse().map_err(|_| "clouds must be 0..1 or location")?;
+            if !amount.is_finite() || !(0.0..=1.0).contains(&amount) {
+                return Err("clouds must be 0..1".into());
+            }
+            state.cloud_override = Some(amount);
+            state.settle_clouds = true;
+        }
+        ["hour", hour] => {
+            let hour: f32 = hour.parse().map_err(|_| "hour must be 0..24")?;
+            if !hour.is_finite() || !(0.0..=24.0).contains(&hour) {
+                return Err("hour must be 0..24".into());
+            }
+            state.sun_mode = SunMode::CustomClock;
+            state.hour = hour;
+        }
+        _ => return Err("usage: environment clouds <0..1|location> | hour <0..24>".into()),
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+    #[test]
+    fn comparison_commands_reject_nonfinite_inputs_and_keep_rain_independent() {
+        let mut state = Environment { rain_intensity: 0.7, ..Default::default() };
+        let initial = state;
+        for args in [["clouds", "NaN"], ["hour", "inf"], ["clouds", "2"], ["hour", "-1"]] {
+            assert!(apply(&mut state, &args).is_err());
+            assert_eq!(state, initial);
+        }
+        apply(&mut state, &["clouds", "1"]).unwrap();
+        apply(&mut state, &["hour", "18"]).unwrap();
+        assert_eq!((state.cloud_override, state.hour, state.rain_intensity), (Some(1.0), 18.0, 0.7));
+        apply(&mut state, &["clouds", "location"]).unwrap();
+        assert_eq!(state.cloud_override, None);
     }
 }
