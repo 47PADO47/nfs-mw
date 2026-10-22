@@ -71,6 +71,7 @@ impl WorldScene {
         let centres = self.foci();
         self.residency.update_centres(renderer, &centres);
         self.prepare_drive();
+        self.start_queued_coop(renderer);
         self.place_guests();
         self.feed_second_player();
         let sim_dt = match frozen {

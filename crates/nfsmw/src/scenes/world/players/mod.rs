@@ -3,6 +3,7 @@
 //! [`Drive`] of its own, the same path a remote player of a network session takes later.
 
 mod contact;
+pub mod coop;
 pub mod inputs;
 pub mod spawn;
 mod step;

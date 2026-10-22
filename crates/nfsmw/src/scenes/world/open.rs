@@ -200,6 +200,8 @@ impl WorldScene {
                 split: None,
                 second_view: split::SecondView::new(),
                 inputs: Default::default(),
+                coop: None,
+                queued_coop: None,
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 career: Default::default(),

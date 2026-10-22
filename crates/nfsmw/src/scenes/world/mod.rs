@@ -39,7 +39,7 @@ mod moment;
 mod moment_world;
 mod nis;
 mod photo_shot;
-mod players;
+pub mod players;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -205,6 +205,10 @@ pub struct WorldScene {
     second_view: split::SecondView,
     /// Each co-op guest's actions this frame; the lead reads the frame's own input (`players/inputs.rs`).
     inputs: players::inputs::Inputs,
+    /// The co-op session in play (`players/coop.rs`); `None` outside co-op.
+    coop: Option<players::coop::CoopSession>,
+    /// A co-op session the front end asked for, started on the next frame.
+    queued_coop: Option<players::coop::CoopSetup>,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
@@ -277,6 +281,7 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
+pub use players::coop::CoopSetup;
 pub use race::{MAX_RACERS, RaceOptions, SplitSetup};
 
 pub const DEFAULT_CAR: &str = "BMWM3GTR";
