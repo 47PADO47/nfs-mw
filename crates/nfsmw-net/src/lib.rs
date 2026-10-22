@@ -18,12 +18,14 @@
 //!   the modes this build refuses (drag, human cops).
 //! - [`fairness`]: catch-up, collision modes, nitrous and damage toggles, the reset rule and the wrong-way notice.
 //! - [`results`]: the per-race result record (fixed and versioned), session stats and their result message.
+//! - [`record`]: the replay file of the server and of a client, written to and read from caller-owned bytes.
 
 pub mod fairness;
 pub mod input;
 pub mod loadout;
 pub mod message;
 pub mod modes;
+pub mod record;
 pub mod results;
 pub mod schema;
 pub mod version;
