@@ -201,6 +201,10 @@ pub struct WorldScene {
     queued_split: Option<SplitSetup>,
     /// The split-screen match being played: the second player's actions and camera (`split/`).
     split: Option<split::SplitState>,
+    /// The bottom half's draw list and cut, for a split-screen race or co-op (`split/view.rs`).
+    second_view: split::SecondView,
+    /// Each co-op guest's actions this frame; the lead reads the frame's own input (`players/inputs.rs`).
+    inputs: players::inputs::Inputs,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.

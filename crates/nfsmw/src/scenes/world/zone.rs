@@ -21,6 +21,7 @@ impl Zones {
 
     /// Follow the camera at map position (x, y); true when its zone changed. Same as `update_many`
     /// with that one centre.
+    #[cfg(test)]
     pub fn update(&mut self, x: f32, y: f32) -> bool {
         self.update_many(&[[x, y]])
     }

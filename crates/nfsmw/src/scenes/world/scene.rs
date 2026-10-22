@@ -187,7 +187,7 @@ impl Scene for WorldScene {
 
     fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
         // Each half of a split screen has no mirror; the picture is the two views.
-        match self.split.is_some() {
+        match self.split_on() {
             true => None,
             false => self.rear_frame(aspect),
         }
@@ -197,10 +197,13 @@ impl Scene for WorldScene {
         if let Some(split) = self.split.as_mut() {
             split.actions = input.clone();
         }
+        if self.players.has_guests() {
+            self.inputs.set(super::players::PlayerId(1), input);
+        }
     }
 
     fn split_active(&self) -> bool {
-        self.split.is_some()
+        self.split_on()
     }
 
     fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {

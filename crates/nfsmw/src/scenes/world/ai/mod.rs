@@ -6,6 +6,7 @@ mod activation;
 mod air;
 mod car;
 mod collide;
+mod collide_guests;
 mod collision_sounds;
 mod commands;
 mod cop;

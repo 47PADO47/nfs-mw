@@ -198,6 +198,8 @@ impl WorldScene {
                 queued_race: None,
                 queued_split: None,
                 split: None,
+                second_view: split::SecondView::new(),
+                inputs: Default::default(),
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 career: Default::default(),

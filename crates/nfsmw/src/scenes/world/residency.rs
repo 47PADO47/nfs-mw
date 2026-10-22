@@ -168,7 +168,15 @@ impl Residency {
     }
 
     /// Request, upload and drop sections for a camera at map position (x, y).
+    #[cfg(test)]
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
+        self.update_centres(renderer, &[[x, y]]);
+    }
+
+    /// Follow several streaming centres at once (a co-op player each, `docs/specs/coop-career.md` section 10): the
+    /// tiles of all their zones load. The first centre is the lead's; shadows and map packs follow it.
+    pub fn update_centres(&mut self, renderer: &mut dyn RenderBackend, centres: &[[f32; 2]]) {
+        let Some(&[x, y]) = centres.first() else { return };
         let _trace = blackbox_trace::scope("World: streaming residency / uploads");
         let _span = bevy_log::info_span!("world::residency").entered();
         self.sync_bc_support(renderer);
@@ -177,10 +185,10 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
-        if self.zones.update(x, y) {
+        if self.zones.update_many(centres) {
             // A change only ever enters a zone: `Zones::update` keeps the current one when the camera leaves it.
             self.has_zone = true;
-            self.switch_zone(renderer, x, y);
+            self.switch_zone(renderer, centres);
         } else {
             self.update_shadow_support(renderer, [x, y]);
         }
@@ -202,17 +210,19 @@ impl Residency {
         }
     }
 
-    fn switch_zone(&mut self, renderer: &dyn RenderBackend, x: f32, y: f32) {
+    fn switch_zone(&mut self, renderer: &dyn RenderBackend, centres: &[[f32; 2]]) {
         self.visual_revision = self.visual_revision.wrapping_add(1);
         self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
         self.wanted = self.zones.wanted();
         // Nearest first within the drawn tiles, then within the rest.
-        let key = |i: usize| (!self.drawn.contains(&i), self.sections[i].distance_to(x, y));
+        let distance =
+            |i: usize| centres.iter().map(|&[x, y]| self.sections[i].distance_to(x, y)).fold(f32::INFINITY, f32::min);
+        let key = |i: usize| (!self.drawn.contains(&i), distance(i));
         self.wanted.sort_by(|&a, &b| {
             let (ka, kb) = (key(a), key(b));
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
-        self.update_shadow_support(renderer, [x, y]);
+        self.update_shadow_support(renderer, centres[0]);
         // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
         // Map packs are not in any zone's list: they are kept by their own wants (`mod_tiles.rs`).
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();

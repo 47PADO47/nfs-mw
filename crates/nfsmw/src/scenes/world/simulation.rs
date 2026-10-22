@@ -42,19 +42,24 @@ impl WorldScene {
         {
             drive.prepare_frame(input, dt);
         }
+        self.prepare_guests(dt, driving, speedbreaker);
         let batch = dt == 0.0
             && ((driving && self.players.lead().is_some_and(|d| d.needs_batch()))
                 || self.traffic.as_ref().is_some_and(|t| !t.settled()));
-        // Only missing local world data pauses simulation, not loading distant visible scenery.
-        let speed = self.players.lead().map_or(0.0, |drive| drive.speed().abs());
-        let loaded = self.residency.simulation_ready(self.focus(), 20.0 + speed * dt.max(STEP));
+        // Only missing local world data pauses simulation, not loading distant visible scenery. Every player's
+        // surroundings must be in (`docs/specs/coop-career.md` section 10).
+        let loaded = self
+            .foci_with_speed()
+            .all(|(focus, speed)| self.residency.simulation_ready(focus, 20.0 + speed * dt.max(STEP)));
         let real_dt = match batch {
             true => BATCH_STEPS as f32 * STEP,
             false => dt,
         };
         self.seed_original_camera();
         let camera_ramp = self.speedbreaker_clock;
-        let active = loaded && self.players.lead_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+        let lead_breaker =
+            loaded && self.players.lead_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
+        let active = lead_breaker | (loaded && driving && self.guests_prepare_time());
         let simulation_scale = self.tuning.game_speed * self.moment.sim_speed();
         let sim_dt = match loaded {
             false => 0.0,
@@ -63,18 +68,23 @@ impl WorldScene {
         if loaded && let Some(drive) = self.players.lead_mut().filter(|_| driving) {
             drive.finish_time(input, sim_dt, real_dt);
         }
+        if loaded && driving {
+            self.guests_finish_time(sim_dt, real_dt);
+        }
         if let Some(drive) = self.players.lead_mut()
             && (!driving || drive.waiting_for_road().is_some())
         {
             drive.age_effects(sim_dt);
         }
+        self.age_guest_effects(driving, sim_dt);
         let steps = self.physics_clock.advance(sim_dt);
         let look = self.players.lead_mut().map_or((0.0, 0.0), |drive| drive.take_look(steps));
+        let guest_looks = self.guests_take_look(steps);
         // The police, the sight test, the roadblocks, the cop health bars and a running race tick with the physics, so
         // their state and the random numbers they draw do not depend on how ticks group into frames
         // (`docs/specs/multiplayer/determinism.md`, D2 and D4).
         for _ in 0..steps {
-            self.physics_step(driving, look);
+            self.physics_step(driving, look, &guest_looks);
             self.police_step(renderer);
             self.race_tick();
         }
@@ -95,6 +105,10 @@ impl WorldScene {
             });
             drive.trace_frame(dt, steps, loaded, self.residency.complete());
         }
+        self.set_guest_alpha(match driving {
+            true => alpha,
+            false => 1.0,
+        });
         if loaded {
             self.update_original_camera(real_dt, sim_dt, camera_ramp, active, simulation_scale);
         }
@@ -162,7 +176,7 @@ impl WorldScene {
     }
 
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
-    fn physics_step(&mut self, driving: bool, look: (f32, f32)) {
+    fn physics_step(&mut self, driving: bool, look: (f32, f32), guest_looks: &[(f32, f32)]) {
         let _span = bevy_log::info_span!("world::physics_step").entered();
         let focus = self.traffic_focus();
         let camera = self.simulation_lens(self.physics_aspect);
@@ -181,26 +195,45 @@ impl WorldScene {
             _ => None,
         };
         let player_advanced = player_step.is_some();
+        // The co-op guests tick right after the lead, in id order.
+        let guest_steps: Vec<_> = match driving {
+            true => self.players.guests_mut().map(|guest| guest.drive.step(collision, props, surfaces)).collect(),
+            false => Vec::new(),
+        };
         let mut world_sounds = Vec::new();
+        let (lead, guests) = self.players.lead_and_guests_mut();
+        let mut lead = lead.filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
+        let mut guest_sims: Vec<_> = guests
+            .iter_mut()
+            .zip(&guest_steps)
+            .filter(|(_, step)| step.is_some())
+            .filter_map(|(guest, _)| guest.drive.sim_mut())
+            .collect();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
             traffic.step(focus, collision, props, surfaces);
-            let player = self.players.lead_mut().filter(|_| player_step.is_some()).and_then(|d| d.sim_mut());
-            traffic.collide(player);
+            traffic.collide(lead.as_deref_mut());
+            traffic.collide_guests(&mut guest_sims);
             traffic.update_events(props, &self.physics, event_view);
             // Recycle may remove a car or loose trailer; keep its final completed callback first.
             world_sounds.extend(traffic.take_collision_sounds());
             traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
+        super::players::collide_players(lead, &mut guest_sims);
         if let (Some(drive), Some(step)) = (self.players.lead_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);
             drive.finish_step(collision, surfaces, step);
         }
+        let guests = self.players.guests_mut().zip(guest_steps);
+        for (guest, step) in guests.filter_map(|(guest, step)| Some((guest, step?))) {
+            guest.drive.update_events(props, &self.physics, event_view);
+            guest.drive.finish_step(collision, surfaces, step);
+        }
         props.finish_native_world(&super::drive::WorldGround { collision, surfaces }, STEP);
         let mut visual_contacts = props.take_impact_effects();
-        if let Some(drive) = self.players.lead_mut() {
+        for drive in self.players.drives_mut() {
             visual_contacts.extend(drive.take_impact_effects());
         }
         if let Some(traffic) = self.traffic.as_mut() {
@@ -223,6 +256,9 @@ impl WorldScene {
         }
         if let Some(drive) = self.players.lead_mut().filter(|_| driving) {
             drive.follow(collision, look, STEP);
+        }
+        for (guest, &look) in self.players.guests_mut().zip(guest_looks).filter(|_| driving) {
+            guest.drive.follow(collision, look, STEP);
         }
         let helicopter = self.traffic.as_ref().and_then(|t| t.helicopter_motion());
         let helicopter = helicopter.map(|(at, _, _)| Vec3::from_array(space::to_physics(at)));

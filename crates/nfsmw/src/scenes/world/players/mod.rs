@@ -2,9 +2,15 @@
 //! player is a list of one, and every system that knows one car reads the lead. Co-op adds player 2 with a full
 //! [`Drive`] of its own, the same path a remote player of a network session takes later.
 
+mod contact;
+pub mod inputs;
+pub mod spawn;
+mod step;
 pub mod tether;
+mod view;
 
 pub use blackbox_net_core::session::PlayerId;
+pub(super) use contact::collide_players;
 
 use super::drive::Drive;
 
@@ -74,6 +80,32 @@ impl<D> Players<D> {
     pub fn remove(&mut self, id: PlayerId) -> Option<D> {
         let at = self.list.iter().position(|p| p.id == id)?;
         Some(self.list.remove(at).drive)
+    }
+
+    /// The players after the lead (co-op guests), in id order.
+    pub fn guests(&self) -> impl Iterator<Item = &Player<D>> {
+        self.list.iter().filter(|p| p.id != LEAD)
+    }
+
+    pub fn guests_mut(&mut self) -> impl Iterator<Item = &mut Player<D>> {
+        self.list.iter_mut().filter(|p| p.id != LEAD)
+    }
+
+    /// The first guest's car: the second view of a split screen.
+    pub fn first_guest(&self) -> Option<&D> {
+        self.guests().next().map(|p| &p.drive)
+    }
+
+    pub fn has_guests(&self) -> bool {
+        self.guests().next().is_some()
+    }
+
+    /// The lead's car and the guests at once, for steps that touch both.
+    pub fn lead_and_guests_mut(&mut self) -> (Option<&mut D>, &mut [Player<D>]) {
+        match self.list.split_first_mut() {
+            Some((first, rest)) if first.id == LEAD => (Some(&mut first.drive), rest),
+            _ => (None, &mut self.list[..]),
+        }
     }
 
     /// Every player's car, the lead first.

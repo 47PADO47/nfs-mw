@@ -68,8 +68,10 @@ impl WorldScene {
                         || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing)))
         });
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
-        self.residency.update(renderer, x, y);
+        let centres = self.foci();
+        self.residency.update_centres(renderer, &centres);
         self.prepare_drive();
+        self.place_guests();
         self.feed_second_player();
         let sim_dt = match frozen {
             true => 0.0,

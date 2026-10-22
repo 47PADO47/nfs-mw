@@ -10,10 +10,12 @@ use crate::scenes::world::WorldScene;
 impl WorldScene {
     /// The HUD of one player (0 the top half, 1 the bottom). `None` outside a split-screen match.
     pub(in crate::scenes::world) fn split_hud(&self, player: usize) -> Option<HudState> {
-        self.split.as_ref()?;
+        if !self.split_on() {
+            return None;
+        }
         match player {
             0 => self.hud_frame(),
-            _ => self.second_hud(),
+            _ => self.guest_hud().or_else(|| self.second_hud()),
         }
     }
 

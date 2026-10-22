@@ -168,6 +168,7 @@ impl WorldScene {
         );
         let racers = plan.len();
         self.split = split.map(crate::scenes::world::split::SplitState::new);
+        self.second_view = crate::scenes::world::split::SecondView::new();
         let walls = self.raise_race_walls(&race.barriers);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
