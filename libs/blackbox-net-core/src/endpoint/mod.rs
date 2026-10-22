@@ -34,6 +34,8 @@ mod event;
 mod link;
 mod server;
 mod stats;
+#[cfg(test)]
+mod tests;
 mod transport;
 mod wire;
 mod worker;
