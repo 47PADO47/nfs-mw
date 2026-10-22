@@ -14,7 +14,7 @@
 //! The session rules, pure state machines that take the time from the caller and return what to send:
 //!
 //! - [`settings`]: session settings defaults, validation, a host's patch, and the flat key and value form.
-//! - [`lobby`]: the token buckets of the per-player rate limits.
+//! - [`lobby`]: the lobby and session state machine: roster, cars, ready, start countdown, hold, load and race phases.
 //! - [`join`]: the join-in-progress policy and the admission pipeline with its reject reasons.
 //! - [`roles`]: host, admin and player permissions, bans, and the local mute list.
 //! - [`vote`]: kick, restart, mode, track and skip votes counted by the server.
