@@ -109,3 +109,23 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
 - **No prompt [ours].** The package has a `Press (key) To Continue` prompt (message `0x9938A38F`, name unknown, hides
   `LOADING...` and flashes the prompt). The career does not send it: the world is revealed as soon as it reports
   ready, as free roam is.
+
+## 6. A race starting in a world that is already up [ours]
+
+The first loading screen ended when the free-roam start had streamed. A career race (a new career's `16.1.0`, a resume, a challenge
+of the Blacklist) is queued in that world and then moves the car to its grid, so the player saw the world at the start of free roam,
+then the empty world at the grid while its scenery streamed, then the intro movie and NIS. The same happened between the races of
+a chain (`16.1.0` to `16.2.2` and on: the outro ends, the next race is queued, the car moves to the next start).
+
+- `Scene::race_staging()` (`scenes/world/readiness.rs`, `race_is_staging`) is true while a race is queued or in its `Loading` stage
+  (the car goes to the grid and the racers' models load). `Frontend::loading_frame` reveals the world only when the scene is ready
+  **and** not staging (`loading::start_over`), so the first loading screen now covers the grid too.
+- In driving, `Frontend::poll_race_cover` (`flow_cover.rs`) puts the loading screen (the career's tips, else the plain screen) over the
+  concealed world as soon as a race is staging, and the stage is `Loading` until the grid stands. Restarts (the pause menu's Restart, the
+  results screen's Restart, a retry) stay on their start and are not covered (`Frontend::restarting`).
+- **Original:** the load of the next race of a chain keeps the loading screen up from the end of the previous race to the start of the
+  next one; the order of loading screen and cinematic in the original was not re-read for this change (loading screen first, then the
+  intro movie and NIS, as the Lua graph's `prerace` waits for the world load before `intronis`). **[unconfirmed]** in `speed.exe`.
+- **Not covered:** the frame in which the previous race has just ended and the next is queued (one frame, the old place);
+  streaming that a NIS needs away from the race start; the car lot after `16.2.1` (shown over the frozen world); the menu backdrop
+  that is built when a movie of the first safe house visit ends.

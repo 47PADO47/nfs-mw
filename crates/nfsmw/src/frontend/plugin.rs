@@ -334,6 +334,7 @@ fn update(
                 map.themes.world_map_legend().clear();
                 map.themes.world_map_view().clear();
             }
+            fe.poll_race_cover(host, &mut env);
             fe.poll_bust(host, &mut env);
             fe.poll_race(host, &mut env);
             fe.poll_career(host, &mut env);
@@ -343,16 +344,20 @@ fn update(
                 garage.start_requested = true;
             }
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
-            let pause = input.disconnected
-                || (!console_had_it
-                    && (actions.just_pressed(Action::Cancel)
-                        || actions.just_pressed(Action::MenuStart)
-                        || scripted_start));
+            // The loading screen may have covered a race start just now: nothing pauses it.
+            let playing = fe.stage == Stage::Playing;
+            let pause = playing
+                && (input.disconnected
+                    || (!console_had_it
+                        && (actions.just_pressed(Action::Cancel)
+                            || actions.just_pressed(Action::MenuStart)
+                            || scripted_start)));
             if pause {
                 capture.0 = false;
                 fe.pause(host, &mut env);
             }
-            if !pause && !console_had_it && (actions.just_pressed(Action::Map) || script_key == Some(KeyCode::KeyM)) {
+            let map_key = actions.just_pressed(Action::Map) || script_key == Some(KeyCode::KeyM);
+            if playing && !pause && !console_had_it && map_key {
                 control::open(fe, &mut map.overlay, host, &mut env);
             }
         }

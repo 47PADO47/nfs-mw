@@ -19,7 +19,7 @@ pub(super) enum LoadingScreen {
 }
 
 impl LoadingScreen {
-    fn file(self) -> &'static str {
+    pub(super) fn file(self) -> &'static str {
         match self {
             Self::Plain => LOADING,
             Self::Tips => LOADING_TIPS,
@@ -75,7 +75,8 @@ impl Frontend {
                 self.world_built(world, host, env);
             }
             Load::Streaming => {
-                if !host.scene.ready() {
+                // A race asked for is part of the start: the screen stays up until the car stands on its grid.
+                if !loading::start_over(host.scene.ready(), host.scene.race_staging()) {
                     self.load = Some(Load::Streaming);
                     return;
                 }
