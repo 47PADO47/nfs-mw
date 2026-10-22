@@ -36,5 +36,9 @@ subtle = { workspace = true, optional = true }
 triple_buffer = { workspace = true, optional = true }
 zeroize = { workspace = true, optional = true }
 
+[[example]]
+name = "lan_echo"
+required-features = ["netcode"]
+
 [lints]
 workspace = true

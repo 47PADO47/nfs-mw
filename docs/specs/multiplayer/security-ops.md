@@ -5,7 +5,9 @@ identity. [Gameplay security](security-gameplay.md) has validation, authority, a
 are starting values to tune with the load tests of section 5. **Built (2026-10-22):** the caps of sections 2.1 to 2.4 as
 `ratelimit::PreAuthLimits::LAN` and `ONLINE`, `PreAuthGate` and `PeerBudget` in `libs/blackbox-net-core`, applied by its
 handshake server; seeded garbage tests and `cargo-fuzz` targets for every pre-authentication parser
-([protocol-handshake](protocol-handshake.md)). The rest is design.
+([protocol-handshake](protocol-handshake.md)). The net thread (`endpoint`, [integration](integration.md) section 1) applies them on
+real sockets, with the per-connection bounds of 2.1 and the discovery rules of 2.3 (see the "as built" notes there). The rest is
+design.
 
 ## 1. The pre-authentication surface
 
@@ -39,6 +41,15 @@ Set on both ends. A client also bounds what a host can make it do.
 | Streams | 4 bidirectional, 2 unidirectional open at once |
 | Reassembly memory | 64 KiB per channel before authorisation, 1 MiB after (4 MiB for the bulk transfer to a joiner) |
 | Pending reliable queue | 256 messages, then the connection is closed (a client that never acknowledges cannot grow memory) |
+
+**As built (2026-10-22, `endpoint`).** Handshake time, idle timeout and keep-alive as in the table. Every peer gets a `PeerBudget`
+(128 KiB/s, 128 datagrams per 16 ms tick by default, changeable per peer with `set_budget`) checked before the packet is opened;
+the in-memory host client has none. A full reliable channel (256 messages in flight) closes the connection with DISCONNECT
+reason 3 and reports `DisconnectReason::Overflow`. A data packet from an address other than the one the handshake ran with is
+dropped and counted (no path validation yet). The net thread takes at most 256 datagrams per pass before it serves timers and
+sends, so a flood cannot starve admitted players; the flood test sends 20,000 garbage datagrams and 30 real handshakes from one
+address while an established client keeps its round trips. Not built: the 256 KiB socket buffers (`std` cannot set them), the
+authorisation deadline (game protocol) and the reassembly memory caps beyond the connection's own 16 KiB message limit.
 
 ### 2.2 Global and per-address caps
 
@@ -83,6 +94,16 @@ setup, so the rules are strict:
 
 The original game's local challenge ([LAN server](../lan-server.md)) answered any sender with a 4-byte value and
 trusted it. Ours trusts nothing from discovery.
+
+**As built (2026-10-22, `endpoint::DiscoveryResponder`, run by the server endpoint on its discovery port).** Rule 1: only a
+64-byte request that decodes is answered, with a 64-byte reply. Rule 2: `SourcePolicy`; unspecified, multicast, broadcast and
+port-0 sources are always refused, loopback only when allowed, everything else must fall in a subnet the caller passes. The
+standard library cannot list interfaces, so the default (`SourcePolicy::private_lan`) is the private and link-local ranges
+instead of the host's own subnets, and the host's own address is not excluded. Rule 3: `PreAuthGate::discovery_reply_allowed`
+(10 per second in total, 2 per source), the same gate as the handshake. Rule 4: nothing is answered until the game calls
+`set_discovery_reply`, and `None` stops it; the client side, `DiscoveryScan`, sends 3 requests over 2 seconds by default, each
+with a fresh random nonce, and keeps only replies that echo one, each source once. Rule 5: the reply is the caller's template
+with the nonce written in; nothing is kept per request.
 
 ### 2.4 Handshake flood and address validation
 
