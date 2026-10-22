@@ -18,6 +18,7 @@
 
 mod autosave;
 mod card;
+mod coop_state;
 mod data;
 mod io;
 mod rewards;
@@ -28,6 +29,7 @@ mod state;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use autosave::{AutosaveInputs, handle_autosave};
+pub use coop_state::{coop_players, set_coop_players};
 pub use data::{CareerData, car_stats, event_id, race_event_id};
 pub use io::ProfileDir;
 pub use rewards::grant_rewards;
