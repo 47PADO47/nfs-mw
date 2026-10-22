@@ -32,6 +32,8 @@ pub struct Args {
     pub overview: bool,
     /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
     pub player: u8,
+    /// Player 2's car select of a co-op career: the car picked is seated for player 2 (`career_screens/car_select.rs`).
+    pub coop: bool,
 }
 
 impl Default for Args {
@@ -43,12 +45,13 @@ impl Default for Args {
             safehouse: false,
             rival: 0,
             sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false, coop_locked: false },
             custom: false,
             sequence: false,
             first_car: false,
             overview: false,
             player: 0,
+            coop: false,
         }
     }
 }

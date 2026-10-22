@@ -130,6 +130,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [boot-profile-prompt.md](boot-profile-prompt.md): the profile step after the title screen: the load list of saved profiles (this build's and the original's, read only), or the create question and name prompt when none is saved; how `play` starts.
 - [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
 - [career-regions.md](career-regions.md): closed regions (barrier gates per stage), the region unlock screen, map variants.
+- [coop-career.md](coop-career.md): co-op career and free roam for two local players (the design, LAN-ready): entry and exit, the shared garage and pursuit, the bust and evade rules, events, streaming and the catch-up prompt, story and pause.
 - [race-barriers.md](race-barriers.md): the walls a race's `Barriers` list switches on (scenery groups, the star's
   mirror, collision, the door) and the road barrier flags.
 - Layouts: [../formats/career-state.md](../formats/career-state.md) (memory) and [../formats/career-save.md](../formats/career-save.md) (file).

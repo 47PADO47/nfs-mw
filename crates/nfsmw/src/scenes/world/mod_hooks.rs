@@ -26,7 +26,7 @@ fn damage_fraction(damage: &Damage) -> f32 {
 impl WorldScene {
     /// The player's car, when one is driven and simulated (the HUD's numbers and the physics' velocity and damage).
     pub(super) fn player_car_state(&mut self) -> Option<PlayerCar> {
-        let drive = self.drive.as_mut()?;
+        let drive = self.players.lead_mut()?;
         let hud = drive.hud_state()?;
         let (position, heading, speed) = (drive.position(), drive.heading(), drive.speed());
         let sim = drive.sim_mut()?;
@@ -51,7 +51,7 @@ impl WorldScene {
     /// camera's.
     pub(super) fn camera_now(&self) -> CameraReadout {
         let mode = self.camera_mode;
-        match (&self.drive, self.view) {
+        match (self.players.lead(), self.view) {
             (Some(drive), View::Chase) => {
                 let view = drive.camera();
                 let forward = (view.target() - view.position).normalize_or_zero();
@@ -78,7 +78,7 @@ impl WorldScene {
 
     /// Put the car on the road nearest `at`, facing `heading`, and show the chase view. Refused without a car.
     pub(super) fn move_player_to(&mut self, at: [f32; 2], heading: f32) -> bool {
-        let Some(drive) = self.drive.as_mut() else {
+        let Some(drive) = self.players.lead_mut() else {
             return false;
         };
         drive.respawn_near(at, Some(heading));
@@ -88,7 +88,7 @@ impl WorldScene {
 
     /// Clear the car's visible damage and punctures. Refused without a car.
     pub(super) fn repair_player_car(&mut self) -> bool {
-        let Some(drive) = self.drive.as_mut() else {
+        let Some(drive) = self.players.lead_mut() else {
             return false;
         };
         drive.repair();

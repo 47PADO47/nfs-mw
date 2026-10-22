@@ -100,6 +100,8 @@ pub struct RunOptions {
     pub frontend: Option<crate::frontend::FrontendPlugin>,
     /// Measure frame times for this many seconds once the scene is loaded, print them and exit (`--bench-seconds`).
     pub bench_seconds: Option<f32>,
+    /// Keep the window hidden, unfocused and off-screen (`--offscreen`), as a screenshot run does.
+    pub offscreen: bool,
     /// The mods the install was opened with (see [`crate::modding::open_install`]); `None` runs without them.
     pub mods: Option<crate::modding::Mods>,
 }
@@ -129,6 +131,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         audio,
         frontend,
         bench_seconds,
+        offscreen,
         mods,
     } = options;
     let plan = screenshot
@@ -136,7 +139,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         .map(|path| screenshot::Plan::new(path, screenshot_delay, screenshot_count, screenshot_interval));
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
-    if screenshot.is_some() {
+    if screenshot.is_some() || offscreen {
         let [w, h] = screenshot_size.unwrap_or([screenshot::SIZE.0, screenshot::SIZE.1]);
         window.visible = false;
         window.focused = false;

@@ -8,7 +8,7 @@ use crate::viewer::Scene;
 use bevy_input::keyboard::KeyCode;
 
 fn arrest_state(scene: &WorldScene) -> String {
-    let drive = scene.drive.as_ref().unwrap();
+    let drive = scene.players.lead().unwrap();
     let player = Vec3::from_array(space::to_physics(drive.player_view().position));
     let world = scene.traffic.as_ref().unwrap();
     let nearest = world.nearest_matched_cop_position(player);
@@ -64,7 +64,7 @@ fn installed_arrest_locks_player_input_until_the_ticket_is_paid() {
         .unwrap_or_else(|| panic!("the cop must be on the player's deck: {initial}"));
     assert!((nearest.y - at.y).abs() < 1.5, "stock vertical bust gate: {initial}");
     assert!(Vec2::new(nearest.x - at.x, nearest.z - at.z).length() < 15.0, "stock proximity gate: {initial}");
-    assert!(scene.drive.as_ref().unwrap().speed().abs() < 0.5, "handbraked fixture must stand still: {initial}");
+    assert!(scene.players.lead().unwrap().speed().abs() < 0.5, "handbraked fixture must stand still: {initial}");
     let mut history = Vec::new();
     let mut arrest_tick = None;
     for tick in 1..=360 {
@@ -84,7 +84,7 @@ fn installed_arrest_locks_player_input_until_the_ticket_is_paid() {
     );
     assert!(arrest_tick.unwrap() >= 300, "a normal five-second arrest must not be an instant/reset bust");
     assert!(!scene.pay_bust(false), "the hold cannot be skipped");
-    let held_position = scene.drive.as_ref().unwrap().physics_pose().position;
+    let held_position = scene.players.lead().unwrap().physics_pose().position;
     let mut held = ActionState::default();
     held.update_for_test(
         &Bindings::default(),
@@ -95,7 +95,7 @@ fn installed_arrest_locks_player_input_until_the_ticket_is_paid() {
     for _ in 0..240 {
         scene.update(&mut renderer, &held, STEP);
     }
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     assert!(
         drive.physics_pose().position.distance(held_position) < 1.0,
         "held throttle/steering/reset cannot drive away"
@@ -124,7 +124,7 @@ fn installed_arrest_locks_player_input_until_the_ticket_is_paid() {
         scene.update(&mut renderer, &accelerate, STEP);
     }
     assert!(
-        scene.drive.as_ref().unwrap().physics_pose().position.distance(held_position) > 1.0,
+        scene.players.lead().unwrap().physics_pose().position.distance(held_position) > 1.0,
         "payment releases driving"
     );
     scene.close(&mut renderer);

@@ -81,7 +81,7 @@ impl WorldScene {
         heat: u32,
     ) {
         let green = session.engine.as_ref().is_some_and(|e| e.phase() == Phase::Racing);
-        let standing = self.drive.as_ref().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none());
+        let standing = self.players.lead().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none());
         if !green || !standing {
             return;
         }

@@ -79,6 +79,23 @@ impl Scene for Pausable {
         self.inner.split_hud_state(player)
     }
 
+    // A menu over the world takes the devices back, as it does for a split-screen race.
+    fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.coop_second_device()
+    }
+
+    // The pause menu's End Co-op reaches the world under the menu.
+    fn end_coop(&mut self) {
+        self.inner.end_coop();
+    }
+
+    fn coop_end_locked(&self) -> bool {
+        self.inner.coop_end_locked()
+    }
+
     // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()
@@ -222,6 +239,13 @@ impl Scene for Pausable {
             return None;
         }
         self.inner.car_sound()
+    }
+
+    fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        if self.paused.get() || self.concealed() {
+            return None;
+        }
+        self.inner.second_car_sound()
     }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {

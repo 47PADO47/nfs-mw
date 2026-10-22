@@ -48,7 +48,7 @@ impl WorldScene {
     /// arrival calls the safe house intro, and the drive is then done (`finish` runs with it, a simplification of the
     /// bin's activity ending later).
     pub(super) fn career_drive_to_target(&mut self, dt: f32) {
-        if self.career.safe_house_drive.waiting && self.drive.is_some() {
+        if self.career.safe_house_drive.waiting && self.players.has_lead() {
             self.career.safe_house_drive.waiting = false;
             self.begin_safe_house_drive();
         }
@@ -124,7 +124,7 @@ impl WorldScene {
 
     /// Whether the car is at the safe house now (`false` without a car or the data).
     fn at_safe_house(&self) -> bool {
-        let (Some(drive), Some(data)) = (self.drive.as_ref(), self.gameplay.as_ref()) else {
+        let (Some(drive), Some(data)) = (self.players.lead(), self.gameplay.as_ref()) else {
             return false;
         };
         let at = Vec3::from(space::to_physics(drive.position()));

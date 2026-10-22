@@ -20,6 +20,7 @@ mod input;
 #[cfg(test)]
 mod lamp_tests;
 mod look;
+mod new;
 mod nis_pose;
 mod original_camera;
 mod placement;
@@ -174,72 +175,6 @@ pub struct Drive {
 }
 
 impl Drive {
-    pub fn new(
-        car_name: String,
-        rig: CarRig,
-        physics: CarPhysics,
-        request: SpawnRequest,
-        script: Option<DriveScript>,
-        visuals: nfsmw_data::vehicle_effects::VisualEffectsData,
-    ) -> Self {
-        let pose = CarPose {
-            position: Vec3::ZERO,
-            rotation: glam::Quat::IDENTITY,
-            wheels: [nfsmw_data::car::WheelPose::default(); 4],
-        };
-        Self {
-            car_name,
-            effects: TireEffects::default(),
-            brake_lamp: 0.0,
-            steer_lamp: 0.0,
-            lamp_time: 0.0,
-            headlights: true,
-            vehicle_effects: VehicleEffects::new(visuals),
-            flames: ExhaustFlames::default(),
-            tail_trails: Default::default(),
-            performance: Default::default(),
-            tuning: Default::default(),
-            tunings: Default::default(),
-            rig,
-            physics,
-            sim: None,
-            request: Some(request),
-            alpha: 0.0,
-            frame_input: DriveInput::default(),
-            arrested: false,
-            sabotaged: false,
-            gridded: false,
-            assist_aim: None,
-            pending_speed: 0.0,
-            previous: pose,
-            current: pose,
-            nis_pose: None,
-            telemetry: Telemetry::default(),
-            breaker: speedbreaker::SpeedBreaker::default(),
-            breaker_camera: breaker_camera::Zoom::default(),
-            sound: SoundFeed::default(),
-            chase: ChaseCamera::default(),
-            pursuit: PursuitCamera::default(),
-            queued_hits: Vec::new(),
-            cracked: cracked::CrackedZones::default(),
-            cut: CameraCut::default(),
-            look: look::PendingLook::default(),
-            script: script.map(|script| ScriptRun { script, time: 0.0 }),
-            batch_run: false,
-            steps: 0,
-            manual_resets: 0,
-            last_good: None,
-            fall: FallWatch::default(),
-            last_check: 0,
-            presses: Presses::default(),
-            transmission: Transmission::default(),
-            wheel: WheelOptions::default(),
-            markers: ContactMarkers::default(),
-            pending_knocks: Vec::new(),
-            prop_touch: Default::default(),
-        }
-    }
-
     /// Who changes gear from now on (the transmission setting).
     /// The map position residency should follow, if the car is not on the road yet.
     pub fn waiting_for_road(&self) -> Option<SpawnRequest> {

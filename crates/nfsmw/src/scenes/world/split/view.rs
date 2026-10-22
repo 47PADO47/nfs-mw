@@ -2,7 +2,6 @@
 
 use blackbox_gfx::{Fog, FrameParams, Instance};
 
-use super::SplitState;
 use crate::scenes::world::{WorldScene, visibility};
 use crate::viewer::camera::{Camera, Lens};
 
@@ -22,19 +21,30 @@ impl WorldScene {
         player: usize,
         aspect: f32,
     ) -> Option<(FrameParams, &[Instance])> {
-        self.split.as_ref()?;
+        if !self.split_on() {
+            return None;
+        }
         match player {
             0 => Some(self.world_frame(aspect)),
             _ => self.second_frame(aspect),
         }
     }
 
+    /// Whether the screen is split: a split-screen race or a co-op guest in the world.
+    pub(in crate::scenes::world) fn split_on(&self) -> bool {
+        self.split.is_some() || self.players.has_guests()
+    }
+
     fn second_frame(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
-        let lens = self.split.as_ref()?.camera.lens(aspect);
-        let mut visible = std::mem::take(&mut self.split.as_mut()?.visible);
+        // A co-op guest looks through its own chase camera; a split-screen racer through the match's camera.
+        let lens = match self.guest_lens(aspect) {
+            Some(lens) => lens,
+            None => self.split.as_ref()?.camera.lens(aspect),
+        };
+        let mut visible = std::mem::take(&mut self.second_view.visible);
         self.fill_view(&lens, Viewer::Second, &mut visible);
         let fog_end = self.fog_distance;
-        let cut = self.split.as_mut()?.take_cut();
+        let cut = self.second_view.take_cut();
         let params = FrameParams {
             view: lens.view,
             projection: lens.projection,
@@ -47,9 +57,8 @@ impl WorldScene {
             camera_cut: cut,
             shadow_tuning: None,
         };
-        let state: &mut SplitState = self.split.as_mut()?;
-        state.visible = visible;
-        Some((params, &state.visible))
+        self.second_view.visible = visible;
+        Some((params, &self.second_view.visible))
     }
 
     /// Culls the world for `lens` into `out`: scenery, props, sky, the traffic and racers, and the first player's car.
@@ -96,7 +105,7 @@ impl WorldScene {
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
             traffic.lamp_instances(lamps, lens.position, self.residency.props(), out);
         }
-        if let Some(drive) = &self.drive {
+        if let Some(drive) = self.players.lead() {
             let shown = match viewer {
                 Viewer::Second => true,
                 Viewer::First => self.player_in_picture(drive),
@@ -108,9 +117,16 @@ impl WorldScene {
                 drive.marker_instances(meshes, out);
             }
         }
-        if viewer == Viewer::First
-            && let Some(arrow) = self.route_arrow()
-        {
+        // Co-op guests are always in the picture: neither view is from inside their car.
+        for guest in self.players.guests() {
+            guest.drive.instances_with_detail(Some(&car_view), out);
+        }
+        // Each half shows its own player's route arrow: the first player's in theirs, a co-op guest's in the second.
+        let arrow = match viewer {
+            Viewer::First => self.route_arrow(),
+            Viewer::Second => self.players.guests().next().and_then(|guest| self.route_arrow_for(guest.id)),
+        };
+        if let Some(arrow) = arrow {
             out.push(arrow);
         }
         // The NIS scene's characters: placed with the rest, so they sort by mesh with them.

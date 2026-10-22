@@ -19,7 +19,7 @@ impl WorldScene {
         if let Some(lens) = self.photo_lens(aspect) {
             return lens;
         }
-        let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
+        let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
         let lens = drive
@@ -43,7 +43,7 @@ impl WorldScene {
         if let Some(lens) = self.photo_lens(aspect) {
             return lens;
         }
-        let Some(drive) = self.drive.as_ref().filter(|_| self.view == View::Chase) else {
+        let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
         let lens = drive

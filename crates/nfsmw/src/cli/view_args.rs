@@ -70,6 +70,10 @@ pub struct ViewArgs {
     /// frame with the renderer and the CPU and memory use, and exit. Add --no-vsync for meaningful numbers.
     #[arg(long, value_name = "SECONDS", conflicts_with = "screenshot")]
     pub bench_seconds: Option<f32>,
+    /// With --bench-seconds: keep the window hidden, unfocused and off-screen, as a screenshot run does, so a measurement
+    /// never takes focus from the desktop.
+    #[arg(long, requires = "bench_seconds")]
+    pub offscreen: bool,
     /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
     #[arg(long, value_name = "COMMAND")]
     pub exec: Vec<String>,
@@ -341,6 +345,7 @@ impl ViewArgs {
             screenshot_count: self.screenshot_count.unwrap_or(1),
             screenshot_interval: self.screenshot_interval.unwrap_or(1.0),
             bench_seconds: self.bench_seconds,
+            offscreen: self.offscreen,
             exec: self.exec.clone(),
             open_console: self.open_console,
             open_garage: self.open_garage,

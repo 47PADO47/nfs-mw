@@ -18,6 +18,7 @@ impl WorldScene {
         self.update_nis_characters(renderer);
         self.update_nis_models(renderer);
         self.update_story_movie(input, dt);
+        self.update_coop_suspend();
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.
         let idle = ActionState::default();
@@ -34,23 +35,23 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_ref() {
             traffic.update_damaged_windows(renderer, self.sun.to_sun());
         }
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
         }
         if input.just_pressed(Action::ToggleHeadlights)
-            && let Some(drive) = self.drive.as_mut()
+            && let Some(drive) = self.players.lead_mut()
         {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
         }
-        let camera = match (self.view, self.drive.as_ref()) {
+        let camera = match (self.view, self.players.lead()) {
             (View::Chase, Some(drive)) => drive.camera().position,
             _ => self.camera.position,
         };
-        if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
+        if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();
@@ -68,13 +69,17 @@ impl WorldScene {
                         || race.engine.as_ref().is_some_and(|engine| engine.phase() == blackbox_race::Phase::Racing)))
         });
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
-        self.residency.update(renderer, x, y);
+        let centres = self.foci();
+        self.residency.update_centres(renderer, &centres);
         self.prepare_drive();
+        self.start_queued_coop(renderer);
+        self.place_guests();
         self.feed_second_player();
         let sim_dt = match frozen {
             true => 0.0,
             false => self.update_simulation(renderer, input, dt),
         };
+        self.update_catch_up(input);
         self.follow_second_player(dt);
         self.update_race(renderer, input, dt);
         self.update_entry(input, dt);

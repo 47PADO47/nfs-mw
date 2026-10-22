@@ -12,6 +12,11 @@ impl Drive {
         self.transmission = transmission;
     }
 
+    /// The gearbox the car drives with.
+    pub fn transmission(&self) -> Transmission {
+        self.transmission
+    }
+
     /// Whether the clutch pedal and the H-shifter are in use from now on.
     pub fn set_wheel_options(&mut self, wheel: WheelOptions) {
         self.wheel = wheel;

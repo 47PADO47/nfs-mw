@@ -15,7 +15,7 @@ pub(in crate::scenes::world) fn run(
     if let ["preset", name @ ..] = args {
         return preset(scene, renderer, &name.join(" "));
     }
-    if scene.drive.is_none() {
+    if scene.players.is_empty() {
         return Err("get into a car before selecting parts".into());
     }
     let car = scene.garage.applied.car.clone();

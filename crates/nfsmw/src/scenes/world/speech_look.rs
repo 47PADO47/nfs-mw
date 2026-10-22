@@ -38,7 +38,7 @@ impl Cache {
 impl WorldScene {
     /// The look of the car being driven, `None` while none is.
     pub(super) fn player_look(&self, cache: &RefCell<Cache>) -> Option<Look> {
-        let car = &self.drive.as_ref()?.car_name;
+        let car = &self.players.lead()?.car_name;
         let custom = self.garage.applied.color.is_some();
         Some(cache.borrow_mut().get(car, custom, || self.read_look(car, custom)))
     }

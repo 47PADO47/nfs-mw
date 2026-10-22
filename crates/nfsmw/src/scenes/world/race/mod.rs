@@ -8,6 +8,7 @@ mod blips;
 mod card;
 mod challenge;
 mod command;
+mod coop_finish;
 mod demo;
 mod drag;
 mod emulate;
@@ -38,6 +39,11 @@ pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
+
+/// The story's own races, which player 1 drives alone in co-op: the scripted chase and the final race.
+pub(in crate::scenes::world) fn is_story_race(race: &nfsmw_data::gameplay::Race) -> bool {
+    crate::career::race_event_id(race) == scripted_chase::CHASE_EVENT || final_race::is_final_race(race)
+}
 
 use std::collections::VecDeque;
 

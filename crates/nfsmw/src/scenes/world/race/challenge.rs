@@ -201,7 +201,7 @@ impl WorldScene {
         if final_pursuit {
             challenge.final_run = Some(self.final_run_for(race, Place { spawn, speed })?);
         }
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.place_exactly(spawn, speed);
         }
         self.view = crate::scenes::world::View::Chase;
@@ -272,7 +272,7 @@ impl WorldScene {
             self.give_final_car(renderer, car, place);
         }
         if !challenge.began {
-            let standing = self.drive.as_ref().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none());
+            let standing = self.players.lead().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none());
             if !standing {
                 return true;
             }
@@ -288,7 +288,7 @@ impl WorldScene {
             return true;
         }
         let Some(traffic) = self.traffic.as_ref() else { return false };
-        let player = self.drive.as_ref().map(|d| d.position());
+        let player = self.players.lead().map(|d| d.position());
         let (secs, reason) = (traffic.pursuit_time(), traffic.end_reason());
         if let Some(position) = player {
             let at = [position[0], position[1]];

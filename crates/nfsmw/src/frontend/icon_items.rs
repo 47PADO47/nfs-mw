@@ -26,6 +26,9 @@ pub enum Id {
     AliasDelete,
     /// The career menu's row (`career_screens/career_menu.rs`).
     CareerResume,
+    /// Co-op Career: player 2 joins the career (`flow_coop.rs`). Shown once the career has started, is not won and is past
+    /// the prologue (`career_icons`).
+    CareerCoop,
     CareerNew,
     CareerLoad,
     /// The Quick Race menu's row (`race_menu.rs`); Split Screen opens the mode select with the two-player flow.
@@ -45,6 +48,8 @@ pub enum Id {
     /// The pause menu's items in a race: Resume Race and Restart.
     ResumeRace,
     RestartRace,
+    /// The pause menu's End Co-op row, listed only while a co-op session is on (`pause_icons`); plain text label.
+    EndCoop,
     /// Quit to the menu the game was started from; the name and the question follow [`QuitTo`].
     Quit(QuitTo),
     /// The safe house menu's items (`career_screens/safehouse_menu.rs`); Blacklist carries the stage it opens.
@@ -162,8 +167,11 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
 const RESUME_TEXTURE: u32 = 0x12BB_5EA2;
 const QUIT_TEXTURE: u32 = 0x4C9E_34E6;
 
-/// The pause menu's items: resume, restart (a race only), options, quit. The original puts quit before options; the
-/// rewrite keeps its own order, with the new items first (docs/specs/career-parity-menus.md, section 5).
+/// The pause menu's items: resume, restart (a race only), options, end co-op (a co-op session only), quit. The original
+/// puts quit before options; the rewrite keeps its own order, with the new items first
+/// (docs/specs/career-parity-menus.md, section 5). End Co-op (docs/specs/coop-career.md, section 3.2) takes the quit
+/// picture, since it also leaves a session, and its label is plain text (`vertical.rs`, `special_text`), as the
+/// Discord row's is.
 pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     let mut list = Vec::new();
     match ctx.race {
@@ -174,6 +182,10 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
         false => list.push(icon(Id::Resume, RESUME_TEXTURE, 0x01BD_185C, true)),
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
+    if ctx.coop {
+        // Greyed out while player 2 races or is chased: their car cannot leave a race or a chase halfway.
+        list.push(icon(Id::EndCoop, QUIT_TEXTURE, 0, !ctx.coop_locked));
+    }
     let quit = match ctx.quit {
         QuitTo::Main => 0xE950_B7AF,
         QuitTo::QuickRace => 0x4349_998B,
@@ -183,14 +195,21 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     list
 }
 
-/// The icons of the career menu: Resume Career when the profile's career has started and was not won,
-/// Start New Career (Start Career for a profile whose career has not started), and Load. With no profile loaded the
-/// row is Start New Career and Load (docs/specs/career-parity-menus.md, section 6).
-pub fn career_icons(started: bool, won: bool) -> Vec<Icon> {
+/// The icons of the career menu: Resume Career when the profile's career has started and was not won, Co-op Career
+/// after it outside the prologue (docs/specs/coop-career.md, section 3.1), Start New Career (Start Career for a profile
+/// whose career has not started), and Load. With no profile loaded the row is Start New Career and Load
+/// (docs/specs/career-parity-menus.md, section 6).
+pub fn career_icons(started: bool, won: bool, prologue: bool) -> Vec<Icon> {
     const NEW_CAREER: u32 = 0xE735_3BE7;
+    // The split screen's picture: a co-op career is a second player on the same career.
+    const CO_OP: u32 = 0xF365_B5F5;
+    const CO_OP_NAME: u32 = 0x841D_518A;
     let mut list = Vec::new();
     if started && !won {
         list.push(icon(Id::CareerResume, 0xC1C0_89CE, 0xE072_DB21, true));
+    }
+    if started && !won && !prologue {
+        list.push(icon(Id::CareerCoop, CO_OP, CO_OP_NAME, true));
     }
     list.push(icon(Id::CareerNew, NEW_CAREER, 0x17E1_8F87, true));
     list.push(icon(Id::CareerLoad, 0x2287_E063, 0x0018_ECFF, true));
@@ -259,6 +278,33 @@ mod tests {
         assert_eq!(pause[3].id, Id::Category(Category::Player));
         assert!(pause[3].enabled);
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
+    }
+
+    #[test]
+    fn end_coop_shows_only_in_coop() {
+        let solo = pause_icons(PauseCtx { coop: false, ..PauseCtx::default() });
+        assert!(solo.iter().all(|i| i.id != Id::EndCoop), "no End Co-op outside a co-op session");
+        let coop = pause_icons(PauseCtx { coop: true, ..PauseCtx::default() });
+        let end = coop.iter().filter(|i| i.id == Id::EndCoop).collect::<Vec<_>>();
+        assert_eq!(end.len(), 1, "one End Co-op row in a co-op session");
+        assert!(end[0].enabled);
+        assert_eq!(coop.len(), solo.len() + 1, "End Co-op is the only extra row");
+        assert_eq!(coop.last().map(|i| i.id), Some(Id::Quit(QuitTo::Main)), "Quit stays last");
+        let locked = pause_icons(PauseCtx { coop: true, coop_locked: true, ..PauseCtx::default() });
+        let end = locked.iter().find(|i| i.id == Id::EndCoop).expect("End Co-op is still listed");
+        assert!(!end.enabled, "greyed out while player 2 races or is chased");
+    }
+
+    #[test]
+    fn the_co_op_career_is_offered_once_the_career_is_under_way() {
+        let has_co_op = |icons: &[Icon]| icons.iter().any(|i| i.id == Id::CareerCoop);
+        let under_way = career_icons(true, false, false);
+        assert!(has_co_op(&under_way), "a started, unwon career past the prologue offers co-op");
+        let resume = under_way.iter().position(|i| i.id == Id::CareerResume).expect("Resume Career");
+        assert_eq!(under_way[resume + 1].id, Id::CareerCoop, "co-op follows Resume Career");
+        assert!(!has_co_op(&career_icons(true, false, true)), "hidden in the prologue");
+        assert!(!has_co_op(&career_icons(true, true, false)), "hidden once the career is won");
+        assert!(!has_co_op(&career_icons(false, false, false)), "hidden before the career starts");
     }
 
     #[test]

@@ -63,7 +63,7 @@ impl WorldScene {
     /// The console's `race mod`: does what a mod does, to try the interface by hand. It registers a loop of three
     /// checkpoints 150 m apart in front of the car and asks to start it.
     pub(in crate::scenes::world) fn try_mod_race(&mut self, demo: bool) -> Result<String, String> {
-        let drive = self.drive.as_ref().ok_or("not driving (use the drive command first)")?;
+        let drive = self.players.lead().ok_or("not driving (use the drive command first)")?;
         let at = drive.position();
         let heading = drive.heading();
         let ahead = |metres: f32| [at.x + heading.cos() * metres, at.y + heading.sin() * metres, at.z];

@@ -25,7 +25,7 @@ use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
 use crate::frontend::logic::QuitTo;
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, ScreenLogic, Sub};
 use crate::ui::Text;
 
 /// What the career car select asks the front end to do (`Command::CareerCar`, `flow_bust.rs`).
@@ -63,6 +63,26 @@ pub fn cost_of(career: &Career, handle: u32) -> u32 {
     career.data.cars.iter().find(|lot| lot.frontend_key == car.frontend_key).map_or(0, |lot| lot.price)
 }
 
+/// The rows the screen lists. The plain list keeps every row. Player 2's list of a co-op career leaves out player 1's
+/// current car and the impounded cars; with no other car free to drive, player 2 shares player 1's car, so co-op can
+/// start with a one-car garage (`docs/specs/coop-career.md`, section 3.1 item 3).
+pub fn choices(rows: Vec<Item>, career: &Career, coop: bool) -> Vec<Item> {
+    if !coop {
+        return rows;
+    }
+    let current = career.settings.car_handle;
+    let free = |handle: u32| record_of(career, handle).is_some_and(|r| r.is_free_to_drive());
+    let others: Vec<Item> = rows
+        .iter()
+        .filter(|item| matches!(item.key, Key::Owned(handle) if handle != current && free(handle)))
+        .cloned()
+        .collect();
+    if !others.is_empty() {
+        return others;
+    }
+    rows.into_iter().filter(|item| item.key == Key::Owned(current)).collect()
+}
+
 /// A number that changes whenever something the screen draws changes, so a tick can redraw after an action.
 fn signature(career: &Career, rows: &[Item], shown: Option<u32>) -> u64 {
     let mut sig = u64::from(career.settings.cash);
@@ -90,16 +110,38 @@ pub struct CareerCarSelectLogic {
     drawn: Option<u64>,
     /// The game-over check ran (its notice can only be raised from a tick: the commands of `start` are not run).
     checked: bool,
+    /// Player 2's pick in a co-op career: the car goes to the co-op flow and player 1's current car stays as it is.
+    coop: bool,
 }
 
 impl CareerCarSelectLogic {
     /// The screen with an entry animation, on the current car.
     pub fn new(entry: CarSelectEntry) -> Self {
-        Self { entry, cursor: 0, original: 0, drawn: None, checked: false }
+        Self { entry, cursor: 0, original: 0, drawn: None, checked: false, coop: false }
+    }
+
+    /// Player 2's car select of a co-op career (`Args::coop`).
+    pub fn coop() -> Self {
+        Self { coop: true, ..Self::new(CarSelectEntry::Plain) }
+    }
+
+    /// Runs `f` on the career this screen shows: the played one, or in co-op the loaded profile, since player 2 picks
+    /// from the career menu before the career resumes.
+    fn read<R>(&self, f: impl FnOnce(&mut Career) -> R) -> Option<R> {
+        let handle = CareerHandle::shared();
+        match self.coop {
+            true => handle.with_loaded(f),
+            false => handle.with(f),
+        }
+    }
+
+    /// The rows this screen lists, in the career's order.
+    fn list(&self, career: &Career) -> Vec<Item> {
+        choices(items(career, Tab::Owned), career, self.coop)
     }
 
     fn rows(&self) -> Vec<Item> {
-        CareerHandle::shared().with(|career| items(career, Tab::Owned)).unwrap_or_default()
+        self.read(|career| self.list(career)).unwrap_or_default()
     }
 
     /// The handle of the shown row.
@@ -112,12 +154,12 @@ impl CareerCarSelectLogic {
 
     /// Draws everything for the shown car.
     fn fill(&mut self, cx: &mut Cx) {
-        let drawn = CareerHandle::shared().with(|career| self.draw(cx, career));
+        let drawn = self.read(|career| self.draw(cx, career));
         self.drawn = drawn;
     }
 
     fn draw(&self, cx: &mut Cx, career: &Career) -> u64 {
-        let rows = items(career, Tab::Owned);
+        let rows = self.list(career);
         let row = rows.get(self.cursor);
         let handle = row.and_then(|item| match item.key {
             Key::Owned(handle) => Some(handle),
@@ -159,14 +201,21 @@ impl CareerCarSelectLogic {
         self.fill(cx);
     }
 
-    /// The shown car becomes the career's current car (`SetCurrentCar`).
+    /// The shown car becomes the career's current car (`SetCurrentCar`). Player 2's pick leaves player 1's car alone.
     fn choose_shown(&self) {
+        if self.coop {
+            return;
+        }
         let Some(handle) = self.shown() else { return };
         CareerHandle::shared().with(|career| career.settings.car_handle = handle);
     }
 
     fn accept(&mut self, cx: &mut Cx) {
         let Some(handle) = self.shown() else { return };
+        if self.coop {
+            self.accept_coop(cx, handle);
+            return;
+        }
         let command = CareerHandle::shared().with(|career| accept_command(career, handle, cx)).flatten();
         match command {
             Some(command) => cx.send(command),
@@ -174,7 +223,17 @@ impl CareerCarSelectLogic {
         }
     }
 
+    /// Player 2 seats the car with this handle in the co-op flow, with the gearbox the settings hold (the screen asks none).
+    fn accept_coop(&self, cx: &mut Cx, handle: u32) {
+        let transmission = cx.settings.transmission;
+        cx.send(Command::CoopSecondCar { handle, transmission });
+    }
+
     fn back(&mut self, cx: &mut Cx) {
+        if self.coop {
+            cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), career_menu_args()));
+            return;
+        }
         let blocked = CareerHandle::shared()
             .with(|career| record_of(career, self.original).is_some_and(back_is_blocked))
             .unwrap_or(false);
@@ -246,6 +305,11 @@ fn safehouse_args() -> Args {
     Args { safehouse: true, ..Args::default() }
 }
 
+/// The career main menu (Resume Career, Start New Career, Load), as the career flow opens it.
+fn career_menu_args() -> Args {
+    Args { sub: Sub::Career, ..Args::default() }
+}
+
 /// What Accept does on the car with this handle: the release choice for an impounded car, nothing (leave) for a free one.
 fn accept_command(career: &Career, handle: u32, cx: &Cx) -> Option<Command> {
     let record = record_of(career, handle)?;
@@ -302,10 +366,10 @@ pub fn use_strike_marker(career: &mut Career, handle: u32) -> Result<(), Text> {
 
 impl ScreenLogic for CareerCarSelectLogic {
     fn start(&mut self, cx: &mut Cx) {
-        let (original, cursor) = CareerHandle::shared()
-            .with(|career| {
+        let (original, cursor) = self
+            .read(|career| {
                 let current = career.settings.car_handle;
-                let rows = items(career, Tab::Owned);
+                let rows = self.list(career);
                 let cursor = rows.iter().position(|item| item.key == Key::Owned(current)).unwrap_or(0);
                 (current, cursor)
             })
@@ -342,8 +406,8 @@ impl ScreenLogic for CareerCarSelectLogic {
             self.checked = true;
             self.check_game_over(cx);
         }
-        let now = CareerHandle::shared().with(|career| {
-            let rows = items(career, Tab::Owned);
+        let now = self.read(|career| {
+            let rows = self.list(career);
             let shown = rows.get(self.cursor).and_then(|item| match item.key {
                 Key::Owned(handle) => Some(handle),
                 Key::Lot(_) => None,

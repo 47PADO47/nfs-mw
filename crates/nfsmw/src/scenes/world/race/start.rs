@@ -87,7 +87,7 @@ impl WorldScene {
         if !startable::can_start(&race) {
             return Err(format!("{} is a {:?} race, which this version does not run", race.name, race.race_type));
         }
-        if self.drive.is_none() {
+        if self.players.is_empty() {
             return Err("not driving (use the drive command first)".into());
         }
         if race.race_type == Some(RaceType::Challenge) {
@@ -105,10 +105,18 @@ impl WorldScene {
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
-        let split = self.queued_split.take();
-        let opponents = match &split {
-            Some(setup) => vec![setup.second_player()],
-            None => setup::opponents_of(&data, &race, &options, &resolve_preset),
+        // A co-op race seats player 2 as a split-screen race does, among the race's own opponents (`players/race.rs`).
+        let coop = self.coop_race_setup(&race);
+        let queued = self.queued_split.take();
+        let split = coop.clone().or(queued);
+        let opponents = match (&split, coop.is_some()) {
+            (Some(setup), true) => {
+                let mut opponents = vec![setup.second_player()];
+                opponents.extend(setup::opponents_of(&data, &race, &options, &resolve_preset));
+                opponents
+            }
+            (Some(setup), false) => vec![setup.second_player()],
+            (None, _) => setup::opponents_of(&data, &race, &options, &resolve_preset),
         };
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
@@ -119,6 +127,7 @@ impl WorldScene {
                 return Err("a split-screen race needs the road network of the track".into());
             }
             setup.name_players(&mut plan);
+            self.name_coop_racers(&mut plan);
         }
         let p = &race.params;
         let prepared = Prepared {
@@ -133,7 +142,7 @@ impl WorldScene {
         let prepared_catch_up = prepared.catch_up;
         let speed = if prepared.rolling { prepared.initial_speed } else { 0.0 };
         let player_spawn = plan[0].spawn;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.place_exactly(player_spawn, speed);
             drive.hold_on_grid(!prepared.rolling);
         }
@@ -151,7 +160,7 @@ impl WorldScene {
         // A Heat Level above None starts a chase at the green light (`heat.rs`) and the car carries its heat into any later
         // chase; None calls off a chase unless the race is a pursuit race (`docs/specs/custom-race.md` section 4). A split-screen
         // race has no police (`docs/specs/split-screen.md`).
-        let police = match split.is_some() {
+        let police = match split.is_some() && coop.is_none() {
             true => Police::CallOff,
             false => heat::police_of(options.heat, p.pursuit_race),
         };
@@ -173,6 +182,8 @@ impl WorldScene {
         );
         let racers = plan.len();
         self.split = split.map(crate::scenes::world::split::SplitState::new);
+        self.park_guest_for_race();
+        self.second_view = crate::scenes::world::split::SecondView::new();
         // Only the race's own walls stand during the run: the stage's region gates are lifted first and come back with
         // the race's end (`docs/specs/career-regions.md` section 3.5).
         self.lift_region_gates();

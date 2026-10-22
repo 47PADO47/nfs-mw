@@ -2,6 +2,9 @@
 //! options, the Press Start screens that seat the devices, and the car selects of the two players. Skipped without
 //! `NFSMW_GAME_DIR`. The screens share the custom race's state, so the tests take its turn.
 
+/// The co-op career entry reuses this flow's Press Start screens (`docs/specs/coop-career.md` section 3).
+mod coop_flow;
+
 use super::custom_race_screen_tests::{TURN, install, open_in, read};
 use super::*;
 use crate::frontend::custom_race::settings::Row;

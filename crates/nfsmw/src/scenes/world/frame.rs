@@ -13,7 +13,7 @@ impl WorldScene {
         let mut visible = std::mem::take(&mut self.visible);
         self.fill_view(&lens, super::split::Viewer::First, &mut visible);
         self.visible = visible;
-        let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
+        let drive_cut = self.players.lead_mut().is_some_and(|drive| drive.take_camera_cut());
         let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
             view: lens.view,

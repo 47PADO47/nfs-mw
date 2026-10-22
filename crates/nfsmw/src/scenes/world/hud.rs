@@ -3,21 +3,13 @@
 use glam::Vec3;
 use nfsmw_data::gameplay::{ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
+use super::hud_pursuit::pursuit_board;
+use super::players::LEAD;
 use super::{View, WorldScene, space};
-use crate::audio::PursuitFeed;
 use crate::hud::{
-    AUTO_SHOP, CAR_LOT, MapBlip, PursuitHud, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
-    RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, CAR_LOT, MapBlip, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH,
+    SAFE_HOUSE,
 };
-
-/// The chase as the pursuit board shows it: the timer and the wrecked cops. The evade share is what the feed gives (the
-/// part of the timeout done); the board's bar takes the cool-down meter instead, see [`WorldScene::hud_frame`].
-fn pursuit_hud(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
-    PursuitHud {
-        cops_destroyed,
-        ..PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
-    }
-}
 
 impl WorldScene {
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
@@ -28,7 +20,7 @@ impl WorldScene {
         if self.view == View::Fly {
             return false;
         }
-        let Some(drive) = self.drive.as_ref() else { return false };
+        let Some(drive) = self.players.lead() else { return false };
         if drive.camera_looking_back(self.camera_mode) && !self.tuning.show_hud_on_look_back {
             return false;
         }
@@ -42,18 +34,23 @@ impl WorldScene {
             return hidden;
         }
         // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
-        let mut hud = self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden);
+        let mut hud = self.players.lead().and_then(|drive| drive.hud_state()).or(hidden);
         if let Some(state) = hud.as_mut() {
             state.skin = self.garage.applied.gauges.skin;
             state.gauge_colors = self.garage.applied.gauges.colors();
             if let Some(blip) = self.route_blip() {
                 state.blips.push(blip);
             }
+            // The co-op guest's car, for the world map's second mark.
+            state.second_player = self.players.first_guest().map(|drive| {
+                let pose = drive.pose();
+                crate::scenes::world::split::map_position(pose.position, pose.rotation * Vec3::X)
+            });
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
                 self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
                 let mut meter = 0.0;
-                if let Some(drive) = &self.drive {
+                if let Some(drive) = self.players.lead() {
                     let player = drive.player_view();
                     state.radar = traffic.radar(player.position, player.forward);
                     meter = traffic.pursuit_meter(player.position, player.speed);
@@ -62,34 +59,17 @@ impl WorldScene {
                 state.vehicle_heat = traffic.vehicle_heat();
                 state.cops_engaged = traffic.cops_engaged();
                 state.cops_damaged = traffic.cops_damaged();
-                let wrecked = traffic.cops_destroyed();
-                // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter
-                // (`evade_level`) starts at the grace's share (`docs/specs/ai-pursuit.md` section 6).
-                state.pursuit = traffic.pursuit_feed().map(|feed| PursuitHud {
-                    evade: traffic.cooldown_bar(),
-                    busted: meter,
-                    cooldown: traffic.cooldown_shown(),
-                    hiding: traffic.hiding_fill(),
-                    ..pursuit_hud(feed, wrecked)
-                });
+                state.pursuit = pursuit_board(traffic, meter);
                 if traffic.arrest_active() {
-                    state.pursuit = Some(PursuitHud {
-                        secs: traffic.pursuit_time(),
-                        evade: 0.0,
-                        cops_destroyed: wrecked,
-                        busted: 1.0,
-                        cooldown: false,
-                        hiding: None,
-                    });
                     state.radar = None;
                 }
-                state.busted = traffic.busted_meter();
+                state.busted = self.busted_meter_for(LEAD, traffic);
                 state.busted_overlay = traffic.busted_overlay();
             }
             self.career.hud.apply(state);
             state.race = self.race_hud();
             state.leaders = self.race_leaders();
-            state.message = self.race_message();
+            state.message = self.race_message().or_else(|| self.lead_catch_up_line());
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();
             self.race_blips(&mut state.blips);

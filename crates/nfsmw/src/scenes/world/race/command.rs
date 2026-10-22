@@ -36,7 +36,7 @@ fn split_setup(arg: &str, scene: &WorldScene) -> Result<super::SplitSetup, Strin
         return Err("split= needs the second player's car, e.g. split=PORSCHE911".into());
     }
     let first =
-        scene.drive.as_ref().map_or_else(|| crate::scenes::world::DEFAULT_CAR.to_owned(), |d| d.car_name.clone());
+        scene.players.lead().map_or_else(|| crate::scenes::world::DEFAULT_CAR.to_owned(), |d| d.car_name.clone());
     Ok(super::SplitSetup {
         cars: [first, car.to_owned()],
         devices: [crate::input::PlayerDevice::Keyboard, crate::input::PlayerDevice::KeyboardArrows],

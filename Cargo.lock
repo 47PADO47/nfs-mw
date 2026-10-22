@@ -3897,6 +3897,7 @@ dependencies = [
  "blackbox-mixmap",
  "blackbox-modding",
  "blackbox-movie",
+ "blackbox-net-core",
  "blackbox-nis",
  "blackbox-paramap",
  "blackbox-particles",

@@ -27,21 +27,32 @@ pub(super) struct SplitState {
     pub actions: ActionState,
     /// The second player's chase camera, following their racer.
     pub camera: ChaseCamera,
-    /// The second player's view of the world, rebuilt each frame.
-    pub visible: Vec<Instance>,
-    cut: CameraCut,
 }
 
 impl SplitState {
     pub fn new(setup: SplitSetup) -> Self {
-        let mut cut = CameraCut::default();
-        cut.arm();
-        Self { setup, actions: ActionState::default(), camera: ChaseCamera::default(), visible: Vec::new(), cut }
+        Self { setup, actions: ActionState::default(), camera: ChaseCamera::default() }
     }
 
     /// The pedals the second player holds, from their actions.
     pub fn pedals(&self) -> DriveInput {
         DriveInput::from_actions(&self.actions, WheelOptions::default())
+    }
+}
+
+/// The bottom half of a split screen, for a split-screen race and for co-op alike: its draw list and its camera cut.
+pub(super) struct SecondView {
+    /// The second player's view of the world, rebuilt each frame.
+    pub visible: Vec<Instance>,
+    cut: CameraCut,
+}
+
+impl SecondView {
+    /// A view whose first frame is a cut.
+    pub fn new() -> Self {
+        let mut cut = CameraCut::default();
+        cut.arm();
+        Self { visible: Vec::new(), cut }
     }
 
     /// Whether the second camera jumped since the last frame (the first frame of the match).
@@ -74,13 +85,6 @@ impl WorldScene {
     pub(super) fn second_player_position(&self) -> Option<Vec3> {
         self.split.as_ref()?;
         Some(self.traffic.as_ref()?.racer_followed(SECOND, 1.0)?.position)
-    }
-
-    /// The middle of the two cars while a split-screen match is on, so the world around both stays loaded.
-    pub(super) fn split_focus(&self, first: Vec3) -> Option<[f32; 2]> {
-        let second = self.second_player_position()?;
-        let middle = (first + second) * 0.5;
-        Some([middle.x, middle.y])
     }
 
     /// The match is over: nothing of it stays in the world.

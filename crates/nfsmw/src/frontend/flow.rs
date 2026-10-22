@@ -32,6 +32,8 @@ mod flow_arrival;
 mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_coop.rs"]
+mod flow_coop;
 #[path = "flow_cover.rs"]
 mod flow_cover;
 #[path = "flow_custom.rs"]
@@ -195,6 +197,8 @@ pub struct Frontend {
     race_options: Option<crate::scenes::world::RaceOptions>,
     /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
     split: Option<crate::scenes::world::SplitSetup>,
+    /// The co-op session in progress: player 2 and both players' devices (`flow_coop.rs`); the world takes player 2 when built.
+    coop: Option<flow_coop::CoopSession>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
     /// The race on the grid was started again from the pause menu or the results: it stays on its start, so no loading screen
@@ -250,6 +254,7 @@ impl Frontend {
             quick_car: None,
             race_options: None,
             split: None,
+            coop: None,
             drive_to_safe_house: false,
             restarting: false,
             safe_house_start: Default::default(),
@@ -378,7 +383,7 @@ impl Frontend {
         self.paused.set(true);
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
-        let pause_ctx = PauseCtx { race, quit: self.origin };
+        let pause_ctx = PauseCtx { race, quit: self.origin, ..flow_coop::coop_pause(host) };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -426,6 +431,9 @@ impl Frontend {
                 Command::StartSplitRace { race, options, setup } => {
                     self.start_split_race(race, options, setup, host, env)
                 }
+                Command::CoopSecondCar { handle, transmission } => {
+                    self.coop_second_car(handle, transmission, host, env)
+                }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
@@ -435,6 +443,7 @@ impl Frontend {
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
+                Command::EndCoop => self.end_coop_from_pause(host, env),
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
                     self.resume_driving(env);

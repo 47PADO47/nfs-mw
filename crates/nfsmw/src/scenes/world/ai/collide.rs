@@ -66,7 +66,7 @@ pub struct Strikes {
 }
 
 /// Whether the bounding spheres of two bodies touch, a cheap test before the box test.
-fn near(a: &CarSim, b: &CarSim) -> bool {
+pub(super) fn near(a: &CarSim, b: &CarSim) -> bool {
     if !a.is_finite() || !b.is_finite() {
         return false;
     }

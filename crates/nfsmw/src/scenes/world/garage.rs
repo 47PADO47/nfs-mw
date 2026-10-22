@@ -130,7 +130,7 @@ impl WorldScene {
         if selection.car == self.last_car
             && !changed_parts
             && selection.color == self.garage.applied.color
-            && let Some(drive) = self.drive.as_mut()
+            && let Some(drive) = self.players.lead_mut()
         {
             if let Some(physics) = physics {
                 drive.set_performance(physics, selection.performance);
@@ -141,7 +141,7 @@ impl WorldScene {
         if selection.car == self.last_car
             && !changed_parts
             && let Some(rgb) = selection.color
-            && let Some(drive) = self.drive.as_mut()
+            && let Some(drive) = self.players.lead_mut()
         {
             drive.recolor(renderer, rgb, self.sun.to_sun())?;
             if let Some(physics) = physics {
@@ -164,7 +164,7 @@ impl WorldScene {
         // Loading, paint validation and physics validation precede replacing the active rig.
         self.physics_of(&model)?;
         if folder == self.last_car
-            && let Some(drive) = self.drive.as_mut()
+            && let Some(drive) = self.players.lead_mut()
         {
             drive.replace_model(renderer, model, self.car_shading, self.sun.to_sun());
             if let Some(physics) = physics {
@@ -175,7 +175,7 @@ impl WorldScene {
             return Ok(());
         }
         self.start_driving(renderer, folder, model, None)?;
-        if let Some(drive) = self.drive.as_mut()
+        if let Some(drive) = self.players.lead_mut()
             && let Some(physics) = physics
         {
             drive.set_performance(physics, selection.performance);
@@ -189,7 +189,7 @@ impl WorldScene {
     fn commit_garage_selection(&mut self, selection: Selection, tunings: blackbox_vehicle::Tunings) {
         // The parts this fits cool the career car's heat (`career/cooling.rs`), compared with what was applied before.
         self.career_garage_cooling(&selection);
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.set_tuning(selection.tuning, tunings);
         }
         self.garage.applied = selection.clone();

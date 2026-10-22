@@ -10,17 +10,48 @@ fn cutscene_owns_sound(movie: bool, nis: bool, race_intro: bool) -> bool {
 }
 
 impl WorldScene {
+    /// The lead's car, for its engine voice.
     pub(super) fn audio_state(&mut self) -> Option<crate::audio::CarSoundState> {
         if self.garage_open {
             return None;
         }
-        let race_intro = self.race.as_ref().is_some_and(|race| matches!(race.stage, Stage::Intro { .. }));
-        if cutscene_owns_sound(self.story_movie.is_playing(), self.nis.is_playing(), race_intro) {
+        if self.car_silenced() {
             return None;
         }
+        let pose = self.players.lead()?.pose();
+        let state = self.players.lead_mut()?.car_sound()?;
+        Some(self.listened_car_state(state, pose))
+    }
+
+    /// The first guest's car, for player 2's own engine voice in a co-op session. The listener is still player 1's
+    /// camera: one listener hears both voices.
+    pub(super) fn guest_audio_state(&mut self) -> Option<crate::audio::CarSoundState> {
+        if self.garage_open {
+            return None;
+        }
+        if self.car_silenced() {
+            return None;
+        }
+        let guest = self.players.guests_mut().next()?;
+        let pose = guest.drive.pose();
+        let state = guest.drive.car_sound()?;
+        Some(self.listened_car_state(state, pose))
+    }
+
+    /// A story cutscene owns the sound: no engine voice plays under it.
+    fn car_silenced(&self) -> bool {
+        let race_intro = self.race.as_ref().is_some_and(|race| matches!(race.stage, Stage::Intro { .. }));
+        cutscene_owns_sound(self.story_movie.is_playing(), self.nis.is_playing(), race_intro)
+    }
+
+    /// The car's sound with the view it is heard from: the car at `pose`, the gameplay lens of the frame and the
+    /// environment at the car.
+    fn listened_car_state(
+        &self,
+        mut state: crate::audio::CarSoundState,
+        pose: crate::scenes::world::drive::CarPose,
+    ) -> crate::audio::CarSoundState {
         let lens = self.gameplay_lens(1.0);
-        let pose = self.drive.as_ref()?.pose();
-        let mut state = self.drive.as_mut()?.car_sound()?;
         let (camera_state, view_value) = match self.camera_mode {
             CameraMode::Bumper => (1, 0),
             CameraMode::Hood => (2, 4000),
@@ -48,7 +79,7 @@ impl WorldScene {
                 .and_then(|position| self.audio_environment.as_ref().map(|map| map.at(position)));
         }
         state.telemetry.environment = Some(state.view.environment);
-        Some(state)
+        state
     }
 }
 

@@ -6,6 +6,7 @@
 
 mod bust;
 mod cooling;
+mod coop_bust;
 mod drive_to_target;
 mod events;
 mod hud;
@@ -68,6 +69,7 @@ impl WorldScene {
 
     /// The career's part of a frame.
     pub(super) fn update_career(&mut self, dt: f32) {
+        self.coop_auto_pay_ticket();
         if !self.career.handle.is_active() {
             return;
         }

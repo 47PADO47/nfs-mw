@@ -7,9 +7,9 @@ use crate::scenes::world::{View, WorldScene};
 use crate::settings::TrafficSettings;
 
 impl WorldScene {
-    /// Where traffic spawns around: the car, or the free camera.
+    /// Where traffic spawns around: the car the police follow (the lead outside co-op), or the free camera.
     pub(in crate::scenes::world) fn traffic_focus(&self) -> Focus {
-        match (&self.drive, self.view) {
+        match (self.players.get(self.chase_primary()), self.view) {
             (Some(drive), View::Chase) => {
                 let (p, heading, speed) = (drive.position(), drive.heading(), drive.speed());
                 let body = drive.ai_body();
@@ -22,6 +22,30 @@ impl WorldScene {
                 body: None,
             },
         }
+    }
+
+    /// Every other player as the traffic sees it (all but the car the police follow): its car as a focus and its
+    /// camera (`population/guests.rs`).
+    fn guest_traffic_views(&self) -> Vec<(Focus, crate::viewer::camera::Lens)> {
+        if self.view != View::Chase {
+            return Vec::new();
+        }
+        let primary = self.chase_primary();
+        self.players
+            .iter()
+            .filter(|guest| guest.id != primary && guest.drive.has_sim())
+            .map(|guest| {
+                let drive = &guest.drive;
+                let p = drive.position();
+                let focus = Focus {
+                    position: [p.x, p.y],
+                    heading: drive.heading(),
+                    speed: drive.speed(),
+                    body: Some(drive.ai_body()),
+                };
+                (focus, self.car_lens(drive, drive.camera(), self.physics_aspect))
+            })
+            .collect()
     }
 
     /// The traffic settings changed (or came in for the first time). A change of the car count or the cop share
@@ -42,7 +66,7 @@ impl WorldScene {
     fn traffic_wanted(&self) -> usize {
         match self.traffic_manual {
             Some(n) => n,
-            None if self.drive.is_some() => self.traffic_setting.cars as usize,
+            None if self.players.has_lead() => self.traffic_setting.cars as usize,
             None => 0,
         }
     }
@@ -64,7 +88,9 @@ impl WorldScene {
     pub(in crate::scenes::world) fn prepare_traffic(&mut self, renderer: &mut dyn RenderBackend) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
         let barred = self.race_bars_cops();
+        let guests = self.guest_traffic_views();
         let Some(traffic) = self.traffic.as_mut() else { return };
+        traffic.set_guests(guests);
         traffic.configure(wanted, share);
         traffic.bar_cops(barred);
         traffic.set_policy(self.traffic_setting.policy);

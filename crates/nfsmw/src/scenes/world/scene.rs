@@ -72,7 +72,7 @@ impl Scene for WorldScene {
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
         self.tire_effects = [smoke, skid_marks];
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_enabled(smoke, skid_marks);
         }
     }
@@ -89,7 +89,7 @@ impl Scene for WorldScene {
             self.impact_fx.clear();
         }
         self.spark_style = style;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.vehicle_effects.set_style(style);
         }
     }
@@ -107,13 +107,13 @@ impl Scene for WorldScene {
 
     fn set_exhaust_flames(&mut self, on: bool) {
         self.exhaust_flames = on;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.flames.set_enabled(on);
         }
     }
 
     fn note_sputters(&mut self, pops: u32) {
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.flames.note_pops(pops);
         }
     }
@@ -141,7 +141,7 @@ impl Scene for WorldScene {
     }
 
     fn takes_camera_setting(&self) -> bool {
-        self.drive.is_some()
+        self.players.has_lead()
     }
 
     fn set_detail(&mut self, detail: crate::settings::DetailSettings) {
@@ -162,7 +162,7 @@ impl Scene for WorldScene {
 
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
         self.smoke_quality = quality;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_quality(quality);
         }
     }
@@ -187,7 +187,7 @@ impl Scene for WorldScene {
 
     fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
         // Each half of a split screen has no mirror; the picture is the two views.
-        match self.split.is_some() {
+        match self.split_on() {
             true => None,
             false => self.rear_frame(aspect),
         }
@@ -197,10 +197,25 @@ impl Scene for WorldScene {
         if let Some(split) = self.split.as_mut() {
             split.actions = input.clone();
         }
+        if self.players.has_guests() {
+            self.inputs.set(super::players::PlayerId(1), input);
+        }
     }
 
     fn split_active(&self) -> bool {
-        self.split.is_some()
+        self.split_on()
+    }
+
+    fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
+        self.coop.as_ref().map(|session| session.device)
+    }
+
+    fn end_coop(&mut self) {
+        self.queue_end_coop();
+    }
+
+    fn coop_end_locked(&self) -> bool {
+        self.coop_end_locked()
     }
 
     fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {
@@ -224,12 +239,12 @@ impl Scene for WorldScene {
     fn status(&self) -> Option<String> {
         let (resident, loading, shared) = self.residency.counts();
         let (eligible, selected) = self.residency.shadow_support_counts();
-        let p = match (&self.drive, self.view) {
+        let p = match (self.players.lead(), self.view) {
             (Some(drive), View::Chase) => drive.position(),
             _ => self.camera.position,
         };
         let zone = self.residency.zone().unwrap_or_else(|| "-".into());
-        let markers = match (&self.drive, self.markers_on) {
+        let markers = match (self.players.lead(), self.markers_on) {
             (Some(drive), true) => {
                 let (walls, tyres) = drive.marker_counts();
                 format!(", {walls} contacts, {tyres} tyre rays")
@@ -249,13 +264,13 @@ impl Scene for WorldScene {
     }
 
     fn set_transmission(&mut self, transmission: crate::settings::Transmission) {
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.set_transmission(transmission);
         }
     }
 
     fn set_wheel_options(&mut self, wheel: crate::settings::WheelOptions) {
-        self.drive.iter_mut().for_each(|drive| drive.set_wheel_options(wheel));
+        self.players.drives_mut().for_each(|drive| drive.set_wheel_options(wheel));
     }
 
     fn set_traffic(&mut self, traffic: crate::settings::TrafficSettings) {
@@ -274,7 +289,7 @@ impl Scene for WorldScene {
         if self.moment.hides_hud() {
             return None;
         }
-        let looking_back = self.drive.as_ref().is_some_and(|d| d.camera_looking_back(self.camera_mode));
+        let looking_back = self.players.lead().is_some_and(|d| d.camera_looking_back(self.camera_mode));
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;
         }
@@ -283,6 +298,10 @@ impl Scene for WorldScene {
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.audio_state()
+    }
+
+    fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        self.guest_audio_state()
     }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
@@ -331,7 +350,7 @@ impl Scene for WorldScene {
     }
 
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
-        let drive = self.drive.as_ref()?;
+        let drive = self.players.lead()?;
         let lines = drive.readout(level);
         Some(match self.view {
             View::Chase => lines,
@@ -386,6 +405,10 @@ impl Scene for WorldScene {
         self.spawn_traffic_to(at, heading)
     }
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        // Co-op has no ticket screen: `coop_auto_pay_ticket` pays the ticket itself.
+        if self.coop.is_some() {
+            return None;
+        }
         self.traffic.as_mut()?.take_bust_ticket()
     }
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {

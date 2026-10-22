@@ -34,6 +34,7 @@ blackbox-chunk.workspace = true
 blackbox-collision.workspace = true
 blackbox-damage.workspace = true
 blackbox-driver.workspace = true
+blackbox-net-core.workspace = true
 blackbox-pursuit.workspace = true
 blackbox-race.workspace = true
 blackbox-speedfx.workspace = true

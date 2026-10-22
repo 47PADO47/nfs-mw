@@ -20,6 +20,8 @@ pub struct WorldMapOverlay {
     pub player: [f32; 2],
     /// The player's car on the picture, once a calibration places it.
     pub player_mark: Option<PlayerMark>,
+    /// The second co-op player's car on the picture, once a calibration places it.
+    pub second_mark: Option<PlayerMark>,
     /// The racers and police cars, placed on the picture; drawn on every tab.
     pub live: Vec<LiveBlip>,
     /// The picture of the career stage's map (`MapVariant::world_map_texture`); empty until the map opens.
@@ -79,15 +81,11 @@ impl WorldMapOverlay {
         self.pictures.poll(assets);
     }
 
-    /// Places the blips the scene reported. Without a calibration there is nothing to place.
-    pub fn refresh(&mut self, blips: &[MapBlip], player: Option<&MapPosition>) {
+    /// Places the blips the scene reported, and the players' cars. Without a calibration there is nothing to place.
+    pub fn refresh(&mut self, blips: &[MapBlip], player: Option<&MapPosition>, second: Option<&MapPosition>) {
         self.player = player.map_or(self.player, |p| p.position);
-        self.player_mark = match (player, &self.calibration) {
-            (Some(p), Some(calibration)) => {
-                Some(PlayerMark { map: calibration.to_map(p.position), bearing: bearing_degrees(p.heading) })
-            }
-            _ => None,
-        };
+        self.player_mark = mark_of(player, self.calibration);
+        self.second_mark = mark_of(second, self.calibration);
         self.blips = match self.calibration {
             Some(calibration) => placed(blips, &calibration),
             None => Vec::new(),
@@ -108,12 +106,21 @@ impl WorldMapOverlay {
             event_picture: self.event_picture.filter(|_| self.pictures.loaded()),
             player: self.player,
             player_mark: self.player_mark,
+            second_mark: self.second_mark,
             chrome,
             texture: self.texture,
             clock: self.clock,
             snap_age: self.clock - self.snap_since,
         }
     }
+}
+
+/// A car's mark on the picture: its place and its bearing. `None` without a position or a calibration to place it.
+fn mark_of(at: Option<&MapPosition>, calibration: Option<Calibration>) -> Option<PlayerMark> {
+    let (Some(at), Some(calibration)) = (at, calibration) else {
+        return None;
+    };
+    Some(PlayerMark { map: calibration.to_map(at.position), bearing: bearing_degrees(at.heading) })
 }
 
 /// The racers, the police cars and helicopter and the race's next checkpoint among `blips`, placed on the picture. A thing
@@ -220,11 +227,34 @@ mod tests {
         overlay.session.filter = Filter::Races;
         use blackbox_minimap::Orientation;
         let at = MapPosition { position: [5.0, 6.0], heading: [0.0, 1.0], orientation: Orientation::North };
-        overlay.refresh(&[], Some(&at));
+        overlay.refresh(&[], Some(&at), None);
         assert_eq!(overlay.player, [5.0, 6.0]);
         overlay.close(&UiAssets::empty());
         assert!(!overlay.open && overlay.blips.is_empty());
         assert_eq!(overlay.session.filter, Filter::DEFAULT);
+    }
+
+    #[test]
+    fn each_co_op_player_has_a_mark_of_their_own() {
+        use blackbox_minimap::Orientation;
+        let mut overlay = WorldMapOverlay { calibration: Some(CITY), ..Default::default() };
+        let at = |position| MapPosition { position, heading: [1.0, 0.0], orientation: Orientation::North };
+        let (lead, guest) = (at([5.0, 6.0]), at([100.0, 200.0]));
+        overlay.refresh(&[], Some(&lead), Some(&guest));
+        assert_eq!(overlay.player_mark.map(|m| m.map), Some(CITY.to_map([5.0, 6.0])));
+        assert_eq!(overlay.second_mark.map(|m| m.map), Some(CITY.to_map([100.0, 200.0])));
+        assert_eq!(overlay.frame(Chrome::Drawn).second_mark, overlay.second_mark);
+        overlay.refresh(&[], Some(&lead), None);
+        assert_eq!(overlay.second_mark, None, "a single player has no second mark");
+    }
+
+    #[test]
+    fn a_second_mark_needs_a_calibration_like_the_first() {
+        use blackbox_minimap::Orientation;
+        let mut overlay = WorldMapOverlay::default();
+        let at = MapPosition { position: [1.0, 2.0], heading: [0.0, 1.0], orientation: Orientation::North };
+        overlay.refresh(&[], Some(&at), Some(&at));
+        assert_eq!((overlay.player_mark, overlay.second_mark), (None, None));
     }
 
     #[test]

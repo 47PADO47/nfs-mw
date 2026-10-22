@@ -23,7 +23,7 @@ impl WorldScene {
         if !session.options.demo {
             return;
         }
-        let (Some(engine), Some(drive)) = (session.engine.as_ref(), self.drive.as_mut()) else { return };
+        let (Some(engine), Some(drive)) = (session.engine.as_ref(), self.players.lead_mut()) else { return };
         let Some(me) = engine.racers().first().filter(|r| r.racing()) else { return };
         if engine.phase() != Phase::Racing {
             return;

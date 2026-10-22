@@ -75,12 +75,18 @@ pub struct PursuitEnd {
 ///
 /// The profile pursuit history, the HUD notice and the bounty broadcast are left to the caller.
 pub fn end_player_pursuit(settings: &CareerSettings, stable: &mut Stable, result: &PursuitResult) -> PursuitEnd {
+    end_pursuit_for(settings.car_handle, stable, result)
+}
+
+/// [`end_player_pursuit`] for the car with this handle instead of the current car. The evade tick runs over the
+/// whole stable, as before; only the recorder's car changes.
+pub fn end_pursuit_for(handle: u32, stable: &mut Stable, result: &PursuitResult) -> PursuitEnd {
     let released_cars = if result.busted { 0 } else { stable.evade_tick() };
     let mut end = PursuitEnd { ticked: !result.busted, released_cars, recorded: None };
     if result.challenge_series {
         return end;
     }
-    let Some(record) = stable.career_for_handle_mut(settings.car_handle) else {
+    let Some(record) = stable.career_for_handle_mut(handle) else {
         return end;
     };
     end.recorded = Some(record_pursuit(record, result));
@@ -181,6 +187,19 @@ mod tests {
         let end = end_player_pursuit(&settings, &mut stable, &pursuit(false));
         assert_eq!(end.recorded, None);
         assert_eq!(stable.careers[0].evaded, 0);
+    }
+
+    #[test]
+    fn end_pursuit_for_matches_end_player_pursuit() {
+        for busted in [false, true] {
+            let (settings, mut by_settings) = setup();
+            let mut by_handle = by_settings.clone();
+            let result = pursuit(busted);
+            let a = end_player_pursuit(&settings, &mut by_settings, &result);
+            let b = end_pursuit_for(settings.car_handle, &mut by_handle, &result);
+            assert_eq!(a, b);
+            assert_eq!(by_settings, by_handle);
+        }
     }
 
     #[test]

@@ -34,53 +34,53 @@ fn installed_garage_repaints_and_rejects_bad_requests_without_replacing_the_car(
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(scene.ready(), "the selected car must actually be placed before checking repaint");
-    let before = scene.drive.as_ref().unwrap().pose();
+    let before = scene.players.lead().unwrap().pose();
     let paint = Selection { car: car.clone(), color: Some([220, 40, 30]), ..Default::default() };
     scene.apply_garage_selection(&mut renderer, paint.clone()).unwrap();
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before);
+    assert_eq!(scene.players.lead().unwrap().pose(), before);
     assert_eq!(scene.garage.applied, paint);
-    assert!(!scene.drive.as_ref().unwrap().hud_state().unwrap().has_nos);
+    assert!(!scene.players.lead().unwrap().hud_state().unwrap().has_nos);
     let mut upgraded = paint.clone();
     upgraded.performance = scene.garage.selected().unwrap().performance.maximum();
     scene.apply_garage_selection(&mut renderer, upgraded.clone()).unwrap();
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before, "upgrades must not respawn the car");
-    assert!(scene.drive.as_ref().unwrap().hud_state().unwrap().has_nos);
-    assert_eq!(scene.drive.as_ref().unwrap().performance, upgraded.performance);
+    assert_eq!(scene.players.lead().unwrap().pose(), before, "upgrades must not respawn the car");
+    assert!(scene.players.lead().unwrap().hud_state().unwrap().has_nos);
+    assert_eq!(scene.players.lead().unwrap().performance, upgraded.performance);
     let mut invalid = upgraded.clone();
     invalid.performance.levels[4] = 255;
     assert!(scene.apply_garage_selection(&mut renderer, invalid).is_err());
     assert_eq!(scene.garage.applied, upgraded);
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before);
+    assert_eq!(scene.players.lead().unwrap().pose(), before);
     scene.apply_garage_selection(&mut renderer, paint.clone()).unwrap();
-    assert!(!scene.drive.as_ref().unwrap().hud_state().unwrap().has_nos, "restoring stock removes an installed kit");
+    assert!(!scene.players.lead().unwrap().hud_state().unwrap().has_nos, "restoring stock removes an installed kit");
     let mut tuned = paint.clone();
     tuned.performance = upgraded.performance;
     tuned.tuning.profiles[0] = [-5, 5, -5, 5, 0, 5, -5];
     tuned.tuning.profiles[1] = [5, -5, 5, -5, 0, -5, 5];
     scene.apply_garage_selection(&mut renderer, tuned.clone()).unwrap();
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before, "tuning must not respawn the placed car");
-    assert_eq!(scene.drive.as_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
+    assert_eq!(scene.players.lead().unwrap().pose(), before, "tuning must not respawn the placed car");
+    assert_eq!(scene.players.lead_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
     tuned.tuning.active = 1;
     scene.apply_garage_selection(&mut renderer, tuned.clone()).unwrap();
-    assert_eq!(scene.drive.as_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
+    assert_eq!(scene.players.lead_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
     let mut invalid_tuning = tuned.clone();
     invalid_tuning.tuning.profiles[2][0] = 6;
     invalid_tuning.color = Some([1, 2, 3]);
     assert!(scene.apply_garage_selection(&mut renderer, invalid_tuning).is_err());
     assert_eq!(scene.garage.applied, tuned, "invalid tuning must fail before paint or hardware changes");
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before);
+    assert_eq!(scene.players.lead().unwrap().pose(), before);
     tuned.performance = Default::default();
     scene.apply_garage_selection(&mut renderer, tuned.clone()).unwrap();
-    assert_eq!(scene.drive.as_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
+    assert_eq!(scene.players.lead_mut().unwrap().sim_mut().unwrap().tunings(), tuned.tuning.normalized().unwrap());
     scene.apply_garage_selection(&mut renderer, paint.clone()).unwrap();
     scene.set_garage_open(true);
     for _ in 0..10 {
         scene.update(&mut renderer, &crate::input::ActionState::default(), 1.0 / 60.0);
     }
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), before, "garage must freeze physics");
+    assert_eq!(scene.players.lead().unwrap().pose(), before, "garage must freeze physics");
     let bogus = Selection { car: "MISSING_VEHICLE".into(), color: None, ..Default::default() };
     assert!(scene.apply_garage_selection(&mut renderer, bogus).is_err());
-    assert_eq!(scene.drive.as_ref().unwrap().car_name, car);
+    assert_eq!(scene.players.lead().unwrap().car_name, car);
     assert_eq!(scene.garage.applied, paint);
     let fixed =
         scene.garage.cars.iter().find(|car| !car.paintable && car.unavailable.is_none()).unwrap().folder.clone();
@@ -114,15 +114,15 @@ fn installed_garage_repaints_and_rejects_bad_requests_without_replacing_the_car(
     for _ in 0..30 {
         scene.update(&mut renderer, &crate::input::ActionState::default(), 1.0 / 60.0);
     }
-    let on_road = scene.drive.as_ref().unwrap().pose();
+    let on_road = scene.players.lead().unwrap().pose();
     let mut throttle = crate::input::ActionState::default();
     throttle.update_for_test(&crate::input::Bindings::default(), &[bevy_input::keyboard::KeyCode::ArrowUp], &[], false);
     for _ in 0..120 {
         scene.update(&mut renderer, &throttle, 1.0 / 60.0);
     }
-    let delta = scene.drive.as_ref().unwrap().pose().position - on_road.position;
+    let delta = scene.players.lead().unwrap().pose().position - on_road.position;
     assert!(glam::Vec2::new(delta.x, delta.y).length() > 0.5, "resident-road drive must move: {delta:?}");
-    let sim = scene.drive.as_mut().unwrap().sim_mut().unwrap();
+    let sim = scene.players.lead_mut().unwrap().sim_mut().unwrap();
     assert!(sim.is_finite());
     assert!(sim.telemetry().wheels_on_ground >= 3, "prepared wheel faces must support the installed car");
     assert_eq!(sim.tunings(), driving_tune.tuning.normalized().unwrap());

@@ -18,8 +18,8 @@ impl WorldScene {
         self.wet_road.instances.clear();
         self.residency.release(renderer);
         self.nis.release_gpu(renderer);
-        if let Some(drive) = self.drive.take() {
-            drive.release(renderer);
+        for player in self.players.take_all() {
+            player.drive.release(renderer);
         }
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.release(renderer);

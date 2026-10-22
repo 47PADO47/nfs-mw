@@ -53,7 +53,7 @@ impl WorldScene {
         aspect: f32,
         interpolate: bool,
     ) -> crate::viewer::camera::Lens {
-        let Some(drive) = &self.drive else { return lens };
+        let Some(drive) = self.players.lead() else { return lens };
         let Some(body) = drive.original_body(interpolate) else { return lens };
         let mut bodies = Vec::new();
         bodies.extend(drive.camera_avoidable());
@@ -86,7 +86,7 @@ impl WorldScene {
         if self.view != View::Chase {
             return None;
         }
-        let drive = self.drive.as_ref()?;
+        let drive = self.players.lead()?;
         let body = drive.original_body(false)?;
         let mut avoidables = Vec::new();
         let mut vehicles = Vec::new();
@@ -120,7 +120,7 @@ impl WorldScene {
 
     /// Placement happens outside the physics loop. Seed it before recording ticks.
     pub(super) fn seed_original_camera(&mut self) {
-        let Some(drive) = &self.drive else { return };
+        let Some(drive) = self.players.lead() else { return };
         let step = drive.original_step();
         if self.original_player_step.is_none() || self.original_player_step.is_some_and(|old| step < old) {
             let Some(input) = self.original_inputs() else { return };
@@ -133,7 +133,7 @@ impl WorldScene {
 
     pub(super) fn record_original_camera(&mut self) {
         let input = self.original_inputs();
-        self.original_player_step = input.as_ref().and_then(|_| self.drive.as_ref().map(|drive| drive.original_step()));
+        self.original_player_step = input.as_ref().and_then(|_| self.players.lead().map(|drive| drive.original_step()));
         self.original_camera.physics_step(input);
     }
 
@@ -156,7 +156,7 @@ impl WorldScene {
             aspect: self.physics_aspect,
             regions: Some(&self.camera_environment.regions),
             speedbreaker: active,
-            look_back: self.drive.as_ref().is_some_and(|drive| drive.camera_looking_back(self.camera_mode)),
+            look_back: self.players.lead().is_some_and(|drive| drive.camera_looking_back(self.camera_mode)),
         };
         let collision = self.residency.collision();
         self.original_camera.advance(

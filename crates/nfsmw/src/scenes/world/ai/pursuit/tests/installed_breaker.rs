@@ -71,7 +71,7 @@ impl Fixture {
         let site = scene.residency.props().breaker_sites(&scene.physics, flat(self.roof))[0].clone();
         crate::scenes::world::ai::models::load_cop_models(scene, renderer, &["copmidsize".into()]).unwrap();
         crate::scenes::world::ai::models::load_requested(scene, renderer, false, true);
-        let performance = scene.drive.as_ref().unwrap().performance();
+        let performance = scene.players.lead().unwrap().performance();
         scene.traffic.as_mut().unwrap().cars.clear();
         scene.traffic.as_mut().unwrap().configure(0, 0);
         let inside = patrol_at(scene, self.roof).expect("a cop stands by the station");
@@ -94,7 +94,7 @@ impl Fixture {
         }
         let outside = outside.expect("a cop stands well outside the zone");
         (self.inside, self.outside) = (inside.audio_emitter().id, outside.audio_emitter().id);
-        let player = scene.drive.as_ref().unwrap().ai_body().position;
+        let player = scene.players.lead().unwrap().ai_body().position;
         let world = scene.traffic.as_mut().unwrap();
         world.cars.push(inside);
         world.cars.push(outside);
@@ -211,7 +211,7 @@ fn the_players_car_driving_into_a_gas_pump_opens_the_breaker() {
         {
             let scene = &mut fixture.scene;
             let ground = WorldGround { collision: scene.residency.collision(), surfaces: &scene.physics.surfaces };
-            let sim = scene.drive.as_mut().unwrap().sim_mut().unwrap();
+            let sim = scene.players.lead_mut().unwrap().sim_mut().unwrap();
             if !sim.place_moving(&ground, spawn, 14.0) {
                 results.push(format!("{degrees}: no ground"));
                 continue;
@@ -220,7 +220,7 @@ fn the_players_car_driving_into_a_gas_pump_opens_the_breaker() {
         for _ in 0..180 {
             fixture.scene.update(&mut fixture.renderer, &throttle, STEP);
         }
-        let speed = fixture.scene.drive.as_ref().unwrap().speed();
+        let speed = fixture.scene.players.lead().unwrap().speed();
         results.push(format!("{degrees}: fired {} speed now {speed:.1}", fixture.fired()));
         if fixture.fired() {
             break;

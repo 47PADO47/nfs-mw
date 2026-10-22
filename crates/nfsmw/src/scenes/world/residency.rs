@@ -13,6 +13,7 @@ use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_r
 use super::zone::Zones;
 mod loading;
 mod parts;
+mod ready;
 mod shadow_support;
 mod texture_detail;
 mod traffic_support;
@@ -167,7 +168,15 @@ impl Residency {
     }
 
     /// Request, upload and drop sections for a camera at map position (x, y).
+    #[cfg(test)]
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, x: f32, y: f32) {
+        self.update_centres(renderer, &[[x, y]]);
+    }
+
+    /// Follow several streaming centres at once (a co-op player each, `docs/specs/coop-career.md` section 10): the
+    /// tiles of all their zones load. The first centre is the lead's; shadows and map packs follow it.
+    pub fn update_centres(&mut self, renderer: &mut dyn RenderBackend, centres: &[[f32; 2]]) {
+        let Some(&[x, y]) = centres.first() else { return };
         let _trace = blackbox_trace::scope("World: streaming residency / uploads");
         let _span = bevy_log::info_span!("world::residency").entered();
         self.sync_bc_support(renderer);
@@ -176,10 +185,10 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
-        if self.zones.update(x, y) {
+        if self.zones.update_many(centres) {
             // A change only ever enters a zone: `Zones::update` keeps the current one when the camera leaves it.
             self.has_zone = true;
-            self.switch_zone(renderer, x, y);
+            self.switch_zone(renderer, centres);
         } else {
             self.update_shadow_support(renderer, [x, y]);
         }
@@ -201,17 +210,19 @@ impl Residency {
         }
     }
 
-    fn switch_zone(&mut self, renderer: &dyn RenderBackend, x: f32, y: f32) {
+    fn switch_zone(&mut self, renderer: &dyn RenderBackend, centres: &[[f32; 2]]) {
         self.visual_revision = self.visual_revision.wrapping_add(1);
         self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
         self.wanted = self.zones.wanted();
         // Nearest first within the drawn tiles, then within the rest.
-        let key = |i: usize| (!self.drawn.contains(&i), self.sections[i].distance_to(x, y));
+        let distance =
+            |i: usize| centres.iter().map(|&[x, y]| self.sections[i].distance_to(x, y)).fold(f32::INFINITY, f32::min);
+        let key = |i: usize| (!self.drawn.contains(&i), distance(i));
         self.wanted.sort_by(|&a, &b| {
             let (ka, kb) = (key(a), key(b));
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
-        self.update_shadow_support(renderer, [x, y]);
+        self.update_shadow_support(renderer, centres[0]);
         // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
         // Map packs are not in any zone's list: they are kept by their own wants (`mod_tiles.rs`).
         let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
@@ -374,10 +385,6 @@ impl Residency {
         self.request_shadow_support();
     }
 
-    fn wanted_resident(&self) -> bool {
-        self.wanted.iter().all(|i| matches!(self.tiles.get(i), Some(TileState::Resident { .. })))
-    }
-
     /// Advance every resident texture animation.
     pub fn animate(&self, renderer: &mut dyn RenderBackend, seconds: f32) {
         let empty = SectionResources::default();
@@ -429,49 +436,6 @@ impl Residency {
         self.shared_placed.iter().chain(tiles).filter(|p| self.group_shown(p))
     }
 
-    /// Invalidates cached environment captures after streaming or a visibility-set change.
-    pub fn visual_revision(&self) -> u64 {
-        self.visual_revision
-    }
-
-    /// Whether the shared sets and every tile the current zone needs are resident.
-    pub fn complete(&self) -> bool {
-        self.shared_ready
-            && self.has_zone
-            && self.arrived.iter().all(|data| !self.wanted.contains(&data.index))
-            && self.wanted_resident()
-    }
-
-    /// Keep driving while distant scenery loads. Actual local collision packs must be resident;
-    /// zone names need not have a corresponding tile. Old collision/props stay until the new zone loads.
-    pub fn simulation_ready(&self, [x, y]: [f32; 2], margin: f32) -> bool {
-        if !self.shared_ready || !self.has_zone {
-            return false;
-        }
-        let point = super::space::to_physics(glam::Vec3::new(x, y, 0.0));
-        match self.collision.resident_near(point, margin) {
-            Some(true) => true,
-            // Every wanted tile is in, yet a collision pack the car's surroundings refer to is not. Nothing loads
-            // that pack any more, so waiting for it would freeze the car for good. Drive on without it.
-            Some(false) if self.wanted_resident() => {
-                static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-                if !REPORTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                    log::warn!(
-                        "collision near ({x:.0}, {y:.0}) refers to sections that are not loaded; driving on without them"
-                    );
-                }
-                true
-            }
-            Some(false) => false,
-            None => self.wanted_resident(),
-        }
-    }
-
-    /// The collision of the tiles that are resident now.
-    pub fn collision(&self) -> &CollisionWorld {
-        &self.collision
-    }
-
     /// Switches scenery group `group` in or out of the collision world. The collision world is built once and never
     /// replaced, so the group stays set across section loads and unloads.
     /// The props of the resident tiles.
@@ -482,16 +446,5 @@ impl Residency {
     /// Collision and props together, the props mutable (cars knock them over).
     pub fn world_parts(&mut self) -> (&CollisionWorld, &mut PropWorld) {
         (&self.collision, &mut self.props)
-    }
-
-    /// The current zone, e.g. `D14`.
-    pub fn zone(&self) -> Option<String> {
-        self.zones.name()
-    }
-
-    /// (resident tiles, loading tiles, shared sets ready).
-    pub fn counts(&self) -> (usize, usize, bool) {
-        let resident = self.tiles.values().filter(|s| matches!(s, TileState::Resident { .. })).count();
-        (resident, self.tiles.len() - resident, self.shared_ready)
     }
 }

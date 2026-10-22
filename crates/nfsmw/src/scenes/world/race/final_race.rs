@@ -148,7 +148,7 @@ impl WorldScene {
             log::warn!("final race: the special car {car} does not start: {why:#}");
             return;
         }
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.place_exactly(place.spawn, place.speed);
         }
     }
@@ -183,7 +183,7 @@ impl WorldScene {
 
     /// The rules' input from the player's car, or `None` while the car is not on the road.
     fn final_input(&self, run: &mut FinalRun) -> Option<FinalRaceInput> {
-        let drive = self.drive.as_ref().filter(|d| d.has_sim() && d.waiting_for_road().is_none())?;
+        let drive = self.players.lead().filter(|d| d.has_sim() && d.waiting_for_road().is_none())?;
         let pose = drive.physics_pose();
         let at = Vec3::from_array(space::to_physics(pose.position));
         let forward = Vec3::from_array(space::to_physics(pose.rotation * Vec3::X));

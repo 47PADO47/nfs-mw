@@ -80,7 +80,7 @@ pub(in crate::scenes::world) fn pursuit_command(
         }
         [heat] => {
             let heat: u32 = heat.parse().ok().filter(|h| (1..=10).contains(h)).ok_or(USAGE)?;
-            let player = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?.performance();
+            let player = scene.players.lead().ok_or("not driving (use the drive command first)")?.performance();
             log::info!(
                 "the player's car: top speed {:.0} m/s, grip {:.2} to {:.2}, acceleration {:.1?}",
                 player.top_speed,
@@ -164,7 +164,8 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     if !traffic.police.can_begin() {
         return;
     }
-    let Some(drive) = scene.drive.as_ref() else { return };
+    // The police watch the chase's primary: the lead outside co-op (`players/chase.rs`).
+    let Some(drive) = scene.players.get(scene.chase_primary()) else { return };
     // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
     let heat = traffic.police.patrol_heat();
     let sight = Sighting { player_speed: drive.speed().abs(), ..traffic.sighting(heat) };
@@ -205,7 +206,7 @@ fn roadblock_outcome(scene: &mut WorldScene, args: &[&str]) -> Result<String, St
     if !args.is_empty() {
         return Err("usage: roadblock".into());
     }
-    let drive = scene.drive.as_ref().ok_or("not driving (use the drive command first)")?;
+    let drive = scene.players.lead().ok_or("not driving (use the drive command first)")?;
     if drive.hud_state().is_none() {
         return Err("the car is not on the road yet; type the command once the drive has started".into());
     }

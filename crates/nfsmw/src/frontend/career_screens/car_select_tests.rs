@@ -199,3 +199,57 @@ fn the_message_labels_are_the_original_strings() {
     assert_eq!(label_hash("MW_BUSTED_INSUFFICIENT_FUNDS"), 0x1ecf_fa6e);
     assert_eq!(label_hash("CS_IMPOUND_MUST_CHOOSE_NEW_CAR"), TEXT_MUST_CHOOSE);
 }
+
+/// Adds an owned car of the lot's `KEY` in stable slot `slot`, with its own career record (the index names the slot).
+fn add_owned(career: &mut Career, slot: u8, handle: u32) {
+    career.stable.cars[slot as usize] = CarRecord {
+        handle,
+        frontend_key: KEY,
+        flags: CarRecord::FLAG_OWNED,
+        career_index: slot,
+        customization_index: 0,
+        ..CarRecord::free()
+    };
+    career.stable.careers[slot as usize] = CareerRecord::new(slot);
+}
+
+fn keys(rows: &[Item]) -> Vec<Key> {
+    rows.iter().map(|item| item.key).collect()
+}
+
+#[test]
+fn coop_list_leaves_out_the_current_car() {
+    let mut career = career();
+    add_owned(&mut career, 1, 8);
+    let rows = items(&career, Tab::Owned);
+    assert_eq!(keys(&choices(rows, &career, true)), vec![Key::Owned(8)], "player 1's car (HANDLE) is left out");
+}
+
+#[test]
+fn coop_shares_player_ones_car_when_no_other_is_free() {
+    let mut career = career();
+    add_owned(&mut career, 1, 8);
+    career.stable.career_for_handle_mut(8).unwrap().enter_impound(ImpoundState::LimitReached);
+    let rows = items(&career, Tab::Owned);
+    assert_eq!(keys(&choices(rows, &career, true)), vec![Key::Owned(HANDLE)], "player 2 shares player 1's car");
+}
+
+#[test]
+fn coop_list_leaves_out_impounded_cars() {
+    let mut career = career();
+    add_owned(&mut career, 1, 8);
+    add_owned(&mut career, 2, 9);
+    career.stable.career_for_handle_mut(8).unwrap().enter_impound(ImpoundState::LimitReached);
+    let rows = items(&career, Tab::Owned);
+    assert_eq!(keys(&choices(rows, &career, true)), vec![Key::Owned(9)]);
+}
+
+#[test]
+fn plain_list_is_unchanged() {
+    let mut career = career();
+    add_owned(&mut career, 1, 8);
+    add_owned(&mut career, 2, 9);
+    career.stable.career_for_handle_mut(9).unwrap().enter_impound(ImpoundState::LimitReached);
+    let rows = items(&career, Tab::Owned);
+    assert_eq!(choices(rows.clone(), &career, false), rows, "the career's own list keeps every car");
+}

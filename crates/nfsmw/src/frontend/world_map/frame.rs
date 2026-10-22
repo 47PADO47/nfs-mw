@@ -87,6 +87,8 @@ pub struct WorldMapFrame {
     pub player: [f32; 2],
     /// The player's car on the picture; `None` without a calibration or a car.
     pub player_mark: Option<PlayerMark>,
+    /// The second co-op player's car on the picture, drawn in its own tint; `None` without a second car or calibration.
+    pub second_mark: Option<PlayerMark>,
     /// How the active theme dresses the map. When it does, the FEng screen restyles itself dark in place
     /// (`screen/restyle.rs`), keeping its picture, filter switch, button prompts and mouse behaviour.
     pub chrome: Chrome,

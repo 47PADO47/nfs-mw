@@ -42,8 +42,8 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
             .and_then(|h| catalog.vinyl_remaps.get(&h))
             .copied()
             .unwrap_or(0);
-        for i in 0..count.min(3) {
-            color(ui, &format!("Vinyl color {}", i + 1), &mut model.draft.parts.vinyl_colors[i]);
+        for (i, vinyl) in model.draft.parts.vinyl_colors.iter_mut().enumerate().take(count.min(3)) {
+            color(ui, &format!("Vinyl color {}", i + 1), vinyl);
         }
         ui.weak("Fixed artwork. Color controls appear for recolorable vinyls.");
     });

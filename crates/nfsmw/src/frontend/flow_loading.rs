@@ -104,6 +104,9 @@ impl Frontend {
             Err(_) => return self.loading_failed("the loading thread panicked", host, env),
         };
         world.set_career(self.career.clone(), self.profiles.clone());
+        if let Some(setup) = self.coop.as_ref().map(|session| session.setup.clone()) {
+            world.queue_coop(setup);
+        }
         if let Some(race) = self.quick_race.take() {
             // The challenge series, Quick Play and a custom race set their options; a race started by hand runs as the data has it.
             let options = self.race_options.take().unwrap_or_default();

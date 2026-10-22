@@ -18,7 +18,7 @@ impl WorldScene {
             return;
         }
         self.moment.prepare(&self.dir);
-        let Some(drive) = self.drive.as_ref() else { return };
+        let Some(drive) = self.players.lead() else { return };
         let view = drive.player_view();
         let pursuers = self.traffic.as_ref().map(|traffic| traffic.pursuer_positions()).unwrap_or_default();
         let facts = Facts {

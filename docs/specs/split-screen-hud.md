@@ -133,8 +133,12 @@ fields are the car's own (speed, rpm...). The drag packages have no map.
   `HudState` (the same fields as the single-player HUD: `speed`, `rpm`, `max_rpm`, `red_line`, `gear`, `shifting`,
   `shift_light`, `has_nos`, `nos`, `race`, `message`, `visible`, `drag`, `minimap`, `map_source`). A player with no state has
   no HUD. `drag` is read from player 1's state and picks the pair. `use_mph` is overwritten from the setting.
-- **Unused fields:** `leaders`, `pursuit`, `radar`, `blips`, `career_bounty`, `skin`, `has_turbo`, `speedbreaker*`, `busted*`,
-  `cop_nearby`, `vehicle_heat`: the split packages have nothing to show them with.
+- **Unused fields:** `leaders`, `radar`, `blips`, `career_bounty`, `skin`, `has_turbo`, `speedbreaker*`, `cop_nearby`: the
+  split packages have nothing to show them with.
+- **Pursuit strip [ours]:** `pursuit`, `busted` and `vehicle_heat` feed a strip the rewrite draws in each half while that
+  player is in a co-op chase (`hud/split/pursuit.rs`): heat pips, a red busted bar, and a blue cool-down bar while the
+  cool-down runs. egui shapes are tessellated into the HUD layer after the packages; no game assets
+  ([co-op career](coop-career.md) section 5).
 - **System:** the HUD plugin loads the pairs (`hud::split::install`) and adds `hud::split::plugin::present` in `FrameSet::Hud`.
   While `split_active()` the single-player HUD does not draw (`sync` clears its `HudState::visible`). The two trees are
   presented through the shared presenter, first player first; the presenter puts each call's meshes at the front of the frame's

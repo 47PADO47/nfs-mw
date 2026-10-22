@@ -11,7 +11,7 @@ const ROAD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 impl WorldScene {
     /// Put a waiting car on the road once the area around it has loaded; the physics runs in `update_simulation`.
     pub(super) fn prepare_drive(&mut self) {
-        let (Some(drive), physics) = (self.drive.as_mut(), &self.physics) else { return };
+        let (Some(drive), physics) = (self.players.lead_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
         let Some(request) = drive.waiting_for_road() else {
             self.waiting_since = None;
@@ -74,7 +74,7 @@ impl WorldScene {
     pub(super) fn toggle_view(&mut self) -> &'static str {
         let original = crate::viewer::camera::original::index_of(self.camera_mode)
             .map(|_| self.gameplay_lens(self.physics_aspect));
-        let Some(drive) = self.drive.as_mut() else { return "not driving (use the drive command)" };
+        let Some(drive) = self.players.lead_mut() else { return "not driving (use the drive command)" };
         self.cut.arm();
         self.original_camera.reset();
         self.original_player_step = None;

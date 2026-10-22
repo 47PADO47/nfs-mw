@@ -1,5 +1,6 @@
 //! Which logic runs which package (the original `ScreenFactoryData`, docs/specs/frontend-menus.md section 1).
 
+use super::career_screens::car_select::CareerCarSelectLogic as CareerCarSelect;
 use super::career_screens::rap_sheet;
 use super::confirm::{Alert, AlertLogic};
 use super::controls_screen::ControlsLogic;
@@ -41,6 +42,9 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     if is(screen::CAR_SELECT) && args.custom {
         return Box::new(CustomCarSelect::new(args));
+    }
+    if is(screen::CAR_SELECT) && args.coop {
+        return Box::new(CareerCarSelect::coop());
     }
     if is(screen::PRESS_START) {
         return Box::new(PressStart::new(args));

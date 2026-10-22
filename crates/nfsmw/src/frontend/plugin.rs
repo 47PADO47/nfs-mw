@@ -7,9 +7,9 @@ use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
-use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
+use bevy_input::{ButtonInput, gamepad::Gamepad};
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -137,7 +137,7 @@ fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDe
 
 /// What the world map needs, grouped so the frame system stays within Bevy's parameter limit.
 #[derive(SystemParam)]
-struct MapParams<'w> {
+struct MapParams<'w, 's> {
     overlay: ResMut<'w, WorldMapOverlay>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
     /// The theme registry: whether the active theme draws the map chrome, and the feed that chrome reads.
@@ -148,6 +148,8 @@ struct MapParams<'w> {
     typed: ResMut<'w, TypedKeys>,
     /// Split screen: the device whose Start went down, and the seats of a race (`flow_split.rs`).
     split: ResMut<'w, crate::input::SplitInput>,
+    /// The connected pads, for a co-op guest on a pad.
+    pads: Query<'w, 's, Entity, With<Gamepad>>,
 }
 
 /// How long a menu step may take before it is logged as a stall.
@@ -422,8 +424,8 @@ fn update(
     }
 
     fe.last_mask = mask;
-    // The input layer seats both players' devices while a split-screen race has the window.
-    let seats = fe.split_seats();
+    // The input layer seats both players while a split-screen race or a co-op session (`input::coop_seats`) is on.
+    let seats = fe.split_seats().or_else(|| crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter()));
     if map.split.devices() != seats {
         map.split.seat(seats);
     }

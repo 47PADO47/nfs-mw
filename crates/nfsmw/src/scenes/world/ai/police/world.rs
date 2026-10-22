@@ -69,7 +69,7 @@ impl super::super::TrafficWorld {
         let strikes = self.take_strikes();
         self.update_hiding(dt, at);
         let sensed = Sensed {
-            seen: self.sighting(level).seen,
+            seen: self.sighting(level).seen || self.secondary_seen,
             unit_random: self.rng.police.next_f32(),
             on_road: self.near_road(at),
             nearest_cop: self.nearest_cop(at),
@@ -95,7 +95,7 @@ impl super::super::TrafficWorld {
         self.police.set_last_known(self.pursuit.as_ref().and_then(|p| p.last_seen).map(|seen| seen.position));
         self.police.note_cops_damaged(self.cops_damaged());
         // Busted first: a busted frame does not tick the escape. `is_busted` stays set until the next chase.
-        let busted = self.police.tick_busted(dt, pursuing, bust);
+        let busted = !self.shared_bust_held && self.police.tick_busted(dt, pursuing, bust);
         let evaded = self.police.update_in_world(dt, pursuing, player, sensed, clear);
         self.publish_to_mods();
         if busted {

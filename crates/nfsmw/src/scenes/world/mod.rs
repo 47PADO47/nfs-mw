@@ -31,6 +31,7 @@ mod gps;
 mod ground;
 mod heli_wash;
 mod hud;
+mod hud_pursuit;
 mod keys;
 mod lighting;
 mod materials;
@@ -39,6 +40,7 @@ mod moment;
 mod moment_world;
 mod nis;
 mod photo_shot;
+pub mod players;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -101,7 +103,7 @@ use crate::input::ActionState;
 use crate::settings::CameraMode;
 use crate::viewer::Scene;
 use crate::viewer::camera::{CameraCut, FlyCamera};
-use drive::{Drive, DriveScript, MarkerMeshes};
+use drive::{DriveScript, MarkerMeshes};
 use residency::Residency;
 
 pub struct Options {
@@ -183,7 +185,8 @@ pub struct WorldScene {
     speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
     pending_car: Option<open::PendingCar>,
-    drive: Option<Drive>,
+    /// The players' cars; the lead (player 1) is the only one outside co-op (`players/`, ADR 0010).
+    players: players::Players,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
@@ -201,6 +204,16 @@ pub struct WorldScene {
     queued_split: Option<SplitSetup>,
     /// The split-screen match being played: the second player's actions and camera (`split/`).
     split: Option<split::SplitState>,
+    /// The bottom half's draw list and cut, for a split-screen race or co-op (`split/view.rs`).
+    second_view: split::SecondView,
+    /// Each co-op guest's actions this frame; the lead reads the frame's own input (`players/inputs.rs`).
+    inputs: players::inputs::Inputs,
+    /// The co-op session in play (`players/coop.rs`); `None` outside co-op.
+    coop: Option<players::coop::CoopSession>,
+    /// A co-op session the front end asked for, started on the next frame.
+    queued_coop: Option<players::coop::CoopSetup>,
+    /// Co-op ends on the next frame, when the front end's End Co-op asked for it (`players/coop.rs`).
+    end_coop_queued: bool,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
