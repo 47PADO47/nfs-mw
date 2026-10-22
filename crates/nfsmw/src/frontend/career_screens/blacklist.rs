@@ -32,7 +32,7 @@ use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue
 use crate::ui::{Text, UiAssets};
 
 /// The alpha of a disabled text (the same value the infractions screen uses).
-const DISABLED_ALPHA: u8 = 110;
+pub(super) const DISABLED_ALPHA: u8 = 110;
 
 /// Objects of `SafeHouseRivalChallenge.fng` by name hash. The title group holds the rank ("blacklist %d"), the name group
 /// the rival's name, the bounty group the bounty needed, and the defeated group the stamp of a beaten rival.
@@ -145,17 +145,17 @@ pub fn leave_screen(_stage: u8) -> &'static str {
 }
 
 /// The current bin of the career, or `None` without a career.
-fn current_bin() -> Option<u8> {
+pub(super) fn current_bin() -> Option<u8> {
     CareerHandle::shared().with(|career| career.blacklist.current_bin())
 }
 
 /// The rows of the career's Blacklist, or nothing without a career.
-fn career_rows() -> Vec<RivalRow> {
+pub(super) fn career_rows() -> Vec<RivalRow> {
     CareerHandle::shared().with(|career| rival_rows(&career.blacklist, career.settings.flags)).unwrap_or_default()
 }
 
 /// The rank title ("blacklist %d") with the bin number.
-fn rank_title(cx: &Cx, bin: u8) -> Option<String> {
+pub(super) fn rank_title(cx: &Cx, bin: u8) -> Option<String> {
     let text = Text::Game(label_hash("TITLE_BLACKLIST_NUMBER")).resolve(cx.assets)?;
     Some(text.replace("%d", &bin.to_string()))
 }
@@ -218,13 +218,25 @@ fn challenge_command(row: RivalRow) -> Option<Command> {
 /// The rival challenge stepper (`SafeHouseRivalChallenge.fng`).
 struct ChallengeLogic {
     selected: u8,
+    /// The rival the screen was opened for, or 0 for the career's current one (`Args::rival`).
+    asked: u8,
+    /// Opened from the reputation overview (`Args::overview`): leaving goes back to it.
+    overview: bool,
     /// Whether the Remastered look draws the list of rivals (`Cx::vertical_look`).
     vertical: bool,
 }
 
 impl ChallengeLogic {
-    fn new() -> Self {
-        Self { selected: FIRST_RIVAL_STAGE, vertical: false }
+    fn new(args: Args) -> Self {
+        Self { selected: FIRST_RIVAL_STAGE, asked: args.rival, overview: args.overview, vertical: false }
+    }
+
+    /// Leaves for the screen the player came from: the reputation overview at this rival, or the safe house menu.
+    fn back(&self, cx: &mut Cx) {
+        if self.overview {
+            return super::reputation_overview::open(cx, self.selected);
+        }
+        leave(cx);
     }
 
     /// Opens the bio of the selected rival.
@@ -264,7 +276,7 @@ impl ChallengeLogic {
             return self.view_rival(cx);
         }
         if !is_focused(cx, CHALLENGE_HOLDER) {
-            return leave(cx);
+            return self.back(cx);
         }
         let Some(command) = self.selected_row().and_then(challenge_command) else { return };
         cx.send(command);
@@ -277,6 +289,9 @@ impl ScreenLogic for ChallengeLogic {
         post_opening(cx, &[RIVAL_OPENED_CAREER, RIVAL_LIST_READY, RIVAL_CONTENT_START]);
         if let Some(bin) = current_bin() {
             self.selected = start_bin(bin);
+        }
+        if self.asked != 0 {
+            self.selected = start_bin(self.asked);
         }
         self.fill(cx);
     }
@@ -333,7 +348,7 @@ impl ScreenLogic for ChallengeLogic {
             PAD_LEFT => self.step(cx, false),
             PAD_RIGHT => self.step(cx, true),
             PAD_ACCEPT => self.accept(cx),
-            PAD_BACK => leave(cx),
+            PAD_BACK => self.back(cx),
             _ => {}
         }
     }
@@ -350,11 +365,20 @@ struct BioLogic {
     sequence: bool,
     /// The first visit: this bio entered bin 15, and leaving it goes on with the sequence (`flow_first_visit.rs`).
     first_visit: bool,
+    /// Opened from the reputation overview (`Args::overview`): leaving goes back to it.
+    overview: bool,
 }
 
 impl BioLogic {
     fn new(args: Args) -> Self {
-        Self { bin: FIRST_RIVAL_STAGE, asked: args.rival, vertical: false, sequence: args.sequence, first_visit: false }
+        Self {
+            bin: FIRST_RIVAL_STAGE,
+            asked: args.rival,
+            vertical: false,
+            sequence: args.sequence,
+            first_visit: false,
+            overview: args.overview,
+        }
     }
 
     fn fill(&self, cx: &mut Cx) {
@@ -421,6 +445,7 @@ impl ScreenLogic for BioLogic {
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_ACCEPT | PAD_BACK if self.first_visit => cx.send(bio_continue()),
+            PAD_ACCEPT | PAD_BACK if self.overview => super::reputation_overview::open(cx, self.bin),
             PAD_ACCEPT | PAD_BACK => switch(cx, screen::MAIN_MENU_SUB),
             _ => {}
         }
@@ -430,7 +455,7 @@ impl ScreenLogic for BioLogic {
 /// The logic for `name` (lower case) when it is one of this module's screens.
 pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if name == screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_ascii_lowercase() {
-        return Some(Box::new(ChallengeLogic::new()));
+        return Some(Box::new(ChallengeLogic::new(args)));
     }
     if name == screen::SAFE_HOUSE_RIVAL_BIO.to_ascii_lowercase() {
         return Some(Box::new(BioLogic::new(args)));

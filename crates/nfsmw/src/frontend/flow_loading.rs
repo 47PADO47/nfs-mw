@@ -114,6 +114,9 @@ impl Frontend {
         if std::mem::take(&mut self.safe_house_start.pending) {
             world.start_at_safe_house(self.safe_house_start.zone.as_deref());
         }
+        if std::mem::take(&mut self.safe_house_start.pending) {
+            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
+        }
         if std::mem::take(&mut self.drive_to_safe_house) {
             world.start_drive_to_safe_house();
         }
