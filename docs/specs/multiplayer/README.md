@@ -17,7 +17,8 @@ Read in this order:
 3. [sync-model.md](sync-model.md): the owner's prediction and reconciliation, interpolation and extrapolation of remote cars, car
    collisions, clock synchronisation, the determinism list, session lifecycle, failure behaviour and tuning values.
 4. [protocol.md](protocol.md): discovery, the handshake packets, the sealed packet, frame types, the input, snapshot and ping
-   layouts, the reliable message catalogue, versioning and limits.
+   layouts, versioning and limits; [protocol-messages.md](protocol-messages.md): the reliable message catalogue, its encoding and
+   type numbers (built in `crates/nfsmw-net`).
 5. [bandwidth.md](bandwidth.md): record sizes, per-packet overhead, the arithmetic for LAN and online cases, server totals.
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the

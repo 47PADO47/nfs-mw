@@ -4003,6 +4003,7 @@ dependencies = [
  "blackbox-net-core",
  "blackbox-vehicle",
  "nfsmw-sim",
+ "sha2",
  "thiserror 2.0.21",
 ]
 
