@@ -133,7 +133,7 @@ impl TrafficWorld {
         let towing =
             car.trailer().map_or(String::new(), |t| format!(" with a {:.1} m trailer", 2.0 * t.half_dimensions().z));
         log::info!("traffic: {}{towing} at ({:.0}, {:.0}), {} m ahead", car.name, render.x, render.y, distance as i32);
-        self.cars.push(car);
+        self.admit(car);
         Ok(())
     }
 }
@@ -263,7 +263,7 @@ impl TrafficWorld {
             return false;
         };
         log::info!("traffic: {} at ({:.0}, {:.0}), asked for by a mod", car.name, render.x, render.y);
-        self.cars.push(car);
+        self.admit(car);
         true
     }
 }

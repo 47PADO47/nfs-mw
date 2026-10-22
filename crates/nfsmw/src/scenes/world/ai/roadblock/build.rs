@@ -143,7 +143,7 @@ impl TrafficWorld {
         for mut car in cars {
             car.set_roadblock();
             car.set_roadblock_group(id);
-            self.cars.push(car);
+            self.admit(car);
         }
         let mut deployed = 0;
         for slot in placed.iter().filter(|slot| slot.kind != Element::Car) {

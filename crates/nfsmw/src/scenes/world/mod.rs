@@ -185,6 +185,8 @@ pub struct WorldScene {
     pending_car: Option<open::PendingCar>,
     /// The players' cars; the lead (player 1) is the only one outside co-op (`players/`, ADR 0010).
     players: players::Players,
+    /// The world's car render keys, shared with the traffic models it uploads (keys.rs).
+    car_keys: std::rc::Rc<keys::CarKeys>,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open

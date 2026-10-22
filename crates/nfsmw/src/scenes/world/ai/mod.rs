@@ -17,6 +17,7 @@ mod cop_lights;
 mod cop_manager;
 mod damage_effects;
 mod data;
+mod entities;
 mod goal_aims;
 mod hit_count;
 mod hitch;
@@ -113,6 +114,8 @@ pub struct TrafficModel {
     pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
     /// Installed class IDs for the authored traffic producers.
     pub audio_profile: crate::audio::traffic::TrafficProfile,
+    /// The world's car render keys: each car placed from the model takes the next (`keys.rs`).
+    pub keys: Rc<super::keys::CarKeys>,
 }
 
 pub struct TrafficWorld {
@@ -141,7 +144,10 @@ pub struct TrafficWorld {
     police: police::Police,
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
+    /// The cars in entity-id order (ntities.rs).
     cars: Vec<AiCar>,
+    /// The entity id the last admitted car took (ntities.rs).
+    next_entity: u32,
     /// One random stream per system (`streams.rs`).
     rng: streams::Streams,
     alpha: f32,
@@ -253,6 +259,7 @@ impl TrafficWorld {
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),
+            next_entity: 0,
             rng: streams::Streams::default(),
             alpha: 0.0,
             target: 0,

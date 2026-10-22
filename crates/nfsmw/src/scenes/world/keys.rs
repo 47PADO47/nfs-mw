@@ -17,19 +17,54 @@ const CHARACTER_GROUP: u32 = 0xFFFF_0000;
 /// The car the player drives.
 pub const PLAYER_CAR: u32 = 0;
 
-/// A fresh identity for one placed vehicle, including a trailer. Shared rigs keep their own default identity.
-pub fn next_car() -> u32 {
-    use std::sync::atomic::{AtomicU32, Ordering};
+/// The car render keys of one world: every placed vehicle, trailer and uploaded car rig takes the next one. Each world
+/// owns its own (`WorldScene::car_keys`, shared with the traffic models through an `Rc`), so two worlds in one process (a
+/// server and a client, or two tests) number their cars independently and the same way every run
+/// (`docs/specs/multiplayer/determinism.md`, D5). Shared rigs keep their own default identity.
+#[derive(Debug)]
+pub struct CarKeys {
+    next: std::cell::Cell<u32>,
+}
 
-    static NEXT: AtomicU32 = AtomicU32::new(1);
-    let mut id = NEXT.load(Ordering::Relaxed);
-    loop {
-        assert!(id < CAR_GROUPS, "vehicle instance-key groups exhausted");
-        match NEXT.compare_exchange_weak(id, id + 1, Ordering::Relaxed, Ordering::Relaxed) {
-            Ok(_) => return id,
-            Err(current) => id = current,
-        }
+impl Default for CarKeys {
+    /// Starts at 1: [`PLAYER_CAR`] (0) belongs to the lead's car.
+    fn default() -> Self {
+        Self::starting_at(1)
     }
+}
+
+impl CarKeys {
+    /// An allocator whose first key is `first`.
+    pub fn starting_at(first: u32) -> Self {
+        Self { next: std::cell::Cell::new(first) }
+    }
+
+    /// A fresh identity for one placed vehicle, including a trailer.
+    pub fn next(&self) -> u32 {
+        let id = self.next.get();
+        assert!(id < CAR_GROUPS, "vehicle instance-key groups exhausted");
+        self.next.set(id + 1);
+        id
+    }
+}
+
+/// Where the keys of tests that run without a world start: far above what a test world's own allocator reaches.
+#[cfg(test)]
+const TEST_KEYS: u32 = 0x4000_0000;
+
+/// The allocator of tests that place cars without a world, one per test thread.
+#[cfg(test)]
+pub fn test_keys() -> std::rc::Rc<CarKeys> {
+    thread_local! {
+        static KEYS: std::rc::Rc<CarKeys> = std::rc::Rc::new(CarKeys::starting_at(TEST_KEYS));
+    }
+    KEYS.with(std::rc::Rc::clone)
+}
+
+/// A fresh key from [`test_keys`], for tests that upload a rig without a world.
+#[cfg(test)]
+pub fn next_car() -> u32 {
+    test_keys().next()
 }
 
 /// The `index`th placed object of map tile `tile`.
@@ -55,6 +90,14 @@ pub fn character(actor: usize, part: usize) -> InstanceKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn two_worlds_number_their_cars_independently() {
+        let (server, client) = (CarKeys::default(), CarKeys::default());
+        assert_eq!([server.next(), server.next(), server.next()], [1, 2, 3]);
+        assert_eq!([client.next(), client.next()], [1, 2], "one world's cars do not advance the other's keys");
+        assert_eq!(server.next(), 4);
+    }
 
     #[test]
     fn scenery_and_cars_never_share_a_key() {

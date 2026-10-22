@@ -29,6 +29,7 @@ pub(in crate::scenes::world::ai) mod arrest_fixture;
 mod budget;
 mod call_911;
 mod destruction;
+mod entities;
 mod fleet;
 mod frame_rate;
 mod free_roam;
@@ -194,6 +195,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
             trailer: None,
             cop_lights: None,
             audio_profile: Default::default(),
+            keys: keys::test_keys(),
         },
         car: CopCar { performance: player, ai: AiVehicle::default() },
     }
