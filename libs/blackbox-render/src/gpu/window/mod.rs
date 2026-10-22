@@ -79,8 +79,8 @@ impl Window {
         cache: Option<&wgpu::PipelineCache>,
     ) {
         let (store, shader, layout) = (self.store, &self.shader, &self.layout);
-        pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |face| {
-            BLEND_ORDER.map(|mode| pipeline::create(device, shader, layout, format, (mode, face), false, store, cache))
+        pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |mode, face| {
+            pipeline::create(device, shader, layout, format, (mode, face), false, store, cache)
         });
     }
 

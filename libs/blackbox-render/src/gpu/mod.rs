@@ -29,12 +29,15 @@ mod lean_tests;
 mod meshes;
 mod normal;
 mod output;
+mod parallel;
 #[cfg(test)]
 mod parity;
 mod pipeline_cache;
 mod pipelines;
 mod post;
 mod prewarm;
+#[cfg(test)]
+mod prewarm_bench;
 #[cfg(test)]
 mod prewarm_tests;
 mod projected;

@@ -7,6 +7,7 @@ use super::cull::{FACES, Face};
 use super::draw_list::{instance_store, instance_view};
 use super::glossy::Layouts;
 use super::instances::INSTANCE_LAYOUT;
+use super::parallel;
 use super::resources::{DEPTH_FORMAT, Shared};
 use super::targets::write_mask;
 use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
@@ -144,21 +145,30 @@ impl Pipelines {
             false => &FACES[..1],
         };
         for prepared in [false, true] {
-            let mut set = self.sets.remove(&(format, prepared)).unwrap_or_else(|| vec![None; SET_LEN]);
-            let combinations = faces
-                .iter()
-                .flat_map(|&f| BLEND_ORDER.iter().flat_map(move |&b| SHADINGS.iter().map(move |&s| (b, s, f))));
-            for (blend, shading, face) in combinations {
-                let slot = &mut set[index(blend, shading, face)];
+            self.sets.entry((format, prepared)).or_insert_with(|| vec![None; SET_LEN]);
+        }
+        let missing: Vec<(BlendMode, Shading, Face, bool)> = [false, true]
+            .into_iter()
+            .flat_map(|prepared| faces.iter().map(move |&f| (f, prepared)))
+            .flat_map(|(f, prepared)| {
+                BLEND_ORDER.iter().flat_map(move |&b| SHADINGS.iter().map(move |&s| (b, s, f, prepared)))
+            })
+            .filter(|&(blend, shading, face, prepared)| {
                 let wanted = match prepared {
                     true => equal_depth(blend, shading),
                     false => glossy || !matches!(shading, Shading::Glossy(_)),
                 };
-                if slot.is_none() && wanted {
-                    *slot = Some(self.make(device, format, (blend, shading, face), prepared));
-                }
-            }
-            self.sets.insert((format, prepared), set);
+                wanted && self.sets[&(format, prepared)][index(blend, shading, face)].is_none()
+            })
+            .collect();
+        // The variants are independent, and a cold driver cache spends up to half a second on each: build them
+        // all at once.
+        let built = parallel::build(&missing, |&(blend, shading, face, prepared)| {
+            self.make(device, format, (blend, shading, face), prepared)
+        });
+        for ((blend, shading, face, prepared), pipeline) in missing.into_iter().zip(built) {
+            let Some(set) = self.sets.get_mut(&(format, prepared)) else { continue };
+            set[index(blend, shading, face)] = Some(pipeline);
         }
     }
 

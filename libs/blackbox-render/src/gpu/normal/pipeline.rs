@@ -3,7 +3,8 @@
 use super::super::{
     cull::{FACES, Face},
     draw_list::instance_view::instance_layout,
-    pipelines::VERTEX_ATTRIBUTES,
+    parallel,
+    pipelines::{BLEND_ORDER, VERTEX_ATTRIBUTES},
     resources::DEPTH_FORMAT,
     targets::write_mask,
 };
@@ -14,14 +15,24 @@ use blackbox_gfx::BlendMode;
 pub(in crate::gpu) type FaceSets = Vec<[wgpu::RenderPipeline; 4]>;
 
 /// Add the face settings `sets` lacks: the two-sided set, and with `culled` the culling sets. `make` builds the
-/// set of one face setting.
-pub(in crate::gpu) fn fill_faces(sets: &mut FaceSets, culled: bool, make: impl Fn(Face) -> [wgpu::RenderPipeline; 4]) {
+/// pipeline of one blend mode and face setting; the missing ones are built on worker threads (see
+/// [`parallel`]), as a cold driver cache spends up to half a second on each.
+pub(in crate::gpu) fn fill_faces(
+    sets: &mut FaceSets,
+    culled: bool,
+    make: impl Fn(BlendMode, Face) -> wgpu::RenderPipeline + Sync,
+) {
     let wanted = match culled {
         true => FACES.len(),
         false => 1,
     };
-    while sets.len() < wanted {
-        sets.push(make(FACES[sets.len()]));
+    let missing = &FACES[sets.len().min(wanted)..wanted];
+    let keys: Vec<(Face, BlendMode)> = missing.iter().flat_map(|&face| BLEND_ORDER.map(|mode| (face, mode))).collect();
+    let mut built = parallel::build(&keys, |&(face, mode)| make(mode, face)).into_iter();
+    for _ in missing {
+        let set: Vec<wgpu::RenderPipeline> = built.by_ref().take(BLEND_ORDER.len()).collect();
+        let Ok(set) = set.try_into() else { return };
+        sets.push(set);
     }
 }
 

@@ -10,6 +10,7 @@ use blackbox_gfx::{SkyMaterialDesc, SkyMaterialHandle, SkyState};
 use wgpu::util::DeviceExt;
 
 use super::draw_list::{instance_store, instance_view};
+use super::parallel;
 use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, slots::Slots};
 
 #[repr(C)]
@@ -75,10 +76,9 @@ impl Sky {
     ) {
         let store = self.store;
         self.pipelines.entry(format).or_insert_with(|| {
-            [
-                pipeline::create(device, &self.shader, &self.layout, format, false, store, cache),
-                pipeline::create(device, &self.shader, &self.layout, format, true, store, cache),
-            ]
+            parallel::build_array([false, true], |&layer| {
+                pipeline::create(device, &self.shader, &self.layout, format, layer, store, cache)
+            })
         });
         let intensity = self.state.cloud_intensity.map(|x| match x.is_finite() {
             true => x.clamp(-1.0, 1.0),

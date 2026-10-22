@@ -8,6 +8,11 @@
 //! passes, the post chain, the upscaler, SMAA, the UI) is then filled exactly as a real frame would fill it, with
 //! no second code path to keep in step. The environment cube capture is warmed the same way.
 //!
+//! Most of that work, with a cold driver cache, is compiling the scene pipelines and the sky, normal and window
+//! families for each format a scene pass draws into: a few hundred milliseconds per variant. Those are built
+//! first, the caches side by side and each cache's variants on worker threads (see [`super::parallel`]), so the
+//! frame that follows finds them built and compiles only the few cheap passes the scene table leaves out.
+//!
 //! What it cannot know: pipelines for outputs it is never asked to draw (the rear-view mirror's RGBA8 picture
 //! with its own post chain, screenshots, the projected-reflection blur) and anything that depends on resources
 //! created after the call; call it again then, it only does the missing work.
@@ -51,6 +56,8 @@ impl Renderer {
         self.ensure_glossy();
         self.ui.use_format(&self.device, self.output.format());
         let frame = self.warm_params();
+        let formats = self.scene_formats();
+        self.warm_formats(&formats, &frame);
         self.warm_frame(&frame);
         self.warm_captures(&frame);
         // Captures leave their own format selected; the next scene pass selects its format again, but keep the
@@ -82,6 +89,17 @@ impl Renderer {
                 self.window.is_some(),
                 self.pipelines.culled(),
             ],
+        }
+    }
+
+    /// The formats the frame's scene passes draw into: the scene's own, and the captures' when a capture runs.
+    fn scene_formats(&self) -> Vec<wgpu::TextureFormat> {
+        let scene = self.targets.color_format();
+        let captures = self.graphics.reflections != ReflectionQuality::Off
+            || (self.experiments.original_world_materials && self.caps.projected_reflections && self.normal.is_some());
+        match captures && scene != CAPTURE_FORMAT {
+            true => vec![scene, CAPTURE_FORMAT],
+            false => vec![scene],
         }
     }
 
@@ -156,24 +174,38 @@ impl Renderer {
         let projected =
             self.experiments.original_world_materials && self.caps.projected_reflections && self.normal.is_some();
         if projected {
-            self.warm_format(CAPTURE_FORMAT, frame);
+            self.warm_formats(&[CAPTURE_FORMAT], frame);
         }
     }
 
-    /// What a scene pass into `format` builds on its first use, without drawing.
-    fn warm_format(&mut self, format: wgpu::TextureFormat, frame: &FrameParams) {
+    /// What a scene pass into each of `formats` builds on its first use, without drawing. The scene pipelines and
+    /// the sky, normal and window families are separate caches, so each fills on its own thread (and builds its
+    /// variants on more): with a cold driver cache this is most of the prewarm's work.
+    fn warm_formats(&mut self, formats: &[wgpu::TextureFormat], frame: &FrameParams) {
+        let (device, queue) = (&self.device, &self.queue);
         let cache = self.pipeline_cache.as_ref();
+        let glossy = self.glossy.is_some();
+        // The culling variants are warmed once a single-sided draw exists; the key in `Warmed` brings the next
+        // prewarm back to build them.
         let culled = self.pipelines.culled();
-        self.pipelines.use_format(&self.device, format, self.glossy.is_some());
-        self.effects.use_format(&self.device, format);
-        if let Some(sky) = &mut self.sky {
-            sky.prepare(&self.device, &self.queue, format, cache);
-        }
-        if let Some(normal) = &mut self.normal {
-            normal.prepare(&self.device, &self.queue, (format, culled), frame, cache);
-        }
-        if let Some(window) = &mut self.window {
-            window.prepare(&self.device, (format, culled), cache);
-        }
+        let (pipelines, effects) = (&mut self.pipelines, &mut self.effects);
+        let (sky, normal, window) = (self.sky.as_mut(), self.normal.as_mut(), self.window.as_mut());
+        std::thread::scope(|scope| {
+            scope.spawn(|| formats.iter().for_each(|&format| pipelines.use_format(device, format, glossy)));
+            if let Some(sky) = sky {
+                scope.spawn(|| formats.iter().for_each(|&format| sky.prepare(device, queue, format, cache)));
+            }
+            if let Some(normal) = normal {
+                scope.spawn(|| {
+                    formats.iter().for_each(|&format| normal.prepare(device, queue, (format, culled), frame, cache))
+                });
+            }
+            if let Some(window) = window {
+                scope.spawn(|| formats.iter().for_each(|&format| window.prepare(device, (format, culled), cache)));
+            }
+            for &format in formats {
+                effects.use_format(device, format);
+            }
+        });
     }
 }
