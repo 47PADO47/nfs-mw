@@ -34,6 +34,14 @@ impl WorldScene {
     /// play (no car, no bundle, another scene on) is answered at once, so the bust keeps its plain hold.
     pub(in crate::scenes::world) fn update_arrest_nis(&mut self) {
         let Some(name) = self.traffic.as_mut().and_then(|traffic| traffic.take_arrest_request()) else { return };
+        if self.coop.is_some() {
+            // Co-op has no arrest scene: the pursuit camera's arrest shot shows in the busted player's half instead.
+            log::info!("co-op: the arrest scene {name} is not played; the bust is paid without a ticket screen");
+            if let Some(traffic) = self.traffic.as_mut() {
+                traffic.arrest_scene_over();
+            }
+            return;
+        }
         let Err(error) = self.play_nis_as(name, 0, NisKind::Arrest) else { return };
         log::warn!("busted: the arrest scene {name} cannot play ({error}); the ticket follows the hold");
         if let Some(traffic) = self.traffic.as_mut() {

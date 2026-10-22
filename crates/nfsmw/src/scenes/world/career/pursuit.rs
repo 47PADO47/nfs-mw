@@ -5,19 +5,26 @@
 //! chase from frame to frame. A chase that ends `Evaded` is recorded and the autosave runs; one that ends `Busted`
 //! only reverts the milestones at stake and goes into the history (the bust itself is `bust.rs`).
 
+use blackbox_pursuit::targets::{TargetId, Targets};
 use blackbox_pursuit::{EndReason, Infraction, InfractionLog};
-use nfsmw_career::economy::{InfractionKind, InfractionMask, PursuitResult, end_player_pursuit};
+use nfsmw_career::coop::pursuit::settle_evade;
+use nfsmw_career::economy::{InfractionKind, InfractionMask, PursuitResult, end_player_pursuit, end_pursuit_for};
 use nfsmw_career::milestones::{Banked, StatType, pay_banked};
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::rapsheet::{PursuitStats, case_id_text};
 use nfsmw_career::safehouse::finish_cooldown_pursuit_default;
-use nfsmw_career::safehouse::{FrontEndContext, spawn_heat};
+use nfsmw_career::safehouse::{
+    DEFAULT_EVADE_HEAT_FACTOR, FrontEndContext, SPAWN_HEAT_FLOOR, apply_heat_factor, spawn_heat,
+};
 use nfsmw_career::savefile::Trigger;
+use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::Stable;
 
 use super::rap_tally::ChaseTally;
 use crate::career::{AutosaveInputs, handle_autosave};
 use crate::scenes::world::WorldScene;
+use crate::scenes::world::players::coop::{CoopSession, GUEST};
+use crate::scenes::world::players::{LEAD, PlayerId};
 
 /// The world's pursuits are free roam (play mode 0): milestones are tested while they run.
 const FREE_ROAM: bool = true;
@@ -130,18 +137,19 @@ impl WorldScene {
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
         let roadblocks = self.traffic.as_ref().map(|traffic| traffic.roadblock_tally()).unwrap_or_default();
+        let coop = self.coop.as_ref();
         let tally = &self.career.pursuit.tally;
         let phone = &mut self.career.phone;
         let mut rewards = None;
         let bins = self.career.handle.with(|career| {
-            let handle = career.settings.car_handle;
-            let kept = driven_kept.then(|| career.stable.career_for_handle(handle).map(|r| r.heat)).flatten();
-            match busted {
-                true => end_player_pursuit(&career.settings, &mut career.stable, &result),
-                false => finish_cooldown_pursuit_default(&career.settings, &mut career.stable, &result),
-            };
-            restore_heat(&mut career.stable, handle, kept);
-            let car_key = career.stable.cars.iter().find(|car| car.handle == handle).map_or(0, |car| car.frontend_key);
+            let unloaded = career.settings.car_handle;
+            let (bank, others) = chase_banking(coop, unloaded);
+            let kept = driven_kept.then(|| career.stable.career_for_handle(unloaded).map(|r| r.heat)).flatten();
+            settle_chase_end(&career.settings, &mut career.stable, busted, bank, &others, &result, coop.is_some());
+            restore_heat(&mut career.stable, unloaded, kept);
+            let car_key = bank
+                .and_then(|handle| career.stable.cars.iter().find(|car| car.handle == handle))
+                .map_or(0, |car| car.frontend_key);
             let stats = pursuit_stats(
                 car_key,
                 chase.secs,
@@ -154,10 +162,11 @@ impl WorldScene {
             tally.write(roadblocks, &mut stats);
             career.history.record(&stats, busted, case_id(seed));
             let milestones = career.milestones.on_pursuit_end(&result, FREE_ROAM, chase.secs, escapes);
-            if let Some(record) = career.stable.career_for_handle_mut(handle) {
+            if let Some(record) = bank.and_then(|handle| career.stable.career_for_handle_mut(handle)) {
                 pay_banked(record, &milestones.banked);
             }
-            let bounty = career.stable.career_for_handle(handle).map_or(0, |record| record.bounty);
+            let bounty =
+                bank.and_then(|handle| career.stable.career_for_handle(handle)).map_or(0, |record| record.bounty);
             rewards = super::rewards::report_of(&career.milestones, &milestones.banked, bounty);
             // A banked milestone is a challenge passed in its bin: the Blacklist counts it, and the bin's challenge
             // messages follow its count (`docs/specs/career-phone.md` section 7).
@@ -214,7 +223,14 @@ impl WorldScene {
     /// Loads the current car's heat into the police, so the next chase starts from it. Runs each frame outside a
     /// chase: a chase's `begin` reads the value the frame before it starts.
     fn load_carried_heat(&mut self) {
-        let heat = self.career.handle.with(|career| spawn_heat(&career.settings, &career.stable, true));
+        let guest_handle = self.coop.as_ref().and_then(|session| session.guest_handle);
+        let heat = self.career.handle.with(|career| {
+            let lead = spawn_heat(&career.settings, &career.stable, true);
+            let guest = guest_handle
+                .and_then(|handle| career.stable.career_for_handle(handle))
+                .map(|record| record.heat.max(SPAWN_HEAT_FLOOR));
+            carried(lead, guest)
+        });
         let Some(heat) = heat else {
             return;
         };
@@ -316,6 +332,80 @@ pub(super) fn case_id(seed: u32) -> [u8; 12] {
         };
     }
     case_id_text(&chars)
+}
+
+/// The car that banks the chase that just ended, and the other cars it still held (`bank_handles`). A single player's
+/// chase banks on the current car and has no others.
+fn chase_banking(coop: Option<&CoopSession>, lead: u32) -> (Option<u32>, Vec<u32>) {
+    let Some(session) = coop else {
+        return (Some(lead), Vec::new());
+    };
+    bank_handles(lead, session.guest_handle, &session.chase.last_targets, session.chase.last_primary)
+}
+
+/// The car of a co-op player: the lead's is the current car, the guest's is `guest`; `None` for any other player.
+fn handle_of(id: PlayerId, lead: u32, guest: Option<u32>) -> Option<u32> {
+    if id == LEAD {
+        return Some(lead);
+    }
+    if id == GUEST {
+        return guest;
+    }
+    None
+}
+
+/// The car that banks a co-op chase, and the other cars still chased in it when it ended. The chase banks on the car
+/// of its last primary: the lead's car, or the guest's (`None` when the guest has no career car, so nothing banks).
+/// The others are the other chased players' cars; a player with no career car is not listed [ours].
+pub(super) fn bank_handles(
+    lead: u32,
+    guest: Option<u32>,
+    targets: &Targets,
+    primary: PlayerId,
+) -> (Option<u32>, Vec<u32>) {
+    let bank = handle_of(primary, lead, guest);
+    let others = targets
+        .chased()
+        .map(|id: TargetId| PlayerId(id.0))
+        .filter(|&id| id != primary)
+        .filter_map(|id| handle_of(id, lead, guest))
+        .collect();
+    (bank, others)
+}
+
+/// Writes the end of a chase into the stable. A single player's chase runs as it always did, on the current car. A
+/// co-op chase banks on `bank`: a bust marks that car; an evade runs the heat factor once, then `settle_evade` for the
+/// banking car and the other cars of the chase [ours].
+fn settle_chase_end(
+    settings: &CareerSettings,
+    stable: &mut Stable,
+    busted: bool,
+    bank: Option<u32>,
+    others: &[u32],
+    result: &PursuitResult,
+    coop: bool,
+) {
+    if !coop {
+        match busted {
+            true => end_player_pursuit(settings, stable, result),
+            false => finish_cooldown_pursuit_default(settings, stable, result),
+        };
+        return;
+    }
+    if busted {
+        if let Some(bank) = bank {
+            end_pursuit_for(bank, stable, result);
+        }
+        return;
+    }
+    apply_heat_factor(stable, DEFAULT_EVADE_HEAT_FACTOR);
+    settle_evade(stable, bank, others, result);
+}
+
+/// The heat a chase starts from: the lead car's heat, or the higher of it and the guest car's when the guest has a
+/// record [ours].
+fn carried(lead: f32, guest: Option<f32>) -> f32 {
+    guest.map_or(lead, |guest| lead.max(guest))
 }
 
 /// Writes `heat` back into the record of `handle`, when there is one and a heat was kept.

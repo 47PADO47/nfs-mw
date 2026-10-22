@@ -26,7 +26,14 @@ impl WorldScene {
         if !traffic.pay_bust(marker, markers) {
             return false;
         }
-        let outcome = self.career.handle.with(|career| settle_bust(career, pursuit, marker)).flatten();
+        let outcome = self
+            .career
+            .handle
+            .with(|career| {
+                let handle = career.settings.car_handle;
+                settle_bust(career, handle, pursuit, marker)
+            })
+            .flatten();
         log::info!("busted: career settled the bust (marker {marker}), outcome {outcome:?}");
         // The car goes back to the respawn marker when the game runs again (`respawn.rs`).
         self.career.respawn.pending = true;
@@ -83,12 +90,16 @@ pub(super) fn settle_payment(
     Some(screen.pay_with_cash(settings, record))
 }
 
-/// Settles the bust on the career's current car. Returns `None` when the car has no career record, in which case
-/// there are no fines to pay, no strike to add and no markers granted.
-fn settle_bust(career: &mut Career, pursuit: InfractionMask, marker: bool) -> Option<PayOutcome> {
-    let handle = career.settings.car_handle;
+/// Settles the bust on the car with `handle` (the current car, or a co-op player's). Returns `None` when the car has
+/// no career record, in which case there are no fines to pay, no strike to add and no markers granted.
+pub(super) fn settle_bust(
+    career: &mut Career,
+    handle: u32,
+    pursuit: InfractionMask,
+    marker: bool,
+) -> Option<PayOutcome> {
     let Some(record) = career.stable.career_for_handle_mut(handle) else {
-        log::warn!("busted: the current car has no career record, nothing is fined");
+        log::warn!("busted: the car {handle:#x} has no career record, nothing is fined");
         return None;
     };
     settle_payment(&mut career.settings, record, &mut career.markers, pursuit, marker)

@@ -390,6 +390,10 @@ impl Scene for WorldScene {
         self.spawn_traffic_to(at, heading)
     }
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
+        // Co-op has no ticket screen: `coop_auto_pay_ticket` pays the ticket itself.
+        if self.coop.is_some() {
+            return None;
+        }
         self.traffic.as_mut()?.take_bust_ticket()
     }
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
