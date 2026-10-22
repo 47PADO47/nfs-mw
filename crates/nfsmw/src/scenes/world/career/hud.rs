@@ -2,8 +2,6 @@
 //! `docs/specs/ai-pursuit-heat.md`). [`WorldScene::career_hud`] reads the values once a frame; [`CareerHud::apply`]
 //! puts them in the HUD state, from `scenes/world/hud.rs`.
 
-use blackbox_attrib::vlt_hash;
-
 use crate::hud::HudState;
 use crate::scenes::world::WorldScene;
 
@@ -57,15 +55,15 @@ fn meter_heat(heat: f32) -> f32 {
 }
 
 impl WorldScene {
-    /// Reads the career values of this frame: the driven car's banked bounty and heat from its career record. The
-    /// car is looked up by the name hash of the car's name (`career/data.rs` gives cars that key; the handle rule is
-    /// unconfirmed). The pending points are the running rep points of the chase while it runs (`ai-pursuit-heat.md`
-    /// section 5.1); after it ends they are banked into the record, so they count only while the chase is on.
+    /// Reads the career values of this frame: the lead's car's banked bounty and heat from its career record, the car
+    /// `career.settings.car_handle` names, as the rest of the career reads it. The pending points are the running rep
+    /// points of the chase while it runs (`ai-pursuit-heat.md` section 5.1); after it ends they are banked into the
+    /// record, so they count only while the chase is on.
     pub(super) fn career_hud(&mut self) {
-        let handle = self.players.lead().map(|drive| vlt_hash(&drive.car_name));
+        let lead = self.players.has_lead();
         let car = self.career.handle.with(|career| {
-            let record = handle.and_then(|handle| career.stable.career_for_handle(handle));
-            record.map(|record| (record.bounty, record.heat))
+            let record = career.stable.career_for_handle(career.settings.car_handle).filter(|_| lead)?;
+            Some((record.bounty, record.heat))
         });
         let pending =
             self.traffic.as_ref().filter(|traffic| traffic.is_pursuing()).map_or(0, |traffic| traffic.rep_points());
