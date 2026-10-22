@@ -466,5 +466,5 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 ## Roadmap
 
 The milestones and what is done in each are in [roadmap.md](roadmap.md). Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
-multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)) and the telemetry
+multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)), co-op on the same N-player world ([ADR 0010](decisions/0010-coop-and-the-n-player-world.md)) and the telemetry
 server ([ADR 0007](decisions/0007-telemetry-server.md), [specs](specs/telemetry/README.md)).
