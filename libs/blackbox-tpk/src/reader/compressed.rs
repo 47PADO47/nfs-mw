@@ -55,13 +55,17 @@ pub(crate) fn inflate_texture(hash: u32, blob: &[u8], usize_: usize, layout: &'s
         return Err(err(format!("inflated to {} bytes, expected {usize_}", block.len())));
     }
     let split = block.len() - trailer;
-    let rec = InfoRecord { raw: &block[split..split + layout.info.len], layout };
-    let plat = &block[split + layout.info.len..];
+    // The trailer is small: copy it, so the inflated block itself becomes the image without a second copy.
+    let tail = block[split..].to_vec();
+    let rec = InfoRecord { raw: &tail[..layout.info.len], layout };
+    let plat = &tail[layout.info.len..];
     if rec.name_hash() != hash {
         return Err(err(format!("trailer names 0x{:08X}", rec.name_hash())));
     }
     let image_end = rec.image_size().min(split);
     // Unconfirmed: a palette, if any, follows the image inside the block.
     let palette = block.get(image_end..(image_end + rec.palette_size()).min(split)).unwrap_or_default().to_vec();
-    Ok(rec.build(plat, block[..image_end].to_vec(), palette))
+    let mut image = block.into_owned();
+    image.truncate(image_end);
+    Ok(rec.build(plat, image, palette))
 }
