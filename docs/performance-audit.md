@@ -134,8 +134,22 @@ three measures the whole app (`--bench-seconds`, now hidden, with hitch counts) 
 | Pipelines were built on first use inside a frame (264 ms). | `RenderBackend::prewarm` builds what the current settings need ahead of the frame. |
 | Parallel opens could build one memo entry twice; surface capabilities were queried twice a second. | A `OnceLock` per memo key; capabilities on change. |
 
-Next in this round: the steady frame (reflection views, HUD composition, draw submission), then the GPU passes and the
-load path.
+### Steady frame, CPU (P2)
+
+| Finding | Fix |
+| --- | --- |
+| On High without caching, the car's cube re-rendered all six faces every frame, each through a scratch image and a store pass. | Two faces per frame in rotation (three on Medium and Low), drawn straight into the cube; the glossy bind group is made once and irradiance is projected once per full cycle. |
+| The world, window and sky draws re-walked every instance per blend mode and layer, in every view. | One walk per view fills them with the colour buckets; binds only on change; texture redirects in a slot-indexed Vec. |
+| Every view swept every placed object through ~250-byte records and sorted whole instances. | Per-tile frustum tests over compact cull entries; sorting (mesh, index) keys. |
+| The shadow feed swept and sorted every resident caster every frame. | The static casters are kept per residency revision; only dynamic ones are appended. |
+| Each car's ~16 ray casts per tick walked the grid on their own. | A shared candidate window, packs in a Vec, a group bitset, a resident-near cache; the window keeps the decoded strips and broad-phase values its rays reach, so a car's corner rays decode each strip once; hits stay bit-identical. |
+| The AI cars integrated one after another. | Integration on scoped threads from eight cars up, with starts and ends in car order: bit-identical to the serial step. |
+| Instance matrices were uploaded again for every view (ten or more times a frame). | A persistent instance store; views upload a u32 slot per instance. |
+| The HUD and the menus rebuilt their FEng trees and recomposed every frame; the raster text cache never freed. | A revision per package (focus included); trees and composed layers are reused while it holds; a bounded text cache. |
+| egui, the status line and the mirror's CPU tint ran with nothing to show. | The egui pass is skipped when nothing is up, the status line is built only for the overlay, and the mirror is tinted and clipped on the GPU. |
+| The frame limiter paced twice under vsync and overshot its sleeps. | It defers to vsync and spins the last millisecond. |
+
+Next in this round: the GPU passes, then the load path.
 
 ## How to measure
 
