@@ -42,8 +42,9 @@ pub struct NetSession {
     pub(super) mode: Mode,
     dir: Option<GameDir>,
     pub(super) player: PlayerSetup,
-    /// The player's identity for this run: one key, so a reconnect resumes the seat.
+    /// The player's identity: one key, so a reconnect resumes the seat; from `identity_file` when set.
     identity: Option<IdentityKey>,
+    identity_file: Option<std::path::PathBuf>,
     listen: Option<ListenServer>,
     pub(super) client: Option<ClientHandle>,
     pub(super) scan: Option<DiscoveryScan>,
@@ -66,6 +67,7 @@ impl NetSession {
             dir,
             player,
             identity: None,
+            identity_file: None,
             listen: None,
             client: None,
             scan: None,
@@ -75,6 +77,11 @@ impl NetSession {
             lobby: None,
             results: None,
         }
+    }
+
+    /// Read (or make) the player's identity key in `path` (`net_identity_file`) instead of a new key every run.
+    pub fn set_identity_file(&mut self, path: Option<std::path::PathBuf>) {
+        self.identity_file = path;
     }
 
     /// Say ready by itself once seated.
@@ -91,7 +98,15 @@ impl NetSession {
         if let Some(identity) = &self.identity {
             return Ok(identity.clone());
         }
-        let identity = IdentityKey::generate().map_err(|err| anyhow::anyhow!("no identity key: {err}"))?;
+        let stored = self.identity_file.as_deref().map(super::identity::load_or_create).transpose();
+        let identity = match stored {
+            Ok(Some(identity)) => identity,
+            Ok(None) => IdentityKey::generate().map_err(|err| anyhow::anyhow!("no identity key: {err}"))?,
+            Err(error) => {
+                log::warn!("net: {error:#}; this run uses a new key");
+                IdentityKey::generate().map_err(|err| anyhow::anyhow!("no identity key: {err}"))?
+            }
+        };
         self.identity = Some(identity.clone());
         Ok(identity)
     }

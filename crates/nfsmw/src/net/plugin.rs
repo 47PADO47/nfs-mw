@@ -30,11 +30,14 @@ pub struct NetPlugin {
     pub dir: Option<GameDir>,
     pub player: PlayerSetup,
     pub start: NetStart,
+    /// The player's identity key file (`net_identity_file`); `None` makes a new key every run.
+    pub identity_file: Option<std::path::PathBuf>,
 }
 
 impl Plugin for NetPlugin {
     fn build(&self, app: &mut App) {
         let mut session = NetSession::new(self.dir.clone(), self.player.clone());
+        session.set_identity_file(self.identity_file.clone());
         let started = match &self.start {
             NetStart::Idle => Ok(()),
             NetStart::Host(options) => {

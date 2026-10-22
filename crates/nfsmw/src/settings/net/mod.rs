@@ -83,7 +83,7 @@ impl NetSettings {
     }
 
     /// The identity key file: the set path, or [`DEFAULT_IDENTITY_FILE`] in `config_dir`.
-    #[allow(dead_code)] // read by the game's `NetSession` when it loads or makes the identity key
+    #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
     pub fn identity_path(&self, config_dir: &std::path::Path) -> std::path::PathBuf {
         if self.identity_file.is_empty() {
             return config_dir.join(DEFAULT_IDENTITY_FILE);

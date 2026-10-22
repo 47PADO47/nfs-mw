@@ -18,7 +18,7 @@ use nfsmw_net::message::Name;
 use nfsmw_net::version::{PROTO_MAJOR, noise_prologue};
 
 use super::build;
-use crate::scenes::world::net::catalog::car_type_id;
+use crate::frontend::lan::car::car_type;
 use crate::scenes::world::net_client::GameCar;
 
 /// The session of a game client.
@@ -43,7 +43,7 @@ impl PlayerSetup {
     /// The session settings of this player for a server with the install's `cars`.
     pub fn session_config(&self, cars: &[String]) -> SessionConfig {
         let name = Name::new(&self.name).unwrap_or_else(|_| Name::new("Player").expect("a valid name"));
-        SessionConfig::new(name, Loadout::stock(car_type_id(&self.car)), build::sim_build(), build::data_id(cars))
+        SessionConfig::new(name, Loadout::stock(car_type(&self.car)), build::sim_build(), build::data_id(cars))
     }
 }
 

@@ -251,6 +251,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         dir: None,
         player: crate::net::PlayerSetup { name: "Player".into(), car: crate::scenes::world::DEFAULT_CAR.into() },
         start: crate::net::NetStart::Idle,
+        identity_file: None,
     }));
     // Ctrl+C in the terminal ends the game through the app's own exit, not by killing the process, so the run
     // unwinds and the window closes cleanly (Windows would otherwise report STATUS_CONTROL_C_EXIT).

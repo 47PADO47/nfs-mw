@@ -35,7 +35,7 @@ fn run_front_end(
     let mut options = view.run_options(dir, true).with_mods(mods);
     #[cfg(feature = "multiplayer")]
     {
-        options.net = Some(net::plugin(dir, launch));
+        options.net = Some(net::plugin(dir, launch, &Settings::load(view.settings_layer())));
     }
     #[cfg(not(feature = "multiplayer"))]
     let _ = launch;
