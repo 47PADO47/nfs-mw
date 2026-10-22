@@ -1,12 +1,17 @@
-//! One movie played against a clock, apart from any scene: the decoder, the picture due now, the sound and the end.
+//! One movie played against a clock, apart from any scene: the workers that decode it, the picture due now, the sound
+//! and the end.
 
-use anyhow::{Result, bail};
+use std::sync::mpsc::TryRecvError;
+
+use anyhow::{Context, Result, bail};
+use blackbox_movie::Timeline;
 use blackbox_text::SubtitleTrack;
 use ea_audio::Pcm;
 use game_install::GameDir;
 
 use super::framing::framing;
-use super::player::{Movie, Step};
+use super::player::{Message, Picture, VideoStream};
+use super::sound::SoundDecoder;
 use super::subtitles;
 use crate::settings::hd_content;
 use crate::viewer::Fullscreen;
@@ -59,11 +64,29 @@ impl Clock {
     }
 }
 
+/// What the video worker has said about the file: the picture's size and the clock of its frames.
+struct Opened {
+    size: [u32; 2],
+    duration: f64,
+    timeline: Timeline,
+}
+
 /// One movie being played. The owner moves the clock with [`MoviePlayback::advance`], shows what
 /// [`MoviePlayback::picture`] hands out, and plays [`MoviePlayback::take_clip`] once.
+///
+/// Opening a movie only starts two workers (see `player` and `sound`): one reads the file and decodes the pictures a few
+/// frames ahead of the clock, the other decodes the sound. The clock holds, and there is no picture, until both are
+/// ready, so the sound and the picture start together.
 pub struct MoviePlayback {
     name: String,
-    movie: Movie,
+    video: VideoStream,
+    sound: SoundDecoder,
+    /// Set once the video worker has read the header.
+    opened: Option<Opened>,
+    /// The sound worker is done (the movie may have no sound).
+    sound_ready: bool,
+    /// Both workers are ready: the clock runs.
+    playing: bool,
     audio: Option<Pcm>,
     /// The latest frame, until [`MoviePlayback::picture`] hands it out.
     frame: Option<Vec<u8>>,
@@ -75,25 +98,32 @@ pub struct MoviePlayback {
 }
 
 impl MoviePlayback {
-    /// Opens the movie `name` in `dir` (see [`find`]) with its clock at `start` seconds.
+    /// Opens the movie `name` in `dir` (see [`find`]) with its clock at `start` seconds. A movie that is not in the
+    /// install is an error now; the file is read and decoded on workers, so a damaged one is logged and ends the movie
+    /// when the workers find out.
     pub fn open(dir: &GameDir, name: &str, start: f64) -> Result<Self> {
-        let _trace = blackbox_trace::scope("Movie: open and decode the sound");
+        let _trace = blackbox_trace::scope("Movie: open");
         let file = find(dir, name)?;
-        let bytes = anyhow::Context::with_context(dir.read(&format!("MOVIES/{file}")), || format!("reading {file}"))?;
-        let (mut movie, audio) = anyhow::Context::with_context(Movie::open(bytes), || format!("opening {file}"))?;
-        log::info!(
-            "{file}: {:?} pixels, {:.1} s, {}",
-            movie.size(),
-            movie.duration(),
-            audio.as_ref().map_or("no sound", |_| "with sound")
-        );
-        let mut frame = None;
-        if start > 0.0 && movie.step(start)? == Step::Frame {
-            frame = Some(movie.rgba().to_vec());
-        }
-        let sound_secs = audio.as_ref().map_or(0.0, Pcm::duration_secs);
+        let path = dir
+            .resolve(&format!("MOVIES/{file}"))
+            .with_context(|| format!("opening {file}: it is not in the install"))?
+            .to_path_buf();
+        let video = VideoStream::spawn(path.clone(), start)?;
+        let sound = SoundDecoder::spawn(path)?;
         let subtitles = subtitles::load(dir, &file);
-        Ok(Self { name: file, movie, audio, frame, shown: false, clock: Clock::new(start, sound_secs), subtitles })
+        Ok(Self {
+            name: file,
+            video,
+            sound,
+            opened: None,
+            sound_ready: false,
+            playing: false,
+            audio: None,
+            frame: None,
+            shown: false,
+            clock: Clock::new(start, 0.0),
+            subtitles,
+        })
     }
 
     /// The file name of the movie, such as `ealogo_english_ntsc.vp6`.
@@ -111,33 +141,139 @@ impl MoviePlayback {
         subtitles::lines_at(self.subtitles.as_ref(), self.elapsed())
     }
 
-    /// Moves the clock on by `dt` seconds and decodes the frame that is due.
+    /// Moves the clock on by `dt` seconds and takes the frame that is due. The clock holds while the workers are still
+    /// opening the movie.
     pub fn advance(&mut self, dt: f32) {
+        if self.clock.done || !self.load() {
+            return;
+        }
         self.clock.tick(dt);
-        match self.movie.step(f64::from(dt)) {
-            Ok(Step::Frame) => self.frame = Some(self.movie.rgba().to_vec()),
-            Ok(Step::Same) => {}
-            Ok(Step::Finished) => self.clock.picture_ended(),
-            Err(e) => {
-                log::error!("{}: {e:#}", self.name);
-                self.clock.end();
+        self.present_due();
+    }
+
+    /// Takes in what the workers have finished so far. True once the movie plays; a failure ends the movie.
+    fn load(&mut self) -> bool {
+        if self.playing {
+            return true;
+        }
+        if self.opened.is_none() {
+            self.poll_header();
+        }
+        if !self.sound_ready {
+            self.poll_sound();
+        }
+        let Some(opened) = &self.opened else { return false };
+        if !self.sound_ready || self.clock.done {
+            return false;
+        }
+        log::info!(
+            "{}: {:?} pixels, {:.1} s, {}",
+            self.name,
+            opened.size,
+            opened.duration,
+            self.audio.as_ref().map_or("no sound", |_| "with sound")
+        );
+        self.playing = true;
+        true
+    }
+
+    fn poll_header(&mut self) {
+        match self.video.try_next() {
+            Ok(Message::Opened(header)) => {
+                let size = [u32::from(header.width), u32::from(header.height)];
+                let timeline = Timeline::from_header(&header);
+                self.opened = Some(Opened { size, duration: header.duration(), timeline });
             }
+            Ok(Message::Failed(e)) => self.fail(&e),
+            // The header comes first, so a frame here cannot be.
+            Ok(Message::Frame(_)) | Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => self.fail("the video decoder stopped"),
+        }
+    }
+
+    fn poll_sound(&mut self) {
+        match self.sound.try_take() {
+            Ok(Ok(audio)) => {
+                self.clock.sound_secs = audio.as_ref().map_or(0.0, Pcm::duration_secs);
+                self.audio = audio;
+                self.sound_ready = true;
+            }
+            Ok(Err(e)) => self.fail(&e),
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => self.fail("the sound decoder stopped"),
+        }
+    }
+
+    /// The movie cannot go on: it is logged and over.
+    fn fail(&mut self, reason: &str) {
+        log::error!("{}: {reason}", self.name);
+        self.clock.end();
+    }
+
+    /// Takes the frame that is due at the clock from the queue of the video worker.
+    fn present_due(&mut self) {
+        let Some(opened) = self.opened.as_mut() else { return };
+        let update = opened.timeline.update(self.clock.elapsed);
+        let Some(target) = update.present else {
+            if update.finished {
+                self.drain_video();
+                self.clock.picture_ended();
+            }
+            return;
+        };
+        self.take_frames(target);
+        if update.finished {
+            self.drain_video();
+        }
+    }
+
+    /// Takes pictures from the worker up to frame `target`. Earlier ones are dropped: they were due already. When the
+    /// worker is late, the newest one it has is shown and the rest follow on later frames.
+    fn take_frames(&mut self, target: u32) {
+        loop {
+            match self.video.try_next() {
+                Ok(Message::Frame(Picture { index, rgba })) => {
+                    self.show(rgba);
+                    if index >= target {
+                        return;
+                    }
+                }
+                Ok(Message::Opened(_)) => {}
+                Ok(Message::Failed(e)) => return self.fail(&e),
+                Err(TryRecvError::Empty) => return,
+                // The file had no more frames than that.
+                Err(TryRecvError::Disconnected) => return self.clock.picture_ended(),
+            }
+        }
+    }
+
+    /// Makes `rgba` the latest frame; the one it replaces, never shown, goes back to the worker.
+    fn show(&mut self, rgba: Vec<u8>) {
+        let Some(unshown) = self.frame.replace(rgba) else { return };
+        self.video.give_back(unshown);
+    }
+
+    /// The picture has run out: what is left in the queue is of no use, and the worker must not wait on it.
+    fn drain_video(&mut self) {
+        while let Ok(message) = self.video.try_next() {
+            let Message::Frame(picture) = message else { continue };
+            self.video.give_back(picture.rgba);
         }
     }
 
     /// The picture to show: the latest frame if it is new, and how it is framed. `None` before the first frame.
     pub fn picture(&mut self) -> Option<Fullscreen> {
+        let size = self.opened.as_ref()?.size;
         let rgba = self.frame.take();
         if rgba.is_none() && !self.shown {
             return None;
         }
         self.shown = true;
-        let size = self.movie.size();
         let (view, fit) = framing(&self.name, size, hd_content::active().fmv);
         Some(Fullscreen { size, view, fit, rgba })
     }
 
-    /// The sound of the movie, once: the caller plays it.
+    /// The sound of the movie, once: the caller plays it. `None` until the sound is decoded, and for a movie without any.
     pub fn take_clip(&mut self) -> Option<Pcm> {
         self.audio.take()
     }
@@ -150,6 +286,18 @@ impl MoviePlayback {
     /// Ends the movie now, whatever is left of it.
     pub fn skip(&mut self) {
         self.clock.end();
+    }
+
+    /// Whether the workers are done opening the movie and the clock runs.
+    #[cfg(test)]
+    pub(super) fn loaded(&self) -> bool {
+        self.playing
+    }
+
+    /// The length of the picture in seconds, once the header is read.
+    #[cfg(test)]
+    pub(super) fn duration(&self) -> Option<f64> {
+        self.opened.as_ref().map(|opened| opened.duration)
     }
 }
 
