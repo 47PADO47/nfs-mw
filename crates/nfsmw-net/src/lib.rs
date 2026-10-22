@@ -16,8 +16,10 @@
 //! - [`modes`]: one state machine per game mode (free roam, circuit, sprint, speedtrap, knockout, pursuit co-op, tag),
 //!   fed by [`nfsmw_sim::SimEvent`]s and car samples, returning the events clients hear; the custom rules (MP-11) and
 //!   the modes this build refuses (drag, human cops).
+//! - [`fairness`]: catch-up, collision modes, nitrous and damage toggles, the reset rule and the wrong-way notice.
 //! - [`results`]: the per-race result record (fixed and versioned), session stats and their result message.
 
+pub mod fairness;
 pub mod input;
 pub mod loadout;
 pub mod message;
