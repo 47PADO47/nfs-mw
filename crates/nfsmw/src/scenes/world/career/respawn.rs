@@ -75,6 +75,8 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.respawn_near([at.x, at.y], None);
         }
+        // A co-op guest follows the lead out of the safe house, behind it (`docs/specs/coop-career.md` section 6).
+        self.career.respawn.guests_behind = true;
         log::info!("career: the world starts at the safe house marker ({:.0}, {:.0})", at.x, at.y);
     }
 
