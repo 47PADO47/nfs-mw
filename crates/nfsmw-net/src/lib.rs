@@ -10,9 +10,14 @@
 //! - [`message`]: every reliable message of the protocol and its bounded, versioned codec.
 //! - [`version`]: protocol versions, the game-data and sim-build ids, the mod list and the join compatibility decision.
 //! - [`loadout`]: car selection by ids and its validation against the caller's game data.
+//!
+//! The session rules, pure state machines that take the time from the caller and return what to send:
+//!
+//! - [`roles`]: host, admin and player permissions, bans, and the local mute list.
 
 pub mod input;
 pub mod loadout;
 pub mod message;
+pub mod roles;
 pub mod schema;
 pub mod version;
