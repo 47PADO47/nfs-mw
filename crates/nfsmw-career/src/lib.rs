@@ -7,7 +7,8 @@
 //! ([`regions`]) and the glue that reads and rewrites a whole profile file ([`save`]). Milestones ([`milestones`], with
 //! the save block in [`save`]), the Blacklist ([`blacklist`]), the car lot ([`carlot`]) and the new-career setup
 //! ([`settings`]) are here too; race records and the race event graphs are not, but the intro and outro steps of a
-//! race and its post-race chain are ([`story`]).
+//! race and its post-race chain are ([`story`]). Co-op rules for two or more players sharing one profile (player
+//! names, race credit, garage limits) are in [`coop`], marked [ours] because the original has no co-op career.
 //!
 //! Every rule cites its spec in the module docs. Where a spec is silent or marked unconfirmed, the code takes
 //! the most conservative reading and says so next to it; `docs/provenance/career-core.md` lists those choices.
@@ -15,6 +16,7 @@
 pub mod blacklist;
 mod bytes;
 pub mod carlot;
+pub mod coop;
 pub mod economy;
 mod error;
 pub mod milestones;

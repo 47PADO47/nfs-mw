@@ -5,7 +5,8 @@
 //! [`LotCar`] entries from the front-end collections, so this crate does not depend on `nfsmw-data`.
 //!
 //! The garage limits are [`Limits`] values. The spec gives them as literals in the screen code (section 8 says
-//! they can be configuration values); [`Limits::SPEC`] holds those literals.
+//! they can be configuration values); [`Limits::SPEC`] holds those literals. Co-op sessions use [`Limits::COOP`]
+//! (a garage as large as the record slots) through [`Limits::for_players`].
 
 pub mod catalogue;
 pub mod purchase;
@@ -42,6 +43,18 @@ pub struct Limits {
 impl Limits {
     /// The values the original uses.
     pub const SPEC: Limits = Limits { owned_cars: 10, career_records: CAREER_SLOTS, customs: 20 };
+
+    /// Co-op: the shared garage holds as many career cars as the save has record slots (docs/specs/coop-career.md
+    /// section 4) [ours].
+    pub const COOP: Limits = Limits { owned_cars: CAREER_SLOTS, career_records: CAREER_SLOTS, customs: 20 };
+
+    /// The limits for `players` sharing one profile: [`Limits::SPEC`] for one player, [`Limits::COOP`] for more.
+    pub fn for_players(players: usize) -> Limits {
+        if players <= 1 {
+            return Limits::SPEC;
+        }
+        Limits::COOP
+    }
 }
 
 /// The number of owned career cars: records with the owned flag, a class bit, not free and not marked `0x40`

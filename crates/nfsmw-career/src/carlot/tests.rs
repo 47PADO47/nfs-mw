@@ -326,6 +326,29 @@ fn a_preset_car_needs_a_free_career_record_and_car_slot() {
 }
 
 #[test]
+fn coop_limits_allow_every_record_slot() {
+    assert_eq!(Limits::COOP, Limits { owned_cars: CAREER_SLOTS, career_records: CAREER_SLOTS, customs: 20 });
+    assert_eq!(Limits::for_players(2), Limits::COOP);
+    let cat = catalogue();
+    let mut stable = Stable::empty();
+    for slot in 0..10 {
+        put_car(&mut stable, slot, 0x100 + slot as u32, slot as u8, 0xC0);
+    }
+    let mut s = settings(16, 100_000);
+    assert!(
+        buy(&mut s, &mut stable, &cat[0], Delivery::DriveNow, 0, &Limits::COOP).is_ok(),
+        "the eleventh car is allowed in co-op"
+    );
+    assert_eq!(owned_count(&stable), 11);
+}
+
+#[test]
+fn one_player_keeps_spec_limits() {
+    assert_eq!(Limits::for_players(1), Limits::SPEC);
+    assert_eq!(Limits::for_players(0), Limits::SPEC);
+}
+
+#[test]
 fn the_free_customization_record_is_the_first_one_no_car_uses() {
     let mut stable = Stable::empty();
     assert_eq!(stable.free_customization(), Some(0));
