@@ -127,3 +127,46 @@ fn a_banked_milestone_is_a_challenge_passed_in_its_bin() {
     let banked = [Banked { key: 9, bounty: 500 }, Banked { key: 7, bounty: 500 }, Banked { key: 99, bounty: 1 }];
     assert_eq!(passed_challenges(&set, &banked), vec![(12, "9".to_owned()), (3, "7".to_owned())]);
 }
+
+const LEAD_CAR: u32 = 0x10;
+const GUEST_CAR: u32 = 0x11;
+
+/// Both players chased in one chase.
+fn both_chased() -> Targets {
+    let mut targets = Targets::new();
+    targets.add(TargetId(LEAD.0));
+    targets.add(TargetId(GUEST.0));
+    targets
+}
+
+#[test]
+fn single_player_banks_the_current_car() {
+    assert_eq!(chase_banking(None, LEAD_CAR), (Some(LEAD_CAR), Vec::new()));
+    let (bank, others) = bank_handles(LEAD_CAR, None, &Targets::new(), LEAD);
+    assert_eq!((bank, others), (Some(LEAD_CAR), Vec::new()));
+}
+
+#[test]
+fn guest_primary_banks_the_guest_car() {
+    let (bank, others) = bank_handles(LEAD_CAR, Some(GUEST_CAR), &both_chased(), GUEST);
+    assert_eq!((bank, others), (Some(GUEST_CAR), vec![LEAD_CAR]));
+    let (bank, _) = bank_handles(LEAD_CAR, None, &both_chased(), GUEST);
+    assert_eq!(bank, None, "a guest without a career car banks nothing");
+}
+
+#[test]
+fn chased_partner_is_an_other() {
+    let (bank, others) = bank_handles(LEAD_CAR, Some(GUEST_CAR), &both_chased(), LEAD);
+    assert_eq!((bank, others), (Some(LEAD_CAR), vec![GUEST_CAR]));
+    let mut busted = both_chased();
+    busted.bust(TargetId(GUEST.0));
+    let (_, others) = bank_handles(LEAD_CAR, Some(GUEST_CAR), &busted, LEAD);
+    assert!(others.is_empty(), "a car busted earlier in the chase is not an other");
+}
+
+#[test]
+fn coop_carries_the_higher_heat() {
+    assert_eq!(carried(2.0, Some(3.5)), 3.5);
+    assert_eq!(carried(4.0, Some(1.5)), 4.0);
+    assert_eq!(carried(2.0, None), 2.0);
+}

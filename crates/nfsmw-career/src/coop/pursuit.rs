@@ -21,18 +21,24 @@ pub fn settle_target_bust(stable: &mut Stable, handle: u32, result: &PursuitResu
     Some(record_pursuit(record, &busted))
 }
 
-/// The shared chase was evaded. The evade tick and the bounty run once, on the lead's car
+/// The shared chase was evaded. The evade tick and the bounty run once, on the banking car `lead`
 /// ([`end_pursuit_for`] with `busted` false). Every other car takes the infractions and one evade count, but no
 /// bounty. A handle listed twice counts once.
 ///
+/// `lead` is `None` when the banking car has no career record (a guest without one): the evade tick still runs,
+/// nothing banks, and the others still take their share.
+///
 /// A challenge series race records nothing on any car; the evade tick still runs, as in [`end_pursuit_for`].
-pub fn settle_evade(stable: &mut Stable, lead: u32, others: &[u32], result: &PursuitResult) -> PursuitEnd {
+pub fn settle_evade(stable: &mut Stable, lead: Option<u32>, others: &[u32], result: &PursuitResult) -> PursuitEnd {
     let evaded = PursuitResult { busted: false, ..*result };
-    let end = end_pursuit_for(lead, stable, &evaded);
+    let end = match lead {
+        Some(handle) => end_pursuit_for(handle, stable, &evaded),
+        None => PursuitEnd { ticked: true, released_cars: stable.evade_tick(), recorded: None },
+    };
     if result.challenge_series {
         return end;
     }
-    let mut done = vec![lead];
+    let mut done: Vec<u32> = lead.into_iter().collect();
     for &handle in others {
         if done.contains(&handle) {
             continue;
@@ -103,7 +109,7 @@ mod tests {
     #[test]
     fn evade_banks_bounty_once() {
         let mut stable = two_cars();
-        let end = settle_evade(&mut stable, LEAD, &[OTHER], &pursuit(false));
+        let end = settle_evade(&mut stable, Some(LEAD), &[OTHER], &pursuit(false));
         assert!(end.ticked);
         assert_eq!(end.recorded, Some(RecordedPursuit { banked_bounty: 3500, car_bounty: 3500, evaded: true }));
         let (lead, other) = (&stable.careers[0], &stable.careers[1]);
@@ -119,7 +125,7 @@ mod tests {
             record.strikes = 2;
             record.decay = EVADES_PER_STRIKE_DECAY - 1;
         }
-        let end = settle_evade(&mut stable, LEAD, &[OTHER], &pursuit(false));
+        let end = settle_evade(&mut stable, Some(LEAD), &[OTHER], &pursuit(false));
         assert_eq!(end.released_cars, 0);
         for record in &stable.careers[0..2] {
             assert_eq!((record.strikes, record.decay), (1, 0), "one tick per car");
@@ -127,10 +133,23 @@ mod tests {
     }
 
     #[test]
+    fn evade_without_a_banking_record_ticks_and_marks_the_others() {
+        let mut stable = two_cars();
+        stable.careers[0].strikes = 1;
+        stable.careers[0].decay = EVADES_PER_STRIKE_DECAY - 1;
+        let end = settle_evade(&mut stable, None, &[OTHER], &pursuit(false));
+        assert!(end.ticked);
+        assert_eq!(end.recorded, None);
+        let (lead, other) = (&stable.careers[0], &stable.careers[1]);
+        assert_eq!((lead.bounty, lead.evaded, lead.strikes), (0, 0, 0), "one tick, nothing banked");
+        assert_eq!((other.bounty, other.evaded, other.unserved_total()), (0, 1, 2));
+    }
+
+    #[test]
     fn challenge_series_evade_records_nothing() {
         let mut stable = two_cars();
         let result = PursuitResult { challenge_series: true, ..pursuit(false) };
-        let end = settle_evade(&mut stable, LEAD, &[OTHER], &result);
+        let end = settle_evade(&mut stable, Some(LEAD), &[OTHER], &result);
         assert_eq!(end.recorded, None);
         assert_eq!(settle_target_bust(&mut stable, OTHER, &result), None);
         for record in &stable.careers[0..2] {
