@@ -6,6 +6,10 @@ a career flag (section 9). This spec is the design for both: where the data live
 format, and what happens on save, load and delete. It builds on [ADR 0005](../decisions/0005-native-mod-plugins.md) (mods, the ABI
 and the interfaces) and on [career-save.md](../formats/career-save.md) (the profile file it must leave alone).
 
+**Status.** Built: the blob file and its checks (`crates/nfsmw/src/career/mod_data.rs`, sections 4 and 3's key and size
+rules), and the delete of a profile's mod data (section 2). Not built yet: the `bb.saves` and `nfsmw.career` interfaces
+(sections 3 and 9), the save-path write order (section 5), and the decisions in section 8.
+
 This is a design of this project, not a behaviour of the original game. The original game reads only its own profile
 file and never looks at the files this spec adds.
 
