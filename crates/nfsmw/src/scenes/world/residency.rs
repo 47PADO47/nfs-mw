@@ -359,6 +359,9 @@ impl Residency {
         unwanted.extend(
             self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i) && !self.shadow_wanted.contains(i)),
         );
+        // The map's order is a random hash; removals touch the prop world and the collision, so they go in tile order
+        // (`docs/specs/multiplayer/determinism.md`, D3).
+        unwanted.sort_unstable();
         for i in unwanted.drain(..) {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 self.visual_revision = self.visual_revision.wrapping_add(1);
