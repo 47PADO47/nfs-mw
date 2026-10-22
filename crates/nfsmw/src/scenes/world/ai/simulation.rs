@@ -47,6 +47,7 @@ impl TrafficWorld {
         bodies.clear();
         bodies.extend(self.cars.iter().map(|c| (c.avoidable(), c.is_cop())));
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
+        bodies.extend(self.guest_bodies().map(|b| (b, false)));
         self.watch_ground(focus.body.map(|b| b.position), collision);
         let target = self.pursuit_target(focus.body);
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
@@ -141,7 +142,8 @@ impl TrafficWorld {
         self.service_spawn_requests(focus, collision, surfaces);
         let enabled = self.target > 0 || self.patrol_enabled();
         if activation::due(&mut self.spawn_timer, STEP, enabled) {
-            self.manage(activation::PERIOD, focus, collision, surfaces);
+            let at = self.next_spawn_focus(focus);
+            self.manage(activation::PERIOD, at, collision, surfaces);
         }
     }
 }

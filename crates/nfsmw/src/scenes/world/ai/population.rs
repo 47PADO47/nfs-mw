@@ -15,6 +15,7 @@ use crate::scenes::world::space;
 use crate::viewer::camera::Lens;
 
 mod cops;
+mod guests;
 mod visibility;
 use visibility::Viewing;
 
@@ -261,21 +262,25 @@ impl TrafficWorld {
         view.retire_distance = self.policy.retire_distance as f32;
         view.grace = self.policy.offscreen_seconds as f32;
         let base = cops::Base::new(camera, focus, self.pursuit.is_some());
+        // A co-op guest's view keeps a traffic car as the lead's does; the police follow the lead's.
+        let guests = self.guest_views();
+        let views = || std::iter::once(&view).chain(&guests);
         self.cars.retain_mut(|car| {
             if car.is_racer() {
                 return car.is_finite();
             }
-            car.note_views(dt, |p, radius| view.sees(p, radius));
+            car.note_views(dt, |p, radius| views().any(|v| v.sees(p, radius)));
             if car.is_police() {
                 return cops::keeps(car, &view, &base, MAX_AIRBORNE);
             }
-            if car.loose_trailer().is_some_and(|t| !Vitals::of_trailer(t).valid(&view, limits)) {
+            if car.loose_trailer().is_some_and(|t| !views().any(|v| Vitals::of_trailer(t).valid(v, limits))) {
                 car.drop_trailer();
             }
-            let parts = parts_seen(car, props, &view);
-            let keep = car.is_finite()
-                && (Vitals::of_car(car, parts).valid(&view, limits)
-                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(&view, limits)));
+            let valid = |v: &Viewing| {
+                Vitals::of_car(car, parts_seen(car, props, v)).valid(v, limits)
+                    || car.trailer().is_some_and(|t| Vitals::of_trailer(t).valid(v, limits))
+            };
+            let keep = car.is_finite() && views().any(valid);
             if !keep {
                 log::debug!("traffic retired: {} at {:?}; finite={}, unseen={:.1}s, distance={:.0}m, airborne={:.1}s, idle={:.1}s", car.name, car.position(), car.is_finite(), car.offscreen_time(), view.away(car.position()), car.airborne_time(), car.idle_time());
             }

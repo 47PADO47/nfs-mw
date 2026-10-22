@@ -24,6 +24,28 @@ impl WorldScene {
         }
     }
 
+    /// Each co-op guest as the traffic sees it: its car as a focus and its camera (`population/guests.rs`).
+    fn guest_traffic_views(&self) -> Vec<(Focus, crate::viewer::camera::Lens)> {
+        if self.view != View::Chase {
+            return Vec::new();
+        }
+        self.players
+            .guests()
+            .filter(|guest| guest.drive.has_sim())
+            .map(|guest| {
+                let drive = &guest.drive;
+                let p = drive.position();
+                let focus = Focus {
+                    position: [p.x, p.y],
+                    heading: drive.heading(),
+                    speed: drive.speed(),
+                    body: Some(drive.ai_body()),
+                };
+                (focus, self.car_lens(drive, drive.camera(), self.physics_aspect))
+            })
+            .collect()
+    }
+
     /// The traffic settings changed (or came in for the first time). A change of the car count or the cop share
     /// replaces a count typed in the console.
     pub(in crate::scenes::world) fn apply_traffic_setting(&mut self, setting: TrafficSettings) {
@@ -64,7 +86,9 @@ impl WorldScene {
     pub(in crate::scenes::world) fn prepare_traffic(&mut self, renderer: &mut dyn RenderBackend) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
         let barred = self.race_bars_cops();
+        let guests = self.guest_traffic_views();
         let Some(traffic) = self.traffic.as_mut() else { return };
+        traffic.set_guests(guests);
         traffic.configure(wanted, share);
         traffic.bar_cops(barred);
         traffic.set_policy(self.traffic_setting.policy);

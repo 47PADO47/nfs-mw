@@ -197,6 +197,10 @@ pub struct TrafficWorld {
     spike_hits: u32,
     /// The player's collisions with traffic, for the post-race statistics (`hit_count.rs`).
     player_hits: hit_count::HitCount,
+    /// The co-op guests' focus and camera this tick (`population/guests.rs`); empty outside co-op.
+    guests: Vec<(Focus, crate::viewer::camera::Lens)>,
+    /// Which player the population manager spawns around next (`population/guests.rs`).
+    spawn_turn: usize,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
@@ -273,6 +277,8 @@ impl TrafficWorld {
             spike_patches: None,
             spike_hits: 0,
             player_hits: Default::default(),
+            guests: Vec::new(),
+            spawn_turn: 0,
             bodies: Vec::new(),
             aims: Vec::new(),
             hits: Vec::new(),
