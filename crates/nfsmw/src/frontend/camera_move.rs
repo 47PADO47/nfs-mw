@@ -31,7 +31,7 @@ impl CameraMove {
     }
 
     /// The move that starts on the pose `start` and runs onto `goal`, taking the goal's duration, decay and order (the
-    /// original sets the goal's values when it starts the move, ).
+    /// original sets the goal's values when it starts the move).
     pub fn between(start: &CameraAngle, goal: &CameraAngle) -> Self {
         let start = CameraPose::from_angle(start);
         let mut goal_pose = CameraPose::from_angle(goal);
