@@ -43,8 +43,11 @@
 //! - [`netsim`]: the `net.sim` bad-network setting for the link simulator.
 //! - [`frames`]: the `SNAPSHOT`, `PING` and `PONG` payloads and the snapshot's global block, written by the server and
 //!   read by the client.
+//! - [`client_session`]: the client's session driver over a `ClientEndpoint` (or a mock link): admission, the lobby
+//!   mirror, snapshots into prediction and interpolation, events, reconnect and spectating.
 
 pub mod chat;
+pub mod client_session;
 pub mod clock;
 pub mod drop;
 pub mod fairness;
