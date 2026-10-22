@@ -170,7 +170,7 @@ character used by quick races). 314 collections in all. Fields:
 | `PresetRide` | text: a front-end preset car (name hashed upper-case, found in the front-end preset data, not in `gameplay`; the `presetride` class holds only upgrade levels), 49 uses among the opponents |
 | `CarType`, `CarTypeLowMem` | text: a `pvehicle` collection name; 3 opponents use it, many traffic characters do |
 | `IsBoss` | bool (True for the 19 `boss` collections and 1 more) |
-| `RacerName` | text, empty in this install (names come from the front-end) |
+| `RacerName` | text: a language label for a name the driver always has in a career race; set by 5 prologue characters only (`BLACKLIST_RIVAL_<NN>_LEADERBOARD`), empty elsewhere. A boss race ignores it and names its racer after the bin ([specs/racer-names.md](../specs/racer-names.md)) |
 | `ForceStartPosition` | key of a marker: this racer starts there instead of in the grid (10 of the 350 opponent slots) |
 | `AllowInvisibleSpawn`, `ForcePreload` | spawn options, False |
 

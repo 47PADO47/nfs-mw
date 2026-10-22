@@ -84,6 +84,9 @@ pub(super) struct Origin {
 #[derive(Debug, Clone)]
 pub(super) struct RacerPlan {
     pub name: String,
+    /// The language label of the name the data fixes for this racer (a Blacklist rival's leaderboard name, or a
+    /// character's `RacerName`); `names::name_opponents` turns it into `name`. `None` draws a name from the pool.
+    pub name_label: Option<String>,
     /// The `pvehicle` name of the car; `None` for the player.
     pub model: Option<String>,
     pub spawn: Spawn,

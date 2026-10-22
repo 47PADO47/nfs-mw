@@ -206,6 +206,10 @@ pub struct Character {
     pub car_type: Option<String>,
     /// `IsBoss`.
     pub is_boss: bool,
+    /// `RacerName`: the language label of a name this driver always has in a career race, for example
+    /// `BLACKLIST_RIVAL_03_LEADERBOARD`. Unset for the street rivals and the Blacklist bosses (a boss race names its
+    /// racer from the bin instead); the prologue's characters set it (`docs/specs/racer-names.md`).
+    pub racer_name: Option<String>,
     /// `ForceStartPosition`: the marker this racer starts at instead of the grid.
     pub force_start: Option<Placement>,
 }
@@ -224,6 +228,7 @@ fn character(db: &Database, c: CollectionRef<'_>) -> Character {
         preset_ride: text(c, "PresetRide"),
         car_type: text(c, "CarType"),
         is_boss: c.get_bool("IsBoss").unwrap_or(false),
+        racer_name: text(c, "RacerName"),
         force_start: key_field(c, "ForceStartPosition").and_then(|k| collection(db, k)).map(placement),
     }
 }

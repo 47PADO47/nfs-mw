@@ -5,6 +5,8 @@ use blackbox_race::{Course, Gate, RaceConfig, Sphere, Trap};
 use glam::Vec3;
 use nfsmw_data::gameplay::{BoxTrigger, Character, GameplayData, Placement, Race, RaceType, world_heading};
 
+use super::names;
+
 /// The length of the countdown board, seconds **[unconfirmed]**.
 pub const COUNTDOWN_SECS: f32 = 3.0;
 /// The quick race's base skills for easy, medium and hard, with the catch-up on and off
@@ -85,6 +87,8 @@ pub fn config_of(race: &Race) -> RaceConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Opponent {
     pub name: String,
+    /// The language label of the name the data fixes for this racer in a career race (`names::fixed_label`).
+    pub name_label: Option<String>,
     /// The base skill, 0 to 1.
     pub skill: f32,
     /// `MinimumAIPerformance`.
@@ -128,6 +132,8 @@ pub fn opponents_of(
     let class = nfsmw_data::gameplay::RaceParams { difficulty, ..race.params.clone() }.difficulty_class();
     // A boss in a quick race is the generic character, as the original does (`docs/formats/gameplay-races.md` section 5).
     let quick = !options.career;
+    // A boss race names its racer after the Blacklist bin it belongs to (`docs/specs/racer-names.md` section 2).
+    let boss_bin = race.story.boss_race.then(|| names::bin_of(&race.name)).flatten();
     (0..wanted)
         .filter_map(|i| {
             let character = *pool.get(i % pool.len().max(1))?;
@@ -138,6 +144,7 @@ pub fn opponents_of(
             let car = character.preset_ride.as_deref().and_then(resolve_preset).or_else(|| character.car_type.clone());
             Some(Opponent {
                 name: character.name.clone(),
+                name_label: names::fixed_label(options.career, boss_bin, character.racer_name.as_deref()),
                 skill: base_skill(character, quick, class, options.catch_up.unwrap_or(race.params.catch_up)),
                 bias: character.min_performance,
                 car,
@@ -214,6 +221,7 @@ mod tests {
             preset_ride: None,
             car_type: None,
             is_boss: boss,
+            racer_name: None,
             force_start: None,
         }
     }
@@ -352,6 +360,37 @@ mod tests {
             (name == "BL5").then(|| "mustanggt".to_owned())
         });
         assert_eq!(opponents[0].car.as_deref(), Some("mustanggt"));
+    }
+
+    #[test]
+    fn a_boss_race_in_a_career_fixes_the_rivals_leaderboard_name_and_keeps_the_rivals_car() {
+        let mut d = data();
+        d.characters[1].preset_ride = Some("BL10".into());
+        let mut r = race(vec![21]);
+        r.name = "race_bin_10/10_2_1_sprint".into();
+        r.story.boss_race = true;
+        let career = RaceOptions { career: true, ..Default::default() };
+        let resolve = |name: &str| (name == "BL10").then(|| "CAYMANS".to_owned());
+        let opponents = opponents_of(&d, &r, &career, &resolve);
+        let rival = &opponents[0];
+        assert_eq!(rival.name_label.as_deref(), Some("BLACKLIST_RIVAL_10_LEADERBOARD"));
+        assert_eq!(rival.car.as_deref(), Some("CAYMANS"));
+        // A quick race of the same race plays the generic racer, with a drawn name.
+        let quick = RaceOptions::default();
+        assert_eq!(opponents_of(&d, &r, &quick, &resolve)[0].name_label, None);
+    }
+
+    #[test]
+    fn a_career_characters_racer_name_is_its_fixed_name() {
+        let mut d = data();
+        d.characters[0].racer_name = Some("BLACKLIST_RIVAL_16_LEADERBOARD".into());
+        let r = race(vec![20, 21]);
+        let career = RaceOptions { career: true, ..Default::default() };
+        let opponents = opponents_of(&d, &r, &career, &|_| None);
+        assert_eq!(opponents[0].name_label.as_deref(), Some("BLACKLIST_RIVAL_16_LEADERBOARD"));
+        assert_eq!(opponents[1].name_label, None, "a street rival draws its name");
+        let quick = RaceOptions::default();
+        assert_eq!(opponents_of(&d, &r, &quick, &|_| None)[0].name_label, None);
     }
 
     #[test]
