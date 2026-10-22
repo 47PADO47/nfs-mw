@@ -56,6 +56,8 @@ mod prop_effects;
 mod props;
 mod race;
 #[cfg(test)]
+mod race_course_run_tests;
+#[cfg(test)]
 mod race_restart_tests;
 mod readiness;
 mod rear_view;
