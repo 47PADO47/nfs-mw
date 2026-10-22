@@ -7,9 +7,6 @@ use nfsmw_data::gameplay::{BoxTrigger, Character, GameplayData, Placement, Race,
 
 /// The length of the countdown board, seconds **[unconfirmed]**.
 pub const COUNTDOWN_SECS: f32 = 3.0;
-/// Metres between two rows of the grid, and between its two columns **[unconfirmed]**.
-const ROW_GAP: f32 = 7.5;
-const COLUMN_GAP: f32 = 3.5;
 /// The quick race's base skills for easy, medium and hard, with the catch-up on and off
 /// (`docs/specs/ai-driver-speed-skill.md` section 8.1).
 const QUICK_SKILL_CATCH_UP: [f32; 3] = [0.15, 0.40, 1.00];
@@ -82,24 +79,6 @@ pub fn config_of(race: &Race) -> RaceConfig {
         speed_traps: p.speed_traps.len(),
         overtime_penalty: p.overtime_penalty,
     }
-}
-
-/// The grid slot `index` (0 is the player's): two columns, a row behind per two cars.
-pub fn grid_slot(start: &Placement, index: usize) -> Placement {
-    let forward = world_heading(start.heading_deg);
-    let side = Vec3::Y.cross(forward);
-    let (row, column) = ((index / 2) as f32, (index % 2) as f32);
-    Placement {
-        position: start.position - forward * row * ROW_GAP + side * column * COLUMN_GAP,
-        heading_deg: start.heading_deg,
-    }
-}
-
-/// The heading of a placement as the world's spawn heading: radians from +X in render space.
-pub fn spawn_heading(heading_deg: f32) -> f32 {
-    let forward = world_heading(heading_deg);
-    // Physics (x, y, z) is render (z, -x, y).
-    (-forward.x).atan2(forward.z)
 }
 
 /// One opponent of the run.
@@ -332,26 +311,6 @@ mod tests {
         assert_eq!(config_of(&r).countdown, COUNTDOWN_SECS);
         r.params.rolling_start = true;
         assert_eq!(config_of(&r).countdown, 0.0);
-    }
-
-    #[test]
-    fn the_grid_has_two_columns_behind_the_start() {
-        let start = Placement { position: Vec3::new(5.0, 1.0, 5.0), heading_deg: 0.0 };
-        let player = grid_slot(&start, 0);
-        assert_eq!(player.position, start.position);
-        let beside = grid_slot(&start, 1);
-        assert!((beside.position.z - 5.0).abs() < 1e-4 && (beside.position.x - 5.0).abs() > 3.0);
-        let behind = grid_slot(&start, 2);
-        assert!((behind.position.z - (5.0 - 7.5)).abs() < 1e-4, "{behind:?}");
-        assert_eq!(behind.position.x, 5.0);
-    }
-
-    #[test]
-    fn the_spawn_heading_points_along_the_grid() {
-        // Heading 0 is +z in physics, which is +x in render space: radians 0.
-        assert!(spawn_heading(0.0).abs() < 1e-5);
-        // Heading 90 is -x in physics, which is +y in render space.
-        assert!((spawn_heading(90.0) - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
     }
 
     #[test]

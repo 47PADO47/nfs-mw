@@ -29,17 +29,27 @@ fn the_rows_are_the_places_in_order() {
 }
 
 #[test]
-fn more_than_four_racers_show_the_four_best() {
+fn more_than_four_racers_show_the_three_best_and_the_player() {
     let entries = (1..=6).map(|p| entry(p, p == 5, &format!("R{p}"), 100.0 - 10.0 * p as f32)).collect();
     let leaders = Leaders::pick(entries, 1000.0, false);
-    assert_eq!(leaders.rows.len(), 4);
-    assert_eq!(leaders.rows[3].name, "R4");
+    let names: Vec<&str> = leaders.rows.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["R1", "R2", "R3", "R5"]);
     assert_eq!(leaders.racers, 6);
     assert_eq!(leaders.shown_rows(), 4);
-    // The player is fifth: no row is the player's, but the gaps are still measured from the player.
-    assert_eq!(leaders.player, None);
+    // The player is fifth: the last row is the player's, and the gaps are measured from the player.
+    assert_eq!(leaders.player, Some(3));
     assert_eq!(leaders.player_percent, 50.0);
-    assert_eq!(leaders.status(0, false, &Words::default()), "+1,312 FT");
+}
+
+#[test]
+fn a_full_race_of_sixteen_shows_the_board_with_the_player_last() {
+    let entries = (1..=16).map(|p| entry(p, p == 16, &format!("R{p}"), 100.0 - 5.0 * p as f32)).collect();
+    let leaders = Leaders::pick(entries, 1000.0, false);
+    assert_eq!(leaders.racers, 16);
+    assert_eq!(leaders.shown_rows(), 4);
+    assert_eq!(leaders.rows.last().map(|r| r.name.as_str()), Some("R16"));
+    assert_eq!(leaders.player, Some(3));
+    assert_eq!(leaders.player_percent, 20.0);
 }
 
 #[test]

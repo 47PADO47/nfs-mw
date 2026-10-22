@@ -49,11 +49,12 @@ pub struct Entry {
 /// What the board shows: the best four racers in place order, and the figures the gaps are measured with.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Leaders {
-    /// The four best placed racers (fewer in a small race), first place first.
+    /// The four best placed racers (fewer in a small race), first place first, the last row the player's when the player
+    /// is placed lower.
     pub rows: Vec<LeaderRow>,
     /// All the racers of the race: the board is hidden below two.
     pub racers: u32,
-    /// The row of the player, `None` when the player is not among the four.
+    /// The row of the player, `None` only when the board has no row for the player.
     pub player: Option<usize>,
     /// The player's percent, which every gap is measured from (also when the player is not among the rows).
     pub player_percent: f32,
@@ -69,8 +70,14 @@ impl Leaders {
         let racers = entries.len() as u32;
         entries.sort_by_key(|e| e.place);
         let player_percent = entries.iter().find(|e| e.player).map_or(0.0, |e| e.row.percent);
-        let player = entries.iter().take(ROWS).position(|e| e.player);
-        let rows = entries.into_iter().take(ROWS).map(|e| e.row).collect();
+        // The rows are the best ones, but a player outside them keeps the last row, so the board always has the player's own
+        // place (with a race of more than `ROWS` racers, that is `ROWS - 1` of the best and the player).
+        let mut order: Vec<usize> = (0..entries.len().min(ROWS)).collect();
+        if let Some(at) = entries.iter().position(|e| e.player).filter(|&at| at >= ROWS) {
+            order[ROWS - 1] = at;
+        }
+        let player = order.iter().position(|&at| entries[at].player);
+        let rows = order.into_iter().map(|at| entries[at].row.clone()).collect();
         Self { rows, racers, player, player_percent, length, speed_trap }
     }
 

@@ -4,7 +4,7 @@ use nfsmw_data::gameplay::RaceType;
 
 use super::pages::*;
 use crate::settings::SpeedUnits;
-use crate::viewer::RaceReport;
+use crate::viewer::{RaceReport, ReportRacer};
 
 fn text(s: &str) -> Cell {
     Cell::Text(s.to_owned())
@@ -49,6 +49,20 @@ fn the_standings_list_the_racers_by_place_with_their_times() {
     assert_eq!(places, [&text("1"), &text("2"), &text("3"), &text("4")]);
     assert!(!table.filter, "the standings have no racer filter");
     assert_eq!(table.footer, 0xD0B8_AA33, "the footer names the next page: Statistics");
+}
+
+#[test]
+fn a_race_of_sixteen_lists_the_ten_best_and_a_player_placed_lower_on_the_last_row() {
+    let mut report = RaceReport::sample();
+    report.racers.truncate(1);
+    report.racers[0].place = 12;
+    for place in (1..=16).filter(|&p| p != 12) {
+        report.racers.push(ReportRacer::bare(&format!("R{place}"), place, Some(100.0 + place as f32)));
+    }
+    let table = table(&report, Page::Standings, 0, SpeedUnits::Imperial);
+    assert_eq!(table.rows.len(), STANDINGS_ROWS);
+    assert_eq!(table.rows[8][1], text("R9"));
+    assert_eq!(table.rows[9], [text("12"), text("stock"), text("2:52.51")]);
 }
 
 #[test]

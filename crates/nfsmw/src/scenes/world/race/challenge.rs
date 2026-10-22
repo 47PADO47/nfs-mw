@@ -194,7 +194,7 @@ impl WorldScene {
         let heat = params.force_heat_level.clamp(1, 10) as u32;
         let spawn = crate::scenes::world::road::Spawn {
             position: space::to_render(start.position.to_array()),
-            heading: super::setup::spawn_heading(start.heading_deg),
+            heading: super::grid::spawn_heading(start.heading_deg),
         };
         let speed = params.initial_speed.max(0.0);
         let mut challenge = Challenge::new(stat, threshold, heat);
