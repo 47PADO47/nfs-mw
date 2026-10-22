@@ -35,4 +35,29 @@ impl TrafficWorld {
             car.hash_into(hash);
         }
     }
+
+    /// The parts of [`Self::hash_into`] by name, so a test that finds two runs apart can say where they part.
+    #[cfg(test)]
+    pub(in crate::scenes::world) fn hash_parts(&self) -> Vec<(String, u64)> {
+        let one = |feed: &dyn Fn(&mut StateHasher)| {
+            let mut hash = StateHasher::default();
+            feed(&mut hash);
+            hash.finish()
+        };
+        let mut parts = vec![
+            (
+                "streams".to_owned(),
+                one(&|h| [&self.rng.nav, &self.rng.population, &self.rng.police].iter().for_each(|s| h.u64(s.0))),
+            ),
+            (
+                "clocks".to_owned(),
+                one(&|h| [self.signal_time, self.spawn_timer, self.sight_clock].iter().for_each(|&v| h.f32(v))),
+            ),
+            ("ids".to_owned(), u64::from(self.next_entity)),
+        ];
+        for car in &self.cars {
+            parts.push((format!("car {} {}", car.key(), car.name), one(&|h| car.hash_into(h))));
+        }
+        parts
+    }
 }
