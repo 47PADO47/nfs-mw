@@ -45,3 +45,31 @@ What it says:
   on High re-render all six cube faces every frame; streaming uploads).
 - **Loading stalls.** Before measuring, one frame took 3.5 s with the user's settings and 0.9 s with the low preset:
   the world's build step and the first uploads run on the frame thread.
+
+## After P1 (stutter)
+
+P1 moves blocking loads off the frame thread: the career tables and the car performance simulation, movies, bank
+sounds and NIS scenes, the menu backdrop, the world's streaming start and shared-set upload, section placement, and
+the first use of each pipeline (prewarm). Same machine and command, "user" settings, 20 s runs. The P0 and P1 builds
+alternated in one session. Another workload shared the GPU during this session, so the p50 is about 7.6 ms on both
+builds, against 4.3 ms in the morning; only the comparison within the session counts.
+
+| Build | p50 | p99 | Worst | Hitches measured | Worst frame before measuring | Ready after |
+| --- | --- | --- | --- | --- | --- | --- |
+| P0 | 7.31, 7.58 | 11.70, 11.67 | 142.5, 18.7 | 2, 0 | 3,275 ms, 860 ms | 3.96 s, 0.94 s |
+| P1 | 7.70, 7.62 | 12.36, 13.10 | 59.2, 55.2 | 1, 2 | 1,053 ms, 764 ms | 1.28 s, 0.98 s |
+
+What it says:
+
+- **The steady frame is unchanged**, as expected: P1 moves loads, not per-frame work.
+- **The longest loading stall is shorter.** The worst frame before measuring was 0.76-1.05 s with P1, against
+  0.86-3.3 s with P0. A trace of the P1 build (`--exec "trace start 30"`) has its only frames over 25 ms in the
+  first 0.2 s, while the world is still hidden: 51 ms of uploads, 17 ms of audio, 8 ms of HUD presentation. None
+  while driving.
+- **The driving hitches are within the noise** of this session: 0-2 per 20 s on both builds.
+- **Not measured here:** the loads P1 moves that this drive never reaches (the save screens' career load, movies,
+  NIS scenes, the menu backdrop). They are covered by the unit tests and by the trace scopes added in P0.
+
+The steady frame in the P1 trace (mean 7.56 ms with the shared GPU): 3.3 ms waiting on present, 2.3 ms scene update of
+which 1.4 ms are the reflection views, 1.1 ms render recording plus 0.7 ms in wgpu's encoder finish, 0.5 ms HUD (0.45 ms
+of it theme composition). Those are the targets of P2.
