@@ -5,13 +5,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
-use super::{Audio, Camera, Commands, Hud, Input, Interface, Map, Menus, ModResult, Time, Ui, Vehicles, World};
+use super::{Audio, Camera, Commands, Hud, Input, Interface, Map, Menus, ModResult, Saves, Time, Ui, Vehicles, World};
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
     IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
-    IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
-    IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
-    IFACE_WORLD_VERSION,
+    IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SAVES,
+    IFACE_SAVES_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
@@ -80,6 +80,12 @@ impl Ctx {
     pub fn commands(&self) -> Option<Commands> {
         let iface = self.query_interface(IFACE_COMMANDS, IFACE_COMMANDS_VERSION.0, IFACE_COMMANDS_VERSION.1)?;
         Some(Commands::new(ffi::commands::read(iface), self.host, self.keep.clone()))
+    }
+
+    /// The save interface (`bb.saves`), when the host offers it: this mod's blob in the loaded career profile.
+    pub fn saves(&self) -> Option<Saves> {
+        let iface = self.query_interface(IFACE_SAVES, IFACE_SAVES_VERSION.0, IFACE_SAVES_VERSION.1)?;
+        Some(Saves::new(ffi::saves::read(iface)))
     }
 
     /// The hotkey interface (`bb.input`), when the host offers it.

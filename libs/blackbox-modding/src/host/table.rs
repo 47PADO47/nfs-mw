@@ -23,6 +23,7 @@ mod map;
 mod menus;
 #[cfg(test)]
 mod menus_tests;
+mod saves;
 mod slot;
 #[cfg(test)]
 mod tests;
@@ -58,6 +59,7 @@ pub(crate) use hud::attach as attach_hud;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
+pub(crate) use saves::attach as attach_saves;
 pub use slot::Attached;
 pub(crate) use time::attach as attach_time;
 pub(crate) use ui::attach as attach_ui;
@@ -71,6 +73,7 @@ pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
+pub use saves::SavesBackend;
 pub use time::TimeBackend;
 pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
 pub use vehicles::{VehicleState, VehiclesBackend};

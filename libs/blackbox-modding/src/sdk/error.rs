@@ -3,9 +3,9 @@
 use core::fmt;
 
 use crate::abi::{
-    BB_ERR_ABI, BB_ERR_ARG, BB_ERR_DENIED, BB_ERR_EXISTS, BB_ERR_HOST, BB_ERR_NOT_FOUND, BB_ERR_NOT_IN_CALLBACK,
-    BB_ERR_NOT_READY, BB_ERR_PANIC, BB_ERR_PHASE, BB_ERR_REMOVED, BB_ERR_STALE, BB_ERR_UNSUPPORTED,
-    BB_ERR_WRONG_THREAD, BB_OK, BbStatus,
+    BB_ERR_ABI, BB_ERR_ARG, BB_ERR_CORRUPT, BB_ERR_DENIED, BB_ERR_EXISTS, BB_ERR_HOST, BB_ERR_NOT_FOUND,
+    BB_ERR_NOT_IN_CALLBACK, BB_ERR_NOT_READY, BB_ERR_PANIC, BB_ERR_PHASE, BB_ERR_REMOVED, BB_ERR_STALE,
+    BB_ERR_UNSUPPORTED, BB_ERR_WRONG_THREAD, BB_OK, BbStatus,
 };
 
 /// The result type of SDK calls.
@@ -43,6 +43,8 @@ pub enum Error {
     Panic,
     /// The host reported an error.
     Host,
+    /// A stored blob fails its integrity check (`bb.saves`). The blob is left in place.
+    Corrupt,
 }
 
 impl Error {
@@ -63,6 +65,7 @@ impl Error {
             Error::Removed => BB_ERR_REMOVED,
             Error::Panic => BB_ERR_PANIC,
             Error::Host => BB_ERR_HOST,
+            Error::Corrupt => BB_ERR_CORRUPT,
         }
     }
 
@@ -86,6 +89,7 @@ impl Error {
             BB_ERR_EXISTS => Error::Exists,
             BB_ERR_REMOVED => Error::Removed,
             BB_ERR_PANIC => Error::Panic,
+            BB_ERR_CORRUPT => Error::Corrupt,
             _ => Error::Host,
         })
     }
@@ -108,6 +112,7 @@ impl fmt::Display for Error {
             Error::Removed => "removed from the ABI",
             Error::Panic => "the mod panicked",
             Error::Host => "the host reported an error",
+            Error::Corrupt => "the stored data is corrupt",
         };
         f.write_str(text)
     }
