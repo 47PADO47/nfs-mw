@@ -253,6 +253,7 @@ impl WorldScene {
                 laps: 1,
                 photo: None,
                 pursuit: Some(pursuit),
+                retry: Default::default(),
             }),
             None => Self::race_report(session),
         };

@@ -8,6 +8,7 @@ mod install_tests;
 mod pages;
 #[cfg(test)]
 mod pages_tests;
+mod retry;
 mod screen;
 
 pub use screen::PostRaceLogic;
@@ -76,12 +77,23 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
+    /// The win photo of a race, from the Back of the results its Race Stats button opened. A report with no photo changes
+    /// nothing.
+    pub(super) fn show_photo(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
+        let Some(photo) = report.photo else { return };
+        let logic = super::photo::PhotoLogic::for_race(photo, report);
+        let commands = self.screens.open_with(PHOTO, Box::new(logic), true, env);
+        self.apply(commands, host, env);
+    }
+
     /// The answer on the results screen: the race runs again or ends, and the game goes on driving.
     pub(super) fn race_answer(&mut self, answer: RaceAnswer, host: &mut Host, env: &mut Env) {
         if !host.scene.answer_race(answer) {
             return;
         }
         log::info!("race: the results screen answered {answer:?}");
+        // The same race on the same start: no loading screen covers it (`flow_cover.rs`).
+        self.restarting = answer == RaceAnswer::Restart;
         match after_answer(answer, self.series.active, self.origin) {
             After::Series => self.show_series(host, env),
             After::QuickRaceMenu => {
