@@ -35,11 +35,26 @@ fn the_blacklist_item_shows_the_current_stage_and_the_icons_follow_the_items() {
     s.stage = 1;
     let list = items(&s);
     let icons = safehouse_icons(&list, false);
-    assert_eq!(icons.len(), list.len());
+    assert_eq!(icons.len(), list.len() + 1, "the greyed Rap Sheet is on the row too");
     assert_eq!(icons[1].id, Id::SafeHouseBlacklist(1));
     assert_eq!(icons[0].id, Id::SafeHouseResume);
     assert_eq!(icons[0].name, label_hash("PAUSE_RESUME_FREE_ROAM"));
-    assert!(icons.iter().all(|icon| icon.enabled));
+    assert!(icons.iter().filter(|icon| icon.id != Id::SafeHouseRapSheet).all(|icon| icon.enabled));
+}
+
+#[test]
+fn the_rap_sheet_is_on_the_row_greyed_out_until_the_career_has_it() {
+    let new = items(&CareerSettings::new_career());
+    let ids: Vec<Id> = safehouse_icons(&new, false).iter().map(|icon| icon.id).collect();
+    assert_eq!(ids.iter().position(|id| *id == Id::SafeHouseRapSheet), Some(ids.len() - 2), "before Save");
+    let rap = safehouse_icons(&new, false).into_iter().find(|icon| icon.id == Id::SafeHouseRapSheet).unwrap();
+    assert!(!rap.enabled);
+
+    let mut s = CareerSettings::new_career();
+    s.flags.insert(Flags::HAS_RAP_SHEET);
+    let have = safehouse_icons(&items(&s), false);
+    assert_eq!(have.iter().filter(|icon| icon.id == Id::SafeHouseRapSheet).count(), 1);
+    assert!(have.iter().find(|icon| icon.id == Id::SafeHouseRapSheet).unwrap().enabled);
 }
 
 #[test]
@@ -98,6 +113,6 @@ fn the_menu_hands_its_items_to_a_theme_that_draws_them_as_a_list() {
         totals: Totals { bounty: 0, cash: 0, career: 0 },
     };
     let shown = ScreenLogic::list(&menu, &assets).expect("the safe house menu has a list");
-    assert_eq!(shown.entries.len(), list.len());
+    assert_eq!(shown.entries.len(), list.len() + 1, "the greyed Rap Sheet is on the row too");
     assert!(shown.entries.iter().all(|entry| !entry.label.is_empty()), "every entry is named");
 }
