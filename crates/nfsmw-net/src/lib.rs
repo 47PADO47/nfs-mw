@@ -16,6 +16,8 @@
 //! - [`predict`]: the owner's car run ahead of the server, with the ring of unacknowledged ticks.
 //! - [`reconcile`]: comparison with the server's own-car block, rewind and replay, the smoothed correction offset,
 //!   correction statistics and the [`reconcile::Tuning`] values.
+//! - [`interp`]: snapshot buffers of remote cars, traffic and police, the adaptive display delay, interpolation and
+//!   bounded extrapolation.
 
 pub mod input;
 pub mod loadout;
@@ -24,5 +26,6 @@ pub mod schema;
 pub mod version;
 
 mod geom;
+pub mod interp;
 pub mod predict;
 pub mod reconcile;
