@@ -2,4 +2,5 @@
 //! rule runs in a unit test without a window, a GPU, a socket or a game install.
 
 pub mod input;
+pub mod message;
 pub mod schema;
