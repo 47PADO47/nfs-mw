@@ -80,16 +80,6 @@ impl ListenServer {
         }
     }
 
-    /// The game port, once the server is up.
-    pub fn addr(&self) -> Option<SocketAddr> {
-        self.addr
-    }
-
-    /// Whether the server thread still runs.
-    pub fn is_running(&self) -> bool {
-        self.thread.as_ref().is_some_and(|thread| !thread.is_finished())
-    }
-
     /// Stops the server and waits for its thread.
     pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);

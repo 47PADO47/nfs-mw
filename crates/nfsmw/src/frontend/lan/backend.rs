@@ -188,4 +188,11 @@ pub trait NetFrontend {
 
     /// Wraps the session's link in the bad-network simulator from now on (`net.sim`, MP-83).
     fn set_net_sim(&mut self, sim: NetSim) -> Result<(), String>;
+
+    /// The implementation behind the trait, for the game's own systems that drive it each frame (`crate::net`); `None`
+    /// from the mock, the demo and the offline fallback.
+    #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        None
+    }
 }

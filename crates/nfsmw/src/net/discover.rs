@@ -24,14 +24,6 @@ impl Servers {
             None => self.found.push(found),
         }
     }
-
-    pub fn list(&self) -> &[Found] {
-        &self.found
-    }
-
-    pub fn clear(&mut self) {
-        self.found.clear();
-    }
 }
 
 /// The scan of the LAN for servers on `port` (their discovery port is `port + 1`), for `duration`.
@@ -110,7 +102,7 @@ mod tests {
         servers.note(found(9750, 1));
         servers.note(found(9760, 2));
         servers.note(found(9750, 3));
-        let players: Vec<u8> = servers.list().iter().map(|found| found.reply.players).collect();
+        let players: Vec<u8> = servers.found.iter().map(|found| found.reply.players).collect();
         assert_eq!(players, [3, 2]);
     }
 

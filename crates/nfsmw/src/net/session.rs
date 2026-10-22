@@ -1,5 +1,6 @@
-//! `NetSession`: the game's multiplayer state, one per program (integration.md section 2). A `NonSend` Bevy resource:
-//! the client it holds shares the player's car with the world scene through `Rc`s.
+//! `NetSession`: the game's multiplayer state, one per program (integration.md section 2). It lives in the front end's
+//! `LanBackend` resource as its `NetFrontend` (`frontend.rs`); the client it holds shares the player's car with the
+//! world scene through `Rc`s, so the resource is `NonSend`.
 //!
 //! | Mode | What runs |
 //! |---|---|
@@ -14,14 +15,18 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use blackbox_net_core::endpoint::{DiscoveryScan, Found};
+use blackbox_net_core::endpoint::DiscoveryScan;
 use blackbox_net_core::secure::IdentityKey;
 use game_install::GameDir;
+use nfsmw_net::client_session::{LobbyView, SessionEvent};
+use nfsmw_net::message::RaceResults;
+use nfsmw_net::version::PROTO_MAJOR;
 
 use super::client::{ClientHandle, NetClient, PlayerSetup, connect};
-use super::discover::{Servers, scan_config};
+use super::discover::scan_config;
 use super::listen::ListenServer;
 use super::options::ServeOptions;
+use crate::frontend::lan::backend::ServerEntry;
 
 /// What the session does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,19 +39,23 @@ pub enum Mode {
 
 /// The game's multiplayer state.
 pub struct NetSession {
-    mode: Mode,
+    pub(super) mode: Mode,
     dir: Option<GameDir>,
-    player: PlayerSetup,
+    pub(super) player: PlayerSetup,
     /// The player's identity for this run: one key, so a reconnect resumes the seat.
     identity: Option<IdentityKey>,
     listen: Option<ListenServer>,
-    client: Option<ClientHandle>,
-    scan: Option<DiscoveryScan>,
-    servers: Servers,
-    /// The last thing that went wrong, for the front end.
-    error: Option<String>,
+    pub(super) client: Option<ClientHandle>,
+    pub(super) scan: Option<DiscoveryScan>,
+    /// The servers the last scan found, as the browser lists them.
+    pub(super) servers: Vec<ServerEntry>,
+    /// What hosting or connecting last failed with, before a session existed.
+    pub(super) error: Option<String>,
     /// Ready on a seat by itself (the command line's `--host` and `--connect`).
     auto_ready: bool,
+    /// The lobby and the last result record as of this frame, for the screens (`frontend.rs`).
+    pub(super) lobby: Option<LobbyView>,
+    pub(super) results: Option<RaceResults>,
 }
 
 impl NetSession {
@@ -60,9 +69,11 @@ impl NetSession {
             listen: None,
             client: None,
             scan: None,
-            servers: Servers::default(),
+            servers: Vec::new(),
             error: None,
             auto_ready: false,
+            lobby: None,
+            results: None,
         }
     }
 
@@ -71,40 +82,9 @@ impl NetSession {
         self.auto_ready = on;
     }
 
-    pub fn mode(&self) -> Mode {
-        self.mode
-    }
-
-    pub fn player(&self) -> &PlayerSetup {
-        &self.player
-    }
-
-    pub fn set_player(&mut self, player: PlayerSetup) {
-        self.player = player;
-    }
-
     /// The client, once there is one (`Host` after the server is up, `Join` at once).
     pub fn client(&self) -> Option<&ClientHandle> {
         self.client.as_ref()
-    }
-
-    /// The listen server's game port, once it is up.
-    pub fn listen_addr(&self) -> Option<SocketAddr> {
-        self.listen.as_ref().and_then(ListenServer::addr)
-    }
-
-    /// The servers the last scan found.
-    pub fn servers(&self) -> &[Found] {
-        self.servers.list()
-    }
-
-    /// Whether a LAN scan runs.
-    pub fn scanning(&self) -> bool {
-        self.scan.is_some()
-    }
-
-    pub fn error(&self) -> Option<&str> {
-        self.error.as_deref()
     }
 
     fn identity(&mut self) -> Result<IdentityKey> {
@@ -116,7 +96,7 @@ impl NetSession {
         Ok(identity)
     }
 
-    fn cars(&self) -> Vec<String> {
+    pub(super) fn cars(&self) -> Vec<String> {
         self.dir.as_ref().map(nfsmw_data::car::list).unwrap_or_default()
     }
 
@@ -134,12 +114,13 @@ impl NetSession {
         Ok(())
     }
 
-    /// Joins the server at `addr`.
-    pub fn join(&mut self, addr: SocketAddr) -> Result<()> {
+    /// Joins the server at `addr`, with the room password if there is one.
+    pub fn join(&mut self, addr: SocketAddr, password: Option<&str>) -> Result<()> {
         self.leave();
         let identity = self.identity()?;
         let (endpoint, connector) = connect(addr, identity).with_context(|| format!("cannot reach {addr}"))?;
-        let config = self.player.session_config(&self.cars());
+        let mut config = self.player.session_config(&self.cars());
+        config.password = password.map(str::to_owned);
         let client = NetClient::new(endpoint, config, self.auto_ready).with_connector(connector);
         self.client = Some(Rc::new(RefCell::new(client)));
         self.mode = Mode::Join;
@@ -157,6 +138,7 @@ impl NetSession {
             listen.stop();
         }
         self.mode = Mode::Idle;
+        self.lobby = None;
     }
 
     /// Starts a LAN scan for servers on `port` for `duration`; the list fills as answers come.
@@ -166,15 +148,34 @@ impl NetSession {
         Ok(())
     }
 
-    /// Once a frame: the listen server's start, the scan's answers, and the client while no world drives it.
+    /// Once a frame: the listen server's start, the scan's answers, the client while no world drives it, and the
+    /// screens' copies of the lobby and the results.
     pub fn update(&mut self) {
         self.poll_listen();
         self.poll_scan();
+        self.refresh();
         let Some(client) = self.client.as_ref() else { return };
         let Ok(mut client) = client.try_borrow_mut() else { return };
         if !client.is_attached() {
             client.pump();
         }
+    }
+
+    /// The screens' copies of the lobby and the last result record.
+    pub(super) fn refresh(&mut self) {
+        let Some(client) = self.client.as_ref() else { return };
+        let Ok(client) = client.try_borrow() else { return };
+        self.lobby = Some(client.session().lobby().clone());
+        if let Some(results) = client.session().last_results() {
+            self.results = Some(results.clone());
+        }
+    }
+
+    /// The session events the screens have not taken yet.
+    pub(super) fn take_frontend_events(&mut self) -> Vec<SessionEvent> {
+        let Some(client) = self.client.as_ref() else { return Vec::new() };
+        let Ok(mut client) = client.try_borrow_mut() else { return Vec::new() };
+        client.take_frontend_events()
     }
 
     fn poll_listen(&mut self) {
@@ -200,7 +201,11 @@ impl NetSession {
     fn poll_scan(&mut self) {
         let Some(scan) = self.scan.as_mut() else { return };
         while let Some(found) = scan.poll() {
-            self.servers.note(found);
+            let entry = ServerEntry::from_reply(found.from, &found.reply, PROTO_MAJOR, None);
+            match self.servers.iter_mut().find(|known| known.addr == entry.addr) {
+                Some(known) => *known = entry,
+                None => self.servers.push(entry),
+            }
         }
         if scan.is_finished() {
             self.scan = None;

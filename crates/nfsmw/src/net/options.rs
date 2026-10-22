@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use nfsmw_net::message::ServerName;
+use nfsmw_net::message::{ServerName, Settings};
+use nfsmw_net::settings::validate;
 use nfsmw_server::ServerConfig;
 
 use crate::scenes::world::net::host::HostConfig;
@@ -30,6 +31,8 @@ pub struct ServeOptions {
     pub car: String,
     /// The session seed; `None` takes one from the clock.
     pub seed: Option<u64>,
+    /// The session settings the Host screen chose, over the config file's (checked).
+    pub settings: Option<Settings>,
 }
 
 impl ServeOptions {
@@ -39,6 +42,10 @@ impl ServeOptions {
             Some(path) => ServerConfig::load(path).with_context(|| format!("the server config {}", path.display()))?,
             None => ServerConfig::default(),
         };
+        if let Some(settings) = &self.settings {
+            validate(settings).map_err(|err| anyhow::anyhow!("the session settings: {err:?}"))?;
+            config.settings = settings.clone();
+        }
         if let Some(port) = self.port {
             config.port = port;
         }

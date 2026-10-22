@@ -85,6 +85,7 @@ impl GameCar {
     }
 
     /// Whether the world is lent now.
+    #[cfg(test)]
     pub fn is_lent(&self) -> bool {
         self.desk.borrow().lent.is_some()
     }
@@ -95,11 +96,13 @@ impl GameCar {
     }
 
     /// Physics ticks run so far, replays included.
+    #[cfg(test)]
     pub fn steps(&self) -> u64 {
         self.desk.borrow().steps
     }
 
     /// Whether a state waits for the next lend.
+    #[cfg(test)]
     pub fn has_pending(&self) -> bool {
         self.desk.borrow().pending.is_some()
     }

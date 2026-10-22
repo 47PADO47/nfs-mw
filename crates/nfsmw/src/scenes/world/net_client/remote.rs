@@ -46,11 +46,6 @@ impl RemoteCars {
         }
         self.drawn.clear();
     }
-
-    /// How many remote cars are drawn this frame.
-    pub fn drawn(&self) -> usize {
-        self.drawn.len()
-    }
 }
 
 /// Whether an entity is a car the client draws with a car rig.

@@ -27,9 +27,7 @@ pub type GameSession = ClientSession<ClientEndpoint, GameCar>;
 /// The client shared by the `NetSession` resource, the front end and the world scene (all on the main thread).
 pub type ClientHandle = Rc<RefCell<NetClient>>;
 
-/// Notices kept for the front end and the HUD.
-const NOTICES: usize = 32;
-/// Session events kept for the world scene before it takes them.
+/// Session events kept for the world scene, and for the screens, before they take them.
 const SCENE_EVENTS: usize = 256;
 
 /// Who the player is in a session.
@@ -76,7 +74,8 @@ pub struct NetClient {
     /// A world scene drives the session (its client mode).
     attached: bool,
     scene_events: Vec<SessionEvent>,
-    notices: VecDeque<String>,
+    /// A copy of every event for the front end's screens, which take them once a frame (`NetFrontend::take_events`).
+    frontend_events: VecDeque<SessionEvent>,
     /// A clock set by the caller instead of the wall clock (tests that run a server on a fake clock).
     manual_ms: Option<u64>,
 }
@@ -94,7 +93,7 @@ impl NetClient {
             auto_ready,
             attached: false,
             scene_events: Vec::new(),
-            notices: VecDeque::new(),
+            frontend_events: VecDeque::new(),
             manual_ms: None,
         }
     }
@@ -147,6 +146,10 @@ impl NetClient {
             SessionEvent::ConnectionLost => self.notice("connection lost: reconnecting".into()),
             _ => {}
         }
+        if self.frontend_events.len() >= SCENE_EVENTS {
+            self.frontend_events.pop_front();
+        }
+        self.frontend_events.push_back(event.clone());
         if !self.attached {
             return;
         }
@@ -156,12 +159,8 @@ impl NetClient {
         self.scene_events.push(event);
     }
 
-    fn notice(&mut self, line: String) {
+    fn notice(&self, line: String) {
         log::info!("net: {line}");
-        if self.notices.len() >= NOTICES {
-            self.notices.pop_front();
-        }
-        self.notices.push_back(line);
     }
 
     pub fn session(&self) -> &GameSession {
@@ -192,14 +191,9 @@ impl NetClient {
         std::mem::take(&mut self.scene_events)
     }
 
-    /// The newest notices, oldest first.
-    pub fn notices(&self) -> impl Iterator<Item = &str> {
-        self.notices.iter().map(String::as_str)
-    }
-
-    /// Whether the session is over.
-    pub fn has_ended(&self) -> bool {
-        self.session.status().is_ended()
+    /// The session events since the screens last took them, oldest first.
+    pub fn take_frontend_events(&mut self) -> Vec<SessionEvent> {
+        self.frontend_events.drain(..).collect()
     }
 }
 

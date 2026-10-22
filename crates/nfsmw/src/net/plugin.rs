@@ -1,5 +1,6 @@
-//! The Bevy side of `NetSession`: the resource, what the command line asked for at start, and the two systems of each
-//! frame (before the scene's update): the session's own update, then attaching the client to the world scene.
+//! The Bevy side of `NetSession`: the session goes into the front end's `LanBackend` resource as its `NetFrontend`,
+//! with what the command line asked for at start, and two systems run each frame before the scene's update: the
+//! session's own update, then attaching the client to the world scene.
 
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -10,6 +11,7 @@ use super::client::PlayerSetup;
 use super::options::ServeOptions;
 use super::session::NetSession;
 use crate::app::{FrameSet, Host};
+use crate::frontend::lan::LanBackend;
 
 /// What the command line asked the session to do at start.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -23,7 +25,7 @@ pub enum NetStart {
     Join(std::net::SocketAddr),
 }
 
-/// Adds the `NetSession` resource and its systems.
+/// Adds the game's `NetSession` as the front end's network.
 pub struct NetPlugin {
     pub dir: Option<GameDir>,
     pub player: PlayerSetup,
@@ -41,25 +43,33 @@ impl Plugin for NetPlugin {
             }
             NetStart::Join(addr) => {
                 session.set_auto_ready(true);
-                session.join(*addr)
+                session.join(*addr, None)
             }
         };
         if let Err(error) = started {
             log::error!("net: {error:#}");
         }
-        app.insert_non_send(session)
+        app.insert_non_send(LanBackend::new(Box::new(session)))
             .add_systems(Update, (update_session, attach_client).chain().in_set(FrameSet::Commands));
     }
 }
 
+/// The game's session in the front end's resource.
+fn session(backend: &mut LanBackend) -> Option<&mut NetSession> {
+    backend.get()?.as_any_mut()?.downcast_mut::<NetSession>()
+}
+
 /// The session's own work of the frame.
-fn update_session(mut session: NonSendMut<NetSession>) {
-    session.update();
+fn update_session(mut backend: NonSendMut<LanBackend>) {
+    if let Some(session) = session(&mut backend) {
+        session.update();
+    }
 }
 
 /// Hands the client to the scene once a world scene that can run in client mode is up; a scene that takes it drives
 /// the session from then on.
-fn attach_client(mut host: NonSendMut<Host>, session: NonSend<NetSession>) {
+fn attach_client(mut host: NonSendMut<Host>, mut backend: NonSendMut<LanBackend>) {
+    let Some(session) = session(&mut backend) else { return };
     let Some(client) = session.client() else { return };
     let attached = client.try_borrow().is_ok_and(|client| client.is_attached());
     if attached {

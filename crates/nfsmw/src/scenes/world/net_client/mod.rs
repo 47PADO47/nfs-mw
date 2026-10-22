@@ -72,19 +72,9 @@ impl ClientMode {
         }
     }
 
-    /// The session's client, for the front end and tests.
-    pub fn client(&self) -> &ClientHandle {
-        &self.client
-    }
-
     /// The remote entities drawn this frame.
     pub fn display(&self) -> &[(EntityId, Drawn)] {
         &self.display
-    }
-
-    /// Whether the car waits for its area to stream in.
-    pub fn stalled(&self) -> bool {
-        self.stalled
     }
 
     /// Frees the remote cars' rigs.
@@ -119,6 +109,7 @@ impl WorldScene {
     }
 
     /// The client of this world, if it runs in client mode.
+    #[cfg(test)]
     pub fn net_client(&self) -> Option<&ClientMode> {
         self.net_client.as_ref()
     }

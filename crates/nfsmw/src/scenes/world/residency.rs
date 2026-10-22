@@ -22,6 +22,7 @@ use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
 mod installed_tests;
+#[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
 mod lend;
 mod mod_tiles;
 mod release;

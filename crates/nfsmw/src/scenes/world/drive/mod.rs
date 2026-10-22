@@ -24,6 +24,7 @@ mod new;
 mod nis_pose;
 mod original_camera;
 mod placement;
+#[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
 mod predict;
 #[cfg(test)]
 mod presentation_tests;
@@ -62,6 +63,7 @@ use fall::FallWatch;
 pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
+#[cfg(feature = "multiplayer")]
 pub(super) use predict::DriveSave;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
@@ -70,6 +72,7 @@ pub(super) use sim::CarSim;
 use sim::Telemetry;
 pub(super) use sim::memo::{StepMemo, SurfaceHit};
 pub(super) use sim::pair_contact::PairContact;
+#[cfg(feature = "multiplayer")]
 pub(super) use sim::predict::SimMotion;
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;

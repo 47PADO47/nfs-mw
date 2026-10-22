@@ -37,6 +37,7 @@ pub fn serve_options(args: &NetArgs) -> ServeOptions {
         config: args.server_config.clone(),
         car: player().car,
         seed: None,
+        settings: None,
     }
 }
 
