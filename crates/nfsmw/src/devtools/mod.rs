@@ -58,6 +58,7 @@ fn run_ui(
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
+    mut styled_for: Local<Option<blackbox_ui::Skin>>,
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
     let (width, height) = (window.width(), window.height());
@@ -71,8 +72,12 @@ fn run_ui(
         focused: window.focused,
         ..Default::default()
     };
-    // The panels draw in the active theme's palette, radius, padding and text size, as the game does.
-    gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
+    // The panels draw in the active theme's palette, radius, padding and text size, as the game does. The style is
+    // built and set only when the skin it comes from changes, not every frame.
+    if styled_for.as_ref() != Some(themes.skin()) {
+        gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
+        *styled_for = Some(themes.skin().clone());
+    }
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
