@@ -16,7 +16,7 @@ use glam::{Mat4, Vec3};
 use crate::app::{FrameSet, Host};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::input::ActionState;
-use crate::viewer::{Fullscreen, Scene};
+use crate::viewer::{Fullscreen, GAME_TITLE, Scene};
 use framing::fit_rect;
 pub(crate) use playback::MoviePlayback;
 pub(crate) use subtitles::show as show_subtitles;
@@ -45,7 +45,7 @@ impl MovieScene {
 
 impl Scene for MovieScene {
     fn title(&self) -> String {
-        format!("nfsmw — {}", self.playback.name())
+        GAME_TITLE.to_owned()
     }
 
     fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {

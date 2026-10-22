@@ -95,11 +95,6 @@ impl MoviePlayback {
         Ok(Self { name: file, movie, audio, frame, shown: false, clock: Clock::new(start, sound_secs), subtitles })
     }
 
-    /// The file name of the movie, such as `ealogo_english_ntsc.vp6`.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Seconds played, from the start of the movie.
     pub fn elapsed(&self) -> f64 {
         self.clock.elapsed

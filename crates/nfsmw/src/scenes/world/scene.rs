@@ -1,7 +1,7 @@
 //! Viewer integration, controls and world updates.
 
 use super::*;
-use crate::viewer::Fullscreen;
+use crate::viewer::{Fullscreen, GAME_TITLE};
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
@@ -28,7 +28,7 @@ impl Scene for WorldScene {
     }
 
     fn title(&self) -> String {
-        format!("nfsmw — {}", self.track)
+        GAME_TITLE.to_owned()
     }
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {

@@ -73,6 +73,9 @@ pub struct WorldInfo {
     pub section: Option<String>,
 }
 
+/// The game's window title, the one the original shows (its `speed.exe` has the same text, with the trademark sign).
+pub const GAME_TITLE: &str = "Need for Speed™ Most Wanted";
+
 pub trait Scene {
     /// Live population diagnostics for the graphics lab, where a world is present.
     fn traffic_status(&self) -> Option<String> {

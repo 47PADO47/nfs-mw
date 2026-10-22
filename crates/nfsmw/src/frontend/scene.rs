@@ -20,7 +20,7 @@ use crate::scenes::car::FLOOR_PART;
 use crate::scenes::car::shadows::{Part, shadowed};
 use crate::settings::CarShading;
 use crate::settings::fe_shadows;
-use crate::viewer::Scene;
+use crate::viewer::{GAME_TITLE, Scene};
 
 /// The car the menus show: the career-start M3 GTR, a preset of the `BMWM3GTRE46` car type with its livery and
 /// spoiler, as the original's menu shows it. [ours] The original shows it on a platform stage
@@ -118,7 +118,7 @@ impl Scene for MenuScene {
     }
 
     fn title(&self) -> String {
-        "nfsmw".to_owned()
+        GAME_TITLE.to_owned()
     }
 
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
