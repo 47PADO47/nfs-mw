@@ -1,7 +1,6 @@
 //! Segment queries against one instance. Spec: `docs/formats/collision.md` ("Query semantics").
 
-use std::collections::BTreeSet;
-
+use crate::groups::GroupSet;
 use crate::math::{
     Vec3, cross, dot, lerp, normalize, scale, segment_point_dist_sq, segment_point_dist_sq_xz, segment_segment_xz,
     segment_triangle, sub,
@@ -89,12 +88,12 @@ pub(crate) fn cast_instance(
     article: &Article,
     (a, b): (Vec3, Vec3),
     opts: &RayOptions,
-    groups: &BTreeSet<u16>,
+    groups: &GroupSet,
     identity: (u32, usize),
     accept: &mut impl FnMut(&Hit) -> bool,
 ) -> Option<Hit> {
     // An enabled group is in the world: its baked group-exclusion bits (on the instance and its barriers) do not apply.
-    let group_on = inst.group != 0 && groups.contains(&inst.group);
+    let group_on = inst.group != 0 && groups.contains(inst.group);
     if opts.skip_groups && inst.group != 0 && !group_on {
         return None;
     }

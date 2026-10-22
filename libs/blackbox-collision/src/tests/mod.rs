@@ -10,3 +10,4 @@ mod pack;
 mod query;
 pub(crate) mod synth;
 mod ungridded;
+mod window;

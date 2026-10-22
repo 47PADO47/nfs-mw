@@ -332,9 +332,9 @@ impl TrafficWorld {
         let mut out = Vec::new();
         for car in &mut self.cars {
             let (tractor, trailer) = car.sims_mut();
-            out.extend(tractor.take_impact_effects());
+            tractor.drain_impact_effects_into(&mut out);
             if let Some(trailer) = trailer {
-                out.extend(trailer.take_impact_effects());
+                trailer.drain_impact_effects_into(&mut out);
             }
         }
         out

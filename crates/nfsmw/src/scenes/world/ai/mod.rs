@@ -215,6 +215,9 @@ pub struct TrafficWorld {
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
+    /// The rigs and window states of the last `update_damaged_windows`, kept so the frame does not allocate
+    /// (`car/glass.rs`).
+    window_requests: std::cell::RefCell<Vec<(Rc<CarRig>, Vec<super::drive::SurfaceDamage>)>>,
     /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
     speech_view: Option<PlayerView>,
     /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
@@ -293,6 +296,7 @@ impl TrafficWorld {
             aims: Vec::new(),
             hits: Vec::new(),
             passes: Vec::new(),
+            window_requests: Default::default(),
             speech_view: None,
             speech_watch: Default::default(),
         }

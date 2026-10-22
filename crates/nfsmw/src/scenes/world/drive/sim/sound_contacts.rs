@@ -10,6 +10,7 @@ impl CarSim {
     }
 
     /// Called after vehicle pairs resolve; source identity is independent of the other collider.
+    #[cfg(test)]
     pub(in crate::scenes::world) fn take_owned_sound_contacts(&mut self) -> Vec<CarContact> {
         let mut contacts = self.take_sound_contacts();
         if self.effect_source == 0 {
@@ -20,6 +21,19 @@ impl CarSim {
             contact.vehicle = Some(ContactVehicle { profile: self.effect_source, identity: self.sound_identity });
         }
         contacts
+    }
+
+    /// As [`Self::take_owned_sound_contacts`], appended to `out`: the car keeps its queue's capacity for the next tick.
+    pub(in crate::scenes::world) fn drain_owned_sound_contacts_into(&mut self, out: &mut Vec<CarContact>) {
+        let start = out.len();
+        out.append(&mut self.pending_sound_contacts);
+        if self.effect_source == 0 {
+            out.truncate(start);
+            return;
+        }
+        for contact in &mut out[start..] {
+            contact.vehicle = Some(ContactVehicle { profile: self.effect_source, identity: self.sound_identity });
+        }
     }
 }
 

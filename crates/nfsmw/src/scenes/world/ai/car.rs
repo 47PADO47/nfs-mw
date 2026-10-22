@@ -64,6 +64,9 @@ fn shift(sim: &mut CarSim, gear: Option<GearRequest>) {
     }
 }
 
+/// The AI goal of a roadblock car, hashed once at compile time rather than per car per tick.
+const ROADBLOCK_GOAL: u32 = blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock");
+
 pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
@@ -280,11 +283,8 @@ impl AiCar {
         if self.racer_emulated() {
             return;
         }
-        self.sim.collision_goal = if self.roadblock && !self.is_wrecked() {
-            Some(blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock"))
-        } else {
-            self.goal_drive().collision_goal
-        };
+        self.sim.collision_goal =
+            if self.roadblock && !self.is_wrecked() { Some(ROADBLOCK_GOAL) } else { self.goal_drive().collision_goal };
         let think_steps = match self.role {
             Role::Traffic => THINK_STEPS,
             Role::Cop(_) => cop::THINK_STEPS,
