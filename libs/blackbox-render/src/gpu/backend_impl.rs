@@ -183,7 +183,13 @@ impl RenderBackend for Renderer {
         self.graphics = effective;
         #[cfg(all(windows, feature = "streamline"))]
         self.sync_upscale_passes();
+        // The settings decide which pipelines the frames need, so build them now rather than in the first frame.
+        self.prewarm_windowed();
         resolved
+    }
+
+    fn prewarm(&mut self) {
+        Renderer::prewarm(self);
     }
 
     fn graphics(&self) -> &GraphicsSettings {

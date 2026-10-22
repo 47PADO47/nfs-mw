@@ -152,6 +152,13 @@ pub trait RenderBackend {
 
     // --- frames ----------------------------------------------------------------------------------
 
+    /// Build ahead of time what the next frames would otherwise build on first use (pipelines, shader modules,
+    /// the glossy resources), for the effective graphics settings and the resources created so far, so that no
+    /// frame stalls on it. Call it after the settings are applied and a scene's materials exist, for example at
+    /// the end of a loading screen. Calling it again with nothing changed is cheap. Backends that build
+    /// everything up front keep the empty default.
+    fn prewarm(&mut self) {}
+
     /// Draw `instances` and present. Instances of the same mesh should be adjacent.
     fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<FrameStatus, RenderError>;
 

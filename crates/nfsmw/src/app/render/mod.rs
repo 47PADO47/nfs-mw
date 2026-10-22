@@ -95,6 +95,10 @@ fn finish(
     host.scene.set_traffic(host.traffic);
     host.scene.set_camera_mode(host.camera_mode);
     host.scene.set_wheel_options(host.wheel);
+    // Pipelines are otherwise built inside the first frame that draws with them, which stalls that frame. The
+    // scene's materials exist now, so build what they need before the first frame; a scene loaded later
+    // calls `prewarm` again once its own materials exist.
+    renderer.prewarm();
     host.size = size;
     host.renderer = Some(renderer);
     Ok(())

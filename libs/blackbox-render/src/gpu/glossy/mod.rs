@@ -286,6 +286,12 @@ fn ensure<'a>(
 }
 
 impl Renderer {
+    /// Build the glossy state now (rig, default environment, irradiance and screen-reflection resources) instead of
+    /// at the first call that needs it, so that the first frame with glossy draws does not pay for it.
+    pub(in crate::gpu) fn ensure_glossy(&mut self) {
+        ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
+    }
+
     pub(in crate::gpu) fn supports_irradiance(&self) -> bool {
         let limits = self.device.limits();
         self.info.api != blackbox_gfx::GraphicsApi::Gl

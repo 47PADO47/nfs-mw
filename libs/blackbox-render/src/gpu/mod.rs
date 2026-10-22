@@ -30,6 +30,9 @@ mod parity;
 mod pipeline_cache;
 mod pipelines;
 mod post;
+mod prewarm;
+#[cfg(test)]
+mod prewarm_tests;
 mod projected;
 #[cfg(test)]
 mod reflection_tests;
@@ -134,6 +137,8 @@ pub struct Renderer {
     pipeline_cache_path: Option<std::path::PathBuf>,
     /// Frames drawn so far. The pipeline cache is saved once the first ones have built their pipelines.
     frames: u32,
+    /// What the last [`Renderer::prewarm`] built for, so asking again with nothing changed does nothing.
+    prewarmed: Option<prewarm::Warmed>,
 }
 
 impl Renderer {
