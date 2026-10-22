@@ -94,6 +94,13 @@ The split of state is as follows.
 - **Start:** the chase starts at the higher carried heat of the cars involved.
 - **End:** the pursuit is over when no target is still chased.
 
+**As built.** The police keep their single-player state and follow one car, the primary; the world tells them about the
+other chased cars (`players/chase.rs`, `ai/coop_chase.rs`). The cops are split with `assign`, a secondary target seen by a
+cop keeps the cool-down waiting, and while two or more cars are chased the police's busted meter holds and the world runs
+one meter per target. When the primary is busted the next chased car becomes the primary, so the chase goes on through the
+same police code. This kept the 3000-line police module untouched apart from three hooks, and a single-player chase runs
+exactly as before (the primary is always the lead).
+
 This amends MP-07. MP-07 says heat is tracked per player. Here heat is shared, and only the busted state is per player. The
 owner chose a shared chase in which each player is busted on their own.
 
@@ -117,7 +124,17 @@ Distance is handled by a soft prompt, not a forced warp. Past 500 m, the trailin
 no forced warp. The fallback, if memory runs out, is a forced warp past about 1500 m. That fallback needs a new owner decision.
 Residency bytes are logged, so the memory cost is measured and not guessed.
 
-### 7. Presentation reuses split-screen
+### 7. Races seat player 2 as a split-screen racer
+
+Decided during the build, on the owner's note that rival races should use "the same human-racer mechanism as split-screen".
+A co-op race seats P2 in the human racer seat of a split-screen race (`race/split.rs`), next to P1 and the race's own
+opponents; P2's free-roam car is parked for the race (`Player::parked`) and comes back behind P1 at the end. The plan's items
+5a and 5c (a `RacerPlan.seat` in place of `person`, and moving the split race onto `Players` and deleting the AI-slot path)
+were dropped: the race engine, ranking, HUD and finish already work for that seat, and one race path now serves split-screen
+and co-op. A LAN race can seat a remote player the same way. The story's own races (16.2.1 and the final race) are P1's
+alone.
+
+### 8. Presentation reuses split-screen
 
 These pieces are reused unchanged: `SplitInput`, `SplitOverlay` (the two half captures), `SplitHuds` and the `Scene` split hooks.
 One piece is new: a per-half pursuit strip (heat, busted and cooldown), in `hud/split/pursuit.rs`. The game's split HUD files have no
@@ -140,8 +157,9 @@ Native viewports (one window with two real viewports) are out of scope. They nee
 - **Performance.** Co-op renders two half captures per frame. If a half falls under 30 Hz, a later task adds a second capture slot
   in `libs/blackbox-render/src/gpu/view_capture.rs`. The cost is measured with `--bench-seconds`.
 - **Memory.** Two residency centres can roughly double resident scenery in the worst case. Residency bytes are logged.
-- **Code removed.** Once the split custom race runs on `Players`, the AI-slot path goes: `seat_person`, `set_racer_pedals`,
-  `split::SECOND` and `SplitState.camera`.
+- **Race seats stay.** The AI-slot human racer (`seat_person`, `set_racer_pedals`, `split::SECOND`, `SplitState.camera`) is
+  the race path for split-screen and co-op alike (decision 7), so it is kept.
+- **One clock.** The world has one Speedbreaker clock; either player's Speedbreaker slows it for both.
 - **Size.** The 500-line rule applies. The `players/` folder is split by concern, one concern per file.
 - **Rule text.** The full co-op rules belong in a separate spec, `docs/specs/coop-career.md`. This ADR records the decisions only.
 

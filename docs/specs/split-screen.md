@@ -144,7 +144,7 @@ A player holds a device, as the original maps a player to a controller port **[d
 | The two views | `scenes/world/split_view.rs`, `app/split.rs` |
 | The HUDs | `hud/split/` |
 
-Planned (`feat/coop-career`, not built): co-op career turns player 2 from an AI-slot "Opponent" car into a real player in `scenes/world/players/` (a `Players` list keyed by `PlayerId`, each with its own `Drive`). Player 2 then uses the same path as player 1. In that work these are removed: `seat_person`, `set_racer_pedals`, `split::SECOND` and `SplitState.camera`. The rows above that name them change with it. Design: [co-op career](specs/coop-career.md) and [ADR 0010](decisions/0010-coop-and-the-n-player-world.md).
+Co-op career (`feat/coop-career`, [co-op career](specs/coop-career.md), [ADR 0010](decisions/0010-coop-and-the-n-player-world.md)): in free roam player 2 is a real player in `scenes/world/players/` (a `Players` list keyed by `PlayerId`, each with its own `Drive`), and the bottom half shows that player's own camera and HUD (`players/view.rs`; the half's draw list and cut are `split::SecondView`, shared with this race). In a race player 2 takes the human racer seat described here, so `seat_person`, `set_racer_pedals`, `split::SECOND` and `SplitState.camera` stay: they are the race path for split-screen and co-op alike.
 
 ## 7. What the world does (built)
 
@@ -158,10 +158,9 @@ Planned (`feat/coop-career`, not built): co-op career turns player 2 from an AI-
   player 1; headlights, the speed breaker and the camera cycle do not.
 - **Cameras.** Player 1 keeps the gameplay camera of the camera setting; player 2 has the plain chase camera
   (`viewer/camera/chase.rs`) after their racer, with look back. **[ours]**
-- **Streaming** follows the middle of the two cars (`split_focus`), so the world around both stays loaded while they are within a
-  streaming radius of each other. A car left far behind sees unloaded city (open question 6).
-  Planned (`feat/coop-career`, not built): one residency centre per player replaces `split_focus`, so each car's area loads in full
-  and the sim waits until both are resident. This answers open question 6.
+- **Streaming** follows one residency centre per car (`focus.rs` `foci`, `residency.rs` `update_centres`), so each car's area
+  loads in full and the simulation waits until both are resident. This replaced the midpoint (`split_focus`) and answers open
+  question 6.
 - **The views.** `Scene::split_view(player, aspect)` builds one half's frame (`scenes/world/split/view.rs`, sharing `fill_view` with the
   single-player frame); `app/split.rs` captures both off-screen at (window width) x (half height), uploads them as UI textures and puts
   two quads under the HUD layer. While a split race is on the main frame is blank, the speed streaks and the mirror are off.

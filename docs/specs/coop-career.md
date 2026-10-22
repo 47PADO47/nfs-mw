@@ -10,7 +10,8 @@ events. The rules are written so that LAN players use the same rules later ([mul
   reuses. A reused rule keeps its own tag in the spec that owns it, and the text says which part is new.
 - **Evidence tags:** as in [split-screen.md](split-screen.md). **[ours]** this rewrite's choice. **[exe]**, **[decomp]**,
   **[verified]** only where a reused single-player rule carries them.
-- **Status:** design. Nothing here is built yet. The build runs in waves on the branch `feat/coop-career`.
+- **Status:** built on the branch `feat/coop-career` (waves 0 to 8 of the plan); not yet checked in a long play session.
+  Section 16 maps the rules to the code. Where the build settled a rule the design left open, the text says so.
 - **Related:** [split-screen.md](split-screen.md) (halves, devices, seating), [career-flow.md](career-flow.md),
   [career-safehouse.md](career-safehouse.md), [ai-pursuit.md](ai-pursuit.md), [busted-sequence.md](busted-sequence.md),
   [busted-aftermath.md](busted-aftermath.md), [race-mode.md](race-mode.md), [gps-route.md](gps-route.md),
@@ -31,6 +32,7 @@ events. The rules are written so that LAN players use the same rules later ([mul
 7. Each player has a residency centre. Free roam loads the union of both areas, and a soft prompt offers to catch the
    trailing player up. No forced warp.
 8. In the prologue there is no co-op. In story cutscenes P2 is parked and the screen shows one view.
+9. The world has one clock: either player's Speedbreaker slows it for both, and each keeps their own meter. **[ours]**
 
 ## 1. Scope and status
 
@@ -69,8 +71,8 @@ events. The rules are written so that LAN players use the same rules later ([mul
 
 - **"End co-op"** is in the pause menu. P2's car leaves the world, P2's device is unseated, and P1 carries on
   alone. The save is not touched. **[ours]**
-- **Refused** while P2 is in a race or is a pursuit target: the row is shown but cannot be chosen, and the pause menu says
-  why. Open question 6. **[ours]**
+- **In a race or a chase.** As built, End co-op is offered at any time; refusing it while P2 races or is chased is open
+  question 6. **[ours]**
 - **Main menu.** Going to the main menu ends co-op for the session. **[ours]**
 - **Saving.** A manual save or an autosave while co-op is on writes the career as usual. P2's car is not written.
   [career-flow.md](career-flow.md) section 0 item 6 gives the autosave triggers. **[ours]**
@@ -100,8 +102,17 @@ busted meter is per car.
   leaves). **[ours]**
 - **Cool-down.** The evade meter runs while no cop sees any chased car. Any cop seeing a chased car stops it. **[ours]**
 - **Evaded.** When the evade meter fills, the chase ends for every chased car at once. Section 5.1 gives the bounty.
-- **Busted.** Each car has its own busted meter, filled by the cops on that car. A full meter busts that car (its own
-  BustFlow); the chase goes on for the others.
+- **Busted.** Each car has its own busted meter, filled by the cops on that car. A full meter busts that car; the chase
+  goes on for the others.
+- **How the police run it (as built).** The police follow one car, the **primary**, through the single-player rules
+  (sighting, infractions, the busted meter, the pursuit camera). Outside a chase the primary is the player nearest a cop,
+  kept until another player is clearly nearer (20 %). In a chase it is the first chased car; when it is busted the next
+  chased car takes over. The other chased cars are **secondary** targets:
+  - a player joins a running chase as a target when a cop comes within 50 m;
+  - a cop within 60 m sees a secondary target, which keeps the cool-down from running;
+  - while two or more cars are chased the police's own busted meter holds and each target has its own meter (the
+    single-player bust rule, with the 60 m sight for a secondary target);
+  - the last chased car is busted through the police's own flow. **[ours]**
 
 ### 5.1 Evade
 
@@ -112,8 +123,8 @@ busted meter is per car.
 
 ### 5.2 Bust
 
-- The busted car's half shows the arrest camera ([busted-sequence.md](busted-sequence.md) section 4). There is no ticket
-  screen for that car. **[ours]**
+- The busted car's half shows the arrest camera ([busted-sequence.md](busted-sequence.md) section 4). In co-op the arrest
+  NIS scene does not play (it would freeze both halves) and there is no ticket screen: the ticket is paid in cash. **[ours]**
 - The fine is paid from the shared wallet automatically. The impound strike goes on that car
   ([busted-aftermath.md](busted-aftermath.md)). Open question 5. **[ours]**
 - The busted player respawns at the safe house (section 6). The chase goes on for the other car. **[ours]**
@@ -134,9 +145,13 @@ Reuses [race-mode.md](race-mode.md) and the Blacklist rules in [career-blacklist
 field is **[ours]**.
 
 - **Entry.** Either player's interact enters the event for both. Both are on the grid: P1 on slot 0, P2 on slot 1.
-- **Field.** A Blacklist race has P1, P2 and the rival.
+- **Seat.** P2 races in the human racer seat a split-screen race uses ([split-screen.md](split-screen.md) section 3).
+  P2's free-roam car is parked for the race and comes back 12 m behind P1 when it ends. **[ours]**
+- **Field.** A Blacklist race has P1, P2 and the rival; any other race has P1, P2 and its own opponents. Police follow
+  the race's own rule (a split-screen race calls them off; a co-op race does not).
 - **Credit.** The rival race's place credit is the best human place (`credited_place`), applied once.
-- **DNF timer.** When one human finishes, the other has 30 s to finish. At 30 s the other is a DNF.
+- **DNF timer.** When one human finishes, the other has 30 s to finish on the race clock. At 30 s the other is
+  knocked out (a DNF).
 - **Neither finishes.** The race ends as a single-player DNF does ([race-mode.md](race-mode.md)).
 
 ## 8. GPS and map
@@ -162,7 +177,7 @@ Reuses [career-phone.md](career-phone.md) and [career-milestones.md](career-mile
 - **Memory.** Two areas can roughly double resident scenery. Residency bytes are logged. Open question 1. **[ours]**
 - **Catch-up prompt.** When the two cars are more than 500 m apart, the non-anchor player gets a "Catch up" prompt. The
   anchor is the player in a pursuit or a race; if neither, or both, it is P1. Accepting warps the non-anchor player behind
-  the anchor. **[ours]**
+  the anchor. The prompt shows in that player's HUD; pressing Reset accepts it (12 m behind the anchor, its heading). **[ours]**
 - **No warp** while the non-anchor car is a chased car. **[ours]**
 - **No forced warp.** Declining leaves the player where they are. The prompt returns once the cars are within 500 m again
   (open question 8). **[ours]**
@@ -171,15 +186,17 @@ Reuses [career-phone.md](career-phone.md) and [career-milestones.md](career-mile
 
 Reuses [ai-traffic-spawning.md](ai-traffic-spawning.md). The split is **[ours]**.
 
-- Traffic spawns around each player's focus. The car budget is split between the two focuses, in equal shares.
-- A car despawns only when it is out of range of every player.
+- Traffic spawns around each player's focus: the population manager spawns around each player in turn, so the car budget
+  is shared out between them.
+- A car despawns only when it is out of range and out of sight of every player. The cars steer around every player's car.
+- Police spawns and respawns follow the primary (section 5).
 
 ## 12. Story
 
 - **Prologue.** Co-op is hidden until the prologue is done. The prologue chain `16.1.0` to `16.2.1` is in
   [career-blacklist.md](career-blacklist.md) and [career-scripts-events.md](career-scripts-events.md). **[ours]**
-- **Cutscenes.** During an NIS, the scripted chase `16.2.1` and the final events, P2 is parked: hidden, with no physics,
-  and not a pursuit target. The screen goes to one view, P1's. [nis-events.md](nis-events.md) gives the NIS timing. **[ours]**
+- **Cutscenes.** During an NIS or a story movie, the scripted chase `16.2.1` and the final race, P2 is parked: hidden,
+  with no physics, and not a pursuit target. The story races are P1's alone. The screen goes to one view, P1's. [nis-events.md](nis-events.md) gives the NIS timing. **[ours]**
 - **After.** When the cutscene ends, P2 respawns behind P1, placed as in section 6. **[ours]**
 
 ## 13. Pause
@@ -215,6 +232,26 @@ What changes when a seat is remote. The rules above do not change.
    own rule.
 8. **Catch-up after a declined prompt.** This design re-offers the prompt only after the players close to within 500 m.
    The owner may want a longer wait.
+
+## 16. Code map
+
+| Rule | Code |
+|---|---|
+| Ids, seats, roster | `libs/blackbox-net-core/src/session/party.rs` |
+| Pursuit targets and the cop split | `libs/blackbox-pursuit/src/targets.rs` |
+| Names, race credit, garage cap, per-car settlement | `crates/nfsmw-career/src/coop/`, `carlot/mod.rs` (`Limits::for_players`) |
+| The players list, input per player, parking | `crates/nfsmw/src/scenes/world/players/` (`mod.rs`, `inputs.rs`) |
+| Session, join, end, console `coop` | `players/coop.rs`, `players/spawn.rs`, `players/command.rs` |
+| Guests' frame work, contacts | `players/step.rs`, `players/contact.rs`, `ai/collide_guests.rs` |
+| The chase: primary, targets, meters | `players/chase.rs`, `ai/coop_chase.rs` |
+| Busts and pursuit end in the career | `career/coop_bust.rs`, `career/pursuit.rs`, `career/respawn.rs` |
+| Streaming centres | `focus.rs` (`foci`), `residency.rs` (`update_centres`), `zone.rs` (`update_many`) |
+| Traffic | `ai/population/guests.rs`, `ai/scene.rs` |
+| Catch-up | `players/tether.rs`, `players/catch_up.rs` |
+| Races | `players/race.rs`, `race/start.rs`, `race/coop_finish.rs` |
+| Story | `players/suspend.rs` |
+| Halves and HUD | `split/view.rs`, `players/view.rs`, `hud_pursuit.rs`, `hud/split/pursuit.rs` |
+| Front end | `frontend/flow_coop.rs`, career menu, career car select, pause menu |
 
 ## How to check it
 
