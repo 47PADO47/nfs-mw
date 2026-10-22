@@ -341,3 +341,53 @@ fn the_screen_is_cleared_when_the_scene_ends() {
     nis.stop();
     assert_eq!(nis.screen().flash_alpha(), None);
 }
+
+#[test]
+fn a_scene_that_loads_counts_as_playing_and_refuses_a_second_scene() {
+    let mut nis = NisPlayer::default();
+    let (loading, _answer) = Loading::for_test("IntroNis05");
+    nis.loading = Some(loading);
+    assert!(nis.is_playing());
+    assert_eq!(nis.playing_name(), None, "nothing plays yet");
+    assert_eq!(nis.audio_request(), None, "the voice follows the scene, not its load");
+    assert!(nis.refuse_while_playing().is_err());
+    assert!(nis.advance(1.0).is_empty());
+    assert!(nis.is_playing(), "an unfinished load goes on");
+    assert!(!nis.skip(), "a scene that has not begun cannot be skipped");
+    assert!(nis.status().contains("loading"));
+}
+
+#[test]
+fn a_scene_that_fails_to_load_ends_as_skipped() {
+    let mut nis = NisPlayer::default();
+    let (loading, answer) = Loading::for_test("IntroNis05");
+    nis.loading = Some(loading);
+    answer.send(Err("no bundle".into())).unwrap();
+    assert!(nis.advance(1.0).is_empty());
+    assert!(!nis.is_playing());
+    assert_eq!(nis.take_outcome(), Some(NisOutcome::Skipped));
+    assert!(nis.take_cut());
+    assert!(nis.status().contains("failed (no bundle)"));
+}
+
+#[test]
+fn a_load_whose_thread_vanished_ends_as_skipped() {
+    let mut nis = NisPlayer::default();
+    let (loading, answer) = Loading::for_test("IntroNis05");
+    nis.loading = Some(loading);
+    drop(answer);
+    nis.advance(0.0);
+    assert!(!nis.is_playing());
+    assert_eq!(nis.take_outcome(), Some(NisOutcome::Skipped));
+}
+
+#[test]
+fn stopping_a_scene_that_loads_ends_it_as_skipped() {
+    let mut nis = NisPlayer::default();
+    let (loading, _answer) = Loading::for_test("IntroNis05");
+    nis.loading = Some(loading);
+    assert!(nis.stop());
+    assert!(!nis.is_playing());
+    assert_eq!(nis.take_outcome(), Some(NisOutcome::Skipped));
+    assert!(!nis.stop(), "nothing is left to stop");
+}
