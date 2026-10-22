@@ -2,7 +2,10 @@ use blackbox_chunk::{PAD_BYTE, ids};
 
 use crate::info::InfoRecord;
 use crate::reader::read_compressed_texture;
-use crate::{AlphaUsage, PixelFormat, TexturePack, layout, read_texture_packs, read_texture_packs_filtered};
+use crate::{
+    AlphaUsage, PixelFormat, TexturePack, layout, read_texture_packs, read_texture_packs_filtered,
+    read_texture_packs_ranged,
+};
 
 const V5: &layout::PackLayout = layout::LAYOUTS[0];
 
@@ -239,4 +242,67 @@ fn rejecting_everything_yields_no_textures_and_no_error() {
         assert!(packs[0].textures.is_empty());
         assert!(packs[0].failed.is_empty());
     }
+}
+
+/// A source that counts the bytes read from it.
+struct Counting<R> {
+    inner: R,
+    read: usize,
+}
+
+impl<R: std::io::Read> std::io::Read for Counting<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.read += n;
+        Ok(n)
+    }
+}
+
+impl<R: std::io::Seek> std::io::Seek for Counting<R> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+fn assert_ranged_matches(file: &[u8], keep: impl Fn(u32) -> bool + Copy) -> usize {
+    let mut src = Counting { inner: std::io::Cursor::new(file), read: 0 };
+    let ranged = read_texture_packs_ranged(&mut src, keep).unwrap();
+    assert_eq!(ranged, expected(file, keep));
+    assert_eq!(ranged, read_texture_packs_filtered(file, keep).unwrap());
+    src.read
+}
+
+#[test]
+fn ranged_read_matches_in_memory_read() {
+    let plain = plain_pack(&sample_textures(), Some(0xE5));
+    let compressed = compressed_pack(&sample_textures(), Some(0xE5));
+    for file in [&plain, &compressed] {
+        assert_ranged_matches(file, |_| true);
+        assert_ranged_matches(file, |h| h == 0xB2 || h == 0xD4);
+        assert_ranged_matches(file, |h| h == 0xE5);
+        assert_ranged_matches(file, |_| false);
+    }
+}
+
+#[test]
+fn ranged_read_finds_packs_after_other_chunks_and_inside_containers() {
+    // 128 bytes, so the packs after it keep the alignment they were built for.
+    let unrelated = chunk(0x0003_0201, &[7; 120]);
+    let wrapper = chunk(0x8000_1234, &[unrelated.clone(), plain_pack(&sample_textures(), None)].concat());
+    let file = [unrelated.clone(), plain_pack(&sample_textures(), None), unrelated, wrapper].concat();
+    assert_ranged_matches(&file, |_| true);
+    assert_ranged_matches(&file, |h| h == 0xA1 || h == 0xD4);
+    let packs = read_texture_packs_ranged(&mut std::io::Cursor::new(&file), |_| true).unwrap();
+    assert_eq!(packs.len(), 2);
+    assert_eq!(packs[0].textures[0].data, pixels(1));
+}
+
+#[test]
+fn ranged_read_touches_only_the_wanted_pixels() {
+    let big: Vec<(u32, Vec<u8>)> = (0..8u32).map(|i| (0x100 + i, vec![i as u8; 4096])).collect();
+    // 4096 bytes of pixels is not a whole texture of the helper's 8x8 DXT1 records: the mip count clamps, which both
+    // reads do alike.
+    let file = plain_pack(&big, None);
+    let read = assert_ranged_matches(&file, |h| h == 0x103);
+    assert!(read < file.len() / 4, "read {read} of {} bytes", file.len());
 }

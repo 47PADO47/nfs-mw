@@ -21,6 +21,7 @@ use crate::ui::{Catalog, UiAssets};
 
 mod command;
 mod layers;
+mod load;
 mod pose;
 mod shown;
 #[cfg(test)]

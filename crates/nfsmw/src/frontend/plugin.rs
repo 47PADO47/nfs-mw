@@ -30,7 +30,7 @@ use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
 use crate::ui::theme::remastered::MapSnapshot;
 use crate::ui::theme::{ElementId, UiThemes, slot_layer};
-use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
+use crate::ui::{Presenter, SharedAssets};
 
 #[path = "plugin_pointer.rs"]
 mod pointer_input;
@@ -60,9 +60,7 @@ impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
         super::jukebox::prime(&self.dir);
         super::credits::prime(&self.dir);
-        let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
-        let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
-        let screens = Screens::new(catalog, assets);
+        let Some(screens) = Screens::load(app, &self.dir) else { return };
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();

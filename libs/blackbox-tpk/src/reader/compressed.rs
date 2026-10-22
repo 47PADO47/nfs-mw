@@ -25,15 +25,30 @@ pub(super) fn read(
     }
 }
 
+/// The fields of one streaming entry: `(hash, file offset, blob size, inflated size)`.
+pub(crate) fn entry_fields(entry: &[u8]) -> (u32, usize, usize, usize) {
+    let u32_at = |o: usize| u32::from_le_bytes(entry[o..o + 4].try_into().unwrap());
+    (u32_at(0), u32_at(4) as usize, u32_at(8) as usize, u32_at(12) as usize)
+}
+
+/// The error for a blob that does not lie inside the file.
+pub(crate) fn outside_error(hash: u32, offset: usize, csize: usize) -> Error {
+    Error::Texture { hash, detail: format!("blob 0x{offset:X}+{csize} lies outside the file") }
+}
+
 /// One streaming entry: `{hash, file offset, blob size, inflated size, flags…}`.
 pub(crate) fn read_compressed_texture(file: &[u8], entry: &[u8], layout: &'static PackLayout) -> Result<Texture> {
-    let u32_at = |o: usize| u32::from_le_bytes(entry[o..o + 4].try_into().unwrap());
-    let (hash, offset, csize, usize_) = (u32_at(0), u32_at(4) as usize, u32_at(8) as usize, u32_at(12) as usize);
-    let err = |detail: String| Error::Texture { hash, detail };
+    let (hash, offset, csize, usize_) = entry_fields(entry);
+    let blob = offset
+        .checked_add(csize)
+        .and_then(|end| file.get(offset..end))
+        .ok_or_else(|| outside_error(hash, offset, csize))?;
+    inflate_texture(hash, blob, usize_, layout)
+}
 
-    let blob = file
-        .get(offset..offset + csize)
-        .ok_or_else(|| err(format!("blob 0x{offset:X}+{csize} lies outside the file")))?;
+/// Inflates one texture's blob (`usize_` bytes once inflated) and builds the texture from its pixels and trailer.
+pub(crate) fn inflate_texture(hash: u32, blob: &[u8], usize_: usize, layout: &'static PackLayout) -> Result<Texture> {
+    let err = |detail: String| Error::Texture { hash, detail };
     let block = ea_compress::unwrap(blob)?;
     let trailer = layout.info.len + layout.plat_len;
     if block.len() != usize_ || block.len() < trailer {
