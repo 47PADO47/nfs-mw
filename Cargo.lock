@@ -4001,6 +4001,8 @@ name = "nfsmw-net"
 version = "0.1.0"
 dependencies = [
  "blackbox-net-core",
+ "blackbox-vehicle",
+ "nfsmw-sim",
  "thiserror 2.0.21",
 ]
 
@@ -4018,6 +4020,8 @@ dependencies = [
 name = "nfsmw-sim"
 version = "0.1.0"
 dependencies = [
+ "blackbox-net-core",
+ "blackbox-vehicle",
  "thiserror 2.0.21",
 ]
 

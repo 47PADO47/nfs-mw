@@ -9,6 +9,8 @@ publish.workspace = true
 
 [dependencies]
 blackbox-net-core.workspace = true
+blackbox-vehicle.workspace = true
+nfsmw-sim.workspace = true
 thiserror.workspace = true
 
 [lints]
