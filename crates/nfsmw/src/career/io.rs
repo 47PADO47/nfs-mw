@@ -18,6 +18,8 @@ use nfsmw_career::savefile::state::{ALIAS_MAX_CHARS, is_listable_alias};
 const DIR_ENV: &str = "NFSMW_CAREER_DIR";
 /// The folder name next to the config file.
 const DIR_NAME: &str = "career";
+/// The folder of a profile's mod data, next to its profile file (`docs/specs/mod-save-data.md`, section 2).
+pub(super) const MOD_DATA_DIR: &str = "mods";
 
 /// The profile folder of this build.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,14 +106,26 @@ impl ProfileDir {
         renamed.with_context(|| format!("cannot replace {}", file.display()))
     }
 
-    /// Deletes the profile of `alias` and its folder when that is left empty. A missing profile is an error.
+    /// The folder that holds the mod data of `alias`: `<root>/<alias>/mods` (`docs/specs/mod-save-data.md`, section 2).
+    /// Does not create it, and does not check that it exists.
+    pub fn mod_data_dir(&self, alias: &str) -> Result<PathBuf> {
+        let file = self.file_of(alias)?;
+        let dir = file.parent().context("the profile has no folder")?;
+        Ok(dir.join(MOD_DATA_DIR))
+    }
+
+    /// Deletes the profile of `alias`, its mod data and its folder. The folder goes only when nothing else is left in
+    /// it. A missing profile is an error.
     pub fn remove(&self, alias: &str) -> Result<()> {
         let file = self.file_of(alias)?;
         fs::remove_file(&file).with_context(|| format!("cannot delete {}", file.display()))?;
-        if let Some(dir) = file.parent() {
-            // Fails, and is ignored, when the folder still holds other files.
-            let _ = fs::remove_dir(dir);
+        let Some(dir) = file.parent() else { return Ok(()) };
+        let mods = dir.join(MOD_DATA_DIR);
+        if mods.exists() {
+            fs::remove_dir_all(&mods).with_context(|| format!("cannot delete {}", mods.display()))?;
         }
+        // Fails, and is ignored, when the folder still holds other files.
+        let _ = fs::remove_dir(dir);
         Ok(())
     }
 
