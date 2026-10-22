@@ -42,6 +42,8 @@ mod status;
 mod update;
 mod views;
 
+#[cfg(test)]
+mod tests;
 
 pub use config::SessionConfig;
 pub use events::{EventGate, SessionEvent, event_head};
