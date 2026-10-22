@@ -58,11 +58,13 @@ pub enum QuitTo {
     Career,
 }
 
-/// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam) and where Quit goes.
+/// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam), where Quit
+/// goes, and whether a co-op session is on (End Co-op).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PauseCtx {
     pub race: bool,
     pub quit: QuitTo,
+    pub coop: bool,
 }
 
 pub use super::footer::Footer;
@@ -119,6 +121,8 @@ pub enum Command {
     },
     /// Close the pause menu and go on driving.
     Resume,
+    /// End co-op from the pause menu: player 2's car leaves the world, then the game goes on for player 1 alone.
+    EndCoop,
     /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
     StartFirstDrive,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.

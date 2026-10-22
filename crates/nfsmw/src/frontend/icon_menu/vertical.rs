@@ -29,6 +29,7 @@ impl IconMenu {
     pub(super) fn special_text(id: Id) -> Option<String> {
         match id {
             Id::ControlOptions => Some("Control Options".into()),
+            Id::EndCoop => Some("End Co-op".into()),
             Id::Category(Category::Discord) => Some("Discord".into()),
             Id::Category(Category::Mods) => Some("Mods".into()),
             Id::SafeHouseBlacklist(stage) => Some(format!("Blacklist {stage}")),

@@ -87,6 +87,11 @@ impl Scene for Pausable {
         self.inner.coop_second_device()
     }
 
+    // The pause menu's End Co-op reaches the world under the menu.
+    fn end_coop(&mut self) {
+        self.inner.end_coop();
+    }
+
     // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()
