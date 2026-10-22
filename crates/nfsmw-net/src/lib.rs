@@ -13,6 +13,7 @@
 //!
 //! The session rules, pure state machines that take the time from the caller and return what to send:
 //!
+//! - [`settings`]: session settings defaults, validation, a host's patch, and the flat key and value form.
 //! - [`roles`]: host, admin and player permissions, bans, and the local mute list.
 
 pub mod input;
@@ -20,4 +21,5 @@ pub mod loadout;
 pub mod message;
 pub mod roles;
 pub mod schema;
+pub mod settings;
 pub mod version;
