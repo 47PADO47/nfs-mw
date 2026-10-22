@@ -120,16 +120,38 @@ pub enum SimError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SimEvent {
     /// Two entities touched at `speed` metres per second of relative speed.
-    Contact { a: EntityId, b: EntityId, speed: f32 },
+    Contact {
+        a: EntityId,
+        b: EntityId,
+        speed: f32,
+    },
     /// The server moved a player's car (a reset, a respawn, a teleport).
-    Moved { player: PlayerId },
-    PursuitStarted { player: PlayerId },
-    PursuitEnded { player: PlayerId },
-    Busted { player: PlayerId },
-    Evaded { player: PlayerId },
+    Moved {
+        player: PlayerId,
+    },
+    PursuitStarted {
+        player: PlayerId,
+    },
+    PursuitEnded {
+        player: PlayerId,
+    },
+    Busted {
+        player: PlayerId,
+    },
+    Evaded {
+        player: PlayerId,
+    },
     /// A player crossed the finish: `place` counts from 1, `time_ms` is the race time.
-    RaceFinished { player: PlayerId, place: u8, time_ms: u32 },
-    LapCompleted { player: PlayerId, lap: u8, time_ms: u32 },
+    RaceFinished {
+        player: PlayerId,
+        place: u8,
+        time_ms: u32,
+    },
+    LapCompleted {
+        player: PlayerId,
+        lap: u8,
+        time_ms: u32,
+    },
 }
 
 /// An authoritative world advanced one tick at a time.
