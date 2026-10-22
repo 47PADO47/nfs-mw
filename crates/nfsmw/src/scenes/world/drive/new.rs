@@ -59,6 +59,7 @@ impl Drive {
             previous: pose,
             current: pose,
             nis_pose: None,
+            net_pose: None,
             telemetry: Telemetry::default(),
             breaker: SpeedBreaker::default(),
             breaker_camera: Zoom::default(),

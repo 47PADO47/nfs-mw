@@ -24,6 +24,7 @@ mod new;
 mod nis_pose;
 mod original_camera;
 mod placement;
+mod predict;
 #[cfg(test)]
 mod presentation_tests;
 mod release;
@@ -61,6 +62,7 @@ use fall::FallWatch;
 pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
+pub(super) use predict::DriveSave;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
@@ -68,6 +70,7 @@ pub(super) use sim::CarSim;
 use sim::Telemetry;
 pub(super) use sim::memo::{StepMemo, SurfaceHit};
 pub(super) use sim::pair_contact::PairContact;
+pub(super) use sim::predict::SimMotion;
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]
@@ -136,6 +139,9 @@ pub struct Drive {
     current: CarPose,
     /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
+    /// The pose a multiplayer client draws its own car at: the prediction plus the smoothed correction
+    /// (`predict.rs`); `None` draws the physics pose.
+    net_pose: Option<CarPose>,
     telemetry: Telemetry,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,

@@ -22,6 +22,7 @@ use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
 mod installed_tests;
+mod lend;
 mod mod_tiles;
 mod release;
 mod scenery_groups;

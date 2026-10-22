@@ -10,6 +10,7 @@ mod audio;
 mod hits;
 pub(in crate::scenes::world) mod memo;
 pub(in crate::scenes::world) mod pair_contact;
+pub(in crate::scenes::world) mod predict;
 mod reset_collision;
 use blackbox_vehicle::induction::InductionKind;
 use blackbox_vehicle::{FIXED_STEP, Ground, InputState, Vehicle};

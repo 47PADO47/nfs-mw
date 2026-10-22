@@ -10,8 +10,9 @@ impl Drive {
         self.nis_pose = pose;
     }
 
-    /// The pose the car is drawn at now: the NIS scene's pose while a scene drives it, otherwise the physics pose.
+    /// The pose the car is drawn at now: the NIS scene's pose while a scene drives it, a multiplayer client's smoothed
+    /// pose (`predict.rs`), otherwise the physics pose.
     pub fn render_pose(&self) -> CarPose {
-        self.nis_pose.unwrap_or_else(|| self.pose())
+        self.nis_pose.or(self.net_pose).unwrap_or_else(|| self.pose())
     }
 }

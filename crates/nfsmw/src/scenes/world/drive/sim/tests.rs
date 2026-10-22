@@ -13,6 +13,7 @@ mod impact_matrix;
 mod lights;
 mod pair_dispatch;
 mod player_contacts;
+mod predict;
 mod reactions;
 mod reset_collision;
 mod retirement;
