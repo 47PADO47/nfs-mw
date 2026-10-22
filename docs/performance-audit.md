@@ -115,6 +115,28 @@ change.
 - Bevy's pipelines are not touched by the pipeline cache.
 - Streamed sections requested before the first residency update still decode on the main thread on non-BC GPUs.
 
+## Round three: stutter first (2026-10-22)
+
+The first two rounds were judged by a benchmark that draws a parked car with the renderer's defaults. The game's own
+trace showed something else: a p50 of 3 ms but a p90 of 50 ms, with stalls of up to 4 s on the frame thread. Round
+three measures the whole app (`--bench-seconds`, now hidden, with hitch counts) and starts with the stalls. Numbers:
+[benchmarks/2026-10-22-perf-round-three.md](benchmarks/2026-10-22-perf-round-three.md).
+
+| Finding | Fix |
+| --- | --- |
+| The release profile had no LTO and 16 codegen units; dev builds compiled our decoders, physics and renderer at level 1 with Cranelift. | Thin LTO and one codegen unit for release; the hot crates at level 3 with LLVM in dev. |
+| The save screens read the career tables on the frame thread, and the car lot ran the 5,400-step performance simulation for each car, again for Quick Play and at race starts. | The tables load on a thread; car performance, the gameplay data and the career tables are memoised per session; the lot is measured in parallel. |
+| Movies were read whole and their sound decoded before the first frame, on the frame thread; each frame decoded and copied the picture there. | Video and sound workers; buffered reads; a bounded queue of recycled frame buffers. |
+| Bank sounds and NIS scenes decoded or loaded on first use, on the frame thread. | An audio decode worker fed as soon as the car is known; NIS bundles, cameras and takes load on threads. |
+| The menu backdrop read and uploaded its car and room inside `init`. | A worker reads them; the frame thread uploads the room, then the car. |
+| The streamer started after the whole world load, no tile was asked for before the shared sets arrived, and the shared sets uploaded in one frame. | The loading thread starts the streamer and asks for the shared sets and the start tiles together; the shared upload is spread over hidden frames. |
+| The upload budget counted BC textures as RGBA, dropped requests were still read, and placements were worked out on the frame thread. | Real byte counts, cancel flags, placement prepared on the stream workers, bookkeeping only on change. |
+| Pipelines were built on first use inside a frame (264 ms). | `RenderBackend::prewarm` builds what the current settings need ahead of the frame. |
+| Parallel opens could build one memo entry twice; surface capabilities were queried twice a second. | A `OnceLock` per memo key; capabilities on change. |
+
+Next in this round: the steady frame (reflection views, HUD composition, draw submission), then the GPU passes and the
+load path.
+
 ## How to measure
 
 Set `NFSMW_GAME_DIR` to the install first. Then run:
