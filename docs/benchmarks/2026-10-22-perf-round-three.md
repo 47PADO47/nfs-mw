@@ -100,3 +100,18 @@ What it says:
   the prewarm compiling every pipeline with a cold Vulkan cache. The next runs were ready in 0.9-1.1 s.
 - **Not measured on an idle machine:** the frame-time gain itself. Rerun the table's command with nothing else
   running to read it.
+
+## Idle machine, P1 against the final P4
+
+A watcher waited until the CPU load stayed under 25 % for three samples 30 s apart, then alternated the P1 and the final
+P4 release builds (same command and "user" settings, 20 s runs). Only the first round ran on a quiet machine; another
+workload took the GPU again from the second.
+
+| Round | P1 p50 / p99 / mean | P4 p50 / p99 / mean | CPU ms per frame, P1 to P4 | Ready after, P1 to P4 |
+| --- | --- | --- | --- | --- |
+| 1 (quiet) | 4.05 / 5.65 / 4.17 | 3.12 / 4.11 / 3.19 | 4.23 to 3.24 | 2.42 s to 0.91 s |
+| 2 (GPU shared) | 7.59 / 9.87 / 7.64 | 6.55 / 8.62 / 6.60 | 4.37 to 3.49 | 0.90 s to 0.86 s |
+| 3 (GPU shared) | 7.54 / 9.86 / 7.60 | 6.54 / 7.78 / 6.54 | 4.41 to 3.50 | 0.97 s to 0.83 s |
+
+On the quiet run the frame time is 23 % lower at the median and 27 % lower at the 99th percentile, and the resident
+memory at the end of the run is 813 MiB against 912 MiB. With the GPU shared, P4 stays about 1 ms ahead.
