@@ -24,7 +24,7 @@ The problems are in the scene code that will become `nfsmw-sim`.
 | ~~The race engine and racer emulation tick on float `sim_dt` per frame~~ | `race/flow.rs` (`race_tick`) | | **Done:** a running race steps once per tick inside the tick loop, so a crossing is tested at the tick it happens. Loading, results and challenge races stay on frame time (a challenge is event-driven) |
 | ~~Speedbreaker depletion uses real frame time; the speedbreaker ramp, cinematic moments and `game_speed` scale the tick rate~~ | `drive/time_scale.rs`, `moment_world.rs`, `simulation.rs` | | **Done as a session rule:** `SessionRules::time_scale_allowed` (`session_rules.rs`). Off, the tick runs at 1.0 whatever `game_speed` and the moments ask, and the speedbreaker is barred for every player (`Drive::bar_speedbreaker`). A per-car speedbreaker waits for features.md. Single player keeps all of it |
 | The car spawns after a 10 s wall-clock wait | `drive_input.rs:20` (field in `mod.rs`) | Wall clock in the spawn | **Not done.** Count ticks instead; the wait belongs to the client's loading state |
-| The whole sim pauses until local streaming is ready; each AI car steps only if its collision is resident | `simulation.rs:50,59-60`, `ai/simulation.rs:89-93` | Local streaming state gates the shared world | **Partly done.** The gate already waits for every player's surroundings (co-op). `SessionRules::lockstep_streaming` makes tiles join in lockstep (`residency/lockstep.rs`): all requested tiles together, in tile order. The sim does not yet wait for tiles in flight beyond the players' surroundings, and clients do not yet hold only their own car (`StreamingStall`) |
+| The whole sim pauses until local streaming is ready; each AI car steps only if its collision is resident | `simulation.rs:50,59-60`, `ai/simulation.rs:89-93` | Local streaming state gates the shared world | **Partly done.** The gate already waits for every player's surroundings (co-op). `SessionRules::lockstep_streaming` makes tiles join in lockstep (`residency/lockstep.rs`): all requested tiles together, in tile order. The world host can wait before each tick until every wanted tile is in and none is in flight, the traffic's support tiles included (`HostConfig::settle_streaming`, [world host](world-host.md)): without the support tiles a host's traffic could wait on the disk where another's did not, which made two hosts part about once in four runs. The scene itself does not wait, and clients do not yet hold only their own car (`StreamingStall`) |
 | ~~Race opponent names are seeded from `SystemTime`~~ | `race/start.rs` | | **Done:** `SessionRules::name_seed` is the session seed; single player keeps the clock |
 
 ## D3: hash order
@@ -88,4 +88,9 @@ They belong to the protocol (`sim_build` in `Auth`) and the client prediction (q
    `NFSMW_GAME_DIR`). Before lockstep streaming the test failed twice in about twelve runs, both on the first run after a
    build (cold disk cache); with it, it passed the four
    runs since, one of them the first after a build. `ai/pursuit/tests/state_hash.rs` checks the traffic part without the
-   install.
+   install. The test now asks for the traffic's support tiles before it waits, as the world host does (D2 above); it still
+   failed once in six runs on 2026-10-22, the first run after a build, so a cold-cache cause remains.
+6. **Done (2026-10-22)** for the real world behind `WorldSim`: `scenes/world/net/tests/installed.rs` drives two
+   `WorldSimHost`s from one seed with the same scripted input for 40 simulated seconds (two players, 16 cars with cops)
+   and compares the events every tick and the hash and entity views every second. It passed the seven runs since the
+   support-tile fix, the first after a build among them ([world host](world-host.md)).

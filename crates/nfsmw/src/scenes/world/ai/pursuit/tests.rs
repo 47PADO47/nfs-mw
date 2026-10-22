@@ -40,6 +40,7 @@ mod installed_breaker;
 mod installed_hiding;
 mod installed_route;
 mod lockout;
+mod net_export;
 mod placement;
 mod recycling;
 mod roadblock;

@@ -230,20 +230,26 @@ impl WorldScene {
         let mut sims: Vec<_> =
             lead.into_iter().chain(stepped.filter_map(|(guest, _)| Some((guest.id, guest.drive.sim_mut()?)))).collect();
         let mut lead = sims.iter().position(|(id, _)| *id == primary).map(|at| sims.remove(at).1);
+        let lead_id = lead.is_some().then_some(primary);
+        let guest_ids: Vec<_> = sims.iter().map(|(id, _)| *id).collect();
         let mut guest_sims: Vec<_> = sims.into_iter().map(|(_, sim)| sim).collect();
+        let mut contacts = Vec::new();
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
             traffic.step(focus, collision, props, surfaces);
             traffic.collide(lead.as_deref_mut());
             traffic.collide_guests(&mut guest_sims);
+            let touches = traffic.touches().iter();
+            contacts.extend(touches.filter_map(|touch| super::players::touch_contact(touch, lead_id, &guest_ids)));
             traffic.update_events(props, &self.physics, event_view);
             // Recycle may remove a car or loose trailer; keep its final completed callback first.
             world_sounds.extend(traffic.take_collision_sounds());
             traffic.set_heli_camera(Some((camera.position, camera.forward)));
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
-        super::players::collide_players(lead, &mut guest_sims);
+        super::players::collide_players(lead_id.zip(lead), &mut guest_sims, &guest_ids, &mut contacts);
+        self.players.contacts = contacts;
         if let (Some(drive), Some(step)) = (self.players.lead_mut(), player_step) {
             drive.update_events(props, &self.physics, event_view);
             drive.finish_step(collision, surfaces, step);

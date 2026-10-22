@@ -6,6 +6,7 @@ mod effects;
 mod fragments;
 mod ground;
 mod lifetime;
+mod net;
 mod obb;
 mod original_camera;
 mod pairs;
@@ -20,6 +21,7 @@ mod world_contacts;
 
 use body::PropBody;
 pub use fragments::FragmentSpawn;
+pub use net::MovingProp;
 use obb::obb_overlap;
 pub use obb::{Obb, PropOverlap};
 pub use placed::PlacedSpawn;

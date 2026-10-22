@@ -33,6 +33,8 @@ const LAP: &str = "4:throttle=1;3:throttle=0.7,steer=0.4;4:throttle=1;3:throttle
 fn settle_streaming(scene: &mut WorldScene, renderer: &mut NullBackend) {
     let start = Instant::now();
     loop {
+        // The frame asks for the traffic's support tiles before its streaming: asked here first, they are in when it looks.
+        scene.prepare_traffic_support();
         let centres = scene.foci();
         scene.residency.update_centres(renderer, &centres);
         // Every wanted tile in, and nothing in flight that could land in the middle of a frame.

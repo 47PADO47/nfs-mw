@@ -37,12 +37,14 @@ pub struct CoopSession {
     pub transmission: Transmission,
     /// The soft catch-up distance.
     pub tether: Tether,
-    /// The player offered the "Press Reset to catch up" prompt this frame, if any (`catch_up.rs`).
-    pub catch_up: Option<PlayerId>,
+    /// The players offered the "Press Reset to catch up" prompt this frame, in id order (`catch_up.rs`).
+    pub catch_up: Vec<PlayerId>,
     /// The shared chase: its targets, its primary and the per-target busts (`chase.rs`).
     pub chase: super::chase::CoopChase,
-    /// Player 2 is parked for a cutscene (`suspend.rs`).
+    /// The guests are parked for a cutscene (`suspend.rs`).
     pub suspended: bool,
+    /// The guests the cutscene parked, brought back when it ends.
+    pub cutscene_parked: Vec<PlayerId>,
     /// The device the guest drives with (`CoopSetup::device`).
     pub device: CoopDevice,
 }
@@ -111,9 +113,10 @@ impl WorldScene {
             transmission: setup.transmission,
             tether: Tether::default(),
             device: setup.device,
-            catch_up: None,
+            catch_up: Vec::new(),
             chase: Default::default(),
             suspended: false,
+            cutscene_parked: Vec::new(),
         });
         self.second_view = super::super::split::SecondView::new();
     }

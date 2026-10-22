@@ -96,4 +96,13 @@ impl TrafficWorld {
             kit.draw_strip(*frame, out);
         }
     }
+
+    /// Every standing roadblock's spike strips as (roadblock id, strip index, frame in render space), in roadblock
+    /// order: what a server replicates of them (`net_export.rs`).
+    pub fn spike_strips(&self) -> impl Iterator<Item = (u32, usize, glam::Mat4)> + '_ {
+        self.roadblocks
+            .list
+            .iter()
+            .flat_map(|block| block.strip_frames.iter().enumerate().map(|(index, frame)| (block.id, index, *frame)))
+    }
 }

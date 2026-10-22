@@ -4071,6 +4071,8 @@ dependencies = [
  "nfsmw-career",
  "nfsmw-data",
  "nfsmw-modding",
+ "nfsmw-net",
+ "nfsmw-sim",
  "open",
  "png",
  "raw-window-handle",

@@ -40,6 +40,7 @@ mod materials;
 mod mod_hooks;
 mod moment;
 mod moment_world;
+pub mod net;
 mod nis;
 mod photo_shot;
 pub mod players;

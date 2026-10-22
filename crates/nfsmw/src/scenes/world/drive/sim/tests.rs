@@ -12,6 +12,7 @@ mod geometry;
 mod impact_matrix;
 mod lights;
 mod pair_dispatch;
+mod player_contacts;
 mod reactions;
 mod reset_collision;
 mod retirement;

@@ -27,6 +27,7 @@ mod glass;
 mod goal_drive;
 mod hits;
 mod lighting;
+mod net;
 mod original_camera;
 mod patrol;
 mod racing;
