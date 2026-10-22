@@ -31,6 +31,8 @@ mod flow_arrival;
 mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_coop.rs"]
+mod flow_coop;
 #[path = "flow_custom.rs"]
 mod flow_custom;
 #[path = "flow_endgame.rs"]
@@ -190,6 +192,9 @@ pub struct Frontend {
     race_options: Option<crate::scenes::world::RaceOptions>,
     /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
     split: Option<crate::scenes::world::SplitSetup>,
+    /// The co-op session in progress: player 2 from the career car select (`flow_coop.rs`); the world takes it when built
+    /// (`flow_loading.rs`).
+    coop: Option<crate::scenes::world::players::coop::CoopSetup>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
@@ -239,6 +244,7 @@ impl Frontend {
             quick_car: None,
             race_options: None,
             split: None,
+            coop: None,
             drive_to_safe_house: false,
             map_chrome: Default::default(),
         }
@@ -407,6 +413,9 @@ impl Frontend {
                 Command::SplitFirstCar(transmission) => self.split_first_car(transmission, host, env),
                 Command::StartSplitRace { race, options, setup } => {
                     self.start_split_race(race, options, setup, host, env)
+                }
+                Command::CoopSecondCar { folder, handle, transmission } => {
+                    self.coop_second_car(folder, handle, transmission, host, env)
                 }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
