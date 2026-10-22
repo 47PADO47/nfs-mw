@@ -26,4 +26,4 @@ pub use infractions_screen::{
     FIRST_VISIT_MARKERS, InfractionsScreen, PayOutcome, ReleaseError, apply_game_over_check, release_with_cash,
     release_with_marker,
 };
-pub use pursuit::{PursuitEnd, PursuitResult, RecordedPursuit, end_player_pursuit, record_pursuit};
+pub use pursuit::{PursuitEnd, PursuitResult, RecordedPursuit, end_player_pursuit, end_pursuit_for, record_pursuit};
