@@ -74,9 +74,19 @@ fn a_move_takes_the_short_way_round_a_turn() {
 }
 
 #[test]
-fn holding_stays_on_its_pose() {
-    let hold = CameraMove::holding(crate::frontend::camera_pose::SAFE_HOUSE);
-    assert_eq!(at(hold, 5.0), crate::frontend::camera_pose::SAFE_HOUSE);
+fn a_retarget_starts_from_where_the_camera_is() {
+    let mut camera = safe_house();
+    camera.advance(1.0);
+    let before = camera.pose();
+    let back = angle(94.4, -58.0, 9.0, -13.1, 55.0, [2.3, -0.3, 1.0]);
+    camera.retarget(&back);
+    assert_eq!(camera.pose(), before, "the new move begins on the pose the old one reached");
+    camera.advance(60.0);
+    let end = camera.pose();
+    assert!(
+        near(end.distance, 9.0) && near(end.fov, 55.0) && near(end.yaw, 302.0),
+        "and ends on the new goal: {end:?}"
+    );
 }
 
 #[test]

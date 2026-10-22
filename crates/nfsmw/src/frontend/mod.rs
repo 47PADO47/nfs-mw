@@ -6,6 +6,7 @@ mod alias_menu;
 mod browse;
 mod camera_move;
 mod camera_pose;
+mod camera_rig;
 mod career_screens;
 // The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.
 pub(crate) mod challenge_series;
@@ -88,6 +89,7 @@ mod upscale_tests;
 mod vehicle_effects_tests;
 
 pub use browse::Browse;
+pub use camera_rig::CameraRig;
 pub use flow::{Frontend, Start};
 pub use logic::{Args, Category};
 pub use look::Look;

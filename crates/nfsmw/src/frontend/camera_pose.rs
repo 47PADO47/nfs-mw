@@ -37,11 +37,11 @@ impl CameraPose {
         -self.distance * Vec3::new(sy * sp, cy * sp, cp)
     }
 
-    /// The up vector: world up turned `roll` degrees about the view direction (right-handed, as a rotation of the
-    /// engine's row vectors by a positive angle).
+    /// The up vector: world up turned `roll` degrees about the view direction, against the right-handed sense: a positive
+    /// roll lets the horizon fall to the right of the picture. [verified: the original's main menu and career menu]
     pub fn up(&self) -> Vec3 {
         let forward = (self.target - self.eye()).normalize_or_zero();
-        Mat3::from_axis_angle(forward, self.roll.to_radians()) * Vec3::Z
+        Mat3::from_axis_angle(forward, -self.roll.to_radians()) * Vec3::Z
     }
 
     /// The pose an attribute collection stores.
@@ -80,9 +80,8 @@ const NEAR: f32 = 0.05;
 /// where it measures about 1.4 times.
 const FOV_ASPECT: f32 = 4.0 / 3.0;
 
-/// The pose of the safe house menu (`MainMenu.fng`'s sub menu in a career): the collection `angle10`, which is also
-/// `angle_final_career_safehouse`, the camera the safe house move ends on. [exe + verified] The move itself is read from
-/// the install (`Stage::camera`); this is the pose it ends on, kept for an install whose attributes cannot be read.
+/// A sample pose for the tests: the safe house menu's (`angle10`, which is also `angle_final_career_safehouse`).
+#[cfg(test)]
 pub const SAFE_HOUSE: CameraPose =
     CameraPose { pitch: 97.3, yaw: 110.0, distance: 4.25, roll: 16.0, fov: 65.0, target: Vec3::new(-0.2, -0.5, 0.3) };
 
@@ -120,6 +119,14 @@ mod tests {
         let rolled = SAFE_HOUSE.up();
         assert!((rolled.length() - 1.0).abs() < 1e-5);
         assert!(rolled.dot(Vec3::Z) < 1.0 && rolled.dot(Vec3::Z) > 0.9, "16 degrees of roll leave it mostly up");
+    }
+
+    #[test]
+    fn a_positive_roll_lets_the_horizon_fall_to_the_right() {
+        // The eye is at -y looking along +y, so the picture's right is +x: the camera's up leans to the left.
+        let level = CameraPose { pitch: 90.0, yaw: 0.0, roll: 10.0, target: Vec3::ZERO, ..SAFE_HOUSE };
+        let up = level.up();
+        assert!(up.x < -0.1 && up.z > 0.9, "{up:?}");
     }
 
     #[test]

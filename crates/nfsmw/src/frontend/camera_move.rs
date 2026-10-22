@@ -25,20 +25,24 @@ pub struct CameraMove {
 }
 
 impl CameraMove {
-    /// A camera that stays on `pose`.
-    pub fn holding(pose: CameraPose) -> Self {
-        Self { start: pose, goal: pose, decay: 0.0, order: 0, duration: 0.0, time: 0.0 }
-    }
-
     /// The move that starts on the pose `start` and runs onto `goal`, taking the goal's duration, decay and order (the
     /// original sets the goal's values when it starts the move).
     pub fn between(start: &CameraAngle, goal: &CameraAngle) -> Self {
-        let start = CameraPose::from_angle(start);
+        Self::from_pose(CameraPose::from_angle(start), goal)
+    }
+
+    /// The move that starts on `start` and runs onto `goal`; the goal's angles are moved to the turn nearest the start.
+    fn from_pose(start: CameraPose, goal: &CameraAngle) -> Self {
         let mut goal_pose = CameraPose::from_angle(goal);
         goal_pose.pitch = nearest_turn(start.pitch, goal_pose.pitch);
         goal_pose.yaw = nearest_turn(start.yaw, goal_pose.yaw);
         goal_pose.roll = nearest_turn(start.roll, goal_pose.roll);
         Self { start, goal: goal_pose, decay: goal.decay, order: goal.order, duration: goal.duration, time: 0.0 }
+    }
+
+    /// Starts a new move from where the camera is now onto `goal`.
+    pub fn retarget(&mut self, goal: &CameraAngle) {
+        *self = Self::from_pose(self.pose(), goal);
     }
 
     /// Lets `dt` seconds go by.

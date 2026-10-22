@@ -9,6 +9,7 @@ use game_install::GameDir;
 use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
+use super::camera_rig::CameraRig;
 use super::loading;
 use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
 use super::look::Look;
@@ -178,6 +179,8 @@ pub struct Frontend {
     pub(super) look: Look,
     /// A look the command line fixed (`view-screen --look`): the screens do not change it.
     pub(super) look_override: Option<Look>,
+    /// The camera of the menu backdrops, which the screens move (`camera_rig.rs`).
+    pub(super) camera: CameraRig,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
@@ -231,6 +234,7 @@ impl Frontend {
             origin: QuitTo::Main,
             look: Look::Main,
             look_override: None,
+            camera: CameraRig::default(),
             auto_shop_requested: false,
             end_game: None,
             end_game_shown: None,
@@ -345,12 +349,17 @@ impl Frontend {
             return;
         }
         let wanted = self.look_override.clone().or_else(|| self.screens.look());
-        let Some(look) = wanted.filter(|look| *look != self.look) else { return };
-        log::info!("menu backdrop: {look:?}");
-        self.look = look;
-        let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
-        self.replace_scene(host, Box::new(scene), false);
-        self.menu_in_window = true;
+        if let Some(look) = wanted.filter(|look| *look != self.look) {
+            log::info!("menu backdrop: {look:?}");
+            self.look = look;
+            let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
+            self.replace_scene(host, Box::new(scene), false);
+            self.menu_in_window = true;
+        }
+        // The screen on top moves the camera to its pose, also when it comes back to the top as the one above closes.
+        if let Some(pose) = self.screens.pose() {
+            self.camera.show(pose);
+        }
     }
 
     /// Opens the pause menu over the frozen game.
