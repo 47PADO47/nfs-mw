@@ -12,17 +12,7 @@ impl CarSim {
         self.reset_collision.advance(FIXED_STEP);
         self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
         self.before_velocity = self.vehicle.body().linear_velocity;
-        let input = InputState {
-            throttle: input.throttle,
-            brake: input.brake,
-            steer: input.steer,
-            handbrake: f32::from(u8::from(input.handbrake)),
-            nos: input.nos,
-            shift_up: input.shift_up,
-            shift_down: input.shift_down,
-            gear_select: input.gear_select,
-            clutch: input.clutch,
-        };
+        let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
             props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);

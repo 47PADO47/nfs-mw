@@ -27,6 +27,7 @@ mod placement;
 #[cfg(test)]
 mod presentation_tests;
 mod release;
+mod remote;
 mod render;
 mod rig;
 mod road_reflection;
@@ -116,6 +117,8 @@ pub struct Drive {
     request: Option<SpawnRequest>,
     alpha: f32,
     frame_input: DriveInput,
+    /// The input of a network seat, which replaces the devices' input while it is set (`remote.rs`).
+    remote_input: Option<DriveInput>,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
     /// A session's rules forbid time scaling, so the speedbreaker is off (`session_rules.rs`).

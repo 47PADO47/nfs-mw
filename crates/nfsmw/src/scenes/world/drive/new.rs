@@ -49,6 +49,7 @@ impl Drive {
             request: Some(request),
             alpha: 0.0,
             frame_input: DriveInput::default(),
+            remote_input: None,
             arrested: false,
             breaker_barred: false,
             sabotaged: false,
