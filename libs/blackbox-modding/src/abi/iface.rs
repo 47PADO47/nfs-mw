@@ -12,6 +12,7 @@ mod hud;
 mod input;
 mod map;
 mod menus;
+mod saves;
 mod time;
 mod ui;
 mod vehicles;
@@ -33,6 +34,7 @@ pub use menus::{
     BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbMenuCallbackFn, BbMenuRow, BbMenus, BbMenusGetFn,
     BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn,
 };
+pub use saves::{BbSaves, BbSavesReadFn, BbSavesRemoveFn, BbSavesSinkFn, BbSavesWriteFn, MAX_BLOB_BYTES};
 pub use time::{BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn};
 pub use ui::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
@@ -61,6 +63,11 @@ pub struct BbIface {
 pub const IFACE_COMMANDS: &str = "bb.commands";
 /// The version the host implements for [`IFACE_COMMANDS`], as `(major, minor)`.
 pub const IFACE_COMMANDS_VERSION: (u16, u16) = (1, 0);
+
+/// Id of the save interface: the mod's own blob in the career profile it is loaded with.
+pub const IFACE_SAVES: &str = "bb.saves";
+/// The version the host implements for [`IFACE_SAVES`], as `(major, minor)`.
+pub const IFACE_SAVES_VERSION: (u16, u16) = (1, 0);
 
 /// Id of the input interface: register hotkeys.
 pub const IFACE_INPUT: &str = "bb.input";

@@ -29,6 +29,7 @@ fn status_codes_are_locked() {
     assert_eq!(BB_ERR_REMOVED, -12);
     assert_eq!(BB_ERR_PANIC, -13);
     assert_eq!(BB_ERR_HOST, -14);
+    assert_eq!(BB_ERR_CORRUPT, -15);
 }
 
 #[test]

@@ -61,10 +61,11 @@ pub use iface::{
     BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbBlip, BbCommandCallbackFn, BbCommands,
     BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn, BbIface, BbInput, BbInputRegisterFn,
     BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbMenuCallbackFn, BbMenuRow, BbMenus,
-    BbMenusGetFn, BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn, BbRgba, BbTime, BbTimeFreezeFn, BbTimeGetFn,
-    BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_INPUT,
-    IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
-    IFACE_TIME_VERSION,
+    BbMenusGetFn, BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn, BbRgba, BbSaves, BbSavesReadFn,
+    BbSavesRemoveFn, BbSavesSinkFn, BbSavesWriteFn, BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay,
+    BbTimeSetDayLengthFn, BbTimeSetHourFn, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION,
+    IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SAVES, IFACE_SAVES_VERSION, IFACE_TIME,
+    IFACE_TIME_VERSION, MAX_BLOB_BYTES,
 };
 pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
@@ -76,9 +77,9 @@ pub use module::{
 };
 pub use size::has_field;
 pub use status::{
-    BB_ERR_ABI, BB_ERR_ARG, BB_ERR_DENIED, BB_ERR_EXISTS, BB_ERR_HOST, BB_ERR_NOT_FOUND, BB_ERR_NOT_IN_CALLBACK,
-    BB_ERR_NOT_READY, BB_ERR_PANIC, BB_ERR_PHASE, BB_ERR_REMOVED, BB_ERR_STALE, BB_ERR_UNSUPPORTED,
-    BB_ERR_WRONG_THREAD, BB_OK, BbStatus,
+    BB_ERR_ABI, BB_ERR_ARG, BB_ERR_CORRUPT, BB_ERR_DENIED, BB_ERR_EXISTS, BB_ERR_HOST, BB_ERR_NOT_FOUND,
+    BB_ERR_NOT_IN_CALLBACK, BB_ERR_NOT_READY, BB_ERR_PANIC, BB_ERR_PHASE, BB_ERR_REMOVED, BB_ERR_STALE,
+    BB_ERR_UNSUPPORTED, BB_ERR_WRONG_THREAD, BB_OK, BbStatus,
 };
 pub use string::{BbSinkFn, BbStr, MAX_MESSAGE_BYTES, MAX_NAME_BYTES, MAX_PATH_BYTES};
 pub use version::{ABI_MAJOR, ABI_MINOR, ABI_VERSION, AbiMismatch, AbiVersion, check_handshake};

@@ -33,3 +33,5 @@ pub const BB_ERR_REMOVED: BbStatus = -12;
 pub const BB_ERR_PANIC: BbStatus = -13;
 /// The host reported an error; its message is read through the host's last-error call.
 pub const BB_ERR_HOST: BbStatus = -14;
+/// A stored blob failed its integrity check (`bb.saves`). The blob is left in place.
+pub const BB_ERR_CORRUPT: BbStatus = -15;

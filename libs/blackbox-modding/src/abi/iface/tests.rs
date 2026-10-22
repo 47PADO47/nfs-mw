@@ -175,3 +175,17 @@ fn map_table_and_blip() {
     assert_eq!(offset_of!(BbBlip, style), 8);
     assert_eq!(offset_of!(BbBlip, position), 24);
 }
+
+#[test]
+fn saves_table_and_id_are_locked() {
+    assert_eq!(IFACE_SAVES, "bb.saves");
+    assert_eq!(IFACE_SAVES_VERSION, (1, 0));
+    assert_eq!(MAX_BLOB_BYTES, 256 * 1024);
+    assert_eq!(size_of::<BbSaves>(), 40);
+    assert_eq!(align_of::<BbSaves>(), 8);
+    assert_eq!(offset_of!(BbSaves, head), 0);
+    assert_eq!(offset_of!(BbSaves, ctx), 8);
+    assert_eq!(offset_of!(BbSaves, read), 16);
+    assert_eq!(offset_of!(BbSaves, write), 24);
+    assert_eq!(offset_of!(BbSaves, remove), 32);
+}
