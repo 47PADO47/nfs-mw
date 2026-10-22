@@ -5,8 +5,10 @@ mod floor;
 #[cfg(test)]
 mod lifecycle_tests;
 pub(crate) mod lighting;
+mod material_response;
 pub(crate) mod materials;
 pub(crate) mod original_lighting;
+mod paint_surface;
 mod shading;
 pub(crate) mod shadows;
 mod texture_anim;

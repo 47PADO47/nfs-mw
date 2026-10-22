@@ -51,10 +51,16 @@ fn installed_original_car_materials_resolve_paint_glass_and_custom_parts() {
                         };
                         let actual = renderer.glossy_materials[&handle];
                         assert_eq!(actual.model, expected_model);
-                        let expected = match mode.is_original() {
+                        let mut expected = match mode.is_original() {
                             true => original_material(authored, expected_model),
                             false => glossy_material(authored),
                         };
+                        if mode == CarShading::Glossy && Some(actual_hash) == materials.paint && model.paintable {
+                            expected.surface = model.paint.as_ref().and_then(super::super::paint_surface::response);
+                        }
+                        if mode == CarShading::Glossy && Some(actual_hash) != materials.paint {
+                            expected.surface = super::super::material_response::response(authored);
+                        }
                         assert_eq!(actual, expected, "{folder} {} {}", solid.name, authored.name);
                         resolved += 1;
                         paint_groups += usize::from(hash == CARSKIN);
@@ -103,10 +109,7 @@ fn installed_original_car_tint_material_uses_selected_preset() {
         let materials = CarMaterials::upload(&mut renderer, &model, mode, Vec3::Z);
         let lookup = materials.for_placement(&model.swaps, false);
         let Some(Shading::Glossy(handle)) = lookup.shading(WINDSHIELD) else { panic!("windshield profile missing") };
-        let expected_hash = match mode.is_original() {
-            true => tint,
-            false => WINDSHIELD,
-        };
+        let expected_hash = tint;
         let authored = &model.light_materials[&expected_hash];
         let actual = renderer.glossy_materials[&handle];
         assert_eq!(actual.diffuse_min, glossy_material(authored).diffuse_min);

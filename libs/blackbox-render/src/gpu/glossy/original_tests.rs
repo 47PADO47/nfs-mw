@@ -40,6 +40,7 @@ impl Fixture {
         Self {
             material: GlossyMaterial {
                 model,
+                surface: None,
                 diffuse_min: [0.1, 0.12, 0.14, 0.7],
                 diffuse_range: [0.4, 0.35, 0.3, 0.2],
                 specular_min: [0.02, 0.03, 0.04],

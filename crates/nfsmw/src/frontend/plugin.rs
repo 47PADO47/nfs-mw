@@ -7,10 +7,9 @@ use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_image::Image;
-use bevy_input::ButtonInput;
-use bevy_input::gamepad::Gamepad;
 use bevy_input::keyboard::KeyCode;
 use bevy_input::mouse::MouseButton;
+use bevy_input::{ButtonInput, gamepad::Gamepad};
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
@@ -49,6 +48,9 @@ pub struct FrontendPlugin {
     pub career: crate::career::CareerHandle,
     /// A backdrop look that stays whatever the screens ask for (`view-screen --look`, for checking the looks offscreen).
     pub look: Option<super::look::Look>,
+    /// The camera of the backdrop the command line puts in the window, which the screens move (`view-screen`). Other
+    /// runs build their backdrops themselves and leave it empty.
+    pub camera: super::camera_rig::CameraRig,
 }
 
 impl Plugin for FrontendPlugin {
@@ -61,6 +63,7 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();
+        frontend.camera = self.camera.clone();
         if let Some(look) = &self.look {
             frontend.look = look.clone();
             frontend.look_override = Some(look.clone());
@@ -146,7 +149,7 @@ struct MapParams<'w, 's> {
     typed: ResMut<'w, TypedKeys>,
     /// Split screen: the device whose Start went down, and the seats of a race (`flow_split.rs`).
     split: ResMut<'w, crate::input::SplitInput>,
-    /// The connected pads, for a co-op guest seated on a pad (`input::coop_seats`).
+    /// The connected pads, for a co-op guest on a pad.
     pads: Query<'w, 's, Entity, With<Gamepad>>,
 }
 
@@ -341,6 +344,7 @@ fn update(
                 map.themes.world_map_legend().clear();
                 map.themes.world_map_view().clear();
             }
+            fe.poll_race_cover(host, &mut env);
             fe.poll_bust(host, &mut env);
             fe.poll_race(host, &mut env);
             fe.poll_career(host, &mut env);
@@ -350,16 +354,20 @@ fn update(
                 garage.start_requested = true;
             }
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
-            let pause = input.disconnected
-                || (!console_had_it
-                    && (actions.just_pressed(Action::Cancel)
-                        || actions.just_pressed(Action::MenuStart)
-                        || scripted_start));
+            // The loading screen may have covered a race start just now: nothing pauses it.
+            let playing = fe.stage == Stage::Playing;
+            let pause = playing
+                && (input.disconnected
+                    || (!console_had_it
+                        && (actions.just_pressed(Action::Cancel)
+                            || actions.just_pressed(Action::MenuStart)
+                            || scripted_start)));
             if pause {
                 capture.0 = false;
                 fe.pause(host, &mut env);
             }
-            if !pause && !console_had_it && (actions.just_pressed(Action::Map) || script_key == Some(KeyCode::KeyM)) {
+            let map_key = actions.just_pressed(Action::Map) || script_key == Some(KeyCode::KeyM);
+            if playing && !pause && !console_had_it && map_key {
                 control::open(fe, &mut map.overlay, host, &mut env);
             }
         }
@@ -420,8 +428,7 @@ fn update(
     }
 
     fe.last_mask = mask;
-    // The input layer seats both players' devices while a split-screen race has the window, and the guest's device
-    // while a co-op session is on (player 1 on the keyboard then).
+    // The input layer seats both players while a split-screen race or a co-op session (`input::coop_seats`) is on.
     let seats = fe.split_seats().or_else(|| crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter()));
     if map.split.devices() != seats {
         map.split.seat(seats);

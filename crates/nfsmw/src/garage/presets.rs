@@ -21,12 +21,27 @@ struct Stored {
     tuning: [[i8; 7]; 3],
     active_tuning: u8,
     parts: Vec<Part>,
+    #[serde(default)]
+    rim_color: Option<[u8; 3]>,
+    #[serde(default)]
+    vinyl_color1: Option<[u8; 3]>,
+    #[serde(default)]
+    vinyl_color2: Option<[u8; 3]>,
+    #[serde(default)]
+    vinyl_color3: Option<[u8; 3]>,
+    #[serde(default)]
+    gauges: super::GaugeSelection,
 }
 
 fn encode(selection: &Selection) -> Result<String> {
     selection.tuning.validate()?;
     let stored = Stored {
         version: 1,
+        rim_color: selection.parts.rim_color,
+        vinyl_color1: selection.parts.vinyl_colors[0],
+        vinyl_color2: selection.parts.vinyl_colors[1],
+        vinyl_color3: selection.parts.vinyl_colors[2],
+        gauges: selection.gauges.clone(),
         car: selection.car.clone(),
         color: selection.color,
         levels: selection.performance.levels,
@@ -44,7 +59,7 @@ fn encode(selection: &Selection) -> Result<String> {
     toml::to_string(&stored).context("Serializing car preset")
 }
 
-fn decode(text: &str, model: &Model) -> Result<Selection> {
+pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
     let stored: Stored = toml::from_str(text).context("Invalid car preset")?;
     ensure!(stored.version == 1, "Unsupported car preset schema");
     let car = model.cars.iter().find(|c| c.folder == stored.car).context("Preset car is not installed")?;
@@ -72,10 +87,13 @@ fn decode(text: &str, model: &Model) -> Result<Selection> {
         ensure!(slot.is_none(), "Duplicate preset part slot");
         *slot = Some(part.hash);
     }
+    parts.rim_color = stored.rim_color;
+    parts.vinyl_colors = [stored.vinyl_color1, stored.vinyl_color2, stored.vinyl_color3];
     if let Some(catalog) = &car.parts {
+        stored.gauges.validate(catalog)?;
         catalog.validate(&parts)?;
     }
-    Ok(Selection { car: stored.car, color: stored.color, performance, tuning, parts })
+    Ok(Selection { car: stored.car, color: stored.color, performance, tuning, parts, gauges: stored.gauges })
 }
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {

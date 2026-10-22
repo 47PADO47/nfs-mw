@@ -19,10 +19,12 @@ pub mod mods;
 mod paint;
 mod parts;
 pub mod physics;
+mod rim_paint;
 mod stock;
 mod swaps;
 mod tables;
 mod textures;
+mod vinyl;
 mod wheels;
 
 use std::collections::{HashMap, HashSet};
@@ -261,7 +263,7 @@ fn load_with(
         textures.len(),
         paint.as_ref().map_or("none".into(), |p| format!("{} {}", p.name, p.hex())),
     );
-    Ok(CarModel {
+    let mut model = CarModel {
         driving_lods,
         flare_profiles,
         name: car.to_owned(),
@@ -277,7 +279,14 @@ fn load_with(
         floor_height: setup.as_ref().map_or(0.0, wheels::floor_height),
         corners,
         wheel_setup: setup,
-    })
+    };
+    if customization.rim_color.is_some() || customization.parts[customization::Category::RimPaint as usize].is_some() {
+        rim_paint::apply(&mut model, t, &slots, customization.rim_color);
+    }
+    if customization.parts[customization::Category::Vinyl as usize].is_some() {
+        vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model)?;
+    }
+    Ok(model)
 }
 
 /// Every texture the solids may draw: placeholders, their replacements and the left caliper.

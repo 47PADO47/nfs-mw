@@ -49,6 +49,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
+    gauge_colors: super::gauge_colors::Binding,
     police: super::police::Binding,
     race: super::race::Binding,
     leaderboard: super::leaderboard::Binding,
@@ -78,6 +79,7 @@ pub struct HudBinding {
     nos_bar: Option<ObjectRef>,
     speedbreaker: super::speedbreaker::Binding,
     turbo_needle: Option<ObjectRef>,
+    turbo_faces: Vec<ObjectRef>,
     /// The pursuit board's timer, `mm:ss.cc`.
     pursuit_timer: Option<ObjectRef>,
     /// The cops taken out in the chase (`Cops_TakenOut`, beside `Cops_TakenOut_Icon`): the wrecked count.
@@ -102,6 +104,7 @@ impl HudBinding {
     /// Finds the objects, and hides everything but the speedometer and the tachometer.
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
+            gauge_colors: super::gauge_colors::Binding::new(rt, package),
             police: super::police::Binding::new(rt, package),
             race: super::race::Binding::new(rt, package),
             leaderboard: super::leaderboard::Binding::new(rt, package),
@@ -130,6 +133,10 @@ impl HudBinding {
             nos_bar: rt.find(package, 0xEDFB_6D37),
             speedbreaker: super::speedbreaker::Binding::new(rt, package),
             turbo_needle: find(rt, package, "3rdperson_TurboDial"),
+            turbo_faces: rt.tree(package).nodes.iter().filter_map(|n| {
+                matches!(n.kind, blackbox_feng::NodeKind::Image { texture, .. } if texture == fe_hash_upper("TURBO_LINES"))
+                    .then_some(ObjectRef { package, index: n.index })
+            }).collect(),
             pursuit_timer: find(rt, package, "PursuitTime"),
             cops_taken: find(rt, package, "Cops_TakenOut"),
             pursuit_frames: [PURSUIT_BOARD_GROUP, COPS_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
@@ -241,8 +248,9 @@ impl HudBinding {
     }
 
     /// Dynamic widths keep their fixed edges after any authored script changes in this frame.
-    pub fn finish_frame(&self, rt: &mut Runtime, s: &HudState) {
+    pub fn finish_frame(&mut self, rt: &mut Runtime, s: &HudState) {
         self.pursuit_meter.finish_frame(rt, s.pursuit);
+        self.gauge_colors.apply(rt, s.gauge_colors);
     }
 
     fn speedometer(&self, rt: &mut Runtime, s: &HudState) {
@@ -288,6 +296,12 @@ impl HudBinding {
         }
         // The skins are the race HUD's; the drag gauge keeps its own needle.
         if !self.drag {
+            for &o in &self.turbo_faces {
+                rt.set_texture(o, fe_hash_upper(&format!("TURBO_LINES_{:02}", s.skin)));
+            }
+            if let Some(o) = self.turbo_needle {
+                rt.set_texture(o, fe_hash_upper(&format!("TURBO_NEEDLE_{:02}", s.skin)));
+            }
             if let Some(o) = self.needle {
                 rt.set_texture(o, needle_texture(s.skin));
             }

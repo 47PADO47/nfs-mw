@@ -58,6 +58,7 @@ impl Frontend {
         self.save_settings(env.changed);
         self.career.set_prelude(false);
         self.leave_safe_house();
+        self.safe_house_start.pending = true;
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
@@ -94,6 +95,8 @@ impl Frontend {
         if !host.scene.restart_race() {
             return;
         }
+        // The race goes back to its own grid: no loading screen covers it (`flow_cover.rs`).
+        self.restarting = true;
         self.resume();
     }
 
@@ -105,6 +108,9 @@ impl Frontend {
         }
         let Some(request) = host.scene.take_career_request() else { return };
         log::info!("career: {request:?}");
+        if let CareerRequest::SafeHouse { zone } = &request {
+            self.safe_house_start.zone = Some(zone.clone());
+        }
         // The first safe house visit (stage 16) plays its intro movie, then the rival bio (`flow_first_visit.rs`).
         if matches!(request, CareerRequest::SafeHouse { .. }) && self.first_visit_intro(host) {
             return;

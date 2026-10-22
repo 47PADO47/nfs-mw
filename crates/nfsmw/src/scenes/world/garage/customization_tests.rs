@@ -74,7 +74,13 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
         let choice = catalog.choices[category as usize].last().expect("Cobalt supports each category");
         selection.parts.parts[category as usize] = Some(choice.hash);
     }
+    selection.parts.rim_color = Some([30, 180, 220]);
+    selection.parts.vinyl_colors = [Some([240, 20, 30]), Some([20, 240, 70]), None];
+    selection.gauges.skin = 3;
+    selection.gauges.digits = Some([40, 230, 100]);
     scene.apply_garage_selection(&mut renderer, selection.clone()).unwrap();
+    assert_eq!(scene.hud_frame().unwrap().skin, 3);
+    assert_eq!(scene.hud_frame().unwrap().gauge_colors[2], Some([40, 230, 100]));
     let drive = scene.players.lead().unwrap();
     assert!(
         stock_wheel_handles.iter().all(|h| !renderer.mesh_labels.contains_key(h)),
@@ -85,6 +91,8 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
         "no stock wheel mesh may survive the replacement"
     );
     assert!(drive.test_model().solids.values().all(|s| s.name != "COBALTSS_KIT00_FRONT_TIRE_A"));
+    assert_eq!(drive.test_model().paint.as_ref().unwrap().rgb, [30, 80, 230]);
+    assert!(drive.test_model().window_tint_material.is_some());
     assert_eq!(drive.pose(), pose);
     assert_eq!(drive.speed(), speed);
     assert_eq!(drive.test_damage(), damage);
@@ -92,7 +100,7 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     assert_eq!(drive.tuning, selection.tuning);
     let after = drive.hud_state().unwrap();
     assert_eq!((after.nos, after.gear, after.rpm), (telemetry.nos, telemetry.gear, telemetry.rpm));
-    for category in Part::ALL {
+    for category in Part::MODELS {
         assert!(drive.test_model().placements.iter().any(|p| p.slot == category.slot()));
     }
     let body = drive.test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid;
@@ -109,6 +117,16 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
         scene.players.lead().unwrap().test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid,
         body
     );
+    let handles = renderer.mesh_labels.clone();
+    repaint.gauges.skin = 4;
+    repaint.gauges.needle = Some([230, 100, 10]);
+    scene.apply_garage_selection(&mut renderer, repaint.clone()).unwrap();
+    assert_eq!(renderer.mesh_labels, handles, "gauge-only changes must not reload the vehicle");
+    assert_eq!(scene.hud_frame().unwrap().skin, 4);
+    let mut bad_gauge = repaint.clone();
+    bad_gauge.gauges.skin = 255;
+    assert!(scene.apply_garage_selection(&mut renderer, bad_gauge).is_err());
+    assert_eq!(scene.garage.applied, repaint);
     let mut invalid = repaint.clone();
     invalid.parts.parts[Part::Body as usize] = selection.parts.parts[Part::Spoiler as usize];
     invalid.color = Some([0, 0, 0]);
@@ -122,6 +140,27 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     assert_eq!(scene.players.lead().unwrap().pose(), pose);
     assert_eq!(scene.players.lead().unwrap().performance, selection.performance);
     assert_eq!(scene.players.lead().unwrap().tuning, selection.tuning);
+    let temporary = std::env::temp_dir().join(format!("nfsmw-garage-command-{}.toml", std::process::id()));
+    let payload = r#"version = 1
+car = "COBALTSS"
+color = [20, 20, 24]
+levels = [0, 0, 0, 0, 0, 0, 0]
+junkman = 0
+tuning = [[0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]
+active_tuning = 0
+parts = []
+"#;
+    crate::preset_store::save(&temporary, "Matte test", payload).unwrap();
+    let bytes = std::fs::read(&temporary).unwrap();
+    scene.garage.preset_picker.path = Some(temporary.clone());
+    command::run(&mut scene, &mut renderer, &["preset", "Matte", "test"]).unwrap();
+    assert_eq!(scene.garage.applied.color, Some([20, 20, 24]));
+    assert_eq!(scene.players.lead().unwrap().pose(), pose);
+    let applied = scene.garage.applied.clone();
+    assert!(command::run(&mut scene, &mut renderer, &["preset", "Missing"]).is_err());
+    assert_eq!(scene.garage.applied, applied);
+    assert_eq!(std::fs::read(&temporary).unwrap(), bytes, "loading must not rewrite the preset");
+    std::fs::remove_file(temporary).unwrap();
     scene.update(&mut renderer, &throttle, 1.0 / 60.0);
     assert!(scene.players.lead_mut().unwrap().sim_mut().unwrap().is_finite());
     println!("five installed model categories swapped while moving; physics, damage, paint and tuning preserved");

@@ -413,3 +413,9 @@ API references (implementation is original): Microsoft's
 [GetThreadTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadtimes),
 [PDH formatted arrays](https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw)
 and [Task Manager busiest-engine convention](https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/).
+
+Custom Glossy on the native renderer supports **Lighting > Car material response**.
+This applies linear-light indirect shading and material-specific glass, carbon,
+metal, rubber and coated paint layers. The clearcoat experiment remains a separate
+switch, with coverage and roughness selected per material. See
+[car materials](specs/custom-car-materials.md) and [matte tuning](specs/custom-paint-response.md).

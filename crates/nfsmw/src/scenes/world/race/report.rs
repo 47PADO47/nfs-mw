@@ -2,6 +2,7 @@
 
 use blackbox_race::Race;
 use nfsmw_career::blacklist::FINAL_RACE_EVENT;
+use nfsmw_career::story::loss_rule;
 
 use super::{RaceSession, Stage, outro};
 use crate::career::CareerRequest;
@@ -20,6 +21,10 @@ impl WorldScene {
         if let Some(photo) = report.photo.as_mut() {
             photo.picture = photo_picture(session.origin.race.params.photo_texture.as_deref(), photo.kind);
         }
+        // A career race the player did not win asks for a retry when the results are left (`race-loss-retry.md`).
+        let won = session.result.is_some_and(|r| r.place == 1 && r.time.is_some());
+        let chained = session.chain.as_deref().is_some_and(|name| !name.is_empty());
+        report.retry = loss_rule(session.options.career, won, &session.event, chained);
         Some(report)
     }
 
@@ -97,7 +102,14 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collision
         })
         .collect();
     let photo = photo_of(engine, kind, cash);
-    RaceReport { racers: report, kind, laps: engine.course().laps.max(1), photo, pursuit: None }
+    RaceReport {
+        racers: report,
+        kind,
+        laps: engine.course().laps.max(1),
+        photo,
+        pursuit: None,
+        retry: Default::default(),
+    }
 }
 
 /// The finish time of the racer that won, if one finished first.

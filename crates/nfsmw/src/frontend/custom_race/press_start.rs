@@ -25,7 +25,7 @@ const EXPLANATION: u32 = 0xA065_EFFE;
 pub struct PressStart {
     /// The player this screen seats, 0 or 1.
     player: usize,
-    /// Co-op: this is player 2's screen from the career menu, and player 1 is seated with it.
+    /// Co-op: the career menu's Press Start screens, player 1's then player 2's.
     coop: bool,
     /// A device was seated: the package plays its leave and `EXIT_COMPLETE` opens the car select.
     leaving: bool,
@@ -42,23 +42,14 @@ impl PressStart {
         Some(template.replace("%d", &(player + 1).to_string()))
     }
 
-    /// Seats the device for this screen. In co-op player 1 is seated with player 2: on the keyboard, or on the arrow block
-    /// when player 2 took the keyboard (co-op's rule, `docs/specs/coop-career.md` section 3.1). Otherwise only this
-    /// screen's player is seated, as split screen does. Returns whether the seat was taken.
-    fn seat(&self, seats: &mut split::Split, device: PlayerDevice) -> bool {
-        if !self.coop {
-            return seats.seat(self.player, device);
-        }
-        let first = match device {
-            PlayerDevice::Keyboard => PlayerDevice::KeyboardArrows,
-            _ => PlayerDevice::Keyboard,
-        };
-        seats.seat(0, first) && seats.seat(1, device)
-    }
-
-    /// Back: co-op returns to the career menu with co-op off; player 2's goes to player 1's car select, player 1's to the
-    /// options or the track list.
+    /// Back: in co-op player 2's goes to player 1's Press Start and player 1's to the career menu, with co-op off; in split
+    /// screen player 2's goes to player 1's car select, player 1's to the options or the track list.
     fn back(&self, cx: &mut Cx) {
+        if self.coop && self.player == 1 {
+            state::with(|s| s.split.clear_seats());
+            let args = Args { player: 0, coop: true, ..Args::default() };
+            return cx.send(Command::Switch(screen::PRESS_START.into(), args));
+        }
         if self.coop {
             state::with(|s| s.split.clear_seats());
             return cx
@@ -77,14 +68,15 @@ impl PressStart {
         cx.send(Command::Switch(screen.into(), Args::default()));
     }
 
-    /// The car select after the seat: co-op opens the career's car select for player 2, the custom race's car select
-    /// picks the race's car for the player.
-    fn car_select(&self, cx: &mut Cx) {
-        let args = match self.coop {
-            true => Args { coop: true, player: 1, ..Args::default() },
-            false => Args { custom: true, player: self.player as u8, ..Args::default() },
+    /// The screen after the seat: in co-op player 2's Press Start after player 1's, then the career's car select for
+    /// player 2 (`docs/specs/coop-career.md` section 3.1); in split screen the custom race's car select for the player.
+    fn next(&self, cx: &mut Cx) {
+        let (screen, args) = match (self.coop, self.player) {
+            (true, 0) => (screen::PRESS_START, Args { player: 1, coop: true, ..Args::default() }),
+            (true, _) => (screen::CAR_SELECT, Args { coop: true, player: 1, ..Args::default() }),
+            (false, player) => (screen::CAR_SELECT, Args { custom: true, player: player as u8, ..Args::default() }),
         };
-        cx.send(Command::Switch(screen::CAR_SELECT.into(), args));
+        cx.send(Command::Switch(screen.into(), args));
     }
 }
 
@@ -103,7 +95,7 @@ impl ScreenLogic for PressStart {
 
     /// The Start press seats the device as this screen's player; a refused device (player 1's, for player 2) does nothing.
     fn start_pressed(&mut self, cx: &mut Cx, device: PlayerDevice) {
-        if self.leaving || !state::with(|s| self.seat(&mut s.split, device)) {
+        if self.leaving || !state::with(|s| s.split.seat(self.player, device)) {
             return;
         }
         self.leaving = true;
@@ -113,7 +105,7 @@ impl ScreenLogic for PressStart {
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_BACK if !self.leaving => self.back(cx),
-            ids::EXIT_COMPLETE if self.leaving => self.car_select(cx),
+            ids::EXIT_COMPLETE if self.leaving => self.next(cx),
             _ => {}
         }
     }

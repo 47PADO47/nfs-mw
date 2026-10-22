@@ -111,6 +111,10 @@ impl Scene for Pausable {
         self.inner.ready()
     }
 
+    fn race_staging(&self) -> bool {
+        self.inner.race_staging()
+    }
+
     fn benchmark_ready(&self) -> bool {
         self.inner.benchmark_ready()
     }

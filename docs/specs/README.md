@@ -13,7 +13,7 @@ and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body 
 Pursuit tuning: [pursuit-tuning.md](pursuit-tuning.md) (the Bartender file: cop cap, heat growth, bust speed, fines)
 and [fairbusts-reset.md](fairbusts-reset.md) (the reset penalty of the busted timer and its file).
 
-Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect).
+Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect). [mod-save-data.md](mod-save-data.md) (per-profile data a mod keeps in the save: the `bb.saves` interface, the file, save and delete).
 
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
@@ -120,10 +120,12 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-flow.md](career-flow.md) and [career-car-lot.md](career-car-lot.md): new and resumed career, safe house, autosave, car lot and car rules.
 - [career-safehouse.md](career-safehouse.md) and [career-safehouse-2.md](career-safehouse-2.md): the native safe house (zones, engage, unload and reload, heat, the respawn marker).
 - [menu-backdrop.md](menu-backdrop.md) and [menu-backdrop-looks.md](menu-backdrop-looks.md): the 3D picture behind the menus: the crib room and the safe house room, which car each look shows (the profile's last car, the red BMW M3 E46 GTR by default), and the original's car stand and camera poses.
+- [prologue-car-and-audio.md](prologue-car-and-audio.md): why the prologue races drew no car (the forced preset on the wrong folder) and why their intro sounded quiet and far.
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
+- [career-reputation-overview.md](career-reputation-overview.md): the Original look's Blacklist page behind the safe house item (rival panel, options, key 2).
 - [career-save-screens.md](career-save-screens.md) and [career-save-screens-2.md](career-save-screens-2.md): manual save, autosave gate and triggers, the file write, load checks.
 - [boot-profile-prompt.md](boot-profile-prompt.md): the profile step after the title screen: the load list of saved profiles (this build's and the original's, read only), or the create question and name prompt when none is saved; how `play` starts.
 - [career-parity-menus.md](career-parity-menus.md): the start-up alias list, the main menu card, the alias manager (Create, Load, Save, Delete), the career menu, the Quick Race menu, the pause menu and the safe house menu before the world.
@@ -194,9 +196,15 @@ sequence and the final race. Its record is [../provenance/story-flow.md](../prov
   Ghidra record in [../provenance/quick-play.md](../provenance/quick-play.md).
 - [race-mode.md](race-mode.md): race phases, checkpoints and laps, ranking, the time limit, knockout, drag and speed-trap
   races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
-  [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up.
+  [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up;
+  [racer-names.md](racer-names.md): the fixed names of the prologue's and the Blacklist's racers.
+- [race-wrongway.md](race-wrongway.md): the wrong-way (`ResetsPlayer`) trigger behind a race's start, what it does and which
+  races have one, with its record in [../provenance/race-wrongway.md](../provenance/race-wrongway.md).
+- [race-goals.md](race-goals.md): what a racer aims at (the `Checkpoint` list, then the finish line) and the one moment a sprint
+  ends, with its record in [../provenance/race-goals.md](../provenance/race-goals.md).
 - [race-finish-effects.md](race-finish-effects.md): the red flares at a race's finish line and the win photo (the world seen through the
   polaroid's window from the race's replay camera), with its Ghidra record in
   [../provenance/race-finish-effects.md](../provenance/race-finish-effects.md).
 - [race-restart.md](race-restart.md): when the pause menu counts a race as in progress, and what Restart resets (the clock, the
   racers, the checkpoints, the cops) without touching the career.
+- [race-loss-retry.md](race-loss-retry.md): what a career race that was not won leads to (the original stays in `raceover`; the rewrite shows the results, then asks for the retry, except for the scripted ends 16.2.1 and 16.8.1), with [../provenance/race-loss-retry.md](../provenance/race-loss-retry.md).

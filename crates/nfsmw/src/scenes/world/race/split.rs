@@ -21,7 +21,14 @@ impl SplitSetup {
     /// The second player as the race's one opponent: a racer in their chosen car on the next grid slot. Their skill and
     /// bias are not used (a person drives them).
     pub(super) fn second_player(&self) -> Opponent {
-        Opponent { name: "Player 2".into(), skill: 1.0, bias: 1.0, car: Some(self.cars[1].clone()), start: None }
+        Opponent {
+            name: "Player 2".into(),
+            name_label: None,
+            skill: 1.0,
+            bias: 1.0,
+            car: Some(self.cars[1].clone()),
+            start: None,
+        }
     }
 
     /// Names the two racers and seats the second player's gearbox.
@@ -53,6 +60,7 @@ mod tests {
         (0..count)
             .map(|i| RacerPlan {
                 name: format!("racer {i}"),
+                name_label: None,
                 model: (i > 0).then(|| "x".to_owned()),
                 spawn: Spawn { position: glam::Vec3::ZERO, heading: 0.0 },
                 skill: 0.5,

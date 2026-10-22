@@ -14,6 +14,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
     ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
+    ("parts preset <name>", "load a saved F6 car setup through the normal garage validation"),
     (
         "parts [stock|<body|spoiler|hood|roof|rims> <stock|index> ...]",
         "list or select the active car's installed model parts; indices start at 1",

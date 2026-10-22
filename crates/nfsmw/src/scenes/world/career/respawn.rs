@@ -58,6 +58,28 @@ impl WorldScene {
         self.career.respawn.visit(kind, marker);
     }
 
+    /// The world starts from the safe house menu that stood before it (Resume Career, the first visit): the car goes to the
+    /// respawn marker of the safe house `zone` the player came to, else to the career's start point, which is the marker
+    /// the original falls back to when no zone was visited (`career-safehouse-2.md` section 9.3).
+    pub fn start_at_safe_house(&mut self, zone: Option<&str>) {
+        let visited = zone.and_then(|name| self.entry.zones.zones.iter().find(|z| z.name == name));
+        if let Some(zone) = visited {
+            self.career.respawn.visit(ZoneKind::SafeHouse, zone.respawn);
+        }
+        let Some(at) = visited.and_then(|zone| zone.respawn).or(self.entry.zones.career_start) else {
+            return log::warn!("career: no safe house marker or start point, the car starts where the world puts it");
+        };
+        // The car is put in the world when the scene is shown (`start_driving`), at the camera's place; it is already there
+        // when the world was shown before.
+        (self.camera.position.x, self.camera.position.y) = (at.x, at.y);
+        if let Some(drive) = self.players.lead_mut() {
+            drive.respawn_near([at.x, at.y], None);
+        }
+        // A co-op guest follows the lead out of the safe house, behind it (`docs/specs/coop-career.md` section 6).
+        self.career.respawn.guests_behind = true;
+        log::info!("career: the world starts at the safe house marker ({:.0}, {:.0})", at.x, at.y);
+    }
+
     /// The game runs again after a paid bust: the car goes to the respawn marker.
     pub(super) fn career_respawn(&mut self) {
         self.career_guests_behind_lead();

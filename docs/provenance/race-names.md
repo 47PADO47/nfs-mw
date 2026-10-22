@@ -1,6 +1,7 @@
 # Racer names (`crates/nfsmw/src/scenes/world/race/names.rs`)
 
-- **Specs:** [ai-racers](../specs/ai-racers.md) (names), [modding content](../modding/api-content.md#racer-names).
+- **Specs:** [ai-racers](../specs/ai-racers.md) (names), [racer-names](../specs/racer-names.md) (fixed names),
+  [modding content](../modding/api-content.md#racer-names).
 - **Restricted sources read:** `speed.exe` v1.3 in Ghidra (read only: nothing was renamed, retyped or changed in the
   project) and the install's `LANGUAGES/English.bin` through the repository's own reader (**[verified]**).
 - **Evidence tags:** [docs/README.md](../README.md#evidence-tags).
@@ -16,8 +17,25 @@
 - The caller is the routine that adds a racer to the race status (`0x00601F90`, reached from the script binding table
   `0x0061E750`). A racer record that the first check (`0x00600730`) accepts keeps the name it has; online games take the
   name from the connection; every other racer, which is every computer-driven one, gets a drawn name.
-- Whether a career rival is renamed after the add (the Blacklist names) was not read **[unconfirmed]**. The rewrite names
-  every computer-driven racer from the list.
+- The career names are fixed before the draw (second reading, 2026-10-22, [specs/racer-names.md](../specs/racer-names.md)):
+  `0x00600730` (called first for every racer added) returns early with a name when the play mode `+0x1964` of the race
+  status is 2 (career), the current race (`+0x1968`) is a boss race (`BossRace`, `0xFF5EE5D6`, read by `0x005FBD90`) and a
+  current bin object exists (`+0x196C`, set by `0x00602BB0` from the profile's stage byte): it formats
+  `BLACKLIST_RIVAL_%02d_LEADERBOARD` (`0x008A3BD0`) with the bin's `BinIndex` (`0x6CE23062`, `0x005DCEA0`), hashes it and
+  stores the language text pointer (`0x0056BC10`) at `+0x08` of the racer record. When it declines, `0x00601F90`
+  reads the driver's `RacerName` (`0xBEAB64C5`, `0x005DD2A0`; a non-empty text is hashed with `bStringHash`) in career
+  mode and stores that text; only when both decline does it call the random draw `0x005DC800`.
+
+## Data read for the fixed names **[verified]**
+
+- `GLOBAL/gameplay.bin` (read with a throwaway script over the `VPAK` layout of [formats/attributes.md](../formats/attributes.md),
+  and with the repository reader through `nfsmw-data/tests/real_install/racer_names.rs`): 5 of the 314 characters set
+  `RacerName` (the prologue's `razor`, `opponent` of 16.2.1, `ronnie_mccrae`, `toru_sato` and `opponent` of 16.1.1); the 37
+  boss races with an opponent set `BossRace` and none of the Blacklist bosses sets `RacerName`; the prologue races do
+  not set `BossRace`. The original 2005 `gameplay.bak` holds the same five labels.
+- `GLOBAL/GlobalB.lzc`: the `PresetRides` chunk (82 records) has `BL2` to `BL15`, `E3_DEMO_BMW`, `RAZORMUSTANG`,
+  `DDAYSUPRA` and the `OPM_*` presets the prologue uses; there is no `BL1`.
+- `LANGUAGES/English.bin`: `BLACKLIST_RIVAL_01..16_LEADERBOARD` hold the aliases in capitals.
 
 ## The list **[verified]**
 
@@ -28,7 +46,7 @@ labels differ in their last digits only) of the English table: `BUTLER`, `BLADES
 
 ## The rewrite
 
-The pool is the table's names (read up to the first missing label) plus the names mods bring, each once. A name is picked from
+A career race first fixes the names its data fixes (a boss race's rival, a character's `RacerName`). The pool is the table's names (read up to the first missing label) plus the names mods bring, each once. A name is picked from
 a position the clock chooses and the next free one is taken, so a name is never given twice to one race and never equals the
 player's. Mods add names in `mod.toml`:
 

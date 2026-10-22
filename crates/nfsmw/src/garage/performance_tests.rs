@@ -166,7 +166,7 @@ fn model_parts_apply_on_select_restore_stock_and_unlock_aero_only_for_body_or_sp
     use nfsmw_data::car::physics::tuning::TuningCategory;
     let mut ui = fixture();
     let mut catalog = Catalog::default();
-    for category in Part::ALL {
+    for category in Part::MODELS {
         catalog.choices[category as usize].push(Choice {
             hash: 100 + category as u32,
             label: format!("Custom {}", category.label()),
@@ -312,4 +312,38 @@ impl Ui {
         };
         self.click_at(egui::pos2(x, rail.center().y))
     }
+}
+
+#[test]
+fn appearance_selectors_apply_paint_and_tint_without_changing_model_parts() {
+    use nfsmw_data::car::customization::{Catalog, Category as Part, Choice};
+    let mut ui = fixture();
+    let mut catalog = Catalog::default();
+    for (category, label) in [(Part::Paint, "Metallic silver"), (Part::WindowTint, "Dark smoke")] {
+        catalog.choices[category as usize].push(Choice {
+            hash: 100 + category as u32,
+            label: label.into(),
+            language_hash: None,
+            carbon: false,
+        });
+    }
+    ui.model.cars[0].paintable = true;
+    ui.model.cars[0].parts = Some(catalog);
+    assert!(ui.click("Appearance").is_none());
+    for (category, label) in [(Part::Paint, "Metallic silver"), (Part::WindowTint, "Dark smoke")] {
+        let row = ui.positions(category.label())[0];
+        let combo = ui.positions("Stock").into_iter().find(|p| p.y > row.y && p.y < row.y + 40.0).unwrap();
+        assert!(ui.click_at(combo).is_none());
+        let request = ui.click(label).unwrap();
+        assert_eq!(request.parts.parts[category as usize], Some(100 + category as u32));
+        assert!(request.parts.parts[..5].iter().all(Option::is_none));
+    }
+    ui.model.draft.parts.parts[Part::Body as usize] = Some(42);
+    ui.model.draft.color = Some([10, 20, 30]);
+    let restored = ui.click("Restore stock appearance").unwrap();
+    assert!(restored.color.is_none());
+    assert!(restored.parts.parts[Part::Paint as usize].is_none());
+    assert!(restored.parts.parts[Part::WindowTint as usize].is_none());
+    assert_eq!(restored.parts.parts[Part::Body as usize], Some(42));
+    assert_eq!(ui.settings.car_shading, crate::settings::CarShading::Glossy);
 }

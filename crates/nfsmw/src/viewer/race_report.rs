@@ -162,6 +162,8 @@ pub struct RaceReport {
     pub photo: Option<PhotoReport>,
     /// A pursuit challenge's chase: it takes `PostRace_Pursuit.fng`, and `racers` is empty.
     pub pursuit: Option<PursuitReport>,
+    /// What leaving the screen asks after a race the player did not win (`docs/specs/race-loss-retry.md`).
+    pub retry: nfsmw_career::story::LossRule,
 }
 
 impl PhotoReport {
@@ -214,6 +216,7 @@ impl RaceReport {
             laps: 1,
             photo: Some(PhotoReport::sample()),
             pursuit: None,
+            retry: Default::default(),
         }
     }
 
@@ -239,6 +242,7 @@ impl RaceReport {
             laps: 3,
             photo: Some(PhotoReport::sample()),
             pursuit: None,
+            retry: Default::default(),
         }
     }
 }

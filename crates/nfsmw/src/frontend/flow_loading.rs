@@ -19,12 +19,22 @@ pub(super) enum LoadingScreen {
 }
 
 impl LoadingScreen {
-    fn file(self) -> &'static str {
+    pub(super) fn file(self) -> &'static str {
         match self {
             Self::Plain => LOADING,
             Self::Tips => LOADING_TIPS,
         }
     }
+}
+
+/// Where the world starts when it replaces the safe house menu that stood before it (Resume Career, the first visit): at the
+/// marker of the last safe house the player came to, else at the career's start point. The zone is not kept across runs.
+#[derive(Default)]
+pub(super) struct SafeHouseStart {
+    /// The last safe house zone the player came to in this run.
+    pub(super) zone: Option<String>,
+    /// The next world starts there (`start_from_safe_house`).
+    pub(super) pending: bool,
 }
 
 /// Where a start is. The state is the front end's; the world is the scene's.
@@ -75,7 +85,8 @@ impl Frontend {
                 self.world_built(world, host, env);
             }
             Load::Streaming => {
-                if !host.scene.ready() {
+                // A race asked for is part of the start: the screen stays up until the car stands on its grid.
+                if !loading::start_over(host.scene.ready(), host.scene.race_staging()) {
                     self.load = Some(Load::Streaming);
                     return;
                 }
@@ -93,7 +104,7 @@ impl Frontend {
             Err(_) => return self.loading_failed("the loading thread panicked", host, env),
         };
         world.set_career(self.career.clone(), self.profiles.clone());
-        if let Some(setup) = self.coop.clone() {
+        if let Some(setup) = self.coop.as_ref().map(|session| session.setup.clone()) {
             world.queue_coop(setup);
         }
         if let Some(race) = self.quick_race.take() {
@@ -103,6 +114,12 @@ impl Frontend {
                 Some(setup) => world.queue_split_race(race, options, setup),
                 None => world.queue_race(race, options),
             }
+        }
+        if std::mem::take(&mut self.safe_house_start.pending) {
+            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
+        }
+        if std::mem::take(&mut self.safe_house_start.pending) {
+            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
         }
         if std::mem::take(&mut self.drive_to_safe_house) {
             world.start_drive_to_safe_house();

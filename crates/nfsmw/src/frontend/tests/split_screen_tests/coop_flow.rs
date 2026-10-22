@@ -1,5 +1,5 @@
-//! The co-op career's entry against the install (`docs/specs/coop-career.md` section 3): Press Start for player 2 from the
-//! career menu, the career car select that picks player 2's car, and the career resumed with player 2 in it. Skipped
+//! The co-op career's entry against the install (`docs/specs/coop-career.md` section 3): Press Start for player 1 and then
+//! player 2 from the career menu, the career car select that picks player 2's car, and the career resumed with player 2 in it. Skipped
 //! without `NFSMW_GAME_DIR`. The custom race's split state and the career handle are shared, so the tests take the custom
 //! race's turn and put both back.
 
@@ -33,11 +33,12 @@ impl Drop for CoopOff {
     }
 }
 
-/// Press Start for player 2 of a co-op career, as the career menu's Co-op Career opens it, with the seats empty.
-fn co_op_press_start() -> Option<Harness> {
+/// Press Start of a co-op career for `player` (0 or 1), as the career menu's Co-op Career opens player 1's, with the seats
+/// empty.
+fn co_op_press_start(player: u8) -> Option<Harness> {
     install()?;
     state::with(|s| s.split.clear_seats());
-    Harness::open(screen::PRESS_START, Args { player: 1, coop: true, ..Args::default() })
+    Harness::open(screen::PRESS_START, Args { player, coop: true, ..Args::default() })
 }
 
 /// A Start press of `device` on this frame, then the screens' transition.
@@ -56,19 +57,25 @@ fn text_of(h: &Harness, name_hash: u32) -> Option<String> {
 fn co_op_press_start_seats_both_players_and_opens_the_career_car_select() {
     let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     let _reset = Reset;
-    // Player 2 on the arrow block seats player 1 on the keyboard, and the other way round for the keyboard.
-    for (player_two, player_one) in
+    // Each player keeps the device they pressed Start on, whichever block or pad it is.
+    for (player_one, player_two) in
         [(PlayerDevice::KeyboardArrows, PlayerDevice::Keyboard), (PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows)]
     {
-        let Some(mut h) = co_op_press_start() else { return };
+        let Some(mut h) = co_op_press_start(0) else { return };
         h.wait(1.0);
+        assert_eq!(text_of(&h, 0xB244_CF71).as_deref(), Some("Player 1 press START."));
+        start(&mut h, player_one);
+        assert_eq!(h.screens.top(), Some(screen::PRESS_START), "{player_one:?}: player 2's turn: {:?}", h.commands);
+        let Some(mut h) = Harness::open(screen::PRESS_START, Args { player: 1, coop: true, ..Args::default() }) else {
+            return;
+        };
+        h.wait(1.0);
+        assert_eq!(text_of(&h, 0xB244_CF71).as_deref(), Some("Player 2 press START."));
+        start(&mut h, player_one);
+        assert_eq!(h.screens.top(), Some(screen::PRESS_START), "player 1's device is refused for player 2");
         start(&mut h, player_two);
         assert_eq!(h.screens.top(), Some(screen::CAR_SELECT), "{player_two:?}: {:?}", h.commands);
-        assert_eq!(
-            state::with(|s| s.split.seated()),
-            Some([player_one, player_two]),
-            "player 1 takes the other device of the pair"
-        );
+        assert_eq!(state::with(|s| s.split.seated()), Some([player_one, player_two]), "both keep their own device");
     }
 }
 
@@ -90,11 +97,15 @@ fn co_op_second_car_starts_a_co_op_session() {
 fn back_from_co_op_press_start_returns_to_the_career_menu() {
     let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     let _reset = Reset;
-    let Some(mut h) = co_op_press_start() else { return };
+    let Some(mut h) = co_op_press_start(1) else { return };
     h.wait(1.0);
-    assert_eq!(text_of(&h, 0xB244_CF71).as_deref(), Some("Player 2 press START."));
     h.press(pad::BACK);
     h.wait(1.0);
-    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back to the career menu");
+    assert_eq!(h.screens.top(), Some(screen::PRESS_START), "player 2's Back goes to player 1's Press Start");
+    let Some(mut h) = co_op_press_start(0) else { return };
+    h.wait(1.0);
+    h.press(pad::BACK);
+    h.wait(1.0);
+    assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "player 1's Back goes to the career menu");
     assert_eq!(state::with(|s| s.split.seated()), None, "the seats are given up");
 }

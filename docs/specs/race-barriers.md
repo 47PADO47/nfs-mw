@@ -55,8 +55,9 @@ For each entry, in list order:
 A group listed twice takes the later entry's turn. After the whole list the road barrier flags are recomputed
 (section 5).
 
-A race's list is added **on top** of what is on: the region gates of the stage stay closed. The end of the race
-(`basicrace` graph, state `done`) clears every group (each switched-on group gets bit `0x10` back on its instances and
+A race's list is added **on top** of what is on: the gates that are up stay up (a race the world was made for has none
+up, [career-regions.md](career-regions.md) section 3.5; the rewrite lifts the stage's gates for every race). The end
+of the race (`basicrace` graph, state `done`) clears every group (each switched-on group gets bit `0x10` back on its instances and
 state 0; every barrier line is disabled; the segment barrier and race-route flags are cleared), switches
 `SCENERY_GROUP_DOOR` on again without the star, then switches the stage's bin list on again. **[decomp]**
 
@@ -77,12 +78,14 @@ whose reader was not found.
 
 ```
 at world creation:            switch SCENERY_GROUP_DOOR on (not turned)            # the engine's clear does it
+race start (race, not challenge):  lift the stage's closed region gates                 # career-regions.md 3.5
 race start (race or challenge):
     for entry in race.Barriers:
         switch = parse(entry) (star, prefix filter); group = group with bStringHash(name); skip if none or group 0
         remember the group's state before its first switch in this race
         set group on, turned = star
-race end, stop or quit:       put every remembered group back to its state before, last switched first
+race end, stop or quit:       put every remembered group back to its state before, last switched first,
+                              then close the stage's region gates again
 draw:                         an instance of group g is drawn only while g is on; a turnable instance of a turned
                               group is drawn with its x column negated (bounds widened to the cube around it)
 collide:                      a collision instance of group g counts only while g is on (the existing query rule)

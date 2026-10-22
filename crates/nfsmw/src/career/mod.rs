@@ -21,6 +21,7 @@ mod card;
 mod coop_state;
 mod data;
 mod io;
+mod mod_data;
 mod rewards;
 mod sources;
 mod start;

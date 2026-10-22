@@ -24,6 +24,15 @@ impl Page {
             Page::Stages => Page::Standings,
         }
     }
+
+    /// The page the back button returns to: the one the second button came from.
+    pub fn previous(self) -> Self {
+        match self {
+            Page::Standings => Page::Stages,
+            Page::Statistics => Page::Standings,
+            Page::Stages => Page::Statistics,
+        }
+    }
 }
 
 /// One cell of a row.

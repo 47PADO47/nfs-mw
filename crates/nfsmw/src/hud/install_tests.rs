@@ -434,3 +434,22 @@ fn the_pursuit_breaker_icons_are_a_pool_of_the_single_race_hud() {
     eprintln!("PURSUIT_BREAKER_n objects: {found:?}");
     assert_eq!(found, (0..super::blip_styles::PURSUIT_BREAKER_POOL).collect::<Vec<_>>());
 }
+
+#[test]
+#[ignore = "needs installed gauge packs"]
+fn installed_gauge_styles_have_decodable_faces_needles_and_fills() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    for skin in 0..=10 {
+        for hash in (7..=10).map(|rpm| super::skin::tach_face_texture(rpm as f32 * 1000.0, skin)).chain([
+            super::skin::needle_texture(skin),
+            super::skin::fill_texture(skin),
+            fe_hash_upper(&format!("TURBO_LINES_{skin:02}")),
+            fe_hash_upper(&format!("TURBO_NEEDLE_{skin:02}")),
+        ]) {
+            let texture =
+                assets.texture(hash).unwrap_or_else(|| panic!("missing gauge texture {hash:08X} for style {skin}"));
+            assert!(blackbox_tpk::decode_rgba8(&texture).is_some());
+        }
+    }
+}

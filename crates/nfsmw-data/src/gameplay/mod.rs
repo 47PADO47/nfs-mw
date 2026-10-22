@@ -11,6 +11,7 @@ mod final_race;
 mod markers;
 mod milestones;
 mod params;
+mod planes;
 mod races;
 mod rewards;
 mod story;
@@ -24,6 +25,7 @@ pub use milestones::{
     speed_traps,
 };
 pub use params::{Character, RaceParams};
+pub use planes::PlaneTrigger;
 pub use races::{Placement, Race, RaceType};
 pub use rewards::RewardRecord;
 pub use story::RaceStory;
@@ -39,6 +41,8 @@ use crate::shared;
 
 /// The file with the gameplay collections (the `gameplay` class, all 6,293 of them in NFS: Most Wanted).
 pub const GAMEPLAY_FILE: &str = "GLOBAL/gameplay.bin";
+/// The start point collection of the career is `career_start_` and the region's name (the install has `l2ra`).
+const CAREER_START_PREFIX: &str = "career_start_";
 /// The class holding every collection read here.
 const CLASS: &str = "gameplay";
 
@@ -51,6 +55,8 @@ pub struct GameplayData {
     pub triggers: Vec<BoxTrigger>,
     /// Every sphere trigger (collections that inherit `radiustrigger`): the speed traps of the races.
     pub spheres: Vec<SphereTrigger>,
+    /// Every plane trigger (collections that inherit `planetrigger`): the wrong-way zones of the races, among others.
+    pub planes: Vec<PlaneTrigger>,
     /// The auto shop and safe house zones, in database order.
     pub markers: Vec<ActivityMarker>,
     /// Every opponent driver (`character`, `boss`, `character_smart`), in database order.
@@ -65,6 +71,9 @@ pub struct GameplayData {
     pub milestone_types: Vec<MilestoneType>,
     /// The final race's markers (`race_bin_01/epic_pursuit`); `None` when the database has no such race.
     pub final_race: Option<FinalRaceMarkers>,
+    /// The career's start point, the collection `career_start_<region>`: where a world starts when no safe house or zone
+    /// was visited (`docs/specs/career-flow.md` section 6).
+    pub career_start: Option<Placement>,
 }
 
 impl GameplayData {
@@ -76,6 +85,12 @@ impl GameplayData {
     /// The sphere trigger with this collection key (an entry of a race's `SpeedTrapList`).
     pub fn sphere(&self, key: u32) -> Option<&SphereTrigger> {
         self.spheres.iter().find(|t| t.key == key)
+    }
+
+    /// The triggers of the race `race` (a full collection name) that send the player back to the grid: its `wrongway` and
+    /// `resetplayertrigger` children (`docs/specs/race-wrongway.md`).
+    pub fn reset_zones<'a>(&'a self, race: &'a str) -> impl Iterator<Item = &'a PlaneTrigger> + 'a {
+        self.planes.iter().filter(move |plane| plane.resets_player && plane.is_child_of(race))
     }
 
     /// The opponent character with this collection key (an entry of a race's `Opponents`).
@@ -100,6 +115,7 @@ impl GameplayData {
             races: races::races(db),
             triggers: triggers::triggers(db),
             spheres: triggers::spheres(db),
+            planes: planes::planes(db),
             markers: markers::markers(db),
             characters: params::characters(db),
             bins: bins::bins(db),
@@ -107,6 +123,7 @@ impl GameplayData {
             speed_traps: milestones::speed_traps(db),
             milestone_types: milestones::milestone_types(db),
             final_race: final_race::final_race(db),
+            career_start: instances(db).find(|c| name_of(*c).starts_with(CAREER_START_PREFIX)).map(placement),
         }
     }
 }

@@ -9,6 +9,7 @@ use game_install::GameDir;
 use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
+use super::camera_rig::CameraRig;
 use super::loading;
 use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
 use super::look::Look;
@@ -33,6 +34,8 @@ mod flow_bust;
 mod flow_career;
 #[path = "flow_coop.rs"]
 mod flow_coop;
+#[path = "flow_cover.rs"]
+mod flow_cover;
 #[path = "flow_custom.rs"]
 mod flow_custom;
 #[path = "flow_endgame.rs"]
@@ -182,6 +185,8 @@ pub struct Frontend {
     pub(super) look: Look,
     /// A look the command line fixed (`view-screen --look`): the screens do not change it.
     pub(super) look_override: Option<Look>,
+    /// The camera of the menu backdrops, which the screens move (`camera_rig.rs`).
+    pub(super) camera: CameraRig,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
@@ -194,11 +199,15 @@ pub struct Frontend {
     race_options: Option<crate::scenes::world::RaceOptions>,
     /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
     split: Option<crate::scenes::world::SplitSetup>,
-    /// The co-op session in progress: player 2 from the career car select (`flow_coop.rs`); the world takes it when built
-    /// (`flow_loading.rs`).
-    coop: Option<crate::scenes::world::players::coop::CoopSetup>,
+    /// The co-op session in progress: player 2 and both players' devices (`flow_coop.rs`); the world takes player 2 when built.
+    coop: Option<flow_coop::CoopSession>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
+    /// The race on the grid was started again from the pause menu or the results: it stays on its start, so no loading screen
+    /// covers it (`flow_cover.rs`).
+    pub(super) restarting: bool,
+    /// Where the next world puts the car after the safe house menu that stood before it (`flow_loading.rs`).
+    safe_house_start: flow_loading::SafeHouseStart,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -239,6 +248,7 @@ impl Frontend {
             origin: QuitTo::Main,
             look: Look::Main,
             look_override: None,
+            camera: CameraRig::default(),
             auto_shop_requested: false,
             end_game: None,
             end_game_shown: None,
@@ -249,6 +259,8 @@ impl Frontend {
             split: None,
             coop: None,
             drive_to_safe_house: false,
+            restarting: false,
+            safe_house_start: Default::default(),
             map_chrome: Default::default(),
         }
     }
@@ -354,12 +366,17 @@ impl Frontend {
             return;
         }
         let wanted = self.look_override.clone().or_else(|| self.screens.look());
-        let Some(look) = wanted.filter(|look| *look != self.look) else { return };
-        log::info!("menu backdrop: {look:?}");
-        self.look = look;
-        let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
-        self.replace_scene(host, Box::new(scene), false);
-        self.menu_in_window = true;
+        if let Some(look) = wanted.filter(|look| *look != self.look) {
+            log::info!("menu backdrop: {look:?}");
+            self.look = look;
+            let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
+            self.replace_scene(host, Box::new(scene), false);
+            self.menu_in_window = true;
+        }
+        // The screen on top moves the camera to its pose, also when it comes back to the top as the one above closes.
+        if let Some(pose) = self.screens.pose() {
+            self.camera.show(pose);
+        }
     }
 
     /// Opens the pause menu over the frozen game.
@@ -369,9 +386,7 @@ impl Frontend {
         self.paused.set(true);
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
-        let coop = crate::career::coop_players() > 1;
-        let coop_locked = host.scene.coop_end_locked();
-        let pause_ctx = PauseCtx { race, quit: self.origin, coop, coop_locked };
+        let pause_ctx = PauseCtx { race, quit: self.origin, ..flow_coop::coop_pause(host) };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -431,12 +446,7 @@ impl Frontend {
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
-                Command::EndCoop => {
-                    host.scene.end_coop();
-                    // The front end's co-op state goes too: player 2's device is unseated and the count is one again.
-                    self.end_coop();
-                    self.resume_driving(env);
-                }
+                Command::EndCoop => self.end_coop_from_pause(host, env),
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
                     self.resume_driving(env);
@@ -466,6 +476,7 @@ impl Frontend {
                 Command::PayBust { marker } => self.pay_bust(marker, host, env),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
+                Command::ShowPhoto(report) => self.show_photo(report, host, env),
                 Command::Switch(..)
                 | Command::Push(..)
                 | Command::Pop
