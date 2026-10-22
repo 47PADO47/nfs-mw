@@ -13,7 +13,8 @@
 //!   encoding against an acknowledged baseline, an encode cache shared by clients, a priority accumulator and a
 //!   spatial hash for relevancy.
 //! - [`clock`]: the client's estimate of the server tick and the slew-or-step rule.
-//! - [`session`]: the session and per-peer state machines (lobby, load barrier, intro, countdown, running, results).
+//! - [`session`]: the session and per-peer state machines (lobby, load barrier, intro, countdown, running, results),
+//!   and the player party roster for local and remote seats.
 //! - [`discovery`]: the LAN discovery request and reply datagrams.
 //!
 //! No game names, no threads and no wall clock: every function that needs the time takes `now_ms` from the caller, so
