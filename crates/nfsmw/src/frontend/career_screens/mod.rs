@@ -13,6 +13,7 @@ pub mod end_game_page;
 pub mod markers;
 pub mod rap_sheet;
 pub mod region_unlock;
+pub mod reputation_overview;
 pub mod safehouse_menu;
 pub mod save;
 pub mod sms;
@@ -26,6 +27,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         .or_else(|| car_lot::make(name, args))
         .or_else(|| rap_sheet::make(name, args))
         .or_else(|| region_unlock::make(name, args))
+        .or_else(|| reputation_overview::make(name, args))
         .or_else(|| markers::make(name, args))
         .or_else(|| save::make(name, args))
         .or_else(|| sms::make(name, args))
