@@ -23,6 +23,12 @@ impl Frontend {
         };
         let seats = custom_state::with(|state| state.split.seated());
         let alias = self.career.with_loaded(|career| career.alias.clone()).unwrap_or_else(|| "Player".into());
+        let lead = self.career.with_loaded(|career| career.settings.car_handle);
+        let shared = lead == Some(handle);
+        log::info!(
+            "co-op: player 2 drives {folder} (car {handle:#x}{})",
+            if shared { ", shared with player 1" } else { "" }
+        );
         self.coop = Some(coop_setup(alias, folder, handle, transmission, guest_device(seats)));
         crate::career::set_coop_players(2);
         self.resume_career(host, env);
