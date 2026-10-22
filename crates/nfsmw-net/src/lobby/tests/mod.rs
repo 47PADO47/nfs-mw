@@ -1,0 +1,3 @@
+//! Lobby tests.
+
+mod rate;
