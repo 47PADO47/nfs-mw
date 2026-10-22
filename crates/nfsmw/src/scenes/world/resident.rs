@@ -9,9 +9,11 @@ use blackbox_solid::Solid;
 use glam::Mat4;
 use nfsmw_data::world::{PropShape, SectionData};
 use std::sync::Arc;
+mod cull;
 mod prepare;
 mod reflections;
 mod shadow_policy;
+pub(super) use cull::{CullEntry, CullTile, TileCull};
 pub(super) use prepare::{resolve_placed, take_prepared, worker_hook};
 pub(super) use reflections::{ReflectionPlaced, resolve_reflections};
 #[cfg(test)]
@@ -93,6 +95,9 @@ pub struct SectionResources {
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
+    /// The cull data of the `Placed` list the residency keeps beside these resources, built on the first sweep after
+    /// the list is final (`cull.rs`).
+    pub(super) cull: std::cell::OnceCell<TileCull>,
     /// The frame (its texture hash) each animation in `anims` was last redirected to, so a frame that is still
     /// showing costs no renderer call. Filled by `animate`.
     shown_frames: std::cell::RefCell<Vec<Option<u32>>>,
