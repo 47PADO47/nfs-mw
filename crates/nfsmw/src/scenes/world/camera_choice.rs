@@ -4,7 +4,17 @@ use crate::settings::CameraMode;
 use crate::viewer::camera::{Camera, ChaseView, DynamicFov, Lens};
 
 use super::drive::Drive;
-use super::{View, WorldScene};
+use super::{View, ViewSource, WorldScene};
+
+/// The aspect ratio of a player's view in a session: fixed, so no window size reaches the rules.
+const SESSION_ASPECT: f32 = 16.0 / 9.0;
+
+/// A player's view in a session: its car's chase camera on the physics body, at the fixed aspect and the camera's own
+/// field of view, with no camera-mode setting, cut scene or field-of-view kick of this machine.
+fn player_lens(drive: &Drive) -> Lens {
+    let chase = drive.physics_camera();
+    chase.lens_with_fov(SESSION_ASPECT, chase.fov_degrees())
+}
 
 impl WorldScene {
     /// The lens for this frame: an original view on the car, the chase camera (or its dynamic-FOV variant), or the
@@ -54,6 +64,38 @@ impl WorldScene {
             None => self.constrain_custom_camera(lens, aspect, false),
             Some(_) => lens,
         }
+    }
+
+    /// The lead's view as the gameplay rules read it (`session_rules.rs`): this machine's simulation lens in single
+    /// player, the lead car's own chase camera in a session.
+    pub(super) fn rules_lens(&self, aspect: f32) -> Lens {
+        if self.rules.views == ViewSource::LocalCamera {
+            return self.simulation_lens(aspect);
+        }
+        let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
+            return self.simulation_lens(aspect);
+        };
+        player_lens(drive)
+    }
+
+    /// A co-op guest's view as the gameplay rules read it: the guest's camera as this machine shows it in single player,
+    /// its car's own chase camera in a session.
+    pub(super) fn guest_rules_lens(&self, drive: &Drive) -> Lens {
+        match self.rules.views {
+            ViewSource::LocalCamera => self.car_lens(drive, drive.camera(), self.physics_aspect),
+            ViewSource::PlayerCars => player_lens(drive),
+        }
+    }
+
+    /// The view-projections of every other player's rules view (all but the car the police follow, as the traffic sees
+    /// them); empty outside co-op and sessions.
+    pub(super) fn guest_view_projs(&self) -> Vec<glam::Mat4> {
+        if self.view != View::Chase {
+            return Vec::new();
+        }
+        let primary = self.chase_primary();
+        let guests = self.players.iter().filter(|guest| guest.id != primary && guest.drive.has_sim());
+        guests.map(|guest| self.guest_rules_lens(&guest.drive).view_proj()).collect()
     }
 
     pub(super) fn change_camera_mode(&mut self, mode: CameraMode) {

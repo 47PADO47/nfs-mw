@@ -1,5 +1,5 @@
 //! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug`,
-//! `race`, `nis`, `movie`, `story` and `coop`.
+//! `race`, `nis`, `movie`, `story`, `session` and `coop`.
 
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
@@ -52,6 +52,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "co-op without the menus: player 2 joins behind the lead on the arrow block (default) or the first pad; off ends it; no argument: who plays",
     ),
     (
+        "session [on [seed] | off]",
+        "the multiplayer session rules: on runs the world as a session would (no time scaling, the players' own views, seeded draws, blocking model loads); off is single player; no argument: the rules",
+    ),
+    (
         "story status | race <event id> | arrival | firstvisit",
         "the story flow: its state (stage, prologue resume, rival beaten, final race on resume), a career race with its intro (16.1.0, 1.8.1), the safe house arrival, the first visit",
     ),
@@ -75,6 +79,7 @@ pub(super) fn run(
         "nis" => super::nis::nis_command(scene, args),
         "movie" => super::story_movie::movie_command(scene, args),
         "story" => super::career::story_command::story_command(scene, args),
+        "session" => super::session_rules::session_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
         "parts" => super::garage::command::run(scene, renderer, args),

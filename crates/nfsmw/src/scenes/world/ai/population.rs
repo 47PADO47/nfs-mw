@@ -16,6 +16,7 @@ use crate::viewer::camera::Lens;
 
 mod cops;
 mod guests;
+pub(super) use guests::view_distance;
 mod visibility;
 use visibility::Viewing;
 

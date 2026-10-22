@@ -118,6 +118,8 @@ pub struct Drive {
     frame_input: DriveInput,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
+    /// A session's rules forbid time scaling, so the speedbreaker is off (`session_rules.rs`).
+    breaker_barred: bool,
     /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
     sabotaged: bool,
     /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).

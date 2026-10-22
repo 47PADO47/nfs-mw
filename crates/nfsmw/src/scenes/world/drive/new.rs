@@ -50,6 +50,7 @@ impl Drive {
             alpha: 0.0,
             frame_input: DriveInput::default(),
             arrested: false,
+            breaker_barred: false,
             sabotaged: false,
             gridded: false,
             assist_aim: None,

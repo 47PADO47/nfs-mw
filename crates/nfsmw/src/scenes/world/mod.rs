@@ -70,6 +70,8 @@ mod rotor;
 mod scene;
 mod scene_space;
 mod scenery_groups;
+mod session_rules;
+use session_rules::ViewSource;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
@@ -187,6 +189,8 @@ pub struct WorldScene {
     players: players::Players,
     /// The world's car render keys, shared with the traffic models it uploads (keys.rs).
     car_keys: std::rc::Rc<keys::CarKeys>,
+    /// The rules a multiplayer session changes; the defaults are single player's (`session_rules.rs`).
+    rules: session_rules::SessionRules,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open

@@ -116,7 +116,7 @@ impl WorldScene {
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
         let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
-        super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
+        super::names::name_opponents(&mut plan, &self.dir, race.key ^ self.rules.name_seed());
         if let Some(setup) = &split {
             if plan.len() < 2 {
                 return Err("a split-screen race needs the road network of the track".into());
@@ -225,11 +225,6 @@ impl WorldScene {
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
-}
-
-/// A seed that differs from run to run, so the same race does not always bring the same names.
-fn clock_seed() -> u32 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos())
 }
 
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.

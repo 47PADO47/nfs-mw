@@ -191,6 +191,7 @@ impl WorldScene {
                 pending_car,
                 players: players::Players::default(),
                 car_keys: Default::default(),
+                rules: Default::default(),
                 traffic,
                 map_blips,
                 race_starts,
