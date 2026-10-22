@@ -58,8 +58,8 @@ own picture **[exe]**: Create (`MAIN_ICON_PROFILE_ADD`), Load (`GENERIC_ICON_LOA
 
 **Naming (Create, Start New Career).** The original types the name with the keyboard group of `MC_Main.fng` ("Enter name:"); the
 PC reads the typed text **[exe]**. The rewrite shows a notice "Enter name: NAME_" over `Dialog.fng`: it starts with the first
-free `PLAYER` name, Backspace deletes, typed letters, digits, `_` and `-` are added up to 7 characters (the profile list shows
-only names shorter than 8 without a space, `career-save-screens.md` section 2), Enter accepts, Escape leaves. A name that
+free `PLAYER` name, Backspace deletes, typed letters, digits, `_` and `-` are added up to 31 characters (the profile list shows
+names of up to 31 characters without a space; the original game lists only names shorter than 8, `career-save-screens.md` section 2), Enter accepts, Escape leaves. A name that
 exists (compared without case) is refused with a notice. **[ours]**
 
 The old rows "Save Alias" and "Load Alias" (the settings alias of `saves.rs`) are gone from the alias manager: it is the career

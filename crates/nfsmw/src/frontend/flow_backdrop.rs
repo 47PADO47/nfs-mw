@@ -34,7 +34,10 @@ impl Frontend {
             self.menu_in_window = true;
             return;
         }
-        if !self.replace_scene(host, Box::new(MenuScene::with_look(Some(self.dir.clone()), self.look.clone())), false) {
+        // A backdrop built from nothing plays its camera intro, whatever the camera did last.
+        self.camera.reset();
+        let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
+        if !self.replace_scene(host, Box::new(scene), false) {
             return;
         }
         self.menu_in_window = true;

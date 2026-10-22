@@ -6,6 +6,7 @@
 //! angles give; the camera then looks at the target, with its up vector turned by the roll. The angles are degrees.
 
 use glam::{Mat3, Vec3};
+use nfsmw_data::frontend_camera::CameraAngle;
 
 use crate::viewer::camera::Lens;
 
@@ -20,8 +21,8 @@ pub struct CameraPose {
     pub distance: f32,
     /// Degrees the up vector is turned about the view direction.
     pub roll: f32,
-    /// Vertical field of view in degrees. [ours] The original stores the angle without saying which side it spans; the
-    /// car viewer's 55 degrees, which the main menu's pose also has, is read as the vertical one.
+    /// Field of view in degrees, as the attributes store it. [unverified] The original does not say which side it spans;
+    /// it is read as the horizontal angle of a 4:3 picture (`FOV_ASPECT`), see [`Self::fov_y`].
     pub fov: f32,
     /// The point the camera looks at, metres.
     pub target: Vec3,
@@ -36,17 +37,36 @@ impl CameraPose {
         -self.distance * Vec3::new(sy * sp, cy * sp, cp)
     }
 
-    /// The up vector: world up turned `roll` degrees about the view direction (right-handed, as a rotation of the
-    /// engine's row vectors by a positive angle).
+    /// The up vector: world up turned `roll` degrees about the view direction, against the right-handed sense: a positive
+    /// roll lets the horizon fall to the right of the picture. [verified: the original's main menu and career menu]
     pub fn up(&self) -> Vec3 {
         let forward = (self.target - self.eye()).normalize_or_zero();
-        Mat3::from_axis_angle(forward, self.roll.to_radians()) * Vec3::Z
+        Mat3::from_axis_angle(forward, -self.roll.to_radians()) * Vec3::Z
+    }
+
+    /// The pose an attribute collection stores.
+    pub fn from_angle(angle: &CameraAngle) -> Self {
+        Self {
+            pitch: angle.pitch,
+            yaw: angle.yaw,
+            distance: angle.distance,
+            roll: angle.roll,
+            fov: angle.fov,
+            target: Vec3::from(angle.target),
+        }
+    }
+
+    /// The vertical field of view the stored angle gives: the stored angle spans the width of a `FOV_ASPECT` picture, and
+    /// the vertical angle it implies is kept at every window shape.
+    pub fn fov_y(&self) -> f32 {
+        let half_x = (self.fov.to_radians() / 2.0).tan();
+        2.0 * (half_x / FOV_ASPECT).atan().to_degrees()
     }
 
     /// The lens for a window of `aspect` (width over height).
     pub fn lens(&self, aspect: f32) -> Lens {
         let eye = self.eye();
-        let mut lens = Lens::look_at(eye, self.target, self.fov, NEAR, aspect);
+        let mut lens = Lens::look_at(eye, self.target, self.fov_y(), NEAR, aspect);
         lens.view = glam::camera::rh::view::look_at_mat4(eye, self.target, self.up());
         lens
     }
@@ -55,8 +75,13 @@ impl CameraPose {
 /// The near plane, metres. [ours]
 const NEAR: f32 = 0.05;
 
-/// The pose of the safe house menu (`MainMenu.fng`'s sub menu in a career): the collection `angle10`, which is also
-/// `angle_final_career_safehouse`, the camera the safe house move ends on. [exe + verified]
+/// The shape of the picture the original's field of view angle is read across. [unverified] The safe house's 65 degrees
+/// read this way make the car about 1.33 times as tall as a vertical reading does, which fits the original's picture,
+/// where it measures about 1.4 times.
+const FOV_ASPECT: f32 = 4.0 / 3.0;
+
+/// A sample pose for the tests: the safe house menu's (`angle10`, which is also `angle_final_career_safehouse`).
+#[cfg(test)]
 pub const SAFE_HOUSE: CameraPose =
     CameraPose { pitch: 97.3, yaw: 110.0, distance: 4.25, roll: 16.0, fov: 65.0, target: Vec3::new(-0.2, -0.5, 0.3) };
 
@@ -94,6 +119,22 @@ mod tests {
         let rolled = SAFE_HOUSE.up();
         assert!((rolled.length() - 1.0).abs() < 1e-5);
         assert!(rolled.dot(Vec3::Z) < 1.0 && rolled.dot(Vec3::Z) > 0.9, "16 degrees of roll leave it mostly up");
+    }
+
+    #[test]
+    fn a_positive_roll_lets_the_horizon_fall_to_the_right() {
+        // The eye is at -y looking along +y, so the picture's right is +x: the camera's up leans to the left.
+        let level = CameraPose { pitch: 90.0, yaw: 0.0, roll: 10.0, target: Vec3::ZERO, ..SAFE_HOUSE };
+        let up = level.up();
+        assert!(up.x < -0.1 && up.z > 0.9, "{up:?}");
+    }
+
+    #[test]
+    fn the_field_of_view_is_the_horizontal_angle_of_a_4_to_3_picture() {
+        // tan(32.5 deg) * 3/4 = tan(25.5 deg): 65 degrees across become 51.1 degrees up.
+        assert!((SAFE_HOUSE.fov_y() - 51.1).abs() < 0.1, "{}", SAFE_HOUSE.fov_y());
+        let lens = SAFE_HOUSE.lens(16.0 / 9.0);
+        assert!((lens.fov_y_degrees - SAFE_HOUSE.fov_y()).abs() < 1e-4);
     }
 
     #[test]

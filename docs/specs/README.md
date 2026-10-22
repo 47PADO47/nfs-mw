@@ -13,7 +13,7 @@ and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body 
 Pursuit tuning: [pursuit-tuning.md](pursuit-tuning.md) (the Bartender file: cop cap, heat growth, bust speed, fines)
 and [fairbusts-reset.md](fairbusts-reset.md) (the reset penalty of the busted timer and its file).
 
-Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect).
+Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect). [mod-save-data.md](mod-save-data.md) (per-profile data a mod keeps in the save: the `bb.saves` interface, the file, save and delete).
 
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world

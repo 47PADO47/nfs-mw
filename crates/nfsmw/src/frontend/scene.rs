@@ -11,9 +11,10 @@ use glam::{Mat4, Vec3};
 use game_install::GameDir;
 use nfsmw_data::car::{CarModel, LoadOptions};
 
-use super::camera_pose::CameraPose;
+use super::camera_rig::CameraRig;
 use super::look::{CarLook, Look};
 use super::room::Room;
+use super::stage::CAR_STAND;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::scenes::car::FLOOR_PART;
@@ -49,8 +50,10 @@ pub struct MenuScene {
     parts: Vec<Instance>,
     /// The camera's rest pose (yaw, distance), which the intro settles onto.
     rest: (f32, f32),
-    /// The stage's own camera, when it has one: the safe house holds it still instead of the car viewer's orbit camera.
-    pose: Option<CameraPose>,
+    /// The front end's camera, shared with the backdrops that come before and after this one (`camera_rig.rs`). It holds
+    /// no pose when the install has none, or the look is one the player turns (the Showcase): the car viewer's orbit
+    /// camera shows then.
+    rig: CameraRig,
     /// Seconds since the menus came up, until the intro is over.
     intro: f32,
 }
@@ -63,6 +66,17 @@ impl MenuScene {
     /// The backdrop of a menu (`look.rs`).
     pub fn with_look(dir: Option<GameDir>, look: Look) -> Self {
         Self { dir, look, intro: INTRO_SECONDS, ..Default::default() }
+    }
+
+    /// The same backdrop with the front end's camera: a camera that already plays keeps playing across a change of look.
+    pub fn with_rig(mut self, rig: CameraRig) -> Self {
+        self.rig = rig;
+        self
+    }
+
+    /// Whether the front end's camera, not the orbit camera, shows this backdrop.
+    fn uses_rig(&self) -> bool {
+        self.look.camera_intro().is_some() && self.rig.pose().is_some()
     }
 }
 
@@ -132,19 +146,19 @@ impl Scene for MenuScene {
                 None
             }
         };
+        if let Some(intro) = self.look.camera_intro() {
+            self.rig.begin(&dir, stage, intro);
+        }
         let mut car = CarScene::new(model, 0.0).with_source(dir, options);
         car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = room.is_none();
-        if let Some(stand) = stage.car_stand() {
-            car.stand_on(stand.yaw, stand.sink);
-        }
+        car.stand_on(CAR_STAND.yaw, CAR_STAND.sink);
         car.init(renderer)?;
         let camera = car.camera_mut();
         self.rest = (camera.yaw, camera.distance);
-        self.pose = stage.camera();
-        // A stage with its own camera has no intro: the pose is where the camera is.
-        self.intro = if self.pose.is_some() { INTRO_SECONDS } else { 0.0 };
+        // With the front end's camera there is no intro of the orbit camera: the camera's own intro is the one.
+        self.intro = if self.uses_rig() { INTRO_SECONDS } else { 0.0 };
         self.car = Some(car);
         self.room = room;
         Ok(())
@@ -167,7 +181,7 @@ impl Scene for MenuScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
-        if self.pose.is_some() {
+        if self.look.camera_intro().is_some() && self.rig.advance(dt) {
             return car.update(renderer, &ActionState::default(), dt);
         }
         if matches!(self.look, Look::Showcase(_)) {
@@ -195,23 +209,24 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let options = fe_shadows::active();
-        let Self { car, room, parts, pose, .. } = self;
+        let Self { car, room, parts, rig, look, .. } = self;
         let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
-        if let Some(pose) = pose {
+        if let Some(pose) = rig.pose().filter(|_| look.camera_intro().is_some()) {
             let lens = pose.lens(aspect);
             (params.view, params.projection, params.camera_position) = (lens.view, lens.projection, lens.position);
         }
         params.shadow_tuning = fe_shadows::tuning(options);
         parts.clear();
-        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        // The renderer wants instances of one mesh next to each other, and draws blended parts in the order it is given
+        // them. The room has one instance per mesh and keeps its own order (`Room::instances`); the car's parts are
+        // already grouped by mesh. The room goes first, so the car's glass blends over its floor.
         if let Some(room) = room {
             parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
         }
-        // The renderer wants instances of one mesh next to each other.
-        parts.sort_by_key(|i| i.mesh);
+        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
         (params, parts.as_slice())
     }
 }

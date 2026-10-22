@@ -10,7 +10,7 @@ use nfsmw_career::settings::{CareerSettings, NewCareer};
 use super::{Career, CareerData, ProfileDir};
 
 /// The alias a new career is saved under when there is no profile yet. The original shows "Player 1" for an alias with
-/// no name (`save-alias-manager.md` section 5), but a name with a space or of 8 characters or more is never listed
+/// no name (`save-alias-manager.md` section 5), but a name with a space or of more than 31 characters is never listed
 /// (`ProfileDir::aliases`), so the folder name is one the listing finds.
 pub const DEFAULT_ALIAS: &str = "PLAYER";
 

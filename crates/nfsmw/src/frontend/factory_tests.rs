@@ -86,3 +86,25 @@ fn every_mapped_name_has_the_slot_the_menu_cell_feeds() {
         assert!(slot.is_menu(), "{name} maps to a HUD slot");
     }
 }
+
+#[test]
+fn the_main_menu_and_its_sub_menus_ask_the_camera_for_their_poses() {
+    assert_eq!(pose_for("MainMenu.fng", &plain()), Some("mainmenu"));
+    let career = Args { sub: Sub::Career, ..Args::default() };
+    assert_eq!(pose_for("MainMenu_Sub.fng", &career), Some("career_manager"));
+    let quick = Args { sub: Sub::QuickRace, ..Args::default() };
+    assert_eq!(pose_for("MainMenu_Sub.fng", &quick), Some("quickracemain_mainmenu_sub"));
+    assert_eq!(pose_for("MainMenu_Sub.fng", &plain()), Some("options_mainmenu_sub"));
+    // The safe house menu is the career's sub menu, and a pause menu's keeps the camera where it is.
+    let safehouse = Args { safehouse: true, sub: Sub::Career, ..Args::default() };
+    assert_eq!(pose_for("MainMenu_Sub.fng", &safehouse), Some("career_mainmenu_sub"));
+    assert_eq!(pose_for("MainMenu_Sub.fng", &Args { pause: true, ..Args::default() }), None);
+}
+
+#[test]
+fn the_option_screens_have_poses_and_the_dialogs_keep_the_camera() {
+    assert_eq!(pose_for("Options.fng", &plain()), Some("options_options"));
+    assert_eq!(pose_for("credits.fng", &plain()), Some("options_credits"));
+    assert_eq!(pose_for("Dialog.fng", &plain()), None);
+    assert_eq!(pose_for("Pause_Main.fng", &plain()), None);
+}

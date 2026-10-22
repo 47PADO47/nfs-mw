@@ -13,8 +13,9 @@ use crate::frontend::icon_items::{Id, safehouse_icons};
 use crate::frontend::icon_menu::{IconMenu, Kind};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
-use crate::frontend::logic::{Args, Command, Cx, Footer, Plain, ScreenLogic};
-use crate::ui::Text;
+use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
+use crate::ui::theme::MenuList;
+use crate::ui::{Text, UiAssets};
 
 /// The label of the confirmation question (`CONFIRM_RESUME_FREE_ROAM`).
 const CONFIRM_RESUME_LABEL: u32 = 0xEB69_4C0C;
@@ -82,6 +83,23 @@ impl ScreenLogic for SafeHouseMenu {
 
     fn footer(&self) -> Footer {
         self.menu.footer()
+    }
+
+    // A theme that draws the icon row as a vertical list (the Remastered menus) reads these from the icon menu.
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        self.menu.list(assets)
+    }
+
+    fn vertical(&self) -> bool {
+        self.menu.vertical()
+    }
+
+    fn rotate_pad(&self) -> bool {
+        self.menu.rotate_pad()
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        self.menu.pick_row(cx, row, pick);
     }
 }
 
