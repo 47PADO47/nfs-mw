@@ -63,6 +63,11 @@ impl Mods {
         self.runtime.loaded()
     }
 
+    /// What discovery found for each loaded mod (manifest, folder, library), in load order.
+    pub fn loaded_candidates(&self) -> Vec<blackbox_modding::host::Candidate> {
+        self.runtime.loaded_candidates()
+    }
+
     /// The mods refused, with their reasons.
     pub fn rejected(&self) -> &[Rejected] {
         self.runtime.rejected()
