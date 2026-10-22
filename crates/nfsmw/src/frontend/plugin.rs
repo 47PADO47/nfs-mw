@@ -14,12 +14,12 @@ use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
 use game_install::GameDir;
-use glam::Vec2;
 
 use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
-use super::logic::{Command, Env};
+use super::logic::Env;
 use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
+use super::plugin_press::{Press, press_at};
 use super::pointer::{self, feng_point};
 use super::screens::{Presented, Screens};
 use super::script::{self, UiScript};
@@ -27,7 +27,7 @@ use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
-use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
+use crate::input::{Action, ActionState, Bindings, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
 use crate::ui::theme::remastered::MapSnapshot;
@@ -95,45 +95,6 @@ pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
     feng_point(window)
         .map(layout::view_of)
         .is_some_and(|view| (0.0..=1.0).contains(&view[0]) && (0.0..=1.0).contains(&view[1]))
-}
-
-/// What a click on the menus presses.
-enum Press {
-    /// Accept, held while the button is held.
-    Accept,
-    /// Back, once.
-    Back,
-    /// Quit, once, as the quit action does on the main menu.
-    Quit,
-    /// A face button, once, as the pad mask it presses (Game Stats on the main menu, Randomize on the Quick Play brief, Defaults,
-    /// View Tutorial, Showcase).
-    Button(u32),
-    /// A screen's own part (an option row or its arrow), with what it queued.
-    Screen(Vec<Command>),
-    Nothing,
-}
-
-/// What a click at a point of the menus presses: a footer hint first, then the screen's own parts, then a button.
-fn press_at(fe: &mut Frontend, point: Vec2, bindings: &Bindings, device: InputDevice, env: &mut Env) -> Press {
-    match fe.screens.hint_at(point, bindings, device) {
-        Some(Action::MenuAccept) => return Press::Accept,
-        Some(Action::MenuBack) => return Press::Back,
-        Some(Action::MenuQuit) => return Press::Quit,
-        Some(Action::MenuButton1) => return Press::Button((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
-        Some(Action::MenuButton2) => return Press::Button(pad::BUTTON0 << 4),
-        Some(Action::MenuButton3) => return Press::Button(pad::BUTTON0),
-        _ => {}
-    }
-    if let Some(commands) = fe.screens.click(point, env) {
-        return Press::Screen(commands);
-    }
-    if fe.screens.focus_button_at(point) {
-        return Press::Accept;
-    }
-    if fe.screens.release_at(point, super::ids::MOUSE_LEFT_RELEASED) {
-        return Press::Nothing;
-    }
-    Press::Nothing
 }
 
 /// What the world map needs, grouped so the frame system stays within Bevy's parameter limit.

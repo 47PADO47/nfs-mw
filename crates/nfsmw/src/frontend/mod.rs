@@ -40,6 +40,7 @@ mod options;
 mod photo;
 mod plugin;
 mod plugin_keys;
+mod plugin_press;
 mod pointer;
 pub(crate) mod post_options;
 mod post_race;
