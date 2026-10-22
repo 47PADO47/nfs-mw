@@ -2,7 +2,8 @@
 
 Design for LAN multiplayer (milestone 10) that online multiplayer (milestone 11) reuses without a rewrite: one host-authoritative
 server program, the same on a LAN and on the internet, over our own UDP layer. Written 2026-10-16, revised by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md) on 2026-10-21. The generic layer
-(`libs/blackbox-net-core`) is built; the rest is design.
+(`libs/blackbox-net-core`) is built, including the handshake, sealing, rate limits and hand-off queues (feature `netcode`); the
+rest is design.
 
 The decision record is [ADR 0006](../../decisions/0006-multiplayer-netcode.md). The files here hold the requirements, the wire format,
 the algorithms and the security design it refers to.
@@ -17,7 +18,8 @@ Read in this order:
 3. [sync-model.md](sync-model.md): the owner's prediction and reconciliation, interpolation and extrapolation of remote cars, car
    collisions, clock synchronisation, the determinism list, session lifecycle, failure behaviour and tuning values.
 4. [protocol.md](protocol.md): discovery, the handshake packets, the sealed packet, frame types, the input, snapshot and ping
-   layouts, the reliable message catalogue, versioning and limits.
+   layouts, the reliable message catalogue, versioning and limits. The handshake and sealing as built (2026-10-22) are in
+   [protocol-handshake.md](protocol-handshake.md).
 5. [bandwidth.md](bandwidth.md): record sizes, per-packet overhead, the arithmetic for LAN and online cases, server totals.
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the

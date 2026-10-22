@@ -1,6 +1,6 @@
 [package]
 name = "blackbox-net-core"
-description = "Generic netcode building blocks: bit packing and quantisers, datagram links, a reliability layer, delta replication over a registered schema, clock sync, a session state machine and LAN discovery."
+description = "Generic netcode building blocks: bit packing and quantisers, datagram links, a reliability layer, delta replication over a registered schema, clock sync, a session state machine, LAN discovery, rate limits and hand-off queues; with the netcode feature, a Noise handshake and sealed packets."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
