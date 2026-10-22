@@ -443,7 +443,7 @@ impl TrafficWorld {
             return false;
         };
         log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the camera", car.name, render.x, render.y, gap);
-        self.cars.push(car);
+        self.admit(car);
         true
     }
 

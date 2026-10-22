@@ -44,6 +44,7 @@ fn model(dir: &GameDir, data: &PhysicsData, name: &str, renderer: &mut NullBacke
         trailer: None,
         cop_lights: None,
         audio_profile: crate::audio::traffic::TrafficProfile { horn: Some(5), ..Default::default() },
+        keys: crate::scenes::world::keys::test_keys(),
     }
 }
 

@@ -13,6 +13,8 @@ mod cargo;
 mod commands;
 mod day;
 mod detail;
+#[cfg(test)]
+mod determinism_tests;
 mod drive;
 mod drive_input;
 mod effects;
@@ -70,16 +72,22 @@ mod rotor;
 mod scene;
 mod scene_space;
 mod scenery_groups;
+mod session_rules;
+use session_rules::ViewSource;
 mod shadow_feed;
 mod sign_lamps;
 mod simulation;
 mod sky;
 mod sound;
 mod space;
+mod state_hash;
+use state_hash::StateHasher;
 mod speech_look;
 mod speed_trails;
 mod split;
 mod start;
+#[cfg(test)]
+mod step_bench_tests;
 mod story_movie;
 mod sun;
 mod teardown;
@@ -185,6 +193,10 @@ pub struct WorldScene {
     pending_car: Option<open::PendingCar>,
     /// The players' cars; the lead (player 1) is the only one outside co-op (`players/`, ADR 0010).
     players: players::Players,
+    /// The world's car render keys, shared with the traffic models it uploads (keys.rs).
+    car_keys: std::rc::Rc<keys::CarKeys>,
+    /// The rules a multiplayer session changes; the defaults are single player's (`session_rules.rs`).
+    rules: session_rules::SessionRules,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open

@@ -126,9 +126,23 @@ pub(super) fn track_lifetime(live: &mut Vec<u32>, id: u32) {
 
 impl super::PropWorld {
     /// Cleanup observes the current physics camera, not interpolated render poses.
+    #[cfg(test)]
     pub fn update_lifetimes(&mut self, ground: &dyn blackbox_vehicle::Ground, view: glam::Mat4, dt: f32) {
+        self.update_lifetimes_seen_by(ground, view, &[], dt);
+    }
+
+    /// Cleanup observes the current physics camera of every player, not interpolated render poses: a body any of them
+    /// sees counts as visible. `view` is the lead's, `others` the other players' (none outside co-op and sessions).
+    pub fn update_lifetimes_seen_by(
+        &mut self,
+        ground: &dyn blackbox_vehicle::Ground,
+        view: glam::Mat4,
+        others: &[glam::Mat4],
+        dt: f32,
+    ) {
         let _span = bevy_log::info_span!("world::props_lifetimes").entered();
         let frustum = blackbox_scene::Frustum::from_view_proj(&view);
+        let others: Vec<_> = others.iter().map(blackbox_scene::Frustum::from_view_proj).collect();
         // Only tracked bodies are visited, in ascending id order. Bodies that stay active are tracked again;
         // the rest, including removed bodies, drop out. Both lists are reused across ticks.
         let mut ids = std::mem::take(&mut self.lifetime_scratch);
@@ -142,7 +156,8 @@ impl super::PropWorld {
             if !c.body.as_ref().is_some_and(|b| b.lifetime.active) {
                 continue;
             }
-            let visible = frustum.intersects(&c.pose(1.0).1);
+            let bounds = c.pose(1.0).1;
+            let visible = frustum.intersects(&bounds) || others.iter().any(|other| other.intersects(&bounds));
             let (Some(body), Some(spec)) = (&mut c.body, &c.shape.dynamics) else { continue };
             let radius = body.rigid.radius();
             let top = body.rigid.position + glam::Vec3::Y * radius;

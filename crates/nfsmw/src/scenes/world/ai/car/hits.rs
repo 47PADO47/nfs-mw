@@ -25,8 +25,8 @@ mod installed_tests;
 
 /// Whether a hit starts a crash (`ai-traffic-obstacles.md` section 5.1): the party that hit the car is a human, a cop
 /// or a racer (classes 0, 2 and 3), not traffic, and the hit is within the view distance.
-pub(super) fn starts_crash(striker: DriverClass, from_camera: f32) -> bool {
-    striker != DriverClass::Traffic && from_camera <= CRASH_VIEW
+pub(super) fn starts_crash(striker: DriverClass, from_view: f32) -> bool {
+    striker != DriverClass::Traffic && from_view <= CRASH_VIEW
 }
 
 /// Whether a car at `speed` (m/s, either sign) is moving fast enough to start a crash that is over.
@@ -108,7 +108,7 @@ impl AiCar {
     pub fn is_damaged_cop(&self) -> bool {
         self.is_police() && self.damage.as_ref().is_some_and(|d| d.wreck.damage() > 0.0)
     }
-    /// A hit of `impulse` N s at `point` (physics space), from `from_camera` metres away from the player: the traffic
+    /// A hit of `impulse` N s at `point` (physics space), from `from_view` metres from the nearest player's view: the traffic
     /// shock, the accident of a hit by a human, cop or racer, and a cop's damage. `striker` and `speed` (m/s) are the
     /// class and the speed of the party that hit the car; the player's speed is the one the world sets. Returns whether
     /// the hit is the player's first that damages this cop (an assault, see `rules::contact_infraction`).
@@ -119,13 +119,13 @@ impl AiCar {
         striker: DriverClass,
         speed: f32,
         hit: DamageHit,
-        from_camera: f32,
+        from_view: f32,
     ) -> bool {
         let speed_change = impulse / self.mass.max(1.0);
         if speed_change > SHOCK_MIN_SPEED_CHANGE {
             self.shock = self.shock.max((speed_change / SHOCK_FORCE).min(1.0));
         }
-        if starts_crash(striker, from_camera) {
+        if starts_crash(striker, from_view) {
             log::info!("traffic: {} was hit by a {striker:?} (impulse {impulse:.0} N s)", self.name);
             let hitter_speed = match by_player {
                 true => self.player_speed,
@@ -134,7 +134,7 @@ impl AiCar {
             let fast = is_fast(hitter_speed);
             self.accident.on_hit(matches!(self.role, Role::Traffic) && !self.patrol, self.tractor, fast);
         }
-        self.wreck_hit(hit, from_camera)
+        self.wreck_hit(hit, from_view)
     }
 
     /// Whether the car is a cop that the damage has wrecked.
@@ -173,7 +173,7 @@ impl AiCar {
     }
 
     /// Health consumes the same resolved callback as the visual sequencer, exactly once.
-    pub(super) fn wreck_hit(&mut self, hit: DamageHit, from_camera: f32) -> bool {
+    pub(super) fn wreck_hit(&mut self, hit: DamageHit, from_view: f32) -> bool {
         let Some(damage) = self.damage.as_mut() else { return false };
         if hit.closing_speed < blackbox_pursuit::wreck::MIN_CLOSING {
             return false;
@@ -190,7 +190,7 @@ impl AiCar {
         }
         let before = damage.wreck.damage();
         let was_destroyed = damage.wreck.is_destroyed();
-        if damage.wreck.impact(&damage.tuning, hit.force, hit.closing_speed, scale, from_camera) {
+        if damage.wreck.impact(&damage.tuning, hit.force, hit.closing_speed, scale, from_view) {
             damage.pending = true;
         }
         if !was_destroyed

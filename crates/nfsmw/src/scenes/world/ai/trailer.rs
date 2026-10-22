@@ -13,7 +13,6 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::TrafficModel;
 use super::hitch::{Hitch, Posture, Release};
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
-use crate::scenes::world::keys;
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
@@ -141,7 +140,7 @@ impl TrailerCar {
         let pose = sim.pose();
         Some(Self {
             rig: model.rig.clone(),
-            render_id: keys::next_car(),
+            render_id: model.keys.next(),
             sim,
             coupling,
             previous: pose,

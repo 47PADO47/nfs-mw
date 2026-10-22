@@ -6,7 +6,7 @@ use blackbox_pursuit::health_bar::{Frame, Gates};
 use glam::Vec3;
 
 use super::players::LEAD;
-use super::{View, WorldScene, ai, drive::STEP, space};
+use super::{View, ViewSource, WorldScene, ai, drive::STEP, space};
 use crate::input::ActionState;
 use crate::viewer::camera::PursuitFeed;
 
@@ -33,6 +33,12 @@ impl WorldScene {
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         let speedbreaker = self.tuning.speedbreaker;
         self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
+        // A session forbids time scaling: the speedbreaker is off for every player and the tick runs at 1.0
+        // (`session_rules.rs`, `docs/specs/multiplayer/determinism.md` D2).
+        let time_scale = self.rules.time_scale_allowed;
+        for drive in self.players.drives_mut() {
+            drive.bar_speedbreaker(!time_scale);
+        }
         if let Some(drive) = self.players.lead_mut() {
             drive.hold_for_arrest(arrested);
             drive.set_speedbreaker_tuning(speedbreaker);
@@ -61,7 +67,10 @@ impl WorldScene {
         let lead_breaker =
             loaded && self.players.lead_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time());
         let active = lead_breaker | (loaded && driving && self.guests_prepare_time());
-        let simulation_scale = self.tuning.game_speed * self.moment.sim_speed();
+        let simulation_scale = match time_scale {
+            true => self.tuning.game_speed * self.moment.sim_speed(),
+            false => 1.0,
+        };
         let sim_dt = match loaded {
             false => 0.0,
             true => self.speedbreaker_clock.advance(active, real_dt) * simulation_scale,
@@ -183,8 +192,16 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::physics_step").entered();
         let primary = self.chase_primary();
         let focus = self.traffic_focus();
-        let camera = self.simulation_lens(self.physics_aspect);
-        let shown = self.gameplay_lens(self.physics_aspect);
+        // What the gameplay rules see (the crash gate, the cops' spawn window, the helicopter, what is out of view) is
+        // the players' view (`session_rules.rs`); the impact effects are drawn from this machine's camera.
+        let local = self.simulation_lens(self.physics_aspect);
+        let (camera, shown) = match self.rules.views {
+            ViewSource::LocalCamera => (local, self.gameplay_lens(self.physics_aspect)),
+            ViewSource::PlayerCars => {
+                let lens = self.rules_lens(self.physics_aspect);
+                (lens, lens)
+            }
+        };
         let event_view = camera.position;
         let (collision, props) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
@@ -245,7 +262,7 @@ impl WorldScene {
             visual_contacts.extend(traffic.take_impact_effects());
         }
         self.impact_fx.set_enabled(self.vehicle_effects[0]);
-        self.impact_fx.step(self.physics.database(), visual_contacts, event_view, STEP);
+        self.impact_fx.step(self.physics.database(), visual_contacts, local.position, STEP);
         world_sounds.extend(props.take_sound_contacts());
         if let Some(drive) = self.players.lead_mut() {
             drive.append_world_sound_contacts(world_sounds, player_advanced);
@@ -270,9 +287,11 @@ impl WorldScene {
         self.heli_wash.step(STEP, helicopter, self.residency.collision());
         self.finish_flares.step(STEP);
         self.record_original_camera();
-        let view = self.simulation_lens(self.physics_aspect).view_proj();
+        let view = self.rules_lens(self.physics_aspect).view_proj();
+        let others = self.guest_view_projs();
         let (collision, props) = self.residency.world_parts();
-        props.update_lifetimes(&super::drive::WorldGround { collision, surfaces: &self.physics.surfaces }, view, STEP);
+        let ground = super::drive::WorldGround { collision, surfaces: &self.physics.surfaces };
+        props.update_lifetimes_seen_by(&ground, view, &others, STEP);
         self.play_moments(moments);
         let (_, props) = self.residency.world_parts();
         let restored = props.take_restored_sections();

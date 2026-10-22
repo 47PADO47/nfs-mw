@@ -81,7 +81,7 @@ impl TrafficWorld {
             return false;
         }
         log::info!("pursuit: {name} joins road search, {gap:.0} m from the player");
-        self.cars.push(car);
+        self.admit(car);
         true
     }
 }

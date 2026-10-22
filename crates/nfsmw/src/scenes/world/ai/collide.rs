@@ -4,6 +4,7 @@ use blackbox_pursuit::sight;
 use glam::Vec3;
 
 use super::TrafficWorld;
+use super::population::view_distance;
 
 use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
@@ -36,14 +37,14 @@ pub(super) enum DriverClass {
 }
 
 /// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
-/// the player did it, how far the car is from the player (metres), and the class and speed (m/s) of the party that hit
+/// the player did it, how far the car is from the nearest player's view (metres), and the class and speed (m/s) of the party that hit
 /// it.
 pub(super) struct Hit {
     owner: usize,
     impulse: f32,
     damage: crate::scenes::world::events::DamageHit,
     by_player: bool,
-    from_camera: f32,
+    from_view: f32,
     striker: DriverClass,
     speed: f32,
     /// How the two cars met, for the police radio.
@@ -89,8 +90,10 @@ impl TrafficWorld {
         }
         let events = self.events;
         let focus = player.as_deref().map(|p| p.body().position);
+        // The crash gate measures from the nearest player's view, not from this machine's camera alone (`session_rules.rs`).
         let view = self.damage_view.or(focus);
-        let far = |sim: &CarSim| view.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
+        let eyes: Vec<Vec3> = self.guest_eyes().collect();
+        let far = |sim: &CarSim| view_distance(view, &eyes, sim.body().position);
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
@@ -127,7 +130,7 @@ impl TrafficWorld {
                             impulse: hit.impulse,
                             damage: hit.damage[1],
                             by_player: true,
-                            from_camera: far(target),
+                            from_view: far(target),
                             striker: DriverClass::Human,
                             speed: player_speed,
                             contact: hit.pair,
@@ -163,7 +166,7 @@ impl TrafficWorld {
                         impulse: hit.impulse,
                         damage: hit.damage[0],
                         by_player: false,
-                        from_camera: far(a),
+                        from_view: far(a),
                         striker: class_b,
                         speed: speed_b,
                         contact: hit.pair,
@@ -173,7 +176,7 @@ impl TrafficWorld {
                         impulse: hit.impulse,
                         damage: hit.damage[1],
                         by_player: false,
-                        from_camera: far(b),
+                        from_view: far(b),
                         striker: class_a,
                         speed: speed_a,
                         contact: hit.pair,
@@ -198,7 +201,7 @@ impl TrafficWorld {
                 hit.striker,
                 hit.speed,
                 hit.damage,
-                hit.from_camera,
+                hit.from_view,
             );
             self.strikes.cop |= first_damage;
         }

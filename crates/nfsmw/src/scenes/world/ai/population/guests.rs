@@ -7,6 +7,17 @@ use super::visibility::Viewing;
 use crate::scenes::world::ai::{Focus, TrafficWorld};
 use crate::viewer::camera::Lens;
 
+/// Metres from `at` to the nearest player's view (physics space): the lead's eye, then the guests' `others`. With no lead
+/// eye the lead counts as infinitely far; with no guests this is the lead's distance as it is.
+pub(in crate::scenes::world::ai) fn view_distance(
+    lead: Option<glam::Vec3>,
+    others: &[glam::Vec3],
+    at: glam::Vec3,
+) -> f32 {
+    let lead = lead.map_or(f32::INFINITY, |eye| eye.distance(at));
+    others.iter().fold(lead, |near, eye| near.min(eye.distance(at)))
+}
+
 impl TrafficWorld {
     /// Each guest's focus and camera this tick, the guests in id order. An empty list outside co-op.
     pub fn set_guests(&mut self, guests: impl IntoIterator<Item = (Focus, Lens)>) {
@@ -33,6 +44,11 @@ impl TrafficWorld {
     /// The guests' cars as bodies for the traffic to steer around.
     pub(in crate::scenes::world::ai) fn guest_bodies(&self) -> impl Iterator<Item = blackbox_roads::Body> + '_ {
         self.guests.iter().filter_map(|(focus, _)| focus.body)
+    }
+
+    /// Each guest's eye, the position of its view, in physics space.
+    pub(in crate::scenes::world::ai) fn guest_eyes(&self) -> impl Iterator<Item = glam::Vec3> + '_ {
+        self.guests.iter().map(|(_, lens)| glam::Vec3::from(crate::scenes::world::space::to_physics(lens.position)))
     }
 
     /// What each guest sees, with the same retire rules as the lead's view.

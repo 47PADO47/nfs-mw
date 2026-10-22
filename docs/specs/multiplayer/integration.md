@@ -142,6 +142,8 @@ reading the code today:
 Proposed steps, each a small commit that keeps single player working:
 
 1. Write the benchmarks of the ADR ("How we will know", item 1) against the current code. They are the baseline.
+   **Done 2026-10-22** for the world step: `scenes/world/step_bench_tests.rs` at 1, 8 and 16 players with traffic; the
+   numbers are in [bandwidth](bandwidth.md) section 5.
 2. Replace the audio and effects outputs of the sim with plain output events (`SimEvent::Contact { .. }`) that a view layer
    turns into sound and effects. The sim returns events; it does not call audio.
 3. Move settings the sim reads (wheel options, assists) into plain structs passed in by the caller.
@@ -152,7 +154,12 @@ Proposed steps, each a small commit that keeps single player working:
    behind a `WorldSim` type with `step(tick, &Inputs) -> StepEvents`. The scene becomes a view: it owns a `WorldSim`, feeds
    it the player's input, and draws what it returns.
 5. Replace shared random sources by seeded per-system streams (sync model, D4) and make entity iteration order stable (D3, D5).
+   **Done 2026-10-22** in the scene: per-system streams, per-world entity ids with id-order stepping, sorted tile removal and
+   lockstep tile uploads ([determinism](determinism.md) has what is left).
 6. Add a headless runner and a test that runs 10 minutes of scripted free roam twice and compares state hashes.
+   **Done 2026-10-22 in the scene**, without the extraction: `scenes/world/determinism_tests.rs` runs 150 simulated seconds
+   (not 10 minutes: both runs fit in about 21 s of test time) of a scripted drive with traffic and cops twice under a
+   session's rules and compares `WorldScene::state_hash` every second ([determinism](determinism.md), step 5).
 
 Fallback if step 4 proves too large: the first multiplayer release ships the **listen server only**, running the
 `WorldSim` inside the host's process behind the scene, and the dedicated server follows when the extraction is done.
