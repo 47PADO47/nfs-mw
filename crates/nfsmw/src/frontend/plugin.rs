@@ -48,6 +48,9 @@ pub struct FrontendPlugin {
     pub career: crate::career::CareerHandle,
     /// A backdrop look that stays whatever the screens ask for (`view-screen --look`, for checking the looks offscreen).
     pub look: Option<super::look::Look>,
+    /// The camera of the backdrop the command line puts in the window, which the screens move (`view-screen`). Other
+    /// runs build their backdrops themselves and leave it empty.
+    pub camera: super::camera_rig::CameraRig,
 }
 
 impl Plugin for FrontendPlugin {
@@ -60,6 +63,7 @@ impl Plugin for FrontendPlugin {
         let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
         frontend.browse = self.browse.clone();
         frontend.career = self.career.clone();
+        frontend.camera = self.camera.clone();
         if let Some(look) = &self.look {
             frontend.look = look.clone();
             frontend.look_override = Some(look.clone());
@@ -142,6 +146,8 @@ struct MapParams<'w> {
     mods: Option<NonSend<'w, crate::modding::Mods>>,
     /// The keys typed this frame, for a screen that takes text.
     typed: ResMut<'w, TypedKeys>,
+    /// Split screen: the device whose Start went down, and the seats of a race (`flow_split.rs`).
+    split: ResMut<'w, crate::input::SplitInput>,
 }
 
 /// How long a menu step may take before it is logged as a stall.
@@ -393,6 +399,9 @@ fn update(
             }
             let started = std::time::Instant::now();
             let top = fe.screens.top().map(str::to_owned);
+            // The split-screen Press Start screens seat the device that pressed Start (not while the gesture that opened them is held).
+            let press = super::plugin_keys::start_press(scripted.is_some(), script_key, map.split.start_press);
+            fe.screens.set_start_press(press.filter(|_| !fe.latch));
             let commands = fe.screens.update(dt, mask, &mut env);
             fe.apply(commands, host, &mut env);
             // The profile step of the boot flow is over when its last screen closed: the main menu follows.
@@ -408,6 +417,11 @@ fn update(
     }
 
     fe.last_mask = mask;
+    // The input layer seats both players' devices while a split-screen race has the window.
+    let seats = fe.split_seats();
+    if map.split.devices() != seats {
+        map.split.seat(seats);
+    }
     if current != *settings {
         *settings = current;
     }

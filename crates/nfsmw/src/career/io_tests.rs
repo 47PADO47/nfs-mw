@@ -70,11 +70,11 @@ fn aliases_list_only_listable_folders_with_a_profile() {
     let dir = scratch.dir();
     dir.write("stock", b"x").unwrap();
     dir.write("mwo", b"x").unwrap();
-    dir.write("toolongname", b"x").unwrap();
+    dir.write("longername", b"x").unwrap();
     dir.write("my name", b"x").unwrap();
     fs::create_dir_all(scratch.root.join("empty")).unwrap();
     fs::write(scratch.root.join("Settings.ini"), b"x").unwrap();
-    assert_eq!(dir.aliases(), ["mwo", "stock"]);
+    assert_eq!(dir.aliases(), ["longername", "mwo", "stock"]);
 }
 
 #[test]

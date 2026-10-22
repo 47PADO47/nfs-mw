@@ -107,7 +107,7 @@ pub const fn answer(yes: bool, has_alias: bool) -> Answer {
 }
 
 /// The name a new career gets when the folder holds `taken`: `PLAYER`, then `PLAYER2` to `PLAYER9`, then `P10` on.
-/// Names are compared without case, as the Windows folder is. Every name is shorter than 8 characters without a space,
+/// Names are compared without case, as the Windows folder is. Every name is at most 31 characters without a space,
 /// so the list finds it (`career/io.rs`).
 pub(crate) fn next_alias(taken: &[String]) -> String {
     let mut number = 1;

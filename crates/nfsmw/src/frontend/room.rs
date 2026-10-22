@@ -32,8 +32,9 @@ impl MaterialLookup for Materials {
 }
 
 impl Room {
-    /// Uploads the textures and the drawn solids of `stage`. The room sits where the stage file puts it (identity
-    /// transform).
+    /// Uploads the textures and the drawn solids of `stage`. Each solid sits where its pivot matrix puts it, turned by the
+    /// stage's yaw (`Stage::room_yaw`): the safe house's pivots are the identity, the crib's room is stored small and scaled
+    /// up by its pivot.
     pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, stage: Stage) -> Result<Self> {
         let path = stage.file();
         let file = dir.read(path).with_context(|| format!("reading {path}"))?;
@@ -49,6 +50,7 @@ impl Room {
             }
         }
         let materials = Materials(map);
+        let turn = Mat4::from_rotation_z(stage.room_yaw().to_radians());
         let mut meshes = Vec::new();
         let mut instances = Vec::new();
         for solid in solids.iter().filter(|solid| stage.draws(&solid.name)) {
@@ -56,7 +58,7 @@ impl Room {
             let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
             meshes.push(mesh);
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
-            instances.push(Instance::keyed(mesh, Mat4::IDENTITY, key));
+            instances.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
         }
         Ok(Self { meshes, textures, instances })
     }

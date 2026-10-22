@@ -76,6 +76,7 @@ mod sound;
 mod space;
 mod speech_look;
 mod speed_trails;
+mod split;
 mod start;
 mod story_movie;
 mod sun;
@@ -194,6 +195,10 @@ pub struct WorldScene {
     race: Option<race::RaceSession>,
     /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
     queued_race: Option<(String, race::RaceOptions)>,
+    /// The two players of the split-screen race `queued_race` starts (`race/split.rs`); `None` for a one-player race.
+    queued_split: Option<SplitSetup>,
+    /// The split-screen match being played: the second player's actions and camera (`split/`).
+    split: Option<split::SplitState>,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
@@ -266,6 +271,6 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
-pub use race::RaceOptions;
+pub use race::{MAX_RACERS, RaceOptions, SplitSetup};
 
 pub const DEFAULT_CAR: &str = "BMWM3GTR";

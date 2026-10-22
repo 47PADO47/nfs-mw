@@ -12,8 +12,11 @@ impl TrafficWorld {
         self.policy.density(super::manager::density(self.target > 0, self.pursuit.is_some()))
     }
 
+    /// The traffic budget: every car but the racers, which the race puts on its own grid. Counting them would leave a race of
+    /// sixteen no traffic at the low settings **[ours]**.
     pub(super) fn population_slots(&self, focus: Focus) -> usize {
-        self.cars.len() + self.cars.iter().filter(|c| c.trailer().is_some()).count() + usize::from(focus.body.is_some())
+        let traffic = self.cars.iter().filter(|c| !c.is_racer()).count();
+        traffic + self.cars.iter().filter(|c| c.trailer().is_some()).count() + usize::from(focus.body.is_some())
     }
 
     pub(super) fn other_slots(&self, focus: Focus) -> usize {

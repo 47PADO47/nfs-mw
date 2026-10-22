@@ -34,8 +34,10 @@ impl WorldScene {
         match answer {
             RaceAnswer::Restart => {
                 let again = (session.name.clone(), session.options);
+                let split = self.split.as_ref().map(|split| split.setup.clone());
                 self.end_race(session);
                 self.queued_race = Some(again);
+                self.queued_split = split;
             }
             RaceAnswer::Exit => {
                 // A race is won when it placed first with a time. The outro plays first; the race's chain runs after it

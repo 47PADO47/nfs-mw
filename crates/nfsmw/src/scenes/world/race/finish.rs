@@ -5,7 +5,7 @@ use crate::scenes::world::WorldScene;
 
 /// Seconds the race-over message stays: `RaceOverMessageDuration` of a race is 3 s (`docs/specs/career-scripts-events.md`
 /// section 1.1, read from the career's Lua graph).
-const RACE_OVER_SECS: f32 = 3.0;
+pub(super) const RACE_OVER_SECS: f32 = 3.0;
 
 impl WorldScene {
     /// The engine says the race is over: the player's place is fixed, the career hears of it and the card goes up.
@@ -42,6 +42,10 @@ impl WorldScene {
                     state.set_goal(None);
                 }
             }
+            // The cops of a Heat Level give up at the line, as the race's chase is over with it (`heat.rs`).
+            if session.heat_chase.is_some() {
+                traffic.stop_pursuit();
+            }
         }
         if session.options.career {
             let place = u8::try_from(place).unwrap_or(u8::MAX);
@@ -58,6 +62,7 @@ impl WorldScene {
     /// Takes the race down: the racers leave, the traffic count is given back and the car is let go.
     pub(super) fn end_race(&mut self, mut session: RaceSession) {
         self.release_race(&mut session);
+        self.end_split();
         log::info!("race: {} ended", session.name);
         if session.options.career {
             self.career_race_left();

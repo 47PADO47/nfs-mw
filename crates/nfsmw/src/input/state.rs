@@ -36,6 +36,13 @@ impl ActionState {
         }
     }
 
+    /// Take the larger of this frame's value and `other`'s for each of `actions` (the second player's Start also pauses).
+    pub(super) fn merge_pressed(&mut self, other: &ActionState, actions: &[Action]) {
+        for action in actions {
+            self.now[action.index()] = self.now[action.index()].max(other.now[action.index()]);
+        }
+    }
+
     /// A handled press must not also pause or quit later in the frame.
     pub fn consume(&mut self, action: Action) {
         self.now[action.index()] = 0.0;

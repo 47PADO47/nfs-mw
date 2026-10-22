@@ -79,10 +79,15 @@ impl ScreenLogic for TrackOptions {
 }
 
 impl TrackOptions {
-    /// Accept: the options are kept in [`state`] already; the car select comes next. Nothing happens without a picked track.
+    /// Accept: the options are kept in [`state`] already; the car select comes next, or in split screen Press Start for player 1.
+    /// Nothing happens without a picked track.
     fn accept(&self, cx: &mut Cx) {
         if state::with(|s| s.event().is_none()) {
             return;
+        }
+        if state::with(|s| s.split.on) {
+            state::with(|s| s.split.clear_seats());
+            return cx.send(Command::Switch(screen::PRESS_START.into(), Args::default()));
         }
         cx.send(Command::Switch(screen::CAR_SELECT.into(), Args { custom: true, ..Args::default() }));
     }

@@ -20,17 +20,22 @@ const MODEL_LOGO: u32 = 0xB05D_D708;
 /// The group of the controller's hints (`Rotate`, `Zoom Out`, `Zoom In`), which the footer replaces with the keys.
 const CONTROLLER_HINTS: u32 = 0xD86A_ACF8;
 
-#[derive(Default)]
 pub struct Showcase {
     /// The car shown, once the cars were read.
     car: Option<(String, Option<String>)>,
+    /// The player whose car it is (split screen; 0 otherwise).
+    player: u8,
 }
 
 impl Showcase {
+    pub fn new(args: Args) -> Self {
+        Self { car: None, player: args.player }
+    }
+
     /// The car the car select left chosen: its folder and preset, and its logos on the package.
     fn take_car(&mut self, cx: &mut Cx) {
         let Some(pool) = pool::cars() else { return };
-        let Some(name) = state::with(|s| s.car.name.clone()) else { return };
+        let Some(name) = state::with(|s| s.pick(usize::from(self.player)).name.clone()) else { return };
         let progress = progress();
         let Some((list, at)) = car_list::find(&pool, &progress, &name) else { return };
         let Some(entry) = car_list::entries(list, &pool, &progress).get(at).cloned() else { return };
@@ -58,7 +63,10 @@ impl ScreenLogic for Showcase {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if matches!(message, PAD_ACCEPT | PAD_BACK) {
-            cx.send(Command::Switch(screen::CAR_SELECT.into(), Args { custom: true, ..Args::default() }));
+            cx.send(Command::Switch(
+                screen::CAR_SELECT.into(),
+                Args { custom: true, player: self.player, ..Args::default() },
+            ));
         }
     }
 

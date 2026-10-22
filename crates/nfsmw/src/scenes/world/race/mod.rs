@@ -16,6 +16,8 @@ mod final_race_events;
 mod finish;
 mod flares;
 mod flow;
+mod grid;
+mod heat;
 mod intro;
 mod load;
 pub(super) mod mods;
@@ -25,11 +27,14 @@ mod report;
 mod restart;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
+mod split;
 mod start;
 mod startable;
 
 pub(super) use command::race_command;
+pub use grid::MAX_RACERS;
 pub use setup::RaceOptions;
+pub use split::SplitSetup;
 
 use std::collections::VecDeque;
 
@@ -86,6 +91,8 @@ pub(super) struct RacerPlan {
     pub bias: f32,
     /// Models that were tried and failed, so a fallback is not asked for twice.
     pub tried: Vec<String>,
+    /// A person drives this racer (split screen's second player): `Some(automatic gearbox)`.
+    pub person: Option<bool>,
 }
 
 /// How the player's race ended.
@@ -150,6 +157,8 @@ pub(super) struct RaceSession {
     pub pool: Vec<String>,
     /// The pursuit challenge being run, for a `challenge` race: it has no engine (`challenge.rs`).
     pub challenge: Option<challenge::Challenge>,
+    /// The chase of a Heat Level above None, until it is begun at the green light (`heat.rs`).
+    pub heat_chase: Option<heat::HeatChase>,
     /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
     pub walls: barriers::RaceWalls,
     /// How many times the player ran into traffic since GO, for the post-race statistics.
@@ -159,10 +168,11 @@ pub(super) struct RaceSession {
 }
 
 impl RaceSession {
-    /// Whether the police are part of this race: the pursuit races and the pursuit challenges. Every other race is clear
-    /// of cops, whatever its `CopsInRace` says. **[ours]**
+    /// Whether the police are part of this race: the pursuit races, the pursuit challenges and the races with a Heat Level
+    /// above None. Every other race is clear of cops, whatever its `CopsInRace` says. **[ours]**
     pub fn has_police(&self) -> bool {
-        self.challenge.is_some() || self.origin.race.params.pursuit_race
+        let police = heat::police_of(self.options.heat, self.origin.race.params.pursuit_race);
+        self.challenge.is_some() || police != heat::Police::CallOff
     }
 }
 

@@ -55,7 +55,9 @@ impl WorldScene {
                 continue;
             };
             let at = session.emu[id].unwrap_or(car_at);
-            let far = wants_emulation(session.emu[id].is_some(), flat_distance(at, player));
+            // A person's car is never put on rails: it is always the one being watched.
+            let person = session.plan.get(id).is_some_and(|plan| plan.person.is_some());
+            let far = !person && wants_emulation(session.emu[id].is_some(), flat_distance(at, player));
             engine.set_speed(id, car_speed);
             if !far {
                 if session.emu[id].is_some() {

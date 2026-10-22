@@ -4,6 +4,8 @@
 use blackbox_race::{CatchUpGains, Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
+use super::grid;
+use super::heat::{self, HeatChase, Police};
 use super::setup::{self, RaceOptions};
 use super::startable;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
@@ -49,15 +51,17 @@ pub(super) fn resolve<'a>(data: &'a GameplayData, query: &str) -> Result<&'a Rac
     Err(format!("no race matches {query:?} (race list shows them)"))
 }
 
-/// The heat a custom race's Moderate and Maximum Heat Level give the car **[ours]**.
-const MODERATE_RACE_HEAT: f32 = 3.0;
-const MAX_RACE_HEAT: f32 = 5.0;
-
 impl WorldScene {
     /// Asks for a race to start as soon as the player's car exists: the front end uses it for a quick race, which opens
     /// the world and the race in one go.
     pub fn queue_race(&mut self, query: String, options: RaceOptions) {
         self.queued_race = Some((query, options));
+    }
+
+    /// Asks for a split-screen race: as [`queue_race`](Self::queue_race), with two players on the grid.
+    pub fn queue_split_race(&mut self, query: String, options: RaceOptions, setup: super::SplitSetup) {
+        self.queued_race = Some((query, options));
+        self.queued_split = Some(setup);
     }
 
     /// Starts the race `query` names. The player's car is put on the grid and the opponents are loaded; the countdown
@@ -96,18 +100,29 @@ impl WorldScene {
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
-        let opponents = setup::opponents_of(&data, &race, &options, &resolve_preset);
+        let split = self.queued_split.take();
+        let opponents = match &split {
+            Some(setup) => vec![setup.second_player()],
+            None => setup::opponents_of(&data, &race, &options, &resolve_preset),
+        };
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
         let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
         super::names::name_opponents(&mut plan, &self.dir, race.key ^ clock_seed());
+        if let Some(setup) = &split {
+            if plan.len() < 2 {
+                return Err("a split-screen race needs the road network of the track".into());
+            }
+            setup.name_players(&mut plan);
+        }
         let p = &race.params;
         let prepared = Prepared {
             course,
             config: setup::config_of(&race),
             rolling: p.rolling_start,
             initial_speed: p.initial_speed.max(0.0),
-            catch_up: p.catch_up,
+            // Nothing slows the leader between two people.
+            catch_up: p.catch_up && split.is_none(),
             gains: CatchUpGains::default(),
         };
         let prepared_catch_up = prepared.catch_up;
@@ -128,17 +143,21 @@ impl WorldScene {
             false => (self.traffic_setting.cars * level as u32 / 100) as usize,
         };
         self.traffic_manual = Some(cars);
-        // A custom race's Heat Level of Moderate or Maximum leaves the police on the road; below that only a pursuit race keeps
-        // them (`docs/specs/custom-race.md` section 4).
-        let police = p.pursuit_race || options.heat.is_some_and(|heat| heat >= 2);
+        // A Heat Level above None starts a chase at the green light (`heat.rs`) and the car carries its heat into any later
+        // chase; None calls off a chase unless the race is a pursuit race (`docs/specs/custom-race.md` section 4). A split-screen
+        // race has no police (`docs/specs/split-screen.md`).
+        let police = match split.is_some() {
+            true => Police::CallOff,
+            false => heat::police_of(options.heat, p.pursuit_race),
+        };
         if let Some(traffic) = self.traffic.as_mut() {
-            match options.heat.filter(|heat| *heat >= 2) {
-                // The heat the player's car carries into a chase that starts during the race: 3 for Moderate, the top for Maximum.
-                Some(heat) => traffic.set_carried_heat(if heat >= 3 { MAX_RACE_HEAT } else { MODERATE_RACE_HEAT }),
-                None if !police => traffic.stop_pursuit(),
-                None => {}
+            match police {
+                Police::Chase(heat) => traffic.set_carried_heat(heat as f32),
+                Police::CallOff => traffic.stop_pursuit(),
+                Police::Keep => {}
             }
         }
+        let heat_chase = police.chase().map(HeatChase::Waiting);
         log::info!(
             "race: {} ({:?}), {} lap(s), {} opponent(s), traffic {} car(s)",
             race.name,
@@ -148,6 +167,7 @@ impl WorldScene {
             cars
         );
         let racers = plan.len();
+        self.split = split.map(crate::scenes::world::split::SplitState::new);
         let walls = self.raise_race_walls(&race.barriers);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
@@ -187,6 +207,7 @@ impl WorldScene {
             cash_value: options.cash.unwrap_or(p.cash_value),
             pool,
             challenge: None,
+            heat_chase,
             walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
@@ -226,7 +247,7 @@ fn plan_racers(
 ) -> Vec<RacerPlan> {
     let slot = |placement: &nfsmw_data::gameplay::Placement| Spawn {
         position: space::to_render(placement.position.to_array()),
-        heading: setup::spawn_heading(placement.heading_deg),
+        heading: grid::spawn_heading(placement.heading_deg),
     };
     let mut plan = vec![RacerPlan {
         name: player_name(),
@@ -235,12 +256,13 @@ fn plan_racers(
         skill: 1.0,
         bias: 1.0,
         tried: Vec::new(),
+        person: None,
     }];
     if !has_road {
         return plan;
     }
     for (i, opponent) in opponents.iter().enumerate() {
-        let placement = opponent.start.unwrap_or_else(|| setup::grid_slot(start, i + 1));
+        let placement = opponent.start.unwrap_or_else(|| grid::grid_slot(start, i + 1));
         let model = opponent.car.clone().or_else(|| setup::stock_car(pool, race.key, i).cloned());
         let Some(model) = model else { continue };
         plan.push(RacerPlan {
@@ -250,6 +272,7 @@ fn plan_racers(
             skill: opponent.skill,
             bias: opponent.bias,
             tried: Vec::new(),
+            person: None,
         });
     }
     plan

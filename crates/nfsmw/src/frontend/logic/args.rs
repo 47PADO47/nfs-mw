@@ -30,6 +30,8 @@ pub struct Args {
     /// Opened from the reputation overview (`reputation_overview.rs`): the rival screens it opens show the rival the
     /// overview shows and go back to it.
     pub overview: bool,
+    /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
+    pub player: u8,
 }
 
 impl Default for Args {
@@ -46,6 +48,7 @@ impl Default for Args {
             sequence: false,
             first_car: false,
             overview: false,
+            player: 0,
         }
     }
 }

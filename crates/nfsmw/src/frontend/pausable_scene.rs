@@ -60,6 +60,25 @@ impl Scene for Pausable {
         self.inner.rear_view(aspect)
     }
 
+    fn set_second_input(&mut self, input: &ActionState) {
+        self.inner.set_second_input(input);
+    }
+
+    fn split_active(&self) -> bool {
+        !self.concealed() && self.inner.split_active()
+    }
+
+    fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.split_view(player, aspect)
+    }
+
+    fn split_hud_state(&self, player: usize) -> Option<crate::hud::HudState> {
+        self.inner.split_hud_state(player)
+    }
+
     // Like the rear view, speed streaks belong to the driving scene; forward them so the play path draws them.
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()

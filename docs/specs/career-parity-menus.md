@@ -58,8 +58,8 @@ own picture **[exe]**: Create (`MAIN_ICON_PROFILE_ADD`), Load (`GENERIC_ICON_LOA
 
 **Naming (Create, Start New Career).** The original types the name with the keyboard group of `MC_Main.fng` ("Enter name:"); the
 PC reads the typed text **[exe]**. The rewrite shows a notice "Enter name: NAME_" over `Dialog.fng`: it starts with the first
-free `PLAYER` name, Backspace deletes, typed letters, digits, `_` and `-` are added up to 7 characters (the profile list shows
-only names shorter than 8 without a space, `career-save-screens.md` section 2), Enter accepts, Escape leaves. A name that
+free `PLAYER` name, Backspace deletes, typed letters, digits, `_` and `-` are added up to 31 characters (the profile list shows
+names of up to 31 characters without a space; the original game lists only names shorter than 8, `career-save-screens.md` section 2), Enter accepts, Escape leaves. A name that
 exists (compared without case) is refused with a notice. **[ours]**
 
 The old rows "Save Alias" and "Load Alias" (the settings alias of `saves.rs`) are gone from the alias manager: it is the career
@@ -69,8 +69,9 @@ profile's manager now. **[ours]**
 
 The Quick Race icon opens an icon row (`MainMenu_Sub.fng`, title "quick race") with three icons **[exe]**: Quick Play
 (`MODE_ICON_QUICK_SELECT`), Custom Race (`MODE_ICON_QUICK_RACE`) and Split Screen (`MODE_ICON_2PLAYER_SPLIT`; the exe builds
-it from another table, **[unconfirmed]**). Split Screen is listed and greyed out for now **[ours]**; Custom Race opens the mode select of
-[custom-race.md](custom-race.md).
+it from another table, **[unconfirmed]**). Split Screen is enabled: it sets the two-player flow and opens the mode select with four modes ([split-screen.md](split-screen.md)
+section 2) **[ours]**. Custom Race opens the mode select of [custom-race.md](custom-race.md); Quick Play and Custom Race end the
+two-player flow, as the original sets one player for every other entry **[decomp]**.
 
 Quick Play opens the brief (`Quick_Race_Brief.fng`, "quick play brief"): a random car and a random race, with Back (Esc),
 Accept (Enter) and Randomize (key 1), and Accept starts that race with that car. See [quick-play.md](quick-play.md).

@@ -72,3 +72,17 @@ pub(super) fn text_mask(keys: &ButtonInput<KeyCode>) -> u32 {
     }
     mask
 }
+
+/// The device whose Start went down this frame, for the split-screen Press Start screens: the input layer's, or in a scripted
+/// run the one the scripted key stands for (`key Space` the keyboard, `key NumpadEnter` the arrow block).
+pub(super) fn start_press(
+    scripted: bool,
+    script_key: Option<KeyCode>,
+    real: Option<crate::input::PlayerDevice>,
+) -> Option<crate::input::PlayerDevice> {
+    if !scripted {
+        return real;
+    }
+    let keys: std::collections::HashSet<KeyCode> = script_key.into_iter().collect();
+    crate::input::start_press(&keys, [])
+}

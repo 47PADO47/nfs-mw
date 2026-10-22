@@ -9,6 +9,7 @@ use game_install::GameDir;
 use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
+use super::camera_rig::CameraRig;
 use super::loading;
 use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
 use super::look::Look;
@@ -22,6 +23,8 @@ use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
 use crate::settings::{Partial, Settings};
 use nfsmw_career::rapsheet::EndGame;
 
+#[path = "flow_backdrop.rs"]
+mod flow_backdrop;
 // Career on the main menu: starting or resuming a career (`start_career`).
 #[path = "flow_arrival.rs"]
 mod flow_arrival;
@@ -49,6 +52,8 @@ mod flow_save;
 pub(super) mod flow_series;
 #[path = "flow_sms.rs"]
 mod flow_sms;
+#[path = "flow_split.rs"]
+mod flow_split;
 #[path = "flow_startup.rs"]
 mod flow_startup;
 
@@ -174,6 +179,8 @@ pub struct Frontend {
     pub(super) look: Look,
     /// A look the command line fixed (`view-screen --look`): the screens do not change it.
     pub(super) look_override: Option<Look>,
+    /// The camera of the menu backdrops, which the screens move (`camera_rig.rs`).
+    pub(super) camera: CameraRig,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
@@ -184,6 +191,8 @@ pub struct Frontend {
     /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
     /// (`world_built`).
     race_options: Option<crate::scenes::world::RaceOptions>,
+    /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
+    split: Option<crate::scenes::world::SplitSetup>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
     /// Where the next world puts the car after the safe house menu that stood before it (`flow_loading.rs`).
@@ -227,6 +236,7 @@ impl Frontend {
             origin: QuitTo::Main,
             look: Look::Main,
             look_override: None,
+            camera: CameraRig::default(),
             auto_shop_requested: false,
             end_game: None,
             end_game_shown: None,
@@ -234,6 +244,7 @@ impl Frontend {
             series: Default::default(),
             quick_car: None,
             race_options: None,
+            split: None,
             drive_to_safe_house: false,
             safe_house_start: Default::default(),
             map_chrome: Default::default(),
@@ -272,43 +283,6 @@ impl Frontend {
         let commands = self.screens.open(name, Args::default(), true, env);
         self.stage = Stage::Menus;
         self.apply(commands, host, env);
-    }
-
-    /// Puts `scene` in the window. With `park`, a menu backdrop being replaced is kept for the menus that come back
-    /// (`Host::replace_scene_parking_old`); any other scene is released.
-    fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>, park: bool) -> bool {
-        let parks_menu = park && self.menu_in_window;
-        let result = match parks_menu {
-            true => host.replace_scene_parking_old(scene),
-            false => host.replace_scene(scene),
-        };
-        match result {
-            Ok(()) => {
-                self.menu_in_window = false;
-                true
-            }
-            Err(e) => {
-                log::error!("cannot change the scene: {e:#}");
-                false
-            }
-        }
-    }
-
-    /// Puts the menu backdrop in the window. A backdrop already there is kept, and so is one parked while free roam
-    /// had the window: building one reads the car from the install and uploads it (`MenuScene::init`, ~150-190 ms),
-    /// which the menus that follow would only repeat.
-    fn show_backdrop(&mut self, host: &mut Host) {
-        if self.menu_in_window {
-            return;
-        }
-        if host.restore_parked_menu() {
-            self.menu_in_window = true;
-            return;
-        }
-        if !self.replace_scene(host, Box::new(MenuScene::with_look(Some(self.dir.clone()), self.look.clone())), false) {
-            return;
-        }
-        self.menu_in_window = true;
     }
 
     /// Goes on in the boot flow; after the last step the main menu.
@@ -378,12 +352,17 @@ impl Frontend {
             return;
         }
         let wanted = self.look_override.clone().or_else(|| self.screens.look());
-        let Some(look) = wanted.filter(|look| *look != self.look) else { return };
-        log::info!("menu backdrop: {look:?}");
-        self.look = look;
-        let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone());
-        self.replace_scene(host, Box::new(scene), false);
-        self.menu_in_window = true;
+        if let Some(look) = wanted.filter(|look| *look != self.look) {
+            log::info!("menu backdrop: {look:?}");
+            self.look = look;
+            let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
+            self.replace_scene(host, Box::new(scene), false);
+            self.menu_in_window = true;
+        }
+        // The screen on top moves the camera to its pose, also when it comes back to the top as the one above closes.
+        if let Some(pose) = self.screens.pose() {
+            self.camera.show(pose);
+        }
     }
 
     /// Opens the pause menu over the frozen game.
@@ -437,6 +416,10 @@ impl Frontend {
                 Command::PlayMovie { movie, then } => self.play_movie(&movie, then, host),
                 Command::CustomDefaults => crate::frontend::custom_race::state::with(|state| state.reset_settings()),
                 Command::StartCustomRace(start) => self.start_custom_race(*start, host, env),
+                Command::SplitFirstCar(transmission) => self.split_first_car(transmission, host, env),
+                Command::StartSplitRace { race, options, setup } => {
+                    self.start_split_race(race, options, setup, host, env)
+                }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),

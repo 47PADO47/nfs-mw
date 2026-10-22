@@ -97,7 +97,7 @@ screenshot of the circuit options **[verified]** and is added at the end of ever
 | Row | Values | Default | Source |
 |---|---|---|---|
 | Laps | 1 to 8, wrapping | 1 | **[decomp]** max 8; default 1 **[verified]** |
-| Opponents | 1 to 3, wrapping | 3 | **[decomp]** (4 minus the players) |
+| Opponents | 1 to 15, wrapping | 3 | **[ours]** 15: sixteen racers less the player (the 16 is ours; the original's grid is four, so 1 to 3 **[decomp]**, 4 minus the players); default 3 **[verified]** (the screenshot) |
 | Difficulty | Easy, Medium, Hard (`0x61973E01`, `0x3747F6D0`, `0x6198E2EE`) | Medium | **[decomp]** |
 | Traffic Level | None, Minimum, Moderate, Maximum (`0x8CDC3937`, `0x73C615A3`, `0xA2CCA838`, `0x61D1C5A5`) | Minimum | **[decomp]** |
 | Catch Up | On / Off | On | **[decomp]** |
@@ -109,9 +109,27 @@ defaults?` (`0x8AEF5AE8`, Yes/No) and puts the current mode's rows back. The kno
 
 **What the race gets** (`RaceOptions`): the circuit's and the knockout's laps; the opponents, the difficulty (33, 66 or 100) and
 the catch-up switch for the modes that have the row; the traffic as `FillCustomRace` writes it, 0, 10, 30 or 50 **[exe]** (`ai-traffic-spawning.md`).
-Heat Level Moderate or Maximum leaves the road's police on and gives the car the heat 3 or 5 for a chase that starts in the race
-(`race/start.rs`); None and Minimum call off a pursuit at the start of the race **[ours]**: the exe's `FillCustomRace` enables cops
-only when `CopsOn` is set, which the screens of this build do not expose. The police of free roam are the ones that appear.
+**Heat Level** (`race/heat.rs`) **[ours]**: None gives no cops and calls off any chase still on (a pursuit race keeps its own
+police). Minimum, Moderate and Maximum start a chase at heat 1, 3 and 5 of the install's cop tables: the same wave the free-roam
+`pursuit <heat>` command starts (cop counts, car types, roadblocks, spikes and the helicopter as that heat has them). The chase
+starts at the green light, once the GO is given and the player's car stands on the road, so the countdown runs without cops.
+The car carries the same heat into any later chase of the race (`set_carried_heat`). The chase is of the player's car: the AI
+racers are traffic to the cops. The chase ends at the line and the cops are given up there (`finish_race`).
+**A bust** ends the race as the player's last place with no time, as a pursuit challenge's bust loses it: no cash, no career
+result and no record. The arrest and the infractions screen play as in free roam. An escape only ends the chase (the cops lock
+out as the model says) and the race goes on to the line. The default, Minimum, therefore puts cops in a custom race where it
+did not before. The console `race start <race> heat=0..3` sets the level. The split-screen race has no Heat Level and no cops
+([split-screen.md](split-screen.md)).
+
+**A race of sixteen [ours].** A race holds at most `MAX_RACERS` (16) racers, the player included, so 15 opponents at most. The
+grid (`race/setup.rs` `grid_slot`) keeps two columns 3.5 m apart and a row 7.5 m behind the last, so 16 racers take eight rows
+and reach 52.5 m behind the start line; every slot is behind the line and no two overlap (a unit test). A racer whose slot has no
+road under it is left off the grid and logged (`race: X could not be put on the grid`). The names come from the install's
+`RACERNAME` pool (150 names), so 15 names never repeat. The cars of a racer whose character names none come from the stock pool
+(`stock_car`), and characters repeat when the race has more opponents than the race lists. The HUD board keeps four rows: the three
+best and the player's own when the player is placed lower (`hud/leaders.rs`). The results standings keep ten rows: the best nine and the
+player's when the player is placed lower (`frontend/post_race/pages.rs`). The traffic budget does not count the racers (`ai/policy.rs`),
+so the traffic of a race is the traffic setting's, whatever the number of racers.
 
 Back returns to the track list, Accept opens the car select.
 
@@ -170,4 +188,20 @@ no career, and the pause menu's Quit goes to the Quick Race menu.
 - Heat Level's exact meaning in the exe: the screenshot shows the row, the exe's setup does not; the police are those of free roam
   at the heat the level gives.
 - Nothing in this build awards the Castrol GT (`SetAwardedCastrolGT`, the original's easter egg); a profile that has the flag opens it.
-- Split Screen is not built (greyed out).
+- Split Screen is the same screens with a flag in the session state (`custom_race/split.rs`): [split-screen.md](split-screen.md) section 2.
+
+## 9. Split screen
+
+The Quick Race menu's Split Screen icon sets `state.split.on` and opens this mode select **[ours]**. In that flow (Custom Race and
+Quick Play clear the flag again, as the original sets one player for them **[decomp]**):
+
+- The mode select lists Circuit, Sprint, Drag and Speedtrap, titled `0x43C825ED` (`split screen mode select`) **[decomp]**.
+- The track list is the same. For a Drag, Sprint or Speedtrap track, Accept skips the options and goes to Press Start **[decomp]**.
+- The options page shows only the circuit's Laps (`settings::split_rows`); Direction never shows in this install (as above). No
+  Traffic, Opponents, Difficulty, Catch Up or Heat Level rows. The race is made with one opponent, no cops and no catch-up
+  (`Settings::split_options`); traffic and difficulty stay the race's own.
+- Press Start (`PressStart.fng`) for player 1, then the car select for player 1, Press Start for player 2 and the car select for
+  player 2 (the car select header names the player, `0x7B070984`, `0x7B070985`). Each player has their own car pick and gearbox
+  answer (a drag race asks nobody and uses the transmission setting). Player 2's Accept starts the race (`Command::StartSplitRace`).
+  The custom race's own picked car is untouched.
+
