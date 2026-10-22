@@ -1,6 +1,17 @@
 //! Process memory counters are cumulative/gauges, not GPU allocation or hard-fault measurements.
 #![allow(unsafe_code, reason = "Windows fills owned process-memory and system-memory structures")]
+use windows::Win32::Foundation::FILETIME;
 use windows::Win32::System::{ProcessStatus::*, SystemInformation::*, Threading::*};
+
+/// User plus kernel CPU seconds this process has used, all threads together.
+pub(super) fn cpu_seconds() -> Option<f64> {
+    let (mut created, mut exited, mut kernel, mut user) = Default::default();
+    // SAFETY: synchronous API writes only the four live FILETIME values passed here.
+    unsafe { GetProcessTimes(GetCurrentProcess(), &mut created, &mut exited, &mut kernel, &mut user) }.ok()?;
+    let ticks = |t: FILETIME| (u64::from(t.dwHighDateTime) << 32 | u64::from(t.dwLowDateTime)) as f64;
+    // FILETIME counts 100 ns intervals.
+    Some((ticks(kernel) + ticks(user)) / 1e7)
+}
 
 pub(super) fn sample() -> Vec<(&'static str, f64)> {
     let mut values = Vec::new();

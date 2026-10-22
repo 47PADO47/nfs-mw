@@ -1,5 +1,6 @@
 //! Capture lifecycle and hotkeys. Rendering never writes files or waits for the export worker.
 mod health;
+pub(crate) use health::process_counters;
 mod identity;
 mod phases;
 mod samples;

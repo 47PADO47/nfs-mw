@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 const WARMUP: Duration = Duration::from_secs(2);
 /// How long to wait for the scene to report that it is ready before measuring anyway.
 const READY_TIMEOUT: Duration = Duration::from_secs(120);
+/// A frame longer than this is a hitch: well past two refreshes at 60 Hz, the trace recorder's own threshold.
+const HITCH_MS: f64 = 25.0;
 
 /// What a run measured.
 #[derive(Debug, Clone, PartialEq)]
@@ -20,6 +22,14 @@ pub struct Report {
     pub p95: f64,
     pub p99: f64,
     pub worst: f64,
+    pub mean: f64,
+    /// Measured frames longer than [`HITCH_MS`].
+    pub hitches: usize,
+    /// Frames longer than [`HITCH_MS`] before measuring started (loading, streaming, the warm-up), and the longest.
+    pub load_hitches: usize,
+    pub load_worst: f64,
+    /// Seconds from the first frame until the scene said it was ready.
+    pub ready_seconds: Option<f64>,
     /// Process CPU time (user + system) per frame in milliseconds, or `None` where the OS does not say.
     pub cpu_ms_per_frame: Option<f64>,
     /// Resident memory at the end, and its peak, in MiB.
@@ -47,14 +57,23 @@ pub fn summarize(times: &[f64], seconds: f64) -> Report {
         p95: percentile(&sorted, 0.95),
         p99: percentile(&sorted, 0.99),
         worst: sorted.last().copied().unwrap_or(0.0),
+        mean: times.iter().sum::<f64>() / times.len().max(1) as f64,
+        hitches: times.iter().filter(|ms| **ms > HITCH_MS).count(),
+        load_hitches: 0,
+        load_worst: 0.0,
+        ready_seconds: None,
         cpu_ms_per_frame: None,
         rss_mib: None,
         peak_rss_mib: None,
     }
 }
 
-/// User plus system CPU seconds of this process (Linux), from `/proc/self/stat`.
+/// User plus system CPU seconds of this process: the OS sampler of the trace recorder (Windows), else
+/// `/proc/self/stat` (Linux).
 fn cpu_seconds() -> Option<f64> {
+    if let Some(seconds) = crate::devtools::trace::process_counters().0 {
+        return Some(seconds);
+    }
     let stat = std::fs::read_to_string("/proc/self/stat").ok()?;
     // Fields after the parenthesised name: state is 3, utime 14, stime 15 (clock ticks, 100 per second).
     let rest = &stat[stat.rfind(')')? + 2..];
@@ -63,8 +82,13 @@ fn cpu_seconds() -> Option<f64> {
     Some((ticks(11)? + ticks(12)?) / 100.0)
 }
 
-/// A `Vm...` line of `/proc/self/status` in MiB (Linux).
-fn status_mib(key: &str) -> Option<f64> {
+/// A memory figure in MiB: `windows_key` from the trace recorder's OS sampler (Windows), else the `Vm...` line
+/// `key` of `/proc/self/status` (Linux).
+fn status_mib(key: &str, windows_key: &str) -> Option<f64> {
+    let (_, counters) = crate::devtools::trace::process_counters();
+    if let Some((_, bytes)) = counters.iter().find(|(name, _)| *name == windows_key) {
+        return Some(bytes / (1024.0 * 1024.0));
+    }
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     let line = status.lines().find(|l| l.starts_with(key))?;
     let kib: f64 = line.split_whitespace().nth(1)?.parse().ok()?;
@@ -122,10 +146,14 @@ impl Bench {
         }
         let seconds = (now - since).as_secs_f64();
         let mut report = summarize(&self.times, seconds);
+        let before = &self.series[..self.series.len() - self.times.len()];
+        report.load_hitches = before.iter().filter(|(_, ms)| *ms > HITCH_MS).count();
+        report.load_worst = before.iter().map(|(_, ms)| *ms).fold(0.0, f64::max);
+        report.ready_seconds = self.ready_at.map(|at| (at - self.created).as_secs_f64());
         report.cpu_ms_per_frame =
             self.cpu_start.zip(cpu_seconds()).map(|(a, b)| (b - a) * 1000.0 / self.times.len() as f64);
-        report.rss_mib = status_mib("VmRSS:");
-        report.peak_rss_mib = status_mib("VmHWM:");
+        report.rss_mib = status_mib("VmRSS:", "working_set_bytes");
+        report.peak_rss_mib = status_mib("VmHWM:", "peak_working_set_bytes");
         if let Ok(path) = std::env::var("NFSMW_BENCH_SERIES") {
             let csv: String = self.series.iter().map(|(t, dt)| format!("{t:.3},{dt:.3}\n")).collect();
             if let Err(e) = std::fs::write(&path, format!("ms_since_start,frame_ms\n{csv}")) {
@@ -148,8 +176,15 @@ impl Report {
                 self.frames as f64 / self.seconds.max(1e-9)
             ),
             format!(
-                "bench: frame time ms p50 {:.2} p95 {:.2} p99 {:.2} worst {:.2}",
-                self.p50, self.p95, self.p99, self.worst
+                "bench: frame time ms p50 {:.2} p95 {:.2} p99 {:.2} worst {:.2} mean {:.2}",
+                self.p50, self.p95, self.p99, self.worst, self.mean
+            ),
+            format!(
+                "bench: hitches over {HITCH_MS} ms: {} measured; {} before measuring (worst {:.1} ms); ready after {} s",
+                self.hitches,
+                self.load_hitches,
+                self.load_worst,
+                opt(self.ready_seconds)
             ),
             format!(
                 "bench: cpu ms/frame {} rss MiB {} peak rss MiB {}",
@@ -185,6 +220,13 @@ mod tests {
     }
 
     #[test]
+    fn the_summary_counts_hitches_and_the_mean() {
+        let report = summarize(&[10.0, 30.0, 20.0, 60.0], 1.0);
+        assert_eq!(report.hitches, 2);
+        assert_eq!(report.mean, 30.0);
+    }
+
+    #[test]
     fn nothing_is_measured_before_the_scene_is_ready() {
         let mut bench = Bench::new(0.1);
         assert!(bench.frame(false).is_none());
@@ -195,6 +237,6 @@ mod tests {
     fn the_report_names_the_renderer_and_the_percentiles() {
         let lines = summarize(&[10.0, 20.0], 1.0).lines("bevy");
         assert!(lines[0].contains("renderer bevy") && lines[1].contains("p99"), "{lines:?}");
-        assert!(lines[2].contains("n/a"));
+        assert!(lines[2].contains("hitches") && lines[3].contains("cpu ms/frame"), "{lines:?}");
     }
 }
