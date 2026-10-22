@@ -52,8 +52,8 @@ impl ProfileDir {
         self.root.join(alias).join(alias)
     }
 
-    /// The aliases with a profile file: folders holding a file of the same name that the game would list (fewer
-    /// than 8 characters, no space), sorted. An unreadable or missing root gives none.
+    /// The aliases with a profile file: folders holding a file of the same name that the list shows (at most 31
+    /// characters, no space), sorted. An unreadable or missing root gives none.
     pub fn aliases(&self) -> Vec<String> {
         let Ok(entries) = fs::read_dir(&self.root) else { return Vec::new() };
         let mut names: Vec<String> = entries

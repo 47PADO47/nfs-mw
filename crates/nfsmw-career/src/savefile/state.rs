@@ -5,8 +5,6 @@ use super::autosave::AutosaveManager;
 
 /// Longest alias kept by the library: 31 characters (`strncpy` into 32 bytes).
 pub const ALIAS_MAX_CHARS: usize = 31;
-/// Aliases listed by the screens are shorter than this many characters.
-pub const LISTABLE_ALIAS_LIMIT: usize = 8;
 /// The label of the default name of player 1 when the alias is empty.
 pub const DEFAULT_NAME_PLAYER_1: &str = "COMMON_PLAYER_1";
 /// The label of the default name of player 2.
@@ -30,11 +28,12 @@ pub fn alias_dir_path(root: &str, alias: &str) -> String {
     format!("{root}/{}", truncate_alias(alias))
 }
 
-/// The listing rule: of every entry of the root (folders and files, not `.` and `..`) the game keeps only names
-/// shorter than 8 characters and without a space. This hides `Settings.ini`, and an alias of 8 or more characters or
-/// with a space can never be loaded or deleted from the screens.
+/// The listing rule: an alias is listed when it is at most 31 characters and has no space. The original game keeps
+/// only names shorter than 8 characters, which hides a longer alias from its own list; this build lists longer names
+/// too. A name with a space is never listed. `Settings.ini` is still hidden: it is a file, and a profile is only
+/// listed from a folder that holds a profile file of the same name (`career/io.rs`).
 pub fn is_listable_alias(name: &str) -> bool {
-    name.chars().count() < LISTABLE_ALIAS_LIMIT && !name.contains(' ')
+    name.chars().count() <= ALIAS_MAX_CHARS && !name.contains(' ')
 }
 
 /// Filters a directory listing with [`is_listable_alias`], keeping the order.
@@ -168,15 +167,15 @@ mod tests {
     }
 
     #[test]
-    fn only_short_names_without_a_space_are_listed() {
+    fn names_up_to_31_characters_without_a_space_are_listed() {
         assert!(is_listable_alias("NAME"));
         assert!(is_listable_alias("stock"));
-        assert!(is_listable_alias("1234567"), "seven characters");
-        assert!(!is_listable_alias("12345678"), "eight characters");
+        assert!(is_listable_alias("playErName"), "ten characters");
+        assert!(is_listable_alias(&"a".repeat(ALIAS_MAX_CHARS)));
+        assert!(!is_listable_alias(&"a".repeat(ALIAS_MAX_CHARS + 1)));
         assert!(!is_listable_alias("my name"));
-        assert!(!is_listable_alias("Settings.ini"));
         assert!(is_listable_alias(""));
-        assert_eq!(list_aliases(["NAME", "Settings.ini", "a b", "mwo"]), ["NAME", "mwo"]);
+        assert_eq!(list_aliases(["NAME", "a b", "playErName", "mwo"]), ["NAME", "playErName", "mwo"]);
     }
 
     #[test]
