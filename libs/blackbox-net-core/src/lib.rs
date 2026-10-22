@@ -17,6 +17,7 @@
 //! - [`session`]: the session and per-peer state machines (lobby, load barrier, intro, countdown, running, results),
 //!   and the player party roster for local and remote seats.
 //! - [`discovery`]: the LAN discovery request and reply datagrams.
+//! - [`ratelimit`]: token buckets, failure locks and the pre-authentication caps.
 //!
 //! No game names, no threads and no wall clock: every function that needs the time takes `now_ms` from the caller, so
 //! tests are deterministic. Standard library only.
@@ -26,6 +27,7 @@ pub mod clock;
 pub mod conn;
 pub mod discovery;
 pub mod link;
+pub mod ratelimit;
 pub mod replicate;
 pub mod rng;
 pub mod session;
