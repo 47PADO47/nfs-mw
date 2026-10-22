@@ -109,9 +109,17 @@ defaults?` (`0x8AEF5AE8`, Yes/No) and puts the current mode's rows back. The kno
 
 **What the race gets** (`RaceOptions`): the circuit's and the knockout's laps; the opponents, the difficulty (33, 66 or 100) and
 the catch-up switch for the modes that have the row; the traffic as `FillCustomRace` writes it, 0, 10, 30 or 50 **[exe]** (`ai-traffic-spawning.md`).
-Heat Level Moderate or Maximum leaves the road's police on and gives the car the heat 3 or 5 for a chase that starts in the race
-(`race/start.rs`); None and Minimum call off a pursuit at the start of the race **[ours]**: the exe's `FillCustomRace` enables cops
-only when `CopsOn` is set, which the screens of this build do not expose. The police of free roam are the ones that appear.
+**Heat Level** (`race/heat.rs`) **[ours]**: None gives no cops and calls off any chase still on (a pursuit race keeps its own
+police). Minimum, Moderate and Maximum start a chase at heat 1, 3 and 5 of the install's cop tables: the same wave the free-roam
+`pursuit <heat>` command starts (cop counts, car types, roadblocks, spikes and the helicopter as that heat has them). The chase
+starts at the green light, once the GO is given and the player's car stands on the road, so the countdown runs without cops.
+The car carries the same heat into any later chase of the race (`set_carried_heat`). The chase is of the player's car: the AI
+racers are traffic to the cops. The chase ends at the line and the cops are given up there (`finish_race`).
+**A bust** ends the race as the player's last place with no time, as a pursuit challenge's bust loses it: no cash, no career
+result and no record. The arrest and the infractions screen play as in free roam. An escape only ends the chase (the cops lock
+out as the model says) and the race goes on to the line. The default, Minimum, therefore puts cops in a custom race where it
+did not before. The console `race start <race> heat=0..3` sets the level. The split-screen race has no Heat Level and no cops
+([split-screen.md](split-screen.md)).
 
 Back returns to the track list, Accept opens the car select.
 
