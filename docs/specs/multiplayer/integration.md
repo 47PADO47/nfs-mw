@@ -92,7 +92,7 @@ Proposed steps, each a small commit that keeps single player working:
    turns into sound and effects. The sim returns events; it does not call audio.
 3. Move settings the sim reads (wheel options, assists) into plain structs passed in by the caller.
 
-3a. Players and inputs: the scene keeps a `Players` list keyed by `PlayerId` (`blackbox-net-core` `session::Party`) and per-player `Inputs`. Split-screen co-op builds this first ([ADR 0010](../../decisions/0010-coop-and-the-n-player-world.md)). `WorldSim::step(tick, &Inputs)` keeps the same keying.
+3a. Players and inputs: the scene keeps a `Players` list keyed by `PlayerId` (`blackbox-net-core` `session::Party`) and per-player `Inputs`. Built for split-screen co-op ([ADR 0010](../../decisions/0010-coop-and-the-n-player-world.md), `scenes/world/players/`). `WorldSim::step(tick, &Inputs)` keeps the same keying.
 
 4. Move `CarSim`, the pair code, the terrain and prop world, the AI world and the pursuit scene state into `nfsmw-sim`
    behind a `WorldSim` type with `step(tick, &Inputs) -> StepEvents`. The scene becomes a view: it owns a `WorldSim`, feeds

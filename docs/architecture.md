@@ -469,4 +469,4 @@ The milestones and what is done in each are in [roadmap.md](roadmap.md). Designs
 multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)), co-op on the same N-player world ([ADR 0010](decisions/0010-coop-and-the-n-player-world.md)) and the telemetry
 server ([ADR 0007](decisions/0007-telemetry-server.md), [specs](specs/telemetry/README.md)).
 
-Planned, not built: the world will hold a list of players (`crates/nfsmw/src/scenes/world/players/`). P1 is the lead, and single player is one entry in that list, so a second player uses the same code path as the first ([ADR 0010](decisions/0010-coop-and-the-n-player-world.md)).
+The world holds a list of players (`crates/nfsmw/src/scenes/world/players/`). P1 is the lead, and single player is one entry in that list, so a second player uses the same code path as the first; split-screen co-op career is built on it ([ADR 0010](decisions/0010-coop-and-the-n-player-world.md), [spec](specs/coop-career.md)).
