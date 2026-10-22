@@ -137,6 +137,14 @@ pub fn ordinal(n: u32) -> String {
     format!("{n}{suffix}")
 }
 
+/// `1 vote`, `3 votes`.
+pub fn votes(count: u8) -> String {
+    match count {
+        1 => "1 vote".into(),
+        n => format!("{n} votes"),
+    }
+}
+
 /// A race time as `m:ss.mmm`; 0 reads as `-`.
 pub fn race_time(ms: u32) -> String {
     if ms == 0 {

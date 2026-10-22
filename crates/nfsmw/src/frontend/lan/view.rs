@@ -14,15 +14,22 @@ const PANEL_WIDTH: f32 = 760.0;
 const LABEL_WIDTH: f32 = 300.0;
 const SIDE_WIDTH: f32 = 240.0;
 
-/// Draws `page` in the middle of the screen and returns the clicks on it as keys.
+/// Draws `page` in the middle of the screen, its side column in a panel to the right, and returns the clicks as keys.
+///
+/// The rows and the side column are two windows, not two columns of one: `horizontal_top` with a `vertical` inside a
+/// window that sizes itself crashed the renderer in a screenshot run (an access violation), so the layout stays flat.
 pub fn show_page(ctx: &egui::Context, page: &PageView) -> Vec<LanKey> {
     let mut keys = Vec::new();
+    let side = !page.side_title.is_empty();
+    let offset = match side {
+        true => -(SIDE_WIDTH + 24.0) / 2.0,
+        false => 0.0,
+    };
     egui::Window::new("lan_menu")
         .title_bar(false)
         .resizable(false)
         .collapsible(false)
-        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
-        .default_width(PANEL_WIDTH)
+        .anchor(Align2::CENTER_CENTER, vec2(offset, 0.0))
         .frame(Frame::window(&ctx.global_style()))
         .show(ctx, |ui| {
             ui.set_min_width(PANEL_WIDTH);
@@ -32,14 +39,7 @@ pub fn show_page(ctx: &egui::Context, page: &PageView) -> Vec<LanKey> {
                 ui.colored_label(ui.visuals().warn_fg_color, error);
             }
             ui.separator();
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| rows(ui, page, &mut keys));
-                if page.side_title.is_empty() {
-                    return;
-                }
-                ui.separator();
-                ui.vertical(|ui| side(ui, page));
-            });
+            rows(ui, page, &mut keys);
             ui.separator();
             ui.horizontal(|ui| {
                 for (key, what) in &page.hints {
@@ -49,12 +49,19 @@ pub fn show_page(ctx: &egui::Context, page: &PageView) -> Vec<LanKey> {
                 }
             });
         });
+    if side {
+        egui::Window::new("lan_side")
+            .title_bar(false)
+            .resizable(false)
+            .collapsible(false)
+            .anchor(Align2::CENTER_CENTER, vec2((PANEL_WIDTH + 24.0) / 2.0, 0.0))
+            .frame(Frame::window(&ctx.global_style()))
+            .show(ctx, |ui| side_column(ui, page));
+    }
     keys
 }
 
 fn rows(ui: &mut egui::Ui, page: &PageView, keys: &mut Vec<LanKey>) {
-    let width = PANEL_WIDTH - SIDE_WIDTH * f32::from(u8::from(!page.side_title.is_empty()));
-    ui.set_min_width(width - 40.0);
     egui::Grid::new("lan_rows").num_columns(2).min_col_width(LABEL_WIDTH).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
         for (at, row) in page.rows.iter().enumerate() {
             let selected = at == page.selected;
@@ -93,7 +100,7 @@ fn value(ui: &mut egui::Ui, row: &Row, at: usize, keys: &mut Vec<LanKey>) {
     }
 }
 
-fn side(ui: &mut egui::Ui, page: &PageView) {
+fn side_column(ui: &mut egui::Ui, page: &PageView) {
     ui.set_width(SIDE_WIDTH);
     ui.label(RichText::new(&page.side_title).strong());
     if page.side.is_empty() {

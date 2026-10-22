@@ -76,7 +76,8 @@ subnets; the default is the private ranges). Broadcast itself is not exercised b
 by `ClientEndpoint`) and a `PredictedCar`. It owns the connection state (admission, password, resume token and reconnect),
 the lobby mirror (`LobbyView`), the clock (`NetClock` fed by PONGs), the snapshot path (parts, views, interpolation,
 prediction and reconciliation, the global block as `GlobalView`), the event queue and the overlay statistics. The Bevy
-resource, `NetWorldScene`, the lobby screens, the console commands and the settings keys are not built; the resource
+resource and `NetWorldScene` are not built here (the lobby screens, the console commands and the settings keys are: "the front
+end" below); the resource
 will hold a `ClientSession<ClientEndpoint, GameCar>` and call `update`, `due_ticks`/`submit_input`, `own_pose`,
 `remote_entities` and `take_events` once a frame. Scripted bots over the same session are
 `nfsmw_server::bot` (`Bot`, `BotFleet`, `ThreadedFleet`).
@@ -99,8 +100,17 @@ player is `PlayerId(0)`, the lead. The full description and the gaps: [world hos
 | HUD hooks | The global block (heat, busted and cooldown meters, chase state, race place and lap) over the predicted car's dials; the server fills it through `WorldControl::fill_global` |
 | Command line | `--host`, `--connect ADDR`, `--dedicated`, `--discover`, `--port`, `--name`, `--server-config`, `--seconds` |
 
-The lobby screens, the console commands, the settings keys and the overlay line are the front end's (`frontend/lan/`,
-`devtools/console/net*`, `settings/net/`) over the same `NetFrontend`.
+**As built (2026-10-22): the front end.** The lobby screens, the console commands, the settings keys and the overlay line are
+built against a seam, the `NetFrontend` trait (`frontend/lan/backend.rs`), which the game's `NetSession` implements and keeps in
+the non-send resource `LanBackend`; the full description is [frontend](frontend.md). The main menu's LAN icon opens the LAN menu
+(host, join with discovery, direct connect and the password prompt, the lobby with ready, car, role, chat, quick lines, votes,
+the player menu and the host's settings and start, the results). The original has no LAN screens in its packages, so these are
+egui panels in the active theme's style rather than FEng screens; the car select is the custom race's `Car_Select.fng`. The
+session HUD draws the chat and notice feed, the vote, the countdown and the spectator panel. The console has `net.host`,
+`net.connect`, `net.disconnect`, `net.stats`, `net.sim`, `net.kick`, `net.say`, `net.lead`, `net.scan`, `net.servers` and
+`net.status`; the settings are `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats` and
+`net_identity_file` on every layer; the metrics overlay shows the `net` line at the advanced level (or always with
+`net_show_stats`). Tested on a mock `NetFrontend` and in offscreen screenshot runs on a pretend session (`NFSMW_LAN_DEMO=1`).
 
 **Pause and menus.** The server never pauses. The pause key opens the overlay; the client keeps stepping its own car with
 neutral input (built: the pause wrapper keeps updating a scene that `runs_while_paused`). The garage is a lobby feature in a session, not an overlay on a live world.

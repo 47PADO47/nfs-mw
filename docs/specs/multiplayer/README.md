@@ -30,7 +30,9 @@ Read in this order:
    lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it;
    [world-host.md](world-host.md): the real world behind the server; [game-wiring.md](game-wiring.md): the game's side as
    built (`--host`, `--connect`, `--dedicated`, `--discover`, `NetSession`, the listen server's thread, the world's client
-   mode).
+   mode);
+   [frontend.md](frontend.md): the LAN menu, the lobby, the session HUD, the `net.*` console commands and the `net_*` settings as
+   built, and the `NetFrontend` seam they use.
 8. [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md): the revisions made before building (16-bit ids, shared delta
    encoding, layers, skippable frames, registries, the session state machine). It overrides the files above where they disagree.
 9. [determinism.md](determinism.md): the audit of the sim against D1 to D8 and the planned fix for each finding.

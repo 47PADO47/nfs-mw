@@ -87,7 +87,7 @@ impl DemoNet {
             2 => me,
             _ => "Ming",
         };
-        lobby.upsert(row(2, third, "CAMARO", false, 0));
+        lobby.upsert(row(2, third, "CAMARO", my_slot != 2, 0));
         lobby.my_slot = Some(my_slot);
         lobby.settings = Some(settings);
         self.lobby = Some(lobby);
@@ -123,11 +123,17 @@ impl DemoNet {
             lobby.phase = SessionPhase::Running;
             self.status = NetStatus::Playing;
             self.race_ends = Some(self.frame + RACE_FRAMES);
+            let go = ChatLine { from_slot: 1, channel: ChatChannel::All, text: "go go go!".into(), tick: self.frame };
+            self.events.push(SessionEvent::Chat(go));
+            self.events.push(notice(NoticeCode::Mute, 2));
+            let options = List::new(vec![VoteOption { id: 0, count: 1 }]).unwrap_or_default();
+            lobby.vote = Some(VoteState { kind: VoteKind::Restart, options, ends_tick: self.frame + 1200 });
         }
         if self.race_ends.is_some_and(|end| self.frame >= end) {
             self.race_ends = None;
             lobby.phase = SessionPhase::Lobby;
             lobby.players.iter_mut().for_each(|row| row.ready = false);
+            lobby.vote = None;
             let finish = |slot: u8, place: u8, time_ms: u32| ResultRow {
                 slot,
                 entity_id: u16::from(slot),
