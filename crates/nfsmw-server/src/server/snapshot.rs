@@ -48,11 +48,12 @@ impl<W: WorldControl> Server<W> {
         }
         let car = self.frames.car_view(slot).copied();
         let own_state = self.world.own_state(PlayerId(slot)).unwrap_or_default();
-        let global = GlobalBlock {
+        let mut global = GlobalBlock {
             phase: self.lobby.wire_phase(),
             time_of_day: f32::from(LobbyConfig::default().time_of_day),
             ..GlobalBlock::default()
         };
+        self.world.fill_global(PlayerId(slot), &mut global);
         let mut candidates = Vec::with_capacity(self.frames.framed_len());
         self.frames.candidates(car.map(|view| view.position), &mut candidates);
         let Some(state) = self.peers.get_mut(&peer) else {
