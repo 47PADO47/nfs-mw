@@ -144,6 +144,8 @@ A player holds a device, as the original maps a player to a controller port **[d
 | The two views | `scenes/world/split_view.rs`, `app/split.rs` |
 | The HUDs | `hud/split/` |
 
+Planned (`feat/coop-career`, not built): co-op career turns player 2 from an AI-slot "Opponent" car into a real player in `scenes/world/players/` (a `Players` list keyed by `PlayerId`, each with its own `Drive`). Player 2 then uses the same path as player 1. In that work these are removed: `seat_person`, `set_racer_pedals`, `split::SECOND` and `SplitState.camera`. The rows above that name them change with it. Design: [co-op career](specs/coop-career.md) and [ADR 0010](decisions/0010-coop-and-the-n-player-world.md).
+
 ## 7. What the world does (built)
 
 - **The second human is a racer.** `race start <race> split=<CAR>` (console) or the front end's `queue_split_race` makes a race with
@@ -158,6 +160,8 @@ A player holds a device, as the original maps a player to a controller port **[d
   (`viewer/camera/chase.rs`) after their racer, with look back. **[ours]**
 - **Streaming** follows the middle of the two cars (`split_focus`), so the world around both stays loaded while they are within a
   streaming radius of each other. A car left far behind sees unloaded city (open question 6).
+  Planned (`feat/coop-career`, not built): one residency centre per player replaces `split_focus`, so each car's area loads in full
+  and the sim waits until both are resident. This answers open question 6.
 - **The views.** `Scene::split_view(player, aspect)` builds one half's frame (`scenes/world/split/view.rs`, sharing `fill_view` with the
   single-player frame); `app/split.rs` captures both off-screen at (window width) x (half height), uploads them as UI textures and puts
   two quads under the HUD layer. While a split race is on the main frame is blank, the speed streaks and the mirror are off.
@@ -174,5 +178,5 @@ A player holds a device, as the original maps a player to a controller port **[d
 3. A pad unplugged mid-race: pause as the single-player game does for the active pad.
 4. The two-player sound mix.
 5. Split-screen records and the "2 players" statistics page of the post-race screen.
-6. A second streaming focus instead of the middle point, for cars that are far apart.
+6. A second streaming focus instead of the middle point, for cars that are far apart. Planned answer: one residency centre per player, in the co-op career work (`feat/coop-career`, [spec](coop-career.md)). Not built.
 7. The camera collision for player 2 (their chase camera does not test walls).
