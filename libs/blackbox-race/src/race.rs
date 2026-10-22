@@ -120,6 +120,10 @@ pub enum RaceEvent {
     KnockedOut {
         racer: usize,
     },
+    /// A human racer entered a reset zone: the race goes back to the grid (`Course::resets`).
+    Reset {
+        racer: usize,
+    },
     /// Every human racer is done (finished or out), or the time ran out: the race is over.
     Over,
 }
@@ -254,6 +258,7 @@ impl Race {
             self.apply(index, event, time, &mut events);
         }
         self.pass_traps(index, from, to, &mut events);
+        self.pass_resets(index, from, to, &mut events);
         if !events.is_empty() {
             self.check_over(&mut events);
         }
@@ -278,6 +283,19 @@ impl Race {
             if self.racers[index].traps.record_pass(slot, kmh, trap.threshold_kmh).is_some() {
                 out.push(RaceEvent::SpeedTrap { racer: index, slot, kmh });
             }
+        }
+    }
+
+    /// A move into a reset zone: a human racer that was outside it and touches it goes back to the grid. The trigger
+    /// system of the original raises the event once on entering, so a racer that stays inside raises nothing more
+    /// (`docs/specs/race-wrongway.md` section 3).
+    fn pass_resets(&mut self, index: usize, from: Vec3, to: Vec3, out: &mut Vec<RaceEvent>) {
+        if !self.racers[index].human {
+            return;
+        }
+        let entered = self.course.resets.iter().any(|zone| !zone.contains(from) && zone.touches(from, to));
+        if entered {
+            out.push(RaceEvent::Reset { racer: index });
         }
     }
 

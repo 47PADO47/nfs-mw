@@ -250,3 +250,62 @@ fn a_far_finish_line_after_a_wide_last_checkpoint_is_reached_on_its_own() {
     assert!(finished > checkpoint, "the checkpoint comes first and the finish line is its own crossing");
     assert_eq!(events.iter().filter(|e| matches!(e, RaceEvent::Checkpoint { .. })).count(), 1);
 }
+
+/// A one metre slab across the road 50 m behind the grid, like the wrong-way trigger of a race
+/// (`docs/specs/race-wrongway.md`).
+fn wrong_way_course() -> Course {
+    let mut course = course(1);
+    course.resets = vec![Gate::new(Vec3::new(0.0, 0.0, -50.0), Vec3::Z, Vec3::Y, [1.0, 150.0, 100.0])];
+    course
+}
+
+fn wrong_way_race(humans: &[bool]) -> Race {
+    let grid: Vec<(bool, Vec3)> = humans.iter().map(|&human| (human, Vec3::ZERO)).collect();
+    let mut race = Race::new(wrong_way_course(), RaceConfig::default(), &grid);
+    race.start_now();
+    race
+}
+
+#[test]
+fn a_human_driving_backwards_into_the_wrong_way_zone_is_sent_back() {
+    let mut race = wrong_way_race(&[true]);
+    let events = drive(&mut race, 0, 0.0, &[-20.0, -49.0, -51.0]);
+    assert_eq!(events, [RaceEvent::Reset { racer: 0 }]);
+    assert!(!race.is_over(), "a reset is a restart, not an end");
+}
+
+#[test]
+fn the_zone_raises_its_event_once_per_entry() {
+    let mut race = wrong_way_race(&[true]);
+    let first = drive(&mut race, 0, 0.0, &[-40.0, -49.8, -50.2, -52.0, -60.0]);
+    assert_eq!(first, [RaceEvent::Reset { racer: 0 }], "once, however long the car stays in or past the slab");
+    let mut inside = Vec::new();
+    inside.extend(race.move_racer(0, Vec3::new(0.0, 0.0, -50.3)));
+    inside.extend(race.move_racer(0, Vec3::new(0.0, 0.0, -50.1)));
+    assert_eq!(inside.len(), 1, "going back in raises it again, the second step inside the slab does not");
+}
+
+#[test]
+fn a_fast_car_cannot_jump_the_thin_zone() {
+    let mut race = wrong_way_race(&[true]);
+    let events = drive(&mut race, 0, 0.0, &[-30.0, -80.0]);
+    assert_eq!(events, [RaceEvent::Reset { racer: 0 }], "the move from 30 to 80 m behind crosses the 1 m slab");
+}
+
+#[test]
+fn only_a_human_racer_is_sent_back_and_only_while_racing() {
+    let mut race = wrong_way_race(&[true, false]);
+    assert!(drive(&mut race, 1, 0.0, &[-40.0, -60.0]).is_empty(), "the computer racers ignore the zone");
+    let grid = [(true, Vec3::ZERO)];
+    let mut staged = Race::new(wrong_way_course(), RaceConfig::default(), &grid);
+    assert!(drive(&mut staged, 0, 0.0, &[-40.0, -60.0]).is_empty(), "nothing is armed before GO");
+    let mut finished = wrong_way_race(&[true, false]);
+    drive(&mut finished, 0, 0.0, &LAP);
+    assert!(drive(&mut finished, 0, 0.0, &[-40.0, -60.0]).is_empty(), "a racer that is done is not sent back");
+}
+
+#[test]
+fn a_zone_beside_the_road_is_not_touched_by_the_road() {
+    let mut race = wrong_way_race(&[true]);
+    assert!(drive(&mut race, 0, 100.0, &[-40.0, -60.0]).is_empty(), "the slab is 150 m wide, not 250 m");
+}

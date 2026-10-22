@@ -114,7 +114,7 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
   (5 on `10_2_1_sprint`). **[verified]** The spacing is the distance of each of the two flares from the centre
   ([race-finish-effects](../specs/race-finish-effects.md) section 1).
 - `Width` (the `wrongway` trigger, 150 m for `10_2_1_sprint`), `Directional`, `ResetsPlayer` describe the
-  wrong-way reset trigger; `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
+  wrong-way reset trigger, a plane trigger behind the start ([specs/race-wrongway.md](../specs/race-wrongway.md)); `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
   `fxgame_flare_red` with a `FlareSpacing` of 4 to 16 m).
 
 ### 3.2 Start of the race
