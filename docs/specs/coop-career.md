@@ -262,3 +262,8 @@ What changes when a seat is remote. The rules above do not change.
 - A pursuit run in which one car is busted while the chase goes on for the other.
 - A `--ui-script` career path: Co-op Career, Press Start, car select, resume.
 - Residency bytes logged for two centres, and a `--bench-seconds` run with both halves at 30 Hz or above.
+- Measured 2026-10-22, release build, offscreen (`--screenshot`, hidden window, no vsync): single player and co-op both
+  hold the hidden window's 60 Hz cap (16.7 ms a frame), so each half, captured in turn, refreshes at 30 Hz. The cap hides
+  the headroom; a visible `--bench-seconds` run measures it.
+- The career-menu path was run offscreen with a scratch profile past the prologue: Co-op Career, Press Start for
+  player 2 (`key NumpadEnter`), the car select, the safe house, Resume Free Roam, and the split-screen world.
