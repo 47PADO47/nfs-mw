@@ -86,6 +86,8 @@ mod speech_look;
 mod speed_trails;
 mod split;
 mod start;
+#[cfg(test)]
+mod step_bench_tests;
 mod story_movie;
 mod sun;
 mod teardown;
