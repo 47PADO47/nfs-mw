@@ -162,7 +162,20 @@ three measures the whole app (`--bench-seconds`, now hidden, with hitch counts) 
 
 Back faces are culled by the original's rule: opaque textures are single-sided unless punch-through or flagged, blended ones two-sided, mirrored instances and reflection views flip the side ([specs/backface-culling.md](specs/backface-culling.md)). Shadow maps, the sky and effects stay two-sided.
 
-Next in this round: the load path.
+### Load time and memory (P4)
+
+| Finding | Fix |
+| --- | --- |
+| The front end read about 130 MB before the window opened, among them TrackMaps.bin (63.5 MB) for 3 textures, kept in the memo. | A ranged texture-pack reader (chunk headers by seek, only the wanted textures' bytes) for TrackMaps, RIVALS and DYNTEX, also used by the challenge series' maps; once-read packs are freed; the texture groups and the FEng catalog load on parallel threads. |
+| Section vertices were held twice, and every vertex carried a second UV and a tangent. | The solid's Vertex is Pod with the GPU layout and uploads by a cast; the extra channels are optional; one reservation. |
+| Inflated textures were copied once more, GameDir clones copied the 2,084-entry index, and play loaded its settings and discovered the mods twice. | The inflated block becomes the image; the index is shared by an Arc; settings and mods load once. |
+
+The front end's assets still load before the first screen (in parallel now): the screens, the HUD and the pointer
+expect them from the start.
+
+Known limit of the round: the first start after a shader or driver change compiles every pipeline the settings use
+while the loading screen is up (prewarm), where it used to spread the same compilation over the first frames as
+hitches. With a warm Vulkan pipeline cache this takes under a second.
 
 ## How to measure
 
