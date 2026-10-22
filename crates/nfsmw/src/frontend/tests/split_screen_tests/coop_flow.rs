@@ -3,8 +3,8 @@
 //! without `NFSMW_GAME_DIR`. The custom race's split state and the career handle are shared, so the tests take the custom
 //! race's turn and put both back.
 
-use super::custom_race_screen_tests::{TURN, install};
-use super::*;
+use super::super::custom_race_screen_tests::{TURN, install};
+use super::super::*;
 use crate::career::{CareerHandle, coop_players, set_coop_players};
 use crate::frontend::custom_race::state;
 use crate::frontend::flow_movie_tests::install_rig;
