@@ -76,11 +76,15 @@ impl WorldScene {
             self.end_coop_queued = false;
             self.end_coop(renderer);
         }
-        let Some(setup) = self.queued_coop.take() else { return };
-        let Some(lead) = self.players.lead() else {
-            log::warn!("co-op needs the lead's car in the world first");
+        if self.queued_coop.is_none() {
+            return;
+        }
+        // Player 2 starts behind player 1, so the join waits until player 1's car stands on the road.
+        let Some(lead) = self.players.lead().filter(|drive| drive.has_sim() && drive.waiting_for_road().is_none())
+        else {
             return;
         };
+        let Some(setup) = self.queued_coop.take() else { return };
         let (position, heading) = (lead.position(), lead.heading());
         let forward = glam::Vec3::new(heading.cos(), heading.sin(), 0.0);
         let near = super::tether::behind(position, forward, JOIN_BEHIND);
