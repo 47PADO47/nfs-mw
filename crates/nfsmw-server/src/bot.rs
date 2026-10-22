@@ -310,14 +310,49 @@ mod tests {
         assert_eq!(fleet.seated(), 0);
     }
 
-    /// Waits for the server of `lan/server`: bots join the real server loop over loopback UDP, drive for two seconds
-    /// and leave. Needs `nfsmw-server`'s server type, which the skeleton does not have yet.
+    /// Bots join the real server loop over loopback UDP with the real handshake, race, and drive for two seconds.
     #[test]
-    #[ignore = "needs the nfsmw-server loop (branch lan/server)"]
     fn bots_join_the_real_server() {
-        // Start the server here once `lan/server` lands, then:
-        // let mut fleet = BotFleet::connect(server_addr, 4, 7).unwrap();
-        // step the server and the fleet for 2 s of fake time; assert fleet.seated() == 4 and every report has
-        // snapshots > 0, inputs_sent > 0 and snaps == 0.
+        use crate::{Server, ServerConfig, ServerSetup, bind};
+        use nfsmw_sim::toy::{ToyConfig, ToyWorld};
+
+        let mut config = ServerConfig::from_toml(
+            "bind = \"127.0.0.1\"
+port = 0
+discovery = false
+countdown_seconds = 1
+status_seconds = 0
+",
+        )
+        .expect("a valid config");
+        config.discovery = false;
+        let identity = IdentityKey::generate().expect("a key");
+        let endpoint = bind(&config, identity).expect("the server binds");
+        let addr = endpoint.local_addr();
+        let world = ToyWorld::new(7, ToyConfig::default());
+        let setup = ServerSetup::toy(world.config().car_types);
+        let mut server = Server::new(config, setup, endpoint, world, 0).expect("valid settings");
+        let mut fleet = BotFleet::connect(addr, 4, 7).expect("the bots start");
+        let mut driving = None;
+        for step in 0..6000u64 {
+            let now_ms = step * 1000 / 60;
+            fleet.step(now_ms);
+            server.tick_once(now_ms);
+            thread::sleep(Duration::from_millis(1));
+            let all_driving = fleet.reports().iter().all(|report| report.inputs_sent > 0 && report.snapshots > 0);
+            if driving.is_none() && all_driving {
+                driving = Some(step);
+            }
+            if driving.is_some_and(|since| step >= since + 120) {
+                break;
+            }
+        }
+        assert!(driving.is_some(), "every bot drives: {:?}", fleet.reports());
+        assert_eq!(fleet.seated(), 4);
+        for report in fleet.reports() {
+            assert!(report.snapshots > 0 && report.inputs_sent > 0, "{report:?}");
+            assert_eq!(report.snaps, 0, "{report:?}");
+        }
+        fleet.leave();
     }
 }
