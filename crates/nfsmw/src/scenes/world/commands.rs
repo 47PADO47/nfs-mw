@@ -53,7 +53,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ),
     (
         "session [on [seed] | off]",
-        "the multiplayer session rules: on runs the world as a session would (no time scaling, the players' own views, seeded draws, blocking model loads); off is single player; no argument: the rules",
+        "the multiplayer session rules: on runs the world as a session would (no time scaling, the players' own views, seeded draws, blocking model loads); off is single player; no argument: the rules and the world's state hash",
     ),
     (
         "story status | race <event id> | arrival | firstvisit",

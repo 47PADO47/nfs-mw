@@ -55,6 +55,7 @@ mod sirens;
 mod spawn;
 mod spawn_requests;
 mod spikes;
+mod state_hash;
 mod stop;
 mod streams;
 mod support;

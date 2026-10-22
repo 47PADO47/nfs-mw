@@ -77,10 +77,11 @@ impl WorldScene {
     }
 }
 
-/// The `session` console command: `on [seed]` sets a session's rules, `off` single player's, no argument shows them.
+/// The `session` console command: `on [seed]` sets a session's rules, `off` single player's, no argument shows them
+/// and the world's state hash (`state_hash.rs`).
 pub(super) fn session_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     match args {
-        [] => Ok(format!("{:?}", scene.session_rules())),
+        [] => Ok(format!("{:?}; state hash {:016x}", scene.session_rules(), scene.state_hash())),
         ["off"] => {
             scene.set_session_rules(SessionRules::default());
             Ok("single-player rules".into())

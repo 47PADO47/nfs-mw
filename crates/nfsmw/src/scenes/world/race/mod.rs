@@ -71,6 +71,18 @@ pub(super) enum Stage {
 }
 
 impl Stage {
+    /// The stage's name, for the world's state hash (`state_hash.rs`).
+    pub(super) fn name(&self) -> &'static str {
+        match self {
+            Stage::Loading { .. } => "loading",
+            Stage::Intro { .. } => "intro",
+            Stage::Running => "running",
+            Stage::Results { .. } => "results",
+            Stage::PostRace { .. } => "post-race",
+            Stage::Outro { .. } => "outro",
+        }
+    }
+
     /// The race is staged or on: loading, the intro, counting down or running. Once the result is fixed (`Results`,
     /// `PostRace`) the career has been told and the post-race screen owns the race (`docs/specs/race-restart.md` section 1).
     pub(super) fn is_live(&self) -> bool {

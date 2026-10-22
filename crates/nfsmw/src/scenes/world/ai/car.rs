@@ -33,6 +33,7 @@ mod racing;
 mod setup;
 mod sound;
 mod speech;
+mod state_hash;
 pub(super) mod support_drive;
 mod towing;
 

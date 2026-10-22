@@ -18,6 +18,7 @@ impl TrafficWorld {
     }
 
     /// The entity ids of the cars, in the order they step.
+    #[cfg(test)]
     pub fn entity_ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.cars.iter().map(AiCar::key)
     }

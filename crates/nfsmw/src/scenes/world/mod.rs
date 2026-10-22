@@ -78,6 +78,8 @@ mod simulation;
 mod sky;
 mod sound;
 mod space;
+mod state_hash;
+use state_hash::StateHasher;
 mod speech_look;
 mod speed_trails;
 mod split;
