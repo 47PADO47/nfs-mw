@@ -154,8 +154,9 @@ Native viewports (one window with two real viewports) are out of scope. They nee
   LAN changes only where `Inputs` comes from (the network, not devices) and what `Seat::Remote` holds.
 - **Mods.** `player_car` stays the lead player. Mods see P1 only.
 - **Single-player behaviour.** After the rename from `drive` to `players`, the single-player world trace must match line for line.
-- **Performance.** Co-op renders two half captures per frame. If a half falls under 30 Hz, a later task adds a second capture slot
-  in `libs/blackbox-render/src/gpu/view_capture.rs`. The cost is measured with `--bench-seconds`.
+- **Performance.** Co-op renders a half capture per frame, the halves in turn. Measured with `--bench-seconds --offscreen`
+  (release, RTX 4070 SUPER): 203 fps in co-op against 241 fps alone, so each half refreshes at about 100 Hz and the second
+  capture slot in `libs/blackbox-render/src/gpu/view_capture.rs` is not needed (numbers in the spec).
 - **Memory.** Two residency centres can roughly double resident scenery in the worst case. Residency bytes are logged.
 - **Race seats stay.** The AI-slot human racer (`seat_person`, `set_racer_pedals`, `split::SECOND`, `SplitState.camera`) is
   the race path for split-screen and co-op alike (decision 7), so it is kept.

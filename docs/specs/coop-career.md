@@ -262,8 +262,17 @@ What changes when a seat is remote. The rules above do not change.
 - A pursuit run in which one car is busted while the chase goes on for the other.
 - A `--ui-script` career path: Co-op Career, Press Start, car select, resume.
 - Residency bytes logged for two centres, and a `--bench-seconds` run with both halves at 30 Hz or above.
-- Measured 2026-10-22, release build, offscreen (`--screenshot`, hidden window, no vsync): single player and co-op both
-  hold the hidden window's 60 Hz cap (16.7 ms a frame), so each half, captured in turn, refreshes at 30 Hz. The cap hides
-  the headroom; a visible `--bench-seconds` run measures it.
+- Measured 2026-10-22, release build, `--bench-seconds 30 --no-vsync --offscreen` (the window stays hidden and
+  unfocused), RTX 4070 SUPER, blackbox renderer, free roam at the default start:
+
+  | Run | fps | p50 ms | p95 ms | p99 ms |
+  |---|---|---|---|---|
+  | Single player | 241.4 | 4.08 | 4.42 | 4.52 |
+  | Co-op (`coop on 911TURBO arrows`) | 203.1 | 4.74 | 5.62 | 5.83 |
+  | Control: `coop on` with a car that does not exist | 244.6 | 4.04 | 4.26 | 4.57 |
+
+  Each half is captured every other frame, so each half refreshes at about 100 Hz in co-op: well above the 30 Hz the plan
+  set as the bar for a second capture slot, which is therefore not needed.
 - The career-menu path was run offscreen with a scratch profile past the prologue: Co-op Career, Press Start for
-  player 2 (`key NumpadEnter`), the car select, the safe house, Resume Free Roam, and the split-screen world.
+  player 2 (`key NumpadEnter`), the car select, the safe house, Resume Free Roam, and the split-screen world. That
+  profile's only other car is impounded, so the run went through the shared-car rule of section 3.1.
