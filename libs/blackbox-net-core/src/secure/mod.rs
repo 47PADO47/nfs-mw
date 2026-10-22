@@ -12,6 +12,7 @@
 //! - [`NoiseSealer`]: ChaCha20-Poly1305 sealing of every data packet under the Noise transport keys, the packet number
 //!   as nonce, key phases with Noise `REKEY`, and the old key kept for reordered packets.
 //! - [`token`]: connect tokens (online): sealed, short-lived, single-use, bound to the player's key and the server key.
+//! - [`password`]: the optional room password, SPAKE2 bound to the Noise handshake hash.
 //!
 //! **Why the sealer does not use `snow`'s transport state.** `snow` 0.10's stateless transport mode takes no associated
 //! data, encrypts out of place and cannot be cloned, but protocol.md 5.1 authenticates the clear header and the key
@@ -30,6 +31,7 @@ mod error;
 mod identity;
 mod noise;
 pub mod packet;
+pub mod password;
 mod sealer;
 mod server;
 #[cfg(test)]

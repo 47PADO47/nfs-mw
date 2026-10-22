@@ -5,6 +5,7 @@ mod handshake;
 mod harness;
 mod lossy;
 mod packets;
+mod password;
 mod sealing;
 mod tokens;
 mod trust;
