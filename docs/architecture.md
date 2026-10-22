@@ -468,3 +468,5 @@ Unit tests, real-install tests and the guard rails are described in [testing.md]
 The milestones and what is done in each are in [roadmap.md](roadmap.md). Designs for the later milestones: the native mod API ([modding](modding/README.md), [ADR 0005](decisions/0005-native-mod-plugins.md)),
 multiplayer ([ADR 0006](decisions/0006-multiplayer-netcode.md) and [0009](decisions/0009-multiplayer-netcode-revisions.md), [specs](specs/multiplayer/README.md)) and the telemetry
 server ([ADR 0007](decisions/0007-telemetry-server.md), [specs](specs/telemetry/README.md)).
+
+Planned, not built: the world will hold a list of players (`crates/nfsmw/src/scenes/world/players/`). P1 is the lead, and single player is one entry in that list, so a second player uses the same code path as the first ([ADR 0010](decisions/0010-coop-and-the-n-player-world.md)).

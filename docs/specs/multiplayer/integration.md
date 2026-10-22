@@ -34,7 +34,7 @@ game thread (Bevy App)
 | Piece | Job |
 |---|---|
 | `NetSession` (a Bevy resource) | Owns the net-thread handles and queues; holds connection state, lobby state, clock estimate, and statistics. Created by the "LAN game" menu entry or by `--connect`/`--host` |
-| `NetWorldScene` (a `Scene`) | The multiplayer world. `update` drains the inbox, advances the clock, runs the fixed-step accumulator for the owner's car (sample input, quantise, step, store history), applies reconciliation, and advances the display time of remote entities. `frame` builds the instance list from the owner's pose plus the interpolated remote poses, through the code the single-player world uses for AI cars (`CarPose`) |
+| `NetWorldScene` (a `Scene`) | The multiplayer world. `update` drains the inbox, advances the clock, runs the fixed-step accumulator for the owner's car (sample input, quantise, step, store history), applies reconciliation, and advances the display time of remote entities. `frame` builds the instance list from the owner's pose plus the interpolated remote poses, through the code the single-player world uses for AI cars (`CarPose`). Planned: it reuses the `Players` list (section 4, step 3a), one entry per seat |
 | Lobby screens | FEng front-end screens (the same host layer as the menus) driven by `NetSession`; egui panels for the debug view |
 | HUD hooks | The HUD reads the same `HudState` as single player; the multiplayer scene fills it from the server's pursuit, race and own-car blocks (heat, busted meter, position, lap) |
 | Console | `net.host`, `net.connect <addr>`, `net.disconnect`, `net.stats`, `net.sim <loss> <rtt> <jitter>`, `net.kick <slot>`, `net.say`, `net.lead`. They go through the existing command table so scripts and telemetry control can share them |
@@ -91,6 +91,9 @@ Proposed steps, each a small commit that keeps single player working:
 2. Replace the audio and effects outputs of the sim with plain output events (`SimEvent::Contact { .. }`) that a view layer
    turns into sound and effects. The sim returns events; it does not call audio.
 3. Move settings the sim reads (wheel options, assists) into plain structs passed in by the caller.
+
+3a. Players and inputs: the scene keeps a `Players` list keyed by `PlayerId` (`blackbox-net-core` `session::Party`) and per-player `Inputs`. Split-screen co-op builds this first ([ADR 0010](../../decisions/0010-coop-and-the-n-player-world.md)). `WorldSim::step(tick, &Inputs)` keeps the same keying.
+
 4. Move `CarSim`, the pair code, the terrain and prop world, the AI world and the pursuit scene state into `nfsmw-sim`
    behind a `WorldSim` type with `step(tick, &Inputs) -> StepEvents`. The scene becomes a view: it owns a `WorldSim`, feeds
    it the player's input, and draws what it returns.

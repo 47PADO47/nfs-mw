@@ -51,7 +51,7 @@ Status words: **not built** for every item. A **blocked on** note names the syst
 | MP-04 | P1 | **Drag race** | Straight strip, launch and shift timing, reaction time. Blocked on the drag-race reimplementation (milestone 7, "reimplement drag races and their features"). The server needs the sim tick of the start light to score reaction time |
 | MP-05 | P1 | **Speedtrap race** | Sum or best of speed readings at trap gates. Blocked on the speedtrap event data (milestone 7, "event icons") |
 | MP-06 | P1 | **Knockout** | Last place at the end of each lap is out; eliminated players become spectators. An original event type (its minimap icon exists in the game); blocked like MP-02 |
-| MP-07 | P1 | **Pursuit co-op** | Several players share one pursuit against AI police. One pursuit entity with several targets; heat and busted are tracked per player, the pursuit ends when no target remains. Built on `blackbox-pursuit`, which is pure functions, so the server can run it as it is |
+| MP-07 | P1 | **Pursuit co-op** | Several players share one pursuit against AI police. One pursuit entity with several targets; heat and busted are tracked per player, the pursuit ends when no target remains. Built on `blackbox-pursuit`, which is pure functions, so the server can run it as it is. Amended by ADR 0010: heat, cooldown, helicopter and roadblocks are shared; busted meter and bust are per target; built first for split-screen co-op. |
 | MP-08 | P1 | **Cops vs racers** | Some players drive police cars against the others. Player cops use the same car simulation as racers with a role flag; they get cop tools (siren, roadblock call, spike strip, busted contact). Blocked on a decision for what a human cop can do (open question 2) |
 | MP-09 | P2 | **Tag** | One player is "it" and holds a timer; contact with a free player (a relative-speed and distance rule evaluated on the server) passes the tag. A new mode, not in the original |
 | MP-10 | P2 | **Last standing / elimination by damage** | Optional. Needs the damage model to be a gameplay value, which it is not today (damage is visual, `blackbox-damage`) |
@@ -123,7 +123,7 @@ Status words: **not built** for every item. A **blocked on** note names the syst
 | MP-72 | P1 | **Client-side recording** | A client can record the snapshots it received, plus its own inputs and predicted states, for netcode debugging and for a personal replay |
 | MP-73 | P2 | **Replay viewer in the game** | A free camera over a recorded session. Blocked on the replay playback of telemetry F-34 |
 | MP-74 | P2 | **Persistent stats and rankings** | Needs identities and a database. M11 and later; the format of the per-race result record is fixed now so it can be stored later |
-| MP-75 | P2 | **Career-lite sharing** | Share a car or a time. Blocked on a career model (none exists) |
+| MP-75 | P2 | **Career-lite sharing** | Share a car or a time. The career model now exists (`crates/nfsmw-career`), and co-op career shares one profile ([ADR 0010](../../decisions/0010-coop-and-the-n-player-world.md)). The sharing itself is not built |
 
 ### 3.8 Quality of play
 
