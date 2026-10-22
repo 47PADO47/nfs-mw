@@ -84,6 +84,7 @@ impl TrafficWorld {
     /// not hit each other; a trailer that came loose is a body like any other. Also decides the sounds of the step:
     /// an authored whoosh for a close pass. Autonomous horns belong to the audio producer.
     pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
+        self.touches.clear();
         self.hit_timer = (self.hit_timer - STEP).max(0.0);
         for car in &mut self.cars {
             car.tick_quiet();
@@ -110,6 +111,9 @@ impl TrafficWorld {
         passes.clear();
         // The traffic cars the player hit this step and how fast they closed: the free-roam 911 counts the hard ones.
         let mut traffic_hits: Vec<(usize, f32)> = Vec::new();
+        // Every pair that touched, by car index (`None` is the player), with its closing speed: a server's contact
+        // events (`touches.rs`).
+        let mut touched: Vec<(Option<usize>, usize, f32)> = Vec::new();
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
@@ -136,6 +140,9 @@ impl TrafficWorld {
                             contact: hit.pair,
                         });
                     });
+                if collided {
+                    touched.push((None, owner, closing));
+                }
                 if collided && part.class == DriverClass::Traffic {
                     traffic_hits.push((owner, closing));
                 }
@@ -160,7 +167,8 @@ impl TrafficWorld {
                 let speed_a = part.sim.body().linear_velocity.length();
                 let speed_b = other.sim.body().linear_velocity.length();
                 let (owner_a, owner_b, class_a, class_b) = (part.owner, other.owner, part.class, other.class);
-                part.sim.collide_with_each(other.sim, |hit, a, b| {
+                let closing = (part.sim.body().linear_velocity - other.sim.body().linear_velocity).length();
+                let collided = part.sim.collide_with_each(other.sim, |hit, a, b| {
                     hits.push(Hit {
                         owner: owner_a,
                         impulse: hit.impulse,
@@ -182,9 +190,13 @@ impl TrafficWorld {
                         contact: hit.pair,
                     });
                 });
+                if collided && owner_a != owner_b {
+                    touched.push((Some(owner_a), owner_b, closing));
+                }
             }
         }
         drop(parts);
+        self.note_touches(&touched);
         self.note_traffic_hits(&traffic_hits);
         self.player_hits.tick(STEP);
         self.player_hits.note(traffic_hits.iter().map(|&(owner, _)| owner));
