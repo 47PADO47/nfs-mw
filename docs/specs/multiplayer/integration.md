@@ -70,6 +70,14 @@ subnets; the default is the private ranges). Broadcast itself is not exercised b
 | Settings | New keys in the layered settings (CLI > environment > config file > defaults): `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`, `net_identity_file` (the identity key path, by `security.md`) |
 | Metrics overlay | A `net` line at the advanced level: RTT, jitter, loss, snapshot age, corrections and snaps per minute, bytes in and out (MP-82) |
 
+**As built (2026-10-22): the server side of the world.** `WorldSimHost` (`scenes/world/net/`) implements `WorldSim` over a
+`WorldScene` and `NullBackend`, the renderer that draws nothing (`app/null_backend.rs`, formerly the tests' `test_backend`,
+now built in every configuration). One `step` hands each seat's `InputState` to its car (`Drive::set_remote_input`), runs
+exactly one tick (`FixedClock::set_one_per_update`) under `SessionRules::session(seed)`, and reports contacts, pursuit,
+race and moved events from what the world keeps. Remote players are co-op guests on their own `PlayerId`; the host's own
+player is `PlayerId(0)`, the lead. `NetSession`, `NetWorldScene` (the client mode), the lobby screens, the console
+commands and the overlay are not built. The full description and the gaps: [world host](world-host.md).
+
 **Pause and menus.** The server never pauses. The pause key opens the overlay; the client keeps stepping its own car with
 neutral input. The garage is a lobby feature in a session, not an overlay on a live world.
 
@@ -126,8 +134,13 @@ extraction below for later; LAN does not wait for it. `crates/nfsmw-sim` holds w
   hashes every second.
 
 Step 6 below is therefore done for the toy world: its tests run ten simulated minutes of 16 scripted players twice and compare
-the hash on every tick. The same runner and tests apply unchanged to `WorldScene`'s `WorldSim` when it lands, which is where
-the real determinism work (steps 4 and 5) is measured.
+the hash on every tick.
+
+**`WorldSim` for the real world (2026-10-22).** `WorldSimHost` in `crates/nfsmw/src/scenes/world/net/` implements the trait
+over `WorldScene` without the extraction, as ADR 0011 decided ([world host](world-host.md)). Its installed test drives two
+hosts from one seed with the same inputs for 40 simulated seconds (two players, traffic and cops) and compares the events
+every tick and the hash and entities every second. `nfsmw-sim`'s `Runner` and `compare_runs` take any `WorldSim`, so they
+can drive it too; the host is not `Send` (the scene holds `Rc`s), so it runs on the thread that opened it.
 
 The extraction itself is the largest piece of milestone 10 work and the gate for the dedicated server. What is known from
 reading the code today:
