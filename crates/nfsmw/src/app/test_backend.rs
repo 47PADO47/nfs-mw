@@ -48,6 +48,7 @@ pub struct NullBackend {
     track_textures: bool,
     track_meshes: bool,
     next_mesh: usize,
+    descending_meshes: bool,
     track_sky: bool,
     next_sky: usize,
     normal_materials: std::collections::HashSet<blackbox_gfx::NormalMaterialHandle>,
@@ -84,6 +85,7 @@ impl NullBackend {
             track_textures: false,
             track_meshes: false,
             next_mesh: 0,
+            descending_meshes: false,
             track_sky: false,
             next_sky: 0,
             normal_materials: Default::default(),
@@ -102,6 +104,13 @@ impl NullBackend {
     /// Track the live meshes and textures (`mesh_labels`, `texture_labels`) instead of handing out dummy handles.
     pub fn with_mesh_tracking(mut self) -> Self {
         self.track_meshes = true;
+        self
+    }
+
+    /// Hand out mesh handles that fall as meshes are made, as a renderer reusing freed slots can: the order of handles
+    /// then says nothing about the order of creation.
+    pub fn with_descending_meshes(mut self) -> Self {
+        self.descending_meshes = true;
         self
     }
 
@@ -182,7 +191,8 @@ impl RenderBackend for NullBackend {
         if !self.track_meshes {
             return MeshHandle::from_raw(0);
         }
-        let handle = MeshHandle::from_raw(self.next_mesh);
+        let raw = if self.descending_meshes { usize::from(u16::MAX) - self.next_mesh } else { self.next_mesh };
+        let handle = MeshHandle::from_raw(raw);
         self.next_mesh += 1;
         self.mesh_labels.insert(handle, desc.label.to_owned());
         if self.track_normal {

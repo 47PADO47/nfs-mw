@@ -53,7 +53,7 @@ the same step over a black backdrop **[ours]** for the shape, **[exe]** for the 
 **The question.** `MC_CREATE_NEW_PROFILE_MENU` (`0xBE97590F`, the text above) in a dialog titled "selection", Yes and No, No focused
 as in the original. Yes shows the two autosave notices (`MC_AUTOSAVE_WARNING_PC` `0xB01BE5DD`, `MC_AUTOSAVE_WARNING2_PC`
 `0xB380362F`, title "save/load", one Continue each), then the name prompt of the alias manager's Create (`name_entry.rs`: first free
-`PLAYER` name, up to 7 characters, Enter accepts, Escape leaves). Accepting makes the alias, **saves it at once** and loads it, and
+`PLAYER` name, up to 31 characters, Enter accepts, Escape leaves). Accepting makes the alias, **saves it at once** and loads it, and
 the notice says "NAME created." Continue goes to the main menu. **[ours]** for saving at once: the original asks "Do you want to
 save the alias NAME?" after the name; this build has no unsaved alias, so the question is left out. No, or Escape on the name prompt, leaves
 for the main menu with no alias loaded (Escape on a notice is Continue, so the chain goes on).
@@ -87,6 +87,9 @@ A pick reads this build's copy when it has one, else the original's. Saving alwa
 loaded from the original is copied there on its first save and the copy then hides the original's. The original's folder is never
 written, so the original keeps working. The same load checks run on both (`ProfileDir::read`: magic, MD5, the profile hash).
 Loaded checked on this machine: `NAME` from the original's folder loads ("Load complete.").
+
+**Name length [ours].** This build lists an alias of up to 31 characters without a space, so a profile the original hides
+(8 or more characters, such as `playErName`) is listed here too. The original's own list keeps the 8-character rule.
 
 ## 5. How the game starts
 

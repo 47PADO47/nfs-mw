@@ -135,13 +135,30 @@ fn the_rooms_draw_the_solids_their_stage_names() {
     use crate::frontend::room::Room;
     let Some(dir) = install() else { return };
     let mut renderer = backend();
-    // The safe house file has sixteen solids; the drawn ones are the room, its floor reflection and the sky.
-    for (stage, solids) in [(Stage::SafeHouse, 3), (Stage::Crib, 5)] {
+    // The safe house file has sixteen solids; the drawn ones are the room, its floor reflection, the sky and the three solids of
+    // props inside the room.
+    for (stage, solids) in [(Stage::SafeHouse, 6), (Stage::Crib, 5)] {
         let room = Room::load(&mut renderer, &dir, stage).unwrap();
         assert_eq!(room.instances().len(), solids, "{stage:?}");
         room.destroy(&mut renderer);
     }
     assert!(renderer.mesh_labels.is_empty());
+}
+
+#[test]
+fn the_room_is_drawn_in_its_files_order_whatever_the_mesh_handles_are() {
+    use crate::frontend::room::Room;
+    let Some(dir) = install() else { return };
+    // The handles fall as the meshes are made, as a renderer that reuses freed slots may hand them out.
+    let mut renderer = backend().with_descending_meshes();
+    let room = Room::load(&mut renderer, &dir, Stage::SafeHouse).unwrap();
+    let drawn: Vec<&str> = room.instances().iter().map(|i| renderer.mesh_labels[&i.mesh].as_str()).collect();
+    // The mirrored garage and the sky come first, so the floor blends over them.
+    let order = |name: &str| drawn.iter().position(|d| *d == name).unwrap();
+    assert!(
+        order("BACKDROP_REFLECTION") < order("BACKDROP_CURRGEN") && order("BACKDROP_CURRGEN") < order("BACKDROP_CRIB")
+    );
+    room.destroy(&mut renderer);
 }
 
 #[test]

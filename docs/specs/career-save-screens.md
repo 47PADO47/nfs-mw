@@ -346,3 +346,10 @@ career flow starts). **[exe, disassembly checked]**
   icon. **[exe]**
 - While an `MC_Main` screen is up in a world the HUD is hidden and shown again when it closes (the pair of bytes at
   `0x0091CAE0`; meaning **[unconfirmed]**).
+
+## Note: the prompt's pad
+
+`MC_Main.fng` has package responses for Left and Right (`0x9120409E`, `0xB5971BF1`) but none for Accept (`0xC519BFC3`) or Back
+(`0x911C0A4B`), so the game never hears those two as messages from this package. The rewrite reads them from the pad
+(`ScreenLogic::pad_pressed`); reading them as messages left the prompt answering only the highlight. **[verified: dump of the
+package; scripted run in the career flow]**

@@ -71,12 +71,17 @@ files), and the placement is in the executable (section 4) and the `frontend` at
 | File | Solids | Drawn |
 |---|---|---|
 | `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five, each placed by its pivot matrix |
-| `CAREER_SAFEHOUSE.BIN` (stage 2) | `BACKDROP_CRIB` (the garage, 4,387 vertices, x -15..12.7, y -12..11.3, z 0..8.5), `BACKDROP_REFLECTION` (the garage mirrored under the floor), `BACKDROP_CURRGEN` (the bright sky outside the windows), four `BACKDROP_CAST_SHADOW_MAP*` and `BACKDROP_CAST_SHADOW_MAP_NEXTGEN` (shadow caster geometry), seven `STEAM EMITTER*` (particle markers) | the first three |
+| `CAREER_SAFEHOUSE.BIN` (stage 2) | `BACKDROP_CRIB` (the garage, 4,387 vertices, x -15..12.7, y -12..11.3, z 0..8.5), `BACKDROP_REFLECTION` (the garage mirrored under the floor), `BACKDROP_CURRGEN` (the bright sky outside the windows), `BACKDROP_CAST_SHADOW_MAP`, `..2` and `..3` (the room's props and some wall parts: the couch, the tank, the TV, the fridge, the posters, the pipes), `BACKDROP_CAST_SHADOW_MAP_NEXTGEN` (a high resolution caster sheet above the room), seven `STEAM EMITTER*` (particle markers) | all but the last two kinds |
 
-The shadow casters are what the original draws its shadow maps from, and the emitters are markers; neither is a visible part
-of the picture, so they are skipped **[ours]**. Without `BACKDROP_CURRGEN` the windows show the clear colour and the floor loses
+The three `..MAP`, `..MAP2` and `..MAP3` solids are inside the room, and the mirrored garage repeats their groups (the couch, the TV, the posterboard, the roll door), so they are scenery, drawn like the rest **[verified: groups against `BACKDROP_REFLECTION`; the reference screenshot shows the tank]**. Only `..MAP_NEXTGEN` (z 22.7..24.5, above the room) and the emitter markers are skipped **[ours]**. Without `BACKDROP_CURRGEN` the windows show the clear colour and the floor loses
 its bright reflection; with it the picture has the pale floor and the white windows the safe house is remembered for
-(provenance, section 5). All three solids are pre-lit like the crib (`Shading::Prelit`).
+(provenance, section 5). All solids are pre-lit like the crib (`Shading::Prelit`).
+
+The room is drawn in the file's order (the three prop solids, `BACKDROP_REFLECTION`, `BACKDROP_CURRGEN`, `BACKDROP_CRIB`), before the car. The floor and the
+windows are alpha-blended and the renderer draws blended parts in the order it is given them, so the floor must come after the mirrored
+garage it is see-through over; with the reflection last, its windows lie on the floor at full strength as bright panes. The order is not
+the mesh handles' order: they come from a free list that reuses what the last backdrop freed, so they are in the file's order on a fresh
+renderer (`view-screen`) and can be reversed after another backdrop was freed. **[verified: `backdrop_tests`, descending handles; seen in the career flow: the reflection's windows lay on the floor as bright panes before the fix]**
 
 **Each solid is placed by its pivot matrix** (`Solid::transform`, translation in the last row, as stored). The safe house's drawn
 solids have the identity; the crib's room is stored about 26 times smaller than it stands and its pivot scales it up
@@ -256,4 +261,6 @@ nfsmw view-screen MainMenu_Sub.fng --look car --car BMWM3GTRE46:M3GTRCAREERSTART
   career-start preset (section 1) on a dark floor strip with other textures. Neither is looked at here; the car and the
   textures are other work. **[unverified]**
 - The poses of the other platforms (customization shop, back room, car lot) are in the attributes but their rooms are not drawn.
+- One group of `BACKDROP_CRIB` (96 indices) and of `BACKDROP_REFLECTION` (213) names the texture `0x00163C76`, which is in neither the stage file's
+  texture pack nor found elsewhere yet; it draws white. **[unverified]**
 - `BACKDROP_CURRGEN` is the sky only by its shape and its effect; the original's draw order and blending for it are not read.

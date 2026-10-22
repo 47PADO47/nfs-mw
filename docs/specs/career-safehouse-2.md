@@ -271,6 +271,12 @@ Minimum model: `respawn_home: Key` (+0x108), `respawn_safehouse: Key` (+0x10C), 
    post the HUD reload and the autosave.
 5. Do not reset heat, cops or the pursuit on either side; they are fresh because the world is.
 
+**Rewrite status of step 4's position.** A world that replaces the safe house menu standing before it (Resume Career, the first
+visit) starts at the marker of the last safe house the player came to in the run, else at `career_start_<region>` (gameplay
+collection `career_start_l2ra`, `GameplayData::career_start`; `WorldScene::start_at_safe_house`). The two keys are not saved yet
+(section 9.4), so a run that begins at the main menu always starts at the career start point. **[verified: offscreen run of the
+resume flow, the car stands at (982, 2148, 152)]**
+
 ## Open questions
 
 1. What sets the override key `+0x11C` (nothing found), and what the debug byte `0x00926126` is for.

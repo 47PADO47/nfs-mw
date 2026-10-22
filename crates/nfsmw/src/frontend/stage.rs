@@ -65,13 +65,17 @@ impl Stage {
         }
     }
 
-    /// Whether the solid called `name` is drawn. The crib draws all of its five. The safe house file also holds the
-    /// geometry the original renders its shadow maps from (`BACKDROP_CAST_SHADOW_MAP*`) and particle emitter markers
-    /// (`STEAM EMITTER*`), which are not part of the picture.
+    /// Whether the solid called `name` is drawn. The crib draws all of its five. The safe house file also holds the high
+    /// resolution geometry the original renders its shadow map from (`BACKDROP_CAST_SHADOW_MAP_NEXTGEN`, above the room) and
+    /// particle emitter markers (`STEAM EMITTER*`), which are not part of the picture. The three other `BACKDROP_CAST_SHADOW_MAP*`
+    /// solids are inside the room and hold its props and wall parts (the couch, the tank, the posters, the pipes), which the
+    /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
             Stage::Crib => true,
-            Stage::SafeHouse => !name.starts_with("BACKDROP_CAST_SHADOW_MAP") && !name.starts_with("STEAM EMITTER"),
+            Stage::SafeHouse => {
+                !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
+            }
         }
     }
 }
@@ -89,10 +93,11 @@ mod tests {
     }
 
     #[test]
-    fn the_safe_house_leaves_out_its_shadow_casters_and_emitters() {
+    fn the_safe_house_leaves_out_its_high_resolution_shadow_caster_and_emitters() {
         assert!(Stage::SafeHouse.draws("BACKDROP_CRIB"));
         assert!(Stage::SafeHouse.draws("BACKDROP_REFLECTION"));
-        assert!(!Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP2"));
+        assert!(Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP2"));
+        assert!(!Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
         assert!(!Stage::SafeHouse.draws("STEAM EMITTER03"));
         assert!(Stage::Crib.draws("BACKDROP_BACKDROP_CAST_SHADOW_MAP2"));
     }
