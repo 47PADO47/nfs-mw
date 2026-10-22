@@ -133,6 +133,7 @@ impl Audio {
     pub fn drive_car(&mut self, state: Option<&CarSoundState>, dt: f32) {
         if let Some(state) = state {
             self.speedbreaker.view = state.view;
+            self.preload_car_sounds(&state.car, state.upgrades);
         }
         if state.is_some() {
             self.prepare_breaker_moments();

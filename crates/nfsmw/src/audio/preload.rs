@@ -1,7 +1,7 @@
 //! Which banks a car needs, handed to the decode worker as soon as the car's sound set is loaded so its first sounds are ready
 //! when the frame asks for them (see `decode_worker`).
 
-use nfsmw_data::sound::{CarSound, ENGINE_DIR, NOS_DIR, SHIFTING_DIR, SKIDS_DIR, TURBO_DIR};
+use nfsmw_data::sound::{CarSound, ENGINE_DIR, NOS_DIR, SHIFTING_DIR, SKIDS_DIR, SoundUpgrades, TURBO_DIR};
 
 use super::Audio;
 use super::decode_worker::Preload;
@@ -29,6 +29,24 @@ fn car_banks(set: &CarSound) -> Vec<String> {
 }
 
 impl Audio {
+    /// Starts decoding the sound set of the car the scene reports, on the frame it first reports it (or changes its
+    /// performance levels), before the engine's own load: the worker decodes while the frame prepares the rest. Nothing
+    /// for a car that is playing already, one that failed, or without a sound device.
+    pub(super) fn preload_car_sounds(&mut self, car: &str, upgrades: SoundUpgrades) {
+        if self.car.as_ref().is_some_and(|playing| playing.car == car && playing.upgrades == upgrades) {
+            return;
+        }
+        if !self.available() {
+            return;
+        }
+        if self.failed.as_ref().is_some_and(|(failed, levels)| failed == car && *levels == upgrades) {
+            return;
+        }
+        let Ok(database) = self.database() else { return };
+        let Ok(set) = nfsmw_data::sound::car_sound(&database, car, upgrades) else { return };
+        self.preload_sound_set(&set);
+    }
+
     /// Starts decoding the banks of a car's sound set, then the game-wide banks its effects use.
     pub(super) fn preload_sound_set(&mut self, set: &CarSound) {
         if !self.available() {

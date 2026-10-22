@@ -49,6 +49,17 @@ pub enum TrafficSound {
 }
 
 impl Audio {
+    /// Starts decoding the sounds the traffic cars play (horns, engines, whooshes) when the first traffic reaches the
+    /// audio, so their first plays are decoded already. A no-op without a sound device; each bank goes once.
+    pub(super) fn preload_traffic_banks(&mut self) {
+        if !self.available() {
+            return;
+        }
+        for bank in [HORN_BANK, WHOOSH_BANK, ENGINE_BANK] {
+            self.decoder.preload(&self.dir, bank, super::decode_worker::Preload::Tables);
+        }
+    }
+
     pub fn update_traffic(&mut self, sounds: Vec<TrafficSound>, mut view: AudioView) {
         view.speedbreaker_mix = self.speedbreaker.snapshot();
         let mut traffic = std::mem::take(&mut self.traffic);

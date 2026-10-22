@@ -78,7 +78,7 @@ pub fn board() -> Option<Arc<Board>> {
 }
 
 fn read(dir: &GameDir) -> anyhow::Result<Board> {
-    let data = nfsmw_data::gameplay::load(dir)?;
+    let data = nfsmw_data::gameplay::cached(dir)?;
     let map = nfsmw_data::minimap::open_city_calibration(dir)?;
     Ok(Board::from_data(&data, &map))
 }

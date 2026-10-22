@@ -40,6 +40,7 @@ impl TrafficAudio {
         if self.map.is_some() {
             return true;
         }
+        audio.preload_traffic_banks();
         let result = (|| {
             let map = crate::audio::mixer::mix_map(&audio.dir).map_err(|e| format!("{e:#}"))?;
             let bytes = nfsmw_data::shared::ingame_b(&audio.dir).map_err(|e| e.to_string())?;
