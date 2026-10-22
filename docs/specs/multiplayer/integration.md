@@ -1,7 +1,7 @@
 # Multiplayer integration: the Bevy shell, the crates and the order of work
 
-Status: written 2026-10-16, revised 2026-10-21 by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md). Step 1 of
-section 5 (`libs/blackbox-net-core`) is built; the rest is design. How the netcode of
+Status: written 2026-10-16, revised 2026-10-21 by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md). Steps 1 and 2
+of section 5 (`libs/blackbox-net-core`, then its handshake, sealing, rate limits and hand-off queues) are built; the rest is design. How the netcode of
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) fits the existing program: the Bevy shell and `Scene` trait
 ([architecture.md](../../architecture.md), [ADR 0001](../../decisions/0001-bevy.md)), the `libs/` and `crates/` rules
 ([AGENTS.md](../../../AGENTS.md)), and the telemetry server ([multiplayer reuse](../telemetry/multiplayer-reuse.md)).
@@ -65,10 +65,14 @@ multiplayer does not compile the `netcode` feature (a cargo feature `multiplayer
 it can start off). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies are checked (`deny.toml` sets
 `all-features = false`). No file over 500 lines.
 
-**As built (ADR 0009).** `blackbox-net-core` is standard library only and has no cargo features yet. The modules are `bits`,
-`link`, `conn`, `replicate`, `clock`, `session`, `discovery` and `rng`. The `core`/`netcode` feature split is added when the
-handshake brings `snow`, so that telemetry still pulls no crypto. The hand-off queues of the `core` feature are added with the net
-thread.
+**As built (2026-10-22).** The split differs from the table above: the default build of `blackbox-net-core` is standard library
+only and has every module that needs no crate (`bits`, `link`, `conn`, `replicate`, `clock`, `session`, `discovery`, `rng` and
+`ratelimit`). Feature `handoff` adds the `handoff` module (`crossbeam-queue`, `triple_buffer`), which telemetry can take without
+any crypto. Feature `netcode` (implies `handoff`) adds the `secure` module: `snow`, `chacha20poly1305`, `blake2`, `sha2`,
+`subtle`, `zeroize`, `getrandom` and `spake2`. `socket2`, `postcard` and `serde` are not needed yet and are not pulled.
+`deny.toml` now sets `all-features = true`, so `cargo deny check` covers the `netcode` crates without a flag (it passed on
+2026-10-22). What `secure` contains and what is not built yet (path validation, the net thread): [protocol-handshake](protocol-handshake.md)
+and [security](security.md) section 8.
 
 If `blackbox-net-core` passes a few thousand lines, the snapshot machinery moves to a sibling `blackbox-net-replication`
 without changing any public name used by the game.
@@ -128,7 +132,7 @@ Fallback if step 4 proves too large: the first multiplayer release ships the **l
 |---|---|---|
 | 0 | Sim benchmarks; determinism audit (D1 to D6); the sim extraction (section 4) | Single-player frame-rate trace unchanged |
 | 1 | `blackbox-net-core`: bit packing, quantisers, links and the packet simulator, the connection layer (reliability, fragments), replication codec and per-client views, clock filter, session state machine, discovery; seeded round-trip, loss and fuzz tests; `net_bench` | **Built 2026-10-21** (ADR 0009) |
-| 2 | Handshake and sealing (`snow`) around the built connection layer; fuzz targets for every pre-authentication parser; the hand-off queues. (The reliability suite moved to step 1; the `renet` spike is dropped by ADR 0009) | Fuzz gates; `cargo deny` with the crypto crates |
+| 2 | Handshake and sealing (`snow`) around the built connection layer; fuzz targets for every pre-authentication parser; the hand-off queues. (The reliability suite moved to step 1; the `renet` spike is dropped by ADR 0009) | **Built 2026-10-22**: seeded garbage tests in `cargo test`, `cargo-fuzz` targets in `libs/blackbox-net-core/fuzz`; `cargo deny` passes with the crypto crates |
 | 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window |
 | 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic |
 | 5 | Prediction and reconciliation for the owner; clock sync; the bad-network suite | Targets of [features](features.md) section 4 |

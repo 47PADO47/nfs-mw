@@ -44,6 +44,9 @@
 !/libs/*/tests/**/*.rs
 !/libs/blackbox-vehicle/examples/physics_reference/**/*.rs
 !/libs/blackbox-net-core/examples/*.rs
+# cargo-fuzz targets (their own workspace; their Cargo.lock, corpus and artifacts stay local)
+!/libs/blackbox-net-core/fuzz/Cargo.toml
+!/libs/blackbox-net-core/fuzz/fuzz_targets/*.rs
 !/crates/*/Cargo.toml
 !/crates/*/src/**/*.rs
 !/crates/*/src/**/*.wgsl

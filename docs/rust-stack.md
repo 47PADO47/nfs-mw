@@ -22,6 +22,10 @@ Which crates the rewrite uses or plans to use, and why. Versions and licenses we
 | egui | 0.36 | MIT OR Apache-2.0 | Developer UI (metrics overlay, console). Only the context, layout and tessellation are used; `gui/` hands its output to `blackbox-render`'s UI layer. Its bundled fonts (Hack, Ubuntu-Light, Noto Emoji, emoji-icon-font) are OFL-1.1 and Ubuntu Font Licence: `deny.toml` has an exception and `NOTICE` lists them |
 | thiserror, anyhow, log, env_logger, pollster | — | MIT OR Apache-2.0 | Errors, logging, blocking on wgpu futures |
 | nihav_core, nihav_duck (+ nihav_codec_support) | 0.1.0, git `ruffle-rs/nihav-vp6` @ `12d0bdf` | MIT (repo `COPYING`; no `license` field in the manifests) | VP6 video decoding in [`blackbox-movie`](../libs/blackbox-movie), behind its default `vp6` feature. `deny.toml` allows the git source and clarifies the license |
+| snow | 0.10 (RustCrypto resolver, `risky-raw-split`, no `ring`) | Apache-2.0 OR MIT | Noise `XX`/`XK` handshake in `blackbox-net-core` (feature `netcode`; checked with `cargo deny` 2026-10-22) |
+| chacha20poly1305, blake2, sha2, subtle, zeroize, getrandom | 0.10, 0.10, 0.10, 2.6, 1, 0.3 | MIT OR Apache-2.0; subtle BSD-3-Clause | Packet sealing, connect tokens, cookies, key ids, constant-time compares, wiping secrets, system randomness (feature `netcode`) |
+| spake2 | 0.4 | MIT OR Apache-2.0 | The optional room password (feature `netcode`; experimental, no known audit). Pulls curve25519-dalek (BSD-3-Clause) |
+| crossbeam-queue, triple_buffer | 0.3, 9 | MIT OR Apache-2.0; MPL-2.0 | The net-thread hand-off queues (feature `handoff`) |
 
 Written in-house because no crate exists: **JDLZ** and **HUFF** ([`ea-compress`](../libs/ea-compress)),
 **bChunk** parsing, the **TPK** and **solid** readers, and the **movie container** demuxer and timeline ([`blackbox-movie`](../libs/blackbox-movie)).

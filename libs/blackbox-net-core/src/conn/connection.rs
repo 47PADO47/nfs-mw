@@ -7,6 +7,7 @@ use super::acks::{RecvWindow, SequenceBuffer, seq_newer};
 use super::channel::{FLAG_FIRST, FLAG_LAST, RecvChannel, SendChannel};
 use super::header::{FLAG_ACK_VALID, Header, frame_size, parse_header, read_varint, write_frame, write_header};
 use super::rtt::Rtt;
+use super::seal::{Plain, Sealer, parse_clear_header};
 use super::{
     CHANNELS, ConnConfig, ConnError, ConnEvent, FRAME_DISCONNECT, FRAME_PADDING, FRAME_RELIABLE, FRAME_SPACE,
     HEADER_LEN, Sent,
@@ -34,10 +35,12 @@ struct SentPacket {
 
 /// One end of a connection. Feed it datagrams with [`Connection::read_packet`] and build the ones to send with
 /// [`Connection::write_packet`]; queue application messages with [`Connection::send_message`] and collect the complete
-/// incoming ones with [`Connection::recv_message`].
+/// incoming ones with [`Connection::recv_message`]. `S` seals and opens the datagrams: [`Plain`] for the in-memory link,
+/// a Noise sealer for the network.
 #[derive(Debug)]
-pub struct Connection {
+pub struct Connection<S: Sealer = Plain> {
     config: ConnConfig,
+    sealer: S,
     next_number: u32,
     window: RecvWindow,
     sent: SequenceBuffer<SentPacket>,
@@ -54,11 +57,19 @@ pub struct Connection {
     bytes_received: u64,
 }
 
-impl Connection {
-    /// A fresh connection with packet number 0 next and no history.
+impl Connection<Plain> {
+    /// A fresh unsealed connection (the in-memory link) with packet number 0 next and no history.
     pub fn new(config: ConnConfig) -> Self {
+        Self::with_sealer(config, Plain)
+    }
+}
+
+impl<S: Sealer> Connection<S> {
+    /// A fresh connection whose datagrams `sealer` seals and opens.
+    pub fn with_sealer(config: ConnConfig, sealer: S) -> Self {
         Self {
             config,
+            sealer,
             next_number: 0,
             window: RecvWindow::default(),
             sent: SequenceBuffer::with_capacity(SENT_WINDOW),
@@ -106,7 +117,8 @@ impl Connection {
     /// the packet has fewer than 16. Frame types the connection owns (`0x10` to `0x13`) are not checked here and must not
     /// be passed by the caller. Always writes a packet, even one with only acknowledgements. `out` must hold a whole
     /// datagram ([`MAX_DATAGRAM`] bytes). Packets that are not acknowledged within 1 s, or 3 behind the newest
-    /// acknowledged number, are written off as [`ConnEvent::Lost`] during the call.
+    /// acknowledged number, are written off as [`ConnEvent::Lost`] during the call. The packet is sealed last; a seal
+    /// failure ([`ConnError::SealFailed`]) uses no packet number, though due fragments count as sent and are resent later.
     pub fn write_packet(&mut self, now_ms: u64, app_frames: &[(u8, &[u8])], out: &mut [u8]) -> Result<Sent, ConnError> {
         if out.len() < MAX_DATAGRAM {
             return Err(ConnError::BufferTooSmall);
@@ -179,6 +191,10 @@ impl Connection {
             ack_bits: self.window.ack_bits(),
         };
         write_header(out, &header)?;
+        if at + self.sealer.overhead() > MAX_DATAGRAM {
+            return Err(ConnError::SealFailed);
+        }
+        let len = self.sealer.seal(now_ms, out, at)?;
 
         let record = SentPacket { sent_ms: now_ms, count, frags };
         if let Some((old, _)) = self.sent.insert(number, record) {
@@ -186,31 +202,44 @@ impl Connection {
             self.rtt.record_outcome(true);
         }
         self.next_number = self.next_number.wrapping_add(1);
-        self.bytes_sent = self.bytes_sent.saturating_add(at as u64);
+        self.bytes_sent = self.bytes_sent.saturating_add(len as u64);
         self.last_send_ms = Some(now_ms);
-        Ok(Sent { number, len: at })
+        Ok(Sent { number, len })
     }
 
-    /// Takes in one datagram. The packet number is checked against the window, the acknowledgements are applied, and each
-    /// frame is handled in order: reliable frames go to the channels, a disconnect becomes [`ConnEvent::Disconnected`],
-    /// the reserved types `0x12` and `0x13` are skipped, and every other frame is passed to `on_frame` with its payload.
-    /// Returns the packet number. On [`ConnError::BadFrame`] the frames before the bad one stay handled.
+    /// Takes in one datagram, opened in place in `datagram`. The clear header is checked (connection id, and the window
+    /// is asked whether the number is new) before the sealer opens it; the number is recorded only once the tag
+    /// verified. Then the acknowledgements are applied and each frame is handled in order: reliable frames go to the
+    /// channels, a disconnect becomes [`ConnEvent::Disconnected`], the reserved types `0x12` and `0x13` are skipped, and
+    /// every other frame is passed to `on_frame` with its payload. Returns the packet number. On
+    /// [`ConnError::BadFrame`] the frames before the bad one stay handled.
     pub fn read_packet<'a, F: FnMut(u8, &'a [u8])>(
         &mut self,
         now_ms: u64,
-        datagram: &'a [u8],
+        datagram: &'a mut [u8],
         mut on_frame: F,
     ) -> Result<u32, ConnError> {
-        let header = parse_header(datagram)?;
-        if header.conn_id != self.config.local_id {
+        if datagram.len() < HEADER_LEN + self.sealer.overhead() {
+            return Err(ConnError::Truncated);
+        }
+        let clear = parse_clear_header(datagram)?;
+        if clear.conn_id != self.config.local_id {
             return Err(ConnError::WrongConnection);
         }
+        self.window.check(clear.number)?;
+        let received = datagram.len();
+        let plain_len = self.sealer.open(now_ms, datagram)?;
+        let datagram: &'a [u8] = datagram;
+        let Some(datagram) = datagram.get(..plain_len) else {
+            return Err(ConnError::Truncated);
+        };
+        let header = parse_header(datagram)?;
         self.window.record(header.number)?;
         if self.created_ms.is_none() {
             self.created_ms = Some(now_ms);
         }
         self.last_recv_ms = Some(now_ms);
-        self.bytes_received = self.bytes_received.saturating_add(datagram.len() as u64);
+        self.bytes_received = self.bytes_received.saturating_add(received as u64);
         if header.flags & FLAG_ACK_VALID != 0 {
             self.apply_acks(now_ms, header.ack, header.ack_bits);
         }
@@ -274,6 +303,11 @@ impl Connection {
     /// Bytes of packets written so far.
     pub fn bytes_sent(&self) -> u64 {
         self.bytes_sent
+    }
+
+    /// The sealer, for its counters and key state.
+    pub fn sealer(&self) -> &S {
+        &self.sealer
     }
 
     /// Bytes of accepted datagrams read so far.

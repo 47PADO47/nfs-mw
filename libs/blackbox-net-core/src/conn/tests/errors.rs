@@ -34,7 +34,8 @@ type Received = (Result<u32, ConnError>, Vec<(u8, Vec<u8>)>);
 /// Reads `datagram` into `conn` and returns the result together with the application frames handed out.
 fn read(conn: &mut Connection, now: u64, datagram: &[u8]) -> Received {
     let mut frames = Vec::new();
-    let result = conn.read_packet(now, datagram, |ftype, payload| frames.push((ftype, payload.to_vec())));
+    let mut copy = datagram.to_vec();
+    let result = conn.read_packet(now, &mut copy, |ftype, payload| frames.push((ftype, payload.to_vec())));
     (result, frames)
 }
 

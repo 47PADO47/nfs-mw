@@ -1,0 +1,70 @@
+# cargo-fuzz targets for every pre-authentication parser of blackbox-net-core. Its own workspace, so the main build
+# never compiles libFuzzer. Run from libs/blackbox-net-core with a nightly toolchain and cargo-fuzz installed:
+#   cargo +nightly fuzz run handshake_server
+# The seeded in-tree garbage tests (src/secure/tests/garbage.rs) cover the same parsers in every `cargo test`.
+
+[package]
+name = "blackbox-net-core-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+blackbox-net-core = { path = "..", features = ["netcode"] }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "handshake_packets"
+path = "fuzz_targets/handshake_packets.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handshake_server"
+path = "fuzz_targets/handshake_server.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handshake_client"
+path = "fuzz_targets/handshake_client.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sealed_packet"
+path = "fuzz_targets/sealed_packet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "connect_token"
+path = "fuzz_targets/connect_token.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "discovery"
+path = "fuzz_targets/discovery.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pake_message"
+path = "fuzz_targets/pake_message.rs"
+test = false
+doc = false
+bench = false

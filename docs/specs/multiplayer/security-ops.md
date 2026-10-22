@@ -1,8 +1,11 @@
 # Multiplayer security: denial of service, hardening, privacy and release gates
 
 Third part of the multiplayer security design. [Security](security.md) has the threat model, transport and
-identity. [Gameplay security](security-gameplay.md) has validation, authority, anti-cheat and the mod policy. Design
-only, nothing is built. The numbers are starting values to tune with the load tests of section 5.
+identity. [Gameplay security](security-gameplay.md) has validation, authority, anti-cheat and the mod policy. The numbers
+are starting values to tune with the load tests of section 5. **Built (2026-10-22):** the caps of sections 2.1 to 2.4 as
+`ratelimit::PreAuthLimits::LAN` and `ONLINE`, `PreAuthGate` and `PeerBudget` in `libs/blackbox-net-core`, applied by its
+handshake server; seeded garbage tests and `cargo-fuzz` targets for every pre-authentication parser
+([protocol-handshake](protocol-handshake.md)). The rest is design.
 
 ## 1. The pre-authentication surface
 

@@ -1,9 +1,10 @@
 # Multiplayer protocol: messages, layout, versioning
 
-Status: **partly built**. The generic layer (`libs/blackbox-net-core`) and the wire foundation of `crates/nfsmw-net` (entity
-schema, input frame, reliable messages, version checks, loadouts; 2026-10-22) exist and are unit-tested; the handshake, sealing
-and a running session do not. Byte counts not marked built are design targets, not measurements. Written 2026-10-16.
-Decisions and budgets: [ADR 0006](../../decisions/0006-multiplayer-netcode.md) and [bandwidth](bandwidth.md).
+Status: **partly built**. The transport layers (sections 4 and 5: handshake, sealing, cookies, rate limits) are built in
+`libs/blackbox-net-core`, and the wire foundation of `crates/nfsmw-net` (entity schema, input frame, reliable messages, version
+checks, loadouts; 2026-10-22) is built and unit-tested; a running session is not. Byte counts not marked built are design
+targets, not measurements. Written 2026-10-16. Decisions and budgets: [ADR 0006](../../decisions/0006-multiplayer-netcode.md) and
+[bandwidth](bandwidth.md).
 Algorithms that use these messages: [sync model](sync-model.md). The secure channel (Noise handshake with `snow`, the stateless
 cookie, ChaCha20-Poly1305 sealing, the replay window, rekeying, connect tokens, the room password) is specified in
 `security.md` section 4 and in `security-gameplay.md`; this file fixes the packet layouts, fields and states, and where the two
@@ -16,7 +17,8 @@ ADR 0009 wins; the sections it changes carry a note. In short:
 - Frames are `type u8, length varint, payload` (no `len` inside `RELIABLE`). Entity ids are `u16`, gap-coded in id order.
 - The kind is written only in full records, and the field mask has one bit per schema field. Message types are namespaced.
 - Header byte 0: bit 0 says the ack block is valid (the sender has received a packet); the format moves to bits 3..1.
-- The built `conn` and `replicate` modules of `libs/blackbox-net-core` are the reference layout until sealing exists.
+- The built `conn`, `replicate` and `secure` modules of `libs/blackbox-net-core` are the reference layout; the handshake and
+  sealing as built are in [protocol-handshake](protocol-handshake.md).
 
 ## 1. Layers
 
@@ -91,44 +93,11 @@ this file.
 
 ## 4. Handshake
 
-The handshake is stateless on the server until a client proves it can receive at its address (`security.md` 4.4). All handshake
-packets have the handshake bit set in byte 0 and are sent in the clear (Noise messages carry their own encryption).
-
-**Byte 0 of every packet.**
-
-| Bit | Handshake packet | Data packet |
-|---|---|---|
-| 7 | 1 | 0 |
-| 6 to 4 | `hs_type` (below) | key phase (2 bits at 6 and 5), bit 4 reserved 0 |
-| 3 to 0 | packet format version (0) | reserved 0 |
-
-`hs_type`: 0 `Hello`, 1 `Challenge`, 2 `HelloCookie`, 3 `NoiseMsg2`, 4 `NoiseMsg3`, 5 `Reject`.
-
-| Packet | Dir | Fields after byte 0 | Size |
-|---|---|---|---|
-| `Hello` | C to S | `proto_major` u8, `format_version` u8, `client_nonce` 16 bytes, `client_conn_id` u16, zero padding | exactly 512 |
-| `Challenge` | S to C | `server_conn_id` u16, `bucket` u8, `cookie` 32 bytes | 37 (never larger than the request) |
-| `HelloCookie` | C to S | `proto_major`, `format_version`, `pattern` u8 (0 = XX, 1 = XK), `client_nonce`, `client_conn_id`, `server_conn_id`, `bucket`, `cookie`, `noise1_len` u16, Noise message 1, zero padding | exactly 512 |
-| `NoiseMsg2` | S to C | `client_conn_id` u16, `len` u16, Noise message 2 | under 3 × 512 |
-| `NoiseMsg3` | C to S | `server_conn_id` u16, `len` u16, Noise message 3 | under 512 |
-| `Reject` | S to C | `reason` u8: 1 server full, 2 protocol major unsupported, 3 shutting down. Sent only to an address that presented a valid cookie | 2 |
-
-**Cookie.** `cookie = HMAC(server_secret, client_address || client_nonce || bucket_time)`, 32 bytes, bucket length 15 s; the
-server accepts the current and the previous bucket (`bucket` names which). It keeps no state between `Hello` and `HelloCookie`.
-The secret rotates every hour with two kept. A `HelloCookie` that fails the check is dropped silently.
-
-**Flow.**
-
-1. `Hello` (client nonce, its connection id). The server computes the cookie and answers `Challenge`; no other work.
-2. `HelloCookie` with Noise message 1. The server verifies the cookie in constant time, only then allocates a handshake slot and
-   runs the Noise step. Until message 3 verifies, the server sends the client at most 3 times the bytes it has received from it.
-3. `NoiseMsg2`, then `NoiseMsg3`. LAN uses pattern `XX`; online uses `XK` with the server key from the connect token. The Noise
-   prologue is `nfsmw-mp/<major>`. A version mismatch fails the handshake before any game data.
-4. Both sides switch to data packets (keys from the Noise transport state, one per direction). The first sealed reliable message is
-   `Auth` from the client; the server's first sealed packet confirms the keys.
-
-A handshake that does not progress is dropped after 5 s (the slot is freed). A client retries `Hello` with a fresh nonce at 0.5 s,
-1 s and 2 s, then reports "no answer".
+**Built** (2026-10-22): the byte layouts, the cookie, the flow, the retries and every difference from the first design are in
+[protocol-handshake](protocol-handshake.md). In short: byte 0 has the handshake bit and `hs_type`; `Hello` and `HelloCookie` are
+padded to exactly 512 bytes and `Challenge` is 36, so no reply is larger than its request; the cookie binds the address, the
+client nonce and both connection ids, and the server keeps no state until it comes back; then `NoiseMsg2` and `NoiseMsg3` run
+Noise `XX` (LAN) or `XK` (pinned key) with the game's prologue `nfsmw-mp/<major>`.
 
 **After the keys (control channel).**
 
@@ -156,20 +125,11 @@ the slot is still held, the server answers `JoinAccepted` with the same `player_
 
 ### 5.1 Sealed packet
 
-| Offset | Size | Field | Sealed? |
-|---|---|---|---|
-| 0 | 1 | flags (bit 7 = 0, key phase at bits 6 and 5) | no, authenticated |
-| 1 | 2 | connection id (of the receiver) | no, authenticated |
-| 3 | 4 | packet number (low 32 bits; the receiver expands it to 64 bits for the nonce) | no, authenticated |
-| 7 | 4 | `ack`: largest packet number received from the peer | yes |
-| 11 | 4 | `ack_bits`: bit `i` set means packet `ack - 1 - i` was received | yes |
-| 15 | n | frames | yes |
-| 15 + n | 16 | authentication tag | |
-
-The 7 header bytes are the associated data. A packet with an invalid tag is dropped silently and counted (no error reply). The
-receiver keeps a window of 1,024 packet numbers and drops duplicates and older numbers before parsing a frame. A packet from a new
-address with a valid tag and a newer number is accepted, but no bulk data goes to the new address until it answers a
-`PATH_CHALLENGE`. Rekeying every 2^24 packets or one hour is signalled by the key phase bits (`security.md` 4.4).
+**Built** (2026-10-22), layout in [protocol-handshake](protocol-handshake.md) section 5: flags, connection id and packet number
+(7 bytes) in the clear as associated data; `ack`, `ack_bits` and the frames sealed with ChaCha20-Poly1305 under the Noise
+transport keys; a 16-byte tag. The receive window of 1,024 numbers is checked before the tag and updated after it; a bad tag is
+dropped silently and counted. Flag bits 6 and 5 are the key phase (rekey every 2^24 packets or one hour). Path validation on a new
+address (`PATH_CHALLENGE`) is not built yet.
 
 ### 5.2 Frame types
 

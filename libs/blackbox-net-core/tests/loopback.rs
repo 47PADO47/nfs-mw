@@ -202,7 +202,7 @@ fn sixteen_clients_over_lossy_links_stay_in_sync() {
                 let views = &mut client.views;
                 client
                     .conn
-                    .read_packet(now, &dgram[..len], |frame_type, payload| {
+                    .read_packet(now, &mut dgram[..len], |frame_type, payload| {
                         if frame_type == FRAME_SNAPSHOT && outcome.is_none() {
                             let mut r = BitReader::new(payload);
                             outcome = Some(views.read_snapshot(&schema, &mut r));
@@ -228,7 +228,7 @@ fn sixteen_clients_over_lossy_links_stay_in_sync() {
 
         while let Some((from, len)) = server.link.recv(&mut dgram).expect("a datagram is received") {
             let Some(c) = client_index(from) else { continue };
-            server.conns[c].read_packet(now, &dgram[..len], |_, _| {}).expect("the ack is read");
+            server.conns[c].read_packet(now, &mut dgram[..len], |_, _| {}).expect("the ack is read");
             while let Some(event) = server.conns[c].poll_event() {
                 let ConnEvent::Delivered(number) = event else { continue };
                 let Ok(index) = server.sent[c].binary_search_by_key(&number, |entry| entry.0) else { continue };

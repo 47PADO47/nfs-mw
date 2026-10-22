@@ -131,7 +131,7 @@ impl World {
             let schema = &self.schema;
             let views = &mut self.views[c];
             self.client_conns[c]
-                .read_packet(now, &self.out[..sent.len], |frame_type, payload| {
+                .read_packet(now, &mut self.out[..sent.len], |frame_type, payload| {
                     if frame_type == FRAME_SNAPSHOT && outcome.is_none() {
                         outcome = Some(views.read_snapshot(schema, &mut BitReader::new(payload)));
                     }
@@ -140,7 +140,7 @@ impl World {
             assert_eq!(outcome, Some(Ok(tick)), "client {c} decodes tick {tick}");
 
             let ack = self.client_conns[c].write_packet(now, &[], &mut self.ack).expect("the ack is built");
-            self.server_conns[c].read_packet(now, &self.ack[..ack.len], |_, _| {}).expect("the ack is read");
+            self.server_conns[c].read_packet(now, &mut self.ack[..ack.len], |_, _| {}).expect("the ack is read");
             while let Some(event) = self.server_conns[c].poll_event() {
                 if event == ConnEvent::Delivered(sent.number) {
                     self.states[c].on_delivered(tick);
