@@ -56,6 +56,8 @@ fn every_look_builds_draws_and_frees_what_it_uploaded() {
 fn menu_on(dir: &GameDir, look: Look, rig: &CameraRig, renderer: &mut NullBackend) -> MenuScene {
     let mut menu = MenuScene::with_look(Some(dir.clone()), look).with_rig(rig.clone());
     menu.init(renderer).unwrap();
+    // The car and the room are read on a worker; the camera starts when they are up.
+    menu.settle(renderer);
     menu
 }
 
