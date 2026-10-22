@@ -70,6 +70,16 @@ subnets; the default is the private ranges). Broadcast itself is not exercised b
 | Settings | New keys in the layered settings (CLI > environment > config file > defaults): `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`, `net_identity_file` (the identity key path, by `security.md`) |
 | Metrics overlay | A `net` line at the advanced level: RTT, jitter, loss, snapshot age, corrections and snaps per minute, bytes in and out (MP-82) |
 
+**As built (2026-10-22): the session half of `NetSession`.** Everything in `NetSession` that is not Bevy is
+`nfsmw_net::client_session::ClientSession` ([client session](client-session.md)), generic over a `ClientLink` (implemented
+by `ClientEndpoint`) and a `PredictedCar`. It owns the connection state (admission, password, resume token and reconnect),
+the lobby mirror (`LobbyView`), the clock (`NetClock` fed by PONGs), the snapshot path (parts, views, interpolation,
+prediction and reconciliation, the global block as `GlobalView`), the event queue and the overlay statistics. The Bevy
+resource, `NetWorldScene`, the lobby screens, the console commands and the settings keys are not built; the resource
+will hold a `ClientSession<ClientEndpoint, GameCar>` and call `update`, `due_ticks`/`submit_input`, `own_pose`,
+`remote_entities` and `take_events` once a frame. Scripted bots over the same session are
+`nfsmw_server::bot` (`Bot`, `BotFleet`, `ThreadedFleet`).
+
 **Pause and menus.** The server never pauses. The pause key opens the overlay; the client keeps stepping its own car with
 neutral input. The garage is a lobby feature in a session, not an overlay on a live world.
 
