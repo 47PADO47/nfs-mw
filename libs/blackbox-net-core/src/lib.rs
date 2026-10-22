@@ -18,6 +18,8 @@
 //!   and the player party roster for local and remote seats.
 //! - [`discovery`]: the LAN discovery request and reply datagrams.
 //! - [`ratelimit`]: token buckets, failure locks and the pre-authentication caps.
+//! - `handoff` (feature `handoff`): the bounded drop-oldest ring and the latest-value cell between the net thread and
+//!   the game thread.
 //!
 //! No game names, no threads and no wall clock: every function that needs the time takes `now_ms` from the caller, so
 //! tests are deterministic. Standard library only.
@@ -26,6 +28,8 @@ pub mod bits;
 pub mod clock;
 pub mod conn;
 pub mod discovery;
+#[cfg(feature = "handoff")]
+pub mod handoff;
 pub mod link;
 pub mod ratelimit;
 pub mod replicate;
