@@ -32,20 +32,36 @@ pub struct SessionRules {
     /// The traffic's model loads finish in the frame that asks for them, as a warm-up run's do, so the models a spawn can
     /// pick do not depend on the loader thread's timing (the server's model choice).
     pub blocking_models: bool,
+    /// Streamed tiles join the world in lockstep: all requested tiles together, in tile order (`residency/lockstep.rs`),
+    /// so the ids of their props and the order of their collision do not depend on the disk's speed (the server's
+    /// residency).
+    pub lockstep_streaming: bool,
 }
 
 impl Default for SessionRules {
     /// Single player.
     fn default() -> Self {
-        Self { time_scale_allowed: true, seed: None, views: ViewSource::LocalCamera, blocking_models: false }
+        Self {
+            time_scale_allowed: true,
+            seed: None,
+            views: ViewSource::LocalCamera,
+            blocking_models: false,
+            lockstep_streaming: false,
+        }
     }
 }
 
 impl SessionRules {
-    /// The rules of a session started from `seed`: no time scaling, the players' own views, seeded draws and blocking
-    /// model loads.
+    /// The rules of a session started from `seed`: no time scaling, the players' own views, seeded draws, blocking model
+    /// loads and lockstep streaming.
     pub fn session(seed: u64) -> Self {
-        Self { time_scale_allowed: false, seed: Some(seed), views: ViewSource::PlayerCars, blocking_models: true }
+        Self {
+            time_scale_allowed: false,
+            seed: Some(seed),
+            views: ViewSource::PlayerCars,
+            blocking_models: true,
+            lockstep_streaming: true,
+        }
     }
 
     /// The seed of the race opponents' names: the session's, or one that differs from run to run.
@@ -72,6 +88,7 @@ impl WorldScene {
     /// random streams from it.
     pub fn set_session_rules(&mut self, rules: SessionRules) {
         self.rules = rules;
+        self.residency.set_lockstep(rules.lockstep_streaming);
         let (Some(seed), Some(traffic)) = (rules.seed, self.traffic.as_mut()) else { return };
         traffic.reseed(seed);
     }
@@ -105,7 +122,7 @@ mod tests {
     #[test]
     fn the_defaults_are_single_player() {
         let rules = SessionRules::default();
-        assert!(rules.time_scale_allowed && !rules.blocking_models);
+        assert!(rules.time_scale_allowed && !rules.blocking_models && !rules.lockstep_streaming);
         assert_eq!((rules.seed, rules.views), (None, ViewSource::LocalCamera));
     }
 
@@ -114,7 +131,7 @@ mod tests {
         let session = SessionRules::session(0x1234_5678_9ABC_DEF0);
         assert_eq!(session.name_seed(), session.name_seed());
         assert_eq!(session.name_seed(), 0x1234_5678 ^ 0x9ABC_DEF0);
-        assert!(!session.time_scale_allowed && session.blocking_models);
+        assert!(!session.time_scale_allowed && session.blocking_models && session.lockstep_streaming);
         assert_eq!(session.views, ViewSource::PlayerCars);
     }
 }

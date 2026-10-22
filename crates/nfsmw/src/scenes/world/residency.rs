@@ -12,6 +12,7 @@ use super::props::PropWorld;
 use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
 use super::zone::Zones;
 mod loading;
+mod lockstep;
 mod parts;
 mod ready;
 mod shadow_support;
@@ -103,6 +104,8 @@ pub struct Residency {
     /// Scratch for `unload_unwanted`, kept between frames so a frame allocates nothing.
     keep_scratch: HashSet<usize>,
     unwanted_scratch: Vec<usize>,
+    /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
+    lockstep: bool,
 }
 
 impl Residency {
@@ -164,6 +167,7 @@ impl Residency {
             pinned: HashSet::new(),
             keep_scratch: HashSet::new(),
             unwanted_scratch: Vec::new(),
+            lockstep: false,
         }
     }
 
@@ -297,16 +301,23 @@ impl Residency {
         self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 
-    /// Upload arrived sections, oldest first, until the frame's byte budget is spent.
+    /// Upload arrived sections, oldest first, until the frame's byte budget is spent. In lockstep, all of them in tile
+    /// order once every request has arrived (`residency/lockstep.rs`).
     fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
-        self.arrived.make_contiguous().sort_unstable_by_key(|data| !self.wanted.contains(&data.index));
+        if self.holds_uploads() {
+            return;
+        }
+        let lockstep = self.lockstep_order();
+        if !lockstep {
+            self.arrived.make_contiguous().sort_unstable_by_key(|data| !self.wanted.contains(&data.index));
+        }
         let mut spent = 0;
         while let Some(data) = self.arrived.pop_front() {
             if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
                 continue; // no longer wanted
             }
             let bytes = data.upload_bytes();
-            if spent > 0 && spent + bytes > UPLOAD_BYTES_PER_FRAME {
+            if !lockstep && spent > 0 && spent + bytes > UPLOAD_BYTES_PER_FRAME {
                 self.arrived.push_front(data);
                 break;
             }
