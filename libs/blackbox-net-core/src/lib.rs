@@ -22,15 +22,21 @@
 //!   the game thread.
 //! - `secure` (feature `netcode`): the cookie, the Noise handshake, sealed packets with rekeying, identity keys and
 //!   trust on first use, connect tokens and the room password.
+//! - `endpoint` (feature `netcode`): the net thread. A server and a client endpoint, each one thread over a blocking
+//!   socket, driving the handshake, sealed connections, timers and rate limits, and talking to the game thread only
+//!   through the hand-off queues; the listen host's own client over the in-memory link; LAN discovery.
 //!
-//! No game names, no threads and no wall clock: every function that needs the time takes `now_ms` from the caller, so
-//! tests are deterministic. The default build is standard library only; `handoff` adds `crossbeam-queue` and
-//! `triple_buffer`, `netcode` adds `snow` and the RustCrypto crates.
+//! No game names. Below `endpoint`, no threads and no wall clock: every function that needs the time takes `now_ms` from
+//! the caller, so tests are deterministic; `endpoint` is the one module that spawns threads and reads a clock. The
+//! default build is standard library only; `handoff` adds `crossbeam-queue` and `triple_buffer`, `netcode` adds `snow`
+//! and the RustCrypto crates.
 
 pub mod bits;
 pub mod clock;
 pub mod conn;
 pub mod discovery;
+#[cfg(feature = "netcode")]
+pub mod endpoint;
 #[cfg(feature = "handoff")]
 pub mod handoff;
 pub mod link;
