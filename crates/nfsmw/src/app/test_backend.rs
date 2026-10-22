@@ -4,7 +4,8 @@
 use blackbox_gfx::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderBackend, RenderError,
-    RenderStats, Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, resolve,
+    RenderStats, Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, ViewCaptureUi,
+    resolve,
 };
 
 #[derive(Default)]
@@ -56,6 +57,14 @@ pub struct NullBackend {
     next_normal: usize,
     next_window: usize,
     pub resources: std::sync::Arc<std::sync::Mutex<ResourceCounts>>,
+    /// Whether it reports `view_capture_to_ui`, and the requests it took when it did.
+    view_capture_ui: bool,
+    pub view_capture_ui_requests: Vec<ViewCaptureUi>,
+    /// Captures asked for with `request_capture` (the readback path).
+    pub capture_requests: usize,
+    /// The size of each UI texture last replaced whole, and how many times each was replaced.
+    pub ui_texture_sizes: std::collections::HashMap<UiTextureId, [u32; 2]>,
+    pub ui_texture_uploads: std::collections::HashMap<UiTextureId, usize>,
 }
 
 impl NullBackend {
@@ -93,7 +102,18 @@ impl NullBackend {
             next_normal: 0,
             next_window: 0,
             resources: Default::default(),
+            view_capture_ui: false,
+            view_capture_ui_requests: Vec::new(),
+            capture_requests: 0,
+            ui_texture_sizes: Default::default(),
+            ui_texture_uploads: Default::default(),
         }
+    }
+
+    /// Report that view captures can be shown as UI textures, and record the requests.
+    pub fn with_view_capture_ui(mut self) -> Self {
+        self.view_capture_ui = true;
+        self
     }
 
     pub fn with_texture_tracking(mut self) -> Self {
@@ -292,7 +312,13 @@ impl RenderBackend for NullBackend {
     }
     fn set_environment(&mut self, _environment: Environment<'_>) {}
     fn set_effects(&mut self, _layer: &EffectLayer) {}
-    fn update_ui_texture(&mut self, _patch: &UiTexturePatch<'_>) {}
+    fn update_ui_texture(&mut self, patch: &UiTexturePatch<'_>) {
+        if patch.offset.is_some() {
+            return;
+        }
+        self.ui_texture_sizes.insert(patch.id, patch.size);
+        *self.ui_texture_uploads.entry(patch.id).or_default() += 1;
+    }
     fn free_ui_texture(&mut self, _id: UiTextureId) {}
     fn set_ui_layer(&mut self, _layer: UiLayer) {}
     fn render(&mut self, _frame: &FrameParams, _instances: &[Instance]) -> Result<FrameStatus, RenderError> {
@@ -304,7 +330,24 @@ impl RenderBackend for NullBackend {
         _frame: &FrameParams,
         _instances: &[Instance],
     ) -> Result<CaptureId, RenderError> {
+        self.capture_requests += 1;
         Ok(CaptureId::from_raw(0))
+    }
+    fn view_capture_to_ui(&self) -> bool {
+        self.view_capture_ui
+    }
+    fn request_view_capture_ui(
+        &mut self,
+        _size: [u32; 2],
+        _frame: &FrameParams,
+        _instances: &[Instance],
+        target: &ViewCaptureUi,
+    ) -> Result<(), RenderError> {
+        if !self.view_capture_ui {
+            return Err(RenderError::Device("not supported".into()));
+        }
+        self.view_capture_ui_requests.push(*target);
+        Ok(())
     }
     fn poll_capture(&mut self, _id: CaptureId) -> Option<Result<RgbaImage, RenderError>> {
         None

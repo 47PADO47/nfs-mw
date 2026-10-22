@@ -256,6 +256,10 @@ impl RenderBackend for Renderer {
         Renderer::set_ui_layer(self, layer);
     }
 
+    fn set_ui_layer_ref(&mut self, layer: &UiLayer) {
+        Renderer::set_ui_layer_ref(self, layer);
+    }
+
     fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<FrameStatus, RenderError> {
         let presented = Renderer::render(self, frame, instances)?;
         Ok(if presented { FrameStatus::Presented } else { FrameStatus::Skipped })
@@ -279,6 +283,21 @@ impl RenderBackend for Renderer {
         instances: &[Instance],
     ) -> Result<CaptureId, RenderError> {
         self.begin_view_capture(size, frame, instances)
+    }
+
+    fn view_capture_to_ui(&self) -> bool {
+        true
+    }
+
+    /// The same reduced frame, tinted and masked into a UI texture on the GPU, with no readback.
+    fn request_view_capture_ui(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+        target: &blackbox_gfx::ViewCaptureUi,
+    ) -> Result<(), RenderError> {
+        self.begin_view_capture_ui(size, frame, instances, target)
     }
 
     fn poll_capture(&mut self, id: CaptureId) -> Option<Result<RgbaImage, RenderError>> {

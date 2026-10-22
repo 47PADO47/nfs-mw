@@ -8,7 +8,9 @@ use std::collections::HashMap;
 
 use blackbox_gfx::{UiLayer, UiTextureComposition, UiTextureId, UiTexturePatch, UiVertex};
 
+mod layer_ref;
 mod mask;
+mod picture;
 
 const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
     wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Unorm8x4];
@@ -77,6 +79,7 @@ pub struct UiPass {
     /// Used by the pipelines built per format.
     cache: Option<wgpu::PipelineCache>,
     mask_pass: Option<mask::MaskPass>,
+    picture_pass: Option<picture::PicturePass>,
     pending_compositions: HashMap<UiTextureId, UiTextureComposition>,
 }
 
@@ -152,6 +155,7 @@ impl UiPass {
             draws: Vec::new(),
             cache: cache.cloned(),
             mask_pass: None,
+            picture_pass: None,
             pending_compositions: HashMap::new(),
         }
     }

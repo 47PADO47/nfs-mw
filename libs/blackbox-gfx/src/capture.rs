@@ -1,6 +1,6 @@
 //! Reading a rendered frame back: screenshots and tests.
 
-use crate::RenderError;
+use crate::{RenderError, UiTextureId};
 
 /// A tightly packed RGBA8 image, top row first.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +32,23 @@ impl RgbaImage {
         let at = (y as usize * self.width as usize + x as usize) * 4;
         self.rgba[at..at + 4].try_into().ok()
     }
+}
+
+/// Where a view capture goes when it is shown as a UI texture without a readback
+/// ([`RenderBackend::request_view_capture_ui`](crate::RenderBackend::request_view_capture_ui)), and how it is
+/// shaded on the way.
+///
+/// Each pixel of the capture becomes, in `texture`, the colour multiplied by `tint` (255 leaves a channel as it
+/// is) and then by the alpha of `mask` at the same pixel; the alpha of the result is the mask's. The colour is
+/// premultiplied, like the rest of the UI. Rounding is to the nearest 1/255 at each of the two products.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewCaptureUi {
+    /// The UI texture that receives the picture. It is created or resized to the capture's size.
+    pub texture: UiTextureId,
+    /// A UI texture of exactly the capture's size whose alpha is the coverage. It must exist already.
+    pub mask: UiTextureId,
+    /// Per-channel colour multiplier, 0 to 255.
+    pub tint: [u8; 3],
 }
 
 #[cfg(test)]

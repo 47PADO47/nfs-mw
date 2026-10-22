@@ -3,7 +3,7 @@
 use crate::{
     BackendInfo, Capabilities, CaptureId, EffectLayer, Environment, FrameParams, FrameStatus, GlossyMaterial,
     GlossyMaterialHandle, GraphicsSettings, Instance, LightingRig, MeshDesc, MeshHandle, RenderError, RenderStats,
-    Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch,
+    Resolved, RgbaImage, TextureDesc, TextureHandle, UiLayer, UiTextureId, UiTexturePatch, ViewCaptureUi,
 };
 
 /// A renderer: owns the GPU resources, draws frames.
@@ -150,6 +150,13 @@ pub trait RenderBackend {
     /// The UI drawn over the scene in the next frames, at surface resolution and never post-processed.
     fn set_ui_layer(&mut self, layer: UiLayer);
 
+    /// [`set_ui_layer`](Self::set_ui_layer) for a caller that keeps its layer and sends it again every frame (the HUD
+    /// with the speed streaks on top). A backend that keeps its own copy can update it in place and allocate
+    /// nothing; the default clones.
+    fn set_ui_layer_ref(&mut self, layer: &UiLayer) {
+        self.set_ui_layer(layer.clone());
+    }
+
     // --- frames ----------------------------------------------------------------------------------
 
     /// Build ahead of time what the next frames would otherwise build on first use (pipelines, shader modules,
@@ -182,6 +189,27 @@ pub trait RenderBackend {
         instances: &[Instance],
     ) -> Result<CaptureId, RenderError> {
         self.request_capture(size, frame, instances)
+    }
+
+    /// Whether [`request_view_capture_ui`](Self::request_view_capture_ui) works on this backend. Callers that prepare
+    /// something for it (the mask texture) check this first and keep using
+    /// [`request_view_capture`](Self::request_view_capture) when it is `false`.
+    fn view_capture_to_ui(&self) -> bool {
+        false
+    }
+
+    /// Like [`request_view_capture`](Self::request_view_capture), but the picture stays on the GPU: it is tinted and
+    /// masked as `target` says and lands in the UI texture `target.texture` with no readback and no polling, in
+    /// time for the next frame's UI. A backend that cannot (see [`view_capture_to_ui`](Self::view_capture_to_ui))
+    /// returns an error and draws nothing. A capture already in flight leaves the texture as it was.
+    fn request_view_capture_ui(
+        &mut self,
+        _size: [u32; 2],
+        _frame: &FrameParams,
+        _instances: &[Instance],
+        _target: &ViewCaptureUi,
+    ) -> Result<(), RenderError> {
+        Err(RenderError::Device("this backend cannot show a view capture as a UI texture".into()))
     }
 
     /// The captured image once it is ready, `None` while the backend is still working. A backend
