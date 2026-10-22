@@ -75,8 +75,27 @@ without changing any public name used by the game.
 
 ## 4. Extracting `nfsmw-sim`
 
-This is the largest piece of milestone 10 work and the gate for the dedicated server. What is known from reading the
-code today:
+**Status.** [ADR 0011](../../decisions/0011-lan-multiplayer-on-the-player-world.md) built the seam and left the physical
+extraction below for later; LAN does not wait for it. `crates/nfsmw-sim` holds what exists today:
+
+- the `WorldSim` trait (`step`, `entities` in ascending id order, `own_state`, `state_hash`, join and leave) with the plain
+  `SimInputs`, `EntityView`, `OwnState`, `SimEvent` and `PlayerJoin` types;
+- `hash::StateHasher`, a hand-written FNV-1a with a SplitMix64 finaliser: little-endian integers, floats by bit pattern with
+  `-0.0` and NaN normalised, length-prefixed slices. It means the same on every platform;
+- `toy::ToyWorld`, a deterministic kinematic world (60 Hz, own seeded SplitMix64 stream, no clock, only `+ - * /` and `sqrt`):
+  up to 16 player cars on the lowest free entity id (traffic ids start at 16), wandering traffic, police that chase the nearest
+  player and raise pursuit, evade and bust events, car-to-car `Contact`, `Moved` on reset or teleport, and an optional circuit
+  with `LapCompleted` and `RaceFinished` in finishing order. Hostile input (NaN, infinities, huge values) is made safe;
+- `runner::Runner`, the headless fixed-step runner with `InputScript` (a closure, `PerPlayer`, or the reproducible
+  `WanderScript`), an event log, and `compare_runs`, which drives two worlds with one script and compares events every tick and
+  hashes every second.
+
+Step 6 below is therefore done for the toy world: its tests run ten simulated minutes of 16 scripted players twice and compare
+the hash on every tick. The same runner and tests apply unchanged to `WorldScene`'s `WorldSim` when it lands, which is where
+the real determinism work (steps 4 and 5) is measured.
+
+The extraction itself is the largest piece of milestone 10 work and the gate for the dedicated server. What is known from
+reading the code today:
 
 - `CarSim` (`scenes/world/drive/sim/mod.rs`) and the pair code (`pair.rs`) import the binary crate's audio contact types
   (`crate::audio::CarContact`), the wheel option settings (`crate::settings::WheelOptions`), effects and event types
