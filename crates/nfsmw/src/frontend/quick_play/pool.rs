@@ -104,14 +104,14 @@ impl CarPool {
         let physics = PhysicsData::load(dir).ok();
         let cars = cars_of(&catalogue, &folders, |folder| {
             let physics = physics.as_ref()?;
-            crate::career::car_stats(physics, &folder.to_ascii_lowercase())
+            crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
         let cars = drivable(cars, physics.is_some());
         let population = cars.iter().filter_map(|car| car.stats).collect();
         let rides = nfsmw_data::car::CarTables::load(dir).map(|tables| tables.presets.clone()).unwrap_or_default();
         let presets = presets_of(&catalogue, &folders, &rides, |folder| {
             let physics = physics.as_ref()?;
-            crate::career::car_stats(physics, &folder.to_ascii_lowercase())
+            crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
         Ok(CarPool { cars, population, presets })
     }

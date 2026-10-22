@@ -6,16 +6,16 @@
 //! A cop car takes two trips to the worker: first its car, then its performance and light textures, which need its
 //! physics.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 
 use blackbox_tpk::Texture;
-use blackbox_vehicle::performance::{Performance, measure_with_integration};
+use blackbox_vehicle::performance::Performance;
 use game_install::GameDir;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::cop_lights::CopLightFx;
-use nfsmw_data::car::physics::CarPhysics;
+use nfsmw_data::car::physics::{CarPhysics, measured};
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::models::folders;
@@ -79,7 +79,7 @@ pub enum Job {
         trailer: Option<Lookup>,
     },
     Cop(Lookup),
-    /// A cop car's second trip: its performance (measured once per `car_type`) and the textures of its lights.
+    /// A cop car's second trip: its performance (measured once per car spec) and the textures of its lights.
     CopExtras {
         car_type: String,
         hashes: Vec<u32>,
@@ -145,7 +145,7 @@ impl ModelLoader {
     pub fn new(dir: GameDir) -> Self {
         let (jobs, job_rx) = channel();
         let (done_tx, results) = channel();
-        let worker = Worker { dir, performance: HashMap::new() };
+        let worker = Worker { dir };
         let spawned =
             std::thread::Builder::new().name("model-loader".to_owned()).spawn(move || serve(worker, job_rx, done_tx));
         let jobs = match spawned {
@@ -215,10 +215,9 @@ impl ModelLoader {
     }
 }
 
-/// The worker thread's state: the install it reads, and the performance of each cop car type it has measured.
+/// The worker thread's state: the install it reads.
 struct Worker {
     dir: GameDir,
-    performance: HashMap<String, Performance>,
 }
 
 impl Worker {
@@ -262,12 +261,9 @@ impl Worker {
         Ok(Loaded::Cop(Box::new(CopLoad { folder, model })))
     }
 
-    /// The cop's performance (measured the first time its type is asked for) and its light textures.
-    fn extras(&mut self, car_type: &str, hashes: &[u32], staged: StagedCop) -> Loaded {
-        let performance = *self
-            .performance
-            .entry(car_type.to_owned())
-            .or_insert_with(|| measure_with_integration(&staged.car.physics.spec, staged.car.physics.tire_integration));
+    /// The cop's performance (measured once per distinct car spec in the process, see `measured`) and its light textures.
+    fn extras(&self, _car_type: &str, hashes: &[u32], staged: StagedCop) -> Loaded {
+        let performance = measured::performance_of_spec(&staged.car.physics.spec, staged.car.physics.tire_integration);
         let textures = self.textures(hashes);
         Loaded::CopExtras(Box::new(CopExtrasLoad { staged, performance, textures }))
     }
