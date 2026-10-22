@@ -81,6 +81,23 @@ fn subdirectories_keep_original_case() {
 }
 
 #[test]
+fn clones_share_the_index_and_keep_their_own_overlays() {
+    let (root, dir) = install("clone");
+    put(&root.join("mod"), "global/globalb.lzc", b"new");
+    let mut with_overlay = dir.clone();
+    assert!(Arc::ptr_eq(&dir.files, &with_overlay.files), "a clone shares the install index");
+    with_overlay.add_overlay("mod.a", root.join("mod"), 0).unwrap();
+    assert!(Arc::ptr_eq(&dir.files, &with_overlay.files), "adding an overlay leaves the install index alone");
+    let another = with_overlay.clone();
+    assert!(Arc::ptr_eq(&with_overlay.overlays[0].files, &another.overlays[0].files), "overlay indexes are shared");
+    assert_eq!(dir.read("GLOBAL/GLOBALB.LZC").unwrap(), b"x");
+    assert_eq!(with_overlay.read("GLOBAL/GLOBALB.LZC").unwrap(), b"new");
+    assert_eq!(another.read("GLOBAL/GLOBALB.LZC").unwrap(), b"new");
+    assert_eq!(dir.provider("GLOBAL/GLOBALB.LZC"), Some(Provider::Install));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn overlay_replaces_an_install_file() {
     let (root, mut dir) = install("override");
     put(&root.join("mod"), "global/globalb.lzc", b"new");
