@@ -299,8 +299,9 @@ F8 Materials includes **Original world materials**, also selected by the
 Original PC profile. This restores distinct ordinary world, tree, unfogged and
 prelit shading. Native Vulkan/DX12 also restore normal-mapped/reflective dry-road
 lighting and architectural glass with its stock global reflection texture, plus the camera-centered
-three-layer PC sky. Enhanced shares these authored materials; custom lighting
-and quality controls operate on that common baseline.
+three-layer PC sky. Enhanced shares the world materials and uses a separate
+[procedural sky](enhanced-sky.md). F8 Environment switches Enhanced sky independently;
+cloud coverage follows the existing weather controls.
 World atmosphere now reads authored fog scalars and spatial cloud blending.
 Wet-road projected capture/history, complete projected shadow classification/filtering, scripted weather and full scene equivalence remain
 open; see [coverage](graphics-coverage.md). Bevy supports the four surface families

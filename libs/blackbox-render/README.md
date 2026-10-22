@@ -234,3 +234,7 @@ layer kinds separate glass, composites, conductors, rubber and coated finishes.
 Indirect diffuse combines linear albedo and occlusion. Legacy and Original
 material equations retain the raw environment. See
 [car materials](../../docs/specs/custom-car-materials.md).
+
+The optional [Enhanced sky](../../docs/enhanced-sky.md) combines an analytic
+atmosphere with a sun-lit shallow cloud volume in every native sky view.
+Authored sky materials retain their independent original shading path.

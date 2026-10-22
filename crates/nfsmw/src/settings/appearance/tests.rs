@@ -2,6 +2,53 @@ use super::*;
 fn settings() -> Settings {
     Settings::from(Partial::default())
 }
+
+#[test]
+fn sky_tuning_round_trips_and_sanitizes_without_requiring_new_keys_in_old_profiles() {
+    let mut value = Appearance::read(&toml::from_str("version=1").unwrap(), "old").unwrap();
+    assert_eq!(value.lighting.sky_sun_size, 2.0);
+    value.lighting.sky_wind_speed = 12.0;
+    value.lighting.sky_sun_size = 2.0;
+    value.lighting.sky_sun_brightness = 0.5;
+    value.lighting.sky_brightness = 1.25;
+    value.lighting.sky_sunset_warmth = 1.5;
+    assert_eq!(Appearance::read(&value.value().unwrap(), "round-trip").unwrap(), value);
+    value.lighting.sky_wind_speed = f32::NAN;
+    value.lighting.sky_sun_size = f32::INFINITY;
+    value.lighting.sky_sun_brightness = -1.0;
+    value.lighting.sky_brightness = 99.0;
+    value.lighting.sky_sunset_warmth = -1.0;
+    let actual = Appearance::read(&value.value().unwrap(), "bounded").unwrap().lighting;
+    assert_eq!(
+        (
+            actual.sky_wind_speed,
+            actual.sky_sun_size,
+            actual.sky_sun_brightness,
+            actual.sky_brightness,
+            actual.sky_sunset_warmth
+        ),
+        (2.0, 2.0, 0.0, 2.0, 0.0)
+    );
+}
+
+#[test]
+fn older_original_profiles_keep_the_authored_sky_and_explicit_overrides_survive() {
+    let mut s = settings();
+    s.select_visual_style(VisualStyle::OriginalPc);
+    let mut value = s.appearance.value().unwrap();
+    value.get_mut("lighting").unwrap().as_table_mut().unwrap().remove("enhanced_sky");
+    assert!(!Appearance::read(&value, "test").unwrap().lighting.enhanced_sky);
+    value
+        .get_mut("lighting")
+        .unwrap()
+        .as_table_mut()
+        .unwrap()
+        .insert("enhanced_sky".into(), toml::Value::Boolean(true));
+    assert!(Appearance::read(&value, "test").unwrap().lighting.enhanced_sky);
+    value["style"] = toml::Value::String("custom".into());
+    value.get_mut("lighting").unwrap().as_table_mut().unwrap().remove("enhanced_sky");
+    assert!(Appearance::read(&value, "test").unwrap().lighting.enhanced_sky);
+}
 #[test]
 fn quality_changes_cost_without_changing_the_selected_art_or_gameplay() {
     for style in [VisualStyle::OriginalPc, VisualStyle::Enhanced] {
@@ -24,8 +71,10 @@ fn quality_changes_cost_without_changing_the_selected_art_or_gameplay() {
 fn original_target_disables_enhancements_but_is_not_claimed_complete() {
     let mut s = settings();
     s.select_visual_style(VisualStyle::Enhanced);
+    assert!(s.appearance.lighting.enhanced_sky);
     assert!(s.appearance.lighting.sun_shadows && s.appearance.lighting.clearcoat);
     s.select_visual_style(VisualStyle::OriginalPc);
+    assert!(!s.appearance.lighting.enhanced_sky);
     assert!(
         s.appearance.lighting.sun_shadows
             && s.appearance.lighting.shadow_projection.is_some()

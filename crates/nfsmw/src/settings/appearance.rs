@@ -118,6 +118,7 @@ impl Settings {
         self.ao_intensity = Percent(100);
         match style {
             VisualStyle::OriginalPc => {
+                self.appearance.lighting.enhanced_sky = false;
                 self.car_shading = CarShading::Original;
                 self.appearance.lighting.original_world_materials = true;
                 self.appearance.lighting.sun_shadows = true;
