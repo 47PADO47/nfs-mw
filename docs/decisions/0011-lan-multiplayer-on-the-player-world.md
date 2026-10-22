@@ -88,7 +88,9 @@ Stated here so nothing is "missing" by accident:
   behaviour, which stays guarded by the existing world and frame-rate traces. **As built (2026-10-22, server side):** the
   hooks are a remote input per car (`Drive::set_remote_input`), a one-step-per-update physics clock, the tick's car
   contacts, and read-only export accessors; the snapshot is written by `WorldSimHost` (`scenes/world/net/`), not by the
-  scene. The client mode is not built. Two facts the design did not foresee: the world always has a lead, so the host's
+  scene. The client mode is built too ([game wiring](../specs/multiplayer/game-wiring.md)): one switch for the world's own
+  rules, the owner's `Drive` predicted with the world lent to the session's car, the rest drawn from snapshots. Two facts
+  the design did not foresee: the world always has a lead, so the host's
   own seat (`PlayerId(0)`) keeps its car in the world when its player leaves, and a dedicated server has that car too; and
   the scene is not `Send` (it holds `Rc`s), so the listen server's world runs on the thread that opened it
   ([world host](../specs/multiplayer/world-host.md)).

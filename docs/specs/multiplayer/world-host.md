@@ -24,6 +24,8 @@ WorldSimHost  (scenes/world/net)
   counted: the host's tick is 0 after `open`.
 - **`NullBackend`** was the tests' renderer (`app/test_backend.rs`); it is now `app/null_backend.rs`, built in every
   configuration. The tests keep using it through `app::test_backend`, an alias of the same module.
+- **Who drives it** (2026-10-22, [game wiring](game-wiring.md)): the listen server's thread and `nfsmw --dedicated` run
+  `nfsmw_server::Server<WorldSimHost>` over it; the end-to-end test runs one with a client-mode world and a bot.
 - `scene()` and `scene_mut()` give the world and the renderer to the caller between ticks (console commands, a race to
   queue), `catalog()` the car catalogue, `request_reset(id)` a reset on the next tick, `stalled_ticks()` the ticks whose
   streaming wait ran out.
@@ -114,6 +116,14 @@ focus turns over every player, `ai/population/guests.rs`), the chase (`players/c
 - **`state_hash`**: the tick, then `WorldScene::state_hash` (players' cars, traffic and its streams, police, pursuit, race;
   `state_hash.rs`), through the same FNV-1a hasher.
 
+### `WorldControl` (`net/control.rs`)
+
+| Call | As built |
+|---|---|
+| `reset_player` | `request_reset` on the next tick; refused for a player with no car |
+| `set_ghost` | Parks the car (co-op parking): out of play, not stepped, not collided, not exported; unparking brings it back where it stood |
+| `fill_global` | The world's time of day; for a chased or busted player the heat, its busted meter (its own while two or more are chased), the cooldown bar and the chase state (`Chased`, `Cooldown`, `Evaded`, `Busted`); for a racer its place and lap from the race card |
+
 ## 5. Single player is unchanged
 
 The hooks are inert unless a host sets them: `Drive::remote_input` is `None`, the physics clock follows the frame time, and
@@ -144,11 +154,13 @@ unchanged.
 - **Races with remote players.** A co-op race seats player 2 in the split-screen racer seat, which reads its pedals from the
   local split-screen input (`split/mod.rs`, `feed_second_player`), not from the network; players 3 to 16 stay in free roam
   during a race; without player 2 the race seats player 1 alone. The race events map only the first two human racers.
-- **Reset.** `InputState` carries no reset; the server must call `request_reset` (no protocol message carries it yet).
+- **Reset.** `InputState` carries no reset; the server calls `request_reset` through `WorldControl::reset_player` when a
+  client sends `ResetRequest` (the client's reset key).
 - **Speedbreaker.** Barred in a session (`SessionRules::time_scale_allowed`); a per-car speedbreaker waits for
   [features](features.md).
 - **The host's car** cannot be changed by `add_player(PlayerId(0))`, and it stays in the world when its player leaves. A
-  dedicated server without a host player still has this car.
+  dedicated server without a host player still has this car: the first player to join (slot 0) drives it, whatever car
+  the loadout names.
 - **Parts.** `PlayerJoin::parts` is not applied; remote cars are stock.
 - **Streaming.** Without `settle_streaming` a missing tile freezes the whole world for the tick (the single-player gate),
   which is safe but not what [integration](integration.md) section 2 wants (only the stalled client's car should wait).

@@ -21,8 +21,8 @@ reset to the road and the parked ghost car of a dropped player). It owns:
 | The replay recorder | `nfsmw-net::record` |
 | The world | the caller (`ToyWorld` in the binary and the tests; the game's `WorldScene` later) |
 
-The game will run the same type for a listen server (its own client attached with `Server::connect_local`) and for
-`--dedicated`. Nothing in the server knows the renderer, audio or settings of the game.
+The game runs the same type for a listen server (its own client attached with `Server::connect_local`) and for
+`--dedicated` ([game wiring](game-wiring.md)). Nothing in the server knows the renderer, audio or settings of the game.
 
 ## 2. One tick
 
@@ -144,8 +144,10 @@ The server's mean tick with three bots is about 0.12 ms.
 
 - The room password (PAKE) and the connect tokens of online play.
 - Snapshot parts (a snapshot always fits one datagram at the configured budgets).
-- The global block's pursuit and race fields; the own block's correction cause `Freeze`.
-- Ghost cars and server-side resets need `WorldControl` from the world; the toy world resets but has no ghosts.
+- The global block's pursuit and race fields come from `WorldControl::fill_global` (default: zero); the game's world fills
+  them ([game wiring](game-wiring.md) section 3), the toy world does not. The own block's correction cause `Freeze`.
+- Ghost cars and server-side resets need `WorldControl` from the world; the toy world resets but has no ghosts, the game's
+  world does both (`scenes/world/net/control.rs`).
 - The telemetry bridge of MP-84 and an admin console.
 - Bans do not expire from memory (they stop applying at their end time), and the server's own identity key is new on
   every start (no `identity_file` key yet).

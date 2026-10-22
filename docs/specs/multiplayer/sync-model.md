@@ -1,6 +1,7 @@
 # Multiplayer sync model: prediction, interpolation, collisions, clocks, determinism
 
-Status: **client side built** (2026-10-22) in `crates/nfsmw-net`, without the game wiring: prediction (`predict`),
+Status: **client side built** (2026-10-22) in `crates/nfsmw-net` and wired into the game the same day
+([game wiring](game-wiring.md)): prediction (`predict`),
 reconciliation and smoothing (`reconcile`), interpolation (`interp`), clock and lead (`clock`), the overlay counters
 (`netstats`) and the `net.sim` setting (`netsim`), all driven from the wire by `client_session::ClientSession`
 ([client session](client-session.md)). The session lifecycle rules of section 7 are built (see the note there).
@@ -83,6 +84,13 @@ with the toy car: the own block's rounding alone stays under the thresholds, but
 threshold). Since every rewind re-injects that rounding, a client on the same build still makes small corrections
 (20 to 130 a minute, median about 1 cm, almost all tripped by the velocity term); all are hidden by the offset.
 
+**The game's car (2026-10-22, [game wiring](game-wiring.md) section 4):** `GameCar` predicts the real `Drive` with the
+server's own physics tick (`Drive::set_remote_input`); `Saved` is the cloned `blackbox_vehicle::Vehicle` plus the drive's
+poses and telemetry, and `set_state` writes the own block's pose and velocities into the body. Measured on the installed
+world over loopback (the end-to-end test: a session start, 2 s idle, then 20 s of full throttle to 37 m/s, 323 m): 515
+own-car checks over the run, 239 corrections (95th percentile 6 cm), no snaps. The rate is higher than the toy car's because the real car's
+velocity moves more between ticks; every correction stayed under the snap distance and was hidden by the offset.
+
 ### 2.4 Smoothing the correction
 
 The physics car always jumps to the corrected state. What is drawn is `physics_pose + offset`, where `offset` holds the
@@ -93,7 +101,9 @@ unapplied part of past corrections:
 - On **snap**, the offset is cleared and the drawn pose jumps; the camera is told so that it does not smear.
 - The camera follows the drawn pose, not the physics pose.
 
-Wheel spin and suspension travel are not smoothed; they follow the physics state.
+Wheel spin and suspension travel are not smoothed; they follow the physics state. In the game the drawn pose is
+`ClientSession::own_pose` through a drawn-pose override of the `Drive` (`Drive::set_net_pose`); the chase camera still
+follows the physics pose.
 
 **Built:** `reconcile::VisualOffset` (position and rotation, half-life decay); `Reconciler::drawn_pose`. Causes of
 section 2.6: `reset` and `teleport` snap, `freeze` holds the input neutral until a block without it, `contact` reconciles

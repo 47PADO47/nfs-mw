@@ -86,15 +86,28 @@ will hold a `ClientSession<ClientEndpoint, GameCar>` and call `update`, `due_tic
 now built in every configuration). One `step` hands each seat's `InputState` to its car (`Drive::set_remote_input`), runs
 exactly one tick (`FixedClock::set_one_per_update`) under `SessionRules::session(seed)`, and reports contacts, pursuit,
 race and moved events from what the world keeps. Remote players are co-op guests on their own `PlayerId`; the host's own
-player is `PlayerId(0)`, the lead. `NetSession`, `NetWorldScene` (the client mode), the lobby screens, the console
-commands and the overlay are not built. The full description and the gaps: [world host](world-host.md).
+player is `PlayerId(0)`, the lead. The full description and the gaps: [world host](world-host.md).
+
+**As built (2026-10-22): the game's side** ([game wiring](game-wiring.md), feature `multiplayer`, on by default).
+
+| Piece | Built as |
+|---|---|
+| `NetSession` | `net/session.rs`, modes `Idle`, `Host`, `Join`, `Dedicated`. Not a resource of its own: it is the front end's `NetFrontend` in the `LanBackend` resource (`NonSend`, the client shares the car with the world through `Rc`s); `NetPlugin` adds it and two systems in `FrameSet::Commands` (the session's update, then handing the client to the world scene) |
+| Listen server | A thread of its own (open question 1 of section 7, as proposed): it opens the `WorldSimHost` itself (not `Send`), binds the LAN port with discovery, runs `Server<WorldSimHost>` and attaches the host's client with `connect_local`; only the client endpoint crosses back |
+| Dedicated server | `nfsmw --dedicated`: the same loop on the main thread, `NullBackend`, no window, audio or GPU, until Ctrl-C |
+| `NetWorldScene` | Not a scene of its own: the client mode of `WorldScene` (`scenes/world/net_client/`). One switch (`frame_systems.rs`) turns off the world's own traffic, police, pursuit, races, career and catch-up; the owner's car is the real `Drive`, predicted through `GameCar` with the world lent for the session calls; every other car is drawn from the interpolated snapshots with the AI cars' rigs and `CarPose`s |
+| HUD hooks | The global block (heat, busted and cooldown meters, chase state, race place and lap) over the predicted car's dials; the server fills it through `WorldControl::fill_global` |
+| Command line | `--host`, `--connect ADDR`, `--dedicated`, `--discover`, `--port`, `--name`, `--server-config`, `--seconds` |
+
+The lobby screens, the console commands, the settings keys and the overlay line are the front end's (`frontend/lan/`,
+`devtools/console/net*`, `settings/net/`) over the same `NetFrontend`.
 
 **Pause and menus.** The server never pauses. The pause key opens the overlay; the client keeps stepping its own car with
-neutral input. The garage is a lobby feature in a session, not an overlay on a live world.
+neutral input (built: the pause wrapper keeps updating a scene that `runs_while_paused`). The garage is a lobby feature in a session, not an overlay on a live world.
 
 **Streaming.** Single player stops the whole sim until the required area is resident
 ([physics-timing.md](../../physics-timing.md)). A session cannot do that. The client keeps its car in a "loading" state with neutral
-input (and sends `StreamingStall`) until its area is resident. The server streams collision for where players are, and
+input (and sends `StreamingStall`) until its area is resident (built: `net_client/frame.rs` holds the car and sends it). The server streams collision for where players are, and
 only the collision data (no meshes, textures or audio).
 
 ## 3. Crates
@@ -109,8 +122,9 @@ only the collision data (no meshes, textures or audio).
 
 Rules that hold throughout: `libs/` has no NFS:MW names, so the generic layer sees entity kinds as small integers and
 fields as a schema the game registers; `crates/` depends on `libs/`, never the reverse. A build of the single-player game without
-multiplayer does not compile the `netcode` feature (a cargo feature `multiplayer` on `nfsmw`, on by default once the milestone ships;
-it can start off). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies are checked (`deny.toml` sets
+multiplayer does not compile the server (a cargo feature `multiplayer` on `nfsmw`; built 2026-10-22, on by default:
+[game wiring](game-wiring.md) section 1; `nfsmw-net`, and with it `netcode`, is in every build because the LAN screens use
+it). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies are checked (`deny.toml` sets
 `all-features = false`). No file over 500 lines.
 
 **As built (2026-10-22).** The split differs from the table above: the default build of `blackbox-net-core` is standard library
@@ -195,8 +209,8 @@ Fallback if step 4 proves too large: the first multiplayer release ships the **l
 | 0 | Sim benchmarks; determinism audit (D1 to D6); the sim extraction (section 4) | Single-player frame-rate trace unchanged |
 | 1 | `blackbox-net-core`: bit packing, quantisers, links and the packet simulator, the connection layer (reliability, fragments), replication codec and per-client views, clock filter, session state machine, discovery; seeded round-trip, loss and fuzz tests; `net_bench` | **Built 2026-10-21** (ADR 0009) |
 | 2 | Handshake and sealing (`snow`) around the built connection layer; fuzz targets for every pre-authentication parser; the hand-off queues. (The reliability suite moved to step 1; the `renet` spike is dropped by ADR 0009) | **Built 2026-10-22**: seeded garbage tests in `cargo test`, `cargo-fuzz` targets in `libs/blackbox-net-core/fuzz`; `cargo deny` passes with the crypto crates |
-| 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window. **Server side built 2026-10-22** ([server](server.md)): `Server<W>` over any `WorldSim`, the TOML config, logging, the toy-world binary with `--bots N`; tested with 16 raw clients and with the bots over loopback UDP. Two processes with a game window wait for the game's `NetSession` |
-| 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic. **Server side built 2026-10-22**: deltas against the acknowledged view, relevancy by spatial hash, the per-client budget; 3 to 12 KB/s per client with 8 players on the toy world ([server](server.md) section 7). The remote cars in the game wait for the game's client mode |
+| 3 | Server loop and `nfsmw-server` with bots; join, lobby, chat | Two processes on one PC, no game window. **Server side built 2026-10-22** ([server](server.md)): `Server<W>` over any `WorldSim`, the TOML config, logging, the toy-world binary with `--bots N`; tested with 16 raw clients and with the bots over loopback UDP. Two processes with a game window wait for the game's `NetSession`; **built 2026-10-22** ([game wiring](game-wiring.md)), tested in one process without a window |
+| 4 | Snapshot delta and relevancy; client interpolation; free roam with remote cars visible | Bandwidth within the ADR arithmetic. **Server side built 2026-10-22**: deltas against the acknowledged view, relevancy by spatial hash, the per-client budget; 3 to 12 KB/s per client with 8 players on the toy world ([server](server.md) section 7). The remote cars in the game: **built 2026-10-22**, the client mode of the world ([game wiring](game-wiring.md) section 4) |
 | 5 | Prediction and reconciliation for the owner; clock sync; the bad-network suite | Targets of [features](features.md) section 4 |
 | 6 | Pursuit co-op, race rules (when milestone 7 provides them), results | Server-authoritative pursuit and race tests |
 | 7 | Spectators, reconnect, recording, console and overlay polish | P1 items |

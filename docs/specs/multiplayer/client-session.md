@@ -1,8 +1,9 @@
 # Multiplayer client session: API and lifecycle
 
 Status: **built** (2026-10-22) in `crates/nfsmw-net`, module `client_session`, and tested on a mock link against a
-scripted server and over loopback UDP against a scripted `ServerEndpoint`. Not yet driven by the game (`NetSession` and
-`NetWorldScene` of [integration](integration.md) section 2) nor tested against the real server loop of `nfsmw-server`.
+scripted server and over loopback UDP against a scripted `ServerEndpoint`. Driven by the game since 2026-10-22
+(`NetClient` with the real car `GameCar`, the client mode of the world: [game wiring](game-wiring.md)) and tested against
+the real server loop of `nfsmw-server` there (`net/tests.rs`, and over the installed world `net_client/installed.rs`).
 Where this file and the code disagree, the code's tests are the reference and this file is fixed.
 
 `ClientSession` is everything between the net thread and the game: admission, the lobby mirror, snapshots into
@@ -178,11 +179,12 @@ players seated in the world under their slot as player id.
 
 ## 10. Not built
 
-- The Bevy side: the `NetSession` resource, `NetWorldScene`, lobby screens, console commands, settings keys and the
-  overlay drawing.
+- The Bevy side is built in `crates/nfsmw` ([game wiring](game-wiring.md)); the lobby screens, console commands, settings
+  keys and overlay are the front end's (`frontend/lan/`).
 - `ClientEndpoint` does not report the Noise handshake hash, so the password is bound to zeros over it (a man in the
   middle who ran two handshakes is not detected yet); the endpoint must expose the hash.
 - Near-field extrapolation (sync-model 4.3), wheel and engine detail of remote cars (the session passes `EntityView`s),
   the client's own input-timing use of `StreamingStall`, spectator hints, discovery in the session (the game runs
   `DiscoveryScan` and passes the address).
-- The real server loop: no test runs a session against `nfsmw-server` yet.
+- The input lead climbs to its maximum (12 ticks) when the clock the session is driven with outruns the net threads; a
+  test with a fake clock must pace it to the wall clock ([game wiring](game-wiring.md) section 6).

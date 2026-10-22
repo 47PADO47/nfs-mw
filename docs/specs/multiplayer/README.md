@@ -2,8 +2,9 @@
 
 Design for LAN multiplayer (milestone 10) that online multiplayer (milestone 11) reuses without a rewrite: one host-authoritative
 server program, the same on a LAN and on the internet, over our own UDP layer. Written 2026-10-16, revised by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md) on 2026-10-21. The generic layer
-(`libs/blackbox-net-core`) is built, including the handshake, sealing, rate limits and hand-off queues (feature `netcode`); the
-rest is design.
+(`libs/blackbox-net-core`) is built, including the handshake, sealing, rate limits and hand-off queues (feature `netcode`); so are
+the protocol and client session (`nfsmw-net`), the server loop (`nfsmw-server`), the real world behind it and the game's side
+(2026-10-22: [game wiring](game-wiring.md)). Online play is design.
 
 The decision record is [ADR 0006](../../decisions/0006-multiplayer-netcode.md). The files here hold the requirements, the wire format,
 the algorithms and the security design it refers to.
@@ -26,7 +27,10 @@ Read in this order:
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
    order of work for milestone 10; [client-session.md](client-session.md): the client's session driver as built (API and
-   lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it.
+   lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it;
+   [world-host.md](world-host.md): the real world behind the server; [game-wiring.md](game-wiring.md): the game's side as
+   built (`--host`, `--connect`, `--dedicated`, `--discover`, `NetSession`, the listen server's thread, the world's client
+   mode).
 8. [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md): the revisions made before building (16-bit ids, shared delta
    encoding, layers, skippable frames, registries, the session state machine). It overrides the files above where they disagree.
 9. [determinism.md](determinism.md): the audit of the sim against D1 to D8 and the planned fix for each finding.
