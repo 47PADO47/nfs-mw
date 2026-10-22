@@ -11,7 +11,7 @@ use glam::{Mat4, Vec3};
 use game_install::GameDir;
 use nfsmw_data::car::{CarModel, LoadOptions};
 
-use super::camera_pose::CameraPose;
+use super::camera_move::CameraMove;
 use super::look::{CarLook, Look};
 use super::room::Room;
 use crate::input::ActionState;
@@ -49,8 +49,9 @@ pub struct MenuScene {
     parts: Vec<Instance>,
     /// The camera's rest pose (yaw, distance), which the intro settles onto.
     rest: (f32, f32),
-    /// The stage's own camera, when it has one: the safe house holds it still instead of the car viewer's orbit camera.
-    pose: Option<CameraPose>,
+    /// The stage's own camera, when it has one: the safe house moves it onto its pose, then holds it, instead of the car
+    /// viewer's orbit camera. The move begins when the backdrop is built, which is when the menu opens.
+    camera: Option<CameraMove>,
     /// Seconds since the menus came up, until the intro is over.
     intro: f32,
 }
@@ -132,6 +133,7 @@ impl Scene for MenuScene {
                 None
             }
         };
+        let camera_move = stage.camera(Some(&dir));
         let mut car = CarScene::new(model, 0.0).with_source(dir, options);
         car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
@@ -142,9 +144,9 @@ impl Scene for MenuScene {
         car.init(renderer)?;
         let camera = car.camera_mut();
         self.rest = (camera.yaw, camera.distance);
-        self.pose = stage.camera();
-        // A stage with its own camera has no intro: the pose is where the camera is.
-        self.intro = if self.pose.is_some() { INTRO_SECONDS } else { 0.0 };
+        self.camera = camera_move;
+        // A stage with its own camera has no intro of the orbit camera: its move is the intro.
+        self.intro = if self.camera.is_some() { INTRO_SECONDS } else { 0.0 };
         self.car = Some(car);
         self.room = room;
         Ok(())
@@ -167,7 +169,8 @@ impl Scene for MenuScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         let Some(car) = &mut self.car else { return };
-        if self.pose.is_some() {
+        if let Some(camera) = &mut self.camera {
+            camera.advance(dt);
             return car.update(renderer, &ActionState::default(), dt);
         }
         if matches!(self.look, Look::Showcase(_)) {
@@ -195,13 +198,13 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let options = fe_shadows::active();
-        let Self { car, room, parts, pose, .. } = self;
+        let Self { car, room, parts, camera, .. } = self;
         let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
-        if let Some(pose) = pose {
-            let lens = pose.lens(aspect);
+        if let Some(camera) = camera {
+            let lens = camera.pose().lens(aspect);
             (params.view, params.projection, params.camera_position) = (lens.view, lens.projection, lens.position);
         }
         params.shadow_tuning = fe_shadows::tuning(options);

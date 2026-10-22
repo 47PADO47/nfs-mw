@@ -4,6 +4,7 @@
 
 mod alias_menu;
 mod browse;
+mod camera_move;
 mod camera_pose;
 mod career_screens;
 // The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.

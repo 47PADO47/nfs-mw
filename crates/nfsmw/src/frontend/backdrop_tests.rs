@@ -48,14 +48,32 @@ fn every_look_builds_draws_and_frees_what_it_uploaded() {
     }
 }
 
+/// The eye of `look`'s camera after the backdrop has run for `seconds` of 60 Hz frames.
+fn eye_after(dir: &GameDir, look: Look, seconds: f32) -> glam::Vec3 {
+    let mut renderer = backend();
+    let mut menu = MenuScene::with_look(Some(dir.clone()), look);
+    menu.init(&mut renderer).unwrap();
+    for _ in 0..(seconds * 60.0).round() as u32 {
+        menu.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    }
+    let eye = menu.frame(16.0 / 9.0).0.camera_position;
+    menu.close(&mut renderer);
+    eye
+}
+
 #[test]
-fn the_safe_house_holds_its_own_camera_and_the_crib_the_orbit_camera() {
+fn the_safe_house_camera_moves_onto_its_pose_and_the_crib_keeps_the_orbit_camera() {
     let Some(dir) = install() else { return };
-    let (_, _, safe) = build_and_draw(&dir, Look::SafeHouse(CarLook::default_car()));
-    let pose = Stage::SafeHouse.camera().unwrap();
-    assert!((safe - pose.eye()).length() < 1e-3, "{safe:?}");
-    let (_, _, crib) = build_and_draw(&dir, Look::Car(CarLook::default_car()));
-    assert!((crib - pose.eye()).length() > 1.0, "the crib does not use the safe house camera");
+    let look = || Look::SafeHouse(CarLook::default_car());
+    let rest = crate::frontend::camera_pose::SAFE_HOUSE.eye();
+    let start = eye_after(&dir, look(), 0.0);
+    assert!((start - rest).length() > 3.0, "the move starts away from the final pose: {start:?}");
+    let half = eye_after(&dir, look(), 1.5);
+    assert!((half - rest).length() > 0.1 && (half - start).length() > 0.1, "and is on its way: {half:?}");
+    let end = eye_after(&dir, look(), 3.5);
+    assert!((end - rest).length() < 1e-3, "and ends on the final pose: {end:?}");
+    let crib = eye_after(&dir, Look::Car(CarLook::default_car()), 1.0);
+    assert!((crib - rest).length() > 1.0, "the crib does not use the safe house camera");
 }
 
 #[test]

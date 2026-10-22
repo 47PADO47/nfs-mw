@@ -1,7 +1,11 @@
 //! The stage a backdrop look stands the car on: the front-end platform file, which of its solids are drawn, how the car
 //! stands in it and where the camera is. Spec: `docs/specs/menu-backdrop-looks.md`.
 
-use super::camera_pose::{self, CameraPose};
+use game_install::GameDir;
+use nfsmw_data::frontend_camera;
+
+use super::camera_move::CameraMove;
+use super::camera_pose;
 use super::look::Look;
 
 /// A front-end platform (`FRONTEND/PLATFORMS/*.BIN`, `docs/specs/menu-backdrop.md` section 1).
@@ -50,11 +54,15 @@ impl Stage {
         }
     }
 
-    /// The camera pose of the stage's menu, or `None` for the crib, whose camera is the car viewer's orbit camera.
-    pub fn camera(self) -> Option<CameraPose> {
+    /// The camera move of the stage's menu, or `None` for the crib, whose camera is the car viewer's orbit camera. The
+    /// safe house's runs from its entry pose onto the final one; an install whose poses cannot be read gets the final
+    /// pose from the first frame.
+    pub fn camera(self, dir: Option<&GameDir>) -> Option<CameraMove> {
         match self {
             Stage::Crib => None,
-            Stage::SafeHouse => Some(camera_pose::SAFE_HOUSE),
+            Stage::SafeHouse => {
+                Some(dir.and_then(safe_house_move).unwrap_or(CameraMove::holding(camera_pose::SAFE_HOUSE)))
+            }
         }
     }
 
@@ -63,6 +71,20 @@ impl Stage {
         match self {
             Stage::Crib => None,
             Stage::SafeHouse => Some(CarStand { yaw: 304.97, sink: 0.025 }),
+        }
+    }
+}
+
+/// The poses of the safe house's move (`FE_ATTRIB.bin`, class `frontend`): where the camera is when the menu opens and
+/// where it ends up.
+const SAFE_HOUSE_POSES: [&str; 2] = ["angle_entry_career_safehouse", "angle_final_career_safehouse"];
+
+fn safe_house_move(dir: &GameDir) -> Option<CameraMove> {
+    match frontend_camera::load(dir, &SAFE_HOUSE_POSES) {
+        Ok(poses) => Some(CameraMove::between(&poses[0], &poses[1])),
+        Err(e) => {
+            log::warn!("the safe house camera holds its final pose: {e:#}");
+            None
         }
     }
 }
@@ -90,7 +112,7 @@ mod tests {
 
     #[test]
     fn only_the_safe_house_has_its_own_camera_and_car_stand() {
-        assert!(Stage::Crib.camera().is_none() && Stage::Crib.car_stand().is_none());
-        assert!(Stage::SafeHouse.camera().is_some() && Stage::SafeHouse.car_stand().is_some());
+        assert!(Stage::Crib.camera(None).is_none() && Stage::Crib.car_stand().is_none());
+        assert!(Stage::SafeHouse.camera(None).is_some() && Stage::SafeHouse.car_stand().is_some());
     }
 }
