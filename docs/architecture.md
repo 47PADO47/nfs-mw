@@ -163,13 +163,17 @@ TRACKS/STREAML2RA.BUN ─► loader threads (nfsmw-data::world::Streamer)
 ```
 
 - **Shared sets (V/X/Y/Z) load once, at startup**, all together, because their models and textures refer to
-  each other (2,734 models, 2,111 textures).
+  each other (2,734 models, 2,111 textures). The streamer starts on the world's loading thread, as soon as the index
+  is open: it asks for the shared sets and the start zone's tiles at once, so tiles are read while the shared sets
+  are, and the shared sets are uploaded over several frames while the world is still hidden.
 - **Map tiles stream by zone, as in the game** ([specs/visible-sections.md](specs/visible-sections.md)).
   The map is split into 435 2D zones (one per drivable section). The camera's zone names the tiles to
   load (its loading section's union of visible lists, or its own list) and the tiles to draw (its own
   visible list); nothing else is drawn, even when loaded. Tiles are requested drawn ones first, nearest
-  first, at most 8 in flight, on 2–6 worker threads. The workers also convert the vertices. Uploads on the render
-  thread are limited to a byte budget per frame (8 MiB, at least one section per frame). When the zone
+  first, at most 8 in flight, on 2–6 worker threads. The workers also convert the vertices and work out the
+  placements that do not need GPU handles; a request the zone no longer wants is cancelled before it is read.
+  Uploads on the render thread are limited to a byte budget per frame, counted in the bytes actually uploaded
+  (4 MiB, 32 MiB while the world is still hidden, at least one section per frame). When the zone
   changes, the previous zone's tiles stay drawn until the new zone's tiles are resident; then the tiles
   it no longer needs are released (GPU meshes and textures freed).
 - **Free camera:** the 66 zones outside the region's drivable list are places a car never reaches, with
@@ -451,7 +455,7 @@ Direct3D 11 is not offered: wgpu removed its D3D11 backend in 2023. Direct3D 12 
 
 ## Render pipeline
 
-A frame in `blackbox-render` takes the cheapest path that gives the requested look. With no post effect, no upscaler and render scale 1.0 (the default) the scene draws straight into the surface next to a reverse-Z depth buffer, with no offscreen image and no copy. Otherwise it draws into an offscreen colour image plus the depth buffer at the internal render size (surface size × render scale, `set_render_scale`, 0.25 to 2.0), `Rgba16Float` only when bloom or tone mapping needs HDR and the surface's own format otherwise, and an ordered chain of fullscreen post-process passes reads that image (and the depth buffer, as a sampled texture) and ping-pongs through scratch images; the last pass writes the surface. The chain always ends with `resolve` (clamp, alpha 1; an exact copy at scale 1.0, bilinear otherwise); the optional bloom, tone mapping and FXAA passes sit at the front (`Renderer::set_post_effects`, all off by default, [post-processing.md](post-processing.md)) and upscalers insert before `resolve` (FSR 1 and the bilinear fallback: [upscaling.md](upscaling.md)). The UI layer draws last at surface resolution, so it is never post-processed or upscaled, and `--screenshot` captures the final image. Pipelines and the glossy car shader's resources are built on first use; the cost of each setting is in [low-end.md](low-end.md).
+A frame in `blackbox-render` takes the cheapest path that gives the requested look. With no post effect, no upscaler and render scale 1.0 (the default) the scene draws straight into the surface next to a reverse-Z depth buffer, with no offscreen image and no copy. Otherwise it draws into an offscreen colour image plus the depth buffer at the internal render size (surface size × render scale, `set_render_scale`, 0.25 to 2.0), `Rgba16Float` only when bloom or tone mapping needs HDR and the surface's own format otherwise, and an ordered chain of fullscreen post-process passes reads that image (and the depth buffer, as a sampled texture) and ping-pongs through scratch images; the last pass writes the surface. The chain always ends with `resolve` (clamp, alpha 1; an exact copy at scale 1.0, bilinear otherwise); the optional bloom, tone mapping and FXAA passes sit at the front (`Renderer::set_post_effects`, all off by default, [post-processing.md](post-processing.md)) and upscalers insert before `resolve` (FSR 1 and the bilinear fallback: [upscaling.md](upscaling.md)). The UI layer draws last at surface resolution, so it is never post-processed or upscaled, and `--screenshot` captures the final image. Pipelines and the glossy car shader's resources are built on first use, which stalls that frame for hundreds of milliseconds, so `RenderBackend::prewarm` runs one empty frame (and the reflection cube capture when reflections are on) through the same code ahead of time; `apply_graphics` does it for a window, and the app calls it once the scene's materials exist (a later scene calls it again after loading). The cost of each setting is in [low-end.md](low-end.md).
 
 ## Multi-platform
 
