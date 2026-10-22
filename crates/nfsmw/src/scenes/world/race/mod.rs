@@ -16,6 +16,7 @@ mod final_race_events;
 mod finish;
 mod flares;
 mod flow;
+mod grid;
 mod intro;
 mod load;
 pub(super) mod mods;
@@ -30,6 +31,7 @@ mod start;
 mod startable;
 
 pub(super) use command::race_command;
+pub use grid::MAX_RACERS;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
 

@@ -4,7 +4,7 @@
 //! reference screenshot of the circuit options).
 
 use super::mode::Mode;
-use crate::scenes::world::RaceOptions;
+use crate::scenes::world::{MAX_RACERS, RaceOptions};
 
 /// A row of the options page.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,8 +57,11 @@ pub fn split_rows(mode: Mode) -> &'static [Row] {
 
 /// Most laps a circuit offers **[decomp]**.
 pub const MAX_LAPS: u8 = 8;
-/// Most opponents: three, the grid of four less the player **[decomp]**.
-pub const MAX_OPPONENTS: u8 = 3;
+/// Most opponents: the racers of the race less the player, fifteen of sixteen **[ours]** (the original's grid of four
+/// gives three **[decomp]**).
+pub const MAX_OPPONENTS: u8 = MAX_RACERS - 1;
+/// The opponents a fresh row starts at: three, as the reference screenshot shows **[verified]**.
+pub const DEFAULT_OPPONENTS: u8 = 3;
 
 /// What the options of one mode are set to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,7 +81,7 @@ impl Default for Settings {
     /// The defaults of `DefaultRaceSettings` and the reference screenshot: one lap, three opponents, medium difficulty,
     /// minimum traffic, catch up on, minimum heat.
     fn default() -> Self {
-        Self { laps: 1, opponents: MAX_OPPONENTS, difficulty: 1, traffic: 1, catch_up: true, heat: 1 }
+        Self { laps: 1, opponents: DEFAULT_OPPONENTS, difficulty: 1, traffic: 1, catch_up: true, heat: 1 }
     }
 }
 
@@ -176,14 +179,24 @@ mod tests {
         assert_eq!(s.laps, MAX_LAPS);
         s.step(Mode::Circuit, Row::Laps, true);
         assert_eq!(s.laps, 1);
+        s.opponents = MAX_OPPONENTS;
         s.step(Mode::Circuit, Row::Opponents, true);
         assert_eq!(s.opponents, 1);
+        s.step(Mode::Circuit, Row::Opponents, false);
+        assert_eq!(s.opponents, MAX_OPPONENTS);
         for _ in 0..3 {
             s.step(Mode::Circuit, Row::Difficulty, true);
         }
         assert_eq!(s.difficulty, 1);
         s.step(Mode::Circuit, Row::CatchUp, true);
         assert!(!s.catch_up);
+    }
+
+    #[test]
+    fn the_opponents_reach_fifteen_so_a_race_holds_sixteen_racers() {
+        assert_eq!(MAX_OPPONENTS + 1, MAX_RACERS);
+        assert_eq!(Settings::default().opponents, DEFAULT_OPPONENTS);
+        assert_eq!(Settings::default().race_options(Mode::Circuit).opponents, Some(3));
     }
 
     #[test]

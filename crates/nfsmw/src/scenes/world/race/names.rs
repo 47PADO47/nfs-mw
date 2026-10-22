@@ -85,6 +85,17 @@ mod tests {
     }
 
     #[test]
+    fn a_race_of_sixteen_gets_fifteen_names_none_repeated_and_none_the_players() {
+        let pool: Vec<String> = (0..16).map(|n| format!("R{n}")).collect();
+        let names = assign(&pool, &pool_of(&["R0"]), 15, 9);
+        let mut sorted = names.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 15, "{names:?}");
+        assert!(!names.contains(&"R0".to_owned()));
+    }
+
+    #[test]
     fn a_grid_gets_different_names_that_avoid_the_player() {
         let pool = pool_of(&["A", "B", "C", "D", "E"]);
         let names = assign(&pool, &pool_of(&["A"]), 4, 17);

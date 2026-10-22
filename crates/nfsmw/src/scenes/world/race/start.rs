@@ -4,6 +4,7 @@
 use blackbox_race::{CatchUpGains, Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
+use super::grid;
 use super::setup::{self, RaceOptions};
 use super::startable;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
@@ -244,7 +245,7 @@ fn plan_racers(
 ) -> Vec<RacerPlan> {
     let slot = |placement: &nfsmw_data::gameplay::Placement| Spawn {
         position: space::to_render(placement.position.to_array()),
-        heading: setup::spawn_heading(placement.heading_deg),
+        heading: grid::spawn_heading(placement.heading_deg),
     };
     let mut plan = vec![RacerPlan {
         name: player_name(),
@@ -259,7 +260,7 @@ fn plan_racers(
         return plan;
     }
     for (i, opponent) in opponents.iter().enumerate() {
-        let placement = opponent.start.unwrap_or_else(|| setup::grid_slot(start, i + 1));
+        let placement = opponent.start.unwrap_or_else(|| grid::grid_slot(start, i + 1));
         let model = opponent.car.clone().or_else(|| setup::stock_car(pool, race.key, i).cloned());
         let Some(model) = model else { continue };
         plan.push(RacerPlan {
