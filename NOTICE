@@ -340,3 +340,9 @@ The lowbias32 integer hash in ao_xegtao.wgsl is adapted from Chris Wellons'
 Hash Function Prospector (Unlicense/public domain), README.md lowbias32:
 https://github.com/skeeto/hash-prospector/tree/396dbe235c94dfc2e9b559fc965bcfda8b6a122c
 Pixel/frame seeding and the two AO sample phases are independently implemented.
+
+Custom surface response
+-----------------------
+GGX, Smith, Schlick and environment importance-sampling theory is described in
+Filament: https://google.github.io/filament/main/filament.html (sections 4.2, 4.4, 4.9, 5.3, 5.6 and 9.2).
+Used as mathematical reference; independently implemented, no source code copied.

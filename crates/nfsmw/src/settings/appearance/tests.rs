@@ -48,6 +48,7 @@ fn custom_overrides_survive_a_round_trip_and_quality_selection() {
     s.appearance.lighting.cached_reflections = true;
     s.appearance.lighting.cached_shadows = true;
     s.appearance.lighting.screen_reflections = true;
+    s.appearance.lighting.paint_response = false;
     s.appearance.treatment_strength = Some(0.73);
     s.appearance.lighting.freeze_sun = true;
     s.appearance.lighting.lighting_debug = blackbox_gfx::LightingDebug::Cascades;

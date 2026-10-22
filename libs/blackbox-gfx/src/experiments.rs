@@ -41,6 +41,8 @@ pub struct RenderExperiments {
     pub far_shadows: bool,
     pub contact_shadows: bool,
     pub clearcoat: bool,
+    /// Opt-in surfaces use calibrated highlights and filtered environment reflections.
+    pub paint_response: bool,
     pub car_skylight: bool,
     pub world_ambient: bool,
     /// Minimum ambient share of authored prelit illumination; dark baked art receives a larger share.
@@ -83,6 +85,7 @@ impl Default for RenderExperiments {
             far_shadows: false,
             contact_shadows: false,
             clearcoat: false,
+            paint_response: true,
             car_skylight: false,
             world_ambient: false,
             world_ambient_share: 0.6,

@@ -31,13 +31,19 @@ pub(super) struct MaterialUniform {
     pub specular_range: [f32; 4],
     /// x = specular power, y = envmap min, z = envmap range, w = envmap power.
     pub params: [f32; 4],
+    /// roughness, coat, reflection intensity, SurfaceKind tag (zero disables).
+    pub surface: [f32; 4],
 }
 
 impl MaterialUniform {
-    /// `brightness` multiplies the environment term only (`envmap_power`); 1.0 is the material's own value.
+    /// Legacy materials retain their exponent control; opted-in surfaces have independent intensity.
     pub(super) fn new(m: &GlossyMaterial, brightness: f32) -> Self {
         let [r, g, b] = m.specular_min;
         let [dr, dg, db] = m.specular_range;
+        let environment_power = match m.model == blackbox_gfx::GlossyModel::Custom && m.surface.is_some() {
+            true => m.envmap_power,
+            false => m.envmap_power * brightness,
+        };
         Self {
             diffuse_min: m.diffuse_min,
             diffuse_range: m.diffuse_range,
@@ -52,7 +58,16 @@ impl MaterialUniform {
                 },
             ],
             specular_range: [dr, dg, db, 0.0],
-            params: [m.specular_power, m.envmap_min, m.envmap_range, m.envmap_power * brightness],
+            params: [m.specular_power, m.envmap_min, m.envmap_range, environment_power],
+            surface: match m.surface.filter(|_| m.model == blackbox_gfx::GlossyModel::Custom) {
+                Some(surface) => [
+                    surface.roughness.clamp(0.08, 1.0),
+                    surface.coat.clamp(0.0, 1.0),
+                    brightness.max(0.0),
+                    surface.kind as u8 as f32,
+                ],
+                None => [0.0; 4],
+            },
         }
     }
 }
@@ -66,9 +81,9 @@ mod tests {
 
     #[test]
     fn blocks_match_the_wgsl_layout() {
-        // Seven vec4 and five vec4: every member is 16-byte aligned, so no padding is needed.
+        // Seven vec4 and six vec4: every member is 16-byte aligned, so no padding is needed.
         assert_eq!(std::mem::size_of::<RigUniform>(), 112);
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 80);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 96);
     }
 
     #[test]
@@ -127,5 +142,28 @@ mod tests {
         assert!((bright.params[3] - 0.4).abs() < 1e-6);
         assert_eq!((dim.params[0], dim.specular_min), (bright.params[0], bright.specular_min));
         assert_eq!(MaterialUniform::new(&m, 0.0).params[3], 0.0, "zero turns the environment off");
+    }
+}
+
+#[cfg(test)]
+mod surface_tests {
+    use super::*;
+    use blackbox_gfx::{GlossyModel, GlossySurface};
+    #[test]
+    fn surface_intensity_is_separate_and_original_families_ignore_the_opt_in() {
+        let mut m = GlossyMaterial {
+            surface: Some(GlossySurface { roughness: 0.78, coat: 0.03, ..Default::default() }),
+            envmap_power: 0.7,
+            ..Default::default()
+        };
+        let u = MaterialUniform::new(&m, 2.0);
+        assert_eq!(u.params[3], 0.7);
+        assert_eq!(u.surface, [0.78, 0.03, 2.0, 1.0]);
+        for model in [GlossyModel::VertexLit, GlossyModel::Shadowed] {
+            m.model = model;
+            let u = MaterialUniform::new(&m, 2.0);
+            assert_eq!(u.params[3], 1.4);
+            assert_eq!(u.surface, [0.0; 4]);
+        }
     }
 }

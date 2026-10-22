@@ -28,6 +28,7 @@ pub fn glossy_material(m: &LightMaterial) -> GlossyMaterial {
     let (env_min, env_range) = ramp(m.envmap_min_scale, [m.envmap_min[0]], m.envmap_max_scale, [m.envmap_max[0]]);
     GlossyMaterial {
         model: GlossyModel::Custom,
+        surface: None,
         diffuse_min,
         diffuse_range,
         specular_min,

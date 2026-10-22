@@ -58,3 +58,33 @@ fn installed_menu_preview_applies_initial_and_live_shading_and_releases_room_onc
     assert!(renderer.glossy_materials.values().all(|m| m.model == GlossyModel::VertexLit));
     assert_closed(&mut menu, &mut renderer);
 }
+
+#[test]
+#[ignore = "needs installed paint definitions"]
+fn installed_paint_previews_isolate_finish_response_and_keep_camera_and_resources() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
+    let model = nfsmw_data::car::load(&dir, "CARRERAGT", &options).unwrap();
+    let mut car = CarScene::new(model, 35.0).with_source(dir, options);
+    car.set_car_shading(CarShading::Glossy);
+    let mut renderer = backend();
+    car.init(&mut renderer).unwrap();
+    let meshes = renderer.mesh_labels.len();
+    let yaw = car.camera.yaw;
+    for name in ["MATTE01_PAINT", "GLOSS_L1_COLOR01", "CHROME01_PAINT"] {
+        commands::run(&mut car, &mut renderer, "paint", &[name, "C04430"]).unwrap().unwrap();
+        assert_eq!(car.camera.yaw, yaw);
+        assert_eq!(car.model.paint.as_ref().unwrap().rgb, [192, 68, 48]);
+        assert_eq!(renderer.mesh_labels.len(), meshes);
+        let surfaced: Vec<_> = renderer.glossy_materials.values().filter(|m| m.surface.is_some()).collect();
+        assert!(!surfaced.is_empty());
+        let paint_handle = car.model.paint.as_ref().unwrap().light_material.unwrap();
+        let paint_material = super::paint_surface::response(car.model.paint.as_ref().unwrap()).unwrap();
+        assert!(surfaced.iter().any(|m| m.surface == Some(paint_material)));
+        println!("{name} {paint_handle:08X}: {paint_material:?}");
+    }
+    let before = car.model.paint.clone();
+    assert!(commands::run(&mut car, &mut renderer, "paint", &["NOT_A_PAINT"]).unwrap().is_err());
+    assert_eq!(car.model.paint, before);
+    assert_closed(&mut car, &mut renderer);
+}

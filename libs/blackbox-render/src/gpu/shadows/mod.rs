@@ -155,7 +155,7 @@ impl Renderer {
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
             settings.sky_strength,
             settings.ground_strength,
-            0.0,
+            u8::from(settings.paint_response) as f32,
         ];
         params.world = [
             u8::from(settings.world_ambient && stats.supported) as f32,
