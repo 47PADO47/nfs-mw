@@ -112,10 +112,14 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
-    `drive`, `reset`, `repair`, `damage`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions` and `garage` ([Driving](#driving-view-world---drive)).
+    `drive`, `reset`, `repair`, `damage`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions`, `garage` and
+    `coop on <CAR> [arrows|pad]` / `coop off` (a co-op player 2, [co-op career](specs/coop-career.md)) ([Driving](#driving-view-world---drive)).
     Scenes offer commands through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
   - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
     (hidden) starts with the console open, which is how the screenshots in bug reports show it.
+- **Benchmark:** `--bench-seconds <s>` measures frame times once the scene is ready and prints p50/p95/p99 and the worst
+  frame; add `--no-vsync`. `--offscreen` keeps its window hidden and unfocused, as a screenshot run does, so a measurement
+  never takes focus from the desktop.
 - **Scene readout:** `Scene::readout(level)` gives the scene's debug lines, which the overlay draws bottom left
   whatever the metrics level is. `--show-readout <off|minimal|full>` (env `NFSMW_SHOW_READOUT`, config
   `show_readout`, console `set readout full`) chooses how much. The original HUD already shows speed, rpm, gear and
