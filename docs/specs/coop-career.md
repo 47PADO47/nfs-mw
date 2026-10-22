@@ -1,0 +1,224 @@
+# Co-op career and free roam
+
+Two players share one career save and one open world on one machine. Player 1 (the lead) and player 2 each drive a car,
+each with a half of the screen and a HUD, and both play the same career: one garage, one wallet, one pursuit, one set of
+events. The rules are written so that LAN players use the same rules later ([multiplayer/integration.md](multiplayer/integration.md),
+[ADR 0009](../decisions/0009-multiplayer-netcode-revisions.md)).
+
+- **Where the rules come from:** the original has no co-op career. Its two-player mode is the split-screen quick race only
+  ([split-screen.md](split-screen.md)). So every rule here is **[ours]**, except where the text names a single-player rule it
+  reuses. A reused rule keeps its own tag in the spec that owns it, and the text says which part is new.
+- **Evidence tags:** as in [split-screen.md](split-screen.md). **[ours]** this rewrite's choice. **[exe]**, **[decomp]**,
+  **[verified]** only where a reused single-player rule carries them.
+- **Status:** design. Nothing here is built yet. The build runs in waves on the branch `feat/coop-career`.
+- **Related:** [split-screen.md](split-screen.md) (halves, devices, seating), [career-flow.md](career-flow.md),
+  [career-safehouse.md](career-safehouse.md), [ai-pursuit.md](ai-pursuit.md), [busted-sequence.md](busted-sequence.md),
+  [busted-aftermath.md](busted-aftermath.md), [race-mode.md](race-mode.md), [gps-route.md](gps-route.md),
+  [world-map.md](world-map.md), [career-phone.md](career-phone.md), [story-flow.md](story-flow.md),
+  [multiplayer/features.md](multiplayer/features.md) (MP-07 and MP-54).
+
+## 0. Summary
+
+1. Co-op is a session state. Player 2 joins from the career menu, takes a second car from the shared garage, and leaves
+   by "End co-op" or by going to the main menu. The save file holds no co-op state. **[ours]**
+2. There are two players, `PlayerId(0)` (P1, the lead) and `PlayerId(1)` (P2). They share the career record, the garage,
+   the wallet, the milestones and the phone.
+3. There is one pursuit for both cars. Heat, cool-down, helicopter, roadblocks and support are shared. The busted meter,
+   infractions, hiding and sighting are per car. Cops are split between the chased cars.
+4. A bust takes only the busted car out of the chase. The chase goes on for the other car and ends busted when none is left.
+5. A bounty is paid once. Each car keeps its own heat in its own car record.
+6. Safe house, events and the Blacklist race take both players in. The rival race credits the best human place once.
+7. Each player has a residency centre. Free roam loads the union of both areas, and a soft prompt offers to catch the
+   trailing player up. No forced warp.
+8. In the prologue there is no co-op. In story cutscenes P2 is parked and the screen shows one view.
+
+## 1. Scope and status
+
+- **In:** two local players on one machine, one career save, free roam, pursuit, the safe house, the Blacklist and other
+  events, GPS, the map, the phone, streaming, traffic and the story after the prologue.
+- **Out, for now:** online and LAN co-op (the same rules later, section 14). Human-driven cops (section 15). The
+  split-screen quick race is unchanged; its spec is [split-screen.md](split-screen.md).
+- **Prologue:** co-op is hidden until stage 16 is done (section 12).
+
+## 2. Players and names
+
+- **Ids.** `PlayerId(0)` is P1, the lead. `PlayerId(1)` is P2. The lead is the player whose car the single-player code path
+  and the mod API's `player_car` point at. Single player is the same as a co-op session with P1 alone. **[ours]**
+- **Names.** With an active alias `A`, the names are `A 1` (P1) and `A 2` (P2). With no alias, `Player 1` and `Player 2`.
+  The alias is the one the alias manager holds ([career-parity-menus.md](career-parity-menus.md)). The names show on the
+  race card, the pursuit and bust screens, and wherever a player is named. **[ours]**
+- **One save.** The save file is the single career. Its format is unchanged. P2 has no profile of their own. **[ours]**
+- **Session only.** The co-op state (P2's car, seat and name) lasts for the session. A saved file does not hold it: a
+  load starts single player, and the player joins again to play co-op. Open question 2 covers keeping P2's car. **[ours]**
+
+## 3. Entry and exit
+
+### 3.1 Joining
+
+1. **Career menu.** The "Co-op Career" icon sits on the career menu next to the single-player entries
+   ([career-parity-menus.md](career-parity-menus.md)). It is hidden while the prologue (stage 16) is on. **[ours]**
+2. **Press Start.** The screen reads "Player 2 press Start" (the labels of
+   [split-screen.md](split-screen.md) section 2). The device that presses Start is seated as P2. P2 cannot take P1's
+   device. Back returns to the career menu with co-op off. **[ours]**
+3. **Second car.** The car select shows the shared garage. Not offered: P1's current car, and any impounded car. Accept
+   seats P2's car. Back returns to Press Start for P2. **[ours]**
+4. **Resume.** The game then resumes the career as [career-flow.md](career-flow.md) section 0 item 4 describes, with P2
+   in the session. Resume Free Roam from the safe house menu starts the world for both. **[ours]**
+
+### 3.2 Leaving
+
+- **"End co-op"** is in the pause menu. P2's car leaves the world, P2's device is unseated, and P1 carries on
+  alone. The save is not touched. **[ours]**
+- **Refused** while P2 is in a race or is a pursuit target: the row is shown but cannot be chosen, and the pause menu says
+  why. Open question 6. **[ours]**
+- **Main menu.** Going to the main menu ends co-op for the session. **[ours]**
+- **Saving.** A manual save or an autosave while co-op is on writes the career as usual. P2's car is not written.
+  [career-flow.md](career-flow.md) section 0 item 6 gives the autosave triggers. **[ours]**
+
+## 4. Garage
+
+- **One garage.** Both players buy, sell and pick cars from the same garage: the car lot and the safe house Car Select. The
+  car list and the wallet are shared. **[ours]**
+- **One car, one driver.** A car drives for one player at a time. A car in use by the other player cannot be sold or
+  picked in the lot. **[ours]**
+- **Cap.** The co-op cap is `Limits::for_players(2)`, which gives all 25 career record slots (`CAREER_SLOTS`). A true
+  unlimited garage would change the save format, which stays as it is. The single-player cap is unchanged. **[ours]**
+
+## 5. Pursuit
+
+Reuses the single-player rules in [ai-pursuit.md](ai-pursuit.md) (tracking, sighting, busted meter, cool-down) and
+[ai-pursuit-heat.md](ai-pursuit-heat.md) (heat). The two-car parts are **[ours]**. This amends MP-07 in
+[multiplayer/features.md](multiplayer/features.md): MP-07 has heat and busted per player; here heat is shared and only the
+busted meter is per car.
+
+- **One chase.** One pursuit holds every chased car. A pursuit starts when a cop sees either car. **[ours]**
+- **Shared** (one value for the chase): heat level, cool-down (evade meter), helicopter, roadblocks, support units, rep.
+- **Per chased car:** busted meter, infractions, hiding state, last sighting, and impound strikes taken on that car.
+- **Start heat.** The chase starts at the higher carried heat of the two cars. **[ours]**
+- **Cops split.** `targets::assign` (balanced greedy): each chased car gets at most ceil(cops / targets) cops, and the
+  nearest cop and car pairs are taken first. Re-run whenever the set of chased cars changes (a car is added, busted or
+  leaves). **[ours]**
+- **Cool-down.** The evade meter runs while no cop sees any chased car. Any cop seeing a chased car stops it. **[ours]**
+- **Evaded.** When the evade meter fills, the chase ends for every chased car at once. Section 5.1 gives the bounty.
+- **Busted.** Each car has its own busted meter, filled by the cops on that car. A full meter busts that car (its own
+  BustFlow); the chase goes on for the others.
+
+### 5.1 Evade
+
+- The bounty is banked once into the shared career, credited to the lead evading car: P1 if P1 evaded, otherwise P2.
+  Blacklist bounty progress therefore counts it once. **[ours]**
+- Each other car that evaded gets evaded +1, and its unserved infractions are written to its own record. **[ours]**
+- Each car's heat is written to its own car record. **[ours]**
+
+### 5.2 Bust
+
+- The busted car's half shows the arrest camera ([busted-sequence.md](busted-sequence.md) section 4). There is no ticket
+  screen for that car. **[ours]**
+- The fine is paid from the shared wallet automatically. The impound strike goes on that car
+  ([busted-aftermath.md](busted-aftermath.md)). Open question 5. **[ours]**
+- The busted player respawns at the safe house (section 6). The chase goes on for the other car. **[ours]**
+- The chase ends busted when no chased car is left. **[ours]**
+
+## 6. Safe house
+
+Reuses [career-safehouse.md](career-safehouse.md) section 3 (entering and engage). The two-car parts are **[ours]**.
+
+- Either player's entry to the safe house zone starts the engage check. The check reads the shared pursuit, not one car.
+- Both players are moved into the safe house.
+- On exit P1 is placed at the exit marker and P2 behind P1.
+- If the engage rules end the chase, they end it for every chased car.
+
+## 7. Events and races
+
+Reuses [race-mode.md](race-mode.md) and the Blacklist rules in [career-blacklist.md](career-blacklist.md). The two-human
+field is **[ours]**.
+
+- **Entry.** Either player's interact enters the event for both. Both are on the grid: P1 on slot 0, P2 on slot 1.
+- **Field.** A Blacklist race has P1, P2 and the rival.
+- **Credit.** The rival race's place credit is the best human place (`credited_place`), applied once.
+- **DNF timer.** When one human finishes, the other has 30 s to finish. At 30 s the other is a DNF.
+- **Neither finishes.** The race ends as a single-player DNF does ([race-mode.md](race-mode.md)).
+
+## 8. GPS and map
+
+Reuses [gps-route.md](gps-route.md) and [world-map.md](world-map.md). The two-car parts are **[ours]**.
+
+- One route per player. Each player's arrow is drawn only in their own half.
+- A map target set by either player applies to both.
+- The map shows one mark per player, plus the target.
+
+## 9. Phone, speed traps and milestones
+
+Reuses [career-phone.md](career-phone.md) and [career-milestones.md](career-milestones.md). The sharing is **[ours]**.
+
+- One SMS inbox for the career, shown full width in the popup.
+- A speed trap is credited to the car that tripped it. The milestone stat it adds to is shared.
+- Milestones and the wallet are shared.
+
+## 10. Streaming and distance
+
+- **Residency.** Each player has one residency centre around their car. The zone list loads the union of both. **[ours]**
+- **Sim wait.** The simulation does not step any car until both areas are resident. **[ours]**
+- **Memory.** Two areas can roughly double resident scenery. Residency bytes are logged. Open question 1. **[ours]**
+- **Catch-up prompt.** When the two cars are more than 500 m apart, the non-anchor player gets a "Catch up" prompt. The
+  anchor is the player in a pursuit or a race; if neither, or both, it is P1. Accepting warps the non-anchor player behind
+  the anchor. **[ours]**
+- **No warp** while the non-anchor car is a chased car. **[ours]**
+- **No forced warp.** Declining leaves the player where they are. The prompt returns once the cars are within 500 m again
+  (open question 8). **[ours]**
+
+## 11. Traffic
+
+Reuses [ai-traffic-spawning.md](ai-traffic-spawning.md). The split is **[ours]**.
+
+- Traffic spawns around each player's focus. The car budget is split between the two focuses, in equal shares.
+- A car despawns only when it is out of range of every player.
+
+## 12. Story
+
+- **Prologue.** Co-op is hidden until the prologue is done. The prologue chain `16.1.0` to `16.2.1` is in
+  [career-blacklist.md](career-blacklist.md) and [career-scripts-events.md](career-scripts-events.md). **[ours]**
+- **Cutscenes.** During an NIS, the scripted chase `16.2.1` and the final events, P2 is parked: hidden, with no physics,
+  and not a pursuit target. The screen goes to one view, P1's. [nis-events.md](nis-events.md) gives the NIS timing. **[ours]**
+- **After.** When the cutscene ends, P2 respawns behind P1, placed as in section 6. **[ours]**
+
+## 13. Pause
+
+- **Single machine.** Either player's Start pauses the session, as in [split-screen.md](split-screen.md) section 3. The
+  pause menu has Resume, Restart, Quit and End co-op (section 3.2). Restart follows [race-restart.md](race-restart.md). **[ours]**
+- **LAN.** The server never pauses (MP-54, [multiplayer/features.md](multiplayer/features.md)). A pause on a LAN session
+  does not stop the sim. Whether LAN gets an "everyone waits" vote is open in
+  [multiplayer/features.md](multiplayer/features.md) (its open question 5). **[ours]**
+
+## 14. LAN mapping
+
+What changes when a seat is remote. The rules above do not change.
+
+- A seat is `Seat::Remote{peer}` instead of `Seat::Local{slot}`. Its inputs come from the network, not from a device.
+- The server runs the same pursuit, events, streaming and traffic. The clients draw.
+- There is no seating screen on LAN. The lobby seats players, and a remote player's car select is the lobby's.
+- Pause is off (section 13). Co-op is joined in the lobby, not from the career menu.
+- The step that feeds each player's controls is `Inputs` per `PlayerId` ([multiplayer/integration.md](multiplayer/integration.md)
+  section 4). **[ours]**
+
+## 15. Open questions
+
+1. **Forced warp.** If memory runs out with two resident areas, the fallback is a forced warp past about 1500 m. The distance
+   and the choice are the owner's. The byte cost of two areas is logged, not measured yet.
+2. **Persisting P2's car.** A settings key `coop_second_car` could keep P2's car across sessions. Not in this design.
+3. **Mod API.** `player_car` points at P1. A `players()` call for mods is a follow-up.
+4. **Human cops.** A player driving a cop car is not in this design.
+5. **Short wallet at a bust.** The fine is paid from the shared wallet. What happens when the wallet is short is not
+   settled here.
+6. **End co-op in a race or chase.** Refused in this design (section 3.2). Confirm the rule.
+7. **Other events.** The Blacklist field is set. Other events with a rival (and any event with a fixed field) need their
+   own rule.
+8. **Catch-up after a declined prompt.** This design re-offers the prompt only after the players close to within 500 m.
+   The owner may want a longer wait.
+
+## How to check it
+
+- Offscreen, never with window focus: `view-world --drive --exec "coop on <CAR> arrows" --screenshot coop.png --screenshot-count 4`.
+- A pursuit run in which one car is busted while the chase goes on for the other.
+- A `--ui-script` career path: Co-op Career, Press Start, car select, resume.
+- Residency bytes logged for two centres, and a `--bench-seconds` run with both halves at 30 Hz or above.
