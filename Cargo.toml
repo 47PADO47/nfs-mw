@@ -191,8 +191,41 @@ all = { level = "warn", priority = -1 }
 opt-level = 1
 
 [profile.dev.package."*"]
-# Decompression and texture decoding are painfully slow unoptimised.
+# Dependencies only (workspace members are not matched by "*"). No debug info: it is rarely stepped into and it
+# dominates link time.
 opt-level = 2
+debug = false
+
+# Our own crates that decode, parse, simulate or record a frame. "*" above does not cover workspace members, so without
+# these they build at opt-level 1, and a dev build streams, plays movies and renders several times slower than release.
+[profile.dev.package.ea-compress]
+opt-level = 3
+[profile.dev.package.ea-audio]
+opt-level = 3
+[profile.dev.package.blackbox-chunk]
+opt-level = 3
+[profile.dev.package.blackbox-tpk]
+opt-level = 3
+[profile.dev.package.blackbox-solid]
+opt-level = 3
+[profile.dev.package.blackbox-attrib]
+opt-level = 3
+[profile.dev.package.blackbox-collision]
+opt-level = 3
+[profile.dev.package.blackbox-vehicle]
+opt-level = 3
+[profile.dev.package.blackbox-movie]
+opt-level = 3
+[profile.dev.package.blackbox-feng]
+opt-level = 3
+[profile.dev.package.blackbox-render]
+opt-level = 3
+
+[profile.release]
+# Thin LTO and one codegen unit: inlining across the workspace crates (renderer, readers, physics) matters for the
+# per-frame cost. Unwinding stays on: the world loading thread reports a panic instead of taking the game down.
+lto = "thin"
+codegen-units = 1
 
 [profile.profiling]
 # Release codegen plus line tables, so Tracy, VTune, Superluminal and perf can name functions and source lines.
