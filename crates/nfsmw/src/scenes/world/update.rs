@@ -70,10 +70,12 @@ impl WorldScene {
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
         self.residency.update(renderer, x, y);
         self.prepare_drive();
+        self.feed_second_player();
         let sim_dt = match frozen {
             true => 0.0,
             false => self.update_simulation(renderer, input, dt),
         };
+        self.follow_second_player(dt);
         self.update_race(renderer, input, dt);
         self.update_entry(input, dt);
         self.update_career(dt);

@@ -290,7 +290,8 @@ impl AiCar {
             Role::Cop(_) => cop::THINK_STEPS,
             Role::Racer(_) => super::racer::RACER_THINK_STEPS,
         };
-        if !self.is_wrecked() && (self.steps + self.stagger).is_multiple_of(think_steps) {
+        let human = self.human_pedals();
+        if human.is_none() && !self.is_wrecked() && (self.steps + self.stagger).is_multiple_of(think_steps) {
             self.think(ctx);
         }
         let mut view = self.sim.driver_view();
@@ -306,7 +307,9 @@ impl AiCar {
         let request = DriveRequest { target, speed: wanted, flags };
         let clock = self.steps as f32 * STEP;
         let held = self.controls.steer;
-        self.controls = self.driver.step(&view, &request, STEP, clock);
+        if human.is_none() {
+            self.controls = self.driver.step(&view, &request, STEP, clock);
+        }
         if let Some(controls) = self.accident.controls(self.tractor, held) {
             self.controls = controls;
         }
@@ -322,13 +325,16 @@ impl AiCar {
             self.controls = AiControls { brake: 1.0, handbrake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);
-        let input = DriveInput {
-            throttle: self.controls.gas,
-            brake: self.controls.brake,
-            steer: self.controls.steer,
-            handbrake: self.controls.handbrake > 0.5 || self.arrived,
-            nos: self.controls.nos,
-            ..DriveInput::default()
+        let input = match human {
+            Some(pedals) => self.human_input(pedals),
+            None => DriveInput {
+                throttle: self.controls.gas,
+                brake: self.controls.brake,
+                steer: self.controls.steer,
+                handbrake: self.controls.handbrake > 0.5 || self.arrived,
+                nos: self.controls.nos,
+                ..DriveInput::default()
+            },
         };
         let destroyed = self.is_wrecked();
         self.sim.set_destroyed_non_player(destroyed);

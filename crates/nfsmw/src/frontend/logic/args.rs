@@ -27,6 +27,8 @@ pub struct Args {
     /// Opened by the scripted chase's `JumpToCarLot`: the car lot picks the car the first drive to the safe house is made in
     /// (`flow_prologue.rs`).
     pub first_car: bool,
+    /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
+    pub player: u8,
 }
 
 impl Default for Args {
@@ -42,6 +44,7 @@ impl Default for Args {
             custom: false,
             sequence: false,
             first_car: false,
+            player: 0,
         }
     }
 }

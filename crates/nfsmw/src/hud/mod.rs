@@ -20,6 +20,7 @@ mod cop_blip;
 mod cop_blip_tests;
 mod elements;
 mod event_tiles;
+mod gauges;
 mod hiding_mark;
 #[cfg(test)]
 mod install_tests;
@@ -59,6 +60,7 @@ mod radio;
 pub(crate) mod roots;
 mod skin;
 mod speedbreaker;
+pub(crate) mod split;
 mod state;
 mod trax;
 /// The HUD layout's viewport math. The Custom radio card (`ui/theme/custom/radio_card`) reuses its `parameters`.

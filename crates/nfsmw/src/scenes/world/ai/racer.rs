@@ -65,6 +65,9 @@ pub struct RacerState {
     /// The racer is far from the player and is not simulated: the race moves it along the route instead
     /// (`docs/specs/ai-racers-route.md` section 6).
     pub emulated: bool,
+    /// A person drives this racer (split screen): the pedals they hold this frame. The think, the driver, the emulation
+    /// and the catch-up leave the racer alone (`docs/specs/split-screen.md` section 3).
+    pub human: Option<crate::scenes::world::drive::DriveInput>,
 }
 
 /// What a racer's think decided.
@@ -99,6 +102,7 @@ impl RacerState {
             held: true,
             cruise: 25.0,
             emulated: false,
+            human: None,
         }
     }
 

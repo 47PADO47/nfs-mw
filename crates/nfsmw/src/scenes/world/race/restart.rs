@@ -48,6 +48,8 @@ impl WorldScene {
         // The damage of the abandoned run does not carry over (the car's state at the first start is not kept, and a repair
         // costs nothing in the rewrite) **[ours]**.
         self.repair_player_car();
+        // The same two players race again.
+        self.queued_split = self.split.as_ref().map(|split| split.setup.clone());
         if let Err(why) = self.begin_race(race, options, course) {
             log::warn!("race {}: the restart did not start: {why}", session.name);
         }

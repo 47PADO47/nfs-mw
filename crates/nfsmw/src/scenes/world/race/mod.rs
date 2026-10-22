@@ -25,11 +25,13 @@ mod report;
 mod restart;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
+mod split;
 mod start;
 mod startable;
 
 pub(super) use command::race_command;
 pub use setup::RaceOptions;
+pub use split::SplitSetup;
 
 use std::collections::VecDeque;
 
@@ -86,6 +88,8 @@ pub(super) struct RacerPlan {
     pub bias: f32,
     /// Models that were tried and failed, so a fallback is not asked for twice.
     pub tried: Vec<String>,
+    /// A person drives this racer (split screen's second player): `Some(automatic gearbox)`.
+    pub person: Option<bool>,
 }
 
 /// How the player's race ended.

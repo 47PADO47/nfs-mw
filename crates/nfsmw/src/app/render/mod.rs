@@ -115,6 +115,7 @@ pub fn resize(mut host: NonSendMut<Host>, window: Single<&Window, With<PrimaryWi
 pub fn update_scene(
     mut host: NonSendMut<Host>,
     actions: Res<ActionState>,
+    split: Res<crate::input::SplitInput>,
     time: Res<Time>,
     mut settings: ResMut<Settings>,
     garage: Res<crate::garage::Overlay>,
@@ -143,6 +144,7 @@ pub fn update_scene(
         screenshot::wait_ready(host.scene.as_mut(), renderer.as_mut());
     }
     host.scene.set_garage_open(garage.open);
+    host.scene.set_second_input(&split.second);
     host.scene.update(renderer.as_mut(), &actions, time.delta_secs().min(MAX_STEP));
 }
 
@@ -174,12 +176,22 @@ pub fn draw(
     }
     // The streaks go over the last HUD layer, every frame, so they stay while the presenter is quiet.
     let size = [window.width(), window.height()];
-    let strength = host.scene.speed_streaks();
+    let split_on = host.scene.split_active();
+    let strength = if split_on { 0.0 } else { host.scene.speed_streaks() };
     host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, time.elapsed_secs());
+    // A split-screen race draws the two halves as pictures under the HUD; the main frame has nothing of its own.
+    match split_on {
+        true => host.split.update(renderer.as_mut(), host.scene.as_mut(), host.mirror.base_layer(), size),
+        false => host.split.stop(renderer.as_mut(), host.mirror.base_layer()),
+    }
 
     let aspect = renderer.aspect_ratio();
     host.scene.prepare_frame(renderer.as_mut(), aspect);
-    let (params, instances) = host.scene.frame(renderer.aspect_ratio());
+    let blank = super::split::blank_frame();
+    let (params, instances) = match split_on {
+        true => (blank, &[][..]),
+        false => host.scene.frame(renderer.aspect_ratio()),
+    };
     let result = if let Some(plan) = host.screenshot.as_mut() {
         host.frames += 1;
         if host.pending_capture.is_none() && (host.frames < SCREENSHOT_SETTLE_FRAMES || host.hold_capture) {

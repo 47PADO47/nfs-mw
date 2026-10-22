@@ -11,6 +11,7 @@ use glam::Vec2;
 
 use super::mode::Mode;
 use super::records;
+use super::split;
 use super::state;
 use super::tracks::{self, Listed, Standing};
 use crate::career::CareerHandle;
@@ -216,6 +217,17 @@ impl TrackSelect {
         cx.script(ids::EVENT_HANDLER, ids::SCRIPT_FORWARD);
     }
 
+    /// The leave is over: the options open, or in split screen a drag, sprint or speed trap race goes straight to Press Start
+    /// for player 1 (the race has one opponent and no cops, and no row left to set) **[decomp]**.
+    fn after_accept(&mut self, cx: &mut Cx) {
+        let straight = state::with(|s| s.split.on && split::skips_options(s.mode));
+        if !straight {
+            return self.leave_to(cx, screen::TRACK_OPTIONS, Args::default());
+        }
+        state::with(|s| s.split.clear_seats());
+        self.leave_to(cx, screen::PRESS_START, Args::default());
+    }
+
     fn leave_to(&mut self, cx: &mut Cx, screen: &str, args: Args) {
         self.maps.release(cx.assets);
         cx.send(Command::Switch(screen.into(), args));
@@ -292,7 +304,7 @@ impl ScreenLogic for TrackSelect {
                 state::with(|s| s.set_event(None));
                 self.leave_to(cx, screen::MAIN_MENU_SUB, Args { sub: Sub::CustomRace, ..Args::default() });
             }
-            ids::EXIT_COMPLETE if self.leaving => self.leave_to(cx, screen::TRACK_OPTIONS, Args::default()),
+            ids::EXIT_COMPLETE if self.leaving => self.after_accept(cx),
             _ => {}
         }
     }

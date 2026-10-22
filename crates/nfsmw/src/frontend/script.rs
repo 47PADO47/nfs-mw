@@ -25,7 +25,8 @@ struct Step {
     text: Option<String>,
 }
 
-/// The keys a script can press: the letters, Space and Escape.
+/// The keys a script can press: the letters, Space, Enter, Numpad Enter and Escape (Space, Enter and Numpad Enter press Start for
+/// the split-screen Press Start screens: the keyboard's, and the arrow block's).
 fn key(name: &str) -> Result<KeyCode, String> {
     const LETTERS: [KeyCode; 26] = [
         KeyCode::KeyA,
@@ -62,8 +63,10 @@ fn key(name: &str) -> Result<KeyCode, String> {
     }
     match name {
         "Space" => Ok(KeyCode::Space),
+        "Enter" => Ok(KeyCode::Enter),
+        "NumpadEnter" => Ok(KeyCode::NumpadEnter),
         "Escape" => Ok(KeyCode::Escape),
-        other => Err(format!("unknown key {other:?} (a letter, Space or Escape)")),
+        other => Err(format!("unknown key {other:?} (a letter, Space, Enter, NumpadEnter or Escape)")),
     }
 }
 

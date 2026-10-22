@@ -46,10 +46,16 @@ impl IconMenu {
                 cx.send(Command::Switch(screen::MC_PROFILE_MANAGER.into(), self.args));
             }
             (Kind::Career, Pending::Pressed(id)) => crate::frontend::career_screens::career_menu::press(cx, id),
+            (Kind::QuickRace, Pending::Pressed(Id::SplitScreen)) => {
+                custom_state::with(|state| state.split.begin());
+                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::CustomRace, ..self.args }));
+            }
             (Kind::QuickRace, Pending::Pressed(Id::QuickPlay)) => {
+                custom_state::with(|state| state.split.end());
                 cx.send(Command::Switch(screen::QUICK_RACE_BRIEF.into(), self.args));
             }
             (Kind::QuickRace, Pending::Pressed(Id::CustomRace)) => {
+                custom_state::with(|state| state.split.end());
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { sub: Sub::CustomRace, ..self.args }));
             }
             (Kind::CustomRace, Pending::Pressed(Id::CustomMode(mode))) => {

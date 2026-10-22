@@ -11,7 +11,6 @@ use super::logic::{Args, Category, Command, Env};
 use super::screens::Screens;
 use crate::settings::{Partial, Percent, Settings, test_caps};
 use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
-
 const FRAME: f32 = 1.0 / 60.0;
 #[path = "click_tests.rs"]
 mod click_tests;
@@ -26,6 +25,7 @@ mod post_race_tests;
 mod prompt_tests;
 #[path = "quick_play_screen_tests.rs"]
 mod quick_play_screen_tests;
+mod split_screen_tests;
 
 #[test]
 fn authored_right_arrow_mirrors_and_cursor_brackets_pulse() {

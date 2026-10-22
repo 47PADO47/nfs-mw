@@ -28,7 +28,7 @@ pub enum Id {
     CareerResume,
     CareerNew,
     CareerLoad,
-    /// The Quick Race menu's row (`race_menu.rs`): Split Screen is listed and greyed out.
+    /// The Quick Race menu's row (`race_menu.rs`); Split Screen opens the mode select with the two-player flow.
     QuickPlay,
     CustomRace,
     SplitScreen,
@@ -137,18 +137,22 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::AliasSave, 0x228B_7E32, 0x001C_8ACE, true),
             icon(Id::AliasDelete, 0x0D90_35CE, 0x56B0_0632, true),
         ],
-        // The Quick Race menu: Quick Play and Custom Race, and the Split Screen picture of the install.
-        // Split Screen is not built, so it is greyed out (section 4).
+        // The Quick Race menu: Quick Play, Custom Race and Split Screen, each with the install's picture.
         Kind::QuickRace => vec![
             icon(Id::QuickPlay, 0xE631_3967, 0xB5E8_F82F, true),
             icon(Id::CustomRace, 0x2A49_B5E2, 0x25BB_D4C3, true),
-            icon(Id::SplitScreen, 0xF365_B5F5, 0x841D_518A, false),
+            icon(Id::SplitScreen, 0xF365_B5F5, 0x841D_518A, true),
         ],
-        // The mode select: Circuit, Sprint, Drag, Tollbooth, Lap Knockout, Speedtrap, each with its picture.
-        Kind::CustomRace => super::custom_race::Mode::ALL
-            .into_iter()
-            .map(|mode| icon(Id::CustomMode(mode), mode.icon(), mode.name(), true))
-            .collect(),
+        // The mode select: Circuit, Sprint, Drag, Tollbooth, Lap Knockout, Speedtrap, each with its picture; in split
+        // screen Circuit, Sprint, Drag and Speedtrap only.
+        Kind::CustomRace => {
+            let split = super::custom_race::state::with(|state| state.split.on);
+            let modes = match split {
+                true => &super::custom_race::split::MODES[..],
+                false => &super::custom_race::Mode::ALL[..],
+            };
+            modes.iter().map(|mode| icon(Id::CustomMode(*mode), mode.icon(), mode.name(), true)).collect()
+        }
         // The career menu and the safe house row depend on the career: see `career_icons` and `safehouse_icons`.
         Kind::Career | Kind::SafeHouse => Vec::new(),
     }

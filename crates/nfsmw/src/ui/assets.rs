@@ -29,8 +29,12 @@ const MAP_VARIANTS: [MapVariant; 3] = [MapVariant::Full, MapVariant::Unlock1, Ma
 const FENG_FONT: u32 = 0x0003_0201;
 
 /// Texture packs the screens draw from, first match wins.
-const TEXTURE_FILES: [&str; 9] = [
+const TEXTURE_FILES: [&str; 11] = [
     "GLOBAL/HUDTEXRACE.BIN",
+    // The split-screen HUDs (`hud/split`): the race pair and the drag pair. The pack names of the decomp are swapped; the
+    // contents settle it (`docs/specs/split-screen-hud.md` section 2).
+    "GLOBAL/HUDTEXSPLIT.BIN",
+    "GLOBAL/HUDTEXDRAGSPLIT.BIN",
     "GLOBAL/GLOBALA.BUN",
     "GLOBAL/InGameA.bun",
     "GLOBAL/GlobalB.lzc",

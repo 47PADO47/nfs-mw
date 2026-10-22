@@ -14,6 +14,7 @@ pub(crate) mod mirror;
 pub mod pacing;
 pub(crate) mod render;
 mod screenshot;
+mod split;
 mod streaks;
 #[cfg(test)]
 pub use screenshot::Plan;

@@ -1,5 +1,5 @@
 //! Main-view selection and per-frame lighting inputs.
-use super::{View, WorldScene, visibility};
+use super::{View, WorldScene};
 use crate::settings::CameraMode;
 use crate::viewer::camera::original;
 use blackbox_gfx::{Fog, FrameParams, Instance};
@@ -10,66 +10,9 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::frame").entered();
         let lens = self.gameplay_lens(aspect);
         let fog_end = self.fog_distance;
-        let cull = visibility::Camera {
-            view_proj: lens.view_proj(),
-            position: lens.position.to_array(),
-            forward: lens.forward.to_array(),
-            fov_y_radians: lens.fov_y_degrees.to_radians(),
-            light_dir: self.sun.direction().to_array(),
-        };
-        let car_view = super::drive::DetailView {
-            view: blackbox_scenery::LodView {
-                position: cull.position,
-                forward: cull.forward,
-                pixel_scale: blackbox_scenery::LodView::pixel_scale_for(cull.fov_y_radians, 480.0),
-            },
-            settings: self.detail.settings,
-        };
-        let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-        let original = self.original_shadows;
-        let caster_distance = match self.shadow_feed.fed {
-            true => 0.0,
-            false => self.shadow_quality.sampling().2,
-        };
-        visibility::collect_main(
-            self.residency.placed().filter(|p| original || !p.original_shadow),
-            &cull,
-            rules,
-            self.residency.props(),
-            &self.scenery_groups,
-            caster_distance,
-            &mut self.detail,
-            &mut self.visible,
-        );
-        self.residency.props().fragment_instances(&mut self.visible);
-        if self.original_sky {
-            self.residency.sky.place(&self.residency.shared, &mut self.visible, lens.position, super::sky::View::Main);
-        }
-        if let Some(traffic) = &mut self.traffic {
-            let placed = self.residency.placed().filter_map(super::ai::signal_props::candidate);
-            traffic.update_signal_props(self.residency.visual_revision(), placed);
-            traffic.instances_with_detail(Some(&car_view), &mut self.visible);
-            let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
-            traffic.lamp_instances(lamps, lens.position, self.residency.props(), &mut self.visible);
-        }
-        if let Some(drive) = &self.drive {
-            // The win photo is a picture of the car: it shows whatever camera mode the player drove with.
-            if self.photo_shot.is_some()
-                || render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
-            {
-                drive.instances_with_detail(Some(&car_view), &mut self.visible);
-            }
-            if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
-                drive.marker_instances(meshes, &mut self.visible);
-            }
-        }
-        if let Some(arrow) = self.route_arrow() {
-            self.visible.push(arrow);
-        }
-        // The NIS scene's characters: placed with the rest, so they sort by mesh with them.
-        self.nis.character_instances(&mut self.visible);
-        // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
-        visibility::sort_by_mesh(&mut self.visible);
+        let mut visible = std::mem::take(&mut self.visible);
+        self.fill_view(&lens, super::split::Viewer::First, &mut visible);
+        self.visible = visible;
         let drive_cut = self.drive.as_mut().is_some_and(|drive| drive.take_camera_cut());
         let camera_cut = self.cut.take() | drive_cut;
         let params = FrameParams {
@@ -90,6 +33,15 @@ impl WorldScene {
 
 fn render_player(view: View, mode: CameraMode, look_back: bool) -> bool {
     view != View::Chase || original::renders_car(mode, look_back)
+}
+
+impl WorldScene {
+    /// Whether the first player's own car is in their picture: the win photo shows it, and the camera mode decides
+    /// otherwise (a hood or bumper view is inside it).
+    pub(super) fn player_in_picture(&self, drive: &super::drive::Drive) -> bool {
+        self.photo_shot.is_some()
+            || render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+    }
 }
 
 #[cfg(test)]

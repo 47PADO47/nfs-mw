@@ -181,5 +181,5 @@ nfsmw play --skip-boot                                       # the flow from the
 ## Open items
 
 - Confirm in code that the Bevy renderer skips the HUD and menu layers (documented, not checked).
-- Quick Race opens Quick Play or Custom Race (mode select, track list, options, car select, transmission): [specs/custom-race.md](specs/custom-race.md).
+- Quick Race opens Quick Play, Custom Race (mode select, track list, options, car select, transmission): [specs/custom-race.md](specs/custom-race.md), or Split Screen (the same screens for two players, with a Press Start screen before each player's car select; the race is handed to the world with `Command::StartSplitRace`): [specs/split-screen.md](specs/split-screen.md).
 - Full list of unrun screens: [specs/frontend-menus.md](specs/frontend-menus.md).

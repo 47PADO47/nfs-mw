@@ -46,6 +46,8 @@ pub struct Host {
     /// The rear-view mirror drawn over the HUD (see [`super::mirror`]).
     pub mirror: super::mirror::MirrorOverlay,
     pub streaks: super::streaks::StreakOverlay,
+    /// The two halves of a split-screen race (see [`super::split`]).
+    pub split: super::split::SplitOverlay,
     /// The `rear_view_mirror` setting as of the last frame: when off, the rear view is not captured.
     pub rear_view_mirror: bool,
     tire_effects: [bool; 2],
@@ -101,6 +103,7 @@ impl Host {
             hold_capture: false,
             mirror: Default::default(),
             streaks: Default::default(),
+            split: Default::default(),
             rear_view_mirror: settings.rear_view_mirror,
             tire_effects: [settings.tire_smoke, settings.skid_marks],
             smoke_quality: settings.smoke_quality,
