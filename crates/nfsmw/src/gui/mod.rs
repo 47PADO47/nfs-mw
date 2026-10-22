@@ -12,6 +12,7 @@ mod platform;
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
 use bevy_input::InputSystems;
+use blackbox_gfx::UiMesh;
 
 pub use input::GuiInput;
 pub use output::{OwnedPatch, UiOutput};
@@ -50,5 +51,11 @@ impl Gui {
         panels(&self.ctx);
         let full = self.ctx.end_pass();
         output::convert(&self.ctx, full, out);
+    }
+
+    /// Shapes drawn outside an egui pass (the split-screen strips, drawn over the packages): tessellated into the
+    /// renderer's meshes at `pixels_per_point`.
+    pub fn tessellate(&self, shapes: Vec<egui::epaint::ClippedShape>, pixels_per_point: f32) -> Vec<UiMesh> {
+        output::to_meshes(self.ctx.tessellate(shapes, pixels_per_point))
     }
 }

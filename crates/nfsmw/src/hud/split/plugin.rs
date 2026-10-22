@@ -6,11 +6,13 @@ use bevy_app::{App, Update};
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
+use blackbox_gfx::UiLayer;
 use game_install::GameDir;
 
 use super::huds::SplitHuds;
+use super::pursuit;
 use crate::app::{FrameSet, Host};
-use crate::gui::UiOutput;
+use crate::gui::{Gui, UiOutput};
 use crate::hud::state::HudState;
 use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
@@ -49,6 +51,7 @@ fn present(
     mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
+    gui: Res<Gui>,
 ) {
     let _trace = blackbox_trace::scope("Split HUD: bind / animate / present");
     let Some(states) = states(&host, &settings) else { return };
@@ -62,4 +65,9 @@ fn present(
     for tree in trees.iter().flatten() {
         presenter.0.present(tree, &assets.0, screen, &mut out);
     }
+    // The chase strips go over the packages: appended, so drawn after them.
+    let strips = gui.tessellate(pursuit::shapes(&states, screen), screen.pixels_per_point);
+    let layer =
+        out.layer.get_or_insert_with(|| UiLayer { pixels_per_point: screen.pixels_per_point, ..Default::default() });
+    layer.meshes.extend(strips);
 }

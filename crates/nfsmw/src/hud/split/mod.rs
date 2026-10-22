@@ -6,6 +6,7 @@
 //! - `seat`, `tach`, `show`: one package bound to a state (gauges, race readout, what shows).
 //! - `place`: where it lands in the window. `map`: the shared minimap of the first player's package.
 //! - `pair`, `huds`, `plugin`: the two HUDs of a kind in one runtime, the app's resource, and the Bevy system.
+//! - `pursuit`: the strip of a chase drawn over each half (heat pips, busted and cool-down bars).
 
 mod huds;
 #[cfg(test)]
@@ -16,6 +17,7 @@ mod package;
 mod pair;
 mod place;
 mod plugin;
+mod pursuit;
 #[cfg(test)]
 mod raster_tests;
 mod seat;

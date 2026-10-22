@@ -31,6 +31,7 @@ mod gps;
 mod ground;
 mod heli_wash;
 mod hud;
+mod hud_pursuit;
 mod keys;
 mod lighting;
 mod materials;
