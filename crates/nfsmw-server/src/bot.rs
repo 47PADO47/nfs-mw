@@ -334,11 +334,17 @@ status_seconds = 0
         let mut server = Server::new(config, setup, endpoint, world, 0).expect("valid settings");
         let mut fleet = BotFleet::connect(addr, 4, 7).expect("the bots start");
         let mut driving = None;
+        // Paced to the wall clock: a fake clock that outruns the net threads on a busy machine makes the bots' input lead
+        // climb until the server refuses their input.
+        let begin = std::time::Instant::now();
         for step in 0..6000u64 {
-            let now_ms = step * 1000 / 60;
+            let due = Duration::from_micros(step * 1_000_000 / 60);
+            if let Some(wait) = due.checked_sub(begin.elapsed()) {
+                thread::sleep(wait);
+            }
+            let now_ms = begin.elapsed().as_millis() as u64;
             fleet.step(now_ms);
             server.tick_once(now_ms);
-            thread::sleep(Duration::from_millis(1));
             let all_driving = fleet.reports().iter().all(|report| report.inputs_sent > 0 && report.snapshots > 0);
             if driving.is_none() && all_driving {
                 driving = Some(step);

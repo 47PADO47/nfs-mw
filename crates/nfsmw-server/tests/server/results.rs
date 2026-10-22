@@ -32,7 +32,8 @@ fn steer(client: &TestClient, target: [f32; 2]) -> InputCode {
         true => -left.signum(),
         false => (-left * 3.0).clamp(-1.0, 1.0),
     };
-    let throttle = match speed > 30.0 {
+    // The toy circuit drives cleanly up to about 24 m/s; faster cars orbit a checkpoint when a snapshot arrives late.
+    let throttle = match speed > 20.0 {
         true => 0.4,
         false => 1.0,
     };
@@ -57,7 +58,7 @@ fn a_circuit_runs_to_its_results_and_back_to_the_lobby() {
     h.start_race(&racers);
 
     let mut next = vec![0usize; racers.len()];
-    for _ in 0..4000 {
+    for _ in 0..12_000 {
         if h.clients[racers[0]].got(|message| matches!(message, Message::RaceResults(_))) {
             break;
         }

@@ -24,8 +24,9 @@ use super::client::{TestClient, identity};
 const SERVER_ADDR: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 1)), 7000);
 /// Ticks ahead of the server the clients send their input: the net threads take a moment to carry it.
 const INPUT_LEAD: u32 = 5;
-/// Real time each tick waits for the net threads.
-const TICK_SLEEP: Duration = Duration::from_millis(1);
+/// Real time each tick waits for the net threads. One millisecond was not always enough for a datagram to cross two
+/// threads on a busy machine, so a ping went unanswered inside its window.
+const TICK_SLEEP: Duration = Duration::from_millis(3);
 
 /// A config for tests: quiet status line, a 1 s countdown, short results.
 pub fn test_config() -> ServerConfig {
