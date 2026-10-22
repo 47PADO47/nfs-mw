@@ -84,3 +84,20 @@ fn the_totals_show_the_bounty_and_the_cash_with_commas() {
     assert_eq!(money_text(0), "0");
     assert_eq!(money_text(u64::MAX), money(u32::MAX));
 }
+
+#[test]
+fn the_menu_hands_its_items_to_a_theme_that_draws_them_as_a_list() {
+    // The Remastered menus read the icon row as a list through the screen's logic; the wrapper must pass it on.
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(path).unwrap();
+    let assets = crate::ui::UiAssets::load(&dir).unwrap();
+    let list = items(&CareerSettings::new_career());
+    let icons = safehouse_icons(&list, false);
+    let menu = SafeHouseMenu {
+        menu: IconMenu::with_icons(Kind::SafeHouse, Args { safehouse: true, ..Args::default() }, icons),
+        totals: Totals { bounty: 0, cash: 0, career: 0 },
+    };
+    let shown = ScreenLogic::list(&menu, &assets).expect("the safe house menu has a list");
+    assert_eq!(shown.entries.len(), list.len());
+    assert!(shown.entries.iter().all(|entry| !entry.label.is_empty()), "every entry is named");
+}
