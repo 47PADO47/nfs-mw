@@ -39,6 +39,8 @@ use crate::shared;
 
 /// The file with the gameplay collections (the `gameplay` class, all 6,293 of them in NFS: Most Wanted).
 pub const GAMEPLAY_FILE: &str = "GLOBAL/gameplay.bin";
+/// The start point collection of the career is `career_start_` and the region's name (the install has `l2ra`).
+const CAREER_START_PREFIX: &str = "career_start_";
 /// The class holding every collection read here.
 const CLASS: &str = "gameplay";
 
@@ -65,6 +67,9 @@ pub struct GameplayData {
     pub milestone_types: Vec<MilestoneType>,
     /// The final race's markers (`race_bin_01/epic_pursuit`); `None` when the database has no such race.
     pub final_race: Option<FinalRaceMarkers>,
+    /// The career's start point, the collection `career_start_<region>`: where a world starts when no safe house or zone
+    /// was visited (`docs/specs/career-flow.md` section 6).
+    pub career_start: Option<Placement>,
 }
 
 impl GameplayData {
@@ -107,6 +112,7 @@ impl GameplayData {
             speed_traps: milestones::speed_traps(db),
             milestone_types: milestones::milestone_types(db),
             final_race: final_race::final_race(db),
+            career_start: instances(db).find(|c| name_of(*c).starts_with(CAREER_START_PREFIX)).map(placement),
         }
     }
 }

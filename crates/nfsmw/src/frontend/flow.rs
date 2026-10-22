@@ -192,6 +192,8 @@ pub struct Frontend {
     split: Option<crate::scenes::world::SplitSetup>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
+    /// Where the next world puts the car after the safe house menu that stood before it (`flow_loading.rs`).
+    safe_house_start: flow_loading::SafeHouseStart,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -240,6 +242,7 @@ impl Frontend {
             race_options: None,
             split: None,
             drive_to_safe_house: false,
+            safe_house_start: Default::default(),
             map_chrome: Default::default(),
         }
     }

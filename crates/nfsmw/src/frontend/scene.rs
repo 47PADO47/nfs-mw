@@ -206,12 +206,13 @@ impl Scene for MenuScene {
         }
         params.shadow_tuning = fe_shadows::tuning(options);
         parts.clear();
-        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        // The renderer wants instances of one mesh next to each other, and draws blended parts in the order it is given
+        // them. The room has one instance per mesh and keeps its own order (`Room::instances`); the car's parts are
+        // already grouped by mesh. The room goes first, so the car's glass blends over its floor.
         if let Some(room) = room {
             parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
         }
-        // The renderer wants instances of one mesh next to each other.
-        parts.sort_by_key(|i| i.mesh);
+        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
         (params, parts.as_slice())
     }
 }

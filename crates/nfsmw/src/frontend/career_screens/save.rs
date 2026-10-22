@@ -13,6 +13,7 @@
 use std::sync::Mutex;
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
+use blackbox_feng::runtime::pad;
 
 use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
 use crate::career::{CareerHandle, Sources};
@@ -106,7 +107,7 @@ pub const fn answer(yes: bool, has_alias: bool) -> Answer {
 }
 
 /// The name a new career gets when the folder holds `taken`: `PLAYER`, then `PLAYER2` to `PLAYER9`, then `P10` on.
-/// Names are compared without case, as the Windows folder is. Every name is shorter than 8 characters without a space,
+/// Names are compared without case, as the Windows folder is. Every name is at most 31 characters without a space,
 /// so the list finds it (`career/io.rs`).
 pub(crate) fn next_alias(taken: &[String]) -> String {
     let mut number = 1;
@@ -242,9 +243,18 @@ impl ScreenLogic for SavePromptLogic {
                 self.yes = false;
                 self.focus(cx);
             }
-            PAD_ACCEPT => self.accept(cx),
-            PAD_BACK => back_to_safehouse(cx, self.args),
             _ => {}
+        }
+    }
+
+    /// `MC_Main.fng` answers Left, Right, Up and Down for the game but not Accept or Back, so the presses are read from the
+    /// pad: the package's own scripts only move the highlight.
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & pad::ACCEPT != 0 {
+            return self.accept(cx);
+        }
+        if bits & pad::BACK != 0 {
+            back_to_safehouse(cx, self.args);
         }
     }
 }

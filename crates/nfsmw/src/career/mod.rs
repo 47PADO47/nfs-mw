@@ -20,6 +20,7 @@ mod autosave;
 mod card;
 mod data;
 mod io;
+mod mod_data;
 mod rewards;
 mod sources;
 mod start;

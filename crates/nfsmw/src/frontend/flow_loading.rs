@@ -27,6 +27,16 @@ impl LoadingScreen {
     }
 }
 
+/// Where the world starts when it replaces the safe house menu that stood before it (Resume Career, the first visit): at the
+/// marker of the last safe house the player came to, else at the career's start point. The zone is not kept across runs.
+#[derive(Default)]
+pub(super) struct SafeHouseStart {
+    /// The last safe house zone the player came to in this run.
+    pub(super) zone: Option<String>,
+    /// The next world starts there (`start_from_safe_house`).
+    pub(super) pending: bool,
+}
+
 /// Where a start is. The state is the front end's; the world is the scene's.
 pub(super) enum Load {
     /// The world is being built on a thread.
@@ -100,6 +110,9 @@ impl Frontend {
                 Some(setup) => world.queue_split_race(race, options, setup),
                 None => world.queue_race(race, options),
             }
+        }
+        if std::mem::take(&mut self.safe_house_start.pending) {
+            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
         }
         if std::mem::take(&mut self.drive_to_safe_house) {
             world.start_drive_to_safe_house();
