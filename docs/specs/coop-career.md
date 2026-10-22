@@ -276,6 +276,9 @@ What changes when a seat is remote. The rules above do not change.
 - The career-menu path was run offscreen with a scratch profile past the prologue: Co-op Career, Press Start for
   player 2 (`key NumpadEnter`), the car select, the safe house, Resume Free Roam, and the split-screen world. That
   profile's only other car (0x1) is impounded (state 2), so the run went through the shared-car rule of section 3.1; its
-  log reads `co-op: player 2 drives BMWM3GTRE46 (car 0x2, shared with player 1)` and `co-op: bust 2 joins`.
+  log reads `co-op: player 2 drives BMWM3GTRE46 (car 0x2, shared with player 1)` and `co-op: bust 2 joins`. With car
+  0x1 released (state 0, no strikes) the same run gives player 2 their own car: `co-op: player 2 drives BMWM3GTRE46
+  (car 0x1)`. Screenshot runs read profiles from `%TEMP%
+fsmw-career-screenshot`.
 - The benchmark joins co-op for real: release builds compile info logs out, so the same `--bench-seconds --offscreen`
   command on the debug build logs `co-op: Player 2 joins in 911TURBO` before its report.
