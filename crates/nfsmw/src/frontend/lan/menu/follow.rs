@@ -33,8 +33,10 @@ impl LanMenu {
     fn follow(&mut self, status: &NetStatus) {
         let in_session = matches!(self.page, Page::Lobby | Page::Settings | Page::Player);
         match status {
+            // Seated: the lobby shows, also for a session started from the console or the command line.
             NetStatus::InLobby if matches!(self.page, Page::Home | Page::Host | Page::Browser) => {
                 self.error = None;
+                self.open = true;
                 self.page = Page::Lobby;
             }
             NetStatus::Disconnected(Disconnect::Session(EndReason::PasswordRequired)) => {

@@ -101,6 +101,15 @@ fn hosting_sends_the_form_and_the_lobby_opens_when_seated() {
 }
 
 #[test]
+fn a_session_seated_from_the_console_opens_the_lobby() {
+    let mut menu = LanMenu::default();
+    let mut net = MockNetFrontend::in_lobby(&["Me"], 0);
+    frame(&mut menu, &mut net);
+    assert!(menu.open && menu.visible(&net.status()));
+    assert_eq!(menu.page(), Page::Lobby);
+}
+
+#[test]
 fn a_host_failure_stays_on_the_form_and_says_why() {
     let mut menu = LanMenu::default();
     let mut net = MockNetFrontend { fail: Some("port 9750 is in use".into()), ..MockNetFrontend::default() };
