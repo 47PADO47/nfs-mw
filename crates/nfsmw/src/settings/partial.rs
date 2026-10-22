@@ -169,6 +169,8 @@ pub struct Partial {
     pub custom_fonts: CustomFontsLayer,
     /// The front-end shadows (`fe_shadows*`).
     pub fe_shadows: super::fe_shadows::FeShadowsLayer,
+    /// The LAN play settings (`net_*`).
+    pub net: super::net::NetLayer,
 }
 
 impl Partial {
@@ -276,6 +278,7 @@ impl Partial {
             hd_content: self.hd_content.or(lower.hd_content),
             custom_fonts: self.custom_fonts.or(lower.custom_fonts),
             fe_shadows: self.fe_shadows.or(lower.fe_shadows),
+            net: self.net.or(lower.net),
         }
     }
 }

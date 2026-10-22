@@ -9,6 +9,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::custom_fonts;
 use crate::settings::fe_shadows;
 use crate::settings::hd_content;
+use crate::settings::net;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
     RendererKind, Settings, SpeedUnits, Transmission, UiStyle, parse_bool,
@@ -77,6 +78,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
         key if custom_fonts::is_key(key) => custom_fonts::get(&settings.custom_fonts, key),
         key if fe_shadows::is_key(key) => fe_shadows::get(&settings.fe_shadows, key),
+        key if net::is_key(key) => net::get(&settings.net, key),
         "motion_blur" => on_off(settings.motion_blur).to_owned(),
         "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
@@ -209,6 +211,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         key if hd_content::is_key(key) => hd_content::set(&mut settings.hd_content, key, value)?,
         key if custom_fonts::is_key(key) => custom_fonts::set(&mut settings.custom_fonts, key, value)?,
         key if fe_shadows::is_key(key) => fe_shadows::set(&mut settings.fe_shadows, key, value)?,
+        key if net::is_key(key) => net::set(&mut settings.net, key, value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -246,6 +249,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "cop_health_bars" => Some(&mut settings.cop_health_bars),
         key if custom_fonts::is_key(key) => custom_fonts::flag(&mut settings.custom_fonts, key),
         key if fe_shadows::is_key(key) => fe_shadows::flag(&mut settings.fe_shadows, key),
+        key if net::is_key(key) => net::flag(&mut settings.net, key),
         _ => hd_content::flag(&mut settings.hd_content, key),
     }
 }
@@ -307,6 +311,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "traffic" => "<cars, 0 = off>",
         "cop_share" => "<0-100>",
         "motion_blur_strength" => "<0-2>",
+        key if net::is_key(key) => return net::syntax(key),
         _ => return None,
     })
 }

@@ -78,6 +78,7 @@ mimalloc = { workspace = true, optional = true }
 nfsmw-career.workspace = true
 nfsmw-data.workspace = true
 nfsmw-modding = { workspace = true, features = ["host"] }
+nfsmw-net.workspace = true
 nfsmw-sim.workspace = true
 # LAN multiplayer (feature `multiplayer`): the server loop, the client session and the secure net thread.
 nfsmw-net = { workspace = true, optional = true }
@@ -120,9 +121,6 @@ fsr3 = ["renderer-bevy", "blackbox-bevy-render/fsr3"]
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-nfsmw-net.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", default-features = false, features = ["Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading"] }

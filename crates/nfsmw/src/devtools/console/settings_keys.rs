@@ -1,7 +1,7 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 92] = [
+pub(super) const KEYS: [&str; 98] = [
     "traffic_preset",
     "traffic_population",
     "traffic_density",
@@ -94,4 +94,10 @@ pub(super) const KEYS: [&str; 92] = [
     "fe_shadows_cars",
     "fe_shadows_bias",
     "fe_shadows_divider",
+    "net_name",
+    "net_port",
+    "net_snapshot_hz",
+    "net_interp_delay",
+    "net_show_stats",
+    "net_identity_file",
 ];

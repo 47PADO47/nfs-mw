@@ -42,6 +42,11 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
+            // The LAN menu is an egui panel over the main menu, which comes back under it (`lan/link.rs`).
+            (Kind::Main, Pending::Pressed(Id::LanPlay)) => {
+                crate::frontend::lan::link::request_open();
+                cx.send(Command::Switch(screen::MAIN_MENU.into(), Args::default()));
+            }
             (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
                 cx.send(Command::Switch(screen::MC_PROFILE_MANAGER.into(), self.args));
             }

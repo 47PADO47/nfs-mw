@@ -13,7 +13,7 @@ pub enum Id {
     Challenge,
     QuickRace,
     MyCars,
-    /// The online and LAN entries have no screen here yet, so they are greyed out in the main menu.
+    /// Online has no screen yet, so it is greyed out in the main menu; LAN opens the LAN menu (`lan/`).
     Online,
     LanPlay,
     /// Opens the alias manager's row (`alias_menu.rs`).
@@ -90,8 +90,8 @@ const fn icon(id: Id, texture: u32, name: u32, enabled: bool) -> Icon {
 /// The icons of a menu: `(texture, name label)` as the original screens give them.
 pub fn icons(kind: Kind) -> Vec<Icon> {
     match kind {
-        // Career and Quick Race both start free roam here; Challenge Series opens its grid of events. My Cars, Online and LAN
-        // are greyed out.
+        // Career and Quick Race both start free roam here; Challenge Series opens its grid of events. My Cars and Online
+        // are greyed out; LAN opens the LAN menu (`lan/menu`, an egui panel: the original has no LAN screens).
         // Alias Manager (the original's profile manager, which it adds only when the memory card is enabled) opens
         // the save and load rows (`alias_options.rs`).
         // Online and LAN are not in this build's original main menu; the user asked for them, so they are listed
@@ -104,7 +104,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::QuickRace, 0x4E6F_BB02, 0x5402_0A7A, true),
             icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, false),
             icon(Id::Online, 0x2056_3D30, 0x74FB_90A8, false),
-            icon(Id::LanPlay, 0xD13A_2E66, 0x4D78_216D, false),
+            icon(Id::LanPlay, 0xD13A_2E66, 0x4D78_216D, true),
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
             icon(Id::Options, 0x3058_FE37, 0x19A8_C0AF, true),
         ],
@@ -246,7 +246,10 @@ mod tests {
         assert!(alias.enabled, "Alias Manager opens the save and load rows");
         assert!(
             main.iter()
-                .filter(|i| ![Id::Career, Id::Challenge, Id::QuickRace, Id::Options, Id::AliasManager].contains(&i.id))
+                .filter(|i| {
+                    ![Id::Career, Id::Challenge, Id::QuickRace, Id::Options, Id::AliasManager, Id::LanPlay]
+                        .contains(&i.id)
+                })
                 .all(|i| !i.enabled)
         );
         let categories = icons(Kind::Categories { pause: false, mods: false });
@@ -342,13 +345,13 @@ mod tests {
     }
 
     #[test]
-    fn lan_and_online_are_listed_dimmed() {
+    fn online_is_listed_dimmed_and_lan_opens_its_menu() {
         let main = icons(Kind::Main);
         let online = main.iter().find(|i| i.id == Id::Online).expect("Online");
         assert_eq!((online.texture, online.name), (0x2056_3D30, 0x74FB_90A8), "Main_Icon_Online, the label Online");
         assert!(!online.enabled);
         let lan = main.iter().find(|i| i.id == Id::LanPlay).expect("LAN");
         assert_eq!((lan.texture, lan.name), (0xD13A_2E66, 0x4D78_216D), "Main_Icon_LAN, the label lan");
-        assert!(!lan.enabled);
+        assert!(lan.enabled, "LAN play has its menu");
     }
 }
