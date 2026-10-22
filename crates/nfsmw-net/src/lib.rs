@@ -14,6 +14,8 @@
 //! The client's netcode (`docs/specs/multiplayer/sync-model.md`), driven by the caller's times:
 //!
 //! - [`predict`]: the owner's car run ahead of the server, with the ring of unacknowledged ticks.
+//! - [`reconcile`]: comparison with the server's own-car block, rewind and replay, the smoothed correction offset,
+//!   correction statistics and the [`reconcile::Tuning`] values.
 
 pub mod input;
 pub mod loadout;
@@ -23,3 +25,4 @@ pub mod version;
 
 mod geom;
 pub mod predict;
+pub mod reconcile;
