@@ -1,5 +1,8 @@
 //! The end of a race: the player's result, the career glue and the clean-up.
 
+use blackbox_race::Outcome;
+
+use super::coop_finish::coop_place;
 use super::{Banner, RaceResult, RaceSession, Stage};
 use crate::scenes::world::WorldScene;
 
@@ -14,6 +17,7 @@ impl WorldScene {
         let outcomes = engine.outcomes();
         let racers = outcomes.len();
         let me = outcomes[0];
+        let humans: Vec<Outcome> = outcomes.iter().copied().filter(|o| engine.racers()[o.racer].human).collect();
         // A player who did not finish (out, or the time ran out) counts as last.
         let place = if me.finished { me.place } else { racers as u32 };
         session.result = Some(RaceResult { place, racers, time: me.time });
@@ -48,8 +52,12 @@ impl WorldScene {
             }
         }
         if session.options.career {
-            let place = u8::try_from(place).unwrap_or(u8::MAX);
-            self.career_race_finished(&session.event, place, session.cash_value);
+            // A co-op race credits the career with the best human place; the result card keeps player 1's own.
+            let credited = match self.coop.is_some() {
+                true => coop_place(&humans, racers),
+                false => u8::try_from(place).unwrap_or(u8::MAX),
+            };
+            self.career_race_finished(&session.event, credited, session.cash_value);
             return;
         }
         // Outside the career a win of the challenge series opens the events it lists. Running out of time alone on

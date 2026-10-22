@@ -8,6 +8,7 @@ mod blips;
 mod card;
 mod challenge;
 mod command;
+mod coop_finish;
 mod demo;
 mod drag;
 mod emulate;
