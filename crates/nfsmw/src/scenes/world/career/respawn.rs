@@ -87,7 +87,13 @@ impl WorldScene {
         let heading = lead.heading();
         let spot = guest_spot(lead.position(), heading);
         self.career.respawn.guests_behind = false;
+        // A guest the chase still hunts drives on: only the busted lead went to the marker (`docs/specs/coop-career.md`
+        // section 5).
+        let chase = self.coop.as_ref().map(|session| &session.chase);
         for guest in self.players.guests_mut() {
+            if chase.is_some_and(|chase| chase.is_chased(guest.id)) {
+                continue;
+            }
             guest.drive.respawn_near([spot.x, spot.y], Some(heading));
         }
     }
