@@ -1,7 +1,8 @@
-//! The co-op career's entry in the flow: the career car select's second car is player 2's, then the career resumes with
-//! player 2 in the session. Player 1 keeps the keyboard, or the arrow block when player 2 took the keyboard. The world
-//! brings player 2 in (`flow_loading.rs`), and the seats are kept while it has the window (`flow_split.rs`). Spec:
-//! `docs/specs/coop-career.md` section 3.
+//! The co-op career's entry in the flow: each player presses Start on their own device (player 1's screen, then player
+//! 2's), the career car select's second car is player 2's, then the career resumes with player 2 in the session. The
+//! world brings player 2 in (`flow_loading.rs`), and the two devices stay seated while it has the window
+//! (`flow_split.rs`): a pad, the keyboard or the arrow block for either player. Spec: `docs/specs/coop-career.md`
+//! section 3.
 
 use super::*;
 use crate::frontend::custom_race::state as custom_state;
@@ -10,9 +11,19 @@ use crate::input::{CoopDevice, PlayerDevice};
 use crate::scenes::world::players::coop::CoopSetup;
 use crate::settings::Transmission;
 
+/// The players' devices when the Press Start screens left no seats (they always seat both): the two keyboard blocks.
+const DEFAULT_SEATS: [PlayerDevice; 2] = [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows];
+
+/// A co-op session in the front end: player 2 as the world takes it, and the device each player pressed Start on.
+#[derive(Debug, Clone)]
+pub struct CoopSession {
+    pub setup: CoopSetup,
+    pub seats: [PlayerDevice; 2],
+}
+
 impl Frontend {
     /// Player 2's car is picked in the career car select: the co-op session is set up, then the career resumes as
-    /// `ResumeCareer` does, with player 2 in it. The device is the one player 2 pressed Start on.
+    /// `ResumeCareer` does, with player 2 in it. Each player keeps the device they pressed Start on.
     pub(super) fn coop_second_car(&mut self, handle: u32, transmission: Transmission, host: &mut Host, env: &mut Env) {
         // Player 2's car is found as player 1's is: the lot's name, a preset ride or the car type (`look_resolve.rs`).
         let look =
@@ -21,7 +32,7 @@ impl Frontend {
             (folder, Some(preset)) => format!("{folder}:{preset}"),
             (folder, None) => folder,
         };
-        let seats = custom_state::with(|state| state.split.seated());
+        let seats = custom_state::with(|state| state.split.seated()).unwrap_or(DEFAULT_SEATS);
         let alias = self.career.with_loaded(|career| career.alias.clone()).unwrap_or_else(|| "Player".into());
         let lead = self.career.with_loaded(|career| career.settings.car_handle);
         let shared = lead == Some(handle);
@@ -29,7 +40,9 @@ impl Frontend {
             "co-op: player 2 drives {folder} (car {handle:#x}{})",
             if shared { ", shared with player 1" } else { "" }
         );
-        self.coop = Some(coop_setup(alias, folder, handle, transmission, guest_device(seats)));
+        log::info!("co-op: player 1 on {:?}, player 2 on {:?}", seats[0], seats[1]);
+        let setup = coop_setup(alias, folder, handle, transmission, guest_device(seats));
+        self.coop = Some(CoopSession { setup, seats });
         crate::career::set_coop_players(2);
         self.resume_career(host, env);
     }
@@ -67,11 +80,12 @@ pub fn coop_setup(
     CoopSetup { car: folder, transmission, alias, car_handle: Some(handle), device }
 }
 
-/// The device the guest drives with, from the seats of the Press Start screens: a pad when player 2 pressed a pad's Start,
-/// otherwise the arrow block. Player 1 is not asked: `PressStart::seat` gives them the keyboard.
-pub fn guest_device(seats: Option<[PlayerDevice; 2]>) -> CoopDevice {
-    match seats {
-        Some([_, PlayerDevice::Pad(_)]) => CoopDevice::Pad,
+/// The kind of device player 2 drives with, as the world's session records it: a pad when player 2 pressed a pad's Start,
+/// otherwise a keyboard block. The front end seats the exact devices (`CoopSession::seats`); the world's record only serves
+/// the console's `coop` command, which has no Press Start.
+pub fn guest_device(seats: [PlayerDevice; 2]) -> CoopDevice {
+    match seats[1] {
+        PlayerDevice::Pad(_) => CoopDevice::Pad,
         _ => CoopDevice::Arrows,
     }
 }
@@ -95,9 +109,9 @@ mod tests {
     #[test]
     fn the_guest_drives_on_a_pad_only_when_player_two_pressed_one() {
         let pad = Entity::from_raw_u32(3).unwrap();
-        assert_eq!(guest_device(None), CoopDevice::Arrows, "no seats, the arrow block");
-        assert_eq!(guest_device(Some([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows])), CoopDevice::Arrows);
-        assert_eq!(guest_device(Some([PlayerDevice::KeyboardArrows, PlayerDevice::Keyboard])), CoopDevice::Arrows);
-        assert_eq!(guest_device(Some([PlayerDevice::Keyboard, PlayerDevice::Pad(pad)])), CoopDevice::Pad);
+        assert_eq!(guest_device([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]), CoopDevice::Arrows);
+        assert_eq!(guest_device([PlayerDevice::KeyboardArrows, PlayerDevice::Keyboard]), CoopDevice::Arrows);
+        assert_eq!(guest_device([PlayerDevice::Keyboard, PlayerDevice::Pad(pad)]), CoopDevice::Pad);
+        assert_eq!(guest_device([PlayerDevice::Pad(pad), PlayerDevice::Keyboard]), CoopDevice::Arrows);
     }
 }

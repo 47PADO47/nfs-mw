@@ -197,8 +197,8 @@ pub struct Frontend {
     race_options: Option<crate::scenes::world::RaceOptions>,
     /// The two players of the split-screen race in progress (`flow_split.rs`); the world takes it with the race.
     split: Option<crate::scenes::world::SplitSetup>,
-    /// The co-op session in progress, from the career car select (`flow_coop.rs`); the world takes it when built.
-    coop: Option<crate::scenes::world::players::coop::CoopSetup>,
+    /// The co-op session in progress: player 2 and both players' devices (`flow_coop.rs`); the world takes player 2 when built.
+    coop: Option<flow_coop::CoopSession>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
     /// The race on the grid was started again from the pause menu or the results: it stays on its start, so no loading screen

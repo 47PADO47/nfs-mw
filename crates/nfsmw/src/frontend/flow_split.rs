@@ -5,11 +5,9 @@
 use super::*;
 use crate::frontend::custom_race::state as custom_state;
 use crate::frontend::ids::screen::PRESS_START;
-use crate::input::{CoopDevice, PlayerDevice};
+use crate::input::PlayerDevice;
 use crate::scenes::world::SplitSetup;
-use crate::scenes::world::players::coop::CoopSetup;
 use crate::settings::Transmission;
-use bevy_ecs::prelude::Entity;
 
 impl Frontend {
     /// Player 1 chose a car and a gearbox: the gearbox is kept and Press Start for player 2 opens in place of the car select.
@@ -62,19 +60,15 @@ fn seats(stage: &Stage, split: &mut Option<SplitSetup>) -> Option<[PlayerDevice;
     split.as_ref().map(|setup| setup.devices)
 }
 
-/// The co-op guest's seats while the world has the window: player 1 on the keyboard, player 2 on the arrow block. A pad seat
-/// needs the connected pads, which only the plugin has, so it is left to the plugin's own co-op seats (`plugin.rs`).
-fn coop_seats(in_world: bool, coop: Option<&CoopSetup>) -> Option<[PlayerDevice; 2]> {
-    if !in_world {
-        return None;
-    }
-    let device: Option<CoopDevice> = coop.map(|setup| setup.device);
-    crate::input::coop_seats(device, std::iter::empty::<Entity>())
+/// The co-op seats while the world has the window: the devices the two players pressed Start on, whatever they are (a pad,
+/// the keyboard or the arrow block for either player).
+fn coop_seats(in_world: bool, coop: Option<&super::flow_coop::CoopSession>) -> Option<[PlayerDevice; 2]> {
+    coop.filter(|_| in_world).map(|session| session.seats)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::flow_coop::coop_setup;
+    use super::super::flow_coop::{coop_setup, guest_device};
     use super::*;
 
     fn setup() -> SplitSetup {
@@ -106,23 +100,26 @@ mod tests {
         assert_eq!(seats(&Stage::Loading, &mut none), None);
     }
 
-    #[test]
-    fn the_co_op_guest_is_seated_on_the_arrow_block_while_the_world_has_the_window() {
-        let arrows = coop_setup("A".into(), "car".into(), 1, Transmission::Automatic, CoopDevice::Arrows);
-        for stage in [Stage::Loading, Stage::Playing, Stage::Paused, Stage::Map] {
-            assert_eq!(
-                coop_seats(in_world(&stage), Some(&arrows)),
-                Some([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]),
-                "{stage:?}"
-            );
-        }
-        assert_eq!(coop_seats(false, Some(&arrows)), None, "the menus seat nobody");
-        assert_eq!(coop_seats(true, None), None, "no session, no seats");
+    fn session(seats: [PlayerDevice; 2]) -> super::super::flow_coop::CoopSession {
+        let setup = coop_setup("A".into(), "car".into(), 1, Transmission::Automatic, guest_device(seats));
+        super::super::flow_coop::CoopSession { setup, seats }
     }
 
     #[test]
-    fn a_co_op_pad_is_seated_by_the_plugin_not_here() {
-        let pad = coop_setup("A".into(), "car".into(), 1, Transmission::Automatic, CoopDevice::Pad);
-        assert_eq!(coop_seats(true, Some(&pad)), None, "the plugin takes the first pad connected");
+    fn co_op_seats_the_devices_both_players_pressed_start_on_while_the_world_has_the_window() {
+        let pad = |n| PlayerDevice::Pad(bevy_ecs::prelude::Entity::from_raw_u32(n).unwrap());
+        let pairs = [
+            [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows],
+            [pad(3), PlayerDevice::Keyboard],
+            [PlayerDevice::Keyboard, pad(3)],
+            [pad(3), pad(4)],
+        ];
+        for seats in pairs {
+            for stage in [Stage::Loading, Stage::Playing, Stage::Paused, Stage::Map] {
+                assert_eq!(coop_seats(in_world(&stage), Some(&session(seats))), Some(seats), "{stage:?}");
+            }
+            assert_eq!(coop_seats(false, Some(&session(seats))), None, "the menus seat nobody");
+        }
+        assert_eq!(coop_seats(true, None), None, "no session, no seats");
     }
 }

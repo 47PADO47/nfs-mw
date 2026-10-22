@@ -28,7 +28,7 @@ pub fn press(cx: &mut Cx, id: Id) {
         Id::CareerResume => cx.send(Command::ResumeCareer),
         // Player 2's Press Start; co-op is set up there and in the car select (`flow_coop.rs`).
         Id::CareerCoop => {
-            cx.send(Command::Switch(screen::PRESS_START.into(), Args { player: 1, coop: true, ..Args::default() }))
+            cx.send(Command::Switch(screen::PRESS_START.into(), Args { player: 0, coop: true, ..Args::default() }))
         }
         Id::CareerNew => cx.send(Command::EnterName(NameFor::NewCareer)),
         Id::CareerLoad => open_list(cx, ListMode::Load),

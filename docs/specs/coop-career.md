@@ -59,9 +59,15 @@ events. The rules are written so that LAN players use the same rules later ([mul
 
 1. **Career menu.** The "Co-op Career" icon sits on the career menu next to the single-player entries
    ([career-parity-menus.md](career-parity-menus.md)). It is hidden while the prologue (stage 16) is on. **[ours]**
-2. **Press Start.** The screen reads "Player 2 press Start" (the labels of
-   [split-screen.md](split-screen.md) section 2). The device that presses Start is seated as P2. P2 cannot take P1's
-   device. Back returns to the career menu with co-op off. **[ours]**
+2. **Press Start, twice.** "Player 1 press Start", then "Player 2 press Start" (the screens and labels of
+   [split-screen.md](split-screen.md) section 2). Each player is seated on the device they pressed Start on, and keeps it
+   for the session: a pad, the keyboard or the arrow block, in any pairing (pad + pad, pad + keyboard, the two keyboard
+   blocks). P2 cannot take P1's device. Back on P2's screen returns to P1's; Back on P1's returns to the career menu with
+   co-op off. **[ours]**
+   - **Single player** seats nobody: the keyboard and the last pad used both drive P1, as before. The seats exist only
+     while a co-op session has the world.
+   - The console's `coop on <CAR> [arrows|pad]` has no Press Start: it puts P1 on the keyboard and P2 on the arrow block
+     or the first pad connected.
 3. **Second car.** The car select shows the shared garage of the loaded profile. Not offered: P1's current car, and any
    impounded car. With no other car free to drive, P2 shares P1's car (its record takes both players' bounty and heat),
    so co-op can start with a one-car garage. Accept seats P2's car, found as P1's is (the lot's name, a preset ride or
