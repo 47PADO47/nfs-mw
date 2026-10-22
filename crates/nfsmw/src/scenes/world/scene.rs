@@ -206,6 +206,10 @@ impl Scene for WorldScene {
         self.split_on()
     }
 
+    fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
+        self.coop.as_ref().map(|session| session.device)
+    }
+
     fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {
         self.split_frame(player, aspect)
     }

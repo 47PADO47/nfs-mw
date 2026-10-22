@@ -60,6 +60,24 @@ const ARROW_KEYS: [KeyCode; 11] = [
     KeyCode::End,
 ];
 
+/// The device a co-op guest (player 2) drives with: the arrow block of the keyboard, or a pad.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoopDevice {
+    /// The arrow block; player 1 keeps the WASD block.
+    Arrows,
+    /// The first pad connected; player 1 keeps the keyboard.
+    Pad,
+}
+
+/// The seats of a co-op session: player 1 on the keyboard's own block, player 2 on `device`. A pad seat takes the first
+/// pad connected (`pads`); with no pad connected the seats wait, as the guest's input does.
+pub fn coop_seats(device: Option<CoopDevice>, pads: impl IntoIterator<Item = Entity>) -> Option<[PlayerDevice; 2]> {
+    match device? {
+        CoopDevice::Arrows => Some([PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]),
+        CoopDevice::Pad => Some([PlayerDevice::Keyboard, PlayerDevice::Pad(pads.into_iter().min()?)]),
+    }
+}
+
 /// What a split-screen race adds to the input layer.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct SplitInput {

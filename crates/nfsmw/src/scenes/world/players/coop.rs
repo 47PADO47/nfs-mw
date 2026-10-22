@@ -7,6 +7,7 @@ use blackbox_gfx::RenderBackend;
 use super::super::{WorldScene, car_loader};
 use super::tether::Tether;
 use super::{LEAD, PlayerId};
+use crate::input::CoopDevice;
 use crate::settings::Transmission;
 
 /// The second player of a co-op session, as the front end chose it.
@@ -20,6 +21,8 @@ pub struct CoopSetup {
     pub alias: String,
     /// The guest car's career record handle, when it is a career car (its bounty, heat and impound).
     pub car_handle: Option<u32>,
+    /// The device the guest drives with (the arrow block, or a pad).
+    pub device: CoopDevice,
 }
 
 /// The co-op session in play.
@@ -31,6 +34,8 @@ pub struct CoopSession {
     pub guest_handle: Option<u32>,
     /// The soft catch-up distance.
     pub tether: Tether,
+    /// The device the guest drives with (`CoopSetup::device`).
+    pub device: CoopDevice,
 }
 
 /// The guest's id: co-op seats one guest after the lead.
@@ -81,7 +86,12 @@ impl WorldScene {
         }
         let names = [LEAD, GUEST].map(|id| nfsmw_career::coop::player_name(&setup.alias, id.0 + 1)).to_vec();
         log::info!("co-op: {} joins in {folder}", names[1]);
-        self.coop = Some(CoopSession { names, guest_handle: setup.car_handle, tether: Tether::default() });
+        self.coop = Some(CoopSession {
+            names,
+            guest_handle: setup.car_handle,
+            tether: Tether::default(),
+            device: setup.device,
+        });
         self.second_view = super::super::split::SecondView::new();
     }
 

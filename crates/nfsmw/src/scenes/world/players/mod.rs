@@ -2,6 +2,7 @@
 //! player is a list of one, and every system that knows one car reads the lead. Co-op adds player 2 with a full
 //! [`Drive`] of its own, the same path a remote player of a network session takes later.
 
+pub(super) mod command;
 mod contact;
 pub mod coop;
 pub mod inputs;
