@@ -52,6 +52,8 @@
 !/crates/*/src/**/*.wgsl
 !/crates/*/tests/**/*.rs
 !/crates/nfsmw-data/examples/physics_profiles.rs
+# The dedicated server's sample config (docs/specs/multiplayer/server.md).
+!/crates/nfsmw-server/server.toml
 # The game binary's link settings (its main thread's stack).
 !/crates/nfsmw/build.rs
 !/xtask/Cargo.toml

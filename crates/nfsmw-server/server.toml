@@ -1,0 +1,35 @@
+# A sample config for nfsmw-server (docs/specs/multiplayer/server.md). Every key is optional; a missing key keeps its
+# default. Run with: cargo run --release -p nfsmw-server -- --config crates/nfsmw-server/server.toml
+
+# --- The session (the keys of nfsmw_net::settings) ---
+name = "LAN night"
+mode = "free_roam"            # free_roam, circuit, sprint, speedtrap, knockout, pursuit_coop, tag
+track = 0
+laps = 0                      # 1 to 10 for circuit and knockout
+traffic_density = 50          # percent
+cop_level_cap = 5             # 0 to 5; 0 with pursuits = false
+pursuits = true
+max_players = 8               # racers, 2 to 16
+max_spectators = 4            # 0 to 8
+public = false                # false: LAN only
+join_in_progress = "free_roam" # closed, free_roam, between_races
+collision = "full"            # full, ghost, ghost_start
+catch_up = false
+nitrous = true
+damage = "visual"             # visual, off
+
+# --- The server ---
+bind = "0.0.0.0"
+port = 9750                   # the discovery port is port + 1
+discovery = true
+password = ""                 # a room password is not supported yet; leave empty
+snapshot_hz = 20              # 1 to 60; spectators get at most 10
+snapshot_budget = 16384       # bytes per second to one client, at most 32768
+relevancy_radius = 600        # metres
+auto_start = true             # start the countdown when every racer is ready
+countdown_seconds = 5
+results_seconds = 10
+replay_dir = ""               # a folder for replays; empty for none
+log_file = "nfsmw-server.log" # empty for stderr only
+log_level = "info"            # off, error, warn, info, debug, trace
+status_seconds = 10           # a status line every N seconds; 0 for none
