@@ -19,7 +19,7 @@ use super::script::UiScript;
 use crate::app::Host;
 use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
-use crate::scenes::world::{DEFAULT_CAR, DriveOptions, Options};
+use crate::scenes::world::DEFAULT_CAR;
 use crate::settings::{Partial, Settings};
 use nfsmw_career::rapsheet::EndGame;
 
@@ -44,6 +44,8 @@ mod flow_endgame;
 pub(in crate::frontend) mod flow_first_visit;
 #[path = "flow_loading.rs"]
 mod flow_loading;
+#[cfg(test)]
+pub(super) use flow_loading::free_roam_options;
 #[path = "flow_movie.rs"]
 pub(super) mod flow_movie;
 #[path = "flow_prologue.rs"]
@@ -116,20 +118,6 @@ use super::infractions::{InfractionsLogic, Ticket};
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
 const WIDE_ASPECT: f32 = 1.4;
-
-/// How free roam starts: the stock car on the start of the track, and the world waits for its load so the
-/// loading screen covers it (`wait_for_load`).
-pub(super) fn free_roam_options(car: &str) -> Options {
-    Options {
-        at: None,
-        height: 40.0,
-        heading: 45.0,
-        pitch: -20.0,
-        fog_distance: 3000.0,
-        wait_for_load: true,
-        drive: Some(DriveOptions { car: car.to_owned(), script: None }),
-    }
-}
 
 #[derive(Resource)]
 pub struct Frontend {
