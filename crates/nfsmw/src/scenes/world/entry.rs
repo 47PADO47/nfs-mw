@@ -9,7 +9,8 @@
 use glam::Vec3;
 
 use super::career::RaceEntry;
-use super::entry_zones::{EntryZones, Zone, ZoneKind};
+use super::entry_zones::{EntryZones, ZoneKind};
+use super::players::{LEAD, PlayerId};
 use super::road::Spawn;
 use super::{View, WorldScene};
 use crate::hud::{InteractPopup, Prompt};
@@ -21,6 +22,9 @@ use blackbox_modding::content::{Exit, Suspend, TimeOverride};
 
 /// How long the placeholder card stays after an enter, seconds.
 const PLACEHOLDER_SECS: f32 = 2.0;
+
+/// How far behind the lead a co-op guest's car is put when the lead is placed, metres.
+const GUEST_GAP: f32 = 12.0;
 
 /// The entry state of the world: where the zones are and what the card shows.
 #[derive(Debug, Default)]
@@ -74,39 +78,63 @@ impl WorldScene {
         self.entry.popup.update(dt);
     }
 
-    /// Outside: a mod interior's entry zone first, then the stock zones.
+    /// Outside: the first player whose car is in an entry zone offers its card, and Interact on that player's own
+    /// controls enters it. The lead is tested first; a mod interior's zone counts before the stock zones.
     fn update_outside(&mut self, input: &ActionState, dt: f32) {
-        let interior = self.entry_point().and_then(|point| self.entry.zones.entered_interior(point));
-        if let Some(index) = interior {
-            let prompt = interior_prompt(&self.entry.zones.interiors[index]);
-            if enter_wanted(input, &self.entry.popup, true) {
-                self.begin_interior(index);
-                return;
-            }
-            self.entry.popup.set_target(Some(prompt));
+        let points = self.entry_points();
+        let Some((id, hit)) = first_holder(&points, |point| zone_hit(&self.entry.zones, point)) else {
+            self.entry.popup.set_target(None);
             self.entry.popup.update(dt);
             return;
+        };
+        let pressed = self.actions_of(id, input).is_some_and(|actions| enter_wanted(actions, &self.entry.popup, true));
+        match hit {
+            Hit::Interior(index) => self.update_interior_zone(index, pressed, dt),
+            Hit::Zone { kind, name } => self.update_stock_zone(kind, &name, pressed, dt),
         }
-        let zone = self.entered_zone().map(|zone| (zone.kind, zone.name.clone()));
-        let prompt = zone.as_ref().map(|(kind, _)| prompt_for(*kind));
-        if let (true, Some((kind, name))) = (enter_wanted(input, &self.entry.popup, zone.is_some()), zone.as_ref()) {
-            let race = match kind {
-                ZoneKind::Race => self.career_enter_race(name),
-                ZoneKind::AutoShop | ZoneKind::SafeHouse | ZoneKind::CarLot => RaceEntry::NotCareer,
-            };
-            let locked = race == RaceEntry::Locked;
-            if locked {
-                flash_locked(&mut self.entry.popup, name);
-            }
-            if !locked && *kind == ZoneKind::Race {
-                let career = race == RaceEntry::Open || self.career.handle.is_active();
-                self.enter_race_zone(name, career);
-            } else if !locked && !self.career_enter_zone(*kind, name) {
-                enter_stub(&mut self.entry.popup, *kind, name);
-            }
+    }
+
+    /// A mod interior's entry zone holds the car: Interact goes into it, otherwise its card is offered.
+    fn update_interior_zone(&mut self, index: usize, pressed: bool, dt: f32) {
+        if pressed {
+            self.begin_interior(index);
+            return;
         }
-        self.entry.popup.set_target(prompt);
+        let prompt = interior_prompt(&self.entry.zones.interiors[index]);
+        self.entry.popup.set_target(Some(prompt));
         self.entry.popup.update(dt);
+    }
+
+    /// A stock zone holds the car: Interact enters it (a race, or the career's entry, or the stub), and its card is
+    /// offered either way.
+    fn update_stock_zone(&mut self, kind: ZoneKind, name: &str, pressed: bool, dt: f32) {
+        if pressed {
+            self.enter_stock_zone(kind, name);
+        }
+        self.entry.popup.set_target(Some(prompt_for(kind)));
+        self.entry.popup.update(dt);
+    }
+
+    /// Interact in a stock zone: a locked race flashes its card; a race starts; any other zone goes to the career, or to
+    /// the stub when the career does not take it.
+    fn enter_stock_zone(&mut self, kind: ZoneKind, name: &str) {
+        let race = match kind {
+            ZoneKind::Race => self.career_enter_race(name),
+            ZoneKind::AutoShop | ZoneKind::SafeHouse | ZoneKind::CarLot => RaceEntry::NotCareer,
+        };
+        if race == RaceEntry::Locked {
+            flash_locked(&mut self.entry.popup, name);
+            return;
+        }
+        if kind == ZoneKind::Race {
+            let career = race == RaceEntry::Open || self.career.handle.is_active();
+            self.enter_race_zone(name, career);
+            return;
+        }
+        if self.career_enter_zone(kind, name) {
+            return;
+        }
+        enter_stub(&mut self.entry.popup, kind, name);
     }
 
     /// Inside a mod interior: its exit zone offers the exit card, and Interact leaves.
@@ -133,21 +161,22 @@ impl WorldScene {
         self.entry.popup.update(dt);
     }
 
-    /// The entry zone the car is in, while the car drives in the chase view.
-    fn entered_zone(&self) -> Option<&Zone> {
+    /// Every player's car place, the lead first, while the car drives in the chase view: the only places an entry zone
+    /// counts. Empty otherwise.
+    fn entry_points(&self) -> Vec<(PlayerId, Vec3)> {
         if self.view != View::Chase {
-            return None;
+            return Vec::new();
         }
-        let drive = self.players.lead()?;
-        self.entry.zones.entered(drive.position())
+        self.players.iter().map(|player| (player.id, player.drive.position())).collect()
     }
 
-    /// The car's place, while it drives in the chase view: the only place an entry zone counts.
-    fn entry_point(&self) -> Option<Vec3> {
-        if self.view != View::Chase {
-            return None;
+    /// The actions of player `id` this frame. The lead's are the frame's input; a guest's are its own seat's, and there
+    /// are none (idle) when it has no seat.
+    fn actions_of<'a>(&'a self, id: PlayerId, input: &'a ActionState) -> Option<&'a ActionState> {
+        if id == LEAD {
+            return Some(input);
         }
-        self.car_point()
+        self.inputs.get(id)
     }
 
     /// The car's place, if there is a car.
@@ -207,12 +236,20 @@ impl WorldScene {
         self.run_interior(commands);
     }
 
-    /// Put the car exactly at a place, standing still. An interior has no road, so the road search is not used.
+    /// Put the lead's car exactly at a place, standing still, and each co-op guest's car just behind it, facing the same
+    /// way. An interior has no road, so the road search is not used for the lead.
     fn place_car_at(&mut self, pos: [f32; 3], heading: f32) -> bool {
         let Some(drive) = self.players.lead_mut() else { return false };
         let spawn = Spawn { position: Vec3::from_array(pos), heading };
         let collision = self.residency.collision();
-        drive.spawn(spawn, collision, &self.physics.surfaces)
+        if !drive.spawn(spawn, collision, &self.physics.surfaces) {
+            return false;
+        }
+        let near = behind_point(pos, heading, GUEST_GAP);
+        for guest in self.players.guests_mut() {
+            guest.drive.respawn_near(near, Some(heading));
+        }
+        true
     }
 
     /// Stop what the interior names. Cops leave with the chase, so cops or pursuit stop the chase.
@@ -262,6 +299,34 @@ fn interior_prompt(interior: &ModInterior) -> Prompt {
 fn exit_prompt(exit: &Exit, label: &str) -> Prompt {
     let line = exit.prompt.clone().unwrap_or_else(|| "Press Enter to leave".to_string());
     Prompt { title: label.to_string(), line }
+}
+
+/// What the entry zones hold at a point: a mod interior (its index in `zones.interiors`), or a stock zone.
+#[derive(Debug, Clone, PartialEq)]
+enum Hit {
+    Interior(usize),
+    Zone { kind: ZoneKind, name: String },
+}
+
+/// What the entry zones hold at `point`: a mod interior's zone first, then the stock zones.
+fn zone_hit(zones: &EntryZones, point: Vec3) -> Option<Hit> {
+    if let Some(index) = zones.entered_interior(point) {
+        return Some(Hit::Interior(index));
+    }
+    let zone = zones.entered(point)?;
+    Some(Hit::Zone { kind: zone.kind, name: zone.name.clone() })
+}
+
+/// The first player, in `points` order, whose point the test holds, with what the test gave. `points` lists the lead
+/// first, so a tie goes to the lead.
+fn first_holder<T>(points: &[(PlayerId, Vec3)], holds: impl Fn(Vec3) -> Option<T>) -> Option<(PlayerId, T)> {
+    points.iter().find_map(|&(id, point)| holds(point).map(|hit| (id, hit)))
+}
+
+/// The ground point `distance` metres behind `pos` along `heading` (forward is `(cos h, sin h)`), where a co-op guest's
+/// car is put.
+fn behind_point(pos: [f32; 3], heading: f32, distance: f32) -> [f32; 2] {
+    [pos[0] - heading.cos() * distance, pos[1] - heading.sin() * distance]
 }
 
 /// Whether this frame's Interact press enters the zone: the car is in one, the card is up and not holding a placeholder,
@@ -354,5 +419,35 @@ mod tests {
         assert!(popup.is_flashing(), "the placeholder holds the card for its time");
         popup.update(1.0);
         assert_eq!(popup.drawn().map(|p| p.title.as_str()), Some("Entering safe house"));
+    }
+
+    /// A zone test: a 6 m sphere at the origin.
+    fn in_sphere(point: Vec3) -> Option<()> {
+        crate::scenes::world::entry_zones::sphere_contains(Vec3::ZERO, 6.0, point).then_some(())
+    }
+
+    #[test]
+    fn lead_wins_a_tie() {
+        let inside = Vec3::new(1.0, 0.0, 0.0);
+        let points = [(LEAD, inside), (PlayerId(1), inside)];
+        assert_eq!(first_holder(&points, in_sphere), Some((LEAD, ())));
+    }
+
+    #[test]
+    fn guest_in_zone_triggers() {
+        let points = [(LEAD, Vec3::new(50.0, 0.0, 0.0)), (PlayerId(1), Vec3::ZERO)];
+        assert_eq!(first_holder(&points, in_sphere), Some((PlayerId(1), ())));
+    }
+
+    #[test]
+    fn nobody_in_zone() {
+        let points = [(LEAD, Vec3::new(50.0, 0.0, 0.0)), (PlayerId(1), Vec3::new(0.0, 50.0, 0.0))];
+        assert_eq!(first_holder(&points, in_sphere), None);
+        assert_eq!(first_holder(&[], in_sphere), None);
+    }
+
+    #[test]
+    fn a_guest_is_put_behind_the_lead() {
+        assert_eq!(behind_point([100.0, 50.0, 0.0], 0.0, GUEST_GAP), [88.0, 50.0]);
     }
 }
