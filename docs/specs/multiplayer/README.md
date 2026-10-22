@@ -6,6 +6,8 @@ server program, the same on a LAN and on the internet, over our own UDP layer. W
 the protocol and client session (`nfsmw-net`), the server loop (`nfsmw-server`), the real world behind it and the game's side
 (2026-10-22: [game wiring](game-wiring.md)). Online play is design.
 
+What exists and what is still open is summarised in [status.md](status.md).
+
 The decision record is [ADR 0006](../../decisions/0006-multiplayer-netcode.md). The files here hold the requirements, the wire format,
 the algorithms and the security design it refers to.
 
