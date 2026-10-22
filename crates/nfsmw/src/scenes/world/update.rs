@@ -78,6 +78,7 @@ impl WorldScene {
             true => 0.0,
             false => self.update_simulation(renderer, input, dt),
         };
+        self.update_catch_up(input);
         self.follow_second_player(dt);
         self.update_race(renderer, input, dt);
         self.update_entry(input, dt);
