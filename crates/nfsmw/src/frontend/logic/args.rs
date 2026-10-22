@@ -29,6 +29,8 @@ pub struct Args {
     pub first_car: bool,
     /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
     pub player: u8,
+    /// Player 2's car select of a co-op career: the car picked is seated for player 2 (`career_screens/car_select.rs`).
+    pub coop: bool,
 }
 
 impl Default for Args {
@@ -45,6 +47,7 @@ impl Default for Args {
             sequence: false,
             first_car: false,
             player: 0,
+            coop: false,
         }
     }
 }
