@@ -77,6 +77,7 @@ pub struct MoviePlayback {
 impl MoviePlayback {
     /// Opens the movie `name` in `dir` (see [`find`]) with its clock at `start` seconds.
     pub fn open(dir: &GameDir, name: &str, start: f64) -> Result<Self> {
+        let _trace = blackbox_trace::scope("Movie: open and decode the sound");
         let file = find(dir, name)?;
         let bytes = anyhow::Context::with_context(dir.read(&format!("MOVIES/{file}")), || format!("reading {file}"))?;
         let (mut movie, audio) = anyhow::Context::with_context(Movie::open(bytes), || format!("opening {file}"))?;

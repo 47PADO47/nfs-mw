@@ -171,6 +171,7 @@ impl Host {
     /// Initialises `scene` and puts it in the window. Returns the scene it replaced, which the caller closes or
     /// parks. On error the window keeps its scene.
     fn install(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<Box<dyn Scene>> {
+        let _trace = blackbox_trace::scope("Scene: install and init");
         self.apply_scene_settings(scene.as_mut());
         self.init_scene(scene.as_mut())?;
         self.apply_driving_settings(scene.as_mut());

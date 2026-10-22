@@ -58,6 +58,7 @@ impl CareerData {
     /// Gameplay comes from `GLOBAL/gameplay.bin`. The car lot, the heat and the rap sheet read `GLOBAL/FE_ATTRIB.bin`
     /// and `pursuitlevels` from the attribute database. The attribute database is parsed once per session (shared).
     pub fn load(dir: &GameDir) -> Result<CareerData> {
+        let _trace = blackbox_trace::scope("Career: read the career tables");
         let gameplay = gameplay::load(dir)?;
         let attributes = shared::attributes(dir)?;
         let frontend = frontend_database(dir, &attributes)?;

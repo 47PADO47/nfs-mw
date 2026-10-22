@@ -176,6 +176,7 @@ impl NisPlayer {
         kind: NisKind,
         track: u32,
     ) -> Result<(), String> {
+        let _trace = blackbox_trace::scope("NIS: load the scene");
         self.refuse_while_playing()?;
         let bundle = NisBundle::load(dir, scene).map_err(|e| format!("{e:#}"))?;
         let library = CameraLibrary::load(dir).map_err(|e| format!("{e:#}"))?;

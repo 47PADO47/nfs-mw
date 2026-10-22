@@ -75,6 +75,7 @@ pub fn load_in_background(dir: &GameDir) {
 
 /// Reads the cars on this thread and keeps them for [`cars`].
 pub fn load_now(dir: &GameDir) -> Arc<CarPool> {
+    let _trace = blackbox_trace::scope("Quick Play: load the car pool now");
     if let Some(pool) = CARS.get() {
         return pool.clone();
     }

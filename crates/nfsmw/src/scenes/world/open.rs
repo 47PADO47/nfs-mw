@@ -12,6 +12,7 @@ pub struct WorldLoad(Box<dyn FnOnce() -> WorldScene + Send>);
 impl WorldLoad {
     /// Puts the world together: starts its streaming threads and makes the scene.
     pub fn build(self) -> WorldScene {
+        let _trace = blackbox_trace::scope("World: build on the frame thread");
         (self.0)()
     }
 }

@@ -36,6 +36,7 @@ impl Room {
     /// stage's yaw (`Stage::room_yaw`): the safe house's pivots are the identity, the crib's room is stored small and scaled
     /// up by its pivot.
     pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, stage: Stage) -> Result<Self> {
+        let _trace = blackbox_trace::scope("Frontend: load the menu room");
         let path = stage.file();
         let file = dir.read(path).with_context(|| format!("reading {path}"))?;
         let solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
