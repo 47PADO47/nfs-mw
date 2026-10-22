@@ -11,7 +11,7 @@ use super::field::{Field, Typed};
 use super::rows::{Cursor, Row, RowKind};
 use crate::frontend::lan::car::car_name;
 use crate::frontend::lan::quick::{QUICK_LINES, quick_line};
-use crate::frontend::lan::text::{mode_name, slot_name};
+use crate::frontend::lan::text::{mode_name, slot_name, votes};
 
 /// Where Accept on the lobby goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,7 +99,7 @@ impl LobbyPage {
         let me = lobby.me();
         match item {
             Item::Player(slot) => match lobby.player(slot) {
-                Some(row) => player_row(row, lobby, cars),
+                Some(row) => player_row(row, lobby, cars, my_car),
                 None => Row::info(format!("slot {slot}"), ""),
             },
             Item::Ready => Row::choice("Ready", yes_no(me.is_some_and(|me| me.ready)), true),
@@ -112,7 +112,7 @@ impl LobbyPage {
                 let vote = lobby.vote.as_ref();
                 let count = vote.and_then(|vote| vote.options.iter().find(|o| o.id == option)).map_or(0, |o| o.count);
                 let label = vote.map_or_else(String::new, |vote| vote_label(vote, option, lobby));
-                Row { label, value: format!("{count} votes"), enabled: true, kind: RowKind::Action }
+                Row { label, value: votes(count), enabled: true, kind: RowKind::Action }
             }
             Item::VoteRestart => Row::action("Vote to restart", lobby.phase != SessionPhase::Lobby),
             Item::Settings => Row::action("Session settings", true),
@@ -214,7 +214,7 @@ impl LobbyPage {
     }
 }
 
-fn player_row(row: &LobbyPlayer, lobby: &LobbyView, cars: &[String]) -> Row {
+fn player_row(row: &LobbyPlayer, lobby: &LobbyView, cars: &[String], my_car: &str) -> Row {
     let mut label = row.name.as_str().to_owned();
     if row.flags & FLAG_HOST != 0 || row.slot == lobby.host_slot {
         label.push_str("  [host]");
@@ -233,7 +233,7 @@ fn player_row(row: &LobbyPlayer, lobby: &LobbyView, cars: &[String]) -> Row {
         (_, true) => "ready",
         (_, false) => "not ready",
     };
-    let car = car_name(row.car_type, cars.iter().map(String::as_str));
+    let car = car_name(row.car_type, cars.iter().map(String::as_str).chain([my_car]));
     Row::info(label, format!("{car}  {state}  {} ms", row.ping_ms))
 }
 

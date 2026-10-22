@@ -8,7 +8,7 @@ use nfsmw_net::message::{Role, VoteKind};
 use super::feed::FeedKind;
 use super::menu::{LanMenu, countdown_text};
 use super::results::ordered;
-use super::text::{ordinal, slot_name};
+use super::text::{ordinal, slot_name, votes};
 use super::{NetFrontend, NetStatus};
 
 /// Seconds a feed line stays, and the last of them it fades over.
@@ -58,7 +58,7 @@ pub fn hud_view(menu: &LanMenu, net: &dyn NetFrontend) -> Option<HudView> {
     })
 }
 
-/// `Vote: kick Ann  2 votes  20 s left (vote in the lobby)`.
+/// `Vote: kick Ann  2 votes  20 s left  (vote in the lobby)`.
 fn vote_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
     let vote = lobby.vote.as_ref()?;
     let option = vote.options.first()?;
@@ -69,7 +69,7 @@ fn vote_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
         VoteKind::ChangeTrack => "change the track".into(),
         VoteKind::SkipResults => "skip the results".into(),
     };
-    let mut text = format!("Vote: {what}  {} votes", option.count);
+    let mut text = format!("Vote: {what}  {}", votes(option.count));
     if let Some(now) = server_tick {
         let left = ((f64::from(vote.ends_tick) - now) / 60.0).ceil().max(0.0);
         text.push_str(&format!("  {left:.0} s left"));
@@ -130,7 +130,7 @@ mod tests {
         assert_eq!(hud.feed[0].1, "Ann: go");
         assert!((hud.feed[0].2 - 0.5).abs() < 1e-4, "half faded");
         assert_eq!(hud.feed[1].2, 1.0);
-        assert_eq!(hud.vote.as_deref(), Some("Vote: kick Bob  1 votes  20 s left  (vote in the lobby)"));
+        assert_eq!(hud.vote.as_deref(), Some("Vote: kick Bob  1 vote  20 s left  (vote in the lobby)"));
         assert_eq!(hud.spectator, None);
     }
 
