@@ -20,6 +20,7 @@
 //!   bounded extrapolation.
 //! - [`clock`]: the estimated server tick from PING and PONG, the ping schedule and the input lead.
 //! - [`netstats`]: the counters of the network overlay line.
+//! - [`netsim`]: the `net.sim` bad-network setting for the link simulator.
 
 pub mod input;
 pub mod loadout;
@@ -30,6 +31,7 @@ pub mod version;
 pub mod clock;
 mod geom;
 pub mod interp;
+pub mod netsim;
 pub mod netstats;
 pub mod predict;
 pub mod reconcile;
