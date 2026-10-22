@@ -220,6 +220,7 @@ impl WorldScene {
             engine: None,
             plan: Vec::new(),
             setup: None,
+            heat_chase: None,
             previous_traffic,
             glue: Vec::new(),
             catch_up: false,
