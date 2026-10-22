@@ -149,7 +149,20 @@ three measures the whole app (`--bench-seconds`, now hidden, with hitch counts) 
 | egui, the status line and the mirror's CPU tint ran with nothing to show. | The egui pass is skipped when nothing is up, the status line is built only for the overlay, and the mirror is tinted and clipped on the GPU. |
 | The frame limiter paced twice under vsync and overshot its sleeps. | It defers to vsync and spins the last millisecond. |
 
-Next in this round: the GPU passes, then the load path.
+### GPU passes (P3)
+
+| Finding | Fix |
+| --- | --- |
+| Every shadow cascade re-rendered every frame, and the receiver ran up to ~200 taps a pixel even with no blocker. | Staggered cascades (0 every frame, 1 every second, the rest every fourth) with an early refresh on cuts and drift; the receiver returns at once with no blocker and filters with a rotated 12-tap Vogel disk (20 dense), dithering between cascades. |
+| XeGTAO High ran at full resolution. | Half resolution, upsampled by the existing depth- and normal-aware composite. |
+| SMAA shaded every pixel in its blend-weight pass and took three submits. | A stencil mask from the edge pass; one encoder and one submit for scene, post, SMAA and UI. |
+| FSR 3 and the treatment composite built bind groups every frame. | Cached per input view. |
+| Tone mapping was its own full-screen pass. | Folded into the bloom or treatment composite before it. |
+| The motion pass redrew all opaque geometry. | Camera motion from depth in one full-screen pass; only moved objects are drawn. |
+
+Back faces are culled by the original's rule: opaque textures are single-sided unless punch-through or flagged, blended ones two-sided, mirrored instances and reflection views flip the side ([specs/backface-culling.md](specs/backface-culling.md)). Shadow maps, the sky and effects stay two-sided.
+
+Next in this round: the load path.
 
 ## How to measure
 
