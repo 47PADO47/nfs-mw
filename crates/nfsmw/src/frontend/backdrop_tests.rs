@@ -24,6 +24,9 @@ fn build_and_draw(dir: &GameDir, look: Look) -> (usize, usize, glam::Vec3) {
     let mut renderer = backend();
     let mut menu = MenuScene::with_look(Some(dir.clone()), look.clone());
     menu.init(&mut renderer).unwrap();
+    assert!(!menu.ready(), "the backdrop is not ready before its worker is read and uploaded");
+    menu.settle(&mut renderer);
+    assert!(menu.ready());
     menu.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
     let meshes = renderer.mesh_labels.len();
     let (params, parts) = menu.frame(16.0 / 9.0);
@@ -170,9 +173,44 @@ fn switching_looks_over_and_over_leaks_nothing() {
         for look in &looks {
             let mut menu = MenuScene::with_look(Some(dir.clone()), look.clone());
             menu.init(&mut renderer).unwrap();
+            menu.settle(&mut renderer);
             menu.close(&mut renderer);
             assert!(renderer.mesh_labels.is_empty(), "round {round}, {look:?}: meshes left");
             assert_eq!(renderer.resources.lock().unwrap().textures, 0, "round {round}, {look:?}: textures left");
         }
     }
+}
+
+#[test]
+fn a_menu_closed_while_its_worker_reads_uploads_nothing() {
+    let Some(dir) = install() else { return };
+    let mut renderer = backend();
+    let mut menu = MenuScene::with_look(Some(dir), Look::Main);
+    menu.init(&mut renderer).unwrap();
+    menu.close(&mut renderer);
+    assert!(menu.ready(), "a closed backdrop has nothing left to wait for");
+    menu.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    assert!(renderer.mesh_labels.is_empty(), "the worker's result is dropped");
+}
+
+#[test]
+fn the_backdrop_draws_nothing_until_the_car_is_up() {
+    let Some(dir) = install() else { return };
+    let mut renderer = backend();
+    let mut menu = MenuScene::with_look(Some(dir), Look::SafeHouse(CarLook::default_car()));
+    menu.init(&mut renderer).unwrap();
+    assert!(menu.frame(16.0 / 9.0).1.is_empty(), "nothing is drawn while the worker reads");
+    menu.settle(&mut renderer);
+    assert!(!menu.frame(16.0 / 9.0).1.is_empty());
+    menu.close(&mut renderer);
+    assert!(renderer.mesh_labels.is_empty());
+}
+
+#[test]
+fn a_backdrop_without_an_install_is_ready_at_once() {
+    let mut menu = MenuScene::new(None);
+    let mut renderer = backend();
+    menu.init(&mut renderer).unwrap();
+    assert!(menu.ready());
+    assert!(menu.frame(16.0 / 9.0).1.is_empty());
 }

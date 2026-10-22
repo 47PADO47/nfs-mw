@@ -50,6 +50,7 @@ fn installed_menu_preview_applies_initial_and_live_shading_and_releases_room_onc
     menu.set_car_shading(CarShading::Original);
     let mut renderer = backend();
     menu.init(&mut renderer).unwrap();
+    menu.settle(&mut renderer);
     assert!(renderer.glossy_materials.values().all(|m| m.model == GlossyModel::Shadowed));
     let initial_meshes = renderer.mesh_labels.len();
     menu.set_car_shading(CarShading::OriginalUnshadowed);
