@@ -1,6 +1,6 @@
 # Multiplayer sync model: prediction, interpolation, collisions, clocks, determinism
 
-Status: **design only**. Nothing is built. Written 2026-10-16. This file holds the algorithms that
+Status: **design**; the session lifecycle rules of section 7 are built (see the note there), the rest is not. Written 2026-10-16. This file holds the algorithms that
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) decides on. The ADR gives the reasons and the budgets; this file
 gives the steps, the state kept, the tuning values and the failure behaviour. The wire formats are in
 [protocol](protocol.md). Where a number is a tuning value it is marked **(tuning)** and is to be set by the test
@@ -277,6 +277,25 @@ is the snapshot stream, not the inputs.
 | Late joiner in free roam | The same as a join; other players appear in the first full snapshot | |
 | Leaving | A `Disconnect` message, or a timeout of 10 s; the car is removed on the next snapshot | control stream |
 | Reconnect | A resume token (from the first join) within 30 s returns the slot; the server keeps the car as a ghost; the first snapshot after is full | control stream |
+
+**Built (2026-10-22, `crates/nfsmw-net`, rules only, not yet driven by a server loop):**
+
+- `lobby::Lobby` runs the lobby rows of this table over the `blackbox-net-core` phase machine. Racers and cops are its peers;
+  spectators are not, so the load barrier never waits for them. The start countdown fixes the tick at which loading begins
+  (`StartCountdown`); every connected member gets `LoadWorld` with its grid slot; a racer still loading at the barrier's deadline
+  (120 s) watches the race as a spectator and races the next one (`CancelCountdown(LoadTimeout)` to it); the machine's countdown
+  fixes the race start tick and the lobby broadcasts `StartAt`. "Everyone wait" holds only the lobby and the results screen; the
+  sim never pauses.
+- `join::JoinGate::admit` orders the join checks (source rate, shutdown, versions and data, bans, password, resume, policy,
+  limits, loadout); `join::placement` seats a joiner of a running race as a spectator who races next.
+- `drop::Presence` detects the 10 s silence (and the 2 s lag mark); `drop::on_drop` gives the leaving player's pursuit up at once,
+  parks a timed-out car as a non-colliding ghost and holds the slot for 30 s; `on_expiry` removes the car, scores a racer as not
+  finished and frees the slot; `on_resume` restores the car and asks for a full snapshot. A quit, kick or ban never holds the slot.
+- `drop::ResumeBook` keeps only hashes of the resume tokens the caller draws, single use and bound to the player id; a stolen token
+  presented by another identity is refused without burning it.
+- Late join: `drop::SessionData` (the lobby and every car) travels as one `SessionData` bulk transfer, split by `BulkSender` into
+  ordered chunks under a byte budget per call, reassembled by `BulkReceiver` with its own size limit (64 KiB), in-order offsets, the
+  announced length and the SHA-256.
 
 Full snapshots are used when: the client has no acknowledged baseline in the last 64 ticks; after a reset or teleport of
 the owner; after a stall longer than 1 s. A full snapshot is split into parts if it exceeds one datagram

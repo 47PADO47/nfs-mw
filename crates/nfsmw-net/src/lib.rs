@@ -19,13 +19,32 @@
 //! - [`fairness`]: catch-up, collision modes, nitrous and damage toggles, the reset rule and the wrong-way notice.
 //! - [`results`]: the per-race result record (fixed and versioned), session stats and their result message.
 //! - [`record`]: the replay file of the server and of a client, written to and read from caller-owned bytes.
+//!
+//! The session rules, pure state machines that take the time from the caller and return what to send:
+//!
+//! - [`settings`]: session settings defaults, validation, a host's patch, and the flat key and value form.
+//! - [`lobby`]: the lobby and session state machine: roster, cars, ready, start countdown, hold, load and race phases.
+//! - [`join`]: the join-in-progress policy and the admission pipeline with its reject reasons.
+//! - [`roles`]: host, admin and player permissions, bans, and the local mute list.
+//! - [`vote`]: kick, restart, mode, track and skip votes counted by the server.
+//! - [`chat`]: chat rate and text rules, quick messages and system notices.
+//! - [`drop`]: disconnects, resume tokens, and the late-join bulk transfer.
+//! - [`spectate`]: who may watch, the spectator rate and the follow camera.
 
+pub mod chat;
+pub mod drop;
 pub mod fairness;
 pub mod input;
+pub mod join;
 pub mod loadout;
+pub mod lobby;
 pub mod message;
 pub mod modes;
 pub mod record;
 pub mod results;
+pub mod roles;
 pub mod schema;
+pub mod settings;
+pub mod spectate;
 pub mod version;
+pub mod vote;

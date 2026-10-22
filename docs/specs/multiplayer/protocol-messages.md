@@ -164,7 +164,10 @@ The receiver verifies `length` and the hash before use. Only data, never code, a
 
 ## Not built yet
 
-- Reassembly and pacing of bulk transfers, chat rate limits, the lobby and vote rules: they use these messages and belong to the
-  session modules of `nfsmw-net`.
+- A running session that carries these messages. The rules that produce and check them are built in the session modules of
+  `nfsmw-net` (`lobby`, `join`, `vote`, `chat`, `drop`, `spectate`): bulk pacing and reassembly, chat rate limits, the lobby and
+  vote rules.
+- A server-to-client quick message (MP-44) and a lobby message that tells a player why its car was refused (MP-31); the lobby
+  returns the reason to the server crate, which has no message to carry it yet.
 - NFKC normalisation and grapheme counting of text.
 - Quantised collision and respawn vectors (they are `f32` today; events are rare enough that the bytes do not matter yet).
