@@ -2,6 +2,8 @@
 //! [`rules`]), how cops box in or pit a car ([`tactics`]) and how the police helicopter flies and sees
 //! ([`helicopter`]). Nothing here reads a world or a clock: the caller measures the player each frame and applies
 //! the decisions. The values that differ between games (fines, cop waves, per-level settings) come from the caller.
+//! One pursuit can chase several target cars at once: [`targets`] keeps each one's status and splits the cops
+//! between them.
 //!
 //! The busted meter ([`busted`]) fills while a cop is close, level and the player is slow. The escape ([`cooldown`],
 //! with the per-heat tables in [`evade`]) runs the grace, the cool-down meter and EVADED. How a chase ended is
@@ -34,6 +36,7 @@ pub mod speech;
 pub mod spikes;
 pub mod support;
 pub mod tactics;
+pub mod targets;
 pub mod wave;
 pub mod wreck;
 
@@ -44,3 +47,4 @@ pub use heat::Heat;
 pub use infraction::{Fines, Infraction, InfractionLog};
 pub use rules::{Contact, Target, contact_infraction};
 pub use tactics::{Tactic, TacticInput};
+pub use targets::{Suspect, TargetId, TargetStatus, Targets};
