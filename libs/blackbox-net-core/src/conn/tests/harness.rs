@@ -89,12 +89,13 @@ impl Harness {
         transmit(&mut self.b_to_a, &mut self.rng, round, loss, dup, from_b);
 
         let app = &mut self.app_received;
-        for datagram in take_due(&mut self.a_to_b, round) {
-            let result = self.b.conn.read_packet(now, &datagram, |ftype, payload| app.push((ftype, payload.to_vec())));
+        for mut datagram in take_due(&mut self.a_to_b, round) {
+            let result =
+                self.b.conn.read_packet(now, &mut datagram, |ftype, payload| app.push((ftype, payload.to_vec())));
             note(result, &mut self.errors, &mut self.duplicates);
         }
-        for datagram in take_due(&mut self.b_to_a, round) {
-            let result = self.a.conn.read_packet(now, &datagram, |_, _| {});
+        for mut datagram in take_due(&mut self.b_to_a, round) {
+            let result = self.a.conn.read_packet(now, &mut datagram, |_, _| {});
             note(result, &mut self.errors, &mut self.duplicates);
         }
 

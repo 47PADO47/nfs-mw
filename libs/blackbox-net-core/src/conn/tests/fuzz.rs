@@ -24,7 +24,7 @@ fn random_datagrams_never_panic() {
             datagram[0] &= 0x01;
             datagram[1..3].copy_from_slice(&2u16.to_le_bytes());
         }
-        let _ = conn.read_packet(i * 3, &datagram, |_, _| {});
+        let _ = conn.read_packet(i * 3, &mut datagram, |_, _| {});
         if i % 50 == 0 {
             let mut out = vec![0u8; MAX_DATAGRAM];
             let _ = conn.write_packet(i * 3, &[], &mut out);
@@ -55,7 +55,8 @@ fn mutated_real_packets_never_panic() {
         let sent = sender.write_packet(round * 16, &[], &mut out).expect("write_packet");
         pool.push(out[..sent.len].to_vec());
         // Keep the sender's acknowledgement state moving so ack blocks vary across the pool.
-        let _ = receiver.read_packet(round * 16, &pool[pool.len() - 1], |_, _| {});
+        let mut copy = out[..sent.len].to_vec();
+        let _ = receiver.read_packet(round * 16, &mut copy, |_, _| {});
         drain(&mut receiver);
         drain(&mut sender);
     }
@@ -76,7 +77,7 @@ fn mutated_real_packets_never_panic() {
                 *byte ^= 1u8 << rng.below(8);
             }
         }
-        let _ = target.read_packet(i * 2, &datagram, |_, _| {});
+        let _ = target.read_packet(i * 2, &mut datagram, |_, _| {});
         drain(&mut target);
     }
 }

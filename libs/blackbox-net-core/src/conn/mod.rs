@@ -5,17 +5,24 @@
 //!
 //! | Offset | Size | Field |
 //! |---|---|---|
-//! | 0 | 1 | flags: bit 7 = 0 (data packet), bits 3..1 = format 0, bit 0 = ack block valid (see below), bits 6..4 zero |
+//! | 0 | 1 | flags: bit 7 = 0 (data packet), bits 6..5 = key phase (sealed packets only), bit 4 zero, bits 3..1 = format 0, bit 0 = ack block valid |
 //! | 1 | 2 | connection id of the receiver |
 //! | 3 | 4 | packet number (starts at 0, +1 per packet) |
 //! | 7 | 4 | `ack`: largest packet number received from the peer (0 with `ack_bits` 0 before any) |
 //! | 11 | 4 | `ack_bits`: bit `i` set means packet `ack - 1 - i` was received |
-//! | 15 | n | frames, at most [`FRAME_SPACE`] bytes, so a 16-byte seal tag still fits in [`crate::MAX_DATAGRAM`] later |
+//! | 15 | n | frames, at most [`FRAME_SPACE`] bytes |
+//! | 15 + n | 0 or 16 | authentication tag of a sealed packet |
 //!
 //! Flag bit 0 (`FLAG_ACK_VALID`) is set once the sender has received at least one packet. A receiver ignores the ack
 //! block while it is clear, so "nothing received yet" is not confused with "packet 0 received". It takes the lowest bit
-//! of the format field, which therefore sits in bits 3..1 and is 0 for format 0. protocol.md section 5.1 gives bits 3..0
-//! to the format and has no such flag; the sealed header must settle this before the crypto layer lands.
+//! of the format field, which therefore sits in bits 3..1 and is 0 for format 0 (protocol.md section 5.1 records this).
+//!
+//! **Sealing** ([`Sealer`], `seal.rs`): bytes 0..7 (flags, connection id, packet number) travel in the clear and are the
+//! associated data; bytes 7.. (the ack block and the frames) are encrypted and a 16-byte tag follows. [`FRAME_SPACE`]
+//! leaves room for the tag, so a sealed packet still fits in [`crate::MAX_DATAGRAM`]. A receiver checks the clear header
+//! (handshake bit, connection id) and asks the receive window whether the number is new *before* opening, and records
+//! the number only *after* the tag verified, so a forged packet changes nothing and a replayed one is a duplicate.
+//! [`Plain`] is the sealer of the in-memory link (no tag); [`Connection::new`] uses it.
 //!
 //! **Frames** (ADR 0009 section 4): `type` u8, then the payload length as a byte-aligned LEB128 varint (7 bits per byte,
 //! low group first, top bit = more, canonical, at most 3 bytes), then the payload. Type `0x00` is one padding byte with no
@@ -31,7 +38,7 @@
 //!
 //! **Files:** `header.rs` (header and frame prefix), `acks.rs` (sequence buffer and receive window), `rtt.rs` (RTT and
 //! loss), `channel.rs` (send and receive side of the reliable channels), `fragment.rs` (split and reassemble limits),
-//! `connection.rs` ([`Connection`] itself). Tests live in `tests/`.
+//! `seal.rs` (the [`Sealer`] slot), `connection.rs` ([`Connection`] itself). Tests live in `tests/`.
 
 mod acks;
 mod channel;
@@ -39,16 +46,18 @@ mod connection;
 mod fragment;
 mod header;
 mod rtt;
+mod seal;
 #[cfg(test)]
 mod tests;
 
 use std::fmt;
 
 pub use connection::Connection;
+pub use seal::{CLEAR_HEADER_LEN, ClearHeader, KEY_PHASE_MASK, Plain, Sealer, parse_clear_header};
 
 /// Bytes of the packet header and acknowledgement block.
 pub const HEADER_LEN: usize = 15;
-/// Bytes reserved for the authentication tag of the future sealed packet.
+/// Bytes reserved for the authentication tag of a sealed packet.
 pub const SEAL_OVERHEAD: usize = 16;
 /// Bytes left for frames in one datagram.
 pub const FRAME_SPACE: usize = crate::MAX_DATAGRAM - HEADER_LEN - SEAL_OVERHEAD;
@@ -115,6 +124,10 @@ pub enum ConnError {
     FrameTooLarge,
     /// The output buffer is smaller than [`crate::MAX_DATAGRAM`].
     BufferTooSmall,
+    /// The authentication tag did not verify, or the key phase names no key this side holds. Dropped silently.
+    BadTag,
+    /// The sealer cannot seal: its key is used up or the packet does not fit with the tag.
+    SealFailed,
 }
 
 impl fmt::Display for ConnError {
@@ -131,6 +144,8 @@ impl fmt::Display for ConnError {
             Self::QueueFull => "channel has too many unacknowledged messages",
             Self::FrameTooLarge => "application frames exceed the frame space",
             Self::BufferTooSmall => "output buffer smaller than one datagram",
+            Self::BadTag => "authentication tag did not verify",
+            Self::SealFailed => "packet could not be sealed",
         };
         f.write_str(text)
     }

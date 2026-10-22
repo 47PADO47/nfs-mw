@@ -8,7 +8,8 @@
 //!   quantisers (uniform floats, angles, smallest-three quaternions).
 //! - [`link`]: the [`link::Link`] datagram trait with a UDP, an in-memory and a lossy simulator implementation.
 //! - [`conn`]: a sans-IO connection: packet numbers, acknowledgement bits, RTT and loss, four reliable ordered channels
-//!   with fragments, and delivery notifications for delta baselines. Sealing (Noise) slots in later.
+//!   with fragments, and delivery notifications for delta baselines. A [`conn::Sealer`] seals every datagram;
+//!   [`conn::Plain`] is the unsealed in-memory path.
 //! - [`replicate`]: entity replication over a schema the game registers: a history ring of quantised frames, delta
 //!   encoding against an acknowledged baseline, an encode cache shared by clients, a priority accumulator and a
 //!   spatial hash for relevancy.
