@@ -97,7 +97,7 @@ screenshot of the circuit options **[verified]** and is added at the end of ever
 | Row | Values | Default | Source |
 |---|---|---|---|
 | Laps | 1 to 8, wrapping | 1 | **[decomp]** max 8; default 1 **[verified]** |
-| Opponents | 1 to 3, wrapping | 3 | **[decomp]** (4 minus the players) |
+| Opponents | 1 to 15, wrapping | 3 | **[ours]** 15: sixteen racers less the player (the 16 is ours; the original's grid is four, so 1 to 3 **[decomp]**, 4 minus the players); default 3 **[verified]** (the screenshot) |
 | Difficulty | Easy, Medium, Hard (`0x61973E01`, `0x3747F6D0`, `0x6198E2EE`) | Medium | **[decomp]** |
 | Traffic Level | None, Minimum, Moderate, Maximum (`0x8CDC3937`, `0x73C615A3`, `0xA2CCA838`, `0x61D1C5A5`) | Minimum | **[decomp]** |
 | Catch Up | On / Off | On | **[decomp]** |
@@ -112,6 +112,16 @@ the catch-up switch for the modes that have the row; the traffic as `FillCustomR
 Heat Level Moderate or Maximum leaves the road's police on and gives the car the heat 3 or 5 for a chase that starts in the race
 (`race/start.rs`); None and Minimum call off a pursuit at the start of the race **[ours]**: the exe's `FillCustomRace` enables cops
 only when `CopsOn` is set, which the screens of this build do not expose. The police of free roam are the ones that appear.
+
+**A race of sixteen [ours].** A race holds at most `MAX_RACERS` (16) racers, the player included, so 15 opponents at most. The
+grid (`race/setup.rs` `grid_slot`) keeps two columns 3.5 m apart and a row 7.5 m behind the last, so 16 racers take eight rows
+and reach 52.5 m behind the start line; every slot is behind the line and no two overlap (a unit test). A racer whose slot has no
+road under it is left off the grid and logged (`race: X could not be put on the grid`). The names come from the install's
+`RACERNAME` pool (150 names), so 15 names never repeat. The cars of a racer whose character names none come from the stock pool
+(`stock_car`), and characters repeat when the race has more opponents than the race lists. The HUD board keeps four rows: the three
+best and the player's own when the player is placed lower (`hud/leaders.rs`). The results standings keep ten rows: the best nine and the
+player's when the player is placed lower (`frontend/post_race/pages.rs`). The traffic budget does not count the racers (`ai/policy.rs`),
+so the traffic of a race is the traffic setting's, whatever the number of racers.
 
 Back returns to the track list, Accept opens the car select.
 
