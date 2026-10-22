@@ -31,6 +31,8 @@ pub struct CoopSession {
     pub guest_handle: Option<u32>,
     /// The soft catch-up distance.
     pub tether: Tether,
+    /// The player offered the "Press Reset to catch up" prompt this frame, if any (`catch_up.rs`).
+    pub catch_up: Option<PlayerId>,
 }
 
 /// The guest's id: co-op seats one guest after the lead.
@@ -81,7 +83,8 @@ impl WorldScene {
         }
         let names = [LEAD, GUEST].map(|id| nfsmw_career::coop::player_name(&setup.alias, id.0 + 1)).to_vec();
         log::info!("co-op: {} joins in {folder}", names[1]);
-        self.coop = Some(CoopSession { names, guest_handle: setup.car_handle, tether: Tether::default() });
+        self.coop =
+            Some(CoopSession { names, guest_handle: setup.car_handle, tether: Tether::default(), catch_up: None });
         self.second_view = super::super::split::SecondView::new();
     }
 
