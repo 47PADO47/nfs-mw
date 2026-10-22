@@ -7,7 +7,7 @@
 
 use super::TemporalFrame;
 use crate::gpu::Renderer;
-use crate::gpu::instances::INSTANCE_LAYOUT;
+use crate::gpu::draw_list::{instance_store, instance_view};
 use crate::gpu::pipelines::VERTEX_ATTRIBUTES;
 use crate::gpu::resources::DEPTH_FORMAT;
 use crate::gpu::targets::MOTION_FORMAT;
@@ -39,6 +39,8 @@ pub(in crate::gpu) struct MotionPass {
     glossy_cutout: wgpu::RenderPipeline,
     camera: wgpu::Buffer,
     group: wgpu::BindGroup,
+    /// This frame's instances are read from the instance store, bound at group 2.
+    store: bool,
 }
 
 impl MotionPass {
@@ -81,14 +83,17 @@ impl MotionPass {
             layout: &layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() }],
         });
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("motion"),
-            bind_group_layouts: &[Some(&layout), Some(textures)],
+            bind_group_layouts: &[Some(&layout), Some(textures), instances.as_ref()][..2 + usize::from(store)],
             immediate_size: 0,
         });
+        let source = instance_view::instance_source(include_str!("../../shaders/motion.wgsl"), store.then_some(2));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("motion"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/motion.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         let make = |entry| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -104,7 +109,7 @@ impl MotionPass {
                             step_mode: wgpu::VertexStepMode::Vertex,
                             attributes: &VERTEX_ATTRIBUTES,
                         }),
-                        Some(INSTANCE_LAYOUT),
+                        Some(instance_view::instance_layout(store)),
                         Some(PREVIOUS_LAYOUT),
                     ],
                 },
@@ -138,6 +143,7 @@ impl MotionPass {
             glossy_cutout: make("fs_glossy_cutout"),
             camera,
             group,
+            store,
         }
     }
 
@@ -181,7 +187,11 @@ impl MotionPass {
             multiview_mask: None,
         });
         pass.set_bind_group(0, &self.group, &[]);
-        pass.set_vertex_buffer(1, renderer.instances.buffer.slice(..));
+        let store = &renderer.draw_list.store;
+        if let Some(instances) = store.bind_group().filter(|_| self.store) {
+            pass.set_bind_group(2, instances, &[]);
+        }
+        pass.set_vertex_buffer(1, renderer.instances.buffer.slice(store.main_offset()..));
         pass.set_vertex_buffer(2, previous.slice(..));
         let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
         let mut bound_texture: Option<&wgpu::BindGroup> = None;

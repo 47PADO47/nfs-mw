@@ -123,7 +123,8 @@ impl Renderer {
         self.begin_temporal(false, frame);
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("view capture") });
-        self.instances.upload_instances(&self.device, &self.queue, instances);
+        // The scene pass uploads the instances; the frames before this one have been submitted.
+        self.draw_list.store.begin_frame();
         self.encode_scene_mode(&mut encoder, Some(&capture.scene), &capture.view, frame, instances, true, None);
         self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height));
         encoder.copy_texture_to_buffer(

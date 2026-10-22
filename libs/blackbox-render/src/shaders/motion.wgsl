@@ -21,10 +21,19 @@ struct In {
     @location(1) normal: vec3<f32>,
     @location(2) color: vec4<f32>,
     @location(3) uv: vec2<f32>,
-    // This frame's model matrix, then last frame's, one column per attribute.
-    @location(4) m0: vec4<f32>, @location(5) m1: vec4<f32>, @location(6) m2: vec4<f32>, @location(7) m3: vec4<f32>,
+    // Last frame's model matrix, one column per attribute (this frame's is the instance input).
     @location(8) p0: vec4<f32>, @location(9) p1: vec4<f32>, @location(10) p2: vec4<f32>, @location(11) p3: vec4<f32>,
 };
+
+// instance input: begin
+// The per-instance model matrix, one column per attribute. A renderer with an instance store replaces this block
+// (see `instance_view.rs`): the instance then carries a slot at location 4 and the matrix is read from the store.
+struct InstanceIn {
+    @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
+    @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+};
+fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+// instance input: end
 
 struct Out {
     // Same expression as the scene shader's, so the depth matches the colour pass's exactly.
@@ -36,8 +45,8 @@ struct Out {
 };
 
 @vertex
-fn vs_main(v: In) -> Out {
-    let model = mat4x4<f32>(v.m0, v.m1, v.m2, v.m3);
+fn vs_main(v: In, placed: InstanceIn) -> Out {
+    let model = instance_model(placed);
     let before = mat4x4<f32>(v.p0, v.p1, v.p2, v.p3);
     let world = model * vec4<f32>(v.position, 1.0);
     var out: Out;

@@ -8,6 +8,7 @@ mod surface_boundary_tests;
 #[cfg(test)]
 mod tests;
 
+use super::draw_list::{instance_store, instance_view};
 use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, pipelines::BLEND_ORDER, slots::Slots};
 use blackbox_gfx::{BlendMode, FrameParams, NormalMaterialDesc, NormalMaterialHandle};
 use std::collections::HashMap;
@@ -32,6 +33,8 @@ pub(super) struct Normal {
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 4]>,
+    /// Instances are read from the instance store, bound at group 3.
+    store: bool,
 }
 
 impl Normal {
@@ -42,9 +45,12 @@ impl Normal {
         sampler: &wgpu::Sampler,
     ) -> Self {
         let material_layout = pipeline::material_layout(device);
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("normal scenery"),
-            bind_group_layouts: &[Some(globals), Some(&material_layout), Some(shadows)],
+            bind_group_layouts: &[Some(globals), Some(&material_layout), Some(shadows), instances.as_ref()]
+                [..3 + usize::from(store)],
             immediate_size: 0,
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -52,7 +58,7 @@ impl Normal {
             source: wgpu::ShaderSource::Wgsl(
                 format!(
                     "{}\n{}",
-                    include_str!("../../shaders/normal.wgsl"),
+                    instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), store.then_some(3)),
                     include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
                 )
                 .into(),
@@ -87,6 +93,7 @@ impl Normal {
             projected: None,
             materials: Slots::new(),
             pipelines: HashMap::new(),
+            store,
         }
     }
 
@@ -98,8 +105,10 @@ impl Normal {
         frame: &FrameParams,
         cache: Option<&wgpu::PipelineCache>,
     ) {
+        let store = self.store;
         self.pipelines.entry(format).or_insert_with(|| {
-            BLEND_ORDER.map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, true, cache))
+            BLEND_ORDER
+                .map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, true, store, cache))
         });
         let specular = frame
             .surface_light
@@ -114,7 +123,9 @@ impl Normal {
     }
 
     /// Draw the normal-map scenery of blend mode `mode`: `list` holds only those draws, in the order they were
-    /// given. The material and the mesh's buffers are bound only when they change.
+    /// given. The material and the mesh's buffers are bound only when they change. `instances` is the instance
+    /// store's bind group, when the renderer has one.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
@@ -123,6 +134,7 @@ impl Normal {
         meshes: &'a Slots<GpuMesh>,
         list: &[LayerCmd],
         shadows: &'a wgpu::BindGroup,
+        instances: Option<&wgpu::BindGroup>,
     ) {
         if list.is_empty() {
             return;
@@ -131,6 +143,9 @@ impl Normal {
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
         pass.set_pipeline(&pipelines[index]);
         pass.set_bind_group(2, shadows, &[]);
+        if let Some(instances) = instances.filter(|_| self.store) {
+            pass.set_bind_group(3, instances, &[]);
+        }
         let mut bound_mesh = None;
         let mut bound_material = None;
         for cmd in list {

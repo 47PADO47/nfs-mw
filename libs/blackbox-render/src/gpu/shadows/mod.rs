@@ -27,6 +27,7 @@ mod stability_tests;
 mod surface_tests;
 #[cfg(test)]
 mod tests;
+mod upload;
 #[cfg(test)]
 mod wide_tests;
 
@@ -50,7 +51,11 @@ pub(super) struct Shadows {
     instances: Vec<InstanceBuffer>,
     bounds: Vec<(usize, Vec3, f32)>,
     selected: Vec<usize>,
-    matrices: Vec<[f32; 16]>,
+    scratch: upload::CasterScratch,
+    /// Each caster's slot in the instance store, when the casters are read from it.
+    caster_slots: Vec<u32>,
+    /// The casters are read from the instance store (bind group 2) through a slot each.
+    store: bool,
     fit_points: Vec<Vec3>,
 }
 
@@ -191,6 +196,11 @@ impl Renderer {
         };
         let mut shadows = self.shadows.take().expect("prepared shadow pipelines");
         let casters = self.shadow_casters.as_deref().unwrap_or(visible);
+        if shadows.store {
+            let main_view = self.shadow_casters.is_none();
+            let store = &mut self.draw_list.store;
+            upload::caster_slots(store, &self.device, &self.queue, casters, main_view, &mut shadows.caster_slots);
+        }
         if settings.cached_shadows {
             shadows.cache.prepare(casters);
         }
@@ -212,16 +222,15 @@ impl Renderer {
             }
             let planes = clip_planes(matrix);
             shadows.selected.clear();
-            shadows.matrices.clear();
             for &(index, center, radius) in &shadows.bounds {
                 if !intersects(&planes, center, radius) {
                     continue;
                 }
                 shadows.selected.push(index);
-                shadows.matrices.push(casters[index].transform.to_cols_array());
             }
             let selected = &shadows.selected;
-            shadows.instances[cascade].upload(&self.device, &self.queue, &shadows.matrices);
+            // Each draw below uploads just the casters it draws, into the buffer it binds.
+            let slots = shadows.store.then_some(shadows.caster_slots.as_slice());
             self.queue.write_buffer(&shadows.buffers[cascade], 0, bytemuck::cast_slice(&matrix.to_cols_array()));
             let target = &self.shared.shadows.layers[cascade];
             let size = fit.params.resolutions[cascade];
@@ -240,8 +249,8 @@ impl Renderer {
                         !moving.is_empty(),
                     );
                     if dirty {
-                        let matrices: Vec<_> = fixed.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
-                        shadows.static_instances[cascade].upload(&self.device, &self.queue, &matrices);
+                        let buffer = &mut shadows.static_instances[cascade];
+                        shadows.scratch.upload(&self.device, &self.queue, buffer, casters, &fixed, slots);
                         shadows.draw_selected(
                             self,
                             encoder,
@@ -272,8 +281,8 @@ impl Renderer {
                         destination,
                         wgpu::Extent3d { width: size as u32, height: size as u32, depth_or_array_layers: 1 },
                     );
-                    let matrices: Vec<_> = moving.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
-                    shadows.instances[cascade].upload(&self.device, &self.queue, &matrices);
+                    let buffer = &mut shadows.instances[cascade];
+                    shadows.scratch.upload(&self.device, &self.queue, buffer, casters, &moving, slots);
                     shadows.draw_selected(
                         self,
                         encoder,
@@ -290,6 +299,8 @@ impl Renderer {
                 }
             }
             shadows.cache.invalidate_final(cascade);
+            let buffer = &mut shadows.instances[cascade];
+            shadows.scratch.upload(&self.device, &self.queue, buffer, casters, selected, slots);
             shadows.draw_selected(
                 self,
                 encoder,

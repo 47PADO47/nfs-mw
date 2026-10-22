@@ -34,6 +34,9 @@ impl Shadows {
         pass.set_viewport(0.0, 0.0, size, size, 0.0, 1.0);
         pass.set_scissor_rect(0, 0, size as u32, size as u32);
         pass.set_bind_group(0, &self.groups[cascade], &[]);
+        if let Some(instances) = renderer.draw_list.store.bind_group().filter(|_| self.store) {
+            pass.set_bind_group(2, instances, &[]);
+        }
         pass.set_vertex_buffer(1, buffer.slice(..));
         let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
         let mut bound_texture: Option<&wgpu::BindGroup> = None;

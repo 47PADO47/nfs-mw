@@ -1,6 +1,7 @@
 //! Camera-space depth and world normals, excluding sky and blended surfaces.
 use super::targets::{NORMAL_FORMAT, Targets};
-use crate::gpu::{Renderer, instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES};
+use crate::gpu::draw_list::{instance_store, instance_view};
+use crate::gpu::{Renderer, pipelines::VERTEX_ATTRIBUTES};
 use blackbox_gfx::{BlendMode, FrameParams, Instance, Shading};
 
 pub(super) struct Prepass {
@@ -11,6 +12,8 @@ pub(super) struct Prepass {
     prelit_cutout: wgpu::RenderPipeline,
     matrix: wgpu::Buffer,
     group: wgpu::BindGroup,
+    /// Instances are read from the instance store, bound at group 2.
+    store: bool,
 }
 
 impl Prepass {
@@ -43,14 +46,18 @@ impl Prepass {
             layout: &layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: matrix.as_entire_binding() }],
         });
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("contact prepass"),
-            bind_group_layouts: &[Some(&layout), Some(textures)],
+            bind_group_layouts: &[Some(&layout), Some(textures), instances.as_ref()][..2 + usize::from(store)],
             immediate_size: 0,
         });
+        let source =
+            instance_view::instance_source(include_str!("../../shaders/contact_prepass.wgsl"), store.then_some(2));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("contact prepass"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/contact_prepass.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         let make = |entry| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -66,7 +73,7 @@ impl Prepass {
                             step_mode: wgpu::VertexStepMode::Vertex,
                             attributes: &VERTEX_ATTRIBUTES,
                         }),
-                        Some(INSTANCE_LAYOUT),
+                        Some(instance_view::instance_layout(store)),
                     ],
                 },
                 primitive: Default::default(),
@@ -100,6 +107,7 @@ impl Prepass {
             prelit_cutout: make("fs_prelit_cutout"),
             matrix,
             group,
+            store,
         }
     }
 
@@ -137,7 +145,11 @@ impl Prepass {
             multiview_mask: None,
         });
         pass.set_bind_group(0, &self.group, &[]);
-        pass.set_vertex_buffer(1, renderer.instances.buffer.slice(..));
+        let store = &renderer.draw_list.store;
+        if let Some(instances) = store.bind_group().filter(|_| self.store) {
+            pass.set_bind_group(2, instances, &[]);
+        }
+        pass.set_vertex_buffer(1, renderer.instances.buffer.slice(store.main_offset()..));
         let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
         let mut bound_texture: Option<&wgpu::BindGroup> = None;
         let mut first = 0;

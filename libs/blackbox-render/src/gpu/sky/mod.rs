@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use blackbox_gfx::{SkyMaterialDesc, SkyMaterialHandle, SkyState};
 use wgpu::util::DeviceExt;
 
+use super::draw_list::{instance_store, instance_view};
 use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, slots::Slots};
 
 #[repr(C)]
@@ -33,19 +34,24 @@ pub(super) struct Sky {
     materials: Slots<Material>,
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 2]>,
     state: SkyState,
+    /// Instances are read from the instance store, bound at group 2.
+    store: bool,
 }
 
 impl Sky {
     fn new(device: &wgpu::Device, globals: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler) -> Self {
         let material_layout = pipeline::material_layout(device);
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("authored sky"),
-            bind_group_layouts: &[Some(globals), Some(&material_layout)],
+            bind_group_layouts: &[Some(globals), Some(&material_layout), instances.as_ref()][..2 + usize::from(store)],
             immediate_size: 0,
         });
+        let source = instance_view::instance_source(include_str!("../../shaders/sky.wgsl"), store.then_some(2));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("authored sky shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/sky.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         let sampler = sampler.clone();
         Self {
@@ -56,6 +62,7 @@ impl Sky {
             materials: Slots::new(),
             pipelines: HashMap::new(),
             state: SkyState::default(),
+            store,
         }
     }
 
@@ -66,10 +73,11 @@ impl Sky {
         format: wgpu::TextureFormat,
         cache: Option<&wgpu::PipelineCache>,
     ) {
+        let store = self.store;
         self.pipelines.entry(format).or_insert_with(|| {
             [
-                pipeline::create(device, &self.shader, &self.layout, format, false, cache),
-                pipeline::create(device, &self.shader, &self.layout, format, true, cache),
+                pipeline::create(device, &self.shader, &self.layout, format, false, store, cache),
+                pipeline::create(device, &self.shader, &self.layout, format, true, store, cache),
             ]
         });
         let intensity = self.state.cloud_intensity.map(|x| match x.is_finite() {
@@ -88,17 +96,22 @@ impl Sky {
 
     /// Draw the sky layers: each layer kind in turn, over every sky draw of the view in instance order. `list`
     /// holds only the sky draws, so a view with no sky costs nothing here. State is bound only when it changes.
+    /// `instances` is the instance store's bind group, when the renderer has one.
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
         meshes: &'a Slots<GpuMesh>,
         list: &[LayerCmd],
+        instances: Option<&wgpu::BindGroup>,
     ) {
         if list.is_empty() {
             return;
         }
         let Some(pipelines) = self.pipelines.get(&format) else { return };
+        if let Some(instances) = instances.filter(|_| self.store) {
+            pass.set_bind_group(2, instances, &[]);
+        }
         for kind in
             [blackbox_gfx::SkyLayerKind::Base, blackbox_gfx::SkyLayerKind::Cloud2, blackbox_gfx::SkyLayerKind::Cloud3]
         {

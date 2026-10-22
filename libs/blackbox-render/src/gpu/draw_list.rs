@@ -3,6 +3,13 @@
 //! of each re-walking every instance and its draws. Each list keeps the order the old per-pipeline walk drew in,
 //! so blended draws stay in the order they were given.
 
+// The instance store lives beside the draw lists: a view's lists draw instance ranges of the slot list the store
+// gave that view.
+#[path = "instance_store.rs"]
+pub(super) mod instance_store;
+#[path = "instance_view.rs"]
+pub(super) mod instance_view;
+
 use super::draw_mask::DrawMask;
 use super::meshes::GpuMesh;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
@@ -65,6 +72,8 @@ pub(super) struct DrawList {
     /// Sky layer draws of every layer kind, one instance at a time in instance order (the layers blend, so the
     /// order between instances is part of the picture).
     sky: Vec<LayerCmd>,
+    /// Every instance's matrix at a persistent slot; the views upload slot lists into it.
+    pub(super) store: instance_store::InstanceStore,
 }
 
 impl DrawList {

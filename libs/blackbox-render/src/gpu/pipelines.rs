@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use super::draw_list::{instance_store, instance_view};
 use super::glossy::Layouts;
 use super::instances::INSTANCE_LAYOUT;
 use super::resources::{DEPTH_FORMAT, Shared};
@@ -37,6 +38,9 @@ pub(super) struct Pipelines {
     format: wgpu::TextureFormat,
     /// Used by every pipeline built later, as the pipelines are created per format and draw state.
     cache: Option<wgpu::PipelineCache>,
+    /// The scene shader reads its instances from the instance store (bind group 3) through a slot per instance.
+    /// The glossy shader keeps reading matrices.
+    store: bool,
 }
 
 /// A shader module and the pipeline layout it is used with.
@@ -80,25 +84,28 @@ impl Pipelines {
         shared: &Shared,
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
+        let store = instance_store::supported(device);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scene shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
                     "{}\n{}\n{}",
-                    include_str!("../shaders/scene.wgsl"),
+                    instance_view::instance_source(include_str!("../shaders/scene.wgsl"), store.then_some(3)),
                     include_str!("../shaders/world_surface.wgsl"),
                     include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
                 )
                 .into(),
             ),
         });
+        let instances = store.then(|| instance_store::layout(device));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scene"),
             bind_group_layouts: &[
                 Some(&shared.bindings.globals_layout),
                 Some(&shared.bindings.texture_layout),
                 Some(&shared.glossy.material),
-            ],
+                instances.as_ref(),
+            ][..3 + usize::from(store)],
             immediate_size: 0,
         });
         let mut pipelines = Self {
@@ -110,6 +117,7 @@ impl Pipelines {
             sets: HashMap::new(),
             format,
             cache: cache.cloned(),
+            store,
         };
         pipelines.use_format(device, format, false);
         pipelines
@@ -221,9 +229,9 @@ impl Pipelines {
         ];
         // The glossy shader has its own module, layout and no overrides.
         let glossy = self.glossy.as_ref().filter(|_| matches!(shading, Shading::Glossy(_)));
-        let (module, constants): (_, &[(&str, f64)]) = match glossy {
-            Some(glossy) => (glossy, &[]),
-            None => (&self.scene, &constants),
+        let (module, constants, instances): (_, &[(&str, f64)], _) = match glossy {
+            Some(glossy) => (glossy, &[], INSTANCE_LAYOUT),
+            None => (&self.scene, &constants, instance_view::instance_layout(self.store)),
         };
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(&label),
@@ -232,7 +240,7 @@ impl Pipelines {
                 module: &module.shader,
                 entry_point: Some("vs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
-                buffers: &[Some(vertex_layout), Some(INSTANCE_LAYOUT)],
+                buffers: &[Some(vertex_layout), Some(instances)],
             },
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,

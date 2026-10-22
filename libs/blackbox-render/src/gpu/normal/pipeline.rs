@@ -1,7 +1,8 @@
 //! Tangent-space material layout and blend/depth pipelines.
 
 use super::super::{
-    instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES, resources::DEPTH_FORMAT, targets::write_mask,
+    draw_list::instance_view::instance_layout, pipelines::VERTEX_ATTRIBUTES, resources::DEPTH_FORMAT,
+    targets::write_mask,
 };
 use blackbox_gfx::BlendMode;
 
@@ -45,6 +46,8 @@ pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     })
 }
 
+/// `store`: the shader reads its instances from the instance store, through a slot per instance.
+#[allow(clippy::too_many_arguments)]
 pub(in crate::gpu) fn create(
     device: &wgpu::Device,
     shader: &wgpu::ShaderModule,
@@ -52,6 +55,7 @@ pub(in crate::gpu) fn create(
     format: wgpu::TextureFormat,
     mode: BlendMode,
     tangent: bool,
+    store: bool,
     cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
     let (entry, blend, depth_write) = match mode {
@@ -77,7 +81,7 @@ pub(in crate::gpu) fn create(
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &VERTEX_ATTRIBUTES,
         }),
-        Some(INSTANCE_LAYOUT),
+        Some(instance_layout(store)),
     ];
     if tangent {
         buffers.push(Some(wgpu::VertexBufferLayout {

@@ -2,6 +2,7 @@
 //! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
+use super::draw_list::instance_view::upload_view;
 use super::effects::SoftDraw;
 use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
@@ -147,8 +148,10 @@ impl Renderer {
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: encode scene");
         let size = targets.unwrap_or(&self.targets).size();
-        // The colour pass and camera prepass use the same instance order and transforms.
-        self.instances.upload_instances(&self.device, &self.queue, instances);
+        // Every encoder recorded with the instance store before this one has been submitted, so its slots can be
+        // handed out again. The colour pass and camera prepass use the same instance order and transforms.
+        self.draw_list.store.begin_frame();
+        self.upload_main_instances(instances);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 4);
         }
@@ -266,16 +269,29 @@ impl Renderer {
             ],
             camera_right: [frame.view.x_axis.x, frame.view.y_axis.x, frame.view.z_axis.x, 0.0],
         };
-        let (uniform, bind_group, instance_buffer) = match capture {
+        // `slots_at`: where the per-instance data of the non-glossy pipelines starts in the view's buffer. The glossy
+        // pipelines read matrices from its start.
+        let (uniform, bind_group, instance_buffer, slots_at) = match capture {
             Some(view) => {
-                view.instances.upload_instances(&self.device, &self.queue, instances);
-                (&view.globals, &view.bind_group, &view.instances.buffer)
+                let store = &mut self.draw_list.store;
+                let at = upload_view(store, &self.device, &self.queue, &self.meshes, &mut view.instances, instances);
+                (&view.globals, &view.bind_group, &view.instances.buffer, at)
             }
-            None => (&self.shared.bindings.globals, &self.shared.bindings.globals_bind_group, &self.instances.buffer),
+            None => {
+                self.ensure_main_instances(instances);
+                let shared = &self.shared.bindings;
+                (
+                    &shared.globals,
+                    &shared.globals_bind_group,
+                    &self.instances.buffer,
+                    self.draw_list.store.main_offset(),
+                )
+            }
         };
         self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
         let bind_group = bind_group.clone();
         let instance_buffer = instance_buffer.clone();
+        let store_group = self.draw_list.store.bind_group().cloned();
 
         let targets = targets.unwrap_or(&self.targets);
         let target_view = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view).clone();
@@ -334,9 +350,9 @@ impl Renderer {
             multiview_mask: None,
         });
         pass.set_bind_group(0, &bind_group, &[]);
-        pass.set_vertex_buffer(1, instance_buffer.slice(..));
+        pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
         if let Some(sky) = &self.sky {
-            sky.draw(&mut pass, format, &self.meshes, self.draw_list.sky());
+            sky.draw(&mut pass, format, &self.meshes, self.draw_list.sky(), store_group.as_ref());
         }
 
         let original = self.experiments.original_world_materials;
@@ -346,13 +362,15 @@ impl Renderer {
                 && let Some(normal) = &self.normal
             {
                 let list = self.draw_list.normal(mode_index);
-                normal.draw(&mut pass, format, mode, &self.meshes, list, &self.shared.shadows.fallback);
+                let shadows = &self.shared.shadows.fallback;
+                normal.draw(&mut pass, format, mode, &self.meshes, list, shadows, store_group.as_ref());
             }
             if (original || projected)
                 && let Some(window) = &self.window
             {
                 let list = self.draw_list.window(mode_index);
-                window.draw(&mut pass, format, mode, &self.meshes, list, &self.shared.shadows.fallback);
+                let shadows = &self.shared.shadows.fallback;
+                window.draw(&mut pass, format, mode, &self.meshes, list, shadows, store_group.as_ref());
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
                 let slot = mode_index * SHADINGS.len() + shading_index;
@@ -368,8 +386,12 @@ impl Renderer {
                 }
                 let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
                 pass.set_pipeline(pipeline);
-                if !matches!(shading, Shading::Glossy(_)) {
+                let glossy_pipeline = matches!(shading, Shading::Glossy(_));
+                if !glossy_pipeline {
                     pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
+                }
+                if !glossy_pipeline && let Some(store) = &store_group {
+                    pass.set_bind_group(3, store, &[]);
                 }
                 let glossy = match shading {
                     Shading::Glossy(_) => match &self.glossy {
@@ -380,6 +402,10 @@ impl Renderer {
                 };
                 if let Some(glossy) = glossy {
                     glossy.bind_scene(&mut pass);
+                }
+                // The glossy shader reads matrices, which the view's buffer holds from its start (restored below).
+                if glossy_pipeline && slots_at != 0 {
+                    pass.set_vertex_buffer(1, instance_buffer.slice(..));
                 }
                 let mut bound_mesh = None;
                 let mut bound_texture = None;
@@ -421,13 +447,16 @@ impl Renderer {
                         cmd.instances.0..cmd.instances.1,
                     );
                 }
+                if glossy_pipeline && slots_at != 0 {
+                    pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
+                }
             }
             if screen && mode == blackbox_gfx::BlendMode::AlphaTest {
                 drop(pass);
                 self.encode_screen_glossy(encoder, target, depth, frame, instances);
                 pass = super::glossy::screen_draw::resume(encoder, target, depth);
                 pass.set_bind_group(0, &bind_group, &[]);
-                pass.set_vertex_buffer(1, instance_buffer.slice(..));
+                pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
             }
         }
         if reflection
