@@ -18,6 +18,7 @@ impl WorldScene {
         self.update_nis_characters(renderer);
         self.update_nis_models(renderer);
         self.update_story_movie(input, dt);
+        self.update_coop_suspend();
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.
         let idle = ActionState::default();

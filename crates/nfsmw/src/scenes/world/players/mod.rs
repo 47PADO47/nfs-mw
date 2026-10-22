@@ -11,6 +11,7 @@ pub mod inputs;
 mod race;
 pub mod spawn;
 mod step;
+mod suspend;
 pub mod tether;
 mod view;
 

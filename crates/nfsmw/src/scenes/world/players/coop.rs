@@ -41,6 +41,8 @@ pub struct CoopSession {
     pub catch_up: Option<PlayerId>,
     /// The shared chase: its targets, its primary and the per-target busts (`chase.rs`).
     pub chase: super::chase::CoopChase,
+    /// Player 2 is parked for a cutscene (`suspend.rs`).
+    pub suspended: bool,
     /// The device the guest drives with (`CoopSetup::device`).
     pub device: CoopDevice,
 }
@@ -97,6 +99,7 @@ impl WorldScene {
             device: setup.device,
             catch_up: None,
             chase: Default::default(),
+            suspended: false,
         });
         self.second_view = super::super::split::SecondView::new();
     }

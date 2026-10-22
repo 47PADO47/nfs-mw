@@ -3,7 +3,9 @@
 //! rival). The guest's free-roam car is parked for the race and comes back behind player 1 when it ends.
 
 use super::super::WorldScene;
-use super::super::race::{RacerPlan, SplitSetup};
+use nfsmw_data::gameplay::Race;
+
+use super::super::race::{RacerPlan, SplitSetup, is_story_race};
 use super::coop::GUEST;
 use super::tether::behind;
 use crate::input::PlayerDevice;
@@ -12,9 +14,13 @@ use crate::input::PlayerDevice;
 const BACK_BEHIND: f32 = 12.0;
 
 impl WorldScene {
-    /// The two people of a co-op race, as a split-screen race takes them; `None` outside co-op.
-    pub(in crate::scenes::world) fn coop_race_setup(&self) -> Option<SplitSetup> {
+    /// The two people of a co-op race, as a split-screen race takes them; `None` outside co-op, and for the story's
+    /// scripted chase and final race, which player 1 drives alone while player 2 waits parked (section 12).
+    pub(in crate::scenes::world) fn coop_race_setup(&self, race: &Race) -> Option<SplitSetup> {
         let session = self.coop.as_ref()?;
+        if is_story_race(race) {
+            return None;
+        }
         let lead = self.players.lead()?;
         Some(SplitSetup {
             cars: [lead.car_name.clone(), session.guest_car.clone()],
@@ -41,6 +47,11 @@ impl WorldScene {
 
     /// The race is over: player 2's free-roam car comes back behind player 1.
     pub(in crate::scenes::world) fn unpark_guest_after_race(&mut self) {
+        self.return_guest_behind_lead();
+    }
+
+    /// Player 2 back in play, behind player 1 and facing the same way.
+    pub(in crate::scenes::world) fn return_guest_behind_lead(&mut self) {
         if !self.players.is_parked(GUEST) {
             return;
         }

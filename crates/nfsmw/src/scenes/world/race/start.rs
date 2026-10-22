@@ -101,7 +101,7 @@ impl WorldScene {
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
         // A co-op race seats player 2 as a split-screen race does, among the race's own opponents (`players/race.rs`).
-        let coop = self.coop_race_setup();
+        let coop = self.coop_race_setup(&race);
         let queued = self.queued_split.take();
         let split = coop.clone().or(queued);
         let opponents = match (&split, coop.is_some()) {
