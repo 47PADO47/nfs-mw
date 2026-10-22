@@ -68,10 +68,10 @@ impl GameCar {
     /// waits for its road, the car is asked onto the road there).
     pub(in crate::scenes::world) fn lend(&self, mut lent: Lent) {
         let mut desk = self.desk.borrow_mut();
-        if let Some(state) = desk.pending.take() {
-            if !apply(&mut lent.drive, &state) {
-                desk.pending = Some(state);
-            }
+        if let Some(state) = desk.pending.take()
+            && !apply(&mut lent.drive, &state)
+        {
+            desk.pending = Some(state);
         }
         if let Some(motion) = lent.drive.motion() {
             desk.state = state_of(&motion, desk.state.boost);

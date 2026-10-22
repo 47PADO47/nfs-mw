@@ -53,11 +53,11 @@ pub fn endpoint_config(identity: &IdentityKey) -> ClientEndpointConfig {
     ClientEndpointConfig::new(handshake, identity.clone())
 }
 
+/// What makes a new connection to the same server for a reconnect.
+pub type Reconnector = Box<dyn FnMut() -> Option<ClientEndpoint> + Send>;
+
 /// Connects to `addr` with a reconnecting connector: a dropped connection is retried with the same identity.
-pub fn connect(
-    addr: SocketAddr,
-    identity: IdentityKey,
-) -> io::Result<(ClientEndpoint, Box<dyn FnMut() -> Option<ClientEndpoint> + Send>)> {
+pub fn connect(addr: SocketAddr, identity: IdentityKey) -> io::Result<(ClientEndpoint, Reconnector)> {
     let endpoint = ClientEndpoint::connect(addr, endpoint_config(&identity))?;
     let connector = Box::new(move || ClientEndpoint::connect(addr, endpoint_config(&identity)).ok());
     Ok((endpoint, connector))
@@ -99,7 +99,7 @@ impl NetClient {
     }
 
     /// Reconnects through `connector` after a silent drop.
-    pub fn with_connector(mut self, connector: Box<dyn FnMut() -> Option<ClientEndpoint> + Send>) -> Self {
+    pub fn with_connector(mut self, connector: Reconnector) -> Self {
         self.session = self.session.with_connector(connector);
         self
     }

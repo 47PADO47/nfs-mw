@@ -68,11 +68,10 @@ impl WorldScene {
         let mut seen = BTreeSet::new();
         for (id, drawn) in mode.display.iter().filter(|(_, drawn)| is_car(&drawn.view) && drawn.fade > 0.0) {
             let type_id = drawn.view.type_id;
-            if !remote.rigs.contains_key(&type_id) {
-                let rig = load_rig(renderer, &self.dir, catalog, type_id, self.car_shading, self.sun.to_sun());
-                remote.rigs.insert(type_id, rig);
-            }
-            if remote.rigs.get(&type_id).is_none_or(Option::is_none) {
+            let rig = remote.rigs.entry(type_id).or_insert_with(|| {
+                load_rig(renderer, &self.dir, catalog, type_id, self.car_shading, self.sun.to_sun())
+            });
+            if rig.is_none() {
                 continue;
             }
             let key = match remote.keys.get(id) {
