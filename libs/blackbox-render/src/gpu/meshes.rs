@@ -54,14 +54,11 @@ impl Renderer {
                     usage: wgpu::BufferUsages::VERTEX,
                 })
             });
-        // Index buffers must be a multiple of 4 bytes.
-        let mut indices = desc.indices.to_vec();
-        if indices.len() % 2 == 1 {
-            indices.push(0);
-        }
+        // Index buffers must be a multiple of 4 bytes: only an odd count needs a padded copy.
+        let indices = pad_indices(desc.indices);
         let indices = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(desc.label),
-            contents: bytemuck::cast_slice(&indices),
+            contents: bytemuck::cast_slice(&indices[..]),
             usage: wgpu::BufferUsages::INDEX,
         });
         let mut min = glam::Vec3::splat(f32::INFINITY);
@@ -86,5 +83,35 @@ impl Renderer {
 
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {
         self.meshes.remove(handle.raw());
+    }
+}
+
+/// The indices as an index buffer holds them: an odd count gets one more index so the buffer is a whole number of
+/// 4-byte words. An even count is used as it is, without a copy.
+fn pad_indices(indices: &[u16]) -> std::borrow::Cow<'_, [u16]> {
+    if indices.len() % 2 == 1 {
+        let mut padded = Vec::with_capacity(indices.len() + 1);
+        padded.extend_from_slice(indices);
+        padded.push(0);
+        return std::borrow::Cow::Owned(padded);
+    }
+    std::borrow::Cow::Borrowed(indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pad_indices;
+    use std::borrow::Cow;
+
+    #[test]
+    fn an_even_index_count_is_not_copied() {
+        let indices = [0u16, 1, 2, 3];
+        assert!(matches!(pad_indices(&indices), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn an_odd_index_count_gets_one_zero() {
+        let indices = [0u16, 1, 2];
+        assert_eq!(&pad_indices(&indices)[..], &[0, 1, 2, 0]);
     }
 }
