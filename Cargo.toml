@@ -114,6 +114,9 @@ save-store = { path = "libs/save-store" }
 nfsmw-career = { path = "crates/nfsmw-career" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 nfsmw-modding = { path = "crates/nfsmw-modding" }
+nfsmw-net = { path = "crates/nfsmw-net" }
+nfsmw-server = { path = "crates/nfsmw-server" }
+nfsmw-sim = { path = "crates/nfsmw-sim" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
 # Bevy: the ECS shell (docs/decisions/0001-bevy.md), plus the render crates only blackbox-bevy-render uses

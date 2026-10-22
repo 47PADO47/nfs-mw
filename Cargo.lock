@@ -3997,6 +3997,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "nfsmw-net"
+version = "0.1.0"
+dependencies = [
+ "blackbox-net-core",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nfsmw-server"
+version = "0.1.0"
+dependencies = [
+ "blackbox-net-core",
+ "nfsmw-net",
+ "nfsmw-sim",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nfsmw-sim"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "nihav_codec_support"
 version = "0.1.0"
 source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6900c747894431ed77#12d0bdf10a85641dc2de3d6900c747894431ed77"
