@@ -68,7 +68,7 @@ impl WorldScene {
         if session.kind != RaceType::Drag {
             return;
         }
-        let (Some(engine), Some(drive)) = (session.engine.as_ref(), self.drive.as_mut()) else { return };
+        let (Some(engine), Some(drive)) = (session.engine.as_ref(), self.players.lead_mut()) else { return };
         let racing = engine.phase() == Phase::Racing && engine.racers().first().is_some_and(|r| r.racing());
         if !racing {
             drive.set_steer_assist(None);

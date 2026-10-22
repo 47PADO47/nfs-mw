@@ -39,7 +39,7 @@ impl WorldScene {
             self.career.traps.inside.clear();
             return;
         }
-        let Some(drive) = self.drive.as_ref().filter(|d| d.has_sim()) else { return };
+        let Some(drive) = self.players.lead().filter(|d| d.has_sim()) else { return };
         let at = glam::Vec3::from(space::to_physics(drive.position()));
         let kmh = drive.speed().abs() * 3.6;
         let near: Vec<u32> = data

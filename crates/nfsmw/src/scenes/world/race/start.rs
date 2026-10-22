@@ -86,7 +86,7 @@ impl WorldScene {
         if !startable::can_start(&race) {
             return Err(format!("{} is a {:?} race, which this version does not run", race.name, race.race_type));
         }
-        if self.drive.is_none() {
+        if self.players.is_empty() {
             return Err("not driving (use the drive command first)".into());
         }
         if race.race_type == Some(RaceType::Challenge) {
@@ -128,7 +128,7 @@ impl WorldScene {
         let prepared_catch_up = prepared.catch_up;
         let speed = if prepared.rolling { prepared.initial_speed } else { 0.0 };
         let player_spawn = plan[0].spawn;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.place_exactly(player_spawn, speed);
             drive.hold_on_grid(!prepared.rolling);
         }

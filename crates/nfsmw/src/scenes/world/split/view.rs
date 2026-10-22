@@ -96,7 +96,7 @@ impl WorldScene {
             let lamps = self.lamp_meshes.as_ref().filter(|_| self.traffic_setting.lights);
             traffic.lamp_instances(lamps, lens.position, self.residency.props(), out);
         }
-        if let Some(drive) = &self.drive {
+        if let Some(drive) = self.players.lead() {
             let shown = match viewer {
                 Viewer::Second => true,
                 Viewer::First => self.player_in_picture(drive),

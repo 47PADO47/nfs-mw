@@ -31,7 +31,7 @@ impl WorldScene {
             session.name,
             me.time.map_or_else(String::new, |t| format!(", {t:.1} s"))
         );
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.hold_on_grid(false);
             drive.set_steer_assist(None);
         }
@@ -84,7 +84,7 @@ impl WorldScene {
             traffic.clear_racers();
         }
         self.traffic_manual = session.previous_traffic;
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.hold_on_grid(false);
             drive.set_steer_assist(None);
         }

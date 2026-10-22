@@ -62,7 +62,7 @@ impl WorldScene {
     /// unconfirmed). The pending points are the running rep points of the chase while it runs (`ai-pursuit-heat.md`
     /// section 5.1); after it ends they are banked into the record, so they count only while the chase is on.
     pub(super) fn career_hud(&mut self) {
-        let handle = self.drive.as_ref().map(|drive| vlt_hash(&drive.car_name));
+        let handle = self.players.lead().map(|drive| vlt_hash(&drive.car_name));
         let car = self.career.handle.with(|career| {
             let record = handle.and_then(|handle| career.stable.career_for_handle(handle));
             record.map(|record| (record.bounty, record.heat))

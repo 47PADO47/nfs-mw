@@ -132,7 +132,7 @@ impl WorldScene {
         self.day.update(sim_dt, held);
         self.sun.set_phase(self.day.sun_phase());
         let on = self.day.lights_on();
-        let Some(drive) = self.drive.as_mut() else {
+        let Some(drive) = self.players.lead_mut() else {
             return;
         };
         if !self.day.lights_changed(on) {

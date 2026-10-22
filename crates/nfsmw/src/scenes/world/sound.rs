@@ -7,8 +7,8 @@ impl WorldScene {
             return None;
         }
         let lens = self.gameplay_lens(1.0);
-        let pose = self.drive.as_ref()?.pose();
-        let mut state = self.drive.as_mut()?.car_sound()?;
+        let pose = self.players.lead()?.pose();
+        let mut state = self.players.lead_mut()?.car_sound()?;
         let (camera_state, view_value) = match self.camera_mode {
             CameraMode::Bumper => (1, 0),
             CameraMode::Hood => (2, 4000),

@@ -12,7 +12,7 @@ pub(in crate::scenes::world) fn run(
     renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
-    if scene.drive.is_none() {
+    if scene.players.is_empty() {
         return Err("get into a car before selecting parts".into());
     }
     let car = scene.garage.applied.car.clone();

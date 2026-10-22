@@ -197,7 +197,7 @@ impl WorldScene {
             pursuing: self.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing()),
             overlay_blocked: self.garage_open,
             card_up: self.entry.popup.is_up(),
-            car_ready: self.drive.is_some() && self.pending_car.is_none() && !self.wait_for_load,
+            car_ready: self.players.has_lead() && self.pending_car.is_none() && !self.wait_for_load,
             racing: self.race.is_some(),
         }
     }

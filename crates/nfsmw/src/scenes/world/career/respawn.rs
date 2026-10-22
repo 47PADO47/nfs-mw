@@ -55,7 +55,7 @@ impl WorldScene {
             log::info!("career: busted with no zone visited, the car stays where it is");
             return;
         };
-        let Some(drive) = self.drive.as_mut() else { return };
+        let Some(drive) = self.players.lead_mut() else { return };
         drive.respawn_near([at.x, at.y], None);
         log::info!("career: busted, the car goes back to the respawn marker at ({:.0}, {:.0})", at.x, at.y);
     }

@@ -12,7 +12,7 @@ const LISTED: usize = 6;
 /// The player (or the camera) in physics space.
 fn viewer(scene: &WorldScene) -> Vec3 {
     let [x, y] = scene.focus();
-    let height = scene.drive.as_ref().map_or(0.0, |d| d.physics_pose().position.z);
+    let height = scene.players.lead().map_or(0.0, |d| d.physics_pose().position.z);
     Vec3::from_array(space::to_physics(Vec3::new(x, y, height)))
 }
 

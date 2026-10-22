@@ -51,7 +51,7 @@ impl WorldScene {
             self.guide.route = None;
             return true;
         };
-        let (Some(drive), Some(traffic)) = (self.drive.as_ref(), self.traffic.as_ref()) else {
+        let (Some(drive), Some(traffic)) = (self.players.lead(), self.traffic.as_ref()) else {
             return false;
         };
         let pose = drive.physics_pose();
@@ -80,7 +80,7 @@ impl WorldScene {
     pub(super) fn update_route(&mut self, dt: f32) {
         self.guide.clock += dt;
         let (Some(route), Some(drive), Some(traffic)) =
-            (self.guide.route.as_mut(), self.drive.as_ref(), self.traffic.as_ref())
+            (self.guide.route.as_mut(), self.players.lead(), self.traffic.as_ref())
         else {
             return;
         };
@@ -112,7 +112,7 @@ impl WorldScene {
     /// game's arrow model is not in the install.
     pub(super) fn route_arrow(&self) -> Option<Instance> {
         let route = self.guide.route.as_ref()?;
-        let drive = self.drive.as_ref()?;
+        let drive = self.players.lead()?;
         if self.view != View::Chase {
             return None;
         }

@@ -16,7 +16,7 @@ impl WorldScene {
         let [sparks, _] = self.vehicle_effects;
         self.impact_fx.set_enabled(sparks);
         let trails = self.car_trails();
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.vehicle_effects.set_enabled(sparks, trails);
         }
     }
@@ -27,6 +27,6 @@ impl WorldScene {
         if !streaks {
             return 0.0;
         }
-        self.drive.as_ref().map_or(0.0, |drive| vehicle_effects::streak_strength(drive.speed()))
+        self.players.lead().map_or(0.0, |drive| vehicle_effects::streak_strength(drive.speed()))
     }
 }

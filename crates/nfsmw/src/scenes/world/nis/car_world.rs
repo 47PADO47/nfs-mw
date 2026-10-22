@@ -34,7 +34,7 @@ impl WorldScene {
         for (slot, spot) in self.nis.car_slots() {
             let kind = cop_cars::slot_kind(slot);
             let found = match kind {
-                Some(SlotKind::Player) => self.drive.as_ref().map(|_| Target::Player),
+                Some(SlotKind::Player) => self.players.lead().map(|_| Target::Player),
                 Some(SlotKind::Civilian) => self
                     .traffic
                     .as_ref()
@@ -131,7 +131,7 @@ impl WorldScene {
                 Target::Traffic(_) => {}
             }
         }
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.set_nis_pose(None);
         }
         if let Some(traffic) = self.traffic.as_mut() {
@@ -144,7 +144,7 @@ impl WorldScene {
     fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>) {
         match target {
             Target::Player => {
-                let Some(drive) = self.drive.as_mut() else { return };
+                let Some(drive) = self.players.lead_mut() else { return };
                 let pose = spot.map(|spot| posed(spot, drive.pose()));
                 drive.set_nis_pose(pose);
             }
@@ -160,7 +160,7 @@ impl WorldScene {
     /// places its cars, once the world around it has loaded.
     fn stand_player(&mut self, spot: CarSpot) {
         let spot = cars::lifted(spot, self.ground_at(spot.position));
-        let Some(drive) = self.drive.as_mut() else { return };
+        let Some(drive) = self.players.lead_mut() else { return };
         drive.place_exactly(Spawn { position: spot.position, heading: heading_of(spot.rotation) }, 0.0);
     }
 

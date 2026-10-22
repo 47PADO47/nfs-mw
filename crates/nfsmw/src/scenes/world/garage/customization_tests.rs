@@ -32,7 +32,7 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(scene.ready());
-    let drive = scene.drive.as_ref().unwrap();
+    let drive = scene.players.lead().unwrap();
     assert!(
         drive.camera().position.distance(drive.pose().position) < 10.0,
         "Chase must already follow the spawned car in the frozen garage"
@@ -59,12 +59,12 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     throttle.update_for_test(&crate::input::Bindings::default(), &[bevy_input::keyboard::KeyCode::ArrowUp], &[], false);
     for _ in 0..300 {
         scene.update(&mut renderer, &throttle, 1.0 / 60.0);
-        if scene.drive.as_ref().unwrap().speed().abs() > 3.0 {
+        if scene.players.lead().unwrap().speed().abs() > 3.0 {
             break;
         }
     }
-    assert!(scene.drive.as_mut().unwrap().inflict(0, 2, true));
-    let drive = scene.drive.as_ref().unwrap();
+    assert!(scene.players.lead_mut().unwrap().inflict(0, 2, true));
+    let drive = scene.players.lead().unwrap();
     let pose = drive.pose();
     let speed = drive.speed();
     assert!(speed.abs() > 3.0, "probe must actually be driving: speed {speed}, pose {pose:?}");
@@ -75,7 +75,7 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
         selection.parts.parts[category as usize] = Some(choice.hash);
     }
     scene.apply_garage_selection(&mut renderer, selection.clone()).unwrap();
-    let drive = scene.drive.as_ref().unwrap();
+    let drive = scene.players.lead().unwrap();
     assert!(
         stock_wheel_handles.iter().all(|h| !renderer.mesh_labels.contains_key(h)),
         "old stock wheel GPU meshes must be released"
@@ -100,13 +100,13 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     repaint.color = Some([240, 20, 30]);
     scene.apply_garage_selection(&mut renderer, repaint.clone()).unwrap();
     assert_eq!(
-        scene.drive.as_ref().unwrap().test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid,
+        scene.players.lead().unwrap().test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid,
         body
     );
     repaint.color = None;
     scene.apply_garage_selection(&mut renderer, repaint.clone()).unwrap();
     assert_eq!(
-        scene.drive.as_ref().unwrap().test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid,
+        scene.players.lead().unwrap().test_model().placements.iter().find(|p| p.slot == slot::BODY).unwrap().solid,
         body
     );
     let mut invalid = repaint.clone();
@@ -114,15 +114,15 @@ fn installed_garage_customization_preserves_driving_state_and_rejects_incompatib
     invalid.color = Some([0, 0, 0]);
     assert!(scene.apply_garage_selection(&mut renderer, invalid).is_err());
     assert_eq!(scene.garage.applied, repaint);
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), pose);
+    assert_eq!(scene.players.lead().unwrap().pose(), pose);
     assert!(command::run(&mut scene, &mut renderer, &["body", "1", "spoiler", "99999"]).is_err());
     assert_eq!(scene.garage.applied, repaint, "bulk commands must validate before replacement");
     command::run(&mut scene, &mut renderer, &["stock"]).unwrap();
     assert!(scene.garage.applied.parts.is_stock());
-    assert_eq!(scene.drive.as_ref().unwrap().pose(), pose);
-    assert_eq!(scene.drive.as_ref().unwrap().performance, selection.performance);
-    assert_eq!(scene.drive.as_ref().unwrap().tuning, selection.tuning);
+    assert_eq!(scene.players.lead().unwrap().pose(), pose);
+    assert_eq!(scene.players.lead().unwrap().performance, selection.performance);
+    assert_eq!(scene.players.lead().unwrap().tuning, selection.tuning);
     scene.update(&mut renderer, &throttle, 1.0 / 60.0);
-    assert!(scene.drive.as_mut().unwrap().sim_mut().unwrap().is_finite());
+    assert!(scene.players.lead_mut().unwrap().sim_mut().unwrap().is_finite());
     println!("five installed model categories swapped while moving; physics, damage, paint and tuning preserved");
 }

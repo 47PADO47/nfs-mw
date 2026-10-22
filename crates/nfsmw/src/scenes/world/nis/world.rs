@@ -19,7 +19,7 @@ impl WorldScene {
 
     /// [`WorldScene::play_nis`] with the scene's `kind` given: the bust's arrest scene is an arrest whatever its name.
     fn play_nis_as(&mut self, name: &str, track: u32, kind: NisKind) -> Result<(), String> {
-        let drive = self.drive.as_ref().ok_or("not driving (use the drive command)")?;
+        let drive = self.players.lead().ok_or("not driving (use the drive command)")?;
         let view = drive.player_view();
         let (collision, _) = self.residency.world_parts();
         let at = view.position;

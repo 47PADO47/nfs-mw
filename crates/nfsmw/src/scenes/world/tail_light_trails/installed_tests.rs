@@ -54,7 +54,7 @@ fn installed_upgraded_elise_nitrous_input_drives_both_visuals() {
         scene.update(&mut renderer, &idle, 1.0 / 60.0);
     }
     // Start rolling on the actual resident road, avoiding a route-dependent launch.
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     let spawn = road::Spawn { position: drive.physics_pose().position, heading: drive.heading() };
     let ground = drive::WorldGround { collision: scene.residency.collision(), surfaces: &scene.physics.surfaces };
     assert!(drive.sim_mut().unwrap().place_moving(&ground, spawn, 20.0));
@@ -63,12 +63,12 @@ fn installed_upgraded_elise_nitrous_input_drives_both_visuals() {
     for _ in 0..3 {
         scene.update(&mut renderer, &burn, 1.0 / 60.0);
     }
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     assert!(drive.sim_mut().unwrap().telemetry().nos_burning, "actual NOS activation is required");
     assert!(drive.flames.live() > 0, "installed particle emitters must spawn from physics engagement");
     assert_eq!(drive.tail_trails.samples().count(), 24);
     let lens = scene.gameplay_lens(size.0 as f32 / size.1 as f32);
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     let mut flames = blackbox_gfx::EffectLayer::default();
     drive.flames.geometry(lens.position, lens.forward, &mut flames);
     let mut tails = blackbox_gfx::EffectLayer::default();
@@ -112,7 +112,7 @@ fn installed_upgraded_elise_nitrous_input_drives_both_visuals() {
         assert!(changed > 8, "{name} must independently alter the actual output: {changed} pixels");
         captures.push((name, lit));
     }
-    scene.drive.as_mut().unwrap().flames.reclaim(&mut flames);
+    scene.players.lead_mut().unwrap().flames.reclaim(&mut flames);
     if let Some(path) = std::env::var_os("NFSMW_EFFECTS_CAPTURE_DIR") {
         let path = std::path::PathBuf::from(path);
         std::fs::create_dir_all(&path).unwrap();
@@ -128,7 +128,7 @@ fn installed_upgraded_elise_nitrous_input_drives_both_visuals() {
     let mut released = ActionState::default();
     released.update_for_test(&crate::input::Bindings::default(), &[KeyCode::ShiftLeft], &[], false);
     scene.update(&mut renderer, &released, 1.0 / 60.0);
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     assert!(!drive.sim_mut().unwrap().telemetry().nos_burning);
     assert_eq!(drive.tail_trails.samples().count(), 0);
 }

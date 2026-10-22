@@ -75,7 +75,7 @@ impl WorldScene {
         if !matches!(self.wet_road.quality, RoadReflections::Vehicles | RoadReflections::Blurred) {
             return;
         }
-        if let Some(drive) = &self.drive {
+        if let Some(drive) = self.players.lead() {
             drive.road_reflection_instances(&mut self.wet_road.instances);
         }
         if let Some(traffic) = &self.traffic {

@@ -9,7 +9,7 @@ use crate::viewer::camera::{Camera, RearView};
 impl WorldScene {
     /// The mirror's frame, or `None` with no car to look back from.
     pub(super) fn rear_frame(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
-        let pose = self.drive.as_ref()?.pose();
+        let pose = self.players.lead()?.pose();
         let lens = RearView { position: pose.position, rotation: pose.rotation }.lens(aspect);
         let cull = visibility::Camera {
             view_proj: lens.view_proj(),

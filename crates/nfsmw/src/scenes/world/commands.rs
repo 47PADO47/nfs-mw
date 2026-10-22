@@ -90,7 +90,7 @@ pub(super) fn run(
 }
 
 fn vehicle_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     match args {
         [] | ["status"] => return Ok(format!("{}; {}", drive.vehicle_effects.status(), scene.impact_fx.status())),
         ["clear"] => {
@@ -105,7 +105,7 @@ fn vehicle_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, arg
 }
 
 fn tire_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]) -> Result<String, String> {
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     let result = drive.effects.command(args)?;
     if let [effect @ ("smoke" | "marks"), value @ ("on" | "off")] = args {
         scene.tire_effects[usize::from(*effect == "marks")] = *value == "on";
@@ -116,7 +116,7 @@ fn tire_effects(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: 
 }
 
 fn exhaust_flames(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     drive.flames.command(args)
 }
 
@@ -150,19 +150,19 @@ fn damage(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     if zone >= nfsmw_data::car::physics::DAMAGE_ZONES.len() || severity > blackbox_damage::MAX_SEVERITY {
         return Err(DAMAGE_USAGE.into());
     }
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     drive.inflict(zone, severity, glazed);
     Ok(format!("hit {} with severity {severity}", nfsmw_data::car::physics::DAMAGE_ZONES[zone]))
 }
 
 fn repair(scene: &mut WorldScene) -> Result<String, String> {
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     drive.repair();
     Ok("car repaired".into())
 }
 
 fn reset(scene: &mut WorldScene) -> Result<String, String> {
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command)")?;
     let at = drive.position();
     let heading = drive.heading();
     drive.respawn_near([at.x, at.y], Some(heading));
@@ -183,7 +183,7 @@ fn numbers<const N: usize>(args: &[&str], usage: &str) -> Result<[f32; N], Strin
 
 fn tp(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     let [x, y] = numbers::<2>(args, "tp <x> <y>")?;
-    let drive = scene.drive.as_mut().ok_or("not driving (use the drive command, or goto for the camera)")?;
+    let drive = scene.players.lead_mut().ok_or("not driving (use the drive command, or goto for the camera)")?;
     drive.respawn_near([x, y], None);
     scene.view = View::Chase;
     Ok(format!("looking for a road near ({x:.0}, {y:.0})"))
@@ -210,7 +210,7 @@ fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
         Some(h) => h.parse::<f32>().map_err(|_| format!("{h:?} is not a number (usage: {usage})"))?,
         None => scene.start_height,
     };
-    if scene.drive.is_some() && scene.view == View::Chase {
+    if scene.players.has_lead() && scene.view == View::Chase {
         scene.toggle_view();
     }
     scene.camera.position = Vec3::new(x, y, scene.camera.position.z);
@@ -240,7 +240,7 @@ fn debug(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&str]
 }
 
 fn pos(scene: &WorldScene) -> String {
-    let (what, p) = match (&scene.drive, scene.view) {
+    let (what, p) = match (scene.players.lead(), scene.view) {
         (Some(drive), View::Chase) => ("car", drive.position()),
         _ => ("camera", scene.camera.position),
     };

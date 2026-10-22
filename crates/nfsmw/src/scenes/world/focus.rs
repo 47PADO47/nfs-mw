@@ -5,7 +5,7 @@ use super::{View, WorldScene};
 impl WorldScene {
     /// Map position (x, y) the streaming follows.
     pub(super) fn focus(&self) -> [f32; 2] {
-        match (&self.drive, self.view) {
+        match (self.players.lead(), self.view) {
             (Some(drive), View::Chase) => match drive.waiting_for_road() {
                 Some(request) => request.near,
                 None => {

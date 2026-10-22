@@ -15,7 +15,7 @@ pub(super) struct ShadowFeed {
 impl WorldScene {
     /// Apply a changed mode to existing actors, including detached cargo snapshots.
     pub(super) fn update_car_shading(&mut self, renderer: &mut dyn RenderBackend) {
-        if let Some(drive) = &mut self.drive {
+        if let Some(drive) = self.players.lead_mut() {
             let replacements = drive.set_car_shading(renderer, self.car_shading, self.sun.to_sun());
             self.residency.world_parts().1.remap_fragment_meshes(&replacements);
         }
@@ -70,7 +70,7 @@ impl WorldScene {
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.shadow_feed.casters);
         }
-        if let Some(drive) = &self.drive {
+        if let Some(drive) = self.players.lead() {
             drive.instances(&mut self.shadow_feed.casters);
         }
         visibility::sort_by_mesh(&mut self.shadow_feed.casters);

@@ -138,7 +138,7 @@ impl WorldScene {
         if self.view != View::Chase {
             return None;
         }
-        let drive = self.drive.as_ref()?;
+        let drive = self.players.lead()?;
         self.entry.zones.entered(drive.position())
     }
 
@@ -152,12 +152,12 @@ impl WorldScene {
 
     /// The car's place, if there is a car.
     fn car_point(&self) -> Option<Vec3> {
-        self.drive.as_ref().map(|drive| drive.position())
+        self.players.lead().map(|drive| drive.position())
     }
 
     /// Start going into a mod interior: the car's place and the settings are saved first, and the machine runs the steps.
     fn begin_interior(&mut self, index: usize) {
-        let Some(drive) = self.drive.as_ref() else { return };
+        let Some(drive) = self.players.lead() else { return };
         let saved = Snapshot {
             pos: drive.position().to_array(),
             heading: drive.heading(),
@@ -209,7 +209,7 @@ impl WorldScene {
 
     /// Put the car exactly at a place, standing still. An interior has no road, so the road search is not used.
     fn place_car_at(&mut self, pos: [f32; 3], heading: f32) -> bool {
-        let Some(drive) = self.drive.as_mut() else { return false };
+        let Some(drive) = self.players.lead_mut() else { return false };
         let spawn = Spawn { position: Vec3::from_array(pos), heading };
         let collision = self.residency.collision();
         drive.spawn(spawn, collision, &self.physics.surfaces)

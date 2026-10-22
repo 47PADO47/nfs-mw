@@ -61,7 +61,7 @@ impl WorldScene {
 
     /// Starts the race a quick race asked for, as soon as the car exists and no race is running.
     fn start_queued_race(&mut self) {
-        if self.race.is_some() || self.drive.is_none() {
+        if self.race.is_some() || self.players.is_empty() {
             return;
         }
         let Some((query, options)) = self.queued_race.take() else { return };
@@ -73,7 +73,7 @@ impl WorldScene {
 
     /// The player's place in physics space, once the car stands.
     fn player_physics(&self) -> Option<Vec3> {
-        let drive = self.drive.as_ref().filter(|d| d.has_sim() && d.waiting_for_road().is_none())?;
+        let drive = self.players.lead().filter(|d| d.has_sim() && d.waiting_for_road().is_none())?;
         Some(Vec3::from(space::to_physics(drive.position())))
     }
 
@@ -82,7 +82,7 @@ impl WorldScene {
         let mut events = engine.tick(dt);
         let player = self.player_physics();
         if let Some(position) = player {
-            engine.set_speed(0, self.drive.as_ref().map_or(0.0, |d| d.speed().abs()));
+            engine.set_speed(0, self.players.lead().map_or(0.0, |d| d.speed().abs()));
             events.extend(engine.move_racer(0, position));
         }
         events.extend(self.step_racers(session, player, dt));
@@ -228,7 +228,7 @@ impl WorldScene {
 
     /// GO: the player's car and the racers' cars are let go.
     fn release_grid(&mut self) {
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.hold_on_grid(false);
         }
         if let Some(traffic) = self.traffic.as_mut() {

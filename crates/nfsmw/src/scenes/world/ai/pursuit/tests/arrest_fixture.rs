@@ -59,7 +59,7 @@ pub(crate) fn open_arrest_fixture() -> Option<ArrestFixture> {
     }
     crate::scenes::world::ai::models::load_cop_models(&mut scene, &mut renderer, &["copmidsize".into()]).unwrap();
     crate::scenes::world::ai::models::load_requested(&mut scene, &mut renderer, false, true);
-    let drive = scene.drive.as_ref().unwrap();
+    let drive = scene.players.lead().unwrap();
     let heading = drive.heading();
     let performance = drive.performance();
     let at = drive.ai_body().position;

@@ -23,7 +23,7 @@ impl WorldScene {
         self.object_fx.maintain(renderer, &self.dir, self.physics.database());
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
-        let Some(drive) = self.drive.as_mut() else {
+        let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
             self.object_fx.textured(position, forward, &mut layer.textured);
             self.car_damage_fx.textured(position, forward, &mut layer.textured);

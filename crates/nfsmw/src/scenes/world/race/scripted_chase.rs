@@ -164,7 +164,7 @@ impl WorldScene {
 
     /// The player's place in physics space, once the car stands on the road.
     fn chase_point(&self) -> Option<Vec3> {
-        let drive = self.drive.as_ref().filter(|drive| drive.has_sim() && drive.waiting_for_road().is_none())?;
+        let drive = self.players.lead().filter(|drive| drive.has_sim() && drive.waiting_for_road().is_none())?;
         Some(Vec3::from(space::to_physics(drive.position())))
     }
 
@@ -173,7 +173,7 @@ impl WorldScene {
         match event {
             ChaseEvent::SabotageEngine { level } => {
                 log::info!("chase: engine sabotaged at level {level}");
-                if let Some(drive) = self.drive.as_mut() {
+                if let Some(drive) = self.players.lead_mut() {
                     drive.set_sabotaged(true);
                 }
             }

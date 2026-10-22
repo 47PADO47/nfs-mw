@@ -19,7 +19,7 @@ impl WorldScene {
     pub(super) fn race_loading(&mut self, session: &mut RaceSession, dt: f32) -> bool {
         let Stage::Loading { waited } = session.stage else { return true };
         session.stage = Stage::Loading { waited: waited + dt };
-        if !self.drive.as_ref().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none()) {
+        if !self.players.lead().is_some_and(|d| d.has_sim() && d.waiting_for_road().is_none()) {
             return true;
         }
         if !self.residency.complete() {
@@ -87,7 +87,7 @@ impl WorldScene {
     fn put_racers_on_the_grid(&mut self, session: &mut RaceSession) {
         let Some(prep) = session.setup.take() else { return };
         session.catch_up = prep.catch_up;
-        let Some(drive) = self.drive.as_mut() else { return };
+        let Some(drive) = self.players.lead_mut() else { return };
         let player_physics = Vec3::from(space::to_physics(session.plan[0].spawn.position));
         let player_perf = drive.performance();
         let speed = if prep.rolling { prep.initial_speed } else { 0.0 };

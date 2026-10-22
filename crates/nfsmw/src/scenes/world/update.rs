@@ -34,23 +34,23 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_ref() {
             traffic.update_damaged_windows(renderer, self.sun.to_sun());
         }
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
         }
         if input.just_pressed(Action::ToggleHeadlights)
-            && let Some(drive) = self.drive.as_mut()
+            && let Some(drive) = self.players.lead_mut()
         {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
         }
-        let camera = match (self.view, self.drive.as_ref()) {
+        let camera = match (self.view, self.players.lead()) {
             (View::Chase, Some(drive)) => drive.camera().position,
             _ => self.camera.position,
         };
-        if input.just_pressed(Action::ToggleCamera) && self.drive.is_some() {
+        if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());
         }
         let [x, y] = self.focus();

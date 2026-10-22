@@ -51,15 +51,15 @@ fn start(at: Vec3) -> Run {
     assert!(scene.ready() && scene.residency.complete(), "the streamed tiles must be resident");
     {
         let ground = WorldGround { collision: scene.residency.collision(), surfaces: &scene.physics.surfaces };
-        let sim = scene.drive.as_mut().unwrap().sim_mut().unwrap();
+        let sim = scene.players.lead_mut().unwrap().sim_mut().unwrap();
         let spawn = Spawn { position: space::to_render(at.to_array()), heading: 0.0 };
         assert!(sim.place(&ground, spawn), "the player stands at the spot");
     }
     for _ in 0..120 {
         scene.update(&mut renderer, &pad, STEP);
     }
-    let performance = scene.drive.as_ref().unwrap().performance();
-    let player = scene.drive.as_ref().unwrap().ai_body().position;
+    let performance = scene.players.lead().unwrap().performance();
+    let player = scene.players.lead().unwrap().ai_body().position;
     let world = scene.traffic.as_mut().unwrap();
     world.cars.clear();
     world.configure(0, 0);

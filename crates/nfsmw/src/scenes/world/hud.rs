@@ -28,7 +28,7 @@ impl WorldScene {
         if self.view == View::Fly {
             return false;
         }
-        let Some(drive) = self.drive.as_ref() else { return false };
+        let Some(drive) = self.players.lead() else { return false };
         if drive.camera_looking_back(self.camera_mode) && !self.tuning.show_hud_on_look_back {
             return false;
         }
@@ -42,7 +42,7 @@ impl WorldScene {
             return hidden;
         }
         // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
-        let mut hud = self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden);
+        let mut hud = self.players.lead().and_then(|drive| drive.hud_state()).or(hidden);
         if let Some(state) = hud.as_mut() {
             if let Some(blip) = self.route_blip() {
                 state.blips.push(blip);
@@ -51,7 +51,7 @@ impl WorldScene {
                 traffic.map_blips(&mut state.blips);
                 self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
                 let mut meter = 0.0;
-                if let Some(drive) = &self.drive {
+                if let Some(drive) = self.players.lead() {
                     let player = drive.player_view();
                     state.radar = traffic.radar(player.position, player.forward);
                     meter = traffic.pursuit_meter(player.position, player.speed);

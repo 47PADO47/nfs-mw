@@ -79,8 +79,8 @@ fn installed_cargo_damage_uses_the_active_camera_after_leaving_the_free_camera()
     let (_, model) = super::super::load_car(&dir, "BMWM3GTR").unwrap();
     let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
     scene.start_driving(&mut renderer, "BMWM3GTR".into(), model, None).unwrap();
-    scene.drive.as_mut().unwrap().follow(&CollisionWorld::new(None), (0.0, 0.0), 0.0);
-    let chase = scene.drive.as_ref().unwrap().physics_camera();
+    scene.players.lead_mut().unwrap().follow(&CollisionWorld::new(None), (0.0, 0.0), 0.0);
+    let chase = scene.players.lead().unwrap().physics_camera();
     let fragments = |distance: f32| {
         let mut events = VehicleEvents::new(spec.clone()).unwrap();
         events.hit(DamageHit {
@@ -125,7 +125,7 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
     scene.start_driving(&mut renderer, "BMWM3GTR".into(), model, None).unwrap();
     assert!(scene.camera_environment.views.is_some(), "fixture must have all installed camera views");
     let collision = flat_road();
-    let drive = scene.drive.as_mut().unwrap();
+    let drive = scene.players.lead_mut().unwrap();
     assert!(drive.spawn(Spawn { position: Vec3::ZERO, heading: 0.0 }, &collision, &scene.physics.surfaces));
     drive.follow(&collision, (0.0, 0.0), 0.0);
     let sim = drive.sim_mut().unwrap();
@@ -156,7 +156,7 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
         scene.seed_original_camera();
         scene.original_camera.reset();
         scene.update_original_camera(super::super::drive::STEP, 0.0, Default::default(), false, 1.0);
-        let drive = scene.drive.as_ref().unwrap();
+        let drive = scene.players.lead().unwrap();
         let chase = drive.physics_camera();
         let expected = match original::index_of(mode) {
             Some(_) => scene.original_camera.lens(drive.original_body(false).unwrap(), aspect, false).unwrap(),
@@ -166,15 +166,15 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
             None => chase.lens_with_fov(aspect, chase.fov_degrees() + kick),
         };
         for alpha in [0.0, 0.25, 0.5, 1.0] {
-            scene.drive.as_mut().unwrap().set_alpha(alpha);
+            scene.players.lead_mut().unwrap().set_alpha(alpha);
             let actual = scene.simulation_lens(aspect);
             assert!((actual.position - expected.position).length() < 1e-4, "{mode:?} at render alpha {alpha}");
             assert!(actual.view.abs_diff_eq(expected.view, 1e-4), "{mode:?} view at render alpha {alpha}");
             assert!(actual.projection.matrix().abs_diff_eq(expected.projection.matrix(), 1e-4), "{mode:?} projection");
         }
-        scene.drive.as_mut().unwrap().set_alpha(0.0);
+        scene.players.lead_mut().unwrap().set_alpha(0.0);
         let before = scene.gameplay_lens(aspect);
-        scene.drive.as_mut().unwrap().set_alpha(1.0);
+        scene.players.lead_mut().unwrap().set_alpha(1.0);
         assert_ne!(scene.gameplay_lens(aspect).position, before.position, "{mode:?} must still interpolate");
     }
     scene.view = View::Fly;

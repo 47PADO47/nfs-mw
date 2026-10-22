@@ -35,7 +35,7 @@ impl WorldScene {
         self.original_player_step = None;
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
-        match self.drive.as_mut() {
+        match self.players.lead_mut() {
             Some(drive) => {
                 drive.set_car(renderer, name.clone(), rig, physics, visuals);
                 drive.respawn_near([x, y], None);
@@ -43,7 +43,7 @@ impl WorldScene {
             None => {
                 let request =
                     SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
-                self.drive = Some(Drive::new(name.clone(), rig, physics, request, script, visuals));
+                self.players.set_lead(Drive::new(name.clone(), rig, physics, request, script, visuals));
             }
         }
         self.last_car = name;
@@ -54,7 +54,7 @@ impl WorldScene {
             self.garage.category = car.category;
         }
         let car_trails = self.car_trails();
-        if let Some(drive) = self.drive.as_mut() {
+        if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);
             drive.vehicle_effects.set_enabled(self.vehicle_effects[0], car_trails);

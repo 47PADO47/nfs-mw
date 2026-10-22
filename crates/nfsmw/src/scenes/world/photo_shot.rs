@@ -58,7 +58,7 @@ impl PhotoShot {
 impl WorldScene {
     /// The photo camera takes the player's car where it stands now: the post-race screen is about to open over it.
     pub(super) fn start_photo_shot(&mut self, named: Option<&str>, kind: RaceType) {
-        let Some(drive) = self.drive.as_ref() else { return };
+        let Some(drive) = self.players.lead() else { return };
         let Some(track) = replay_track(&self.dir, named, kind == RaceType::Drag) else { return };
         log::info!("race: the win photo is framed by the replay camera {}", track.name);
         self.photo_shot = Some(PhotoShot::new(track, drive.pose().transform()));

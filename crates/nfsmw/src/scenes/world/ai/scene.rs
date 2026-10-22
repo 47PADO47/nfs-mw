@@ -9,7 +9,7 @@ use crate::settings::TrafficSettings;
 impl WorldScene {
     /// Where traffic spawns around: the car, or the free camera.
     pub(in crate::scenes::world) fn traffic_focus(&self) -> Focus {
-        match (&self.drive, self.view) {
+        match (self.players.lead(), self.view) {
             (Some(drive), View::Chase) => {
                 let (p, heading, speed) = (drive.position(), drive.heading(), drive.speed());
                 let body = drive.ai_body();
@@ -42,7 +42,7 @@ impl WorldScene {
     fn traffic_wanted(&self) -> usize {
         match self.traffic_manual {
             Some(n) => n,
-            None if self.drive.is_some() => self.traffic_setting.cars as usize,
+            None if self.players.has_lead() => self.traffic_setting.cars as usize,
             None => 0,
         }
     }

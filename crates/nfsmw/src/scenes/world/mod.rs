@@ -39,6 +39,7 @@ mod moment;
 mod moment_world;
 mod nis;
 mod photo_shot;
+mod players;
 mod tail_light_trails;
 #[cfg(test)]
 pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -99,7 +100,7 @@ use crate::input::ActionState;
 use crate::settings::CameraMode;
 use crate::viewer::Scene;
 use crate::viewer::camera::{CameraCut, FlyCamera};
-use drive::{Drive, DriveScript, MarkerMeshes};
+use drive::{DriveScript, MarkerMeshes};
 use residency::Residency;
 
 pub struct Options {
@@ -181,7 +182,8 @@ pub struct WorldScene {
     speedbreaker_clock: drive::SpeedbreakerClock,
     view: View,
     pending_car: Option<open::PendingCar>,
-    drive: Option<Drive>,
+    /// The players' cars; the lead (player 1) is the only one outside co-op (`players/`, ADR 0010).
+    players: players::Players,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
