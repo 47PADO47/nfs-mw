@@ -209,6 +209,7 @@ impl Scene {
                 texture: Some(texture),
                 blend,
                 shading: Shading::Glossy(material),
+                two_sided: true,
             }],
         });
         let frame = FrameParams {

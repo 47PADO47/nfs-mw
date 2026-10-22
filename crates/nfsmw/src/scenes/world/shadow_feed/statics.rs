@@ -47,7 +47,7 @@ impl Statics {
                 continue;
             }
             let Some(mesh) = mesh else { continue };
-            out.push(Instance::keyed(mesh, p.transform, p.key));
+            out.push(Instance::keyed(mesh, p.transform, p.key).with_flipped_winding(p.flip_winding()));
         }
         visibility::sort_by_mesh(out);
         self.fixed_len = out.len();

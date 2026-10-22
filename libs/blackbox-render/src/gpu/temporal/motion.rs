@@ -12,7 +12,8 @@ use std::ops::Range;
 use super::TemporalFrame;
 use super::history::History;
 use crate::gpu::Renderer;
-use crate::gpu::draw_list::{instance_store, instance_view};
+use crate::gpu::cull::{FACES, Face};
+use crate::gpu::draw_list::{instance_store, instance_view, run};
 use crate::gpu::pipelines::VERTEX_ATTRIBUTES;
 use crate::gpu::resources::DEPTH_FORMAT;
 use crate::gpu::targets::MOTION_FORMAT;
@@ -75,7 +76,8 @@ pub(in crate::gpu) struct MotionPass {
     fill_layout: wgpu::BindGroupLayout,
     /// The camera block with one depth view each: a resize makes a new depth buffer, and so a new group.
     fill_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
-    opaque: wgpu::RenderPipeline,
+    /// One per face setting, in `FACES` order: the vectors belong to the faces the colour pass drew.
+    opaque: [wgpu::RenderPipeline; 3],
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
     camera: wgpu::Buffer,
@@ -195,7 +197,7 @@ impl MotionPass {
             multiview_mask: None,
             cache,
         });
-        let make = |entry| {
+        let make = |entry, face: Face| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
@@ -213,8 +215,8 @@ impl MotionPass {
                         Some(PREVIOUS_LAYOUT),
                     ],
                 },
-                // Both sides, like the colour pass.
-                primitive: Default::default(),
+                // The faces the colour pass draws.
+                primitive: wgpu::PrimitiveState { cull_mode: face.cull_mode(), ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: Some(false),
@@ -241,9 +243,9 @@ impl MotionPass {
             fill,
             fill_layout,
             fill_groups: BindCache::default(),
-            opaque: make("fs_opaque"),
-            cutout: make("fs_cutout"),
-            glossy_cutout: make("fs_glossy_cutout"),
+            opaque: FACES.map(|face| make("fs_opaque", face)),
+            cutout: make("fs_cutout", Face::Both),
+            glossy_cutout: make("fs_glossy_cutout", Face::Both),
             camera,
             group,
             store,
@@ -316,16 +318,18 @@ impl MotionPass {
         pass.set_vertex_buffer(2, history.buffer.buffer.slice(..));
         let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
         let mut bound_texture: Option<&wgpu::BindGroup> = None;
+        // The perspective's determinant is positive, so the camera mirrors exactly when this does.
+        let mirrored_view = frame.unjittered.determinant() < 0.0;
         let mut first = 0;
         while first < instances.len() {
-            let mesh_handle = instances[first].mesh;
-            let end = first + instances[first..].iter().take_while(|i| i.mesh == mesh_handle).count();
-            let run = first;
+            let mesh = renderer.meshes.get(instances[first].mesh.raw());
+            let (end, mirrored) = run(instances, first, mesh.is_some_and(|m| m.draws.iter().any(|d| !d.two_sided)));
+            let start = first;
             first = end;
-            if moved_runs(moved, run, end).next().is_none() {
+            if moved_runs(moved, start, end).next().is_none() {
                 continue;
             }
-            let Some(mesh) = renderer.meshes.get(mesh_handle.raw()) else { continue };
+            let Some(mesh) = mesh else { continue };
             pass.set_vertex_buffer(0, mesh.vertices.slice(..));
             pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
             for draw in &mesh.draws {
@@ -340,7 +344,7 @@ impl MotionPass {
                 let pipeline = match draw.blend {
                     BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
                     BlendMode::AlphaTest => &self.cutout,
-                    _ => &self.opaque,
+                    _ => &self.opaque[Face::of(draw, mirrored).seen(mirrored_view).index()],
                 };
                 if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
                     pass.set_pipeline(pipeline);
@@ -354,7 +358,7 @@ impl MotionPass {
                     pass.set_bind_group(1, texture, &[]);
                     bound_texture = Some(texture);
                 }
-                for changed in moved_runs(moved, run, end) {
+                for changed in moved_runs(moved, start, end) {
                     pass.draw_indexed(draw.first_index..draw.first_index + draw.index_count, draw.base_vertex, changed);
                 }
             }

@@ -66,7 +66,7 @@ pub(super) fn collect<'a>(
                 continue;
             }
             if let Some(mesh) = p.lods[slot] {
-                face.push(Instance::keyed(mesh, transform, p.key));
+                face.push(Instance::keyed(mesh, transform, p.key).with_flipped_winding(p.flip_winding()));
             }
         }
     }

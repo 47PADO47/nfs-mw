@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use blackbox_gfx::{
     BlendMode, GlossyMaterial, GlossyMaterialHandle, GlossyModel, RenderBackend, Shading, TextureHandle,
 };
-use blackbox_scene::{MaterialLookup, blend_mode, upload_texture};
+use blackbox_scene::{MaterialLookup, Sidedness, blend_mode, upload_texture};
 use glam::Vec3;
 use nfsmw_data::car::{CARSKIN, CarModel, TextureSwaps};
 
@@ -19,6 +19,8 @@ const WINDSHIELD: u32 = blackbox_hash::bstring_hash("WINDSHIELD");
 
 pub struct CarMaterials {
     uploaded: HashMap<u32, (TextureHandle, BlendMode)>,
+    /// Which faces each texture's surfaces draw, by name hash.
+    sides: HashMap<u32, Sidedness>,
     /// The glossy material of each light material the car uses, by name hash.
     glossy: HashMap<u32, GlossyMaterialHandle>,
     /// For light materials the car tables do not know; `None` with simple shading.
@@ -38,10 +40,11 @@ impl CarMaterials {
             .filter(|(_, t)| !t.name.starts_with("__GARAGE_"))
             .filter_map(|(&hash, t)| upload_texture(renderer, t).map(|handle| (hash, (handle, blend_mode(Some(t))))))
             .collect();
+        let sides = model.textures.iter().map(|(&hash, t)| (hash, Sidedness::of(Some(t)))).collect();
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
         set_lighting(renderer, shading, to_sun);
         if shading == CarShading::Simple {
-            return Self { uploaded, glossy: HashMap::new(), fallback: None, paint, window_tint: None };
+            return Self { uploaded, sides, glossy: HashMap::new(), fallback: None, paint, window_tint: None };
         }
         let rig = match shading.is_original() {
             true => super::original_lighting::gameplay(to_sun, 1.0),
@@ -80,7 +83,7 @@ impl CarMaterials {
             .collect();
         let fallback =
             Some(renderer.create_glossy_material(&GlossyMaterial { model: model_kind, ..Default::default() }));
-        Self { uploaded, glossy, fallback, paint, window_tint }
+        Self { uploaded, sides, glossy, fallback, paint, window_tint }
     }
 
     /// The uploaded texture with this name hash, if the car draws it.
@@ -131,6 +134,14 @@ impl MaterialLookup for Lookup<'_> {
 
     fn draws(&self, texture_hash: u32) -> bool {
         !self.swaps.hidden.contains(&texture_hash)
+    }
+
+    /// The faces of the texture drawn in its place, as `material` resolves it.
+    fn two_sided(&self, texture_hash: u32, effect_id: u32) -> bool {
+        let swapped = self.swaps.resolve_for(texture_hash, self.left_brake);
+        let sides = &self.materials.sides;
+        let side = sides.get(&swapped).or_else(|| sides.get(&texture_hash));
+        side.is_none_or(|s| s.draws_both(crate::scenes::culling::culls_blended(effect_id)))
     }
 
     /// Body groups name `CARSKIN`, which stands for the paint's light material.

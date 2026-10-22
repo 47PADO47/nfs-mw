@@ -1,11 +1,13 @@
 //! Camera-space depth and world normals, excluding sky and blended surfaces.
 use super::targets::{NORMAL_FORMAT, Targets};
-use crate::gpu::draw_list::{instance_store, instance_view};
+use crate::gpu::cull::{FACES, Face};
+use crate::gpu::draw_list::{instance_store, instance_view, run};
 use crate::gpu::{Renderer, pipelines::VERTEX_ATTRIBUTES};
 use blackbox_gfx::{BlendMode, FrameParams, Instance, Shading};
 
 pub(super) struct Prepass {
-    opaque: wgpu::RenderPipeline,
+    /// One per face setting, in `FACES` order: the colour pass's `Equal` test needs the same faces.
+    opaque: [wgpu::RenderPipeline; 3],
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
     tree_cutout: wgpu::RenderPipeline,
@@ -59,7 +61,7 @@ impl Prepass {
             label: Some("contact prepass"),
             source: wgpu::ShaderSource::Wgsl(source.into()),
         });
-        let make = |entry| {
+        let make = |entry, face: Face| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
@@ -76,7 +78,7 @@ impl Prepass {
                         Some(instance_view::instance_layout(store)),
                     ],
                 },
-                primitive: Default::default(),
+                primitive: wgpu::PrimitiveState { cull_mode: face.cull_mode(), ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(true),
@@ -100,11 +102,11 @@ impl Prepass {
             })
         };
         Self {
-            opaque: make("fs_opaque"),
-            cutout: make("fs_cutout"),
-            glossy_cutout: make("fs_glossy_cutout"),
-            tree_cutout: make("fs_tree_cutout"),
-            prelit_cutout: make("fs_prelit_cutout"),
+            opaque: FACES.map(|face| make("fs_opaque", face)),
+            cutout: make("fs_cutout", Face::Both),
+            glossy_cutout: make("fs_glossy_cutout", Face::Both),
+            tree_cutout: make("fs_tree_cutout", Face::Both),
+            prelit_cutout: make("fs_prelit_cutout", Face::Both),
             matrix,
             group,
             store,
@@ -154,9 +156,9 @@ impl Prepass {
         let mut bound_texture: Option<&wgpu::BindGroup> = None;
         let mut first = 0;
         while first < instances.len() {
-            let mesh_handle = instances[first].mesh;
-            let end = first + instances[first..].iter().take_while(|i| i.mesh == mesh_handle).count();
-            if let Some(mesh) = renderer.meshes.get(mesh_handle.raw()) {
+            let mesh = renderer.meshes.get(instances[first].mesh.raw());
+            let (end, mirrored) = run(instances, first, mesh.is_some_and(|m| m.draws.iter().any(|d| !d.two_sided)));
+            if let Some(mesh) = mesh {
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
                 for draw in &mesh.draws {
@@ -179,7 +181,9 @@ impl Prepass {
                         continue;
                     }
                     let pipeline = match draw.blend {
-                        BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => &self.opaque,
+                        BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => {
+                            &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()]
+                        }
                         BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
                         BlendMode::AlphaTest
                             if renderer.experiments.original_world_materials && draw.shading == Shading::Tree =>
@@ -199,7 +203,7 @@ impl Prepass {
                             &self.prelit_cutout
                         }
                         BlendMode::AlphaTest => &self.cutout,
-                        _ => &self.opaque,
+                        _ => &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()],
                     };
                     if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
                         pass.set_pipeline(pipeline);

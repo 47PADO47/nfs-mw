@@ -9,7 +9,7 @@ mod surface_boundary_tests;
 mod tests;
 
 use super::draw_list::{instance_store, instance_view};
-use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, pipelines::BLEND_ORDER, slots::Slots};
+use super::{Renderer, cull::Face, draw_list::LayerCmd, meshes::GpuMesh, pipelines::BLEND_ORDER, slots::Slots};
 use blackbox_gfx::{BlendMode, FrameParams, NormalMaterialDesc, NormalMaterialHandle};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
@@ -32,7 +32,7 @@ pub(super) struct Normal {
     black_reflection: wgpu::TextureView,
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
-    pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 4]>,
+    pipelines: HashMap<wgpu::TextureFormat, pipeline::FaceSets>,
     /// Instances are read from the instance store, bound at group 3.
     store: bool,
 }
@@ -101,14 +101,13 @@ impl Normal {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
+        (format, culled): (wgpu::TextureFormat, bool),
         frame: &FrameParams,
         cache: Option<&wgpu::PipelineCache>,
     ) {
-        let store = self.store;
-        self.pipelines.entry(format).or_insert_with(|| {
-            BLEND_ORDER
-                .map(|mode| pipeline::create(device, &self.shader, &self.layout, format, mode, true, store, cache))
+        let (store, shader, layout) = (self.store, &self.shader, &self.layout);
+        pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |face| {
+            BLEND_ORDER.map(|mode| pipeline::create(device, shader, layout, format, (mode, face), true, store, cache))
         });
         let specular = frame
             .surface_light
@@ -130,7 +129,7 @@ impl Normal {
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
-        mode: BlendMode,
+        (mode, mirrored_view): (BlendMode, bool),
         meshes: &'a Slots<GpuMesh>,
         list: &[LayerCmd],
         shadows: &'a wgpu::BindGroup,
@@ -141,7 +140,9 @@ impl Normal {
         }
         let Some(pipelines) = self.pipelines.get(&format) else { return };
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
-        pass.set_pipeline(&pipelines[index]);
+        let Some(two_sided) = pipeline::pick(pipelines, index, Face::Both) else { return };
+        pass.set_pipeline(two_sided);
+        let mut bound_face = Face::Both;
         pass.set_bind_group(2, shadows, &[]);
         if let Some(instances) = instances.filter(|_| self.store) {
             pass.set_bind_group(3, instances, &[]);
@@ -157,6 +158,13 @@ impl Normal {
             if bound_material != Some(handle.raw()) {
                 pass.set_bind_group(1, &material.bind_group, &[]);
                 bound_material = Some(handle.raw());
+            }
+            let face = cmd.face.seen(mirrored_view);
+            if face != bound_face
+                && let Some(p) = pipeline::pick(pipelines, index, face)
+            {
+                pass.set_pipeline(p);
+                bound_face = face;
             }
             if bound_mesh != Some(cmd.mesh) {
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));

@@ -73,6 +73,9 @@ impl Renderer {
         }
         let center = (min + max) * 0.5;
         let radius = center.distance(max);
+        if desc.draws.iter().any(|draw| !draw.two_sided) {
+            self.pipelines.enable_culling();
+        }
         MeshHandle::from_raw(self.meshes.insert(GpuMesh {
             vertices,
             secondary_uvs,

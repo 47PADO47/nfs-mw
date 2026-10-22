@@ -211,6 +211,7 @@ mod tests {
             alpha_usage: AlphaUsage::None,
             alpha_sorting: false,
             alpha_blend: 0,
+            flags: 0,
             data: (0..size).map(|i| (i * 37 + 11) as u8).collect(),
             palette: Vec::new(),
         }

@@ -22,6 +22,11 @@ pub struct ReflectionPlaced {
 }
 
 impl ReflectionPlaced {
+    /// Whether its mesh is wound the other way round than its placement says (see [`Placed::flip_winding`]).
+    pub fn flip_winding(&self) -> bool {
+        crate::scenes::culling::flip_winding(self.flags, &self.transform)
+    }
+
     pub fn bind_player(&mut self, player: &[Placed], fallback: InstanceKey) {
         self.key = fallback;
         if let Some(p) = self.player_index.and_then(|i| player.get(i)) {

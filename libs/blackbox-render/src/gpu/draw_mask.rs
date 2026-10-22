@@ -77,7 +77,7 @@ mod tests {
     }
 
     fn draw(blend: BlendMode, shading: Shading) -> DrawRange {
-        DrawRange { first_index: 0, index_count: 3, base_vertex: 0, texture: None, blend, shading }
+        DrawRange { first_index: 0, index_count: 3, base_vertex: 0, texture: None, blend, shading, two_sided: true }
     }
 
     #[test]

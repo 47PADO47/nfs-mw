@@ -1,10 +1,35 @@
 //! Tangent-space material layout and blend/depth pipelines.
 
 use super::super::{
-    draw_list::instance_view::instance_layout, pipelines::VERTEX_ATTRIBUTES, resources::DEPTH_FORMAT,
+    cull::{FACES, Face},
+    draw_list::instance_view::instance_layout,
+    pipelines::VERTEX_ATTRIBUTES,
+    resources::DEPTH_FORMAT,
     targets::write_mask,
 };
 use blackbox_gfx::BlendMode;
+
+/// One pipeline per blend mode in `BLEND_ORDER`, for each face setting built so far, in [`FACES`] order: the
+/// two-sided set first, the culling sets once a single-sided draw exists.
+pub(in crate::gpu) type FaceSets = Vec<[wgpu::RenderPipeline; 4]>;
+
+/// Add the face settings `sets` lacks: the two-sided set, and with `culled` the culling sets. `make` builds the
+/// set of one face setting.
+pub(in crate::gpu) fn fill_faces(sets: &mut FaceSets, culled: bool, make: impl Fn(Face) -> [wgpu::RenderPipeline; 4]) {
+    let wanted = match culled {
+        true => FACES.len(),
+        false => 1,
+    };
+    while sets.len() < wanted {
+        sets.push(make(FACES[sets.len()]));
+    }
+}
+
+/// The pipeline of blend mode number `mode` (in `BLEND_ORDER`) for `face`, or the two-sided one when that face's
+/// set is not built.
+pub(in crate::gpu) fn pick(sets: &FaceSets, mode: usize, face: Face) -> Option<&wgpu::RenderPipeline> {
+    sets.get(face.index()).or(sets.first()).and_then(|set| set.get(mode))
+}
 
 pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let texture = |binding| wgpu::BindGroupLayoutEntry {
@@ -53,7 +78,7 @@ pub(in crate::gpu) fn create(
     shader: &wgpu::ShaderModule,
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
-    mode: BlendMode,
+    (mode, face): (BlendMode, Face),
     tangent: bool,
     store: bool,
     cache: Option<&wgpu::PipelineCache>,
@@ -99,7 +124,7 @@ pub(in crate::gpu) fn create(
             compilation_options: Default::default(),
             buffers: &buffers,
         },
-        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        primitive: wgpu::PrimitiveState { cull_mode: face.cull_mode(), ..Default::default() },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: Some(depth_write),

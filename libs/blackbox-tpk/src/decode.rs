@@ -90,6 +90,7 @@ mod tests {
             alpha_usage: crate::AlphaUsage::None,
             alpha_sorting: false,
             alpha_blend: 0,
+            flags: 0,
             data: vec![1, 2, 3, 4],
             palette: Vec::new(),
         };

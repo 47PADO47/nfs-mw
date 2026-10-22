@@ -78,6 +78,10 @@ pub struct DrawRange {
     pub texture: Option<TextureHandle>,
     pub blend: BlendMode,
     pub shading: Shading,
+    /// Draw both faces of every triangle. When `false` only front faces are drawn: a triangle whose corners run
+    /// counter-clockwise (right-hand rule) when seen from the camera. A mirroring instance or view swaps the faces
+    /// ([`crate::Instance::mirrored`]). A renderer may ignore this and draw both faces.
+    pub two_sided: bool,
 }
 
 #[derive(Debug, Clone)]

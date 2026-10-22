@@ -245,7 +245,7 @@ impl<'a> Sweep<'a> {
             return;
         }
         if let Some(mesh) = p.lods[slot] {
-            self.out.push(Instance::keyed(mesh, transform, p.key));
+            self.out.push(Instance::keyed(mesh, transform, p.key).with_flipped_winding(p.flip_winding()));
         }
         if is_prop {
             self.limit_from(start);

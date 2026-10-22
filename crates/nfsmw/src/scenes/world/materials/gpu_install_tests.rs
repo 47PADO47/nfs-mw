@@ -130,6 +130,7 @@ fn assert_actual_road_shadows(renderer: &mut Renderer, frame: &FrameParams, road
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::Prelit,
+            two_sided: true,
         }],
     });
     let mut frame = *frame;

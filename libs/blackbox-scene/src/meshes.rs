@@ -29,6 +29,12 @@ pub trait MaterialLookup {
     fn effect_shading(&self, _effect_id: u32) -> Option<Shading> {
         None
     }
+
+    /// Whether groups with this texture, drawn with effect `effect_id`, keep both faces ([`DrawRange::two_sided`]).
+    /// Both faces by default; a lookup that knows the texture packs answers with [`crate::Sidedness`].
+    fn two_sided(&self, _texture_hash: u32, _effect_id: u32) -> bool {
+        true
+    }
 }
 
 impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
@@ -90,6 +96,8 @@ fn group_draw(
         texture: material.map(|(t, _)| t),
         blend: material.map_or(BlendMode::Opaque, |(_, b)| b),
         shading,
+        // A group without a texture the lookup knows keeps both faces.
+        two_sided: material.is_none() || g.diffuse_texture(solid).is_none_or(|h| materials.two_sided(h, g.effect_id)),
     }
 }
 
@@ -246,6 +254,10 @@ mod tests {
         fn effect_shading(&self, effect: u32) -> Option<Shading> {
             (effect == 22).then_some(Shading::Sky)
         }
+
+        fn two_sided(&self, texture_hash: u32, effect: u32) -> bool {
+            texture_hash != 42 || effect != 22
+        }
     }
 
     #[test]
@@ -261,5 +273,15 @@ mod tests {
         assert_eq!(draws.iter().map(|d| d.shading).collect::<Vec<_>>(), [Shading::Sky, Shading::Lit, Shading::Prelit]);
         assert!(draws.iter().all(|d| d.texture == Some(TextureHandle::from_raw(17))));
         assert!(draws.iter().all(|d| d.blend == BlendMode::AlphaBlend));
+        assert_eq!(draws.iter().map(|d| d.two_sided).collect::<Vec<_>>(), [false, false, true]);
+    }
+
+    #[test]
+    fn groups_draw_both_faces_unless_the_lookup_knows_their_texture_is_single_sided() {
+        let mut solid = solid();
+        solid.texture_hashes.push(42);
+        solid.groups[0].texture_slots[0] = 0;
+        let draws = solid_mesh(&solid, &Shiny, Shading::Lit);
+        assert!(draws.iter().all(|d| d.two_sided), "the default lookup and untextured groups keep both faces");
     }
 }

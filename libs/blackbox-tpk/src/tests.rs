@@ -31,6 +31,7 @@ fn info_record(name: &str, hash: u32, w: u16, h: u16, image_size: u32, mips: u8)
     r[0x4A] = 0x22;
     r[0x4E] = mips;
     r[0x55] = 1;
+    r[0x57] = 3;
     r
 }
 
@@ -67,6 +68,7 @@ fn compressed_entry_with_raww_blob() {
     assert_eq!((t.width, t.height, t.mip_levels), (8, 8, 2));
     assert_eq!(t.format, PixelFormat::Dxt1);
     assert_eq!(t.alpha_usage, AlphaUsage::PunchThrough);
+    assert_eq!(t.flags, 3);
     assert_eq!(t.data.len(), 40);
     assert_eq!(t.mip(1).map(<[u8]>::len), Some(8));
     assert_eq!(t.mip(2), None);

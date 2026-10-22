@@ -32,8 +32,9 @@ pub(super) struct Warmed {
     experiments: RenderExperiments,
     output_format: wgpu::TextureFormat,
     scene_format: wgpu::TextureFormat,
-    /// Whether the glossy state, the sky, the normal and the window families exist: each adds pipelines.
-    families: [bool; 4],
+    /// Whether the glossy state, the sky, the normal and the window families exist, and whether a single-sided
+    /// draw does (the culling variants): each adds pipelines.
+    families: [bool; 5],
 }
 
 impl Renderer {
@@ -74,7 +75,13 @@ impl Renderer {
             experiments: self.experiments,
             output_format: self.output.format(),
             scene_format: self.targets.color_format(),
-            families: [self.glossy.is_some(), self.sky.is_some(), self.normal.is_some(), self.window.is_some()],
+            families: [
+                self.glossy.is_some(),
+                self.sky.is_some(),
+                self.normal.is_some(),
+                self.window.is_some(),
+                self.pipelines.culled(),
+            ],
         }
     }
 
@@ -156,16 +163,17 @@ impl Renderer {
     /// What a scene pass into `format` builds on its first use, without drawing.
     fn warm_format(&mut self, format: wgpu::TextureFormat, frame: &FrameParams) {
         let cache = self.pipeline_cache.as_ref();
+        let culled = self.pipelines.culled();
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
             sky.prepare(&self.device, &self.queue, format, cache);
         }
         if let Some(normal) = &mut self.normal {
-            normal.prepare(&self.device, &self.queue, format, frame, cache);
+            normal.prepare(&self.device, &self.queue, (format, culled), frame, cache);
         }
         if let Some(window) = &mut self.window {
-            window.prepare(&self.device, format, cache);
+            window.prepare(&self.device, (format, culled), cache);
         }
     }
 }

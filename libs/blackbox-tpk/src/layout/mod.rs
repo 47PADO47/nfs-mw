@@ -27,6 +27,8 @@ pub struct InfoLayout {
     pub alpha_sorting: usize,
     pub alpha_usage: usize,
     pub alpha_blend: usize,
+    /// `Flags` (`u8`): bit 1 marks textures drawn on both faces.
+    pub flags: usize,
 }
 
 /// Everything version-specific about a pack.

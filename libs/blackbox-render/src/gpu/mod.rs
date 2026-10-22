@@ -6,6 +6,9 @@ pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod contact;
+mod cull;
+#[cfg(test)]
+mod cull_tests;
 mod display;
 #[cfg(all(windows, feature = "streamline"))]
 mod dlss;

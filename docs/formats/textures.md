@@ -107,6 +107,10 @@ are **[verified]** against the install (name, hash, size, format and mip count g
 | 0x58 | i16 ×7 | ScrollTimeStep, ScrollSpeedS/T, OffsetS/T, ScaleS/T |
 | 0x68 | 20 B | runtime pointers and reference count |
 
+`Flags` (0x57) bit 1 (`0x02`) keeps both faces of copy-mode surfaces drawn with the texture: the original culls back
+faces of copy-mode textures unless this bit is set or the alpha is punch-through **[exe + verified]**. Set on 245 of
+4,273 car and world textures. The rule is in [../specs/backface-culling.md](../specs/backface-culling.md).
+
 ### Platform record (0x20 bytes, PC) **[verified]**
 
 | Offset | Value |

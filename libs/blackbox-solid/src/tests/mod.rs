@@ -2,6 +2,7 @@ mod builder;
 mod filtered;
 mod rigid;
 mod skin;
+mod winding;
 
 use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 

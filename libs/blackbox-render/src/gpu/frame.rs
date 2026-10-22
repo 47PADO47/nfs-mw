@@ -2,6 +2,8 @@
 //! post-process chain then writes to the surface, then the UI over it.
 
 use super::Renderer;
+use super::cull::Face;
+use super::draw_list::drawn_here;
 use super::draw_list::instance_view::upload_view;
 use super::effects::SoftDraw;
 use super::output::Output;
@@ -9,7 +11,7 @@ use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::resources::Globals;
 use super::targets::SceneTargets;
-use crate::{DrawRange, FrameParams, Instance, RenderError, Shading};
+use crate::{FrameParams, Instance, RenderError, Shading};
 
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
@@ -300,6 +302,7 @@ impl Renderer {
         let depth = &depth_view;
         let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
+        let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view());
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
@@ -309,12 +312,12 @@ impl Renderer {
             && !projected
             && let Some(normal) = &mut self.normal
         {
-            normal.prepare(&self.device, &self.queue, format, frame, self.pipeline_cache.as_ref());
+            normal.prepare(&self.device, &self.queue, (format, culled), frame, self.pipeline_cache.as_ref());
         }
         if (self.experiments.original_world_materials || projected)
             && let Some(window) = &mut self.window
         {
-            window.prepare(&self.device, format, self.pipeline_cache.as_ref());
+            window.prepare(&self.device, (format, culled), self.pipeline_cache.as_ref());
         }
         // Every instance run and draw is sorted into the pass's lists once, up front: the sky, normal-map, window
         // and colour draws below walk their own list instead of every instance. A draw is only skipped there when
@@ -357,20 +360,21 @@ impl Renderer {
 
         let original = self.experiments.original_world_materials;
         for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
+            let view = (mode, mirrored_view);
             if original
                 && !projected
                 && let Some(normal) = &self.normal
             {
                 let list = self.draw_list.normal(mode_index);
                 let shadows = &self.shared.shadows.fallback;
-                normal.draw(&mut pass, format, mode, &self.meshes, list, shadows, store_group.as_ref());
+                normal.draw(&mut pass, format, view, &self.meshes, list, shadows, store_group.as_ref());
             }
             if (original || projected)
                 && let Some(window) = &self.window
             {
                 let list = self.draw_list.window(mode_index);
                 let shadows = &self.shared.shadows.fallback;
-                window.draw(&mut pass, format, mode, &self.meshes, list, shadows, store_group.as_ref());
+                window.draw(&mut pass, format, view, &self.meshes, list, shadows, store_group.as_ref());
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
                 let slot = mode_index * SHADINGS.len() + shading_index;
@@ -384,8 +388,9 @@ impl Renderer {
                 {
                     continue;
                 }
-                let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth) else { continue };
+                let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth, Face::Both) else { continue };
                 pass.set_pipeline(pipeline);
+                let mut bound_face = Face::Both;
                 let glossy_pipeline = matches!(shading, Shading::Glossy(_));
                 if !glossy_pipeline {
                     pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
@@ -431,6 +436,13 @@ impl Renderer {
                         Some(t) => self.redirects.resolve(t.raw()),
                         None => cmd.texture,
                     };
+                    let face = cmd.face.seen(mirrored_view);
+                    if face != bound_face
+                        && let Some(p) = self.pipelines.get(mode, shading, prepared_depth, face)
+                    {
+                        pass.set_pipeline(p);
+                        bound_face = face;
+                    }
                     if bound_mesh != Some(cmd.mesh) {
                         pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                         pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
@@ -476,17 +488,4 @@ impl Renderer {
         };
         self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
     }
-}
-
-/// Whether this view draws `d` in the pipeline `shading`. The bucket holds the draws that share a pipeline with
-/// it; the rules here decide which of those (and which neighbours a view borrows) this view draws.
-fn drawn_here(d: &DrawRange, shading: Shading, projected: bool, original: bool) -> bool {
-    let own = d.shading.same_pipeline(shading) && !(projected && d.shading == Shading::World);
-    let projected_borrow =
-        projected && shading == Shading::WorldNoFog && matches!(d.shading, Shading::World | Shading::WorldNormal(_));
-    let prelit_borrow = !projected
-        && !original
-        && shading == Shading::Prelit
-        && matches!(d.shading, Shading::WorldNormal(_) | Shading::WorldWindow(_));
-    own || projected_borrow || prelit_borrow
 }

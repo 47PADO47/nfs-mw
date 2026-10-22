@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 
 use blackbox_gfx::{BlendMode, InstanceKey, MeshDesc, MeshHandle, RenderBackend, Shading, TextureHandle, Vertex};
-use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded_mips};
+use blackbox_scene::{
+    Aabb, MaterialLookup, Sidedness, blend_mode, solid_mesh, upload_solid, upload_texture_predecoded_mips,
+};
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
@@ -56,6 +58,14 @@ pub struct Placed {
     pub signal: Option<super::ai::signal_props::SignalHead>,
 }
 
+impl Placed {
+    /// Whether its mesh is wound the other way round than its transform says: a mirrored copy with the mirror in its
+    /// vertices ([`blackbox_gfx::Instance::flip_winding`]).
+    pub fn flip_winding(&self) -> bool {
+        crate::scenes::culling::flip_winding(self.flags, &self.transform)
+    }
+}
+
 #[cfg(test)]
 impl Placed {
     /// A placed object with collision only, for tests.
@@ -92,6 +102,8 @@ pub struct SectionResources {
         HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
     pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
+    /// Which faces the surfaces of each texture in `materials` draw.
+    pub(super) sides: HashMap<u32, Sidedness>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
@@ -131,6 +143,7 @@ impl SectionResources {
             };
             if let Some(handle) = upload_texture_predecoded_mips(renderer, t, pixels, discard) {
                 self.materials.insert(t.name_hash, (handle, blend_mode(Some(t))));
+                self.sides.insert(t.name_hash, Sidedness::of(Some(t)));
             }
         }
     }
@@ -154,6 +167,7 @@ impl SectionResources {
     ) {
         debug_assert!(vertices.is_none_or(|v| v.len() == solids.len()));
         let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
+        let sides = |hash: u32| self.sides.get(&hash).or_else(|| fallback.sides.get(&hash)).copied();
         let mut meshes = Vec::new();
         for (i, solid) in solids.iter().enumerate() {
             if keep_existing && self.meshes.contains_key(&solid.name_hash) {
@@ -170,7 +184,8 @@ impl SectionResources {
                     *material = window;
                 }
             }
-            let materials = super::materials::Lookup(&lookup, solid.name.starts_with("SKY"), normal_materials);
+            let sky = solid.name.starts_with("SKY");
+            let materials = super::materials::Lookup(&lookup, sky, normal_materials, &sides);
             let shading = shading_for(&solid.name);
             let mesh = match vertices {
                 Some(prepared) => upload_prepared(renderer, solid, &prepared[i], &materials, shading),

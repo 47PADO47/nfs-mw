@@ -121,6 +121,7 @@ fn upload(
                 texture: Some(desc.diffuse),
                 blend: if index == 0 { BlendMode::Opaque } else { BlendMode::AlphaBlend },
                 shading: Shading::SkyLayer(material),
+                two_sided: true,
             });
         }
         layers.push(renderer.create_mesh(&MeshDesc {

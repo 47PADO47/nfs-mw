@@ -15,6 +15,9 @@ and [fairbusts-reset.md](fairbusts-reset.md) (the reset penalty of the busted ti
 
 Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect). [mod-save-data.md](mod-save-data.md) (per-profile data a mod keeps in the save: the `bb.saves` interface, the file, save and delete).
 
+Rendering: [backface-culling.md](backface-culling.md) (which faces the original draws: texture flags, the car effect,
+mirrored scenery and reflection views).
+
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [visible-sections.md](visible-sections.md) (which world
 sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
