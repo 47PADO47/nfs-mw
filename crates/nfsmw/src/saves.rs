@@ -160,6 +160,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         hd_content: s.hd_content.into(),
         custom_fonts: s.custom_fonts.into(),
         fe_shadows: s.fe_shadows.into(),
+        net: s.net.into(),
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),
