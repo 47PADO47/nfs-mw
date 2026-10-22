@@ -257,8 +257,7 @@ mod tests {
 
     #[test]
     fn the_lead_and_each_guest_find_their_own_guide() {
-        let mut guide = Guide::default();
-        guide.bearing = 1.0;
+        let mut guide = Guide { bearing: 1.0, ..Default::default() };
         guest_slot(&mut guide.guests, PlayerId(1)).bearing = 0.5;
         assert!(guide.of(LEAD).is_some_and(|own| own.bearing == 1.0), "the lead's guide is the one it sits in");
         assert!(guide.of(PlayerId(1)).is_some_and(|own| own.bearing == 0.5));

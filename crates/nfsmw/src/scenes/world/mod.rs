@@ -281,7 +281,6 @@ const FLOWN_AWAY: f32 = 25.0;
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
 /// The car `drive` picks when none was named.
-pub use players::coop::CoopSetup;
 pub use race::{MAX_RACERS, RaceOptions, SplitSetup};
 
 pub const DEFAULT_CAR: &str = "BMWM3GTR";

@@ -52,11 +52,6 @@ impl WorldScene {
         self.queued_coop = Some(setup);
     }
 
-    /// Whether a co-op session is on.
-    pub fn coop_active(&self) -> bool {
-        self.coop.is_some()
-    }
-
     /// A player's name in this session: "<alias> N" in co-op, `None` outside it.
     pub(in crate::scenes::world) fn player_name(&self, id: PlayerId) -> Option<&str> {
         self.coop.as_ref()?.names.get(usize::from(id.0)).map(String::as_str)

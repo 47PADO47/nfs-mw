@@ -26,6 +26,7 @@ impl Inputs {
     }
 
     /// Drop the player's seat, if it has one.
+    #[cfg(test)]
     pub fn remove(&mut self, id: PlayerId) {
         let Ok(index) = self.position(id) else {
             return;
@@ -39,6 +40,7 @@ impl Inputs {
     }
 
     /// The seated players, in id order.
+    #[cfg(test)]
     pub fn ids(&self) -> impl Iterator<Item = PlayerId> + '_ {
         self.seats.iter().map(|(id, _)| *id)
     }

@@ -58,6 +58,7 @@ impl<D> Players<D> {
     }
 
     /// Take the lead's car out of the world.
+    #[cfg(test)]
     pub fn take_lead(&mut self) -> Option<D> {
         self.remove(LEAD)
     }
@@ -112,6 +113,7 @@ impl<D> Players<D> {
     }
 
     /// Every player's car, the lead first.
+    #[cfg(test)]
     pub fn drives(&self) -> impl Iterator<Item = &D> {
         self.list.iter().map(|p| &p.drive)
     }
@@ -124,15 +126,12 @@ impl<D> Players<D> {
         self.list.iter()
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Player<D>> {
-        self.list.iter_mut()
-    }
-
     /// Take every player out of the world, the lead first.
     pub fn take_all(&mut self) -> Vec<Player<D>> {
         std::mem::take(&mut self.list)
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.list.len()
     }
