@@ -3,7 +3,9 @@
 //!
 //! Each change of the stage switches the gate groups on the world's scenery-group set (`scenery_groups.rs`): closed
 //! gates on, opened gates off. The draw cull and the collision queries read that set, so a closed gate is drawn and
-//! blocks cars. A race's own walls are switched on top of the gates (`race/barriers.rs`).
+//! blocks cars. A race's own walls are switched on (`race/barriers.rs`) while the gates are lifted for the run: the
+//! original applies no stage gate to a race the world was made for, and the prologue's second sprint crosses one
+//! (`docs/specs/career-regions.md` section 3.5).
 
 use nfsmw_career::regions::{GateChange, GateSet, gates_in_list, group_of, region_unlock_screen};
 use nfsmw_data::gameplay::Bin;
@@ -18,6 +20,9 @@ pub(in crate::scenes::world) struct RegionState {
     applied_stage: Option<u8>,
     /// The gates closed at `applied_stage`.
     closed: GateSet,
+    /// A race runs with the stage's gates lifted: they are off in the world whatever the stage says, until the race
+    /// ends (`lift`, `restore`).
+    lifted: bool,
 }
 
 /// What one evaluation changed.
@@ -33,6 +38,30 @@ impl RegionState {
     /// The gates closed at the applied stage.
     #[allow(dead_code)] // no caller: the gates are applied as changes (`apply_gate_change`)
     pub(in crate::scenes::world) fn closed_gates(&self) -> GateSet {
+        self.closed
+    }
+
+    /// Whether the gates are lifted for a race.
+    pub(super) fn is_lifted(&self) -> bool {
+        self.lifted
+    }
+
+    /// A race begins: the gates that are closed now must go off. `GateSet::EMPTY` when they are lifted already.
+    pub(super) fn lift(&mut self) -> GateSet {
+        if self.lifted {
+            return GateSet::EMPTY;
+        }
+        self.lifted = true;
+        self.closed
+    }
+
+    /// The race ends: the gates the stage closes must come back (the stage may have changed during the race, and
+    /// `closed` follows it). `GateSet::EMPTY` when nothing was lifted.
+    pub(super) fn restore(&mut self) -> GateSet {
+        if !self.lifted {
+            return GateSet::EMPTY;
+        }
+        self.lifted = false;
         self.closed
     }
 
@@ -85,9 +114,37 @@ impl WorldScene {
         let Some(update) = self.career.regions.evaluate(stage, gates) else {
             return;
         };
-        self.apply_gate_change(update.change);
+        // The gates of a race's run stay off; `restore_region_gates` closes the stage's set when the race is over.
+        if !self.career.regions.is_lifted() {
+            self.apply_gate_change(update.change);
+        }
         if let Some(stage) = update.unlock {
             self.career.requests.push_back(CareerRequest::RegionUnlock { stage });
+        }
+    }
+
+    /// A race begins: the stage's closed gates go off, so that only the race's own walls stand. The race list of
+    /// `Barriers` is switched on after this call, so a list that names a gate (the challenge series) still closes it.
+    pub(in crate::scenes::world) fn lift_region_gates(&mut self) {
+        let lifted = self.career.regions.lift();
+        for group in lifted.numbers().into_iter().filter_map(group_of) {
+            self.set_scenery_group(group, false);
+        }
+        if !lifted.is_empty() {
+            log::info!("race: {} region gate(s) lifted for the run", lifted.numbers().len());
+            self.refresh_road_barriers();
+        }
+    }
+
+    /// The race is over, left or restarted: the gates the stage closes come back. Called after the race's own walls
+    /// are put back, so a gate group the race switched ends up closed.
+    pub(in crate::scenes::world) fn restore_region_gates(&mut self) {
+        let closed = self.career.regions.restore();
+        for group in closed.numbers().into_iter().filter_map(group_of) {
+            self.set_scenery_group(group, true);
+        }
+        if !closed.is_empty() {
+            self.refresh_road_barriers();
         }
     }
 

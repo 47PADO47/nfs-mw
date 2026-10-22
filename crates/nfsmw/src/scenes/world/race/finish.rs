@@ -78,6 +78,8 @@ impl WorldScene {
             self.stop_story_movie();
         }
         self.lower_race_walls(std::mem::take(&mut session.walls));
+        // The stage's region gates come back after the race's own walls are down.
+        self.restore_region_gates();
         self.finish_flares.clear();
         self.end_photo_shot();
         if let Some(traffic) = self.traffic.as_mut() {

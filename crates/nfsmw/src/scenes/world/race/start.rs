@@ -168,6 +168,9 @@ impl WorldScene {
         );
         let racers = plan.len();
         self.split = split.map(crate::scenes::world::split::SplitState::new);
+        // Only the race's own walls stand during the run: the stage's region gates are lifted first and come back with
+        // the race's end (`docs/specs/career-regions.md` section 3.5).
+        self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
