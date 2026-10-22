@@ -89,7 +89,7 @@ fn servers_text(net: &dyn NetFrontend) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::lan::ServerEntry;
+    use crate::frontend::lan::backend::ServerEntry;
     use crate::frontend::lan::mock::{Call, MockNetFrontend};
     use nfsmw_net::netsim::NetSim;
     use nfsmw_net::netstats::NetLine;

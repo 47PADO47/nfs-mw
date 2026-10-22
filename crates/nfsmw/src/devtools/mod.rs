@@ -58,6 +58,7 @@ fn run_ui(
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
+    mut lan: (Option<ResMut<crate::frontend::lan::LanUi>>, Option<NonSendMut<crate::frontend::lan::LanBackend>>),
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
     let (width, height) = (window.width(), window.height());
@@ -73,10 +74,17 @@ fn run_ui(
     };
     // The panels draw in the active theme's palette, radius, padding and text size, as the game does.
     gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
+    let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
-        overlay::show(ctx, settings.show_metrics, &metrics, left);
+        let net = lan_ui.as_deref_mut().and_then(|ui| crate::frontend::lan::stats_line(ui, lan_backend.as_deref_mut()));
+        let net = overlay::net_line_shown(settings.show_metrics, settings.net.show_stats, net);
+        overlay::show(ctx, settings.show_metrics, &metrics, left, net.as_deref());
+        // The LAN menu, or the session's HUD pieces, over the menus and the world (`frontend/lan`).
+        if let Some(ui) = lan_ui.as_deref_mut() {
+            crate::frontend::lan::show(ctx, ui, lan_backend.as_deref_mut(), &settings);
+        }
         trace::indicator(ctx, &lab.recorder);
         platform.show(ctx);
         console::show(ctx, &mut console);

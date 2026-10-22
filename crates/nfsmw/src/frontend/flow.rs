@@ -151,6 +151,8 @@ pub struct Frontend {
     pub(super) quit: bool,
     pub(super) graphics_requested: bool,
     pub(super) graphics_visible: bool,
+    /// The LAN menu is on screen and takes the input this frame (`lan/system.rs`); the screens wait (`lan/gate.rs`).
+    pub(super) lan_input: bool,
     /// Settings are written to the config file (not in screenshot runs).
     save: bool,
     /// The pad mask of the last frame, for the start press that pauses.
@@ -225,6 +227,7 @@ impl Frontend {
             quit: false,
             graphics_requested: false,
             graphics_visible: false,
+            lan_input: false,
             save: true,
             last_mask: 0,
             remap: None,

@@ -1,6 +1,7 @@
 //! Where the game keeps its [`NetFrontend`]: the non-send resource [`LanBackend`]. The LAN screens, the session HUD, the
-//! console and the metrics overlay read it; the game's `NetSession` wiring fills it. Without one (a build or a run with
-//! no network), the LAN menu says so and the `net.*` commands answer that there is no network.
+//! console and the metrics overlay read it; the game's `NetSession` wiring fills it
+//! (`app.insert_non_send_resource(LanBackend::new(Box::new(session)))`). Without one, the LAN menu runs on a network that
+//! refuses everything (`offline.rs`), or on the pretend session of `demo.rs` with `NFSMW_LAN_DEMO=1`.
 
 use super::backend::NetFrontend;
 
@@ -11,6 +12,7 @@ pub struct LanBackend {
 }
 
 impl LanBackend {
+    #[allow(dead_code)] // called by the game's `NetSession` wiring (`crate::net`)
     pub fn new(backend: Box<dyn NetFrontend>) -> Self {
         Self { backend: Some(backend) }
     }
@@ -18,10 +20,5 @@ impl LanBackend {
     /// The network, when there is one.
     pub fn get(&mut self) -> Option<&mut dyn NetFrontend> {
         Some(self.backend.as_mut()?.as_mut())
-    }
-
-    /// The network for a read, when there is one.
-    pub fn peek(&self) -> Option<&dyn NetFrontend> {
-        Some(self.backend.as_ref()?.as_ref())
     }
 }

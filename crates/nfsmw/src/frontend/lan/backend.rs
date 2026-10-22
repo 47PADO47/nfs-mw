@@ -21,8 +21,10 @@ pub enum NetStatus {
     /// No session and no scan.
     Idle,
     /// A discovery scan is running; [`NetFrontend::servers`] fills as answers come in.
+    #[allow(dead_code)] // set by the game's `NetSession` while its discovery scan runs
     Scanning,
     /// Connecting or being admitted (the handshake, the password exchange, the seat).
+    #[allow(dead_code)] // set by the game's `NetSession` until the seat is given
     Connecting,
     /// Seated in the lobby (also between races, and while the world loads for the next one).
     InLobby,
@@ -72,6 +74,7 @@ pub struct ServerEntry {
 
 impl ServerEntry {
     /// The entry of `reply`, which came from `from`, for a client of protocol major `our_major`.
+    #[allow(dead_code)] // called by the game's discovery scan (`crate::net`)
     pub fn from_reply(from: SocketAddr, reply: &Reply, our_major: u8, ping_ms: Option<u16>) -> Self {
         Self {
             addr: SocketAddr::new(from.ip(), reply.game_port),

@@ -7,10 +7,18 @@ use super::metrics::{HISTORY, Metrics, ShowMetrics};
 /// A frame time at which the graph tops out, in milliseconds (a 30 fps frame).
 const GRAPH_MAX_MS: f32 = 33.3;
 
-/// Draw the metrics `left` points in from the window's left edge (beside a scene's panel, or 0 for none).
-pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
+/// Whether the overlay shows the session's `net` line (MP-82): at the advanced level, or at every level with
+/// `net_show_stats` on; never without a session.
+pub fn net_line_shown(level: ShowMetrics, show_stats: bool, line: Option<String>) -> Option<String> {
+    line.filter(|_| show_stats || level == ShowMetrics::Advanced)
+}
+
+/// Draw the metrics `left` points in from the window's left edge (beside a scene's panel, or 0 for none). `net` is the
+/// session's line when it is to be shown ([`net_line_shown`]).
+pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32, net: Option<&str>) {
     readout(ctx, m);
     if level == ShowMetrics::Off {
+        net_only(ctx, net, left);
         return;
     }
     egui::Window::new("metrics")
@@ -27,6 +35,9 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
                 ui.label(if i == 0 { text.strong() } else { text });
             }
             ui.label(RichText::new(m.limit).color(Color32::LIGHT_BLUE));
+            if let Some(net) = net {
+                ui.label(RichText::new(net).monospace());
+            }
             if level == ShowMetrics::Advanced {
                 ui.label(
                     RichText::new(format!("Base 1% low {:.0} FPS  worst {:.1} ms", m.low_1pct_fps(), m.worst_ms()))
@@ -65,6 +76,19 @@ pub fn show(ctx: &egui::Context, level: ShowMetrics, m: &Metrics, left: f32) {
                 }
             }
         });
+}
+
+/// The `net` line on its own, when the metrics are off but `net_show_stats` is on.
+fn net_only(ctx: &egui::Context, net: Option<&str>, left: f32) {
+    let Some(net) = net else { return };
+    egui::Window::new("net_metrics")
+        .title_bar(false)
+        .resizable(false)
+        .movable(false)
+        .interactable(false)
+        .anchor(Align2::LEFT_TOP, vec2(left + 8.0, 8.0))
+        .frame(Frame::window(&ctx.global_style()))
+        .show(ctx, |ui| ui.label(RichText::new(net).monospace()));
 }
 
 /// The rate lines of the panel: the base (rendered) rate and frame time alone while nothing is generated, both rates and
@@ -126,7 +150,16 @@ fn graph(ui: &mut egui::Ui, m: &Metrics) {
 
 #[cfg(test)]
 mod tests {
-    use super::rate_lines;
+    use super::{ShowMetrics, net_line_shown, rate_lines};
+
+    #[test]
+    fn the_net_line_shows_at_the_advanced_level_or_when_asked() {
+        let line = || Some("net rtt 3 ms".to_owned());
+        assert_eq!(net_line_shown(ShowMetrics::Advanced, false, line()), line());
+        assert_eq!(net_line_shown(ShowMetrics::Basic, false, line()), None);
+        assert_eq!(net_line_shown(ShowMetrics::Off, true, line()), line());
+        assert_eq!(net_line_shown(ShowMetrics::Advanced, true, None), None, "no session, no line");
+    }
 
     #[test]
     fn without_frame_generation_only_the_base_rate_and_time_show() {
