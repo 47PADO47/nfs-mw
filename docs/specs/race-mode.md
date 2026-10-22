@@ -54,7 +54,8 @@ small state machine, section 2, and the rest of this page.
 A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a finish line (`racefinish`).
 
 - **The order, and the moment a sprint ends** are in [race-goals.md](race-goals.md): the listed checkpoints, then the finish line,
-  decided by the `basicrace` script, not the executable.
+  decided by the `basicrace` script, not the executable. The **wrong-way trigger** behind the start sends the player back to
+  the grid: [race-wrongway.md](race-wrongway.md).
 - **Reached in order only.** The racer keeps a counter of the checkpoints it has reached this lap. Reporting
   checkpoint `n` counts only when `n` equals the counter plus one; any other report does nothing to the counter
   **[exe]** (`NotifyCheckpointReached` stores the time and sets the counter only for the next index). Checkpoints are
@@ -312,7 +313,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 
 Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
 post-race flow has no outro and no losing screen of its own; a player who is busted in a race
-is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) triggers, `SharedCheckpoints`,
+is not handled (the pursuit's own bust flow runs); `SharedCheckpoints`,
 `TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race
 and jump types do not occur in this install.
 

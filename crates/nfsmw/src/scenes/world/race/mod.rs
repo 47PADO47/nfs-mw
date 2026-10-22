@@ -32,6 +32,7 @@ mod setup_course_tests;
 mod split;
 mod start;
 mod startable;
+mod wrong_way;
 
 pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
@@ -170,6 +171,9 @@ pub(super) struct RaceSession {
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
+    /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
+    /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).
+    pub restarted: bool,
 }
 
 impl RaceSession {

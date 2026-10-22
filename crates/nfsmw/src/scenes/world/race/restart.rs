@@ -50,8 +50,13 @@ impl WorldScene {
         self.repair_player_car();
         // The same two players race again.
         self.queued_split = self.split.as_ref().map(|split| split.setup.clone());
-        if let Err(why) = self.begin_race(race, options, course) {
-            log::warn!("race {}: the restart did not start: {why}", session.name);
+        match self.begin_race(race, options, course) {
+            Ok(_) => {
+                if let Some(started) = self.race.as_mut() {
+                    started.restarted = true;
+                }
+            }
+            Err(why) => log::warn!("race {}: the restart did not start: {why}", session.name),
         }
         true
     }
@@ -60,6 +65,7 @@ impl WorldScene {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scenes::world::race::intro::intro_queue;
     use crate::scenes::world::race::{Banner, Origin, Stage};
     use blackbox_race::Gate;
     use glam::Vec3;
@@ -111,6 +117,7 @@ mod tests {
             pool: Vec::new(),
             challenge: None,
             origin: Origin { race: race(), course },
+            restarted: false,
             map: crate::hud::MapSource::default(),
             walls: Default::default(),
             collisions: 0,
@@ -147,6 +154,17 @@ mod tests {
         assert_eq!(given, Some(course), "a mod's course is not made again from the install's data");
         let plain = session(Stage::Loading { waited: 0.0 }, RaceOptions::default(), None);
         assert_eq!(restart_kit(&plain).map(|kit| kit.2), Some(None), "a stock race builds its course from the data");
+    }
+
+    #[test]
+    fn a_restart_goes_back_past_the_intro() {
+        // A career race plays its tutorial and messages before the grid; its restart enters the pre-race state of the
+        // original, which comes after them (`docs/specs/race-wrongway.md` section 3).
+        let options = RaceOptions { career: true, ..Default::default() };
+        let mut again = session(Stage::Loading { waited: 0.0 }, options, None);
+        assert!(!intro_queue(&again).is_empty(), "the first start has its intro");
+        again.restarted = true;
+        assert!(intro_queue(&again).is_empty(), "the restart counts down at once");
     }
 
     #[test]

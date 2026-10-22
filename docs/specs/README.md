@@ -196,6 +196,8 @@ sequence and the final race. Its record is [../provenance/story-flow.md](../prov
   races and the result; [ai-racers.md](ai-racers.md), [ai-racers-route.md](ai-racers-route.md) and
   [ai-racers-catchup.md](ai-racers-catchup.md): the opponents, their grid and route, and the catch-up;
   [racer-names.md](racer-names.md): the fixed names of the prologue's and the Blacklist's racers.
+- [race-wrongway.md](race-wrongway.md): the wrong-way (`ResetsPlayer`) trigger behind a race's start, what it does and which
+  races have one, with its record in [../provenance/race-wrongway.md](../provenance/race-wrongway.md).
 - [race-goals.md](race-goals.md): what a racer aims at (the `Checkpoint` list, then the finish line) and the one moment a sprint
   ends, with its record in [../provenance/race-goals.md](../provenance/race-goals.md).
 - [race-finish-effects.md](race-finish-effects.md): the red flares at a race's finish line and the win photo (the world seen through the

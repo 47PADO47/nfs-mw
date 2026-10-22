@@ -36,7 +36,7 @@ as `Element`):
 
 1. A racer that is not in the race (`InRace` false) is ignored.
 2. A trigger flagged `ResetsPlayer` (the `wrongway` child) entered by the player sends the race back to `prerace`
-   (offline). The rewrite does not model it (section 5).
+   (offline): the whole race starts again from its grid ([race-wrongway.md](race-wrongway.md)).
 3. The trigger counts only if it **is the racer's goal**, or its `MasterCheckpoint` is the goal. Any other trigger is
    ignored, whatever it is called and wherever it stands: a racer that has not reached checkpoint 3 gains nothing from
    driving through checkpoint 4 or the finish line, and a trigger that is a child of the race but is not in
@@ -66,7 +66,9 @@ The prologue races `16_1_0_partial_dday` (`16.1.0`) and `16_2_2_sprint` (`16.2.2
 
 The extra trigger of each is a child of the race with the checkpoint's shape and `Dimensions` but is not in the
 `Checkpoint` array, so under section 2 rule 3 it is never a goal: the original does not stop, count or end anything
-there. Both races also have a `wrongway` child with `ResetsPlayer`. The gates' numbers are the install's; walking a
+there. Both races also have a `wrongway` child with `ResetsPlayer`, a plane trigger 78 m and 99 m behind the start grid
+and 1.4 km and more from the last checkpoint ([race-wrongway.md](race-wrongway.md) section 4), so it cannot be what ended
+a run at the last checkpoint. The gates' numbers are the install's; walking a
 point through the centres of the gates in order (the straight lines, one metre per step) with the rewrite's rules gives
 `Checkpoint 1 .. n`, then `Finished` and `Over` on the step that enters the finish line, in both races.
 
@@ -99,12 +101,14 @@ line's flares to go by).
 
 ## 5. Not modelled
 
-- **Trigger entry.** The original raises the event when a car goes from outside a trigger to inside it; the rewrite
-  tests the segment a car moves along each tick against the box, which counts a gate the car already stands in. The data
-  never puts the next goal's box around the previous one's exit, so the two agree on the install's races
-  **[unconfirmed]**.
+- **Trigger entry.** The original raises the event once, when a car goes from outside a trigger to inside it, and tests a
+  sphere the size of the car ([race-wrongway.md](race-wrongway.md) section 2) **[exe]**; the rewrite's checkpoints and
+  finish line test the segment a car moves along each tick against the box, which counts a gate the car already stands in
+  (the reset zone is edge-triggered). The data never puts the next goal's box around the previous one's exit, so the two
+  agree on the install's races **[unconfirmed]**. The extents of the checkpoint boxes are also read differently
+  ([race-wrongway.md](race-wrongway.md) section 2).
 - **`MasterCheckpoint`** (a trigger that counts for another), **`SharedCheckpoints`** (other racers aiming at the same
-  checkpoint advance with the one that reached it), the **`ResetsPlayer`** restart, a **`CannedPath`** goal list and the
+  checkpoint advance with the one that reached it), a **`CannedPath`** goal list and the
   scripted triggers of single races (cop spawns, the 911 call and the bail of `16.2.2`, the engine kill of `16.2.1`
   which has its own module, the cell calls) are not part of the goal rule here.
 - **`NotifyLapFinished` on the last lap.** The script calls it before `NotifyRaceFinished`; the rewrite raises `Finished`

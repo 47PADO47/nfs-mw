@@ -8,6 +8,7 @@ use super::grid;
 use super::heat::{self, HeatChase, Police};
 use super::setup::{self, RaceOptions};
 use super::startable;
+use super::wrong_way;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{View, WorldScene, space};
@@ -95,7 +96,11 @@ impl WorldScene {
         let given_course = course.clone();
         let course = match course {
             Some(course) => course,
-            None => setup::course_of(&data, &race, &options)?,
+            None => {
+                let mut course = setup::course_of(&data, &race, &options)?;
+                wrong_way::add_zones(&mut course, &data, &race.name);
+                course
+            }
         };
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
@@ -214,6 +219,7 @@ impl WorldScene {
             walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
+            restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
