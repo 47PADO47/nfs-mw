@@ -29,6 +29,10 @@ pub struct CoopChase {
     meters: Vec<(PlayerId, Busted)>,
     /// The police were chasing at the last tick.
     was_pursuing: bool,
+    /// The targets and the primary of the chase that ended last, kept for the career's settlement of it
+    /// (`career/pursuit.rs` reads them after the tick that ends the chase).
+    pub last_targets: Targets,
+    pub last_primary: PlayerId,
 }
 
 impl CoopChase {
@@ -67,6 +71,10 @@ impl WorldScene {
         let cars: Vec<_> =
             self.players.iter().filter(|p| p.drive.has_sim()).map(|p| (p.id, p.drive.player_view())).collect();
         if !pursuing {
+            if chase.was_pursuing {
+                chase.last_targets = std::mem::take(&mut chase.targets);
+                chase.last_primary = chase.primary;
+            }
             chase.targets = Targets::new();
             chase.meters.clear();
             chase.was_pursuing = false;
