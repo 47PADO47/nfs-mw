@@ -1,5 +1,6 @@
 //! Session-local garage selections, shared by the overlay and driving scenes.
 
+mod appearance;
 mod controls;
 #[cfg(test)]
 mod interaction_tests;
@@ -7,7 +8,7 @@ mod parts;
 mod performance;
 #[cfg(test)]
 mod performance_tests;
-mod presets;
+pub(crate) mod presets;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -67,6 +68,26 @@ pub struct Selection {
     pub performance: nfsmw_data::car::physics::PerformancePackage,
     pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
     pub parts: nfsmw_data::car::customization::Selection,
+    pub gauges: GaugeSelection,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GaugeSelection {
+    pub skin: u8,
+    pub backing: Option<[u8; 3]>,
+    pub needle: Option<[u8; 3]>,
+    pub digits: Option<[u8; 3]>,
+}
+
+impl GaugeSelection {
+    pub fn colors(&self) -> [Option<[u8; 3]>; 3] {
+        [self.backing, self.needle, self.digits]
+    }
+
+    pub fn validate(&self, catalog: &nfsmw_data::car::customization::Catalog) -> anyhow::Result<()> {
+        anyhow::ensure!(self.skin == 0 || catalog.gauge_skins.contains(&self.skin), "Gauge skin is unavailable");
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
@@ -87,7 +108,7 @@ pub struct Model {
     pub applied: Selection,
     pub draft: Selection,
     pub filter: String,
-    pub parts_filter: [String; 5],
+    pub parts_filter: [String; 9],
     pub message: Option<Result<String, String>>,
     pub preset_picker: crate::preset_store::Picker,
 }

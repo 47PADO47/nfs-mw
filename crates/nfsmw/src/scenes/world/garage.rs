@@ -119,6 +119,7 @@ impl WorldScene {
             self.garage.cars.iter().find(|car| car.folder == selection.car).context("car is not in the garage")?;
         ensure!(entry.unavailable.is_none(), "{}", entry.unavailable.as_deref().unwrap_or_default());
         entry.parts.as_ref().context("customization catalog unavailable")?.validate(&selection.parts)?;
+        selection.gauges.validate(entry.parts.as_ref().context("customization catalog unavailable")?)?;
         let tunings = selection.tuning.normalized()?;
         let changed_performance = selection.performance != self.garage.applied.performance;
         let changed_parts = selection.parts != self.garage.applied.parts;

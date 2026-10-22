@@ -18,10 +18,25 @@ pub enum Category {
     Hood,
     Roof,
     Wheels,
+    Paint,
+    WindowTint,
+    RimPaint,
+    Vinyl,
 }
 
 impl Category {
-    pub const ALL: [Self; 5] = [Self::Body, Self::Spoiler, Self::Hood, Self::Roof, Self::Wheels];
+    pub const MODELS: [Self; 5] = [Self::Body, Self::Spoiler, Self::Hood, Self::Roof, Self::Wheels];
+    pub const ALL: [Self; 9] = [
+        Self::Body,
+        Self::Spoiler,
+        Self::Hood,
+        Self::Roof,
+        Self::Wheels,
+        Self::Paint,
+        Self::WindowTint,
+        Self::RimPaint,
+        Self::Vinyl,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -30,6 +45,10 @@ impl Category {
             Self::Hood => "Hood",
             Self::Roof => "Roof scoop",
             Self::Wheels => "Rims",
+            Self::Paint => "Paint finish / preset",
+            Self::WindowTint => "Window tint",
+            Self::RimPaint => "Rim paint preset",
+            Self::Vinyl => "Fixed vinyl",
         }
     }
 
@@ -40,6 +59,10 @@ impl Category {
             Self::Hood => slot::HOOD,
             Self::Roof => slot::ROOF,
             Self::Wheels => slot::FRONT_WHEEL,
+            Self::Paint => slot::BASE_PAINT,
+            Self::WindowTint => slot::WINDOW_TINT,
+            Self::RimPaint => 78,
+            Self::Vinyl => slot::VINYL_LAYER,
         }
     }
 }
@@ -47,12 +70,16 @@ impl Category {
 /// None means the installed stock part, including pieces built into the body solid.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
-    pub parts: [Option<u32>; 5],
+    pub parts: [Option<u32>; 9],
+    pub rim_color: Option<[u8; 3]>,
+    pub vinyl_colors: [Option<[u8; 3]>; 3],
 }
 
 impl Selection {
     pub fn is_stock(&self) -> bool {
         self.parts.iter().all(Option::is_none)
+            && self.rim_color.is_none()
+            && self.vinyl_colors.iter().all(Option::is_none)
     }
 }
 
@@ -66,8 +93,13 @@ pub struct Choice {
 
 #[derive(Clone, Debug, Default)]
 pub struct Catalog {
-    pub choices: [Vec<Choice>; 5],
-    pub stock: [Option<u32>; 5],
+    pub choices: [Vec<Choice>; 9],
+    pub stock: [Option<u32>; 9],
+    pub colors: HashMap<u32, [u8; 3]>,
+    pub finishes: Vec<(String, u32)>,
+    pub gauge_skins: Vec<u8>,
+    pub vinyl_remaps: HashMap<u32, usize>,
+    pub paintable_wheels: std::collections::HashSet<u32>,
 }
 
 /// Shared geometry identities and tables are read once, then reused for each selected car.
@@ -91,7 +123,12 @@ impl Inventory {
     pub fn catalog(&self, dir: &GameDir, folder: &str) -> Result<Catalog> {
         let car = self.tables.car_type_for_folder(folder).context("car type unavailable")?;
         let solids: HashMap<_, _> = super::read_solids(dir, folder)?.into_iter().map(|s| (s.name_hash, s)).collect();
-        Ok(Catalog::from_geometry(&self.tables, car, &solids, &self.shared))
+        let mut catalog = Catalog::from_geometry(&self.tables, car, &solids, &self.shared);
+        let vinyls = super::vinyl::available(dir, folder, &self.tables, car)?;
+        catalog.choices[Category::Vinyl as usize].retain(|p| vinyls.contains(&p.hash));
+        catalog.gauge_skins =
+            (0..=10).filter(|skin| dir.exists(&format!("GLOBAL/HUDS_Custom_{skin:02}.bin"))).collect();
+        Ok(catalog)
     }
 }
 
@@ -119,7 +156,15 @@ impl Catalog {
                 if part.part_id != LAYOUT.slots[slot].part_id
                     || !types.contains(&t.parts.type_name_hash(part))
                     || Some(part.name_hash) == stock[category as usize]
-                    || t.parts.model_hash(part, 0).is_none_or(|h| !solids.contains_key(&h) && !shared.contains_key(&h))
+                    || (Category::MODELS.contains(&category)
+                        && t.parts
+                            .model_hash(part, 0)
+                            .is_none_or(|h| !solids.contains_key(&h) && !shared.contains_key(&h)))
+                    || (matches!(category, Category::Paint | Category::Vinyl) && !car.skinnable)
+                    || (matches!(category, Category::Paint | Category::WindowTint | Category::RimPaint)
+                        && t.parts
+                            .attribute(part, "LIGHT_MATERIAL_NAME")
+                            .is_none_or(|hash| !t.light_materials.iter().any(|m| m.name_hash == hash)))
                     || (category == Category::Wheels && !wheels)
                 {
                     continue;
@@ -145,13 +190,49 @@ impl Catalog {
                 let label = match category {
                     Category::Body => format!("Body kit {}", super::stock::kit_number(t, part)),
                     Category::Wheels => rim_label(solid_name),
+                    Category::Paint | Category::RimPaint => {
+                        let paint = super::Paint::of(t, part);
+                        catalog.colors.insert(part.name_hash, paint.rgb);
+                        let family = paint.name.split('_').next().unwrap_or("Paint");
+                        let finish = match family {
+                            "GLOSS" => "Gloss",
+                            "METAL" => "Metallic",
+                            "PEARL" => "Pearlescent",
+                            _ => family,
+                        };
+                        format!("{finish} · {}", paint.hex())
+                    }
                     _ if t.parts.name(part).trim().is_empty() => solid_name.replace('_', " "),
                     _ => t.parts.name(part).replace('_', " "),
                 };
+                if category == Category::Vinyl {
+                    catalog
+                        .vinyl_remaps
+                        .insert(part.name_hash, t.parts.attribute(part, "NUMREMAPCOLOURS").unwrap_or(0) as usize);
+                }
+                if category == Category::Paint {
+                    let name = t.parts.name(part);
+                    for (prefix, label) in [
+                        ("GLOSS", "Gloss"),
+                        ("METAL", "Metallic"),
+                        ("PEARL", "Pearl"),
+                        ("CHROME", "Chrome"),
+                        ("MATTE", "Matte"),
+                    ] {
+                        if name.starts_with(prefix) && !catalog.finishes.iter().any(|(n, _)| n == label) {
+                            catalog.finishes.push((label.to_owned(), part.name_hash));
+                        }
+                    }
+                }
+                if category == Category::Wheels && part.upgrade_level > 0 {
+                    catalog.paintable_wheels.insert(part.name_hash);
+                }
                 catalog.choices[category as usize].push(Choice {
                     hash: part.name_hash,
                     label,
-                    language_hash: t.parts.attribute(part, "LANGUAGEHASH"),
+                    language_hash: (!matches!(category, Category::Paint | Category::RimPaint))
+                        .then(|| t.parts.attribute(part, "LANGUAGEHASH"))
+                        .flatten(),
                     carbon: t.parts.attribute(part, "CARBONFIBRE").is_some_and(|v| v != 0),
                 });
             }
@@ -160,6 +241,12 @@ impl Catalog {
     }
 
     pub fn validate(&self, selection: &Selection) -> Result<()> {
+        if selection.rim_color.is_some() || selection.parts[Category::RimPaint as usize].is_some() {
+            ensure!(
+                selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
+                "fit aftermarket rims before selecting rim paint"
+            );
+        }
         for category in Category::ALL {
             if let Some(hash) = selection.parts[category as usize] {
                 ensure!(
@@ -209,7 +296,7 @@ pub(super) fn resolve(t: &CarTables, car: &CarTypeInfo, selection: &Selection) -
 }
 
 pub(super) fn validate_placements(selection: &Selection, placements: &[Placement]) -> Result<()> {
-    for category in Category::ALL {
+    for category in Category::MODELS {
         if selection.parts[category as usize].is_none() {
             continue;
         }

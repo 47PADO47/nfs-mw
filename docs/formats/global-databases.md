@@ -46,7 +46,7 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 | `HUDTEXDRAGSPLIT.BIN` | 33 KB | Drag-race split-screen HUD textures. | Not read |
 | `HUDTEXSPLIT.BIN` | 48 KB | Split-screen HUD textures. | Not read |
 | `HUDTEXTURESPHOTOFINISH.BIN` | 996 KB | The win photo's backdrops: four 1024 x 512 DXT3 textures (`PHOTOFINISH_SPRINT`, `_RIVAL`, `_DRAG`, `_TOOBOOTH`), each a polaroid on gravel with a transparent window. HUFF/JDLZ entries. [race-finish-effects](../specs/race-finish-effects.md) | Listed in UI assets |
-| `HUDS_Custom_00.bin` … `HUDS_Custom_10.bin` | 15–23 KB each | Tachometer skin textures (`n_LINES_NN`, `TACH_NEEDLE_NN`, `TACH_FILL_NN`), 11 skins. | Texture names in `crates/nfsmw/src/hud/skin.rs`; pack not loaded |
+| `HUDS_Custom_00.bin` … `HUDS_Custom_10.bin` | 15–23 KB each | Tachometer skin textures (`n_LINES_NN`, `TACH_NEEDLE_NN`, `TACH_FILL_NN`), 11 skins. | Texture names in `crates/nfsmw/src/hud/skin.rs`; all available packs loaded for garage gauge styles |
 
 ### Car, tuning and race data
 

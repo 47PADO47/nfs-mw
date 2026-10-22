@@ -9,7 +9,17 @@ fn every_garage_category_maps_to_its_own_cooling_part() {
     let mapped: Vec<CoolingPart> = Category::ALL.into_iter().map(part_of).collect();
     assert_eq!(
         mapped,
-        vec![CoolingPart::BodyKit, CoolingPart::Spoiler, CoolingPart::Hood, CoolingPart::RoofScoop, CoolingPart::Rim]
+        vec![
+            CoolingPart::BodyKit,
+            CoolingPart::Spoiler,
+            CoolingPart::Hood,
+            CoolingPart::RoofScoop,
+            CoolingPart::Rim,
+            CoolingPart::Paint,
+            CoolingPart::WindowTint,
+            CoolingPart::RimPaint,
+            CoolingPart::Vinyl
+        ]
     );
 }
 
@@ -58,4 +68,14 @@ fn the_installed_table_cools_a_hot_car_part_by_part() {
         record.cool_for_part(&table, part, SHOP_EXTRA);
     }
     assert!((record.heat - 4.0 * 0.7 * 0.69).abs() < 1e-4, "heat {}", record.heat);
+}
+
+#[test]
+fn changing_paint_finish_and_rgb_cools_once_and_tint_is_independent() {
+    let old = selection("m3gtr");
+    let mut new = old.clone();
+    new.parts.parts[Category::Paint as usize] = Some(100);
+    new.parts.parts[Category::WindowTint as usize] = Some(200);
+    new.color = Some([10, 20, 30]);
+    assert_eq!(fitted_parts(&old, &new), vec![CoolingPart::Paint, CoolingPart::WindowTint]);
 }

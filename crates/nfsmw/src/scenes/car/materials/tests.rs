@@ -103,10 +103,7 @@ fn installed_original_car_tint_material_uses_selected_preset() {
         let materials = CarMaterials::upload(&mut renderer, &model, mode, Vec3::Z);
         let lookup = materials.for_placement(&model.swaps, false);
         let Some(Shading::Glossy(handle)) = lookup.shading(WINDSHIELD) else { panic!("windshield profile missing") };
-        let expected_hash = match mode.is_original() {
-            true => tint,
-            false => WINDSHIELD,
-        };
+        let expected_hash = tint;
         let authored = &model.light_materials[&expected_hash];
         let actual = renderer.glossy_materials[&handle];
         assert_eq!(actual.diffuse_min, glossy_material(authored).diffuse_min);
