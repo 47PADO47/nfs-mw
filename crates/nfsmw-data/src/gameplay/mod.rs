@@ -11,6 +11,7 @@ mod final_race;
 mod markers;
 mod milestones;
 mod params;
+mod planes;
 mod races;
 mod rewards;
 mod story;
@@ -24,6 +25,7 @@ pub use milestones::{
     speed_traps,
 };
 pub use params::{Character, RaceParams};
+pub use planes::PlaneTrigger;
 pub use races::{Placement, Race, RaceType};
 pub use rewards::RewardRecord;
 pub use story::RaceStory;
@@ -53,6 +55,8 @@ pub struct GameplayData {
     pub triggers: Vec<BoxTrigger>,
     /// Every sphere trigger (collections that inherit `radiustrigger`): the speed traps of the races.
     pub spheres: Vec<SphereTrigger>,
+    /// Every plane trigger (collections that inherit `planetrigger`): the wrong-way zones of the races, among others.
+    pub planes: Vec<PlaneTrigger>,
     /// The auto shop and safe house zones, in database order.
     pub markers: Vec<ActivityMarker>,
     /// Every opponent driver (`character`, `boss`, `character_smart`), in database order.
@@ -83,6 +87,12 @@ impl GameplayData {
         self.spheres.iter().find(|t| t.key == key)
     }
 
+    /// The triggers of the race `race` (a full collection name) that send the player back to the grid: its `wrongway` and
+    /// `resetplayertrigger` children (`docs/specs/race-wrongway.md`).
+    pub fn reset_zones<'a>(&'a self, race: &'a str) -> impl Iterator<Item = &'a PlaneTrigger> + 'a {
+        self.planes.iter().filter(move |plane| plane.resets_player && plane.is_child_of(race))
+    }
+
     /// The opponent character with this collection key (an entry of a race's `Opponents`).
     pub fn character(&self, key: u32) -> Option<&Character> {
         self.characters.iter().find(|c| c.key == key)
@@ -105,6 +115,7 @@ impl GameplayData {
             races: races::races(db),
             triggers: triggers::triggers(db),
             spheres: triggers::spheres(db),
+            planes: planes::planes(db),
             markers: markers::markers(db),
             characters: params::characters(db),
             bins: bins::bins(db),

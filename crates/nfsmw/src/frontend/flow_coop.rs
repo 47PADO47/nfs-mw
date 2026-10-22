@@ -34,12 +34,26 @@ impl Frontend {
         self.resume_career(host, env);
     }
 
+    /// The pause menu's End Co-op: player 2's car leaves the world, the front end's co-op state goes too (player 2's device
+    /// is unseated and the count is one again), and play resumes.
+    pub(super) fn end_coop_from_pause(&mut self, host: &mut Host, env: &mut Env) {
+        host.scene.end_coop();
+        self.end_coop();
+        self.resume_driving(env);
+    }
+
     /// Co-op is forgotten: the session ends and the count of players goes back to one.
     pub(super) fn end_coop(&mut self) {
         if self.coop.take().is_some() {
             crate::career::set_coop_players(1);
         }
     }
+}
+
+/// The pause menu's co-op rows: End Co-op while a session is on, greyed out while player 2 races or is chased.
+pub(super) fn coop_pause(host: &Host) -> PauseCtx {
+    let coop = crate::career::coop_players() > 1;
+    PauseCtx { coop, coop_locked: host.scene.coop_end_locked(), ..PauseCtx::default() }
 }
 
 /// The second player of a co-op session, from the career car select's answer.

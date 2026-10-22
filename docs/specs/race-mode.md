@@ -53,6 +53,9 @@ small state machine, section 2, and the rest of this page.
 
 A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a finish line (`racefinish`).
 
+- **The order, and the moment a sprint ends** are in [race-goals.md](race-goals.md): the listed checkpoints, then the finish line,
+  decided by the `basicrace` script, not the executable. The **wrong-way trigger** behind the start sends the player back to
+  the grid: [race-wrongway.md](race-wrongway.md).
 - **Reached in order only.** The racer keeps a counter of the checkpoints it has reached this lap. Reporting
   checkpoint `n` counts only when `n` equals the counter plus one; any other report does nothing to the counter
   **[exe]** (`NotifyCheckpointReached` stores the time and sets the counter only for the next index). Checkpoints are
@@ -66,8 +69,9 @@ A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a f
 - **Finish.** After the last lap, `NotifyRaceFinished(racer)` sets the racer's progress to 100 percent, ranks the
   racers again, and, for a human racer, starts the end of the race **[exe]**.
 - **The trigger test.** The rewrite crosses a gate when the segment a racer moves along in one tick touches the
-  checkpoint's box, and the checkpoint is the next one expected **[unconfirmed]**. The stored `Dimensions` are taken as
-  **half sizes**: the first extent along the heading, the second across, the third up (the evidence is in
+  checkpoint's box, and the checkpoint is the next one expected **[unconfirmed]**. The stored `Dimensions` are the
+  box of the trigger constructor **[exe]**: the first extent along the heading and the second across, both **full**
+  sizes, and the third the **half** height ([race-wrongway.md](race-wrongway.md) section 2; the height evidence is in
   [world-markers.md](world-markers.md) section 3). Races that leave out `finish` end when the last checkpoint is
   reached.
 - **What the rewrite must accept.** A sprint's last checkpoint is often at the finish line; a gate the car skips
@@ -310,7 +314,7 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 
 Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
 post-race flow has no outro and no losing screen of its own; a player who is busted in a race
-is not handled (the pursuit's own bust flow runs); `ResetsPlayer` (wrong way) triggers, `SharedCheckpoints`,
+is not handled (the pursuit's own bust flow runs); `SharedCheckpoints`,
 `TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race
 and jump types do not occur in this install.
 

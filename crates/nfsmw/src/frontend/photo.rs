@@ -6,6 +6,7 @@
 
 use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0};
+use blackbox_feng::runtime::pad;
 
 use super::confirm::Confirm;
 use super::logic::{Command, Cx, ScreenLogic};
@@ -41,6 +42,9 @@ const TRAP_BOUNTY: u32 = 0x3233_F0A4;
 /// The messages of the footer buttons: Race Stats and Restart (`PAD_BUTTON4` and `PAD_BUTTON5`).
 const STATS: u32 = PAD_BUTTON0 + 4;
 const RESTART: u32 = PAD_BUTTON0 + 5;
+/// The same buttons as pad bits: the second button (key 2) and key 1.
+const STATS_BIT: u32 = pad::BUTTON0 << 4;
+const RESTART_BITS: u32 = (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5);
 
 /// Shows a [`PhotoReport`], with the race's report behind its Race Stats button.
 pub struct PhotoLogic {
@@ -51,17 +55,42 @@ pub struct PhotoLogic {
     faded: bool,
     /// The picture is swapped for the race's backdrop and shown (the install has the texture).
     picture: bool,
+    /// The buttons that already acted in this frame, as pad bits: a press reaches the screen as a pad bit and as the package's
+    /// message, and must act once.
+    done: u32,
 }
 
 impl PhotoLogic {
     /// The photo of a won race, with the lap table behind Race Stats.
     pub fn for_race(photo: PhotoReport, report: RaceReport) -> Self {
-        Self { photo, report: Some(report), faded: false, picture: false }
+        Self { photo, report: Some(report), faded: false, picture: false, done: 0 }
     }
 
     /// The photo of a speed trap: Continue only.
     pub fn for_trap(photo: PhotoReport) -> Self {
-        Self { photo, report: None, faded: false, picture: false }
+        Self { photo, report: None, faded: false, picture: false, done: 0 }
+    }
+
+    /// Race Stats: the results, over the photo (their Back returns to it). Once per press.
+    fn show_stats(&mut self, cx: &mut Cx) {
+        let Some(report) = self.report.clone() else { return };
+        if self.once(STATS_BIT) {
+            cx.send(Command::ShowResults(report));
+        }
+    }
+
+    /// Restart: the in-race question. Once per press.
+    fn ask_restart(&mut self, cx: &mut Cx) {
+        if self.report.is_some() && self.once(RESTART_BITS) {
+            cx.send(Command::Confirm(Confirm::restart_results()));
+        }
+    }
+
+    /// Whether the button `bit` has not acted yet in this frame; the first ask takes it (`done`).
+    fn once(&mut self, bit: u32) -> bool {
+        let first = self.done & bit == 0;
+        self.done |= bit;
+        first
     }
 
     fn group(&self) -> u32 {
@@ -175,6 +204,7 @@ impl ScreenLogic for PhotoLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.done = 0;
         self.hold(cx);
         if !self.faded {
             self.faded = true;
@@ -188,12 +218,23 @@ impl ScreenLogic for PhotoLogic {
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
-        match (message, &self.report) {
-            (PAD_ACCEPT, Some(_)) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
-            (PAD_ACCEPT, None) => cx.send(Command::Resume),
-            (STATS, Some(report)) => cx.send(Command::ShowResults(report.clone())),
-            (RESTART, Some(_)) => cx.send(Command::Confirm(Confirm::restart_results())),
+        match (message, self.report.is_some()) {
+            (PAD_ACCEPT, true) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
+            (PAD_ACCEPT, false) => cx.send(Command::Resume),
+            (STATS, true) => self.show_stats(cx),
+            (RESTART, true) => self.ask_restart(cx),
             _ => {}
+        }
+    }
+
+    /// The footer's Race Stats and Restart buttons answer the pad's second button and key 1 whichever footer button has the
+    /// focus, as the results screen's do; the package's own message for the same press is passed over.
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & STATS_BIT != 0 {
+            self.show_stats(cx);
+        }
+        if bits & RESTART_BITS != 0 {
+            self.ask_restart(cx);
         }
     }
 }

@@ -8,6 +8,7 @@ use super::grid;
 use super::heat::{self, HeatChase, Police};
 use super::setup::{self, RaceOptions};
 use super::startable;
+use super::wrong_way;
 use super::{Banner, Origin, RaceSession, RacerPlan, Stage};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{View, WorldScene, space};
@@ -95,7 +96,11 @@ impl WorldScene {
         let given_course = course.clone();
         let course = match course {
             Some(course) => course,
-            None => setup::course_of(&data, &race, &options)?,
+            None => {
+                let mut course = setup::course_of(&data, &race, &options)?;
+                wrong_way::add_zones(&mut course, &data, &race.name);
+                course
+            }
         };
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
@@ -179,6 +184,9 @@ impl WorldScene {
         self.split = split.map(crate::scenes::world::split::SplitState::new);
         self.park_guest_for_race();
         self.second_view = crate::scenes::world::split::SecondView::new();
+        // Only the race's own walls stand during the run: the stage's region gates are lifted first and come back with
+        // the race's end (`docs/specs/career-regions.md` section 3.5).
+        self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
@@ -222,6 +230,7 @@ impl WorldScene {
             walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
+            restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
     }
@@ -262,6 +271,7 @@ fn plan_racers(
     };
     let mut plan = vec![RacerPlan {
         name: player_name(),
+        name_label: None,
         model: None,
         spawn: slot(start),
         skill: 1.0,
@@ -278,6 +288,7 @@ fn plan_racers(
         let Some(model) = model else { continue };
         plan.push(RacerPlan {
             name: opponent.name.clone(),
+            name_label: opponent.name_label.clone(),
             model: Some(model),
             spawn: slot(&placement),
             skill: opponent.skill,
@@ -353,11 +364,22 @@ mod tests {
         assert_eq!(resolve(&data(), "9_1_1_circuit_r").unwrap().name, "race_bin_09/9_1_1_circuit_r");
     }
 
+    fn opponent(name: &str, car: Option<&str>) -> setup::Opponent {
+        setup::Opponent {
+            name: name.into(),
+            name_label: None,
+            skill: 0.5,
+            bias: 0.5,
+            car: car.map(str::to_owned),
+            start: None,
+        }
+    }
+
     #[test]
     fn the_plan_puts_the_player_first_and_skips_cars_that_cannot_be_named() {
         let start = nfsmw_data::gameplay::Placement { position: glam::Vec3::ZERO, heading_deg: 0.0 };
-        let named = setup::Opponent { name: "a".into(), skill: 0.5, bias: 0.5, car: Some("c1".into()), start: None };
-        let nameless = setup::Opponent { name: "b".into(), skill: 0.5, bias: 0.5, car: None, start: None };
+        let named = opponent("a", Some("c1"));
+        let nameless = opponent("b", None);
         let plan = plan_racers(&race("r"), &start, &[named.clone(), nameless.clone()], &[], true);
         assert_eq!(plan.len(), 2, "the car-less opponent has no pool to draw from");
         assert!(plan[0].model.is_none());
@@ -371,7 +393,21 @@ mod tests {
     #[test]
     fn without_a_road_network_nobody_else_races() {
         let start = nfsmw_data::gameplay::Placement { position: glam::Vec3::ZERO, heading_deg: 0.0 };
-        let named = setup::Opponent { name: "a".into(), skill: 0.5, bias: 0.5, car: Some("c1".into()), start: None };
+        let named = opponent("a", Some("c1"));
         assert_eq!(plan_racers(&race("r"), &start, &[named], &[], false).len(), 1);
+    }
+
+    #[test]
+    fn an_opponent_hands_its_fixed_name_label_to_the_plan() {
+        let start = nfsmw_data::gameplay::Placement { position: glam::Vec3::ZERO, heading_deg: 0.0 };
+        let rival = setup::Opponent {
+            name_label: Some("BLACKLIST_RIVAL_10_LEADERBOARD".into()),
+            ..opponent("race_bin_10/karl_smit", Some("CAYMANS"))
+        };
+        let plan = plan_racers(&race("r"), &start, &[rival, opponent("b", Some("c1"))], &[], true);
+        assert_eq!(plan[1].name_label.as_deref(), Some("BLACKLIST_RIVAL_10_LEADERBOARD"));
+        assert_eq!(plan[1].model.as_deref(), Some("CAYMANS"), "the rival keeps its own car");
+        assert_eq!(plan[2].name_label, None);
+        assert_eq!(plan[0].name_label, None, "the player is named by the profile");
     }
 }

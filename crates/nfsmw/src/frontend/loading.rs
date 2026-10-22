@@ -4,6 +4,12 @@
 
 use super::scene::ConcealFlag;
 
+/// Whether the start is over: the scene is ready and no race is still asked for or on its way to the grid (a career race is part
+/// of the start, `docs/specs/loading-screen.md` section 6).
+pub fn start_over(scene_ready: bool, race_staging: bool) -> bool {
+    scene_ready && !race_staging
+}
+
 /// One frame of the loading stage. Returns whether loading is over; when it is, the world is revealed.
 pub fn step(conceal: &ConcealFlag, scene_ready: bool) -> bool {
     if !scene_ready {
@@ -27,6 +33,36 @@ mod tests {
         assert!(conceal.get());
         assert!(step(&conceal, true), "ready: loading is over");
         assert!(!conceal.get(), "and the world is revealed");
+    }
+
+    #[test]
+    fn a_race_still_staging_keeps_the_start_open() {
+        assert!(!start_over(true, true), "the car is on its way to the grid: the screen stays");
+        assert!(!start_over(false, false));
+        assert!(start_over(true, false));
+    }
+
+    #[test]
+    fn the_veil_passes_the_staging_of_the_world_on() {
+        use crate::viewer::Scene;
+        struct Staging;
+        impl Scene for Staging {
+            fn title(&self) -> String {
+                String::new()
+            }
+            fn init(&mut self, _: &mut dyn blackbox_gfx::RenderBackend) -> anyhow::Result<()> {
+                Ok(())
+            }
+            fn update(&mut self, _: &mut dyn blackbox_gfx::RenderBackend, _: &crate::input::ActionState, _: f32) {}
+            fn frame(&mut self, _: f32) -> (blackbox_gfx::FrameParams, &[blackbox_gfx::Instance]) {
+                (crate::frontend::scene::flat_frame(), &[] as &[blackbox_gfx::Instance])
+            }
+            fn race_staging(&self) -> bool {
+                true
+            }
+        }
+        let scene = crate::frontend::scene::Pausable::new(Box::new(Staging), Default::default());
+        assert!(scene.race_staging());
     }
 
     #[test]

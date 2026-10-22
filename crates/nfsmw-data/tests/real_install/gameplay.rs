@@ -244,3 +244,24 @@ fn the_challenge_ladders_have_their_unlock_lists_and_starts() {
     assert!(open.contains(&"19.8.1".to_owned()), "the first pursuit challenge starts open: {open:?}");
     assert!(data.races.iter().filter(side).any(|r| !r.params.unlock_races.is_empty()), "a win opens races");
 }
+
+/// `docs/specs/race-wrongway.md` section 4: 166 plane triggers send the player back to the grid, 161 races have one,
+/// and the two prologue sprints have a `wrongway` of 150 m behind their start.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_wrong_way_triggers_belong_to_their_races() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let resets: Vec<_> = data.planes.iter().filter(|p| p.resets_player).collect();
+    assert_eq!(resets.len(), 166, "plane triggers with ResetsPlayer");
+    let with_one = data.races.iter().filter(|r| data.reset_zones(&r.name).next().is_some()).count();
+    assert_eq!(with_one, 161, "races with a reset zone");
+    for name in ["16_1_0_partial_dday", "16_2_2_sprint"] {
+        let zones: Vec<_> = data.reset_zones(name).collect();
+        assert_eq!(zones.len(), 1, "{name}");
+        assert_eq!((zones[0].width, zones[0].name.as_str()), (150.0, format!("{name}/wrongway").as_str()));
+        let start = data.race_named(name).and_then(|r| r.start).expect("the race has a start");
+        let behind = (zones[0].position - start.position).dot(gameplay::world_heading(start.heading_deg));
+        assert!((-150.0..-50.0).contains(&behind), "{name}: the zone is {behind} m along the start's heading");
+    }
+}

@@ -165,6 +165,11 @@ pub trait Scene {
     fn ready(&self) -> bool {
         true
     }
+    /// Whether a race is asked for or waits for its grid: the car is being put on the start and the scenery around it is
+    /// streaming. The front end holds the loading screen over the world until it is over (`flow_loading.rs`).
+    fn race_staging(&self) -> bool {
+        false
+    }
     /// Start timing once resources are ready, even while a scripted route is still moving.
     fn benchmark_ready(&self) -> bool {
         self.ready()

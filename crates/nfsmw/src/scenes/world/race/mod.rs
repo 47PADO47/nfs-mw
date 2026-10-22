@@ -28,9 +28,12 @@ mod report;
 mod restart;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
+#[cfg(test)]
+mod setup_course_tests;
 mod split;
 mod start;
 mod startable;
+mod wrong_way;
 
 pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
@@ -90,6 +93,9 @@ pub(super) struct Origin {
 #[derive(Debug, Clone)]
 pub(super) struct RacerPlan {
     pub name: String,
+    /// The language label of the name the data fixes for this racer (a Blacklist rival's leaderboard name, or a
+    /// character's `RacerName`); `names::name_opponents` turns it into `name`. `None` draws a name from the pool.
+    pub name_label: Option<String>,
     /// The `pvehicle` name of the car; `None` for the player.
     pub model: Option<String>,
     pub spawn: Spawn,
@@ -171,6 +177,9 @@ pub(super) struct RaceSession {
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
+    /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
+    /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).
+    pub restarted: bool,
 }
 
 impl RaceSession {

@@ -72,7 +72,7 @@ What races still lack. The rules and the wiring are done ([race-mode.md](specs/r
   stock cars of the street rivals are a stable pick, not the game's; racers far from the player are emulated.
 - **Drag:** the steering assist and lanes exist; the dragster engine, damage and input behaviours of the original
   (`EngineDragster`, `DamageDragster`, `InputPlayerDrag`) and the drag HUD are not modelled.
-- **Wrong-way trigger** (`ResetsPlayer`), `SharedCheckpoints`, cash grabs and the busted-in-a-race flow are not used.
+- **Wrong-way trigger** (`ResetsPlayer`): a human racer entering it restarts the race ([specs/race-wrongway.md](specs/race-wrongway.md)). `SharedCheckpoints`, cash grabs and the busted-in-a-race flow are not used.
 - **Roadblock icon:** on the world map's new Pursuit tab only; the in-game HUD package has no roadblock icon object.
 - **Quick Race options:** bound to the race's options and saved with the settings (`quick_race`, four numbers).
 - **Mods:** `nfsmw.races` runs over the world's races; `RaceStarted`, `RaceFinished` and a custom race's opponents (`BbRaceDef.opponents`) are sent; the vetoable `RaceStartRequested` is not.

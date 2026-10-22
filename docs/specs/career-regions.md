@@ -27,6 +27,7 @@ ends are in the [provenance file](../provenance/career-regions.md).
 | Which gates are closed at which stage? | Stages 16..13: gates 11, 12, 13, 14, 15. Stages 12..9: gates 10, 12, 13. Stages 8..1: none. Read from the `Barriers` list of the bin record of the current stage; bins 8..1 have no list. **[verified]** |
 | How is a closed gate enforced? | Physically. A gate is a set of scenery instances (the model `XO_TrackBarrierLocked_1`) that are hidden and non-colliding by default; naming the group turns them into visible walls with collision. The AI road network also gets one barrier line per gate. There is **no trigger zone, no message, no push-back**. **[exe + verified]** |
 | When is it evaluated? | At world creation, whenever the stage changes (deferred to the next roaming frame), and again after every race (the race graph's `done` state). Never per frame. **[exe]** |
+| Are the gates up during a race? | Not in a race the world was made for (a race started from the front end, such as the prologue's): the world-creation hook applies the stage's gates only when no event is current, and the race ends with `done`, which applies them. A race started from free roam keeps them, with its own walls on top. Section 3.5. **[exe]** |
 | What opens the region screen? | The Blacklist arrival stepper shows it only when the stage byte is exactly 12 or 8. It shows the text "Camden Beach borough has now been unlocked." (12) or "Rockport borough has now been unlocked." (8) over the background picture of the rival just beaten (`RIVAL_13_BG` / `RIVAL_09_BG`). It changes no state; the accept action (about 0.5 s of leave animation) moves to the next step. **[exe + verified]** |
 | What is in `Rivals.bin`? | A texture pack of 90 textures: six per rival, 15 rivals (section 8). **[verified]** |
 | Are "gate zones" involved? | No. `EnterGateZone`, `ExitGateZone`, `AllowMenuGates` and `IsActiveMenuGate` belong to the **menu gates** (safe house, car lot, custom shop prompts), which have nothing to do with closed regions (section 5). **[exe]** |
@@ -149,12 +150,12 @@ closed by default; races that list `*SCENERY_GROUP_DOOR` open it). The door grou
 
 | Trigger | What happens |
 |---|---|
-| The race-status object is created with the world (the world-load hook) | If no event node is current: clear, then enable the list of the record of the stage byte. |
+| The race-status object is created with the world (the world-load hook) | If no event node is current: clear, then enable the list of the record of the stage byte. **With an event node current (a race the front end started) nothing is applied** (section 3.5). |
 | The race-status object is reset (a routine reached from the world-loaded path; the caller chain was not followed) | If no event node is current and a bin record is stored: enable its list again, without clearing. |
 | The enter-bin routine changes the stage | Sets a "bin changed" byte on the race-status object. |
 | Every race-status update in the roaming state (racing state 0) with that byte set | Clears the byte, then **set current bin** with the stage byte: clear (if a record was stored), look up the record of the stage, store it, enable its list. This is the only call that follows a stage change. |
 | `basicrace` graph, state `done` | `DisableBarriers`, then `EnableBinBarriers` (enable the list of the stored record). Race barriers are gone, region gates are back. No other script calls either function. |
-| A race starts | The race's own `Barriers` list is **added** on top (section 3.4). Nothing is cleared first, so the region gates stay closed during every race. |
+| A race starts | The race's own `Barriers` list is **added** on top (section 3.4). Nothing is cleared first (the start routine clears only for the event `e3demo`, section 3.5), so the gates that are up stay up. |
 
 The stage is only ever changed through the enter-bin routine (blacklist spec section 5.2) or by loading a save, so a
 changed stage is always followed by a re-evaluation before the player drives again. A save loaded at stage 12 gets the
@@ -174,6 +175,38 @@ stage, and `done` restores the stage's set. **[verified]** (lists) **[exe]** (ti
 
 The pieces, the star (a mirror of turnable pieces along their length), the door and what the rewrite does at race
 start and end are in [race-barriers.md](race-barriers.md).
+
+### 3.5 Races and the stage's gates
+
+Two facts about the executable (addresses in the [provenance file](../provenance/career-regions.md)):
+
+- **The start routine clears only for one event.** `StartRace` calls the clear-all routine only when the race's event id
+  (the text field `19.8.18` of the race, [formats/gameplay-races.md](../formats/gameplay-races.md)) is the
+  string `e3demo`, an event that no race of the install carries (the text is nowhere in `gameplay.bin`
+  **[verified]**); then it enables the race's own list. For every other race the gates that are up stay up. **[exe]**
+- **The world-creation hook skips the gates when an event is current.** The constructor of the race status applies the
+  stage's list only when the gameplay manager has no current event (`manager + 0x2C` is 0). A world made for a race
+  (the front end hands the race over before the world loads: the prologue's `16.1.0` and `16.2.2`, the final race, the
+  career's front-end races) has an event current, so it starts with **no region gate**. The first gates appear when
+  the race's `done` state runs (`DisableBarriers`, `EnableBinBarriers`). A race entered from free roam, in a world that
+  was made without an event, keeps the gates and adds its walls. **[exe]**; that the front end's hand-over sets the event
+  before the constructor runs is **[inferred]** from the data below, not from the loading code.
+
+The data agrees. Taking each race's route as the straight lines from its start through its checkpoints to its finish and
+the closed gates of its bin's stage (section 2), exactly one race of the install crosses a closed gate's barrier line:
+the prologue's `16_2_2_sprint` (stage 16, gate 13 crossed 12 m from its centre, gate 11 passed at 54 m). None of the
+other routes crosses the line of a gate its stage closes, and the nearest passes 31 m from a gate's centre
+(`14_1_1_circuit` and gate 13). A race
+the original ran with the gates up could not be completed on that route, so the original does not have them up there.
+**[verified]** (route and gate numbers) **[inferred]** (the conclusion).
+
+The rewrite lifts the stage's closed gates for **every** race that is not a pursuit challenge, from the moment the race
+is set up (`lift_region_gates`, before the race's own list is switched on) to the moment it ends, is left or restarts
+(`restore_region_gates`, after the race's walls are put back). The gates are neither drawn nor solid meanwhile; a stage
+change during the race (a won boss race) updates the set that comes back. This is a superset of the original for races
+started from free roam, which differ only off the route, since no other route meets a gate **[ours]**. A pursuit
+challenge keeps the original's rule (the stage's gates stay, its own list adds its gates, section 3.4): it is a free-roam
+chase.
 
 ## 4. What a closed gate is
 

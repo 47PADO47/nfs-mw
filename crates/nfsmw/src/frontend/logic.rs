@@ -131,6 +131,8 @@ pub enum Command {
     SetWaypoint([f32; 2]),
     /// Show the lap table of a race (`PostRace_Results.fng`) in place of the screen on top (`photo.rs`).
     ShowResults(crate::viewer::RaceReport),
+    /// Show the win photo of a race again, in place of the results the photo's Race Stats opened (`post_race/screen.rs`).
+    ShowPhoto(crate::viewer::RaceReport),
     /// The post-race screen's answer: run the race again or leave it (`post_race.rs`).
     RaceAnswer(crate::viewer::RaceAnswer),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the

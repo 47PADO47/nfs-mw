@@ -4,13 +4,14 @@
 
 use nfsmw_career::settings::NodeStates;
 use nfsmw_career::story::prologue::{PrologueResume, resume_point};
+use nfsmw_data::car::{CarTables, list, pick_folder};
 use nfsmw_data::gameplay::GameplayData;
 
 use crate::app::Host;
 use crate::career::race_event_id;
 use crate::frontend::logic::{Env, QuitTo};
-use crate::frontend::look::CarLook;
-use crate::scenes::world::{DEFAULT_CAR, RaceOptions};
+use crate::frontend::look::{CarLook, DEFAULT_CAR};
+use crate::scenes::world::RaceOptions;
 
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
@@ -18,13 +19,28 @@ use super::flow_loading::LoadingScreen;
 /// The prologue race a new career starts with (`16.1.0`, section 2.3 rule 1).
 pub(super) const FIRST_PROLOGUE_RACE: &str = "16.1.0";
 
-/// The car a race forces on the player, as the world names a car (`folder:preset`): the stock E46 GTR folder with the
-/// race's preset ride, `RaceStory.player_car_type` (`M3GTRCAREERSTART` on all six prologue races). `None` when the race
-/// forces no car or is not in the data.
-pub(super) fn forced_car(gameplay: &GameplayData, event: &str) -> Option<String> {
+/// The car a race forces on the player, as the world names a car (`folder:preset`): the race's preset ride,
+/// `RaceStory.player_car_type` (`M3GTRCAREERSTART` on all six prologue races), on the folder of the car type the preset is
+/// made for (`folder_of`). A preset only resolves under its own car type (`menu-backdrop.md`): on free roam's `BMWM3GTR`
+/// its parts name solids that folder does not have, and the car is built with nothing to draw. `None` when the race forces
+/// no car or is not in the data.
+pub(super) fn forced_car(
+    gameplay: &GameplayData,
+    event: &str,
+    folder_of: impl Fn(&str) -> Option<String>,
+) -> Option<String> {
     let race = gameplay.races.iter().find(|race| race_event_id(race) == event)?;
     let preset = race.story.player_car_type.as_deref()?;
-    Some(format!("{DEFAULT_CAR}:{preset}"))
+    let folder = folder_of(preset).unwrap_or_else(|| DEFAULT_CAR.to_owned());
+    Some(format!("{folder}:{preset}"))
+}
+
+/// The `CARS/` folder of the car type that the install's preset ride `preset` is made for, or `None` when the tables or the
+/// preset are not there.
+fn preset_folder(dir: &game_install::GameDir, preset: &str) -> Option<String> {
+    let tables = CarTables::load(dir).ok()?;
+    let ride = tables.preset(preset)?;
+    pick_folder(&list(dir), &ride.car_type_name).map(str::to_owned)
 }
 
 /// The prologue event a save loads into (section 2.7), or `None` when the save does not restart the prologue. The
@@ -40,7 +56,11 @@ impl Frontend {
     /// Starts the career race `event` behind the loading screen (a prologue race, or the final race on a resume): the world
     /// is queued with it and the car the race forces, and the race's own chain takes over from its `PostRaceActivity`.
     pub(super) fn start_career_race(&mut self, event: &str, host: &mut Host, env: &mut Env) {
-        let car = self.career.with(|career| forced_car(&career.data.gameplay, event)).flatten();
+        let dir = &self.dir;
+        let car = self
+            .career
+            .with(|career| forced_car(&career.data.gameplay, event, |preset| preset_folder(dir, preset)))
+            .flatten();
         log::info!("career: starting race {event} in {car:?}");
         self.origin = QuitTo::Career;
         self.quick_race = Some(event.to_owned());
