@@ -109,8 +109,8 @@ Each menu screen has a camera pose, found through `GLOBAL/FE_ATTRIB.bin`, class 
 2. That collection holds a reference (field at layout offset 0) to an `angle*` collection, which holds the pose.
 
 A pose is 11 values (layout offsets in brackets): pitch `[0x3C]`, yaw `[0x54]`, distance `[0x50]`, roll `[0x44]`, field of view
-`[0x24]`, target x, y, z `[0x2C, 0x30, 0x34]`, the move's decay `[0x1C]`, duration `[0x20]` and order `[0x48]` (the last three only
-shape the 0.4 to 1 s ease between two poses, which the rewrite does not play). The camera is built each frame as follows
+`[0x24]`, target x, y, z `[0x2C, 0x30, 0x34]`, the move's decay `[0x1C]`, duration `[0x20]` and order `[0x48]` (the last three
+shape the move onto the pose, section 4.4). The camera is built each frame as follows
 (`0x004769E0`, `0x0046B7E0`, `0x006CF0A0`; all angles are degrees):
 
 - the eye is `-distance * (sin(yaw) * sin(pitch), cos(yaw) * sin(pitch), cos(pitch))` from the stage origin;
@@ -138,6 +138,44 @@ The other safe house screens have their own poses (`career_manager` `angle_caree
 `career_safehousereputationoverview` `angle20`, `career_safehouserivalchallenge` `angle22`, `career_car_select` `angle4_d`);
 the rewrite shows `angle10` for all of them **[ours]**. Table of values: provenance, section 3.
 
+### 4.4 The move onto a pose **[exe]**
+
+The mover (`0x004769E0`, state 0) is given a start (its own pose when the move begins), a goal and the goal's decay `k`,
+duration `d` and order `n` (`0x004770B0`). Every frame it adds the frame time to its clock, takes `t = clock / d` (1 once
+`clock >= d` or when `d <= 0`) and blends
+
+```
+s = 1 - e^(-k t^2) * cos((n + 0.5) * pi * t^2)
+pitch, yaw, distance, roll, fov = s * goal + (1 - s) * start      target = start + (goal - start) * s
+```
+
+`s` is 0 at the start, swings past 1 `n` times with a shrinking overshoot and is exactly 1 at `t = 1` (the cosine is zero
+there), where the mover goes to state 2 and holds. The **field of view blends too** (the word at `+0xA0` is blended with
+the others), and the blend ends by wrapping yaw and roll into 0..360 (pitch is not wrapped). `0x004770B0` first moves the
+goal's pitch, yaw and roll by whole turns to the copy nearest the start (`0x0046B980`), so a move never takes the long way
+round.
+
+**The safe house intro.** `0x007A94C0` runs when the scene's intro flag (`+0x58`) is set (and for the garage by
+`0x007A9620`): it builds the names `angle_entry_` + `career_safehouse` and `angle_final_` + `career_safehouse` (strings at
+`0x008B74A0`, `0x008B74B0`, `0x008B722C`), sets the mover straight onto the entry pose (`0x0046B920`) and starts a move
+to the final pose with the final pose's shape. While the flag is set `0x007B9EA0` records the screen's pose hash but starts
+no move, so the intro is not cut short by the safe house menu's own pose (`angle10`, which has a 0.6 s ease). Poses read
+from `FE_ATTRIB.bin` (provenance, section 3.6):
+
+| Pose | Decay | Duration | Order |
+|---|---|---|---|
+| `angle_entry_career_safehouse` | 8 | 0.6 | 3 (not used as a goal) |
+| `angle_final_career_safehouse` | 9 | **3.15 s** | 1 |
+| `angle10` (`career_mainmenu_sub`, the menu's own pose) | 8 | 0.6 s | 2 |
+
+A later screen with another pose hash starts a 0.4 to 1 s move from wherever the camera is; the rewrite shows one pose for
+all safe house screens **[ours]**, so only the intro is played. **[verified: `real_install` test reads the values]**
+
+`CameraMove` (`frontend/camera_move.rs`) implements the blend; `Stage::camera` builds it from the install
+(`nfsmw_data::frontend_camera`) when `MenuScene` is built, and `MenuScene::update` advances it with the frame time.
+The move begins when the backdrop is built, which is when the safe house menu opens; a parked backdrop that is shown again
+keeps its clock **[ours]**.
+
 ## 5. Light, cost and leaks
 
 - The car is lit by the front end's light rig, the same as the crib's (`original_lighting::frontend`). The original's safe house
@@ -163,10 +201,15 @@ nfsmw view-screen MainMenu_Sub.fng --look car --car BMWM3GTRE46:M3GTRCAREERSTART
 
 - The original's reflection of the car in the floor (`BACKDROP_REFLECTION` is the room's; the car's own mirror image is drawn by
   the front end's reflection pass) is not drawn. **[unverified]**
-- The entry move (a 0.6 s ease from `angle_entry_career_safehouse` to the pose) and the user's rotate and zoom of the car on
-  some screens are not played; the camera is the final pose from the first frame.
-- The field of view is read as the vertical one; the original does not say. A comparison against the original at 4:3 would settle
-  it. **[unverified]**
+- The safe house intro of section 4.4 is played; the move between two safe house screens (0.4 to 1 s) and the user's rotate
+  and zoom of the car on some screens (state 1) are not.
+- The field of view is read as the horizontal angle of a 4:3 picture and kept as the vertical angle it implies at every window
+  shape (65 degrees across give 51.1 up). The original does not say; the executable only converts the angle to 16-bit units
+  for the view (`0x00476E10`). The car looks about 1.4 times as tall in the original's picture than with 65 read as vertical,
+  which the 4:3 reading puts at 1.33; a picture at a known window shape would settle it. **[unverified]**
+- The crib's camera (main menu, career menu, options and the others) is still the car viewer's orbit camera. The original runs
+  the same mover there: an intro from `angle_entry_main_fe` onto `angle_final_main_fe` (6 s), and a move to the pose of
+  each screen when it opens or is backed out to (provenance, sections 3.4 and 3.6). Not played. **[not done]**
 - The roll's direction (positive turns the up vector towards the camera's right) follows the axis-angle routine's convention, not a
   comparison with the original's picture. **[unverified]**
 - The poses of the other platforms (customization shop, back room, car lot) are in the attributes but their rooms are not drawn.
