@@ -69,8 +69,9 @@ A race has an ordered list of checkpoints (`Checkpoint[]`, box triggers) and a f
 - **Finish.** After the last lap, `NotifyRaceFinished(racer)` sets the racer's progress to 100 percent, ranks the
   racers again, and, for a human racer, starts the end of the race **[exe]**.
 - **The trigger test.** The rewrite crosses a gate when the segment a racer moves along in one tick touches the
-  checkpoint's box, and the checkpoint is the next one expected **[unconfirmed]**. The stored `Dimensions` are taken as
-  **half sizes**: the first extent along the heading, the second across, the third up (the evidence is in
+  checkpoint's box, and the checkpoint is the next one expected **[unconfirmed]**. The stored `Dimensions` are the
+  box of the trigger constructor **[exe]**: the first extent along the heading and the second across, both **full**
+  sizes, and the third the **half** height ([race-wrongway.md](race-wrongway.md) section 2; the height evidence is in
   [world-markers.md](world-markers.md) section 3). Races that leave out `finish` end when the last checkpoint is
   reached.
 - **What the rewrite must accept.** A sprint's last checkpoint is often at the finish line; a gate the car skips

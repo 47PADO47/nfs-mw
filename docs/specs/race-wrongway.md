@@ -39,10 +39,10 @@ its position. A box trigger built from `Dimensions (a, b, c)` gets `b` across, `
 stored numbers are therefore **full sizes for the two horizontal axes and a half size for the height** (read from the
 constructor's bounding radius, `sqrt((b/2)^2 + (a/2)^2)`, and from the box test's half sizes, `b/2`, `a/2` and `c`). This matches the
 height already found for the checkpoints (a checkpoint's `40` is a half height, [race-mode.md](race-mode.md) section 3) and
-**contradicts the rewrite's reading of the horizontal extents as half sizes** (`setup::gate_of` doubles them): a checkpoint
-`(2, 40, 40)` is 2 m deep and 40 m wide, not 4 m and 80 m. Which of the two horizontal axes is the thin one is the
+**contradicted the rewrite's earlier reading of the horizontal extents as half sizes**, which `setup::gate_of` now
+replaces: a checkpoint `(2, 40, 40)` is 2 m deep and 40 m wide, not 4 m and 80 m. Which of the two horizontal axes is the thin one is the
 rewrite's reading of the data (the cosine test of the format page), not read here **[unconfirmed]**. The gates of
-checkpoints and finish lines are left as they were; the reset zone uses the numbers as the executable reads them.
+checkpoints and finish lines and the reset zone all use the numbers as the executable reads them.
 
 **How the trigger system tests a car** (`FUN_00766cb0`, the box case) **[exe]**: a sphere of the element's bounding radius,
 moved along its velocity for the tick, against the oriented box. So a thin slab cannot be jumped, and a car is

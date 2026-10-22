@@ -69,8 +69,10 @@ boxes are the race route's, which the game does not use as entries. The rule:
   3..40)`) **[verified]**. A checkpoint or finish line is a thin gate across a road, so its thin extent is its
   thickness along the direction of travel, which is the heading. The alternative (the thin extent across the road)
   would make a 2 m wide strip with 40 m along the road, which no checkpoint in the data is shaped like.
-- **Full or half sizes.** `BoxTrigger::contains` still reads the extents as full sizes. The race code reads them as
-  **half** sizes **[unconfirmed]**, because the first checkpoint of `10.2.1` (`checkpoint1`, stored `(2, 60, 40)`) is
+- **Full or half sizes.** `BoxTrigger::contains` still reads the three extents as full sizes. The trigger constructor
+  of `speed.exe` reads the two horizontal ones as full sizes and the height as a half size **[exe]**
+  ([race-wrongway.md](race-wrongway.md) section 2), and the race code (`setup::gate_of`) does the same. The height
+  was first found from the data, because the first checkpoint of `10.2.1` (`checkpoint1`, stored `(2, 60, 40)`) is
   centred 22 m above the road that the AI racers drive through (the road is at y 212, the box centre at y 234):
   a 40 m high box centred there (full size) does not reach the road, so a racer that passes it never counts; with half
   sizes (80 m high) it does, and every checkpoint and the finish line of that race are reached in order (measured with

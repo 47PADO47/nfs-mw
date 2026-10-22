@@ -33,13 +33,14 @@ pub struct RaceOptions {
     pub demo: bool,
 }
 
-/// The gate of a stored box trigger (physics space, y up): its first extent lies along its heading. The stored extents
-/// are taken as half sizes **[unconfirmed]**: the first checkpoint of `10.2.1` stands 22 m above the road it is on,
-/// which a 40 m high box centred on it (full sizes) would miss, while a 40 m half height holds the road
-/// (`docs/specs/world-markers.md` section 3, `docs/formats/gameplay-races.md` open question 1).
+/// The gate of a stored box trigger (physics space, y up): its first extent lies along its heading, the second across.
+/// The two horizontal extents are full sizes and the third is the half height **[exe]**: the trigger constructor builds
+/// the box from `b` across, `a` along and `c` above and below. The half height is also what the first checkpoint of
+/// `10.2.1` needs, as it stands 22 m above the road (`docs/specs/race-wrongway.md` section 2, `docs/specs/world-markers.md`
+/// section 3).
 pub fn gate_of(trigger: &BoxTrigger) -> Gate {
-    let sizes = trigger.dimensions.map(|extent| extent * 2.0);
-    Gate::new(trigger.position, world_heading(trigger.heading_deg), Vec3::Y, sizes)
+    let [along, across, half_height] = trigger.dimensions;
+    Gate::new(trigger.position, world_heading(trigger.heading_deg), Vec3::Y, [along, across, half_height * 2.0])
 }
 
 /// The course of a race, in physics space. A race with neither a finish line nor a checkpoint has no course.
@@ -270,11 +271,14 @@ mod tests {
     }
 
     #[test]
-    fn the_stored_extents_are_half_sizes() {
-        // A 2 x 40 x 40 trigger holds a point 30 m up and 39 m across, and 1.9 m along its heading.
+    fn the_stored_extents_are_full_sizes_across_and_a_half_height() {
+        // A 2 x 40 x 40 trigger is 2 m deep, 40 m wide and 40 m above and below: a point 39 m up, 19 m across and 0.9 m along
+        // its heading is inside, one just past any of the three is not.
         let gate = gate_of(&trigger(1, Vec3::ZERO));
-        assert!(gate.contains(Vec3::new(39.0, 30.0, 1.9)));
-        assert!(!gate.contains(Vec3::new(0.0, 0.0, 2.1)));
+        assert!(gate.contains(Vec3::new(19.0, 39.0, 0.9)));
+        assert!(!gate.contains(Vec3::new(21.0, 0.0, 0.0)));
+        assert!(!gate.contains(Vec3::new(0.0, 0.0, 1.1)));
+        assert!(!gate.contains(Vec3::new(0.0, 41.0, 0.0)));
     }
 
     #[test]
