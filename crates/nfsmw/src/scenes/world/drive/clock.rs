@@ -9,13 +9,25 @@ const CLOCK_EPSILON: f64 = 1e-8;
 #[derive(Debug, Default)]
 pub struct FixedClock {
     accumulator: f64,
+    /// Every update with time to spend runs exactly one step, whatever its length: a server's world, whose own loop
+    /// keeps the 60 Hz pace (`scenes/world/net`). Off for a playing scene, whose steps follow the frame time.
+    one_per_update: bool,
 }
 
 impl FixedClock {
+    /// Run exactly one step per update that has time to spend (`true`), or follow the frame time (`false`).
+    pub fn set_one_per_update(&mut self, on: bool) {
+        self.one_per_update = on;
+        self.accumulator = 0.0;
+    }
+
     /// Add a frame's time; returns how many steps to run now.
     pub fn advance(&mut self, dt: f32) -> u32 {
         if !dt.is_finite() || dt <= 0.0 {
             return 0;
+        }
+        if self.one_per_update {
+            return 1;
         }
         self.accumulator += f64::from(dt);
         let steps = ((self.accumulator + CLOCK_EPSILON) / CLOCK_STEP) as u32;
@@ -55,6 +67,18 @@ mod tests {
         let mut clock = FixedClock::default();
         assert_eq!(clock.advance(5.0), 300);
         assert_eq!(clock.advance(0.0), 0, "all elapsed ticks ran");
+    }
+
+    #[test]
+    fn one_per_update_runs_a_step_for_any_positive_time() {
+        let mut clock = FixedClock::default();
+        assert_eq!(clock.advance(STEP * 0.5), 0);
+        clock.set_one_per_update(true);
+        assert_eq!([clock.advance(STEP), clock.advance(STEP * 0.25), clock.advance(5.0)], [1, 1, 1]);
+        assert_eq!([clock.advance(0.0), clock.advance(f32::NAN)], [0, 0], "no time is no step");
+        assert_eq!(clock.alpha(), 0.0, "the remainder of the earlier frame time is dropped");
+        clock.set_one_per_update(false);
+        assert_eq!(clock.advance(STEP * 2.0), 2);
     }
 
     #[test]
