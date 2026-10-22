@@ -115,14 +115,14 @@ mod tests {
     #[test]
     fn evade_ticks_strikes_once() {
         let mut stable = two_cars();
-        for index in 0..2 {
-            stable.careers[index].strikes = 2;
-            stable.careers[index].decay = EVADES_PER_STRIKE_DECAY - 1;
+        for record in &mut stable.careers[0..2] {
+            record.strikes = 2;
+            record.decay = EVADES_PER_STRIKE_DECAY - 1;
         }
         let end = settle_evade(&mut stable, LEAD, &[OTHER], &pursuit(false));
         assert_eq!(end.released_cars, 0);
-        for index in 0..2 {
-            assert_eq!((stable.careers[index].strikes, stable.careers[index].decay), (1, 0), "one tick per car");
+        for record in &stable.careers[0..2] {
+            assert_eq!((record.strikes, record.decay), (1, 0), "one tick per car");
         }
     }
 
