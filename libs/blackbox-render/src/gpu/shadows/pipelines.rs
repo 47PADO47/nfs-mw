@@ -53,6 +53,8 @@ impl Shadows {
                         Some(instance_view::instance_layout(store)),
                     ],
                 },
+                // Back faces stay: meshes and draws carry no two-sided flag to tell single-sided
+                // casters apart, and thin shells (foliage, signs, walls) need both sides.
                 primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
@@ -109,7 +111,11 @@ impl Shadows {
             scratch: Default::default(),
             caster_slots: Vec::new(),
             store,
+            fixed: Vec::new(),
+            moving: Vec::new(),
             fit_points: Vec::new(),
+            rendered: super::stagger::Rendered::default(),
+            stagger: !cfg!(test),
         }
     }
 }

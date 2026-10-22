@@ -1709,6 +1709,7 @@ dependencies = [
  "bytemuck",
  "cc",
  "env_logger",
+ "foldhash",
  "fsr3-wgpu",
  "glam 0.34.1",
  "half",
