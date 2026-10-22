@@ -198,7 +198,11 @@ impl WorldSimHost {
 
 /// Waits until every tile the world wants is resident and no request is in flight, so a tick sees the same world on
 /// every host; `false` when `limit` ran out first.
-fn settle_streaming(scene: &mut WorldScene, renderer: &mut NullBackend, limit: Duration) -> bool {
+pub(in crate::scenes::world) fn settle_streaming(
+    scene: &mut WorldScene,
+    renderer: &mut NullBackend,
+    limit: Duration,
+) -> bool {
     let start = Instant::now();
     loop {
         // The frame asks for the traffic's support tiles before its streaming; asked here first, they are resident

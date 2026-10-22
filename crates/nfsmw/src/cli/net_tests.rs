@@ -56,12 +56,13 @@ fn discover_asks_the_default_port_unless_told() {
 
 #[test]
 fn the_modes_exclude_each_other() {
-    for line in [
-        ["nfsmw", "--host", "--connect", "1.2.3.4"],
-        ["nfsmw", "--host", "--dedicated"],
-        ["nfsmw", "--dedicated", "--discover"],
-        ["nfsmw", "--connect", "1.2.3.4", "--discover"],
-    ] {
+    let lines: [&[&str]; 4] = [
+        &["nfsmw", "--host", "--connect", "1.2.3.4"],
+        &["nfsmw", "--host", "--dedicated"],
+        &["nfsmw", "--dedicated", "--discover"],
+        &["nfsmw", "--connect", "1.2.3.4", "--discover"],
+    ];
+    for line in lines {
         assert!(Cli::try_parse_from(line).is_err(), "{line:?}");
     }
 }

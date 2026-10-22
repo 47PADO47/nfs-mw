@@ -17,6 +17,8 @@
 mod car;
 mod frame;
 mod hud;
+#[cfg(test)]
+mod installed;
 mod lend;
 mod remote;
 mod spectate;

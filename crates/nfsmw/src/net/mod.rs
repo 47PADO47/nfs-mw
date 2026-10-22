@@ -18,7 +18,10 @@ mod listen;
 mod options;
 mod plugin;
 mod session;
+#[cfg(test)]
+mod tests;
 
+pub use build::{data_id, server_setup, sim_build};
 pub use client::{ClientHandle, PlayerSetup};
 pub use options::ServeOptions;
 pub use plugin::{NetPlugin, NetStart};

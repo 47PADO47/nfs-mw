@@ -10,9 +10,10 @@ use nfsmw_server::ServerConfig;
 
 use crate::scenes::world::net::host::HostConfig;
 
-/// Where a session's world starts, map position in render space: a straight road in Rockport's west, the one the
-/// determinism tests drive. The client's world opens here too, so its first streaming is where the server's car is.
-pub const START_AT: [f32; 2] = [2151.0, 1399.0];
+/// Where a session's world starts, map position in render space: a road with room to drive away from the start (the
+/// end-to-end test's, `scenes/world/net_client/installed.rs`). The client's world streams here once the server's first
+/// own-car block places its car.
+pub const START_AT: [f32; 2] = [1945.0, 1850.0];
 /// The heading the host's car faces at the start, degrees.
 pub const START_HEADING: f32 = 45.0;
 

@@ -77,6 +77,8 @@ pub struct NetClient {
     attached: bool,
     scene_events: Vec<SessionEvent>,
     notices: VecDeque<String>,
+    /// A clock set by the caller instead of the wall clock (tests that run a server on a fake clock).
+    manual_ms: Option<u64>,
 }
 
 impl NetClient {
@@ -93,6 +95,7 @@ impl NetClient {
             attached: false,
             scene_events: Vec::new(),
             notices: VecDeque::new(),
+            manual_ms: None,
         }
     }
 
@@ -104,7 +107,16 @@ impl NetClient {
 
     /// Milliseconds since the client started: the session's clock.
     pub fn now_ms(&self) -> u64 {
+        if let Some(ms) = self.manual_ms {
+            return ms;
+        }
         u64::try_from(self.start.elapsed().as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Runs the session on the caller's clock from now on (tests with a server on a fake clock).
+    #[cfg(test)]
+    pub fn set_now_ms(&mut self, ms: u64) {
+        self.manual_ms = Some(ms);
     }
 
     /// One session update at the current time, then its events. The world scene calls it inside its lend; the
