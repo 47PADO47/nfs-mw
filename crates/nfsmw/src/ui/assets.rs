@@ -235,7 +235,8 @@ impl UiAssets {
         let font_textures: HashSet<u32> = fonts.values().map(|f| f.texture_hash).collect();
         let mut stock: HashMap<u32, (u32, u32)> = HashMap::new();
         let mut textures: HashMap<u32, Texture> = HashMap::new();
-        for rel in TEXTURE_FILES {
+        let gauge_packs: Vec<_> = (1..=10).map(|i| format!("GLOBAL/HUDS_Custom_{i:02}.bin")).collect();
+        for rel in TEXTURE_FILES.iter().copied().chain(gauge_packs.iter().map(String::as_str)) {
             let Ok(data) = shared_unwrapped(dir, rel) else { continue };
             let from_install = matches!(dir.provider(rel), Some(Provider::Install));
             match read_texture_packs(&data) {

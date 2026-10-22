@@ -44,17 +44,24 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
             }
         });
     ui.add_space(16.0);
+    super::appearance::show(ui, model, settings);
+    if settings.car_shading == crate::settings::CarShading::Simple {
+        ui.weak("Paint finishes and tints need material shading.");
+        if ui.button("Use glossy car materials").clicked() {
+            settings.car_shading = crate::settings::CarShading::Glossy;
+        }
+    }
     ui.heading("Body color");
     let paintable = model.selected().is_some_and(|car| car.paintable);
     let original = model.selected().and_then(|car| car.original_color).unwrap_or([190, 35, 35]);
     ui.add_enabled_ui(paintable, |ui| {
         ui.horizontal(|ui| {
-            if ui.selectable_label(model.draft.color.is_none(), "Original paint").clicked() {
+            if ui.selectable_label(model.draft.color.is_none(), "Preset color").clicked() {
                 model.draft.color = None;
             }
             if ui.selectable_label(model.draft.color.is_some(), "Custom paint").clicked() && model.draft.color.is_none()
             {
-                model.draft.color = Some(original);
+                model.draft.color = Some(super::appearance::body_color(model).unwrap_or(original));
             }
         });
         ui.add_space(6.0);

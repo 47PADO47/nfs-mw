@@ -35,6 +35,7 @@ impl CarMaterials {
         let uploaded = model
             .textures
             .iter()
+            .filter(|(_, t)| !t.name.starts_with("__GARAGE_"))
             .filter_map(|(&hash, t)| upload_texture(renderer, t).map(|handle| (hash, (handle, blend_mode(Some(t))))))
             .collect();
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
@@ -52,7 +53,7 @@ impl CarMaterials {
             CarShading::OriginalUnshadowed => GlossyModel::VertexLit,
             _ => GlossyModel::Custom,
         };
-        let window_tint = model.window_tint_material.filter(|_| shading.is_original());
+        let window_tint = model.window_tint_material;
         let used: HashSet<u32> = model
             .solids
             .values()

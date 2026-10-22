@@ -44,6 +44,8 @@ impl WorldScene {
         // No car yet (the world is still loading): hidden, not the idle HUD a viewer shows.
         let mut hud = self.drive.as_ref().and_then(|drive| drive.hud_state()).or(hidden);
         if let Some(state) = hud.as_mut() {
+            state.skin = self.garage.applied.gauges.skin;
+            state.gauge_colors = self.garage.applied.gauges.colors();
             if let Some(blip) = self.route_blip() {
                 state.blips.push(blip);
             }

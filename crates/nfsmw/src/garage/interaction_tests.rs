@@ -223,5 +223,5 @@ fn pointer_selection_and_paint_apply_immediately_without_repeated_requests() {
     assert!(ui.frame(Vec::new()).is_none());
     assert!(ui.click("CAR_B").is_none(), "clicking the selected car must preserve custom paint");
     assert!(ui.model.draft.color.is_some());
-    assert_eq!(ui.click("Original paint").unwrap().color, None);
+    assert_eq!(ui.click("Preset color").unwrap().color, None);
 }

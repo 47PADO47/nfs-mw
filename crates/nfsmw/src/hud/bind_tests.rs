@@ -380,3 +380,28 @@ fn the_mirror_frame_fades_in_then_holds_full_alpha() {
     b.apply(&mut rt, &HudState::default());
     assert_eq!(rt.alpha(frame), Some(255), "full once the fade is done");
 }
+
+#[test]
+fn gauge_colors_survive_script_updates_preserve_alpha_and_restore_authored_rgb() {
+    let (mut rt, id, mut binding) = setup();
+    let needle = rt.find(id, fe_hash_upper("3rdPersonNeedle")).unwrap();
+    let original = rt.tree(id).nodes.iter().find(|n| n.index == needle.index).unwrap().colour;
+    let mut state = HudState {
+        gauge_colors: [Some([20, 80, 160]), Some([100, 220, 30]), Some([80, 180, 250])],
+        ..Default::default()
+    };
+    binding.apply(&mut rt, &state);
+    rt.update(0.1);
+    rt.set_alpha(needle, 123);
+    binding.finish_frame(&mut rt, &state);
+    let tree = rt.tree(id);
+    assert_eq!(tree.nodes.iter().find(|n| n.index == needle.index).unwrap().colour, [100, 220, 30, 123]);
+    let digits = rt.find(id, fe_hash_upper("SPEED_DIGIT_1")).unwrap();
+    assert_eq!(&tree.nodes.iter().find(|n| n.index == digits.index).unwrap().colour[..3], &[80, 180, 250]);
+    state.gauge_colors = [None; 3];
+    binding.apply(&mut rt, &state);
+    rt.update(0.1);
+    binding.finish_frame(&mut rt, &state);
+    let restored = rt.tree(id).nodes.iter().find(|n| n.index == needle.index).unwrap().colour;
+    assert_eq!(&restored[..3], &original[..3]);
+}
