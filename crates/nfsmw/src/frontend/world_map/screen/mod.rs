@@ -27,6 +27,8 @@ const ICON_X: f32 = 70.0;
 const ICON_OFFSET: f32 = 4.0;
 const WHITE: [u8; 3] = [255, 255, 255];
 const YELLOW: [u8; 3] = [255, 255, 0];
+/// The co-op second player's car: cyan, so the two marks tell apart on the picture.
+const SECOND_PLAYER: [u8; 3] = [80, 200, 255];
 /// The text the list shows when no blip of the filter is on the map.
 const EMPTY: &str = "No blips of this type on the map.";
 
@@ -157,6 +159,7 @@ fn draw_live(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
         .iter()
         .flat_map(|(_, slots)| slots.iter().copied())
         .filter(|guid| !drawn.iter().any(|d| d.guid == *guid));
+    draw_second_mark(cx, frame, &mut spare);
     for car in &frame.live {
         let view = camera.to_view(car.map);
         if view.iter().any(|v| !(0.0..=1.0).contains(v)) {
@@ -171,6 +174,28 @@ fn draw_live(cx: &mut Cx, frame: &WorldMapFrame, drawn: &[place::Drawn]) {
         cx.rt.set_colour(o, [r, g, b]);
         cx.rt.set_hidden(o, false);
     }
+}
+
+/// The second co-op player's car: the first spare pool object, always taken so the cars after it keep their own, as the
+/// first player's arrow in its own tint. Hidden when there is no second car or it is off the picture.
+fn draw_second_mark(cx: &mut Cx, frame: &WorldMapFrame, spare: &mut impl Iterator<Item = u32>) {
+    let Some(guid) = spare.next() else { return };
+    let placed = frame.second_mark.and_then(|mark| {
+        let view = frame.session.camera.to_view(mark.map);
+        let inside = view.iter().all(|v| (0.0..=1.0).contains(v));
+        inside.then_some((mark, view))
+    });
+    let Some((mark, view)) = placed else {
+        hide(cx, guid, true);
+        return;
+    };
+    let Some(o) = cx.guid(guid) else { return };
+    let [x, y] = layout::point_of(view);
+    cx.rt.set_position_xy(o, x, y);
+    cx.rt.set_rotation_z(o, mark.bearing.to_radians());
+    cx.rt.set_texture(o, resource_handle("Minimap_Icon_Car.tga"));
+    cx.rt.set_colour(o, SECOND_PLAYER);
+    hide(cx, guid, false);
 }
 
 /// The player's car on the picture, turned to its bearing. It is hidden when there is no car or it is off the picture.

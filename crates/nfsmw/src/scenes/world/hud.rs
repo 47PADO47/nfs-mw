@@ -47,6 +47,11 @@ impl WorldScene {
             if let Some(blip) = self.route_blip() {
                 state.blips.push(blip);
             }
+            // The co-op guest's car, for the world map's second mark.
+            state.second_player = self.players.first_guest().map(|drive| {
+                let pose = drive.pose();
+                crate::scenes::world::split::map_position(pose.position, pose.rotation * Vec3::X)
+            });
             if let Some(traffic) = self.traffic.as_ref() {
                 traffic.map_blips(&mut state.blips);
                 self.breaker_icons.blips(traffic.is_pursuing(), &mut state.blips);
