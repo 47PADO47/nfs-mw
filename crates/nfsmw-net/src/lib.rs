@@ -16,6 +16,7 @@
 //! - [`settings`]: session settings defaults, validation, a host's patch, and the flat key and value form.
 //! - [`lobby`]: the token buckets of the per-player rate limits.
 //! - [`roles`]: host, admin and player permissions, bans, and the local mute list.
+//! - [`vote`]: kick, restart, mode, track and skip votes counted by the server.
 //! - [`chat`]: chat rate and text rules, quick messages and system notices.
 
 pub mod chat;
@@ -27,3 +28,4 @@ pub mod roles;
 pub mod schema;
 pub mod settings;
 pub mod version;
+pub mod vote;
