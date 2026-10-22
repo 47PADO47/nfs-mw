@@ -18,6 +18,7 @@
 //!   correction statistics and the [`reconcile::Tuning`] values.
 //! - [`interp`]: snapshot buffers of remote cars, traffic and police, the adaptive display delay, interpolation and
 //!   bounded extrapolation.
+//! - [`clock`]: the estimated server tick from PING and PONG, the ping schedule and the input lead.
 
 pub mod input;
 pub mod loadout;
@@ -25,6 +26,7 @@ pub mod message;
 pub mod schema;
 pub mod version;
 
+pub mod clock;
 mod geom;
 pub mod interp;
 pub mod predict;
