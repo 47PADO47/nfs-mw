@@ -171,9 +171,26 @@ fn button(page: Page, family: Family) -> u32 {
     }
 }
 
+/// The rows the standings page has (`PostRace_Results.fng` has ten **[verified]**).
+pub const STANDINGS_ROWS: usize = 10;
+
+/// The standings' racers: the first [`STANDINGS_ROWS`] by place. A player placed below them keeps the last row, so the
+/// page always has the player's own place (`racers[0]` is the player).
+fn standings_racers(report: &RaceReport) -> Vec<&ReportRacer> {
+    let placed = by_place(report);
+    let mut shown: Vec<&ReportRacer> = placed.iter().take(STANDINGS_ROWS).copied().collect();
+    let Some(player) = report.racers.first() else { return shown };
+    let below = placed.iter().position(|r| std::ptr::eq(*r, player)).is_some_and(|at| at >= STANDINGS_ROWS);
+    if below {
+        shown.truncate(STANDINGS_ROWS - 1);
+        shown.push(player);
+    }
+    shown
+}
+
 fn standings(report: &RaceReport, family: Family, units: SpeedUnits) -> Table {
     let third = if family == Family::Trap { label::SPEED } else { label::TIME };
-    let rows = by_place(report)
+    let rows = standings_racers(report)
         .into_iter()
         .map(|racer| {
             let last = match family {
