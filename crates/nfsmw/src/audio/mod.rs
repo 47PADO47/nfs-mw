@@ -157,6 +157,10 @@ pub struct Audio {
     missing: HashSet<(String, usize)>,
     /// The car and upgrade selectors whose sound failed, avoiding repeated loads every frame.
     failed: Option<(String, SoundUpgrades)>,
+    /// The engine of player 2's car in a co-op session: a second voice of the same kind (`drive_second_car`).
+    second_car: Option<car::CarAudio>,
+    /// The selectors of player 2's car whose sound failed, as `failed` keeps them for the first car.
+    second_failed: Option<(String, SoundUpgrades)>,
     /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
     music: Option<StaticSoundHandle>,
 }
@@ -247,6 +251,8 @@ impl Audio {
             interactive: interactive::Interactive::default(),
             missing: HashSet::new(),
             failed: None,
+            second_car: None,
+            second_failed: None,
             music: None,
         };
         if let Some(path) = std::env::var_os("NFSMW_AUDIO_TRACE")
@@ -390,6 +396,7 @@ impl Output {
 impl Drop for Audio {
     fn drop(&mut self) {
         self.car = None;
+        self.second_car = None;
         self.traffic = Default::default();
         self.heli = Default::default();
         self.common = Default::default();
