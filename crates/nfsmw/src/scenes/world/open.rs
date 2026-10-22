@@ -253,6 +253,8 @@ impl WorldScene {
                 story_movie: Default::default(),
                 photo_shot: None,
                 breaker_icons: Default::default(),
+                #[cfg(feature = "multiplayer")]
+                net_client: None,
             };
             scene.switch_default_scenery_groups();
             scene

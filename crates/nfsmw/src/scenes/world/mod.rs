@@ -28,6 +28,7 @@ mod exhaust;
 mod explosion_fx;
 mod finish_flares;
 mod frame;
+mod frame_systems;
 mod garage;
 mod gps;
 mod ground;
@@ -41,6 +42,8 @@ mod mod_hooks;
 mod moment;
 mod moment_world;
 pub mod net;
+#[cfg(feature = "multiplayer")]
+pub mod net_client;
 mod nis;
 mod photo_shot;
 pub mod players;
@@ -289,6 +292,9 @@ pub struct WorldScene {
     photo_shot: Option<photo_shot::PhotoShot>,
     /// The pursuit breakers' minimap icons (`breaker_icons.rs`).
     breaker_icons: breaker_icons::BreakerIcons,
+    /// The multiplayer client this world runs for, if any (`net_client/`): the server owns its rules.
+    #[cfg(feature = "multiplayer")]
+    net_client: Option<net_client::ClientMode>,
 }
 
 /// Leaving the free camera more than this far (metres) from the car brings the car to the camera.

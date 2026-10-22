@@ -11,8 +11,9 @@ mod graphics;
 mod host;
 mod latency;
 pub(crate) mod mirror;
-// The world host of a multiplayer server (`scenes::world::net`) draws with it; the listen host and the dedicated server
-// that drive that host are wired in later (ADR 0011), so outside the tests nothing reaches it yet.
+// The world host of a multiplayer server (`scenes::world::net`) draws with it: the listen server's thread and
+// `--dedicated` (`crate::net`). Its resource tracking is for the tests, and without the `multiplayer` feature only the
+// tests reach it at all.
 #[allow(dead_code)]
 pub(crate) mod null_backend;
 pub mod pacing;
@@ -108,6 +109,9 @@ pub struct RunOptions {
     pub offscreen: bool,
     /// The mods the install was opened with (see [`crate::modding::open_install`]); `None` runs without them.
     pub mods: Option<crate::modding::Mods>,
+    /// The LAN session the game starts with; an idle one without an install when `None`.
+    #[cfg(feature = "multiplayer")]
+    pub net: Option<crate::net::NetPlugin>,
 }
 
 impl RunOptions {
@@ -137,6 +141,8 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         bench_seconds,
         offscreen,
         mods,
+        #[cfg(feature = "multiplayer")]
+        net,
     } = options;
     let plan = screenshot
         .clone()
@@ -240,6 +246,12 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(plugin) = frontend {
         app.add_plugins(plugin);
     }
+    #[cfg(feature = "multiplayer")]
+    app.add_plugins(net.unwrap_or_else(|| crate::net::NetPlugin {
+        dir: None,
+        player: crate::net::PlayerSetup { name: "Player".into(), car: crate::scenes::world::DEFAULT_CAR.into() },
+        start: crate::net::NetStart::Idle,
+    }));
     // Ctrl+C in the terminal ends the game through the app's own exit, not by killing the process, so the run
     // unwinds and the window closes cleanly (Windows would otherwise report STATUS_CONTROL_C_EXIT).
     app.add_plugins(TerminalCtrlCHandlerPlugin);

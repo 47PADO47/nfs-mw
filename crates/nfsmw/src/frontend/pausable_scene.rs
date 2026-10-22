@@ -31,6 +31,12 @@ impl Scene for Pausable {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        // A multiplayer client's world never stops (the server does not pause): it runs on under the menu with
+        // neutral input.
+        if self.paused.get() && self.inner.runs_while_paused() {
+            self.inner.update(renderer, &ActionState::default(), dt);
+            return;
+        }
         if self.paused.get() {
             if self.effects_dirty {
                 self.inner.refresh_effects(renderer);
@@ -333,6 +339,15 @@ impl Scene for Pausable {
 
     fn paused(&self) -> bool {
         self.paused.get() || self.inner.paused()
+    }
+
+    #[cfg(feature = "multiplayer")]
+    fn attach_net_client(&mut self, client: &crate::net::ClientHandle) -> bool {
+        self.inner.attach_net_client(client)
+    }
+
+    fn runs_while_paused(&self) -> bool {
+        self.inner.runs_while_paused()
     }
 
     fn set_tire_effects(&mut self, smoke: bool, marks: bool) {

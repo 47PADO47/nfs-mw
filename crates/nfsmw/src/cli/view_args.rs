@@ -356,6 +356,8 @@ impl ViewArgs {
             audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,
             mods: None,
+            #[cfg(feature = "multiplayer")]
+            net: None,
         }
     }
 

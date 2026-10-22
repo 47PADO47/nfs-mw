@@ -37,6 +37,10 @@ impl WorldScene {
         self.object_fx.release(renderer);
         self.car_damage_fx.release(renderer);
         self.impact_fx.release(renderer);
+        #[cfg(feature = "multiplayer")]
+        if let Some(mode) = self.net_client.as_mut() {
+            mode.release(renderer);
+        }
     }
 }
 

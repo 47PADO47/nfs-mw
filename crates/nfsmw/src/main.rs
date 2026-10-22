@@ -18,6 +18,8 @@ mod hud;
 mod input;
 mod modding;
 mod movie;
+#[cfg(feature = "multiplayer")]
+mod net;
 mod preset_store;
 mod save_format;
 mod saves;

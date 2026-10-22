@@ -13,11 +13,17 @@
 //! - `events/`: the per-tick events (contacts, pursuit, race, moved), from what the world already knows.
 //! - `seat.rs`: joining and leaving.
 //! - `host.rs`, `sim.rs`: the host and its `WorldSim` implementation.
+//! - `control.rs`: `nfsmw_server::WorldControl` (resets, the parked ghost of a dropped player).
+//!
+//! The listen server and the dedicated server that drive the host are in `crate::net` (feature `multiplayer`).
 
-// Nothing outside the tests drives the host yet: the listen host and the dedicated server wire it in (ADR 0011).
+// The host's accessors (the scene, the catalogue, the stalled ticks) are for the tests and the console; without the
+// `multiplayer` feature only the tests drive the host at all.
 #![allow(dead_code)]
 
 pub mod catalog;
+#[cfg(feature = "multiplayer")]
+mod control;
 mod events;
 mod export;
 pub mod flags;

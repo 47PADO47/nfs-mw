@@ -38,6 +38,11 @@ impl CarCatalog {
         index.and_then(|index| u16::try_from(index).ok()).filter(|&n| n != UNKNOWN_TYPE).unwrap_or(UNKNOWN_TYPE)
     }
 
+    /// The folder of the car with type number `number` ([`CarCatalog::type_number`]), if the install has it.
+    pub fn folder_at(&self, number: u16) -> Option<&str> {
+        self.folders.get(usize::from(number)).map(String::as_str)
+    }
+
     pub fn len(&self) -> usize {
         self.folders.len()
     }
@@ -62,6 +67,8 @@ mod tests {
         assert_eq!([catalog.type_number("BMWM3GTR"), catalog.type_number("copmidsize")], [0, 1]);
         assert_eq!(catalog.type_number("elise"), 2);
         assert_eq!(catalog.type_number("NOSUCHCAR"), UNKNOWN_TYPE);
+        assert_eq!(catalog.folder_at(catalog.type_number("elise")), Some("ELISE"));
+        assert_eq!(catalog.folder_at(UNKNOWN_TYPE), None);
     }
 
     #[test]
