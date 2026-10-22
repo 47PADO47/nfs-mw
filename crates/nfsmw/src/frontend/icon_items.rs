@@ -45,6 +45,8 @@ pub enum Id {
     /// The pause menu's items in a race: Resume Race and Restart.
     ResumeRace,
     RestartRace,
+    /// The pause menu's End Co-op row, listed only while a co-op session is on (`pause_icons`); plain text label.
+    EndCoop,
     /// Quit to the menu the game was started from; the name and the question follow [`QuitTo`].
     Quit(QuitTo),
     /// The safe house menu's items (`career_screens/safehouse_menu.rs`); Blacklist carries the stage it opens.
@@ -162,8 +164,11 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
 const RESUME_TEXTURE: u32 = 0x12BB_5EA2;
 const QUIT_TEXTURE: u32 = 0x4C9E_34E6;
 
-/// The pause menu's items: resume, restart (a race only), options, quit. The original puts quit before options; the
-/// rewrite keeps its own order, with the new items first (docs/specs/career-parity-menus.md, section 5).
+/// The pause menu's items: resume, restart (a race only), options, end co-op (a co-op session only), quit. The original
+/// puts quit before options; the rewrite keeps its own order, with the new items first
+/// (docs/specs/career-parity-menus.md, section 5). End Co-op (docs/specs/coop-career.md, section 3.2) takes the quit
+/// picture, since it also leaves a session, and its label is plain text (`vertical.rs`, `special_text`), as the
+/// Discord row's is.
 pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     let mut list = Vec::new();
     match ctx.race {
@@ -174,6 +179,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
         false => list.push(icon(Id::Resume, RESUME_TEXTURE, 0x01BD_185C, true)),
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
+    if ctx.coop {
+        list.push(icon(Id::EndCoop, QUIT_TEXTURE, 0, true));
+    }
     let quit = match ctx.quit {
         QuitTo::Main => 0xE950_B7AF,
         QuitTo::QuickRace => 0x4349_998B,
@@ -248,6 +256,18 @@ mod tests {
         assert_eq!(pause[3].id, Id::Category(Category::Player));
         assert!(pause[3].enabled);
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
+    }
+
+    #[test]
+    fn end_coop_shows_only_in_coop() {
+        let solo = pause_icons(PauseCtx { coop: false, ..PauseCtx::default() });
+        assert!(solo.iter().all(|i| i.id != Id::EndCoop), "no End Co-op outside a co-op session");
+        let coop = pause_icons(PauseCtx { coop: true, ..PauseCtx::default() });
+        let end = coop.iter().filter(|i| i.id == Id::EndCoop).collect::<Vec<_>>();
+        assert_eq!(end.len(), 1, "one End Co-op row in a co-op session");
+        assert!(end[0].enabled);
+        assert_eq!(coop.len(), solo.len() + 1, "End Co-op is the only extra row");
+        assert_eq!(coop.last().map(|i| i.id), Some(Id::Quit(QuitTo::Main)), "Quit stays last");
     }
 
     #[test]

@@ -87,6 +87,7 @@ impl IconMenu {
             }
             (Kind::SafeHouse, Pending::Pressed(id)) => safehouse_menu::press(cx, self.args, id),
             (Kind::Pause, Pending::Pressed(Id::Resume | Id::ResumeRace)) => cx.send(Command::Resume),
+            (Kind::Pause, Pending::Pressed(Id::EndCoop)) => cx.send(Command::EndCoop),
             (Kind::Pause, Pending::Pressed(Id::RestartRace)) => {
                 cx.send(Command::Confirm(Confirm::restart_race(Command::RestartRace)));
             }

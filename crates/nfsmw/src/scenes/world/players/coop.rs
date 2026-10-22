@@ -64,8 +64,18 @@ impl WorldScene {
         self.coop.as_ref()?.names.get(usize::from(id.0)).map(String::as_str)
     }
 
-    /// Bring the queued guest in behind the lead. A car that cannot load is logged and co-op does not start.
+    /// Ask for co-op to end on the next frame, when `start_queued_coop` has a renderer to take player 2's car out.
+    pub fn queue_end_coop(&mut self) {
+        self.end_coop_queued = true;
+    }
+
+    /// Bring the queued guest in behind the lead. A car that cannot load is logged and co-op does not start. A queued
+    /// end comes first, so a session ended and started in the same frame ends before the new one joins.
     pub(in crate::scenes::world) fn start_queued_coop(&mut self, renderer: &mut dyn RenderBackend) {
+        if self.end_coop_queued {
+            self.end_coop_queued = false;
+            self.end_coop(renderer);
+        }
         let Some(setup) = self.queued_coop.take() else { return };
         let Some(lead) = self.players.lead() else {
             log::warn!("co-op needs the lead's car in the world first");

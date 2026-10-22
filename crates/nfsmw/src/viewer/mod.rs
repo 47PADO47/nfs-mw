@@ -221,6 +221,9 @@ pub trait Scene {
     fn coop_second_device(&self) -> Option<crate::input::CoopDevice> {
         None
     }
+    /// Ends the co-op session on the next frame (the pause menu's End Co-op): player 2's car leaves the world. A scene
+    /// with no co-op ignores it.
+    fn end_coop(&mut self) {}
     /// A split-screen race is on: the picture is two views, one per player (`split_view`), each with its own HUD
     /// (`split_hud_state`), and the main `frame` draws nothing of its own.
     fn split_active(&self) -> bool {

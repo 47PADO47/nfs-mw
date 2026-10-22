@@ -210,6 +210,8 @@ pub struct WorldScene {
     coop: Option<players::coop::CoopSession>,
     /// A co-op session the front end asked for, started on the next frame.
     queued_coop: Option<players::coop::CoopSetup>,
+    /// Co-op ends on the next frame, when the front end's End Co-op asked for it (`players/coop.rs`).
+    end_coop_queued: bool,
     /// What the mods set about the races and what they can read of them (`race/mods.rs`).
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.

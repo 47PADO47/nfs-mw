@@ -360,7 +360,8 @@ impl Frontend {
         self.paused.set(true);
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
-        let pause_ctx = PauseCtx { race, quit: self.origin };
+        let coop = crate::career::coop_players() > 1;
+        let pause_ctx = PauseCtx { race, quit: self.origin, coop };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -417,6 +418,11 @@ impl Frontend {
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
+                Command::EndCoop => {
+                    host.scene.end_coop();
+                    crate::career::set_coop_players(1);
+                    self.resume_driving(env);
+                }
                 Command::SetWaypoint(target) => {
                     host.scene.set_waypoint(Some(target));
                     self.resume_driving(env);

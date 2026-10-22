@@ -40,7 +40,7 @@ impl Default for Args {
             safehouse: false,
             rival: 0,
             sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main },
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false },
             custom: false,
             sequence: false,
             first_car: false,
