@@ -7,7 +7,7 @@
 //!   fixed-step timer), admission, lobby, chat, votes, modes, snapshots, drops, resumes, strikes and the replay.
 //! - [`WorldControl`]: what the server asks of a world beyond `WorldSim` (resets, ghost cars), with defaults.
 //! - [`ServerConfig`]: the TOML config file and its checks (MP-25, MP-84).
-//! - [`bot`]: scripted bot clients over the client session.
+//! - [`bot`]: scripted bot clients over the client session; [`attach_bots`] wires them into the binary.
 //! - [`logging`]: the `log` backend (stderr and a file). [`timer`]: the drift-free tick timer.
 //! - [`catalog`]: the game data loadouts are checked against; [`catalog::OpenCatalog`] for the toy world.
 //!
@@ -17,12 +17,14 @@ pub mod bot;
 pub mod catalog;
 pub mod config;
 mod control;
+mod hooks;
 pub mod logging;
 mod server;
 pub mod timer;
 
 pub use config::{ConfigError, ServerConfig};
 pub use control::WorldControl;
+pub use hooks::{Hook, attach_bots};
 pub use server::{
     KICK_SCORE, RESYNC_SCORE, Server, ServerSetup, ServerStats, TickHook, Verdict, Violation, WARN_SCORE, bind,
     endpoint_config, toy_build,
