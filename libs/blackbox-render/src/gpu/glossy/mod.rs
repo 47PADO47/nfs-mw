@@ -54,6 +54,8 @@ pub(super) struct Glossy {
     static_environment: wgpu::TextureView,
     irradiance: irradiance::Irradiance,
     filtered: Option<prefilter::Prefilter>,
+    /// Whether `scene` references a local capture cube, which lives as long as its texture and is drawn into in place.
+    capture_bound: bool,
     /// Group 3 per material.
     materials: Slots<Material>,
     /// The vehicle reflection brightness the material blocks were last packed with.
@@ -127,6 +129,7 @@ impl Glossy {
             static_environment: view,
             irradiance,
             filtered,
+            capture_bound: false,
             materials: Slots::new(),
             brightness: 1.0,
         }
@@ -153,6 +156,7 @@ impl Glossy {
         );
         self.environment = view.clone();
         self.faces = face_view.clone();
+        self.capture_bound = true;
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
@@ -163,10 +167,29 @@ impl Glossy {
         self.scene = self.static_scene.clone();
         self.environment = self.static_environment.clone();
         self.faces = self.static_faces.clone();
+        self.capture_bound = false;
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
         }
+    }
+
+    /// Whether [`use_environment`](Self::use_environment) is still what the scene group holds. A capture binds its cube
+    /// once, not on every refresh: the texture is the same, only its contents change.
+    pub(super) fn capture_bound(&self) -> bool {
+        self.capture_bound
+    }
+
+    /// Project the bound environment into the diffuse light, recorded after the passes that drew it.
+    /// Every face of the bound capture cube is fresh: the prefiltered copy follows on the next irradiance update.
+    pub(super) fn environment_refreshed(&mut self) {
+        if let Some(filter) = &mut self.filtered {
+            filter.dirty = true;
+        }
+    }
+
+    pub(super) fn encode_irradiance(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) {
+        self.irradiance.encode(device, encoder, &self.environment, &self.sampler);
     }
 
     pub(super) fn bind_scene(&self, pass: &mut wgpu::RenderPass<'_>) {
@@ -372,6 +395,7 @@ impl Renderer {
         glossy.static_faces = face_view;
         glossy.environment = view.clone();
         glossy.static_environment = view;
+        glossy.capture_bound = false;
         glossy.irradiance.dirty = true;
         if let Some(filter) = &mut glossy.filtered {
             filter.dirty = true;

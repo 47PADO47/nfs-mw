@@ -1,5 +1,6 @@
 //! End-to-end captures: off-screen scenery reaches the native glossy shader.
 use crate::{Renderer, RendererOptions};
+use blackbox_gfx::reflection::ALL_FACES;
 use blackbox_gfx::*;
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use blackbox_gpu_passes::test_support::serial;
@@ -86,6 +87,7 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
                 quality: ReflectionQuality::Low,
                 frame,
                 faces: [&walls; 6],
+                refresh: ALL_FACES,
             }));
             backend.render(&frame, &main).unwrap();
         }
@@ -106,6 +108,7 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
         quality: ReflectionQuality::High,
         frame,
         faces: [&walls; 6],
+        refresh: ALL_FACES,
     }));
     for _ in 0..6 {
         backend.render(&frame, &main).unwrap();
@@ -116,6 +119,7 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
         quality: ReflectionQuality::High,
         frame,
         faces: [&walls; 6],
+        refresh: ALL_FACES,
     }));
     for _ in 0..6 {
         backend.render(&frame, &main).unwrap();
@@ -157,6 +161,7 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
             quality: ReflectionQuality::Low,
             frame,
             faces: [&[], &[], &[], &walls, &[], &[]],
+            refresh: ALL_FACES,
         }));
         backend.render(&frame, &main).unwrap();
     }

@@ -32,6 +32,20 @@ impl Irradiance {
         if !self.dirty {
             return;
         }
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("diffuse probe update") });
+        self.encode(device, &mut encoder, cube, sampler);
+        queue.submit([encoder.finish()]);
+    }
+
+    /// Records the projection of `cube` into `encoder`, after the passes that drew it, and marks the light current.
+    pub fn encode(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        cube: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) {
         let pipeline = self.pipeline.get_or_insert_with(|| {
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("diffuse environment projection"),
@@ -55,8 +69,6 @@ impl Irradiance {
                 wgpu::BindGroupEntry { binding: 2, resource: self.buffer.as_entire_binding() },
             ],
         });
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("diffuse probe update") });
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("diffuse probe update"),
@@ -66,7 +78,6 @@ impl Irradiance {
             pass.set_bind_group(0, &inputs, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
-        queue.submit([encoder.finish()]);
         self.dirty = false;
     }
 }

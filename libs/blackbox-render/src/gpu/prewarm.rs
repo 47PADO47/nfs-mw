@@ -6,7 +6,7 @@
 //! of the output's format and size. Every lazy cache the frame fills (scene pipelines per colour format, the sky,
 //! normal and window families, the effect layer, the shadow, depth-prepass, AO, contact and screen-reflection
 //! passes, the post chain, the upscaler, SMAA, the UI) is then filled exactly as a real frame would fill it, with
-//! no second code path to keep in step. The environment cube capture and its store pass are warmed the same way.
+//! no second code path to keep in step. The environment cube capture is warmed the same way.
 //!
 //! What it cannot know: pipelines for outputs it is never asked to draw (the rear-view mirror's RGBA8 picture
 //! with its own post chain, screenshots, the projected-reflection blur) and anything that depends on resources
@@ -16,6 +16,7 @@ use std::time::Instant;
 
 use blackbox_gfx::{
     Fog, FrameParams, GraphicsSettings, Instance, Projection, ReflectionQuality, ReflectionScene, RenderExperiments,
+    reflection::ALL_FACES,
 };
 use glam::{Mat4, Vec3};
 
@@ -125,7 +126,7 @@ impl Renderer {
         self.temporal.stop();
     }
 
-    /// The environment cube capture (six scene passes and the store pass) when reflections are on, else the
+    /// The environment cube capture (six scene passes) when reflections are on, else the
     /// scene pipelines the projected capture draws with when the world uses authored reflective materials.
     fn warm_captures(&mut self, frame: &FrameParams) {
         let quality = self.graphics.reflections;
@@ -136,6 +137,7 @@ impl Renderer {
                 quality,
                 frame: *frame,
                 faces: [nothing; 6],
+                refresh: ALL_FACES,
             }));
             // The capture is kept, so the first real one reuses it, but it is empty: glossy surfaces keep the
             // static environment until a real capture replaces it.

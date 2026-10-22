@@ -286,7 +286,13 @@ pub struct ReflectionScene<'a> {
     pub frame: FrameParams,
     /// Frustum/LOD-selected scenery for each face, including objects behind the main camera.
     pub faces: [&'a [Instance]; 6],
+    /// Bit `n` set: face `n` is drawn by this call. A clear bit keeps that face's last capture and its `faces` entry
+    /// is not read. [`ALL_FACES`] is a whole snapshot; a backend that ignores the mask must draw every face.
+    pub refresh: u8,
 }
+
+/// Every face of the cube.
+pub const ALL_FACES: u8 = 0b11_1111;
 
 /// RH face cameras (+X, -X, +Y, -Y, +Z, -Z). A capture must flip the image vertically
 /// when storing it: standard cube addressing has the opposite handedness to a RH camera.

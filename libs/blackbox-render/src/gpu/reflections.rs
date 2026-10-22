@@ -1,12 +1,20 @@
 //! Local scenery captures using the existing scene shader, without post effects or readback.
-use blackbox_gfx::{ReflectionQuality, ReflectionScene, reflection::face_frame};
-use blackbox_gpu_passes::{Blend, Draw, Filter, REFLECTION_STORE_WGSL, filter_source};
+//!
+//! The scene is drawn straight into the cube's face views. The cube addresses its faces with the opposite handedness
+//! to the right-handed face cameras, so each camera's image is flipped vertically in the view (the scene pipelines
+//! draw both sides, so the mirrored winding changes nothing). A call may refresh only some faces; the others keep
+//! their last image.
+use blackbox_gfx::{
+    ReflectionQuality, ReflectionScene,
+    reflection::{ALL_FACES, face_frame},
+};
+use glam::{Mat4, Vec3};
 
 use super::{
     Renderer,
     instances::InstanceBuffer,
     resources::Globals,
-    targets::{FrameTargets, SceneTargets},
+    targets::{ScenePlan, SceneTargets},
 };
 
 /// Separate buffers keep all six camera/instance uploads valid in one queue submission.
@@ -47,16 +55,12 @@ pub(super) struct ReflectionCapture {
     face_array: wgpu::TextureView,
     faces: [wgpu::TextureView; 6],
     views: [CaptureView; 6],
-    store: Filter,
+    /// The faces drawn since the diffuse light was last projected from the cube.
+    covered: u8,
 }
 
 impl ReflectionCapture {
-    fn new(
-        device: &wgpu::Device,
-        layout: &wgpu::BindGroupLayout,
-        size: u32,
-        cache: Option<&wgpu::PipelineCache>,
-    ) -> Self {
+    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, size: u32) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("local environment cube"),
             size: wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 6 },
@@ -89,13 +93,12 @@ impl ReflectionCapture {
             face_array,
             faces,
             views: std::array::from_fn(|_| CaptureView::new(device, layout)),
-            scene: SceneTargets::Offscreen(Box::new(FrameTargets::new(
+            // Only a depth buffer: the colour goes into each face view.
+            scene: SceneTargets::new(
                 device,
-                wgpu::TextureFormat::Rgba8Unorm,
-                (size, size),
-            ))),
-            store: Filter::new(device, "environment cube store", &filter_source(REFLECTION_STORE_WGSL))
-                .with_pipeline_cache(cache.cloned()),
+                &ScenePlan { direct: true, format: wgpu::TextureFormat::Rgba8Unorm, size: (size, size), motion: false },
+            ),
+            covered: 0,
         }
     }
 }
@@ -116,42 +119,58 @@ impl Renderer {
             output_height,
             blackbox_gfx::reflection::PLANAR_MAX,
         );
-        let mut capture = self.reflections.take().filter(|p| p.size == size).unwrap_or_else(|| {
-            let layout = &self.shared.bindings.globals_layout;
-            ReflectionCapture::new(&self.device, layout, size, self.pipeline_cache.as_ref())
-        });
+        let (mut capture, created) = match self.reflections.take().filter(|p| p.size == size) {
+            Some(capture) => (capture, false),
+            None => (ReflectionCapture::new(&self.device, &self.shared.bindings.globals_layout, size), true),
+        };
+        // A fresh cube holds nothing yet, so it is drawn whole whatever the caller asked for.
+        let faces = match created {
+            true => ALL_FACES,
+            false => scene.refresh & ALL_FACES,
+        };
+        // The cube texture outlives its captures, so the glossy group is built once, not on every refresh.
+        if let Some(glossy) = self.glossy.as_mut()
+            && (created || !glossy.capture_bound())
+        {
+            glossy.use_environment(&self.device, &capture.cube, &capture.face_array);
+        }
+        if faces != 0 {
+            self.draw_cube_faces(&mut capture, &scene, faces);
+        }
+        self.reflections = Some(capture);
+    }
+
+    /// Draws `faces` of the cube in one submission. Once every face has been drawn since the last time, the diffuse
+    /// light is projected from the cube, in the same submission, instead of once per capture.
+    fn draw_cube_faces(&mut self, capture: &mut ReflectionCapture, scene: &ReflectionScene<'_>, faces: u8) {
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("environment capture") });
-        for face in 0..6 {
-            let frame = face_frame(scene.origin, face, &scene.frame);
-            let output = &capture.scene.offscreen().expect("capture is offscreen").color_view;
+        let flip = Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0));
+        for face in (0..6usize).filter(|&face| (faces >> face) & 1 != 0) {
+            let mut frame = face_frame(scene.origin, face, &scene.frame);
+            frame.view = flip * frame.view;
             self.encode_scene_mode(
                 &mut encoder,
                 Some(&capture.scene),
-                output,
+                &capture.faces[face],
                 &frame,
                 scene.faces[face],
                 false,
                 Some(&mut capture.views[face]),
             );
-            capture.store.draw(
-                &self.device,
-                &mut encoder,
-                &Draw {
-                    entry: "fs_store",
-                    src: output,
-                    src2: output,
-                    target: &capture.faces[face],
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    blend: Blend::Replace,
-                },
-            );
+        }
+        capture.covered |= faces;
+        if capture.covered == ALL_FACES {
+            capture.covered = 0;
+            let projects = self.experiments.car_skylight && self.supports_irradiance();
+            if let Some(glossy) = self.glossy.as_mut() {
+                glossy.environment_refreshed();
+            }
+            if projects && let Some(glossy) = self.glossy.as_mut() {
+                glossy.encode_irradiance(&self.device, &mut encoder);
+            }
         }
         // Dedicated face buffers avoid overwriting queued draws, without six separate submissions.
         self.queue.submit([encoder.finish()]);
-        if let Some(glossy) = self.glossy.as_mut() {
-            glossy.use_environment(&self.device, &capture.cube, &capture.face_array);
-        }
-        self.reflections = Some(capture);
     }
 }
