@@ -10,9 +10,18 @@
 //! - [`message`]: every reliable message of the protocol and its bounded, versioned codec.
 //! - [`version`]: protocol versions, the game-data and sim-build ids, the mod list and the join compatibility decision.
 //! - [`loadout`]: car selection by ids and its validation against the caller's game data.
+//!
+//! The gameplay rules the server runs on top of the world:
+//!
+//! - [`modes`]: one state machine per game mode (free roam, circuit, sprint, speedtrap, knockout, pursuit co-op, tag),
+//!   fed by [`nfsmw_sim::SimEvent`]s and car samples, returning the events clients hear; the custom rules (MP-11) and
+//!   the modes this build refuses (drag, human cops).
+//! - [`results`]: the per-race result record (fixed and versioned), session stats and their result message.
 
 pub mod input;
 pub mod loadout;
 pub mod message;
+pub mod modes;
+pub mod results;
 pub mod schema;
 pub mod version;

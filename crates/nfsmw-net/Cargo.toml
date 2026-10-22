@@ -9,6 +9,8 @@ publish.workspace = true
 
 [dependencies]
 blackbox-net-core.workspace = true
+blackbox-pursuit.workspace = true
+blackbox-race.workspace = true
 blackbox-vehicle.workspace = true
 nfsmw-sim.workspace = true
 sha2.workspace = true

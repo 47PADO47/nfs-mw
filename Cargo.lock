@@ -4001,6 +4001,8 @@ name = "nfsmw-net"
 version = "0.1.0"
 dependencies = [
  "blackbox-net-core",
+ "blackbox-pursuit",
+ "blackbox-race",
  "blackbox-vehicle",
  "nfsmw-sim",
  "sha2",
