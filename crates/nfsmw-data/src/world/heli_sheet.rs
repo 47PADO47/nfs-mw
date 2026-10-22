@@ -2,7 +2,7 @@
 //! (`docs/formats/pursuit-data.md` section 1). The stream file is hundreds of megabytes, so the chunks are found by
 //! walking the top-level headers with small reads, and only the sheet payloads are read.
 
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io::{self, BufReader, Read};
 
 use blackbox_chunk::ids::HELI_SHEET;
 use blackbox_roads::HeliSheet;
@@ -10,19 +10,22 @@ use game_install::GameDir;
 
 /// The chunk header: id and size, eight bytes.
 const HEADER: u64 = 8;
+/// The read buffer. Most top-level chunks are a few hundred bytes to a few kilobytes, so one fill serves many headers
+/// and the walk skips inside the buffer instead of seeking the file chunk by chunk.
+const BUFFER: usize = 256 * 1024;
 /// The id that marks a compressed blob in place of a header; the walk does not follow those.
 const BARE_JDLZ: u32 = blackbox_chunk::BARE_JDLZ_ID;
 
 /// Reads the sheet of the stream file `stream_file` (relative to the install). Sections whose sheet does not parse are
 /// skipped and counted in the log.
 pub fn read(dir: &GameDir, stream_file: &str) -> io::Result<HeliSheet> {
-    let mut file = dir.open_file(stream_file)?;
+    let file = dir.open_file(stream_file)?;
     let len = file.metadata()?.len();
+    let mut file = BufReader::with_capacity(BUFFER, file);
     let mut at = 0u64;
     let mut triangles = Vec::new();
     let mut skipped = 0usize;
     while at + HEADER <= len {
-        file.seek(SeekFrom::Start(at))?;
         let mut header = [0u8; 8];
         file.read_exact(&mut header)?;
         let id = u32::from_le_bytes(header[0..4].try_into().expect("four bytes"));
@@ -36,13 +39,17 @@ pub fn read(dir: &GameDir, stream_file: &str) -> io::Result<HeliSheet> {
         if at + HEADER + size > len {
             return Err(io::Error::new(io::ErrorKind::InvalidData, format!("chunk at {at} overruns the file")));
         }
-        if id == HELI_SHEET {
-            let mut payload = vec![0u8; size as usize];
-            file.read_exact(&mut payload)?;
-            match HeliSheet::parse_section(&payload) {
-                Some((_, sheet)) => triangles.extend(sheet),
-                None => skipped += 1,
-            }
+        if id != HELI_SHEET {
+            // Skipped inside the buffer when the payload is short enough, else the file is advanced.
+            file.seek_relative(i64::try_from(size).map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?)?;
+            at += HEADER + size;
+            continue;
+        }
+        let mut payload = vec![0u8; size as usize];
+        file.read_exact(&mut payload)?;
+        match HeliSheet::parse_section(&payload) {
+            Some((_, sheet)) => triangles.extend(sheet),
+            None => skipped += 1,
         }
         at += HEADER + size;
     }
