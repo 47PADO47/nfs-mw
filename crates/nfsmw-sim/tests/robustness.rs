@@ -4,9 +4,9 @@ mod common;
 
 use blackbox_vehicle::InputState;
 use common::*;
+use nfsmw_sim::SimInputs;
 use nfsmw_sim::runner::{PerPlayer, Runner, WanderScript};
 use nfsmw_sim::toy::{RaceConfig, ToyConfig};
-use nfsmw_sim::SimInputs;
 
 fn hostile(n: u8, tick: u32) -> InputState {
     let values = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, f32::MAX, f32::MIN, -0.0, 0.0, 1.0e-45, 7.5, -7.5];

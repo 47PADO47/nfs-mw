@@ -4,9 +4,9 @@ mod common;
 
 use blackbox_vehicle::InputState;
 use common::*;
+use nfsmw_sim::SimEvent;
 use nfsmw_sim::runner::{PerPlayer, Runner, WanderScript};
 use nfsmw_sim::toy::{CAR_RADIUS, ToyConfig, ToyWorld};
-use nfsmw_sim::SimEvent;
 
 fn contacts(runner: &Runner<ToyWorld>) -> Vec<(u32, u16, u16, f32)> {
     log_of(runner, |event| match event {
