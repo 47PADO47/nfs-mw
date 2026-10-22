@@ -457,7 +457,7 @@ A frame in `blackbox-render` takes the cheapest path that gives the requested lo
 
 - **Targets:** Windows (x86_64-pc-windows-msvc) and Linux (x86_64-unknown-linux-gnu). CI builds and tests
   both ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
-- **One system package at build time, on Linux: `libudev-dev` (and `pkg-config`)**, which gamepad support (gilrs) links against.
+- **Two system packages at build time, on Linux: `libudev-dev` and `libasound2-dev` (and `pkg-config`)**, which gamepad support (gilrs) and the sound output (cpal) link against.
   winit (inside `bevy_winit`) and wgpu load X11, Wayland, Vulkan and EGL dynamically, so those need nothing to build.
 - **Linux installs:** point `--game-dir`, `.env` or the config file at the game folder (for example in a
   Wine prefix). There is no registry lookup on Linux.
