@@ -10,6 +10,7 @@ mod display;
 #[cfg(all(windows, feature = "streamline"))]
 mod dlss;
 mod draw_list;
+mod draw_mask;
 mod effects;
 mod filtering;
 mod frame;
@@ -34,6 +35,7 @@ mod prewarm;
 #[cfg(test)]
 mod prewarm_tests;
 mod projected;
+mod redirects;
 #[cfg(test)]
 mod reflection_tests;
 mod reflections;
@@ -128,7 +130,7 @@ pub struct Renderer {
     window: Option<window::Window>,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
-    redirects: std::collections::HashMap<usize, usize>,
+    redirects: redirects::Redirects,
     /// The colour pass's draws, bucketed by pipeline. Rebuilt by each scene pass; kept for its capacity.
     draw_list: draw_list::DrawList,
     /// The driver's pipeline cache (Vulkan), which every pipeline built by this renderer takes.

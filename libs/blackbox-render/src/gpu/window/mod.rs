@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-use super::{Renderer, meshes::GpuMesh, normal::pipeline, pipelines::BLEND_ORDER, slots::Slots};
+use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, normal::pipeline, pipelines::BLEND_ORDER, slots::Slots};
 use blackbox_gfx::{BlendMode, Shading, WindowMaterialDesc, WindowMaterialHandle};
 use std::collections::HashMap;
 
@@ -75,41 +75,45 @@ impl Window {
         });
     }
 
+    /// Draw the architectural glass of blend mode `mode`: `list` holds only those draws, in the order they were
+    /// given. The material and the mesh's buffers are bound only when they change.
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
         mode: BlendMode,
         meshes: &'a Slots<GpuMesh>,
-        instances: &[blackbox_gfx::Instance],
+        list: &[LayerCmd],
         shadows: &'a wgpu::BindGroup,
     ) {
+        if list.is_empty() {
+            return;
+        }
         let Some(pipelines) = self.pipelines.get(&format) else { return };
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
         pass.set_pipeline(&pipelines[index]);
         pass.set_bind_group(2, shadows, &[]);
-        let mut first = 0;
-        while first < instances.len() {
-            let handle = instances[first].mesh;
-            let end = first + instances[first..].iter().take_while(|i| i.mesh == handle).count();
-            if let Some(mesh) = meshes.get(handle.raw()) {
-                for draw in &mesh.draws {
-                    if draw.blend != mode {
-                        continue;
-                    }
-                    let Shading::WorldWindow(handle) = draw.shading else { continue };
-                    let Some(material) = self.materials.get(handle.raw()) else { continue };
-                    pass.set_bind_group(1, &material.group, &[]);
-                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    pass.draw_indexed(
-                        draw.first_index..draw.first_index + draw.index_count,
-                        draw.base_vertex,
-                        first as u32..end as u32,
-                    );
-                }
+        let mut bound_mesh = None;
+        let mut bound_material = None;
+        for cmd in list {
+            let Some(mesh) = meshes.get(cmd.mesh) else { continue };
+            let Some(draw) = mesh.draws.get(cmd.draw as usize) else { continue };
+            let Shading::WorldWindow(handle) = draw.shading else { continue };
+            let Some(material) = self.materials.get(handle.raw()) else { continue };
+            if bound_material != Some(handle.raw()) {
+                pass.set_bind_group(1, &material.group, &[]);
+                bound_material = Some(handle.raw());
             }
-            first = end;
+            if bound_mesh != Some(cmd.mesh) {
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
+                bound_mesh = Some(cmd.mesh);
+            }
+            pass.draw_indexed(
+                draw.first_index..draw.first_index + draw.index_count,
+                draw.base_vertex,
+                cmd.instances.0..cmd.instances.1,
+            );
         }
     }
 }

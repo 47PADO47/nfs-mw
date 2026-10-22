@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use blackbox_gfx::{SkyMaterialDesc, SkyMaterialHandle, SkyState};
 use wgpu::util::DeviceExt;
 
-use super::{Renderer, meshes::GpuMesh, slots::Slots};
+use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, slots::Slots};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -86,34 +86,46 @@ impl Sky {
         }
     }
 
+    /// Draw the sky layers: each layer kind in turn, over every sky draw of the view in instance order. `list`
+    /// holds only the sky draws, so a view with no sky costs nothing here. State is bound only when it changes.
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
         meshes: &'a Slots<GpuMesh>,
-        instances: &[blackbox_gfx::Instance],
+        list: &[LayerCmd],
     ) {
+        if list.is_empty() {
+            return;
+        }
         let Some(pipelines) = self.pipelines.get(&format) else { return };
         for kind in
             [blackbox_gfx::SkyLayerKind::Base, blackbox_gfx::SkyLayerKind::Cloud2, blackbox_gfx::SkyLayerKind::Cloud3]
         {
             pass.set_pipeline(&pipelines[usize::from(kind != blackbox_gfx::SkyLayerKind::Base)]);
-            for (index, instance) in instances.iter().enumerate() {
-                let Some(mesh) = meshes.get(instance.mesh.raw()) else { continue };
-                for draw in &mesh.draws {
-                    let blackbox_gfx::Shading::SkyLayer(handle) = draw.shading else { continue };
-                    let Some(material) = self.materials.get(handle.raw()).filter(|m| m.kind == kind) else { continue };
+            let mut bound_mesh = None;
+            let mut bound_material = None;
+            for cmd in list {
+                let Some(mesh) = meshes.get(cmd.mesh) else { continue };
+                let Some(draw) = mesh.draws.get(cmd.draw as usize) else { continue };
+                let blackbox_gfx::Shading::SkyLayer(handle) = draw.shading else { continue };
+                let Some(material) = self.materials.get(handle.raw()).filter(|m| m.kind == kind) else { continue };
+                let Some(secondary_uvs) = &mesh.secondary_uvs else { continue };
+                if bound_material != Some(handle.raw()) {
                     pass.set_bind_group(1, &material.bind_group, &[]);
+                    bound_material = Some(handle.raw());
+                }
+                if bound_mesh != Some(cmd.mesh) {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    let Some(secondary_uvs) = &mesh.secondary_uvs else { continue };
                     pass.set_vertex_buffer(2, secondary_uvs.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    pass.draw_indexed(
-                        draw.first_index..draw.first_index + draw.index_count,
-                        draw.base_vertex,
-                        index as u32..index as u32 + 1,
-                    );
+                    bound_mesh = Some(cmd.mesh);
                 }
+                pass.draw_indexed(
+                    draw.first_index..draw.first_index + draw.index_count,
+                    draw.base_vertex,
+                    cmd.instances.0..cmd.instances.1,
+                );
             }
         }
     }

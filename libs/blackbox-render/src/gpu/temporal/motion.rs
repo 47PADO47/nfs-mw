@@ -213,7 +213,7 @@ impl MotionPass {
                     pass.set_pipeline(pipeline);
                     bound_pipeline = Some(pipeline);
                 }
-                let slot = draw.texture.map(|t| renderer.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
+                let slot = draw.texture.map(|t| renderer.redirects.resolve(t.raw()));
                 let Some(texture) = slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)) else {
                     continue;
                 };

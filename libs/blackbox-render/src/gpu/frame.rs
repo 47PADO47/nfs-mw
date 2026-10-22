@@ -300,6 +300,10 @@ impl Renderer {
         {
             window.prepare(&self.device, format, self.pipeline_cache.as_ref());
         }
+        // Every instance run and draw is sorted into the pass's lists once, up front: the sky, normal-map, window
+        // and colour draws below walk their own list instead of every instance. A draw is only skipped there when
+        // this view's rules (projected, reflection, original materials) exclude it.
+        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -332,26 +336,30 @@ impl Renderer {
         pass.set_bind_group(0, &bind_group, &[]);
         pass.set_vertex_buffer(1, instance_buffer.slice(..));
         if let Some(sky) = &self.sky {
-            sky.draw(&mut pass, format, &self.meshes, instances);
+            sky.draw(&mut pass, format, &self.meshes, self.draw_list.sky());
         }
 
-        // Every instance run and draw was sorted into its pipeline's bucket up front. A draw is only skipped
-        // here when this view's rules (projected, reflection, original materials) exclude it.
-        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
         let original = self.experiments.original_world_materials;
         for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
             if original
                 && !projected
                 && let Some(normal) = &self.normal
             {
-                normal.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
+                let list = self.draw_list.normal(mode_index);
+                normal.draw(&mut pass, format, mode, &self.meshes, list, &self.shared.shadows.fallback);
             }
             if (original || projected)
                 && let Some(window) = &self.window
             {
-                window.draw(&mut pass, format, mode, &self.meshes, instances, &self.shared.shadows.fallback);
+                let list = self.draw_list.window(mode_index);
+                window.draw(&mut pass, format, mode, &self.meshes, list, &self.shared.shadows.fallback);
             }
             for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
+                let slot = mode_index * SHADINGS.len() + shading_index;
+                let bucket = self.draw_list.bucket(slot);
+                if bucket.is_empty() {
+                    continue;
+                }
                 if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))
                     || (reflection && !projected))
                     && matches!(shading, Shading::Glossy(_))
@@ -373,10 +381,9 @@ impl Renderer {
                 if let Some(glossy) = glossy {
                     glossy.bind_scene(&mut pass);
                 }
-                let slot = mode_index * SHADINGS.len() + shading_index;
                 let mut bound_mesh = None;
                 let mut bound_texture = None;
-                for &cmd in self.draw_list.bucket(slot) {
+                for &cmd in bucket {
                     let Some(mesh) = self.meshes.get(cmd.mesh) else { continue };
                     let Some(d) = mesh.draws.get(cmd.draw as usize) else { continue };
                     if !drawn_here(d, shading, projected, original) {
@@ -395,7 +402,7 @@ impl Renderer {
                         _ => None,
                     };
                     let texture = match captured {
-                        Some(t) => self.redirects.get(&t.raw()).copied().unwrap_or(t.raw()),
+                        Some(t) => self.redirects.resolve(t.raw()),
                         None => cmd.texture,
                     };
                     if bound_mesh != Some(cmd.mesh) {

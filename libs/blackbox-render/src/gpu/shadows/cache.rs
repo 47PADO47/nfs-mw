@@ -111,7 +111,7 @@ pub(super) fn fingerprint(renderer: &Renderer, matrix: Mat4, selected: &[usize],
         mesh.indices.hash(&mut hash);
         for draw in &mesh.draws {
             // Immutable mesh draw metadata belongs to these vertex/index resource identities.
-            let slot = draw.texture.map(|t| renderer.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
+            let slot = draw.texture.map(|t| renderer.redirects.resolve(t.raw()));
             slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)).hash(&mut hash);
             if let blackbox_gfx::Shading::WorldNormal(handle) = draw.shading {
                 renderer.normal.as_ref().is_some_and(|n| n.reflective_material(handle)).hash(&mut hash);

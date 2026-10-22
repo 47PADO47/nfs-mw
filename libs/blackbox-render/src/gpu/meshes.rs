@@ -3,6 +3,7 @@
 use wgpu::util::DeviceExt;
 
 use super::Renderer;
+use super::draw_mask::DrawMask;
 use crate::{DrawRange, MeshDesc, MeshHandle};
 
 pub(super) struct GpuMesh {
@@ -11,6 +12,8 @@ pub(super) struct GpuMesh {
     pub tangents: Option<wgpu::Buffer>,
     pub indices: wgpu::Buffer,
     pub draws: Vec<DrawRange>,
+    /// Which draw lists each of `draws` belongs in, worked out once here instead of in every pass.
+    pub draw_masks: Vec<DrawMask>,
     pub center: glam::Vec3,
     pub radius: f32,
 }
@@ -76,6 +79,7 @@ impl Renderer {
             tangents,
             indices,
             draws: desc.draws.clone(),
+            draw_masks: desc.draws.iter().map(DrawMask::of).collect(),
             center,
             radius,
         }))
