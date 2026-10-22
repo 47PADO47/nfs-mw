@@ -104,9 +104,11 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
 - `Dimensions` (box triggers) are three extents. Over the 1,446 checkpoint-named box triggers **[verified]**: the
   first extent is 2 m (or 4 m or less) for 1,296; 143 are the 40 m cube kind `(40, 40, 40)`; 7 are other shapes.
   The `(2, W, 40)` kind has W 25..60 (`(2, 40, 40)` the most common). The first value is therefore the thin axis;
-  that it lies along the heading is still **[unconfirmed]** (see open question 1). The race code reads the three values
-  as **half** sizes: `checkpoint1` of `10.2.1` stands 22 m above the road with a stored height of 40, so only a half
-  size (a box 80 m high) holds the road ([world-markers.md](../specs/world-markers.md) section 3). Finish lines have a first
+  that it lies along the heading is still **[unconfirmed]** (see open question 1). The trigger constructor builds the box
+  from them as `a` along the heading, `b` across (both full sizes) and `c` above and below (a half height)
+  **[exe]** ([race-wrongway.md](../specs/race-wrongway.md) section 2): `checkpoint1` of `10.2.1` stands 22 m above the
+  road with a stored height of 40, which only a half height (a box 80 m high) holds
+  ([world-markers.md](../specs/world-markers.md) section 3). Finish lines have a first
   extent of 2 m in the samples read, with the second 25..65 m; `10_2_1_sprint` has `(3, 65, 5)`.
 - Trigger flags: `OneShot` and `FireOnExit` are False on `trigger` and `boxtrigger`, and `FireOnExit` is True on
   `zonetrigger`; `ParticleEffect` is empty on `trigger` and `fxgame_flare_red` on the `finishline` of 148 of the 217
@@ -114,7 +116,7 @@ Markers and triggers (`Position`, `Rotation`, `Dimensions`):
   (5 on `10_2_1_sprint`). **[verified]** The spacing is the distance of each of the two flares from the centre
   ([race-finish-effects](../specs/race-finish-effects.md) section 1).
 - `Width` (the `wrongway` trigger, 150 m for `10_2_1_sprint`), `Directional`, `ResetsPlayer` describe the
-  wrong-way reset trigger; `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
+  wrong-way reset trigger, a plane trigger behind the start ([specs/race-wrongway.md](../specs/race-wrongway.md)); `FireOnExit`, `OneShot`, `ParticleEffect` are trigger options (finish lines use
   `fxgame_flare_red` with a `FlareSpacing` of 4 to 16 m).
 
 ### 3.2 Start of the race
@@ -170,7 +172,7 @@ character used by quick races). 314 collections in all. Fields:
 | `PresetRide` | text: a front-end preset car (name hashed upper-case, found in the front-end preset data, not in `gameplay`; the `presetride` class holds only upgrade levels), 49 uses among the opponents |
 | `CarType`, `CarTypeLowMem` | text: a `pvehicle` collection name; 3 opponents use it, many traffic characters do |
 | `IsBoss` | bool (True for the 19 `boss` collections and 1 more) |
-| `RacerName` | text, empty in this install (names come from the front-end) |
+| `RacerName` | text: a language label for a name the driver always has in a career race; set by 5 prologue characters only (`BLACKLIST_RIVAL_<NN>_LEADERBOARD`), empty elsewhere. A boss race ignores it and names its racer after the bin ([specs/racer-names.md](../specs/racer-names.md)) |
 | `ForceStartPosition` | key of a marker: this racer starts there instead of in the grid (10 of the 350 opponent slots) |
 | `AllowInvisibleSpawn`, `ForcePreload` | spawn options, False |
 
@@ -263,8 +265,8 @@ Map icons of the race types are the `MMICON_<TYPE>_%d` strings in `speed.exe` (`
    the strings is `FUN_*`. A Ghidra pass over the box-containment routine is needed; until then the trigger test
    is **[unconfirmed]**.
    *Status:* the rewrite's working rule is in [world-markers.md](../specs/world-markers.md) section 3 (the first extent
-   along the heading, fitted to the data, not read from the code). The race code reads the stored values as half
-   sizes (measured: the first checkpoint of `10.2.1` stands 22 m above its road); no entry zone uses a box.
+   along the heading, fitted to the data, not read from the code). The race code reads the stored values as the
+   constructor does, the two horizontal extents full and the height half (`setup::gate_of`); no entry zone uses a box.
 2. The unit of `InitialPlayerSpeed` (m/s assumed).
 3. The Lua state graphs (what ends a knockout lap, when the countdown starts the engines): decompile the
    bytecode (Lua 5.0 chunk) and describe them.

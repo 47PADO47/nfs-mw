@@ -5,6 +5,8 @@ use blackbox_race::{Course, Gate, RaceConfig, Sphere, Trap};
 use glam::Vec3;
 use nfsmw_data::gameplay::{BoxTrigger, Character, GameplayData, Placement, Race, RaceType, world_heading};
 
+use super::names;
+
 /// The length of the countdown board, seconds **[unconfirmed]**.
 pub const COUNTDOWN_SECS: f32 = 3.0;
 /// The quick race's base skills for easy, medium and hard, with the catch-up on and off
@@ -31,13 +33,14 @@ pub struct RaceOptions {
     pub demo: bool,
 }
 
-/// The gate of a stored box trigger (physics space, y up): its first extent lies along its heading. The stored extents
-/// are taken as half sizes **[unconfirmed]**: the first checkpoint of `10.2.1` stands 22 m above the road it is on,
-/// which a 40 m high box centred on it (full sizes) would miss, while a 40 m half height holds the road
-/// (`docs/specs/world-markers.md` section 3, `docs/formats/gameplay-races.md` open question 1).
+/// The gate of a stored box trigger (physics space, y up): its first extent lies along its heading, the second across.
+/// The two horizontal extents are full sizes and the third is the half height **[exe]**: the trigger constructor builds
+/// the box from `b` across, `a` along and `c` above and below. The half height is also what the first checkpoint of
+/// `10.2.1` needs, as it stands 22 m above the road (`docs/specs/race-wrongway.md` section 2, `docs/specs/world-markers.md`
+/// section 3).
 pub fn gate_of(trigger: &BoxTrigger) -> Gate {
-    let sizes = trigger.dimensions.map(|extent| extent * 2.0);
-    Gate::new(trigger.position, world_heading(trigger.heading_deg), Vec3::Y, sizes)
+    let [along, across, half_height] = trigger.dimensions;
+    Gate::new(trigger.position, world_heading(trigger.heading_deg), Vec3::Y, [along, across, half_height * 2.0])
 }
 
 /// The course of a race, in physics space. A race with neither a finish line nor a checkpoint has no course.
@@ -85,6 +88,8 @@ pub fn config_of(race: &Race) -> RaceConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Opponent {
     pub name: String,
+    /// The language label of the name the data fixes for this racer in a career race (`names::fixed_label`).
+    pub name_label: Option<String>,
     /// The base skill, 0 to 1.
     pub skill: f32,
     /// `MinimumAIPerformance`.
@@ -128,6 +133,8 @@ pub fn opponents_of(
     let class = nfsmw_data::gameplay::RaceParams { difficulty, ..race.params.clone() }.difficulty_class();
     // A boss in a quick race is the generic character, as the original does (`docs/formats/gameplay-races.md` section 5).
     let quick = !options.career;
+    // A boss race names its racer after the Blacklist bin it belongs to (`docs/specs/racer-names.md` section 2).
+    let boss_bin = race.story.boss_race.then(|| names::bin_of(&race.name)).flatten();
     (0..wanted)
         .filter_map(|i| {
             let character = *pool.get(i % pool.len().max(1))?;
@@ -138,6 +145,7 @@ pub fn opponents_of(
             let car = character.preset_ride.as_deref().and_then(resolve_preset).or_else(|| character.car_type.clone());
             Some(Opponent {
                 name: character.name.clone(),
+                name_label: names::fixed_label(options.career, boss_bin, character.racer_name.as_deref()),
                 skill: base_skill(character, quick, class, options.catch_up.unwrap_or(race.params.catch_up)),
                 bias: character.min_performance,
                 car,
@@ -214,6 +222,7 @@ mod tests {
             preset_ride: None,
             car_type: None,
             is_boss: boss,
+            racer_name: None,
             force_start: None,
         }
     }
@@ -262,11 +271,14 @@ mod tests {
     }
 
     #[test]
-    fn the_stored_extents_are_half_sizes() {
-        // A 2 x 40 x 40 trigger holds a point 30 m up and 39 m across, and 1.9 m along its heading.
+    fn the_stored_extents_are_full_sizes_across_and_a_half_height() {
+        // A 2 x 40 x 40 trigger is 2 m deep, 40 m wide and 40 m above and below: a point 39 m up, 19 m across and 0.9 m along
+        // its heading is inside, one just past any of the three is not.
         let gate = gate_of(&trigger(1, Vec3::ZERO));
-        assert!(gate.contains(Vec3::new(39.0, 30.0, 1.9)));
-        assert!(!gate.contains(Vec3::new(0.0, 0.0, 2.1)));
+        assert!(gate.contains(Vec3::new(19.0, 39.0, 0.9)));
+        assert!(!gate.contains(Vec3::new(21.0, 0.0, 0.0)));
+        assert!(!gate.contains(Vec3::new(0.0, 0.0, 1.1)));
+        assert!(!gate.contains(Vec3::new(0.0, 41.0, 0.0)));
     }
 
     #[test]
@@ -352,6 +364,37 @@ mod tests {
             (name == "BL5").then(|| "mustanggt".to_owned())
         });
         assert_eq!(opponents[0].car.as_deref(), Some("mustanggt"));
+    }
+
+    #[test]
+    fn a_boss_race_in_a_career_fixes_the_rivals_leaderboard_name_and_keeps_the_rivals_car() {
+        let mut d = data();
+        d.characters[1].preset_ride = Some("BL10".into());
+        let mut r = race(vec![21]);
+        r.name = "race_bin_10/10_2_1_sprint".into();
+        r.story.boss_race = true;
+        let career = RaceOptions { career: true, ..Default::default() };
+        let resolve = |name: &str| (name == "BL10").then(|| "CAYMANS".to_owned());
+        let opponents = opponents_of(&d, &r, &career, &resolve);
+        let rival = &opponents[0];
+        assert_eq!(rival.name_label.as_deref(), Some("BLACKLIST_RIVAL_10_LEADERBOARD"));
+        assert_eq!(rival.car.as_deref(), Some("CAYMANS"));
+        // A quick race of the same race plays the generic racer, with a drawn name.
+        let quick = RaceOptions::default();
+        assert_eq!(opponents_of(&d, &r, &quick, &resolve)[0].name_label, None);
+    }
+
+    #[test]
+    fn a_career_characters_racer_name_is_its_fixed_name() {
+        let mut d = data();
+        d.characters[0].racer_name = Some("BLACKLIST_RIVAL_16_LEADERBOARD".into());
+        let r = race(vec![20, 21]);
+        let career = RaceOptions { career: true, ..Default::default() };
+        let opponents = opponents_of(&d, &r, &career, &|_| None);
+        assert_eq!(opponents[0].name_label.as_deref(), Some("BLACKLIST_RIVAL_16_LEADERBOARD"));
+        assert_eq!(opponents[1].name_label, None, "a street rival draws its name");
+        let quick = RaceOptions::default();
+        assert_eq!(opponents_of(&d, &r, &quick, &|_| None)[0].name_label, None);
     }
 
     #[test]

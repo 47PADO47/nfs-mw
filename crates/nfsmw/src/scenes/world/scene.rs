@@ -214,6 +214,9 @@ impl Scene for WorldScene {
     fn ready(&self) -> bool {
         self.ready_for_capture()
     }
+    fn race_staging(&self) -> bool {
+        self.race_is_staging()
+    }
     fn benchmark_ready(&self) -> bool {
         self.ready_for_benchmark()
     }

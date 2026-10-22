@@ -3,6 +3,7 @@
 use blackbox_race::{Phase, RaceEvent};
 use glam::Vec3;
 
+use super::wrong_way::{Tick, tick_of};
 use super::{Banner, RaceSession, Stage, setup};
 use crate::input::{Action, ActionState};
 use crate::scenes::world::drive::STEP;
@@ -49,13 +50,18 @@ impl WorldScene {
     /// and the race does not depend on how ticks group into frames (`docs/specs/multiplayer/determinism.md`, D2).
     pub(in crate::scenes::world) fn race_tick(&mut self) {
         let Some(mut session) = self.race.take() else { return };
-        let keep = match session.stage {
+        let tick = match session.stage {
             Stage::Running if session.challenge.is_none() => self.race_running(&mut session, STEP),
-            _ => true,
+            _ => Tick::Keep,
         };
-        match keep {
-            true => self.race = Some(session),
-            false => self.end_race(session),
+        match tick {
+            Tick::Keep => self.race = Some(session),
+            Tick::End => self.end_race(session),
+            Tick::Restart => {
+                // A player went the wrong way: the pause menu's restart, with no message and no fade.
+                self.race = Some(session);
+                self.restart_race_now();
+            }
         }
     }
 
@@ -77,8 +83,8 @@ impl WorldScene {
         Some(Vec3::from(space::to_physics(drive.position())))
     }
 
-    fn race_running(&mut self, session: &mut RaceSession, dt: f32) -> bool {
-        let Some(engine) = session.engine.as_mut() else { return false };
+    fn race_running(&mut self, session: &mut RaceSession, dt: f32) -> Tick {
+        let Some(engine) = session.engine.as_mut() else { return Tick::End };
         let mut events = engine.tick(dt);
         let player = self.player_physics();
         if let Some(position) = player {
@@ -92,8 +98,9 @@ impl WorldScene {
         self.race_goals(session);
         self.race_glue(session, dt);
         self.race_log(session, dt);
+        let tick = tick_of(&events);
         self.race_events(session, events);
-        true
+        tick
     }
 
     /// Adds the player's collisions with traffic since the last frame to the race's count, while the player is racing.
@@ -180,6 +187,7 @@ impl WorldScene {
         let laps = session.engine.as_ref().map_or(1, |e| e.course().laps);
         for event in events {
             log::debug!("race: {event:?}");
+            note_gate(session, &event);
             match event {
                 RaceEvent::Count(n) => flash(&mut session.banner, n.to_string(), 1.0),
                 RaceEvent::Go => {
@@ -221,7 +229,8 @@ impl WorldScene {
                 RaceEvent::Checkpoint { .. }
                 | RaceEvent::Lap { .. }
                 | RaceEvent::Bonus { .. }
-                | RaceEvent::SpeedTrap { .. } => {}
+                | RaceEvent::SpeedTrap { .. }
+                | RaceEvent::Reset { .. } => {}
             }
         }
     }
@@ -252,6 +261,7 @@ impl WorldScene {
                 laps: 1,
                 photo: None,
                 pursuit: Some(pursuit),
+                retry: Default::default(),
             }),
             None => Self::race_report(session),
         };
@@ -271,6 +281,24 @@ impl WorldScene {
         let left = left - dt;
         session.stage = Stage::PostRace { left };
         left > 0.0
+    }
+}
+
+/// The player's checkpoints, finish and the end of the race at the info level, with where the car stands, so a log
+/// shows what a run was doing when it ended (`docs/specs/race-goals.md` section 4).
+fn note_gate(session: &RaceSession, event: &RaceEvent) {
+    let Some(engine) = session.engine.as_ref() else { return };
+    let (at, total) = (engine.racers()[0].position, engine.course().checkpoints.len());
+    let place = format!("({:.0}, {:.0}, {:.0}) at {:.1} s", at.x, at.y, at.z, engine.elapsed());
+    match event {
+        RaceEvent::Checkpoint { racer: 0, number } => log::info!("race: checkpoint {number}/{total} {place}"),
+        RaceEvent::Finished { racer: 0, .. } => log::info!("race: the player crossed the finish line {place}"),
+        RaceEvent::Reset { racer } => log::info!("race: racer {racer} entered a wrong-way zone {place}: restart"),
+        RaceEvent::Over => {
+            let finished = engine.racers()[0].finished_at.is_some();
+            log::info!("race: over {place}, the player {}", if finished { "finished" } else { "did not finish" })
+        }
+        _ => {}
     }
 }
 

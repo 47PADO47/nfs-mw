@@ -86,6 +86,16 @@ The pause Restart does the same in one call: `release_race` (what `end_race` giv
 (`start.rs`): the race is in `Stage::Loading` until the car stands on the grid and the models are ready (they are already
 loaded), then the engine is made. Nothing else of the old session survives.
 
+**The intro is not played again.** The original's restart enters the pre-race state of the race graph, which comes after the
+intro states (tutorial, message, movie, NIS); the rewrite's restart marks the new session (`RaceSession::restarted`) so that
+`intro_queue` gives no steps and the grid goes straight to the countdown **[lua]**
+([race-wrongway.md](race-wrongway.md) section 3). Before this, a restart replayed the tutorial and the story movie of the
+races that have them.
+
+**The wrong-way trigger** restarts the race through the same call: when a human racer enters the reset zone behind the
+start, the engine raises `RaceEvent::Reset` and `race_tick` runs `restart_race_now` at the end of that tick
+([race-wrongway.md](race-wrongway.md) section 5). Nothing is shown and nothing is paid, as for the pause menu's Restart.
+
 ## 3. The career: nothing is charged, paid or entered twice
 
 A career race touches the career at three places, none of which a restart repeats:
@@ -128,8 +138,8 @@ therefore charges nothing. First-completion rewards (bin entry, rival unlock, si
 
 ## 6. Tests
 
-- Unit (`race/restart.rs`): which stages are live; a restart keeps the race, options and the mod's course; a fixed result has
-  nothing to restart.
+- Unit (`race/restart.rs`): which stages are live; a restart keeps the race, options and the mod's course; a restart has no
+  intro; a fixed result has nothing to restart.
 - Installed (`scenes/world/race_restart_tests.rs`, `#[ignore]`, set `NFSMW_GAME_DIR`): free roam is not a race; a queued race is
   active; once running and past the countdown, `restart_race_now` makes a fresh session with the same name and options at the
   loading stage, the clock back before the old elapsed time, the countdown running again and no checkpoint reached;

@@ -1,9 +1,21 @@
 //! Installed environment context follows the ordered physics positions.
+use super::race::Stage;
 use super::*;
+
+/// Whether a story cutscene owns the sound: a movie plays, or the NIS of a race's intro does
+/// (`docs/specs/prologue-car-and-audio.md`). The movie's and the NIS's own streams are the sound then, not the car idling
+/// on the grid under a camera that is far from it.
+fn cutscene_owns_sound(movie: bool, nis: bool, race_intro: bool) -> bool {
+    movie || (nis && race_intro)
+}
 
 impl WorldScene {
     pub(super) fn audio_state(&mut self) -> Option<crate::audio::CarSoundState> {
         if self.garage_open {
+            return None;
+        }
+        let race_intro = self.race.as_ref().is_some_and(|race| matches!(race.stage, Stage::Intro { .. }));
+        if cutscene_owns_sound(self.story_movie.is_playing(), self.nis.is_playing(), race_intro) {
             return None;
         }
         let lens = self.gameplay_lens(1.0);
@@ -37,5 +49,25 @@ impl WorldScene {
         }
         state.telemetry.environment = Some(state.view.environment);
         Some(state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cutscene_owns_sound;
+
+    #[test]
+    fn a_movie_or_the_intro_nis_of_a_race_silences_the_car() {
+        assert!(cutscene_owns_sound(true, false, false));
+        assert!(cutscene_owns_sound(true, false, true));
+        assert!(cutscene_owns_sound(false, true, true));
+    }
+
+    #[test]
+    fn other_scenes_keep_the_car_audible() {
+        assert!(!cutscene_owns_sound(false, false, false));
+        assert!(!cutscene_owns_sound(false, false, true));
+        // The bust's arrest scene is a NIS outside any race intro.
+        assert!(!cutscene_owns_sound(false, true, false));
     }
 }

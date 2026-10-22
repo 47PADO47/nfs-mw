@@ -149,3 +149,45 @@ fn only_stages_12_and_8_ask_for_the_screen() {
         assert_eq!(unlock.is_some(), matches!(stage, 8 | 12), "stage {stage}");
     }
 }
+
+#[test]
+fn a_race_lifts_the_closed_gates_and_the_end_gives_them_back() {
+    let mut state = RegionState::default();
+    state.evaluate(16, closed_gates(16));
+    assert!(!state.is_lifted());
+    assert_eq!(state.lift(), closed_gates(16), "the prologue's gates go off for the run");
+    assert!(state.is_lifted());
+    assert_eq!(state.restore(), closed_gates(16), "and come back with the end");
+    assert!(!state.is_lifted());
+}
+
+#[test]
+fn lifting_twice_or_restoring_without_a_lift_changes_nothing() {
+    let mut state = RegionState::default();
+    state.evaluate(13, closed_gates(13));
+    assert_eq!(state.restore(), GateSet::EMPTY, "nothing was lifted");
+    state.lift();
+    assert_eq!(state.lift(), GateSet::EMPTY, "a restart lifts what is lifted already");
+    assert_eq!(state.restore(), closed_gates(13));
+}
+
+#[test]
+fn a_race_that_begins_before_the_first_evaluation_lifts_nothing_and_the_gates_stay_off() {
+    // The queued race of a new career starts as soon as the car stands, which can be before the career's first frame.
+    let mut state = RegionState::default();
+    assert_eq!(state.lift(), GateSet::EMPTY);
+    let update = state.evaluate(16, closed_gates(16)).unwrap();
+    assert_eq!(update.change.closed, closed_gates(16), "reported, but the world skips it while the race is lifted");
+    assert!(state.is_lifted());
+    assert_eq!(state.restore(), closed_gates(16), "the end closes the stage's set");
+}
+
+#[test]
+fn a_stage_that_changes_during_the_race_is_the_one_that_comes_back() {
+    let mut state = RegionState::default();
+    state.evaluate(13, closed_gates(13));
+    state.lift();
+    let update = state.evaluate(12, closed_gates(12)).unwrap();
+    assert_eq!(update.unlock, Some(12), "the unlock screen is still asked for");
+    assert_eq!(state.restore().numbers(), [10, 12, 13], "the set of the new stage, not the old one");
+}

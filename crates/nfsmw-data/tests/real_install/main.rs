@@ -39,6 +39,7 @@ mod pursuit;
 mod race_barrier_routes;
 mod race_barriers;
 mod race_story;
+mod racer_names;
 mod reactions;
 mod sequences;
 mod skin;

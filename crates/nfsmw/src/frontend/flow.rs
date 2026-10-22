@@ -32,6 +32,8 @@ mod flow_arrival;
 mod flow_bust;
 #[path = "flow_career.rs"]
 mod flow_career;
+#[path = "flow_cover.rs"]
+mod flow_cover;
 #[path = "flow_custom.rs"]
 mod flow_custom;
 #[path = "flow_endgame.rs"]
@@ -195,6 +197,9 @@ pub struct Frontend {
     split: Option<crate::scenes::world::SplitSetup>,
     /// The world starts the drive to the first safe house once it is built (`flow_loading.rs`, `flow_prologue.rs`).
     drive_to_safe_house: bool,
+    /// The race on the grid was started again from the pause menu or the results: it stays on its start, so no loading screen
+    /// covers it (`flow_cover.rs`).
+    pub(super) restarting: bool,
     /// Where the next world puts the car after the safe house menu that stood before it (`flow_loading.rs`).
     safe_house_start: flow_loading::SafeHouseStart,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
@@ -246,6 +251,7 @@ impl Frontend {
             race_options: None,
             split: None,
             drive_to_safe_house: false,
+            restarting: false,
             safe_house_start: Default::default(),
             map_chrome: Default::default(),
         }
@@ -458,6 +464,7 @@ impl Frontend {
                 Command::PayBust { marker } => self.pay_bust(marker, host, env),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
+                Command::ShowPhoto(report) => self.show_photo(report, host, env),
                 Command::Switch(..)
                 | Command::Push(..)
                 | Command::Pop

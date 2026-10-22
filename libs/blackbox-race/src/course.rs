@@ -36,12 +36,14 @@ pub struct Course {
     pub bonuses: Vec<f32>,
     /// The speed traps of the race.
     pub traps: Vec<Trap>,
+    /// Zones that send a human racer back to the grid when it enters them (the wrong-way trigger of the race).
+    pub resets: Vec<Gate>,
 }
 
 impl Course {
-    /// A course with no time bonuses and no speed traps.
+    /// A course with no time bonuses, no speed traps and no reset zones.
     pub fn new(start: Vec3, checkpoints: Vec<Gate>, finish: Option<Gate>, laps: u32) -> Self {
-        Self { start, checkpoints, finish, laps, bonuses: Vec::new(), traps: Vec::new() }
+        Self { start, checkpoints, finish, laps, bonuses: Vec::new(), traps: Vec::new(), resets: Vec::new() }
     }
 
     /// The time bonus of checkpoint `number` (numbered from 1), 0 when it has none.

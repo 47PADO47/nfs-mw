@@ -24,17 +24,29 @@ fn data(races: Vec<Race>) -> GameplayData {
     GameplayData { races, ..GameplayData::default() }
 }
 
+/// The folder lookup of an install that knows the starter preset as a ride of the E46 GTR.
+fn e46_folder(preset: &str) -> Option<String> {
+    (preset == "M3GTRCAREERSTART").then(|| "BMWM3GTRE46".to_owned())
+}
+
 #[test]
-fn a_prologue_race_forces_its_preset_on_the_stock_car() {
+fn a_prologue_race_forces_its_preset_on_the_car_type_it_is_made_for() {
     let data = data(vec![race("16.1.0", Some("M3GTRCAREERSTART"))]);
-    assert_eq!(forced_car(&data, "16.1.0").as_deref(), Some("BMWM3GTR:M3GTRCAREERSTART"));
+    // Not free roam's `BMWM3GTR`: the preset's parts are the E46's, and only that folder has their solids.
+    assert_eq!(forced_car(&data, "16.1.0", e46_folder).as_deref(), Some("BMWM3GTRE46:M3GTRCAREERSTART"));
+}
+
+#[test]
+fn a_preset_the_install_does_not_know_falls_back_to_the_e46_folder() {
+    let data = data(vec![race("16.1.0", Some("M3GTRCAREERSTART"))]);
+    assert_eq!(forced_car(&data, "16.1.0", |_| None).as_deref(), Some("BMWM3GTRE46:M3GTRCAREERSTART"));
 }
 
 #[test]
 fn a_race_that_forces_no_car_or_is_not_in_the_data_gives_none() {
     let data = data(vec![race("1.2.3", None)]);
-    assert_eq!(forced_car(&data, "1.2.3"), None);
-    assert_eq!(forced_car(&data, "16.9.9"), None);
+    assert_eq!(forced_car(&data, "1.2.3", e46_folder), None);
+    assert_eq!(forced_car(&data, "16.9.9", e46_folder), None);
 }
 
 #[test]

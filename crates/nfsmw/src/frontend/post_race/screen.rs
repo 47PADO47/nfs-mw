@@ -1,15 +1,19 @@
 //! The screen's logic: it copies the rows of the page into the package's strings, and answers the buttons. Exit goes on
 //! in free roam (or back to the menu the race came from), Restart runs the race again, the second button (key 2) shows
-//! the next page and the shoulder buttons step through the racers of the statistics and stages pages.
+//! the next page, the shoulder buttons step through the racers of the statistics and stages pages and Back goes back a page
+//! (from the standings of a win, back to the photo). A race the player did not win asks for the retry when Exit is
+//! answered (`retry.rs`, `docs/specs/race-loss-retry.md`).
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0, PAD_LTRIGGER, PAD_RTRIGGER};
 use blackbox_feng::runtime::pad;
 
 use super::pages::{Cell, Page, Table, table};
+use super::retry;
 use crate::frontend::confirm::Confirm;
 use crate::frontend::logic::{Command, Cx, ScreenLogic};
 use crate::ui::Text;
 use crate::viewer::{RaceAnswer, RaceReport};
+use nfsmw_career::story::LossRule;
 
 /// The racer's name over the table: the group whose two strings (shadow and face) hold it, inside the group of the arrows.
 const NAME_GROUP: u32 = 0xEB43_CCB0;
@@ -47,6 +51,8 @@ const UNUSED: [u32; 5] = [0xE690F, 0xFA5B3, 0xFD000, 0x10688A, 0x122661];
 const STATS_BUTTON: u32 = 0x1062F9;
 /// The pad bit of the second button (key 2, the pad's fourth button).
 const SECOND_BUTTON: u32 = pad::BUTTON0 << 4;
+/// The pad bits of key 1, Restart: the lap table answers the first and the photo the second.
+const RESTART_BUTTONS: u32 = (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5);
 
 /// Shows a [`RaceReport`].
 pub struct PostRaceLogic {
@@ -57,11 +63,14 @@ pub struct PostRaceLogic {
     rows: usize,
     headers: [bool; 3],
     filter: bool,
+    /// The buttons that already acted in this frame, as pad bits: one press can reach the screen as a pad bit, as a message and as
+    /// the press of a footer button, and must act once.
+    done: u32,
 }
 
 impl PostRaceLogic {
     pub fn new(report: RaceReport) -> Self {
-        Self { report, page: Page::Standings, shown: 0, rows: 0, headers: [true; 3], filter: false }
+        Self { report, page: Page::Standings, shown: 0, rows: 0, headers: [true; 3], filter: false, done: 0 }
     }
 
     /// Looks at the racer `step` places on, wrapping: only the pages that have a racer filter step.
@@ -77,6 +86,37 @@ impl PostRaceLogic {
     fn advance(&mut self, cx: &mut Cx) {
         self.page = self.page.next();
         self.fill(cx);
+    }
+
+    /// Whether the button `bit` has not acted yet in this frame; the first ask takes it (`done`).
+    fn once(&mut self, bit: u32) -> bool {
+        let first = self.done & bit == 0;
+        self.done |= bit;
+        first
+    }
+
+    /// Exit was answered: the race ends, or a race that was not won asks for the retry first.
+    fn leave(&mut self, cx: &mut Cx) {
+        cx.send(leave_command(self.report.retry));
+    }
+
+    /// Key 1: the in-race question, over the screen.
+    fn ask_restart(&mut self, cx: &mut Cx) {
+        if self.once(RESTART_BUTTONS) {
+            cx.send(Command::Confirm(Confirm::restart_results()));
+        }
+    }
+
+    /// Back: the page before, or from the first page of a win the photo the screen was opened over.
+    fn back(&mut self, cx: &mut Cx) {
+        match back_target(self.page, self.report.photo.is_some()) {
+            Back::Page(page) => {
+                self.page = page;
+                self.fill(cx);
+            }
+            Back::Photo => cx.send(Command::ShowPhoto(self.report.clone())),
+            Back::Stay => {}
+        }
     }
 
     fn fill(&mut self, cx: &mut Cx) {
@@ -174,30 +214,104 @@ fn names(row: usize) -> [u32; 3] {
     [FIRST_LEFT + n, FIRST_MIDDLE + n, FIRST_RIGHT + n]
 }
 
+/// What Back does on a page.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Back {
+    /// Show this page again.
+    Page(Page),
+    /// Show the win photo again.
+    Photo,
+    /// Nothing: a race that was not won has no screen before its results.
+    Stay,
+}
+
+fn back_target(page: Page, has_photo: bool) -> Back {
+    if page != Page::Standings {
+        return Back::Page(page.previous());
+    }
+    if has_photo {
+        return Back::Photo;
+    }
+    Back::Stay
+}
+
+/// What answering Exit asks of the front end, by what the race leads to (`LossRule`).
+fn leave_command(rule: LossRule) -> Command {
+    match rule {
+        LossRule::Leave => Command::RaceAnswer(RaceAnswer::Exit),
+        LossRule::Offer => Command::Confirm(retry::offer()),
+        LossRule::Require => Command::Alert(retry::required()),
+    }
+}
+
+/// Whether the object called `name` lies inside the group with this GUID (or is it): the buttons of the footer are groups
+/// holding a string and a key picture.
+fn lies_inside(cx: &Cx, name: u32, group: u32) -> bool {
+    let Some(package) = cx.rt.package(cx.package) else { return false };
+    let Some(first) = cx.object(name) else { return false };
+    let mut index = first.index;
+    for _ in 0..package.objects.len() {
+        let Some(def) = package.objects.get(index) else { return false };
+        if def.guid == group {
+            return true;
+        }
+        let Some(parent) = def.parent else { return false };
+        let Some(next) = package.objects.iter().position(|o| o.guid == parent) else { return false };
+        index = next;
+    }
+    false
+}
+
 impl ScreenLogic for PostRaceLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.fill(cx);
     }
 
-    /// The package's scripts show these again as the screen opens, so they are held every frame.
+    /// The package's scripts show these again as the screen opens, so they are held every frame. A button the package pressed
+    /// switched its inputs off as if the screen were leaving; this screen stays until the flow clears it, so they come back.
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.done = 0;
         self.hold(cx);
+        cx.rt.set_input_enabled(cx.package, true);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
-            PAD_ACCEPT | PAD_BUTTON0 => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
-            m if m == PAD_BUTTON0 + 1 => cx.send(Command::Confirm(Confirm::restart_results())),
-            PAD_LTRIGGER => self.step(cx, -1),
-            PAD_RTRIGGER => self.step(cx, 1),
+            PAD_ACCEPT | PAD_BUTTON0 if self.once(pad::ACCEPT) => self.leave(cx),
+            m if m == PAD_BUTTON0 + 1 => self.ask_restart(cx),
+            PAD_LTRIGGER if self.once(pad::LTRIGGER) => self.step(cx, -1),
+            PAD_RTRIGGER if self.once(pad::RTRIGGER) => self.step(cx, 1),
             _ => {}
         }
     }
 
-    /// The second button has no game response in the package, so the page change comes from the pad itself.
-    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
-        if bits & SECOND_BUTTON != 0 {
+    /// A button of the footer was pressed with the accept button or a click: the second one shows the next page. Exit and
+    /// Restart reach the screen as messages.
+    fn pressed(&mut self, cx: &mut Cx, button: u32) {
+        let stats = button == STATS_BUTTON || lies_inside(cx, FOOTER_BUTTON, button);
+        if stats && self.once(SECOND_BUTTON) {
             self.advance(cx);
+        }
+    }
+
+    /// The buttons that act whether or not the package answers them or has the focus on the matching footer button: the second
+    /// one shows the next page, key 1 asks about the restart, the shoulders step the racers and back goes back a page (or, from the
+    /// win photo's Race Stats, back to the photo).
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & pad::BACK != 0 {
+            self.back(cx);
+        }
+        if bits & SECOND_BUTTON != 0 && self.once(SECOND_BUTTON) {
+            self.advance(cx);
+        }
+        if bits & RESTART_BUTTONS != 0 {
+            self.ask_restart(cx);
+        }
+        if bits & pad::LTRIGGER != 0 && self.once(pad::LTRIGGER) {
+            self.step(cx, -1);
+        }
+        if bits & pad::RTRIGGER != 0 && self.once(pad::RTRIGGER) {
+            self.step(cx, 1);
         }
     }
 }
@@ -217,5 +331,30 @@ mod tests {
     fn the_logic_starts_on_the_standings_of_the_player() {
         let logic = PostRaceLogic::new(RaceReport::sample());
         assert_eq!((logic.page, logic.shown), (Page::Standings, 0));
+    }
+
+    #[test]
+    fn a_button_acts_once_in_a_frame_however_many_ways_it_arrives() {
+        let mut logic = PostRaceLogic::new(RaceReport::sample());
+        assert!(logic.once(SECOND_BUTTON), "the pad's bit");
+        assert!(!logic.once(SECOND_BUTTON), "the footer button's press in the same frame");
+        assert!(logic.once(pad::LTRIGGER), "another button is its own");
+        logic.done = 0;
+        assert!(logic.once(SECOND_BUTTON), "the next frame");
+    }
+
+    #[test]
+    fn leaving_a_race_that_was_not_won_asks_what_the_rule_says() {
+        assert_eq!(leave_command(LossRule::Leave), Command::RaceAnswer(RaceAnswer::Exit));
+        assert_eq!(leave_command(LossRule::Offer), Command::Confirm(retry::offer()));
+        assert_eq!(leave_command(LossRule::Require), Command::Alert(retry::required()));
+    }
+
+    #[test]
+    fn back_steps_to_the_page_before_and_from_the_standings_to_the_photo() {
+        assert_eq!(back_target(Page::Stages, true), Back::Page(Page::Statistics));
+        assert_eq!(back_target(Page::Statistics, false), Back::Page(Page::Standings));
+        assert_eq!(back_target(Page::Standings, true), Back::Photo, "Race Stats opened it over the photo");
+        assert_eq!(back_target(Page::Standings, false), Back::Stay, "a lost race has no photo to go back to");
     }
 }

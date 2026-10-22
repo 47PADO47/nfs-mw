@@ -190,6 +190,10 @@ pub(super) fn intro_end(nis_shell: bool) -> IntroEnd {
 
 /// The steps of a race's intro, in the order they run (`story-flow.md` sections 1.1 and 1.2).
 pub(super) fn intro_queue(session: &RaceSession) -> VecDeque<IntroStep> {
+    // A restart goes back to the pre-race state, past the intro (`docs/specs/race-wrongway.md` section 3).
+    if session.restarted {
+        return VecDeque::new();
+    }
     let race = &session.origin.race.story;
     // The NIS shell race has no racing: its intro is its cutscene alone (`race_life::nis_shell_steps`).
     if race.nis_shell {

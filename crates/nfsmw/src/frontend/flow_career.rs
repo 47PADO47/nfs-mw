@@ -95,6 +95,8 @@ impl Frontend {
         if !host.scene.restart_race() {
             return;
         }
+        // The race goes back to its own grid: no loading screen covers it (`flow_cover.rs`).
+        self.restarting = true;
         self.resume();
     }
 

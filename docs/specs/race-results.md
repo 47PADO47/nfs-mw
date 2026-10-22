@@ -88,8 +88,22 @@ traps `Speedtrap`, `Position`, `Speed`):
 ## 4. The pad
 
 The package has no game response for the second button, so the host turns the pad's newly pressed buttons into
-`ScreenLogic::pad_pressed`; the screen takes `PAD_BUTTON4`. Restart is `PAD_BUTTON1` (the package also answers `PAD_BUTTON5`
-for key 1, ignored here so the question is asked once). A click on the footer is not wired. **[ours]**
+`ScreenLogic::pad_pressed`. The screen (and the photo) act on the pad bits themselves, not only on the package's messages, so
+they work with the keyboard, a controller and the mouse alike:
+
+| Button | Keyboard | Pad | Does |
+|---|---|---|---|
+| Exit | Enter | A | leaves ([race-loss-retry](race-loss-retry.md) for a race not won) |
+| Restart | 1 | X | asks OK or Cancel (`PAD_BUTTON1`; the package also answers `PAD_BUTTON5`, one press asks once) |
+| Next page | 2 | Y | Standings, Statistics, Stages, Standings |
+| Racer before / after | Page Up / Page Down | L1 / R1 | steps the racer of the statistics and stages |
+| Back | Esc, Backspace | B | the page before; from the standings of a win, back to the photo it was opened over; nothing on the standings of a race not won |
+
+A footer button reached with the D-pad and pressed with A (or clicked) reports `BUTTON_PRESSED` with its GUID
+(`ScreenLogic::pressed`); the second button's press shows the next page. One press reaches the screen as a pad bit, a message and a
+button press in the same frame, so each acts once (`done`). The package switches its inputs off when a button is pressed (it is
+leaving); this screen stays up until the flow clears it, so it switches them on again every frame. The footer keeps the package's own
+key pictures (no controller glyphs are drawn for it). **[ours]**
 
 ## 5. Restart asks first
 
@@ -106,7 +120,8 @@ The pause menu's Restart asks the same question and runs `RestartRace` on OK.
 | The front end's Quick Race menu (Quick Play, Custom Race, Quick Race) | the Quick Race menu, the world unloaded, as the pause menu's `Quit to Quick Race Menu` does |
 | The career, the main menu's free roam, a console command | free roam goes on; a won career race chains on to its `PostRaceActivity` |
 
-Restart always runs the same race again and goes on driving.
+Restart always runs the same race again and goes on driving. A career race that was not won asks for a retry before Exit leaves
+([race-loss-retry](race-loss-retry.md)).
 
 ## 7. Open points
 
