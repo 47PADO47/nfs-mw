@@ -1,9 +1,10 @@
 # blackbox-net-core
 
 Generic **netcode building blocks** for a server-authoritative racing game. The default build uses the standard library only,
-and the crate is sans-IO: no threads, no async runtime and no wall clock. Every function that needs the time takes `now_ms` from the
-caller, so the tests and the packet simulator are deterministic. It contains no game names; the game registers its entity
-schema and chooses budgets and ports.
+and below `endpoint` the crate is sans-IO: no threads, no async runtime and no wall clock. Every function that needs the time
+takes `now_ms` from the caller, so the tests and the packet simulator are deterministic. `endpoint` (feature `netcode`) is the
+one module with threads, sockets and a clock. It contains no game names; the game registers its entity schema and chooses
+budgets and ports.
 
 | Module | What it does |
 |---|---|
@@ -18,6 +19,7 @@ schema and chooses budgets and ports.
 | `ratelimit` | `TokenBucket`, `KeyedLimiter`, `FailureLimiter` (doubling locks for password guesses and auth failures), `PreAuthGate` and `PeerBudget` with the LAN and online caps of security-ops.md |
 | `handoff` (feature `handoff`) | `ring`: a bounded single-producer, single-consumer queue that drops and counts the oldest entry; `latest`: a triple-buffered latest-value cell for snapshots |
 | `secure` (feature `netcode`) | The handshake datagrams and `classify`; the stateless `CookieJar`; `HandshakeClient` and `HandshakeServer` (Noise `XX` and `XK` with `snow`, retries, pre-authentication caps, the 3x amplification limit); `NoiseSealer` (ChaCha20-Poly1305, rekeying by key phase, the replay window through `conn`); `IdentityKey`, `KeyId` and trust on first use over a caller's `PeerStore`; `token` (connect tokens); `password` (SPAKE2 room password) |
+| `endpoint` (feature `netcode`) | The net thread. `ServerEndpoint` and `ClientEndpoint`, one thread each over a blocking `std` UDP socket (or any `Transport`, such as the lossy simulator), driving the handshake, sealed connections, keep-alives, the idle timeout, per-peer budgets and the pre-authentication gate, and talking to the game thread only through `handoff` rings (events in, sends and control out; full rings drop the oldest and count). `connect_local` attaches the listen host's own client over `MemoryNet` with no socket and no handshake. `DiscoveryResponder` (opt-in, 64 bytes for 64, source policy, rate limited) and `DiscoveryScan` (own thread) |
 
 Design: [ADR 0006](../../docs/decisions/0006-multiplayer-netcode.md), amended by
 [ADR 0009](../../docs/decisions/0009-multiplayer-netcode-revisions.md). Wire layouts:
@@ -27,14 +29,19 @@ Design: [ADR 0006](../../docs/decisions/0006-multiplayer-netcode.md), amended by
 Handshake and sealing as built: [protocol-handshake](../../docs/specs/multiplayer/protocol-handshake.md) and
 [security](../../docs/specs/multiplayer/security.md) section 8.
 
-Not here yet: path validation (`PATH_CHALLENGE`), the net thread and its sockets, and everything game-specific (schemas,
-prediction, the server loop, the `Auth` message). They come in later steps of milestone 10.
+The net thread as built: [integration](../../docs/specs/multiplayer/integration.md) section 1.
+
+Not here yet: path validation (`PATH_CHALLENGE`), socket buffer sizes and address reuse (no `socket2`), and everything
+game-specific (schemas, prediction, the server loop, the `Auth` message). They come in later steps of milestone 10.
 
 ```sh
 cargo test -p blackbox-net-core                                      # unit, 16-client loopback, zero-allocation tests
 cargo test -p blackbox-net-core --all-features                       # plus hand-off, handshake, sealing, tokens, password,
-                                                                     # the lossy-link handshake and the seeded garbage tests
+                                                                     # the lossy-link handshake, the seeded garbage tests and
+                                                                     # the endpoints on loopback sockets and the lossy link
 cargo run --release -p blackbox-net-core --example net_bench         # encode cost with and without the shared cache
+cargo run --release -p blackbox-net-core --features netcode --example lan_echo -- 8 10
+                                                                     # soak: a server and 8 clients on loopback, 10 s
 ```
 
 **Fuzzing.** `fuzz/` holds `cargo-fuzz` targets for every pre-authentication parser (`handshake_packets`, `handshake_server`,
