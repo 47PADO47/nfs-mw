@@ -86,6 +86,7 @@ impl WorldScene {
             events.extend(engine.move_racer(0, position));
         }
         events.extend(self.step_racers(session, player, dt));
+        events.extend(self.coop_dnf(session));
         self.count_collisions(session);
         self.drag_assist(session);
         self.demo_step(session, dt);
