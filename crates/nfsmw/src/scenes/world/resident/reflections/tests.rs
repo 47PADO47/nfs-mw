@@ -48,6 +48,7 @@ fn data() -> SectionData {
         anims: vec![],
         spawners: vec![],
         collision: vec![],
+        prepared: None,
         scenery: vec![ScenerySection {
             section_number: 101,
             infos: vec![SceneryInfo {

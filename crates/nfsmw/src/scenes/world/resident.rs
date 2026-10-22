@@ -7,11 +7,13 @@ use blackbox_scene::{Aabb, MaterialLookup, blend_mode, solid_mesh, upload_solid,
 use blackbox_scenery::LodModel;
 use blackbox_solid::Solid;
 use glam::Mat4;
-use nfsmw_data::world::{PropCatalog, PropShape, SectionData};
+use nfsmw_data::world::{PropShape, SectionData};
 use std::sync::Arc;
+mod prepare;
 mod reflections;
 mod shadow_policy;
-pub(super) use reflections::{ReflectionPlaced, place_reflections};
+pub(super) use prepare::{resolve_placed, take_prepared, worker_hook};
+pub(super) use reflections::{ReflectionPlaced, resolve_reflections};
 #[cfg(test)]
 mod group_tests;
 #[cfg(test)]
@@ -91,6 +93,9 @@ pub struct SectionResources {
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
+    /// The frame (its texture hash) each animation in `anims` was last redirected to, so a frame that is still
+    /// showing costs no renderer call. Filled by `animate`.
+    shown_frames: std::cell::RefCell<Vec<Option<u32>>>,
 }
 
 impl SectionResources {
@@ -178,12 +183,20 @@ impl SectionResources {
         }
     }
 
-    /// Show each animation's current frame (`seconds` since the scene started).
+    /// Show each animation's current frame (`seconds` since the scene started). An animation whose frame has not
+    /// changed since the last call is left alone.
     pub fn animate(&self, renderer: &mut dyn RenderBackend, seconds: f32, fallback: &SectionResources) {
         let texture = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).map(|m| m.0);
-        for anim in &self.anims {
-            if let (Some(base), Some(frame)) = (texture(anim.name_hash), anim.frame_at(seconds).and_then(texture)) {
-                renderer.redirect_texture(base, Some(frame));
+        let mut shown = self.shown_frames.borrow_mut();
+        shown.resize(self.anims.len(), None);
+        for (anim, shown) in self.anims.iter().zip(shown.iter_mut()) {
+            let Some(frame) = anim.frame_at(seconds) else { continue };
+            if *shown == Some(frame) {
+                continue;
+            }
+            if let (Some(base), Some(to)) = (texture(anim.name_hash), texture(frame)) {
+                renderer.redirect_texture(base, Some(to));
+                *shown = Some(frame);
             }
         }
     }
@@ -273,83 +286,17 @@ fn hidden_group(hidden: bool, override_index: Option<u32>, groups: &HashMap<u16,
 /// view excludes (`docs/specs/scenery-visibility.md`). An instance the player view
 /// excludes but a scenery group lists is kept, tagged with the group's number.
 /// `groups` maps a global override index to its group number (`WorldIndex::override_groups`).
+///
+/// The residency does this in two steps so a loader thread can do the first (`prepare.rs`); this runs both.
+#[cfg(test)]
 pub fn place(
     data: &SectionData,
     own: &SectionResources,
     shared: &SectionResources,
-    props: &PropCatalog,
+    props: &nfsmw_data::world::PropCatalog,
     groups: &HashMap<u16, u16>,
 ) -> (Vec<Placed>, usize) {
-    let instances: usize = data.scenery.iter().map(|s| s.instances.len()).sum();
-    let mut placed = Vec::with_capacity(instances);
-    let mut unresolved = 0;
-    let mut spawners = HashMap::with_capacity(data.spawners.len());
-    spawners.extend(data.spawners.iter().map(|s| (s.override_index, s)));
-    for section in &data.scenery {
-        let mut hooks = HashMap::with_capacity(section.override_hooks.len());
-        hooks.extend(
-            section.override_hooks.iter().map(|h| (usize::from(h.instance_index), u32::from(h.override_index))),
-        );
-        for (instance, inst) in section.instances.iter().enumerate() {
-            let Some(info) = section.info_of(inst) else { continue };
-            let rules = &blackbox_scenery::layout::MOST_WANTED.visibility;
-            let hidden = !inst.visible_in(rules.player_view, rules);
-            let group = hidden_group(hidden, hooks.get(&instance).copied(), groups);
-            if (hidden && group == 0) || SKIPPED_MODELS.contains(&info.name.as_str()) {
-                continue;
-            }
-            let resolved: Vec<_> =
-                info.solid_keys.iter().map(|&k| (k != 0).then(|| own.mesh(k, shared)).flatten()).collect();
-            if resolved.iter().all(Option::is_none) {
-                unresolved += 1;
-                continue;
-            }
-            let transform = Mat4::from_cols_array_2d(&inst.matrix_columns());
-            let spawner = hooks.get(&instance).and_then(|id| spawners.get(id)).copied();
-            // Static solidity comes from authored world collision, not a model-name bounds guess.
-            let prop = spawner.and_then(|spawn| props.for_spawner(&info.name, spawn));
-            if spawner.is_some() && prop.is_none() {
-                log::debug!("no physics bounds/attributes for placed {}", info.name);
-            }
-            placed.push(Placed {
-                casts_sun_shadow: shadow_policy::casts_sun(&info.name),
-                original_shadow: info.name.starts_with("SHD_")
-                    || resolved.iter().enumerate().filter(|(_, mesh)| mesh.is_some()).all(|(i, _)| {
-                        own.meshes
-                            .get(&info.solid_keys[i])
-                            .or_else(|| shared.meshes.get(&info.solid_keys[i]))
-                            .is_some_and(|model| model.2)
-                    }),
-                lods: std::array::from_fn(|i| resolved.get(i).copied().flatten().map(|(m, _)| m)),
-                detailed: resolved.first().copied().flatten().map(|(_, lod)| lod),
-                transform,
-                bounds: Aabb::new(inst.bbox_min, inst.bbox_max),
-                radius: info.radius,
-                flags: inst.exclude_flags,
-                group,
-                prop,
-                prop_id: 0,
-                key: InstanceKey::TRANSIENT,
-                spawner: spawner.copied(),
-                curve_lamp: super::sign_lamps::lamp_point(&info.name, Aabb::new(inst.bbox_min, inst.bbox_max)),
-                signal: super::ai::signal_props::signal_head(&info.name, transform),
-                parts: props.hierarchy(info.hierarchy_hash).map(|hierarchy| {
-                    let meshes: std::collections::BTreeMap<_, _> = hierarchy
-                        .nodes
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, n)| Some((i, own.mesh(n.model_hash, shared)?.0)))
-                        .collect();
-                    Arc::new(super::props::scenery::ModelParts {
-                        available: meshes.keys().copied().collect(),
-                        hierarchy,
-                        meshes,
-                    })
-                }),
-            });
-        }
-    }
-    (placed, unresolved)
+    resolve_placed(&prepare::prepare(data, props, groups).placed, own, shared)
 }
 
 #[cfg(test)]

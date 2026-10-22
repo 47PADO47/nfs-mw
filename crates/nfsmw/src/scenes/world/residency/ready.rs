@@ -47,7 +47,7 @@ impl Residency {
     pub fn complete(&self) -> bool {
         self.shared_ready
             && self.has_zone
-            && self.arrived.iter().all(|data| !self.wanted.contains(&data.index))
+            && self.arrived.iter().all(|data| !self.wanted_set.contains(&data.index))
             && self.wanted_resident()
     }
 
