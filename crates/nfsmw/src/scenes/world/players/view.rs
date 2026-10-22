@@ -19,6 +19,7 @@ impl WorldScene {
         let mut state = self.players.first_guest()?.hud_state()?;
         if let Some(traffic) = self.traffic.as_ref() {
             traffic.map_blips(&mut state.blips);
+            self.guest_chase_hud(traffic, &mut state);
         }
         self.career.hud.apply(&mut state);
         self.race_start_blips(&mut state.blips);

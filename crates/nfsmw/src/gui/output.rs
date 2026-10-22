@@ -57,8 +57,14 @@ pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut
     full.textures_delta.clear();
 
     let pixels_per_point = full.pixels_per_point;
-    let meshes = ctx
-        .tessellate(full.shapes, pixels_per_point)
+    let meshes = to_meshes(ctx.tessellate(full.shapes, pixels_per_point));
+    out.layer = Some(UiLayer { compositions: Vec::new(), pixels_per_point, meshes });
+}
+
+/// Tessellated egui primitives as the renderer's meshes, in order. Only meshes come out of this host: any other
+/// primitive is dropped.
+pub(super) fn to_meshes(clipped: Vec<egui::epaint::ClippedPrimitive>) -> Vec<UiMesh> {
+    clipped
         .into_iter()
         .filter_map(|clipped| {
             let Primitive::Mesh(mesh) = clipped.primitive else { return None };
@@ -79,6 +85,5 @@ pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut
                 clip: [r.min.x, r.min.y, r.max.x, r.max.y],
             })
         })
-        .collect();
-    out.layer = Some(UiLayer { compositions: Vec::new(), pixels_per_point, meshes });
+        .collect()
 }
