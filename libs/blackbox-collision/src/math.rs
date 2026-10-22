@@ -51,20 +51,19 @@ pub fn segment_point_dist_sq_xz(a: Vec3, b: Vec3, p: Vec3) -> f32 {
     segment_point_dist_sq([a[0], 0.0, a[2]], [b[0], 0.0, b[2]], [p[0], 0.0, p[2]])
 }
 
-/// Fraction `t` along `a`-`b` where it crosses the triangle, if it does (both faces count).
-/// Edges are inclusive within a small tolerance, so neighbouring triangles leave no crack.
-pub fn segment_triangle(a: Vec3, b: Vec3, tri: &[Vec3; 3]) -> Option<f32> {
+/// Fraction `t` along `a`-`b` where it crosses the triangle `p0`, `p0 + e1`, `p0 + e2`, if it does (both faces count).
+/// The edges `e1 = p1 - p0` and `e2 = p2 - p0` are the caller's, so a triangle tested by many segments computes them
+/// once. Edges are inclusive within a small tolerance, so neighbouring triangles leave no crack.
+pub fn segment_triangle_edges(a: Vec3, b: Vec3, p0: Vec3, e1: Vec3, e2: Vec3) -> Option<f32> {
     const EPS: f32 = 1e-6;
     let dir = sub(b, a);
-    let e1 = sub(tri[1], tri[0]);
-    let e2 = sub(tri[2], tri[0]);
     let p = cross(dir, e2);
     let det = dot(e1, p);
     if det.abs() < 1e-12 {
         return None;
     }
     let inv = 1.0 / det;
-    let s = sub(a, tri[0]);
+    let s = sub(a, p0);
     let u = dot(s, p) * inv;
     if !(-EPS..=1.0 + EPS).contains(&u) {
         return None;

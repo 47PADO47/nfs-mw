@@ -10,15 +10,15 @@ const SURFACE: u32 = 7;
 const GRID_COLS: usize = 3;
 
 /// Deterministic pseudo-random numbers in `[0, 1)`.
-struct Lcg(u64);
+pub(super) struct Lcg(pub(super) u64);
 
 impl Lcg {
-    fn next(&mut self) -> f32 {
+    pub(super) fn next(&mut self) -> f32 {
         self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         (self.0 >> 40) as f32 / (1u64 << 24) as f32
     }
 
-    fn range(&mut self, lo: f32, hi: f32) -> f32 {
+    pub(super) fn range(&mut self, lo: f32, hi: f32) -> f32 {
         lo + (hi - lo) * self.next()
     }
 }

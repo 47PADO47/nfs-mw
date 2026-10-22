@@ -5,11 +5,13 @@
 //! instances of a block of cells, each tagged with the cells of the block it is listed in. A ray finds the cells it
 //! touches (the grid's own slab test), keeps the instances listed in any of them, and tests those in the same sorted
 //! order the per-ray walk would, so the nearest hit, ties and the order a predicate sees candidates are all unchanged.
+//! A window a ray casts through also keeps its instances' ray-independent values between rays (`crate::face_cache`).
 
+use crate::face_cache::FaceCache;
 use crate::grid::{Grid, InstanceRef};
 use crate::math::Vec3;
-use crate::query::prepare_segment;
-use crate::world::{CollisionWorld, cache};
+use crate::query::{Subject, cast_subject, prepare_segment};
+use crate::world::{CollisionWorld, cache, keep_nearer};
 use crate::{Hit, RayOptions};
 
 /// Cells a set can span: one bit of an instance's cell mask each.
@@ -37,6 +39,8 @@ pub struct CandidateSet {
     /// First row, first column, last row, last column (inclusive) of the gathered cells.
     block: Option<[u32; 4]>,
     entries: Vec<Entry>,
+    /// The ray-independent values of its entries that rays cast through the set as a window keep (`crate::face_cache`).
+    faces: FaceCache,
 }
 
 impl CandidateSet {
@@ -44,6 +48,7 @@ impl CandidateSet {
     pub fn clear(&mut self) {
         self.block = None;
         self.entries.clear();
+        self.faces.reset(0);
     }
 
     /// Candidates gathered (distinct, resident instances).
@@ -53,6 +58,12 @@ impl CandidateSet {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// Triangles the set keeps for its rays, for tests that the keep is in use.
+    #[cfg(test)]
+    pub(crate) fn kept_triangles(&self) -> usize {
+        self.faces.triangle_count()
     }
 
     /// The mask of the set's cells a segment touches, or `None` when the set is stale or the segment's cells are not
@@ -162,7 +173,7 @@ impl CollisionWorld {
             return None;
         }
         let mask = window.mask_for(grid, self.revision, seg).or_else(|| self.rebuild_window(grid, window, seg))?;
-        Some(self.cast_in(window, mask, seg, opts, accept))
+        Some(self.cast_kept(window, mask, seg, opts, accept))
     }
 
     /// Gathers `window` around `seg` and returns the segment's mask, or `None` when the block would be too large.
@@ -198,6 +209,7 @@ impl CollisionWorld {
             earlier.cells |= later.cells;
             true
         });
+        out.faces.reset(out.entries.len());
     }
 
     /// Tests the instances of `set` listed in the cells of `mask`, in instance order, then the ungridded packs.
@@ -213,6 +225,37 @@ impl CollisionWorld {
         for entry in set.entries.iter().filter(|entry| entry.cells & mask != 0) {
             let Some(pack) = self.packs.get(entry.slot as usize) else { continue };
             self.test_instance(pack, entry.reference.index(), seg, opts, accept, &mut best);
+        }
+        self.test_ungridded(seg, opts, accept, &mut best);
+        best
+    }
+
+    /// [`Self::cast_in`] with the values the window keeps between rays (`crate::face_cache`): the same instances in the
+    /// same order through the same instance cast, so the same hits.
+    fn cast_kept(
+        &self,
+        window: &mut CandidateSet,
+        mask: u64,
+        seg: (Vec3, Vec3),
+        opts: &RayOptions,
+        accept: &mut impl FnMut(&Hit) -> bool,
+    ) -> Option<Hit> {
+        let mut best: Option<Hit> = None;
+        let CandidateSet { entries, faces, .. } = window;
+        for (at, entry) in entries.iter().enumerate() {
+            if entry.cells & mask == 0 {
+                continue;
+            }
+            let Some(pack) = self.packs.get(entry.slot as usize) else { continue };
+            let index = entry.reference.index();
+            let (Some(inst), Some(article)) = (pack.instances.get(index), pack.article_of(index)) else { continue };
+            let Some((broad, mut strips)) = faces.instance(at, inst, article) else {
+                self.test_instance(pack, index, seg, opts, accept, &mut best);
+                continue;
+            };
+            let subject = Subject { inst, article, groups: &self.enabled_groups, identity: (pack.section, index) };
+            let Some(hit) = cast_subject(&subject, |_| broad, &mut strips, seg, opts, accept) else { continue };
+            keep_nearer(&mut best, hit, seg.0);
         }
         self.test_ungridded(seg, opts, accept, &mut best);
         best

@@ -296,9 +296,7 @@ impl CollisionWorld {
         let (Some(inst), Some(article)) = (pack.instances.get(index), pack.article_of(index)) else { return };
         let identity = (pack.section, index);
         let Some(hit) = cast_instance(inst, article, seg, opts, &self.enabled_groups, identity, accept) else { return };
-        if best.as_ref().is_none_or(|b| closer(&hit, b, seg.0)) {
-            *best = Some(hit);
-        }
+        keep_nearer(best, hit, seg.0);
     }
 
     /// The first surface met going down from `(x, top, z)` to `(x, bottom, z)`: ground height
@@ -316,6 +314,13 @@ pub(crate) fn cache<T>(lock: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
         Ok(guard) => Some(guard),
         Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
         Err(TryLockError::WouldBlock) => None,
+    }
+}
+
+/// Keeps `hit` in `best` when it is nearer `start` ([`closer`]): how every cast picks among instances.
+pub(crate) fn keep_nearer(best: &mut Option<Hit>, hit: Hit, start: Vec3) {
+    if best.as_ref().is_none_or(|b| closer(&hit, b, start)) {
+        *best = Some(hit);
     }
 }
 

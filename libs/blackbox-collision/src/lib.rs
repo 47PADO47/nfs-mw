@@ -19,6 +19,7 @@ mod bytes;
 mod camera_query;
 pub mod carp;
 mod error;
+mod face_cache;
 mod grid;
 pub mod ground_reference;
 mod groups;

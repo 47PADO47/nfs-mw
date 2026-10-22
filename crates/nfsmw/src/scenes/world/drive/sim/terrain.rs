@@ -203,6 +203,11 @@ struct PreparedGround<'a> {
 }
 
 impl Ground for PreparedGround<'_> {
+    /// Rays (the body's corner rays) go to the world cast, never to `faces`. The prepared region is not the cast's
+    /// candidate set: it keeps faces by distance from the body under its own exclusions and cell cap, leaves out the
+    /// ungridded packs and the scenery-group rule, and keeps faces without the instance rotation; and the cast tests
+    /// a ray in each instance's own space, so no world-space face list can reproduce its bits. The cast's candidate
+    /// window keeps the cast's own per-instance and per-strip values between a car's rays instead, which is exact.
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit> {
         self.fallback.hit(origin, dir, max_distance)
     }
