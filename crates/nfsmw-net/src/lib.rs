@@ -19,6 +19,7 @@
 //! - [`interp`]: snapshot buffers of remote cars, traffic and police, the adaptive display delay, interpolation and
 //!   bounded extrapolation.
 //! - [`clock`]: the estimated server tick from PING and PONG, the ping schedule and the input lead.
+//! - [`netstats`]: the counters of the network overlay line.
 
 pub mod input;
 pub mod loadout;
@@ -29,5 +30,6 @@ pub mod version;
 pub mod clock;
 mod geom;
 pub mod interp;
+pub mod netstats;
 pub mod predict;
 pub mod reconcile;
