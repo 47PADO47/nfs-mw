@@ -62,8 +62,10 @@ events. The rules are written so that LAN players use the same rules later ([mul
 2. **Press Start.** The screen reads "Player 2 press Start" (the labels of
    [split-screen.md](split-screen.md) section 2). The device that presses Start is seated as P2. P2 cannot take P1's
    device. Back returns to the career menu with co-op off. **[ours]**
-3. **Second car.** The car select shows the shared garage. Not offered: P1's current car, and any impounded car. Accept
-   seats P2's car. Back returns to Press Start for P2. **[ours]**
+3. **Second car.** The car select shows the shared garage of the loaded profile. Not offered: P1's current car, and any
+   impounded car. With no other car free to drive, P2 shares P1's car (its record takes both players' bounty and heat),
+   so co-op can start with a one-car garage. Accept seats P2's car, found as P1's is (the lot's name, a preset ride or
+   the car type). Back returns to the career menu. **[ours]**
 4. **Resume.** The game then resumes the career as [career-flow.md](career-flow.md) section 0 item 4 describes, with P2
    in the session. Resume Free Roam from the safe house menu starts the world for both. **[ours]**
 

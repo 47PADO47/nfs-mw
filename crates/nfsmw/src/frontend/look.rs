@@ -86,7 +86,11 @@ impl CarLook {
 
     /// The car of `career`'s current-car handle.
     fn of_career(career: &Career) -> CarLook {
-        let handle = career.settings.car_handle;
+        CarLook::of_handle(career, career.settings.car_handle)
+    }
+
+    /// The car of the record with `handle` in `career`'s stable (a co-op player's car, `flow_coop.rs`).
+    pub fn of_handle(career: &Career, handle: u32) -> CarLook {
         // A new career starts on the preset ride `M3GTRCAREERSTART`; its record may not be in the stable yet.
         if handle == STARTER_CAR_HANDLE {
             return CarLook::career_start();

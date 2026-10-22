@@ -416,8 +416,8 @@ impl Frontend {
                 Command::StartSplitRace { race, options, setup } => {
                     self.start_split_race(race, options, setup, host, env)
                 }
-                Command::CoopSecondCar { folder, handle, transmission } => {
-                    self.coop_second_car(folder, handle, transmission, host, env)
+                Command::CoopSecondCar { handle, transmission } => {
+                    self.coop_second_car(handle, transmission, host, env)
                 }
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),

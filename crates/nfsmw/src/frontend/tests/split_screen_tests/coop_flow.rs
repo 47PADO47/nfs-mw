@@ -79,7 +79,7 @@ fn co_op_second_car_starts_a_co_op_session() {
     let Some(mut rig) = install_rig() else { return };
     set_coop_players(1);
     // The career car select sends this when player 2 accepts a car (`car_select.rs`, `accept_coop`).
-    let picked = Command::CoopSecondCar { folder: "M3GTR".into(), handle: 7, transmission: Transmission::Manual };
+    let picked = Command::CoopSecondCar { handle: 7, transmission: Transmission::Manual };
     rig.with(|fe, host, env| fe.apply(vec![picked], host, env));
     assert_eq!(coop_players(), 2, "player 2 joins the career");
     // With no profile loaded the career resumes at the safe house menu, as `resume_career` does.

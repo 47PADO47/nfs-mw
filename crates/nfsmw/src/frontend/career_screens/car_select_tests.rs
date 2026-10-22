@@ -226,6 +226,15 @@ fn coop_list_leaves_out_the_current_car() {
 }
 
 #[test]
+fn coop_shares_player_ones_car_when_no_other_is_free() {
+    let mut career = career();
+    add_owned(&mut career, 1, 8);
+    career.stable.career_for_handle_mut(8).unwrap().enter_impound(ImpoundState::LimitReached);
+    let rows = items(&career, Tab::Owned);
+    assert_eq!(keys(&choices(rows, &career, true)), vec![Key::Owned(HANDLE)], "player 2 shares player 1's car");
+}
+
+#[test]
 fn coop_list_leaves_out_impounded_cars() {
     let mut career = career();
     add_owned(&mut career, 1, 8);
@@ -243,11 +252,4 @@ fn plain_list_is_unchanged() {
     career.stable.career_for_handle_mut(9).unwrap().enter_impound(ImpoundState::LimitReached);
     let rows = items(&career, Tab::Owned);
     assert_eq!(choices(rows.clone(), &career, false), rows, "the career's own list keeps every car");
-}
-
-#[test]
-fn a_folder_comes_from_the_lot_by_the_car_key() {
-    let career = career();
-    assert_eq!(folder_of(&career, HANDLE), Some("tt".to_owned()));
-    assert_eq!(folder_of(&career, 99), None);
 }

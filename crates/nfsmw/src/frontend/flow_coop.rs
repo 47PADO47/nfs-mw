@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::frontend::custom_race::state as custom_state;
+use crate::frontend::look::CarLook;
 use crate::input::{CoopDevice, PlayerDevice};
 use crate::scenes::world::players::coop::CoopSetup;
 use crate::settings::Transmission;
@@ -12,16 +13,16 @@ use crate::settings::Transmission;
 impl Frontend {
     /// Player 2's car is picked in the career car select: the co-op session is set up, then the career resumes as
     /// `ResumeCareer` does, with player 2 in it. The device is the one player 2 pressed Start on.
-    pub(super) fn coop_second_car(
-        &mut self,
-        folder: String,
-        handle: u32,
-        transmission: Transmission,
-        host: &mut Host,
-        env: &mut Env,
-    ) {
+    pub(super) fn coop_second_car(&mut self, handle: u32, transmission: Transmission, host: &mut Host, env: &mut Env) {
+        // Player 2's car is found as player 1's is: the lot's name, a preset ride or the car type (`look_resolve.rs`).
+        let look =
+            self.career.with_loaded(|career| CarLook::of_handle(career, handle)).unwrap_or_else(CarLook::default_car);
+        let folder = match look.resolve(&self.dir) {
+            (folder, Some(preset)) => format!("{folder}:{preset}"),
+            (folder, None) => folder,
+        };
         let seats = custom_state::with(|state| state.split.seated());
-        let alias = self.career.with(|career| career.alias.clone()).unwrap_or_else(|| "Player".into());
+        let alias = self.career.with_loaded(|career| career.alias.clone()).unwrap_or_else(|| "Player".into());
         self.coop = Some(coop_setup(alias, folder, handle, transmission, guest_device(seats)));
         crate::career::set_coop_players(2);
         self.resume_career(host, env);

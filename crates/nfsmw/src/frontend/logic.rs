@@ -183,9 +183,9 @@ pub enum Command {
     CarLot(super::career_screens::car_lot::CarLotAction),
     /// The career car select asks for something (`career_screens/car_select.rs`, `flow_bust.rs`).
     CareerCar(super::career_screens::car_select::CarSelectAction),
-    /// Co-op: player 2 chose their car from the shared garage (`flow_coop.rs`). The folder is the car's name the world loads.
+    /// Co-op: player 2 chose their car from the shared garage (`flow_coop.rs`), by its career record handle. The front end
+    /// finds the car the world loads as it does for player 1's car (`CarLook::resolve`).
     CoopSecondCar {
-        folder: String,
         handle: u32,
         transmission: crate::settings::Transmission,
     },
