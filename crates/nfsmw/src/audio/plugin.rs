@@ -112,6 +112,9 @@ fn drive_car(
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
+    // Player 2's engine in a co-op session is a voice of its own, heard through the same listener.
+    let second_car = host.scene.second_car_sound();
+    audio.drive_second_car(second_car.as_ref(), time.delta_secs());
     audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
     // The NIS player asks for the stream of the scene it plays, and hears back whether the stream still plays.
     audio.update_nis(host.scene.nis_audio().and_then(|request| request.scene.as_deref()));

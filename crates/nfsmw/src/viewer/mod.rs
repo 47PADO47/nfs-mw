@@ -246,6 +246,10 @@ pub trait Scene {
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
     }
+    /// The second player's car in a co-op session, for its own engine voice; `None` outside co-op.
+    fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        None
+    }
     /// The chase the cops run this frame, for the pursuit music and the speech; `None` without one.
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None

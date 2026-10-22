@@ -233,6 +233,13 @@ impl Scene for Pausable {
         self.inner.car_sound()
     }
 
+    fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
+        if self.paused.get() || self.concealed() {
+            return None;
+        }
+        self.inner.second_car_sound()
+    }
+
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         let sounds = self.inner.take_common_sounds();
         if self.paused.get() || self.concealed() {

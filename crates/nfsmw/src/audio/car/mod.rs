@@ -139,42 +139,68 @@ impl Audio {
             self.prepare_explosion();
         }
         self.update_speedbreaker(state.is_some_and(|state| state.view.speedbreaker), dt);
+        let mut car = self.car.take();
+        let mut failed = self.failed.take();
+        self.follow_car(&mut car, &mut failed, state, dt);
+        self.car = car;
+        self.failed = failed;
+    }
+
+    /// Player 2's engine in a co-op session: the same car path as `drive_car`, a second voice of its own. Without a
+    /// guest's car (`None`) the voice stops and nothing is created.
+    pub fn drive_second_car(&mut self, state: Option<&CarSoundState>, dt: f32) {
+        let mut car = self.second_car.take();
+        let mut failed = self.second_failed.take();
+        self.follow_car(&mut car, &mut failed, state, dt);
+        self.second_car = car;
+        self.second_failed = failed;
+    }
+
+    /// Plays one engine voice (`slot`) of the car `state` describes: starts its sounds when the car changes, feeds the
+    /// mixers, and silences the voice when there is no car. `failed` keeps the selector whose sound did not load.
+    fn follow_car(
+        &mut self,
+        slot: &mut Option<CarAudio>,
+        failed: &mut Option<(String, SoundUpgrades)>,
+        state: Option<&CarSoundState>,
+        dt: f32,
+    ) {
         let Some(state) = state else {
-            self.car = None;
-            self.failed = None;
+            *slot = None;
+            *failed = None;
             return;
         };
-        let selectors_changed = self.car.as_ref().is_some_and(|c| c.car == state.car && c.upgrades != state.upgrades);
+        let selectors_changed = slot.as_ref().is_some_and(|c| c.car == state.car && c.upgrades != state.upgrades);
         if selectors_changed
             && let Ok(database) = self.database()
             && let Ok(mut selected) = nfsmw_data::sound::car_sound(&database, &state.car, state.upgrades)
-            && let Some(car) = self.car.as_mut()
+            && let Some(car) = slot.as_mut()
         {
             selected.engine_level = car.sound.engine_level;
             if car.sound == selected {
                 car.upgrades = state.upgrades;
             }
         }
-        if self.car.as_ref().is_none_or(|c| c.car != state.car || c.upgrades != state.upgrades) {
-            self.car = None;
-            if self.failed.as_ref().is_some_and(|(car, upgrades)| car == &state.car && *upgrades == state.upgrades)
+        if slot.as_ref().is_none_or(|c| c.car != state.car || c.upgrades != state.upgrades) {
+            *slot = None;
+            if failed.as_ref().is_some_and(|(car, upgrades)| car == &state.car && *upgrades == state.upgrades)
                 || !self.available()
             {
                 return;
             }
             match self.start_car(&state.car, state.upgrades) {
                 Ok(car) => {
-                    self.failed = None;
-                    self.car = Some(car);
+                    *failed = None;
+                    *slot = Some(car);
                 }
                 Err(e) => {
                     log::warn!("no engine sound for {}: {e}", state.car);
-                    self.failed = Some((state.car.clone(), state.upgrades));
+                    *failed = Some((state.car.clone(), state.upgrades));
                     return;
                 }
             }
         }
-        let Some(mut car) = self.car.take() else { return };
+        let Some(mut car) = slot.take() else { return };
         let dt = if dt.is_finite() { dt.max(0.0) } else { 0.0 };
         if state.ticks.is_empty() {
             self.advance_car(
@@ -190,7 +216,7 @@ impl Audio {
                     delay: 0.0,
                 },
             );
-            self.car = Some(car);
+            *slot = Some(car);
             return;
         }
         let delta = dt / state.ticks.len() as f32;
@@ -209,7 +235,7 @@ impl Audio {
                 },
             );
         }
-        self.car = Some(car);
+        *slot = Some(car);
     }
 
     /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters).
@@ -269,6 +295,8 @@ impl Audio {
 mod regression_tests;
 #[cfg(test)]
 mod routing_tests;
+#[cfg(test)]
+mod second_voice_tests;
 #[cfg(test)]
 mod speedbreaker_engine_tests;
 #[cfg(test)]
