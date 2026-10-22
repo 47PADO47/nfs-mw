@@ -3,30 +3,47 @@ use super::{Renderer, output::Output, post::display::Mapping};
 use blackbox_gfx::{DisplaySettings, DisplayStatus, HdrMode, display::hdr_active};
 use std::time::{Duration, Instant};
 
+/// The longest the surface's colour-space support is trusted without asking again. Resizes, reconfigures and display
+/// settings refresh it at once; this only bounds how stale it gets after a monitor change nothing reports to us.
+const SUPPORT_TTL: Duration = Duration::from_secs(10);
+
 pub(super) struct Display {
     settings: DisplaySettings,
     pub status: DisplayStatus,
     sdr_format: wgpu::TextureFormat,
     supported: bool,
+    /// Whether the surface offers HDR10 (BT.2100 PQ); cached with `supported` between forced refreshes.
+    pq_supported: bool,
+    /// When `supported` and `pq_supported` were last read from the surface.
+    support_read: Instant,
     refreshed: Option<Instant>,
 }
 impl Display {
     pub(super) fn new(output: &Output, adapter: &wgpu::Adapter) -> Self {
-        let supported = match output {
-            Output::Window { surface, .. } => surface
-                .get_capabilities(adapter)
-                .color_spaces(wgpu::TextureFormat::Rgba16Float)
-                .contains(wgpu::SurfaceColorSpaces::EXTENDED_SRGB_LINEAR),
-            Output::Texture { .. } => false,
+        let (supported, pq_supported) = match output {
+            Output::Window { surface, .. } => surface_support(surface, adapter),
+            Output::Texture { .. } => (false, false),
         };
         Self {
             settings: Default::default(),
             status: Default::default(),
             sdr_format: output.format(),
             supported,
+            pq_supported,
+            support_read: Instant::now(),
             refreshed: None,
         }
     }
+}
+
+/// Whether the surface offers scRGB (RGBA16F extended sRGB linear) and HDR10 (BT.2100 PQ) output.
+fn surface_support(surface: &wgpu::Surface<'_>, adapter: &wgpu::Adapter) -> (bool, bool) {
+    let capabilities = surface.get_capabilities(adapter);
+    let scrgb = capabilities
+        .color_spaces(wgpu::TextureFormat::Rgba16Float)
+        .contains(wgpu::SurfaceColorSpaces::EXTENDED_SRGB_LINEAR);
+    let pq = capabilities.color_spaces(wgpu::TextureFormat::Rgb10a2Unorm).contains(wgpu::SurfaceColorSpaces::BT2100_PQ);
+    (scrgb, pq)
 }
 impl Renderer {
     pub fn set_display_settings(&mut self, settings: DisplaySettings) {
@@ -49,20 +66,20 @@ impl Renderer {
         let Output::Window { surface, config, .. } = &mut self.output else {
             return;
         };
-        let capabilities = surface.get_capabilities(&self.adapter);
+        // The surface capabilities only change with the surface (resize, reconfigure, a new monitor), and the
+        // first three force a refresh; the once-a-second poll only re-reads the OS HDR metadata.
+        if force || self.display.support_read.elapsed() >= SUPPORT_TTL {
+            (self.display.supported, self.display.pq_supported) = surface_support(surface, &self.adapter);
+            self.display.support_read = Instant::now();
+        }
         #[cfg(all(windows, feature = "streamline"))]
         let generation_requested = self.dlss.is_some()
             && self.presentation.status.max_generated_frames > 0
             && self.presentation.request.generated_frames > 0;
         #[cfg(not(all(windows, feature = "streamline")))]
         let generation_requested = false;
-        let pq_supported =
-            capabilities.color_spaces(wgpu::TextureFormat::Rgb10a2Unorm).contains(wgpu::SurfaceColorSpaces::BT2100_PQ);
+        let pq_supported = self.display.pq_supported;
         let metadata = surface.display_hdr_info(&self.adapter);
-        self.display.supported = surface
-            .get_capabilities(&self.adapter)
-            .color_spaces(wgpu::TextureFormat::Rgba16Float)
-            .contains(wgpu::SurfaceColorSpaces::EXTENDED_SRGB_LINEAR);
         let os_hdr = metadata.coarse.and_then(|c| c.high_dynamic_range);
         let reported =
             metadata.luminance.and_then(|l| l.max_nits).filter(|v| v.is_finite() && (80.0..=10000.0).contains(v));
