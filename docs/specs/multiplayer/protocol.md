@@ -91,6 +91,9 @@ The list shows `key_hash` status ("known", "new") and greys out servers whose `p
 only; a typed address is the fallback across routers. The online server list (milestone 11) is a separate HTTPS service, not in
 this file.
 
+**As built (2026-10-22):** the datagrams are `discovery::Request` and `Reply`; the responder and the scan that send them are
+`endpoint::DiscoveryResponder` and `endpoint::DiscoveryScan` ([operations security](security-ops.md) section 2.3).
+
 ## 4. Handshake
 
 **Built** (2026-10-22): the byte layouts, the cookie, the flow, the retries and every difference from the first design are in

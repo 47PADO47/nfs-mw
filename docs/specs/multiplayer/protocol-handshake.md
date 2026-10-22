@@ -95,4 +95,6 @@ keys with `snow`'s raw split.
 - The `Auth` message, its 5 s deadline and the resume token: game protocol, in `nfsmw-net`.
 - Carrying the connect token and the PAKE messages on the control channel: the library opens and checks them
   (`secure::token`, `secure::password`); the game sends them.
-- The net thread and sockets with 256 KiB buffers: the hand-off queues exist (`handoff`), the thread does not.
+- Sockets with 256 KiB buffers. The net thread itself is built (module `endpoint`, [integration](integration.md) section 1): it
+  runs this handshake on a real socket, sends the server's first sealed packet right away and then every 100 ms until the client
+  is heard from, and drops data packets from any address other than the handshake's.
