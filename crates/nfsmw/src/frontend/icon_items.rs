@@ -225,16 +225,16 @@ pub fn career_icons(started: bool, won: bool, prologue: bool) -> Vec<Icon> {
 
 /// The icons of the safe house menu, one per item in menu order (`career-safehouse-2.md`). The pictures are the
 /// original's own (`MAIN_ICON_TOP_15`, `MAIN_ICON_CAR_SELECT`, `MAIN_ICON_RAP_SHEET`, `GENERIC_ICON_SAVE`, and the pause
-/// menu's resume picture; docs/provenance/career-parity-menus.md). Before the world exists (`prelude`) Car Select is
-/// greyed out. The Rap Sheet is always on the row: it is greyed out until the career has it (`items` has no Rap Sheet),
+/// menu's resume picture; docs/provenance/career-parity-menus.md). The safe house stands before the world, which starts
+/// in the career's current car when Resume Free Roam is chosen, so Car Select works there. The Rap Sheet is always on the row: it is greyed out until the career has it (`items` has no Rap Sheet),
 /// where the original leaves it off the row **[ours]**.
-pub fn safehouse_icons(items: &[MenuItem], prelude: bool) -> Vec<Icon> {
+pub fn safehouse_icons(items: &[MenuItem]) -> Vec<Icon> {
     let mut icons: Vec<Icon> = items
         .iter()
         .map(|item| match *item {
             MenuItem::ResumeFreeRoam => icon(Id::SafeHouseResume, 0x12BB_5EA2, 0x01BD_185C, true),
             MenuItem::Blacklist(stage) => icon(Id::SafeHouseBlacklist(stage), 0x2C14_AC23, 0x80B9_FF9B, true),
-            MenuItem::CarSelect => icon(Id::SafeHouseCarSelect, 0xC6A1_A6E0, 0x00D5_F627, !prelude),
+            MenuItem::CarSelect => icon(Id::SafeHouseCarSelect, 0xC6A1_A6E0, 0x00D5_F627, true),
             MenuItem::RapSheet => rap_sheet_icon(true),
             MenuItem::Save => icon(Id::SafeHouseSave, 0x228B_7E32, 0x001C_8ACE, true),
         })

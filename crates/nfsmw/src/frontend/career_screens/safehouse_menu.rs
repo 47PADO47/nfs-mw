@@ -51,8 +51,7 @@ pub fn make(args: Args) -> Box<dyn ScreenLogic> {
     }) else {
         return Box::new(Plain);
     };
-    let menu =
-        IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items, CareerHandle::shared().is_prelude()));
+    let menu = IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items));
     Box::new(SafeHouseMenu { menu, totals })
 }
 

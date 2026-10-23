@@ -100,6 +100,15 @@ impl Frontend {
         }
     }
 
+    /// The car the career drives now, as the world names a car (`folder` or `folder:preset`).
+    pub(super) fn profile_car(&self) -> String {
+        let (folder, preset) = CarLook::of_profile(&self.career).resolve(&self.dir);
+        match preset {
+            Some(preset) => format!("{folder}:{preset}"),
+            None => folder,
+        }
+    }
+
     /// Opens the car lot as a room of its own: the world gives way to the lot's backdrop with the car under the cursor on
     /// show. A lot zone in free roam (`zone`) sends the player back to the world at that zone when they leave; the lot the
     /// scripted chase of `16.2.1` opens (no zone) is the first car's, which cannot be left without a car
@@ -127,15 +136,11 @@ impl Frontend {
     /// the first safe house in that car, through the loading screen. Leaving the car lot is a roaming start, as leaving the
     /// safe house is.
     pub(super) fn start_first_drive(&mut self, host: &mut Host, env: &mut Env) {
-        let (folder, preset) = CarLook::of_profile(&self.career).resolve(&self.dir);
-        log::info!("career: driving to the first safe house in {folder}");
+        log::info!("career: driving to the first safe house");
         self.in_safe_house = true;
         self.leave_safe_house();
         self.origin = QuitTo::Career;
-        self.quick_car = Some(match preset {
-            Some(preset) => format!("{folder}:{preset}"),
-            None => folder,
-        });
+        self.quick_car = Some(self.profile_car());
         self.drive_to_safe_house = true;
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
