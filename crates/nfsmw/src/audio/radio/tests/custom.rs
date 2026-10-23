@@ -115,6 +115,9 @@ fn a_skipped_custom_track_fades_out_over_the_default_five_seconds() {
         if mixer.sounds.len() == 1 {
             break;
         }
+        // This virtual mixer can outrun the real decoder thread. Give it a scheduling
+        // opportunity before advancing another audio block; waiting streams do not fade.
+        std::thread::sleep(std::time::Duration::from_millis(1));
         mixer.run(100);
     }
     assert_eq!(mixer.sounds.len(), 1, "the skipped track has faded out");

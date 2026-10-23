@@ -136,6 +136,12 @@ Each tick, with `c = clamp(playcontrol, 0, 2)`:
 - Otherwise (`c` is 0 or 2) it returns `c` if the player holds a sound and 0 if it does not (a stopped or
   never-started player reports 0, a paused one 2).
 
+**[verified, PC bank data]** Bank-sample entries are numbered from 1. An entry
+of type 0 with index 0 is authored padding: the host starts no voice and the
+player follows its no-sound path. This does not indicate a decoder/backend failure
+and must not mark the module unavailable. The front-end banks use this for
+reserved silent events ([front-end audio](frontend-audio.md)).
+
 A sound that ends by itself leaves the play control at 1; the graph restarts it by taking the control to 0 and
 back to 1. The game side of this (voices, banks) is the host's: a host starts, stops, pauses, resumes and updates
 voices, and says whether one is still playing.

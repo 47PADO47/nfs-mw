@@ -92,3 +92,22 @@ fn unsupported_recordings_do_not_promise_a_limiter_replacement() {
 }
 
 mod gain;
+
+#[test]
+fn an_authored_empty_bank_entry_does_not_decode_or_disable_the_module() {
+    struct NoRecording;
+    impl Sampler for NoRecording {
+        fn sound(&mut self, _: &str, _: usize) -> Result<StaticSoundData, String> {
+            panic!("an authored empty entry must not reach the decoder");
+        }
+        fn start(&mut self, _: StaticSoundData, _: f32, _: f32) -> Option<Box<dyn Voice>> {
+            panic!("an authored empty entry must not create a voice");
+        }
+    }
+    let (mut output, mut voices) = (NoRecording, Voices::default());
+    let mut host = PartHost { sampler: &mut output, bank: "synthetic", voices: &mut voices, makeup: 1.0 };
+    assert!(!host.play(0, &SampleEntry { index: 0, ..entry() }, &PlayerInputs::default()));
+    assert!(!voices.failed, "authored silence does not make a healthy module unavailable");
+    assert!(voices.slots.is_empty());
+    assert_eq!(voices.started, 0);
+}

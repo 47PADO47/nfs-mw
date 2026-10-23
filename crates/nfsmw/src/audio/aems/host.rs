@@ -190,6 +190,10 @@ fn rate(inputs: &PlayerInputs) -> f32 {
 
 impl Host for PartHost<'_> {
     fn play(&mut self, player: usize, entry: &SampleEntry, inputs: &PlayerInputs) -> bool {
+        // Bank indexes start at one. An authored zero entry intentionally has no recording.
+        if entry.kind == 0 && entry.index == 0 {
+            return false;
+        }
         if entry.kind != 0 {
             self.voices.trace_event(
                 "voice_failure",
