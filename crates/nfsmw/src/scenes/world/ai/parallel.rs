@@ -34,8 +34,12 @@ pub(super) struct Parallel {
 }
 
 impl Default for Parallel {
+    /// The simulation thread alone. A step starts its threads afresh (`integrate`), and measured on the dev profile
+    /// with 16 players that costs more than it saves: with 16 traffic cars the mean tick was 2.40 ms and the p95
+    /// 2.77 ms on threads against 2.16 ms and 2.29 ms serial, and with 59 cars the p95 was 32.8 ms against 3.4 ms, as a
+    /// thread that starts late stalls the whole tick (`step_bench_tests.rs`). Threads would need a pool that stays.
     fn default() -> Self {
-        Self { min_cars: 8, per_thread: 4, max_threads: 0 }
+        Self { min_cars: 8, per_thread: 4, max_threads: 1 }
     }
 }
 
