@@ -1,4 +1,4 @@
-//! Nearby actor tire water shares the player's weather and authored surface groups.
+//! Nearby actor tire spray, dust and leaves share the player's weather and authored surface groups.
 use super::TrafficWorld;
 use crate::audio::environment_context::EnvironmentMap;
 use crate::scenes::world::{space, vehicle_effects::TireWaterEffects};
@@ -30,12 +30,7 @@ impl TrafficWorld {
         if !view.dt.is_finite() || view.dt <= 0.0 {
             return;
         }
-        if self.water.data.is_none() && (view.intensity > 0.0 || view.water.is_some_and(|v| v.0.dampness > 0.05)) {
-            self.water.data = Some(TireWaterData::read(db));
-        }
-        let Some(data) = &self.water.data else {
-            return;
-        };
+        let data = self.water.data.get_or_insert_with(|| TireWaterData::read(db));
         self.water.actors.retain(|id, _| self.cars.iter().any(|car| car.key() == *id));
         for car in &self.cars {
             let near = car.position().distance_squared(view.camera) < 3600.0;
@@ -49,11 +44,10 @@ impl TrafficWorld {
                 .map(|map| map.at(Vec3::from_array(space::to_physics(car.position()))))
                 .unwrap_or_default();
             group.surface_water = view.water;
-            group.active = near
-                && (view.intensity > 0.0 || view.water.is_some_and(|v| v.0.dampness > 0.05))
+            group.wet = (view.intensity > 0.0 || view.water.is_some_and(|v| v.0.dampness > 0.05))
                 && !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
             group.age(view.dt);
-            if !group.active {
+            if !near {
                 group.disconnect();
                 continue;
             }

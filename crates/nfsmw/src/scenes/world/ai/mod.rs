@@ -30,9 +30,6 @@ mod model_loader;
 mod models;
 mod moment_feed;
 mod net_export;
-mod status;
-mod water;
-pub(in crate::scenes::world) use water::RainView;
 mod nis_poses;
 mod original_camera;
 mod parallel;
@@ -63,6 +60,7 @@ mod spawn;
 mod spawn_requests;
 mod spikes;
 mod state_hash;
+mod status;
 mod stop;
 mod streams;
 mod support;
@@ -72,9 +70,9 @@ mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
 mod trailer;
+mod water;
 
-use std::collections::HashSet;
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use blackbox_render::{EffectVertex, Instance};
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController};
@@ -100,6 +98,7 @@ pub use pursuit::{CopModel, Pursuit};
 pub use racers::{ModelState, RacerSpawn};
 pub use tally::RoadblockTally;
 pub use touches::{CarTouch, Toucher};
+pub(in crate::scenes::world) use water::RainView;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
