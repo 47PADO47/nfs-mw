@@ -21,7 +21,8 @@ use nfsmw_career::settings::FIRST_RIVAL_STAGE;
 use super::blacklist::{DISABLED_ALPHA, career_rows, current_bin, rank_title, rival_key};
 use super::{RIVAL_LIST_READY, safehouse_menu::money_text};
 use crate::career::CareerHandle;
-use crate::frontend::ids::screen;
+use crate::frontend::icon_strip::Hit;
+use crate::frontend::ids::{EXIT_STARTED, screen};
 use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
@@ -202,9 +203,9 @@ impl Overview {
         cx.text_group(TICKER_CASH, &cash);
     }
 
-    fn fill_sheet(&self, cx: &mut Cx) {
+    fn fill_sheet(&mut self, cx: &mut Cx) {
         if !self.vertical {
-            self.row.place(cx, self.sheet);
+            self.row.select(cx, self.sheet);
         }
         let sheet = SHEETS[self.sheet];
         let Some(title) = cx.object(OPTION_TITLE) else { return };
@@ -282,7 +283,7 @@ impl Overview {
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.vertical_look();
-        self.row.start(cx);
+        self.row.start(cx, self.sheet);
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
         // Nothing to step through while the career is at rival 15.
@@ -297,7 +298,7 @@ impl ScreenLogic for Overview {
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
         self.vertical = cx.vertical_look();
         if !self.vertical {
-            self.row.tick(cx, self.sheet, dt);
+            self.row.tick(cx, dt);
         }
     }
 
@@ -369,14 +370,17 @@ impl ScreenLogic for Overview {
     // (the footer's Back and Accept are taken by the front end).
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
         if !self.vertical
-            && let Some(sheet) = self.row.hit(cx, point)
+            && let Some(hit) = self.row.hit(cx, point)
         {
-            self.sheet = sheet;
-            self.fill_sheet(cx);
-            let before = cx.commands.len();
-            self.accept(cx);
-            if before != cx.commands.len() {
-                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            // A book end is the row's too: the click must not fall through to the page behind it.
+            if let Hit::Icon(sheet) = hit {
+                self.sheet = sheet;
+                self.fill_sheet(cx);
+                let before = cx.commands.len();
+                self.accept(cx);
+                if before != cx.commands.len() {
+                    crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+                }
             }
             return true;
         }
@@ -445,6 +449,7 @@ impl ScreenLogic for Overview {
             PAD_LEFT => self.step_sheet(cx, false),
             PAD_RIGHT => self.step_sheet(cx, true),
             CHALLENGE_KEY => self.challenge(cx),
+            EXIT_STARTED => self.row.leave(),
             PAD_BACK => self.back(cx),
             _ => {}
         }
