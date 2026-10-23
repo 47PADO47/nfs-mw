@@ -250,6 +250,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_console_step_hands_its_command_to_the_front_end_once() {
+        let mut s = UiScript::parse("console story race 16.1.0; wait 0.02").unwrap();
+        assert_eq!(s.next_mask(), Some(0));
+        assert_eq!(s.take_console().as_deref(), Some("story race 16.1.0"));
+        assert_eq!(s.take_console(), None, "taken once");
+        assert!(UiScript::parse("console").is_err(), "a console step needs a command");
+    }
+
+    #[test]
     fn steps_become_frames() {
         let mut s = UiScript::parse("wait 0.05; right; hold accept 0.1").unwrap();
         let masks: Vec<u32> = std::iter::from_fn(|| s.next_mask()).collect();
