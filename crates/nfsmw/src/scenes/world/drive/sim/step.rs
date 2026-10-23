@@ -80,6 +80,7 @@ impl CarSim {
                 let wall_exclusion = self.terrain_exclusion();
                 let mut impact = walls::resolve_into(
                     &mut self.vehicle,
+                    self.previous_contact_pose.0,
                     &walls::world_cast_with_mask(collision, wall_exclusion),
                     &walls::world_props(props),
                     &self.walls,

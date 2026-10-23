@@ -72,6 +72,12 @@ impl SceneryGroups {
         self.state(group) == Some(true)
     }
 
+    /// Whether `group`'s barriers block from both sides while it is on: every group but a drive-through one, so a
+    /// race's walls and a closed gate stop a car whichever way it meets them [ours].
+    pub fn two_sided(&self, group: u16) -> bool {
+        group != 0 && !self.table.iter().any(|g| g.number == group && g.drive_through)
+    }
+
     /// Whether no group is switched on.
     #[allow(dead_code)] // no caller yet; kept with `admits`
     pub fn is_empty(&self) -> bool {
@@ -103,12 +109,14 @@ impl WorldScene {
     pub(super) fn set_scenery_group(&mut self, group: u16, enabled: bool) {
         self.scenery_groups.set(group, enabled);
         self.residency.set_collision_group(group, enabled);
+        self.residency.set_collision_two_sided(group, enabled && self.scenery_groups.two_sided(group));
     }
 
     /// Puts scenery group `group` in `state` (`Some(turned)` on, `None` off), in the drawn set and the collision world.
     pub(super) fn switch_scenery_group(&mut self, group: u16, state: Option<bool>) {
         self.scenery_groups.switch(group, state);
         self.residency.set_collision_group(group, state.is_some());
+        self.residency.set_collision_two_sided(group, state.is_some() && self.scenery_groups.two_sided(group));
     }
 
     /// The groups the engine has on after a clear: the door group, not turned. Called once the world is built.

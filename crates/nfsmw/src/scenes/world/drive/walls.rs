@@ -118,12 +118,14 @@ pub type Cast<'a> = &'a dyn Fn(Vec3, Vec3) -> Option<Hit>;
 /// Ray casts against the resident collision packs: faces and barriers.
 ///
 /// The caller supplies the body's driver mask; scenery groups are independently inactive in free roam.
-/// A barrier is a wall from its front side only unless it is marked two-sided; a ray that
-/// reaches it from behind passes (`docs/formats/collision.md`, "Query semantics" 6).
+/// A barrier is a wall from its front side only unless it is marked two-sided, or its scenery group is (a race's walls,
+/// [`CollisionWorld::set_group_two_sided`]); a ray that reaches it from behind passes (`docs/formats/collision.md`,
+/// "Query semantics" 6).
 pub fn world_cast_with_mask(collision: &CollisionWorld, exclusion: u16) -> impl Fn(Vec3, Vec3) -> Option<Hit> + '_ {
     let options = RayOptions { exclude: u32::from(exclusion), skip_groups: true, ..RayOptions::default() };
     move |from, to| {
-        let hit = collision.ray_cast_filtered(from.to_array(), to.to_array(), &options, eligible)?;
+        let accept = |hit: &blackbox_collision::Hit| eligible(hit, collision);
+        let hit = collision.ray_cast_filtered(from.to_array(), to.to_array(), &options, accept)?;
         let info = HitInfo {
             barrier: hit.kind == HitKind::Barrier,
             surface: hit.surface_hash,
@@ -136,14 +138,12 @@ pub fn world_cast_with_mask(collision: &CollisionWorld, exclusion: u16) -> impl 
 
 /// Reject floors and rear-facing one-way barriers before they can hide a valid wall farther along
 /// the probe. A ray normal faces its origin, so a floor can have either sign of y.
-fn eligible(hit: &blackbox_collision::Hit) -> bool {
+fn eligible(hit: &blackbox_collision::Hit, collision: &CollisionWorld) -> bool {
     if hit.kind == HitKind::Face && hit.normal[1].abs() > FLOOR_NORMAL {
         return false;
     }
-    if hit.kind == HitKind::Barrier && hit.surface_flags & BARRIER_TWO_SIDED == 0 && !hit.front_facing {
-        return false;
-    }
-    true
+    let two_sided = hit.surface_flags & BARRIER_TWO_SIDED != 0 || collision.group_two_sided(hit.group);
+    hit.kind != HitKind::Barrier || two_sided || hit.front_facing
 }
 
 /// The props the body's box overlaps, as wall contacts (physics space): the world's props are found by
@@ -184,20 +184,26 @@ pub fn world_props(props: &PropWorld) -> impl Fn(Vec3, Mat3, Vec3) -> Vec<WallCo
 #[cfg(test)]
 pub fn find(cast: Cast<'_>, props: PropQuery<'_>, position: Vec3, rot: Mat3, half: Vec3) -> Vec<WallContact> {
     let mut found = Vec::new();
-    find_into(cast, props, position, rot, half, &mut found);
+    find_into(cast, props, (position, position), rot, half, &mut found);
     found
 }
 
-/// As `find`, but fills `found` (cleared first) so the caller's buffer is reused from step to step.
+/// As `find`, but fills `found` (cleared first) so the caller's buffer is reused from step to step. The body moved
+/// from `previous` to `position` (`moved`) this step: a wall its centre crossed is a contact too (`sweep.rs`).
 pub fn find_into(
     cast: Cast<'_>,
     props: PropQuery<'_>,
-    position: Vec3,
+    (previous, position): (Vec3, Vec3),
     rot: Mat3,
     half: Vec3,
     found: &mut Vec<WallContact>,
 ) {
     found.clear();
+    if let Some(swept) = sweep::sweep_contact(cast, previous, position) {
+        // The centre is past a wall: probes cast from it would push the car on through. It goes back first.
+        found.push(swept);
+        return;
+    }
     found.extend(probes(half).iter().filter_map(|&local| {
         let probe = position + rot * local;
         let hit = cast(position, probe)?;
@@ -282,13 +288,17 @@ fn action(c: &WallContact) -> &'static str {
 /// deepest pushes the body out; a light prop only costs the car the momentum it takes to push it away.
 #[cfg(test)]
 pub fn resolve(vehicle: &mut Vehicle, cast: Cast<'_>, props: PropQuery<'_>, walls: &WallSpec) -> Impact {
-    resolve_into(vehicle, cast, props, walls, &|_| 1.0, true, &mut Vec::new())
+    let previous = vehicle.body().position;
+    resolve_into(vehicle, previous, cast, props, walls, &|_| 1.0, true, &mut Vec::new())
 }
 
 /// As `resolve`, with the contact list built in `scratch` (cleared first) so a caller that keeps the buffer does not
-/// allocate per step.
+/// allocate per step. `previous` is where the body's centre was at the start of the step: a wall it crossed since
+/// pushes it back.
+#[allow(clippy::too_many_arguments)]
 pub fn resolve_into(
     vehicle: &mut Vehicle,
+    previous: Vec3,
     cast: Cast<'_>,
     props: PropQuery<'_>,
     walls: &WallSpec,
@@ -299,7 +309,7 @@ pub fn resolve_into(
     let body = vehicle.body();
     let half = body.dimension() + body.spec().collision_box_pad;
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
-    find_into(cast, props, position, rot, half, scratch);
+    find_into(cast, props, (previous, position), rot, half, scratch);
     let contacts = scratch.as_slice();
     if log::log_enabled!(log::Level::Debug) {
         for c in contacts {
@@ -431,6 +441,8 @@ pub fn resolve_into(
     impact.sounds.retain(|c| c.delta_v > 0.0);
     impact
 }
+
+mod sweep;
 
 #[cfg(test)]
 mod regression_tests;

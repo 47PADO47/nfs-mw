@@ -75,8 +75,10 @@ fn compare(spec: VehicleSpec, walls: WallSpec, surface: u32, scale: f32, tangent
     }
     expected.body_mut().position += contact.normal * contact.depth;
     let lookups = std::cell::Cell::new(0);
+    let previous = actual.body().position;
     let impact = resolve_into(
         &mut actual,
+        previous,
         &cast,
         &no_props,
         &walls,

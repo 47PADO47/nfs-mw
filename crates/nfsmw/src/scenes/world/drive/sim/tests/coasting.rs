@@ -80,8 +80,10 @@ fn installed_coasting_cops_compare_native_and_racer_after_the_same_oblique_rail_
         }
         car.set_destroyed_non_player(true);
         car.body_mut().linear_velocity = Vec3::new(8.0, 0.0, 30.0);
+        let previous = car.vehicle.position();
         let impact = walls::resolve_into(
             &mut car.vehicle,
+            previous,
             &walls::world_cast_with_mask(&rail, 0),
             &|_, _, _| vec![],
             &car.walls,
