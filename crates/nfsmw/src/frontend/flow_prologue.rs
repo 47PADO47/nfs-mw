@@ -2,7 +2,9 @@
 //! start the prologue race the chain is at, as a career race in the car that race forces. The car lot that the scripted
 //! chase of `16.2.1` opens picks the car the drive to the first safe house is made in.
 
-use nfsmw_career::settings::NodeStates;
+use nfsmw_career::carlot;
+use nfsmw_career::safehouse::resume::PROLOGUE_END_EVENT;
+use nfsmw_career::settings::{NodeStates, PROLOGUE_STAGE};
 use nfsmw_career::story::prologue::{PrologueResume, resume_point};
 use nfsmw_data::car::{CarTables, list, pick_folder};
 use nfsmw_data::gameplay::GameplayData;
@@ -73,6 +75,29 @@ impl Frontend {
     /// The prologue event a loaded career resumes at, or `None` when it does not restart (`prologue_resume`).
     pub(super) fn resume_prologue_event(&self) -> Option<&'static str> {
         self.career.with(|career| prologue_resume(&career.settings.nodes(), career.stage())).flatten()
+    }
+
+    /// A career that won `16.2.1` and has not reached the first safe house goes on where it stopped: back in the lot while it
+    /// owns no car, else on the drive to the safe house in the car it bought (`story-flow.md` sections 2.3 and 2.5).
+    /// `false` when the career is not there.
+    pub(super) fn resume_first_car(&mut self, host: &mut Host, env: &mut Env) -> bool {
+        let state = self.career.with(|career| {
+            let won = career.settings.nodes().get(PROLOGUE_END_EVENT).is_some_and(|node| node.won_in_career());
+            (career.stage() == PROLOGUE_STAGE && won).then(|| carlot::owned_count(&career.stable) > 0)
+        });
+        match state.flatten() {
+            None => false,
+            Some(true) => {
+                log::info!("career: resuming the drive to the first safe house");
+                self.start_first_drive(host, env);
+                true
+            }
+            Some(false) => {
+                log::info!("career: resuming in the car lot");
+                self.open_car_lot(None, host, env);
+                true
+            }
+        }
     }
 
     /// Opens the car lot as a room of its own: the world gives way to the lot's backdrop with the car under the cursor on

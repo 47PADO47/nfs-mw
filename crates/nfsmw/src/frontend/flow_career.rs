@@ -31,6 +31,9 @@ impl Frontend {
             self.save_settings(env.changed);
             return self.start_career_race(event, host, env);
         }
+        if self.resume_first_car(host, env) {
+            return;
+        }
         if self.resume_final_race_due() {
             log::info!("career: resuming at the final race {FINAL_RACE_EVENT}");
             self.save_settings(env.changed);
