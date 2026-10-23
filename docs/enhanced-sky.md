@@ -78,3 +78,12 @@ notice is retained in `sky_clouds.wgsl`. Noise generation and renderer integrati
 are independently implemented. The model follows the base/detail separation
 described in [Guerrilla's 2015 cloud presentation](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn).
 This does not reproduce the complete Nubis or SkyGL renderer.
+
+## Distant cloud sampling
+
+The density textures now contain filtered mip chains. Cloud view and lighting
+samples choose their density detail from the ray segment and angular footprint.
+A fixed midpoint replaces the interleaved screen pattern; longer horizon paths
+use up to 384 samples instead of a fixed 96. This improves the source image
+without temporal reconstruction. The shared angular map can still limit distant
+silhouettes; this does not add cloud shadows or extend the day/night orbit.

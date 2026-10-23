@@ -361,3 +361,8 @@ https://github.com/sebh/UnrealEngineSkyAtmosphere
 and Godot's shared sky/environment design:
 https://godotengine.org/article/custom-sky-shaders-godot-4-0/
 See docs/enhanced-sky.md for the prototype model and limits.
+
+PC precipitation, screen-water optics, surface tire effects and rain audio behavior
+were independently specified in docs/specs/rain-pc.md before implementation.
+Original executable analysis and dbalatoni13/nfsmw (CC0-1.0) were read-only references;
+no original code or game assets are distributed. https://github.com/dbalatoni13/nfsmw
