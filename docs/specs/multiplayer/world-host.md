@@ -120,7 +120,7 @@ focus turns over every player, `ai/population/guests.rs`), the chase (`players/c
 
 | Call | As built |
 |---|---|
-| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race screens (`SessionRules::race_screens`) |
+| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. A race whose type does not match the round's mode (a speedtrap round on a sprint) is refused, and the server goes on without a world race. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race screens (`SessionRules::race_screens`) |
 | `race_staged` | True when the race stands on its grid, or when there is no race to wait for |
 | `schedule_race_go` | The host starts the staged race's countdown on the tick that puts GO on the given server tick (at once when that is too close) |
 | `stop_race` | Ends the race the world runs; the people's cars come back behind the lead |

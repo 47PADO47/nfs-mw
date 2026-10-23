@@ -2,7 +2,9 @@
 //! parked ghost of a dropped player, and the player's view of the chase and the race for the global block.
 
 use blackbox_pursuit::CooldownStatus;
+use nfsmw_data::gameplay::RaceType;
 use nfsmw_net::frames::{GlobalBlock, PursuitStatus};
+use nfsmw_net::message::Mode;
 use nfsmw_server::{RaceRequest, WorldControl};
 use nfsmw_sim::PlayerId;
 
@@ -14,6 +16,19 @@ use super::sim::{chase_state, racer_states};
 const DAY_MINUTES: f32 = 1440.0;
 /// The highest heat the global block carries.
 const MAX_HEAT: f32 = 15.0;
+
+/// Whether a race of `kind` can carry the rules of `mode`: the round's rules read the laps, knockouts and speed traps
+/// the race raises, so a speedtrap round on a sprint would never score. A race of no known type is left to the lobby.
+fn race_fits_mode(kind: Option<RaceType>, mode: Mode) -> bool {
+    let Some(kind) = kind else { return true };
+    match mode {
+        Mode::Circuit => kind == RaceType::Circuit,
+        Mode::Sprint => kind == RaceType::Sprint,
+        Mode::Speedtrap => kind == RaceType::SpeedTrap,
+        Mode::Knockout => kind == RaceType::Knockout,
+        _ => true,
+    }
+}
 
 impl WorldControl for WorldSimHost {
     /// The reset key of the player's car on the next tick ([`WorldSimHost::request_reset`]): back on the nearest road,
@@ -42,6 +57,12 @@ impl WorldControl for WorldSimHost {
             .find(|race| blackbox_feng::fe_hash_upper(&race.name) == request.track)
             .cloned()
             .ok_or_else(|| format!("no race has the track id {:#010x}", request.track))?;
+        if !race_fits_mode(race.race_type, request.mode) {
+            return Err(format!(
+                "the race {} is a {:?} and cannot run a {:?} round",
+                race.name, race.race_type, request.mode
+            ));
+        }
         let options = RaceOptions {
             laps: (request.laps > 0).then_some(u32::from(request.laps)),
             traffic: Some(i32::from(request.traffic_density)),
@@ -112,4 +133,18 @@ fn race_place(host: &WorldSimHost, id: PlayerId) -> Option<(u8, u8)> {
     let hud = host.scene.race_hud_for(index)?;
     let lap = hud.lap.map_or(0, |(lap, _)| lap);
     Some((u8::try_from(hud.place).unwrap_or(u8::MAX).min(31), u8::try_from(lap).unwrap_or(u8::MAX).min(63)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_round_runs_only_on_a_race_of_its_own_kind() {
+        assert!(race_fits_mode(Some(RaceType::SpeedTrap), Mode::Speedtrap));
+        assert!(race_fits_mode(Some(RaceType::Knockout), Mode::Knockout));
+        assert!(!race_fits_mode(Some(RaceType::Sprint), Mode::Speedtrap));
+        assert!(!race_fits_mode(Some(RaceType::Circuit), Mode::Sprint));
+        assert!(race_fits_mode(None, Mode::Circuit), "a race of no known type is left to the lobby");
+    }
 }
