@@ -27,7 +27,7 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
     let kind = u32(material.surface.w + 0.1);
     let roughness = material.surface.x;
     let nv = saturate(dot(n, v));
-    let reflected = reflect(-v, n);
+    let reflected = probe_direction(world, reflect(-v, n), roughness);
     let variation = flake_variation(uv);
     var environment = layer_environment(reflected, roughness, sharp);
     if roughness < 0.4 && kind != 6u {

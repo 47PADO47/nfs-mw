@@ -169,6 +169,8 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 3);
         }
+        self.encode_reflections(encoder, true);
+        self.encode_irradiance(encoder);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 6);
         }
@@ -207,6 +209,7 @@ impl Renderer {
             glossy.screen.disable(&self.queue);
         }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
+        let lit_cube = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::LitCube);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
         // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
@@ -254,6 +257,7 @@ impl Renderer {
                 fog_end,
                 mip_bias,
                 match (projected, reflection || reduced) {
+                    _ if lit_cube => 3.0,
                     (true, _) => 2.0,
                     (_, true) => 1.0,
                     _ => 0.0,

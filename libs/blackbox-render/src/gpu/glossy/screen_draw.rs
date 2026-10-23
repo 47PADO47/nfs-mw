@@ -27,6 +27,7 @@ impl Renderer {
             &glossy.screen,
             glossy.filtered.as_ref().map_or(&glossy.environment, |f| &f.view),
             glossy.filtered.as_ref().map_or(&glossy.environment, |f| &f.linear_view),
+            &glossy.probe,
         );
         let mut pass = resume(encoder, target, depth);
         pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);

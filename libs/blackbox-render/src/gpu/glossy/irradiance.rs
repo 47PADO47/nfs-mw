@@ -22,23 +22,6 @@ impl Irradiance {
         }
     }
 
-    pub fn update(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        cube: &wgpu::TextureView,
-        sampler: &wgpu::Sampler,
-    ) {
-        if !self.dirty {
-            return;
-        }
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("diffuse probe update") });
-        self.encode(device, &mut encoder, cube, sampler);
-        queue.submit([encoder.finish()]);
-    }
-
-    /// Records the projection of `cube` into `encoder`, after the passes that drew it, and marks the light current.
     pub fn encode(
         &mut self,
         device: &wgpu::Device,
@@ -46,6 +29,9 @@ impl Irradiance {
         cube: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
     ) {
+        if !self.dirty {
+            return;
+        }
         let pipeline = self.pipeline.get_or_insert_with(|| {
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("diffuse environment projection"),

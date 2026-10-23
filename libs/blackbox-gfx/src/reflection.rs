@@ -278,9 +278,12 @@ fn clamp_round(value: f32, low: u32, high: u32) -> u32 {
     value.round().clamp(low as f32, high as f32) as u32
 }
 
-/// One surroundings snapshot. The caller supplies scenery outside the main view too, and excludes
-/// the reflective object itself. Effects and UI are deliberately absent from this pass.
+/// One surroundings snapshot: scenery outside the main view too, without the reflective object itself, and no effects or UI.
 pub struct ReflectionScene<'a> {
+    /// Reuse current-frame world-space sun visibility in the capture, without screen masks.
+    pub sun_shadows: bool,
+    /// Fade the capture to its clear colour over the outer 15% of this distance; `None` keeps the pixels exactly.
+    pub fade_distance: Option<f32>,
     pub origin: Vec3,
     pub quality: ReflectionQuality,
     pub frame: FrameParams,

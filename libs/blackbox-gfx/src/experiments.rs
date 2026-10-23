@@ -43,6 +43,10 @@ pub struct RenderExperiments {
     pub clearcoat: bool,
     /// Opt-in surfaces use calibrated highlights and filtered environment reflections.
     pub paint_response: bool,
+    /// Reproject current local capture depth for nearby custom surfaces.
+    pub local_reflection_correction: bool,
+    /// The game may match custom car lights to authored world lighting.
+    pub weather_car_lighting: bool,
     pub car_skylight: bool,
     pub world_ambient: bool,
     /// Minimum ambient share of authored prelit illumination; dark baked art receives a larger share.
@@ -51,6 +55,8 @@ pub struct RenderExperiments {
     pub world_ambient_tint: f32,
     pub freeze_sun: bool,
     pub lighting_debug: LightingDebug,
+    /// Overall indirect lighting multiplier, independent of hemisphere calibration.
+    pub indirect_strength: f32,
     pub sky_strength: f32,
     pub ground_strength: f32,
     pub soft_shadows: bool,
@@ -86,12 +92,15 @@ impl Default for RenderExperiments {
             contact_shadows: false,
             clearcoat: false,
             paint_response: true,
+            local_reflection_correction: true,
+            weather_car_lighting: true,
             car_skylight: false,
             world_ambient: false,
             world_ambient_share: 0.6,
             world_ambient_tint: 0.35,
             freeze_sun: false,
             lighting_debug: LightingDebug::Off,
+            indirect_strength: 1.0,
             sky_strength: 0.8,
             ground_strength: 0.5,
             soft_shadows: true,
@@ -119,6 +128,7 @@ impl RenderExperiments {
                 .clamp(512, 8192)
                 .next_power_of_two()
                 .max(self.shadow_resolution.clamp(512, 8192).next_power_of_two()),
+            indirect_strength: finite(self.indirect_strength, 1.0).clamp(0.0, 2.0),
             sky_strength: finite(self.sky_strength, 0.8).clamp(0.0, 2.0),
             ground_strength: finite(self.ground_strength, 0.5).clamp(0.0, 2.0),
             world_ambient_share: finite(self.world_ambient_share, 0.6).clamp(0.35, 0.9),

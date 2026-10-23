@@ -123,9 +123,9 @@ pub struct ViewArgs {
     /// the preset [env NFSMW_GRAPHICS_PRESET; config `graphics_preset`].
     #[arg(long, value_name = "custom|low|medium|high|ultra")]
     pub graphics_preset: Option<crate::settings::GraphicsPreset>,
-    /// Car shading: original, original-unshadowed, glossy (custom) or simple (the cheap path)
+    /// Car materials: enhanced (legacy alias: glossy), original, original-unshadowed or simple
     /// [env NFSMW_CAR_SHADING; config `car_shading`; default glossy].
-    #[arg(long, value_name = "simple|glossy|original|original-unshadowed")]
+    #[arg(long, value_name = "enhanced|simple|glossy|original|original-unshadowed")]
     pub car_shading: Option<crate::settings::CarShading>,
     /// Local car reflections [env NFSMW_REFLECTIONS; config `reflections`; default medium].
     #[arg(long, value_name = "off|low|medium|high")]

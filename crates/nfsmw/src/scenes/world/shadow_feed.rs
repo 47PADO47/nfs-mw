@@ -76,10 +76,11 @@ impl WorldScene {
             let rig = crate::scenes::car::original_lighting::gameplay(self.sun.to_sun(), self.car_specular_scale());
             self.shadow_feed.rig.send(renderer, &rig);
         }
-        if !self.car_shading.is_original()
-            && (settings.sun_shadows || settings.contact_shadows || settings.car_skylight)
-        {
-            let rig = crate::scenes::car::lighting::rig(self.sun.to_sun());
+        if !self.car_shading.is_original() {
+            let rig = crate::scenes::car::lighting::world_rig(
+                self.sun.to_sun(),
+                settings.weather_car_lighting.then(|| self.surface_light()).flatten(),
+            );
             self.shadow_feed.rig.send(renderer, &rig);
         }
         self.shadow_feed.fed = false;

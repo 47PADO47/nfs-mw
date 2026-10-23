@@ -157,17 +157,25 @@ impl Renderer {
         let quality = self.graphics.reflections;
         if quality != ReflectionQuality::Off && self.reflections.is_none() {
             let nothing: &[Instance] = &[];
-            self.capture_reflections(Some(ReflectionScene {
-                origin: Vec3::ZERO,
-                quality,
-                frame: *frame,
-                faces: [nothing; 6],
-                refresh: ALL_FACES,
-            }));
+            let mut encoder =
+                self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("prewarm capture") });
+            self.capture_reflections(
+                Some(ReflectionScene {
+                    sun_shadows: false,
+                    fade_distance: None,
+                    origin: Vec3::ZERO,
+                    quality,
+                    frame: *frame,
+                    faces: [nothing; 6],
+                    refresh: ALL_FACES,
+                }),
+                Some(&mut encoder),
+            );
+            self.queue.submit([encoder.finish()]);
             // The capture is kept, so the first real one reuses it, but it is empty: glossy surfaces keep the
             // static environment until a real capture replaces it.
             if let Some(glossy) = self.glossy.as_mut() {
-                glossy.restore_environment();
+                glossy.restore_environment(&self.queue);
             }
             return;
         }

@@ -42,6 +42,10 @@ mod prewarm_bench;
 mod prewarm_tests;
 mod projected;
 mod redirects;
+mod reflection_queue;
+mod reflection_store;
+#[cfg(test)]
+mod reflection_store_tests;
 #[cfg(test)]
 mod reflection_tests;
 mod reflections;
@@ -103,6 +107,7 @@ pub struct Renderer {
     hdr_format: wgpu::TextureFormat,
     post: post::PostChain,
     reflections: Option<reflections::ReflectionCapture>,
+    pending_reflections: Option<reflection_queue::Pending>,
     projected: Option<projected::ProjectedCapture>,
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,

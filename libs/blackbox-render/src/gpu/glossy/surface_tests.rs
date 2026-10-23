@@ -183,7 +183,9 @@ fn response_toggle_original_models_and_probe_restoration_keep_their_contracts() 
     rig(&mut r, 0.0);
     let instances = mesh(&mut r, material(0.78));
     let before = r.capture(96, 96, &frame(), &instances).unwrap();
-    r.capture_reflections(Some(ReflectionScene {
+    r.set_reflection_scene(Some(ReflectionScene {
+        sun_shadows: false,
+        fade_distance: None,
         origin: Vec3::ZERO,
         frame: frame(),
         faces: [&[]; 6],
@@ -192,7 +194,7 @@ fn response_toggle_original_models_and_probe_restoration_keep_their_contracts() 
     }));
     let captured = r.capture(96, 96, &frame(), &instances).unwrap();
     assert_ne!(center(&before), center(&captured));
-    r.capture_reflections(None);
+    r.set_reflection_scene(None);
     assert_eq!(before, r.capture(96, 96, &frame(), &instances).unwrap());
 }
 
@@ -255,4 +257,35 @@ fn rough_coat_keeps_reflections_soft_and_does_not_change_legacy_coat() {
     assert!(rough_contrast < 8.0, "rough coat must not restore sharp checker detail: {rough_contrast}");
     r.set_render_experiments(RenderExperiments { paint_response: false, clearcoat: true, ..Default::default() });
     assert_eq!(legacy_coat, r.capture(96, 96, &frame(), &instances).unwrap());
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn finite_sun_broadens_a_smooth_highlight_without_increasing_its_peak() {
+    let _serial = test_support::serial();
+    let mut r = test_support::headless(SIZE).expect("GPU adapter");
+    let black = [0, 0, 0, 255];
+    r.set_environment_faces(1, [&black; 6]);
+    let instances = mesh(&mut r, material(0.08));
+    let mut options = r.render_experiments();
+    options.sun_angle = 0.0;
+    r.set_render_experiments(options);
+    rig(&mut r, 0.005);
+    let point = r.capture(96, 96, &frame(), &instances).unwrap();
+    options.sun_angle = 0.27;
+    r.set_render_experiments(options);
+    let small_disc = r.capture(96, 96, &frame(), &instances).unwrap();
+    options.sun_angle = 2.0;
+    r.set_render_experiments(options);
+    let disc = r.capture(96, 96, &frame(), &instances).unwrap();
+    let peak = |image: &[u8]| image.as_chunks::<4>().0.iter().map(|p| p[0]).max().unwrap();
+    assert!(
+        peak(&small_disc) < peak(&point),
+        "physical radius must reduce a smooth peak: {} vs {}",
+        peak(&small_disc),
+        peak(&point)
+    );
+    let extent = |image: &[u8]| image.as_chunks::<4>().0.iter().filter(|p| p[0] > 1).count();
+    assert!(peak(&disc) < peak(&point), "{} vs {}", peak(&disc), peak(&point));
+    assert!(extent(&disc) > extent(&point), "{} vs {}", extent(&disc), extent(&point));
 }

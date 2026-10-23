@@ -12,9 +12,9 @@ pub(super) struct Scratch {
     parts: Vec<Instance>,
 }
 
-/// The caller applies origin-distance and authored-overlay rules once before
-/// this traversal. Each face still chooses its own LOD and frustum membership. Only the faces in the `drawn` mask are
-/// selected and replaced; the others keep their lists.
+/// The caller applies authored-overlay rules once before this traversal. Each face still chooses its own LOD and
+/// frustum membership. Only the faces in the `drawn` mask are selected and replaced; the others keep their lists.
+/// A finite `far` also drops scenery whose bounds lie beyond that distance from the capture origin.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect<'a>(
     placed: impl Iterator<Item = &'a Placed>,
@@ -22,6 +22,7 @@ pub(super) fn collect<'a>(
     rules: &LodRules,
     props: &PropWorld,
     height: f32,
+    far: Option<f32>,
     drawn: u8,
     faces: &mut [Vec<Instance>; 6],
     scratch: &mut Scratch,
@@ -45,6 +46,9 @@ pub(super) fn collect<'a>(
             continue;
         }
         let Some((transform, bounds)) = visibility::current_pose(p, props) else { continue };
+        if far.is_some_and(|far| bounds.distance_to(cameras[0].position.into()) > far) {
+            continue;
+        }
         let position = transform.w_axis.truncate().to_array();
         let slots = p.lods.map(|mesh| mesh.is_some());
         let selected: [Option<usize>; 6] = std::array::from_fn(|face| {

@@ -178,6 +178,7 @@ fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 fn scene_visibility(world: vec3<f32>, n: vec3<f32>, pixel: vec2<f32>) -> f32 {
+    if globals.fog_range.w > 2.5 { return capture_sun_visibility(world, n); }
     if globals.fog_range.w > 0.5 { return 1.0; }
     return direct_visibility(world, n, pixel);
 }

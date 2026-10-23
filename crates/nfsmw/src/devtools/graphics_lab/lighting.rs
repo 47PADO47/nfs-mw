@@ -2,34 +2,17 @@
 use super::view::choice;
 use super::*;
 
+mod car;
 mod dependencies;
 
-pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
+pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     let defaults = super::profiles::defaults(settings).appearance.lighting;
     ui.add_enabled_ui(lab.stats.supported, |ui| {
-        super::controls::checkbox(ui, &mut lab.options.freeze_sun, "Freeze sun", defaults.freeze_sun)
-            .on_hover_text("Keeps the lighting phase fixed while you drive.");
-        choice(
-            ui,
-            "Surface debug",
-            &mut lab.options.lighting_debug,
-            &[
-                LightingDebug::Off,
-                LightingDebug::SunVisibility,
-                LightingDebug::AmbientVisibility,
-                LightingDebug::Cascades,
-                LightingDebug::ShadowBlockers,
-                LightingDebug::ShadowPenumbra,
-            ],
-        );
-        if matches!(lab.options.lighting_debug, LightingDebug::SunVisibility | LightingDebug::AmbientVisibility) {
-            ui.small("Debug bypasses colour effects. White means visible; black means occluded.");
-        }
-        if matches!(lab.options.lighting_debug, LightingDebug::ShadowBlockers | LightingDebug::ShadowPenumbra) {
-            ui.small("Custom cascades only. Blockers: black = 0, white = 16. Filter radius: black = 0, white = 8 shadow texels. PCSS off keeps a fixed radius.");
-        }
+        car::show(ui, lab, settings);
+        ui.separator();
         super::controls::checkbox(ui, &mut lab.options.sun_shadows, "Sun shadows", defaults.sun_shadows);
         super::controls::checkbox(ui, &mut lab.options.original_shadows, "Original shadow overlays", defaults.original_shadows);
+        ui.collapsing("Advanced shadows", |ui| {
         ui.add_enabled_ui(lab.options.sun_shadows, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Shadow system:");
@@ -76,9 +59,33 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
             });
         });
         advanced(ui, lab, settings);
+        });
+        ui.collapsing("Lighting diagnostics", |ui| {
+        super::controls::checkbox(ui, &mut lab.options.freeze_sun, "Freeze sun", defaults.freeze_sun)
+            .on_hover_text("Keeps the lighting phase fixed while you drive.");
+        choice(
+            ui,
+            "Surface debug",
+            &mut lab.options.lighting_debug,
+            &[
+                LightingDebug::Off,
+                LightingDebug::SunVisibility,
+                LightingDebug::AmbientVisibility,
+                LightingDebug::Cascades,
+                LightingDebug::ShadowBlockers,
+                LightingDebug::ShadowPenumbra,
+            ],
+        );
+        if matches!(lab.options.lighting_debug, LightingDebug::SunVisibility | LightingDebug::AmbientVisibility) {
+            ui.small("Debug bypasses colour effects. White means visible; black means occluded.");
+        }
+        if matches!(lab.options.lighting_debug, LightingDebug::ShadowBlockers | LightingDebug::ShadowPenumbra) {
+            ui.small("Custom cascades only. Blockers: black = 0, white = 16. Filter radius: black = 0, white = 8 shadow texels. PCSS off keeps a fixed radius.");
+        }
+        });
     });
     if !lab.stats.supported {
-        ui.colored_label(egui::Color32::YELLOW, "Prototypes require native Vulkan or DX12.");
+        ui.colored_label(egui::Color32::YELLOW, "These lighting controls require native Vulkan or DX12.");
     }
     ui.small(format!(
         "{} cascades · {} draws · {:.2} ms CPU setup · {} MiB atlas",
@@ -132,40 +139,6 @@ fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         dependencies::ContactCar::Direct => {
             ui.small("Contact detail affects visible direct-lit receivers; flat, bright or offscreen geometry may show little change.");
         }
-    }
-    ui.add_enabled_ui(dependencies.custom_car, |ui| {
-        ui.add_enabled_ui(settings.renderer == crate::settings::RendererKind::Blackbox, |ui| {
-            super::controls::checkbox(
-                ui,
-                &mut lab.options.paint_response,
-                "Car material response",
-                defaults.paint_response,
-            );
-        });
-        super::controls::checkbox(ui, &mut lab.options.clearcoat, "Car clearcoat experiment", defaults.clearcoat);
-        super::controls::checkbox(ui, &mut lab.options.car_skylight, "Car sky and ground light", defaults.car_skylight);
-        ui.add_enabled_ui(lab.options.car_skylight, |ui| {
-            super::controls::slider(
-                ui,
-                &mut lab.options.sky_strength,
-                0.0..=2.0,
-                "Sky strength",
-                defaults.sky_strength,
-            );
-            super::controls::slider(
-                ui,
-                &mut lab.options.ground_strength,
-                0.0..=2.0,
-                "Ground bounce",
-                defaults.ground_strength,
-            );
-        });
-    });
-    if !dependencies.custom_car {
-        ui.small("Car clearcoat and sky/ground light require Custom Glossy in Materials. Original and Simple car shaders bypass these terms; stored values are retained.");
-    }
-    if dependencies.custom_car && !lab.options.car_skylight {
-        ui.small("Enable Car sky and ground light to adjust sky strength and ground bounce.");
     }
     ui.small("World lighting uses the authored material inputs. Custom shadows and contact detail remain independent.");
 }

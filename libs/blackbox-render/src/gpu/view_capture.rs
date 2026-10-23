@@ -162,12 +162,13 @@ impl Renderer {
         );
 
         let id = self.captures.next_id();
-        self.update_irradiance();
         self.begin_temporal(false, frame);
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("view capture") });
         // The scene pass uploads the instances; the frames before this one have been submitted.
         self.draw_list.store.begin_frame();
+        self.encode_reflections(&mut encoder, false);
+        self.encode_irradiance(&mut encoder);
         self.encode_scene_mode(&mut encoder, Some(&capture.scene), &capture.view, frame, instances, true, None);
         self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height));
         let composed = match ui {

@@ -83,8 +83,8 @@ fn active_renderer_hides_inapplicable_controls_without_losing_stored_values() {
                 })
                 .collect();
             let exclusive = match tab {
-                profiles::Tab::Lighting => "Wide-detail cascades",
-                profiles::Tab::Materials => "Car shading",
+                profiles::Tab::Lighting => "Car lighting:",
+                profiles::Tab::Materials => "Car reflections",
                 _ => "AO method",
             };
             assert_eq!(texts.contains(&exclusive), native, "{exclusive}: {texts:?}");

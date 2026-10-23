@@ -103,6 +103,7 @@ fn six_face_selection_matches_the_previous_collectors_at_every_capture_size() {
                 &blackbox_scenery::layout::MOST_WANTED.lod,
                 &props,
                 height,
+                None,
                 ALL_FACES,
                 &mut faces,
                 &mut scratch,
@@ -136,6 +137,7 @@ fn the_next_capture_uses_current_geometry_and_traverses_each_object_once() {
         rules,
         &props,
         480.0,
+        None,
         ALL_FACES,
         &mut faces,
         &mut scratch,
@@ -143,7 +145,7 @@ fn the_next_capture_uses_current_geometry_and_traverses_each_object_once() {
     assert_eq!(visits, 1);
     let before = faces.each_ref().map(|face| digest(face));
     placed[0] = placement(1, -Vec3::X * 10.0);
-    collect(placed.iter(), &cameras, rules, &props, 480.0, ALL_FACES, &mut faces, &mut scratch);
+    collect(placed.iter(), &cameras, rules, &props, 480.0, None, ALL_FACES, &mut faces, &mut scratch);
     assert_ne!(faces.each_ref().map(|face| digest(face)), before, "no prior-frame visibility is reused");
     for (actual, expected) in faces.iter().zip(reference(&placed, &cameras, &props, 480.0)) {
         assert_eq!(digest(actual), digest(&expected));
@@ -159,10 +161,10 @@ fn hidden_props_are_removed_from_all_faces_on_the_next_frame() {
     let mut faces = std::array::from_fn(|_| Vec::new());
     let mut scratch = Scratch::default();
     let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
-    collect(placed.iter(), &cameras, rules, &props, 480.0, ALL_FACES, &mut faces, &mut scratch);
+    collect(placed.iter(), &cameras, rules, &props, 480.0, None, ALL_FACES, &mut faces, &mut scratch);
     assert!(faces.iter().any(|f| !f.is_empty()));
     props.knock(77);
-    collect(placed.iter(), &cameras, rules, &props, 480.0, ALL_FACES, &mut faces, &mut scratch);
+    collect(placed.iter(), &cameras, rules, &props, 480.0, None, ALL_FACES, &mut faces, &mut scratch);
     assert!(faces.iter().all(Vec::is_empty));
 }
 
@@ -174,13 +176,13 @@ fn only_the_drawn_faces_are_selected_and_the_others_keep_their_lists() {
     let cameras = cameras(Vec3::new(45.0, -19.0, 4.0));
     let mut scratch = Scratch::default();
     let mut all = std::array::from_fn(|_| Vec::new());
-    collect(placed.iter(), &cameras, rules, &props, 480.0, ALL_FACES, &mut all, &mut scratch);
+    collect(placed.iter(), &cameras, rules, &props, 480.0, None, ALL_FACES, &mut all, &mut scratch);
     assert!(all.iter().filter(|face| !face.is_empty()).count() >= 2, "the comparison needs several visible faces");
 
     let marker = Instance::keyed(MeshHandle::from_raw(9_999), Mat4::IDENTITY, InstanceKey::new(9, 9));
     let mut faces: [Vec<Instance>; 6] = std::array::from_fn(|_| vec![marker]);
     let drawn = 0b00_0101;
-    collect(placed.iter(), &cameras, rules, &props, 480.0, drawn, &mut faces, &mut scratch);
+    collect(placed.iter(), &cameras, rules, &props, 480.0, None, drawn, &mut faces, &mut scratch);
     for face in 0..6 {
         match (drawn >> face) & 1 {
             1 => assert_eq!(digest(&faces[face]), digest(&all[face]), "face {face} is selected as in a full capture"),
@@ -219,7 +221,7 @@ fn benchmark_six_face_scenery_selection() {
     let old = start.elapsed();
     let start = Instant::now();
     for _ in 0..repeats {
-        collect(black_box(placed.iter()), &cameras, rules, &props, 1024.0, ALL_FACES, &mut faces, &mut scratch);
+        collect(black_box(placed.iter()), &cameras, rules, &props, 1024.0, None, ALL_FACES, &mut faces, &mut scratch);
         for face in &mut faces {
             visibility::sort_by_mesh(face);
         }
@@ -236,4 +238,20 @@ fn benchmark_six_face_scenery_selection() {
         new.as_secs_f64() * 1000.0 / f64::from(repeats),
         old.as_secs_f64() / new.as_secs_f64()
     );
+}
+
+#[test]
+fn distance_tests_current_bounds_instead_of_discarding_a_near_wall_by_its_origin() {
+    let mut wall = placement(1, Vec3::new(110.0, 0.0, 0.0));
+    wall.bounds = Aabb::new([90.0, -20.0, -5.0], [130.0, 20.0, 10.0]);
+    wall.radius = 30.0;
+    let cameras = cameras(Vec3::ZERO);
+    let props = PropWorld::default();
+    let mut faces = std::array::from_fn(|_| Vec::new());
+    let mut scratch = Scratch::default();
+    let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+    collect([&wall].into_iter(), &cameras, rules, &props, 1024.0, Some(100.0), ALL_FACES, &mut faces, &mut scratch);
+    assert!(faces.iter().any(|face| !face.is_empty()));
+    collect([&wall].into_iter(), &cameras, rules, &props, 1024.0, Some(80.0), ALL_FACES, &mut faces, &mut scratch);
+    assert!(faces.iter().all(Vec::is_empty));
 }

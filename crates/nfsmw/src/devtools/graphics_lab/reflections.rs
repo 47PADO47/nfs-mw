@@ -13,11 +13,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
             if let ReflectionDistance::Meters(ref mut metres) = settings.reflection_extra.distance {
                 ui.add(egui::Slider::new(metres, 25..=2000).text("Capture distance (m)"));
             }
-            ui.small("Distance limits geometry in car and mirror captures; it does not lower the update rate.");
-            ui.add(
-                egui::Slider::new(&mut settings.reflection_extra.brightness.0, 0.0..=3.0)
-                    .text("Vehicle reflection brightness"),
-            );
+            ui.small("Enhanced quality presets use 100 / 200 / 300 / 500 m. Range limits car and mirror geometry; update rate is separate.");
             size(ui, "Rear-view capture size", &mut settings.reflection_mirror_size);
             egui::ComboBox::from_label("Mirror tint")
                 .selected_text(reflection_res::tint_label(settings.mirror_tint))

@@ -38,19 +38,26 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain(offered(RendererSetting::UpscaleQuality))
             .chain([row(Setting::UpscaleSharpness, Title::Text("Sharpening"))])
             .chain(offered(RendererSetting::FrameGeneration))
-            .chain(PostSetting::ALL.into_iter().map(|setting| row(Setting::Post(setting), setting.title())))
+            .chain(
+                PostSetting::ALL
+                    .into_iter()
+                    .filter(|setting| matches!(setting, PostSetting::Aa | PostSetting::MotionBlur))
+                    .map(|setting| row(Setting::Post(setting), setting.title())),
+            )
             .chain([renderer_row(RendererSetting::RayTracing)])
             .chain(
                 GraphicsSetting::ALL
                     .into_iter()
                     .filter(|setting| {
-                        !matches!(
+                        matches!(
                             setting,
-                            GraphicsSetting::Preset
-                                | GraphicsSetting::Style
-                                | GraphicsSetting::Quality
-                                | GraphicsSetting::AoIntensity
-                                | GraphicsSetting::AoComparison
+                            GraphicsSetting::Hdr
+                                | GraphicsSetting::ShadowPreset
+                                | GraphicsSetting::ReflectionPreset
+                                | GraphicsSetting::WorldDetail
+                                | GraphicsSetting::CarGeometry
+                                | GraphicsSetting::TextureFiltering
+                                | GraphicsSetting::AmbientOcclusion
                         ) && setting.shown(caps)
                     })
                     .flat_map(|setting| {
