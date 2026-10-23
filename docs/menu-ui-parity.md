@@ -40,6 +40,13 @@ Custom options and alternate HUDs remain supported extensions.
   that value as wheel movement. Menus now consume physical wheel input through
   a separate channel, preventing a second move from the same D-pad gesture.
 
+- **Diverging icon rows:** the Blacklist overview kept a copy of the icon carousel
+  that lacked the scroll ease, the package's slot sizes and the exit shrink, so
+  the same row behaved differently from the main menu. Both now use one icon
+  strip (`icon_strip.rs`); the original also has a single scroller class. The
+  overview's `EXIT_STARTED` handling is by analogy with the verified packages and
+  is not checked against its own package.
+
 These causes come from source inspection. Regression and runtime evidence must
 be read with the validation report; a code change alone does not prove a matched
 comparison with the original executable.
