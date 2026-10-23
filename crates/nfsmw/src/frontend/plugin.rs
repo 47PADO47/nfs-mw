@@ -103,7 +103,7 @@ fn update(
     keys: Res<ButtonInput<KeyCode>>,
     mut settings: ResMut<Settings>,
     time: Res<Time>,
-    console: Res<Console>,
+    mut console: ResMut<Console>,
     mut capture: ResMut<MouseCapture>,
     mut exit: MessageWriter<AppExit>,
     input: Res<InputPresentation>,
@@ -226,6 +226,9 @@ fn update(
             mask |= pad::BACK;
         }
         mask |= press_buttons;
+    }
+    if let Some(line) = fe.script.as_mut().and_then(UiScript::take_console) {
+        console.queue_lines(vec![line]);
     }
     // A screen that takes text (the alias name prompt) gets the typed characters, and only Enter and Escape press its pad.
     if matches!(fe.stage, Stage::Menus | Stage::Paused) && fe.screens.wants_text() {

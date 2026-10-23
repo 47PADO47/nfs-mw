@@ -65,6 +65,7 @@ impl WorldScene {
     pub fn set_career(&mut self, handle: CareerHandle, profiles: Option<ProfileDir>) {
         self.career.handle = handle;
         self.career.profiles = profiles;
+        self.seed_side_won();
     }
 
     /// The career's part of a frame.

@@ -113,14 +113,25 @@ impl WorldScene {
         Some((race.story.rewards.clone(), race.story.defer_rewards))
     }
 
-    /// Notes a won race of the challenge bin (events `19.*`) and says whether the series is complete: every event of bin 19
-    /// but `19.8.31` (the tollbooth that belongs to bin 18) has been won **[unconfirmed]**: the spec leaves the optional
-    /// races out, and this build knows none. The won events are kept for the session; they are not in the save.
+    /// Notes a won race of a side bin (events `18.*`, `19.*`, `21.*`), which opens the races it lists, and says whether the
+    /// challenge series is complete: every event of bin 19 but `19.8.31` (the tollbooth that belongs to bin 18) has been
+    /// won **[unconfirmed]**: the spec leaves the optional races out, and this build knows none. The win goes to the
+    /// event's race record, so a reloaded career keeps its ladders.
     fn note_side_race(&mut self, event: &str, place: u8) -> bool {
-        if place != 1 || !event.starts_with("19.") {
+        if place != 1 || !super::ladder::is_side_event(event) {
             return false;
         }
         self.career.side_won.insert(event.to_owned());
+        self.career.handle.with(|career| {
+            let mut nodes = career.settings.nodes();
+            if let Err(e) = nodes.set_won_in_career(event) {
+                log::warn!("race record of {event} not written: {e}");
+            }
+            career.settings.set_nodes(&nodes);
+        });
+        if !event.starts_with("19.") {
+            return false;
+        }
         let Some(data) = self.gameplay.as_ref() else { return false };
         data.races
             .iter()

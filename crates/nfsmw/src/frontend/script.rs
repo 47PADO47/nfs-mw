@@ -2,7 +2,7 @@
 //!
 //! The script replaces the real input and the real clock: every frame takes one step of 1/60 s. A button name
 //! presses it for 4 frames and releases it for 4 frames, `hold NAME SECONDS` keeps it down, `wait SECONDS`
-//! does nothing.
+//! does nothing. `console COMMAND` runs a console command (`console story race 16.2.1`), to drive a world from a script.
 
 use std::collections::VecDeque;
 
@@ -23,6 +23,8 @@ struct Step {
     pointer: Option<Vec2>,
     /// Text typed on the frame this step starts on (`type TEXT`), for the alias name prompt.
     text: Option<String>,
+    /// A console command run on the frame this step starts on (`console COMMAND`), for scripts that drive the world.
+    console: Option<String>,
 }
 
 /// The keys a script can press: the letters, Space, Enter, Numpad Enter and Escape (Space, Enter and Numpad Enter press Start for
@@ -79,6 +81,8 @@ pub struct UiScript {
     pointer: Option<Vec2>,
     /// The text the last frame's step typed, until the front end takes it (`take_text`).
     text: Option<String>,
+    /// The console command the last frame's step ran, until the front end takes it (`take_console`).
+    console: Option<String>,
     /// Deterministic prompt device for screenshots, not a gameplay preference.
     pub device: Option<crate::input::InputDevice>,
 }
@@ -124,7 +128,7 @@ impl UiScript {
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
                 ["wait", s] => {
-                    steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None, text: None })
+                    steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None, text: None, console: None })
                 }
                 ["hold", name, s] => steps.push_back(Step {
                     mask: button(name)?,
@@ -132,25 +136,34 @@ impl UiScript {
                     key: None,
                     pointer: None,
                     text: None,
+                    console: None,
                 }),
                 ["key", name] => {
-                    steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None, text: None })
+                    steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None, text: None, console: None })
                 }
                 ["pointer", x, y] => {
                     let at = Vec2::new(number(x)?, number(y)?);
-                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at), text: None });
+                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at), text: None, console: None });
                 }
+                ["console", ref command @ ..] if !command.is_empty() => steps.push_back(Step {
+                    mask: 0,
+                    frames: 1,
+                    key: None,
+                    pointer: None,
+                    text: None,
+                    console: Some(command.join(" ")),
+                }),
                 ["type", text] => {
-                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: None, text: Some(text.to_owned()) });
+                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: None, text: Some(text.to_owned()), console: None });
                 }
                 [name] => {
-                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None, text: None });
-                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None });
+                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None, text: None, console: None });
+                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None, console: None });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device, key: None, pointer: None, text: None })
+        Ok(Self { steps, device, key: None, pointer: None, text: None, console: None })
     }
 
     /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
@@ -161,6 +174,11 @@ impl UiScript {
     /// The text the script typed on the frame just stepped, if any. The front end takes it once per frame.
     pub fn take_text(&mut self) -> Option<String> {
         self.text.take()
+    }
+
+    /// The console command a `console` step ran on the frame just stepped, if any. The front end hands it to the console.
+    pub fn take_console(&mut self) -> Option<String> {
+        self.console.take()
     }
 
     /// Where a `pointer` step put the pointer, in FEng units; `None` until one has run.
@@ -180,6 +198,9 @@ impl UiScript {
         }
         if let Some(text) = step.text.take() {
             self.text = Some(text);
+        }
+        if let Some(command) = step.console.take() {
+            self.console = Some(command);
         }
         step.frames = step.frames.saturating_sub(1);
         if step.frames == 0 {
