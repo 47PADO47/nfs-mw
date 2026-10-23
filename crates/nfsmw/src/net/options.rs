@@ -33,6 +33,8 @@ pub struct ServeOptions {
     pub seed: Option<u64>,
     /// The session settings the Host screen chose, over the config file's (checked).
     pub settings: Option<Settings>,
+    /// The room password the Host screen chose, over the config file's. Never logged.
+    pub password: Option<String>,
 }
 
 impl ServeOptions {
@@ -45,6 +47,10 @@ impl ServeOptions {
         if let Some(settings) = &self.settings {
             validate(settings).map_err(|err| anyhow::anyhow!("the session settings: {err:?}"))?;
             config.settings = settings.clone();
+        }
+        if let Some(password) = &self.password {
+            config.password = Some(password.clone());
+            config.settings.password_required = true;
         }
         if let Some(port) = self.port {
             config.port = port;

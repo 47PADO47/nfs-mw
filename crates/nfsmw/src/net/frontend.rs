@@ -84,9 +84,6 @@ impl NetFrontend for NetSession {
     }
 
     fn host(&mut self, options: HostOptions) -> Result<(), String> {
-        if options.password.is_some() {
-            return Err("room passwords are not supported yet: the server cannot check one".into());
-        }
         let car = self.folder_of(&options.loadout);
         self.player = PlayerSetup { name: options.player_name.clone(), car: car.clone() };
         let name = options.settings.name.as_str().to_owned();
@@ -95,6 +92,7 @@ impl NetFrontend for NetSession {
             name: Some(name),
             car,
             settings: Some(options.settings),
+            password: options.password,
             ..ServeOptions::default()
         };
         NetSession::host(self, serve).map_err(|error| format!("{error:#}"))
