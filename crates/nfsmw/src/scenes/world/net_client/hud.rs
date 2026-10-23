@@ -10,6 +10,9 @@ use nfsmw_sim::EntityKind;
 use super::super::WorldScene;
 use crate::hud::{HudState, PursuitHud, RaceHud};
 
+/// Minutes in a day (`GlobalBlock::time_of_day` is under this).
+const DAY_MINUTES: f32 = 1_440.0;
+
 /// The serial of the client's message lines: one line at a time, a new text restarts the fade.
 const SERIAL_BASE: u32 = 0x4E45_5400;
 
@@ -30,6 +33,34 @@ impl WorldScene {
                 crate::scenes::world::split::map_position(pose.position, pose.rotation * glam::Vec3::X)
             });
     }
+}
+
+/// How far the client's hour may stray from the server's before it is set to it, in minutes of the day. Both clocks run
+/// at the same rate, so only a join, a pause or a stall shows as a difference.
+const TIME_TOLERANCE_MINUTES: f32 = 5.0;
+
+impl WorldScene {
+    /// Sets the day clock to the server's hour of day when it has strayed from it (the lobby's or the world's time of
+    /// day, `GlobalBlock::time_of_day`); in between the clock runs on its own.
+    pub(in crate::scenes::world) fn follow_server_time(&mut self) {
+        let Some(server) = self.net_client.as_ref().and_then(|mode| mode.global.as_ref()).map(|g| g.time_of_day) else {
+            return;
+        };
+        if !server.is_finite() {
+            return;
+        }
+        if !strayed((self.day.hour() * 60.0).rem_euclid(DAY_MINUTES), server) {
+            return;
+        }
+        let environment = crate::viewer::Environment { hour: server / 60.0, ..self.day.environment() };
+        self.configure_day(environment);
+    }
+}
+
+/// Whether two minutes of the day are further apart than the tolerance, across midnight too.
+pub(super) fn strayed(ours: f32, server: f32) -> bool {
+    let apart = (server - ours).abs();
+    apart.min(DAY_MINUTES - apart) > TIME_TOLERANCE_MINUTES
 }
 
 /// The global block's pursuit and race fields as the HUD shows them.

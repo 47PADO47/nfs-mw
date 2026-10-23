@@ -88,6 +88,7 @@ impl WorldScene {
             mode.entered = true;
             mode.stalled = stalled;
         }
+        self.follow_server_time();
         self.show_client_frame(renderer, heard, dt);
         dt
     }
