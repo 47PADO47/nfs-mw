@@ -74,7 +74,7 @@ fn read(dir: &GameDir, look: &Look) -> Staged {
 fn load_car(dir: &GameDir, look: &Look) -> Option<(CarModel, LoadOptions)> {
     let (car, preset) = match look {
         Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
-        Look::Car(look) | Look::SafeHouse(look) | Look::Showcase(look) => look.resolve(dir),
+        Look::Car(look) | Look::SafeHouse(look) | Look::CarLot(look) | Look::Showcase(look) => look.resolve(dir),
     };
     let default = CarLook::default_car();
     let attempts = [(car, preset), (default.car, default.preset)];

@@ -13,7 +13,7 @@ use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 use crate::scenes::world::race::RaceOptions;
 
-const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit";
+const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit | story carlot";
 
 /// The safe house zone the console's requests name: the same one a safe house entry names.
 const SAFE_HOUSE_ZONE: &str = "menu_gate_safehouse/zone_safehouse_1";
@@ -26,6 +26,8 @@ pub(super) enum StoryCommand {
     Race(String),
     Arrival,
     FirstVisit,
+    /// The first car's lot, as the end of the scripted chase opens it.
+    CarLot,
 }
 
 /// Reads the arguments of `story ...`.
@@ -35,6 +37,7 @@ pub(super) fn parse(args: &[&str]) -> Result<StoryCommand, String> {
         ["race", event] => Ok(StoryCommand::Race((*event).to_owned())),
         ["arrival"] => Ok(StoryCommand::Arrival),
         ["firstvisit"] => Ok(StoryCommand::FirstVisit),
+        ["carlot"] => Ok(StoryCommand::CarLot),
         _ => Err(USAGE.into()),
     }
 }
@@ -46,6 +49,7 @@ pub(in crate::scenes::world) fn story_command(scene: &mut WorldScene, args: &[&s
         StoryCommand::Race(event) => scene.start_race(&event, RaceOptions { career: true, ..RaceOptions::default() }),
         StoryCommand::Arrival => arrival(scene),
         StoryCommand::FirstVisit => first_visit(scene),
+        StoryCommand::CarLot => car_lot(scene),
     }
 }
 
@@ -112,6 +116,15 @@ fn first_visit(scene: &mut WorldScene) -> Result<String, String> {
     Ok("the safe house is requested: at stage 16 the first visit's intro plays first".into())
 }
 
+/// Asks for the first car's lot, which the scripted chase's end opens (`story-flow.md` section 2.3).
+fn car_lot(scene: &mut WorldScene) -> Result<String, String> {
+    if !scene.career.handle.is_active() {
+        return Err("no career is played".into());
+    }
+    scene.career.requests.push_back(CareerRequest::FirstCarLot);
+    Ok("the first car's lot is requested".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,6 +135,7 @@ mod tests {
         assert_eq!(parse(&["race", "16.1.0"]), Ok(StoryCommand::Race("16.1.0".into())));
         assert_eq!(parse(&["arrival"]), Ok(StoryCommand::Arrival));
         assert_eq!(parse(&["firstvisit"]), Ok(StoryCommand::FirstVisit));
+        assert_eq!(parse(&["carlot"]), Ok(StoryCommand::CarLot));
     }
 
     #[test]

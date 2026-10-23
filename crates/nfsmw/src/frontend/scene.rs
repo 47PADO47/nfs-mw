@@ -14,7 +14,6 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use super::camera_rig::CameraRig;
 use super::look::Look;
 use super::room::Room;
-use super::stage::CAR_STAND;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::scenes::car::FLOOR_PART;
@@ -98,7 +97,8 @@ impl MenuScene {
         car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = self.room.is_none();
-        car.stand_on(CAR_STAND.yaw, CAR_STAND.sink);
+        let stand = self.look.stage().car_stand();
+        car.stand_on(stand.yaw, stand.sink);
         if let Err(e) = car.init(renderer) {
             log::warn!("the menu backdrop has no car: {e:#}");
             car.close(renderer);

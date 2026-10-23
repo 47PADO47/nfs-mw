@@ -9,7 +9,8 @@ use nfsmw_data::gameplay::GameplayData;
 
 use crate::app::Host;
 use crate::career::race_event_id;
-use crate::frontend::logic::{Env, QuitTo};
+use crate::frontend::ids::screen;
+use crate::frontend::logic::{Args, Env, QuitTo};
 use crate::frontend::look::{CarLook, DEFAULT_CAR};
 use crate::scenes::world::RaceOptions;
 
@@ -72,6 +73,29 @@ impl Frontend {
     /// The prologue event a loaded career resumes at, or `None` when it does not restart (`prologue_resume`).
     pub(super) fn resume_prologue_event(&self) -> Option<&'static str> {
         self.career.with(|career| prologue_resume(&career.settings.nodes(), career.stage())).flatten()
+    }
+
+    /// Opens the car lot as a room of its own: the world gives way to the lot's backdrop with the car under the cursor on
+    /// show. A lot zone in free roam (`zone`) sends the player back to the world at that zone when they leave; the lot the
+    /// scripted chase of `16.2.1` opens (no zone) is the first car's, which cannot be left without a car
+    /// (`story-flow.md` section 2.3).
+    pub(super) fn open_car_lot(&mut self, zone: Option<String>, host: &mut Host, env: &mut Env) {
+        log::info!("career: the car lot opens ({zone:?})");
+        let args = Args { safehouse: true, first_car: zone.is_none(), from_world: zone.is_some(), ..Args::default() };
+        self.safe_house_start.zone = zone;
+        self.latch = true;
+        self.paused.set(false);
+        self.screens.clear();
+        self.in_safe_house = false;
+        self.open_menu(screen::CAR_SELECT, args, host, env);
+    }
+
+    /// Back out of the car lot a free-roam zone opened: the world starts again at that zone.
+    pub(super) fn leave_car_lot(&mut self, host: &mut Host, env: &mut Env) {
+        self.save_settings(env.changed);
+        self.safe_house_start.pending = true;
+        self.origin = QuitTo::Career;
+        self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
     /// The car lot after the scripted chase closed with Accept on the car the player picked: the world starts the drive to

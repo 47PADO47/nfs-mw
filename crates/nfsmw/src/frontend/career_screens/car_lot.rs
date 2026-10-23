@@ -25,6 +25,7 @@ use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::look::Look;
 use crate::ui::Text;
 
 /// The objects of `Car_Select.fng` the screen fills (guids from `nfsmw dump-screen Car_Select.fng`): the car card's
@@ -349,11 +350,13 @@ pub struct CarLotLogic {
     /// Opened by the scripted chase: Accept on a lot car buys it as the first car and on an owned car picks it, and either
     /// starts the first drive; Back is refused.
     first_car: bool,
+    /// Entered from a zone in free roam: Back returns to the world at the zone.
+    from_world: bool,
 }
 
 impl CarLotLogic {
     fn new() -> Self {
-        Self { tab: Tab::Lot, cursor: 0, first_car: false }
+        Self { tab: Tab::Lot, cursor: 0, first_car: false, from_world: false }
     }
 
     /// The rows of the current tab, or none outside career mode.
@@ -374,6 +377,7 @@ impl CarLotLogic {
         let cash = CareerHandle::shared().with(|career| career.settings.cash).unwrap_or(0);
         let row = rows.get(self.cursor);
         set_text(cx, CAR_NAME, row.map(|item| item.name.clone()).unwrap_or_default());
+        super::car_lot_look::clean_package(cx, rows.len(), self.cursor);
         set_text(cx, PRICE, row.map(|item| money(item.price)).unwrap_or_default());
         set_text(cx, CASH, money(cash));
         show(cx, LOCKED, row.is_some_and(|item| item.locked));
@@ -435,12 +439,25 @@ impl ScreenLogic for CarLotLogic {
         self.fill(cx);
     }
 
+    /// The car under the cursor stands in the lot's room.
+    fn look(&self) -> Option<Look> {
+        let rows = self.rows();
+        let item = rows.get(self.cursor)?;
+        let look = CareerHandle::shared().with(|career| super::car_lot_look::item_look(career, item)).flatten()?;
+        // The lot's room for the lot, the safe house's for the cars the safe house menu browses.
+        Some(match self.first_car || self.from_world {
+            true => Look::CarLot(look),
+            false => Look::SafeHouse(look),
+        })
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_LEFT => self.move_car(cx, false),
             PAD_RIGHT => self.move_car(cx, true),
             PAD_UP | PAD_DOWN => self.switch_tab(cx),
             PAD_ACCEPT => self.accept(cx),
+            PAD_BACK if !self.first_car && self.from_world => cx.send(Command::LeaveCarLot),
             PAD_BACK if !self.first_car => {
                 let back = Args { safehouse: true, ..Args::default() };
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), back));
@@ -457,6 +474,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     }
     let mut logic = CarLotLogic::new();
     logic.first_car = args.first_car;
+    logic.from_world = args.from_world;
     Some(Box::new(logic))
 }
 
