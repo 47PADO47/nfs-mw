@@ -8,9 +8,12 @@
 mod blacklist;
 mod credits;
 mod dialog;
+mod lan;
 pub mod layout;
 mod rival;
 mod value;
+
+pub use lan::LanMenu;
 
 use blackbox_ui::{
     Component, DrawList, Image, LayoutCx, Outline, Panel, Rect, Slant, SlotId, Text, justify, token_keys,

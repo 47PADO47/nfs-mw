@@ -35,6 +35,8 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::ControlsList, 28),
     (ElementId::Jukebox, 29),
     (ElementId::Credits, 30),
+    (ElementId::LanMenu, 31),
+    (ElementId::LanHud, 32),
     (ElementId::Blacklist, 40),
     (ElementId::CarLot, 41),
     (ElementId::RapSheet, 42),

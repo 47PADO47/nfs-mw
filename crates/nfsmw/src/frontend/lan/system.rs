@@ -1,12 +1,14 @@
 //! The LAN menu in the app: the [`LanUi`] resource, the frame system that feeds it the pad, the typed keys, a `--ui-script`
-//! and the clicks of the last frame (before the front end's own frame, which then waits: `gate.rs`), and the drawing the
-//! UI pass calls (`devtools::run_ui`).
+//! and the mouse (before the front end's own frame, which then waits: `gate.rs`), and the system that hands the page or the
+//! session HUD to the themes ([`publish`]), which draw them with the game's UI toolkit (`ui/theme`, `present.rs`).
 
 use bevy_app::{App, Update};
 use bevy_ecs::prelude::*;
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode;
+use bevy_input::mouse::MouseButton;
 use bevy_time::Time;
+use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::fe_hash_upper;
 use blackbox_feng::runtime::pad;
 use nfsmw_data::gameplay::RaceType;
@@ -17,13 +19,16 @@ use super::handle::LanBackend;
 use super::hud::hud_view;
 use super::menu::{Cx, LanKey, LanMenu, MenuOut, TrackChoice, Typed, city};
 use super::offline::Offline;
-use super::{NetFrontend, link, view};
+use super::present::{self, ClickMap};
+use super::{NetFrontend, link};
 use crate::devtools::Console;
 use crate::frontend::flow::Frontend;
 use crate::frontend::name_entry::TextKey;
 use crate::frontend::plugin_keys::{TypedKeys, pad_mask, text_mask};
-use crate::input::ActionState;
+use crate::input::{Action, ActionState};
 use crate::settings::Settings;
+use crate::ui::theme::UiThemes;
+use crate::ui::theme::remastered::menu::layout::Side;
 
 /// The LAN menu and what it keeps between frames.
 #[derive(Resource, Default)]
@@ -33,8 +38,10 @@ pub struct LanUi {
     prev_mask: u32,
     /// The same for the spectator's follow keys while the world has the screen.
     follow_mask: u32,
-    /// The rows clicked in the last drawn frame.
-    clicks: Vec<LanKey>,
+    /// Where the page published last put its rows and hints, for a click on them.
+    clicks: ClickMap,
+    /// The row that shows first, kept so the window of rows moves only when the selection leaves it.
+    first: usize,
     /// The network of a run with none wired in: refusals, or the demo (`NFSMW_LAN_DEMO`).
     fallback: Fallback,
     cars: Vec<String>,
@@ -74,13 +81,18 @@ fn network<'a>(backend: Option<&'a mut LanBackend>, fallback: &'a mut Fallback) 
 }
 
 pub(in crate::frontend) fn build(app: &mut App) {
-    app.init_resource::<LanUi>().add_systems(
-        Update,
-        update
-            .after(crate::frontend::plugin_keys::collect_typed)
-            .before(crate::app::FrameSet::Frontend)
-            .run_if(resource_exists::<Frontend>),
-    );
+    app.init_resource::<LanUi>()
+        .add_systems(
+            Update,
+            update
+                .after(crate::frontend::plugin_keys::collect_typed)
+                .before(crate::app::FrameSet::Frontend)
+                .run_if(resource_exists::<Frontend>),
+        )
+        .add_systems(
+            Update,
+            publish.after(update).before(crate::app::FrameSet::Hud).run_if(resource_exists::<UiThemes>),
+        );
 }
 
 /// The keys of `edges` (pressed this frame), in pad order.
@@ -111,6 +123,8 @@ fn update(
     mut typed: ResMut<TypedKeys>,
     time: Res<Time>,
     console: Res<Console>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    window: Single<&Window, With<PrimaryWindow>>,
 ) {
     let ui = &mut *ui;
     let net = network(backend.as_deref_mut(), &mut ui.fallback);
@@ -130,7 +144,6 @@ fn update(
     fe.lan_input = visible;
     if !visible || console.open {
         ui.prev_mask = u32::MAX;
-        ui.clicks.clear();
         // A spectator steps the follow camera with left and right while the world has the screen (MP-41).
         let mask = pad_mask(&actions);
         let edges = mask & !ui.follow_mask;
@@ -140,7 +153,10 @@ fn update(
         }
         return;
     }
-    let mut pressed = std::mem::take(&mut ui.clicks);
+    let mut pressed = match mouse.just_pressed(MouseButton::Left) {
+        true => clicked(&ui.clicks, crate::frontend::pointer::feng_point(&window)),
+        false => Vec::new(),
+    };
     let scripted = fe.script.as_mut().and_then(|script| script.next_mask());
     let script_text = fe.script.as_mut().and_then(|script| script.take_text()).unwrap_or_default();
     let mask = match (scripted, ui.menu.typing()) {
@@ -220,17 +236,50 @@ fn track_mode(kind: RaceType) -> Option<Mode> {
     }
 }
 
-/// The UI pass: the menu when it is on screen, else the session HUD. The clicks go to the next frame.
-pub fn show(ctx: &egui::Context, ui: &mut LanUi, backend: Option<&mut LanBackend>, settings: &Settings) {
-    let net = network(backend, &mut ui.fallback);
+/// The keys a left click at `point` (FEng units) presses on the page drawn last: a chevron of a choice steps it, any other
+/// part of a row is a click on the row, and a footer hint presses what it is for. A click outside them presses nothing.
+fn clicked(map: &ClickMap, point: Option<glam::Vec2>) -> Vec<LanKey> {
+    let Some(point) = point else { return Vec::new() };
+    match map.hint_at(point) {
+        Some(Action::MenuAccept) => return vec![LanKey::Accept],
+        Some(Action::MenuBack) => return vec![LanKey::Back],
+        _ => {}
+    }
+    let Some((row, side)) = map.row_at(point) else { return Vec::new() };
+    let choice = map.choices.get(row).copied().unwrap_or(false);
+    match (choice, side) {
+        (true, Side::Left) => vec![LanKey::Step(row, false)],
+        (true, Side::Right) => vec![LanKey::Step(row, true)],
+        _ => vec![LanKey::Click(row)],
+    }
+}
+
+/// Hands the page (when the menu is on screen) or the session's HUD (while the world has the screen) to the themes' cell,
+/// and keeps where the page's rows are for the next click. Runs after the menu's frame, before the screens are presented.
+pub(in crate::frontend) fn publish(
+    mut ui: ResMut<LanUi>,
+    mut backend: Option<NonSendMut<LanBackend>>,
+    settings: Res<Settings>,
+    themes: Res<UiThemes>,
+    window: Single<&Window, With<PrimaryWindow>>,
+) {
+    let ui = &mut *ui;
+    let cell = themes.frame().lan();
+    let aspect = window.width() / window.height().max(1.0);
+    let net = network(backend.as_deref_mut(), &mut ui.fallback);
     let status = net.status();
     if ui.menu.visible(&status) {
-        let page = ui.menu.view(&Cx::new(net, settings, &ui.cars));
-        ui.clicks.extend(view::show_page(ctx, &page));
+        let view = ui.menu.view(&Cx::new(net, &settings, &ui.cars));
+        ui.first = present::window_first(ui.first, view.selected, view.rows.len());
+        let page = present::page_of(&view, ui.first, aspect);
+        ui.clicks = ClickMap::of(&view, &page);
+        cell.set_page(page);
         return;
     }
-    if let Some(hud) = hud_view(&ui.menu, net) {
-        view::show_hud(ctx, &hud);
+    ui.clicks = ClickMap::default();
+    match hud_view(&ui.menu, net) {
+        Some(hud) => cell.set_hud(present::hud_of(&hud, aspect)),
+        None => cell.clear(),
     }
 }
 

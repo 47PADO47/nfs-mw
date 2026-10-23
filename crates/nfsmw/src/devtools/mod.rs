@@ -123,10 +123,6 @@ fn run_ui(
         let net = lan_ui.as_deref_mut().and_then(|ui| crate::frontend::lan::stats_line(ui, lan_backend.as_deref_mut()));
         let net = overlay::net_line_shown(settings.show_metrics, settings.net.show_stats, net);
         overlay::show(ctx, settings.show_metrics, &metrics, left, net.as_deref());
-        // The LAN menu, or the session's HUD pieces, over the menus and the world (`frontend/lan`).
-        if let Some(ui) = lan_ui.as_deref_mut() {
-            crate::frontend::lan::show(ctx, ui, lan_backend.as_deref_mut(), &settings);
-        }
         trace::indicator(ctx, &lab.recorder);
         platform.show(ctx);
         console::show(ctx, &mut console);

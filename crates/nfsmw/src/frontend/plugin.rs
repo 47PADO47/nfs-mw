@@ -417,6 +417,12 @@ fn present(
             presenter.0.present(&legend, &assets.0, screen, &mut out);
         }
     }
+    // A LAN page covers the front end: it is drawn, the screens under it are composed (their cells stay current) but not
+    // presented (`frontend/lan`).
+    let lan_page = frame.lan().has_page();
+    if lan_page {
+        presenter.0.present(&slot_layer(&themes, ElementId::LanMenu, time_s), &assets.0, screen, &mut out);
+    }
     let mut claimed: Vec<ElementId> = Vec::new();
     let reusable = themes.menus_are_static();
     for Presented { tree, serial, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
@@ -438,6 +444,9 @@ fn present(
             }
             _ => tree,
         };
+        if lan_page {
+            continue;
+        }
         presenter.0.present(&layer, &assets.0, screen, &mut out);
     }
     // A closed screen leaves no tree behind: the menu slots no screen took this frame are emptied (a slot that is not

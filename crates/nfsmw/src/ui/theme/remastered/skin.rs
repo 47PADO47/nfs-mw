@@ -5,6 +5,8 @@
 use blackbox_feng::resource_handle;
 use blackbox_ui::{Skin, Tokens};
 
+use crate::ui::theme::lan_hud::{FADE_STEPS, HudDress, fade_alpha};
+
 use crate::ui::input_icons;
 use crate::ui::raster_text::{
     RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_TITLE_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY,
@@ -76,6 +78,14 @@ pub(super) mod keys {
     pub const PURSUIT_DAMAGED: &str = "remastered.pursuit.damaged";
     pub const PURSUIT_WRECKED: &str = token_keys::SECONDARY;
     pub const PURSUIT_BUSTED: &str = "remastered.pursuit.busted";
+    /// The LAN session HUD: the plate behind a block of text, and a chat line and a notice at each fade step.
+    pub const LAN_PLATE: &str = "remastered.lan.plate";
+    pub fn lan_chat(step: usize) -> String {
+        format!("remastered.lan.chat.{step}")
+    }
+    pub fn lan_notice(step: usize) -> String {
+        format!("remastered.lan.notice.{step}")
+    }
     /// The menu title's colour: the palette's accent.
     pub const MENU_TITLE: &str = "remastered.menu.title";
     /// The game's logo, and the controller glyph atlas the footer hints draw from.
@@ -88,7 +98,7 @@ pub(super) mod keys {
 pub fn palette_skin(tokens: &Tokens) -> Skin {
     let [r, g, b, _] = tokens.secondary;
     let scale = tokens.text_scale;
-    Skin::new()
+    let mut skin = Skin::new()
         .with_colour(keys::ARC_REDLINE_DIM, [r, g, b, 100])
         .with_colour(keys::GEAR_PANEL, [tokens.primary[0], tokens.primary[1], tokens.primary[2], 20])
         .with_metric(keys::SCALE_SPEED, 3.25 * scale)
@@ -104,7 +114,36 @@ pub fn palette_skin(tokens: &Tokens) -> Skin {
         .with_colour(keys::MENU_TEXT_DISABLED, with_alpha(tokens.primary, 95))
         .with_colour(keys::MENU_RULE, with_alpha(tokens.primary, 120))
         .with_colour(keys::MENU_TAGLINE, tokens.muted)
-        .with_colour(keys::MINIMAP_HEAT_DIM, with_alpha(tokens.primary, 90))
+        .with_colour(keys::MINIMAP_HEAT_DIM, with_alpha(tokens.primary, 90));
+    for step in 0..FADE_STEPS {
+        let alpha = fade_alpha(step);
+        skin = skin
+            .with_colour(keys::lan_chat(step), with_alpha(tokens.primary, alpha))
+            .with_colour(keys::lan_notice(step), with_alpha(tokens.muted, alpha));
+    }
+    skin
+}
+
+/// The Remastered dress of the LAN session HUD: the menu face, the palette's accent and text, and the dark plate. The keys of
+/// the fade steps are made once and kept: a dress holds `&'static str`, and there are [`FADE_STEPS`] of each.
+pub fn hud_dress() -> HudDress {
+    use std::sync::OnceLock;
+    type Names = ([&'static str; FADE_STEPS], [&'static str; FADE_STEPS]);
+    static NAMES: OnceLock<Names> = OnceLock::new();
+    let (chat, notice) = NAMES.get_or_init(|| {
+        let leak = |name: String| -> &'static str { Box::leak(name.into_boxed_str()) };
+        (std::array::from_fn(|i| leak(keys::lan_chat(i))), std::array::from_fn(|i| leak(keys::lan_notice(i))))
+    });
+    HudDress {
+        font: keys::FONT_MENU,
+        scale: 1.0,
+        accent: keys::MENU_TITLE,
+        text: keys::MENU_TEXT_SELECTED,
+        muted: keys::MENU_TAGLINE,
+        plate: keys::LAN_PLATE,
+        chat: *chat,
+        notice: *notice,
+    }
 }
 
 /// `colour` with its RGB scaled by `factor`.
@@ -128,6 +167,7 @@ pub fn skin() -> Skin {
         .with_font(keys::FONT_MENU_TITLE, RASTER_MENU_TITLE_FONT_KEY)
         .with_font(keys::FONT_TIMER, RASTER_TIMER_FONT_KEY)
         .with_colour(keys::MENU_SHADE, [0, 0, 0, 255])
+        .with_colour(keys::LAN_PLATE, [0, 0, 0, 120])
         .with_colour(keys::MINIMAP_MAP, [128, 138, 158, 255])
         .with_colour(keys::MINIMAP_DISC, [6, 9, 16, 245])
         .with_colour(keys::MINIMAP_BEZEL, [6, 8, 12, 235])
