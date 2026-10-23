@@ -195,18 +195,25 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     list
 }
 
-/// The icons of the career menu: Resume Career when the profile's career has started and was not won, Co-op Career
+/// The icons of the career menu: Resume Career (Start Career while the prologue is not over) when the profile's career has started and was not won, Co-op Career
 /// after it outside the prologue (docs/specs/coop-career.md, section 3.1), Start New Career (Start Career for a profile
 /// whose career has not started), and Load. With no profile loaded the row is Start New Career and Load
 /// (docs/specs/career-parity-menus.md, section 6).
 pub fn career_icons(started: bool, won: bool, prologue: bool) -> Vec<Icon> {
     const NEW_CAREER: u32 = 0xE735_3BE7;
+    const START_CAREER: u32 = 0x6005_281E;
+    const RESUME_CAREER: u32 = 0xE072_DB21;
     // The split screen's picture: a co-op career is a second player on the same career.
     const CO_OP: u32 = 0xF365_B5F5;
     const CO_OP_NAME: u32 = 0x841D_518A;
     let mut list = Vec::new();
     if started && !won {
-        list.push(icon(Id::CareerResume, 0xC1C0_89CE, 0xE072_DB21, true));
+        // Until the first safe house is reached the career has not really begun: the row says Start Career.
+        let name = match prologue {
+            true => START_CAREER,
+            false => RESUME_CAREER,
+        };
+        list.push(icon(Id::CareerResume, 0xC1C0_89CE, name, true));
     }
     if started && !won && !prologue {
         list.push(icon(Id::CareerCoop, CO_OP, CO_OP_NAME, true));
@@ -296,6 +303,13 @@ mod tests {
         let locked = pause_icons(PauseCtx { coop: true, coop_locked: true, ..PauseCtx::default() });
         let end = locked.iter().find(|i| i.id == Id::EndCoop).expect("End Co-op is still listed");
         assert!(!end.enabled, "greyed out while player 2 races or is chased");
+    }
+
+    #[test]
+    fn the_career_row_says_start_until_the_first_safe_house_is_reached() {
+        let name = |icons: &[Icon]| icons.iter().find(|i| i.id == Id::CareerResume).map(|i| i.name);
+        assert_eq!(name(&career_icons(true, false, true)), Some(0x6005_281E), "Start Career in the prologue");
+        assert_eq!(name(&career_icons(true, false, false)), Some(0xE072_DB21), "Resume Career after it");
     }
 
     #[test]
