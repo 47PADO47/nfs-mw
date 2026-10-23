@@ -91,9 +91,20 @@ pub struct StreakOverlay {
     composed: UiLayer,
     /// The streak mesh between frames.
     spare: Option<UiMesh>,
+    /// The streaks' own clock, seconds: it stops while the game is paused, so the streaks hold still under the menu.
+    clock: f32,
 }
 
 impl StreakOverlay {
+    /// Moves the streaks' clock on by `dt` seconds unless the game is `paused`, and returns it.
+    pub fn advance(&mut self, dt: f32, paused: bool) -> f32 {
+        if paused || !dt.is_finite() {
+            return self.clock;
+        }
+        self.clock += dt.max(0.0);
+        self.clock
+    }
+
     /// Sets this frame's layer: the HUD layer `base` (if the presenter has made one) with the streaks on top.
     pub fn show(
         &mut self,
@@ -205,6 +216,17 @@ mod tests {
             assert_eq!(composed.meshes[quads], mesh(SIZE, 1.0, 0.3).expect("drawn"));
             composed.meshes.pop();
         }
+    }
+
+    #[test]
+    fn the_clock_stops_while_paused() {
+        let mut overlay = StreakOverlay::default();
+        assert_eq!(overlay.advance(0.5, false), 0.5);
+        assert_eq!(overlay.advance(0.5, true), 0.5);
+        assert_eq!(overlay.advance(f32::NAN, false), 0.5);
+        assert_eq!(overlay.advance(0.25, false), 0.75);
+        let paused = mesh(SIZE, 1.0, overlay.advance(1.0 / 60.0, true)).expect("drawn");
+        assert_eq!(Some(paused), mesh(SIZE, 1.0, overlay.advance(1.0 / 60.0, true)), "a paused frame does not move");
     }
 
     #[test]
