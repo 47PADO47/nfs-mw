@@ -184,3 +184,30 @@ fn open_group_ground_is_hit_under_gate_options() {
     w.set_group_enabled(9, true);
     assert!(w.ray_cast(from, to, &gate_opts()).is_some());
 }
+
+#[test]
+fn a_hit_names_the_scenery_group_it_belongs_to() {
+    let mut w = grouped_wall(9);
+    w.set_group_enabled(9, true);
+    let hit = w.ray_cast([90.0, 6.0, 200.0], [110.0, 6.0, 200.0], &gate_opts()).expect("the open gate's wall");
+    assert_eq!(hit.group, 9);
+    let hit = world().ray_cast([90.0, 6.0, 200.0], [110.0, 6.0, 200.0], &RayOptions::default()).expect("the wall");
+    assert_eq!(hit.group, 0, "an instance in no group");
+}
+
+#[test]
+fn a_group_can_be_marked_two_sided_and_back() {
+    let mut w = grouped_wall(9);
+    assert!(!w.group_two_sided(9));
+    w.set_group_two_sided(9, true);
+    w.set_group_two_sided(0, true);
+    assert!(w.group_two_sided(9) && !w.group_two_sided(7));
+    assert!(!w.group_two_sided(0), "group 0 is no group");
+    // The mark changes no hit: a ray from behind still reports the barrier as back-facing.
+    w.set_group_enabled(9, true);
+    let hit = w.ray_cast([110.0, 6.0, 200.0], [90.0, 6.0, 200.0], &gate_opts()).expect("the wall from behind");
+    let front = w.ray_cast([90.0, 6.0, 200.0], [110.0, 6.0, 200.0], &gate_opts()).expect("the wall from the front");
+    assert_ne!(hit.front_facing, front.front_facing);
+    w.set_group_two_sided(9, false);
+    assert!(!w.group_two_sided(9));
+}

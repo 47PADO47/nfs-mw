@@ -48,6 +48,7 @@ mod tests {
             surface_flags: 0,
             section: 1,
             instance: 0,
+            group: 0,
         }
     }
 

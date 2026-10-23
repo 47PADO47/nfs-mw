@@ -103,6 +103,7 @@ fn cast_instance(
                 surface_flags: barrier.flags,
                 section: identity.0,
                 instance: identity.1,
+                group: inst.group,
             },
         ));
     }

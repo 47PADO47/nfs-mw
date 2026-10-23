@@ -48,6 +48,8 @@ pub struct CollisionWorld {
     /// Scenery groups (`group != 0`) that are in the world: their instances collide when a query skips groups
     /// ([`RayOptions::skip_groups`]). Kept here so it survives packs being inserted and removed.
     pub(crate) enabled_groups: GroupSet,
+    /// Scenery groups whose barriers the caller treats as walls from both sides ([`Self::set_group_two_sided`]).
+    two_sided_groups: GroupSet,
 }
 
 impl CollisionWorld {
@@ -63,6 +65,7 @@ impl CollisionWorld {
             window: Mutex::default(),
             resident: Mutex::default(),
             enabled_groups: GroupSet::default(),
+            two_sided_groups: GroupSet::default(),
         }
     }
 
@@ -78,6 +81,24 @@ impl CollisionWorld {
     /// Whether scenery group `group` is in the world (see [`Self::set_group_enabled`]).
     pub fn group_enabled(&self, group: u16) -> bool {
         self.enabled_groups.contains(group)
+    }
+
+    /// Marks scenery group `group`'s barriers as walls from both sides, or from their front only again. Queries return
+    /// the same hits either way: the mark is for callers that skip back-facing barriers ([`Hit::front_facing`]), which
+    /// ask [`Self::group_two_sided`] with the hit's [`Hit::group`]. Group 0 is not a group and is never two-sided.
+    pub fn set_group_two_sided(&mut self, group: u16, two_sided: bool) {
+        if group == 0 {
+            return;
+        }
+        match two_sided {
+            true => self.two_sided_groups.insert(group),
+            false => self.two_sided_groups.remove(group),
+        };
+    }
+
+    /// Whether scenery group `group`'s barriers are walls from both sides (see [`Self::set_group_two_sided`]).
+    pub fn group_two_sided(&self, group: u16) -> bool {
+        group != 0 && self.two_sided_groups.contains(group)
     }
 
     /// Adds (or replaces) a section's pack, applying the game's post-load exclusion flags.
