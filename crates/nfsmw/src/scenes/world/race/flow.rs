@@ -31,6 +31,7 @@ impl WorldScene {
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
             Stage::Intro { .. } => self.race_intro(&mut session, frame_dt),
+            Stage::Staged { .. } => true,
             // `frame_dt` is 0 while the world is frozen (a scene or a story movie plays), so the challenge's clock stops.
             Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session, frame_dt),
             Stage::Running => self.heat_chase_frame(renderer, &mut session),

@@ -14,9 +14,9 @@ use blackbox_net_core::secure::ClientConfig;
 use nfsmw_net::input::InputCode;
 use nfsmw_net::message::Message;
 use nfsmw_net::version::{PROTO_MAJOR, noise_prologue};
-use nfsmw_server::{Server, ServerConfig, ServerSetup, endpoint_config};
+use nfsmw_server::{Server, ServerConfig, ServerSetup, WorldControl, endpoint_config};
 use nfsmw_sim::toy::{ToyConfig, ToyWorld};
-use nfsmw_sim::{OwnState, PlayerId, WorldSim};
+use nfsmw_sim::{OwnState, PlayerId};
 
 use super::client::{TestClient, identity};
 
@@ -37,8 +37,8 @@ pub fn test_config() -> ServerConfig {
 }
 
 /// The server, its clients and the fake clock.
-pub struct Harness {
-    pub server: Server<ToyWorld>,
+pub struct Harness<W: WorldControl = ToyWorld> {
+    pub server: Server<W>,
     pub clients: Vec<TestClient>,
     pub tick: u64,
     /// The world's own state of each slot after each tick, to check own blocks against.
@@ -65,7 +65,21 @@ impl Harness {
 
     fn with_endpoint(config: ServerConfig, toy: ToyConfig, endpoint: ServerEndpoint, net: Option<MemoryNet>) -> Self {
         let world = ToyWorld::new(7, toy);
-        let setup = ServerSetup::toy(world.config().car_types);
+        Harness::around(config, world, endpoint, net)
+    }
+}
+
+impl<W: WorldControl> Harness<W> {
+    /// A server for `config` over any `world` of the toy world's car types, its endpoint on an in-memory link.
+    pub fn over(config: ServerConfig, world: W) -> Self {
+        let net = MemoryNet::new();
+        let endpoint = ServerEndpoint::spawn(net.endpoint(SERVER_ADDR), None, server_endpoint_config())
+            .expect("the server endpoint starts");
+        Self::around(config, world, endpoint, None)
+    }
+
+    fn around(config: ServerConfig, world: W, endpoint: ServerEndpoint, net: Option<MemoryNet>) -> Self {
+        let setup = ServerSetup::toy(64);
         let server = Server::new(config, setup, endpoint, world, 0).expect("valid settings");
         Self { server, clients: Vec::new(), tick: 0, own: BTreeMap::new(), net }
     }

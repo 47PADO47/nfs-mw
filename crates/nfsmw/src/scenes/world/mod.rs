@@ -226,6 +226,9 @@ pub struct WorldScene {
     /// The network seats racing as people beside the lead, in grid order: racer `n + 1` is `race_people[n]`
     /// (`players/race.rs`). Empty outside a race with remote players.
     race_people: Vec<players::PlayerId>,
+    /// The next race stages on the grid and waits for [`WorldScene::release_staged_race`] instead of counting down by
+    /// itself (`race/hold.rs`). A server sets it before it starts the session's race.
+    race_hold: bool,
     /// The split-screen match being played: the second player's actions and camera (`split/`).
     split: Option<split::SplitState>,
     /// The bottom half's draw list and cut, for a split-screen race or co-op (`split/view.rs`).

@@ -64,6 +64,8 @@ pub struct WorldSimHost {
     /// Ticks whose streaming wait ran out.
     pub(super) stalled: u32,
     pub(super) settle: Option<Duration>,
+    /// The tick the server wants the staged race's GO on, until the countdown is released (`race/hold.rs`).
+    pub(super) race_go_at: Option<Tick>,
 }
 
 impl WorldSimHost {
@@ -101,6 +103,7 @@ impl WorldSimHost {
             moved: MovedTracker::default(),
             stalled: 0,
             settle: config.settle_streaming,
+            race_go_at: None,
         };
         host.place_lead(config.open_ticks)?;
         let mut ignored = Vec::new();

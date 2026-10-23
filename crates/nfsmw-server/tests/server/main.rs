@@ -13,3 +13,4 @@ mod password;
 mod quick;
 mod results;
 mod security;
+mod staged;

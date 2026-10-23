@@ -36,6 +36,9 @@ fn race_request(settings: &nfsmw_net::message::Settings, slots: &[u8]) -> Option
     })
 }
 
+/// How long the server waits for the world's race to stand on its grid before it goes on without it, milliseconds.
+const WORLD_RACE_PATIENCE_MS: u64 = 60_000;
+
 /// Speed traps a speedtrap round has room for. The world checks each pass against the trap's own threshold, so the
 /// round's thresholds are zero: only "better than the racer's best" is left for the rules.
 const TRAP_SLOTS: usize = 32;
@@ -48,6 +51,9 @@ pub(crate) struct RaceState {
     pub(crate) roster: Roster,
     /// The race start tick from the countdown.
     pub(crate) start_tick: Option<u32>,
+    /// When the server began waiting for the world's race to stand on its grid, in server milliseconds: the load barrier
+    /// is held until it does ([`WorldControl::race_staged`]).
+    pub(crate) awaiting_world_since_ms: Option<u64>,
     /// When the results screen goes back to the lobby.
     pub(crate) results_until_ms: Option<u64>,
     /// Mode events not handled yet.
@@ -88,6 +94,7 @@ impl<W: WorldControl> Server<W> {
     /// The lobby's timers, the votes' end, and the results screen's end.
     pub(super) fn update_lobby(&mut self) {
         let tick = self.world.tick();
+        self.finish_waiting_for_world();
         let actions = self.lobby.update(self.now_ms, tick);
         self.apply_actions(actions);
         let events = self.votes.update(tick);
@@ -108,16 +115,22 @@ impl<W: WorldControl> Server<W> {
                 for slot in self.lobby.racer_slots() {
                     self.spawn_car(slot, false);
                 }
-                self.start_world_race();
-                return self.lobby.server_loaded(self.now_ms).unwrap_or_else(|err| {
-                    log::warn!("the load barrier refused the server: {err:?}");
-                    Vec::new()
-                });
+                // A world race that was asked for must stand on its grid before the server counts as loaded, so the
+                // countdown does not run over a race that is still loading.
+                if self.start_world_race() {
+                    self.race.awaiting_world_since_ms = Some(self.now_ms);
+                    return Vec::new();
+                }
+                return self.server_loaded();
             }
-            SessionPhase::Countdown => self.race.start_tick = Some(target_tick),
+            SessionPhase::Countdown => {
+                self.race.start_tick = Some(target_tick);
+                self.world.schedule_race_go(target_tick);
+            }
             SessionPhase::Running => self.start_round(),
             SessionPhase::Results => self.end_round(),
             SessionPhase::Lobby => {
+                self.race.awaiting_world_since_ms = None;
                 self.world.stop_race();
                 self.race.mode = None;
                 self.race.start_tick = None;
@@ -130,17 +143,47 @@ impl<W: WorldControl> Server<W> {
 
     /// Asks the world to run the session's race, for the modes that have a track. A world that cannot is not an error:
     /// the toy world has no races, and the round then runs on the events the world does raise.
-    fn start_world_race(&mut self) {
+    /// Returns whether the world took the race.
+    fn start_world_race(&mut self) -> bool {
         let slots = self.lobby.racer_slots();
         let Some(request) = race_request(self.lobby.settings(), &slots) else {
-            return;
+            return false;
         };
         match self.world.start_race(&request) {
             Ok(()) => {
-                log::info!("the world runs the race: track {:#010x}, {} racers", request.track, request.players.len())
+                log::info!("the world runs the race: track {:#010x}, {} racers", request.track, request.players.len());
+                true
             }
-            Err(why) => log::info!("no world race: {why}"),
+            Err(why) => {
+                log::info!("no world race: {why}");
+                false
+            }
         }
+    }
+
+    /// The server reports itself loaded to the lobby's barrier.
+    fn server_loaded(&mut self) -> Vec<Action> {
+        self.lobby.server_loaded(self.now_ms).unwrap_or_else(|err| {
+            log::warn!("the load barrier refused the server: {err:?}");
+            Vec::new()
+        })
+    }
+
+    /// Reports the server loaded once the world's race stands on its grid, or after [`WORLD_RACE_PATIENCE_MS`].
+    fn finish_waiting_for_world(&mut self) {
+        let Some(since) = self.race.awaiting_world_since_ms else {
+            return;
+        };
+        let patient = self.now_ms.saturating_sub(since) < WORLD_RACE_PATIENCE_MS;
+        if patient && !self.world.race_staged() {
+            return;
+        }
+        self.race.awaiting_world_since_ms = None;
+        if !patient {
+            log::warn!("the world's race did not stand on its grid in time; going on without waiting");
+        }
+        let actions = self.server_loaded();
+        self.apply_actions(actions);
     }
 
     /// Puts `slot`'s car in the world, unless it has one. `announce` sends the late joiner's `Respawn`.

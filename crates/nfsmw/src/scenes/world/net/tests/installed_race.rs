@@ -8,6 +8,7 @@ use nfsmw_server::{RaceRequest, WorldControl};
 use nfsmw_sim::{EntityKind, EntityView, InputState, PlayerId, SimEvent, SimInputs, WorldSim};
 
 use super::installed::{CAR, join, open};
+use crate::scenes::world::net::flags::OWN_PARKED;
 use crate::scenes::world::net::host::WorldSimHost;
 use nfsmw_net::message::Mode;
 
@@ -65,14 +66,39 @@ fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
         assert!(host.scene().players.is_parked(id), "player {} left free roam for the race seat", id.0);
     }
 
+    // The grid stands and waits: the server has not scheduled GO, so nobody counts down.
     let mut events: Vec<SimEvent> = Vec::new();
+    assert!(!host.race_staged(), "the racers are still loading");
     for tick in 0..60 * 120 {
         host.step(&throttle(), &mut events);
-        if racing(&host) {
+        if host.race_staged() {
             break;
         }
-        assert!(tick < 60 * 119, "the race never reached the green light");
+        assert!(tick < 60 * 119, "the grid never stood");
     }
+    let staged = cars(&host);
+    for _ in 0..120 {
+        host.step(&throttle(), &mut events);
+    }
+    assert!(host.race_staged() && !racing(&host), "a staged race waits for the server, throttle or not");
+    for (first, then) in staged.iter().zip(&cars(&host)) {
+        let moved = (0..3).map(|axis| (then.position[axis] - first.position[axis]).powi(2)).sum::<f32>().sqrt();
+        assert!(moved < 1.0, "the cars are held on the grid: {moved:.2} m");
+    }
+
+    // GO falls on the tick the server scheduled: still counting down just before it, racing just after.
+    let go = host.tick + 300;
+    host.schedule_race_go(go);
+    while host.tick + 5 < go {
+        host.step(&throttle(), &mut events);
+        assert!(!racing(&host), "GO came early, at tick {} of {go}", host.tick);
+    }
+    assert!(!racing(&host), "five ticks before GO the countdown still runs");
+    while host.tick < go + 5 {
+        host.step(&throttle(), &mut events);
+    }
+    assert!(racing(&host), "five ticks after GO the race runs (tick {} of {go})", host.tick);
+
     let before = cars(&host);
     let owners: Vec<_> = before.iter().filter_map(|view| view.owner).collect();
     assert_eq!(owners, [LEAD, PEOPLE[0], PEOPLE[1]], "the people's racers are exported as their player cars");
@@ -84,6 +110,12 @@ fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
         let moved = (0..3).map(|axis| (then.position[axis] - first.position[axis]).powi(2)).sum::<f32>().sqrt();
         let owner = first.owner.map_or(255, |id| id.0);
         assert!(moved > 20.0, "player {owner} drove on its pedals: {moved:.1} m in six seconds");
+    }
+    for id in PEOPLE {
+        let own = host.own_state(id).expect("an own-car block");
+        assert!(own.rpm > 500.0, "player {} has an engine speed, {} rpm", id.0, own.rpm);
+        assert!(own.gear >= 2, "player {} is in a forward gear: wire gear {}", id.0, own.gear);
+        assert_eq!(own.flags & OWN_PARKED, 0, "player {} is in the world, not parked", id.0);
     }
 
     let states = crate::scenes::world::net::sim::racer_states(host.scene()).expect("a race engine");

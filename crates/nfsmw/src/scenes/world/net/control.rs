@@ -47,11 +47,30 @@ impl WorldControl for WorldSimHost {
             traffic: Some(i32::from(request.traffic_density)),
             ..RaceOptions::default()
         };
-        self.scene.begin_race(race, options, None).map(drop)
+        // The grid stands and waits: the server schedules GO (`schedule_race_go`) once everyone has loaded.
+        self.scene.hold_next_race(true);
+        let begun = self.scene.begin_race(race, options, None);
+        if begun.is_err() {
+            self.scene.hold_next_race(false);
+        }
+        begun.map(drop)
+    }
+
+    /// The race is ready to count down: its racers stand on the grid. True too when there is no race to wait for (it
+    /// could not start, or it is gone).
+    fn race_staged(&self) -> bool {
+        self.scene.race.is_none() || self.scene.staged_race().is_some()
+    }
+
+    /// The countdown starts as late as it can while GO still falls on `go_tick` (at once when that is too close).
+    fn schedule_race_go(&mut self, go_tick: u32) {
+        self.race_go_at = Some(go_tick);
     }
 
     /// Ends the race the world runs; the people's cars come back behind the lead.
     fn stop_race(&mut self) {
+        self.race_go_at = None;
+        self.scene.hold_next_race(false);
         self.scene.abandon_race();
     }
 

@@ -214,6 +214,7 @@ impl WorldScene {
                 queued_again: None,
                 queued_split: None,
                 race_people: Vec::new(),
+                race_hold: false,
                 split: None,
                 second_view: split::SecondView::new(),
                 inputs: Default::default(),

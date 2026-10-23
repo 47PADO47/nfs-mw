@@ -151,7 +151,16 @@ impl WorldScene {
         }
         session.plan = kept;
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
+        let lead = match prep.rolling {
+            true => 0,
+            false => (prep.config.countdown * 60.0).ceil().max(0.0) as u32,
+        };
         session.engine = Some(Race::new(prep.course, prep.config, &grid));
+        // A session's race waits on the grid for the server to release the countdown (`hold.rs`).
+        if std::mem::take(&mut self.race_hold) {
+            session.stage = Stage::Staged { lead };
+            return;
+        }
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.
         let steps = match self.rules.race_intros {
             true => intro::intro_queue(session),

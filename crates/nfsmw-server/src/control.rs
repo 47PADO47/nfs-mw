@@ -42,6 +42,16 @@ pub trait WorldControl: WorldSim {
         Err("this world runs no races".into())
     }
 
+    /// Whether the race of [`WorldControl::start_race`] stands ready on its grid. The server holds its load barrier until
+    /// it does, so nobody is counted down to a race that is still loading. True for a world with nothing to wait for.
+    fn race_staged(&self) -> bool {
+        true
+    }
+
+    /// The race should go (the first racer's GO) on server tick `go_tick`; a world that staged its race starts the
+    /// countdown so that it ends there, or at once when `go_tick` is too close. Called when the lobby's countdown begins.
+    fn schedule_race_go(&mut self, _go_tick: u32) {}
+
     /// Ends the world's race, if one runs, and puts the players back on the road.
     fn stop_race(&mut self) {}
 
