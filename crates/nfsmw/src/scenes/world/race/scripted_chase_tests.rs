@@ -201,12 +201,14 @@ fn the_cops_spawn_at_the_races_own_spawn_points_facing_their_markers() {
         name: name.into(),
         placement: Placement { position: Vec3::new(x, 100.0, 800.0), heading_deg },
     };
-    let mut data = GameplayData::default();
-    data.cop_spawns = vec![
-        spawn("16_2_1_d_day_intro/cop_spawn_1", 11.0, 0.0),
-        spawn("16_2_1_d_day_intro/cop_spawn_2", 21.0, 90.0),
-        spawn("16_2_3_sprint/cop_spawn_1", 99.0, 0.0),
-    ];
+    let data = GameplayData {
+        cop_spawns: vec![
+            spawn("16_2_1_d_day_intro/cop_spawn_1", 11.0, 0.0),
+            spawn("16_2_1_d_day_intro/cop_spawn_2", 21.0, 90.0),
+            spawn("16_2_3_sprint/cop_spawn_1", 99.0, 0.0),
+        ],
+        ..Default::default()
+    };
     let points = cop_points(&data, "16_2_1_d_day_intro");
     assert_eq!(points.len(), 2, "only this race's points");
     assert_eq!(points[0].0, Vec3::new(11.0, 100.0, 800.0));
