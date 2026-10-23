@@ -309,3 +309,6 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
    a lot zone starts the world again at the zone.
 6. Until the first safe house is reached (stage 16) the map shows only that safe house, and the career row says "Start Career".
    A career that won `16.2.1` resumes in the lot while it owns no car, and on the drive to the safe house after that.
+7. `IntroNisDDEnd` is not a second cutscene of the prologue. Ghidra: its only code use is `FUN_00641840` (0x00641840), the
+   teardown of the race status, which posts the name as an event for a human racer when the race state is not 8. Nothing
+   plays a scene of that name, so no extra NIS follows `16.1.0` or `16.2.1` **[exe]**.
