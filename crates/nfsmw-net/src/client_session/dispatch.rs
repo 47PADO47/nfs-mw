@@ -33,7 +33,7 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
             Message::PakeStart(start) => self.on_pake_start(&start),
             Message::PakeConfirm(confirm) => self.on_pake_confirm(&confirm.tag),
             Message::JoinAccepted(accepted) => self.on_accepted(&accepted),
-            Message::JoinRejected(rejected) => self.end(EndReason::Rejected(rejected)),
+            Message::JoinRejected(rejected) => self.on_rejected(rejected),
             Message::Kick(kick) => {
                 self.lobby.kicked = Some(kick.clone());
                 self.end(EndReason::Kicked(kick));

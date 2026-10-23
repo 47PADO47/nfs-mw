@@ -6,14 +6,30 @@ use std::collections::VecDeque;
 use blackbox_net_core::ratelimit::TokenBucket;
 use blackbox_net_core::replicate::ClientState;
 use blackbox_net_core::secure::KeyId;
+use blackbox_net_core::secure::password::{PakeConfirm, PakeStart};
 use blackbox_net_core::session::PeerId;
 use nfsmw_net::drop::BulkSender;
 use nfsmw_net::input::InputWindow;
-use nfsmw_net::message::{Auth, InvalidMessages};
+use nfsmw_net::join::PasswordProof;
+use nfsmw_net::message::{Auth, InvalidMessages, Join};
 use nfsmw_net::schema::{CorrectionCause, InputReport};
 use nfsmw_sim::Tick;
 
 use super::strikes::Suspicion;
+
+/// How far the room password exchange of one connection has come.
+#[derive(Debug, Default)]
+pub(crate) enum PakeProgress {
+    /// No exchange: the room is open, or `Auth` has not come yet.
+    #[default]
+    Idle,
+    /// `PakeStart` was sent; waiting for the client's message.
+    Started(PakeStart),
+    /// The client's message was read; waiting for its confirmation tag.
+    Finished(PakeConfirm),
+    /// Concluded.
+    Done(PasswordProof),
+}
 
 /// Ticks the input report covers.
 const REPORT_TICKS: usize = 32;
@@ -98,6 +114,13 @@ pub(crate) struct Peer {
     pub(crate) source: u64,
     pub(crate) stage: Stage,
     pub(crate) auth: Option<Auth>,
+    /// The Noise handshake hash the room password is bound to.
+    pub(crate) handshake_hash: [u8; 32],
+    pub(crate) pake: PakeProgress,
+    /// When the exchange must be done, or the join is judged as without a proof.
+    pub(crate) pake_deadline_ms: Option<u64>,
+    /// A `Join` that came before the exchange ended.
+    pub(crate) pending_join: Option<Join>,
     pub(crate) window: InputWindow,
     pub(crate) inputs: InputLog,
     /// The last tick simulated with this client's own input.
@@ -125,13 +148,17 @@ pub(crate) struct Peer {
 
 impl Peer {
     /// A new connection at server tick `tick`.
-    pub(crate) fn new(id: PeerId, key: KeyId, source: u64, tick: Tick) -> Self {
+    pub(crate) fn new(id: PeerId, key: KeyId, source: u64, handshake_hash: [u8; 32], tick: Tick) -> Self {
         Self {
             id,
             key,
             source,
             stage: Stage::Hello,
             auth: None,
+            handshake_hash,
+            pake: PakeProgress::Idle,
+            pake_deadline_ms: None,
+            pending_join: None,
             window: InputWindow::new(tick),
             inputs: InputLog::default(),
             last_input: None,

@@ -45,8 +45,11 @@ impl<W: WorldControl> Server<W> {
                     state.auth = Some(auth);
                     state.stage = Stage::Authed;
                 }
+                self.begin_password(peer);
             }
-            (Stage::Authed, Message::Join(join)) => self.on_join(peer, join),
+            (Stage::Authed, Message::Join(join)) => self.on_join_request(peer, join),
+            (Stage::Authed, Message::PakeMsg(message)) => self.on_pake_msg(peer, message),
+            (Stage::Authed, Message::PakeConfirm(confirm)) => self.on_pake_confirm(peer, confirm),
             (Stage::Joined(slot), message) => self.on_member_message(peer, slot, message),
             _ => self.strike(peer, Violation::OutOfOrder),
         }

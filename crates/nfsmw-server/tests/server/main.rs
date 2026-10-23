@@ -8,5 +8,6 @@ mod join;
 mod late;
 mod lossy;
 mod many;
+mod password;
 mod results;
 mod security;

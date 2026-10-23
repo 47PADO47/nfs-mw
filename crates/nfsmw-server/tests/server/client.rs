@@ -5,12 +5,13 @@ use blackbox_net_core::bits::BitReader;
 use blackbox_net_core::endpoint::{ClientEndpoint, ClientEvent, DisconnectReason};
 use blackbox_net_core::replicate::ClientViews;
 use blackbox_net_core::secure::IdentityKey;
+use blackbox_net_core::secure::password::{self, PakeConfirm, PakeRole};
 use nfsmw_net::clock::{Ping, Pong};
 use nfsmw_net::frames::{FRAME_PING, FRAME_PONG, FRAME_SNAPSHOT, GlobalBlock, decode_pong, encode_ping, read_snapshot};
 use nfsmw_net::input::{FRAME_INPUT, InputCode, InputHistory, MAX_INPUT_PAYLOAD, expand_tick};
 use nfsmw_net::loadout::Loadout;
 use nfsmw_net::message::{
-    Auth, Bytes, Join, JoinAccepted, JoinRejected, Kick, LoadComplete, Message, Name, SetReady, decode, encode,
+    Auth, Bytes, Join, JoinAccepted, JoinRejected, Kick, LoadComplete, Message, Name, PakeMsg, SetReady, decode, encode,
 };
 use nfsmw_net::schema::GameSchema;
 use nfsmw_net::schema::OwnBlock;
@@ -54,6 +55,14 @@ pub struct TestClient {
     pub acked: Option<u32>,
     /// Stops sending inputs and pings (a client that went silent).
     pub silent: bool,
+    /// The room password to answer a `PakeStart` with; `None` ignores it.
+    pub password: Option<String>,
+    /// The Noise handshake hash the connection reported (zero on the in-memory link).
+    pub handshake_hash: [u8; 32],
+    /// This side's confirmation of the exchange, until the server's tag arrives.
+    pake: Option<PakeConfirm>,
+    /// Whether the server's confirmation tag matched, once it came.
+    pub server_proved: Option<bool>,
 }
 
 impl TestClient {
@@ -75,6 +84,10 @@ impl TestClient {
             history: InputHistory::new(false),
             acked: None,
             silent: false,
+            password: None,
+            handshake_hash: [0; 32],
+            pake: None,
+            server_proved: None,
         }
     }
 
@@ -145,6 +158,7 @@ impl TestClient {
                 ClientEvent::Reliable { bytes, .. } => self.on_reliable(&bytes),
                 ClientEvent::Unreliable { frame_type, bytes } => self.on_unreliable(frame_type, &bytes),
                 ClientEvent::Disconnected(reason) => self.disconnected = Some(reason),
+                ClientEvent::Connected { handshake_hash, .. } => self.handshake_hash = handshake_hash,
                 _ => {}
             }
         }
@@ -157,9 +171,27 @@ impl TestClient {
             Message::JoinRejected(rejected) => self.rejected = Some(rejected.clone()),
             Message::Kick(kick) => self.kicked = Some(kick.clone()),
             Message::LoadWorld(_) => self.send(Message::LoadComplete(LoadComplete { streaming_ready: true })),
+            Message::PakeStart(start) => self.answer_pake(&start.message),
+            Message::PakeConfirm(tag) => {
+                self.server_proved = Some(self.pake.take().is_some_and(|confirm| confirm.verify(&tag.tag)));
+            }
             _ => {}
         }
         self.messages.push(message);
+    }
+
+    /// The room has a password: answers with this side's message and tag, when a password was given.
+    fn answer_pake(&mut self, server_message: &[u8]) {
+        let Some(secret) = self.password.clone() else {
+            return;
+        };
+        let (state, mine) =
+            password::start(secret.as_bytes(), &self.handshake_hash, PakeRole::Joiner).expect("a usable password");
+        let confirm = state.finish(server_message).expect("the server's message is a point");
+        let message = Bytes::new(mine.to_vec()).expect("a PAKE message fits");
+        self.send(Message::PakeMsg(PakeMsg { message }));
+        self.send(Message::PakeConfirm(nfsmw_net::message::PakeConfirm { tag: confirm.tag() }));
+        self.pake = Some(confirm);
     }
 
     fn on_unreliable(&mut self, frame_type: u8, bytes: &[u8]) {

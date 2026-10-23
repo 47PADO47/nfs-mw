@@ -172,7 +172,7 @@ impl Harness {
     }
 
     pub fn connect(&mut self) {
-        self.peer.push(ClientEvent::Connected { server_key: KeyId([9; 16]) });
+        self.peer.push(ClientEvent::Connected { server_key: KeyId([9; 16]), handshake_hash: [0; 32] });
         self.frame();
     }
 

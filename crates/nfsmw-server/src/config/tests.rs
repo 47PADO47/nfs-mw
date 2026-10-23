@@ -38,6 +38,19 @@ fn a_race_config_sets_mode_and_laps() {
 }
 
 #[test]
+fn a_password_locks_the_room() {
+    let config = ServerConfig::from_toml("password = \"secret\"").expect("valid");
+    assert_eq!(config.password.as_deref(), Some("secret"));
+    assert!(config.settings.password_required, "a password turns the flag on");
+    let open = ServerConfig::from_toml("password = \"\"").expect("an empty password is none");
+    assert_eq!(open.password, None);
+    assert!(!open.settings.password_required);
+    let long = format!("password = \"{}\"", "x".repeat(65));
+    let err = ServerConfig::from_toml(&long).expect_err("too long").to_string();
+    assert!(err.contains("`password` is out of range"), "{err}");
+}
+
+#[test]
 fn bad_files_name_the_key() {
     let cases: [(&str, &str); 9] = [
         ("colour = 1", "unknown key `colour`"),
@@ -48,7 +61,7 @@ fn bad_files_name_the_key() {
         ("mode = \"drift\"", "key `mode`"),
         ("max_players = 40", "do not hold together"),
         ("log_level = \"loud\"", "`log_level` must be one of"),
-        ("password = \"secret\"", "`password` is not supported yet"),
+        ("password_required = true", "do not hold together"),
     ];
     for (text, expected) in cases {
         let err = ServerConfig::from_toml(text).expect_err(text).to_string();

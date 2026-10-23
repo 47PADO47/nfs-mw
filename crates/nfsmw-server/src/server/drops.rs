@@ -17,6 +17,7 @@ impl<W: WorldControl> Server<W> {
     /// The close timers, silent players and ended resume windows.
     pub(super) fn run_timers(&mut self) {
         let now = self.now_ms;
+        self.expire_password_exchanges();
         let due: Vec<(PeerId, u8)> = self
             .peers
             .values()

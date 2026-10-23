@@ -109,6 +109,6 @@ impl<T: Transport> ServerWorker<T> {
         let conn = Connection::with_sealer(self.config.conn(LOCAL_SERVER_ID, LOCAL_CLIENT_ID), sealer);
         let link = PeerLink::new(conn, addr, LOCAL_SERVER_ID, None, false);
         self.peers.push(Peer { id, local: true, link });
-        self.events.push(ServerEvent::Connected { peer: id, key, addr, local: true });
+        self.events.push(ServerEvent::Connected { peer: id, key, addr, local: true, handshake_hash: [0; 32] });
     }
 }

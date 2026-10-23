@@ -4,11 +4,15 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 
+use blackbox_net_core::secure::password::MAX_PASSWORD_BYTES;
 use log::LevelFilter;
 use nfsmw_net::settings::{Field, set};
 use toml::Value;
 
 use super::{ConfigError, MAX_SNAPSHOT_BUDGET, ServerConfig};
+
+/// Most characters of a room password (security.md 4.6).
+const MAX_PASSWORD_CHARS: usize = 64;
 
 /// Applies `key = value` to `config`.
 pub(super) fn apply(config: &mut ServerConfig, key: &str, value: &Value) -> Result<(), ConfigError> {
@@ -21,7 +25,7 @@ pub(super) fn apply(config: &mut ServerConfig, key: &str, value: &Value) -> Resu
         "bind" => config.bind = string(key, value)?.parse::<IpAddr>().map_err(|_| typed(key, "an IP address"))?,
         "port" => config.port = int_in(key, value, 0, i64::from(u16::MAX))? as u16,
         "discovery" => config.discovery = boolean(key, value)?,
-        "password" => return password(key, value),
+        "password" => config.password = password(key, value)?,
         "snapshot_hz" => config.snapshot_hz = int_in(key, value, 1, 60)? as u8,
         "snapshot_budget" => {
             config.snapshot_budget = int_in(key, value, 1024, i64::from(MAX_SNAPSHOT_BUDGET))? as u32;
@@ -49,15 +53,16 @@ fn scalar_text(key: &str, value: &Value) -> Result<String, ConfigError> {
     }
 }
 
-/// A non-empty password is refused until the PAKE exchange runs in the server; an empty one means none.
-fn password(key: &str, value: &Value) -> Result<(), ConfigError> {
-    if string(key, value)?.is_empty() {
-        return Ok(());
+/// The room password: empty means none; at most 64 characters and [`MAX_PASSWORD_BYTES`] bytes.
+fn password(key: &str, value: &Value) -> Result<Option<String>, ConfigError> {
+    let text = string(key, value)?;
+    if text.is_empty() {
+        return Ok(None);
     }
-    Err(ConfigError::Unsupported {
-        key: key.to_owned(),
-        reason: "the room password needs the PAKE exchange, which the server does not run yet; leave it empty",
-    })
+    if text.chars().count() > MAX_PASSWORD_CHARS || text.len() > MAX_PASSWORD_BYTES {
+        return Err(ConfigError::Range { key: key.to_owned(), reason: "at most 64 characters" });
+    }
+    Ok(Some(text.to_owned()))
 }
 
 fn string<'a>(key: &str, value: &'a Value) -> Result<&'a str, ConfigError> {

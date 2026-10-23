@@ -144,7 +144,13 @@ impl<T: Transport> ServerWorker<T> {
         let conn = Connection::with_sealer(self.config.conn(info.local_conn_id, info.remote_conn_id), sealer);
         let link = PeerLink::new(conn, info.addr, info.local_conn_id, Some(self.limits.budget()), true);
         self.peers.push(Peer { id, local: false, link });
-        self.events.push(ServerEvent::Connected { peer: id, key: info.remote_id(), addr: info.addr, local: false });
+        self.events.push(ServerEvent::Connected {
+            peer: id,
+            key: info.remote_id(),
+            addr: info.addr,
+            local: false,
+            handshake_hash: info.handshake_hash,
+        });
     }
 
     /// A data packet: routed, checked against the address and budget, opened, and its contents handed on.

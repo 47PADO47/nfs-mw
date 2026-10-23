@@ -296,7 +296,7 @@ mod tests {
     fn a_bot_presents_itself_on_connect() {
         let (link, peer) = mock_link();
         let mut fleet: BotFleet<MockLink> = BotFleet::from_bots(vec![Bot::over(link, BotConfig::new(3, 1))]);
-        peer.push(ClientEvent::Connected { server_key: KeyId([1; 16]) });
+        peer.push(ClientEvent::Connected { server_key: KeyId([1; 16]), handshake_hash: [0; 32] });
         fleet.step(16);
         let sent: Vec<Message> = peer
             .take_sent()

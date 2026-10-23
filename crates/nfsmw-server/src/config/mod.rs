@@ -11,8 +11,9 @@
 //!   the relevancy radius, the lobby timers, the replay folder, the log file, the log level and the status period.
 //!
 //! An unknown key, a wrong type, a value out of range or a session set that does not hold together is a
-//! [`ConfigError`] that names the key. A room password is refused for now: the PAKE exchange is not wired into the
-//! server, and a password the server cannot check would lock everyone out.
+//! [`ConfigError`] that names the key. A non-empty `password` turns `password_required` on; the server checks it with
+//! the PAKE exchange of `blackbox-net-core` (`server/password.rs`), and `password_required = true` without a
+//! password is refused.
 
 mod error;
 mod keys;
@@ -27,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use log::LevelFilter;
 use nfsmw_net::message::{ServerName, Settings};
-use nfsmw_net::settings::{dedicated_defaults, validate};
+use nfsmw_net::settings::{SettingsError, dedicated_defaults, validate};
 
 /// The default game port. The discovery port is the next one.
 pub const DEFAULT_PORT: u16 = 9750;
@@ -45,6 +46,8 @@ pub const DEFAULT_RELEVANCY_RADIUS: f32 = 600.0;
 pub struct ServerConfig {
     /// The session settings (name, mode, track, limits, rules).
     pub settings: Settings,
+    /// The room password, or `None` for an open room. Never logged, never sent: the PAKE proves knowledge of it.
+    pub password: Option<String>,
     /// The address the game port binds to.
     pub bind: IpAddr,
     /// The game port; 0 lets the system pick one.
@@ -78,6 +81,7 @@ impl Default for ServerConfig {
         let name = ServerName::new("nfsmw-server").unwrap_or_default();
         Self {
             settings: dedicated_defaults(name),
+            password: None,
             bind: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             port: DEFAULT_PORT,
             discovery: true,
@@ -109,6 +113,10 @@ impl ServerConfig {
         let mut config = Self::default();
         for (key, value) in &table {
             keys::apply(&mut config, key, value)?;
+        }
+        config.settings.password_required |= config.password.is_some();
+        if config.settings.password_required && config.password.is_none() {
+            return Err(ConfigError::Settings(SettingsError::NoPassword));
         }
         validate(&config.settings).map_err(ConfigError::Settings)?;
         Ok(config)
