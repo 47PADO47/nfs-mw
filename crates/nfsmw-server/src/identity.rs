@@ -49,12 +49,19 @@ fn create(path: &Path) -> Result<IdentityKey, IdentityError> {
         std::fs::create_dir_all(dir).map_err(write_error)?;
     }
     let mut file = private_file(path).map_err(write_error)?;
-    file.write_all(key.secret_bytes().as_slice()).map_err(write_error)?;
+    if let Err(source) = file.write_all(key.secret_bytes().as_slice()).and_then(|()| file.sync_all()) {
+        // A half-written file would read as a broken key on every later start and block it.
+        drop(file);
+        let _ = std::fs::remove_file(path);
+        return Err(write_error(source));
+    }
     log::info!("new identity {} in {}", key.key_id().fingerprint(), path.display());
     Ok(key)
 }
 
-/// A new file only the owner can read (the key is a secret). Fails if the file appeared meanwhile.
+/// A new file only the owner can read (the key is a secret). Fails if the file appeared meanwhile. On unix the mode is
+/// 0600; on Windows the std library has no ACL call, so the file keeps the access of its folder (the user's profile
+/// folders are private to the user, administrators and the system).
 fn private_file(path: &Path) -> io::Result<std::fs::File> {
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
