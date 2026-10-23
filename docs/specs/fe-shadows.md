@@ -1,8 +1,8 @@
 # Front-end shadows
 
-Status: spec only. Nothing is built. The original game draws no shadow maps in its front-end menus, and the
-rewrite does not either by default. This spec adds an optional front-end shadow pass, off by default.
-It covers the crib stage behind the main menu now, and the other front-end stages when the port has them.
+Status: implemented policy with regression coverage; visual validation is recorded separately. The original
+game draws no shadow maps in its front-end menus. The rewrite shares driving shadows by default as a graphics
+consistency extension; `fe_shadows = false` selects an unshadowed menu. Both crib and safe-house stages use it.
 
 Tags: **[decomp]** read from the original `speed.exe` decompile, not yet seen in game. **[verified]** checked
 against install bytes or game data. **[ours]** this rewrite's current code or a proposed choice. **[community]**
@@ -19,12 +19,11 @@ Background: [menu-backdrop.md](menu-backdrop.md), [soft-shadows.md](../soft-shad
   scene draw, and the front-end frame path skips that draw. [decomp]
 - Even in the world, the pass needs the registry value `g_ShadowDetail` above zero. The default is on only when
   the performance level is above 3. [decomp]
-- The rewrite already has dynamic sun shadows for the world (Bevy cascades, native prototype). `MenuScene` has
-  no front-end shadow policy of its own. On Bevy the global `shadows` setting applies to its instances too, as
-  far as the code shows. [ours, unconfirmed]
-- Proposal: a `fe_shadows` setting (default off). When on, the front-end scenes use the existing shadow path
-  with their own caster and receiver rules, a fixed sun direction, and optional bias and resolution tuning.
-  Only the Bevy backend supports it in v1. [ours, proposed]
+- The rewrite uses the selected backend's driving shadow path for menu cars and floors by default. Native
+  uses `appearance.lighting.sun_shadows`, resolution, distance, filtering and projection settings. Bevy uses
+  the global `shadows` quality. Authored menu lighting remains separate from outdoor lighting. [ours]
+- `fe_shadows = false` disables menu casting and receiving. The car casts and receives when `fe_shadows_cars`
+  is true; the floor and room receive but do not cast. Both native and Bevy expose the option. [ours]
 
 ## 2. What the original does [decomp]
 
@@ -134,7 +133,7 @@ Receivers and casters are chosen per scene. The engine takes lists of instances 
 | Quantity | Value | Source |
 |---|---|---|
 | Quality table (edge, cascades, distance) | Low 1024, 2, 80; Medium 2048, 3, 160; High 2048, 4, 240 | `libs/blackbox-gfx/src/settings/shadows.rs` [ours] |
-| Front-end quality | Global `shadows` if it is not off, otherwise Medium | Proposed [ours] |
+| Front-end quality | Bevy: global `shadows`, including Off; native: shared driving sun-shadow options | [ours] |
 | Front-end map edge divider `fe_shadows_divider` | 1, 2 or 4; default 1 | Proposed [ours]. The original's map size is unknown |
 | Bevy depth bias | 0.02 (default) times `fe_shadows_bias` | `apply/shadows.rs` [ours] |
 | Bevy normal bias | 1.0 (default) times `fe_shadows_bias` | `apply/shadows.rs` [ours] |
@@ -146,20 +145,20 @@ Receivers and casters are chosen per scene. The engine takes lists of instances 
 
 ## 7. Settings, names and surfaces
 
-Default: off. The names are proposed and follow the existing `shadows` setting. [ours, proposed]
+Default: on, following driving shadow settings. Explicit Off suppresses menu shadows. [ours]
 
 | Surface | Name | Values | Default | Where |
 |---|---|---|---|---|
-| TOML | `fe_shadows` | `true` or `false` | `false` | Same table as `shadows` in `crates/nfsmw/src/settings/file.rs` |
-| TOML | `fe_shadows_cars` | `true` or `false` | `true` (open) | As above |
+| TOML | `fe_shadows` | `true` or `false` | `true` | Same table as `shadows` in `crates/nfsmw/src/settings/file.rs` |
+| TOML | `fe_shadows_cars` | `true` or `false` | `true` | As above |
 | TOML | `fe_shadows_bias` | number 0.25 to 4.0 | `1.0` | As above |
 | TOML | `fe_shadows_divider` | `1`, `2` or `4` | `1` | As above |
 | Environment | `NFSMW_FE_SHADOWS` | `on`, `off` | unset | `crates/nfsmw/src/settings/env.rs`, pattern of `NFSMW_SHADOWS` |
-| Console | `fe_shadows on\|off` | as above | off | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` help |
-| Menu row | "Front-end shadows" | Off, On | Off | `frontend/graphics_options.rs` (new variant beside `Shadows`) |
+| Console | `fe_shadows on\|off` | as above | on | `devtools/console/settings_cmd.rs`, `settings_keys.rs`, `parse.rs` help |
+| Menu row | "Front-end shadows" | Off, On | On | `frontend/graphics_options.rs` (new variant beside `Shadows`) |
 
-- The menu row is shown only when `caps.soft_shadows` is true (the Bevy build). On native, the setting is forced
-  off, the same way `shadows` is (`settings/availability.rs`, `graphics_tests.rs`).
+- The menu row is shown when the backend supports soft shadows or separate shadow casters. Native and Bevy
+  both expose it; backends without either capability force it off.
 - The menu's `step` cycles off and on. Bias and divider have no menu row in v1; they are TOML and console only.
 - Saved values round-trip through `write.rs`, like `shadows`.
 
@@ -170,11 +169,11 @@ Default: off. The names are proposed and follow the existing `shadows` setting. 
   non-casting (`apply/instances.rs`). So a front-end frame that carries car and room instances already gets
   shadows when the global `shadows` setting is on. This is read from code, not run in game. [ours,
   unconfirmed] Front-end shadows then need only the setting's effective value and the rules in section 5.
-- **Native (`libs/blackbox-render`, `gpu/shadows`)**: a prototype behind `RenderExperiments.sun_shadows`, which
-  the game never sets (only the graphics lab does). Native reports `soft_shadows` false, so the setting is off.
-  Native front-end shadows are out of scope for v1. If enabled later, the front-end scene must set the
-  experiment, and the casters fall back to the frame's visible list (`set_shadow_casters` is only called by
-  the world). [ours]
+- **Native (`libs/blackbox-render`, `gpu/shadows`)**: uses the same `RenderExperiments` supplied by the
+  appearance settings for driving. The enable switch is `appearance.lighting.sun_shadows`; resolution,
+  distance, filtering and projection come from that same lighting profile. The legacy `settings.shadows`
+  field controls contact occlusion on native and does not size the native sun-shadow map. Menu instance
+  flags select casting and receiving without replacing this shared lighting profile. [ours]
 - **OpenGL**: no shadows. The native path reports `stats.supported` false for GL, and `docs/soft-shadows.md` says
   the GL backend downgrades the setting to off. Off.
 - **Headless `--screenshot`**: uses the same backend as the window. Verification uses it (section 10).
@@ -207,11 +206,11 @@ Engine-generic (no NFS:MW names) goes in `libs/`. Game policy goes in `crates/nf
 
 Unit (CPU, no install):
 
-1. `fe_shadows` defaults to `false`; absent from TOML gives `false`; `true` and `false` parse; a bad value is an error.
+1. `fe_shadows` defaults to `true`; absent from TOML gives `true`; `true` and `false` parse; a bad value is an error.
 2. `NFSMW_FE_SHADOWS` parses like `NFSMW_SHADOWS`.
 3. Console `fe_shadows on` and `fe_shadows off` set and report the value; the help text lists it.
-4. Native test caps: the setting is forced off, and the menu row is hidden.
-5. Effective front-end quality: global `off` with `fe_shadows` on gives Medium; `fe_shadows` off gives off;
+4. Native and Bevy test caps expose the menu row; unsupported caps force the setting off.
+5. Effective front-end quality: Bevy global `off` stays Off; `fe_shadows` off disables casting and receiving;
    global `high` gives High.
 6. Bias clamp: 0.1 gives 0.25; 9.0 gives 4.0; default is 1.0 and gives 0.02 and 1.0 on Bevy.
 7. Divider: Medium with divider 2 gives edge 1024; divider 4 gives 512; 8 is rejected.
@@ -256,19 +255,22 @@ Screenshot (offscreen, never focus):
 
 ## Port status
 
-Built on Bevy. Verified by unit tests; not yet checked in game or on a screenshot. [ours]
+The current menu defaults to sharing the driving shadow settings. This is a rewrite extension requested for
+consistent graphics settings; the original unshadowed menu remains selectable with `fe_shadows = false`.
+Original-game observations above are separate from this requested graphics extension. [ours]
 
-- Settings and menu: `fe_shadows` (default off), `fe_shadows_cars` (default on, as proposed), `fe_shadows_bias` (0.25 to
+- Settings and menu: `fe_shadows` (default on), `fe_shadows_cars` (default on, as proposed), `fe_shadows_bias` (0.25 to
   4.0), `fe_shadows_divider` (1, 2 or 4), env `NFSMW_FE_SHADOWS`, `--fe-shadows`/`--no-fe-shadows`, console keys
-  (help text in `devtools/console/parse.rs`), and one Video row "Front-End Shadows" (Bevy only). Native forces the switch
-  off (`Settings::effective`). The settings are published each frame (`settings/fe_shadows.rs`, `publish`), as
+  (help text in `devtools/console/parse.rs`), and one Video row "Front-End Shadows" on native and Bevy. Effective settings
+  accept native caster flags as well as Bevy soft shadows. The settings are published each frame (`settings/fe_shadows.rs`, `publish`), as
   `custom_fonts` does.
 - Off: every menu instance is `ShadowFlags { cast: false, receive: false }`, so the menu casts nothing. The sun takes
   the world's tuning, so the world is unchanged. [ours]
 - On: the car casts and receives when `fe_shadows_cars` is on. The placeholder floor and the room receive only. The
   room does not cast: with all its solids casting, its floor shaded itself and the whole backdrop went dark in the
-  first screenshot (see Open). The sun takes `FrameParams::shadow_tuning`: quality is the world's, or Medium when the
-  world's is off; bias scales the sun's depth and normal bias; the divider cuts the map edge, never below 512. The
+  first screenshot (see Open). Bevy takes `FrameParams::shadow_tuning`: quality is the world's, including Off;
+  bias scales depth and normal bias; the divider cuts the map edge, never below 512. Native uses the same sun-shadow
+  options as driving, honoring the menu instances' caster and receiver flags. The
   world's frames set no tuning, so the sun returns to the world's size and bias after the menu.
 - Renderer: `Instance` carries `ShadowFlags` (`libs/blackbox-gfx/src/frame.rs`). Bevy spawns `NotShadowCaster` for a
   non-casting instance and `NotShadowReceiver` for a non-receiving one. The blackbox shader skips the sun for an
@@ -276,7 +278,9 @@ Built on Bevy. Verified by unit tests; not yet checked in game or on a screensho
 - Keys: an instance's key carries the menu's mode in the top bits of its group (`scenes/car/shadows.rs`). A change of
   switch or cars gives the parts new keys, so the pool spawns them again with their new flags. The pool keeps an
   entity's flags from its first spawn; the key change is what makes the toggle apply.
-- Native: "Bevy only". The row is hidden and the setting is forced off there.
+- Native shares the driving sun-shadow options; Bevy-specific bias and divider tuning remain backend-specific.
+  Native receiver metadata follows the unchanged model matrix in the instance buffer and store. Caster flags
+  filter the depth pass and invalidate cached caster identities. CPU and ignored GPU regressions cover both flags.
 
 Open, not decided or not verified:
 - The room does not cast. The spec wants walls and fixtures to cast; the room has no floor marker, so walls cannot be

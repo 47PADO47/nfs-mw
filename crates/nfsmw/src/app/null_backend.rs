@@ -24,7 +24,26 @@ pub struct ResourceCounts {
     pub sky_destructions: usize,
 }
 
+pub struct ReflectionSnapshot {
+    pub quality: blackbox_gfx::ReflectionQuality,
+    pub refresh: u8,
+    pub faces: [Vec<Instance>; 6],
+}
+
+pub struct PlanarSnapshot {
+    pub frame: FrameParams,
+    pub size: [u32; 2],
+    pub clip_plane: [f32; 4],
+    pub instances: Vec<Instance>,
+    pub receivers: Vec<TextureHandle>,
+}
+
 pub struct NullBackend {
+    pub reflection: Option<ReflectionSnapshot>,
+    pub planar: Option<PlanarSnapshot>,
+    pub shadow_casters: Option<Vec<Instance>>,
+    track_reflections: bool,
+    size: [u32; 2],
     pub projected: Option<(FrameParams, [u32; 2], bool, Vec<Instance>)>,
     info: BackendInfo,
     caps: Capabilities,
@@ -73,6 +92,11 @@ impl NullBackend {
         let info =
             BackendInfo { renderer: caps.renderer, api: caps.api, adapter: "Null GPU".into(), driver: String::new() };
         Self {
+            reflection: None,
+            planar: None,
+            shadow_casters: None,
+            track_reflections: false,
+            size: [1280, 720],
             projected: None,
             info,
             caps,
@@ -122,6 +146,11 @@ impl NullBackend {
         self
     }
 
+    pub fn with_reflection_tracking(mut self) -> Self {
+        self.track_reflections = true;
+        self
+    }
+
     /// Track the live meshes and textures (`mesh_labels`, `texture_labels`) instead of handing out dummy handles.
     pub fn with_mesh_tracking(mut self) -> Self {
         self.track_meshes = true;
@@ -159,9 +188,11 @@ impl RenderBackend for NullBackend {
     fn capabilities(&self) -> &Capabilities {
         &self.caps
     }
-    fn resize(&mut self, _size: [u32; 2]) {}
+    fn resize(&mut self, size: [u32; 2]) {
+        self.size = size;
+    }
     fn surface_size(&self) -> [u32; 2] {
-        [1280, 720]
+        self.size
     }
     fn set_vsync(&mut self, _vsync: bool) {}
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
@@ -172,6 +203,16 @@ impl RenderBackend for NullBackend {
     fn graphics(&self) -> &GraphicsSettings {
         &self.settings
     }
+    fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
+        if !self.track_reflections {
+            return;
+        }
+        self.reflection = scene.map(|scene| ReflectionSnapshot {
+            quality: scene.quality,
+            refresh: scene.refresh,
+            faces: scene.faces.map(<[Instance]>::to_vec),
+        });
+    }
     fn render_size(&self) -> [u32; 2] {
         [1280, 720]
     }
@@ -180,6 +221,24 @@ impl RenderBackend for NullBackend {
     }
     fn render_experiments(&self) -> blackbox_gfx::RenderExperiments {
         self.experiments
+    }
+    fn set_shadow_casters(&mut self, casters: Option<&[Instance]>) {
+        if !self.track_reflections {
+            return;
+        }
+        self.shadow_casters = casters.map(<[Instance]>::to_vec);
+    }
+    fn set_planar_reflection_scene(&mut self, scene: Option<blackbox_gfx::PlanarReflectionScene<'_>>) {
+        if !self.track_reflections {
+            return;
+        }
+        self.planar = scene.map(|s| PlanarSnapshot {
+            frame: s.frame,
+            size: s.size,
+            clip_plane: s.clip_plane,
+            instances: s.instances.to_vec(),
+            receivers: s.receivers.to_vec(),
+        });
     }
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
         self.projected = scene.map(|scene| (scene.frame, scene.size, scene.blur, scene.instances.to_vec()));

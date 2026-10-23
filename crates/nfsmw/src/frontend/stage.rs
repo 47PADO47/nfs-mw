@@ -71,10 +71,7 @@ impl Stage {
         }
     }
 
-    /// Degrees the room is turned about the vertical axis from where its file puts it, so the camera poses of the original
-    /// (which turn about the car) see the room as its pictures show it. [unverified] Fitted against pictures of the original's
-    /// main menu and career menu, where the crib's houses stand behind the car; the executable gives no such turn. The
-    /// safe house needs none.
+    /// Crib framing retains the port's visual fit; the complete original coordinate conversion is unverified.
     pub fn room_yaw(self) -> f32 {
         match self {
             Stage::Crib => 180.0,
@@ -82,14 +79,24 @@ impl Stage {
         }
     }
 
-    /// Whether the solid called `name` is drawn. The crib draws all of its five. The safe house file also holds the high
+    /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour.
+    pub fn shadow_source(self, name: &str) -> bool {
+        match self {
+            Stage::Crib => name == "BACKDROP_CAST_SHADOW_MAP",
+            Stage::SafeHouse => name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"),
+            Stage::CarLot => false,
+        }
+    }
+
+    /// Whether the solid called `name` is drawn. The crib omits emitter and light-helper meshes. The safe house file also holds the high
     /// resolution geometry the original renders its shadow map from (`BACKDROP_CAST_SHADOW_MAP_NEXTGEN`, above the room) and
     /// particle emitter markers (`STEAM EMITTER*`), which are not part of the picture. The three other `BACKDROP_CAST_SHADOW_MAP*`
     /// solids are inside the room and hold its props and wall parts (the couch, the tank, the posters, the pipes), which the
     /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
-            Stage::Crib | Stage::CarLot => true,
+            Stage::Crib => matches!(name, "BACKDROP_CRIB" | "BACKDROP_CURRGEN" | "BACKDROP_CAST_SHADOW_MAP"),
+            Stage::CarLot => true,
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
             }
@@ -125,7 +132,15 @@ mod tests {
         assert!(Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP2"));
         assert!(!Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
         assert!(!Stage::SafeHouse.draws("STEAM EMITTER03"));
-        assert!(Stage::Crib.draws("BACKDROP_BACKDROP_CAST_SHADOW_MAP2"));
+        assert!(Stage::Crib.draws("BACKDROP_CRIB"));
+        assert!(Stage::Crib.draws("BACKDROP_CURRGEN"));
+        assert!(Stage::Crib.draws("BACKDROP_CAST_SHADOW_MAP"), "the textured warehouse is visible scenery");
+        for helper in ["LIGHT HELPER 3", "FX_STEAM", "BIRDEMITTER"] {
+            assert!(!Stage::Crib.draws(helper), "{helper} must not enter the colour pass");
+        }
+        assert!(Stage::Crib.shadow_source("BACKDROP_CAST_SHADOW_MAP"));
+        assert!(!Stage::Crib.shadow_source("BACKDROP_CRIB"));
+        assert!(Stage::SafeHouse.shadow_source("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
     }
 
     #[test]

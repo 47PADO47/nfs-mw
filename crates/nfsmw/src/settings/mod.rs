@@ -321,7 +321,7 @@ pub struct Settings {
     pub hd_content: hd_content::HdContent,
     /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).
     pub custom_fonts: custom_fonts::CustomFonts,
-    /// The front-end shadows: a sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
+    /// The front-end shadows share the driving shadow settings unless explicitly disabled (`docs/specs/fe-shadows.md`).
     pub fe_shadows: fe_shadows::FeShadows,
     /// The LAN play settings: name, port, snapshot rate, interpolation delay, the overlay line, the identity file.
     pub net: net::NetSettings,

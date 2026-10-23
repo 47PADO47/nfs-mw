@@ -92,7 +92,9 @@ impl GraphicsSetting {
             Self::VisualTreatment => caps.scene_treatment,
             Self::Reflections => caps.local_reflections,
             Self::RoadReflections => caps.projected_reflections,
-            Self::FeShadows => caps.soft_shadows,
+            Self::FeShadows => {
+                caps.soft_shadows || (caps.separate_shadow_casters && caps.api != blackbox_gfx::GraphicsApi::Gl)
+            }
             Self::CubeSize
             | Self::Pow2
             | Self::VehicleBrightness

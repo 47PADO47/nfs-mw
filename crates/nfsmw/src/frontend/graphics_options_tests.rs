@@ -45,9 +45,10 @@ fn shadows_are_shown_only_on_supported_renderers_and_record_changes() {
 }
 
 #[test]
-fn the_front_end_shadow_row_is_shown_on_bevy_and_toggles_and_records() {
+fn the_front_end_shadow_row_is_shown_on_native_and_bevy_and_toggles_and_records() {
     let (mut s, mut changed) = (Settings::from(Partial::default()), Partial::default());
-    assert!(!GraphicsSetting::FeShadows.shown(&crate::settings::test_caps::native()));
+    s.fe_shadows.enabled = false;
+    assert!(GraphicsSetting::FeShadows.shown(&crate::settings::test_caps::native()));
     assert!(GraphicsSetting::FeShadows.shown(&crate::settings::test_caps::full()));
     assert_eq!(GraphicsSetting::FeShadows.data(&s), Data::Text("Off".to_owned()));
     assert!(GraphicsSetting::FeShadows.step(&mut s, &mut changed, true));
