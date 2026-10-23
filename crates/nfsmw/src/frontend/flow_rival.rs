@@ -20,12 +20,32 @@ impl Frontend {
             return;
         };
         log::info!("career: challenging the rival of bin {bin} with {race}");
+        self.leave_safe_house_for_race(&race, host, env);
+    }
+
+    /// A race of the race events sheet was accepted: the world starts the career event `event` behind the loading screen.
+    pub(super) fn launch_event(&mut self, event: String, host: &mut Host, env: &mut Env) {
+        log::info!("career: launching event {event} from the race events sheet");
+        self.leave_safe_house_for_race(&event, host, env);
+    }
+
+    /// A milestone or a bounty place of the sheets was accepted: the world starts with the car at `at` (render space).
+    pub(super) fn jump_to(&mut self, at: [f32; 2], host: &mut Host, env: &mut Env) {
+        log::info!("career: jumping to ({:.0}, {:.0}) from the rap sheet", at[0], at[1]);
         self.save_settings(env.changed);
         self.career.set_prelude(false);
         self.leave_safe_house();
         self.origin = QuitTo::Career;
-        self.quick_race = Some(race);
+        self.jump_start = Some(at);
         self.start_free_roam(LoadingScreen::Tips, host, env);
+    }
+
+    /// Leaves the safe house for the world, which runs `race` as a career race (its result counts in the Blacklist).
+    fn leave_safe_house_for_race(&mut self, race: &str, host: &mut Host, env: &mut Env) {
+        self.save_settings(env.changed);
+        self.career.set_prelude(false);
+        self.leave_safe_house();
+        self.start_career_race(race, host, env);
     }
 }
 

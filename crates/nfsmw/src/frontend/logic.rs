@@ -154,6 +154,17 @@ pub enum Command {
     ChallengeRival {
         bin: u8,
     },
+    /// The race events sheet, answered Yes: the world starts this career event (an event id such as `10.2.1`) behind the loading
+    /// screen, as a rival challenge does (`flow_rival.rs`).
+    LaunchEvent {
+        event: String,
+    },
+    /// The milestones or bounty sheet, answered Yes: the world starts with the car at this point (render space x and y)
+    /// (`flow_rival.rs`).
+    JumpTo {
+        x: f32,
+        y: f32,
+    },
     /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
     /// (`flow_first_visit.rs`).
     BlacklistStep(BlacklistStepper),
