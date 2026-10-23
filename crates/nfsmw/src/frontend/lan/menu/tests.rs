@@ -88,7 +88,7 @@ fn the_name_row_edits_the_name_and_asks_to_save_it_only_when_it_is_valid() {
     assert!(!menu.typing());
     // An empty name is not a player name: nothing is saved and the row keeps the keys.
     press(&mut menu, &mut net, &[LanKey::Accept]);
-    press(&mut menu, &mut net, &vec![LanKey::Typed(Typed::Backspace); 6]);
+    press(&mut menu, &mut net, &[LanKey::Typed(Typed::Backspace); 6]);
     assert!(press(&mut menu, &mut net, &[LanKey::Accept]).is_empty());
     assert!(menu.typing());
     // Back drops the edit and the menu stays open.

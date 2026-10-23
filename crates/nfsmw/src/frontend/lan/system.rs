@@ -152,6 +152,10 @@ fn update(
         if !console.open && cx.net.status() == super::NetStatus::Spectating {
             follow_keys(&mut *cx.net, edges);
         }
+        // The vote key votes for the running vote while the world has the screen.
+        if !console.open && keys.just_pressed(KeyCode::F7) {
+            super::hud::cast_vote(&mut *cx.net);
+        }
         return;
     }
     let mut pressed = match mouse.just_pressed(MouseButton::Left) {
