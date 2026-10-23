@@ -30,7 +30,8 @@ impl<W: WorldControl> Server<W> {
         let Some(state) = self.peers.get_mut(&peer) else {
             return;
         };
-        let start = password::start(secret.as_bytes(), &state.handshake_hash, PakeRole::Host);
+        let start =
+            password::start(&nfsmw_net::message::password_secret(&secret), &state.handshake_hash, PakeRole::Host);
         let message = start.map(|(pake, mine)| (pake, Bytes::new(mine.to_vec())));
         let Ok((pake, Ok(message))) = message else {
             log::warn!("connection {}: the room password exchange could not start", peer.0);

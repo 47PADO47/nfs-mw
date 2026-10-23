@@ -59,7 +59,8 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
             return;
         };
         let hash = self.link.as_ref().and_then(ClientLink::handshake_hash).or(self.pake.hash).unwrap_or([0; 32]);
-        let Ok((state, mine)) = password::start(secret.as_bytes(), &hash, PakeRole::Joiner) else {
+        let Ok((state, mine)) = password::start(&crate::message::password_secret(&secret), &hash, PakeRole::Joiner)
+        else {
             self.end(EndReason::PasswordRejected);
             return;
         };

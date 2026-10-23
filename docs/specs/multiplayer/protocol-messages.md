@@ -28,8 +28,8 @@ dependency.
 | enum with data | a varint tag, then the variant's fields |
 
 Fields follow the declaration order of the body struct. Text is UTF-8 with no control characters and no Unicode bidirectional
-controls, already trimmed, within its character count; NFKC normalisation and grapheme counting are not done yet (the character
-count is the stricter bound).
+controls, already trimmed and in NFKC (a message with text that is not is refused), within its character count; grapheme
+counting is not done (the character count is the stricter bound).
 
 **Growth** (protocol.md section 8.2). A new field is appended and the type's `format` goes up. A reader that meets a newer format
 decodes the fields it knows and skips the rest; at its own format, trailing bytes are an error; an older format than it knows is an
@@ -175,5 +175,5 @@ The receiver verifies `length` and the hash before use. Only data, never code, a
   vote rules.
 - A server-to-client quick message (MP-44) and a lobby message that tells a player why its car was refused (MP-31); the lobby
   returns the reason to the server crate, which has no message to carry it yet.
-- NFKC normalisation and grapheme counting of text.
+- Grapheme counting of text, and confusable folding.
 - Quantised collision and respawn vectors (they are `f32` today; events are rare enough that the bytes do not matter yet).

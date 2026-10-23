@@ -91,9 +91,14 @@ fn normalise_strips_invisible_and_reordering_characters() {
 #[test]
 fn normalise_caps_combining_floods_and_length() {
     let zalgo = format!("a{}b", "\u{0301}".repeat(40));
-    assert_eq!(normalise(&zalgo).unwrap().as_str(), "a\u{0301}\u{0301}b");
+    assert_eq!(
+        normalise(&zalgo).unwrap().as_str(),
+        "\u{E1}\u{0301}\u{0301}b",
+        "the first mark composes, two more are kept"
+    );
     let accents = "cafe\u{0301} na\u{0308}ive";
-    assert_eq!(normalise(accents).unwrap().as_str(), accents);
+    assert_eq!(normalise(accents).unwrap().as_str(), "caf\u{E9} n\u{E4}ive", "accents compose with their letters");
+    assert_eq!(normalise("\u{FF21}\u{FF4E}\u{FF4E} o\u{FB01}ce").unwrap().as_str(), "Ann ofice");
     let long = "w".repeat(500);
     assert_eq!(normalise(&long).unwrap().chars().count(), MAX_CHAT_CHARS);
     let emoji = "\u{1F44D}\u{FE0F}\u{FE0F}";
