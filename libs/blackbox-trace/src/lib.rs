@@ -54,6 +54,14 @@ enum Kind {
     Note(String),
 }
 
+/// What one named scope took over a capture (`Capture::totals`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ScopeTotal {
+    pub count: u64,
+    pub total_us: f64,
+    pub max_us: f64,
+}
+
 /// A scope is tied to its capture generation; old guards cannot write into a new capture.
 pub struct Scope<'a> {
     recorder: &'a Recorder,
@@ -174,6 +182,20 @@ impl Capture {
         self.threads
             .entry(id)
             .or_insert_with(|| std::thread::current().name().unwrap_or("CPU thread").chars().take(128).collect());
+    }
+
+    /// The scopes of the capture added up by name: how often each ran, its total wall time and its longest run. Nested
+    /// scopes count in their parents too, so the totals do not add up to the capture's time.
+    pub fn totals(&self) -> BTreeMap<&'static str, ScopeTotal> {
+        let mut totals: BTreeMap<&'static str, ScopeTotal> = BTreeMap::new();
+        for event in &self.events {
+            let Kind::Scope(us) = event.kind else { continue };
+            let total = totals.entry(event.name).or_default();
+            total.count += 1;
+            total.total_us += us;
+            total.max_us = total.max_us.max(us);
+        }
+        totals
     }
 
     pub fn events(&self) -> usize {
