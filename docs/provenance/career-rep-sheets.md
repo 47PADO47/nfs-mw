@@ -48,4 +48,7 @@ honest.
 ## Dead ends
 
 - The pending-jump consumer (`+0x11C` / `+0x111`): not looked for again.
-- The value of the race sheet's "Cop Probability" row and the source of the average and top speed.
+- The value of the race sheet's "Cop Probability" row: `run_script_inline` is disabled (`GHIDRA_MCP_ALLOW_SCRIPTS`), so the
+  users of the label constants `0xDF690965` / `0xCE2B53D4` were not scanned for. The labels are the package's own strings.
+- The in-game twins differ from the safe house packages in many object names (a diff of the name sets this pass), so they are
+  not bound; the pause menu uses the safe house packages.

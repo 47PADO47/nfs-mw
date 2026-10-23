@@ -39,7 +39,9 @@ has the first mode.
 
 A done race can be run again. The panel shows the race kind and its icon (`Mode_Icon_*`), the track name
 (`TRACKNAME_<event>`), the best time, the cash a win pays (`CashValue`), the route length and, for a circuit or knockout, the
-laps. The "Cop Probability" row and the average and top speed rows are hidden: the data they come from is not known.
+laps. The average and the top speed are the best of the player's finished runs (`records.toml`, from the racer's distance and top
+speed; **[ours]**: the original keeps two derived u16 in the race record, not read). The "Cop Probability" row is hidden:
+the data it comes from is not known.
 The map is the city picture of the race, zoomed to its route as the track select does.
 
 The sheet opens on the first open race that is not done. Accept asks `REP_SHEET_RACE_CONFIRM` and, on Yes, leaves for the
@@ -74,14 +76,26 @@ nearest the point, as a respawn does (`WorldScene::start_at_point`). A co-op gue
 ## 6. Progress that is saved **[ours]** + **[exe]**
 
 The races of a bin the player has won are kept as flag 2 ("won in career") of their race records, the list the original
-saves after the stable; the bin counters keep the passed challenges. A loaded career rebuilds each entered bin from them
+saves after the stable; the bin counters keep the passed challenges. The wins of the side bins (18, 19, 21) are written the same way and the ladders read them back when the world takes the career.
+A loaded career rebuilds each entered bin from them
 (`Blacklist::restore_progress`): the races won, the boss races won, the challenges passed (milestones banked and traps
 done) and the resting state. A bin above the career's bin is done; the others follow their gate. Before this was added a
 reload forgot every race won and every rival state.
 
-## 7. Open
+## 7. From the pause menu and in the Remastered look **[ours]**
 
-1. The "Cop Probability" value, and the average and top speed a race keeps. 2. The sheet's second row mode (every bin from the
-career's bin up) and what switches it. 3. The one-time bounty warning. 4. The Remastered look has no way to these pages
-(its Blacklist page is the rival list). 5. The in-game (pause menu) twins `InGameRaceSheet`, `InGameMilestones` and
-`InGameBounty`.
+The original opens twin packages (`InGameReputationOverview`, `InGameRaceSheet`, `InGameMilestones`, `InGameBounty`, whose
+objects differ from the safe house ones; not bound). The rewrite lists "Blacklist N" in the pause menu while the career is
+played outside a race and opens the safe house packages over the frozen world, with no room behind them. Back goes to the
+pause menu. A Yes on a race starts it in the running world (`Scene::start_career_event`) and a Yes on a jump moves the car
+(`Scene::jump_player`), then the game goes on.
+
+The Remastered look has no overview package. Its Blacklist wall (the list of rivals) opens a list for the pressed rival:
+Race Events, Milestone Events, Bounty, Bio and the Challenge Rival button (greyed while the rival's button is off, absent
+for a beaten rival). Back from a sheet returns to that list, and from the list to the wall.
+
+## 8. Open
+
+1. The "Cop Probability" value (the script scan of the label's users is disabled in this Ghidra setup, so its code was
+not found). 2. The sheet's second row mode (every bin from the career's bin up) and what switches it. 3. The one-time bounty
+warning `blacklist_bounty_spawn_point_first_time` (its flag is not known). 4. The in-game twins' own object layout.
