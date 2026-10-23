@@ -12,6 +12,7 @@ use super::props::PropWorld;
 use super::resident::{Placed, ReflectionPlaced, SectionResources, resolve_placed, resolve_reflections, take_prepared};
 use super::zone::Zones;
 mod cull;
+mod lights;
 mod loading;
 mod lockstep;
 mod parts;

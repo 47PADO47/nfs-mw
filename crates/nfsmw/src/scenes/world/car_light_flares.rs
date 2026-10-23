@@ -158,7 +158,7 @@ impl CarLightFlares {
     }
 }
 
-fn focal_scale(height: u32, fov_degrees: f32) -> Option<f32> {
+pub(super) fn focal_scale(height: u32, fov_degrees: f32) -> Option<f32> {
     if height == 0 || !fov_degrees.is_finite() || !(0.0..180.0).contains(&fov_degrees) {
         return None;
     }
@@ -166,7 +166,7 @@ fn focal_scale(height: u32, fov_degrees: f32) -> Option<f32> {
     (focal.is_finite() && focal > 0.0).then_some(focal)
 }
 
-fn appearance(
+pub(super) fn appearance(
     p: &FlareProfile,
     intensity: f32,
     facing: f32,

@@ -19,7 +19,7 @@ pub struct FlareProfile {
 }
 
 impl FlareProfile {
-    fn read(c: CollectionRef<'_>) -> Option<Self> {
+    pub(crate) fn read(c: CollectionRef<'_>) -> Option<Self> {
         let Value::Vector4(color) = c.get("colour")? else { return None };
         let slot = usize::try_from(c.get_u32("flare_texture")?).ok()?;
         let profile = Self {

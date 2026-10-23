@@ -1,5 +1,8 @@
 //! PC shading-group effect routing; see `docs/specs/world-material-routing.md`.
 
+#[cfg(test)]
+mod toll_scene_tests;
+
 use blackbox_gfx::{
     BlendMode, NormalMaterialDesc, NormalMaterialHandle, NormalModel, RenderBackend, Shading, TextureHandle,
 };
@@ -56,6 +59,8 @@ mod gpu_install_tests;
 mod installed_surface_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod toll_animation_tests;
 mod windows;
 pub(super) use windows::window_materials;
 

@@ -146,6 +146,15 @@ pub fn candidate(placed: &Placed) -> Option<(SignalHead, Option<u32>)> {
 }
 
 impl TrafficWorld {
+    /// An extended junction signal replaces the authored blink on this matched head only.
+    pub fn controls_signal_head(&self, head: SignalHead) -> bool {
+        self.signal_lamps
+            .lamps
+            .iter()
+            .flatten()
+            .any(|lamp| lamp.position == head.position && lamp.forward == head.forward)
+    }
+
     /// Matches the placed traffic lights to the signalled approaches, when the scenery changed since the last match
     /// (`revision` is the residency's `visual_revision`). The candidates are read only when a match is due.
     pub fn update_signal_props(&mut self, revision: u64, candidates: impl Iterator<Item = (SignalHead, Option<u32>)>) {

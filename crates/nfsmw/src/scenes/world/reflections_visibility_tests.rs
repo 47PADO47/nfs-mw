@@ -45,7 +45,6 @@ fn placement(id: u32, at: Vec3) -> Placed {
         casts_sun_shadow: true,
         spawner: None,
         parts: None,
-        curve_lamp: None,
         signal: None,
     }
 }

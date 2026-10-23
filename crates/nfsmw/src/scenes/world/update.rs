@@ -103,6 +103,7 @@ impl WorldScene {
         self.wet_road.step(dt, self.rain.intensity() > 0.0);
         self.update_atmosphere(sim_dt);
         self.clock += sim_dt * self.tuning.animation_speed;
+        self.environment_lights.blink.advance(sim_dt);
         self.update_sky(renderer);
 
         self.update_day(sim_dt, renderer.render_experiments().freeze_sun);

@@ -29,7 +29,6 @@ pub struct PreparedInstance {
     group: u16,
     prop: Option<Arc<PropShape>>,
     spawner: Option<blackbox_scenery::ObjectSpawner>,
-    curve_lamp: Option<glam::Vec3>,
     signal: Option<SignalHead>,
     casts_sun_shadow: bool,
 }
@@ -104,7 +103,6 @@ fn prepare_placed(data: &SectionData, props: &PropCatalog, groups: &HashMap<u16,
                 group,
                 prop,
                 spawner: spawner.copied(),
-                curve_lamp: crate::scenes::world::sign_lamps::lamp_point(&info.name, bounds),
                 signal: signal_head(&info.name, transform),
                 casts_sun_shadow: shadow_policy::casts_sun(&info.name),
             });
@@ -146,7 +144,6 @@ pub fn resolve_placed(
             prop_id: 0,
             key: InstanceKey::TRANSIENT,
             spawner: item.spawner,
-            curve_lamp: item.curve_lamp,
             signal: item.signal,
             parts: item.hierarchy.clone().map(|hierarchy| {
                 let meshes: std::collections::BTreeMap<_, _> = hierarchy

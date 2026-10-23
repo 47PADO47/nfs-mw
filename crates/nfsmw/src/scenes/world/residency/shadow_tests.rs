@@ -249,7 +249,6 @@ pub(super) fn fixture() -> (Residency, NullBackend) {
             casts_sun_shadow: true,
             spawner: None,
             parts: None,
-            curve_lamp: None,
         };
         residency
             .tiles

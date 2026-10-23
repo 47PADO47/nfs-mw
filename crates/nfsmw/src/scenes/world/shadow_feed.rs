@@ -2,12 +2,11 @@
 //!
 //! Nearly all of the resident geometry is static, so its caster list is built once per scenery change
 //! ([`statics`]); a frame only appends the casters that can move: props, fragments, traffic and the player's car.
+use super::WorldScene;
 use super::resident::Placed;
 use super::scenery_groups::SceneryGroups;
 use super::visibility::{self, NOT_A_PROP};
-use super::{Residency, WorldScene};
 use blackbox_gfx::{Instance, RenderBackend};
-use glam::Vec3;
 
 mod cache;
 mod rig;
@@ -25,8 +24,6 @@ pub(super) struct ShadowFeed {
     statics: cache::Cached<statics::Statics>,
     /// The car lighting rig the renderer has.
     rig: rig::RigMemory,
-    /// The curve warning sign lamps of the drawn scenery.
-    curve_lamps: cache::Cached<Vec<Vec3>>,
 }
 
 impl ShadowFeed {
@@ -42,15 +39,6 @@ impl ShadowFeed {
         let casters = &mut self.casters;
         self.statics
             .refresh(revision, groups, min_radius.to_bits(), |statics| statics.build(placed, min_radius, casters))
-    }
-
-    /// The lamps of the curve warning signs the residency draws, listed again only when the scenery changes.
-    pub(super) fn curve_lamps(&mut self, residency: &Residency, groups: &SceneryGroups) -> &[Vec3] {
-        self.curve_lamps.refresh(residency.visual_revision(), groups, 0, |lamps| {
-            lamps.clear();
-            lamps.extend(residency.placed().filter_map(|p| p.curve_lamp));
-        });
-        &self.curve_lamps.value
     }
 }
 
@@ -165,7 +153,6 @@ mod tests {
             casts_sun_shadow: true,
             spawner: None,
             parts: None,
-            curve_lamp: None,
             signal: None,
         }
     }
@@ -189,16 +176,6 @@ mod tests {
         assert_eq!(walked.get(), 2, "and does not walk the placed objects");
         assert!(refresh(&mut feed, 5, &list[..1]), "a changed revision rebuilds");
         assert_eq!(feed.casters.len(), 1);
-    }
-
-    #[test]
-    fn the_curve_lamp_list_follows_the_same_stamp() {
-        let mut feed = ShadowFeed::default();
-        assert!(feed.curve_lamps.value.is_empty());
-        let groups = SceneryGroups::default();
-        assert!(feed.curve_lamps.refresh(1, &groups, 0, |lamps| lamps.push(glam::Vec3::X)));
-        assert!(!feed.curve_lamps.refresh(1, &groups, 0, |lamps| lamps.push(glam::Vec3::Y)));
-        assert_eq!(feed.curve_lamps.value, [glam::Vec3::X]);
     }
 
     #[test]

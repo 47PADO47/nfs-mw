@@ -13,6 +13,7 @@ pub mod finish_fx;
 mod globals;
 pub mod heli_sheet;
 mod index;
+pub mod lights;
 pub mod moment;
 pub mod object_fx;
 mod props;
