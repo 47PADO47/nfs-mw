@@ -206,6 +206,7 @@ impl WorldScene {
                 race_starts,
                 gameplay,
                 race: None,
+                screen_fade: Default::default(),
                 queued_race: None,
                 queued_again: None,
                 queued_split: None,

@@ -68,6 +68,7 @@ impl Scene for WorldScene {
         self.show_nis_bars(ctx);
         self.show_story_movie(ctx);
         self.nis.screen().draw(ctx);
+        self.show_screen_fade(ctx);
         0.0
     }
 

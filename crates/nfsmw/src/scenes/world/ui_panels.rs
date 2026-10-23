@@ -14,6 +14,7 @@ pub(super) struct Panels {
     pub nis_bars: bool,
     pub subtitles: bool,
     pub nis_screen: bool,
+    pub screen_fade: bool,
 }
 
 impl Panels {
@@ -28,6 +29,7 @@ impl Panels {
             nis_bars,
             subtitles,
             nis_screen,
+            screen_fade,
         } = self;
         interact_prompt
             || mod_message
@@ -37,6 +39,7 @@ impl Panels {
             || nis_bars
             || subtitles
             || nis_screen
+            || screen_fade
     }
 }
 
@@ -52,6 +55,7 @@ impl WorldScene {
             nis_bars: self.nis_bars_up(),
             subtitles: self.subtitles_up(),
             nis_screen: self.nis.screen().is_showing(),
+            screen_fade: self.screen_fade_up(),
         }
     }
 }
@@ -76,6 +80,7 @@ mod tests {
             Panels { nis_bars: true, ..Panels::default() },
             Panels { subtitles: true, ..Panels::default() },
             Panels { nis_screen: true, ..Panels::default() },
+            Panels { screen_fade: true, ..Panels::default() },
         ];
         for panels in each {
             assert!(panels.any(), "{panels:?}");

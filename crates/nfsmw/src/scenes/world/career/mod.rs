@@ -76,6 +76,7 @@ impl WorldScene {
         self.career_respawn();
         self.career_pursuit(dt);
         self.career_speed_traps();
+        self.screen_fade.advance(dt);
         self.update_scripted_chase(dt);
         self.career_drive_to_target(dt);
         self.career_regions();

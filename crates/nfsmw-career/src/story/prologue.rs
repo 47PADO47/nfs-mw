@@ -15,6 +15,32 @@ use crate::settings::{NodeStates, PROLOGUE_STAGE};
 /// The six events of the chain, in the order the player plays them (section 2.1).
 pub const PROLOGUE_CHAIN: [&str; 6] = ["16.1.0", "16.2.2", "16.2.3", "16.1.1", "16.8.1", "16.2.1"];
 
+/// The first event of the chain: the opening race, whose car gives out a few seconds in.
+pub const OPENING_EVENT: &str = "16.1.0";
+
+/// The title card shown before a prologue flashback race that the install gives no message of its own: "Six Days Ago..."
+/// before `16.2.2`, "Four Days Ago..." before `16.2.3`. `16.1.1` carries its own message (2, "Two Days Ago..."). The
+/// chain counts down to the present, and the install holds the three cards (`story-flow.md` section 2.1). `None` for
+/// the other events.
+pub fn flashback_message(event: &str) -> Option<i32> {
+    match event {
+        "16.2.2" => Some(6),
+        "16.2.3" => Some(4),
+        _ => None,
+    }
+}
+
+/// The language label of the title card of message `id`: the days-ago cards of the flashbacks, or `None` for an id that
+/// has no card text. The text holds `^` for a line break.
+pub fn message_card_label(id: i32) -> Option<u32> {
+    match id {
+        2 => Some(0xA461_D64A),
+        4 => Some(0x2117_EECC),
+        6 => Some(0x4CBB_A984),
+        _ => None,
+    }
+}
+
 /// What runs after a prologue event is done.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrologueNext {
@@ -85,6 +111,18 @@ mod tests {
         for (event, expected) in table {
             assert_eq!(next_after(event), Some(expected), "after {event}");
         }
+    }
+
+    #[test]
+    fn the_flashbacks_count_down_six_four_two_days() {
+        assert_eq!(flashback_message("16.2.2"), Some(6));
+        assert_eq!(flashback_message("16.2.3"), Some(4));
+        assert_eq!(flashback_message("16.1.0"), None);
+        assert_eq!(flashback_message("16.2.1"), None);
+        for id in [6, 4, 2] {
+            assert!(message_card_label(id).is_some(), "card {id}");
+        }
+        assert_eq!(message_card_label(0), None);
     }
 
     #[test]

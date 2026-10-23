@@ -73,6 +73,10 @@ impl WorldScene {
         self.end_split();
         self.unpark_guest_after_race();
         log::info!("race: {} ended", session.name);
+        // The black of a breakdown holds until the next race takes over; with none, the screen comes back.
+        if self.queued_race.is_none() {
+            self.screen_fade.clear();
+        }
         if session.options.career {
             self.career_race_left();
         }

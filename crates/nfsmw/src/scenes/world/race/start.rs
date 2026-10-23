@@ -82,6 +82,8 @@ impl WorldScene {
         options: RaceOptions,
         course: Option<Course>,
     ) -> Result<String, String> {
+        // A new race takes the screen from the fade of the scene before it.
+        self.screen_fade.clear();
         if self.race.is_some() {
             return Err("a race is already running (race stop ends it)".into());
         }
