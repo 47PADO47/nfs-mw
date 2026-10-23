@@ -157,6 +157,7 @@ impl WorldScene {
             };
             if let Some(state) = traffic.racer_mut(id) {
                 state.set_goal(goal);
+                state.set_leg(super::route::leg_of(engine.course(), &racer.progress));
             }
         }
     }

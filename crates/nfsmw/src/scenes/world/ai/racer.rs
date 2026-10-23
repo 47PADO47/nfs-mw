@@ -2,13 +2,16 @@
 //! skill. Specs: `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-driver-speed-skill.md`.
 
 use blackbox_driver::{CarLimits, SpeedGovernor, StuckDetector, potential_acceleration, potential_speed, ramp};
-use blackbox_roads::{PathState, PathType, RandomSource, RoadNav, trail_curvature, update_occluded_position};
+use blackbox_roads::{
+    PathState, PathType, RandomSource, RoadNav, RoadNetwork, SegmentIndex, trail_curvature, update_occluded_position,
+};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::car::Ctx;
 use super::cop::{THINK_PERIOD, THINK_STEPS};
+use super::racer_route::follow_route;
 use super::traffic::CarState;
 use blackbox_roads::Body;
 
@@ -68,6 +71,10 @@ pub struct RacerState {
     /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
     /// before the race gives it one, or without a road network.
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// The leg of the route the racer is on (`race/route.rs`, `leg_of`); `None` after the finish.
+    leg: Option<usize>,
+    /// The last search put the navigator on the route (`racer_route.rs`).
+    on_route: bool,
     /// A person drives this racer (split screen): the pedals they hold this frame. The think, the driver, the emulation
     /// and the catch-up leave the racer alone (`docs/specs/split-screen.md` section 3).
     pub human: Option<crate::scenes::world::drive::DriveInput>,
@@ -106,6 +113,8 @@ impl RacerState {
             cruise: 25.0,
             emulated: false,
             route: None,
+            leg: None,
+            on_route: false,
             human: None,
         }
     }
@@ -122,6 +131,14 @@ impl RacerState {
             self.repath = 0.0;
         }
         self.goal = goal;
+    }
+
+    /// The leg of its route the racer is on now. A new leg searches again at once.
+    pub fn set_leg(&mut self, leg: Option<usize>) {
+        if leg != self.leg {
+            self.repath = 0.0;
+        }
+        self.leg = leg;
     }
 
     /// The speed an emulated racer covers its route at, m/s: a share of the limits it would drive at, by skill, and the
@@ -147,27 +164,15 @@ impl RacerState {
         let to_goal = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
             self.repath = REPATH_PERIOD;
-            let state = nav.find_path_to(net, index, goal, None, PathType::Racer);
-            self.path_state = Some(state);
-            log::debug!(
-                "racer {}: path from ({:.0}, {:.0}) to ({:.0}, {:.0}): {state:?}, {} segment(s)",
-                self.id,
-                car.body.position.x,
-                car.body.position.z,
-                goal.x,
-                goal.z,
-                nav.path.len()
-            );
-            if state == PathState::NoWay {
-                nav.dead_end = false;
-            }
+            self.repath_to(net, index, nav, car, goal);
         }
         let look = look_ahead(self.governor.speed_limit);
         let gap = nav.position.distance(car.body.position);
         let toward = to_goal.try_normalize().unwrap_or(Vec3::ZERO);
         if gap < look {
             nav.advance_with_lookahead(net, look - gap, toward, look, rng);
-        } else if gap > 2.5 * look
+        } else if !self.on_route
+            && gap > 2.5 * look
             && nav.init_at_point(
                 net,
                 index,
@@ -196,6 +201,36 @@ impl RacerState {
         let accel = potential_acceleration(table, &self.limits, skill, None, 0.0);
         let wanted = self.governor.update(speed, potential, accel, skill, THINK_PERIOD);
         RacerThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
+    }
+
+    /// Searches the racer's road again: along its route (`racer_route.rs`), or, on a leg with no road or with no route,
+    /// the shortest road to `goal`.
+    fn repath_to(&mut self, net: &RoadNetwork, index: &SegmentIndex, nav: &mut RoadNav, car: &CarState, goal: Vec3) {
+        let at = car.body.position;
+        let follow = match (&self.route, self.leg) {
+            (Some(route), Some(leg)) => follow_route((net, index), route, leg, nav, at),
+            _ => None,
+        };
+        self.on_route = follow.is_some();
+        if let Some(follow) = follow {
+            log::debug!("racer {}: on its route, leg {:?}: {follow:?}", self.id, self.leg);
+            nav.dead_end = false;
+            return;
+        }
+        let state = nav.find_path_to(net, index, goal, None, PathType::Racer);
+        self.path_state = Some(state);
+        log::debug!(
+            "racer {}: path from ({:.0}, {:.0}) to ({:.0}, {:.0}): {state:?}, {} segment(s)",
+            self.id,
+            at.x,
+            at.z,
+            goal.x,
+            goal.z,
+            nav.path.len()
+        );
+        if state == PathState::NoWay {
+            nav.dead_end = false;
+        }
     }
 
     /// After the finish: follow the road at a cruising speed.

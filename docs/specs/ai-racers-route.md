@@ -35,6 +35,12 @@ converted from map to physics space.
   through the marker to the leg's end, kept when it is at most 1.25 times the leg (661 of the 971 markers of the
   courses). Each racer rolls once per shortcut on the grid, with the chance `lerp(min, max, skill)`, from a seed of the
   race and the racer, and drives its own copy of the route with the legs it rolled for replaced (`race/shortcuts.rs`).
+- **Following the route [ours].** When a racer searches again (every second, at a dead end, and when it reaches a
+  gate) its navigator follows its route instead of the shortest road (`ai/racer_route.rs`): from the navigator's own
+  segment when that is on the current or the next leg; else from the nearest point of those legs when the car is within
+  12 m of it on the ground and 3 m up or down (so not on a bridge over the route); else along a racer path to the point
+  80 m further along the route. A leg with no road keeps the plain search to the gate. A racer on its route is not
+  snapped back to the road nearest it when its look-ahead falls far behind (that cut corners and dropped its trail).
 - The route length is the sum of the straight lines start, checkpoint 1 ... finish, measured on the road
   (`RaceLength` is the editor's stored value, 0 for a few races) **[unconfirmed]**. It is only used for percent
   complete and for the catch-up error, so a straight-line sum is used when the road path is not yet known.

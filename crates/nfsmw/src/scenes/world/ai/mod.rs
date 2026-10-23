@@ -42,6 +42,7 @@ mod pursuit;
 mod pursuit_budget;
 mod race_route;
 mod racer;
+mod racer_route;
 mod racers;
 mod radar;
 mod release;
