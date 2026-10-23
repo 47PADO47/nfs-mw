@@ -377,11 +377,7 @@ impl ScreenLogic for Overview {
             if let Hit::Icon(sheet) = hit {
                 self.sheet = sheet;
                 self.fill_sheet(cx);
-                let before = cx.commands.len();
-                self.accept(cx);
-                if before != cx.commands.len() {
-                    crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
-                }
+                cx.press_sound(|cx| self.accept(cx));
             }
             return true;
         }
@@ -418,19 +414,11 @@ impl ScreenLogic for Overview {
             return true;
         }
         if hit(cx, BUTTON_GROUP, point) {
-            let before = cx.commands.len();
-            self.challenge(cx);
-            if before != cx.commands.len() {
-                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
-            }
+            cx.press_sound(|cx| self.challenge(cx));
             return true;
         }
         if OPTION_PARTS.iter().any(|&part| hit(cx, part, point)) {
-            let before = cx.commands.len();
-            self.accept(cx);
-            if before != cx.commands.len() {
-                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
-            }
+            cx.press_sound(|cx| self.accept(cx));
             return true;
         }
         false
