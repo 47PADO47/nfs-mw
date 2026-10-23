@@ -28,4 +28,21 @@ impl WorldScene {
         self.race = Some(session);
         waiting
     }
+
+    /// Test hook: knocks every human racer out, so the engine says the race is over and the world takes it down.
+    #[cfg(test)]
+    pub(in crate::scenes::world) fn knock_out_every_human(&mut self) {
+        let Some(mut session) = self.race.take() else { return };
+        let mut events = Vec::new();
+        if let Some(engine) = session.engine.as_mut() {
+            let humans: Vec<usize> =
+                engine.racers().iter().enumerate().filter(|(_, racer)| racer.human).map(|(i, _)| i).collect();
+            for index in humans {
+                events.extend(engine.knock_out(index));
+            }
+            events.extend(engine.tick(0.0));
+        }
+        self.race_events(&mut session, events);
+        self.race = Some(session);
+    }
 }

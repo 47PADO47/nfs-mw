@@ -122,6 +122,19 @@ fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
     let people: Vec<_> = states.iter().filter_map(|racer| racer.player).collect();
     assert_eq!(people, [LEAD, PEOPLE[0], PEOPLE[1]], "the race events name the people by their player ids");
 
+    // The race ends the moment it is over: a session has no race-over message or post-race screen to wait for.
+    host.scene_mut().0.knock_out_every_human();
+    for _ in 0..3 {
+        host.step(&throttle(), &mut events);
+    }
+    assert!(
+        host.scene().race.is_none() && host.scene().race_people.is_empty(),
+        "the race is down three ticks after it ended"
+    );
+    for id in PEOPLE {
+        assert!(!host.scene().players.is_parked(id), "player {} is back on the road at once", id.0);
+    }
+
     host.stop_race();
     assert!(host.scene().race.is_none() && host.scene().race_people.is_empty());
     for id in PEOPLE {

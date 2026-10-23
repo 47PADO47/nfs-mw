@@ -270,6 +270,11 @@ impl WorldScene {
     /// The race-over message stays for its duration, or until Interact; then the post-race screen has the race.
     fn race_results(&mut self, session: &mut RaceSession, input: &ActionState, dt: f32) -> bool {
         let Stage::Results { left } = session.stage else { return true };
+        // A session has no screen to show the race-over message or the report on: the race ends now, the people's cars
+        // come back on the road, and the server's own results follow.
+        if !self.rules.race_screens {
+            return false;
+        }
         let left = left - dt;
         session.stage = Stage::Results { left };
         if left > 0.0 && !input.just_pressed(Action::Interact) {

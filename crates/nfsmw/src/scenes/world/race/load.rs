@@ -162,7 +162,7 @@ impl WorldScene {
             return;
         }
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.
-        let steps = match self.rules.race_intros {
+        let steps = match self.rules.race_screens {
             true => intro::intro_queue(session),
             false => Default::default(),
         };
