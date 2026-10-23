@@ -39,9 +39,12 @@ impl WorldScene {
         match answer {
             RaceAnswer::Restart => {
                 let again = (session.name.clone(), session.options);
+                // Started as a restart: no intro cutscene again, and the course a mod gave the race is kept.
+                let kit = super::restart::again_kit(&session);
                 let split = self.split.as_ref().map(|split| split.setup.clone());
                 self.end_race(session);
                 self.queued_race = Some(again);
+                self.queued_again = Some(kit);
                 self.queued_split = split;
             }
             RaceAnswer::Exit => {

@@ -5,11 +5,12 @@
 //! section 7).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
+use blackbox_minimap::Orientation;
 
 use super::blip_style::{BlipStyle, MapBlip, TICK_SECONDS, colour_to_apply, drawn_in, look_of};
 use super::blip_styles;
 use super::minimap::MinimapBinding;
-use super::state::HudState;
+use super::state::{HudState, MapPosition};
 
 /// One HUD object of a style's pool, with the colour the package gave it.
 struct Slot {
@@ -102,8 +103,7 @@ impl BlipBinding {
             let Some(look) = look_of(style, blip, tick) else {
                 continue;
             };
-            // A fixed blip turns with the player's arrow. A moving one points the way it is going.
-            let direction = blip.heading.unwrap_or(at.heading);
+            let direction = direction_of(blip, &at);
             let placed = minimap.blip(&view, at.orientation, blip.position, direction);
             if !drawn_in(style.visibility(blip), placed.inside) {
                 continue;
@@ -148,4 +148,17 @@ pub(super) fn nearest_blip(blips: &[MapBlip], style: &str, from: [f32; 2]) -> Op
         .filter(|(_, b)| b.style == style)
         .min_by(|(_, a), (_, b)| distance(a).total_cmp(&distance(b)))
         .map(|(i, _)| i)
+}
+
+/// The direction a blip is placed with. A moving one (a cop, the helicopter) points the way it is going. A fixed one stays
+/// upright on the screen: north on a north-up map, as the original sets the blips' rotation to 0 there, and the player's
+/// heading on a map that turns under the arrow (`docs/specs/hud-minimap.md` section 4, step 7).
+pub(super) fn direction_of(blip: &MapBlip, at: &MapPosition) -> [f32; 2] {
+    if let Some(heading) = blip.heading {
+        return heading;
+    }
+    match at.orientation {
+        Orientation::North => [0.0, 1.0],
+        Orientation::Heading => at.heading,
+    }
 }

@@ -354,6 +354,10 @@ valid(car, d):                      # d = the density computed this tick
 - **No maximum-distance despawn [decomp].** The removal path has no absolute distance rule. The rewrite's 350 m
   limit, its airborne limit and its idle or stuck limit have no counterpart here. Other original code may apply
   such limits elsewhere (not found).
+- **Minimap keep-alive [ours].** The rewrite removes an unseen car (by the time-and-distance rule or the stuck rule)
+  only once it has been unseen for the offscreen grace (4 s) and is outside the minimap's circle (about 400 m,
+  `blackbox_minimap::inside_radius`). Turning round then finds the cars that were behind. Cops follow the same rule
+  (`ai-pursuit-cops.md`).
 - A traffic centre also blocks a spawn within 150 m (section 6), so a car cannot normally be removed and respawned in
   the same place.
 

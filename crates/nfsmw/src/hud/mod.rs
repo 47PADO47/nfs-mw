@@ -69,6 +69,7 @@ mod trax;
 pub(crate) mod viewport;
 #[cfg(test)]
 mod viewport_tests;
+mod withdrawn;
 
 pub use blip_style::{MapBlip, TICK_SECONDS};
 pub use blip_styles::{

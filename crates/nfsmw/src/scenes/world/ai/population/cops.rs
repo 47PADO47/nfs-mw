@@ -2,7 +2,8 @@
 //!
 //! The original's patrol pass visits every active cop car: one that may be recycled and stands where a car can come and
 //! go unseen is removed, unless its chase is about to meet it; a wreck goes once it has been off screen for 3 s. The
-//! traffic's own unseen-time rules do not apply to cops.
+//! traffic's own unseen-time rules do not apply to cops. The rewrite also keeps a cop until it has been unseen for the
+//! offscreen grace and is off the minimap, so one the player turns round to find is still there **[ours]**.
 
 use blackbox_pursuit::respawn::{self, COP_WINDOW};
 use glam::Vec3;
@@ -54,7 +55,7 @@ pub(super) fn keeps(car: &mut AiCar, view: &Viewing, base: &Base, airborne_limit
         destroyed: car.is_wrecked(),
         offscreen: car.offscreen_time(),
         about_to_meet,
-    });
+    }) && view.forgotten(car.offscreen_time(), at);
     // The rewrite's own rule: a cop with no wheel on the ground for long and out of sight fell off the map.
     let fell = car.airborne_time() >= airborne_limit && car.offscreen_time() > view.grace;
     !(remove || fell)

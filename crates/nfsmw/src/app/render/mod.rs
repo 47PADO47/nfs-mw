@@ -182,7 +182,9 @@ pub fn draw(
     let size = [window.width(), window.height()];
     let split_on = host.scene.split_active();
     let strength = if split_on { 0.0 } else { host.scene.speed_streaks() };
-    host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, time.elapsed_secs());
+    // Their clock stops with the game, so a paused frame shows them still rather than racing past the menu.
+    let clock = host.streaks.advance(time.delta_secs(), host.scene.paused());
+    host.streaks.show(renderer.as_mut(), host.mirror.base_layer(), strength, size, clock);
     // A split-screen race draws the two halves as pictures under the HUD; the main frame has nothing of its own.
     match split_on {
         true => host.split.update(renderer.as_mut(), host.scene.as_mut(), host.mirror.base_layer(), size),

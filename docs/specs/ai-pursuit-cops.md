@@ -86,6 +86,10 @@ else if should_remove and the cop is in a pursuit:
 remove if should_remove or spawning is disabled (despawn variant)
 ```
 
+**[ours]** The rewrite also requires the cop to have been unseen for the offscreen grace (4 s) and to be outside the
+minimap's circle (about 400 m) before `should_remove` takes it. Without this, a patrol cop 150 m behind the camera
+vanished the moment the player turned round (`scenes/world/ai/population/cops.rs`).
+
 A removed cop is detached from its pursuit or roadblock and un-spawned (back to the pool). The first non-destroyed cop that
 reports a pursuit request (patrol cop that sees a perpetrator, ai-pursuit.md 4.2) is remembered and the loop stops, so only one new
 pursuit starts per run. A cop off the road network (`IsOffWorld`, not a helicopter) is switched to a simple kinematic

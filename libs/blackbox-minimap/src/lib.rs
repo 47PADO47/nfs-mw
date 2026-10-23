@@ -20,7 +20,7 @@ mod chops;
 mod projection;
 mod view;
 
-pub use blip::{Blip, place as place_blip};
+pub use blip::{Blip, inside_radius, place as place_blip};
 pub use chops::{COMP_TPK_BLOCK, Error, Result, TileSet, tile_name};
 pub use projection::{Calibration, bearing_degrees};
 pub use view::{Grid, Orientation, View, speed_zoom};

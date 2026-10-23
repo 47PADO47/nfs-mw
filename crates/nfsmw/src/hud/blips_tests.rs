@@ -208,12 +208,19 @@ fn icon_angle(rt: &Runtime, id: PackageId, icon: &str) -> f32 {
 }
 
 #[test]
-fn a_fixed_blip_turns_with_the_arrow_and_a_moving_one_points_its_own_way() {
-    // The player faces north, so a fixed blip is upright. A car facing east is turned a quarter turn.
+fn a_fixed_blip_stays_upright_and_a_moving_one_points_its_own_way() {
     let (mut rt, id, mut binding) = setup();
     let ahead = [PLAYER[0] + 50.0, PLAYER[1]];
     binding.apply(&mut rt, &on_the_map(vec![cop(ahead, false)]));
     assert!(icon_angle(&rt, id, COP_ICON).abs() < 1.0, "a fixed blip is upright on a north-facing arrow");
+    // The player turns east: on a north-up map the arrow turns, the fixed blip does not; on a turning map neither does.
+    for orientation in [Orientation::North, Orientation::Heading] {
+        let mut state = on_the_map(vec![cop(ahead, false)]);
+        state.minimap = Some(MapPosition { position: PLAYER, heading: [1.0, 0.0], orientation });
+        binding.apply(&mut rt, &state);
+        let turn = icon_angle(&rt, id, COP_ICON).abs();
+        assert!(turn < 1.0, "a fixed blip stays upright on a {orientation:?} map: {turn}");
+    }
     let moving = MapBlip { heading: Some([1.0, 0.0]), ..cop(ahead, false) };
     binding.apply(&mut rt, &on_the_map(vec![moving]));
     let turn = icon_angle(&rt, id, COP_ICON).abs();

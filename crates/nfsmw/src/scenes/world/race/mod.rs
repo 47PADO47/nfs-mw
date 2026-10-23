@@ -37,6 +37,7 @@ mod wrong_way;
 
 pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
+pub(super) use restart::Kit as RestartKit;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
 

@@ -57,11 +57,13 @@ impl WorldScene {
     /// the world and the race in one go.
     pub fn queue_race(&mut self, query: String, options: RaceOptions) {
         self.queued_race = Some((query, options));
+        self.queued_again = None;
     }
 
     /// Asks for a split-screen race: as [`queue_race`](Self::queue_race), with two players on the grid.
     pub fn queue_split_race(&mut self, query: String, options: RaceOptions, setup: super::SplitSetup) {
         self.queued_race = Some((query, options));
+        self.queued_again = None;
         self.queued_split = Some(setup);
     }
 

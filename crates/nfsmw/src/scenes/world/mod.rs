@@ -217,6 +217,9 @@ pub struct WorldScene {
     race: Option<race::RaceSession>,
     /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
     queued_race: Option<(String, race::RaceOptions)>,
+    /// The race, options and course `queued_race` runs again when the post-race screen's Restart queued it: it starts as
+    /// a restart, past its intro (`race/restart.rs`).
+    queued_again: Option<race::RestartKit>,
     /// The two players of the split-screen race `queued_race` starts (`race/split.rs`); `None` for a one-player race.
     queued_split: Option<SplitSetup>,
     /// The split-screen match being played: the second player's actions and camera (`split/`).

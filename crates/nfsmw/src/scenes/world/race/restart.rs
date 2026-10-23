@@ -8,12 +8,17 @@ use super::{RaceOptions, RaceSession};
 use crate::scenes::world::WorldScene;
 
 /// What a restart runs again: the race, the options it was started with and the course a mod gave it.
-type Kit = (Race, RaceOptions, Option<Course>);
+pub(in crate::scenes::world) type Kit = (Race, RaceOptions, Option<Course>);
+
+/// What running `session` again takes, whatever its stage: the post-race screen's Restart asks for it after the result.
+pub(super) fn again_kit(session: &RaceSession) -> Kit {
+    (session.origin.race.clone(), session.options, session.origin.course.clone())
+}
 
 /// The race and options to start `session` again, or `None` once its result is fixed (the career has been told by then,
 /// and the post-race screen's own Restart is the way to go again).
 fn restart_kit(session: &RaceSession) -> Option<Kit> {
-    session.stage.is_live().then(|| (session.origin.race.clone(), session.options, session.origin.course.clone()))
+    session.stage.is_live().then(|| again_kit(session))
 }
 
 impl WorldScene {
@@ -50,15 +55,20 @@ impl WorldScene {
         self.repair_player_car();
         // The same two players race again.
         self.queued_split = self.split.as_ref().map(|split| split.setup.clone());
-        match self.begin_race(race, options, course) {
-            Ok(_) => {
-                if let Some(started) = self.race.as_mut() {
-                    started.restarted = true;
-                }
-            }
-            Err(why) => log::warn!("race {}: the restart did not start: {why}", session.name),
+        if let Err(why) = self.begin_again((race, options, course)) {
+            log::warn!("race {}: the restart did not start: {why}", session.name);
         }
         true
+    }
+
+    /// Starts `kit` as a restart: from the pre-race state, past the intro's tutorial, messages, movie and cutscene
+    /// (`docs/specs/race-wrongway.md` section 3). The pause menu's Restart and the post-race screen's both come here.
+    pub(in crate::scenes::world) fn begin_again(&mut self, (race, options, course): Kit) -> Result<String, String> {
+        let line = self.begin_race(race, options, course)?;
+        if let Some(started) = self.race.as_mut() {
+            started.restarted = true;
+        }
+        Ok(line)
     }
 }
 
@@ -165,6 +175,18 @@ mod tests {
         assert!(!intro_queue(&again).is_empty(), "the first start has its intro");
         again.restarted = true;
         assert!(intro_queue(&again).is_empty(), "the restart counts down at once");
+    }
+
+    #[test]
+    fn the_post_race_restart_runs_the_same_race_on_the_same_course() {
+        let gate = Gate::new(Vec3::ZERO, Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0]);
+        let course = Course::new(Vec3::ZERO, vec![gate], None, 3);
+        let options = RaceOptions { career: true, laps: Some(2), ..Default::default() };
+        let done = session(Stage::PostRace { left: 1.0 }, options, Some(course.clone()));
+        let (again, kept, given) = again_kit(&done);
+        assert_eq!(again.name, "race_bin_10/10_2_1_sprint");
+        assert_eq!(kept, options);
+        assert_eq!(given, Some(course), "a mod's course survives the post-race restart");
     }
 
     #[test]

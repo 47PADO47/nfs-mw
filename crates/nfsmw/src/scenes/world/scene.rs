@@ -298,7 +298,7 @@ impl Scene for WorldScene {
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
-        if self.nis.is_playing() {
+        if self.cutscene_playing() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });
         }
         if self.moment.hides_hud() {
