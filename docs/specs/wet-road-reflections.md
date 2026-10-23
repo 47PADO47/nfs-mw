@@ -80,8 +80,9 @@ the projected image, covering the reflected sky and trees. The installed
 highway at map points (-130, 4089) and (-78, 4108) exposes this difference.
 The native renderer's per-texture and per-instance winding rule is documented in
 [backface culling](backface-culling.md). Preserve that rule in the projected
-capture too, including two-sided textures. Do not add a family-wide fragment
-face discard over it. Main and reflected views keep their authored winding flags.
+capture too, including two-sided textures. The projected view explicitly reverses
+the kept side because it shares the main camera. Do not add a family-wide
+fragment face discard over it. Main and reflected views keep their authored winding flags.
 
 The highway junction at (2191, 2515) still exposes dark capture occlusion from
 highway-prop meshes. A comparison with original-game reflection pixels is
