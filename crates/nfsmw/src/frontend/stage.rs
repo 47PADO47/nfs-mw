@@ -34,7 +34,7 @@ impl Look {
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
-            Look::CarLot(_) => Stage::CarLot,
+            Look::CarLot(_) | Look::LotShowcase(_) => Stage::CarLot,
             Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
         }
     }
@@ -48,7 +48,7 @@ impl Look {
             Look::Car(_) => Some("career_manager"),
             Look::SafeHouse(_) => Some("career_safehouse"),
             Look::CarLot(_) => Some("car_lot"),
-            Look::Showcase(_) => None,
+            Look::Showcase(_) | Look::LotShowcase(_) => None,
         }
     }
 }

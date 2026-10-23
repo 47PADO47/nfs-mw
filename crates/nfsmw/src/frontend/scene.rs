@@ -204,7 +204,7 @@ impl Scene for MenuScene {
         if self.look.camera_intro().is_some() && self.rig.advance(dt) {
             return car.update(renderer, &ActionState::default(), dt);
         }
-        if matches!(self.look, Look::Showcase(_)) {
+        if matches!(self.look, Look::Showcase(_) | Look::LotShowcase(_)) {
             showcase_camera(car, input, self.rest, dt);
             return car.update(renderer, &ActionState::default(), dt);
         }

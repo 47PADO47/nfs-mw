@@ -210,3 +210,28 @@ fn a_two_player_garage_takes_an_eleventh_car() {
     let stable = owned_garage(10);
     assert_eq!(buy_refusal(&settings(100_000), &stable, &car, &Limits::for_players(2)), None);
 }
+
+#[test]
+fn the_lots_rows_keep_the_greyed_cars_and_price_the_owned_ones_at_a_sale() {
+    // The shared car pool is not read in a test, so no row is dropped as undrivable.
+    let cars = [lot("cobaltss", 0xC0, 26_000), LotCar { unlock_rank: 7, ..lot("elise", 0xC1, 48_000) }];
+    let rows = super::super::car_lot_look::lot_rows(&cars, 16);
+    assert_eq!(
+        rows.iter().map(|row| (row.name.as_str(), row.locked)).collect::<Vec<_>>(),
+        [("cobaltss", false), ("elise", true)]
+    );
+    let owned = super::super::car_lot_look::owned_rows(&owned_garage(1), &[lot("cobaltss", 0xC0, 26_000)]);
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].price, nfsmw_career::economy::sale_proceeds(26_000));
+}
+
+#[test]
+fn the_showcase_remembers_where_the_lot_was_left_and_gives_it_back_once() {
+    use super::super::car_lot_look::{ShowcaseCar, set_showcase, showcased, take_return};
+    use crate::frontend::look::CarLook;
+    let car = ShowcaseCar { name: "gti".into(), look: CarLook::named("GTI", None), tab: Tab::Owned, cursor: 3 };
+    set_showcase(car.clone());
+    assert_eq!(showcased(), Some(car));
+    assert_eq!(take_return(), Some((Tab::Owned, 3)));
+    assert_eq!(take_return(), None, "taken once");
+}

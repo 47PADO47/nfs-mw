@@ -6,7 +6,7 @@ pub mod blacklist;
 pub mod car_lot;
 pub(crate) mod car_lot_bars;
 mod car_lot_first;
-mod car_lot_look;
+pub(crate) mod car_lot_look;
 pub mod car_select;
 mod car_select_view;
 pub mod career_menu;
