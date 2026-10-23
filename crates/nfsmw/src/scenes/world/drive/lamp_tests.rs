@@ -10,6 +10,51 @@ use glam::{Quat, Vec3};
 use nfsmw_data::car::{LoadOptions, WheelPose};
 
 #[test]
+#[ignore = "requires installed Elise geometry/physics; CPU-only player lamp controls"]
+fn installed_player_lamps_follow_idle_braking_reverse_and_processed_pedals() {
+    use super::{Drive, DriveInput, SpawnRequest, sim::CarSim};
+    use blackbox_collision::CollisionWorld;
+    use nfsmw_data::car::physics::PhysicsData;
+
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let data = PhysicsData::load(&dir).unwrap();
+    let physics = data.car("elise").unwrap();
+    let model = nfsmw_data::car::load_driving(&dir, "ELISE", &LoadOptions { lod: 'A', all_parts: false, preset: None })
+        .unwrap();
+    let mut renderer = NullBackend::new(crate::settings::test_caps::native());
+    let rig = CarRig::upload(&mut renderer, 123, model, CarShading::Original, Vec3::Z);
+    let sim = CarSim::new(physics.clone(), [0.2; 4]);
+    let mut drive = Drive::new(
+        "ELISE".into(),
+        rig,
+        physics,
+        SpawnRequest { near: [0.0; 2], heading: None, exact: None },
+        None,
+        Default::default(),
+    );
+    drive.sim = Some(sim);
+    drive.request = None;
+    let collision = CollisionWorld::new(None);
+    let mut props = crate::scenes::world::props::PropWorld::default();
+    for (input, brake, reverse) in [
+        (DriveInput::default(), true, false),
+        (DriveInput { brake: 1.0, ..Default::default() }, false, true),
+        (DriveInput { handbrake: true, ..Default::default() }, false, false),
+        (DriveInput { throttle: 0.2, brake: 0.01, ..Default::default() }, false, false),
+        (DriveInput { throttle: 0.2, brake: 0.2, ..Default::default() }, true, false),
+    ] {
+        drive.frame_input = input;
+        let step = drive.step(&collision, &mut props, &data.surfaces).unwrap();
+        drive.finish_step(&collision, &data.surfaces, step);
+        let (_, _, _, state) = drive.lamp_source();
+        assert_eq!(state.brake > 0.0, brake, "processed lamps for {input:?}");
+        assert_eq!(state.brake_surfaces_on(), brake, "surfaces and flares share the brake state");
+        assert_eq!(state.reverse, reverse, "reverse remains independent for {input:?}");
+    }
+    drive.rig.release(&mut renderer);
+}
+
+#[test]
 #[ignore = "requires an installed game"]
 fn installed_elise_nitrous_trails_use_only_authored_brake_flares_and_current_brake_state() {
     use crate::scenes::world::tail_light_trails::TailLightTrails;
