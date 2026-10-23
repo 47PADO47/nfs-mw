@@ -305,6 +305,20 @@ impl UiThemes {
         self.themes.provider(slot.slot(), &BuildCx::new(&self.skin))
     }
 
+    /// Whether the HUD layers are a function of the frame cell alone: the Original theme fills every slot with an adapter
+    /// that copies nodes out of the cell, whereas the other themes draw from live feeds and the clock. A layer composed
+    /// while this holds is still the layer while the cell has not changed (`FrameCell::generation`).
+    pub fn hud_is_static(&self) -> bool {
+        self.themes.active() == ThemeId::Original
+    }
+
+    /// Whether a menu slot's layer is a function of the menu cell alone (the Original adapters copy the screen's tree out
+    /// of the cell; the Remastered menus draw from lists and the clock, the other themes from their own feeds). A layer
+    /// composed while this holds is still the layer while the slot's tree is the same one.
+    pub fn menus_are_static(&self) -> bool {
+        self.themes.active() == ThemeId::Original
+    }
+
     /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered draws the whole map
     /// itself, and any other theme that provides the slot (Custom) recolours the FEng screen in place and draws a legend
     /// over it.

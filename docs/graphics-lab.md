@@ -103,7 +103,7 @@ The native Vulkan and DX12 renderer offers these independent prototypes:
 
 | Control | What changes |
 | --- | --- |
-| Sun shadows | Original PC (partial) fitted perspective map, or custom directional cascades with 5×5 tent PCF |
+| Sun shadows | Original PC (partial) fitted perspective map, or custom directional cascades with a rotated 12-tap Vogel PCF (20 taps when dense) |
 | Distant coverage | A fourth cascade extending coverage to three times the near range |
 | Contact-hardening sun | Optional directional PCSS: sixteen blocker samples and spatial filtering |
 | Contact shadow detail | A short, twenty-four-step depth/normal ray march, applied to direct sunlight |
@@ -157,6 +157,11 @@ This can draw more triangles than the former view-dependent caster LOD policy;
 the cascade volume still culls each mesh. Streaming residency remains the limit.
 
 Cascade extents use minimum enclosing spheres and snapped light-space centres.
+Cascade 0 renders every frame, cascade 1 every second frame and the others every fourth (staggered); a skipped
+cascade keeps the matrix it was rendered with, and a camera cut, a resize, a turn of the sun or a drift of ten
+texels refreshes it at once. Far cascades snap to coarser steps so cached shadows can reuse them. The receiver
+returns at once when its blocker search finds nothing, filters with a Vogel disk rotated by interleaved
+gradient noise, and dithers between two cascades in their overlap instead of blending both.
 Sixteen texels of additional boundary coverage protect snapping, PCF and PCSS
 sampling at cascade edges. Depth endpoints include upstream resident caster bounds
 and are quantised in world space without changing XY texel density. A continuous

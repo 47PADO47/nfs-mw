@@ -52,6 +52,11 @@ pub fn hide() {
     CARD.with(|card| *card.borrow_mut() = None);
 }
 
+/// Whether a message is on screen (so [`show`] draws something and counts its time off).
+pub fn is_up() -> bool {
+    CARD.with(|card| card.borrow().is_some())
+}
+
 /// The message on screen, if any.
 #[cfg(test)]
 pub fn current() -> Option<ModMessage> {

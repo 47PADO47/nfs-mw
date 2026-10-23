@@ -39,6 +39,7 @@ mod installed_breaker;
 mod installed_hiding;
 mod installed_route;
 mod lockout;
+mod parallel;
 mod placement;
 mod recycling;
 mod roadblock;

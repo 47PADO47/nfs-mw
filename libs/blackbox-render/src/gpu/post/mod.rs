@@ -26,6 +26,7 @@ mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
 mod fsr3;
+mod fusion;
 mod fxaa;
 mod plan;
 mod radial_blur;
@@ -82,6 +83,19 @@ pub(super) trait PostPass {
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
     fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
+    /// The exposure, when this is the tone-mapping pass: a pass before it may run it as part of its last draw
+    /// (see [`fusion`]).
+    fn tonemap_exposure(&self) -> Option<f32> {
+        None
+    }
+
+    /// Run a tone mapping with `exposure` as part of this pass's last draw, or none for `None` (the chain tells
+    /// every pass on every frame). Returns whether this pass can do so; the chain drops the tone-mapping pass
+    /// after a pass that returns true.
+    fn absorb_tonemap(&mut self, _exposure: Option<f32>) -> bool {
+        false
+    }
+
     /// The size of the image this pass writes when it is not the last one.
     fn extent(&self) -> Extent {
         Extent::Render
@@ -133,6 +147,9 @@ pub(super) struct PostChain {
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
     settings: crate::PostSettings,
+    /// Fuse the tone mapping into the pass before it (see [`fusion`]). Always on outside the tests, which turn
+    /// it off to compare against the separate passes.
+    fuse: bool,
     profile: Option<treatment::Profile>,
     /// Used by the effect passes built when the settings or the profile change.
     cache: Option<wgpu::PipelineCache>,
@@ -150,6 +167,7 @@ impl PostChain {
             scratch: [SizedPair::new(), SizedPair::new()],
             effect_count: 0,
             settings: crate::PostSettings::default(),
+            fuse: true,
             profile: None,
             cache: cache.cloned(),
         }
@@ -240,7 +258,7 @@ impl PostChain {
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, resolve, temporal, scratch, .. } = self;
+        let Self { passes, resolve, temporal, scratch, fuse, .. } = self;
         let scene = ctx.scene;
         // The temporal upscaler only runs on a frame that carries its inputs.
         let upscaler = temporal.as_mut().filter(|_| ctx.temporal.is_some() && scene.motion.is_some());
@@ -252,6 +270,7 @@ impl PostChain {
         for pass in passes.iter_mut() {
             chain.push(pass.as_mut());
         }
+        fusion::fuse_tonemap(&mut chain, *fuse);
         let extents: Vec<Extent> = chain.iter().map(|pass| pass.extent()).collect();
         if plan::needs_resolve(&extents, temporal_last, scene.size, ctx.output_size, output.1) {
             chain.push(resolve as &mut dyn PostPass);

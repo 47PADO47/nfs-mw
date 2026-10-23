@@ -9,7 +9,7 @@ impl Runtime {
     /// Advances every object of a package by `dt` ticks.
     pub(super) fn update_package(&mut self, package: PackageId, dt: i32) {
         let Some(order) = self.running(package).map(|p| p.order.clone()) else { return };
-        for i in order {
+        for &i in order.iter() {
             self.update_object(package, i, dt);
         }
     }
@@ -130,22 +130,30 @@ impl Runtime {
         let Some(p) = self.running_mut(package) else { return };
         let o = &mut p.objects[index];
         let Some(s) = o.scripts.get(script) else { return };
+        // A track that writes the value the word already holds changes nothing, so the package's revision stays put.
         let write = |data: &mut crate::package::ObjectData, track: &crate::package::Track| {
-            if let Some(v) = evaluate(track, time) {
-                for (k, value) in v.iter().enumerate().take(track.param.components()) {
-                    if let Some(w) = data.words.get_mut(track.offset + k) {
-                        *w = *value;
-                    }
+            let Some(v) = evaluate(track, time) else { return false };
+            let mut changed = false;
+            for (k, value) in v.iter().enumerate().take(track.param.components()) {
+                let Some(w) = data.words.get_mut(track.offset + k) else { continue };
+                if *w != *value {
+                    *w = *value;
+                    changed = true;
                 }
             }
+            changed
         };
+        let mut changed = false;
         for t in s.tracks.iter().filter(|t| t.offset == word::COLOUR) {
-            write(&mut o.data, t);
+            changed |= write(&mut o.data, t);
         }
         if o.data.alpha() != 0 {
             for t in s.tracks.iter().filter(|t| t.offset != word::COLOUR) {
-                write(&mut o.data, t);
+                changed |= write(&mut o.data, t);
             }
+        }
+        if changed {
+            p.touch();
         }
     }
 
@@ -193,6 +201,7 @@ impl Runtime {
         o.dirty = true;
         let words = o.data.words.clone();
         setup_move_to(&mut o.scripts[s].tracks, &words);
+        p.touch();
     }
 
     pub(super) fn current_script_id(&self, package: PackageId, index: usize) -> Option<u32> {

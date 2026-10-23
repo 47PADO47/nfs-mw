@@ -18,6 +18,9 @@ pub struct Texture {
     /// `ApplyAlphaSorting`: the engine sorts and blends this texture (true transparency).
     pub alpha_sorting: bool,
     pub alpha_blend: u8,
+    /// The `Flags` byte of the info record. Bit 1 (`0x02`) makes the texture's surfaces two-sided
+    /// (`docs/specs/backface-culling.md`); the other bits are not mapped.
+    pub flags: u8,
     /// All mip levels, largest first, as stored.
     pub data: Vec<u8>,
     /// Palette for [`PixelFormat::P8`], as stored.

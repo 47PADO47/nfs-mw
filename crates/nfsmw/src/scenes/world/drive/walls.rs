@@ -301,15 +301,17 @@ pub fn resolve_into(
     let (position, rot, car_mass) = (body.position, body.rotation(), body.mass());
     find_into(cast, props, position, rot, half, scratch);
     let contacts = scratch.as_slice();
-    for c in contacts {
-        log::debug!(
-            "collision {:?} prop {:?} info {:?} at {:?}: {}",
-            ContactPoint::from(c).kind,
-            c.prop.map(|(id, _)| id),
-            c.info,
-            c.point,
-            action(c),
-        );
+    if log::log_enabled!(log::Level::Debug) {
+        for c in contacts {
+            log::debug!(
+                "collision {:?} prop {:?} info {:?} at {:?}: {}",
+                ContactPoint::from(c).kind,
+                c.prop.map(|(id, _)| id),
+                c.info,
+                c.point,
+                action(c),
+            );
+        }
     }
     let visuals = contacts
         .iter()

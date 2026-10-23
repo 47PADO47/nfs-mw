@@ -4,6 +4,8 @@ pub enum Error {
     Chunk(#[from] blackbox_chunk::Error),
     #[error(transparent)]
     Compress(#[from] ea_compress::Error),
+    #[error("reading the texture pack source: {0}")]
+    Io(#[from] std::io::Error),
     #[error("texture pack at 0x{offset:X}: {detail}")]
     Pack { offset: usize, detail: String },
     #[error("texture pack at 0x{offset:X}: TPK version {version} is not supported yet")]

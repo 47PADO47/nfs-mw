@@ -73,6 +73,11 @@ impl InteractPopup {
         self.hold > 0.0
     }
 
+    /// Whether the card draws anything: a prompt is on it and it is not faded out.
+    pub fn visible(&self) -> bool {
+        self.drawn.is_some() && self.alpha > 0.0
+    }
+
     /// The prompt on the card, if any.
     pub fn drawn(&self) -> Option<&Prompt> {
         self.drawn.as_ref()
@@ -96,11 +101,11 @@ impl InteractPopup {
 
 /// Draw the card, if one is up.
 pub fn show(ctx: &egui::Context, popup: &InteractPopup) {
-    let Some(prompt) = popup.drawn() else { return };
-    let opacity = popup.opacity();
-    if opacity <= 0.0 {
+    if !popup.visible() {
         return;
     }
+    let Some(prompt) = popup.drawn() else { return };
+    let opacity = popup.opacity();
     let ink = |c: Color32| c.gamma_multiply(opacity);
     let at = pos2(MARGIN + popup.slide(), MARGIN);
     egui::Area::new(egui::Id::new("interact_prompt")).fixed_pos(at).interactable(false).show(ctx, |ui| {

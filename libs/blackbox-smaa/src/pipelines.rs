@@ -48,6 +48,7 @@ impl Pipelines {
                 &layouts.edge_detect,
                 &edge_module,
                 wgpu::TextureFormat::Rg8Unorm,
+                Some(StencilMask::Write),
                 cache,
             ),
             blend_weight: pass_pipeline(
@@ -56,6 +57,7 @@ impl Pipelines {
                 &layouts.blend_weight,
                 &blend_module,
                 wgpu::TextureFormat::Rgba8Unorm,
+                Some(StencilMask::Test),
                 cache,
             ),
             neighborhood_blending: pass_pipeline(
@@ -64,8 +66,48 @@ impl Pipelines {
                 &layouts.neighborhood_blending,
                 &neighborhood_module,
                 format,
+                None,
                 cache,
             ),
+        }
+    }
+}
+
+/// The stencil mask the edge pass writes and the blend-weight pass tests (reference value 1).
+#[derive(Clone, Copy)]
+enum StencilMask {
+    /// Replace the stencil with the reference where a fragment survives (the edge pass discards pixels without edges).
+    Write,
+    /// Draw only where the stencil equals the reference.
+    Test,
+}
+
+impl StencilMask {
+    fn state(self) -> wgpu::DepthStencilState {
+        let face = match self {
+            Self::Write => wgpu::StencilFaceState {
+                compare: wgpu::CompareFunction::Always,
+                fail_op: wgpu::StencilOperation::Keep,
+                depth_fail_op: wgpu::StencilOperation::Keep,
+                pass_op: wgpu::StencilOperation::Replace,
+            },
+            Self::Test => wgpu::StencilFaceState {
+                compare: wgpu::CompareFunction::Equal,
+                fail_op: wgpu::StencilOperation::Keep,
+                depth_fail_op: wgpu::StencilOperation::Keep,
+                pass_op: wgpu::StencilOperation::Keep,
+            },
+        };
+        let write_mask = match self {
+            Self::Write => 0xff,
+            Self::Test => 0,
+        };
+        wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Stencil8,
+            depth_write_enabled: None,
+            depth_compare: None,
+            stencil: wgpu::StencilState { front: face, back: face, read_mask: 0xff, write_mask },
+            bias: Default::default(),
         }
     }
 }
@@ -84,6 +126,7 @@ fn pass_pipeline(
     bind_group_layout: &wgpu::BindGroupLayout,
     module: &wgpu::ShaderModule,
     target: wgpu::TextureFormat,
+    mask: Option<StencilMask>,
     cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -114,7 +157,7 @@ fn pass_pipeline(
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: Default::default(),
-        depth_stencil: None,
+        depth_stencil: mask.map(StencilMask::state),
         multisample: Default::default(),
         multiview_mask: None,
         cache,

@@ -5,6 +5,9 @@
 //! timing. The scene pass reads no shadow or AO input when `reduced` is set in its globals. The frame is submitted
 //! at once and its readback is mapped without a wait; [`Renderer::poll_view_capture`] takes the picture on a later
 //! frame. One capture is in flight at a time, and its images are kept for the next capture of the same size.
+//!
+//! A capture that is only to be shown as a UI texture ([`Renderer::begin_view_capture_ui`]) skips the readback
+//! altogether: a compute pass in the same submission tints and masks the picture into the UI texture.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -14,7 +17,7 @@ use super::capture::{is_bgra, pack_rgba};
 use super::output::{HEADLESS_FORMAT, Output};
 use super::targets::{ScenePlan, SceneTargets};
 use crate::{FrameParams, Instance, RenderError};
-use blackbox_gfx::{CaptureId, RgbaImage};
+use blackbox_gfx::{CaptureId, RgbaImage, ViewCaptureUi};
 
 /// The readback is still being mapped.
 const WAITING: u8 = 0;
@@ -52,7 +55,9 @@ impl ViewCapture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -98,6 +103,44 @@ impl Renderer {
         if self.view_capture.as_ref().is_some_and(|capture| capture.pending.is_some()) {
             return Err(RenderError::Device("a view capture is still in flight".into()));
         }
+        self.draw_view_capture(size, frame, instances, None)
+    }
+
+    /// Draw a view capture at `size` and leave it, tinted and masked as `target` says, in the UI texture
+    /// `target.texture`: no readback, nothing to poll. A capture still in flight (a readback of another caller)
+    /// is not disturbed, and the texture keeps its picture.
+    pub(super) fn begin_view_capture_ui(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+        target: &ViewCaptureUi,
+    ) -> Result<(), RenderError> {
+        let [width, height] = size;
+        if width == 0 || height == 0 {
+            return Err(RenderError::Device(format!("cannot capture a {width}x{height} image")));
+        }
+        if !self.ui.has_texture_of_size(target.mask, (width, height)) {
+            return Err(RenderError::Device(format!(
+                "the mask {} is not a UI texture of {width}x{height}",
+                target.mask.raw()
+            )));
+        }
+        if self.view_capture.as_ref().is_some_and(|capture| capture.pending.is_some()) {
+            return Ok(());
+        }
+        self.draw_view_capture(size, frame, instances, Some(target)).map(|_| ())
+    }
+
+    /// The shared body: draws the frame and then either starts the readback or, with `ui`, composes the UI texture.
+    fn draw_view_capture(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+        ui: Option<&ViewCaptureUi>,
+    ) -> Result<CaptureId, RenderError> {
+        let [width, height] = size;
         // UI pictures have an RGBA8 SDR contract even when the main window uses float HDR.
         let mapping = self.post.display;
         if mapping.is_some() {
@@ -123,26 +166,45 @@ impl Renderer {
         self.begin_temporal(false, frame);
         let mut encoder =
             self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("view capture") });
-        self.instances.upload_instances(&self.device, &self.queue, instances);
+        // The scene pass uploads the instances; the frames before this one have been submitted.
+        self.draw_list.store.begin_frame();
         self.encode_scene_mode(&mut encoder, Some(&capture.scene), &capture.view, frame, instances, true, None);
         self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height));
-        encoder.copy_texture_to_buffer(
-            capture.texture.as_image_copy(),
-            wgpu::TexelCopyBufferInfo {
-                buffer: &capture.readback,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(capture.row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-        );
+        let composed = match ui {
+            Some(target) => self.ui.compose_picture(
+                &self.device,
+                &mut encoder,
+                &capture.view,
+                (width, height),
+                target.mask,
+                target.tint,
+                target.texture,
+            ),
+            None => {
+                encoder.copy_texture_to_buffer(
+                    capture.texture.as_image_copy(),
+                    wgpu::TexelCopyBufferInfo {
+                        buffer: &capture.readback,
+                        layout: wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(capture.row),
+                            rows_per_image: Some(height),
+                        },
+                    },
+                    wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                );
+                Ok(())
+            }
+        };
         self.queue.submit([encoder.finish()]);
         self.end_temporal();
         self.output = output;
         self.post.set_display(&self.device, mapping);
 
+        if ui.is_some() {
+            self.view_capture = Some(capture);
+            return composed.map(|()| CaptureId::from_raw(id)).map_err(|e| RenderError::Device(e.to_string()));
+        }
         let state = Arc::new(AtomicU8::new(WAITING));
         let on_map = Arc::clone(&state);
         capture.readback.slice(..).map_async(wgpu::MapMode::Read, move |result| {

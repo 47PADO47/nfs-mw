@@ -13,6 +13,8 @@ pub(crate) struct Targets {
     pub(crate) edges: wgpu::TextureView,
     /// Pass 2 output: the blend weights (RGBA8).
     pub(crate) blend: wgpu::TextureView,
+    /// Stencil mask: 1 where the edge pass found an edge, so the blend-weight pass can skip the other pixels.
+    pub(crate) stencil: wgpu::TextureView,
 }
 
 impl Targets {
@@ -31,6 +33,7 @@ impl Targets {
             color: target_view(device, "smaa.color_target", size, format),
             edges: target_view(device, "smaa.texture.edge_target", size, wgpu::TextureFormat::Rg8Unorm),
             blend: target_view(device, "smaa.texture.blend_target", size, wgpu::TextureFormat::Rgba8Unorm),
+            stencil: target_view(device, "smaa.texture.stencil_mask", size, wgpu::TextureFormat::Stencil8),
         }
     }
 }

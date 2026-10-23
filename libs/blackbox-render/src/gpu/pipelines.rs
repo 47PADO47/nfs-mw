@@ -3,8 +3,11 @@
 
 use std::collections::HashMap;
 
+use super::cull::{FACES, Face};
+use super::draw_list::{instance_store, instance_view};
 use super::glossy::Layouts;
 use super::instances::INSTANCE_LAYOUT;
+use super::parallel;
 use super::resources::{DEPTH_FORMAT, Shared};
 use super::targets::write_mask;
 use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
@@ -30,13 +33,19 @@ pub(super) struct Pipelines {
     glossy_layouts: Layouts,
     globals_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
-    /// Per target format and depth test (`(format, depth_prepared)`), indexed by `index(blend, shading)`. A format
-    /// gets its pipelines the first time a scene is drawn into it, and a glossy pipeline only once glossy shading
-    /// is in use. The depth-prepared set holds only the draws [`equal_depth`] allows; the rest use the plain set.
+    /// Per target format and depth test (`(format, depth_prepared)`), indexed by `index(blend, shading, face)`. A
+    /// format gets its pipelines the first time a scene is drawn into it, a glossy pipeline only once glossy shading
+    /// is in use, and the culling variants only once a single-sided draw exists. The depth-prepared set holds only
+    /// the draws [`equal_depth`] allows; the rest use the plain set.
     sets: HashMap<(wgpu::TextureFormat, bool), Vec<Option<wgpu::RenderPipeline>>>,
+    /// A mesh with a single-sided draw was created: the culling variants are built from then on.
+    culled: bool,
     format: wgpu::TextureFormat,
     /// Used by every pipeline built later, as the pipelines are created per format and draw state.
     cache: Option<wgpu::PipelineCache>,
+    /// The scene shader reads its instances from the instance store (bind group 3) through a slot per instance.
+    /// The glossy shader keeps reading matrices.
+    store: bool,
 }
 
 /// A shader module and the pipeline layout it is used with.
@@ -45,11 +54,14 @@ struct Module {
     layout: wgpu::PipelineLayout,
 }
 
-fn index(blend: BlendMode, shading: Shading) -> usize {
+fn index(blend: BlendMode, shading: Shading, face: Face) -> usize {
     let b = BLEND_ORDER.iter().position(|&m| m == blend).unwrap_or(0);
     let s = SHADINGS.iter().position(|&m| m.same_pipeline(shading)).unwrap_or(0);
-    b * SHADINGS.len() + s
+    (face.index() * BLEND_ORDER.len() + b) * SHADINGS.len() + s
 }
+
+/// Pipelines in one set: every blend mode and shading, for every face setting.
+const SET_LEN: usize = FACES.len() * BLEND_ORDER.len() * SHADINGS.len();
 
 /// Whether an opaque lit draw can test `Equal` against the camera prepass's depth. The prepass draws every opaque
 /// draw at the same clip position (`@invariant` in both shaders, the same model and view-projection), so a visible
@@ -80,25 +92,28 @@ impl Pipelines {
         shared: &Shared,
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
+        let store = instance_store::supported(device);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("scene shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
                     "{}\n{}\n{}",
-                    include_str!("../shaders/scene.wgsl"),
+                    instance_view::instance_source(include_str!("../shaders/scene.wgsl"), store.then_some(3)),
                     include_str!("../shaders/world_surface.wgsl"),
                     include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
                 )
                 .into(),
             ),
         });
+        let instances = store.then(|| instance_store::layout(device));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scene"),
             bind_group_layouts: &[
                 Some(&shared.bindings.globals_layout),
                 Some(&shared.bindings.texture_layout),
                 Some(&shared.glossy.material),
-            ],
+                instances.as_ref(),
+            ][..3 + usize::from(store)],
             immediate_size: 0,
         });
         let mut pipelines = Self {
@@ -108,35 +123,63 @@ impl Pipelines {
             globals_layout: shared.bindings.globals_layout.clone(),
             texture_layout: shared.bindings.texture_layout.clone(),
             sets: HashMap::new(),
+            culled: false,
             format,
             cache: cache.cloned(),
+            store,
         };
         pipelines.use_format(device, format, false);
         pipelines
     }
 
-    /// Draw into `format` from now on, building what is missing for it: its pipelines the first time,
-    /// and the glossy ones the first time `glossy` is set. Everything built stays for later switches.
+    /// Draw into `format` from now on, building what is missing for it: its pipelines the first time, the glossy
+    /// ones the first time `glossy` is set, and the culling variants once [`Self::enable_culling`] was called.
+    /// Everything built stays for later switches.
     pub(super) fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat, glossy: bool) {
         self.format = format;
         if glossy && self.glossy.is_none() {
             self.glossy = Some(self.glossy_module(device));
         }
+        let faces = match self.culled {
+            true => &FACES[..],
+            false => &FACES[..1],
+        };
         for prepared in [false, true] {
-            let mut set =
-                self.sets.remove(&(format, prepared)).unwrap_or_else(|| vec![None; BLEND_ORDER.len() * SHADINGS.len()]);
-            for (blend, shading) in BLEND_ORDER.iter().flat_map(|&b| SHADINGS.iter().map(move |&s| (b, s))) {
-                let slot = &mut set[index(blend, shading)];
+            self.sets.entry((format, prepared)).or_insert_with(|| vec![None; SET_LEN]);
+        }
+        let missing: Vec<(BlendMode, Shading, Face, bool)> = [false, true]
+            .into_iter()
+            .flat_map(|prepared| faces.iter().map(move |&f| (f, prepared)))
+            .flat_map(|(f, prepared)| {
+                BLEND_ORDER.iter().flat_map(move |&b| SHADINGS.iter().map(move |&s| (b, s, f, prepared)))
+            })
+            .filter(|&(blend, shading, face, prepared)| {
                 let wanted = match prepared {
                     true => equal_depth(blend, shading),
                     false => glossy || !matches!(shading, Shading::Glossy(_)),
                 };
-                if slot.is_none() && wanted {
-                    *slot = Some(self.make(device, format, blend, shading, prepared));
-                }
-            }
-            self.sets.insert((format, prepared), set);
+                wanted && self.sets[&(format, prepared)][index(blend, shading, face)].is_none()
+            })
+            .collect();
+        // The variants are independent, and a cold driver cache spends up to half a second on each: build them
+        // all at once.
+        let built = parallel::build(&missing, |&(blend, shading, face, prepared)| {
+            self.make(device, format, (blend, shading, face), prepared)
+        });
+        for ((blend, shading, face, prepared), pipeline) in missing.into_iter().zip(built) {
+            let Some(set) = self.sets.get_mut(&(format, prepared)) else { continue };
+            set[index(blend, shading, face)] = Some(pipeline);
         }
+    }
+
+    /// Build the culling variants from the next [`Self::use_format`] on: a single-sided draw exists.
+    pub(super) fn enable_culling(&mut self) {
+        self.culled = true;
+    }
+
+    /// Whether [`Self::enable_culling`] was called.
+    pub(super) fn culled(&self) -> bool {
+        self.culled
     }
 
     /// How many plain pipelines exist for `format` (the depth-prepared variants are not counted).
@@ -182,8 +225,7 @@ impl Pipelines {
         &self,
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
-        blend_mode: BlendMode,
-        shading: Shading,
+        (blend_mode, shading, face): (BlendMode, Shading, Face),
         prepared: bool,
     ) -> wgpu::RenderPipeline {
         let vertex_layout = wgpu::VertexBufferLayout {
@@ -198,8 +240,8 @@ impl Pipelines {
             BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
         };
         let label = match prepared {
-            true => format!("{blend_mode:?} {shading:?} {format:?} depth prepared"),
-            false => format!("{blend_mode:?} {shading:?} {format:?}"),
+            true => format!("{blend_mode:?} {shading:?} {face:?} {format:?} depth prepared"),
+            false => format!("{blend_mode:?} {shading:?} {face:?} {format:?}"),
         };
         // The prepass wrote this depth with the same clip position, so the draw keeps it: no write needed.
         let (depth_compare, depth_write) = match prepared {
@@ -221,9 +263,9 @@ impl Pipelines {
         ];
         // The glossy shader has its own module, layout and no overrides.
         let glossy = self.glossy.as_ref().filter(|_| matches!(shading, Shading::Glossy(_)));
-        let (module, constants): (_, &[(&str, f64)]) = match glossy {
-            Some(glossy) => (glossy, &[]),
-            None => (&self.scene, &constants),
+        let (module, constants, instances): (_, &[(&str, f64)], _) = match glossy {
+            Some(glossy) => (glossy, &[], INSTANCE_LAYOUT),
+            None => (&self.scene, &constants, instance_view::instance_layout(self.store)),
         };
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(&label),
@@ -232,12 +274,11 @@ impl Pipelines {
                 module: &module.shader,
                 entry_point: Some("vs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
-                buffers: &[Some(vertex_layout), Some(INSTANCE_LAYOUT)],
+                buffers: &[Some(vertex_layout), Some(instances)],
             },
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
-                // The games' culling per effect is not mapped yet; draw both sides.
-                cull_mode: None,
+                cull_mode: face.cull_mode(),
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -262,14 +303,27 @@ impl Pipelines {
 
     /// The pipeline for the current format, or `None` for glossy shading before it is in use. With
     /// `depth_prepared` (the camera prepass filled this pass's depth) an [`equal_depth`] draw takes its
-    /// depth-prepared variant; every other draw keeps the plain one.
+    /// depth-prepared variant; every other draw keeps the plain one. A culling `face` whose variant is not built
+    /// yet (before [`Self::enable_culling`]) takes the two-sided pipeline, which draws a superset.
     pub(super) fn get(
         &self,
         blend: BlendMode,
         shading: Shading,
         depth_prepared: bool,
+        face: Face,
     ) -> Option<&wgpu::RenderPipeline> {
-        let i = index(blend, shading);
+        self.get_face(blend, shading, depth_prepared, face)
+            .or_else(|| self.get_face(blend, shading, depth_prepared, Face::Both))
+    }
+
+    fn get_face(
+        &self,
+        blend: BlendMode,
+        shading: Shading,
+        depth_prepared: bool,
+        face: Face,
+    ) -> Option<&wgpu::RenderPipeline> {
+        let i = index(blend, shading, face);
         match depth_prepared {
             true => self.slot(true, i).or_else(|| self.slot(false, i)),
             false => self.slot(false, i),

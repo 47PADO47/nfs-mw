@@ -178,8 +178,8 @@ impl Runtime {
     fn reveal_on_set_script(&mut self, package: PackageId, index: usize, id: u32) {
         let Some(p) = self.running_mut(package) else { return };
         let Some(o) = p.objects.get_mut(index) else { return };
-        if o.scripts.iter().any(|s| s.id == id) {
-            o.hidden = false;
+        if o.scripts.iter().any(|s| s.id == id) && std::mem::replace(&mut o.hidden, false) {
+            p.touch();
         }
     }
 
@@ -280,9 +280,13 @@ impl Runtime {
                 self.queue(MSG_GAIN_FOCUS, Some(n), package, Target::Sound);
             }
         }
-        if let Some(p) = self.running_mut(package) {
-            p.current_button = index;
+        let Some(p) = self.running_mut(package) else { return };
+        if p.current_button == index {
+            return;
         }
+        p.current_button = index;
+        // The focus is part of what a tree shows (and what screens read from it): a cached tree is stale now.
+        p.touch();
     }
 }
 

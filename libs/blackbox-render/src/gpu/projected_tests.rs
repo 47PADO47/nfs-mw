@@ -59,6 +59,7 @@ fn quad(r: &mut Renderer, bounds: [f32; 4], rgba: [u8; 4], texture: TextureHandl
             texture: Some(texture),
             blend: BlendMode::Opaque,
             shading,
+            two_sided: true,
         }],
     })
 }

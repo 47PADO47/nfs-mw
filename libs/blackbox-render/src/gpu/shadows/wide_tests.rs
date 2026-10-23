@@ -10,6 +10,11 @@ use blackbox_gfx::{RenderBackend, RenderExperiments};
 use bytemuck::Zeroable;
 use glam::Mat4;
 
+/// Mirror of `interleaved_noise` in the receiver shader.
+fn interleaved_noise(x: f32, y: f32) -> f32 {
+    (52.982_92 * (0.067_110_56 * x + 0.005_837_15 * y).fract()).fract()
+}
+
 #[test]
 #[ignore = "needs a GPU"]
 fn mixed_resolution_maps_route_all_layers_and_blend_continuously() {
@@ -21,6 +26,7 @@ fn mixed_resolution_maps_route_all_layers_and_blend_continuously() {
         @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32>{{
             let p=vec2<f32>(f32((i<<1u)&2u),f32(i&2u));return vec4<f32>(p*2.0-1.0,0.5,1.0);}}
         @fragment fn fs(@builtin(position) p:vec4<f32>)->@location(0) vec4<f32>{{
+            shadow_pixel=p.xy;
             let point=vec3<f32>(0.0,0.0,0.5);let n=vec3<f32>(0.0,0.0,1.0);
             return vec4<f32>(cascade_sample(point,n,u32(p.x)).x,sun_sample(point,n).x,0.0,1.0);}}",
         include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "0")
@@ -103,11 +109,19 @@ fn mixed_resolution_maps_route_all_layers_and_blend_continuously() {
             r.queue.submit([encoder.finish()]);
             let pixels = r.read_raw_texture(&output, (4, 1), 4).unwrap();
             assert_eq!([pixels[0], pixels[4], pixels[8], pixels[12]], [0, 255, 0, 255], "map routing");
+            // Handoffs are dithered: one cascade per pixel, the next one where the blend weight beats
+            // the pixel's noise. The blended value is the green byte of the first pixel (column 0), whose
+            // noise is fixed.
             let t = ((depth - 32.5) / 17.5).clamp(0.0, 1.0);
-            let expected = (t * t * (3.0 - 2.0 * t) * 255.0).round() as u8;
-            assert!(pixels[1].abs_diff(expected) <= 1, "overlap depth {depth}: {pixels:?}");
+            let weight = t * t * (3.0 - 2.0 * t);
+            let pick = interleaved_noise(0.5 + 47.0, 0.5 + 13.0);
+            assert!(matches!(pixels[1], 0 | 255), "dithered handoff is binary: {pixels:?}");
+            if (weight - pick).abs() > 0.01 {
+                let next = depth >= 50.0 || weight > pick;
+                assert_eq!(pixels[1] == 255, next, "overlap depth {depth}: weight {weight}, noise {pick}");
+            }
             if let Some(before) = previous {
-                assert!(pixels[1].abs_diff(before) <= 6, "handoff discontinuity");
+                assert!(pixels[1] >= before, "a rising blend weight never flips back to the nearer cascade");
             }
             previous = Some(pixels[1]);
         }

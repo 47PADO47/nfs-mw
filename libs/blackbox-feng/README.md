@@ -16,7 +16,9 @@ of drawable nodes. **No rendering, no windowing, no Bevy, no wgpu:** a host draw
 - The host binds values by object name hash (`set_text`, `set_label`, `set_hidden`, `set_rotation_z`,
   `set_alpha`, `set_colour`, `set_texture`, `set_mask_rotation`, `run_script`), posts messages, takes the messages that leave
   (`take_outgoing`: to the game, to sound, package commands) and reads `Runtime::tree`: per node the kind,
-  resolved text, transform, accumulated colour, depth and the far-to-near `draw_order`.
+  resolved text, transform, accumulated colour, depth and the far-to-near `draw_order`. `Runtime::revision` counts the
+  changes to what the tree reads (a setter given the value an object already holds does not count), so a host that
+  draws every frame rebuilds only when it moved, with `tree_into` reusing the buffers of the last tree.
 - **Input:** the host sets the pad mask each frame (`set_pad_mask`, bits in `runtime::pad`) and the engine turns it
   into the messages a package expects (`BUTTON_PRESSED` for accept, `PAD_*` with the original repeat times,
   released and held messages) and moves the focus between buttons by geometry (`ids` has the message ids,

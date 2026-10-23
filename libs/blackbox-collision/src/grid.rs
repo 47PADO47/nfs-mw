@@ -165,7 +165,7 @@ impl Grid {
     }
 
     /// Slab test of the segment against the cell square (xz).
-    fn segment_touches(&self, a: Vec3, b: Vec3, row: u32, col: u32) -> bool {
+    pub(crate) fn segment_touches(&self, a: Vec3, b: Vec3, row: u32, col: u32) -> bool {
         let lo = [self.min[0] + col as f32 * self.edge, self.min[2] + row as f32 * self.edge];
         let hi = [lo[0] + self.edge, lo[1] + self.edge];
         let (mut t0, mut t1) = (0.0f32, 1.0f32);

@@ -73,11 +73,16 @@ The root `Cargo.toml` defines these profiles. Pick by what you are measuring.
 
 | Profile | Command | Use it for |
 |---|---|---|
-| `release` | `cargo build --release -p nfsmw` | Everyday timing. |
+| `release` | `cargo build --release -p nfsmw` | Everyday timing. Thin LTO, one codegen unit. |
 | `profiling` | `cargo build --profile profiling -p nfsmw` | Profiling. Same codegen as `release` plus line tables, so Tracy, VTune, Superluminal and `perf` show function and line names. Output: `target/profiling/`. |
 | `dist` | `cargo build --profile dist -p nfsmw` | Shipped builds. Fat LTO, one codegen unit. Much slower to build; use it for releases, not iteration. Output: `target/dist/`. |
 
 `profiling` adds debug info only, so its timings match `release`. Compare numbers across the same profile.
+
+Dev builds (`cargo run`) optimise the crates that decode, simulate or record a frame at level 3 with LLVM
+(`[profile.dev.package.<crate>]` in `Cargo.toml` and `.cargo/config.toml`); the rest of our crates build at level 1 with
+Cranelift. A dev build is still slower than `release`, so never judge performance on one: the trace's context file
+says which profile it came from (`debug_assertions`).
 
 ## Allocator: `mimalloc` feature
 

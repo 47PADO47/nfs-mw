@@ -73,6 +73,7 @@ fn capture(
             texture: Some(texture),
             blend,
             shading,
+            two_sided: true,
         }],
     });
     let instances = [Instance::new(mesh, Mat4::IDENTITY)];

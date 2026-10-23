@@ -227,6 +227,7 @@ fn render_surface(
             texture: Some(diffuse),
             blend,
             shading,
+            two_sided: true,
         }],
     });
     let (view, projection) = match perspective {

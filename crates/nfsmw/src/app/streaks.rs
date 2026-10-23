@@ -26,16 +26,23 @@ fn seed(i: usize) -> f32 {
     (x.sin() * 43_758.547).fract().abs()
 }
 
-/// The streak mesh for a window of `size` points, at `strength` (0 to 1) and `time` seconds. `None` when there is
-/// nothing to draw.
-pub fn mesh(size: [f32; 2], strength: f32, time: f32) -> Option<UiMesh> {
+/// A mesh with nothing in it, the texture and the clip set; [`fill`] makes it the streaks.
+fn empty_mesh() -> UiMesh {
+    UiMesh { vertices: Vec::new(), indices: Vec::new(), texture: TEXTURE, clip: [0.0; 4] }
+}
+
+/// Rebuilds `mesh` as the streaks for a window of `size` points, at `strength` (0 to 1) and `time` seconds, reusing
+/// its allocations. Returns `false`, with the mesh left as it was, when there is nothing to draw.
+fn fill(mesh: &mut UiMesh, size: [f32; 2], strength: f32, time: f32) -> bool {
     if !(strength > 0.0 && strength.is_finite()) {
-        return None;
+        return false;
     }
     let centre = [size[0] * 0.5, size[1] * 0.5];
     let reach = size[0].hypot(size[1]) * 0.5;
-    let mut vertices = Vec::with_capacity(STREAKS * 4);
-    let mut indices = Vec::with_capacity(STREAKS * 6);
+    mesh.vertices.clear();
+    mesh.indices.clear();
+    mesh.vertices.reserve(STREAKS * 4);
+    mesh.indices.reserve(STREAKS * 6);
     for i in 0..STREAKS {
         let s = seed(i);
         let angle = (i as f32 + s) * GOLDEN;
@@ -46,29 +53,44 @@ pub fn mesh(size: [f32; 2], strength: f32, time: f32) -> Option<UiMesh> {
         let outer = inner + reach * (0.08 + 0.12 * s);
         let alpha = (strength * (0.3 + 0.7 * s) * phase.min(1.0 - phase) * 2.0 * 255.0).clamp(0.0, 255.0) as u8;
         let at = |r: f32, o: f32| [centre[0] + dir[0] * r + o * side[0], centre[1] + dir[1] * r + o * side[1]];
-        let base = vertices.len() as u32;
+        let base = mesh.vertices.len() as u32;
         for position in [at(inner, 1.0), at(inner, -1.0), at(outer, -1.0), at(outer, 1.0)] {
             let colour = [alpha, alpha, alpha, alpha];
-            vertices.push(UiVertex { position, uv: [0.5, 0.5], color_rgba: colour });
+            mesh.vertices.push(UiVertex { position, uv: [0.5, 0.5], color_rgba: colour });
         }
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
-    Some(UiMesh { vertices, indices, texture: TEXTURE, clip: [0.0, 0.0, size[0], size[1]] })
+    mesh.texture = TEXTURE;
+    mesh.clip = [0.0, 0.0, size[0], size[1]];
+    true
 }
 
-/// The HUD layer with the streak mesh drawn over it.
-pub fn compose(base: &UiLayer, streaks: UiMesh) -> UiLayer {
-    let mut meshes = Vec::with_capacity(base.meshes.len() + 1);
-    meshes.extend_from_slice(&base.meshes);
-    meshes.push(streaks);
-    UiLayer { compositions: base.compositions.clone(), pixels_per_point: base.pixels_per_point, meshes }
+/// The streak mesh for a window of `size` points, at `strength` (0 to 1) and `time` seconds. `None` when there is
+/// nothing to draw.
+#[cfg(test)]
+fn mesh(size: [f32; 2], strength: f32, time: f32) -> Option<UiMesh> {
+    let mut mesh = empty_mesh();
+    fill(&mut mesh, size, strength, time).then_some(mesh)
+}
+
+/// Makes `composed` the HUD layer `base` with `streaks` drawn over it, reusing the allocations `composed` and the
+/// layer it held last frame already have. Take the streak mesh back with `composed.meshes.pop()` to reuse it too.
+fn compose_into(composed: &mut UiLayer, base: &UiLayer, streaks: UiMesh) {
+    composed.assign_meshes(base);
+    composed.compositions.clone_from(&base.compositions);
+    composed.meshes.push(streaks);
 }
 
 /// Holds the streaks' texture and whether the last frame drew them, so the HUD layer is restored when they stop.
+/// Also the buffers the streak layer is rebuilt in each frame, so a frame with streaks allocates nothing.
 #[derive(Default)]
 pub struct StreakOverlay {
     uploaded: bool,
     drawn: bool,
+    /// The layer sent while streaks show: the HUD layer's meshes, then the streaks.
+    composed: UiLayer,
+    /// The streak mesh between frames.
+    spare: Option<UiMesh>,
 }
 
 impl StreakOverlay {
@@ -86,18 +108,19 @@ impl StreakOverlay {
             self.uploaded = true;
         }
         let Some(base) = base else { return };
-        let streaks = mesh(size, strength, time);
-        match (streaks, self.drawn) {
-            (Some(streaks), _) => {
-                renderer.set_ui_layer(compose(base, streaks));
-                self.drawn = true;
-            }
-            (None, true) => {
-                renderer.set_ui_layer(base.clone());
+        let mut streaks = self.spare.take().unwrap_or_else(empty_mesh);
+        if !fill(&mut streaks, size, strength, time) {
+            self.spare = Some(streaks);
+            if self.drawn {
+                renderer.set_ui_layer_ref(base);
                 self.drawn = false;
             }
-            (None, false) => {}
+            return;
         }
+        compose_into(&mut self.composed, base, streaks);
+        renderer.set_ui_layer_ref(&self.composed);
+        self.spare = self.composed.meshes.pop();
+        self.drawn = true;
     }
 }
 
@@ -140,6 +163,48 @@ mod tests {
             (v[0] - centre[0]).hypot(v[1] - centre[1])
         };
         assert!((radius(&early) - radius(&later)).abs() > 1.0, "the first streak moved");
+    }
+
+    #[test]
+    fn filling_again_gives_the_same_mesh_as_a_fresh_one() {
+        let mut reused = mesh(SIZE, 1.0, 0.3).expect("drawn");
+        assert!(fill(&mut reused, SIZE, 0.5, 0.7));
+        assert_eq!(Some(reused), mesh(SIZE, 0.5, 0.7));
+    }
+
+    #[test]
+    fn nothing_to_draw_leaves_the_mesh_alone() {
+        let mut kept = mesh(SIZE, 1.0, 0.3).expect("drawn");
+        let before = kept.clone();
+        assert!(!fill(&mut kept, SIZE, 0.0, 0.7));
+        assert_eq!(kept, before);
+    }
+
+    #[test]
+    fn the_streaks_go_on_top_of_the_hud_layer_frame_after_frame() {
+        let hud = |x: f32, quads: usize| UiLayer {
+            pixels_per_point: 2.0,
+            meshes: (0..quads)
+                .map(|i| UiMesh {
+                    vertices: vec![UiVertex { position: [x, i as f32], uv: [0.0; 2], color_rgba: [9; 4] }; 4],
+                    indices: vec![0, 1, 2, 0, 2, 3],
+                    texture: UiTextureId(i as u64),
+                    clip: [0.0, 0.0, 10.0, 10.0],
+                })
+                .collect(),
+            compositions: Vec::new(),
+        };
+        let mut composed = UiLayer::default();
+        // A big HUD, then a smaller one, then a bigger: the layer always ends up as base plus streaks.
+        for (x, quads) in [(1.0, 3), (2.0, 1), (3.0, 4)] {
+            let base = hud(x, quads);
+            compose_into(&mut composed, &base, mesh(SIZE, 1.0, 0.3).expect("drawn"));
+            assert_eq!(composed.pixels_per_point, 2.0);
+            assert_eq!(composed.meshes.len(), quads + 1);
+            assert_eq!(composed.meshes[..quads], base.meshes[..]);
+            assert_eq!(composed.meshes[quads], mesh(SIZE, 1.0, 0.3).expect("drawn"));
+            composed.meshes.pop();
+        }
     }
 
     #[test]

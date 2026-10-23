@@ -67,7 +67,8 @@ fn check(backend: wgpu::Backends) {
     assert!(!chain.set_effects(&device, PostSettings::default()), "the defaults add nothing");
     assert!(chain.names().is_empty());
 
-    // Every effect: three render-size passes need both ping-pong images.
+    // Every effect: the tone map folds into the bloom composite, so two render-size passes run (bloom, then FXAA
+    // into the output) and one ping-pong image is enough.
     let all = PostSettings {
         tonemap: Tonemap::Aces,
         bloom_intensity: 0.5,
@@ -77,7 +78,7 @@ fn check(backend: wgpu::Backends) {
     assert!(chain.set_effects(&device, all));
     assert!(chain.has_passes());
     run(&device, &queue, &mut chain, size);
-    assert_eq!(chain.scratch_count(), 2);
+    assert_eq!(chain.scratch_count(), 1);
 
     // One effect writes the output directly, so the images of the removed passes are freed on the next frame.
     let fxaa = PostSettings { antialiasing: Antialiasing::Fxaa, ..PostSettings::default() };

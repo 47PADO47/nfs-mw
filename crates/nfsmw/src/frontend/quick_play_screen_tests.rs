@@ -74,6 +74,7 @@ fn stage() -> u8 {
 
 #[test]
 fn the_brief_fills_every_object_it_owns() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((h, cars, _)) = open() else { return };
     let folder = shown_folder(&h);
     let car = cars.cars.iter().find(|c| c.folder == folder).expect("the shown car is in the pool");
@@ -120,6 +121,7 @@ fn the_brief_fills_every_object_it_owns() {
 
 #[test]
 fn the_option_column_and_the_comparison_ticks_stay_hidden() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((h, _, _)) = open() else { return };
     for guid in fill::OPTION_COLUMN.into_iter().chain(fill::DELTA_TICKS) {
         assert!(!node(&h, guid).visible, "{guid:#x} should be hidden");
@@ -128,6 +130,7 @@ fn the_option_column_and_the_comparison_ticks_stay_hidden() {
 
 #[test]
 fn the_backdrop_look_is_the_car_the_brief_picked() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((h, cars, _)) = open() else { return };
     let folder = shown_folder(&h);
     assert!(cars.cars.iter().any(|c| c.folder == folder));
@@ -136,6 +139,7 @@ fn the_backdrop_look_is_the_car_the_brief_picked() {
 
 #[test]
 fn randomize_picks_another_pair_and_the_screen_follows() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((mut h, _, _)) = open() else { return };
     let before = (shown_folder(&h), node_text(&h, fill::TRACK_NAME), node_text(&h, fill::LENGTH));
     h.press(RANDOMIZE_KEY);
@@ -146,6 +150,7 @@ fn randomize_picks_another_pair_and_the_screen_follows() {
 
 #[test]
 fn accept_starts_the_pick_after_the_leave_script() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((mut h, _, board)) = open() else { return };
     let folder = shown_folder(&h);
     h.press(pad::ACCEPT);
@@ -161,6 +166,7 @@ fn accept_starts_the_pick_after_the_leave_script() {
 
 #[test]
 fn back_returns_to_the_quick_race_menu() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some((mut h, _, _)) = open() else { return };
     h.press(pad::BACK);
     h.wait(1.5);
@@ -171,6 +177,7 @@ fn back_returns_to_the_quick_race_menu() {
 
 #[test]
 fn the_footer_names_back_accept_and_randomize() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     use crate::input::{Bindings, InputDevice};
     let Some((h, _, _)) = open() else { return };
     let tree = h.screens.presented_trees(&Bindings::default(), InputDevice::Keyboard).pop().unwrap();
@@ -183,6 +190,7 @@ fn the_footer_names_back_accept_and_randomize() {
 
 #[test]
 fn the_labels_and_textures_the_brief_names_are_in_the_install() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(dir) = install() else { return };
     let assets = UiAssets::load(&dir).unwrap();
     let label = |hash: u32| Text::Game(hash).resolve(&assets);
@@ -218,6 +226,7 @@ fn the_labels_and_textures_the_brief_names_are_in_the_install() {
 
 #[test]
 fn the_pool_has_cars_with_folders_logos_and_stats_and_races_with_names() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(dir) = install() else { return };
     let assets = UiAssets::load(&dir).unwrap();
     let (cars, board) = sources(&dir);
@@ -263,6 +272,7 @@ fn the_pool_has_cars_with_folders_logos_and_stats_and_races_with_names() {
 
 #[test]
 fn a_click_on_each_footer_word_presses_its_action() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     use crate::input::{Action, Bindings, InputDevice};
     let Some((h, _, _)) = open() else { return };
     let (bindings, device) = (Bindings::default(), InputDevice::Keyboard);

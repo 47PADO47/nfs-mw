@@ -24,6 +24,11 @@ impl Renderer {
         self.ui.set_layer(layer);
     }
 
+    /// [`Self::set_ui_layer`] from a borrowed layer: the renderer's copy is updated in place, and only when it differs.
+    pub fn set_ui_layer_ref(&mut self, layer: &UiLayer) {
+        self.ui.set_layer_ref(layer);
+    }
+
     /// Draw the UI layer into `target`, which is `size` pixels in the output format, on top of what is
     /// already there.
     pub(super) fn encode_ui(

@@ -197,6 +197,7 @@ fn authored_surface_and_treatment_keep_highlights_only_in_hdr() {
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::World,
+            two_sided: true,
         }],
     });
     let instances = [Instance::new(mesh, Mat4::IDENTITY)];

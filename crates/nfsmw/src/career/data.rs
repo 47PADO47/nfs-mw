@@ -10,6 +10,8 @@
 //!
 //! Entries that do not convert are skipped, with no log line. The skips are listed on each conversion.
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use blackbox_attrib::{Database, vlt_hash};
 use blackbox_vehicle::performance::measure_with_integration;
@@ -19,12 +21,17 @@ use nfsmw_career::carlot::stats::{CarStats, SPEED_100_MPH, time_to_speed};
 use nfsmw_career::carlot::{LotCar, LotClass};
 use nfsmw_career::milestones::speedtrap::{self, SpeedTrapDef};
 use nfsmw_career::milestones::{MilestoneDef, StatType};
-use nfsmw_data::car::physics::PhysicsData;
+use nfsmw_data::car::physics::{PhysicsData, measured};
 use nfsmw_data::career_cars::{self, CarClass, CatalogueCar};
 use nfsmw_data::gameplay::{self, GameplayData};
 use nfsmw_data::pursuit::{self, CareerHeat};
 use nfsmw_data::rank_thresholds::{self, RankThresholds};
-use nfsmw_data::{read_unwrapped, shared};
+use nfsmw_data::{memo, read_unwrapped, shared};
+
+/// The files the career tables are built from: the gameplay collections, the attribute database, the front end's
+/// attributes (car lot, rap sheet) and, for the car lot's stats, the car bounds.
+const CAREER_FILES: [&str; 4] =
+    [gameplay::GAMEPLAY_FILE, shared::ATTRIBUTES_FILE, career_cars::FE_ATTRIB_FILE, shared::GLOBALB_FILE];
 
 /// The Blacklist bins the rules take: bins 1 to 15, exactly as `Blacklist::new` needs them.
 const FIRST_BIN: u8 = 1;
@@ -58,6 +65,7 @@ impl CareerData {
     /// Gameplay comes from `GLOBAL/gameplay.bin`. The car lot, the heat and the rap sheet read `GLOBAL/FE_ATTRIB.bin`
     /// and `pursuitlevels` from the attribute database. The attribute database is parsed once per session (shared).
     pub fn load(dir: &GameDir) -> Result<CareerData> {
+        let _trace = blackbox_trace::scope("Career: read the career tables");
         let gameplay = gameplay::load(dir)?;
         let attributes = shared::attributes(dir)?;
         let frontend = frontend_database(dir, &attributes)?;
@@ -67,6 +75,13 @@ impl CareerData {
         let mut data = CareerData::from_parts(gameplay, &cars, heat, ranks);
         data.stats = lot_stats(dir, &data.cars);
         Ok(data)
+    }
+
+    /// The career tables of the install, read once per session: the same `Arc` while the files they come from are
+    /// unchanged (see `nfsmw_data::memo`). Reading them takes seconds (the car lot's stats), so the screens that need
+    /// them take this and not [`CareerData::load`].
+    pub fn cached(dir: &GameDir) -> Result<Arc<CareerData>> {
+        memo(dir, &CAREER_FILES, || CareerData::load(dir))
     }
 
     /// Build the tables from data already read. Pure: no install is touched, so tests can pass synthetic inputs.
@@ -90,17 +105,42 @@ impl CareerData {
 ///
 /// Each car is at stock (no upgrades): `PhysicsData::car` is the stock spec, not `car_with_performance`. **[unconfirmed]**
 /// the lot car's `name` is taken as the physics type name (the `pvehicle` collection of the same name).
+///
+/// The cars are measured on several threads (each measurement drives the car flat out, about a hundred milliseconds), in
+/// parts of the lot that are joined in order, so the result is the lot's order as before.
 fn lot_stats(dir: &GameDir, cars: &[LotCar]) -> Vec<Option<CarStats>> {
     let Ok(physics) = PhysicsData::load(dir) else { return vec![None; cars.len()] };
-    cars.iter().map(|car| car_stats(&physics, &car.name)).collect()
+    let physics = &physics;
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(cars.len()).max(1);
+    let parts: Vec<&[LotCar]> = cars.chunks(cars.len().div_ceil(threads).max(1)).collect();
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = parts
+            .iter()
+            .map(|part| {
+                let part = *part;
+                scope.spawn(move || part.iter().map(|car| car_stats(dir, physics, &car.name)).collect::<Vec<_>>())
+            })
+            .collect();
+        // A part whose thread panicked has no stats, as a car whose physics cannot be read.
+        parts
+            .iter()
+            .zip(workers)
+            .flat_map(|(part, worker)| worker.join().unwrap_or_else(|_| vec![None; part.len()]))
+            .collect()
+    })
 }
 
 /// One car's stats from the repo's estimator. **[unconfirmed]** the estimator (`blackbox_vehicle::performance`) is the
 /// repo's own measurement, not the game's simulation: top speed is its top speed, time to 100 mph is integrated from its
 /// acceleration table, and handling is its start grip. `None` when the car's physics cannot be read.
-pub fn car_stats(physics: &PhysicsData, name: &str) -> Option<CarStats> {
-    let car = physics.car(name).ok()?;
-    let performance = measure_with_integration(&car.spec, car.tire_integration);
+///
+/// The measurement is kept for the session, by car name (`measured::performance`): Quick Play's pool and the car lot ask
+/// for the same cars.
+pub fn car_stats(dir: &GameDir, physics: &PhysicsData, name: &str) -> Option<CarStats> {
+    let performance = measured::performance(dir, name, || {
+        let car = physics.car(name).ok()?;
+        Some(measure_with_integration(&car.spec, car.tire_integration))
+    })?;
     let time_to_100 = time_to_speed(SPEED_100_MPH, performance.top_speed, |speed| performance.acceleration_at(speed));
     Some(CarStats { top_speed: performance.top_speed, handling: performance.start_grip, time_to_100 })
 }

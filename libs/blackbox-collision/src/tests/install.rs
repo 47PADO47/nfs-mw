@@ -9,14 +9,14 @@ use crate::{
     BoundsSet, CollisionPack, CollisionWorld, Grid, HitKind, RayOptions, Shape, read_bounds_sets, read_collision_packs,
 };
 
-fn game_file(path: &str) -> Option<Vec<u8>> {
+pub(super) fn game_file(path: &str) -> Option<Vec<u8>> {
     let dir = std::env::var_os("NFSMW_GAME_DIR")?;
     let path = std::path::Path::new(&dir).join(path);
     let raw = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     Some(ea_compress::unwrap(&raw).unwrap_or_else(|e| panic!("{}: {e}", path.display())).into_owned())
 }
 
-fn packs() -> Option<Vec<CollisionPack>> {
+pub(super) fn packs() -> Option<Vec<CollisionPack>> {
     Some(read_collision_packs(&game_file("TRACKS/STREAML2RA.BUN")?).expect("collision packs"))
 }
 

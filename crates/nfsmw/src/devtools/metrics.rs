@@ -6,7 +6,7 @@ mod work;
 use std::collections::VecDeque;
 use std::fmt;
 use std::str::FromStr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bevy_ecs::prelude::*;
 use bevy_time::{Real, Time};
@@ -58,6 +58,8 @@ impl FromStr for ShowMetrics {
 pub const HISTORY: usize = 240;
 /// Frames averaged for the headline numbers.
 const AVERAGE_OVER: usize = 60;
+/// The longest the overlay's scene status line goes without being rebuilt: four times a second.
+const STATUS_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct Metrics {
@@ -79,6 +81,8 @@ pub struct Metrics {
     rates: rates::Rates,
     clock: Option<Instant>,
     last_collect: Option<Instant>,
+    /// When `status` was last rebuilt (see [`Metrics::refresh_status`]).
+    status_at: Option<Instant>,
     last_render: u64,
     last_gpu_sample: u64,
     gpu_updated: Option<Instant>,
@@ -156,6 +160,21 @@ impl Metrics {
         };
     }
 
+    /// Refreshes the scene's status line, which only the Advanced overlay draws: not at all at other levels, and at most
+    /// [`STATUS_INTERVAL`] apart at Advanced, since the scene builds it by walking its tiles and props.
+    fn refresh_status(&mut self, level: ShowMetrics, now: Instant, status: impl FnOnce() -> Option<String>) {
+        if level != ShowMetrics::Advanced {
+            self.status.clear();
+            self.status_at = None;
+            return;
+        }
+        if self.status_at.is_some_and(|at| now.duration_since(at) < STATUS_INTERVAL) {
+            return;
+        }
+        self.status_at = Some(now);
+        self.status = status().unwrap_or_default();
+    }
+
     /// The frame rate of the slowest 1% of the recorded frames (at least one frame).
     pub fn low_1pct_fps(&self) -> f32 {
         if self.frame_ms.is_empty() {
@@ -210,7 +229,7 @@ pub fn collect(
     if metrics.adapter.is_empty() {
         metrics.adapter = renderer.info().summary();
     }
-    metrics.status = host.scene.status().unwrap_or_default();
+    metrics.refresh_status(settings.show_metrics, now, || host.scene.status());
     metrics.hud = match settings.show_readout {
         ShowReadout::Off => String::new(),
         level => host.scene.readout(level).unwrap_or_default(),
@@ -253,6 +272,27 @@ mod tests {
         assert!((m.low_1pct_fps() - 1000.0 / 55.0).abs() < 0.1);
         assert!(m.fps() > 90.0);
         assert!((m.worst_ms() - 100.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn the_status_is_built_only_for_the_advanced_overlay_and_at_most_four_times_a_second() {
+        let mut m = Metrics::default();
+        let start = Instant::now();
+        let built = std::cell::Cell::new(0);
+        let build = || {
+            built.set(built.get() + 1);
+            Some(format!("built {}", built.get()))
+        };
+        m.refresh_status(ShowMetrics::Basic, start, build);
+        assert_eq!(built.get(), 0, "not built below Advanced");
+        m.refresh_status(ShowMetrics::Advanced, start, build);
+        m.refresh_status(ShowMetrics::Advanced, start + Duration::from_millis(100), build);
+        assert_eq!(built.get(), 1, "built once within the interval");
+        assert_eq!(m.status, "built 1");
+        m.refresh_status(ShowMetrics::Advanced, start + Duration::from_millis(300), build);
+        assert_eq!(built.get(), 2, "built again after the interval");
+        m.refresh_status(ShowMetrics::Off, start + Duration::from_millis(400), build);
+        assert!(m.status.is_empty(), "cleared when the overlay is not advanced");
     }
 
     #[test]

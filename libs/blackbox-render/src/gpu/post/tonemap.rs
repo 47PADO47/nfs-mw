@@ -33,6 +33,10 @@ impl PostPass for TonemapPass {
         "tonemap"
     }
 
+    fn tonemap_exposure(&self) -> Option<f32> {
+        Some(self.params.a[0])
+    }
+
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         self.filter.set_params(ctx.queue, &self.params);
         let draw = Draw {

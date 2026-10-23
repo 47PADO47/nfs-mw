@@ -75,6 +75,7 @@ pub fn load_in_background(dir: &GameDir) {
 
 /// Reads the cars on this thread and keeps them for [`cars`].
 pub fn load_now(dir: &GameDir) -> Arc<CarPool> {
+    let _trace = blackbox_trace::scope("Quick Play: load the car pool now");
     if let Some(pool) = CARS.get() {
         return pool.clone();
     }
@@ -103,14 +104,14 @@ impl CarPool {
         let physics = PhysicsData::load(dir).ok();
         let cars = cars_of(&catalogue, &folders, |folder| {
             let physics = physics.as_ref()?;
-            crate::career::car_stats(physics, &folder.to_ascii_lowercase())
+            crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
         let cars = drivable(cars, physics.is_some());
         let population = cars.iter().filter_map(|car| car.stats).collect();
         let rides = nfsmw_data::car::CarTables::load(dir).map(|tables| tables.presets.clone()).unwrap_or_default();
         let presets = presets_of(&catalogue, &folders, &rides, |folder| {
             let physics = physics.as_ref()?;
-            crate::career::car_stats(physics, &folder.to_ascii_lowercase())
+            crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
         Ok(CarPool { cars, population, presets })
     }

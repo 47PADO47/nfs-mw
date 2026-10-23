@@ -114,6 +114,9 @@ impl RunOptions {
     }
 }
 
+/// The size a `--bench-seconds` run draws at when `--screenshot-size` does not say.
+const BENCH_SIZE: [u32; 2] = [1920, 1080];
+
 /// Open a window and run `scene` until the user quits (or write the screenshot and exit).
 pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> Result<()> {
     let RunOptions {
@@ -139,8 +142,15 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         .map(|path| screenshot::Plan::new(path, screenshot_delay, screenshot_count, screenshot_interval));
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
     let mut window = Window { title: scene.title(), ..Window::default() };
-    if screenshot.is_some() || offscreen {
-        let [w, h] = screenshot_size.unwrap_or([screenshot::SIZE.0, screenshot::SIZE.1]);
+    // Screenshots, `--offscreen` and benchmarks run in a hidden window off the desktop: they never take the focus, and
+    // a benchmark measures a fixed size (`--screenshot-size`, else 1920x1080) instead of whatever the monitor is.
+    let hidden = screenshot.is_some() || offscreen || bench_seconds.is_some();
+    if hidden {
+        let default = match screenshot.is_none() && bench_seconds.is_some() {
+            true => BENCH_SIZE,
+            false => [screenshot::SIZE.0, screenshot::SIZE.1],
+        };
+        let [w, h] = screenshot_size.unwrap_or(default);
         window.visible = false;
         window.focused = false;
         window.position = bevy_window::WindowPosition::At([-32768, -32768].into());
@@ -168,7 +178,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     ))
     .insert_resource(*settings)
     .insert_resource(render::ActiveRenderer(renderer))
-    .insert_resource(window::WindowModes::new(screenshot.is_some()))
+    .insert_resource(window::WindowModes::new(hidden))
     .insert_resource(Bindings::load(settings))
     .insert_resource(error.clone())
     // The theme registry (`ui/theme`). The HUD and menu presenters resolve their slots through it (`ui/theme/compose.rs`).

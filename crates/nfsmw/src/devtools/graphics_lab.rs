@@ -249,6 +249,13 @@ pub fn show_world(
     }
 }
 
+/// The lighting options clamped into range, when `settings` holds some that are not. [`show`] puts them in range every
+/// UI pass, open or not; the UI pass that is skipped does it through this.
+pub(super) fn out_of_range_lighting(settings: &Settings) -> Option<RenderExperiments> {
+    let clean = settings.appearance.lighting.sanitized();
+    (clean != settings.appearance.lighting).then_some(clean)
+}
+
 pub fn show(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut Settings, metrics: &super::metrics::Metrics) {
     lab.options = settings.appearance.lighting;
     let old_shadow = lab.options.sun_shadows;

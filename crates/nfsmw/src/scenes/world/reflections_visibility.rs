@@ -1,4 +1,4 @@
-//! Choose all six current reflection views in one scenery traversal.
+//! Choose the current reflection views of the faces being drawn in one scenery traversal.
 use blackbox_gfx::Instance;
 use blackbox_scene::Frustum;
 use blackbox_scenery::{LodView, layout::LodRules};
@@ -13,13 +13,16 @@ pub(super) struct Scratch {
 }
 
 /// The caller applies origin-distance and authored-overlay rules once before
-/// this traversal. Each face still chooses its own LOD and frustum membership.
+/// this traversal. Each face still chooses its own LOD and frustum membership. Only the faces in the `drawn` mask are
+/// selected and replaced; the others keep their lists.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn collect<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     cameras: &[visibility::Camera; 6],
     rules: &LodRules,
     props: &PropWorld,
     height: f32,
+    drawn: u8,
     faces: &mut [Vec<Instance>; 6],
     scratch: &mut Scratch,
 ) {
@@ -30,8 +33,11 @@ pub(super) fn collect<'a>(
         forward: c.forward,
         pixel_scale: LodView::pixel_scale_for(c.fov_y_radians, height),
     });
-    for face in faces.iter_mut() {
-        face.clear();
+    let drawn = |face: usize| (drawn >> face) & 1 != 0;
+    for (index, face) in faces.iter_mut().enumerate() {
+        if drawn(index) {
+            face.clear();
+        }
     }
     for p in placed {
         // Reflection views have always omitted inactive scenery groups.
@@ -42,7 +48,7 @@ pub(super) fn collect<'a>(
         let position = transform.w_axis.truncate().to_array();
         let slots = p.lods.map(|mesh| mesh.is_some());
         let selected: [Option<usize>; 6] = std::array::from_fn(|face| {
-            if !frustums[face].intersects(&bounds) {
+            if !drawn(face) || !frustums[face].intersects(&bounds) {
                 return None;
             }
             rules.choose(&views[face], position, p.radius, p.flags, slots, p.detailed)
@@ -60,7 +66,7 @@ pub(super) fn collect<'a>(
                 continue;
             }
             if let Some(mesh) = p.lods[slot] {
-                face.push(Instance::keyed(mesh, transform, p.key));
+                face.push(Instance::keyed(mesh, transform, p.key).with_flipped_winding(p.flip_winding()));
             }
         }
     }

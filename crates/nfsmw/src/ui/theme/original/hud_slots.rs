@@ -17,15 +17,16 @@
 //! `PoliceRadar` slot, with its laser; the heat arcs belong to the minimap. They are not lost. [`emit_unclaimed`] appends
 //! every node of the HUD package that no HUD slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
 
-use std::collections::HashMap;
-
-use blackbox_ui::{DrawList, UiTree};
+use blackbox_ui::DrawList;
+#[cfg(test)]
+use blackbox_ui::UiTree;
 
 use crate::hud::roots;
 use crate::ui::theme::ElementId;
 
 use super::frame::{FengSource, FrameCell};
-use super::subtree::{FengSubtree, Scope, keep_flags};
+use super::structure::NONE;
+use super::subtree::{FengSubtree, Scope};
 
 /// The slots that read the HUD package, in catalogue order. The composer builds them in this order.
 pub(crate) const HUD_SLOTS: [ElementId; 10] = [
@@ -70,12 +71,14 @@ pub(super) fn adapter(frame: &FrameCell, slot: ElementId) -> Option<FengSubtree>
 
 /// How many HUD slot scopes take each node of `tree`, by position. Each count is 0 or 1 when the slots are disjoint
 /// (`hud_slots` module docs); a count of 0 is a node no slot takes.
+#[cfg(test)]
 pub(crate) fn claim_counts(tree: &UiTree) -> Vec<usize> {
-    let by_index: HashMap<usize, usize> = tree.nodes.iter().enumerate().map(|(pos, node)| (node.index, pos)).collect();
+    let mut structure = super::structure::Structure::new(tree);
     let mut counts = vec![0; tree.nodes.len()];
     for scope in HUD_SLOTS.iter().filter_map(|slot| hud_scope(*slot)) {
-        for (pos, kept) in keep_flags(tree, &by_index, &scope).into_iter().enumerate() {
-            counts[pos] += usize::from(kept);
+        let slot = structure.owner_slot(tree, &scope);
+        for (pos, count) in counts.iter_mut().enumerate() {
+            *count += usize::from(structure.keeps(tree, slot, pos));
         }
     }
     counts
@@ -88,18 +91,32 @@ pub(crate) fn claim_counts(tree: &UiTree) -> Vec<usize> {
 /// A node's index is kept, so the composer can put the whole list back in object order (`DrawList::sort_by_index`).
 pub(crate) fn emit_unclaimed(frame: &FrameCell, out: &mut DrawList) {
     let Some(tree) = frame.get(FengSource::Hud) else { return };
-    let counts = claim_counts(&tree);
-    let unclaimed: Vec<usize> = (0..tree.nodes.len()).filter(|pos| counts[*pos] == 0).collect();
-    let base = out.len();
-    // Positions by object index. The unclaimed nodes are added last, so they win an index that a slot's node also has.
-    let mut lookup: HashMap<usize, usize> = out.iter().enumerate().map(|(pos, node)| (node.index, pos)).collect();
-    for (k, pos) in unclaimed.iter().enumerate() {
-        lookup.insert(tree.nodes[*pos].index, base + k);
-    }
-    for pos in unclaimed {
-        let node = &tree.nodes[pos];
-        let mut copy = node.clone();
-        copy.parent = node.parent.and_then(|parent| lookup.get(&parent).copied());
-        out.push(copy);
-    }
+    frame.with_structure(&tree, |structure| {
+        let mut slots = [0; HUD_SLOTS.len()];
+        for (k, slot) in HUD_SLOTS.iter().enumerate() {
+            slots[k] = hud_scope(*slot).map_or(NONE as usize, |scope| structure.owner_slot(&tree, &scope));
+        }
+        let taken = |pos: usize| slots.iter().any(|&s| s != NONE as usize && structure.keeps(&tree, s, pos));
+        // Where each node's index lands in `out`. The unclaimed nodes are added last, so they win an index that a slot's
+        // node also has.
+        let base = out.len();
+        let mut lookup: std::collections::HashMap<usize, usize> =
+            out.iter().enumerate().map(|(pos, node)| (node.index, pos)).collect();
+        let mut next = base;
+        for (pos, node) in tree.nodes.iter().enumerate() {
+            if taken(pos) {
+                continue;
+            }
+            lookup.insert(node.index, next);
+            next += 1;
+        }
+        for (pos, node) in tree.nodes.iter().enumerate() {
+            if taken(pos) {
+                continue;
+            }
+            let mut copy = node.clone();
+            copy.parent = node.parent.and_then(|parent| lookup.get(&parent).copied());
+            out.push(copy);
+        }
+    });
 }

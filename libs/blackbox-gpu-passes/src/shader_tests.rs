@@ -2,9 +2,10 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 5] = [
+const SHADERS: [(&str, &str); 6] = [
     ("ui", include_str!("shaders/ui.wgsl")),
     ("ui_mask", include_str!("shaders/ui_mask.wgsl")),
+    ("ui_picture", include_str!("shaders/ui_picture.wgsl")),
     ("effects", crate::EFFECTS_WGSL),
     ("soft_particles", include_str!("shaders/soft_particles.wgsl")),
     ("fsr1", include_str!("shaders/fsr1.wgsl")),
@@ -37,6 +38,7 @@ fn every_shader_parses_and_validates() {
 #[test]
 fn the_passes_find_their_entry_points() {
     assert_entries("ui", &["vs_main", "fs_main"]);
+    assert_entries("ui_picture", &["compose"]);
     assert_entries(
         "effects",
         &["vs_main", "fs_surface", "fs_particle", "fs_streak", "fs_glow", "fs_textured", "fs_textured_alpha"],

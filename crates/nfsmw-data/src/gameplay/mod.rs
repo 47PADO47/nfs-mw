@@ -35,9 +35,9 @@ use anyhow::{Context, Result};
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
 use game_install::GameDir;
 use glam::Vec3;
+use std::sync::Arc;
 
-use crate::read_unwrapped;
-use crate::shared;
+use crate::{memo, read_unwrapped, shared};
 
 /// The file with the gameplay collections (the `gameplay` class, all 6,293 of them in NFS: Most Wanted).
 pub const GAMEPLAY_FILE: &str = "GLOBAL/gameplay.bin";
@@ -130,13 +130,24 @@ impl GameplayData {
 
 /// Read the install's gameplay data: class definitions from `GLOBAL/ATTRIBUTES.BIN`, collections from
 /// `GLOBAL/gameplay.bin`.
+///
+/// This is an owned copy of the session's data ([`cached`]); a caller that only reads should take [`cached`] instead.
 pub fn load(dir: &GameDir) -> Result<GameplayData> {
-    // The session's class definitions are shared; the collections go into this call's own copy.
-    let attributes = shared::attributes(dir)?;
-    let mut db = Database::clone(&attributes);
-    let gameplay = read_unwrapped(dir, GAMEPLAY_FILE)?;
-    db.load(&gameplay).with_context(|| format!("parsing {GAMEPLAY_FILE}"))?;
-    Ok(GameplayData::from_database(&db))
+    Ok(cached(dir)?.as_ref().clone())
+}
+
+/// The install's gameplay data, read and parsed once per session: the same `Arc` while `GLOBAL/ATTRIBUTES.BIN` and
+/// `GLOBAL/gameplay.bin` are unchanged (see `files.rs`). Parsing takes about 20 ms, which a screen should not pay on
+/// every visit.
+pub fn cached(dir: &GameDir) -> Result<Arc<GameplayData>> {
+    memo(dir, &[shared::ATTRIBUTES_FILE, GAMEPLAY_FILE], || {
+        // The session's class definitions are shared; the collections go into this build's own copy.
+        let attributes = shared::attributes(dir)?;
+        let mut db = Database::clone(&attributes);
+        let gameplay = read_unwrapped(dir, GAMEPLAY_FILE)?;
+        db.load(&gameplay).with_context(|| format!("parsing {GAMEPLAY_FILE}"))?;
+        Ok(GameplayData::from_database(&db))
+    })
 }
 
 /// Map coordinates to physics space: `world = (-y, z, x)`.

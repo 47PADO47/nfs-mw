@@ -24,8 +24,8 @@ impl Frontend {
     }
 
     /// Puts the menu backdrop in the window. A backdrop already there is kept, and so is one parked while free roam
-    /// had the window: building one reads the car from the install and uploads it (`MenuScene::init`, ~150-190 ms),
-    /// which the menus that follow would only repeat.
+    /// had the window: building one reads the car and the room from the install on a worker thread and uploads them over
+    /// the next frames (`MenuScene::update`, ~150-190 ms of work in all), which the menus that follow would only repeat.
     pub(super) fn show_backdrop(&mut self, host: &mut Host) {
         if self.menu_in_window {
             return;

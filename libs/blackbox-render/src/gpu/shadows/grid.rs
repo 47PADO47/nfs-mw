@@ -5,6 +5,8 @@ use glam::{Mat4, Vec2, Vec3};
 pub(super) struct Grid {
     origin: Option<Vec3>,
     phase: [Vec2; 4],
+    /// Per-frame scratch: caster bounds in light space, shared by every cascade of one fit.
+    pub light_bounds: Vec<(Vec3, f32)>,
     #[cfg(test)]
     world_origin: bool,
 }

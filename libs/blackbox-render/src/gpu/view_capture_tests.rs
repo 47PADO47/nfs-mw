@@ -148,3 +148,29 @@ fn a_view_capture_leaves_the_main_views_ao_and_surfaces_alone() {
     assert_eq!(renderer.ao.as_ref().map(|ao| ao.size), ao_before);
     assert_eq!(renderer.surfaces.as_ref().map(|s| s.targets.size), surfaces_before);
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn a_view_capture_shown_as_a_ui_texture_needs_its_mask_and_leaves_no_capture_to_poll() {
+    use blackbox_gfx::{UiTextureId, UiTexturePatch, ViewCaptureUi};
+
+    let _gpu = test_support::serial();
+    let Some(mut renderer) = test_support::headless((64, 36)) else { return };
+    let frame = clear_frame([0.2, 0.4, 0.6]);
+    let backend: &mut dyn RenderBackend = &mut renderer;
+    assert!(backend.view_capture_to_ui());
+    let target = ViewCaptureUi { texture: UiTextureId(1), mask: UiTextureId(2), tint: [255; 3] };
+
+    assert!(backend.request_view_capture_ui([16, 9], &frame, &[], &target).is_err(), "no mask yet");
+    let set_mask = |backend: &mut dyn RenderBackend, height: u32| {
+        let rgba = vec![255; (16 * height * 4) as usize];
+        backend.update_ui_texture(&UiTexturePatch { id: target.mask, offset: None, size: [16, height], rgba: &rgba });
+    };
+    set_mask(backend, 8);
+    assert!(backend.request_view_capture_ui([16, 9], &frame, &[], &target).is_err(), "the mask is the wrong size");
+    set_mask(backend, 9);
+    backend.request_view_capture_ui([16, 9], &frame, &[], &target).expect("drawn into the UI texture");
+    // A readback capture still works afterwards, and the UI capture left nothing in flight.
+    let id = backend.request_view_capture([16, 9], &frame, &[]).unwrap();
+    assert!(poll_until_ready(backend, id).is_some());
+}

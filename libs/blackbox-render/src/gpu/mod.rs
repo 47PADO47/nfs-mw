@@ -6,10 +6,14 @@ pub(crate) mod ao;
 mod backend_impl;
 mod capture;
 mod contact;
+mod cull;
+#[cfg(test)]
+mod cull_tests;
 mod display;
 #[cfg(all(windows, feature = "streamline"))]
 mod dlss;
 mod draw_list;
+mod draw_mask;
 mod effects;
 mod filtering;
 mod frame;
@@ -25,12 +29,19 @@ mod lean_tests;
 mod meshes;
 mod normal;
 mod output;
+mod parallel;
 #[cfg(test)]
 mod parity;
 mod pipeline_cache;
 mod pipelines;
 mod post;
+mod prewarm;
+#[cfg(test)]
+mod prewarm_bench;
+#[cfg(test)]
+mod prewarm_tests;
 mod projected;
+mod redirects;
 #[cfg(test)]
 mod reflection_tests;
 mod reflections;
@@ -125,7 +136,7 @@ pub struct Renderer {
     window: Option<window::Window>,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).
-    redirects: std::collections::HashMap<usize, usize>,
+    redirects: redirects::Redirects,
     /// The colour pass's draws, bucketed by pipeline. Rebuilt by each scene pass; kept for its capacity.
     draw_list: draw_list::DrawList,
     /// The driver's pipeline cache (Vulkan), which every pipeline built by this renderer takes.
@@ -134,6 +145,8 @@ pub struct Renderer {
     pipeline_cache_path: Option<std::path::PathBuf>,
     /// Frames drawn so far. The pipeline cache is saved once the first ones have built their pipelines.
     frames: u32,
+    /// What the last [`Renderer::prewarm`] built for, so asking again with nothing changed does nothing.
+    prewarmed: Option<prewarm::Warmed>,
 }
 
 impl Renderer {

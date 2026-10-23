@@ -2,13 +2,16 @@
 
 mod compressed;
 mod plain;
+mod ranged;
 
 use blackbox_chunk::{Chunk, ids};
 
+use crate::layout::PackLayout;
 use crate::{Error, Result, TexturePack, layout};
 
 #[cfg(test)]
 pub(crate) use compressed::read_compressed_texture;
+pub use ranged::read_texture_packs_ranged;
 
 fn cstr(b: &[u8]) -> String {
     let len = b.iter().position(|&c| c == 0).unwrap_or(b.len());
@@ -34,19 +37,7 @@ fn read_pack(file: &[u8], pack: Chunk<'_>, keep: &impl Fn(u32) -> bool) -> Resul
     let err = |detail: &str| Error::Pack { offset: pack.offset, detail: detail.to_owned() };
     let info = pack.child(ids::TEXTURE_PACK_INFO).ok_or_else(|| err("no TexturePackInfo"))?;
     let header = info.child(ids::TEXTURE_PACK_INFO_HEADER).ok_or_else(|| err("no TexturePackInfoHeader"))?;
-    let header = header.payload;
-    if header.len() < 0x60 {
-        return Err(err("TexturePackInfoHeader too short"));
-    }
-    let version = u32::from_le_bytes(header[0..4].try_into().unwrap());
-    let layout = layout::for_version(version).ok_or(Error::UnsupportedVersion { offset: pack.offset, version })?;
-    let mut out = TexturePack {
-        name: cstr(&header[0x04..0x20]),
-        filename: cstr(&header[0x20..0x60]),
-        version,
-        textures: Vec::new(),
-        failed: Vec::new(),
-    };
+    let (mut out, layout) = parse_header(pack.offset, header.payload)?;
 
     if let Some(entries) = info.child(ids::TEXTURE_PACK_INFO_ENTRIES) {
         compressed::read(file, entries, layout, keep, &mut out);
@@ -54,4 +45,22 @@ fn read_pack(file: &[u8], pack: Chunk<'_>, keep: &impl Fn(u32) -> bool) -> Resul
         plain::read(pack, info, layout, keep, &mut out).map_err(err)?;
     }
     Ok(out)
+}
+
+/// An empty [`TexturePack`] named by its `TexturePackInfoHeader` payload, with the layout of the header's version.
+/// `offset` is the pack chunk's offset in the file (for error messages).
+pub(crate) fn parse_header(offset: usize, header: &[u8]) -> Result<(TexturePack, &'static PackLayout)> {
+    if header.len() < 0x60 {
+        return Err(Error::Pack { offset, detail: "TexturePackInfoHeader too short".to_owned() });
+    }
+    let version = u32::from_le_bytes(header[0..4].try_into().unwrap());
+    let layout = layout::for_version(version).ok_or(Error::UnsupportedVersion { offset, version })?;
+    let out = TexturePack {
+        name: cstr(&header[0x04..0x20]),
+        filename: cstr(&header[0x20..0x60]),
+        version,
+        textures: Vec::new(),
+        failed: Vec::new(),
+    };
+    Ok((out, layout))
 }

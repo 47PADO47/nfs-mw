@@ -102,6 +102,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
             texture: Some(diffuse),
             blend,
             shading: Shading::WorldWindow(material),
+            two_sided: true,
         }],
     });
     let frame = FrameParams {

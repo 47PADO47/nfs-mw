@@ -70,8 +70,9 @@ impl WorldScene {
         for quad in drops {
             blackbox_gfx::EffectLayer::quad(&mut layer.streaks, quad, RAIN_COLOUR);
         }
-        let signs = self.residency.placed().filter_map(|p| p.curve_lamp);
-        sign_lamps::glows(signs, drive.lamp_time, position, forward, &mut layer.glows);
+        // The lamp list changes with the scenery, not per frame.
+        let signs = self.shadow_feed.curve_lamps(&self.residency, &self.scenery_groups);
+        sign_lamps::glows(signs.iter().copied(), drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
             traffic.spike_geometry(&mut layer.streaks);
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);

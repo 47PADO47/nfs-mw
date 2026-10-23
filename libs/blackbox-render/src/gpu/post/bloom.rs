@@ -75,6 +75,8 @@ impl Chain {
 pub(super) struct BloomPass {
     filter: Filter,
     params: Params,
+    /// The exposure of the tone mapping run as part of the composite draw, when the next pass was fused in.
+    tonemap: Option<f32>,
     /// One chain per scene size and format, so a frame at each view size keeps its own.
     chain: SizedPair<((u32, u32), wgpu::TextureFormat), Chain>,
 }
@@ -82,7 +84,7 @@ pub(super) struct BloomPass {
 impl BloomPass {
     pub(super) fn new(device: &wgpu::Device, settings: &PostSettings, cache: Option<&wgpu::PipelineCache>) -> Self {
         let filter = Filter::new(device, "bloom", &bloom_wgsl()).with_pipeline_cache(cache.cloned());
-        Self { filter, params: params(settings), chain: SizedPair::new() }
+        Self { filter, params: params(settings), tonemap: None, chain: SizedPair::new() }
     }
 }
 
@@ -91,11 +93,19 @@ impl PostPass for BloomPass {
         "bloom"
     }
 
+    fn absorb_tonemap(&mut self, exposure: Option<f32>) -> bool {
+        self.tonemap = exposure;
+        true
+    }
+
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         let format = ctx.scene.color_format;
-        let Self { filter, params, chain } = self;
+        let Self { filter, params, tonemap, chain } = self;
+        // The fused composite reads its exposure from `b.x`; no other stage reads `b`.
+        let mut block = *params;
+        block.b[0] = tonemap.unwrap_or(0.0);
         let chain = chain.get_or_make((io.input_size, format), || Chain::new(ctx.device, io.input_size, format));
-        filter.set_params(ctx.queue, params);
+        filter.set_params(ctx.queue, &block);
         let levels = &chain.levels;
         let mut draw = |entry, src, target: &wgpu::TextureView, blend| {
             let draw = Draw { entry, src, src2: src, target, format, blend };
@@ -112,7 +122,10 @@ impl PostPass for BloomPass {
             draw("fs_up", &pair[1].view, &pair[0].view, Blend::Add);
         }
         let composite = Draw {
-            entry: "fs_composite",
+            entry: match tonemap {
+                Some(_) => "fs_composite_tonemap",
+                None => "fs_composite",
+            },
             src: io.input,
             src2: &levels[0].view,
             target: io.output,

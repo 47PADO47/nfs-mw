@@ -5,6 +5,7 @@ struct Parameters {
     strengths: vec4<f32>, // source-colour coefficient, black, colour, treatment blend
     black_curve: vec4<f32>,
     colour_curve: vec4<f32>,
+    tonemap: vec4<f32>, // x: exposure of the fused tone mapping (fs_main_tonemap only)
 }
 @group(0) @binding(0) var scene: texture_2d<f32>;
 @group(0) @binding(1) var luma: texture_2d<f32>;
@@ -25,20 +26,34 @@ fn curve(c: vec4<f32>, x: f32) -> f32 {
     let u = 1.0 - t;
     return dot(c, vec4<f32>(u*u*u, 3.0*u*u*t, 3.0*u*t*t, t*t*t));
 }
-@fragment fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let raw = textureSampleLevel(scene, samp, in.uv, 0.0).rgb;
+// The graded colour before the final clamp.
+fn treated_colour(uv: vec2<f32>) -> vec3<f32> {
+    let raw = textureSampleLevel(scene, samp, uv, 0.0).rgb;
     var c = clamp(raw, vec3<f32>(0.0), vec3<f32>(1.0));
     if p.tint.w > 0.5 { c = max(raw,vec3(0.0)); }
     var treated = c;
     if p.strengths.w > 0.0 {
-        let local_luma = textureSampleLevel(luma, samp, in.uv, 0.0).r;
+        let local_luma = textureSampleLevel(luma, samp, uv, 0.0).r;
         // The historical Desaturation field weights source colour, not grayscale.
         let base = mix(vec3<f32>(dot(c, p.luminance.xyz)), c, p.strengths.x);
         let black = mix(1.0, curve(p.black_curve, local_luma), p.strengths.y);
         let colour = curve(p.colour_curve, local_luma) * p.strengths.z;
-        let screen_gain = textureSampleLevel(gain, samp, vec2<f32>(in.uv.x, 1.0-in.uv.y), 0.0).b;
+        let screen_gain = textureSampleLevel(gain, samp, vec2<f32>(uv.x, 1.0-uv.y), 0.0).b;
         treated = mix(c, (base * black + c * p.tint.xyz * colour) * screen_gain, p.strengths.w);
     }
+    return treated;
+}
+@fragment fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let treated = treated_colour(in.uv);
     if p.tint.w > 0.5 { return vec4(max(treated,vec3(0.0)),1.0); }
     return vec4<f32>(clamp(treated, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
+}
+// ACES fit of tonemap.wgsl, applied to the clamped grade: the tone-mapping pass fused into this one.
+fn aces(x: vec3<f32>) -> vec3<f32> {
+    let mapped = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+    return clamp(mapped, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+@fragment fn fs_main_tonemap(in: VsOut) -> @location(0) vec4<f32> {
+    let graded = clamp(treated_colour(in.uv), vec3<f32>(0.0), vec3<f32>(1.0));
+    return vec4<f32>(aces(graded * p.tonemap.x), 1.0);
 }

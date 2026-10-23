@@ -28,7 +28,8 @@ mod test_support;
 #[cfg(test)]
 mod tests;
 
+pub use huds::SplitHuds;
 pub use package::{Kind, SPLIT_FILE, Seat};
 #[allow(unused_imports)] // for the app that draws the world's two pictures
 pub use place::half_rect;
-pub(super) use plugin::install;
+pub(super) use plugin::{install, load};

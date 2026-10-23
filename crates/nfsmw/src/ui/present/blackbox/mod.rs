@@ -2,6 +2,7 @@
 //! textures they need as UI texture patches.
 
 mod mirror;
+mod raster_cache;
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -12,6 +13,7 @@ use blackbox_ui::justify;
 use glam::{Vec3, Vec4};
 
 use self::mirror::{MIRROR_BEZEL, faded_alpha, mirror_picture};
+use self::raster_cache::RasterCache;
 use super::{Screen, mask, repeat};
 use crate::gui::{OwnedPatch, UiOutput};
 use crate::ui::UiAssets;
@@ -69,8 +71,9 @@ pub struct BlackboxPresenter {
     mask_sources: HashSet<u32>,
     repeated: HashMap<u32, ([u32; 2], bool)>,
     solid_uploaded: bool,
-    /// Strings rasterised in the Windows font: the texture and the image's width over height, by the string.
-    raster: HashMap<(String, u32), (UiTextureId, f32)>,
+    /// Strings rasterised in the Windows font: the texture and the image's width over height, by the string. Bounded:
+    /// strings that stop being drawn have their textures freed (`raster_cache.rs`).
+    raster: RasterCache,
 }
 
 fn id_of(hash: u32) -> UiTextureId {
@@ -137,6 +140,7 @@ impl BlackboxPresenter {
     /// uploads the textures it has not uploaded yet.
     pub fn present(&mut self, tree: &UiTree, assets: &UiAssets, screen: Screen, out: &mut UiOutput) {
         let _trace = blackbox_trace::scope("HUD: mesh / texture presentation");
+        self.raster.tick(&mut out.freed);
         out.layer.get_or_insert_with(|| UiLayer { pixels_per_point: screen.pixels_per_point, ..Default::default() });
         let origin = [screen.width * 0.5, screen.height * 0.5];
         let scale = screen.scale();
@@ -218,9 +222,8 @@ impl BlackboxPresenter {
         // Each font key has its own look (the Remastered text is wider and heavier than the Custom text), so the keys keep
         // apart in the cache.
         let Some(face) = raster_text::face(font_key) else { return };
-        let key = (text.to_owned(), font_key);
-        let (id, aspect) = match self.raster.get(&key) {
-            Some(entry) => *entry,
+        let (id, aspect) = match self.raster.get(text, font_key) {
+            Some(entry) => entry,
             None => {
                 let rendered = match face.mono {
                     true => raster_text::render_mono(text, face.look),
@@ -228,9 +231,8 @@ impl BlackboxPresenter {
                 };
                 let Some(image) = rendered else { return };
                 let aspect = image.width as f32 / image.height as f32;
-                let id = UiTextureId(RASTER_TEXTURE_BIT | self.raster.len() as u64);
+                let id = self.raster.insert(text, font_key, aspect, &mut out.freed);
                 send(id, image, out);
-                self.raster.insert(key, (id, aspect));
                 (id, aspect)
             }
         };

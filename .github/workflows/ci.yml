@@ -27,9 +27,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      # gilrs (gamepads) reads devices through libudev on Linux.
+      # gilrs (gamepads) reads devices through libudev on Linux; the sound output (cpal) links ALSA.
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libasound2-dev pkg-config
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings

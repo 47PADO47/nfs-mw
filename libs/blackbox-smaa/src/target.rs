@@ -95,6 +95,6 @@ impl SmaaTarget {
         queue: &'a wgpu::Queue,
         output_view: &'a wgpu::TextureView,
     ) -> SmaaFrame<'a> {
-        SmaaFrame { target: self, device, queue, output_view }
+        SmaaFrame { target: self, device, queue, output_view, encoded: false }
     }
 }

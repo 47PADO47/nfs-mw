@@ -4,6 +4,8 @@ use glam::UVec2;
 use wgpu::{BindGroupDescriptor, BindGroupEntry, Buffer, CommandEncoder, ComputePassDescriptor, Device, TextureView};
 
 use crate::{
+    bind_groups::BindGroups,
+    context::UNIFORM_RING,
     inputs::{Fsr3Inputs, Fsr3Outputs},
     pipelines::{Pipelines, Step},
     resources::Resources,
@@ -18,6 +20,10 @@ pub(crate) struct Recording<'a> {
     pub pipelines: &'a Pipelines,
     pub resources: &'a Resources,
     pub uniform: &'a Buffer,
+    /// Which of the rotating constants blocks `uniform` is: part of the bind group's identity.
+    pub uniform_index: usize,
+    /// The bind groups of the previous frames, reused while the views stay the same.
+    pub groups: &'a mut BindGroups,
     /// The frame counter that picks which of the swapped textures is current.
     pub frame: u64,
     /// Run the sharpening pass after the accumulation.
@@ -34,35 +40,60 @@ fn buffer(binding: u32, buffer: &Buffer) -> BindGroupEntry<'_> {
     BindGroupEntry { binding, resource: buffer.as_entire_binding() }
 }
 
+/// The passes, numbered for the bind group slots.
+#[derive(Clone, Copy)]
+enum Pass {
+    PrepareInputs,
+    LumaReduce,
+    LumaFinal,
+    ShadingLevel0,
+    ShadingDown1,
+    ShadingDown2,
+    ShadingChange,
+    PrepareReactivity,
+    LumaInstability,
+    Accumulate,
+    AccumulateSharpen,
+    Rcas,
+}
+
+/// How many passes there are.
+const PASSES: usize = Pass::Rcas as usize + 1;
+
 fn groups(size: UVec2) -> [u32; 2] {
     [size.x.div_ceil(GROUP), size.y.div_ceil(GROUP)]
 }
 
 impl Recording<'_> {
+    /// One compute pass. Its bind group is made the first time this variant (pass, swap parity, constants
+    /// block) runs with the current views, then reused.
     fn run(
-        &self,
+        &mut self,
         encoder: &mut CommandEncoder,
+        pass_id: Pass,
         step: &Step,
         label: &str,
         entries: &[BindGroupEntry<'_>],
         grid: [u32; 2],
     ) {
-        let mut all = vec![buffer(0, self.uniform)];
-        all.extend_from_slice(entries);
-        let group = self.device.create_bind_group(&BindGroupDescriptor {
-            label: Some(label),
-            layout: &step.layout,
-            entries: &all,
+        let slot = ((pass_id as usize) * 2 + (self.frame & 1) as usize) * UNIFORM_RING + self.uniform_index;
+        debug_assert!(slot < PASSES * 2 * UNIFORM_RING);
+        let (device, uniform) = (self.device, self.uniform);
+        let group = self.groups.get_or_insert_with(slot, || {
+            let mut all = Vec::with_capacity(entries.len() + 1);
+            all.push(buffer(0, uniform));
+            all.extend_from_slice(entries);
+            device.create_bind_group(&BindGroupDescriptor { label: Some(label), layout: &step.layout, entries: &all })
         });
         let mut pass =
             encoder.begin_compute_pass(&ComputePassDescriptor { label: Some(label), timestamp_writes: None });
         pass.set_pipeline(&step.pipeline);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.dispatch_workgroups(grid[0], grid[1], 1);
     }
 
     /// Records every pass, in order.
-    pub fn encode(&self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>, outputs: &Fsr3Outputs<'_>) {
+    pub fn encode(&mut self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>, outputs: &Fsr3Outputs<'_>) {
         let r = self.resources;
         if self.reset {
             encoder.copy_buffer_to_buffer(&r.frame_info_reset, 0, &r.frame_info, 0, 16);
@@ -76,11 +107,13 @@ impl Recording<'_> {
         self.accumulate(encoder, inputs, outputs);
     }
 
-    fn prepare_inputs(&self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
+    fn prepare_inputs(&mut self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
         let r = self.resources;
+        let pipelines = self.pipelines;
         self.run(
             encoder,
-            &self.pipelines.prepare_inputs,
+            Pass::PrepareInputs,
+            &pipelines.prepare_inputs,
             "fsr3 prepare inputs",
             &[
                 view(1, inputs.color),
@@ -96,11 +129,13 @@ impl Recording<'_> {
         );
     }
 
-    fn luma_pyramid(&self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
+    fn luma_pyramid(&mut self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
         let r = self.resources;
+        let pipelines = self.pipelines;
         self.run(
             encoder,
-            &self.pipelines.luma_reduce,
+            Pass::LumaReduce,
+            &pipelines.luma_reduce,
             "fsr3 luma pyramid reduce",
             &[
                 view(1, r.luma.current(self.frame)),
@@ -112,7 +147,8 @@ impl Recording<'_> {
         );
         self.run(
             encoder,
-            &self.pipelines.luma_final,
+            Pass::LumaFinal,
+            &pipelines.luma_final,
             "fsr3 luma pyramid final",
             &[buffer(4, &r.partials), buffer(5, &r.frame_info), view(6, inputs.exposure.unwrap_or(&r.placeholder))],
             [1, 1],
@@ -120,13 +156,15 @@ impl Recording<'_> {
     }
 
     /// The pyramid of luma differences and the shading change estimate from it.
-    fn shading_change(&self, encoder: &mut CommandEncoder) {
+    fn shading_change(&mut self, encoder: &mut CommandEncoder) {
         let r = self.resources;
+        let pipelines = self.pipelines;
         let pyramid = &r.shading_pyramid;
         let sizes = r.shading_pyramid_sizes;
         self.run(
             encoder,
-            &self.pipelines.shading_level0,
+            Pass::ShadingLevel0,
+            &pipelines.shading_level0,
             "fsr3 shading change level 0",
             &[
                 view(1, &r.dilated_motion_vectors),
@@ -140,7 +178,11 @@ impl Recording<'_> {
         for level in 1..3 {
             self.run(
                 encoder,
-                &self.pipelines.shading_down,
+                match level {
+                    1 => Pass::ShadingDown1,
+                    _ => Pass::ShadingDown2,
+                },
+                &pipelines.shading_down,
                 "fsr3 shading change downsample",
                 &[view(5, &pyramid[level]), view(6, &pyramid[level - 1])],
                 groups(sizes[level]),
@@ -148,18 +190,21 @@ impl Recording<'_> {
         }
         self.run(
             encoder,
-            &self.pipelines.shading_change,
+            Pass::ShadingChange,
+            &pipelines.shading_change,
             "fsr3 shading change",
             &[view(1, &pyramid[0]), view(2, &pyramid[1]), view(3, &pyramid[2]), view(4, &r.shading_change)],
             groups(sizes[0]),
         );
     }
 
-    fn prepare_reactivity(&self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
+    fn prepare_reactivity(&mut self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>) {
         let r = self.resources;
+        let pipelines = self.pipelines;
         self.run(
             encoder,
-            &self.pipelines.prepare_reactivity,
+            Pass::PrepareReactivity,
+            &pipelines.prepare_reactivity,
             "fsr3 prepare reactivity",
             &[
                 view(1, &r.dilated_motion_vectors),
@@ -179,11 +224,13 @@ impl Recording<'_> {
         );
     }
 
-    fn luma_instability(&self, encoder: &mut CommandEncoder) {
+    fn luma_instability(&mut self, encoder: &mut CommandEncoder) {
         let r = self.resources;
+        let pipelines = self.pipelines;
         self.run(
             encoder,
-            &self.pipelines.luma_instability,
+            Pass::LumaInstability,
+            &pipelines.luma_instability,
             "fsr3 luma instability",
             &[
                 view(1, &r.dilated_motion_vectors),
@@ -198,11 +245,16 @@ impl Recording<'_> {
         );
     }
 
-    fn accumulate(&self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>, outputs: &Fsr3Outputs<'_>) {
+    fn accumulate(&mut self, encoder: &mut CommandEncoder, inputs: &Fsr3Inputs<'_>, outputs: &Fsr3Outputs<'_>) {
         let r = self.resources;
-        let step = if self.sharpen { &self.pipelines.accumulate_sharpen } else { &self.pipelines.accumulate };
+        let pipelines = self.pipelines;
+        let (id, step) = match self.sharpen {
+            true => (Pass::AccumulateSharpen, &pipelines.accumulate_sharpen),
+            false => (Pass::Accumulate, &pipelines.accumulate),
+        };
         self.run(
             encoder,
+            id,
             step,
             "fsr3 accumulate",
             &[
@@ -225,7 +277,8 @@ impl Recording<'_> {
         }
         self.run(
             encoder,
-            &self.pipelines.rcas,
+            Pass::Rcas,
+            &pipelines.rcas,
             "fsr3 rcas",
             &[view(1, r.history.current(self.frame)), buffer(2, &r.frame_info), view(3, outputs.output)],
             groups(r.output),

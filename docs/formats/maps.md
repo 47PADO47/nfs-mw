@@ -269,6 +269,10 @@ Override flag bits: `0x10` hidden (the visibility rule), `0x400` turned. Instanc
 instance the engine mirrors along its local x axis when an override changes `0x400`. Readers:
 `blackbox_scenery::read_scenery_overrides`, `read_scenery_groups`, `find_group`.
 
+Instance flag bit `0x400000` marks a mirrored copy: all 5,797 instances whose rotation mirrors have it, and so do 321
+world-space `*_DEINST*` copies with an identity rotation, whose vertices hold the mirror. The engine draws them with
+the other cull side **[exe + verified]** ([../specs/backface-culling.md](../specs/backface-culling.md)).
+
 ## Inspecting it yourself
 
 ```bash

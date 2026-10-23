@@ -3,10 +3,13 @@
 //! `docs/specs/menu-backdrop-looks.md`.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use blackbox_gfx::{BlendMode, Instance, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
 use blackbox_scene::{MaterialLookup, blend_mode, upload_solid, upload_texture};
+use blackbox_solid::Solid;
+use blackbox_tpk::TexturePack;
 use game_install::GameDir;
 use glam::Mat4;
 
@@ -31,18 +34,47 @@ impl MaterialLookup for Materials {
     }
 }
 
+/// What a stage file holds that the room draws, parsed and ready to upload: the drawn solids and the texture packs.
+/// Plain CPU data, so it is built off the frame thread (`MenuScene`'s worker) and kept for the session: the menus
+/// change look often and each look on the same stage would read and parse the file again.
+pub struct RoomData {
+    solids: Vec<Solid>,
+    packs: Vec<TexturePack>,
+    /// The stage's turn of the room in degrees (`Stage::room_yaw`).
+    yaw: f32,
+}
+
+impl RoomData {
+    /// Reads and parses the stage file of `stage` (once per session, see `nfsmw_data::memo`).
+    pub fn read(dir: &GameDir, stage: Stage) -> Result<Arc<Self>> {
+        let _trace = blackbox_trace::scope("Frontend: read the menu room");
+        let path = stage.file();
+        nfsmw_data::memo(dir, &[path], || {
+            let file = dir.read(path).with_context(|| format!("reading {path}"))?;
+            let mut solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
+            solids.retain(|solid| stage.draws(&solid.name));
+            let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
+            Ok(Self { solids, packs, yaw: stage.room_yaw() })
+        })
+    }
+}
+
 impl Room {
-    /// Uploads the textures and the drawn solids of `stage`. Each solid sits where its pivot matrix puts it, turned by the
+    /// Reads the stage file and uploads it in one go (`RoomData::read`, `Room::upload`).
+    #[cfg(test)]
+    pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, stage: Stage) -> Result<Self> {
+        let data = RoomData::read(dir, stage)?;
+        Ok(Self::upload(renderer, &data))
+    }
+
+    /// Uploads the textures and the drawn solids of a stage. Each solid sits where its pivot matrix puts it, turned by the
     /// stage's yaw (`Stage::room_yaw`): the safe house's pivots are the identity, the crib's room is stored small and scaled
     /// up by its pivot.
-    pub fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, stage: Stage) -> Result<Self> {
-        let path = stage.file();
-        let file = dir.read(path).with_context(|| format!("reading {path}"))?;
-        let solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
-        let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
+    pub fn upload(renderer: &mut dyn RenderBackend, data: &RoomData) -> Self {
+        let _trace = blackbox_trace::scope("Frontend: upload the menu room");
         let mut textures = Vec::new();
         let mut map = HashMap::new();
-        for pack in &packs {
+        for pack in &data.packs {
             for t in &pack.textures {
                 let Some(handle) = upload_texture(renderer, t) else { continue };
                 map.insert(t.name_hash, (handle, blend_mode(Some(t))));
@@ -50,17 +82,17 @@ impl Room {
             }
         }
         let materials = Materials(map);
-        let turn = Mat4::from_rotation_z(stage.room_yaw().to_radians());
+        let turn = Mat4::from_rotation_z(data.yaw.to_radians());
         let mut meshes = Vec::new();
         let mut instances = Vec::new();
-        for solid in solids.iter().filter(|solid| stage.draws(&solid.name)) {
+        for solid in &data.solids {
             // The stage is pre-lit world geometry (its vertex colours carry the light), as the world's scenery is.
             let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
             meshes.push(mesh);
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
             instances.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
         }
-        Ok(Self { meshes, textures, instances })
+        Self { meshes, textures, instances }
     }
 
     /// The room's parts in the order the stage file lists its solids, one instance per mesh. The renderer draws blended

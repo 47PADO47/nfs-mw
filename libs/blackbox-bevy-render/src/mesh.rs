@@ -136,6 +136,7 @@ mod tests {
             texture: Some(TextureHandle::from_raw(7)),
             blend: BlendMode::AlphaTest,
             shading: Shading::Prelit,
+            two_sided: true,
         }
     }
 
