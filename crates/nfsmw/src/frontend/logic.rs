@@ -75,6 +75,7 @@ pub use super::footer::Footer;
 
 mod args;
 mod feedback;
+mod pointer;
 pub use args::Args;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]

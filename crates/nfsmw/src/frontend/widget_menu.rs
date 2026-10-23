@@ -299,15 +299,14 @@ impl WidgetMenu {
         }
         let Some(slot) = self.slot_at(cx.rt, point) else { return false };
         let Some((left, right)) = self.objects.get(slot).map(|r| (r.left, r.right)) else { return false };
-        let arrows: Vec<ObjectRef> = [left, right].into_iter().flatten().collect();
-        let arrow = cx.rt.object_at(&arrows, point);
+        let arrow = cx.hit_index(&[left, right], point);
         self.select(cx, self.top + slot);
         if self.rows[self.selected].setting == options::Setting::AdvancedGraphics {
             self.change_from_pointer(cx, true);
             return true;
         }
         if let Some(arrow) = arrow {
-            self.change_from_pointer(cx, Some(arrow) == right);
+            self.change_from_pointer(cx, arrow == 1);
         }
         true
     }
