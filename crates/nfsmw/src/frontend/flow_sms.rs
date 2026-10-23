@@ -7,6 +7,13 @@ use crate::frontend::career_screens::sms_popup::SmsPopup;
 use crate::frontend::ids::screen::SMS_MESSAGE;
 
 impl Frontend {
+    /// The delete question was answered Yes: the message's slot is emptied, then the screen closes as `then` says.
+    pub(super) fn delete_sms(&mut self, id: u32, then: Command, host: &mut Host, env: &mut Env) {
+        log::info!("career: SMS {id} deleted");
+        crate::frontend::career_screens::sms::delete(id);
+        self.apply(vec![then], host, env);
+    }
+
     /// Opens message `id` over the frozen game, with the stage `Paused` so the screens take the pad. The message is
     /// marked read when its screen starts.
     pub(super) fn open_sms(&mut self, id: u32, host: &mut Host, env: &mut Env) {

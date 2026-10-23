@@ -108,3 +108,13 @@ fn the_option_screens_have_poses_and_the_dialogs_keep_the_camera() {
     assert_eq!(pose_for("Dialog.fng", &plain()), None);
     assert_eq!(pose_for("Pause_Main.fng", &plain()), None);
 }
+
+#[test]
+fn the_blacklist_pages_opened_from_the_pause_menu_keep_the_world_behind_them() {
+    let pause = Args { pause: true, safehouse: true, ..Args::default() };
+    assert_eq!(look_for(screen::SAFE_HOUSE_RIVAL_CHALLENGE, &pause), None);
+    assert_eq!(pose_for(screen::SAFE_HOUSE_RIVAL_CHALLENGE, &pause), None);
+    let room = Args { safehouse: true, ..Args::default() };
+    assert!(look_for(screen::SAFE_HOUSE_RIVAL_CHALLENGE, &room).is_some());
+    assert!(pose_for(screen::SAFE_HOUSE_RIVAL_CHALLENGE, &room).is_some());
+}

@@ -179,6 +179,41 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     }
 }
 
+/// The mid-size police car of the scripted chase of `16.2.1` (`docs/specs/story-flow.md` section 2.4, F-15).
+const SCRIPTED_COP: &str = "copmidsize";
+/// The heat the scripted chase runs at: the first level, as the prologue's cops are the lightest the game has.
+const SCRIPTED_HEAT: u32 = 1;
+
+/// The cops the scripted chase asked for at its spawn points: a chase starts if none runs, and a `copmidsize` is asked for at
+/// each point, to join it. They are placed on a later run of the cop manager, when nothing overlaps the spot.
+pub(in crate::scenes::world) fn scripted_cops(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
+    use super::cop_manager::requests::Role;
+    if scene.career.scripted_cops.is_empty() {
+        return;
+    }
+    let points = std::mem::take(&mut scene.career.scripted_cops);
+    if let Err(e) = load_cop_models(scene, renderer, &[SCRIPTED_COP.to_owned()]) {
+        return log::warn!("chase: the cop car {SCRIPTED_COP} did not load, so no cops come: {e}");
+    }
+    if scene.traffic.as_ref().is_some_and(|traffic| !traffic.is_pursuing())
+        && let Some(player) = scene.players.lead().map(|drive| drive.performance())
+    {
+        match begin_pursuit(scene, renderer, SCRIPTED_HEAT, player) {
+            Ok(line) => log::info!("chase: {line}"),
+            Err(e) => log::warn!("chase: no pursuit for the scripted cops: {e}"),
+        }
+    }
+    let Some(traffic) = scene.traffic.as_mut() else { return };
+    let role = match traffic.is_pursuing() {
+        true => Role::Chase,
+        false => Role::Patrol,
+    };
+    for (at, forward) in points {
+        traffic.queue_cop_spawn(SCRIPTED_COP, at, forward, role);
+    }
+    log::info!("chase: the scripted cops are asked for: {}", traffic.fleet_status());
+}
+
 /// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map
 /// or not. An approach with no matched prop shows no light.
 pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {

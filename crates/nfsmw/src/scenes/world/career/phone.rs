@@ -184,6 +184,12 @@ impl WorldScene {
                     cell_call::request(call.id);
                 }
             }
+            if !phone.queue.pending().is_empty() && !ctx.can_show() {
+                log::debug!(
+                    "phone: {:?} wait, the world does not allow them: {ctx:?} from {facts:?}",
+                    phone.queue.pending()
+                );
+            }
             phone.flush(inbox, &ctx)
         });
         let Some(flush) = flushed.flatten() else { return };
@@ -197,7 +203,10 @@ impl WorldScene {
             pursuing: self.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing()),
             overlay_blocked: self.garage_open,
             card_up: self.entry.popup.is_up(),
-            car_ready: self.players.has_lead() && self.pending_car.is_none() && !self.wait_for_load,
+            // The car stands on the road: not still being put there. (`wait_for_load` only says the world started behind a
+            // loading screen, and stays set.)
+            car_ready: self.pending_car.is_none()
+                && self.players.lead().is_some_and(|drive| drive.has_sim() && drive.waiting_for_road().is_none()),
             racing: self.race.is_some(),
         }
     }

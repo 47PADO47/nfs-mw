@@ -58,6 +58,10 @@ pub mod screen {
     pub const SAFE_HOUSE_RIVAL_BIO: &str = "SafeHouseRivalBio.fng";
     /// The safe house's Blacklist page in the Original look (`career_screens/reputation_overview.rs`).
     pub const SAFE_HOUSE_REPUTATION_OVERVIEW: &str = "SafeHouseReputationOverview.fng";
+    /// The three sheets the Blacklist page opens (`career_screens/rep_sheets/`).
+    pub const SAFE_HOUSE_RACE_SHEET: &str = "SafeHouseRaceSheet.fng";
+    pub const SAFE_HOUSE_MILESTONES: &str = "SafeHouseMilestones.fng";
+    pub const SAFE_HOUSE_BOUNTY: &str = "SafeHouseBounty.fng";
     pub const SAFEHOUSE_REGION_UNLOCK: &str = "SafehouseRegionUnlock.fng";
     /// The marker choice after a rival is beaten (`career_screens/markers.rs`, step 1 of the arrival sequence).
     pub const SAFEHOUSE_MARKERS: &str = "SafeHouseMarkers.fng";

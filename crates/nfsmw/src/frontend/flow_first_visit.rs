@@ -127,7 +127,7 @@ impl Frontend {
 
     /// The safe house menu, over the menu backdrop: where the sequence ends. The menu stands before the world (the world was
     /// replaced by the intro movie), so its Resume Free Roam starts the world.
-    fn open_safe_house(&mut self, host: &mut Host, env: &mut Env) {
+    pub(super) fn open_safe_house(&mut self, host: &mut Host, env: &mut Env) {
         self.in_safe_house = true;
         self.latch = true;
         self.screens.clear();

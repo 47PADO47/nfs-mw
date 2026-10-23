@@ -77,8 +77,8 @@ bit 14) or the shown bin is above the stage byte: the rival is beaten. **[exe]**
 `crates/nfsmw/src/frontend/career_screens/reputation_overview.rs`. The pure parts (the step rule, the shown rival, the
 panel, the sheets) are tested in `reputation_overview_tests.rs`. Differences from the original:
 
-- The race, milestone and bounty sheets are not built, so their options are greyed and Accept does nothing on them;
-  the bio opens and comes back to the overview (`Args::overview`), as does the rival challenge screen.
+- The race, milestone and bounty sheets are built ([career-rep-sheets.md](career-rep-sheets.md)); they and the bio open
+  from the options and come back to the overview (`Args::overview`), as does the rival challenge screen.
 - The Remastered look has no overview page: the item opens the rival list of `SafeHouseRivalChallenge.fng`.
 - The first-visit sequence still ends in the safe house menu rather than on this page ([story-flow-2.md](story-flow-2.md)
   step 15).

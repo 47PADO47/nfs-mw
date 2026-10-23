@@ -13,15 +13,18 @@ use blackbox_feng::runtime::pad;
 use blackbox_feng::{ObjectRef, fe_hash_upper};
 use blackbox_text::label_hash;
 use glam::Vec2;
-use nfsmw_career::blacklist::Counters;
-use nfsmw_career::settings::{FIRST_RIVAL_STAGE, Flags};
 
-use super::blacklist::{DISABLED_ALPHA, RivalRow, career_rows, current_bin, rank_title, rival_key, start_bin};
+mod model;
+pub use model::*;
+use nfsmw_career::settings::FIRST_RIVAL_STAGE;
+
+use super::blacklist::{DISABLED_ALPHA, career_rows, current_bin, rank_title, rival_key};
 use super::{RIVAL_LIST_READY, safehouse_menu::money_text};
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Plain, ScreenLogic};
-use crate::ui::Text;
+use crate::frontend::logic::{Args, Command, Cx, Pick, Plain, ScreenLogic};
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
+use crate::ui::{Text, UiAssets};
 
 /// Objects of the package by name hash. The title, alias, challenge text and ticker lines are groups whose strings get
 /// the text; the numbers of the panel are strings.
@@ -60,127 +63,9 @@ const LABEL_CASH: u32 = 0x073B_79E0;
 /// The key 2 button: opens the rival challenge.
 const CHALLENGE_KEY: u32 = PAD_BUTTON0 + 4;
 
-/// Lowest rival the overview steps to: the one the career is at (the earlier ones are the beaten rivals above it).
-pub fn lowest(current: u8) -> u8 {
-    start_bin(current)
-}
-
-/// The rival shown when the page opens: the one asked for, kept between the lowest and rival 15; none asked is the lowest.
-pub fn first_shown(asked: u8, low: u8) -> u8 {
-    if asked == 0 {
-        return low;
-    }
-    asked.clamp(low, FIRST_RIVAL_STAGE)
-}
-
-/// One step of Up or Down: Up goes to the next higher rival and wraps from 15 to
-/// the lowest, Down goes to the next lower and wraps from the lowest to 15.
-pub fn step(shown: u8, low: u8, up: bool) -> u8 {
-    if up {
-        let next = shown.saturating_add(1);
-        if next > FIRST_RIVAL_STAGE {
-            return low;
-        }
-        return next;
-    }
-    let next = shown.saturating_sub(1);
-    if next < low {
-        return FIRST_RIVAL_STAGE;
-    }
-    next
-}
-
-/// One row of the panel: what the player has against what the rival asks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Requirement {
-    pub have: u64,
-    pub need: u32,
-}
-
-impl Requirement {
-    /// Met when the player has at least what is asked (the panel's tick).
-    pub fn met(self) -> bool {
-        self.have >= u64::from(self.need)
-    }
-}
-
-/// The Challenge Rival button: gone for a beaten rival, otherwise on or off.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Button {
-    Hidden,
-    Off,
-    On,
-}
-
-/// What the page shows of one rival.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Panel {
-    pub bin: u8,
-    pub races: Requirement,
-    pub challenges: Requirement,
-    pub bounty: Requirement,
-    /// A beaten rival: the stamp shows and the button is gone.
-    pub defeated: bool,
-    pub button: Button,
-    pub cash: u32,
-}
-
-/// The panel of `row` while the career is at `current`: a rival above the career's bin is beaten, and so is every
-/// rival once the career is complete.
-pub fn panel(row: &RivalRow, current: u8, flags: Flags, bounty: u64, cash: u32) -> Panel {
-    let Counters { races_won, challenges } = row.counters;
-    let defeated = flags.contains(Flags::CAREER_COMPLETE) || row.bin > current;
-    let button = match (defeated, row.button_active) {
-        (true, _) => Button::Hidden,
-        (false, true) => Button::On,
-        (false, false) => Button::Off,
-    };
-    Panel {
-        bin: row.bin,
-        races: Requirement { have: u64::from(races_won), need: row.races_needed },
-        challenges: Requirement { have: u64::from(challenges), need: row.challenges_needed },
-        bounty: Requirement { have: bounty, need: row.bounty_needed },
-        defeated,
-        button,
-        cash,
-    }
-}
-
-/// The four sheets the page offers, in the order Left and Right walk them (the original's option ids 0, 1, 2, 4).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Sheet {
-    RaceEvents,
-    Milestones,
-    Bounty,
-    Bio,
-}
-
-pub const SHEETS: [Sheet; 4] = [Sheet::RaceEvents, Sheet::Milestones, Sheet::Bounty, Sheet::Bio];
-
-impl Sheet {
-    /// The label of the sheet's name (`REP_SHEET_RACE_EVENTS`, `REP_SHEET_MILESTONE_EVENTS`, `REP_SHEET_BOUNTY`,
-    /// `REP_SHEET_BIO`).
-    pub fn label(self) -> u32 {
-        match self {
-            Sheet::RaceEvents => 0x84E4_A54C,
-            Sheet::Milestones => 0x216F_1B81,
-            Sheet::Bounty => 0xE451_941E,
-            Sheet::Bio => 0x2D15_9737,
-        }
-    }
-
-    /// The screen the sheet opens. The race, milestone and bounty sheets are not built yet, so those stay greyed.
-    pub fn screen(self) -> Option<&'static str> {
-        match self {
-            Sheet::Bio => Some(screen::SAFE_HOUSE_RIVAL_BIO),
-            Sheet::RaceEvents | Sheet::Milestones | Sheet::Bounty => None,
-        }
-    }
-}
-
 /// The page opened at `bin` (the screens it opened come back here).
-pub fn open(cx: &mut Cx, bin: u8) {
-    let args = Args { safehouse: true, rival: bin, ..Args::default() };
+pub fn open(cx: &mut Cx, bin: u8, from: Args) {
+    let args = super::blacklist::carry(from, bin, false);
     cx.send(Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_string(), args));
 }
 
@@ -220,7 +105,7 @@ fn parts(cx: &Cx, name: u32) -> Vec<ObjectRef> {
 }
 
 /// Whether a shown part of the object named `name` lies under `point`.
-fn hit(cx: &Cx, name: u32, point: Vec2) -> bool {
+pub(super) fn hit(cx: &Cx, name: u32, point: Vec2) -> bool {
     cx.rt.object_at(&parts(cx, name), point).is_some()
 }
 
@@ -230,6 +115,11 @@ struct Overview {
     /// The rival the page was opened for, or 0 for the career's own.
     asked: u8,
     sheet: usize,
+    /// What the page was opened with, for the menu it goes back to and the screens it opens.
+    args: Args,
+    /// The Remastered look is on: the page is a list and `cursor` is the entry on it.
+    vertical: bool,
+    cursor: usize,
 }
 
 /// The logic of `name` (lower case) when it is the overview.
@@ -241,7 +131,15 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if current_bin().is_none() {
         return Some(Box::new(Plain));
     }
-    Some(Box::new(Overview { shown: FIRST_RIVAL_STAGE, low: FIRST_RIVAL_STAGE, asked: args.rival, sheet: 0 }))
+    Some(Box::new(Overview {
+        shown: FIRST_RIVAL_STAGE,
+        low: FIRST_RIVAL_STAGE,
+        asked: args.rival,
+        sheet: 0,
+        args,
+        vertical: false,
+        cursor: 0,
+    }))
 }
 
 /// A game text, empty when missing.
@@ -307,6 +205,37 @@ impl Overview {
         cx.hide(ARROW_RIGHT, self.sheet + 1 == SHEETS.len());
     }
 
+    /// The Remastered list's entries of the shown rival.
+    fn list_entries(&self) -> Vec<(Entry, bool)> {
+        entries(read(self.shown).map_or(Button::Hidden, |panel| panel.button))
+    }
+
+    /// Does what the entry under the cursor is: opens its sheet, or starts the challenge.
+    fn activate(&self, cx: &mut Cx) {
+        let Some((entry, enabled)) = self.list_entries().get(self.cursor).copied() else { return };
+        if !enabled {
+            return;
+        }
+        match entry {
+            Entry::Sheet(sheet) => {
+                let Some(name) = sheet.screen() else { return };
+                let args = super::blacklist::carry(self.args, self.shown, true);
+                cx.send(Command::Switch(name.to_string(), args));
+            }
+            Entry::Challenge => cx.send(Command::ChallengeRival { bin: self.shown }),
+        }
+    }
+
+    fn back(&self, cx: &mut Cx) {
+        // The Remastered look goes back to the list of rivals, the Original to the menu it came from.
+        if self.vertical {
+            let args = super::blacklist::carry(self.args, self.shown, false);
+            return cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_string(), args));
+        }
+        let (next, args) = super::blacklist::home(self.args);
+        cx.send(Command::Switch(next.to_string(), args));
+    }
+
     fn step_rival(&mut self, cx: &mut Cx, up: bool) {
         let next = step(self.shown, self.low, up);
         if next == self.shown {
@@ -326,7 +255,7 @@ impl Overview {
 
     fn accept(&self, cx: &mut Cx) {
         let Some(name) = SHEETS[self.sheet].screen() else { return };
-        let args = Args { safehouse: true, rival: self.shown, overview: true, ..Args::default() };
+        let args = super::blacklist::carry(self.args, self.shown, true);
         cx.send(Command::Switch(name.to_string(), args));
     }
 
@@ -336,13 +265,14 @@ impl Overview {
         if panel.button != Button::On {
             return;
         }
-        let args = Args { safehouse: true, rival: self.shown, overview: true, ..Args::default() };
+        let args = super::blacklist::carry(self.args, self.shown, true);
         cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_string(), args));
     }
 }
 
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
         // Nothing to step through while the career is at rival 15.
@@ -354,8 +284,62 @@ impl ScreenLogic for Overview {
         self.fill_sheet(cx);
     }
 
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    /// Up and Down step the Remastered list as Left and Right step the sheets of the Original page.
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let text = |label: u32| Text::Game(label).resolve(assets).unwrap_or_default();
+        let entries = self
+            .list_entries()
+            .into_iter()
+            .map(|(entry, enabled)| match entry {
+                Entry::Sheet(sheet) => MenuEntry::plain(text(sheet.label()), enabled),
+                Entry::Challenge => MenuEntry::plain(text(label_hash("RIVAL_CHALLENGE_ACTIVATED")), enabled),
+            })
+            .collect();
+        let title = text(label_hash("TITLE_BLACKLIST_NUMBER")).replace("%d", &self.shown.to_string());
+        Some(MenuList {
+            title,
+            message: String::new(),
+            entries,
+            selected: self.cursor,
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Sub,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        if row >= self.list_entries().len() {
+            return;
+        }
+        self.cursor = row;
+        if matches!(pick, Pick::Press(..)) {
+            self.activate(cx);
+        }
+    }
+
     // The page has no focused button to answer an accept, so the pad press is the accept.
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & pad::ACCEPT != 0 && self.vertical {
+            return self.activate(cx);
+        }
         if bits & pad::ACCEPT != 0 {
             self.accept(cx);
         }
@@ -393,15 +377,19 @@ impl ScreenLogic for Overview {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
+            PAD_LEFT | PAD_RIGHT if self.vertical => {
+                let last = self.list_entries().len().saturating_sub(1);
+                self.cursor = match message == PAD_RIGHT {
+                    true => (self.cursor + 1).min(last),
+                    false => self.cursor.saturating_sub(1),
+                };
+            }
             PAD_UP => self.step_rival(cx, true),
             PAD_DOWN => self.step_rival(cx, false),
             PAD_LEFT => self.step_sheet(cx, false),
             PAD_RIGHT => self.step_sheet(cx, true),
             CHALLENGE_KEY => self.challenge(cx),
-            PAD_BACK => {
-                let args = Args { safehouse: true, ..Args::default() };
-                cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), args));
-            }
+            PAD_BACK => self.back(cx),
             _ => {}
         }
     }

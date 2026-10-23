@@ -17,6 +17,9 @@ pub struct Record {
     pub lap: Option<f32>,
     /// The highest speed through a speed trap, km/h.
     pub speed: Option<f32>,
+    /// The highest average speed of a finished run and the highest speed reached in one, km/h (the race events sheet).
+    pub average: Option<f32>,
+    pub top: Option<f32>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -50,6 +53,20 @@ impl Records {
         better
     }
 
+    /// Keeps the average and the top speed of a finished run when they beat the record's.
+    fn note_run(&mut self, event: &str, average: f32, top: f32) -> bool {
+        let record = self.0.entry(event.to_owned()).or_default();
+        let faster = |best: Option<f32>, now: f32| now > 0.0 && best.is_none_or(|best| now > best);
+        let (new_average, new_top) = (faster(record.average, average), faster(record.top, top));
+        if new_average {
+            record.average = Some(average);
+        }
+        if new_top {
+            record.top = Some(top);
+        }
+        new_average || new_top
+    }
+
     fn to_toml(&self) -> String {
         let mut events = toml::Table::new();
         for (event, record) in &self.0 {
@@ -62,6 +79,12 @@ impl Records {
             }
             if let Some(speed) = record.speed {
                 entry.insert("speed".into(), toml::Value::Float(f64::from(speed)));
+            }
+            if let Some(average) = record.average {
+                entry.insert("average".into(), toml::Value::Float(f64::from(average)));
+            }
+            if let Some(top) = record.top {
+                entry.insert("top".into(), toml::Value::Float(f64::from(top)));
             }
             events.insert(event.clone(), toml::Value::Table(entry));
         }
@@ -79,7 +102,13 @@ impl Records {
             let entry = value.as_table()?;
             Some((
                 event.clone(),
-                Record { time: number(entry, "time"), lap: number(entry, "lap"), speed: number(entry, "speed") },
+                Record {
+                    time: number(entry, "time"),
+                    lap: number(entry, "lap"),
+                    speed: number(entry, "speed"),
+                    average: number(entry, "average"),
+                    top: number(entry, "top"),
+                },
             ))
         };
         Self(events.iter().filter_map(read).collect())
@@ -113,6 +142,11 @@ pub fn note_time(event: &str, seconds: f32) {
 /// Notes the time of a lap and writes the file when it is the best.
 pub fn note_lap(event: &str, seconds: f32) {
     write(with_shared(|records| records.note_lap(event, seconds).then(|| records.to_toml())));
+}
+
+/// Notes the average and the top speed (km/h) of a finished run and writes the file when either is the best.
+pub fn note_run(event: &str, average: f32, top: f32) {
+    write(with_shared(|records| records.note_run(event, average, top).then(|| records.to_toml())));
 }
 
 /// Notes the speed of a pass through a speed trap and writes the file when it is the best.
@@ -152,9 +186,17 @@ mod tests {
         assert!(records.note_speed("10.2.1", 200.0));
         assert!(!records.note_speed("10.2.1", 150.0));
         assert!(!records.note_time("10.2.1", 0.0));
+        assert!(records.note_run("10.2.1", 120.0, 190.0));
+        assert!(records.note_run("10.2.1", 110.0, 200.0), "a better top speed counts alone");
+        assert!(!records.note_run("10.2.1", 100.0, 150.0));
+        assert_eq!(records.0["10.2.1"].average, Some(120.0));
+        assert_eq!(records.0["10.2.1"].top, Some(200.0));
         assert!(records.note_lap("10.2.1", 40.0));
         assert!(!records.note_lap("10.2.1", 41.0));
-        assert_eq!(records.0["10.2.1"], Record { time: Some(80.5), lap: Some(40.0), speed: Some(200.0) });
+        assert_eq!(
+            records.0["10.2.1"],
+            Record { time: Some(80.5), lap: Some(40.0), speed: Some(200.0), average: Some(120.0), top: Some(200.0) }
+        );
     }
 
     #[test]

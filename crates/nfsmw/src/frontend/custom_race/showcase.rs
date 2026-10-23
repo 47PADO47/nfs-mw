@@ -8,6 +8,7 @@ use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK};
 use super::car_list;
 use super::car_select::progress;
 use super::state;
+use crate::frontend::career_screens::car_lot_look::{showcase_logos, showcased};
 use crate::frontend::ids::screen;
 use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
 use crate::frontend::look::{CarLook, Look};
@@ -25,15 +26,22 @@ pub struct Showcase {
     car: Option<(String, Option<String>)>,
     /// The player whose car it is (split screen; 0 otherwise).
     player: u8,
+    /// Opened by the car lot: the car is the lot's and the screen returns to the lot with these arguments.
+    lot: Option<Args>,
+    /// The lot car's look, with the record the lot knows it by.
+    lot_look: Option<CarLook>,
 }
 
 impl Showcase {
     pub fn new(args: Args) -> Self {
-        Self { car: None, player: args.player }
+        Self { car: None, player: args.player, lot: args.safehouse.then_some(args), lot_look: None }
     }
 
     /// The car the car select left chosen: its folder and preset, and its logos on the package.
     fn take_car(&mut self, cx: &mut Cx) {
+        if self.lot.is_some() {
+            return self.take_lot_car(cx);
+        }
         let Some(pool) = pool::cars() else { return };
         let Some(name) = state::with(|s| s.pick(usize::from(self.player)).name.clone()) else { return };
         let progress = progress();
@@ -46,6 +54,22 @@ impl Showcase {
             }
         }
         self.car = Some((entry.car.folder, entry.preset));
+    }
+}
+
+impl Showcase {
+    /// The car the car lot sent: its look, and its logos on the package.
+    fn take_lot_car(&mut self, cx: &mut Cx) {
+        let Some(car) = showcased() else { return };
+        if let Some((maker, model)) = showcase_logos(cx.assets, &car.name) {
+            for (hash, texture) in [(MAKER_LOGO, maker), (MODEL_LOGO, model)] {
+                if let Some(o) = cx.object(hash) {
+                    cx.rt.set_texture(o, texture);
+                }
+            }
+        }
+        self.car = Some((car.look.car.clone(), car.look.preset.clone()));
+        self.lot_look = Some(car.look);
     }
 }
 
@@ -63,6 +87,9 @@ impl ScreenLogic for Showcase {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if matches!(message, PAD_ACCEPT | PAD_BACK) {
+            if let Some(args) = self.lot {
+                return cx.send(Command::Switch(screen::CAR_SELECT.into(), args));
+            }
             cx.send(Command::Switch(
                 screen::CAR_SELECT.into(),
                 Args { custom: true, player: self.player, ..Args::default() },
@@ -75,6 +102,9 @@ impl ScreenLogic for Showcase {
     }
 
     fn look(&self) -> Option<Look> {
+        if let Some(look) = &self.lot_look {
+            return Some(Look::LotShowcase(look.clone()));
+        }
         let (car, preset) = self.car.as_ref()?;
         Some(Look::Showcase(CarLook::named(car, preset.as_deref())))
     }

@@ -132,6 +132,19 @@ impl Blacklist {
         entered
     }
 
+    /// Rebuilds the bins a loaded career has entered (`CurrentBin` up to bin 15) from what the save holds: `won` says
+    /// whether the race record of an event id has the won-in-career flag, and `challenges` gives the ids of the
+    /// challenges passed in a bin (the milestones banked and the speed traps done). Call it after the total bounty is
+    /// given ([`Blacklist::bounty_changed`]), since the resting state of a bin follows its gate. Bins above `CurrentBin`
+    /// are beaten, so they are `done`; the bins below it were never entered and stay as they are.
+    pub fn restore_progress(&mut self, won: impl Fn(&str) -> bool, challenges: impl Fn(u8) -> Vec<String>) {
+        let (current, bounty) = (self.current, self.bounty);
+        for number in current..=FIRST_RIVAL_STAGE {
+            let Some(record) = self.bins.get_mut(&number) else { continue };
+            record.restore(bounty, number > current, &won, challenges(number));
+        }
+    }
+
     /// A race finish in career mode. `race` is the event id and `first` whether the local player placed first.
     /// Records the race as completed (section 4.2), counts it for races won, counts a first-place boss race of an
     /// unlocked rival, and re-checks a locked rival where section 2.6 calls for it.

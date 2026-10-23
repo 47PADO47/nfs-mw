@@ -216,6 +216,8 @@ pub struct WorldScene {
     gameplay: Option<std::sync::Arc<nfsmw_data::gameplay::GameplayData>>,
     /// The race being run, if any (`race/`).
     race: Option<race::RaceSession>,
+    /// The fade to black of the prologue's breakdown (`race/chase_fade.rs`).
+    screen_fade: race::chase_fade::ScreenFade,
     /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
     queued_race: Option<(String, race::RaceOptions)>,
     /// The race, options and course `queued_race` runs again when the post-race screen's Restart queued it: it starts as

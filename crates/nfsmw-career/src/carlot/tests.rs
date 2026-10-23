@@ -83,6 +83,15 @@ fn the_lot_lists_locked_cars_and_drops_the_ones_not_offered() {
 }
 
 #[test]
+fn a_region_or_maker_collection_with_no_price_is_not_a_car_of_the_lot() {
+    let europe = lot("europe", 0x20, 0xD0, 0, 15, LotClass::Europe);
+    assert!(europe.for_sale, "the collection inherits the flag");
+    assert!(!europe.is_offered());
+    assert_eq!(europe.state_at(16), LotState::NotOffered);
+    assert!(listed(&[europe], 16).is_empty());
+}
+
+#[test]
 fn a_rival_car_appears_once_its_rival_is_beaten() {
     assert!(rival_car_available(15, 14));
     assert!(!rival_car_available(15, 15));

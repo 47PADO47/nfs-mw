@@ -27,6 +27,9 @@ pub struct Args {
     /// Opened by the scripted chase's `JumpToCarLot`: the car lot picks the car the first drive to the safe house is made in
     /// (`flow_prologue.rs`).
     pub first_car: bool,
+    /// The car lot was entered from a zone in free roam: Back goes back to the world at the zone, not to the safe house menu
+    /// (`flow_prologue.rs`).
+    pub from_world: bool,
     /// Opened from the reputation overview (`reputation_overview.rs`): the rival screens it opens show the rival the
     /// overview shows and go back to it.
     pub overview: bool,
@@ -38,6 +41,14 @@ pub struct Args {
     pub lan: bool,
 }
 
+impl Args {
+    /// The car select is the car lot's own (platform 5): a lot zone or the first car's purchase opened it, not the safe house
+    /// menu.
+    pub const fn in_lot(&self) -> bool {
+        self.from_world || self.first_car
+    }
+}
+
 impl Default for Args {
     fn default() -> Self {
         Self {
@@ -47,10 +58,11 @@ impl Default for Args {
             safehouse: false,
             rival: 0,
             sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false, coop_locked: false },
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false, coop_locked: false, blacklist: None },
             custom: false,
             sequence: false,
             first_car: false,
+            from_world: false,
             overview: false,
             player: 0,
             coop: false,

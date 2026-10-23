@@ -54,6 +54,9 @@ pub(super) struct WorldCareer {
     pub safe_house_drive: drive_to_target::SafeHouseDrive,
     /// The scripted chase of race 16.2.1 while that race runs (`race/scripted_chase.rs`).
     pub chase: Option<super::race::scripted_chase::ChaseRun>,
+    /// The places the scripted chase of 16.2.1 asked cops at (physics space: position and facing), until the police step places
+    /// them (`ai::scripted_cops`).
+    pub scripted_cops: Vec<(glam::Vec3, glam::Vec3)>,
     /// The milestones the last chase banked, until the front end takes them for the rewards screen.
     pub rewards: Option<crate::viewer::RewardsReport>,
     /// The speed trap the car has just crossed, until the front end takes it for the photo.
@@ -65,6 +68,7 @@ impl WorldScene {
     pub fn set_career(&mut self, handle: CareerHandle, profiles: Option<ProfileDir>) {
         self.career.handle = handle;
         self.career.profiles = profiles;
+        self.seed_side_won();
     }
 
     /// The career's part of a frame.
@@ -76,6 +80,7 @@ impl WorldScene {
         self.career_respawn();
         self.career_pursuit(dt);
         self.career_speed_traps();
+        self.screen_fade.advance(dt);
         self.update_scripted_chase(dt);
         self.career_drive_to_target(dt);
         self.career_regions();

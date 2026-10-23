@@ -11,34 +11,30 @@
 //! is a [`CarLotAction`]; the front end passes it to [`apply`] when the player says yes.
 
 use super::car_lot_first::pick_first_car;
-use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
+use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
 use nfsmw_career::carlot::sale::MAX_SALE_STAGE;
-use nfsmw_career::carlot::stats::{self, CarStats};
 use nfsmw_career::carlot::{self, Delivery, Limits, LotCar, LotState, PurchaseError, PurchasePrompt, SaleError};
-use nfsmw_career::economy::sale_proceeds;
 use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::Stable;
 
 use crate::career::{Career, CareerHandle, coop_players};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
-use crate::frontend::infractions::money;
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
+use crate::frontend::look::Look;
 use crate::ui::Text;
 
 /// The objects of `Car_Select.fng` the screen fills (guids from `nfsmw dump-screen Car_Select.fng`): the car card's
 /// name, the `Cost:` value, the `Funds:` value, the "This Car is Locked" notice, the Sell button, the Accept button's
 /// label and the header's title text.
 pub(super) const CAR_NAME: u32 = 0x000E_283B;
-const PRICE: u32 = 0x000F_90AB;
-const CASH: u32 = 0x000F_90A7;
-const LOCKED: u32 = 0x000F_BDEB;
 pub(super) const SELL_BUTTON: u32 = 0x0010_5E06;
 pub(super) const ACCEPT: u32 = 0x000E_2B7E;
 pub(super) const TAB_TITLE: u32 = 0x000F_18D7;
 
 pub(crate) use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, Strip, TOP_SPEED_STRIPS, set_bar};
+pub(super) use super::car_lot_look::shown_fractions;
 
 /// The language table labels the tab titles and the Accept label show (`Car Lot`, `Career`, `Buy Car`, `Accept`).
 /// The owned tab shows `Career` (`0x5415C3F1`, the label the package's own header object carries). `My Cars`
@@ -140,55 +136,9 @@ pub(super) fn set_label(cx: &mut Cx, guid: u32, label_hash: u32) {
 /// (`carlot::listed`). Owned rows are the career's owned cars that the catalogue names.
 pub fn items(career: &Career, tab: Tab) -> Vec<Item> {
     match tab {
-        Tab::Lot => lot_items(&career.data.cars, career.settings.stage),
-        Tab::Owned => owned_items(&career.stable, &career.data.cars),
+        Tab::Lot => super::car_lot_look::lot_rows(&career.data.cars, career.settings.stage),
+        Tab::Owned => super::car_lot_look::owned_rows(&career.stable, &career.data.cars),
     }
-}
-
-fn lot_items(cars: &[LotCar], stage: u8) -> Vec<Item> {
-    carlot::listed(cars, stage)
-        .into_iter()
-        .map(|(car, state)| Item {
-            key: Key::Lot(car.frontend_key),
-            name: car.name.clone(),
-            price: car.price,
-            locked: state == LotState::Locked,
-        })
-        .collect()
-}
-
-fn owned_items(stable: &Stable, cars: &[LotCar]) -> Vec<Item> {
-    stable
-        .cars
-        .iter()
-        .filter(|car| !car.is_free() && car.is_owned())
-        .filter_map(|car| {
-            let lot = carlot::by_frontend_key(cars, car.frontend_key)?;
-            Some(Item {
-                key: Key::Owned(car.handle),
-                name: lot.name.clone(),
-                price: sale_proceeds(lot.price),
-                locked: false,
-            })
-        })
-        .collect()
-}
-
-/// The three bar fractions of a row, `[TOP SPEED, HANDLING, ACCELERATION]`, from the car's stats among the lot's
-/// (`stats::bar_fractions`). Empty bars for no row, a car the lot does not name, or a car with no stats.
-pub(super) fn shown_fractions(career: &Career, item: Option<&Item>) -> [f32; 3] {
-    let Some(item) = item else { return [0.0; 3] };
-    let key = match item.key {
-        Key::Lot(key) => key,
-        Key::Owned(handle) => {
-            let Some(record) = career.stable.cars.iter().find(|car| car.handle == handle) else { return [0.0; 3] };
-            record.frontend_key
-        }
-    };
-    let Some(index) = career.data.cars.iter().position(|car| car.frontend_key == key) else { return [0.0; 3] };
-    let Some(car) = career.data.stats.get(index).copied().flatten() else { return [0.0; 3] };
-    let population: Vec<CarStats> = career.data.stats.iter().flatten().copied().collect();
-    stats::bar_fractions(&car, &population)
 }
 
 /// The answer to Accept on row `cursor` of `tab`: nothing when the row is greyed or missing, else the notice or the
@@ -349,11 +299,13 @@ pub struct CarLotLogic {
     /// Opened by the scripted chase: Accept on a lot car buys it as the first car and on an owned car picks it, and either
     /// starts the first drive; Back is refused.
     first_car: bool,
+    /// Entered from a zone in free roam: Back returns to the world at the zone.
+    from_world: bool,
 }
 
 impl CarLotLogic {
     fn new() -> Self {
-        Self { tab: Tab::Lot, cursor: 0, first_car: false }
+        Self { tab: Tab::Lot, cursor: 0, first_car: false, from_world: false }
     }
 
     /// The rows of the current tab, or none outside career mode.
@@ -367,16 +319,14 @@ impl CarLotLogic {
         self.cursor = self.cursor.min(len.saturating_sub(1));
     }
 
-    /// Draws the shown car: its name and price, the player's cash, the locked notice, the tab title, the Accept label and
-    /// the Sell button (owned cars only). An empty list shows no car.
+    /// Draws the shown car: the logos, the bars, the lock notice, the cost and funds lines, the tab title and the Accept label,
+    /// and the Sell button (owned cars only). An empty list shows no car.
     fn fill(&self, cx: &mut Cx) {
         let rows = self.rows();
         let cash = CareerHandle::shared().with(|career| career.settings.cash).unwrap_or(0);
-        let row = rows.get(self.cursor);
-        set_text(cx, CAR_NAME, row.map(|item| item.name.clone()).unwrap_or_default());
-        set_text(cx, PRICE, row.map(|item| money(item.price)).unwrap_or_default());
-        set_text(cx, CASH, money(cash));
-        show(cx, LOCKED, row.is_some_and(|item| item.locked));
+        let shown =
+            super::car_lot_look::Shown { len: rows.len(), cursor: self.cursor, row: rows.get(self.cursor), cash };
+        super::car_lot_look::draw(cx, &shown);
         show(cx, SELL_BUTTON, self.tab == Tab::Owned);
         set_label(cx, TAB_TITLE, self.tab.title());
         let accept = match self.tab {
@@ -384,10 +334,6 @@ impl CarLotLogic {
             Tab::Owned => ACCEPT_LABEL,
         };
         set_label(cx, ACCEPT, accept);
-        let fractions = CareerHandle::shared().with(|career| shown_fractions(career, row)).unwrap_or([0.0; 3]);
-        set_bar(cx, &TOP_SPEED_STRIPS, fractions[0]);
-        set_bar(cx, &HANDLING_STRIPS, fractions[1]);
-        set_bar(cx, &ACCELERATION_STRIPS, fractions[2]);
     }
 
     /// Moves the shown car one step through the tab's list (`forward` is the next car).
@@ -401,6 +347,31 @@ impl CarLotLogic {
         self.tab = self.tab.other();
         self.cursor = 0;
         self.fill(cx);
+    }
+}
+
+impl CarLotLogic {
+    /// Back: out of the lot's zone to the world, or to the safe house menu; the first car's lot cannot be left without a car.
+    fn back(&self, cx: &mut Cx) {
+        if self.first_car {
+            return;
+        }
+        if self.from_world {
+            return cx.send(Command::LeaveCarLot);
+        }
+        cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() }));
+    }
+
+    /// Showcase: the car under the cursor on its own, in the lot's room. A greyed car is refused.
+    fn showcase(&self, cx: &mut Cx) {
+        let rows = self.rows();
+        let Some(row) = rows.get(self.cursor).filter(|row| !row.locked) else { return };
+        let look = CareerHandle::shared().with(|career| super::car_lot_look::item_look(career, row)).flatten();
+        let Some(look) = look else { return };
+        let car = super::car_lot_look::ShowcaseCar { name: row.name.clone(), look, tab: self.tab, cursor: self.cursor };
+        super::car_lot_look::set_showcase(car);
+        let args = Args { safehouse: true, first_car: self.first_car, from_world: self.from_world, ..Args::default() };
+        cx.send(Command::Switch(screen::SHOWCASE.to_string(), args));
     }
 
     fn accept(&self, cx: &mut Cx) {
@@ -427,6 +398,14 @@ impl CarLotLogic {
 
 impl ScreenLogic for CarLotLogic {
     fn start(&mut self, cx: &mut Cx) {
+        cx.rt.post_to_package(cx.package, super::car_lot_look::LOT_MODE);
+        // The lot opens on the first car the stage lets the player buy, not on a greyed one above it; back from the Showcase it
+        // stands where it was left.
+        match super::car_lot_look::take_return() {
+            Some((tab, cursor)) => (self.tab, self.cursor) = (tab, cursor),
+            None => self.cursor = self.rows().iter().position(|item| !item.locked).unwrap_or(0),
+        }
+        self.clamp();
         self.fill(cx);
     }
 
@@ -435,16 +414,34 @@ impl ScreenLogic for CarLotLogic {
         self.fill(cx);
     }
 
+    /// The hints at the foot of the screen, which a click presses: Back, Accept and Showcase; a greyed car offers Back alone.
+    fn footer(&self) -> Footer {
+        match self.rows().get(self.cursor) {
+            Some(row) if !row.locked => Footer::CarSelect,
+            _ => Footer::CarSelectLocked,
+        }
+    }
+
+    /// The car under the cursor stands in the lot's room.
+    fn look(&self) -> Option<Look> {
+        let rows = self.rows();
+        let item = rows.get(self.cursor)?;
+        let look = CareerHandle::shared().with(|career| super::car_lot_look::item_look(career, item)).flatten()?;
+        // The lot's room for the lot, the safe house's for the cars the safe house menu browses.
+        Some(match self.first_car || self.from_world {
+            true => Look::CarLot(look),
+            false => Look::SafeHouse(look),
+        })
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_LEFT => self.move_car(cx, false),
             PAD_RIGHT => self.move_car(cx, true),
             PAD_UP | PAD_DOWN => self.switch_tab(cx),
             PAD_ACCEPT => self.accept(cx),
-            PAD_BACK if !self.first_car => {
-                let back = Args { safehouse: true, ..Args::default() };
-                cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), back));
-            }
+            PAD_BACK => self.back(cx),
+            PAD_BUTTON0 => self.showcase(cx),
             _ => {}
         }
     }
@@ -457,6 +454,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     }
     let mut logic = CarLotLogic::new();
     logic.first_car = args.first_car;
+    logic.from_world = args.from_world;
     Some(Box::new(logic))
 }
 

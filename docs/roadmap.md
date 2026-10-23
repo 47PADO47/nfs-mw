@@ -57,7 +57,7 @@ What the career still lacks. The rules and the wiring listed in the table above 
   messages follow its count (`scenes/world/career/pursuit.rs`); the speed traps of free roam are played (`scenes/world/career/speedtraps.rs`): driving into an armed trap above its threshold pays its bounty and passes a challenge of its bin, slower says "Too slow", and an armed trap is on the minimap; the trap's size is its record's `Radius` (20 m, 25 m on one and 30 m on two; read by `SpeedTrap::radius`) and its photo screen is shown.
   Pursuit challenges run as chases with a goal ([race-mode.md](specs/race-mode.md) section 12) and set the series flag
   from the events won in the session. The challenge unlock ladder (`InitiallyUnlocked`, `UnlockRaces`) and the spike-strip
-  challenges are played; the ladder's wins are not saved. The final pursuit is built in the story mode ([Story mode](#story-mode-milestone-7)). Not done: the region unlock screen after a race (it is reported in the log only).
+  challenges are played; The final pursuit is built in the story mode ([Story mode](#story-mode-milestone-7)). The races won, the rival states and the challenges passed are saved with the profile and rebuilt on load ([rep sheets](specs/career-rep-sheets.md) section 6); the wins of the side bins (tollbooths, challenge series, speed traps) are saved the same way.
 
 ## Race open items (milestone 7)
 
@@ -111,7 +111,7 @@ Open:
 - The NIS audio take mapping for rival intros, arrests and endings: one shared take per branch.
 - The FEng overlay packages in a NIS are drawn as text.
 - NIS character lights and hide events.
-- The overview's race, milestone and bounty sheets (`SafeHouseRaceSheet`, `SafeHouseMilestones`, `SafeHouseBounty`) are not built; their options are greyed.
+- The overview's race, milestone and bounty sheets are built ([spec](specs/career-rep-sheets.md)); open there: the cop probability row, the in-game twins' own packages (the pause menu opens the safe house ones).
 - The NIS framing is not yet checked on screen.
 - The arrest-spot search (the arrest uses the player's pose instead).
 - Delete confirmation in the inbox.

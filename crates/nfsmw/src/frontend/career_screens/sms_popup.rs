@@ -1,13 +1,13 @@
 //! The text message that opens over the game when the phone delivers it (`docs/specs/story-flow-2.md` section 3.7,
 //! `docs/specs/career-phone.md` section 3.6). The screen is `SMS_Message.fng`, the inbox's message screen; this logic
 //! shows the message and closes it with Back or the focused Done button, which resumes the game. The first showing
-//! plays a story message's voice; Replay (button 4) plays it again, and Delete (button 5) empties the slot and closes
-//! the popup.
+//! plays a story message's voice; Replay (button 4) plays it again, and Delete (button 5) asks first, then empties the slot
+//! and closes the popup.
 
 use blackbox_feng::ids::PAD_BACK;
 use blackbox_feng::runtime::pad;
 
-use super::sms::{DELETE, REPLAY, delete, open_message, replay_voice, show_message};
+use super::sms::{DELETE, REPLAY, delete_question, open_message, replay_voice, show_message};
 use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE};
 use crate::frontend::logic::{Command, Cx, ScreenLogic};
 
@@ -50,10 +50,7 @@ impl ScreenLogic for SmsPopup {
         match message {
             INIT_COMPLETE => open_message(self.id),
             REPLAY => replay_voice(self.id),
-            DELETE => {
-                delete(self.id);
-                cx.send(Command::Resume);
-            }
+            DELETE => cx.send(Command::Confirm(delete_question(self.id, Command::Resume))),
             _ => {}
         }
     }

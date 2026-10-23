@@ -9,7 +9,7 @@ use crate::career::{AutosaveInputs, CareerRequest, handle_autosave};
 use crate::frontend::career_screens::car_lot::{self, CarLotAction};
 use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::flow::Stage;
-use crate::frontend::ids::screen::{CAR_SELECT, DIALOG, MAIN_MENU_SUB, SAFEHOUSE_REGION_UNLOCK};
+use crate::frontend::ids::screen::{DIALOG, MAIN_MENU_SUB, SAFEHOUSE_REGION_UNLOCK};
 use crate::frontend::logic::{Args, Env, QuitTo, Sub};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
@@ -30,6 +30,9 @@ impl Frontend {
             log::info!("career: resuming the prologue at {event}");
             self.save_settings(env.changed);
             return self.start_career_race(event, host, env);
+        }
+        if self.resume_first_car(host, env) {
+            return;
         }
         if self.resume_final_race_due() {
             log::info!("career: resuming at the final race {FINAL_RACE_EVENT}");
@@ -59,6 +62,7 @@ impl Frontend {
         self.career.set_prelude(false);
         self.leave_safe_house();
         self.safe_house_start.pending = true;
+        self.quick_car = Some(self.profile_car());
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
@@ -121,16 +125,19 @@ impl Frontend {
                 if flow_arrival::take_due(&self.career) {
                     return self.start_arrival(host, env);
                 }
-                (MAIN_MENU_SUB, Args { safehouse: true, ..Args::default() })
+                // The safe house is a room of its own: the world gives way to it, and Resume Free Roam starts the world
+                // again at the zone (`start_from_safe_house`).
+                self.career.set_prelude(true);
+                return self.open_safe_house(host, env);
             }
-            CareerRequest::CarLot { .. } => (CAR_SELECT, Args { safehouse: true, ..Args::default() }),
+            // The car lot is a room of its own: the world gives way to it (`flow_prologue.rs`).
+            CareerRequest::CarLot { zone } => return self.open_car_lot(Some(zone), host, env),
+            CareerRequest::FirstCarLot => return self.open_car_lot(None, host, env),
             // The arrival sequence shows this screen at its region step, in the safe house.
             CareerRequest::RegionUnlock { .. } if flow_arrival::is_due(&self.career) => {
                 log::info!("career: the region screen waits for the arrival sequence");
                 return;
             }
-            // The car lot after the scripted chase of 16.2.1: Accept on the car picked starts the drive (`flow_prologue.rs`).
-            CareerRequest::FirstCarLot => (CAR_SELECT, Args { safehouse: true, first_car: true, ..Args::default() }),
             CareerRequest::RegionUnlock { .. } => {
                 (SAFEHOUSE_REGION_UNLOCK, Args { safehouse: true, ..Args::default() })
             }

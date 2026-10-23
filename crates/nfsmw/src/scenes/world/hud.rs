@@ -1,6 +1,7 @@
 //! The HUD of the world scene: the drive's state, with the traffic's and the map's blips on the minimap.
 
 use glam::Vec3;
+use nfsmw_career::settings::PROLOGUE_STAGE;
 use nfsmw_data::gameplay::{ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
 use super::hud_pursuit::pursuit_board;
@@ -80,7 +81,10 @@ impl WorldScene {
             self.race_blips(&mut state.blips);
             self.race_start_blips(&mut state.blips);
             // A race shows its own route only: no garages, car lots, safe houses or free-roam speed traps.
-            if self.race.is_none() {
+            if self.race.is_none() && self.in_prologue() {
+                // Until the first safe house is reached it is the only place on the map (`story-flow.md` section 2.5).
+                state.blips.extend(self.first_safe_house_blip());
+            } else if self.race.is_none() {
                 self.speed_trap_blips(&mut state.blips);
                 state.blips.extend_from_slice(&self.map_blips);
             }
@@ -119,11 +123,25 @@ pub(super) fn race_start_blips(data: &GameplayData) -> Vec<(String, MapBlip)> {
     data.races.iter().filter_map(|race| Some((race.name.clone(), race_blip(race)?))).collect()
 }
 
+/// The first safe house, the one zone the map shows before it is reached.
+const FIRST_SAFE_HOUSE: &str = "menu_gate_safehouse/zone_safehouse_1";
+
 impl WorldScene {
+    /// Whether the career being played is still in its prologue (stage 16): the first safe house has not been reached.
+    pub(super) fn in_prologue(&self) -> bool {
+        self.career.handle.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false)
+    }
+
+    /// The blip of the first safe house, the one place the map shows in the prologue.
+    fn first_safe_house_blip(&self) -> Option<MapBlip> {
+        let data = self.gameplay.as_ref()?;
+        data.markers.iter().find(|marker| marker.name == FIRST_SAFE_HOUSE).map(interior_blip)
+    }
+
     /// Appends the icons of the races that can be started now: none while a race runs, and in a career only the races the
     /// Blacklist has opened or does not list (`docs/specs/world-markers.md` section 2).
     pub(super) fn race_start_blips(&self, out: &mut Vec<MapBlip>) {
-        if self.race.is_some() {
+        if self.race.is_some() || self.in_prologue() {
             return;
         }
         let shown = self.race_starts.iter().filter(|(name, _)| !self.career_race_locked(name)).map(|(_, blip)| *blip);

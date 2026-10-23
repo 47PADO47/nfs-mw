@@ -68,6 +68,7 @@ impl Scene for WorldScene {
         self.show_nis_bars(ctx);
         self.show_story_movie(ctx);
         self.nis.screen().draw(ctx);
+        self.show_screen_fade(ctx);
         0.0
     }
 
@@ -409,6 +410,19 @@ impl Scene for WorldScene {
     }
     fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
         self.move_player_to(at, heading)
+    }
+    fn jump_player(&mut self, at: [f32; 2]) -> bool {
+        self.start_at_point(at)
+    }
+    fn start_career_event(&mut self, event: &str) -> bool {
+        let options = super::race::RaceOptions { career: true, ..Default::default() };
+        match self.start_race(event, options) {
+            Ok(_) => true,
+            Err(e) => {
+                log::warn!("career: cannot start event {event}: {e}");
+                false
+            }
+        }
     }
     fn repair_player(&mut self) -> bool {
         self.repair_player_car()

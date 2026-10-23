@@ -67,6 +67,8 @@ pub struct PauseCtx {
     pub quit: QuitTo,
     pub coop: bool,
     pub coop_locked: bool,
+    /// The career is being played outside a race and has entered the Blacklist: the pause menu lists Blacklist at this stage.
+    pub blacklist: Option<u8>,
 }
 
 pub use super::footer::Footer;
@@ -127,6 +129,14 @@ pub enum Command {
     EndCoop,
     /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
     StartFirstDrive,
+    /// The inbox's delete question was answered Yes: message `id` goes back to state 0, then `then` closes the screen
+    /// (`career_screens/sms.rs`).
+    DeleteSms {
+        id: u32,
+        then: Box<Command>,
+    },
+    /// Leave the car lot that a free-roam zone opened: the world starts again at the zone (`flow_prologue.rs`).
+    LeaveCarLot,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.
     SetWaypoint([f32; 2]),
     /// Show the lap table of a race (`PostRace_Results.fng`) in place of the screen on top (`photo.rs`).
@@ -151,6 +161,17 @@ pub enum Command {
     /// The Blacklist's challenge button, accepted for this bin: the world starts its first boss race (`flow_rival.rs`).
     ChallengeRival {
         bin: u8,
+    },
+    /// The race events sheet, answered Yes: the world starts this career event (an event id such as `10.2.1`) behind the loading
+    /// screen, as a rival challenge does (`flow_rival.rs`).
+    LaunchEvent {
+        event: String,
+    },
+    /// The milestones or bounty sheet, answered Yes: the world starts with the car at this point (render space x and y)
+    /// (`flow_rival.rs`).
+    JumpTo {
+        x: f32,
+        y: f32,
     },
     /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
     /// (`flow_first_visit.rs`).

@@ -322,6 +322,14 @@ impl Scene for Pausable {
         self.inner.race_active()
     }
 
+    fn jump_player(&mut self, at: [f32; 2]) -> bool {
+        self.inner.jump_player(at)
+    }
+
+    fn start_career_event(&mut self, event: &str) -> bool {
+        self.inner.start_career_event(event)
+    }
+
     fn restart_race(&mut self) -> bool {
         self.inner.restart_race()
     }

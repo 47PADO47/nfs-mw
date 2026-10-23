@@ -26,6 +26,10 @@ impl WorldScene {
         {
             crate::frontend::custom_race::records::note_time(&session.event, time);
             crate::frontend::custom_race::records::note_lap(&session.event, time - session.lap_mark);
+            let stats = &engine.racers()[0].stats;
+            // The average is the distance driven over the race time, both as the race recorded them.
+            let average = stats.distance / time * 3.6;
+            crate::frontend::custom_race::records::note_run(&session.event, average, stats.top_speed * 3.6);
         }
         session.stage = Stage::Results { left: RACE_OVER_SECS };
         self.note_race_outcome(session);
@@ -73,6 +77,10 @@ impl WorldScene {
         self.end_split();
         self.unpark_guest_after_race();
         log::info!("race: {} ended", session.name);
+        // The black of a breakdown holds until the next race takes over; with none, the screen comes back.
+        if self.queued_race.is_none() {
+            self.screen_fade.clear();
+        }
         if session.options.career {
             self.career_race_left();
         }

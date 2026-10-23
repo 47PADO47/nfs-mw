@@ -10,6 +10,8 @@ pub enum Stage {
     Crib,
     /// Platform 2: the career safe house.
     SafeHouse,
+    /// Platform 5: the car lot, its own room, which the lot zones and the first car's purchase open.
+    CarLot,
 }
 
 /// How the original stands a car on a platform: the yaw of the car and the height its wheels rest at. [exe]
@@ -20,14 +22,19 @@ pub struct CarStand {
     pub sink: f32,
 }
 
-/// How the car stands on the platforms here (the crib and the safe house share it). [exe]
+/// How the car stands on the crib and the safe house, which share it. [exe]
 pub const CAR_STAND: CarStand = CarStand { yaw: 304.97, sink: 0.025 };
+
+/// How the car stands in the car lot: the stand routine turns it 340 degrees there (`menu-backdrop-looks.md` section 4.1).
+/// [exe]
+pub const CAR_LOT_STAND: CarStand = CarStand { yaw: 340.0, sink: 0.025 };
 
 impl Look {
     /// The stage the look stands on.
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
+            Look::CarLot(_) | Look::LotShowcase(_) => Stage::CarLot,
             Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
         }
     }
@@ -40,7 +47,8 @@ impl Look {
             Look::Main => Some("main_fe"),
             Look::Car(_) => Some("career_manager"),
             Look::SafeHouse(_) => Some("career_safehouse"),
-            Look::Showcase(_) => None,
+            Look::CarLot(_) => Some("car_lot"),
+            Look::Showcase(_) | Look::LotShowcase(_) => None,
         }
     }
 }
@@ -51,6 +59,15 @@ impl Stage {
         match self {
             Stage::Crib => "FRONTEND/PLATFORMS/PlatformCrib.BIN",
             Stage::SafeHouse => "FRONTEND/PLATFORMS/CAREER_SAFEHOUSE.BIN",
+            Stage::CarLot => "FRONTEND/PLATFORMS/CAR_LOT.BIN",
+        }
+    }
+
+    /// How a car stands on this stage.
+    pub fn car_stand(self) -> &'static CarStand {
+        match self {
+            Stage::CarLot => &CAR_LOT_STAND,
+            Stage::Crib | Stage::SafeHouse => &CAR_STAND,
         }
     }
 
@@ -61,7 +78,7 @@ impl Stage {
     pub fn room_yaw(self) -> f32 {
         match self {
             Stage::Crib => 180.0,
-            Stage::SafeHouse => 0.0,
+            Stage::SafeHouse | Stage::CarLot => 0.0,
         }
     }
 
@@ -72,7 +89,7 @@ impl Stage {
     /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
-            Stage::Crib => true,
+            Stage::Crib | Stage::CarLot => true,
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
             }
@@ -90,6 +107,15 @@ mod tests {
         assert_eq!(Look::Main.stage(), Stage::Crib);
         assert_eq!(Look::Car(CarLook::default_car()).stage(), Stage::Crib);
         assert_eq!(Look::SafeHouse(CarLook::default_car()).stage(), Stage::SafeHouse);
+        assert_eq!(Look::CarLot(CarLook::default_car()).stage(), Stage::CarLot);
+    }
+
+    #[test]
+    fn the_car_lot_is_its_own_room_and_turns_the_car_340_degrees() {
+        assert_eq!(Stage::CarLot.file(), "FRONTEND/PLATFORMS/CAR_LOT.BIN");
+        assert_eq!(Look::CarLot(CarLook::default_car()).camera_intro(), Some("car_lot"));
+        assert_eq!(Stage::CarLot.car_stand().yaw, 340.0);
+        assert_eq!(Stage::SafeHouse.car_stand().yaw, 304.97);
     }
 
     #[test]

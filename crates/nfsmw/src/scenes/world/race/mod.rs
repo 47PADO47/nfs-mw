@@ -7,6 +7,7 @@ mod barriers;
 mod blips;
 mod card;
 mod challenge;
+pub(in crate::scenes::world) mod chase_fade;
 mod command;
 mod coop_finish;
 mod demo;
