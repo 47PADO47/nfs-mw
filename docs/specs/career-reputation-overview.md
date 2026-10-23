@@ -74,6 +74,13 @@ bit 14) or the shown bin is above the stage byte: the rival is beaten. **[exe]**
 
 ## 4. In the Rust rewrite
 
+The native overview binds all four sheets to the package's `OPTION_n` carousel slots. It uses the installed
+`MAIN_ICON_REP_SHEET`, `MILESTONE_MAIN`, `MAIN_ICON_BOUNTY` and `MAIN_ICON_RIVALBIO` artwork, rather than leaving
+the package's `OPTION_MASTER` car stand-in visible. This explicit artwork mapping is a presentation choice;
+the original option records described above contain zero texture keys. Unimplemented destinations remain
+selectable but grey, and Accept opens nothing. The row reads destination availability from `Sheet::screen`.
+The footer uses the shared bound keyboard/controller Back and Accept prompts inside the authored footer bar.
+
 `crates/nfsmw/src/frontend/career_screens/reputation_overview.rs`. The pure parts (the step rule, the shown rival, the
 panel, the sheets) are tested in `reputation_overview_tests.rs`. Differences from the original:
 
