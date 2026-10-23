@@ -46,6 +46,9 @@ pub const DEFAULT_RELEVANCY_RADIUS: f32 = 600.0;
 pub struct ServerConfig {
     /// The session settings (name, mode, track, limits, rules).
     pub settings: Settings,
+    /// Where the identity key is kept (made the first time), or `None` for a new key every start. A server that keeps
+    /// its key stays the same server to the clients that pinned it.
+    pub identity_file: Option<PathBuf>,
     /// The room password, or `None` for an open room. Never logged, never sent: the PAKE proves knowledge of it.
     pub password: Option<String>,
     /// The address the game port binds to.
@@ -81,6 +84,7 @@ impl Default for ServerConfig {
         let name = ServerName::new("nfsmw-server").unwrap_or_default();
         Self {
             settings: dedicated_defaults(name),
+            identity_file: None,
             password: None,
             bind: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             port: DEFAULT_PORT,

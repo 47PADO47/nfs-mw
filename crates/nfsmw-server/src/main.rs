@@ -41,7 +41,10 @@ fn serve(args: &cli::Args) -> Result<(), String> {
         config.port = port;
     }
     logging::init(config.log_level, config.log_file.as_deref()).map_err(|err| format!("logging: {err}"))?;
-    let identity = IdentityKey::generate().map_err(|err| format!("no identity key: {err}"))?;
+    let identity = match &config.identity_file {
+        Some(path) => nfsmw_server::identity::load_or_create(path).map_err(|err| err.to_string())?,
+        None => IdentityKey::generate().map_err(|err| format!("no identity key: {err}"))?,
+    };
     log::info!("identity {}", identity.key_id().fingerprint());
     let endpoint = bind(&config, identity).map_err(|err| format!("cannot bind {}: {err}", config.game_addr()))?;
     log::info!("listening on {}", endpoint.local_addr());
