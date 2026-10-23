@@ -120,8 +120,9 @@ in place). Inside the lend:
 | `state`, `set_state` | The reduced motion in render space (`drive/sim/predict.rs`): the model's origin and axes as `CarSim::pose` draws them, the body's velocities mapped axis by axis as the entity views map them. `set_state` writes pose and velocities into the body; the engine, gear and nitrous keep their own state |
 
 Outside a lend a step does nothing, `state` answers the last state, and a state set meanwhile waits for the next lend; a car
-that does not stand on a road yet is asked onto the road at the state's place (the first own block of a client whose world
-opened elsewhere). The car is drawn at `ClientSession::own_pose` (prediction plus the decaying correction) through a drawn-pose
+that does not stand on a road yet, or is more than 100 m from the state (a race grid, a reset far away), is asked onto the road at
+the state's place (the first own block of a client whose world opened elsewhere): streaming follows the request, so the road is
+loaded before the car lands. The car is drawn at `ClientSession::own_pose` (prediction plus the decaying correction) through a drawn-pose
 override (`Drive::set_net_pose`, below a NIS pose).
 
 **The frame** (`frame.rs`): streaming first (while the player's surroundings are not resident the car is held and
@@ -176,6 +177,7 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | Which systems a frame runs, single player and client | `frame_systems.rs` | no |
 | The HUD from the global block | `net_client/hud.rs` | no |
 | `GameCar` rewinds the real `Drive` exactly | `net_client/installed.rs` | yes |
+| A client in a race seat (the bot has the host's seat): its car is set down on the far grid by the first own block, then follows the server's race car for four seconds at up to 25 m/s with no snaps and a median correction under 20 cm (measured 1.3 cm, 95th percentile 4.7 cm) | `net_client/installed.rs` | yes |
 | End to end: the real `Server` over a `WorldSimHost`, a client-mode world and a bot over loopback UDP, the session starts by itself, the client drives 20 s; the server's car follows, the prediction stays within the lead's distance plus 1 m of the server's car every second, no snaps, corrections under the snap distance, the bot drawn interpolated 90 % of frames or more | `net_client/installed.rs` | yes |
 
 The end-to-end test paces its fake 60 Hz clock to the wall clock: the net threads run in real time, and a clock that outruns

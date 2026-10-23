@@ -45,9 +45,9 @@ Open work of this build, in rough order of importance:
 5. **Races with remote players: built on the server, not played.** The server asks the world for the session's race, every remote
    player is a person on the grid driven by their seat's pedals and exported as their own car, and knockouts, speed-trap passes,
    tag passes and penalties are wire messages ([world host](world-host.md) section 7, [modes.md](modes.md)). The people's cars have
-   own-car blocks, and the world's GO falls on the server's start tick (the load barrier waits for the staged grid). Open: the race
-   car is an AI car, not a `Drive`, so a client's prediction disagrees with it; the post-race screen is skipped; a dedicated
-   server's idle lead counts as a racer that never finishes.
+   own-car blocks, and the world's GO falls on the server's start tick (the load barrier waits for the staged grid). A client predicts its
+   race car as well as a free-roam one (median correction 1.3 cm), and a session's race ends the moment it is over. Open: a
+   dedicated server's idle lead counts as a racer that never finishes (the 30 s DNF timer ends the race).
 6. **Global block.** Pursuit and race fields are filled from the world, but the client does not apply time of day.
 7. **Server details.** A server keeps its identity key only when `identity_file` is set (the default is a new key every start), "everyone wait" cannot be triggered, and a peer that changes address is
    dropped (no path validation). Quick messages are relayed to everyone as `QuickRelay`.

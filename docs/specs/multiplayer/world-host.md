@@ -120,7 +120,7 @@ focus turns over every player, `ai/population/guests.rs`), the chase (`players/c
 
 | Call | As built |
 |---|---|
-| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race intro (`SessionRules::race_intros`) |
+| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race screens (`SessionRules::race_screens`) |
 | `race_staged` | True when the race stands on its grid, or when there is no race to wait for |
 | `schedule_race_go` | The host starts the staged race's countdown on the tick that puts GO on the given server tick (at once when that is too close) |
 | `stop_race` | Ends the race the world runs; the people's cars come back behind the lead |
@@ -181,9 +181,15 @@ track chosen). In the world (`players/race.rs`, `race/start.rs`):
   dedicated server's idle car.
 - **Own-car block.** A person's race car is an AI car, not a `Drive`, but `own_state` reads its gauges (rpm, gear, nitrous,
   shifting) from the racer (`racer_hud`) and the player is not flagged parked.
-- **Not done.** A client that predicts its car with its own `Drive` physics meets the AI car's, so its corrections are larger than
-  in free roam. The post-race screen is skipped; the race ends 13 s after the finish (the race-over message and the post-race
-  wait).
+- **Prediction.** The person's racer is an AI body (`drive/sim/ai.rs`, `configure_human`) with the player's own control set-up
+  and chassis, so a client's `Drive` predicts it as it predicts a free-roam car: over four seconds at up to 25 m/s the median
+  correction was 1.3 cm, the 95th percentile 4.7 cm, and there were no snaps (`net_client/installed.rs`). No AI-car physics on the
+  client is needed. What a client does need is to land on the grid: it is far from where its world opened, so a state more than
+  100 m from the car is a teleport, answered with a spawn request at the state's place (streaming follows the request) and not
+  with a car set down on ground that is not loaded, which fell through the world and was put back at its old spot every few
+  frames (`net_client/car.rs`).
+- **No screens.** A session's race has no race-over message and no post-race screen: it ends the moment the engine says it is
+  over (`SessionRules::race_screens`), the people's cars come back behind the lead, and the server's own results follow.
 
 ## 8. Known gaps
 
