@@ -279,3 +279,18 @@ fn milestone_and_trap_spawn_points_resolve_to_positions() {
     assert_eq!(with, found, "every milestone SpawnPoint resolves");
     assert_eq!(trap_with, trap_found, "every speed trap SpawnPoint resolves");
 }
+
+/// `docs/specs/story-flow.md` section 2.4: the scripted chase of `16.2.1` spawns two mid-size cops at its `cop_spawn_1` and
+/// `cop_spawn_2`.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_scripted_chase_has_two_cop_spawn_points() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let spawns: Vec<_> = data.cop_spawns_of("16_2_1_d_day_intro").collect();
+    for spawn in &spawns {
+        eprintln!("{}: {:?}", spawn.name, spawn.placement);
+    }
+    let names: Vec<&str> = spawns.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(names, ["16_2_1_d_day_intro/cop_spawn_1", "16_2_1_d_day_intro/cop_spawn_2"]);
+}

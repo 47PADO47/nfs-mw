@@ -7,6 +7,7 @@
 //! vector.
 
 mod bins;
+mod cop_spawns;
 mod final_race;
 mod markers;
 mod milestones;
@@ -19,6 +20,7 @@ mod story;
 mod triggers;
 
 pub use bins::{Bin, bins};
+pub use cop_spawns::CopSpawn;
 pub use final_race::{EventMarker, FinalRaceMarkers};
 pub use markers::{ActivityKind, ActivityMarker};
 pub use milestones::{
@@ -75,6 +77,8 @@ pub struct GameplayData {
     pub milestone_types: Vec<MilestoneType>,
     /// The places the rap sheet's bounty page jumps to (`bounty_jump/...`), sorted by their number.
     pub bounty_jumps: Vec<BountyJump>,
+    /// The cop spawn points of the scripted races (`<race>/cop_spawn_N`), sorted by name.
+    pub cop_spawns: Vec<CopSpawn>,
     /// The final race's markers (`race_bin_01/epic_pursuit`); `None` when the database has no such race.
     pub final_race: Option<FinalRaceMarkers>,
     /// The career's start point, the collection `career_start_<region>`: where a world starts when no safe house or zone
@@ -83,6 +87,11 @@ pub struct GameplayData {
 }
 
 impl GameplayData {
+    /// The cop spawn points of the race `race` (a full collection name), in order.
+    pub fn cop_spawns_of<'a>(&'a self, race: &'a str) -> impl Iterator<Item = &'a CopSpawn> + 'a {
+        self.cop_spawns.iter().filter(move |spawn| spawn.is_of(race))
+    }
+
     /// The box trigger with this collection key (a race's `finish` or one of its `checkpoints`).
     pub fn trigger(&self, key: u32) -> Option<&BoxTrigger> {
         self.triggers.iter().find(|t| t.key == key)
@@ -135,6 +144,7 @@ impl GameplayData {
             speed_traps: milestones::speed_traps(db),
             milestone_types: milestones::milestone_types(db),
             bounty_jumps: milestones::bounty_jumps(db),
+            cop_spawns: cop_spawns::cop_spawns(db),
             final_race: final_race::final_race(db),
             career_start: instances(db).find(|c| name_of(*c).starts_with(CAREER_START_PREFIX)).map(placement),
         }
