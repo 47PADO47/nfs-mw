@@ -5,6 +5,8 @@ pub(super) mod geometry;
 #[cfg(test)]
 mod installed_tests;
 #[cfg(test)]
+mod pop_in_tests;
+#[cfg(test)]
 mod rain_drive_tests;
 mod state;
 #[cfg(test)]
@@ -49,12 +51,12 @@ impl WorldScene {
             fov_y_radians: lens.fov_y_degrees.to_radians(),
             light_dir: self.sun.direction().to_array(),
         };
-        // Retain the original capture content thresholds.
+        // Enhanced captures retain small sources and cull their reflected mesh bounds.
         geometry::scenery(
             self.residency.reflection_placed(),
             &camera,
             self.residency.props(),
-            240.0,
+            self.wet_road.resolution.size()[1] as f32,
             &mut self.wet_road.instances,
         );
         if options.original_world_materials {

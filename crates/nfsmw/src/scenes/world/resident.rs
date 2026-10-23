@@ -102,6 +102,7 @@ pub struct SectionResources {
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
     /// Authored environment lights owned by the same lifetime as their model mesh.
     pub(super) flare_markers: HashMap<MeshHandle, Arc<[nfsmw_data::world::lights::Marker]>>,
+    pub(super) mesh_bounds: HashMap<u32, Aabb>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
     /// The cull data of the `Placed` list the residency keeps beside these resources, built on the first sweep after
@@ -185,6 +186,11 @@ impl SectionResources {
                 let markers = nfsmw_data::world::lights::markers(solid);
                 if !markers.is_empty() {
                     self.flare_markers.insert(mesh, markers.into());
+                }
+                let bounds = Aabb::new(solid.bounds_min, solid.bounds_max);
+                self.mesh_bounds.remove(&solid.name_hash);
+                if !bounds.is_empty() && bounds.min.is_finite() && bounds.max.is_finite() {
+                    self.mesh_bounds.insert(solid.name_hash, bounds);
                 }
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));

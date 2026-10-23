@@ -47,5 +47,5 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         ui.small("The active material fallback cannot receive road reflections. Stored choices are retained.");
         return;
     }
-    ui.small("Original authored road capture; higher image resolutions are enhancements. Rain wets the road gradually and reflections remain while it dries. Environment offers a separate comparison override.");
+    ui.small("Original authored road capture; higher resolutions retain smaller reflected objects and use bounds from the reflected meshes. Rain wets the road gradually and reflections remain while it dries. Environment offers a separate comparison override.");
 }

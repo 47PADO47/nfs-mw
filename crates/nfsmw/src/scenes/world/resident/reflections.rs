@@ -11,6 +11,8 @@ pub const ROAD_VIEW_FLAGS: u32 = 0x0800_0850;
 #[derive(Clone)]
 pub struct ReflectionPlaced {
     pub lods: [Option<MeshHandle>; 4],
+    /// Local bounds of each actual solid, before its reflection matrix.
+    pub local_bounds: [Option<Aabb>; 4],
     pub transform: Mat4,
     pub bounds: Aabb,
     pub radius: f32,
@@ -114,8 +116,17 @@ pub fn resolve_reflections(
         if !item.road_visible {
             continue;
         }
+        let local_bounds = std::array::from_fn(|slot| {
+            let hash = &item.keys[slot];
+            let source = match own.meshes.contains_key(hash) {
+                true => own,
+                false => shared,
+            };
+            source.mesh_bounds.get(hash).copied()
+        });
         out.push(ReflectionPlaced {
             lods,
+            local_bounds,
             transform: item.transform,
             bounds: item.bounds,
             radius: item.radius,
