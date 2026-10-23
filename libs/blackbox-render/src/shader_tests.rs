@@ -2,7 +2,8 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 14] = [
+const SHADERS: [(&str, &str); 15] = [
+    ("screen displacement", include_str!("shaders/screen_distortion.wgsl")),
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
     ("contact", include_str!("shaders/contact.wgsl")),

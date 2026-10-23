@@ -9,6 +9,10 @@ pub(super) use blackbox_gpu_passes::{Effects, SoftDraw};
 impl Renderer {
     /// Replace the world effects drawn in every following scene/capture, until replaced again.
     pub fn set_effects(&mut self, layer: &EffectLayer) {
+        let distortion = layer.distortion.as_ref();
+        let view = distortion.and_then(|d| self.texture_views.get(&d.texture.raw()));
+        let regions = distortion.map_or(&[][..], |d| d.regions.as_slice());
+        self.post.set_distortion(&self.device, view, regions);
         self.effects.upload(&self.device, &self.queue, layer);
     }
 
