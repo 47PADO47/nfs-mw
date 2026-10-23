@@ -122,6 +122,10 @@ which a client must apply it). Events are idempotent; a client ignores a `seq` i
 | 0x1102 | LapComplete | `entity_id`, `lap`, `time_ms` |
 | 0x1103 | RaceFinish | `entity_id`, `place`, `time_ms` |
 | 0x1104 | RaceResults | at most 32 rows: slot, entity id, place, time, best lap, flags (bit 0 did not finish, bit 1 busted) |
+| 0x1105 | KnockedOut | `entity_id`, `lap` (from 1): last at the end of the lap in a knockout; the racer then spectates (`RoleChanged`) |
+| 0x1106 | TrapScore | `entity_id`, `trap`, `speed_cm_s` (this pass), `total_cm_s` (the racer's points after it) |
+| 0x1107 | TagPassed | `from_entity` (none for the first holder), `to_entity` |
+| 0x1108 | Penalty | `entity_id`, `ms`: a reset added this to the race time |
 | 0x1110 | PursuitStart | `pursuit_id`, `targets` (at most 32), `heat` |
 | 0x1111 | PursuitEnd | `pursuit_id`, `reason` (busted, evaded, abandoned), `entity_id` |
 | 0x1112 | HeatChange | `entity_id`, `level` |
@@ -149,6 +153,7 @@ which a client must apply it). Events are idempotent; a client ignores a `seq` i
 | 0x0201 | ChatMessage | S | `from_slot`, `channel`, `text`, `tick` |
 | 0x0202 | SystemNotice | S | `code` (join, leave, kick, mute, vote, result), `args` (at most 4 numbers) |
 | 0x0203 | QuickMessage | C | `id` (a preset line, MP-44) |
+| 0x0204 | QuickRelay | S | `from_slot`, `id`: the server checked the id (a line `0..64` or an emote), the mute and the chat rate, and relays it to every seated player, the sender too; the text is the game's table |
 
 `text` is 1 to 200 characters; chat is limited to one message per second with a burst of 3 (the rate is the lobby's job).
 
