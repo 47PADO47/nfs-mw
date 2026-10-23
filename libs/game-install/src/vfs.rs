@@ -17,6 +17,7 @@ mod tests;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use overlay::Overlay;
 pub use overlay::{LayerError, LayerInfo, Provider};
@@ -36,8 +37,9 @@ type FileMap = HashMap<String, PathBuf>;
 #[derive(Debug, Clone)]
 pub struct GameDir {
     root: PathBuf,
-    /// The install, the lowest layer.
-    files: FileMap,
+    /// The install, the lowest layer. Shared by clones: the index is built once and never changes, and a clone
+    /// of the directory (the game keeps many) is a reference count, not a copy of every path.
+    files: Arc<FileMap>,
     /// Overlays in ascending priority. Equal priorities keep the order they were
     /// added in, so the last entry is the highest layer and is searched first.
     overlays: Vec<Overlay>,
@@ -104,7 +106,7 @@ impl GameDir {
             }
         }
         log::debug!("indexed {} files under {}", files.len(), root.display());
-        Ok(Self { root, files, overlays: Vec::new() })
+        Ok(Self { root, files: Arc::new(files), overlays: Vec::new() })
     }
 
     /// Add a layer above the ones already there. Its files replace or add to the files
@@ -243,7 +245,7 @@ impl GameDir {
 
     /// The overlays from the highest to the lowest, then the install.
     fn layers_top_down(&self) -> impl Iterator<Item = &FileMap> + '_ {
-        self.overlays.iter().rev().map(|o| &o.files).chain(std::iter::once(&self.files))
+        self.overlays.iter().rev().map(|o| &*o.files).chain(std::iter::once(&*self.files))
     }
 
     /// The layer and real path of the highest file under a normalised key.

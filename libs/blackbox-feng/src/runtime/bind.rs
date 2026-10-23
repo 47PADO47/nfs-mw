@@ -6,92 +6,117 @@ use super::{ObjectRef, Runtime};
 use crate::package::word;
 
 impl Runtime {
-    fn state_mut(&mut self, o: ObjectRef) -> Option<&mut super::ObjState> {
-        self.running_mut(o.package)?.objects.get_mut(o.index)
+    /// Runs `change` on the state of an object. It returns whether it changed anything, and a change counts towards the
+    /// package's revision (see [`Runtime::revision`]); a setter that repeats the value it holds leaves the revision alone.
+    fn edit(&mut self, o: ObjectRef, change: impl FnOnce(&mut super::ObjState) -> bool) {
+        let Some(p) = self.running_mut(o.package) else { return };
+        let Some(s) = p.objects.get_mut(o.index) else { return };
+        if change(s) {
+            p.touch();
+        }
     }
 
     /// Shows or hides an object (and its children) without touching its scripts.
     pub fn set_hidden(&mut self, o: ObjectRef, hidden: bool) {
-        if let Some(s) = self.state_mut(o) {
-            s.hidden = hidden;
-        }
+        self.edit(o, |s| std::mem::replace(&mut s.hidden, hidden) != hidden);
     }
 
     /// Replaces the text of a string object (instead of its stored text and the language table).
     pub fn set_text(&mut self, o: ObjectRef, text: impl Into<String>) {
-        if let Some(s) = self.state_mut(o) {
-            s.text = Some(text.into());
-        }
+        self.edit(o, |s| {
+            let text = text.into();
+            if s.text.as_deref() == Some(text.as_str()) {
+                return false;
+            }
+            s.text = Some(text);
+            true
+        });
+    }
+
+    /// As [`Runtime::set_text`] for a borrowed string: nothing is allocated when the text is the one the object shows,
+    /// and a changed text reuses the buffer of the old one.
+    pub fn set_text_str(&mut self, o: ObjectRef, text: &str) {
+        self.edit(o, |s| {
+            let Some(shown) = s.text.as_mut() else {
+                s.text = Some(text.to_owned());
+                return true;
+            };
+            if shown == text {
+                return false;
+            }
+            shown.clear();
+            shown.push_str(text);
+            true
+        });
     }
 
     /// Gives a string object another language label; clears a text set by the host.
     pub fn set_label(&mut self, o: ObjectRef, label: u32) {
-        if let Some(s) = self.state_mut(o) {
+        self.edit(o, |s| {
+            if s.label == label && s.text.is_none() {
+                return false;
+            }
             s.label = label;
             s.text = None;
-        }
+            true
+        });
     }
 
     /// Sets the rotation of the object about the z axis, in radians (a needle).
     pub fn set_rotation_z(&mut self, o: ObjectRef, radians: f32) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_rotation(Quat::from_rotation_z(radians));
-        }
+        self.edit(o, |s| s.data.set_rotation(Quat::from_rotation_z(radians)));
     }
 
     /// Sets the rotation of a multi image's mask about its pivot, in degrees (a gauge that fills: the nitrous
     /// bar, the redline). Other objects ignore it.
     pub fn set_mask_rotation(&mut self, o: ObjectRef, degrees: f32) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_f32(word::MULTI_PIVOT_ROT + 2, degrees);
-        }
+        self.edit(o, |s| s.data.set_f32(word::MULTI_PIVOT_ROT + 2, degrees));
     }
 
     pub fn set_position(&mut self, o: ObjectRef, position: Vec3) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_position(position);
-        }
+        self.edit(o, |s| s.data.set_position(position));
     }
 
     /// Sets the x and y of the pivot (the point a rotation turns about), keeping its z.
     pub fn set_pivot_xy(&mut self, o: ObjectRef, x: f32, y: f32) {
-        if let Some(s) = self.state_mut(o) {
+        self.edit(o, |s| {
             let z = s.data.pivot().z;
-            s.data.set_pivot(Vec3::new(x, y, z));
-        }
+            s.data.set_pivot(Vec3::new(x, y, z))
+        });
     }
 
     /// Sets the texture rectangle `[u0, v0, u1, v1]` of a multi image's mask (its first extra texture), which the
     /// tree reports as `mask_uv`. Other objects ignore it.
     pub fn set_mask_uv(&mut self, o: ObjectRef, uv: [f32; 4]) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_multi_uv(0, uv);
-        }
+        self.edit(o, |s| s.data.set_multi_uv(0, uv));
     }
 
     /// Sets the x and y of the position, keeping the depth.
     pub fn set_position_xy(&mut self, o: ObjectRef, x: f32, y: f32) {
-        if let Some(s) = self.state_mut(o) {
+        self.edit(o, |s| {
             let z = s.data.position().z;
-            s.data.set_position(Vec3::new(x, y, z));
-        }
+            s.data.set_position(Vec3::new(x, y, z))
+        });
     }
 
     /// Sets the width and height of an image or the scale of a string, keeping the depth.
     pub fn set_size_xy(&mut self, o: ObjectRef, width: f32, height: f32) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_f32(word::SIZE, width);
-            s.data.set_f32(word::SIZE + 1, height);
-        }
+        self.edit(o, |s| {
+            let wide = s.data.set_f32(word::SIZE, width);
+            let high = s.data.set_f32(word::SIZE + 1, height);
+            wide | high
+        });
     }
 
     /// Sets the texture rectangle `[u0, v0, u1, v1]` of an image.
     pub fn set_uv(&mut self, o: ObjectRef, uv: [f32; 4]) {
-        if let Some(s) = self.state_mut(o) {
+        self.edit(o, |s| {
+            let mut changed = false;
             for (i, v) in uv.into_iter().enumerate() {
-                s.data.set_f32(word::UV + i, v);
+                changed |= s.data.set_f32(word::UV + i, v);
             }
-        }
+            changed
+        });
     }
 
     /// Sets the colour and alpha (red, green, blue, alpha) of the object.
@@ -140,9 +165,7 @@ impl Runtime {
 
     /// Sets the alpha (0..255) of the object.
     pub fn set_alpha(&mut self, o: ObjectRef, alpha: u8) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_alpha(alpha as i32);
-        }
+        self.edit(o, |s| s.data.set_alpha(alpha as i32));
     }
 
     /// The alpha (0..255) of the object as it is now, after the package's scripts have run.
@@ -153,18 +176,17 @@ impl Runtime {
 
     /// Sets the colour (red, green, blue) of the object.
     pub fn set_colour(&mut self, o: ObjectRef, rgb: [u8; 3]) {
-        if let Some(s) = self.state_mut(o) {
-            s.data.set_i32(word::COLOUR, rgb[2] as i32);
-            s.data.set_i32(word::COLOUR + 1, rgb[1] as i32);
-            s.data.set_i32(word::COLOUR + 2, rgb[0] as i32);
-        }
+        self.edit(o, |s| {
+            let blue = s.data.set_i32(word::COLOUR, rgb[2] as i32);
+            let green = s.data.set_i32(word::COLOUR + 1, rgb[1] as i32);
+            let red = s.data.set_i32(word::COLOUR + 2, rgb[0] as i32);
+            blue | green | red
+        });
     }
 
     /// Swaps the texture of an image: `texture` is the key (hash of the upper-cased name) in the texture packs.
     pub fn set_texture(&mut self, o: ObjectRef, texture: u32) {
-        if let Some(s) = self.state_mut(o) {
-            s.texture = Some(texture);
-        }
+        self.edit(o, |s| s.texture.replace(texture) != Some(texture));
     }
 
     /// Switches an object to its script with this id, from time 0.

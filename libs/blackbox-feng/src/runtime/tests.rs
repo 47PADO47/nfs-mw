@@ -5,6 +5,7 @@ use crate::hash::fe_hash_upper;
 use crate::package::synth::*;
 use crate::package::word;
 use crate::runtime::state::START_HIDDEN;
+use crate::tree::UiTree;
 
 const FADEIN: u32 = 0x5b0d9106;
 const HIDE: u32 = 0x0016a259;
@@ -369,4 +370,110 @@ fn start_hidden_object_shows_once_a_script_is_set_on_it() {
     assert_eq!(rt.script_of(o), Some(SHOW));
     assert!(!rt.object(o).unwrap().hidden);
     assert_eq!(rt.tree(id).draw_order, vec![0]);
+}
+
+fn digits_package() -> (Runtime, PackageId, ObjectRef) {
+    let mut digits = Obj::string(1, fe_hash_upper("Digits"), "0");
+    digits.position = [0.0, 0.0, 1.0];
+    let mut panel = Obj::image(2, fe_hash_upper("Panel"));
+    panel.position = [0.0, 0.0, 2.0];
+    let (mut rt, id) = load(&package("Rev.fng", &[], &[digits, panel], &[], &[]));
+    rt.update(1.0 / 60.0);
+    let o = rt.find(id, fe_hash_upper("digits")).unwrap();
+    (rt, id, o)
+}
+
+#[test]
+fn an_unknown_package_has_revision_zero_and_a_loaded_one_does_not() {
+    let (rt, id, _) = digits_package();
+    assert_ne!(rt.revision(id), 0);
+    assert_eq!(rt.revision(PackageId(999)), 0);
+}
+
+#[test]
+fn set_text_with_the_text_already_shown_leaves_the_revision_alone() {
+    let (mut rt, id, o) = digits_package();
+    rt.set_text(o, "42");
+    let after_first = rt.revision(id);
+    rt.set_text(o, "42");
+    rt.set_text(o, String::from("42"));
+    rt.set_text_str(o, "42");
+    assert_eq!(rt.revision(id), after_first, "an equal text is a no-op");
+    rt.set_text_str(o, "43");
+    assert_ne!(rt.revision(id), after_first, "another text moves it");
+    assert_eq!(rt.tree(id).nodes[0].text.as_deref(), Some("43"));
+    let after_change = rt.revision(id);
+    rt.set_text(o, "44");
+    assert_ne!(rt.revision(id), after_change);
+    assert_eq!(rt.tree(id).nodes[0].text.as_deref(), Some("44"));
+}
+
+#[test]
+fn setters_that_repeat_a_value_leave_the_revision_alone() {
+    let (mut rt, id, o) = digits_package();
+    let panel = rt.find(id, fe_hash_upper("panel")).unwrap();
+    rt.set_alpha(panel, 200);
+    rt.set_colour_rgba(panel, [10, 20, 30, 200]);
+    rt.set_rotation_z(panel, 0.5);
+    rt.set_position_xy(panel, 4.0, 5.0);
+    rt.set_hidden(panel, true);
+    rt.set_texture(panel, 7);
+    rt.set_label(o, 0);
+    rt.set_text(o, "1");
+    let settled = rt.revision(id);
+    rt.set_alpha(panel, 200);
+    rt.set_colour_rgba(panel, [10, 20, 30, 200]);
+    rt.set_rotation_z(panel, 0.5);
+    rt.set_position_xy(panel, 4.0, 5.0);
+    rt.set_hidden(panel, true);
+    rt.set_texture(panel, 7);
+    rt.set_text(o, "1");
+    assert_eq!(rt.revision(id), settled);
+    rt.set_hidden(panel, false);
+    assert_ne!(rt.revision(id), settled, "showing an object changes the tree");
+}
+
+#[test]
+fn updating_a_package_with_nothing_playing_keeps_the_revision() {
+    let (mut rt, id, _) = digits_package();
+    let settled = rt.revision(id);
+    rt.update(1.0 / 60.0);
+    rt.update(0.5);
+    assert_eq!(rt.revision(id), settled);
+}
+
+#[test]
+fn a_playing_script_and_a_new_resolver_move_the_revision() {
+    let (mut rt, id) = load(&fading_image());
+    rt.update(1.0 / 60.0);
+    let settled = rt.revision(id);
+    rt.update(1.0 / 60.0);
+    assert_eq!(rt.revision(id), settled, "the entrance pose is at rest");
+    rt.post(id, 0x10, None);
+    rt.update(1.0 / 60.0);
+    let started = rt.revision(id);
+    assert_ne!(started, settled, "the fade script is set");
+    rt.update(0.1);
+    assert_ne!(rt.revision(id), started, "the fade moves the alpha");
+    let moving = rt.revision(id);
+    rt.set_string_resolver(|_| None);
+    assert_ne!(rt.revision(id), moving, "every label may read differently");
+}
+
+#[test]
+fn tree_into_reuses_a_buffer_and_matches_tree() {
+    let (mut rt, id, o) = digits_package();
+    let mut buffer = UiTree::default();
+    rt.tree_into(id, &mut buffer);
+    assert_eq!(format!("{buffer:?}"), format!("{:?}", rt.tree(id)));
+    rt.set_text(o, "a longer text than before");
+    rt.tree_into(id, &mut buffer);
+    assert_eq!(format!("{buffer:?}"), format!("{:?}", rt.tree(id)));
+    rt.set_text(o, "x");
+    rt.tree_into(id, &mut buffer);
+    assert_eq!(buffer.nodes[0].text.as_deref(), Some("x"));
+    assert_eq!(format!("{buffer:?}"), format!("{:?}", rt.tree(id)));
+    rt.unload(id);
+    rt.tree_into(id, &mut buffer);
+    assert!(buffer.nodes.is_empty() && buffer.draw_order.is_empty());
 }

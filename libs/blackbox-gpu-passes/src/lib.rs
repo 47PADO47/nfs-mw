@@ -45,7 +45,6 @@ pub const EFFECTS_WGSL: &str = include_str!("shaders/effects.wgsl");
 
 pub use effects::{Effects, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};
-pub const REFLECTION_STORE_WGSL: &str = include_str!("shaders/reflection_store.wgsl");
 pub use fsr1::{FSR1_EASU, FSR1_RCAS, Fsr1Io, Fsr1Pass, Fsr1Stage, RcasScale, fsr1_passes};
 pub use radial_blur::{RADIAL_MAX_TAPS, RadialBlur, RadialBlurIo, RadialBlurSettings};
 pub use soft_particles::SoftParticles;

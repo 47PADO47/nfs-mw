@@ -40,7 +40,6 @@ fn reflection_only_placements_keep_all_slots_without_entering_normal_or_prop_fee
 
 fn data() -> SectionData {
     SectionData {
-        solid_vertices: Vec::new(),
         decoded: Vec::new(),
         index: 0,
         solids: vec![],
@@ -48,6 +47,7 @@ fn data() -> SectionData {
         anims: vec![],
         spawners: vec![],
         collision: vec![],
+        prepared: None,
         scenery: vec![ScenerySection {
             section_number: 101,
             infos: vec![SceneryInfo {

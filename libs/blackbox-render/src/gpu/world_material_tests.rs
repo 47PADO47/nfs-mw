@@ -78,6 +78,7 @@ fn capture(
             texture: Some(texture),
             blend,
             shading,
+            two_sided: true,
         }],
     });
     renderer.render(frame, &[Instance::new(mesh, Mat4::IDENTITY)]).unwrap();

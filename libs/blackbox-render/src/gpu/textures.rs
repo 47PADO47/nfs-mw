@@ -70,7 +70,7 @@ impl Renderer {
         if handle.raw() != 0 {
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
-            self.redirects.retain(|&from, &mut to| from != handle.raw() && to != handle.raw());
+            self.redirects.forget(handle.raw());
         }
     }
 
@@ -82,7 +82,7 @@ impl Renderer {
                 self.redirects.insert(from.raw(), to.raw());
             }
             _ => {
-                self.redirects.remove(&from.raw());
+                self.redirects.remove(from.raw());
             }
         }
     }

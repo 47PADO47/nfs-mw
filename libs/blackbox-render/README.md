@@ -238,3 +238,7 @@ material equations retain the raw environment. See
 The optional [Enhanced sky](../../docs/enhanced-sky.md) combines an analytic
 atmosphere with a sun-lit shallow cloud volume in every native sky view.
 Authored sky materials retain their independent original shading path.
+
+Local captures can retain six-face depth for current-frame parallax correction.
+Structural draw selection reuses CPU preparation without reusing reflected images.
+See [custom reflections and lighting](../../docs/custom-reflections-lighting.md).

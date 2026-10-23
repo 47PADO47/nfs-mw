@@ -81,6 +81,7 @@ fn mesh(r: &mut Renderer, texture: TextureHandle, shading: Shading) -> MeshHandl
             texture: Some(texture),
             blend: BlendMode::Opaque,
             shading,
+            two_sided: true,
         }],
     })
 }

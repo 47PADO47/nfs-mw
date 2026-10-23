@@ -34,7 +34,7 @@ pub fn choose(latest: Option<&str>) -> Choice {
 /// Starts or resumes the career for Career on the main menu. A profile whose career has not started (flags bit 0
 /// clear) gets a new career on the same alias, as the original does (`career-flow.md` section 2).
 pub fn start_or_resume(dir: &GameDir, profiles: &ProfileDir) -> anyhow::Result<Career> {
-    let data = Arc::new(CareerData::load(dir).context("the career tables could not be read")?);
+    let data = CareerData::cached(dir).context("the career tables could not be read")?;
     match choose(profiles.latest().as_deref()) {
         Choice::Load(alias) => {
             let bytes = profiles.read(&alias).with_context(|| format!("the profile {alias} could not be read"))?;

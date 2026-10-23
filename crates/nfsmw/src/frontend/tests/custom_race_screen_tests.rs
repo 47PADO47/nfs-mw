@@ -72,6 +72,9 @@ fn the_mode_select_offers_the_tutorial_of_drag_and_goes_back_to_the_quick_race_m
 
 #[test]
 fn a_locked_track_is_not_accepted_an_open_one_is_and_back_returns_to_the_mode_select() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    // The list is a fresh profile's: a career another test left loaded would open its tracks.
+    crate::career::CareerHandle::shared().clear();
     let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     if tracks_open() {
         return;
@@ -119,7 +122,11 @@ fn an_open_track_goes_on_to_the_options_and_the_options_step_and_reset() {
     h.press(pad::DOWN);
     h.press(pad::DOWN);
     h.press(pad::RIGHT);
-    assert_eq!(state::with(|s| s.settings().opponents), 1, "the third row is the opponents and wraps");
+    assert_eq!(
+        state::with(|s| s.settings().opponents),
+        4,
+        "the third row is the opponents, up to 15 since sixteen racers"
+    );
     // Accept without a picked track goes nowhere.
     h.press(pad::ACCEPT);
     assert_eq!(h.screens.top(), Some(screen::TRACK_OPTIONS));

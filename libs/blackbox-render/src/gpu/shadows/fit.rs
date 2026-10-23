@@ -24,6 +24,10 @@ pub(super) struct Params {
     pub resolutions: [f32; 4],
 }
 
+/// Snap step per cascade in texels. Coarser steps move the map origin by at most half a step, which
+/// stays inside the fit's guard band.
+const SNAP_TEXELS: [f32; 4] = [1.0, 2.0, 4.0, 4.0];
+
 pub(super) struct Fit {
     pub params: Params,
     pub count: usize,
@@ -53,6 +57,12 @@ pub(super) fn fit_with_grid(
     };
     let light_rotation = glam::camera::rh::view::look_at_mat4(Vec3::ZERO, -sun, up);
     let rebase = grid.follow(frame.camera_position);
+    // One light-space transform per caster per frame; every cascade's depth fit reuses it.
+    let mut light_bounds = std::mem::take(&mut grid.light_bounds);
+    light_bounds.clear();
+    for &(_, position, radius) in casters {
+        light_bounds.push((light_rotation.transform_point3(position), radius));
+    }
     let distance = settings.shadow_distance;
     let near_share = match settings.near_shadow_focus {
         true => 0.04,
@@ -91,10 +101,12 @@ pub(super) fn fit_with_grid(
         let radius = radius * size / (size - 32.0);
         let center = inverse.transform_point3(center_view);
         let texel = 2.0 * radius / size;
-        let snapped = grid.snap(light_rotation, center, texel, i, rebase);
+        // Far cascades snap to coarser steps (still whole texels), so their matrices stay bit-identical
+        // across many frames of camera motion and the static-depth cache can hit.
+        let snapped = grid.snap(light_rotation, center, texel * SNAP_TEXELS[i], i, rebase);
         // Preserve stable XY density; expand only depth for upstream resident casters.
         let margin = radius + 180.0;
-        let (bottom, top) = depth_bounds(light_rotation, snapped, radius, margin, casters);
+        let (bottom, top) = depth_bounds(snapped, radius, margin, &light_bounds);
         let depth = top - bottom;
         texels[i] = texel;
         depth_spans[i] = depth;
@@ -105,6 +117,7 @@ pub(super) fn fit_with_grid(
             glam::camera::rh::proj::directx::orthographic(-radius, radius, -radius, radius, 0.1, depth + 0.1);
         matrices[i] = (projection * view).to_cols_array();
     }
+    grid.light_bounds = light_bounds;
     Some(Fit {
         params: Params {
             matrices,
@@ -138,10 +151,9 @@ pub(super) fn fit_with_grid(
     })
 }
 
-fn depth_bounds(rotation: Mat4, center: Vec3, radius: f32, margin: f32, casters: &[(usize, Vec3, f32)]) -> (f32, f32) {
+fn depth_bounds(center: Vec3, radius: f32, margin: f32, casters: &[(Vec3, f32)]) -> (f32, f32) {
     let mut top = center.z + margin;
-    for &(_, position, caster_radius) in casters {
-        let p = rotation.transform_point3(position);
+    for &(p, caster_radius) in casters {
         if (p.x - center.x).abs() > radius + caster_radius || (p.y - center.y).abs() > radius + caster_radius {
             continue;
         }

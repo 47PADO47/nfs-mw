@@ -17,10 +17,17 @@ struct Light { specular: vec4<f32>, reflection: vec4<f32> };
 struct Input {
     @location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
     @location(2) color_bgra: vec4<f32>, @location(3) uv: vec2<f32>,
-    @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
-    @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
     @location(8) tangent: vec4<f32>,
 };
+// instance input: begin
+// The per-instance model matrix, one column per attribute. A renderer with an instance store replaces this block
+// (see `instance_view.rs`): the instance then carries a slot at location 4 and the matrix is read from the store.
+struct InstanceIn {
+    @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
+    @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+};
+fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+// instance input: end
 struct Output {
     @invariant @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>, @location(1) ambient: vec4<f32>,
@@ -32,8 +39,8 @@ struct Output {
 };
 fn unit(v: vec3<f32>) -> vec3<f32> { return v / max(length(v), 1e-9); }
 @vertex
-fn vs_main(v: Input) -> Output {
-    let model = mat4x4(v.model_0, v.model_1, v.model_2, v.model_3);
+fn vs_main(v: Input, placed: InstanceIn) -> Output {
+    let model = instance_model(placed);
     let world = model * vec4(v.position, 1.0);
     let tangent = (model * vec4(v.tangent.xyz, 0.0)).xyz;
     let normal = (model * vec4(v.normal, 0.0)).xyz;
@@ -94,6 +101,7 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     }
     var q = 1.0;
     if globals.fog_range.w<0.5 { q = direct_visibility(in.world,plane,in.clip.xy); }
+    if globals.fog_range.w>2.5 { q = capture_sun_visibility(in.world,plane); }
     var ao = 1.0;
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
     var rgb = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected)*in.extinction+in.scatter;

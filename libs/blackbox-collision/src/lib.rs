@@ -19,13 +19,16 @@ mod bytes;
 mod camera_query;
 pub mod carp;
 mod error;
+mod face_cache;
 mod grid;
 pub mod ground_reference;
+mod groups;
 mod instance;
 mod math;
 mod object;
 mod pack;
 mod query;
+mod window;
 mod world;
 
 #[cfg(test)]
@@ -45,4 +48,5 @@ pub use math::Vec3;
 pub use object::Object;
 pub use pack::{CollisionPack, GROUP_EXCLUSION, read_collision_packs};
 pub use query::{Hit, HitKind, RayOptions};
+pub use window::CandidateSet;
 pub use world::CollisionWorld;

@@ -34,6 +34,7 @@ fn frame_cost(counts: &[u32]) -> Option<Vec<(u32, f64)>> {
         texture: Some(texture),
         blend: BlendMode::Opaque,
         shading: Shading::Prelit,
+        two_sided: true,
     };
     let mesh = bevy.create_mesh(&MeshDesc {
         secondary_uvs: None,

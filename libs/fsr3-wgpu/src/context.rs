@@ -4,6 +4,7 @@ use glam::UVec2;
 use wgpu::{Adapter, Buffer, BufferDescriptor, BufferUsages, CommandEncoder, Device, Queue};
 
 use crate::{
+    bind_groups::BindGroups,
     config::Fsr3Config,
     constants::{CONSTANTS_SIZE, FrameState},
     error::Fsr3Error,
@@ -16,7 +17,7 @@ use crate::{
 
 /// How many uniform blocks to rotate through, so that dispatches recorded before one submit do not
 /// overwrite each other's constants.
-const UNIFORM_RING: usize = 4;
+pub(crate) const UNIFORM_RING: usize = 4;
 /// The smallest render or output side.
 const MIN_SIDE: u32 = 2;
 
@@ -31,6 +32,8 @@ pub struct Fsr3Context {
     state: FrameState,
     uniforms: Vec<Buffer>,
     uniform_index: usize,
+    /// Bind groups for the current views, kept across frames.
+    groups: BindGroups,
     /// Frames since the resources were created: picks which textures swap roles.
     frame: u64,
     force_reset: bool,
@@ -79,6 +82,7 @@ impl Fsr3Context {
             state: FrameState::default(),
             uniforms,
             uniform_index: 0,
+            groups: BindGroups::default(),
             frame: 0,
             force_reset: true,
             formats,
@@ -128,19 +132,32 @@ impl Fsr3Context {
         if resized {
             self.resources = Some(Resources::new(device, inputs.render_size, outputs.size, self.formats));
             self.frame = 0;
+            self.groups.clear();
         }
+        self.groups.sync(inputs, outputs);
         let frame = self.state.begin(&self.config, inputs, outputs.size, resized, self.force_reset)?;
         let reset = frame.reset;
         self.force_reset = false;
 
-        let uniform = &self.uniforms[self.uniform_index];
-        self.uniform_index = (self.uniform_index + 1) % UNIFORM_RING;
+        let uniform_index = self.uniform_index;
+        let uniform = &self.uniforms[uniform_index];
+        self.uniform_index = (uniform_index + 1) % UNIFORM_RING;
         queue.write_buffer(uniform, 0, bytemuck::bytes_of(&frame.constants));
 
         let resources = self.resources.as_ref().expect("resources are created above");
         let sharpen = inputs.sharpness.is_some();
-        Recording { device, pipelines: &self.pipelines, resources, uniform, frame: self.frame, sharpen, reset }
-            .encode(encoder, inputs, outputs);
+        Recording {
+            device,
+            pipelines: &self.pipelines,
+            resources,
+            uniform,
+            uniform_index,
+            groups: &mut self.groups,
+            frame: self.frame,
+            sharpen,
+            reset,
+        }
+        .encode(encoder, inputs, outputs);
         self.frame += 1;
         Ok(())
     }

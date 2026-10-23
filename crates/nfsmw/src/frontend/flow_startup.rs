@@ -118,8 +118,12 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    /// Goes on to the main menu when the profile step's last screen has closed. Called every frame of the menus.
+    /// Goes on to the main menu when the profile step's last screen has closed. Called every frame of the menus. It also
+    /// goes on with a career command that waits for the career tables (`poll_save_job`), which the step is not over for.
     pub(in crate::frontend) fn poll_startup(&mut self, host: &mut Host, env: &mut Env) {
+        if self.poll_save_job(host, env) {
+            return;
+        }
         if !is_over(self.startup, &self.stage, self.screens.top()) {
             return;
         }

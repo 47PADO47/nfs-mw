@@ -172,7 +172,7 @@ pub(super) fn click(ctx: &egui::Context, lab: &mut GraphicsLab, settings: &mut S
     if !output.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Text(t) if t.galley.job.text == label))
         && matches!(label, "Sun" | "Coat" | "Store A" | "Swap A/B" | "Restore startup · 0")
     {
-        click(ctx, lab, settings, "Compare / experiments");
+        click(ctx, lab, settings, "Comparison tools");
         output = pass(ctx, lab, settings, vec![]);
     }
     let pos = output
@@ -227,6 +227,7 @@ fn real_panel_buttons_switch_presets_swap_and_restore_without_touching_gameplay(
     assert!(lab.options.sun_shadows && !lab.options.far_shadows);
     assert!(lab.options.world_ambient);
     click(&ctx, &mut lab, &mut settings, "Lighting");
+    click(&ctx, &mut lab, &mut settings, "Lighting diagnostics");
     click(&ctx, &mut lab, &mut settings, "Freeze sun");
     assert!(lab.options.freeze_sun);
     assert_eq!(lab.options.shadow_resolution, 2048);
@@ -444,4 +445,40 @@ fn environment_comparison_presets_are_independent_and_session_local() {
     assert_eq!(lab.environment_change.unwrap().sun_mode, SunMode::FixedPhase);
     click(&ctx, &mut lab, &mut settings, "Settle clouds to target");
     assert!(lab.environment_change.unwrap().settle_clouds);
+}
+
+#[test]
+fn car_lighting_panel_groups_features_and_retains_advanced_tuning() {
+    let ctx = egui::Context::default();
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.select_visual_style(crate::settings::VisualStyle::Enhanced);
+    settings.appearance.lighting.sky_strength = 0.91;
+    let mut lab = GraphicsLab {
+        open: true,
+        tab: profiles::Tab::Lighting,
+        options: settings.appearance.lighting,
+        stats: ExperimentStats { supported: true, ..Default::default() },
+        ..Default::default()
+    };
+    pass(&ctx, &mut lab, &mut settings, vec![]);
+    let output = pass(&ctx, &mut lab, &mut settings, vec![]);
+    let texts: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(texts.contains(&"Enhanced (automatic)"));
+    assert!(!texts.contains(&"Material clearcoat"));
+    click(&ctx, &mut lab, &mut settings, "Advanced car lighting");
+    click(&ctx, &mut lab, &mut settings, "Material clearcoat");
+    assert!(!lab.options.clearcoat);
+    click(&ctx, &mut lab, &mut settings, "Enhanced (automatic)");
+    assert!(lab.options.clearcoat && lab.options.paint_response && lab.options.car_skylight);
+    click(&ctx, &mut lab, &mut settings, "Original PC");
+    assert_eq!(settings.car_shading, crate::settings::CarShading::Original);
+    assert_eq!(lab.options.sky_strength, 0.91);
+    assert!(!lab.options.cached_reflections);
 }

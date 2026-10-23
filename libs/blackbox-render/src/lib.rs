@@ -14,6 +14,9 @@
 //! - `gpu/`: the wgpu implementation (device setup, resources, pipelines, the scene targets (the
 //!   surface itself, or an offscreen image), the post-process chain, frames).
 
+// Proving `wgpu::RenderPipeline: Send` for the parallel pipeline builds walks wgpu's whole hub of resource types.
+#![recursion_limit = "256"]
+
 mod caps;
 mod gpu;
 mod options;

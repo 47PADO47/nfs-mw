@@ -48,8 +48,15 @@ impl RenderBackend for Renderer {
         Renderer::set_sky_state(self, state);
     }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
-        let old_screen = self.experiments.screen_reflections;
+        let previous = self.experiments;
+        let old_screen = previous.screen_reflections;
         self.experiments = options.sanitized();
+        if (previous.sun_angle != self.experiments.sun_angle
+            || previous.local_reflection_correction != self.experiments.local_reflection_correction)
+            && let Some(glossy) = &self.glossy
+        {
+            glossy.sync_probe_options(&self.queue, &self.experiments);
+        }
         if old_screen != self.experiments.screen_reflections {
             self.refresh_targets();
         }
@@ -94,7 +101,7 @@ impl RenderBackend for Renderer {
         self.capture_projected(scene);
     }
     fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
-        self.capture_reflections(scene);
+        self.queue_reflections(scene);
     }
     fn info(&self) -> &BackendInfo {
         &self.info
@@ -183,7 +190,13 @@ impl RenderBackend for Renderer {
         self.graphics = effective;
         #[cfg(all(windows, feature = "streamline"))]
         self.sync_upscale_passes();
+        // The settings decide which pipelines the frames need, so build them now rather than in the first frame.
+        self.prewarm_windowed();
         resolved
+    }
+
+    fn prewarm(&mut self) {
+        Renderer::prewarm(self);
     }
 
     fn graphics(&self) -> &GraphicsSettings {
@@ -250,6 +263,10 @@ impl RenderBackend for Renderer {
         Renderer::set_ui_layer(self, layer);
     }
 
+    fn set_ui_layer_ref(&mut self, layer: &UiLayer) {
+        Renderer::set_ui_layer_ref(self, layer);
+    }
+
     fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<FrameStatus, RenderError> {
         let presented = Renderer::render(self, frame, instances)?;
         Ok(if presented { FrameStatus::Presented } else { FrameStatus::Skipped })
@@ -273,6 +290,21 @@ impl RenderBackend for Renderer {
         instances: &[Instance],
     ) -> Result<CaptureId, RenderError> {
         self.begin_view_capture(size, frame, instances)
+    }
+
+    fn view_capture_to_ui(&self) -> bool {
+        true
+    }
+
+    /// The same reduced frame, tinted and masked into a UI texture on the GPU, with no readback.
+    fn request_view_capture_ui(
+        &mut self,
+        size: [u32; 2],
+        frame: &FrameParams,
+        instances: &[Instance],
+        target: &blackbox_gfx::ViewCaptureUi,
+    ) -> Result<(), RenderError> {
+        self.begin_view_capture_ui(size, frame, instances, target)
     }
 
     fn poll_capture(&mut self, id: CaptureId) -> Option<Result<RgbaImage, RenderError>> {

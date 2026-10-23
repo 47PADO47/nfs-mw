@@ -101,7 +101,7 @@ impl Renderer {
             sharpness: None,
         };
         effect.objects.upload(&self.device, &self.queue, instances, effect.reset);
-        effect.pass.encode(self, encoder, (&effect.view, &depth), &motion, instances, &effect.objects.buffer.buffer);
+        effect.pass.encode(self, encoder, (&effect.view, &depth), &motion, instances, &effect.objects);
         effect.previous = Some(*frame);
         effect.jitter = jitter;
         effect.last = now;

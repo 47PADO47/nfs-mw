@@ -17,24 +17,31 @@ struct Material { intensity: vec4<f32>, options: vec4<f32>, appearance: vec4<f32
 
 struct Input {
     @location(0) position: vec3<f32>,
+};
+// instance input: begin
+// The per-instance model matrix, one column per attribute. A renderer with an instance store replaces this block
+// (see `instance_view.rs`): the instance then carries a slot at location 4 and the matrix is read from the store.
+struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
 };
+fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+// instance input: end
 struct Output {
     @builtin(position) clip: vec4<f32>,
     @location(0) direction: vec3<f32>,
 };
 
-@vertex fn vs_main(v: Input) -> Output {
-    let model = mat4x4(v.model_0, v.model_1, v.model_2, v.model_3);
+@vertex fn vs_main(v: Input, placed: InstanceIn) -> Output {
+    let model = instance_model(placed);
     let world = model * vec4(v.position, 1.0);
     var out: Output;
     out.clip = globals.view_proj * world;
     out.direction = world.xyz - globals.camera_pos.xyz;
     // Projected sky placement mirrors Z and can carry its own vertical offset.
     // Recover the unmirrored direction without turning that offset into parallax.
-    if v.model_2.z < 0.0 {
-        out.direction = vec3(world.xy-v.model_3.xy, v.model_3.z-world.z);
+    if model[2].z < 0.0 {
+        out.direction = vec3(world.xy-model[3].xy, model[3].z-world.z);
     }
     return out;
 }

@@ -68,6 +68,11 @@ impl NisScreen {
         self.overlay.as_ref().map(|overlay| (overlay.package.as_str(), overlay.message.as_str()))
     }
 
+    /// Whether a flash or an overlay shows, so [`Self::draw`] puts something over the frame.
+    pub fn is_showing(&self) -> bool {
+        self.flash.is_some() || self.overlay.is_some()
+    }
+
     /// Clears the flash and the overlay: the scene has ended.
     pub fn clear(&mut self) {
         *self = Self::default();
@@ -76,7 +81,7 @@ impl NisScreen {
     /// Draws the flash and the overlay over the frame. The overlay is drawn as its text, `package: message`, near the
     /// bottom of the screen, because the overlay packages are not drawn yet.
     pub fn draw(&self, ctx: &egui::Context) {
-        if self.flash.is_none() && self.overlay.is_none() {
+        if !self.is_showing() {
             return;
         }
         let screen = ctx.content_rect();

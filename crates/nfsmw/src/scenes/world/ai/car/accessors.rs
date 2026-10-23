@@ -8,7 +8,7 @@ impl AiCar {
         self.roadblock = true;
         self.breaker_stop = true;
         self.sim.collision_role.cop = true;
-        self.sim.collision_goal = Some(blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock"));
+        self.sim.collision_goal = Some(super::ROADBLOCK_GOAL);
         if self.damage.is_none() {
             self.damage = Some(CopDamage::for_model(&self.name, self.sim.events.as_ref().map(|e| e.spec())));
         }

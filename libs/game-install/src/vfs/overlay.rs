@@ -6,6 +6,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::{FileMap, key};
 
@@ -47,7 +48,8 @@ pub(super) struct Overlay {
     pub(super) priority: i32,
     /// The root as the caller gave it.
     pub(super) root: PathBuf,
-    pub(super) files: FileMap,
+    /// Shared by clones, like the install's index.
+    pub(super) files: Arc<FileMap>,
 }
 
 impl Overlay {
@@ -77,7 +79,7 @@ impl Overlay {
             }
         }
         log::debug!("indexed {} files in overlay {} under {}", files.len(), id, anchor.display());
-        Ok(Self { id: id.to_owned(), priority, root: root.to_path_buf(), files })
+        Ok(Self { id: id.to_owned(), priority, root: root.to_path_buf(), files: Arc::new(files) })
     }
 }
 

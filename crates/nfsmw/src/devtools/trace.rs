@@ -1,5 +1,6 @@
 //! Capture lifecycle and hotkeys. Rendering never writes files or waits for the export worker.
 mod health;
+pub(crate) use health::process_counters;
 mod identity;
 mod phases;
 mod samples;
@@ -234,11 +235,15 @@ pub(crate) fn begin(mut frame: NonSendMut<FrameScope>) {
     frame.0 = Some(blackbox_trace::scope("Frame"));
 }
 
+/// Whether the status indicator has something to say: a trace records or saves, or one finished a moment ago.
+pub(super) fn indicator_up(recorder: &Recorder) -> bool {
+    recorder.recording()
+        || recorder.writer.is_some()
+        || recorder.completed.is_some_and(|at| at.elapsed() < Duration::from_secs(8))
+}
+
 pub(super) fn indicator(ctx: &egui::Context, recorder: &Recorder) {
-    if !recorder.recording()
-        && recorder.writer.is_none()
-        && !recorder.completed.is_some_and(|at| at.elapsed() < Duration::from_secs(8))
-    {
+    if !indicator_up(recorder) {
         return;
     }
     egui::Area::new(egui::Id::new("trace_status"))

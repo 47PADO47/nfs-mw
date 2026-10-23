@@ -15,6 +15,8 @@ pub(super) struct History {
     /// Per instance, in the order of the frame's instances: the matrix it had in the previous frame.
     pub(super) buffer: InstanceBuffer,
     scratch: Vec<[f32; 16]>,
+    /// Per instance: whether its transform differs from the one it had in the previous frame.
+    moved: Vec<bool>,
 }
 
 impl History {
@@ -24,6 +26,7 @@ impl History {
             current: HashMap::new(),
             buffer: InstanceBuffer::new(device),
             scratch: Vec::new(),
+            moved: Vec::new(),
         }
     }
 
@@ -32,15 +35,24 @@ impl History {
     /// only moves with the camera. After a `reset` nothing from before is trusted.
     pub(super) fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, instances: &[Instance], reset: bool) {
         self.scratch.clear();
+        self.moved.clear();
         self.current.clear();
         for instance in instances {
-            self.scratch.push(before(&self.previous, instance, reset).to_cols_array());
+            let was = before(&self.previous, instance, reset);
+            self.moved.push(was != instance.transform);
+            self.scratch.push(was.to_cols_array());
             if !instance.key.is_transient() {
                 self.current.insert(instance.key, instance.transform);
             }
         }
         std::mem::swap(&mut self.previous, &mut self.current);
         self.buffer.upload(device, queue, &self.scratch);
+    }
+
+    /// Per instance of the last [`upload`](Self::upload): whether it moved since the previous frame. The
+    /// others have only the camera's motion.
+    pub(super) fn moved(&self) -> &[bool] {
+        &self.moved
     }
 
     /// Drop what is remembered: the next frame starts from the transforms it is given.

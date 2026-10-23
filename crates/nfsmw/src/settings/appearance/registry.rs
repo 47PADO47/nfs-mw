@@ -75,7 +75,7 @@ pub const FEATURES: &[Feature] = &[
     },
     Feature {
         name: "Ambient lighting / clearcoat / AO",
-        origin: "Custom Glossy car probe/coat, legacy prelit world ambient and GTAO",
+        origin: "Enhanced car environment light/material coat, legacy prelit world ambient and GTAO",
         coverage: "Enhancement",
         gap: "Car terms bypass Original/Simple; authored world families bypass legacy ambient; not original parity",
     },

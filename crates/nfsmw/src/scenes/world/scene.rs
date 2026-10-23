@@ -62,6 +62,12 @@ impl Scene for WorldScene {
         0.0
     }
 
+    /// Whether any of the panels above has something to draw (see `ui_panels::Panels`). The scene's readout line is the
+    /// metrics overlay's, so the UI pass asks the metrics for it.
+    fn wants_ui(&self) -> bool {
+        self.panels().any()
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.story_movie.picture()
     }

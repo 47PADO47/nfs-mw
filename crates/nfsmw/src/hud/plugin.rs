@@ -13,12 +13,13 @@ use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
 use super::event_tiles::{EventTiles, install_loader};
+use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
 use super::minimap::MinimapBinding;
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
-use super::viewport::HudViewport;
+use super::viewport::{HudViewport, parameters};
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
@@ -26,7 +27,7 @@ use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
 use crate::ui::theme::original::FengSource;
 use crate::ui::theme::{ElementId, UiThemes, hud_layer, slot_layer};
-use crate::ui::{Catalog, Presenter, SharedAssets};
+use crate::ui::{AssetsLoad, Catalog, Job, Presenter, SharedAssets, UiAssets, UiLoading};
 
 /// The package that is the in-game HUD, and the files that hold it.
 const HUD_PACKAGE: &str = "HUD_SingleRace.fng";
@@ -59,6 +60,8 @@ struct Hud {
     overlay: Option<BustedOverlay>,
     /// The drag race HUD, when the install has it: it takes the place of the race HUD while a drag race runs.
     drag: Option<DragHud>,
+    /// What the trees in the frame cell were built from, and the layers composed from them (`frame_cache.rs`).
+    cache: FrameCache,
 }
 
 /// `HUD_Drag.fng` with its own binding and viewport, in the same runtime.
@@ -71,60 +74,109 @@ struct DragHud {
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<super::RadioHud>().add_systems(Update, super::radio::update.in_set(FrameSet::SceneUpdate));
-        let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
-        super::split::install(app, &self.dir, &assets);
-        let catalog = Catalog::load(&self.dir, &HUD_FILES);
-        let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
-            log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
-            return;
-        };
-        log::info!(
-            "HUD: {} objects, {} resources without a texture",
-            package.objects.len(),
-            assets.missing_resources(&package).len()
-        );
-        let mut runtime = crate::ui::runtime();
-        if let Some(strings) = assets.strings.clone() {
-            runtime.set_string_resolver(move |label| strings.get(label));
-        }
-        let package = runtime.load(package);
-        let minimap = MinimapBinding::open_city(&runtime, package, &self.dir, &assets);
-        // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
-        let map_variants: Vec<MapVariant> = [MapVariant::Unlock1, MapVariant::Unlock2]
-            .into_iter()
-            .filter(|v| MinimapBinding::open_variant(&runtime, package, &self.dir, &assets, *v).is_some())
-            .chain(minimap.is_some().then_some(MapVariant::Full))
-            .collect();
-        let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
-        // Before the viewport: its icons take the minimap's side with the others.
-        for style in blip_styles::map_icon_styles() {
-            binding.add_blip_style(&mut runtime, package, style);
-        }
-        let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
-        let trax = trax::load(&self.dir, &mut runtime);
-        let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
-        let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
-            let package = runtime.load(drag);
-            let binding = HudBinding::new(&mut runtime, package);
-            let viewport = HudViewport::new(&runtime.tree(package), &[]);
-            DragHud { package, binding, viewport }
-        });
-        let event_tiles = EventTiles::new(install_loader(self.dir.clone()));
-        app.insert_resource(Hud {
-            runtime,
-            package,
-            binding,
-            viewport,
-            map_variants,
-            event_tiles,
-            trax,
-            overlay,
-            drag,
-        })
-        .insert_non_send(self.career.clone())
-        .insert_resource(self.initial.clone())
-        .add_systems(Update, sync.in_set(FrameSet::SceneUpdate))
-        .add_systems(Update, present.in_set(FrameSet::Hud));
+        // The HUD is built on a background thread once the UI assets are read, so the window opens at once. Its
+        // systems wait for it (`ui/loading.rs`).
+        let assets = crate::ui::ensure(app, &self.dir);
+        let dir = self.dir.clone();
+        app.world_mut().resource_mut::<UiLoading>().begin(LOAD);
+        let ready = resource_exists::<Hud>;
+        app.insert_resource(PendingHud(Job::spawn("hud-load", move || load(&dir, &assets))))
+            .insert_non_send(self.career.clone())
+            .insert_resource(self.initial.clone())
+            .add_systems(Update, poll.in_set(FrameSet::Prepare).run_if(resource_exists::<PendingHud>))
+            .add_systems(
+                Update,
+                sync.in_set(FrameSet::SceneUpdate).run_if(ready).run_if(resource_exists::<SharedAssets>),
+            )
+            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>));
+        super::split::install(app);
+    }
+}
+
+/// The name of the HUD's load in [`UiLoading`].
+const LOAD: &str = "the HUD";
+
+/// What the HUD's loader thread builds: the split-screen HUDs and the HUD, each `None` when the install lacks it.
+#[derive(Default)]
+struct Loaded {
+    split: Option<super::split::SplitHuds>,
+    hud: Option<Hud>,
+}
+
+/// The HUD being built on its loader thread.
+#[derive(Resource)]
+struct PendingHud(Job<Loaded>);
+
+/// Reads the HUD's packages, waits for the UI assets that load beside them, and builds the HUDs over both. On the
+/// loader thread.
+fn load(dir: &GameDir, assets: &AssetsLoad) -> Loaded {
+    let catalog = Catalog::load(dir, &HUD_FILES);
+    let Some(assets) = assets.wait() else { return Loaded::default() };
+    Loaded { split: super::split::load(dir, &assets), hud: build(dir, &assets, &catalog) }
+}
+
+/// The HUD of the install, `None` when it has no race HUD.
+fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
+    let Some(package) = catalog.find(HUD_PACKAGE).cloned() else {
+        log::warn!("the HUD is off: the install has no {HUD_PACKAGE}");
+        return None;
+    };
+    log::info!(
+        "HUD: {} objects, {} resources without a texture",
+        package.objects.len(),
+        assets.missing_resources(&package).len()
+    );
+    let mut runtime = crate::ui::runtime();
+    if let Some(strings) = assets.strings.clone() {
+        runtime.set_string_resolver(move |label| strings.get(label));
+    }
+    let package = runtime.load(package);
+    let minimap = MinimapBinding::open_city(&runtime, package, dir, assets);
+    // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
+    let map_variants: Vec<MapVariant> = [MapVariant::Unlock1, MapVariant::Unlock2]
+        .into_iter()
+        .filter(|v| MinimapBinding::open_variant(&runtime, package, dir, assets, *v).is_some())
+        .chain(minimap.is_some().then_some(MapVariant::Full))
+        .collect();
+    let mut binding = HudBinding::new(&mut runtime, package).with_minimap(minimap);
+    // Before the viewport: its icons take the minimap's side with the others.
+    for style in blip_styles::map_icon_styles() {
+        binding.add_blip_style(&mut runtime, package, style);
+    }
+    let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
+    let trax = trax::load(dir, &mut runtime);
+    let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
+    let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
+        let package = runtime.load(drag);
+        let binding = HudBinding::new(&mut runtime, package);
+        let viewport = HudViewport::new(&runtime.tree(package), &[]);
+        DragHud { package, binding, viewport }
+    });
+    let event_tiles = EventTiles::new(install_loader(dir.clone()));
+    Some(Hud {
+        runtime,
+        package,
+        binding,
+        viewport,
+        map_variants,
+        event_tiles,
+        trax,
+        overlay,
+        drag,
+        cache: FrameCache::default(),
+    })
+}
+
+/// Puts the HUDs in place once they are built.
+fn poll(mut commands: Commands, mut pending: ResMut<PendingHud>, mut loading: ResMut<UiLoading>) {
+    let Some(loaded) = pending.0.take() else { return };
+    commands.remove_resource::<PendingHud>();
+    loading.end(LOAD);
+    if let Some(split) = loaded.split {
+        commands.insert_resource(split);
+    }
+    if let Some(hud) = loaded.hud {
+        commands.insert_resource(hud);
     }
 }
 
@@ -193,7 +245,9 @@ fn present(
     let hud = &mut *hud;
     // The RadioCard slot decides the radio look. The EA Trax chyron plays and is drawn only where the active theme
     // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.
-    let chyron_shown = themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
+    // Under the Original theme every slot is Original's, so no slot has to be resolved to know it.
+    let static_hud = themes.hud_is_static();
+    let chyron_shown = static_hud || themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
     // A drag race shows its own package; the other package rests (its objects are not updated or drawn).
     let drag = hud.drag.as_mut().filter(|_| state.drag);
     let (package, binding, viewport) = match drag {
@@ -220,31 +274,43 @@ fn present(
     themes.radio().set(&radio, screen, settings.hud_layout);
     // The Custom speedometer and tachometer read the drive state the same way.
     themes.drive().set(&state, screen);
+    // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the
+    // cell then keeps its generation and the composed layers below are reused as well.
+    let placement = parameters(screen, settings.hud_layout);
+    let key = |package: PackageId, runtime: &Runtime| TreeKey::new(package, runtime.revision(package), placement);
     match (chyron_shown, hud.trax.as_ref()) {
         (true, Some(trax)) => {
-            let mut chyron = hud.runtime.tree(trax.package());
-            trax.place(&mut chyron, screen, settings.hud_layout);
-            frame.set(FengSource::Chyron, chyron);
+            let chyron = trax.package();
+            hud.cache.refresh(&frame, FengSource::Chyron, key(chyron, &hud.runtime), |tree| {
+                hud.runtime.tree_into(chyron, tree);
+                trax.place(tree, screen, settings.hud_layout);
+            });
         }
-        _ => frame.clear(FengSource::Chyron),
+        _ => hud.cache.clear(&frame, FengSource::Chyron),
     }
     // The viewport is applied to the source tree (its `index` is the position), never to the composed tree.
-    let mut tree = hud.runtime.tree(package);
-    viewport.apply(&mut tree, screen, settings.hud_layout);
-    frame.set(FengSource::Hud, tree);
-    match hud.overlay.as_ref().and_then(|overlay| overlay.tree(&hud.runtime)) {
-        Some(overlay) => frame.set(FengSource::BustedOverlay, overlay),
-        None => frame.clear(FengSource::BustedOverlay),
+    hud.cache.refresh(&frame, FengSource::Hud, key(package, &hud.runtime), |tree| {
+        hud.runtime.tree_into(package, tree);
+        viewport.apply(tree, screen, settings.hud_layout);
+    });
+    match hud.overlay.as_ref().and_then(BustedOverlay::shown) {
+        Some(overlay) => {
+            let key = TreeKey::new(overlay, hud.runtime.revision(overlay), (1.0, 0.0));
+            hud.cache.refresh(&frame, FengSource::BustedOverlay, key, |tree| hud.runtime.tree_into(overlay, tree));
+        }
+        None => hud.cache.clear(&frame, FengSource::BustedOverlay),
     }
     // The presenter puts each call's meshes over the ones of the calls before it, so the chyron (or the card) goes
     // first, the HUD over it, and the busted overlay last, as the presenter always drew them.
     let time_s = time.elapsed_secs();
-    let layers = [
-        slot_layer(&themes, ElementId::RadioCard, time_s),
-        hud_layer(&themes, time_s),
-        slot_layer(&themes, ElementId::BustedOverlay, time_s),
-    ];
-    for layer in &layers {
+    let layers = hud.cache.layers(frame.generation(), static_hud, || {
+        [
+            slot_layer(&themes, ElementId::RadioCard, time_s),
+            hud_layer(&themes, time_s),
+            slot_layer(&themes, ElementId::BustedOverlay, time_s),
+        ]
+    });
+    for layer in layers {
         if layer.nodes.is_empty() {
             continue;
         }

@@ -18,6 +18,31 @@ codegen-backend = "cranelift"
 [profile.dev.package."*"]
 codegen-backend = "llvm"
 
+# The hot workspace crates that Cargo.toml raises to opt-level 3 in dev: Cranelift does not optimise like LLVM, so
+# they use LLVM too. The rest of our crates keep Cranelift for compile speed.
+[profile.dev.package.ea-compress]
+codegen-backend = "llvm"
+[profile.dev.package.ea-audio]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-chunk]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-tpk]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-solid]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-attrib]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-collision]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-vehicle]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-movie]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-feng]
+codegen-backend = "llvm"
+[profile.dev.package.blackbox-render]
+codegen-backend = "llvm"
+
 # Tests stay on LLVM: Cranelift cannot unwind a panic on Windows, so a should_panic test or a failed assertion would kill the
 # whole test process (exit code 0xE06D7363 or an access violation) instead of failing one test.
 # Tests are built with LLVM. Cranelift miscompiled the egui code our test binary instantiates: with it, `garage::` and

@@ -11,7 +11,9 @@ use std::collections::HashMap;
 use blackbox_gfx::{SkyMaterialDesc, SkyMaterialHandle, SkyState};
 use wgpu::util::DeviceExt;
 
-use super::{Renderer, meshes::GpuMesh, slots::Slots};
+use super::draw_list::{instance_store, instance_view};
+use super::parallel;
+use super::{Renderer, draw_list::LayerCmd, meshes::GpuMesh, slots::Slots};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -42,6 +44,8 @@ pub(super) struct Sky {
     materials: Slots<Material>,
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 3]>,
     state: SkyState,
+    /// Instances are read from the instance store, bound at group 2; the cloud map follows it.
+    store: bool,
 }
 
 impl Sky {
@@ -53,26 +57,34 @@ impl Sky {
     ) -> Self {
         let material_layout = pipeline::material_layout(device);
         let cloud_map = cloud_map::CloudMap::new(device);
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
+        // The cloud map follows the instance store's group, when there is one.
+        let cloud_group = 2 + u32::from(store);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("authored sky"),
-            bind_group_layouts: &[Some(globals), Some(&material_layout), Some(&cloud_map.layout)],
+            bind_group_layouts: &match instances.as_ref() {
+                Some(instances) => {
+                    vec![Some(globals), Some(&material_layout), Some(instances), Some(&cloud_map.layout)]
+                }
+                None => vec![Some(globals), Some(&material_layout), Some(&cloud_map.layout)],
+            },
             immediate_size: 0,
         });
+        let source = instance_view::instance_source(include_str!("../../shaders/sky.wgsl"), store.then_some(2));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("authored sky shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/sky.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         let sampler = sampler.clone();
+        let enhanced = format!(
+            "{}\n{}",
+            include_str!("../../shaders/sky_enhanced.wgsl").replace("@group(2)", &format!("@group({cloud_group})")),
+            include_str!("../../shaders/sky_clouds.wgsl")
+        );
         let enhanced_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("enhanced atmospheric sky shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                format!(
-                    "{}\n{}",
-                    include_str!("../../shaders/sky_enhanced.wgsl"),
-                    include_str!("../../shaders/sky_clouds.wgsl")
-                )
-                .into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(instance_view::instance_source(&enhanced, store.then_some(2)).into()),
         });
         let [noise, detail, weather] = noise::create(device, queue);
         let noise_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -98,6 +110,7 @@ impl Sky {
             materials: Slots::new(),
             pipelines: HashMap::new(),
             state: SkyState::default(),
+            store,
         }
     }
 
@@ -108,12 +121,15 @@ impl Sky {
         format: wgpu::TextureFormat,
         cache: Option<&wgpu::PipelineCache>,
     ) {
+        let store = self.store;
         self.pipelines.entry(format).or_insert_with(|| {
-            [
-                pipeline::create(device, &self.shader, &self.layout, format, false, cache),
-                pipeline::create(device, &self.shader, &self.layout, format, true, cache),
-                pipeline::create(device, &self.enhanced_shader, &self.layout, format, false, cache),
-            ]
+            parallel::build_array([(false, false), (true, false), (false, true)], |&(layer, enhanced)| {
+                let shader = match enhanced {
+                    true => &self.enhanced_shader,
+                    false => &self.shader,
+                };
+                pipeline::create(device, shader, &self.layout, format, layer, store, cache)
+            })
         });
         let intensity = self.state.cloud_intensity.map(|x| match x.is_finite() {
             true => x.clamp(-1.0, 1.0),
@@ -146,18 +162,30 @@ impl Sky {
         }
     }
 
+    /// Draw the sky layers: each layer kind in turn, over every sky draw of the view in instance order. `list`
+    /// holds only the sky draws, so a view with no sky costs nothing here. State is bound only when it changes.
+    /// `instances` is the instance store's bind group, when the renderer has one.
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
         meshes: &'a Slots<GpuMesh>,
-        instances: &[blackbox_gfx::Instance],
+        list: &[LayerCmd],
+        instances: Option<&wgpu::BindGroup>,
     ) {
+        if list.is_empty() {
+            return;
+        }
         let Some(pipelines) = self.pipelines.get(&format) else { return };
-        pass.set_bind_group(2, &self.cloud_map.group, &[]);
+        if let Some(instances) = instances.filter(|_| self.store) {
+            pass.set_bind_group(2, instances, &[]);
+        }
+        // Every pipeline shares the layout, so the cloud map is bound for the authored layers too.
+        pass.set_bind_group(2 + u32::from(self.store), &self.cloud_map.group, &[]);
         for kind in
             [blackbox_gfx::SkyLayerKind::Base, blackbox_gfx::SkyLayerKind::Cloud2, blackbox_gfx::SkyLayerKind::Cloud3]
         {
+            // The procedural sky replaces every authored layer with one pass, drawn with the base layer's material.
             if self.state.enhanced && kind != blackbox_gfx::SkyLayerKind::Base {
                 continue;
             }
@@ -166,22 +194,29 @@ impl Sky {
                 false => usize::from(kind != blackbox_gfx::SkyLayerKind::Base),
             };
             pass.set_pipeline(&pipelines[pipeline]);
-            for (index, instance) in instances.iter().enumerate() {
-                let Some(mesh) = meshes.get(instance.mesh.raw()) else { continue };
-                for draw in &mesh.draws {
-                    let blackbox_gfx::Shading::SkyLayer(handle) = draw.shading else { continue };
-                    let Some(material) = self.materials.get(handle.raw()).filter(|m| m.kind == kind) else { continue };
+            let mut bound_mesh = None;
+            let mut bound_material = None;
+            for cmd in list {
+                let Some(mesh) = meshes.get(cmd.mesh) else { continue };
+                let Some(draw) = mesh.draws.get(cmd.draw as usize) else { continue };
+                let blackbox_gfx::Shading::SkyLayer(handle) = draw.shading else { continue };
+                let Some(material) = self.materials.get(handle.raw()).filter(|m| m.kind == kind) else { continue };
+                let Some(secondary_uvs) = &mesh.secondary_uvs else { continue };
+                if bound_material != Some(handle.raw()) {
                     pass.set_bind_group(1, &material.bind_group, &[]);
+                    bound_material = Some(handle.raw());
+                }
+                if bound_mesh != Some(cmd.mesh) {
                     pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    let Some(secondary_uvs) = &mesh.secondary_uvs else { continue };
                     pass.set_vertex_buffer(2, secondary_uvs.slice(..));
                     pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                    pass.draw_indexed(
-                        draw.first_index..draw.first_index + draw.index_count,
-                        draw.base_vertex,
-                        index as u32..index as u32 + 1,
-                    );
+                    bound_mesh = Some(cmd.mesh);
                 }
+                pass.draw_indexed(
+                    draw.first_index..draw.first_index + draw.index_count,
+                    draw.base_vertex,
+                    cmd.instances.0..cmd.instances.1,
+                );
             }
         }
     }

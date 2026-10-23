@@ -13,9 +13,10 @@ fn surface_brdf(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, roughness: f32, f0: ve
     let nh = max(dot(n, h), 0.0);
     let vh = max(dot(v, h), 0.0);
     let a = max(roughness * roughness, 0.0064);
-    let a2 = a * a;
+    // Angular slope variance is packed once on the CPU, shared by all material layers.
+    let a2 = a * a + max(rig.to_light[0].w, 0.0);
     let denominator = nh * nh * (a2 - 1.0) + 1.0;
-    let d = a2 / max(PI_F * denominator * denominator, 1e-7);
+    let d = a2 / max(PI_F * denominator * denominator, 1e-10);
     let gv = nl * sqrt(nv * nv * (1.0 - a2) + a2);
     let gl = nv * sqrt(nl * nl * (1.0 - a2) + a2);
     let visibility = 0.5 / max(gv + gl, 1e-6);

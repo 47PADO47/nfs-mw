@@ -27,6 +27,7 @@ pub fn upload(renderer: &mut dyn RenderBackend) -> MeshHandle {
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::Lit,
+            two_sided: true,
         }],
     })
 }

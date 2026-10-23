@@ -107,9 +107,12 @@ fn sky_ground_controls_and_local_capture_restore_refresh_the_probe() {
     r.set_render_experiments(options);
     frame.clear_color = [0.2, 0.4, 0.1];
     r.set_reflection_scene(Some(ReflectionScene {
+        sun_shadows: false,
+        fade_distance: None,
         origin: Vec3::ZERO,
         frame,
         faces: [&[]; 6],
+        refresh: blackbox_gfx::reflection::ALL_FACES,
         quality: ReflectionQuality::Low,
     }));
     let local = center(&mut r, &frame, &instances);

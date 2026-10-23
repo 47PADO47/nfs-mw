@@ -1,5 +1,8 @@
 use super::*;
 use std::cell::Cell;
+use std::sync::Barrier;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 const REL: &str = "GLOBAL/TABLE.BIN";
 
@@ -55,6 +58,63 @@ fn memo_does_not_keep_a_failed_build() {
     let built = memo(&dir, &[REL], || counted(&calls, vec![9])).unwrap();
     assert_eq!(calls.get(), 2);
     assert_eq!(*built, vec![9]);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Run `ask` on two threads that start together, and return what each got.
+fn race<T: Send>(ask: impl Fn() -> T + Sync) -> [T; 2] {
+    let start = Barrier::new(2);
+    std::thread::scope(|scope| {
+        let first = scope.spawn(|| {
+            start.wait();
+            ask()
+        });
+        let second = scope.spawn(|| {
+            start.wait();
+            ask()
+        });
+        [first.join().unwrap(), second.join().unwrap()]
+    })
+}
+
+#[test]
+fn memo_builds_once_when_two_threads_ask_for_the_same_file() {
+    let (root, dir) = install("race", b"abc");
+    let calls = AtomicUsize::new(0);
+    let [first, second] = race(|| {
+        memo(&dir, &[REL], || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            // Long enough for the other thread to arrive while this build runs.
+            std::thread::sleep(Duration::from_millis(100));
+            Ok(vec![4u8])
+        })
+        .unwrap()
+    });
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(Arc::ptr_eq(&first, &second));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn memo_does_not_cache_a_failure_for_a_thread_that_waited_for_it() {
+    let (root, dir) = install("race-failed", b"abc");
+    let calls = AtomicUsize::new(0);
+    // Whichever thread builds first fails; the other waits for it, then builds the entry itself.
+    let results = race(|| {
+        memo(&dir, &[REL], || {
+            std::thread::sleep(Duration::from_millis(100));
+            match calls.fetch_add(1, Ordering::SeqCst) {
+                0 => Err(anyhow::anyhow!("broken")),
+                _ => Ok(vec![5u8]),
+            }
+        })
+    });
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(results.iter().filter(|r| r.is_err()).count(), 1);
+    assert_eq!(results.iter().flatten().count(), 1);
+    // The success is stored; the failure left nothing behind.
+    let later = memo(&dir, &[REL], || -> Result<Vec<u8>> { panic!("already built") }).unwrap();
+    assert_eq!(*later, vec![5u8]);
     std::fs::remove_dir_all(root).unwrap();
 }
 

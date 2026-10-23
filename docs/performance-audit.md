@@ -115,6 +115,69 @@ change.
 - Bevy's pipelines are not touched by the pipeline cache.
 - Streamed sections requested before the first residency update still decode on the main thread on non-BC GPUs.
 
+## Round three: stutter first (2026-10-22)
+
+The first two rounds were judged by a benchmark that draws a parked car with the renderer's defaults. The game's own
+trace showed something else: a p50 of 3 ms but a p90 of 50 ms, with stalls of up to 4 s on the frame thread. Round
+three measures the whole app (`--bench-seconds`, now hidden, with hitch counts) and starts with the stalls. Numbers:
+[benchmarks/2026-10-22-perf-round-three.md](benchmarks/2026-10-22-perf-round-three.md).
+
+| Finding | Fix |
+| --- | --- |
+| The release profile had no LTO and 16 codegen units; dev builds compiled our decoders, physics and renderer at level 1 with Cranelift. | Thin LTO and one codegen unit for release; the hot crates at level 3 with LLVM in dev. |
+| The save screens read the career tables on the frame thread, and the car lot ran the 5,400-step performance simulation for each car, again for Quick Play and at race starts. | The tables load on a thread; car performance, the gameplay data and the career tables are memoised per session; the lot is measured in parallel. |
+| Movies were read whole and their sound decoded before the first frame, on the frame thread; each frame decoded and copied the picture there. | Video and sound workers; buffered reads; a bounded queue of recycled frame buffers. |
+| Bank sounds and NIS scenes decoded or loaded on first use, on the frame thread. | An audio decode worker fed as soon as the car is known; NIS bundles, cameras and takes load on threads. |
+| The menu backdrop read and uploaded its car and room inside `init`. | A worker reads them; the frame thread uploads the room, then the car. |
+| The streamer started after the whole world load, no tile was asked for before the shared sets arrived, and the shared sets uploaded in one frame. | The loading thread starts the streamer and asks for the shared sets and the start tiles together; the shared upload is spread over hidden frames. |
+| The upload budget counted BC textures as RGBA, dropped requests were still read, and placements were worked out on the frame thread. | Real byte counts, cancel flags, placement prepared on the stream workers, bookkeeping only on change. |
+| Pipelines were built on first use inside a frame (264 ms). | `RenderBackend::prewarm` builds what the current settings need ahead of the frame. |
+| Parallel opens could build one memo entry twice; surface capabilities were queried twice a second. | A `OnceLock` per memo key; capabilities on change. |
+
+### Steady frame, CPU (P2)
+
+| Finding | Fix |
+| --- | --- |
+| On High without caching, the car's cube re-rendered all six faces every frame, each through a scratch image and a store pass. | Two faces per frame in rotation (three on Medium and Low), drawn straight into the cube; the glossy bind group is made once and irradiance is projected once per full cycle. |
+| The world, window and sky draws re-walked every instance per blend mode and layer, in every view. | One walk per view fills them with the colour buckets; binds only on change; texture redirects in a slot-indexed Vec. |
+| Every view swept every placed object through ~250-byte records and sorted whole instances. | Per-tile frustum tests over compact cull entries; sorting (mesh, index) keys. |
+| The shadow feed swept and sorted every resident caster every frame. | The static casters are kept per residency revision; only dynamic ones are appended. |
+| Each car's ~16 ray casts per tick walked the grid on their own. | A shared candidate window, packs in a Vec, a group bitset, a resident-near cache; the window keeps the decoded strips and broad-phase values its rays reach, so a car's corner rays decode each strip once; hits stay bit-identical. |
+| The AI cars integrated one after another. | Integration on scoped threads from eight cars up, with starts and ends in car order: bit-identical to the serial step. |
+| Instance matrices were uploaded again for every view (ten or more times a frame). | A persistent instance store; views upload a u32 slot per instance. |
+| The HUD and the menus rebuilt their FEng trees and recomposed every frame; the raster text cache never freed. | A revision per package (focus included); trees and composed layers are reused while it holds; a bounded text cache. |
+| egui, the status line and the mirror's CPU tint ran with nothing to show. | The egui pass is skipped when nothing is up, the status line is built only for the overlay, and the mirror is tinted and clipped on the GPU. |
+| The frame limiter paced twice under vsync and overshot its sleeps. | It defers to vsync and spins the last millisecond. |
+
+### GPU passes (P3)
+
+| Finding | Fix |
+| --- | --- |
+| Every shadow cascade re-rendered every frame, and the receiver ran up to ~200 taps a pixel even with no blocker. | Staggered cascades (0 every frame, 1 every second, the rest every fourth) with an early refresh on cuts and drift; the receiver returns at once with no blocker and filters with a rotated 12-tap Vogel disk (20 dense), dithering between cascades. |
+| XeGTAO High ran at full resolution. | Half resolution, upsampled by the existing depth- and normal-aware composite. |
+| SMAA shaded every pixel in its blend-weight pass and took three submits. | A stencil mask from the edge pass; one encoder and one submit for scene, post, SMAA and UI. |
+| FSR 3 and the treatment composite built bind groups every frame. | Cached per input view. |
+| Tone mapping was its own full-screen pass. | Folded into the bloom or treatment composite before it. |
+| The motion pass redrew all opaque geometry. | Camera motion from depth in one full-screen pass; only moved objects are drawn. |
+
+Back faces are culled by the original's rule: opaque textures are single-sided unless punch-through or flagged, blended ones two-sided, mirrored instances and reflection views flip the side ([specs/backface-culling.md](specs/backface-culling.md)). Shadow maps, the sky and effects stay two-sided.
+
+### Load time and memory (P4)
+
+| Finding | Fix |
+| --- | --- |
+| The front end read about 130 MB before the window opened, among them TrackMaps.bin (63.5 MB) for 3 textures, kept in the memo. | A ranged texture-pack reader (chunk headers by seek, only the wanted textures' bytes) for TrackMaps, RIVALS and DYNTEX, also used by the challenge series' maps; once-read packs are freed; the texture groups and the FEng catalog load on parallel threads. |
+| Section vertices were held twice, and every vertex carried a second UV and a tangent. | The solid's Vertex is Pod with the GPU layout and uploads by a cast; the extra channels are optional; one reservation. |
+| Inflated textures were copied once more, GameDir clones copied the 2,084-entry index, and play loaded its settings and discovered the mods twice. | The inflated block becomes the image; the index is shared by an Arc; settings and mods load once. |
+
+The first start after a shader or driver change compiles every pipeline the settings use before the world is shown
+(prewarm), where it used to spread the same compilation over the first frames as hitches. The scene and material
+pipeline tables compile in parallel, one thread per core: with cold caches, creating the renderer went from 12 s to
+2.9 s and the prewarm from 13.2 s to 4.4 s on an RTX 4070 SUPER; with warm caches both take under 0.4 s.
+
+The UI assets, the screens' catalog and the HUD's packages load on threads after the window is up: the front end and
+the HUD start when their loads are done, and screenshots and benchmarks wait for them.
+
 ## How to measure
 
 Set `NFSMW_GAME_DIR` to the install first. Then run:

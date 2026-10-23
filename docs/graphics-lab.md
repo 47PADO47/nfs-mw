@@ -103,7 +103,7 @@ The native Vulkan and DX12 renderer offers these independent prototypes:
 
 | Control | What changes |
 | --- | --- |
-| Sun shadows | Original PC (partial) fitted perspective map, or custom directional cascades with 5×5 tent PCF |
+| Sun shadows | Original PC (partial) fitted perspective map, or custom directional cascades with a rotated 12-tap Vogel PCF (20 taps when dense) |
 | Distant coverage | A fourth cascade extending coverage to three times the near range |
 | Contact-hardening sun | Optional directional PCSS: sixteen blocker samples and spatial filtering |
 | Contact shadow detail | A short, twenty-four-step depth/normal ray march, applied to direct sunlight |
@@ -157,6 +157,11 @@ This can draw more triangles than the former view-dependent caster LOD policy;
 the cascade volume still culls each mesh. Streaming residency remains the limit.
 
 Cascade extents use minimum enclosing spheres and snapped light-space centres.
+Cascade 0 renders every frame, cascade 1 every second frame and the others every fourth (staggered); a skipped
+cascade keeps the matrix it was rendered with, and a camera cut, a resize, a turn of the sun or a drift of ten
+texels refreshes it at once. Far cascades snap to coarser steps so cached shadows can reuse them. The receiver
+returns at once when its blocker search finds nothing, filters with a Vogel disk rotated by interleaved
+gradient noise, and dithers between two cascades in their overlap instead of blending both.
 Sixteen texels of additional boundary coverage protect snapping, PCF and PCSS
 sampling at cascade edges. Depth endpoints include upstream resident caster bounds
 and are quantised in world space without changing XY texel density. A continuous
@@ -355,13 +360,28 @@ PNG screenshots are SDR previews. See [the HDR contract](specs/hdr-output.md) an
 ## Revised quality budgets
 
 All quality levels retain 16× anisotropic filtering, the selected colour treatment,
-AA, HDR calibration and gameplay settings. Quality does not switch AO on if it
-was deliberately disabled. High uses wide 4K cascades and dense penumbra filtering;
+AA, HDR calibration and gameplay settings. Overall Quality selects its AO budget;
+feature-level Off remains available. High uses wide 4K cascades and dense penumbra filtering;
 Very High raises the first two maps to 8K while retaining 4K distant maps. Its
 640 MiB atlas and higher shadow time are explicit costs, not a different art style.
 Balanced uses 4K detail / 2K distant maps. Low uses regular 1K maps without PCSS
 or contact detail. Legacy tight focus is disabled by presets. Road capture sizes
 are original / 2× / 2× / 4×; reflection content remains independently selectable.
+F8 separates **Visual style** (overall look), **Overall quality** (cost),
+**Saved graphics** (complete named snapshots) and **Lighting comparisons**
+(diagnostic combinations under Comparison tools). The game Video menu offers
+**Overall Quality**, **Shadow Quality**, **Reflection Quality** and **Ambient Occlusion**.
+Overall Quality applies the shared feature budgets; feature overrides display
+Custom overall. The redundant old graphics-preset selector is not shown.
+Detailed shadow/capture/material controls remain in F8. The vehicle reflection
+brightness control is not exposed in either menu; saved values remain compatible.
+For native Enhanced car materials, Low / Balanced / High / Very High select
+100 / 200 / 300 / 500 m reflection range. This covers both car and mirror captures.
+Reflection presets also choose 128 / 512 / 1024 / 1024 square face sizes.
+Optional cached-update settings retain their manual values.
+Advanced capture settings still allow unlimited range; loading saved settings does
+not reapply a quality preset. Original PC, Simple and Bevy retain their requested
+range because their capture paths do not share the Enhanced distance fade.
 Enhanced now defaults to SMAA, XeGTAO with depth prefiltering, 0.55° sun, filter
 width 1.0 and the tested car sky/ground lighting. Bevy quality changes only shared
 budgets and preserves Black Box experiments. Original PC retains its projected

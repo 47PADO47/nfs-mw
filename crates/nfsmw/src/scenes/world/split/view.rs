@@ -85,7 +85,8 @@ impl WorldScene {
             false => self.shadow_quality.sampling().2,
         };
         visibility::collect_main(
-            self.residency.placed().filter(|p| original || !p.original_shadow),
+            self.residency.cull_tiles(),
+            original,
             &cull,
             rules,
             self.residency.props(),

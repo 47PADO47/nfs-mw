@@ -56,6 +56,7 @@ fn mesh(
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::SkyLayer(material),
+            two_sided: true,
         }],
     })
 }
@@ -151,6 +152,7 @@ fn original_sky_base_matches_independent_physical_scattering_fixtures() {
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::SkyLayer(material),
+            two_sided: true,
         }],
     });
     let mut frame = frame();

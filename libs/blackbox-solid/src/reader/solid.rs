@@ -38,8 +38,8 @@ pub fn read_solid(pack: Chunk<'_>) -> Result<Solid> {
         vertex_buffers: Vec::new(),
         vertices: Vec::new(),
         skin: None,
-        secondary_uvs: Vec::new(),
-        tangents: Vec::new(),
+        secondary_uvs: None,
+        tangents: None,
         indices: Vec::new(),
         groups: Vec::new(),
     };

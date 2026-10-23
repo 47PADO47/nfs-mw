@@ -1,5 +1,6 @@
 //! End-to-end captures: off-screen scenery reaches the native glossy shader.
 use crate::{Renderer, RendererOptions};
+use blackbox_gfx::reflection::ALL_FACES;
 use blackbox_gfx::*;
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use blackbox_gpu_passes::test_support::serial;
@@ -82,10 +83,13 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
         // Repeated updates also cover the asset/pipeline warm-up of a freshly enabled probe.
         for _ in 0..8 {
             backend.set_reflection_scene(Some(ReflectionScene {
+                sun_shadows: false,
+                fade_distance: None,
                 origin: Vec3::ZERO,
                 quality: ReflectionQuality::Low,
                 frame,
                 faces: [&walls; 6],
+                refresh: ALL_FACES,
             }));
             backend.render(&frame, &main).unwrap();
         }
@@ -102,20 +106,26 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
     let frame = frame(Vec3::NEG_Y);
     let main = [Instance::keyed(mirror, Mat4::IDENTITY, InstanceKey::new(1, 0))];
     backend.set_reflection_scene(Some(ReflectionScene {
+        sun_shadows: false,
+        fade_distance: None,
         origin: Vec3::ZERO,
         quality: ReflectionQuality::High,
         frame,
         faces: [&walls; 6],
+        refresh: ALL_FACES,
     }));
     for _ in 0..6 {
         backend.render(&frame, &main).unwrap();
     }
     assert!(centre(&capture(backend, &frame, &main))[0] > 100, "quality switch preserves capture");
     backend.set_reflection_scene(Some(ReflectionScene {
+        sun_shadows: false,
+        fade_distance: None,
         origin: Vec3::new(40.0, 40.0, 40.0),
         quality: ReflectionQuality::High,
         frame,
         faces: [&walls; 6],
+        refresh: ALL_FACES,
     }));
     for _ in 0..6 {
         backend.render(&frame, &main).unwrap();
@@ -153,10 +163,13 @@ fn exercise(backend: &mut dyn RenderBackend) -> Vec<[u8; 3]> {
     });
     for _ in 0..8 {
         backend.set_reflection_scene(Some(ReflectionScene {
+            sun_shadows: false,
+            fade_distance: None,
             origin: Vec3::ZERO,
             quality: ReflectionQuality::Low,
             frame,
             faces: [&[], &[], &[], &walls, &[], &[]],
+            refresh: ALL_FACES,
         }));
         backend.render(&frame, &main).unwrap();
     }

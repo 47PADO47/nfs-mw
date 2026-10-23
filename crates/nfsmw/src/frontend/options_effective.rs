@@ -15,7 +15,15 @@ impl Setting {
         if self == Setting::Renderer(RendererSetting::FrameGeneration) && !caps.frame_generation {
             return Data::Text("Unavailable".into());
         }
-        if matches!(self, Setting::Graphics(GraphicsSetting::Style | GraphicsSetting::Quality)) {
+        if matches!(
+            self,
+            Setting::Graphics(
+                GraphicsSetting::Style
+                    | GraphicsSetting::Quality
+                    | GraphicsSetting::ShadowPreset
+                    | GraphicsSetting::ReflectionPreset
+            )
+        ) {
             return self.data(s);
         }
         if self == Setting::Graphics(GraphicsSetting::CarShading)

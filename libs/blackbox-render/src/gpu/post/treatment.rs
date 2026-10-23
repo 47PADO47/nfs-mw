@@ -111,6 +111,11 @@ impl PostPass for TreatmentPass {
         "scene treatment"
     }
 
+    fn absorb_tonemap(&mut self, exposure: Option<f32>) -> bool {
+        self.composite.set_tonemap(exposure);
+        true
+    }
+
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         let luma_format = self.luma_format;
         let targets = self.targets.get_or_make((io.input_size, luma_format), || {

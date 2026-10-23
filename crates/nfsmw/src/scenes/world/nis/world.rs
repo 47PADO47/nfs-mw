@@ -112,12 +112,17 @@ impl WorldScene {
         }
     }
 
+    /// Whether the scene's camera has letterbox bars up.
+    pub(in crate::scenes::world) fn nis_bars_up(&self) -> bool {
+        self.nis.letterbox() > 0.0
+    }
+
     /// Draws the letterbox bars of the scene's camera over the frame.
     pub(in crate::scenes::world) fn show_nis_bars(&self, ctx: &egui::Context) {
-        let bar = self.nis.letterbox();
-        if bar <= 0.0 {
+        if !self.nis_bars_up() {
             return;
         }
+        let bar = self.nis.letterbox();
         let screen = ctx.content_rect();
         let height = screen.height() * bar;
         let top = egui::Rect::from_min_max(screen.min, egui::pos2(screen.max.x, screen.min.y + height));

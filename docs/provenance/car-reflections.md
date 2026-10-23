@@ -5,7 +5,7 @@
   [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw/tree/80993f35224c61d2f1b135beba76c6f8234c7940)
   (CC0-1.0 decompilation): `World/CarRender.cpp`, `Ecstasy/eEnvMap.hpp`,
   `Ecstasy/EcstasyData.hpp`. Read for behavior; no reference code was copied or translated.
-- **Implementation:** new Rust camera/visibility/resource code and a small WGSL cube store pass,
+- **Implementation:** new Rust camera/visibility/resource code drawing straight into the cube faces,
   using the existing renderer's scene pipelines and independently implemented car material shader.
 - **Verification:** synthetic GPU captures on the native renderer test six axes, off-screen scenery,
   asymmetric face orientation, gamma-space colour, quality/origin changes, static fallback,

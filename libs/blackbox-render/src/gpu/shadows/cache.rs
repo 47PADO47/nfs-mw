@@ -2,13 +2,20 @@
 use crate::gpu::Renderer;
 use blackbox_gfx::{Instance, InstanceKey};
 use glam::Mat4;
-use std::collections::{HashMap, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash, Hasher};
+
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
 
 #[derive(Default)]
 pub(super) struct Cache {
-    previous: HashMap<InstanceKey, Stamp>,
+    previous: FastMap<InstanceKey, Stamp>,
+    /// Reused between frames so `prepare` allocates nothing once warm.
+    current: FastMap<InstanceKey, Stamp>,
+    counts: FastMap<InstanceKey, u32>,
     pub stable: Vec<bool>,
+    /// This frame's resource hash per caster, shared by every cascade; zero means not computed yet.
+    hashes: Vec<u64>,
     projections: [Option<[u32; 16]>; 4],
     entries: [Option<Entry>; 4],
 }
@@ -25,22 +32,39 @@ struct Entry {
 }
 impl Cache {
     pub fn prepare(&mut self, casters: &[Instance]) {
-        let mut current = HashMap::with_capacity(casters.len());
-        let mut counts = HashMap::with_capacity(casters.len());
-        for instance in casters {
-            *counts.entry(instance.key).or_insert(0u32) += 1;
+        self.current.clear();
+        self.counts.clear();
+        for instance in casters.iter().filter(|instance| !instance.key.is_transient()) {
+            *self.counts.entry(instance.key).or_insert(0u32) += 1;
         }
         self.stable.clear();
-        self.stable.extend(casters.iter().map(|instance| {
-            if instance.key.is_transient() || counts[&instance.key] != 1 {
-                return false;
+        for instance in casters {
+            if instance.key.is_transient() || self.counts[&instance.key] != 1 {
+                self.stable.push(false);
+                continue;
             }
             let stamp =
                 Stamp { mesh: instance.mesh.raw(), transform: instance.transform.to_cols_array().map(f32::to_bits) };
-            current.insert(instance.key, stamp);
-            self.previous.get(&instance.key) == Some(&stamp)
-        }));
-        self.previous = current;
+            self.current.insert(instance.key, stamp);
+            self.stable.push(self.previous.get(&instance.key) == Some(&stamp));
+        }
+        std::mem::swap(&mut self.previous, &mut self.current);
+        self.hashes.clear();
+        self.hashes.resize(casters.len(), 0);
+    }
+    /// Identity of the selected static casters and the cascade matrix. Each caster is hashed once per
+    /// frame, however many cascades select it.
+    pub fn fingerprint(&mut self, renderer: &Renderer, matrix: Mat4, selected: &[usize], casters: &[Instance]) -> u64 {
+        let mut hash = foldhash::fast::FixedState::default().build_hasher();
+        matrix.to_cols_array().map(f32::to_bits).hash(&mut hash);
+        renderer.experiments.original_world_materials.hash(&mut hash);
+        for &index in selected {
+            if self.hashes[index] == 0 {
+                self.hashes[index] = caster_hash(renderer, &casters[index]);
+            }
+            self.hashes[index].hash(&mut hash);
+        }
+        hash.finish()
     }
     pub fn projection(&mut self, cascade: usize, matrix: Mat4, cut: bool) -> bool {
         let bits = matrix.to_cols_array().map(f32::to_bits);
@@ -98,25 +122,22 @@ fn image(device: &wgpu::Device, size: u32) -> wgpu::TextureView {
         })
         .create_view(&Default::default())
 }
-pub(super) fn fingerprint(renderer: &Renderer, matrix: Mat4, selected: &[usize], casters: &[Instance]) -> u64 {
-    let mut hash = DefaultHasher::new();
-    matrix.to_cols_array().map(f32::to_bits).hash(&mut hash);
-    renderer.experiments.original_world_materials.hash(&mut hash);
-    for &index in selected {
-        let instance = &casters[index];
-        instance.key.hash(&mut hash);
-        instance.transform.to_cols_array().map(f32::to_bits).hash(&mut hash);
-        let Some(mesh) = renderer.meshes.get(instance.mesh.raw()) else { continue };
+fn caster_hash(renderer: &Renderer, instance: &Instance) -> u64 {
+    let mut hash = foldhash::fast::FixedState::default().build_hasher();
+    instance.key.hash(&mut hash);
+    instance.transform.to_cols_array().map(f32::to_bits).hash(&mut hash);
+    if let Some(mesh) = renderer.meshes.get(instance.mesh.raw()) {
         mesh.vertices.hash(&mut hash);
         mesh.indices.hash(&mut hash);
         for draw in &mesh.draws {
             // Immutable mesh draw metadata belongs to these vertex/index resource identities.
-            let slot = draw.texture.map(|t| renderer.redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
+            let slot = draw.texture.map(|t| renderer.redirects.resolve(t.raw()));
             slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)).hash(&mut hash);
             if let blackbox_gfx::Shading::WorldNormal(handle) = draw.shading {
                 renderer.normal.as_ref().is_some_and(|n| n.reflective_material(handle)).hash(&mut hash);
             }
         }
     }
-    hash.finish()
+    // Zero marks "not computed" in the per-frame table.
+    hash.finish().max(1)
 }

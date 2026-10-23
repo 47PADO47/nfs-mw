@@ -141,7 +141,7 @@ fn the_extra_reflection_rows_cycle_and_record_their_keys() {
 fn car_shading_toggles_and_records_only_its_change() {
     let mut s = Settings::from(Partial::default());
     let mut changed = Partial::default();
-    assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Custom Glossy".into()));
+    assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Enhanced".into()));
     assert!(GraphicsSetting::CarShading.step(&mut s, &mut changed, true));
     assert_eq!(GraphicsSetting::CarShading.data(&s), Data::Text("Original PC".into()));
     assert_eq!(changed, Partial { car_shading: Some(CarShading::Original), ..Partial::default() });
@@ -186,4 +186,24 @@ fn normal_menu_style_quality_and_shadows_update_the_shared_request() {
     ));
     assert!(s.appearance.lighting.sun_shadows, "native shadows must reach the active experiment channel");
     assert_eq!(s.visual_style(), VisualStyle::Custom);
+}
+
+#[test]
+fn feature_presets_apply_independently_and_persist_as_custom_overall() {
+    let mut s = Settings::from(Partial::default());
+    s.select_visual_style(VisualStyle::Enhanced);
+    s.select_overall_quality(GraphicsQuality::High);
+    let mut changed = Partial::default();
+    assert_eq!(GraphicsSetting::Quality.data(&s), Data::Text("High".into()));
+    assert!(GraphicsSetting::ReflectionPreset.step(&mut s, &mut changed, false));
+    assert_eq!(GraphicsSetting::ReflectionPreset.data(&s), Data::Text("Balanced".into()));
+    assert_eq!(GraphicsSetting::ShadowPreset.data(&s), Data::Text("High".into()));
+    assert_eq!(GraphicsSetting::Quality.data(&s), Data::Text("Custom".into()));
+    let text = crate::settings::write::merge("", &changed).unwrap();
+    let loaded = Settings::from(crate::settings::file::parse(&text, "menu feature preset"));
+    assert_eq!(GraphicsSetting::ReflectionPreset.data(&loaded), Data::Text("Balanced".into()));
+    assert_eq!(loaded.reflection_cube_size, crate::settings::ReflectionSize::Fixed(512));
+    assert!(GraphicsSetting::ShadowPreset.step(&mut s, &mut changed, false));
+    assert_eq!(GraphicsSetting::ShadowPreset.data(&s), Data::Text("Balanced".into()));
+    assert_eq!(GraphicsSetting::ReflectionPreset.data(&s), Data::Text("Balanced".into()));
 }

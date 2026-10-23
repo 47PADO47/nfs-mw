@@ -1,6 +1,7 @@
 use super::Shadows;
 use crate::Vertex;
-use crate::gpu::{instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES};
+use crate::gpu::draw_list::{instance_store, instance_view};
+use crate::gpu::pipelines::VERTEX_ATTRIBUTES;
 
 impl Shadows {
     pub(super) fn new(
@@ -22,13 +23,17 @@ impl Shadows {
                 count: None,
             }],
         });
+        let store = instance_store::supported(device);
+        let instances = store.then(|| instance_store::layout(device));
+        let source =
+            instance_view::instance_source(include_str!("../../shaders/shadow_depth.wgsl"), store.then_some(2));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("shadow depth"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/shadow_depth.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sun depth"),
-            bind_group_layouts: &[Some(&layout), Some(texture)],
+            bind_group_layouts: &[Some(&layout), Some(texture), instances.as_ref()][..2 + usize::from(store)],
             immediate_size: 0,
         });
         let make = |entry: &str| {
@@ -45,9 +50,11 @@ impl Shadows {
                             step_mode: wgpu::VertexStepMode::Vertex,
                             attributes: &VERTEX_ATTRIBUTES,
                         }),
-                        Some(INSTANCE_LAYOUT),
+                        Some(instance_view::instance_layout(store)),
                     ],
                 },
+                // Back faces stay: meshes and draws carry no two-sided flag to tell single-sided
+                // casters apart, and thin shells (foliage, signs, walls) need both sides.
                 primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
@@ -101,8 +108,14 @@ impl Shadows {
             instances: (0..4).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
             bounds: Vec::new(),
             selected: Vec::new(),
-            matrices: Vec::new(),
+            scratch: Default::default(),
+            caster_slots: Vec::new(),
+            store,
+            fixed: Vec::new(),
+            moving: Vec::new(),
             fit_points: Vec::new(),
+            rendered: super::stagger::Rendered::default(),
+            stagger: !cfg!(test),
         }
     }
 }

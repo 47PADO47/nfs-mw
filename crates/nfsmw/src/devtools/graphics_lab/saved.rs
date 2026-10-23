@@ -156,6 +156,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         });
     });
     ui.horizontal_wrapped(|ui| {
+        ui.label("Saved graphics:").on_hover_text("Named snapshots restore saved graphics choices, including reflection range, resolution and lighting. They are separate from rendering-quality presets.");
         let mut load = false;
         egui::ComboBox::from_id_salt("graphics_snapshot")
             .selected_text(match lab.disk.selected.is_empty() {
@@ -174,7 +175,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         if load {
             load_selected(lab, settings);
         }
-        if ui.button("Save as…").on_hover_text("Stores a named snapshot and saves it for startup.").clicked() {
+        if ui.button("Save as…").on_hover_text("Stores all current graphics choices as a named snapshot and saves them for startup.").clicked() {
             lab.disk.naming = !lab.disk.naming;
             lab.disk.name = lab.disk.selected.clone();
             focus_name = lab.disk.naming;
