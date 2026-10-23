@@ -9,7 +9,7 @@ Status: built 2026-10-22 (integration.md section 5, steps 3 and 4, server side).
 
 `Server<W: WorldControl>` is the authoritative server of one session over any world that implements
 `nfsmw_sim::WorldSim` (plus `WorldControl`, a small trait with defaults for what the server asks beyond `WorldSim`: a
-reset to the road, the parked ghost car of a dropped player, and `start_race` / `stop_race` for a world that runs its own races). It owns:
+reset to the road, the parked ghost car of a dropped player, and `start_race`, `race_staged`, `schedule_race_go` and `stop_race` for a world that runs its own races). It owns:
 
 | Piece | From |
 |---|---|

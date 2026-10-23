@@ -120,7 +120,9 @@ focus turns over every player, `ai/population/guests.rs`), the chase (`players/c
 
 | Call | As built |
 |---|---|
-| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. Every remote player is one of the race's people (section 7). The world's own grid, countdown and finish run; a session skips the race intro (`SessionRules::race_intros`) |
+| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race intro (`SessionRules::race_intros`) |
+| `race_staged` | True when the race stands on its grid, or when there is no race to wait for |
+| `schedule_race_go` | The host starts the staged race's countdown on the tick that puts GO on the given server tick (at once when that is too close) |
 | `stop_race` | Ends the race the world runs; the people's cars come back behind the lead |
 | `reset_player` | `request_reset` on the next tick; refused for a player with no car |
 | `set_ghost` | Parks the car (co-op parking): out of play, not stepped, not collided, not exported; unparking brings it back where it stood |
@@ -151,6 +153,7 @@ unchanged.
 | NaN, infinite and huge input for 10 s: no panic, finite entities | `net/tests/installed.rs` | yes |
 | A bump between two players is a `Contact`; a console chase gives `PursuitStarted` and `PursuitEnded` | `net/tests/installed_events.rs` | yes |
 | A sprint with the lead and two remote players: they are the race's people in grid order, parked from free roam, exported as their player cars, driven by their seats' pedals (20 m in six seconds each), named in the race events, and back on the road after `stop_race` | `net/tests/installed_race.rs` | yes |
+| The staged grid holds the cars through a throttle, GO falls on the scheduled tick (still counting five ticks before, racing five after), and a person's own-car block has rpm, a forward gear and no parked flag | `net/tests/installed_race.rs` | yes |
 | A trap pass comes once, and again only when it beats the best; the person grid's racer numbers | `net/events/race.rs` | no |
 
 ## 7. Races with remote players
@@ -167,17 +170,25 @@ track chosen). In the world (`players/race.rs`, `race/start.rs`):
   `feed_race_people` copies the seat's pedals into it (`set_racer_pedals`). The lead drives its own `Drive` as always.
 - **Export.** The racer is exported as the player's car (`PlayerCar`, the player's id and owner) and left out of the traffic ids
   (`net/export.rs`), so the clients, the mode rules' car samples and the spectators see one car per player.
+- **The grid waits for the server.** A session's race does not count down by itself (`race_hold`, `race/hold.rs`): the racers stand
+  on the grid, `Stage::Staged { lead }`, with `lead` the ticks the countdown takes to reach GO (180 for the usual 3 s, 0 for a rolling
+  start). The server holds its load barrier until `race_staged`, so nobody is counted down over a race that is still loading
+  (it goes on without the race after 60 s). When the lobby's countdown begins it calls `schedule_race_go(target tick)`, and the
+  host releases the world's countdown `lead` ticks before that tick: GO is the round's start tick. The lobby's countdown is 180
+  ticks, the same as the world's, so the release comes at once.
 - **Events.** `racer_states` names the lead and then the people, so laps, finishes and speed-trap passes reach the mode rules by
   player id; the co-op DNF timer (30 s after the first human finishes) ends a race whose lead nobody drives, such as a
   dedicated server's idle car.
-- **Not done.** The race car is not a `Drive`: it has no own-car block (rpm, gear, nitrous read zero, `OWN_PARKED` stays set), and a
-  client that predicts its car with its own `Drive` physics meets the AI car's, so corrections are larger than in free roam. The
-  post-race screen is skipped; the race ends 13 s after the finish (the race-over message and the post-race wait).
+- **Own-car block.** A person's race car is an AI car, not a `Drive`, but `own_state` reads its gauges (rpm, gear, nitrous,
+  shifting) from the racer (`racer_hud`) and the player is not flagged parked.
+- **Not done.** A client that predicts its car with its own `Drive` physics meets the AI car's, so its corrections are larger than
+  in free roam. The post-race screen is skipped; the race ends 13 s after the finish (the race-over message and the post-race
+  wait).
 
 ## 8. Known gaps
 
 - **Races with remote players.** See section 7 for what is built. The people race in one grid with the race's own computer
-  opponents; the server's `RaceStart` countdown and the world's own countdown are not aligned.
+  opponents.
 - **Reset.** `InputState` carries no reset; the server calls `request_reset` through `WorldControl::reset_player` when a
   client sends `ResetRequest` (the client's reset key).
 - **Speedbreaker.** Barred in a session (`SessionRules::time_scale_allowed`); a per-car speedbreaker waits for
