@@ -121,8 +121,8 @@ is the clamped ramp between the record's speed endpoints. A zero ramp disconnect
 the group. The emitter frame uses the car's orientation and the tire's ground
 position, and inherits the car velocity. Particle appearance comes from the
 installed emitterdata profiles, including textures and animation. Do not create
-arbitrary white spray or substitute collision sparks. This section's dispatcher
-is reference-derived and still needs independent PC runtime comparison.
+arbitrary white spray or substitute collision sparks. The dispatcher was later
+confirmed in the PC executable, including the dry case: see [tire-surface-dust.md](tire-surface-dust.md).
 
 
 ### Reference particle response [runtime, compatibility choice]

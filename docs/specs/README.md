@@ -85,6 +85,9 @@ waveform, view transforms and fixed-tick presentation.
 [Tire effects](tire-effects.md) describes this rewrite's procedural smoke and grounded marks,
 consuming the vehicle's existing intensities. Its appearance and lifetime are new design choices.
 
+[Tire surface dust](tire-surface-dust.md) runs the installed dry tire groups (dust, grass, sand, leaves) from the
+same surface records as the wet spray of [rain-pc.md](rain-pc.md).
+
 ```markdown
 # <topic>
 

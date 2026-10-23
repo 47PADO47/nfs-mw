@@ -111,6 +111,9 @@ original-game fidelity boundaries.
 
 [Tire effects](tire-effects.md) records the existing source inputs and the new procedural visual design.
 
+[Tire surface dust](tire-surface-dust.md) records the `speed.exe` tire-effect dispatcher findings and the installed
+per-surface dry records.
+
 ```markdown
 # <crate or module>
 
