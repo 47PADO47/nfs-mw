@@ -60,7 +60,7 @@ fn installed_player_reset_collision_grace_requires_a_successful_replacement() {
         "BMWM3GTR".to_owned(),
         rig,
         physics,
-        SpawnRequest { near: [0.0; 2], heading: None, exact: None },
+        SpawnRequest { near: [0.0; 2], heading: None, exact: None, strict: false },
         None,
         Default::default(),
     );

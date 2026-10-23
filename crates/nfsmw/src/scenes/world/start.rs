@@ -41,8 +41,12 @@ impl WorldScene {
                 drive.respawn_near([x, y], None);
             }
             None => {
-                let request =
-                    SpawnRequest { near: [self.camera.position.x, self.camera.position.y], heading: None, exact: None };
+                let request = SpawnRequest {
+                    near: [self.camera.position.x, self.camera.position.y],
+                    heading: None,
+                    exact: None,
+                    strict: false,
+                };
                 self.players.set_lead(Drive::new(name.clone(), rig, physics, request, script, visuals));
             }
         }

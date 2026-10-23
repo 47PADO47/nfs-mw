@@ -24,6 +24,7 @@ mod new;
 mod nis_pose;
 mod original_camera;
 mod placement;
+pub(super) use placement::Strict;
 #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
 mod predict;
 #[cfg(test)]
@@ -95,6 +96,9 @@ pub struct SpawnRequest {
     pub heading: Option<f32>,
     /// Put the car exactly here (a place it was known to be on the road) instead of searching.
     pub exact: Option<Spawn>,
+    /// The car must go exactly to `exact` (a race's start): it waits for the ground there and is never put on
+    /// another road (`placement/strict.rs`).
+    pub strict: bool,
 }
 
 /// Seconds between the checks that remember the last place the car was on the road.
@@ -171,6 +175,8 @@ pub struct Drive {
     /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
     /// bring it back here when no road is near.
     last_good: Option<Spawn>,
+    /// When a strict request first failed to find its ground.
+    strict_since: Option<std::time::Instant>,
     fall: FallWatch,
     /// Step count at the last road check.
     last_check: u32,

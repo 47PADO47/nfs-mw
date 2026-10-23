@@ -9,8 +9,11 @@ use super::sim::CarSim;
 use super::{CarRig, Drive, SpawnRequest};
 use crate::scenes::world::vehicle_effects::VehicleEffects;
 
+mod strict;
 #[cfg(test)]
 mod tests;
+
+pub use strict::Strict;
 
 impl Drive {
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
@@ -18,7 +21,7 @@ impl Drive {
         self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
-        self.request = Some(SpawnRequest { near, heading, exact: None });
+        self.request = Some(SpawnRequest { near, heading, exact: None, strict: false });
     }
 
     /// The last place the car was on a road.
@@ -32,8 +35,12 @@ impl Drive {
         self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
-        self.request =
-            Some(SpawnRequest { near: [good.position.x, good.position.y], heading: None, exact: Some(good) });
+        self.request = Some(SpawnRequest {
+            near: [good.position.x, good.position.y],
+            heading: None,
+            exact: Some(good),
+            strict: false,
+        });
         true
     }
 
@@ -61,9 +68,17 @@ impl Drive {
         for (zone, severity, glazed) in self.queued_hits.drain(..) {
             sim.inflict(zone, severity, glazed);
         }
-        if !sim.place_moving(&ground, spawn, std::mem::take(&mut self.pending_speed)) {
+        let strict = request.filter(|r| r.strict);
+        if !sim.place_moving(&ground, spawn, self.pending_speed) {
+            // An exact placement (a race start) keeps its request and its speed: it waits for its ground.
+            self.request = strict;
+            if strict.is_none() {
+                self.pending_speed = 0.0;
+            }
             return false;
         }
+        self.pending_speed = 0.0;
+        self.strict_since = None;
         if replacing {
             sim.begin_reset_collision_grace();
         }
@@ -107,7 +122,8 @@ impl Drive {
         self.car_name = name;
         if self.sim.take().is_some() {
             let at = self.current.position;
-            self.request = Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()), exact: None });
+            self.request =
+                Some(SpawnRequest { near: [at.x, at.y], heading: Some(self.heading()), exact: None, strict: false });
         }
     }
 
