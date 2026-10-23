@@ -16,7 +16,7 @@ use nfsmw_net::message::SessionPhase;
 use nfsmw_net::predict::{InputState, PredictedCar};
 use nfsmw_server::bot::{Bot, BotConfig};
 use nfsmw_server::{Server, ServerConfig};
-use nfsmw_sim::{EntityKind, PlayerId};
+use nfsmw_sim::{EntityKind, PlayerId, WorldSim};
 
 use super::super::drive::STEP;
 use super::super::net::catalog::car_type_id;
@@ -62,11 +62,20 @@ fn client_world(dir: &GameDir, renderer: &mut NullBackend) -> WorldScene {
 
 /// The server over the real world, on loopback with an ephemeral port.
 fn server(dir: &GameDir, cars: &[String]) -> (Server<WorldSimHost>, SocketAddr) {
+    server_with(dir, cars, |_| {})
+}
+
+/// As [`server`], with the config changed by `configure` first (a race's mode and track).
+fn server_with(
+    dir: &GameDir,
+    cars: &[String],
+    configure: impl FnOnce(&mut ServerConfig),
+) -> (Server<WorldSimHost>, SocketAddr) {
     let mut host = HostConfig::new(AT, CAR, 0x5EED);
     host.heading = HEADING;
     host.settle_streaming = Some(SETTLE);
     let world = WorldSimHost::open(dir, host).unwrap();
-    let config = ServerConfig {
+    let mut config = ServerConfig {
         bind: [127, 0, 0, 1].into(),
         port: 0,
         discovery: false,
@@ -74,6 +83,7 @@ fn server(dir: &GameDir, cars: &[String]) -> (Server<WorldSimHost>, SocketAddr) 
         status_seconds: 0,
         ..ServerConfig::default()
     };
+    configure(&mut config);
     let endpoint = nfsmw_server::bind(&config, IdentityKey::generate().unwrap()).unwrap();
     let addr = endpoint.local_addr();
     let setup = crate::net::server_setup(cars, 0x5EED);
@@ -90,6 +100,16 @@ fn throttle() -> ActionState {
 /// Milliseconds of tick `tick` on the 60 Hz clock.
 fn ms(tick: u64) -> u64 {
     tick * 1000 / 60
+}
+
+/// The bot `index` as the real world knows it: the same car as everyone and the install's data id.
+fn bot_config(cars: &[String], index: u32) -> BotConfig {
+    BotConfig {
+        car_type: car_type_id(CAR),
+        data_id: crate::net::data_id(cars),
+        sim_build: crate::net::sim_build(),
+        ..BotConfig::new(index, 7)
+    }
 }
 
 /// The server, the client world and the bot, stepped together on the fake clock.
@@ -111,13 +131,26 @@ impl Rig {
         let dir = dir();
         let cars = nfsmw_data::car::list(&dir);
         let (server, addr) = server(&dir, &cars);
+        Self::join(&dir, &cars, server, addr, None, 0)
+    }
+
+    /// A client world that joins `server`, which has run `tick` ticks with `bot` (if any) seated before it.
+    fn join(
+        dir: &GameDir,
+        cars: &[String],
+        server: Server<WorldSimHost>,
+        addr: SocketAddr,
+        bot: Option<Bot>,
+        tick: u64,
+    ) -> Self {
         let mut renderer = renderer();
-        let mut scene = client_world(&dir, &mut renderer);
+        let mut scene = client_world(dir, &mut renderer);
         let player = PlayerSetup { name: "tester".into(), car: CAR.into() };
         let endpoint = ClientEndpoint::connect(addr, endpoint_config(&IdentityKey::generate().unwrap())).unwrap();
-        let client = Rc::new(RefCell::new(NetClient::new(endpoint, player.session_config(&cars), true)));
+        let client = Rc::new(RefCell::new(NetClient::new(endpoint, player.session_config(cars), true)));
         assert!(scene.attach_client(&client), "a driving world takes the client");
-        Self { server, addr, scene, renderer, client, bot: None, tick: 0, started: Instant::now() }
+        let started = Instant::now() - Duration::from_micros(tick * 1_000_000 / 60);
+        Self { server, addr, scene, renderer, client, bot, tick, started }
     }
 
     /// One 60 Hz frame of everyone, the client's devices giving `actions`.
@@ -137,13 +170,7 @@ impl Rig {
 
     /// The bot joins as player 2, after the client has its seat (slot 0, the host's car).
     fn add_bot(&mut self, cars: &[String]) {
-        let config = BotConfig {
-            car_type: car_type_id(CAR),
-            data_id: crate::net::data_id(cars),
-            sim_build: crate::net::sim_build(),
-            ..BotConfig::new(1, 7)
-        };
-        self.bot = Some(Bot::connect(self.addr, config).unwrap());
+        self.bot = Some(Bot::connect(self.addr, bot_config(cars, 1)).unwrap());
     }
 }
 
@@ -247,4 +274,96 @@ fn run(car: &mut super::GameCar, input: impl Fn(u32) -> InputState) -> Vec<nfsmw
             car.state()
         })
         .collect()
+}
+
+#[test]
+#[ignore = "needs the installed game; set NFSMW_GAME_DIR (a few minutes)"]
+fn a_client_in_a_race_seat_follows_the_servers_race_car() {
+    let dir = dir();
+    let cars = nfsmw_data::car::list(&dir);
+    let data = nfsmw_data::gameplay::load(&dir).unwrap();
+    let sprint = data
+        .races
+        .iter()
+        .find(|race| {
+            race.race_type == Some(nfsmw_data::gameplay::RaceType::Sprint)
+                && !race.story.nis_shell
+                && race.start.is_some()
+                && !super::super::race::is_story_race(race)
+        })
+        .expect("a sprint in the install");
+    let track = blackbox_feng::fe_hash_upper(&sprint.name).to_string();
+    let (mut server, addr) = server_with(&dir, &cars, |config| {
+        for (key, value) in [("mode", "sprint"), ("track", track.as_str()), ("traffic_density", "0")] {
+            nfsmw_net::settings::set(&mut config.settings, key, value).unwrap();
+        }
+    });
+    // The bot takes slot 0 (the host's car); the client then sits in slot 1, a person of the race.
+    let mut bot = Bot::connect(addr, bot_config(&cars, 1)).unwrap();
+    let mut tick = 0;
+    while !bot.report().seated {
+        assert!(tick < 60 * 10, "the bot is seated within 10 s");
+        bot.step(ms(tick));
+        server.tick_once(ms(tick));
+        std::thread::sleep(Duration::from_millis(16));
+        tick += 1;
+    }
+    let mut rig = Rig::join(&dir, &cars, server, addr, Some(bot), tick);
+    let (idle, gas) = (ActionState::default(), throttle());
+    while rig.server.lobby().wire_phase() != SessionPhase::Running {
+        assert!(rig.tick < 60 * 120, "the race started within 2 min (phase {:?})", rig.server.lobby().wire_phase());
+        rig.frame(&idle);
+    }
+    assert_eq!(rig.client.borrow().session().slot(), Some(1), "the client is a person of the race");
+    assert_eq!(rig.server.world().scene().race_people, [PlayerId(1)], "the client's seat is the race's person");
+
+    // The grid is far from where the client's world opened: its car was set down there by the first own block (a
+    // teleport), and the road it stands on was streamed in first.
+    let on_grid = |rig: &Rig| {
+        let mut views = Vec::new();
+        rig.server.world().entities(&mut views);
+        let served = *views.iter().find(|view| view.owner == Some(PlayerId(1))).expect("the race car is exported");
+        let predicted = glam::Vec3::from_array(rig.client.borrow().session().own_car().unwrap().state().position);
+        (served, predicted)
+    };
+    for _ in 0..60 {
+        rig.frame(&gas);
+    }
+    let (served, predicted) = on_grid(&rig);
+    let from_start = glam::Vec3::from_array(served.position).distance(glam::Vec3::new(AT[0], AT[1], 0.0));
+    assert!(from_start > 500.0, "the race grid is far from where the client's world opened ({from_start:.0} m)");
+    assert!(
+        glam::Vec3::from_array(served.position).distance(predicted) < 20.0,
+        "the client's car stands at the server's race car, not where its world opened"
+    );
+
+    // Four seconds of driving: the client's prediction of the race car is as good as in free roam.
+    let snaps_before = rig.client.borrow().session().corrections().snaps();
+    let mut fastest = 0.0f32;
+    for second in 0..4 {
+        for _ in 0..60 {
+            rig.frame(&gas);
+        }
+        let (served, predicted) = on_grid(&rig);
+        let speed = glam::Vec3::from_array(served.linear_velocity).length();
+        fastest = fastest.max(speed);
+        let lead = rig.client.borrow().session().lead_ticks().unwrap_or(0) as f32;
+        let apart = glam::Vec3::from_array(served.position).distance(predicted);
+        // The prediction runs `lead` ticks ahead of the server's newest tick; the rest is what reconciliation leaves.
+        let bound = speed * (lead + 3.0) / 60.0 + 1.0;
+        assert!(apart <= bound, "second {second}: {apart:.2} m apart at {speed:.1} m/s, lead {lead} ticks");
+    }
+    let client = rig.client.borrow();
+    let stats = client.session().corrections();
+    eprintln!(
+        "race e2e: checks {}, corrections {}, snaps {} (before {snaps_before}), median {:?} m, p95 {:?} m, fastest {fastest:.1} m/s",
+        stats.checks(),
+        stats.corrections(),
+        stats.snaps(),
+        stats.median(),
+        stats.p95()
+    );
+    assert!(fastest > 10.0, "the client's pedals drive the race car ({fastest:.1} m/s)");
+    assert_eq!(stats.snaps(), snaps_before, "no hard snaps while driving the race car");
+    assert!(stats.median().is_some_and(|median| median < 0.2), "the race car predicts as well as a free-roam one");
 }
