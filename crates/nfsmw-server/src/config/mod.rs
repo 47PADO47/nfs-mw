@@ -103,20 +103,33 @@ impl Default for ServerConfig {
     }
 }
 
+/// The key file name a config file's folder keeps the server's identity in, when the file names none.
+pub const DEFAULT_IDENTITY_FILE: &str = "server.key";
+
 impl ServerConfig {
-    /// Reads and checks the config file at `path`.
+    /// Reads and checks the config file at `path`. A file that does not name an `identity_file` keeps the server's
+    /// key in [`DEFAULT_IDENTITY_FILE`] beside it, so the clients that pinned the server know it again.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
         let text =
             std::fs::read_to_string(path).map_err(|source| ConfigError::Read { path: path.to_path_buf(), source })?;
-        Self::from_toml(&text)
+        let dir = path.parent().unwrap_or(Path::new(""));
+        Self::parse(&text, Some(dir))
     }
 
-    /// Parses and checks config text: the defaults with every key of `text` applied.
+    /// Parses and checks config text: the defaults with every key of `text` applied. Text has no folder, so a key file
+    /// is kept only where `identity_file` says.
     pub fn from_toml(text: &str) -> Result<Self, ConfigError> {
+        Self::parse(text, None)
+    }
+
+    fn parse(text: &str, dir: Option<&Path>) -> Result<Self, ConfigError> {
         let table: toml::Table = text.parse().map_err(|err: toml::de::Error| ConfigError::Syntax(err.to_string()))?;
         let mut config = Self::default();
         for (key, value) in &table {
             keys::apply(&mut config, key, value)?;
+        }
+        if let (Some(dir), false) = (dir, table.contains_key("identity_file")) {
+            config.identity_file = Some(dir.join(DEFAULT_IDENTITY_FILE));
         }
         config.settings.password_required |= config.password.is_some();
         if config.settings.password_required && config.password.is_none() {

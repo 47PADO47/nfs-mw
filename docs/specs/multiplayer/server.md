@@ -105,7 +105,7 @@ wrong type, a value out of range or session settings that do not hold together i
 | `bind`, `port` | `0.0.0.0`, 9750 | The game port; 0 lets the system pick |
 | `discovery` | true | Answer LAN discovery on `port + 1` |
 | `password` | empty | The room password, at most 64 characters; non-empty turns `password_required` on, and `password_required = true` without one is an error |
-| `identity_file` | empty | Where the server's identity key is kept (made on the first start, mode 0600). Empty: a new key every start |
+| `identity_file` | `server.key` beside the config file | Where the server's identity key is kept (made on the first start, private to the user: mode 0600, or an `icacls` grant on Windows). Set to `""`: a new key every start. Without a config file: a new key every start |
 | `snapshot_hz` | 20 | 1 to 60 per second; spectators get at most 10 |
 | `snapshot_budget` | 16384 | Snapshot bytes per second to one client, 1024 to 32768 |
 | `relevancy_radius` | 600 | Metres, 10 to 20,000 |

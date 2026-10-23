@@ -49,7 +49,7 @@ Open work of this build, in rough order of importance:
    race car as well as a free-roam one (median correction 1.3 cm), and a session's race ends the moment it is over, also on a
    dedicated server, whose idle lead car is a computer racer on the grid and not one the race waits for.
 6. **Global block.** Pursuit and race fields are filled from the world, but the client does not apply time of day.
-7. **Server details.** A server keeps its identity key only when `identity_file` is set (the default is a new key every start), "everyone wait" cannot be triggered, and a peer that changes address is
+7. **Server details.** A server started without a config file gets a new identity key every start (with one it keeps `server.key` beside it), "everyone wait" cannot be triggered, and a peer that changes address is
    dropped (no path validation). Quick messages are relayed to everyone as `QuickRelay`.
 8. **Front end.** The post-race page of the original is not wired to a session's end, there is no voting from the HUD during a
    race, no whisper from the menu, and `net_name` cannot be saved from the menu. The LAN screens and the session HUD are drawn with the game's UI toolkit in the Original and Remastered styles (no FEng package exists for them).

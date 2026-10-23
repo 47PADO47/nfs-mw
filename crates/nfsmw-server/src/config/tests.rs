@@ -77,3 +77,20 @@ fn the_snapshot_interval_rounds_to_ticks() {
     assert_eq!(ServerConfig::snapshot_interval(60), 1);
     assert_eq!(ServerConfig::snapshot_interval(0), 60);
 }
+
+#[test]
+fn a_config_file_keeps_the_identity_key_beside_it_unless_it_says_otherwise() {
+    let dir = std::env::temp_dir().join(format!("nfsmw-server-config-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let write = |name: &str, text: &str| {
+        let path = dir.join(name);
+        std::fs::write(&path, text).expect("write");
+        path
+    };
+    let plain = ServerConfig::load(&write("plain.toml", "port = 9800\n")).expect("valid");
+    assert_eq!(plain.identity_file, Some(dir.join("server.key")));
+    let named = ServerConfig::load(&write("named.toml", "identity_file = \"keys/a.key\"\n")).expect("valid");
+    assert_eq!(named.identity_file, Some(PathBuf::from("keys/a.key")));
+    assert_eq!(ServerConfig::from_toml("port = 9800\n").expect("valid").identity_file, None, "text has no folder");
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
