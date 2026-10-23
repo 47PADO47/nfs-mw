@@ -20,6 +20,7 @@ use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
 use super::viewport::{HudViewport, parameters};
+use super::withdrawn::Drawn;
 use crate::app::{FrameSet, Host};
 use crate::career::CareerHandle;
 use crate::gui::UiOutput;
@@ -237,11 +238,14 @@ fn present(
     mut presenter: ResMut<Presenter>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
+    mut drawn: Local<Drawn>,
 ) {
     let _trace = blackbox_trace::scope("HUD: bind / animate / compose / present");
     if !state.visible || !settings.hud {
+        drawn.hidden(&mut out, window.scale_factor());
         return;
     }
+    drawn.shown();
     let hud = &mut *hud;
     // The RadioCard slot decides the radio look. The EA Trax chyron plays and is drawn only where the active theme
     // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.

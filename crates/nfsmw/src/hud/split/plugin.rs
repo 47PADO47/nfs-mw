@@ -14,6 +14,7 @@ use super::pursuit;
 use crate::app::{FrameSet, Host};
 use crate::gui::{Gui, UiOutput};
 use crate::hud::state::HudState;
+use crate::hud::withdrawn::Drawn;
 use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
 use crate::ui::{Presenter, SharedAssets, UiAssets};
@@ -59,12 +60,14 @@ fn present(
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
     gui: Res<Gui>,
+    mut drawn: Local<Drawn>,
 ) {
     let _trace = blackbox_trace::scope("Split HUD: bind / animate / present");
-    let Some(states) = states(&host, &settings) else { return };
-    if !settings.hud {
+    let Some(states) = states(&host, &settings).filter(|_| settings.hud) else {
+        drawn.hidden(&mut out, window.scale_factor());
         return;
-    }
+    };
+    drawn.shown();
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     let Some(trees) = huds.frame(&states, time.delta_secs(), &assets.0, screen, settings.hud_layout) else { return };
     // The presenter puts each call under the earlier ones, so the first player's (with the minimap that crosses the rule)

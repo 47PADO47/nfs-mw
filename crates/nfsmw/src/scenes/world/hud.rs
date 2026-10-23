@@ -12,9 +12,14 @@ use crate::hud::{
 };
 
 impl WorldScene {
+    /// Whether a cutscene (an in-engine scene or a story movie) has the screen: no HUD and no world markers then.
+    pub(super) fn cutscene_playing(&self) -> bool {
+        self.nis.is_playing() || self.story_movie.is_playing()
+    }
+
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
     pub(super) fn hud_shown(&self) -> bool {
-        if self.moment.hides_hud() || self.nis.is_playing() {
+        if self.moment.hides_hud() || self.cutscene_playing() {
             return false;
         }
         if self.view == View::Fly {

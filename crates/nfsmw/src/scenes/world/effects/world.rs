@@ -23,6 +23,7 @@ impl WorldScene {
         self.object_fx.maintain(renderer, &self.dir, self.physics.database());
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
+        let cutscene = self.cutscene_playing();
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
             self.object_fx.textured(position, forward, &mut layer.textured);
@@ -55,8 +56,8 @@ impl WorldScene {
             drive.tail_trails.clear();
         }
         let layer = drive.effects.build(position, forward);
-        // No entry discs during a race: the garages and the other races' starts are not offered then.
-        if self.view == View::Chase && self.race.is_none() {
+        // No entry discs during a race or a cutscene: the garages and the other races' starts are not offered then.
+        if self.view == View::Chase && self.race.is_none() && !cutscene {
             entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
