@@ -18,9 +18,10 @@ mod model;
 pub use model::*;
 use nfsmw_career::settings::FIRST_RIVAL_STAGE;
 
-use super::blacklist::{DISABLED_ALPHA, career_rows, current_bin, rank_title, rival_key};
+use super::blacklist::{career_rows, current_bin, rank_title, rival_key};
 use super::{RIVAL_LIST_READY, safehouse_menu::money_text};
 use crate::career::CareerHandle;
+use crate::frontend::disabled;
 use crate::frontend::icon_strip::Hit;
 use crate::frontend::ids::{EXIT_STARTED, screen};
 use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
@@ -210,7 +211,7 @@ impl Overview {
         let sheet = SHEETS[self.sheet];
         let Some(title) = cx.object(OPTION_TITLE) else { return };
         cx.label(title, sheet.label());
-        cx.rt.set_alpha(title, if sheet.screen().is_some() { 255 } else { DISABLED_ALPHA });
+        cx.rt.set_alpha(title, if sheet.screen().is_some() { 255 } else { disabled::TEXT_ALPHA });
         cx.hide(ARROW_LEFT, self.sheet == 0);
         cx.hide(ARROW_RIGHT, self.sheet + 1 == SHEETS.len());
     }

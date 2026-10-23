@@ -10,6 +10,7 @@ use blackbox_pursuit::Infraction;
 use nfsmw_career::economy::fine_of_counters;
 use nfsmw_career::economy::markers::MarkerKind;
 
+use super::disabled;
 use super::ids::INIT_COMPLETE;
 use super::logic::{Command, Cx, ScreenLogic};
 use crate::career::Career;
@@ -32,9 +33,6 @@ const MARKER_HOLDER: u32 = 0x000f_70e8;
 // pad's left and right moves (`PAD_LEFT`, `PAD_RIGHT`). The press is the button's own `BUTTON_PRESSED` (the original
 // handler tells the buttons apart by their name hashes `0xb8a7c6cc` for Marker and `0xb8a7c6cd` for Cash, which belong
 // to the holders above), so the logic listens for it through `ScreenLogic::pressed`.
-
-/// The alpha a disabled text is capped at (the option rows use the same value).
-const DISABLED_ALPHA: u8 = 110;
 
 /// The chase's bill: each infraction with its fine (in HUD order) and the markers the player has. In career mode it also
 /// carries the car's unserved infractions and their fines, and the cash; outside career mode those read 0 and `None`.
@@ -176,7 +174,7 @@ fn focus(cx: &mut Cx, guid: u32) {
 fn dim(cx: &mut Cx, name: u32) {
     let Some(o) = cx.object(name) else { return };
     let Some(alpha) = cx.rt.alpha(o) else { return };
-    cx.rt.set_alpha(o, alpha.min(DISABLED_ALPHA));
+    cx.rt.set_alpha(o, alpha.min(disabled::TEXT_ALPHA));
 }
 
 impl ScreenLogic for InfractionsLogic {

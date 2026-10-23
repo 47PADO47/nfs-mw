@@ -7,6 +7,7 @@
 use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
+use super::disabled;
 use super::icon_window;
 use super::ids;
 use super::logic::Cx;
@@ -14,8 +15,6 @@ use super::scroller::{self, Fade, Scroll};
 
 /// Empty icons before the first and after the last real one.
 pub const BOOK_ENDS: usize = 2;
-/// The alpha of an icon whose screen does not exist yet.
-pub const DISABLED_ALPHA: u8 = 150;
 /// The colours the icons fade between: idle and faded, as `0xAARRGGBB`.
 pub type Colours = (u32, u32);
 pub const WHITE: Colours = (0xFFFF_FFFF, 0x00FF_FFFF);
@@ -253,7 +252,7 @@ impl IconStrip {
             cx.rt.set_size_xy(slot.obj, slot.size.x * scale * art, slot.size.y * scale * art);
             let mut colour = scroller::fade_colour(self.colours.0, self.colours.1, scale);
             if face.is_some_and(|f| !f.enabled) {
-                colour[3] = colour[3].min(DISABLED_ALPHA);
+                colour[3] = colour[3].min(disabled::ICON_ALPHA);
             }
             cx.rt.set_colour_rgba(slot.obj, colour);
         }

@@ -14,6 +14,7 @@ mod confirm;
 mod controls_layout;
 mod controls_screen;
 mod credits;
+mod disabled;
 pub mod dump;
 mod factory;
 mod feature_presets;
