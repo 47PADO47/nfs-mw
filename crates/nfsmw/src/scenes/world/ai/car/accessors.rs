@@ -196,6 +196,11 @@ impl AiCar {
 
 impl AiCar {
     /// Where the car is in physics space and which way it faces, for the spawner's spacing test.
+    /// The rolling radius of each wheel, in the model's wheel order.
+    pub fn wheel_radii(&self) -> [f32; 4] {
+        self.sim.wheel_radii()
+    }
+
     pub fn physics_position(&self) -> Vec3 {
         self.sim.driver_view().position
     }

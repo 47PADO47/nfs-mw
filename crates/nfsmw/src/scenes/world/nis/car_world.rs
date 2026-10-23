@@ -5,7 +5,7 @@
 
 use glam::{Quat, Vec3};
 
-use super::car_memory::first_ground_below;
+use super::car_memory::{CarMemory, first_ground_below};
 use super::cars::{self, CarSpot, Target};
 use super::cop_cars::{self, SlotKind};
 use super::cop_wait::WAIT_LIMIT;
@@ -144,17 +144,25 @@ impl WorldScene {
         }
     }
 
-    /// Gives the car of `target` the pose `spot`, or clears its override with `None`.
+    /// Gives the car of `target` the pose `spot`, its wheels rolled with the distance the scene moved it
+    /// (`car_memory.rs`), or clears its override with `None`.
     fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>) {
+        let memory = self.nis.car_memory();
         match target {
             Target::Player => {
                 let Some(drive) = self.players.lead_mut() else { return };
-                let pose = spot.map(|spot| posed(spot, drive.pose()));
+                let base = drive.pose();
+                let radii = drive.sim().map_or([DEFAULT_RADIUS; 4], |sim| sim.wheel_radii());
+                let pose = spot.map(|spot| posed(spot, base, rolled_wheels(memory, target, spot, radii, base)));
                 drive.set_nis_pose(pose);
             }
             Target::Traffic(index) | Target::Spawned(index) => {
                 let Some(traffic) = self.traffic.as_mut() else { return };
-                let pose = spot.and_then(|spot| traffic.car_pose(index).map(|base| posed(spot, base)));
+                let radii = traffic.car_wheel_radii(index).unwrap_or([DEFAULT_RADIUS; 4]);
+                let pose = spot.and_then(|spot| {
+                    let base = traffic.car_pose(index)?;
+                    Some(posed(spot, base, rolled_wheels(memory, target, spot, radii, base)))
+                });
                 traffic.set_nis_pose(index, pose);
             }
         }
@@ -175,9 +183,31 @@ impl WorldScene {
     }
 }
 
-/// A car's pose from its spot and its base pose: the spot's position and rotation, with the base's wheels.
-fn posed(spot: CarSpot, base: CarPose) -> CarPose {
-    CarPose { position: spot.position, rotation: spot.rotation, ..base }
+/// A wheel radius for a car whose physics is not there, metres.
+const DEFAULT_RADIUS: f32 = 0.33;
+
+/// A car's pose from its spot and its base pose: the spot's position and rotation, the base's steering and suspension,
+/// and the wheels turned to `spin`.
+fn posed(spot: CarSpot, base: CarPose, spin: [f32; 4]) -> CarPose {
+    let mut wheels = base.wheels;
+    for (wheel, spin) in wheels.iter_mut().zip(spin) {
+        wheel.spin = spin;
+    }
+    CarPose { position: spot.position, rotation: spot.rotation, wheels }
+}
+
+/// How far the wheels of `target` at `spot` have turned this frame, from the scene's memory (the base pose's wheels
+/// when no scene memory is there).
+fn rolled_wheels(
+    memory: Option<&mut CarMemory>,
+    target: Target,
+    spot: CarSpot,
+    radii: [f32; 4],
+    base: CarPose,
+) -> [f32; 4] {
+    let start = base.wheels.map(|w| w.spin);
+    let Some(memory) = memory else { return start };
+    memory.roll(target, spot.position, spot.rotation * Vec3::X, radii, start)
 }
 
 /// The heading of a car's rotation, in radians from +X as [`Spawn::heading`] counts it. The car's forward axis is its
