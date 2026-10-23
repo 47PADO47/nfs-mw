@@ -80,17 +80,23 @@ impl Blur {
 
 pub(super) struct ProjectedCapture {
     size: [u32; 2],
+    pub(super) receiver_matrix: glam::Mat4,
     scene: SceneTargets,
     view: CaptureView,
     blur: Option<Blur>,
 }
 impl ProjectedCapture {
-    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, size: [u32; 2]) -> Self {
+    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, size: [u32; 2], kind: CaptureKind) -> Self {
         let mut view = CaptureView::new(device, layout);
-        view.kind = CaptureKind::Projected;
+        view.kind = kind;
+        let format = match kind == CaptureKind::Planar {
+            true => super::targets::HDR_FORMAT,
+            false => FORMAT,
+        };
         Self {
             size,
-            scene: SceneTargets::Offscreen(Box::new(FrameTargets::new(device, FORMAT, (size[0], size[1])))),
+            receiver_matrix: glam::Mat4::IDENTITY,
+            scene: SceneTargets::Offscreen(Box::new(FrameTargets::new(device, format, (size[0], size[1])))),
             view,
             blur: None,
         }
@@ -108,14 +114,58 @@ impl Renderer {
         let capture = self.projected.as_ref()?;
         let target = capture.scene.offscreen()?;
         let size = (capture.size[0], capture.size[1]);
-        Some(
-            self.read_raw_texture(target.color_view.texture(), size, 4)
-                .and_then(|rgba| blackbox_gfx::RgbaImage::new(size.0, size.1, rgba)),
-        )
+        let planar = capture.view.kind == CaptureKind::Planar;
+        Some(self.read_raw_texture(target.color_view.texture(), size, if planar { 8 } else { 4 }).and_then(|bytes| {
+            let rgba = match planar {
+                true => bytes
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|b| (half::f16::from_le_bytes([b[0], b[1]]).to_f32().clamp(0.0, 1.0) * 255.0).round() as u8)
+                    .collect(),
+                false => bytes,
+            };
+            blackbox_gfx::RgbaImage::new(size.0, size.1, rgba)
+        }))
     }
 
     pub(super) fn capture_projected(&mut self, scene: Option<ProjectedReflectionScene<'_>>) {
-        let scene = scene.filter(|s| self.caps.projected_reflections && s.size[0] > 0 && s.size[1] > 0);
+        self.clear_planar_receivers();
+        self.capture_projected_mode(scene, CaptureKind::Projected, [0.0; 4]);
+    }
+
+    pub(super) fn capture_planar(&mut self, scene: Option<blackbox_gfx::PlanarReflectionScene<'_>>) {
+        self.clear_planar_receivers();
+        let Some(scene) = scene else {
+            self.capture_projected_mode(None, CaptureKind::Planar, [0.0; 4]);
+            return;
+        };
+        self.capture_projected_mode(
+            Some(ProjectedReflectionScene {
+                frame: scene.frame,
+                size: scene.size,
+                instances: scene.instances,
+                blur: false,
+            }),
+            CaptureKind::Planar,
+            scene.clip_plane,
+        );
+        let Some(image) = self.projected.as_ref().map(|capture| capture.output().clone()) else { return };
+        self.bind_planar_receivers(scene.receivers, scene.frame.view_proj(), &image);
+    }
+
+    fn capture_projected_mode(
+        &mut self,
+        scene: Option<ProjectedReflectionScene<'_>>,
+        kind: CaptureKind,
+        clip_plane: [f32; 4],
+    ) {
+        let scene = scene.filter(|s| {
+            self.caps.projected_reflections
+                && s.size[0] > 0
+                && s.size[1] > 0
+                && (kind != CaptureKind::Planar || self.hdr_format == super::targets::HDR_FORMAT)
+        });
         let Some(scene) = scene else {
             if let Some(normal) = &mut self.normal {
                 normal.set_projected(&self.device, None);
@@ -125,11 +175,12 @@ impl Renderer {
         };
         let limit = self.device.limits().max_texture_dimension_2d.min(MAX_EDGE);
         let size = scene.size.map(|edge| edge.min(limit));
-        let mut capture = self
-            .projected
-            .take()
-            .filter(|p| p.size == size)
-            .unwrap_or_else(|| ProjectedCapture::new(&self.device, &self.shared.bindings.globals_layout, size));
+        let mut capture =
+            self.projected.take().filter(|p| p.size == size && p.view.kind == kind).unwrap_or_else(|| {
+                ProjectedCapture::new(&self.device, &self.shared.bindings.globals_layout, size, kind)
+            });
+        capture.view.clip_plane = clip_plane;
+        capture.receiver_matrix = scene.frame.view_proj();
         capture.blur = match scene.blur {
             true => Some(capture.blur.take().unwrap_or_else(|| Blur::new(&self.device, size))),
             false => None,

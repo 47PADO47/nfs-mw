@@ -3,8 +3,29 @@
 use super::*;
 use crate::gpu::draw_list::instance_view::instance_source;
 
-fn matrix(value: f32) -> [u32; 16] {
-    bytemuck::cast([value; 16])
+fn matrix(value: f32) -> [u32; 20] {
+    bytemuck::cast([value; 20])
+}
+
+#[test]
+fn receiver_metadata_preserves_every_transform_component_and_updates_keyed_slots() {
+    use blackbox_gfx::{Instance, MeshHandle, ShadowFlags};
+    let transform = glam::Mat4::from_cols_array(&std::array::from_fn(|i| i as f32 * 0.25));
+    let instance = Instance::keyed(MeshHandle::from_raw(0), transform, InstanceKey::new(1, 0));
+    let enabled = crate::gpu::instances::instance_words(&instance);
+    assert_eq!(&enabled[..16], &transform.to_cols_array());
+    assert_eq!(enabled[16..], [1.0, 0.0, 0.0, 0.0]);
+    let disabled =
+        crate::gpu::instances::instance_words(&instance.with_shadow(ShadowFlags { cast: true, receive: false }));
+    assert_eq!(&disabled[..16], &enabled[..16]);
+    assert_eq!(disabled[16..], [0.0; 4]);
+    let mut table = SlotTable::default();
+    table.begin_epoch();
+    let slot = table.assign(instance.key, bytemuck::cast(enabled));
+    dirty(&mut table);
+    table.begin_epoch();
+    assert_eq!(table.assign(instance.key, bytemuck::cast(disabled)), slot);
+    assert_eq!(dirty(&mut table), [slot..slot + 1], "receiver changes upload even when the matrix stays still");
 }
 
 fn dirty(table: &mut SlotTable) -> Vec<Range<u32>> {

@@ -138,6 +138,10 @@ pub trait RenderBackend {
     /// Refresh the independent projected surface image. Unsupported backends retain black.
     fn set_projected_reflection_scene(&mut self, _scene: Option<crate::ProjectedReflectionScene<'_>>) {}
 
+    /// Transparent planar image through explicitly selected diffuse textures. Unsupported
+    /// backends leave the authored receiver unchanged. `None` releases the image and bindings.
+    fn set_planar_reflection_scene(&mut self, _scene: Option<crate::PlanarReflectionScene<'_>>) {}
+
     // --- layers ----------------------------------------------------------------------------------
 
     /// Replace the world effects drawn in every following frame, until replaced again.

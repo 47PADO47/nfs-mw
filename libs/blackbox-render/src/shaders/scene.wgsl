@@ -22,6 +22,8 @@ struct Globals {
     // Lighting colours of the world surfaces: ambient xyz with w = 1 when on, diffuse xyz.
     surface_ambient: vec4<f32>,
     surface_diffuse: vec4<f32>,
+    camera_right: vec4<f32>,
+    clip_plane: vec4<f32>,
 };
 
 const PI_F: f32 = 3.14159265358979;
@@ -47,6 +49,10 @@ fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(1) @binding(0) var diffuse: texture_2d<f32>;
 @group(1) @binding(1) var diffuse_sampler: sampler;
+struct PlanarReceiver { projection: mat4x4<f32>, options: vec4<f32> };
+@group(1) @binding(2) var planar_image: texture_2d<f32>;
+@group(1) @binding(3) var planar_sampler: sampler;
+@group(1) @binding(4) var<uniform> planar: PlanarReceiver;
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -61,8 +67,10 @@ struct VsIn {
 struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
 // instance input: end
 
 struct VsOut {
@@ -74,6 +82,7 @@ struct VsOut {
     @location(4) world_ambient: vec3<f32>,
     @location(5) world_diffuse: vec3<f32>,
     @location(6) world_scatter: vec3<f32>,
+    @location(7) @interpolate(flat) receives_shadow: u32,
 };
 
 @vertex
@@ -81,6 +90,7 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
     let model = instance_model(placed);
     let world = model * vec4<f32>(v.position, 1.0);
     var out: VsOut;
+    out.receives_shadow = instance_receives_shadow(placed);
     out.clip = globals.view_proj * world;
     out.normal = (model * vec4<f32>(v.normal, 0.0)).xyz;
     out.color = v.color_bgra.zyxw;
@@ -94,6 +104,7 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
 }
 
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
+    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z);
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         return world_pixel(in, texel, receive_ao);
@@ -108,7 +119,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if receive_ao && FOG && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
-        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy)); }
+        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow)); }
     } else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -globals.light_dir.xyz), 0.0);
@@ -118,7 +129,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         let on = globals.surface_ambient.w > 0.5;
         let ambient = select(vec3<f32>(0.35), globals.surface_ambient.xyz, on);
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
-        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy) + back_light * ao);
+        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) + back_light * ao);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
     var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
@@ -174,10 +185,19 @@ fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
-    return shade(in, false);
+    let floor = shade(in, false);
+    if planar.options.x < 0.5 || globals.fog_range.w > 0.5 { return floor; }
+    let projected = planar.projection * vec4<f32>(in.world, 1.0);
+    if projected.w <= 0.0 { return floor; }
+    let uv = vec2<f32>(projected.x, -projected.y) / projected.w * 0.5 + vec2<f32>(0.5);
+    if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) { return floor; }
+    let car = textureSampleLevel(planar_image, planar_sampler, uv, 0.0);
+    let alpha = floor.a + car.a * (1.0 - floor.a);
+    return vec4<f32>((floor.rgb * floor.a + car.rgb * (1.0 - floor.a)) / max(alpha, 1e-6), alpha);
 }
 
-fn scene_visibility(world: vec3<f32>, n: vec3<f32>, pixel: vec2<f32>) -> f32 {
+fn scene_visibility(world: vec3<f32>, n: vec3<f32>, pixel: vec2<f32>, receives_shadow: u32) -> f32 {
+    if receives_shadow == 0u { return 1.0; }
     if globals.fog_range.w > 2.5 { return capture_sun_visibility(world, n); }
     if globals.fog_range.w > 0.5 { return 1.0; }
     return direct_visibility(world, n, pixel);

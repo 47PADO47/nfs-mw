@@ -10,8 +10,10 @@ struct In {
 struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
 // instance input: end
 struct Out { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32>, @location(1) alpha: f32, };
 @vertex fn vs_main(v: In, placed: InstanceIn) -> Out {

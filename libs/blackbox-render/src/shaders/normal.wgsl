@@ -3,6 +3,7 @@ struct Globals {
     view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>,
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
     scatter_mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32>,
+    camera_right: vec4<f32>, clip_plane: vec4<f32>,
 };
 struct Offset { value: vec4<f32> };
 struct Light { specular: vec4<f32>, reflection: vec4<f32> };
@@ -25,8 +26,10 @@ struct Input {
 struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
 // instance input: end
 struct Output {
     @invariant @builtin(position) clip: vec4<f32>,
@@ -36,6 +39,7 @@ struct Output {
     @location(6) world: vec3<f32>,
     @location(7) projected_reflection: vec4<f32>,
     @location(8) normal: vec3<f32>,
+    @location(9) @interpolate(flat) receives_shadow: u32,
 };
 fn unit(v: vec3<f32>) -> vec3<f32> { return v / max(length(v), 1e-9); }
 @vertex
@@ -48,6 +52,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     let eye = unit(globals.camera_pos.xyz-world.xyz);
     let to_light = -globals.light_dir.xyz;
     var out: Output;
+    out.receives_shadow = instance_receives_shadow(placed);
     out.clip = globals.view_proj*world;
     out.projected_reflection = vec4(0.5*(out.clip.x+out.clip.w),0.5*(-out.clip.y+out.clip.w),out.clip.z,out.clip.w);
     out.world = world.xyz;
@@ -77,6 +82,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     return out;
 }
 fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
+    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
     let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
     let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
@@ -100,8 +106,8 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
         return vec4<f32>(lighting_debug_colour(in.world,plane,in.clip.xy),1.0);
     }
     var q = 1.0;
-    if globals.fog_range.w<0.5 { q = direct_visibility(in.world,plane,in.clip.xy); }
-    if globals.fog_range.w>2.5 { q = capture_sun_visibility(in.world,plane); }
+    if globals.fog_range.w<0.5 && in.receives_shadow != 0u { q = direct_visibility(in.world,plane,in.clip.xy); }
+    if globals.fog_range.w>2.5 && in.receives_shadow != 0u { q = capture_sun_visibility(in.world,plane); }
     var ao = 1.0;
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
     var rgb = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected)*in.extinction+in.scatter;

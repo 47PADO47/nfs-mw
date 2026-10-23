@@ -59,6 +59,7 @@ impl Bench {
             surface_ambient: [0.0; 4],
             surface_diffuse: [0.0; 4],
             camera_right: [0.0; 4],
+            clip_plane: [0.0; 4],
         };
         queue.write_buffer(&self.bindings.globals, 0, bytemuck::bytes_of(&globals));
         self.effects.upload(device, queue, layer);

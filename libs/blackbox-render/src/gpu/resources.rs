@@ -13,6 +13,7 @@ pub(super) fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wg
 
 pub(super) struct Shared {
     pub bindings: WorldBindings,
+    pub planar: super::planar::Bindings,
     pub glossy: super::glossy::Layouts,
     pub shadows: super::shadows::maps::Maps,
 }
@@ -21,6 +22,8 @@ impl Shared {
     pub(super) fn new(device: &wgpu::Device) -> Self {
         let glossy = super::glossy::Layouts::new(device);
         let shadows = super::shadows::maps::Maps::new(device, &glossy.material, 1, 4, None, None, None);
-        Self { bindings: WorldBindings::new(device), glossy, shadows }
+        let mut bindings = WorldBindings::new(device);
+        bindings.texture_layout = super::planar::layout(device);
+        Self { bindings, planar: super::planar::Bindings::new(device), glossy, shadows }
     }
 }

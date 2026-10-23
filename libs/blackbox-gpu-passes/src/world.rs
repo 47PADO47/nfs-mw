@@ -87,6 +87,8 @@ pub struct Globals {
     pub surface_diffuse: [f32; 4],
     /// World-space camera right, for view-dependent architectural reflections.
     pub camera_right: [f32; 4],
+    /// Source-world clipping plane; zero disables clipping.
+    pub clip_plane: [f32; 4],
 }
 
 /// The globals buffer with its bind group, and the layouts and sampler that textured draws use.
@@ -185,8 +187,8 @@ mod tests {
 
     #[test]
     fn globals_match_the_wgsl_block() {
-        // mat4x4 + four vec4: 64 + 4 * 16 bytes.
-        assert_eq!(std::mem::size_of::<Globals>(), 224);
+        // One matrix and eleven explicitly aligned vectors.
+        assert_eq!(std::mem::size_of::<Globals>(), 240);
     }
 
     #[test]

@@ -7,6 +7,41 @@ use blackbox_gfx::{
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use glam::{Mat4, Vec3};
 
+#[test]
+#[ignore = "needs a GPU"]
+fn instance_caster_and_receiver_flags_suppress_native_shadows_independently() {
+    use blackbox_gfx::ShadowFlags;
+    let _gpu = test_support::serial();
+    let mut r = test_support::headless((240, 160)).expect("GPU required");
+    let (frame, ground, mut casters) = scene(&mut r);
+    casters[0].key = blackbox_gfx::InstanceKey::new(1, 0);
+    let options =
+        RenderExperiments { sun_shadows: true, soft_shadows: false, cached_shadows: true, ..Default::default() };
+    r.set_render_experiments(options);
+    r.set_shadow_casters(Some(&casters));
+    let shadowed = r.capture(240, 160, &frame, &ground).unwrap();
+    for _ in 0..3 {
+        assert_eq!(shadowed, r.capture(240, 160, &frame, &ground).unwrap());
+    }
+    r.set_render_experiments(RenderExperiments { sun_shadows: false, ..options });
+    let baseline = r.capture(240, 160, &frame, &ground).unwrap();
+    assert!(dark_pixels(&baseline, &shadowed) > 50, "default instances retain casting and receiving");
+
+    r.set_render_experiments(options);
+    casters[0].shadow.cast = false;
+    r.set_shadow_casters(Some(&casters));
+    assert_eq!(baseline, r.capture(240, 160, &frame, &ground).unwrap(), "non-casters clear earlier shadow coverage");
+
+    casters[0].shadow.cast = true;
+    r.set_shadow_casters(Some(&casters));
+    let no_receive: Vec<_> =
+        ground.iter().map(|instance| instance.with_shadow(ShadowFlags { cast: false, receive: false })).collect();
+    assert_eq!(baseline, r.capture(240, 160, &frame, &no_receive).unwrap(), "non-receivers ignore active caster maps");
+    let receive_only: Vec<_> =
+        ground.iter().map(|instance| instance.with_shadow(ShadowFlags { cast: false, receive: true })).collect();
+    assert_eq!(shadowed, r.capture(240, 160, &frame, &receive_only).unwrap(), "menu floors receive without casting");
+}
+
 pub(super) fn scene(renderer: &mut Renderer) -> (FrameParams, Vec<Instance>, Vec<Instance>) {
     let mut plane = MeshBuilder::new();
     plane.state(None, BlendMode::Opaque, Shading::Prelit);

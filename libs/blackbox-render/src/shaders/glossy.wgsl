@@ -14,6 +14,10 @@ struct Globals {
     scatter_rayleigh: vec4<f32>,
     scatter_mie: vec4<f32>,
     to_sun: vec4<f32>,
+    surface_ambient: vec4<f32>,
+    surface_diffuse: vec4<f32>,
+    camera_right: vec4<f32>,
+    clip_plane: vec4<f32>,
 };
 
 const PI_F: f32 = 3.14159265358979;
@@ -86,6 +90,7 @@ struct VsIn {
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
     @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 
 struct VsOut {
@@ -101,6 +106,7 @@ struct VsOut {
     @location(8) original_half: vec3<f32>,
     @location(9) original_normal: vec3<f32>,
     @location(10) original_light: vec3<f32>,
+    @location(11) @interpolate(flat) receives_shadow: u32,
 };
 
 @vertex
@@ -108,6 +114,7 @@ fn vs_main(v: VsIn) -> VsOut {
     let model = mat4x4<f32>(v.model_0, v.model_1, v.model_2, v.model_3);
     let world = model * vec4<f32>(v.position, 1.0);
     var out: VsOut;
+    out.receives_shadow = u32(v.shadow_flags.x);
     out.clip = globals.view_proj * world;
     out.normal = (model * vec4<f32>(v.normal, 0.0)).xyz;
     out.color = v.color_bgra.zyxw;
@@ -126,6 +133,7 @@ struct Shaded {
 };
 
 fn shade(in: VsOut, receive_ao: bool) -> Shaded {
+    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSample(diffuse, diffuse_sampler, in.uv);
     if material.specular_min.w > 0.5 { return original_pixel(in, tex); }
     let n = normalize(in.normal);
@@ -142,7 +150,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     // Screen masks and the main view's shadow/contact coverage do not describe captures.
     let main_view = globals.fog_range.w < 0.5;
     var visibility = 1.0;
-    if main_view { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
+    if main_view && in.receives_shadow != 0u { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
     var ao = 1.0;
     if receive_ao && main_view { ao = ambient_visibility(in.clip.xy); }
     var indirect = rig.ambient.xyz;
@@ -258,7 +266,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 @fragment
 fn fs_opaque(in: VsOut) -> @location(0) vec4<f32> {
     let c = shade(in, true);
-    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5));
+    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5 && globals.fog_range.w < 3.5));
 }
 
 @fragment
@@ -268,7 +276,7 @@ fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
     if alpha < 0.5 {
         discard;
     }
-    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5));
+    return vec4<f32>(c.rgb, select(1.0, c.alpha, material.specular_min.w > 0.5 && globals.fog_range.w < 3.5));
 }
 
 @fragment
@@ -341,7 +349,9 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
         let reflection = 2.0 * dot(in.original_normal, light) * in.original_normal - light;
         highlight = 2.0 * pow(clamp(dot(reflection, in.original_eye), 0.0, 1.0), 16.0);
         environment_gain = 0.5;
-        visibility = car_direct_visibility(in.world, receiver_normal(in.world, in.normal), in.clip.xy);
+        if in.receives_shadow != 0u {
+            visibility = car_direct_visibility(in.world, receiver_normal(in.world, in.normal), in.clip.xy);
+        }
     }
     var out: Shaded;
     let raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility

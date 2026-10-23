@@ -11,3 +11,14 @@ pub struct ProjectedReflectionScene<'a> {
     /// Two separable four-tap image-filter passes at the capture's actual texel size.
     pub blur: bool,
 }
+
+/// Transparent, car/object-only planar capture. The caller reflects the camera and supplies
+/// the source-world plane whose positive half-space is visible. Receiver textures keep their
+/// authored geometry and diffuse alpha; its complement exposes the captured image.
+pub struct PlanarReflectionScene<'a> {
+    pub frame: FrameParams,
+    pub size: [u32; 2],
+    pub instances: &'a [Instance],
+    pub clip_plane: [f32; 4],
+    pub receivers: &'a [crate::TextureHandle],
+}

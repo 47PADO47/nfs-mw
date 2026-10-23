@@ -8,7 +8,7 @@ use blackbox_gfx::Instance;
 #[derive(Default)]
 pub(super) struct CasterScratch {
     words: Vec<u32>,
-    matrices: Vec<[f32; 16]>,
+    matrices: Vec<[f32; 20]>,
 }
 
 impl CasterScratch {
@@ -25,7 +25,7 @@ impl CasterScratch {
     ) {
         let Some(slots) = slots else {
             self.matrices.clear();
-            self.matrices.extend(picked.iter().map(|&i| casters[i].transform.to_cols_array()));
+            self.matrices.extend(picked.iter().map(|&i| crate::gpu::instances::instance_words(&casters[i])));
             buffer.upload(device, queue, &self.matrices);
             return;
         };

@@ -16,6 +16,10 @@ shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha tri
 
 License: MIT OR Apache-2.0.
 
+Instance shadow flags independently control casting and receiving. Receiver metadata follows the unchanged
+model matrix in an 80-byte instance record, with equivalent attribute and storage-buffer paths. Caster flags
+also participate in static-shadow cache invalidation.
+
 The optional `streamline` feature adds NVIDIA DLSS Super Resolution and DLAA on
 Windows with Vulkan or DX12. It needs SDK headers at build time and signed runtime plugins;
 see [native-dlss.md](../../docs/native-dlss.md). Unsupported devices and APIs use
@@ -249,3 +253,8 @@ See [custom reflections and lighting](../../docs/custom-reflections-lighting.md)
 The optional [Enhanced sky](../../docs/enhanced-sky.md) combines an analytic
 atmosphere with a sun-lit shallow cloud volume in every native sky view.
 Authored sky materials retain their independent original shading path.
+
+Transparent planar captures retain coverage in an independent HDR target. Diffuse
+receivers sample their unjittered projection through complementary floor alpha,
+keeping their original draw bucket, depth and blend order. Road captures retain
+their separate culling contract.

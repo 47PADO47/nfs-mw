@@ -27,7 +27,7 @@ pub mod mesh;
 pub mod normal;
 pub mod projected;
 pub mod reflection;
-pub use projected::ProjectedReflectionScene;
+pub use projected::{PlanarReflectionScene, ProjectedReflectionScene};
 pub mod settings;
 pub mod shadow;
 pub mod sky;
