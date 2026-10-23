@@ -205,7 +205,8 @@ impl HudBinding {
             laser: s.cop_nearby,
             // The detector's own scripts hide its two layouts and preserve their exit animations.
             radar: true,
-            heat: s.vehicle_heat >= 1.0,
+            // The heat meter rings the minimap: with the minimap off it would ring nothing.
+            heat: s.vehicle_heat >= 1.0 && map.is_some(),
             mirror: self.mirror_shown,
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),

@@ -216,14 +216,14 @@ fn session_heat_drives_both_duplicate_labels_and_counters_replace_placeholders()
     let (mut rt, id, mut binding) = setup();
     let state = HudState { vehicle_heat: 3.8, cops_engaged: 4, cops_damaged: 2, ..chase(10.0, 0.0) };
     step(&mut rt, &mut binding, &state);
-    assert!(visible(&rt, id, HEAT));
+    // This HUD has no minimap, and the heat meter rings the minimap: it is hidden, but its labels are still fed.
+    assert!(!visible(&rt, id, HEAT), "no minimap, no heat ring");
     assert_eq!(text(&rt, id, 20), "x3");
     assert_eq!(text(&rt, id, 21), "x3");
     assert_eq!(text(&rt, id, 22), "4");
     assert_eq!(text(&rt, id, 23), "2");
     step(&mut rt, &mut binding, &HudState { vehicle_heat: 2.5, ..Default::default() });
-    assert!(visible(&rt, id, HEAT), "vehicle heat survives outside a pursuit");
-    assert_eq!(text(&rt, id, 20), "x2");
+    assert_eq!(text(&rt, id, 20), "x2", "vehicle heat survives outside a pursuit");
     assert_eq!(text(&rt, id, 21), "x2");
 }
 

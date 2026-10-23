@@ -74,6 +74,8 @@ fn package() -> Package {
         object(ObjectKind::MultiImage, 26, super::speedbreaker::MASK, Some(24)),
         named(ObjectKind::Group, 27, super::speedbreaker::LINEAR_GROUP, None),
         named(ObjectKind::Image, 28, super::speedbreaker::LINEAR_BAR, Some(27)),
+        // The heat meter group (flame and multiplier) that rings the minimap.
+        named(ObjectKind::Group, 29, 0xC46A_80A9, None),
     ];
     Package {
         name: "HUD.fng".into(),
@@ -130,6 +132,14 @@ fn speedbreaker_gauge_and_icon_show_and_follow_original_charge_scripts() {
         assert!((size.x - 240.0 * charge).abs() < 1e-4);
         assert!((at.x - size.x / 2.0 - 19.5).abs() < 1e-4, "preserved left edge");
     }
+}
+
+#[test]
+fn the_heat_meter_goes_with_the_minimap() {
+    // This binding has no minimap: with heat the ring would show around a hole in the HUD.
+    let (mut rt, id, mut b) = setup();
+    b.apply(&mut rt, &HudState { vehicle_heat: 3.0, ..Default::default() });
+    assert!(!visible(&rt, id, 29), "no minimap, no heat ring");
 }
 
 fn setup() -> (Runtime, PackageId, HudBinding) {
