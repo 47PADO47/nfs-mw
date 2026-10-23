@@ -19,16 +19,31 @@ pub(super) struct DayClock {
     lights: Option<bool>,
     /// A mod has held the hour (`bb.time` freeze). The clock stops as it does for the lab's freeze.
     held: bool,
+    /// Manual hour seeks also move Enhanced clouds, independently of simulation time.
+    cloud_seek_seconds: f64,
 }
 
 impl DayClock {
     pub(super) fn new(cfg: DayNightConfig) -> Self {
-        Self { cfg, seconds: 0.0, sun_mode: Default::default(), phase: 0.5, direction: 1.0, lights: None, held: false }
+        Self {
+            cfg,
+            seconds: 0.0,
+            sun_mode: Default::default(),
+            phase: 0.5,
+            direction: 1.0,
+            lights: None,
+            held: false,
+            cloud_seek_seconds: 0.0,
+        }
     }
 
     /// Whether a mod has held the hour.
     pub(super) fn held(&self) -> bool {
         self.held
+    }
+
+    pub(super) fn cloud_seek_seconds(&self) -> f32 {
+        self.cloud_seek_seconds as f32
     }
 
     pub(super) fn set_held(&mut self, held: bool) {
@@ -89,6 +104,10 @@ impl DayClock {
         if !value.hour.is_finite() || !value.seconds_per_hour.is_finite() || !value.sun_phase.is_finite() {
             return;
         }
+        // Only an explicit hour change seeks clouds. Weather/speed changes keep
+        // the current field; normal midnight wrapping never resets its phase.
+        let delta = day_night::wrap_hour(value.hour) - self.hour();
+        self.cloud_seek_seconds += f64::from(delta * self.cfg.seconds_per_hour);
         self.sun_mode = value.sun_mode;
         self.phase = f64::from(value.sun_phase.clamp(sun_phase_limit(0), 1.0 - sun_phase_limit(0)));
         self.cfg.start_hour = day_night::wrap_hour(value.hour);
@@ -150,6 +169,29 @@ mod tests {
     /// The default config: 150 real seconds per game hour, starting at noon.
     fn clock() -> DayClock {
         DayClock::new(DayNightConfig::default())
+    }
+
+    #[test]
+    fn hour_seeks_move_clouds_without_advancing_simulation_and_other_controls_hold_the_field() {
+        let mut day = clock();
+        let mut value = day.environment();
+        value.hour = 18.0;
+        day.configure(value);
+        assert_eq!(day.cloud_seek_seconds(), 900.0);
+        assert_eq!(day.seconds, 0.0);
+        value = day.environment();
+        value.cloud_override = Some(1.0);
+        value.seconds_per_hour = 300.0;
+        day.configure(value);
+        assert_eq!(day.cloud_seek_seconds(), 900.0, "weather and clock speed must not seek clouds");
+        value.hour = 12.0;
+        day.configure(value);
+        assert_eq!(day.cloud_seek_seconds(), -900.0, "seeks use the configured clock speed");
+        day.advance(7200.0);
+        assert_eq!(day.cloud_seek_seconds(), -900.0, "natural midnight wrapping must not seek clouds");
+        value.hour = f32::NAN;
+        day.configure(value);
+        assert_eq!(day.cloud_seek_seconds(), -900.0);
     }
 
     #[test]

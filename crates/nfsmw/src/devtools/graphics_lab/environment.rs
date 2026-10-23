@@ -5,6 +5,10 @@ use crate::viewer::SunMode;
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     ui.separator();
     ui.heading("Time & weather");
+    ui.checkbox(&mut lab.options.enhanced_sky, "Enhanced sky")
+        .on_hover_text("Atmospheric colour, sun disk and wind-driven cloud volume. Shared by the main view and reflections. Disable for the authored sky.");
+    ui.small("Cloud coverage and sunlight follow the weather and sun below. Full night lighting is not implemented.");
+    sky_tuning(ui, lab, settings);
     let Some(mut value) = lab.environment else {
         ui.weak("Enter the world to change time and weather.");
         return;
@@ -54,6 +58,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             ui.add(egui::Slider::new(&mut value.sun_phase, 0.05..=0.95).fixed_decimals(4).text("Sun phase")).changed();
     });
     ui.checkbox(&mut lab.options.freeze_sun, "Freeze time");
+    ui.small("Changing Clock hour also advances Enhanced clouds. Freeze time holds sunlight; clouds continue drifting during gameplay.");
     ui.small(
         "Original cycle: 18 minutes each way; its sun never sets. Custom night is a clock extension using dusk lighting, not an original night scene.",
     );
@@ -130,4 +135,24 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         lab.environment = Some(value);
         lab.environment_change = Some(value);
     }
+}
+
+fn sky_tuning(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
+    let defaults = super::profiles::defaults(settings).appearance.lighting;
+    ui.collapsing("Sky tuning", |ui| {
+        ui.add_enabled_ui(lab.options.enhanced_sky, |ui| {
+            let o = &mut lab.options;
+            super::controls::slider(ui, &mut o.sky_wind_speed, 0.0..=12.0, "Cloud speed", defaults.sky_wind_speed)
+                .on_hover_text("Drift and detail motion. 1 is the baseline; 2 is the default. Cloudier weather adds more wind. 0 holds cloud position, including when seeking the clock. Changing speed repositions the cloud field.");
+            super::controls::slider(ui, &mut o.sky_sun_size, 0.5..=3.0, "Sun size", defaults.sky_sun_size)
+                .on_hover_text("Visible disk diameter relative to 0.53 degrees. Does not change shadow softness or add lens glare.");
+            super::controls::slider(ui, &mut o.sky_sun_brightness, 0.0..=3.0, "Sun brightness", defaults.sky_sun_brightness)
+                .on_hover_text("Visible solar disk only. Clouds and scenery still block it. Does not change sunlight on the world.");
+            super::controls::slider(ui, &mut o.sky_brightness, 0.25..=2.0, "Sky brightness", defaults.sky_brightness)
+                .on_hover_text("Sky and cloud brightness in the main view and reflections. HDR retains bright radiance; SDR compresses highlights.");
+            super::controls::slider(ui, &mut o.sky_sunset_warmth, 0.0..=2.0, "Sunrise / sunset warmth", defaults.sky_sunset_warmth)
+                .on_hover_text("Extra orange colour near the low sun and on clouds. 0 removes the added tint. World lighting and fog retain their current settings.");
+        });
+        ui.small("Changes preview immediately. Use Save for startup or Save as… above to keep them.");
+    });
 }

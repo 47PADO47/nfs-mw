@@ -9,6 +9,9 @@ use glam::{Mat4, Vec3};
 use super::super::test_support;
 use crate::{BlendMode, Renderer};
 
+#[path = "enhanced_tests.rs"]
+mod enhanced;
+
 fn frame() -> FrameParams {
     FrameParams {
         view: Mat4::IDENTITY,
@@ -88,7 +91,12 @@ fn original_sky_cloud_layers_match_recorded_alpha_channels_and_constant_clamps()
         let mesh = mesh(&mut renderer, material, [0.25, 0.5]);
         for (intensity, expected) in [0.0, 0.5, 1.0, 2.0].into_iter().zip(expected) {
             close(
-                pixel(&mut renderer, mesh, SkyState { cloud_intensity: [intensity; 4], scroll: 0.0 }, &frame()),
+                pixel(
+                    &mut renderer,
+                    mesh,
+                    SkyState { cloud_intensity: [intensity; 4], scroll: 0.0, ..Default::default() },
+                    &frame(),
+                ),
                 expected,
             );
         }
@@ -161,7 +169,12 @@ fn original_sky_base_matches_independent_physical_scattering_fixtures() {
     // used to generate these values. Its sky extinction distance is fixed15000.
     for (intensity, expected) in [(0.0, [18, 18, 17]), (0.5, [46, 37, 41]), (1.0, [73, 57, 65]), (2.0, [73, 57, 65])] {
         close(
-            pixel(&mut renderer, mesh, SkyState { cloud_intensity: [intensity, 0.0, 0.0, 0.0], scroll: 0.0 }, &frame),
+            pixel(
+                &mut renderer,
+                mesh,
+                SkyState { cloud_intensity: [intensity, 0.0, 0.0, 0.0], scroll: 0.0, ..Default::default() },
+                &frame,
+            ),
             expected,
         );
     }

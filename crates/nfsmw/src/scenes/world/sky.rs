@@ -8,7 +8,27 @@ use blackbox_gfx::{
 use blackbox_hash::bstring_hash;
 use glam::{Mat4, Vec3};
 
+use super::WorldScene;
 use super::resident::SectionResources;
+
+impl WorldScene {
+    /// Refresh before captures, including frames whose simulation is paused.
+    pub(super) fn update_sky(&mut self, renderer: &mut dyn RenderBackend) {
+        let options = renderer.render_experiments();
+        self.original_sky = options.original_world_materials || options.enhanced_sky;
+        let mut sky = state(self.atmosphere.intensity(), self.clock);
+        sky.enhanced = options.enhanced_sky;
+        if sky.enhanced {
+            sky.scroll += self.day.cloud_seek_seconds() * 0.02;
+        }
+        sky.sky_wind_speed = options.sky_wind_speed;
+        sky.sky_sun_size = options.sky_sun_size;
+        sky.sky_sun_brightness = options.sky_sun_brightness;
+        sky.sky_brightness = options.sky_brightness;
+        sky.sky_sunset_warmth = options.sky_sunset_warmth;
+        renderer.set_sky_state(sky);
+    }
+}
 
 #[cfg(test)]
 mod lifecycle_tests;
@@ -136,6 +156,10 @@ fn descriptor(kind: SkyLayerKind, diffuse: TextureHandle, miscellaneous: [Textur
 }
 
 pub(super) fn state(cloud: f32, seconds: f32) -> SkyState {
+    let coverage = match cloud.is_finite() {
+        true => cloud.clamp(0.0, 1.0),
+        false => 0.0,
+    };
     let cloud = if cloud.is_finite() && cloud > 0.0 { cloud.clamp(0.0, 1.0) } else { 0.1 };
     let squared = cloud * cloud;
     let scroll = if seconds.is_finite() { seconds * 0.02 } else { 0.0 };
@@ -147,6 +171,9 @@ pub(super) fn state(cloud: f32, seconds: f32) -> SkyState {
             0.0,
         ],
         scroll,
+        cloud_coverage: coverage,
+        enhanced: false,
+        ..Default::default()
     }
 }
 
@@ -193,6 +220,15 @@ fn transform(camera: Vec3, view: View) -> Mat4 {
 mod tests {
     use super::*;
     use blackbox_gfx::MeshHandle;
+
+    #[test]
+    fn procedural_weather_preserves_clear_zero_and_sanitizes_invalid_inputs() {
+        assert_eq!(state(0.0, 0.0).cloud_coverage, 0.0);
+        assert_eq!(state(2.0, 0.0).cloud_coverage, 1.0);
+        for value in [f32::NAN, f32::INFINITY, -1.0] {
+            assert_eq!(state(value, value).cloud_coverage, 0.0);
+        }
+    }
 
     #[test]
     fn road_reflection_sky_uses_source_local_scale_and_camera_offset() {

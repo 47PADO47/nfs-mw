@@ -8,6 +8,12 @@ pub struct Feature {
 }
 pub const FEATURES: &[Feature] = &[
     Feature {
+        name: "Sky and clouds",
+        origin: "Authored PC layers or independent Enhanced atmosphere and cloud volume on native",
+        coverage: "Partial / enhancement",
+        gap: "Full night lighting, cloud shadows on scenery and Bevy Enhanced sky",
+    },
+    Feature {
         name: "World / car geometry detail",
         origin: "Adaptive scenery slots with fixed reference projection; full texture mips; car LOD A",
         coverage: "Partial / custom budgets",

@@ -17,6 +17,8 @@ macro_rules! lighting {
     }
 }
 lighting! {
+    enhanced_sky: bool,
+    sky_wind_speed: f32, sky_sun_size: f32, sky_sun_brightness: f32, sky_brightness: f32, sky_sunset_warmth: f32,
     original_world_materials: bool, sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool, paint_response: bool,
     local_reflection_correction: bool, weather_car_lighting: bool,
     car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
@@ -58,12 +60,16 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
         log::warn!("{origin}: unsupported appearance schema {}", stored.version);
         return None;
     }
+    let mut lighting: RenderExperiments = stored.lighting.into();
+    if stored.style == VisualStyle::OriginalPc && value.get("lighting").and_then(|v| v.get("enhanced_sky")).is_none() {
+        lighting.enhanced_sky = false;
+    }
     Some(Appearance {
         display: stored.display.sanitized(),
         style: stored.style,
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
-        lighting: blackbox_gfx::RenderExperiments { original_world_materials: true, ..stored.lighting.into() },
+        lighting: blackbox_gfx::RenderExperiments { original_world_materials: true, ..lighting },
     })
 }
 pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
