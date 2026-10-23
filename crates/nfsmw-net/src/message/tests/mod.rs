@@ -138,3 +138,19 @@ fn session_phases_map_from_the_core_machine() {
     assert_eq!(Mode::from_code(9), None);
     assert_eq!(Mode::from_code(130), Some(Mode::Custom(130)));
 }
+
+#[test]
+fn every_admin_command_round_trips() {
+    for command in [
+        AdminCommand::Kick { slot: 3 },
+        AdminCommand::Ban { slot: 3, minutes: 30 },
+        AdminCommand::Mute { slot: 3, muted: true },
+        AdminCommand::Restart,
+        AdminCommand::ChangeMode { mode: Mode::Sprint },
+        AdminCommand::Hold { on: true },
+        AdminCommand::Hold { on: false },
+    ] {
+        let message: Message = HostCommand { command }.into();
+        assert_eq!(decode(&bytes_of(&message)), Ok(message), "{command:?}");
+    }
+}

@@ -188,3 +188,19 @@ fn a_whisper_is_typed_on_the_player_menu_and_goes_to_that_player_alone() {
         "the line kept through Back is sent on the next Accept"
     );
 }
+
+#[test]
+fn the_host_holds_everyone_from_the_lobby() {
+    let mut net = MockNetFrontend::in_lobby(&["Host", "Ann"], 0);
+    let mut page = LobbyPage::default();
+    let rows = page.rows(net.lobby().unwrap(), &[], "-");
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "No");
+    accept(&mut page, &mut net, "Everyone wait");
+    assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: true })]);
+    net.lobby.as_mut().unwrap().players[0].flags |= nfsmw_net::lobby::FLAG_HOLD;
+    let rows = page.rows(net.lobby().unwrap(), &[], "-");
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "Yes");
+    assert!(!rows.iter().find(|row| row.label == "Start race").unwrap().enabled, "a hold stops the start");
+    accept(&mut page, &mut net, "Everyone wait");
+    assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: false })]);
+}

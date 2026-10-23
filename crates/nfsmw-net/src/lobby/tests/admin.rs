@@ -21,6 +21,7 @@ fn spoofed_host_commands_are_refused_and_flagged() {
         AdminCommand::Mute { slot: 2, muted: true },
         AdminCommand::Restart,
         AdminCommand::ChangeMode { mode: Mode::Sprint },
+        AdminCommand::Hold { on: true },
     ] {
         let error = lobby.command(1, command, &Cars, 0, 0).unwrap_err();
         assert_eq!(error, LobbyError::NotPermitted, "{command:?}");
@@ -126,4 +127,15 @@ fn passed_votes_are_carried_out() {
     assert_eq!(lobby.apply_vote(VoteKind::Kick, 300, &Cars, 0), Err(LobbyError::UnknownSlot));
     lobby.apply_vote(VoteKind::ChangeMode, 2, &Cars, 0).unwrap();
     assert_eq!(lobby.settings().mode, Mode::Sprint);
+}
+
+#[test]
+fn everyone_wait_is_a_host_command_that_holds_the_start() {
+    let mut lobby = with_players(2);
+    let held = lobby.command(0, AdminCommand::Hold { on: true }, &Cars, 0, 0).unwrap();
+    assert!(held.iter().any(|action| matches!(action, Action::Hold { on: true })));
+    assert!(lobby.is_held());
+    let released = lobby.command(0, AdminCommand::Hold { on: false }, &Cars, 0, 0).unwrap();
+    assert!(released.iter().any(|action| matches!(action, Action::Hold { on: false })));
+    assert!(!lobby.is_held());
 }

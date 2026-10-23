@@ -77,7 +77,7 @@ nothing else (`security.md` 4.6 and 4.8).
 | 0x001A | StartAt | S | `start_tick`; the owner's input is neutral until then |
 | 0x001B | Vote | C | `kind` (kick, restart, change mode, change track, skip results), `option` u32 |
 | 0x001C | VoteState | S | `kind`, `options` (at most 8 pairs of option id and count), `ends_tick` |
-| 0x001D | HostCommand | C | kick slot, ban slot for minutes, mute slot, restart, change mode (checked against the sender's role) |
+| 0x001D | HostCommand | C | kick slot, ban slot for minutes, mute slot, restart, change mode, everyone wait on or off (checked against the sender's role) |
 | 0x001E | StreamingStall | C | `stalled` |
 | 0x001F | ResultRequest | C | ask for the last result record again (after a reconnect) |
 | 0x0020 | ResetRequest | C | `tick`; at most one per 10 s; the server validates and answers with a `Respawn` event |
