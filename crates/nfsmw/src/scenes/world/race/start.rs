@@ -190,6 +190,7 @@ impl WorldScene {
         // the race's end (`docs/specs/career-regions.md` section 3.5).
         self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
+        let route = self.build_race_route(&prepared.course, player_spawn);
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
             Some(_) => self.finish_flares.clear(),
@@ -232,6 +233,7 @@ impl WorldScene {
             walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
+            route,
             restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))

@@ -3,11 +3,13 @@
 //! Distances are measured along the centre lines, and a missing leg counts its straight line, so the distance along the
 //! route grows from the start to the end.
 //!
-//! - [`build_leg`] searches one leg and [`RouteBuilder`] puts the legs together.
+//! - [`build_leg`] searches one leg and [`RouteBuilder`] puts the legs together; [`build_route`] does both for every
+//!   leg, with a fallback for a leg whose search fails.
 //! - [`Route::locate`] finds the point of the route nearest a position, in three dimensions.
 //! - [`Route::point_at`] is the point at a distance, and [`Route::window`] the segments a navigator follows.
 
 mod build;
+mod ladder;
 mod locate;
 
 use std::ops::Range;
@@ -17,6 +19,7 @@ use glam::Vec3;
 use crate::{NodeInd, RoadNetwork, centre_line};
 
 pub use build::{LegPath, RouteBuilder, build_leg};
+pub use ladder::{CHECK_SPACING, END_REACH, LegSource, build_route};
 pub use locate::RoutePoint;
 
 /// A point the route passes through and the way it is crossed.

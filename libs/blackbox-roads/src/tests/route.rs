@@ -90,3 +90,52 @@ fn a_goal_off_the_map_has_no_leg() {
     let index = SegmentIndex::build(&net);
     assert!(build_leg(&net, &index, goal(10.0), goal(5000.0), PathType::RaceRoute).is_none());
 }
+
+/// A barrier line across the chain road at z = 150 (segment 1), in the 2-D frame the lines use.
+fn line_at_150() -> crate::ActiveBarrier {
+    crate::ActiveBarrier { a: glam::Vec2::new(150.0, 10.0), b: glam::Vec2::new(150.0, -10.0), drive_through: false }
+}
+
+#[test]
+fn every_leg_is_found_on_an_open_road() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let (route, sources) =
+        crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0), goal(190.0)], (&[], &[]), |_, _| true);
+    assert_eq!(sources, vec![crate::LegSource::Closed; 2]);
+    assert!(route.legs.iter().all(|leg| !leg.missing()));
+}
+
+#[test]
+fn a_line_next_to_a_goal_is_lifted_for_that_leg_and_the_flags_end_clear() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let lines = [line_at_150()];
+    let (route, sources) = crate::build_route(&mut net, &index, goal(10.0), &[goal(190.0)], (&lines, &[]), |_, _| true);
+    assert_eq!(sources, vec![crate::LegSource::OpenEnds], "the line closes the goal's segment");
+    assert!(!route.legs[0].missing());
+    assert!(net.segments.iter().all(|s| !s.has(crate::flags::CROSSES_BARRIER)), "no flag is left behind");
+}
+
+#[test]
+fn a_leg_whose_road_misses_its_check_is_missing() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let (route, sources) =
+        crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0)], (&[], &[]), |_, points| points.len() > 1000);
+    assert_eq!(sources, vec![crate::LegSource::Missing]);
+    assert!(route.legs[0].missing());
+}
+
+#[test]
+fn the_check_sees_the_leg_and_its_centre_line() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let mut seen = Vec::new();
+    crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0), goal(190.0)], (&[], &[]), |leg, points| {
+        let (first, last) = (points[0], points[points.len() - 1]);
+        seen.push((leg, first.z.round(), last.z.round()));
+        true
+    });
+    assert_eq!(seen, vec![(0, 10.0, 150.0), (1, 150.0, 190.0)]);
+}

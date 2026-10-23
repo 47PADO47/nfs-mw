@@ -38,6 +38,7 @@ mod physics;
 mod pursuit;
 mod race_barrier_routes;
 mod race_barriers;
+mod race_routes;
 mod race_story;
 mod racer_names;
 mod reactions;

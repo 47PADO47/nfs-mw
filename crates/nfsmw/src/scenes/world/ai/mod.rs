@@ -40,6 +40,7 @@ mod population;
 mod population_stats;
 mod pursuit;
 mod pursuit_budget;
+mod race_route;
 mod racer;
 mod racers;
 mod radar;

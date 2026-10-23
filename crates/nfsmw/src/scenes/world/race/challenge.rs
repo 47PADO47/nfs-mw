@@ -240,6 +240,7 @@ impl WorldScene {
             walls: self.raise_race_walls(&race.barriers),
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
+            route: None,
             restarted: false,
         });
         Ok(format!("{}: pursuit challenge, {label} at heat {heat}", race.name))

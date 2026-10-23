@@ -26,6 +26,7 @@ mod names;
 mod outro;
 mod report;
 mod restart;
+pub(in crate::scenes::world) mod route;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]
@@ -190,6 +191,8 @@ pub(super) struct RaceSession {
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
+    /// The road the opponents follow through every gate of every lap (`route.rs`); `None` without a road network.
+    pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
     /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).
     pub restarted: bool,
