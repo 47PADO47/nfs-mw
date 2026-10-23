@@ -35,7 +35,8 @@ fn racing(host: &WorldSimHost) -> bool {
     engine.is_some_and(|engine| engine.phase() == Phase::Racing)
 }
 
-/// A request for the first sprint of the install (no story race) with `players` racing.
+/// A request for the first sprint of the install with a standing start (no story race, no rolling start: a rolling
+/// start has no grid to hold) with `players` racing.
 fn sprint_request(host: &WorldSimHost, players: Vec<PlayerId>) -> RaceRequest {
     let data = host.scene().gameplay.clone().expect("the race data");
     let sprint = data
@@ -44,6 +45,8 @@ fn sprint_request(host: &WorldSimHost, players: Vec<PlayerId>) -> RaceRequest {
         .find(|race| {
             race.race_type == Some(RaceType::Sprint)
                 && !race.story.nis_shell
+                && race.params.do_countdown
+                && !race.params.rolling_start
                 && race.start.is_some()
                 && !crate::scenes::world::race::is_story_race(race)
         })
