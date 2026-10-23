@@ -1,5 +1,8 @@
 # blackbox-render
 
+Screen displacement draws sparse textured regions after post effects and upscaling,
+before display mapping and HUD. It has no pass or scratch cost while disabled.
+
 `EffectLayer` supports depth-tested surface overlays, circular particles and additive
 streak triangles and additive radial glows. Streak UV x spans the width and UV y runs head to tail; the analytic
 mask concentrates energy at the tip and dims the tail. Streaks use source-alpha additive RGB, no depth
@@ -242,3 +245,7 @@ Authored sky materials retain their independent original shading path.
 Local captures can retain six-face depth for current-frame parallax correction.
 Structural draw selection reuses CPU preparation without reusing reflected images.
 See [custom reflections and lighting](../../docs/custom-reflections-lighting.md).
+
+The optional [Enhanced sky](../../docs/enhanced-sky.md) combines an analytic
+atmosphere with a sun-lit shallow cloud volume in every native sky view.
+Authored sky materials retain their independent original shading path.

@@ -15,15 +15,17 @@ struct VsOut {
     @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) world: vec3<f32>,
+    @location(3) brightness: f32,
 };
 
 @vertex
-fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>, @location(2) uv: vec2<f32>) -> VsOut {
+fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>, @location(2) uv: vec2<f32>, @location(3) detail: vec2<f32>) -> VsOut {
     var out: VsOut;
     out.clip = globals.view_proj * vec4<f32>(position, 1.0);
     out.color = color;
     out.uv = uv;
     out.world = position;
+    out.brightness = select(1.0, detail.x, detail.x > 0.0);
     return out;
 }
 
@@ -126,7 +128,7 @@ fn textured_color(in: VsOut) -> vec4<f32> {
     let texel = textureSample(particle_texture, particle_sampler, in.uv);
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
-    return vec4<f32>(texel.rgb * in.color.rgb * (1.0 - fog), texel.a * in.color.a);
+    return vec4<f32>(texel.rgb * in.color.rgb * in.brightness * (1.0 - fog), clamp(texel.a * in.color.a * in.brightness, 0.0, 1.0));
 }
 
 @fragment
@@ -144,7 +146,7 @@ fn textured_alpha_color(in: VsOut) -> vec4<f32> {
     let texel = textureSample(particle_texture, particle_sampler, in.uv);
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
-    return vec4<f32>(mix(texel.rgb * in.color.rgb, globals.fog_color.rgb, fog), texel.a * in.color.a);
+    return vec4<f32>(mix(texel.rgb * in.color.rgb * in.brightness, globals.fog_color.rgb, fog), clamp(texel.a * in.color.a * in.brightness, 0.0, 1.0));
 }
 
 @fragment

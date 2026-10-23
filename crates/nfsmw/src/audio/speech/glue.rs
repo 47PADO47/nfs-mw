@@ -25,6 +25,14 @@ impl Default for SpeechSlot {
         Self { state: State::Unloaded, volume: 0.9, context: Context::default(), pursuit_secs: 0.0 }
     }
 }
+impl SpeechSlot {
+    pub(in crate::audio) fn channel_busy(&self) -> bool {
+        match &self.state {
+            State::Ready(speech) => speech.dispatcher.busy(),
+            _ => false,
+        }
+    }
+}
 
 /// The recordings and their index, relative to the install.
 const INDEX: &str = "SOUND/SPEECH/copspeech.idx";

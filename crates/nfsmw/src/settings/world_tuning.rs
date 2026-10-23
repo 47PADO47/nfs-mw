@@ -19,6 +19,7 @@ pub struct WorldTuning {
     pub speedbreaker: SpeedbreakerTuning,
     /// The high-speed radial blur: on or off, and its strength.
     pub motion_blur: MotionBlur,
+    pub rain_droplet_scale: f32,
 }
 
 impl Default for WorldTuning {
@@ -33,6 +34,7 @@ impl Default for WorldTuning {
             cop_health_bars: DEFAULT_COP_HEALTH_BARS,
             speedbreaker: SpeedbreakerTuning::default(),
             motion_blur: MotionBlur::default(),
+            rain_droplet_scale: 0.5,
         }
     }
 }
@@ -49,6 +51,7 @@ impl From<&Settings> for WorldTuning {
             cop_health_bars: s.cop_health_bars,
             speedbreaker: s.speedbreaker,
             motion_blur: MotionBlur::from(s),
+            rain_droplet_scale: s.rain_droplet_scale,
         }
     }
 }

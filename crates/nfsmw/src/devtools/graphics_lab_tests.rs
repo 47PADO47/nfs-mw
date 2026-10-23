@@ -336,7 +336,7 @@ fn environment_buttons_select_time_rain_and_freeze_without_resetting_gameplay() 
     click(&ctx, &mut lab, &mut settings, "Rain");
     assert!(settings.always_rain);
     assert_eq!(settings.rain_amount.0, 100);
-    click(&ctx, &mut lab, &mut settings, "No rain");
+    click(&ctx, &mut lab, &mut settings, "Location rain");
     assert!(!settings.always_rain);
     assert_eq!(settings.camera_mode, camera);
     assert_eq!(lab.environment.unwrap().hour, 18.0);

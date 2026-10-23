@@ -54,7 +54,7 @@ pub struct CarMixer {
 impl CarMixer {
     #[cfg(test)]
     pub(in crate::audio) fn mute_continuous_effects(&mut self) {
-        for object in [object::WEATHER, object::WIND, object::ROAD, object::SKIDS] {
+        for object in [object::WEATHER, object::RAIN, object::WIND, object::ROAD, object::SKIDS] {
             self.mixer.attach(player_object(object), false);
         }
     }
@@ -87,7 +87,7 @@ impl CarMixer {
         for o in [engine, object::SHIFT, object::TURBO, object::NITROUS, object::SPARKS, object::SKIDS] {
             mixer.attach(player_object(o), true);
         }
-        for o in [object::ROAD, object::WIND, object::WEATHER, object::BOTTOM_OUT] {
+        for o in [object::ROAD, object::WIND, object::WEATHER, object::RAIN, object::BOTTOM_OUT] {
             mixer.attach(player_object(o), true);
         }
         Self {

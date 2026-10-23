@@ -3,6 +3,8 @@ use glam::Vec3;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AudioView {
+    pub rain_intensity: f32,
+    pub weather_streaming: bool,
     pub car_position: Vec3,
     pub car_forward: Vec3,
     pub camera_position: Vec3,
@@ -17,6 +19,8 @@ pub struct AudioView {
 impl Default for AudioView {
     fn default() -> Self {
         Self {
+            rain_intensity: 0.0,
+            weather_streaming: false,
             car_position: Vec3::ZERO,
             car_forward: Vec3::X,
             camera_position: Vec3::new(-5.6, 0.0, 0.0),

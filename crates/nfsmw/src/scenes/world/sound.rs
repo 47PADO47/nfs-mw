@@ -58,6 +58,8 @@ impl WorldScene {
             _ => (0, 32767),
         };
         state.view = crate::audio::AudioView {
+            rain_intensity: self.rain.intensity(),
+            weather_streaming: !self.residency.complete(),
             car_position: pose.position,
             car_forward: pose.rotation * glam::Vec3::X,
             camera_position: lens.position,

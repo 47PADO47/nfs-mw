@@ -306,7 +306,8 @@ impl Renderer {
         let depth = &depth_view;
         let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
-        let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view());
+        // The projected capture shares the main camera but keeps the opposite faces.
+        let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view() ^ projected);
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {

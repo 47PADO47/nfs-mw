@@ -59,6 +59,19 @@ fn check(backend: wgpu::Backends) {
         "texture color, texture alpha and vertex alpha must all contribute: {front:?}"
     );
     assert_eq!(&front[1..], &BACKGROUND[1..]);
+    // Multiply after sampling: this vertex red would clamp if boosted on the CPU.
+    layer.textured[0].vertices.iter_mut().for_each(|v| v.detail[0] = 2.0);
+    let brighter = gpu.sample(&layer, 0.6, 64, fog).center();
+    assert!((65..=68).contains(&brighter[0]), "brightness affects RGB and alpha: {brighter:?}");
+    layer.textured[0].blend = BlendMode::AlphaBlend;
+    let alpha = gpu.sample(&layer, 0.6, 64, fog).center();
+    for (actual, expected) in alpha[..3].iter().zip([58_u8, 12, 16]) {
+        assert!(actual.abs_diff(expected) <= 2, "sampled brightness before alpha blend: {alpha:?}");
+    }
+    layer.textured[0].vertices.iter_mut().for_each(|v| v.detail[0] = 0.0);
+    layer.textured[0].blend = BlendMode::Additive;
+    assert_eq!(gpu.sample(&layer, 0.6, 64, fog).center(), front, "neutral callers retain their response");
+
     assert_eq!(gpu.sample(&layer, 0.9, 64, fog).center(), BACKGROUND, "the car's opaque depth occludes stock sprites");
     layer.textured[0].vertices.iter_mut().for_each(|v| v.uv = [0.75, 0.5]);
     assert_eq!(gpu.sample(&layer, 0.0, 64, fog).center(), BACKGROUND, "animated UVs select the transparent atlas cell");

@@ -202,6 +202,7 @@ fn save_payload_keeps_gameplay_values_at_root_when_profile_tables_are_present() 
     s.animation_speed = 0.75;
     s.always_rain = true;
     s.rain_amount = Percent(37);
+    s.rain_droplet_scale = 0.7;
     let payload = crate::saves::settings_payload(&s).unwrap();
     let restored = crate::saves::settings_from_payload(&payload).unwrap();
     assert_eq!(restored.appearance, s.appearance);
@@ -209,6 +210,7 @@ fn save_payload_keeps_gameplay_values_at_root_when_profile_tables_are_present() 
     assert_eq!(restored.animation_speed, s.animation_speed);
     assert_eq!(restored.always_rain, s.always_rain);
     assert_eq!(restored.rain_amount, s.rain_amount);
+    assert_eq!(restored.rain_droplet_scale, s.rain_droplet_scale);
 }
 
 #[test]

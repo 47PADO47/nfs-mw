@@ -103,6 +103,17 @@ impl ProjectedCapture {
     }
 }
 impl Renderer {
+    /// Read the unblurred projected scene for offscreen diagnostics.
+    pub fn read_projected_scene(&self) -> Option<Result<blackbox_gfx::RgbaImage, crate::RenderError>> {
+        let capture = self.projected.as_ref()?;
+        let target = capture.scene.offscreen()?;
+        let size = (capture.size[0], capture.size[1]);
+        Some(
+            self.read_raw_texture(target.color_view.texture(), size, 4)
+                .and_then(|rgba| blackbox_gfx::RgbaImage::new(size.0, size.1, rgba)),
+        )
+    }
+
     pub(super) fn capture_projected(&mut self, scene: Option<ProjectedReflectionScene<'_>>) {
         let scene = scene.filter(|s| self.caps.projected_reflections && s.size[0] > 0 && s.size[1] > 0);
         let Some(scene) = scene else {

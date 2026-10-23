@@ -49,10 +49,6 @@ impl WorldScene {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
         }
-        let camera = match (self.view, self.players.lead()) {
-            (View::Chase, Some(drive)) => drive.camera().position,
-            _ => self.camera.position,
-        };
         if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());
         }
@@ -77,6 +73,17 @@ impl WorldScene {
         self.start_queued_coop(renderer);
         self.place_guests();
         self.feed_second_player();
+        for drive in self.players.drives_mut() {
+            let environment = self
+                .audio_environment
+                .as_ref()
+                .map(|map| map.at(glam::Vec3::from_array(space::to_physics(drive.position()))))
+                .unwrap_or_default();
+            let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
+            let wet = self.rain.intensity() > 0.0 && exposed;
+            drive.vehicle_effects.set_rain(wet);
+            drive.effects.set_wet(wet);
+        }
         // Single player runs the world's rules; a multiplayer client predicts its car and draws the rest from the
         // server (`frame_systems.rs`).
         let systems = self.frame_systems();
@@ -99,8 +106,27 @@ impl WorldScene {
             self.update_career(dt);
         }
         self.feed_focus(renderer, sim_dt);
-        self.rain.update(sim_dt, camera);
-        self.wet_road.step(dt, self.rain.intensity() > 0.0);
+        let lens = self.gameplay_lens(renderer.aspect_ratio());
+        let environment = self
+            .audio_environment
+            .as_ref()
+            .map(|map| map.at(glam::Vec3::from_array(space::to_physics(lens.position))))
+            .unwrap_or_default();
+        let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
+        self.rain.update_view(sim_dt, lens.position, lens.forward, exposed);
+        self.wet_road.step(sim_dt, self.rain.intensity() > 0.0);
+        if let Some(traffic) = &mut self.traffic {
+            traffic.step_rain(
+                self.physics.database(),
+                self.residency.collision(),
+                super::ai::RainView {
+                    camera: lens.position,
+                    intensity: self.rain.intensity(),
+                    environment: self.audio_environment.as_ref(),
+                    dt: sim_dt,
+                },
+            );
+        }
         self.update_atmosphere(sim_dt);
         self.clock += sim_dt * self.tuning.animation_speed;
         self.environment_lights.blink.advance(sim_dt);

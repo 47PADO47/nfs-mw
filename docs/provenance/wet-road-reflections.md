@@ -36,3 +36,15 @@
   sampler states, preculling and modded-reference behavior are not proved here.
   A shared estimated mirror plane would be an approximation and must not be
   described as the original authored-geometry mechanism.
+- **Highway culling follow-up (2026-10-23):** the same executable identity was
+  confirmed again. Static inspection traced the road/main culling orientation
+  and the texture-state updater's cull-mode selection. Native offscreen captures
+  at the two highway points in the specification showed an ordinary road
+  obscuring the reflected scene when opaque capture faces were double-sided.
+  This establishes a missing culling boundary, not complete original/modded
+  visual parity. Private disassembly and diagnostic images remain outside Git.
+
+- **Junction follow-up (2026-10-23):** installed native mesh diagnostics identify
+  dark lower-capture coverage at (2191, 2515) from highway-prop geometry.
+  Broader face rejection did not resolve it and was not retained. Original-game
+  pixels at this point remain unverified; this is a recorded parity boundary.

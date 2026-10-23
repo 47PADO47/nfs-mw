@@ -276,6 +276,22 @@ impl CarSim {
     pub fn effect_velocity(&self) -> Vec3 {
         space::to_render(self.vehicle.linear_velocity().to_array())
     }
+    pub fn water_contacts(
+        &self,
+        contacts: [Option<Contact>; 4],
+    ) -> [Option<crate::scenes::world::vehicle_effects::WaterContact>; 4] {
+        std::array::from_fn(|i| {
+            let contact = contacts[i]?;
+            let wheel = self.vehicle.wheel(i);
+            Some(crate::scenes::world::vehicle_effects::WaterContact {
+                point: contact.point,
+                surface: self.vehicle.wheel_surface_tag(i)?,
+                slip: wheel.slip,
+                slide: wheel.lateral_speed,
+                flat: self.vehicle.tire_damage.is_blown(i),
+            })
+        })
+    }
 
     /// Stops the body dead: the brakes alone let a car creep down a slope, and a grid car must not move before GO.
     pub fn hold_still(&mut self) {

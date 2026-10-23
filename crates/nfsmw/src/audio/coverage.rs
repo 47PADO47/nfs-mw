@@ -14,6 +14,16 @@ pub(super) const FAMILIES: &[Family] = &[
     Family { class: "FX_SKID", route: "authored", limits: "damage and full terrain overrides incomplete" },
     Family { class: "FX_WIND", route: "authored", limits: "backend spatial/filter equivalence unverified" },
     Family { class: "FX_WIND_Weather", route: "authored", limits: "backend spatial/filter equivalence unverified" },
+    Family {
+        class: "FX_Weather",
+        route: "authored",
+        limits: "stock bank and rain mixer; audible original-PC comparison pending",
+    },
+    Family {
+        class: "THUNDER",
+        route: "moment stream",
+        limits: "stock close/distant recordings; original RNG and scheduling equivalence unverified",
+    },
     Family { class: "FX_ROADNOISE", route: "authored", limits: "backend DSP equivalence unverified" },
     Family { class: "FX_ROADNOISE_TRANS", route: "authored", limits: "backend DSP equivalence unverified" },
     Family { class: "AEMS_StichCollision", route: "authored", limits: "original random sequence unverified" },

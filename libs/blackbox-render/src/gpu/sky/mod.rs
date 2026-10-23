@@ -89,6 +89,7 @@ impl Sky {
         let [noise, detail, weather] = noise::create(device, queue);
         let noise_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("periodic cloud noise"),
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,

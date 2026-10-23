@@ -22,6 +22,31 @@ impl Default for PcSparks {
 }
 
 impl PcSparks {
+    pub fn surface_group(
+        &mut self,
+        emitters: [Option<nfsmw_data::vehicle_effects::PcEmitter>; 8],
+        point: Vec3,
+        rotation: Quat,
+        owner: Vec3,
+        intensity: f32,
+    ) {
+        let profiles: Vec<_> = emitters.into_iter().flatten().collect();
+        let same = profiles.len() == self.scrape.len()
+            && profiles.iter().zip(&self.scrape).all(|(a, b)| a.key == b.profile.key);
+        if !same {
+            self.scrape = profiles
+                .into_iter()
+                .map(|p| PcSource::new(p, point, rotation, owner, intensity, false, self.emitted + u64::from(p.key)))
+                .collect();
+        }
+        for source in &mut self.scrape {
+            source.point = point;
+            source.rotation = rotation;
+            source.frame = Mat3::from_quat(rotation);
+            source.owner = owner;
+            source.intensity = intensity;
+        }
+    }
     pub fn set_limit(&mut self, limit: usize) {
         self.limit = limit.clamp(1, 1024);
     }
@@ -114,6 +139,16 @@ impl PcSparks {
         textures: &HashMap<u32, (TextureHandle, BlendMode)>,
         out: &mut Vec<TexturedEffect>,
     ) {
+        self.geometry_with_brightness(forward, textures, out, 1.0);
+    }
+
+    pub fn geometry_with_brightness(
+        &self,
+        forward: Vec3,
+        textures: &HashMap<u32, (TextureHandle, BlendMode)>,
+        out: &mut Vec<TexturedEffect>,
+        brightness: f32,
+    ) {
         let right = forward.cross(Vec3::Z).try_normalize().unwrap_or(Vec3::X);
         let up = right.cross(forward).try_normalize().unwrap_or(Vec3::Z);
         for p in &self.particles {
@@ -142,7 +177,7 @@ impl PcSparks {
                     position: corners[i].to_array(),
                     color: p.color(),
                     uv: uv[i],
-                    detail: [0.0; 2],
+                    detail: [brightness, 0.0],
                 });
             }
         }

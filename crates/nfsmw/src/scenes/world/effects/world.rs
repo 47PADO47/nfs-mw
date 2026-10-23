@@ -5,9 +5,6 @@ use blackbox_gfx::{EffectLayer, RenderBackend};
 use super::super::{View, WorldScene};
 use super::entry_marks;
 
-/// Rain streaks: a pale blue, dim enough to read as water rather than light.
-const RAIN_COLOUR: [u8; 4] = [180, 200, 255, 90];
-
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
         let _trace = blackbox_trace::scope("World: effects / uploads");
@@ -24,6 +21,7 @@ impl WorldScene {
         self.impact_fx.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
         let environment = self.environment_effects(renderer);
+        let rain = self.rain_effects(position);
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
             layer.textured.extend(environment);
@@ -34,8 +32,10 @@ impl WorldScene {
                 traffic.car_flares(flare_view, &mut layer.textured);
                 traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
                 traffic.cop_particles(position, forward, &mut layer.textured);
+                traffic.rain_particles(forward, &self.residency.shared.materials, &mut layer.textured);
                 traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
             }
+            rain.append(&mut layer);
             renderer.set_effects(&layer);
             return;
         };
@@ -68,16 +68,13 @@ impl WorldScene {
         if trails_visible {
             flares.draw_trails(&lamps, &drive.tail_trails, lamp_frame, lamp_state, flare_view, &mut layer.textured);
         }
-        let mut drops = Vec::new();
-        self.rain.streaks(position, &mut drops);
-        for quad in drops {
-            blackbox_gfx::EffectLayer::quad(&mut layer.streaks, quad, RAIN_COLOUR);
-        }
+        rain.append(layer);
         if let Some(traffic) = &self.traffic {
             traffic.spike_geometry(&mut layer.streaks);
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
             traffic.car_flares(flare_view, &mut layer.textured);
             traffic.cop_particles(position, forward, &mut layer.textured);
+            traffic.rain_particles(forward, &self.residency.shared.materials, &mut layer.textured);
             traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
         }
         self.cop_health.emit(renderer, self.tuning.cop_health_bars, &mut layer.textured);

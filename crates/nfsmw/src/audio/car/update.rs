@@ -100,6 +100,8 @@ impl Audio {
             car.mixer.as_ref().map(CarMixer::transmission),
             frame.dt,
         );
+        let ambient_levels = car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient);
+        car.ambient.update_rain(self, view, ambient_levels.rain, frame.dt);
         car.ambient.update_with_context(
             self,
             &input,

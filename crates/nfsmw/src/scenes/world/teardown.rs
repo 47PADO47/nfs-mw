@@ -11,6 +11,8 @@ impl WorldScene {
     /// already runs is not affected. The focus mask is not cleared: this runs after the next scene's init, which may
     /// have set its own.
     pub(super) fn release_gpu(&mut self, renderer: &mut dyn RenderBackend) {
+        // Camera water belongs to this world, and must not remain over the next menu or car viewer.
+        renderer.set_effects(&blackbox_gfx::EffectLayer::default());
         renderer.set_shadow_casters(None);
         self.shadow_feed.fed = false;
         renderer.set_reflection_scene(None);

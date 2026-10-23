@@ -246,6 +246,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.texture_filtering {
         put("texture_filtering", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.rain_droplet_scale {
+        put("rain_droplet_scale", Value::Float(f64::from(v)));
+    }
     if let Some(v) = changes.road_reflections {
         put("road_reflections", Value::String(v.to_string()));
     }

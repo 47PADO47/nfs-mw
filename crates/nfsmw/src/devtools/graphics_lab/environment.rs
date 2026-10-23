@@ -88,14 +88,19 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     }
     ui.small("Cloud presets apply immediately for comparison. Location resumes authored easing; clouds and rain are independent overrides.");
     ui.horizontal(|ui| {
-        ui.label("Forced rain:");
-        ui.selectable_value(&mut settings.always_rain, false, "No rain");
+        ui.label("Rain:");
+        ui.selectable_value(&mut settings.always_rain, false, "Location rain");
         if ui.selectable_value(&mut settings.always_rain, true, "Rain").clicked() && settings.rain_amount.0 == 0 {
             settings.rain_amount.0 = 100;
         }
     });
     ui.add_enabled_ui(settings.always_rain, |ui| {
         ui.add(egui::Slider::new(&mut settings.rain_amount.0, 0..=100).text("Rain particles %"));
+    });
+    ui.horizontal(|ui| {
+        ui.add(egui::Slider::new(&mut settings.rain_droplet_scale, 0.0..=2.0).text("Lens droplet size").suffix("×"))
+            .on_hover_text("0 hides camera droplets; 0.5 is the smaller default; 1 matches the reconstructed PC size. Falling rain and tyre spray are unchanged.");
+        super::controls::reset(ui, &mut settings.rain_droplet_scale, 0.5, "Lens droplet size");
     });
     let [x, y, z] = value.sun_direction;
     ui.separator();
@@ -130,7 +135,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     if !value.authored_clouds {
         ui.colored_label(egui::Color32::YELLOW, "Authored cloud map unavailable: Location uses the clear fallback.");
     }
-    ui.small("Original-weather gaps: regional storms and tunnel exposure. No rain does not force sunny clouds; full night is a separate custom feature. Road wetness comparison overrides are session-only.");
+    ui.small("Location rain follows the original regional weather map. Rain forces precipitation; 0% disables it. Cloud and road-wetness overrides are separate, session-only comparisons. Full night is a custom feature.");
     if changed {
         lab.environment = Some(value);
         lab.environment_change = Some(value);

@@ -25,7 +25,10 @@ fn installed_road_reflection_slots_resolve_without_owning_extra_gpu_resources() 
         reflected += 1;
         reflection_only += usize::from(p.player_index.is_none());
         assert!(!p.key.is_transient(), "reflection sources must have stable section identities");
-        for handle in p.lods.iter().flatten() {
+        for (handle, bounds) in p.lods.iter().zip(p.local_bounds) {
+            let Some(handle) = handle else { continue };
+            let bounds = bounds.expect("resident reflection mesh must retain its own bounds");
+            assert!(!bounds.is_empty() && bounds.min.is_finite() && bounds.max.is_finite());
             borrowed_meshes.insert(*handle);
             assert!(renderer.mesh_labels.contains_key(handle), "reflected source points to a retired/missing mesh");
         }

@@ -21,7 +21,8 @@ pub struct EffectVertex {
     pub position: [f32; 3],
     pub color: [u8; 4],
     pub uv: [f32; 2],
-    /// Procedural particle age in seconds and stable variation seed.
+    /// Procedural particles: age in seconds and stable variation seed.
+    /// Textured particles: positive RGBA brightness multiplier in X (zero defaults to one), unused Y.
     pub detail: [f32; 2],
 }
 
@@ -30,6 +31,8 @@ pub const DEFAULT_SOFT_DISTANCE: f32 = 0.3;
 
 #[derive(Debug, Clone)]
 pub struct EffectLayer {
+    /// Main-view optical distortion. Never drawn in world captures.
+    pub distortion: Option<crate::ScreenDistortion>,
     /// Surface overlays with feathered edges and a subtle longitudinal pattern.
     pub surfaces: Vec<EffectVertex>,
     /// Soft circular billboards, in back-to-front order.
@@ -49,6 +52,7 @@ pub struct EffectLayer {
 impl Default for EffectLayer {
     fn default() -> Self {
         Self {
+            distortion: None,
             surfaces: Vec::new(),
             particles: Vec::new(),
             streaks: Vec::new(),
@@ -62,6 +66,7 @@ impl Default for EffectLayer {
 
 impl EffectLayer {
     pub fn clear(&mut self) {
+        self.distortion = None;
         self.surfaces.clear();
         self.particles.clear();
         self.streaks.clear();

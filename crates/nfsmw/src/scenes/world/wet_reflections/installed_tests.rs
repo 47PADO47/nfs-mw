@@ -65,7 +65,7 @@ fn installed_wet_road_feed_refreshes_quality_pose_and_dry_lifecycle() {
     });
     world.prepare_frame(&mut renderer, 16.0 / 9.0);
     assert!(world.original_sky);
-    // Wetness uses real elapsed time even when physics/particles use a slower game clock.
+    // Wetness shares the simulation clock with rain and pauses with the garage.
     world.wet_road.override_amount = None;
     world.wet_road.wetness = 0.0;
     world.rain.configure(true, 1.0);
@@ -73,7 +73,7 @@ fn installed_wet_road_feed_refreshes_quality_pose_and_dry_lifecycle() {
     for _ in 0..60 {
         world.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
     }
-    assert!((world.wet_road.wetness - (1.0 - 0.995_f32.powi(60))).abs() < 0.0001);
+    assert!((world.wet_road.wetness - (1.0 - 0.995_f32.powi(15))).abs() < 0.0001);
     let wet = world.wet_road.wetness;
     world.set_garage_open(true);
     world.update(&mut renderer, &ActionState::default(), 1.0);

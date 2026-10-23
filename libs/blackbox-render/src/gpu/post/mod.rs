@@ -17,6 +17,9 @@ pub(in crate::gpu) mod display;
 mod display_tests;
 #[cfg(test)]
 mod display_vectors;
+mod distortion;
+#[cfg(test)]
+mod distortion_tests;
 #[cfg(test)]
 mod effect_tests;
 mod effects;
@@ -79,6 +82,7 @@ pub(super) struct PassIo<'a> {
 }
 
 pub(super) trait PostPass {
+    fn set_distortion(&mut self, _view: &wgpu::TextureView, _regions: &[blackbox_gfx::DistortionRegion]) {}
     fn name(&self) -> &'static str;
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
     fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
@@ -182,7 +186,12 @@ impl PostChain {
         let extents: Vec<Extent> = self.passes.iter().map(|p| p.extent()).collect();
         let index = plan::insert_index(&extents, index.max(self.effect_count), pass.extent());
         let last_scene = self.passes.iter().position(|p| p.name() == "hdr-display").unwrap_or(self.passes.len());
-        self.passes.insert(index.min(last_scene), pass);
+        let mut index = index.min(last_scene);
+        if pass.name() != distortion::NAME && pass.name() != "hdr-display" {
+            let lens = self.passes.iter().position(|p| p.name() == distortion::NAME).unwrap_or(self.passes.len());
+            index = index.min(lens);
+        }
+        self.passes.insert(index, pass);
     }
 
     /// Whether a pass named `name` is in the chain.

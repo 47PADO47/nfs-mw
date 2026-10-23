@@ -86,10 +86,7 @@ fn free_roam_gate(x: f32) -> f32 {
     if !x.is_finite() {
         return 1.0;
     }
-    let degrees = 0.714_285_73 + x * 0.02;
-    let angle = ((degrees * 65_536.0).trunc() as i64 / 360) as u16;
-    let sine = (f32::from(angle) * (std::f32::consts::TAU / 65_536.0)).sin().max(0.0);
-    1.0 - sine
+    crate::weather::regional_gate(1.0, x)
 }
 
 #[cfg(test)]
@@ -98,8 +95,8 @@ mod tests {
 
     #[test]
     fn free_roam_gate_includes_position_and_suppresses_the_negative_half() {
-        assert!(free_roam_gate(0.0) > 0.98);
-        assert!(free_roam_gate((90.0 - 0.714_285_73) / 0.02) < 0.00001);
+        assert!(free_roam_gate(0.0) < 0.001);
+        assert!(free_roam_gate((90.0 - 0.714_285_73) / 0.02) > 0.999);
         assert_eq!(free_roam_gate((270.0 - 0.714_285_73) / 0.02), 1.0);
         assert_eq!(free_roam_gate(f32::NAN), 1.0);
     }

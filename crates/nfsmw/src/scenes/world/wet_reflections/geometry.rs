@@ -24,14 +24,31 @@ pub(super) fn scenery<'a>(
             continue;
         }
         let (transform, bounds) = props.pose(p.prop_id).unwrap_or((p.transform, p.bounds));
-        if !frustum.intersects(&bounds) {
-            continue;
-        }
-        let size = view.projected_size(transform.w_axis.truncate().to_array(), p.radius + 6.0);
-        let Some(slot) = slot(p.flags, size) else { continue };
-        let Some(mesh) = p.lods[slot] else { continue };
-        let instance = Instance::keyed(mesh, scenery_transform(transform, p.flags), p.key);
-        out.push(instance.with_flipped_winding(p.flip_winding()));
+        let reflected = scenery_transform(transform, p.flags);
+        let selected = match height > 240.0 {
+            true => {
+                let slot = authored_slot(p.flags);
+                let bounds = p.local_bounds[slot].map(|b| b.transformed(&reflected)).unwrap_or(bounds);
+                if !frustum.intersects(&bounds) {
+                    continue;
+                }
+                let radius = (bounds.max - bounds.min).length() * 0.5;
+                if view.projected_size(bounds.center().to_array(), radius) < 2 {
+                    continue;
+                }
+                slot
+            }
+            false => {
+                if !frustum.intersects(&bounds) {
+                    continue;
+                }
+                let size = view.projected_size(transform.w_axis.truncate().to_array(), p.radius + 6.0);
+                let Some(slot) = slot(p.flags, size) else { continue };
+                slot
+            }
+        };
+        let Some(mesh) = p.lods[selected] else { continue };
+        out.push(Instance::keyed(mesh, reflected, p.key).with_flipped_winding(p.flip_winding()));
     }
     out.sort_unstable_by_key(|instance| instance.mesh);
 }
@@ -44,13 +61,17 @@ fn slot(flags: u32, raw_size: i32) -> Option<usize> {
     if size < 32 {
         return None;
     }
+    Some(authored_slot(flags))
+}
+
+fn authored_slot(flags: u32) -> usize {
     if flags & 0x80 != 0 {
-        return Some(2);
+        return 2;
     }
     if flags & 0x0100_0100 != 0 {
-        return Some(0);
+        return 0;
     }
-    Some(3)
+    3
 }
 
 fn scenery_transform(mut transform: Mat4, flags: u32) -> Mat4 {

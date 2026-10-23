@@ -72,8 +72,9 @@ The renderer keeps the counter-clockwise faces of a single-sided draw (wgpu `Fro
   both. A mirrored instance keeps the clockwise faces.
 - `FrameParams::mirrored_view()`: the view mirrors (negative determinant). It swaps the kept side once more. The
   environment cube's faces are drawn with a vertically flipped view, so they are mirrored views; this replaces the
-  original's mode 3 for reflection views. The rear-view mirror and the road reflection follow from their own view
-  and instance transforms.
+  original's mode 3 for cube views. The projected road view shares the main camera,
+  so its capture flag explicitly reverses the kept side once more. Per-instance
+  winding and two-sided texture rules still apply; sky and particles stay two-sided.
 - The texture rule is `blackbox_scene::Sidedness` (rules 1 and 2 without the effect); `MaterialLookup::two_sided`
   asks the game which effects cull blended surfaces. In the game crate that is `scenes/culling.rs`: effect 4.
 - Scenery: `flip_winding` is flag `0x400000` exclusive-or a mirroring transform, so it is set only for the

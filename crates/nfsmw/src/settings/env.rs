@@ -168,6 +168,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         post_aa: value(&get, POST_AA, PostAa::from_str),
         texture_filtering: value(&get, TEXTURE_FILTERING, super::TextureFiltering::from_str),
         reflections: value(&get, REFLECTIONS, super::ReflectionQuality::from_str),
+        rain_droplet_scale: value(&get, "NFSMW_RAIN_DROPLET_SCALE", |s| s.parse::<f32>().map_err(|e| e.to_string())),
         road_reflections: value(&get, "NFSMW_ROAD_REFLECTIONS", super::RoadReflections::from_str),
         road_reflection_resolution: value(
             &get,

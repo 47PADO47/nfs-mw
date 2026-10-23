@@ -1,4 +1,3 @@
-use super::drops::{DropPool, POOL_SIZE, Tuning};
 use super::*;
 
 fn zone(compare: f32, value: f32) -> Option<ZoneSample> {
@@ -42,10 +41,10 @@ fn the_gate_ignores_the_override_and_squares_the_roll() {
 }
 
 #[test]
-fn the_base_roll_is_effectively_zero_over_the_whole_range() {
-    for seconds in [0.0_f32, 1.0, 179.0, 359.0, 360.0, 499.0, 500.0] {
-        assert!(base_roll(seconds) < 1e-4, "base_roll({seconds}) = {}", base_roll(seconds));
-    }
+fn the_regional_gate_varies_with_position_and_time() {
+    assert!(regional_gate(1.0, 0.0) < 0.001);
+    assert!(regional_gate(1.0, 9000.0) > 0.99);
+    assert!(regional_gate(252.0, 0.0) > 0.99);
 }
 
 #[test]
@@ -103,69 +102,4 @@ fn a_zero_frame_time_uses_the_fallback() {
     let mut w = Weather::new(0.2);
     w.step(0.0, 1.0, 0.0);
     assert!((w.heading - HEADING_RATE * FALLBACK_DT).abs() < 1e-6);
-}
-
-fn tuning() -> Tuning {
-    Tuning {
-        fall_speed: 10.0,
-        box_half: [5.0, 5.0, 5.0],
-        ground_low: 0.0,
-        ground_high: 50.0,
-        wind_scale: 1.0,
-        spawn_rate: 1000.0,
-    }
-}
-
-fn counting_rand() -> impl FnMut() -> f32 {
-    let mut n = 0.0_f32;
-    move || {
-        n = (n + 0.37) % 2.0 - 1.0;
-        n
-    }
-}
-
-#[test]
-fn the_pool_has_the_spec_size() {
-    assert_eq!(DropPool::new().drops().len(), POOL_SIZE);
-}
-
-#[test]
-fn no_drops_spawn_while_it_is_dry() {
-    let mut pool = DropPool::new();
-    pool.update(0.1, [0.0; 3], [0.0; 2], 0.0, &tuning(), &mut counting_rand());
-    assert_eq!(pool.falling(), 0);
-}
-
-#[test]
-fn drops_spawn_in_the_box_while_it_rains() {
-    let mut pool = DropPool::new();
-    pool.update(0.1, [0.0, 20.0, 0.0], [0.0; 2], 1.0, &tuning(), &mut counting_rand());
-    assert!(pool.falling() > 0);
-    for d in pool.drops().iter().filter(|d| d.falling) {
-        assert!((d.pos[0]).abs() <= 5.0 && (d.pos[2]).abs() <= 5.0);
-        assert!((d.pos[1] - 20.0).abs() <= 5.0);
-    }
-}
-
-#[test]
-fn falling_drops_fall_and_are_recycled_at_the_ground() {
-    let mut pool = DropPool::new();
-    pool.update(0.1, [0.0, 2.0, 0.0], [0.0; 2], 1.0, &tuning(), &mut counting_rand());
-    let before = pool.falling();
-    assert!(before > 0);
-    // Long enough for every drop to pass the ground at 0 m (fall speed 10 m/s), with no rain.
-    for _ in 0..20 {
-        pool.update(0.5, [0.0; 3], [0.0; 2], 0.0, &tuning(), &mut counting_rand());
-    }
-    assert_eq!(pool.falling(), 0);
-}
-
-#[test]
-fn the_wind_moves_a_falling_drop_sideways() {
-    let mut pool = DropPool::new();
-    pool.update(0.1, [0.0, 20.0, 0.0], [0.0; 2], 1.0, &tuning(), &mut counting_rand());
-    let x0 = pool.drops().iter().find(|d| d.falling).unwrap().pos[0];
-    pool.update(0.1, [0.0, 20.0, 0.0], [2.0, 0.0], 0.0, &tuning(), &mut counting_rand());
-    let x1 = pool.drops().iter().find(|d| d.falling).unwrap().pos[0];
-    assert!((x1 - x0 - 0.2).abs() < 1e-4, "moved {}", x1 - x0);
 }

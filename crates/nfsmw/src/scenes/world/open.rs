@@ -63,6 +63,10 @@ impl WorldScene {
         }
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
+        let rain = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .and_then(|bytes| crate::weather::rain::Rain::read(&bytes))
+            .map_err(|error| log::warn!("authored rain map unavailable: {error:#}"))
+            .unwrap_or_default();
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
@@ -241,7 +245,7 @@ impl WorldScene {
                 exhaust_flames: false,
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
-                rain: crate::weather::rain::Rain::new(),
+                rain,
                 wet_road: Default::default(),
                 explosions: Default::default(),
                 heli_wash: Default::default(),
