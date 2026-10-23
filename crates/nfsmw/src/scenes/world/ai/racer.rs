@@ -65,6 +65,9 @@ pub struct RacerState {
     /// The racer is far from the player and is not simulated: the race moves it along the route instead
     /// (`docs/specs/ai-racers-route.md` section 6).
     pub emulated: bool,
+    /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
+    /// before the race gives it one, or without a road network.
+    pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
     /// A person drives this racer (split screen): the pedals they hold this frame. The think, the driver, the emulation
     /// and the catch-up leave the racer alone (`docs/specs/split-screen.md` section 3).
     pub human: Option<crate::scenes::world::drive::DriveInput>,
@@ -102,6 +105,7 @@ impl RacerState {
             held: true,
             cruise: 25.0,
             emulated: false,
+            route: None,
             human: None,
         }
     }

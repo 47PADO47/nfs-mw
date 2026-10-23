@@ -4,7 +4,10 @@
 //! leg's ends, a plain racer search, or none. A leg counts only when its centre line passes through its gate.
 
 use blackbox_race::Gate;
-use blackbox_roads::{ActiveBarrier, Goal, LegSource, SegmentIndex, build_route, closest_segment};
+use blackbox_roads::{
+    ActiveBarrier, Goal, LegSource, PathType, Route, RouteBuilder, SegmentIndex, build_leg, build_route,
+    closest_segment,
+};
 use blackbox_scenery::find_group;
 use glam::Vec3;
 use nfsmw_data::gameplay::{self, BoxTrigger, GameplayData, Race, world_heading};
@@ -38,6 +41,23 @@ fn gates(data: &GameplayData, race: &Race) -> Vec<Gate> {
     race.checkpoints.iter().chain(race.finish.iter()).filter_map(|key| data.trigger(*key)).map(gate_of).collect()
 }
 
+/// Whether a racer could cut through `via` on `route`: a road from the nearest leg's start through `via` to its end,
+/// at most 1.25 times the leg (`ai/race_route.rs`, `route_through`).
+fn has_shortcut(net: &blackbox_roads::RoadNetwork, segments: &SegmentIndex, route: &Route, via: Goal) -> bool {
+    let detour = |leg: &blackbox_roads::Leg| {
+        leg.from.position.distance(via.position) + via.position.distance(leg.to.position) - leg.length
+    };
+    let Some(leg) = route.legs.iter().filter(|l| !l.missing()).min_by(|a, b| detour(a).total_cmp(&detour(b))) else {
+        return false;
+    };
+    let first = build_leg(net, segments, leg.from, via, PathType::RaceRoute);
+    let second = build_leg(net, segments, via, leg.to, PathType::RaceRoute);
+    let (Some(first), Some(second)) = (first, second) else { return false };
+    let mut builder = RouteBuilder::new(net);
+    builder.push(leg.from, leg.to, Some(&first.join(&second)));
+    builder.finish().length <= leg.length * 1.25
+}
+
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn race_routes() {
@@ -47,6 +67,8 @@ fn race_routes() {
     let mut net = index.road_network.take().expect("road network");
     let segments = SegmentIndex::build(&net);
 
+    assert!(data.shortcuts.len() > 1000, "{} shortcut markers", data.shortcuts.len());
+    let (mut markers, mut cuts) = (0, 0);
     let mut totals = [0usize; 4];
     let (mut courses, mut complete, mut gaps) = (0, 0, Vec::new());
     for race in data.races.iter().filter(|r| r.start.is_some()) {
@@ -75,6 +97,11 @@ fn race_routes() {
             n => gaps.push(format!("{} ({n}/{} missing)", race.name, sources.len())),
         }
         assert_eq!(route.legs.len(), gates.len());
+        for marker in race.params.shortcuts.iter().filter_map(|k| data.shortcut(*k)) {
+            markers += 1;
+            let via = Goal { position: marker.position, forward: world_heading(marker.heading_deg) };
+            cuts += usize::from(has_shortcut(&net, &segments, &route, via));
+        }
     }
     let legs: usize = totals.iter().sum();
     eprintln!(
@@ -83,6 +110,7 @@ fn race_routes() {
         totals[0], totals[1], totals[2], totals[3]
     );
     eprintln!("courses with a missing leg: {gaps:#?}");
+    eprintln!("{cuts} of {markers} shortcut markers have a road at most 1.25 times their leg");
     assert!(courses > 200);
     assert!(totals[3] * 10 <= legs, "most legs have a road");
 }

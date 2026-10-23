@@ -23,7 +23,18 @@ converted from map to physics space.
   GPS-style look-ahead) **[decomp]**, and searched again when the car reaches the checkpoint or leaves the path.
 - `Shortcuts[]` markers mark places where a racer may cut: when a racer's route passes within a marker's radius,
   it takes the shortcut with a probability between `ShortcutMinChance` and `ShortcutMaxChance` (values above 1 are
-  percentages) **[verified]** data, **[unconfirmed]** rule. The rewrite does not take shortcuts yet.
+  percentages) **[verified]** data, **[unconfirmed]** rule.
+- **The rewrite's route [ours].** The whole route is built once when the race starts: the road from the grid through
+  every gate of every lap, with the race's barrier lines closing the roads they cross (`blackbox_roads::build_route`,
+  `ai/race_route.rs`). Each leg tries a route search with the lines, then the same with the lines lifted within 60 m of
+  its ends, then a plain racer search with no lines; a leg whose road does not pass through its gate (its centre line
+  sampled every 2 m) does not count, and a leg with none is missing. On the install 2,207 legs of 217 courses give
+  2,106, 55, 3 and 43 missing (`race_routes`, a real-install test). The network's barrier flags are clear again
+  afterwards, as before.
+- **Shortcuts in the rewrite [ours].** A marker's shortcut is the road from the start of the route's nearest leg
+  through the marker to the leg's end, kept when it is at most 1.25 times the leg (661 of the 971 markers of the
+  courses). Each racer rolls once per shortcut on the grid, with the chance `lerp(min, max, skill)`, from a seed of the
+  race and the racer, and drives its own copy of the route with the legs it rolled for replaced (`race/shortcuts.rs`).
 - The route length is the sum of the straight lines start, checkpoint 1 ... finish, measured on the road
   (`RaceLength` is the editor's stored value, 0 for a few races) **[unconfirmed]**. It is only used for percent
   complete and for the catch-up error, so a straight-line sum is used when the road path is not yet known.

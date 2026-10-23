@@ -139,3 +139,22 @@ fn the_check_sees_the_leg_and_its_centre_line() {
     });
     assert_eq!(seen, vec![(0, 10.0, 150.0), (1, 150.0, 190.0)]);
 }
+
+#[test]
+fn a_leg_hands_back_its_road_and_a_splice_replaces_it() {
+    let (net, route) = chain_route();
+    let index = SegmentIndex::build(&net);
+    let first = route.leg_path(0).expect("the first leg's road");
+    assert_eq!(first.segments, vec![0, 1]);
+    assert!((first.from_t - 0.1).abs() < 1e-3);
+    assert_eq!(route.spliced(&net, &[]), route, "nothing replaced, the same route");
+    // The first leg through a point at z = 60 on the way: the same road in two searches, joined.
+    let via = goal(60.0);
+    let a = build_leg(&net, &index, goal(10.0), via, PathType::RaceRoute).unwrap();
+    let b = build_leg(&net, &index, via, goal(150.0), PathType::RaceRoute).unwrap();
+    let joined = a.join(&b);
+    assert_eq!(joined.segments, vec![0, 1], "the shared segment once");
+    let spliced = route.spliced(&net, &[(0, joined)]);
+    assert!((spliced.length - route.length).abs() < 1.0);
+    assert_eq!(spliced.legs[1], route.legs[1]);
+}

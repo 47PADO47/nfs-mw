@@ -7,10 +7,12 @@
 //!   leg, with a fallback for a leg whose search fails.
 //! - [`Route::locate`] finds the point of the route nearest a position, in three dimensions.
 //! - [`Route::point_at`] is the point at a distance, and [`Route::window`] the segments a navigator follows.
+//! - [`Route::spliced`] replaces the road of some legs (a racer's shortcut).
 
 mod build;
 mod ladder;
 mod locate;
+mod splice;
 
 use std::ops::Range;
 

@@ -31,6 +31,7 @@ pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]
 mod setup_course_tests;
+mod shortcuts;
 mod split;
 mod start;
 mod startable;
