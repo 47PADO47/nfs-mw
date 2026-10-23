@@ -42,6 +42,7 @@ mod wrong_way;
 pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
 pub(super) use restart::Kit as RestartKit;
+pub(in crate::scenes::world) use setup::Opponent;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
 

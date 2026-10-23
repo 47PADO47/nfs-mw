@@ -3,9 +3,10 @@
 
 use blackbox_pursuit::CooldownStatus;
 use nfsmw_net::frames::{GlobalBlock, PursuitStatus};
-use nfsmw_server::WorldControl;
+use nfsmw_server::{RaceRequest, WorldControl};
 use nfsmw_sim::PlayerId;
 
+use super::super::race::RaceOptions;
 use super::host::WorldSimHost;
 use super::sim::{chase_state, racer_states};
 
@@ -29,6 +30,29 @@ impl WorldControl for WorldSimHost {
     /// collides, shows nor is exported (co-op's parking, `players/mod.rs`). Unparking brings it back where it stood.
     fn set_ghost(&mut self, id: PlayerId, ghost: bool) -> bool {
         self.scene.players.park(id, ghost)
+    }
+
+    /// Starts the race the track id names, with the session's laps and traffic, and the players of the request as its
+    /// people beside the lead (`players/race.rs`). The world runs the grid, the intro and the countdown itself.
+    fn start_race(&mut self, request: &RaceRequest) -> Result<(), String> {
+        let data = self.scene.gameplay.clone().ok_or("the race data could not be read from the install")?;
+        let race = data
+            .races
+            .iter()
+            .find(|race| blackbox_feng::fe_hash_upper(&race.name) == request.track)
+            .cloned()
+            .ok_or_else(|| format!("no race has the track id {:#010x}", request.track))?;
+        let options = RaceOptions {
+            laps: (request.laps > 0).then_some(u32::from(request.laps)),
+            traffic: Some(i32::from(request.traffic_density)),
+            ..RaceOptions::default()
+        };
+        self.scene.begin_race(race, options, None).map(drop)
+    }
+
+    /// Ends the race the world runs; the people's cars come back behind the lead.
+    fn stop_race(&mut self) {
+        self.scene.abandon_race();
     }
 
     /// The world's clock, and for a chased player the heat, the busted meter (its own while two or more are chased,

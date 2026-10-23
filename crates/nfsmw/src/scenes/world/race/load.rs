@@ -75,6 +75,10 @@ impl WorldScene {
         }
         for i in dropped.into_iter().rev() {
             log::warn!("race: {} is left out: its car did not load", session.plan[i].name);
+            // The people sit on the grid right after the lead: racer `i` is `race_people[i - 1]`.
+            if session.plan[i].person.is_some() && i - 1 < self.race_people.len() {
+                self.race_people.remove(i - 1);
+            }
             session.plan.remove(i);
             ready = session
                 .plan
@@ -107,6 +111,9 @@ impl WorldScene {
                 Some(route) => shortcuts::shortcuts_of(traffic, route, &markers),
                 None => Vec::new(),
             };
+            // The people of the grid are the first racers after the lead; one that cannot stand there is dropped from
+            // `race_people` so the next person keeps their racer number.
+            let mut seated_people = 0;
             for plan in session.plan.iter().skip(1) {
                 let Some(model) = plan.model.clone() else { continue };
                 let spec = RacerSpawn {
@@ -123,7 +130,13 @@ impl WorldScene {
                 };
                 if !traffic.spawn_racer(&spec, collision, &self.physics.surfaces) {
                     log::warn!("race: {} could not be put on the grid", plan.name);
+                    if plan.person.is_some() && seated_people < self.race_people.len() {
+                        self.race_people.remove(seated_people);
+                    }
                     continue;
+                }
+                if plan.person.is_some() {
+                    seated_people += 1;
                 }
                 if let Some(base) = &session.route {
                     let id = kept.len();
@@ -140,7 +153,10 @@ impl WorldScene {
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
         session.engine = Some(Race::new(prep.course, prep.config, &grid));
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.
-        let steps = intro::intro_queue(session);
+        let steps = match self.rules.race_intros {
+            true => intro::intro_queue(session),
+            false => Default::default(),
+        };
         if steps.is_empty() {
             let nis_shell = session.origin.race.story.nis_shell;
             self.after_intro(session, nis_shell);

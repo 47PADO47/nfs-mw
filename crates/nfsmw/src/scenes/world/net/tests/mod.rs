@@ -4,3 +4,4 @@
 mod input;
 mod installed;
 mod installed_events;
+mod installed_race;

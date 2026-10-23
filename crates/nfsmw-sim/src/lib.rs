@@ -152,6 +152,12 @@ pub enum SimEvent {
         lap: u8,
         time_ms: u32,
     },
+    /// A player's pass through speed trap `trap` paid: it beat the trap's threshold and the player's best there.
+    SpeedTrapPassed {
+        player: PlayerId,
+        trap: u8,
+        kmh: f32,
+    },
 }
 
 /// An authoritative world advanced one tick at a time.

@@ -25,7 +25,7 @@ mod server;
 pub mod timer;
 
 pub use config::{ConfigError, ServerConfig};
-pub use control::WorldControl;
+pub use control::{RaceRequest, WorldControl};
 pub use hooks::{Hook, attach_bots};
 pub use server::{
     KICK_SCORE, RESYNC_SCORE, Server, ServerSetup, ServerStats, TickHook, Verdict, Violation, WARN_SCORE, bind,

@@ -83,6 +83,7 @@ impl WorldScene {
         self.start_queued_coop(renderer);
         self.place_guests();
         self.feed_second_player();
+        self.feed_race_people();
         for drive in self.players.drives_mut() {
             let environment = self
                 .audio_environment

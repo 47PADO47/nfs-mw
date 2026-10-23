@@ -159,11 +159,17 @@ pub(super) fn chase_state(scene: &WorldScene) -> ChaseState {
 /// (the split-screen seat a co-op race gives the guest, `players/race.rs`). `None` without a race engine.
 pub(super) fn racer_states(scene: &WorldScene) -> Option<Vec<RacerState>> {
     let engine = scene.race.as_ref()?.engine.as_ref()?;
-    let mut seats = [LEAD, super::super::players::coop::GUEST].into_iter();
+    let people = &scene.race_people;
+    let mut seats = match people.is_empty() {
+        true => vec![LEAD, super::super::players::coop::GUEST],
+        false => std::iter::once(LEAD).chain(people.iter().copied()).collect(),
+    }
+    .into_iter();
     let racers = engine.racers().iter().map(|racer| RacerState {
         player: racer.human.then(|| seats.next()).flatten(),
         lap_times: racer.lap_times.clone(),
         finished_at: racer.finished_at,
+        trap_speeds: racer.traps.slots().to_vec(),
     });
     Some(racers.collect())
 }

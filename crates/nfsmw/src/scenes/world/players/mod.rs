@@ -149,6 +149,11 @@ impl<D> Players<D> {
         self.list.iter_mut().filter(|p| !p.parked).map(|p| &mut p.drive)
     }
 
+    /// Every player's id in id order, the parked ones too.
+    pub fn ids(&self) -> impl Iterator<Item = PlayerId> + '_ {
+        self.list.iter().map(|p| p.id)
+    }
+
     /// Every player in play, the lead first.
     pub fn iter(&self) -> impl Iterator<Item = &Player<D>> {
         self.list.iter().filter(|p| !p.parked)

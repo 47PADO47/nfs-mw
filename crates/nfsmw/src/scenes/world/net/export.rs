@@ -5,7 +5,7 @@
 //! not in the world for the clients, as in co-op.
 
 use glam::{Quat, Vec3};
-use nfsmw_sim::{EntityId, EntityKind, EntityView};
+use nfsmw_sim::{EntityId, EntityKind, EntityView, PlayerId};
 
 use super::super::WorldScene;
 use super::super::ai::{NetCar, NetCarKind};
@@ -32,7 +32,9 @@ struct Motion {
 pub fn natives(scene: &WorldScene, props: &mut Vec<MovingProp>) -> Vec<Native> {
     let mut natives = Vec::new();
     if let Some(traffic) = scene.traffic.as_ref() {
-        natives.extend(traffic.net_cars().map(|car| Native::Car(car.entity)));
+        natives.extend(
+            traffic.net_cars().filter(|car| person_of(scene, car).is_none()).map(|car| Native::Car(car.entity)),
+        );
         natives.extend(traffic.net_helicopter().map(|_| Native::Helicopter));
         natives.extend(traffic.spike_strips().map(|(block, index, _)| strip(block, index)));
     }
@@ -52,6 +54,10 @@ pub fn export(scene: &WorldScene, table: &EntityTable, catalog: &CarCatalog, out
     players(scene, catalog, out);
     if let Some(traffic) = scene.traffic.as_ref() {
         for car in traffic.net_cars() {
+            if let Some(player) = person_of(scene, &car) {
+                out.push(person_car(player, &car, catalog));
+                continue;
+            }
             let Some(id) = table.get(Native::Car(car.entity)) else { continue };
             out.push(ai_car(id, &car, catalog));
         }
@@ -108,6 +114,21 @@ fn players(scene: &WorldScene, catalog: &CarCatalog, out: &mut Vec<EntityView>) 
         view.owner = Some(player.id);
         out.push(view);
     }
+}
+
+/// The player a race seats in this car: a network seat drives a racer of the traffic world while its own car is parked
+/// (`players/race.rs`), and the clients know that racer as the player's car.
+fn person_of(scene: &WorldScene, car: &NetCar<'_>) -> Option<PlayerId> {
+    let racer = car.racer.filter(|&racer| racer >= 1)?;
+    scene.race_people.get(racer - 1).copied()
+}
+
+/// A person's racer car as their player car: the player's id, kind and owner.
+fn person_car(player: PlayerId, car: &NetCar<'_>, catalog: &CarCatalog) -> EntityView {
+    let mut view = ai_car(EntityId::from(player.0), car, catalog);
+    view.kind = EntityKind::PlayerCar;
+    view.owner = Some(player);
+    view
 }
 
 /// A computer-driven car: a roadblock's car is a roadblock entity, flagged as a car.
