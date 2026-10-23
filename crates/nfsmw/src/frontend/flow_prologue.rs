@@ -19,6 +19,9 @@ use crate::scenes::world::RaceOptions;
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
 
+/// The car lot zone the first drive starts from (`menu_gate_carlot/zone_carlot_1`): the player leaves the lot there.
+const FIRST_CAR_LOT_ZONE: &str = "menu_gate_carlot/zone_carlot_1";
+
 /// The prologue race a new career starts with (`16.1.0`, section 2.3 rule 1).
 pub(super) const FIRST_PROLOGUE_RACE: &str = "16.1.0";
 
@@ -141,6 +144,9 @@ impl Frontend {
         self.leave_safe_house();
         self.origin = QuitTo::Career;
         self.quick_car = Some(self.profile_car());
+        // The drive starts where the player leaves the lot, not at the career's start point.
+        self.safe_house_start.zone = Some(FIRST_CAR_LOT_ZONE.to_owned());
+        self.safe_house_start.pending = true;
         self.drive_to_safe_house = true;
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }

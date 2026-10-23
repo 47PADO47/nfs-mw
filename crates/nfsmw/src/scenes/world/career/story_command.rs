@@ -13,7 +13,7 @@ use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 use crate::scenes::world::race::RaceOptions;
 
-const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit | story carlot";
+const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit | story carlot | story cash <amount>";
 
 /// The safe house zone the console's requests name: the same one a safe house entry names.
 const SAFE_HOUSE_ZONE: &str = "menu_gate_safehouse/zone_safehouse_1";
@@ -28,6 +28,8 @@ pub(super) enum StoryCommand {
     FirstVisit,
     /// The first car's lot, as the end of the scripted chase opens it.
     CarLot,
+    /// Sets the career's cash, to test a purchase without playing for the money.
+    Cash(u32),
 }
 
 /// Reads the arguments of `story ...`.
@@ -38,6 +40,7 @@ pub(super) fn parse(args: &[&str]) -> Result<StoryCommand, String> {
         ["arrival"] => Ok(StoryCommand::Arrival),
         ["firstvisit"] => Ok(StoryCommand::FirstVisit),
         ["carlot"] => Ok(StoryCommand::CarLot),
+        ["cash", amount] => amount.parse().map(StoryCommand::Cash).map_err(|_| USAGE.to_owned()),
         _ => Err(USAGE.into()),
     }
 }
@@ -50,6 +53,7 @@ pub(in crate::scenes::world) fn story_command(scene: &mut WorldScene, args: &[&s
         StoryCommand::Arrival => arrival(scene),
         StoryCommand::FirstVisit => first_visit(scene),
         StoryCommand::CarLot => car_lot(scene),
+        StoryCommand::Cash(amount) => cash(scene, amount),
     }
 }
 
@@ -116,6 +120,16 @@ fn first_visit(scene: &mut WorldScene) -> Result<String, String> {
     Ok("the safe house is requested: at stage 16 the first visit's intro plays first".into())
 }
 
+/// Sets the career's cash.
+fn cash(scene: &mut WorldScene, amount: u32) -> Result<String, String> {
+    scene
+        .career
+        .handle
+        .with(|career| career.settings.cash = amount)
+        .map(|()| format!("the career has {amount} cash"))
+        .ok_or_else(|| "no career is played".to_owned())
+}
+
 /// Asks for the first car's lot, which the scripted chase's end opens (`story-flow.md` section 2.3).
 fn car_lot(scene: &mut WorldScene) -> Result<String, String> {
     if !scene.career.handle.is_active() {
@@ -136,6 +150,8 @@ mod tests {
         assert_eq!(parse(&["arrival"]), Ok(StoryCommand::Arrival));
         assert_eq!(parse(&["firstvisit"]), Ok(StoryCommand::FirstVisit));
         assert_eq!(parse(&["carlot"]), Ok(StoryCommand::CarLot));
+        assert_eq!(parse(&["cash", "30000"]), Ok(StoryCommand::Cash(30_000)));
+        assert!(parse(&["cash", "lots"]).is_err());
     }
 
     #[test]
