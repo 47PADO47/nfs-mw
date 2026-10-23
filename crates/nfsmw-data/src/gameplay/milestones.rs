@@ -9,7 +9,7 @@
 use blackbox_attrib::{CollectionRef, Database, Value};
 use glam::Vec3;
 
-use super::{CLASS, inherits, instances, key_field, name_of, text, to_world};
+use super::{CLASS, collection, inherits, instances, key_field, name_of, text, to_world};
 
 /// The class of the statistic types (in `GLOBAL/attributes.bin`).
 const TYPES_CLASS: &str = "milestonetypes";
@@ -52,10 +52,26 @@ pub struct Milestone {
     pub bounty: i32,
     /// `SpawnPoint`: key of the tagged car marker that the rap sheet pins on the map. `None` when unset.
     pub spawn_point: Option<u32>,
+    /// Where the `SpawnPoint` marker stands in physics space ([`to_world`]): the place the rap sheet's jump puts the car.
+    /// `None` when the key is unset or names no collection with a `Position`.
+    pub spawn: Option<Vec3>,
     /// Field `0x3B9BBFC2`. Unconfirmed: possibly the last step of a ladder; no code reads it. 0 when unset.
     pub unconfirmed_goal: f32,
     /// The step field. Unconfirmed: possibly the spacing of a ladder; no code reads it. 0 when unset.
     pub unconfirmed_step: f32,
+}
+
+/// One place of the rap sheet's bounty page (`bounty_jump/<place>`, 12 in the install).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BountyJump {
+    /// The collection's key.
+    pub key: u32,
+    /// For example `bounty_jump/donut_shop`.
+    pub name: String,
+    /// Field `0xDB89AB5C`: the spawn point number `NN` of the labels `BLACKLIST_BOUNTY_SPAWN_POINT_NN`. 0 when unset.
+    pub number: i32,
+    /// `Position` in physics space ([`to_world`]); `None` when unset.
+    pub position: Option<Vec3>,
 }
 
 /// One speed trap (39 in total: 3 in bins 1 to 10, 2 in bins 11 to 14, 1 in bin 15).
@@ -75,6 +91,8 @@ pub struct SpeedTrap {
     pub position: Option<Vec3>,
     /// `SpawnPoint`: key of the tagged car marker next to the trap. `None` when unset.
     pub spawn_point: Option<u32>,
+    /// Where the `SpawnPoint` marker stands in physics space ([`to_world`]); `None` when it cannot be resolved.
+    pub spawn: Option<Vec3>,
     /// `Radius`, metres, when the record or its parents set it (the trap's trigger size).
     pub radius: Option<f32>,
     /// Field `0x39BF8002` (25 or 30 on three traps). Unconfirmed; use not found.
@@ -117,7 +135,8 @@ pub struct RivalRequirements {
 /// Every milestone of the database, sorted by bin and then name. Templates are skipped; the kind template each one
 /// inherits from is what gives it its statistic.
 pub fn milestones(db: &Database) -> Vec<Milestone> {
-    let mut out: Vec<Milestone> = instances(db).filter(|c| inherits(*c, "milestone")).map(milestone).collect();
+    let mut out: Vec<Milestone> =
+        instances(db).filter(|c| inherits(*c, "milestone")).map(|c| milestone(db, c)).collect();
     out.sort_by(|a, b| a.bin.cmp(&b.bin).then_with(|| a.name.cmp(&b.name)));
     out
 }
@@ -127,9 +146,24 @@ pub fn speed_traps(db: &Database) -> Vec<SpeedTrap> {
     // Race and challenge events have speed traps of their own; the career ones are `speedtraps/bin_NN/...`.
     let mut out: Vec<SpeedTrap> = instances(db)
         .filter(|c| inherits(*c, "speedtrap") && name_of(*c).starts_with("speedtraps/bin_"))
-        .map(speed_trap)
+        .map(|c| speed_trap(db, c))
         .collect();
     out.sort_by(|a, b| a.bin.cmp(&b.bin).then_with(|| a.name.cmp(&b.name)));
+    out
+}
+
+/// The places of the bounty page, sorted by number and then name.
+pub fn bounty_jumps(db: &Database) -> Vec<BountyJump> {
+    let mut out: Vec<BountyJump> = instances(db)
+        .filter(|c| name_of(*c).starts_with("bounty_jump/"))
+        .map(|c| BountyJump {
+            key: c.key(),
+            name: name_of(c),
+            number: c.get_by_key(LABEL_FIELD).and_then(Value::as_i32).unwrap_or(0),
+            position: c.get_vector3("Position").map(to_world),
+        })
+        .collect();
+    out.sort_by(|a, b| a.number.cmp(&b.number).then_with(|| a.name.cmp(&b.name)));
     out
 }
 
@@ -145,7 +179,12 @@ pub fn rival_requirements(db: &Database) -> Vec<RivalRequirements> {
     (1..=BINS).filter_map(|bin| rival(db, bin)).collect()
 }
 
-fn milestone(c: CollectionRef<'_>) -> Milestone {
+/// Where the marker with this key stands, in physics space.
+fn spawn_position(db: &Database, key: Option<u32>) -> Option<Vec3> {
+    collection(db, key?)?.get_vector3("Position").map(to_world)
+}
+
+fn milestone(db: &Database, c: CollectionRef<'_>) -> Milestone {
     let name = name_of(c);
     Milestone {
         key: c.key(),
@@ -155,13 +194,14 @@ fn milestone(c: CollectionRef<'_>) -> Milestone {
         threshold: f32_by_key(c, THRESHOLD_FIELD).unwrap_or(0.0),
         bounty: c.get_i32("Bounty").unwrap_or(0),
         spawn_point: key_field(c, "SpawnPoint"),
+        spawn: spawn_position(db, key_field(c, "SpawnPoint")),
         unconfirmed_goal: f32_by_key(c, GOAL_FIELD).unwrap_or(0.0),
         unconfirmed_step: f32_by_key(c, STEP_FIELD).unwrap_or(0.0),
         name,
     }
 }
 
-fn speed_trap(c: CollectionRef<'_>) -> SpeedTrap {
+fn speed_trap(db: &Database, c: CollectionRef<'_>) -> SpeedTrap {
     SpeedTrap {
         key: c.key(),
         name: name_of(c),
@@ -170,6 +210,7 @@ fn speed_trap(c: CollectionRef<'_>) -> SpeedTrap {
         bounty: c.get_i32("Bounty").unwrap_or(0),
         position: c.get_vector3("Position").map(to_world),
         spawn_point: key_field(c, "SpawnPoint"),
+        spawn: spawn_position(db, key_field(c, "SpawnPoint")),
         radius: c.get_f32("Radius"),
         unconfirmed_field: c.get_by_key(TRAP_UNKNOWN_FIELD).and_then(Value::as_i32),
     }

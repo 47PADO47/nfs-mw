@@ -265,3 +265,17 @@ fn the_wrong_way_triggers_belong_to_their_races() {
         assert!((-150.0..-50.0).contains(&behind), "{name}: the zone is {behind} m along the start's heading");
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn milestone_and_trap_spawn_points_resolve_to_positions() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let with = data.milestones.iter().filter(|m| m.spawn_point.is_some()).count();
+    let found = data.milestones.iter().filter(|m| m.spawn.is_some()).count();
+    let trap_with = data.speed_traps.iter().filter(|t| t.spawn_point.is_some()).count();
+    let trap_found = data.speed_traps.iter().filter(|t| t.spawn.is_some()).count();
+    println!("MILESTONE SPAWN {found}/{with}  TRAP SPAWN {trap_found}/{trap_with}");
+    assert_eq!(with, found, "every milestone SpawnPoint resolves");
+    assert_eq!(trap_with, trap_found, "every speed trap SpawnPoint resolves");
+}
