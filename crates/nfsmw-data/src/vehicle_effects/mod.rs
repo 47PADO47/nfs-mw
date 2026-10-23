@@ -11,7 +11,7 @@ mod style;
 mod tire;
 #[cfg(test)]
 mod tire_tests;
-pub use tire::{TireEffect, TireWaterData};
+pub use tire::{AxleScale, TireEffect, TireWaterData};
 #[cfg(test)]
 mod synthetic;
 #[cfg(test)]
@@ -26,6 +26,7 @@ use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
 #[derive(Debug, Clone, Default)]
 pub struct VisualEffectsData {
     pub tire_water: TireWaterData,
+    pub axle_scale: AxleScale,
     pub collision: CollisionEffects,
     pub trail: Option<EmitterStyle>,
 }
@@ -36,7 +37,12 @@ impl VisualEffectsData {
         let trail = db
             .collection("fuelcell_effect", "contrail")
             .and_then(|effect| styles(db, effect, &[vlt_hash("trail3")]).into_iter().next().flatten());
-        Self { collision: CollisionEffects::read(db, car), trail, tire_water: TireWaterData::read(db) }
+        Self {
+            collision: CollisionEffects::read(db, car),
+            trail,
+            tire_water: TireWaterData::read(db),
+            axle_scale: AxleScale::read(db, car_type),
+        }
     }
 }
 

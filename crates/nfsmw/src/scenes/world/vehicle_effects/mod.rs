@@ -48,8 +48,10 @@ pub struct VehicleEffects {
 
 impl VehicleEffects {
     pub fn new(data: VisualEffectsData) -> Self {
+        let mut water = water::WaterEffects::new(data.tire_water.clone());
+        water.scale = data.axle_scale;
         Self {
-            water: water::WaterEffects::new(data.tire_water.clone()),
+            water,
             data,
             sparks: Sparks::default(),
             trails: Trails::default(),
@@ -66,8 +68,8 @@ impl VehicleEffects {
     pub fn set_surface_water(&mut self, water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>) {
         self.water.surface_water = water;
     }
-    pub fn set_rain(&mut self, active: bool) {
-        self.water.active = active;
+    pub fn set_rain(&mut self, wet: bool) {
+        self.water.wet = wet;
     }
     pub(in crate::scenes::world) fn water_step(
         &mut self,
