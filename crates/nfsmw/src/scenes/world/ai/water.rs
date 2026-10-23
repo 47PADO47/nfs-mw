@@ -16,6 +16,7 @@ pub(super) struct Water {
 pub(in crate::scenes::world) struct RainView<'a> {
     pub camera: Vec3,
     pub intensity: f32,
+    pub water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>,
     pub environment: Option<&'a EnvironmentMap>,
     pub dt: f32,
 }
@@ -29,7 +30,7 @@ impl TrafficWorld {
         if !view.dt.is_finite() || view.dt <= 0.0 {
             return;
         }
-        if self.water.data.is_none() && view.intensity > 0.0 {
+        if self.water.data.is_none() && (view.intensity > 0.0 || view.water.is_some_and(|v| v.0.dampness > 0.05)) {
             self.water.data = Some(TireWaterData::read(db));
         }
         let Some(data) = &self.water.data else {
@@ -47,8 +48,9 @@ impl TrafficWorld {
                 .environment
                 .map(|map| map.at(Vec3::from_array(space::to_physics(car.position()))))
                 .unwrap_or_default();
+            group.surface_water = view.water;
             group.active = near
-                && view.intensity > 0.0
+                && (view.intensity > 0.0 || view.water.is_some_and(|v| v.0.dampness > 0.05))
                 && !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
             group.age(view.dt);
             if !group.active {

@@ -138,6 +138,9 @@ pub trait RenderBackend {
     /// Refresh the independent projected surface image. Unsupported backends retain black.
     fn set_projected_reflection_scene(&mut self, _scene: Option<crate::ProjectedReflectionScene<'_>>) {}
 
+    /// Supply persistent surface water independently of reflection capture quality.
+    fn set_surface_water(&mut self, _water: crate::SurfaceWater) {}
+
     // --- layers ----------------------------------------------------------------------------------
 
     /// Replace the world effects drawn in every following frame, until replaced again.

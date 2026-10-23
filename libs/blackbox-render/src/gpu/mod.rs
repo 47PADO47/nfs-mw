@@ -109,6 +109,7 @@ pub struct Renderer {
     reflections: Option<reflections::ReflectionCapture>,
     pending_reflections: Option<reflection_queue::Pending>,
     projected: Option<projected::ProjectedCapture>,
+    surface_water: blackbox_gfx::SurfaceWater,
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,
     shadows: Option<shadows::Shadows>,
@@ -286,7 +287,9 @@ impl Renderer {
         targets::plan_scene(&SceneInputs {
             output,
             render,
-            passes: self.post.has_passes() || self.experiments.screen_reflections,
+            passes: self.post.has_passes()
+                || self.experiments.screen_reflections
+                || self.experiments.enhanced_wet_surfaces,
             hdr: self.post.effect_settings().needs_hdr() || self.post.display.is_some(),
             temporal,
             surface_format: format,

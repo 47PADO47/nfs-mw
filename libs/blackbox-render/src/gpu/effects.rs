@@ -26,3 +26,21 @@ impl Renderer {
         self.effects.streak_capacity()
     }
 }
+
+impl Renderer {
+    pub(super) fn encode_soft_effects(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        depth: &wgpu::TextureView,
+        frame: &crate::FrameParams,
+    ) {
+        let soft = SoftDraw {
+            target,
+            depth,
+            globals: &self.shared.bindings.globals_bind_group,
+            inverse_view_proj: self.world_to_clip(frame).inverse(),
+        };
+        self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
+    }
+}

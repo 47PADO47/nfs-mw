@@ -285,6 +285,7 @@ impl CarSim {
             let wheel = self.vehicle.wheel(i);
             Some(crate::scenes::world::vehicle_effects::WaterContact {
                 point: contact.point,
+                normal: contact.normal,
                 surface: self.vehicle.wheel_surface_tag(i)?,
                 slip: wheel.slip,
                 slide: wheel.lateral_speed,

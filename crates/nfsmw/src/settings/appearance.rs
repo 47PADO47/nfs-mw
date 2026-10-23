@@ -130,6 +130,7 @@ impl Settings {
                 self.ao = AoQuality::Off;
             }
             VisualStyle::Enhanced => {
+                self.appearance.lighting.enhanced_wet_surfaces = true;
                 self.visual_treatment = VisualTreatment::Low;
                 self.post_tonemap = PostTonemap::Aces;
                 self.post_aa = PostAa::Smaa;
