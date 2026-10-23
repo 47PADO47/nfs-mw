@@ -11,6 +11,8 @@ use crate::frontend::look::{CarLook, CarRecordRef};
 /// car's name instead. The counter's numbers: the car's place in the list (right aligned, left of the slash) and the list's
 /// length (two copies of each, one per layer).
 const DEBUG_LABEL: u32 = 0x000F_04B1;
+/// The `Funds:` and `Cost:` labels and their values, which the package starts hidden.
+const MONEY_LINES: [u32; 4] = [0x000F_90A5, 0x000F_90A7, 0x000F_90A9, 0x000F_90AB];
 const MAKER_LOGOS: [u32; 2] = [0x000D_E35C, 0x000D_E22C];
 const PLACE_NUMBERS: [u32; 2] = [0x000E_9624, 0x000E_9604];
 const TOTAL_NUMBERS: [u32; 2] = [0x000E_9629, 0x000E_9616];
@@ -20,6 +22,9 @@ const TOTAL_NUMBERS: [u32; 2] = [0x000E_9629, 0x000E_9616];
 pub(super) fn clean_package(cx: &mut Cx, len: usize, cursor: usize) {
     for guid in MAKER_LOGOS.into_iter().chain([DEBUG_LABEL]) {
         show(cx, guid, false);
+    }
+    for guid in MONEY_LINES {
+        show(cx, guid, true);
     }
     let place = if len == 0 { 0 } else { cursor + 1 };
     for guid in PLACE_NUMBERS {

@@ -431,6 +431,8 @@ impl CarLotLogic {
 
 impl ScreenLogic for CarLotLogic {
     fn start(&mut self, cx: &mut Cx) {
+        // The lot opens on the first car the stage lets the player buy, not on a greyed one above it.
+        self.cursor = self.rows().iter().position(|item| !item.locked).unwrap_or(0);
         self.fill(cx);
     }
 
