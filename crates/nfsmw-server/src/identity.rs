@@ -49,7 +49,10 @@ fn create(path: &Path) -> Result<IdentityKey, IdentityError> {
         std::fs::create_dir_all(dir).map_err(write_error)?;
     }
     let mut file = private_file(path).map_err(write_error)?;
-    if let Err(source) = file.write_all(key.secret_bytes().as_slice()).and_then(|()| file.sync_all()) {
+    let written = restrict_to_owner(path)
+        .and_then(|()| file.write_all(key.secret_bytes().as_slice()))
+        .and_then(|()| file.sync_all());
+    if let Err(source) = written {
         // A half-written file would read as a broken key on every later start and block it.
         drop(file);
         let _ = std::fs::remove_file(path);
@@ -60,14 +63,39 @@ fn create(path: &Path) -> Result<IdentityKey, IdentityError> {
 }
 
 /// A new file only the owner can read (the key is a secret). Fails if the file appeared meanwhile. On unix the mode is
-/// 0600; on Windows the std library has no ACL call, so the file keeps the access of its folder (the user's profile
-/// folders are private to the user, administrators and the system).
+/// 0600; on Windows [`restrict_to_owner`] follows.
 fn private_file(path: &Path) -> io::Result<std::fs::File> {
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     options.open(path)
+}
+
+/// Windows: the file keeps the access of its folder, which can include other users. The std library has no ACL call, so
+/// the system's `icacls` drops the inherited access and grants the current user alone. An error means the key must not
+/// be written. Nothing to do elsewhere (the mode of [`private_file`] is enough).
+#[cfg(windows)]
+fn restrict_to_owner(path: &Path) -> io::Result<()> {
+    let user = std::env::var("USERNAME").map_err(|_| io::Error::other("USERNAME is not set"))?;
+    let account = match std::env::var("USERDOMAIN") {
+        Ok(domain) if !domain.is_empty() => format!("{domain}\\{user}"),
+        _ => user,
+    };
+    let output = std::process::Command::new("icacls")
+        .arg(path)
+        .args(["/inheritance:r", "/grant:r"])
+        .arg(format!("{account}:(F)"))
+        .output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(io::Error::other(format!("icacls failed: {}", String::from_utf8_lossy(&output.stdout).trim())))
+}
+
+#[cfg(not(windows))]
+fn restrict_to_owner(_path: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(test)]
@@ -110,6 +138,21 @@ mod tests {
         load_or_create(&path).expect("made");
         let mode = std::fs::metadata(&path).expect("metadata").permissions().mode();
         assert_eq!(mode & 0o077, 0, "no access for group or others: {mode:o}");
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_key_file_is_for_the_current_user_alone() {
+        let dir = temp_dir("acl");
+        let path = dir.join("server.key");
+        load_or_create(&path).expect("made");
+        let listing = std::process::Command::new("icacls").arg(&path).output().expect("icacls");
+        let listing = String::from_utf8_lossy(&listing.stdout).to_lowercase();
+        for group in ["everyone", "builtin\\users", "authenticated users"] {
+            assert!(!listing.contains(group), "{group} can reach the key: {listing}");
+        }
+        assert!(listing.contains(&std::env::var("USERNAME").expect("USERNAME").to_lowercase()), "{listing}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
     }
 }
