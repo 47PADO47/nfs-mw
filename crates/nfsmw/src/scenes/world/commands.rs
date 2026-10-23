@@ -9,6 +9,10 @@ use super::drive::{self, MarkerMeshes};
 use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
+    (
+        "environment clouds <0..1|location> | hour <0..24>",
+        "set the same session weather/time controls as F8 Environment",
+    ),
     ("drive [car]", "get into a car (a car folder or unique prefix); no name: the last one"),
     ("reset", "put the car back on the nearest road, facing the same way"),
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
@@ -69,6 +73,7 @@ pub(super) fn run(
     args: &[&str],
 ) -> Option<Result<String, String>> {
     Some(match name {
+        "environment" => super::environment::command(scene, args),
         "drive" => drive(scene, renderer, args),
         "reset" if args.is_empty() => reset(scene),
         "repair" if args.is_empty() => repair(scene),

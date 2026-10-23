@@ -133,11 +133,9 @@ impl<D> Players<D> {
 
     /// The lead's car and the guests in play at once, for steps that touch both.
     pub fn lead_and_guests_mut(&mut self) -> (Option<&mut D>, Vec<&mut Player<D>>) {
-        let (lead, rest) = match self.list.split_first_mut() {
-            Some((first, rest)) if first.id == LEAD => (Some(&mut first.drive), rest),
-            _ => (None, &mut self.list[..]),
-        };
-        (lead, rest.iter_mut().filter(|p| !p.parked).collect())
+        let lead_count = usize::from(self.list.first().is_some_and(|p| p.id == LEAD));
+        let (lead, rest) = self.list.split_at_mut(lead_count);
+        (lead.first_mut().map(|p| &mut p.drive), rest.iter_mut().filter(|p| !p.parked).collect())
     }
 
     /// Every player's car, the lead first.
@@ -200,6 +198,20 @@ mod tests {
         assert_eq!(players.guests().map(|p| p.drive).collect::<Vec<_>>(), [3], "a parked guest is out of play");
         assert_eq!(players.lead_and_guests_mut().1.len(), 1);
         assert_eq!(players.get(PlayerId(1)), Some(&2), "a parked guest keeps its car");
+    }
+
+    #[test]
+    fn mutable_guests_work_without_a_lead() {
+        let mut players = Players::<u8>::default();
+        let (lead, guests) = players.lead_and_guests_mut();
+        assert!(lead.is_none() && guests.is_empty());
+        players.insert(Player::new(PlayerId(1), 2));
+        let (lead, mut guests) = players.lead_and_guests_mut();
+        assert!(lead.is_none());
+        guests[0].drive = 3;
+        assert_eq!(players.get(PlayerId(1)), Some(&3));
+        players.park(PlayerId(1), true);
+        assert!(players.lead_and_guests_mut().1.is_empty());
     }
 
     #[test]

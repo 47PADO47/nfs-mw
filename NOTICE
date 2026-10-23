@@ -346,3 +346,18 @@ Custom surface response
 GGX, Smith, Schlick and environment importance-sampling theory is described in
 Filament: https://google.github.io/filament/main/filament.html (sections 4.2, 4.4, 4.9, 5.3, 5.6 and 9.2).
 Used as mathematical reference; independently implemented, no source code copied.
+
+Enhanced sky and cloud response
+------------------------------
+Cloud density profiles, weather fields, remapping and multiple-octave scattering adapted from
+SkyGL (MIT), copyright 2026 Ivan Vasiliev:
+https://github.com/kotivas/skygl/tree/edbbb0148091bd85261dec0a2164bc026ff01a3e
+The complete notice is retained in sky_clouds.wgsl. Noise generation and native
+integration are independently implemented; no SkyGL noise or atmosphere source
+was copied. Base/detail texture structure follows Guerrilla's 2015 presentation:
+https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn
+Architecture references also include Hillaire's Sky Atmosphere (MIT):
+https://github.com/sebh/UnrealEngineSkyAtmosphere
+and Godot's shared sky/environment design:
+https://godotengine.org/article/custom-sky-shaders-godot-4-0/
+See docs/enhanced-sky.md for the prototype model and limits.

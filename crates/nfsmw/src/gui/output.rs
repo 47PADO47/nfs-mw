@@ -40,6 +40,12 @@ fn texture_id(id: egui::TextureId) -> UiTextureId {
 pub(super) fn convert(ctx: &egui::Context, mut full: egui::FullOutput, out: &mut UiOutput) {
     let _trace = blackbox_trace::scope("UI: egui tessellation / conversion");
     out.platform_commands.append(&mut full.platform_output.commands);
+    // Nothing drawn and no texture work (no panel is open): an empty layer, without tessellating or allocating.
+    if full.shapes.is_empty() && full.textures_delta.is_empty() {
+        out.layer =
+            Some(UiLayer { compositions: Vec::new(), pixels_per_point: full.pixels_per_point, meshes: Vec::new() });
+        return;
+    }
     for (id, deltas) in &full.textures_delta.set {
         for delta in deltas {
             let ImageData::Color(image) = &delta.image;

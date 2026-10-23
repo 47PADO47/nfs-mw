@@ -86,6 +86,18 @@ impl Runtime {
     /// knows show that text instead of their own.
     pub fn set_string_resolver(&mut self, f: impl Fn(u32) -> Option<String> + Send + Sync + 'static) {
         self.resolver = Some(Arc::new(f));
+        // Every label may read differently now.
+        for (_, running) in &mut self.packages {
+            running.touch();
+        }
+    }
+
+    /// Counts the changes to what [`Runtime::tree`] reads in a package: the same number as last time means the same tree.
+    /// Zero for a package that is not loaded (a loaded package never has revision zero). It moves for every change to
+    /// object data (host setters and script tracks), hidden flags, texts, labels, textures and the string resolver; a
+    /// setter given the value an object already holds does not move it.
+    pub fn revision(&self, id: PackageId) -> u64 {
+        self.running(id).map_or(0, |p| p.revision)
     }
 
     /// Starts running a package and evaluates its `INIT` scripts with zero elapsed ticks, so its first tree

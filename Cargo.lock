@@ -1731,6 +1731,7 @@ dependencies = [
  "bytemuck",
  "cc",
  "env_logger",
+ "foldhash",
  "fsr3-wgpu",
  "glam 0.34.1",
  "half",
@@ -1761,6 +1762,7 @@ dependencies = [
  "blackbox-gfx",
  "blackbox-solid",
  "blackbox-tpk",
+ "bytemuck",
  "glam 0.34.1",
  "log",
 ]
@@ -1796,6 +1798,7 @@ name = "blackbox-solid"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "bytemuck",
  "ea-compress",
  "thiserror 2.0.21",
 ]

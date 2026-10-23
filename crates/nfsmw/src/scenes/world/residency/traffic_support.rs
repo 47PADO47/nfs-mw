@@ -7,8 +7,13 @@ use std::collections::{HashMap, HashSet};
 const MAX_EXTRA: usize = 128;
 const MAX_PENDING: usize = 2;
 
+/// How far the focus, the spawn point or an actor may move before the wanted sections are worked out again, metres.
+const REFRESH_DISTANCE: f32 = 10.0;
+
 #[derive(Default)]
 pub(super) struct TrafficSupport {
+    /// Whether `wanted` is worked out for the current inputs. Cleared by a change of the inputs or of the zone.
+    pub(super) computed: bool,
     focus: Option<(Vec2, f32)>,
     spawn: Vec2,
     actors: Vec<(Vec2, f32)>,
@@ -16,6 +21,22 @@ pub(super) struct TrafficSupport {
     pub(super) resident: HashMap<usize, Vec<u32>>,
     pub(super) pending: HashSet<usize>,
     pub(super) failed: HashSet<usize>,
+}
+
+impl TrafficSupport {
+    /// Whether new inputs are the ones the wanted sections were worked out for, give or take [`REFRESH_DISTANCE`].
+    fn holds_for(&self, focus: Option<(Vec2, f32)>, spawn: Vec2, actors: &[(Vec2, f32)]) -> bool {
+        let near = |a: Vec2, b: Vec2| a.distance_squared(b) <= REFRESH_DISTANCE * REFRESH_DISTANCE;
+        let same_focus = match (self.focus, focus) {
+            (None, None) => true,
+            (Some((a, ra)), Some((b, rb))) => ra == rb && near(a, b),
+            _ => false,
+        };
+        same_focus
+            && near(self.spawn, spawn)
+            && self.actors.len() == actors.len()
+            && self.actors.iter().zip(actors).all(|(a, b)| a.1 == b.1 && near(a.0, b.0))
+    }
 }
 
 impl Residency {
@@ -26,13 +47,30 @@ impl Residency {
         range: f32,
         actors: Vec<(Vec2, f32)>,
     ) {
-        self.traffic_support.focus =
-            (range.is_finite() && range > 0.0).then_some((Vec2::from_array(focus), range.min(1600.0)));
-        self.traffic_support.spawn = Vec2::from_array(spawn);
-        self.traffic_support.actors = actors;
+        let focus = (range.is_finite() && range > 0.0).then_some((Vec2::from_array(focus), range.min(1600.0)));
+        let spawn = Vec2::from_array(spawn);
+        let support = &mut self.traffic_support;
+        // The inputs are given every frame. Drift under a few metres keeps the sections worked out for the inputs
+        // before it, so the comparison is always with the last inputs that were used.
+        if support.computed && support.holds_for(focus, spawn, &actors) {
+            return;
+        }
+        support.focus = focus;
+        support.spawn = spawn;
+        support.actors = actors;
+        support.computed = false;
     }
 
     pub(super) fn update_traffic_support(&mut self) {
+        if !self.traffic_support.computed {
+            self.traffic_support.computed = true;
+            self.refresh_traffic_wanted();
+        }
+        self.request_traffic_collision();
+    }
+
+    /// Works out the sections to hold collision for, and frees the collision of those no longer wanted.
+    fn refresh_traffic_wanted(&mut self) {
         let support = &mut self.traffic_support;
         let mut candidates = Vec::new();
         for (index, section) in self.sections.iter().take(self.mod_base).enumerate() {
@@ -58,6 +96,13 @@ impl Residency {
         for index in expired {
             self.release_traffic_collision(index);
         }
+        // Failed sections can retry after leaving and re-entering their support region.
+        let support = &mut self.traffic_support;
+        support.failed.retain(|i| support.wanted.contains(i));
+    }
+
+    /// Asks for the collision of the wanted sections that are not loaded or on their way.
+    fn request_traffic_collision(&mut self) {
         let support = &mut self.traffic_support;
         let mut missing: Vec<_> = support
             .wanted
@@ -89,8 +134,6 @@ impl Residency {
             support.pending.insert(index);
             self.streamer.request_collision(index);
         }
-        // Failed sections can retry after leaving and re-entering their support region.
-        support.failed.retain(|i| support.wanted.contains(i));
     }
 
     pub(super) fn receive_traffic_collision(&mut self, index: usize, result: Result<Vec<CollisionPack>, String>) {

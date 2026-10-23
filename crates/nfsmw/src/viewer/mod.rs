@@ -190,6 +190,12 @@ pub trait Scene {
     fn ui(&mut self, _ctx: &egui::Context) -> f32 {
         0.0
     }
+    /// Whether [`Scene::ui`] would draw anything this frame. The UI pass is skipped on frames where no scene or
+    /// developer panel is up, so a scene with conditional panels says here when none is. The default, `true`, keeps
+    /// the pass running for every scene that does not say.
+    fn wants_ui(&self) -> bool {
+        true
+    }
     /// Extra text for the window title (streaming progress, counts).
     fn status(&self) -> Option<String> {
         None

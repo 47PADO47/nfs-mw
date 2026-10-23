@@ -52,6 +52,7 @@ impl Paint {
             alpha_usage: AlphaUsage::None,
             alpha_sorting: false,
             alpha_blend: 0,
+            flags: 0,
             // A8R8G8B8 is stored B, G, R, A. The game keeps the gloss in alpha for the car
             // shader; drawn opaque here.
             data: [b, g, r, 0xFF].repeat(texels),

@@ -159,6 +159,7 @@ fn upload(backend: &mut dyn RenderBackend) -> (TextureHandle, MeshHandle) {
         texture: Some(texture),
         blend: BlendMode::Opaque,
         shading: Shading::Prelit,
+        two_sided: true,
     };
     let mesh = backend.create_mesh(&MeshDesc {
         secondary_uvs: None,

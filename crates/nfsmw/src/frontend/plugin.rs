@@ -1,7 +1,5 @@
 //! The Bevy side of the front end: drives the flow every frame and draws the screens.
 
-use std::sync::Arc;
-
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::*;
@@ -14,25 +12,30 @@ use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::runtime::pad;
 use game_install::GameDir;
+use glam::Vec2;
 
 use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
-use super::logic::Env;
+use super::logic::{Command, Env};
 use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
-use super::plugin_press::{Press, press_at};
 use super::pointer::{self, feng_point};
-use super::screens::{Presented, Screens};
+use super::screens::{MenuLayers, Presented};
 use super::script::{self, UiScript};
 use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
-use crate::input::{Action, ActionState, Bindings, InputPresentation, MouseCapture};
+use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
 use crate::ui::theme::remastered::MapSnapshot;
 use crate::ui::theme::{ElementId, UiThemes, slot_layer};
-use crate::ui::{Catalog, Presenter, SCREEN_FILES, SharedAssets};
+use crate::ui::{Presenter, SharedAssets};
+
+#[path = "plugin_pointer.rs"]
+mod pointer_input;
+pub use pointer_input::map_pointer_on_picture;
+use pointer_input::{Press, press_at};
 
 /// Longest step the screens' clock takes, so a stall does not skip animations.
 const MAX_STEP: f32 = 0.1;
@@ -57,44 +60,19 @@ impl Plugin for FrontendPlugin {
     fn build(&self, app: &mut App) {
         super::jukebox::prime(&self.dir);
         super::credits::prime(&self.dir);
-        let Some(assets) = crate::ui::ensure(app, &self.dir) else { return };
-        let catalog = Catalog::load(&self.dir, &SCREEN_FILES);
-        let screens = Screens::new(catalog, assets);
-        let mut frontend = Frontend::new(screens, self.dir.clone(), self.start.clone(), self.script.clone());
-        frontend.browse = self.browse.clone();
-        frontend.career = self.career.clone();
-        frontend.camera = self.camera.clone();
-        if let Some(look) = &self.look {
-            frontend.look = look.clone();
-            frontend.look_override = Some(look.clone());
-        }
-        app.insert_resource(frontend)
-            .init_resource::<WorldMapOverlay>()
+        // The screens and the UI assets load on background threads, so the window opens at once. The systems below wait
+        // for what they draw with (`pending.rs`).
+        super::pending::install(app, self);
+        let ready = resource_exists::<Frontend>;
+        app.init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .init_resource::<TypedKeys>()
-            .add_systems(Update, collect_typed.before(update))
-            .add_systems(Update, update.in_set(FrameSet::Frontend))
-            .add_systems(Update, present.in_set(FrameSet::Hud))
-            .add_systems(Update, pointer::apply);
+            .add_systems(Update, collect_typed.before(update).run_if(ready))
+            .add_systems(Update, update.in_set(FrameSet::Frontend).run_if(ready))
+            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
+            .add_systems(Update, pointer::apply.run_if(resource_exists::<SharedAssets>));
         super::lan::build(app);
     }
-}
-
-/// Whether the pointer is over the world map's picture, where the map draws its own cross cursor. Outside it (the
-/// buttons, the list) the system pointer shows, so it can click. `app::cursor::update` owns the pointer's visibility
-/// and asks this.
-pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
-    let map_on_top = matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
-    if !map_on_top {
-        return false;
-    }
-    // The themed full-screen map draws its own cursor over the whole window.
-    if fe.map_chrome == Chrome::Drawn {
-        return true;
-    }
-    feng_point(window)
-        .map(layout::view_of)
-        .is_some_and(|view| (0.0..=1.0).contains(&view[0]) && (0.0..=1.0).contains(&view[1]))
 }
 
 /// What the world map needs, grouped so the frame system stays within Bevy's parameter limit.
@@ -417,15 +395,13 @@ fn present(
     input: Res<InputPresentation>,
     themes: Res<UiThemes>,
     time: Res<Time>,
+    mut layers: Local<MenuLayers>,
 ) {
     let _trace = blackbox_trace::scope("Frontend: present");
     let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
     // The presenter puts what it draws below what is already there, so the top screen goes first.
     let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
     let frame = themes.frame();
-    for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu()) {
-        frame.clear_menu(slot.slot());
-    }
     let lists = themes.menu_lists();
     lists.clear();
     let time_s = time.elapsed_secs();
@@ -442,7 +418,8 @@ fn present(
         }
     }
     let mut claimed: Vec<ElementId> = Vec::new();
-    for Presented { tree, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
+    let reusable = themes.menus_are_static();
+    for Presented { tree, serial, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
         // The themed full-screen map replaces the FEng map screen, in its place in the stack (a dialog over it stays on top).
         if chrome == Chrome::Drawn && name.eq_ignore_ascii_case(super::ids::screen::WORLD_MAP) {
             presenter.0.present(&slot_layer(&themes, ElementId::WorldMapChrome, time_s), &assets.0, screen, &mut out);
@@ -455,11 +432,18 @@ fn present(
                 if let Some(list) = list {
                     lists.set(slot.slot(), list);
                 }
-                frame.set_menu(slot.slot(), Arc::new(tree));
-                slot_layer(&themes, slot, time_s)
+                frame.set_menu(slot.slot(), tree);
+                // Under the Original theme the layer is the screen's tree, so it is composed again only for a new tree.
+                layers.layer(slot, serial, reusable, || slot_layer(&themes, slot, time_s))
             }
             _ => tree,
         };
         presenter.0.present(&layer, &assets.0, screen, &mut out);
+    }
+    // A closed screen leaves no tree behind: the menu slots no screen took this frame are emptied (a slot that is not
+    // set leaves the cell, and its generation, as it was).
+    layers.keep_only(&claimed);
+    for slot in ElementId::ALL.iter().filter(|slot| slot.is_menu() && !claimed.contains(slot)) {
+        frame.clear_menu(slot.slot());
     }
 }

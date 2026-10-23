@@ -11,6 +11,7 @@ publish.workspace = true
 blackbox-gfx.workspace = true
 blackbox-solid.workspace = true
 blackbox-tpk.workspace = true
+bytemuck.workspace = true
 glam.workspace = true
 log.workspace = true
 

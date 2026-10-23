@@ -68,7 +68,7 @@ pub(super) fn hotkeys(
 
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     ui.horizontal_wrapped(|ui| {
-        ui.label("Quality preset:");
+        ui.label("Overall quality:").on_hover_text("Changes shadow, AO and reflection budgets. Keeps the selected visual style, output resolution and optional reflection caching.");
         for (label, preset) in [
             ("Low · 1", Quality::Low),
             ("Balanced · 2", Quality::Balanced),
@@ -80,7 +80,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             }
             let native = super::view::blackbox(lab, settings);
             let mut expected = *settings;
-            expected.select_graphics_quality(preset);
+            expected.select_overall_quality(preset);
             if ui
                 .selectable_label(*settings == expected, label)
                 .on_hover_text(match (native, preset) {
@@ -102,13 +102,18 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             }
         }
     });
-    ui.collapsing("Compare / experiments", |ui| {
+    if super::view::blackbox(lab, settings) && settings.car_shading == crate::settings::CarShading::Glossy {
+        ui.small("Reflection range: Low 100 m · Balanced 200 m · High 300 m · Very High 500 m. Fine tuning: Materials → Reflection capture settings.");
+    }
+    ui.collapsing("Comparison tools", |ui| {
         if ui.button("Restore startup · 0").clicked() {
             lab.restore_startup(settings);
         }
         if lab.tab == profiles::Tab::Lighting && super::view::blackbox(lab, settings) {
             ui.horizontal_wrapped(|ui| {
-                ui.label("Lighting presets:");
+                ui.label("Lighting comparisons:").on_hover_text(
+                    "Diagnostic lighting combinations for A/B checks; these are not rendering-quality presets.",
+                );
                 for (name, preset) in [
                     ("Off", "baseline"),
                     ("Sky", "ambient"),
@@ -184,6 +189,8 @@ pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
     settings.car_shading = snapshot.car_shading;
     settings.shadows = snapshot.shadows;
     settings.reflections = snapshot.reflections;
+    settings.reflection_extra.distance = snapshot.reflection_extra.distance;
+    settings.reflection_cube_size = snapshot.reflection_cube_size;
     settings.texture_filtering = snapshot.texture_filtering;
     settings.road_reflections = snapshot.road_reflections;
     settings.road_reflection_resolution = snapshot.road_reflection_resolution;

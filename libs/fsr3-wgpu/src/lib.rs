@@ -11,6 +11,7 @@
 //! [`Fsr3Context::dispatch`] with the colour, depth and motion vectors; the upscaler accumulates the
 //! jittered frames into an image at the output resolution.
 
+mod bind_groups;
 mod config;
 mod constants;
 mod context;

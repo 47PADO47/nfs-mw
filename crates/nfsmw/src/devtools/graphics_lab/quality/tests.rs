@@ -2,7 +2,7 @@ use super::*;
 use crate::settings::{Partial, Percent, RenderScale, VisualStyle};
 
 #[test]
-fn enhanced_high_matches_the_supplied_reference_controls() {
+fn enhanced_high_keeps_quality_controls_and_calibrated_indirect_balance() {
     let mut settings = Settings::from(Partial::default());
     settings.ao_compare = true;
     settings.post_bloom = PostBloom::High;
@@ -20,7 +20,7 @@ fn enhanced_high_matches_the_supplied_reference_controls() {
     assert_eq!(options.shadow_resolution, 4096);
     assert_eq!(options.shadow_distance, 320.0);
     assert_eq!((options.shadow_filter, options.sun_angle, options.contact_length), (1.0, 0.55, 0.8));
-    assert_eq!((options.sky_strength, options.ground_strength), (0.76, 1.12));
+    assert_eq!((options.sky_strength, options.ground_strength), (0.85, 0.45));
     assert_eq!(settings.reflections, ReflectionQuality::High);
     assert_eq!(settings.ao, AoQuality::High);
     assert_eq!(settings.ao_intensity, Percent(80));

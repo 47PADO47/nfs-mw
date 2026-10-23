@@ -17,6 +17,8 @@ pub enum GraphicsSetting {
     Hdr,
     Style,
     Quality,
+    ShadowPreset,
+    ReflectionPreset,
     Preset,
     CarShading,
     WorldDetail,
@@ -44,10 +46,12 @@ pub enum GraphicsSetting {
 }
 
 impl GraphicsSetting {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 29] = [
         Self::Hdr,
         Self::Style,
         Self::Quality,
+        Self::ShadowPreset,
+        Self::ReflectionPreset,
         Self::Preset,
         Self::CarShading,
         Self::WorldDetail,
@@ -76,6 +80,8 @@ impl GraphicsSetting {
 
     pub fn shown(self, caps: &Capabilities) -> bool {
         match self {
+            Self::ShadowPreset => Self::Shadows.shown(caps),
+            Self::ReflectionPreset => caps.local_reflections,
             Self::Shadows => {
                 caps.soft_shadows || (caps.renderer == "blackbox" && caps.api != blackbox_gfx::GraphicsApi::Gl)
             }
@@ -109,6 +115,7 @@ impl GraphicsSetting {
 
     pub fn enabled(self, s: &Settings) -> bool {
         match self {
+            Self::ReflectionPreset => s.car_shading != CarShading::Simple,
             Self::ShadowResolution => s.appearance.lighting.sun_shadows,
             Self::ShadowDistance => {
                 s.appearance.lighting.sun_shadows && s.appearance.lighting.shadow_projection.is_none()
@@ -125,6 +132,7 @@ impl GraphicsSetting {
             Self::Style
             | Self::Hdr
             | Self::Quality
+            | Self::ShadowPreset
             | Self::Preset
             | Self::CarShading
             | Self::WorldDetail
@@ -141,7 +149,9 @@ impl GraphicsSetting {
         Title::Text(match self {
             Self::Hdr => "HDR Output (Auto / On / Off)",
             Self::Style => "Visual Style",
-            Self::Quality => "Graphics Quality",
+            Self::Quality => "Overall Quality",
+            Self::ShadowPreset => "Shadow Quality",
+            Self::ReflectionPreset => "Reflection Quality",
             Self::Preset => "Graphics Preset",
             Self::CarShading => "Car Shading",
             Self::WorldDetail => "World Level of Detail",
@@ -163,13 +173,16 @@ impl GraphicsSetting {
             Self::MirrorSize => "Mirror Reflection Size",
             Self::MirrorTint => "Mirror Tint",
             Self::FeShadows => "Front-End Shadows",
-            Self::AmbientOcclusion => "Ambient Occlusion (Experimental)",
+            Self::AmbientOcclusion => "Ambient Occlusion",
             Self::AoIntensity => "AO Intensity",
             Self::AoComparison => "AO Comparison",
         })
     }
 
     pub fn data(self, s: &Settings) -> Data {
+        if let Some(data) = super::feature_presets::data(self, s) {
+            return data;
+        }
         if self == Self::TextureFiltering {
             return Data::Text(s.texture_filtering.label().into());
         }
@@ -224,8 +237,9 @@ impl GraphicsSetting {
                     crate::settings::appearance::display::DisplayMode::Auto => "Auto",
                     crate::settings::appearance::display::DisplayMode::On => "On",
                 },
+                Self::ShadowPreset | Self::ReflectionPreset => unreachable!("feature preset handled above"),
                 Self::Style => s.visual_style().label(),
-                Self::Quality => s.appearance.quality.label(),
+                Self::Quality => s.overall_quality().map_or("Custom", |q| q.label()),
                 Self::Preset => match s.graphics_preset {
                     GraphicsPreset::Custom => "Custom",
                     GraphicsPreset::Low => "Low",
@@ -291,6 +305,9 @@ impl GraphicsSetting {
             return false;
         }
         let before = *s;
+        if super::feature_presets::step(self, s, changed, forward) {
+            return before != *s;
+        }
         match self {
             Self::ShadowResolution | Self::ShadowDistance | Self::ShadowCasters => {
                 let lighting = &mut s.appearance.lighting;
@@ -332,9 +349,10 @@ impl GraphicsSetting {
                     s.appearance.quality,
                     forward,
                 );
-                s.select_graphics_quality(next);
+                s.select_overall_quality(next);
                 *changed = s.appearance_layer().or(*changed);
             }
+            Self::ShadowPreset | Self::ReflectionPreset => unreachable!("feature preset handled above"),
             Self::Preset => {
                 let all = GraphicsPreset::ALL;
                 let at = all.iter().position(|p| *p == s.graphics_preset).unwrap_or(0);
@@ -437,8 +455,11 @@ impl GraphicsSetting {
                     true => 1,
                     false => AoQuality::ALL.len() - 1,
                 };
-                s.ao = AoQuality::ALL[(at + offset) % AoQuality::ALL.len()];
+                s.select_ao_budget(AoQuality::ALL[(at + offset) % AoQuality::ALL.len()]);
                 changed.ao = Some(s.ao);
+                changed.ao_method = Some(s.ao_method);
+                changed.ao_intensity = Some(s.ao_intensity);
+                changed.ao_depth_mips = Some(s.ao_depth_mips);
             }
             Self::AoIntensity => {
                 s.ao_intensity = Percent(match forward {

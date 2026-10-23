@@ -8,6 +8,12 @@ pub struct Feature {
 }
 pub const FEATURES: &[Feature] = &[
     Feature {
+        name: "Sky and clouds",
+        origin: "Authored PC layers or independent Enhanced atmosphere and cloud volume on native",
+        coverage: "Partial / enhancement",
+        gap: "Full night lighting, cloud shadows on scenery and Bevy Enhanced sky",
+    },
+    Feature {
         name: "World / car geometry detail",
         origin: "Adaptive scenery slots with fixed reference projection; full texture mips; car LOD A",
         coverage: "Partial / custom budgets",
@@ -69,7 +75,7 @@ pub const FEATURES: &[Feature] = &[
     },
     Feature {
         name: "Ambient lighting / clearcoat / AO",
-        origin: "Custom Glossy car probe/coat, legacy prelit world ambient and GTAO",
+        origin: "Enhanced car environment light/material coat, legacy prelit world ambient and GTAO",
         coverage: "Enhancement",
         gap: "Car terms bypass Original/Simple; authored world families bypass legacy ambient; not original parity",
     },

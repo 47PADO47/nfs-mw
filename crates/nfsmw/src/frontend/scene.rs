@@ -12,7 +12,7 @@ use game_install::GameDir;
 use nfsmw_data::car::{CarModel, LoadOptions};
 
 use super::camera_rig::CameraRig;
-use super::look::{CarLook, Look};
+use super::look::Look;
 use super::room::Room;
 use super::stage::CAR_STAND;
 use crate::input::ActionState;
@@ -23,11 +23,8 @@ use crate::settings::CarShading;
 use crate::settings::fe_shadows;
 use crate::viewer::Scene;
 
-/// The car the menus show: the career-start M3 GTR, a preset of the `BMWM3GTRE46` car type with its livery and
-/// spoiler, as the original's menu shows it. [ours] The original shows it on a platform stage
-/// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); here it stands on the car viewer's floor.
-const MENU_CAR: &str = "BMWM3GTRE46";
-const MENU_PRESET: &str = "M3GTRCAREERSTART";
+use self::build::{Build, Staged};
+
 /// Seconds the camera takes to settle on the menu pose after the menus come up. The original's camera mover runs
 /// its moves for 0.5 s (a constant read from the executable); its shots are not read yet, so this one shot is ours.
 const INTRO_SECONDS: f32 = 0.5;
@@ -56,6 +53,8 @@ pub struct MenuScene {
     rig: CameraRig,
     /// Seconds since the menus came up, until the intro is over.
     intro: f32,
+    /// The car and the room being read and uploaded (`backdrop_build.rs`); the backdrop is ready when it is done.
+    build: Build,
 }
 
 impl MenuScene {
@@ -81,23 +80,63 @@ impl MenuScene {
 }
 
 impl MenuScene {
-    /// The car the look shows, assembled from the install: the main look's career-start GTR, or the look's own car. A car
-    /// that cannot be loaded gives way to the default car; with that missing too, `None` leaves the flat backdrop.
-    fn load_car(&self, dir: &GameDir) -> Option<(CarModel, LoadOptions)> {
-        let (car, preset) = match &self.look {
-            Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
-            Look::Car(look) | Look::SafeHouse(look) | Look::Showcase(look) => look.resolve(dir),
-        };
-        let default = CarLook::default_car();
-        let attempts = [(car, preset), (default.car, default.preset)];
-        for (car, preset) in attempts {
-            let options = LoadOptions { lod: 'A', all_parts: false, preset };
-            match nfsmw_data::car::load(dir, &car, &options) {
-                Ok(model) => return Some((model, options)),
-                Err(e) => log::warn!("the menu backdrop has no car ({car}): {e:#}"),
-            }
+    /// Takes what the worker read: the room is uploaded now, the car on the next update. A worker that panicked, or found
+    /// no car, leaves the flat backdrop.
+    fn staged(&mut self, renderer: &mut dyn RenderBackend, staged: Staged) {
+        let Some((model, options)) = staged.car else { return };
+        self.room = staged.room.map(|data| Room::upload(renderer, &data));
+        self.build = Build::Car(Box::new(model), options);
+    }
+
+    /// Uploads the car and starts its camera.
+    fn upload_car(&mut self, renderer: &mut dyn RenderBackend, model: CarModel, options: LoadOptions) {
+        let Some(dir) = self.dir.clone() else { return };
+        if let Some(intro) = self.look.camera_intro() {
+            self.rig.begin(&dir, self.look.stage(), intro);
         }
-        None
+        let mut car = CarScene::new(model, 0.0).with_source(dir, options);
+        car.set_car_shading(self.shading);
+        // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
+        car.placeholder_floor = self.room.is_none();
+        car.stand_on(CAR_STAND.yaw, CAR_STAND.sink);
+        if let Err(e) = car.init(renderer) {
+            log::warn!("the menu backdrop has no car: {e:#}");
+            car.close(renderer);
+            return;
+        }
+        let camera = car.camera_mut();
+        self.rest = (camera.yaw, camera.distance);
+        // With the front end's camera there is no intro of the orbit camera: the camera's own intro is the one.
+        self.intro = if self.uses_rig() { INTRO_SECONDS } else { 0.0 };
+        self.car = Some(car);
+    }
+
+    /// One step of the build, never blocking: takes the worker's result once it is done, then uploads the room, then the
+    /// car, a step a frame.
+    fn advance(&mut self, renderer: &mut dyn RenderBackend) {
+        match std::mem::take(&mut self.build) {
+            Build::Idle => {}
+            Build::Reading(worker) => {
+                if !worker.is_finished() {
+                    self.build = Build::Reading(worker);
+                    return;
+                }
+                match worker.join() {
+                    Ok(staged) => self.staged(renderer, staged),
+                    Err(_) => log::warn!("the menu backdrop worker panicked"),
+                }
+            }
+            Build::Car(model, options) => self.upload_car(renderer, *model, options),
+        }
+    }
+
+    /// Builds the whole backdrop now, waiting for the worker (tests that need the car in place).
+    #[cfg(test)]
+    pub fn settle(&mut self, renderer: &mut dyn RenderBackend) {
+        while self.build.pending() {
+            self.advance(renderer);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }
 
@@ -135,36 +174,16 @@ impl Scene for MenuScene {
         "nfsmw".to_owned()
     }
 
-    fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+    /// Starts reading the car and the room on a worker; `update` uploads them as they arrive. Until then the backdrop is flat.
+    fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         let Some(dir) = self.dir.clone() else { return Ok(()) };
-        let Some((model, options)) = self.load_car(&dir) else { return Ok(()) };
-        let stage = self.look.stage();
-        let room = match Room::load(renderer, &dir, stage) {
-            Ok(room) => Some(room),
-            Err(e) => {
-                log::warn!("the menu room is not drawn: {e:#}");
-                None
-            }
-        };
-        if let Some(intro) = self.look.camera_intro() {
-            self.rig.begin(&dir, stage, intro);
-        }
-        let mut car = CarScene::new(model, 0.0).with_source(dir, options);
-        car.set_car_shading(self.shading);
-        // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
-        car.placeholder_floor = room.is_none();
-        car.stand_on(CAR_STAND.yaw, CAR_STAND.sink);
-        car.init(renderer)?;
-        let camera = car.camera_mut();
-        self.rest = (camera.yaw, camera.distance);
-        // With the front end's camera there is no intro of the orbit camera: the camera's own intro is the one.
-        self.intro = if self.uses_rig() { INTRO_SECONDS } else { 0.0 };
-        self.car = Some(car);
-        self.room = room;
+        self.build = Build::start(dir, self.look.clone());
         Ok(())
     }
 
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        // A worker still reading is left to finish; its result is dropped with the handle.
+        self.build = Build::Idle;
         if let Some(mut car) = self.car.take() {
             car.close(renderer);
         }
@@ -180,6 +199,7 @@ impl Scene for MenuScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.advance(renderer);
         let Some(car) = &mut self.car else { return };
         if self.look.camera_intro().is_some() && self.rig.advance(dt) {
             return car.update(renderer, &ActionState::default(), dt);
@@ -199,6 +219,11 @@ impl Scene for MenuScene {
         car.update(renderer, &ActionState::default(), dt);
     }
 
+    /// Not ready until the car and the room are uploaded, so a screenshot waits for the backdrop.
+    fn ready(&self) -> bool {
+        !self.build.pending()
+    }
+
     fn radio_on_menus(&self) -> bool {
         true
     }
@@ -210,6 +235,7 @@ impl Scene for MenuScene {
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let options = fe_shadows::active();
         let Self { car, room, parts, rig, look, .. } = self;
+        let has_car = car.is_some();
         let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
@@ -222,8 +248,9 @@ impl Scene for MenuScene {
         parts.clear();
         // The renderer wants instances of one mesh next to each other, and draws blended parts in the order it is given
         // them. The room has one instance per mesh and keeps its own order (`Room::instances`); the car's parts are
-        // already grouped by mesh. The room goes first, so the car's glass blends over its floor.
-        if let Some(room) = room {
+        // already grouped by mesh. The room goes first, so the car's glass blends over its floor. The room is drawn from
+        // the car's camera, so it waits for the car.
+        if let Some(room) = room.as_ref().filter(|_| has_car) {
             parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
         }
         parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
@@ -314,6 +341,9 @@ impl Pausable {
         self.conceal.get()
     }
 }
+
+#[path = "backdrop_build.rs"]
+mod build;
 
 #[path = "pausable_scene.rs"]
 mod forwarding;

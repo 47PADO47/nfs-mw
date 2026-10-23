@@ -68,12 +68,12 @@ pub(super) use predict::DriveSave;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
-pub(super) use sim::CarSim;
 use sim::Telemetry;
 pub(super) use sim::memo::{StepMemo, SurfaceHit};
 pub(super) use sim::pair_contact::PairContact;
 #[cfg(feature = "multiplayer")]
 pub(super) use sim::predict::SimMotion;
+pub(super) use sim::{CarSim, Integration, StepStart};
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;
 #[cfg(test)]

@@ -141,6 +141,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
             texture: Some(diffuse),
             blend,
             shading: Shading::WorldNormal(material),
+            two_sided: true,
         }],
     });
     let scattering = f.fog.then_some(Scattering {

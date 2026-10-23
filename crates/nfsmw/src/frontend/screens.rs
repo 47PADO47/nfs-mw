@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::BUTTON_PRESSED;
-use blackbox_feng::{Outgoing, PackageId, Runtime, UiTree};
+use blackbox_feng::{Outgoing, PackageId, Runtime};
 use glam::Vec2;
 
 use super::confirm::{AlertLogic, ConfirmLogic};
@@ -16,15 +16,22 @@ use super::ids::screen::DIALOG;
 use super::logic::{Args, Command, Cx, Env, Pick, ScreenLogic};
 use super::look::Look;
 use super::world_map::WorldMapFrame;
-use crate::ui::theme::remastered::menu::layout as menu_layout;
-use crate::ui::theme::{DEFAULT_ASPECT, ElementId, MenuList};
+use crate::ui::theme::{DEFAULT_ASPECT, ElementId};
 use crate::ui::{Catalog, UiAssets};
 
 mod command;
+mod layers;
+mod load;
 mod pose;
+mod shown;
+#[cfg(test)]
+mod shown_tests;
 mod start;
 mod text;
 mod vertical;
+
+pub use layers::MenuLayers;
+pub use shown::Presented;
 
 struct Screen {
     id: PackageId,
@@ -36,16 +43,8 @@ struct Screen {
     look: Option<Look>,
     /// The pose the screen asks the camera for (`factory::pose_for`), or `None` when it keeps the camera where it is.
     pose: Option<&'static str>,
-}
-
-/// One stack screen's tree for the frame, with the menu slot it is drawn for.
-pub struct Presented {
-    pub tree: UiTree,
-    pub slot: Option<ElementId>,
-    /// The screen's entries, for a theme that lays them out itself (icon menus only).
-    pub list: Option<MenuList>,
-    /// The screen's file name.
-    pub name: String,
+    /// The decorated tree of the last frame, kept while the screen does not change (`screens/shown.rs`).
+    shown: shown::Shown,
 }
 
 pub struct Screens {
@@ -178,7 +177,8 @@ impl Screens {
             name: &file_name,
         };
         logic.start(&mut cx);
-        self.stack.push(Screen { id, name: file_name, logic, slot, look, pose });
+        let shown = shown::Shown::default();
+        self.stack.push(Screen { id, name: file_name, logic, slot, look, pose, shown });
         self.await_release = true;
         self.give_control();
         commands
@@ -335,36 +335,6 @@ impl Screens {
         rest
     }
 
-    /// The trees to draw, lowest screen first.
-    pub fn trees(&self) -> Vec<UiTree> {
-        self.stack.iter().map(|s| self.runtime.tree(s.id)).collect()
-    }
-
-    /// The trees to draw this frame, lowest first, each with its menu slot. The decorated trees are what the presenter
-    /// gets, so the menu cell (`ui/theme/original/frame.rs`) holds the same ones.
-    pub fn presented(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<Presented> {
-        let mut trees = self.trees();
-        for (tree, screen) in trees.iter_mut().zip(&self.stack) {
-            super::prompts::decorate(tree, &screen.name, screen.logic.footer(), bindings, device, &self.assets);
-        }
-        trees
-            .into_iter()
-            .zip(&self.stack)
-            .map(|(tree, screen)| Presented {
-                tree,
-                slot: screen.slot,
-                list: self.list_of(screen, bindings, device),
-                name: screen.name.clone(),
-            })
-            .collect()
-    }
-
-    /// The trees alone, lowest first (the tests read them; the presenter takes [`Self::presented`]).
-    #[cfg(test)]
-    pub fn presented_trees(&self, bindings: &crate::input::Bindings, device: crate::input::InputDevice) -> Vec<UiTree> {
-        self.presented(bindings, device).into_iter().map(|presented| presented.tree).collect()
-    }
-
     /// Posts a message straight to an object of the top screen (a mouse click, a hot key).
     pub fn post_to_top(&mut self, name_hash: u32, message: u32) {
         let Some(top) = self.stack.last() else { return };
@@ -434,23 +404,6 @@ impl Screens {
             return Vec::new();
         };
         self.apply_stack_commands(commands, env)
-    }
-
-    /// The footer hint of the top screen under a point that a click presses, as the screen draws it now.
-    pub fn hint_at(
-        &self,
-        point: Vec2,
-        bindings: &crate::input::Bindings,
-        device: crate::input::InputDevice,
-    ) -> Option<crate::input::Action> {
-        let top = self.stack.last()?;
-        if top.logic.vertical() {
-            let list = self.list_of(top, bindings, device)?;
-            return menu_layout::hint_at(&list.hints, point, self.aspect);
-        }
-        let mut tree = self.runtime.tree(top.id);
-        let hints = super::prompts::decorate(&mut tree, &top.name, top.logic.footer(), bindings, device, &self.assets);
-        hints.iter().find(|h| h.covers(point)).map(|h| h.action)
     }
 
     /// Runs `act` on the top screen's logic with its context, and returns what it queued with its answer.

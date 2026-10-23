@@ -123,4 +123,4 @@ fsr3 = ["renderer-bevy", "blackbox-bevy-render/fsr3"]
 workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", default-features = false, features = ["Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading"] }
+windows = { version = "0.62", default-features = false, features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading"] }

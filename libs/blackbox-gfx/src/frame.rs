@@ -67,22 +67,44 @@ pub struct Instance {
     pub key: InstanceKey,
     /// Whether it casts and receives the sun's shadow. A renderer without shadows ignores this.
     pub shadow: ShadowFlags,
+    /// The mesh's triangles are wound the other way round in this placement, beyond what a mirroring `transform`
+    /// already does: data that stores a mirrored copy with the mirror baked into its vertices. See
+    /// [`Instance::mirrored`].
+    pub flip_winding: bool,
 }
 
 impl Instance {
     /// An instance with no identity ([`InstanceKey::TRANSIENT`]).
     pub const fn new(mesh: MeshHandle, transform: Mat4) -> Self {
-        Self { mesh, transform, key: InstanceKey::TRANSIENT, shadow: ShadowFlags { cast: true, receive: true } }
+        Self {
+            mesh,
+            transform,
+            key: InstanceKey::TRANSIENT,
+            shadow: ShadowFlags { cast: true, receive: true },
+            flip_winding: false,
+        }
     }
 
     /// An instance that keeps `key` from frame to frame.
     pub const fn keyed(mesh: MeshHandle, transform: Mat4, key: InstanceKey) -> Self {
-        Self { mesh, transform, key, shadow: ShadowFlags { cast: true, receive: true } }
+        Self { mesh, transform, key, shadow: ShadowFlags { cast: true, receive: true }, flip_winding: false }
     }
 
     /// The same instance with these shadow flags.
     pub const fn with_shadow(self, shadow: ShadowFlags) -> Self {
         Self { shadow, ..self }
+    }
+
+    /// The same instance with [`Instance::flip_winding`] set to `flip`.
+    pub const fn with_flipped_winding(self, flip: bool) -> Self {
+        Self { flip_winding: flip, ..self }
+    }
+
+    /// Whether this placement shows the mesh's back faces where its front faces would be: a `transform` that
+    /// mirrors (negative determinant), or [`Instance::flip_winding`], but not both. Single-sided draws
+    /// ([`crate::DrawRange::two_sided`]) of a mirrored instance keep the faces wound clockwise instead.
+    pub fn mirrored(&self) -> bool {
+        (self.transform.determinant() < 0.0) != self.flip_winding
     }
 }
 
@@ -189,6 +211,12 @@ impl FrameParams {
         self.projection.matrix() * self.view
     }
 
+    /// Whether the view mirrors the world (negative determinant), as a reflection does: every triangle's winding
+    /// is reversed on screen, so a single-sided draw keeps its clockwise faces instead.
+    pub fn mirrored_view(&self) -> bool {
+        self.view.determinant() < 0.0
+    }
+
     /// The fog distances in the form shaders read them: no fog is `f32::MAX` for both.
     pub fn fog_range(&self) -> [f32; 2] {
         match self.fog {
@@ -255,6 +283,39 @@ mod tests {
             shadow_tuning: None,
         };
         assert_eq!(frame.view_proj(), Mat4::IDENTITY);
+    }
+
+    #[test]
+    fn mirroring_comes_from_the_transform_or_the_flag_but_not_both() {
+        let mesh = MeshHandle::from_raw(1);
+        let mirror = Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0));
+        assert!(!Instance::new(mesh, Mat4::IDENTITY).mirrored());
+        assert!(Instance::new(mesh, mirror).mirrored());
+        assert!(Instance::new(mesh, Mat4::IDENTITY).with_flipped_winding(true).mirrored());
+        assert!(!Instance::new(mesh, mirror).with_flipped_winding(true).mirrored());
+        // A rotation by half a turn and a uniform scale keep the winding.
+        let turned = Mat4::from_rotation_z(std::f32::consts::PI) * Mat4::from_scale(Vec3::splat(3.0));
+        assert!(!Instance::new(mesh, turned).mirrored());
+    }
+
+    #[test]
+    fn a_flipped_view_is_mirrored() {
+        let view = glam::camera::rh::view::look_at_mat4(Vec3::new(0.0, -5.0, 1.0), Vec3::ZERO, Vec3::Z);
+        let mut frame = FrameParams {
+            view,
+            projection: Projection::Identity,
+            camera_position: Vec3::ZERO,
+            light_dir: Vec3::NEG_Z,
+            clear_color: [0.0; 3],
+            fog: None,
+            scattering: None,
+            surface_light: None,
+            camera_cut: false,
+            shadow_tuning: None,
+        };
+        assert!(!frame.mirrored_view());
+        frame.view = Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) * view;
+        assert!(frame.mirrored_view());
     }
 
     #[test]

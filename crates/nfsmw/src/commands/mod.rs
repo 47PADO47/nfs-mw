@@ -22,9 +22,12 @@ type NetLaunch = crate::cli::NetArgs;
 #[derive(Default)]
 struct NetLaunch;
 
-/// Runs the window with the front end on top of an empty backdrop.
+/// Runs the window with the front end on top of an empty backdrop. `settings` are the ones the caller loaded, so a
+/// command loads them once.
+#[allow(clippy::too_many_arguments)]
 fn run_front_end(
     dir: &game_install::GameDir,
+    settings: &Settings,
     mods: crate::modding::Mods,
     (start, launch): (crate::frontend::Start, &NetLaunch),
     script: Option<&str>,
@@ -36,7 +39,7 @@ fn run_front_end(
     let mut options = view.run_options(dir, true).with_mods(mods);
     #[cfg(feature = "multiplayer")]
     {
-        options.net = Some(net::plugin(dir, launch, &Settings::load(view.settings_layer())));
+        options.net = Some(net::plugin(dir, launch, settings));
     }
     #[cfg(not(feature = "multiplayer"))]
     let _ = launch;
@@ -56,7 +59,7 @@ fn run_front_end(
     });
     crate::app::run(
         Box::new(crate::frontend::MenuScene::with_look(Some(dir.clone()), look.unwrap_or_default()).with_rig(camera)),
-        &Settings::load(view.settings_layer()),
+        settings,
         options,
     )
 }
@@ -130,10 +133,10 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Play { skip_boot, drive, aliases, ui_script, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
-            let skip_intro = crate::settings::Settings::load(view.settings_layer()).skip_intro;
+            let settings = Settings::load(view.settings_layer());
             let scripted = skip_boot || ui_script.is_some();
-            let start = start::of(drive || session_starts(&launch), aliases, scripted, skip_intro);
-            run_front_end(&dir, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
+            let start = start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro);
+            run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
         Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -157,8 +160,18 @@ pub fn run(cli: Cli) -> Result<()> {
             );
             let settle = view.screenshot.is_some().then_some("wait 2");
             let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;
+            let settings = Settings::load(view.settings_layer());
             let settled = view.screenshot.is_some();
-            run_front_end(&dir, mods, (start, &launch), ui_script.as_deref().or(settle), look, &view, settled)
+            run_front_end(
+                &dir,
+                &settings,
+                mods,
+                (start, &launch),
+                ui_script.as_deref().or(settle),
+                look,
+                &view,
+                settled,
+            )
         }
         Command::FengViewer { name, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;

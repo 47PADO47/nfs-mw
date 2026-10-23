@@ -18,15 +18,18 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     if lab.caps.is_some_and(|c| c.restart_required.contains(blackbox_gfx::Setting::TextureFiltering)) {
         ui.small("Texture filtering applies after restart. Save for startup to keep the selection.");
     }
-    ui.horizontal(|ui| {
-        egui::ComboBox::from_label("Car shading").selected_text(settings.car_shading.label()).show_ui(ui, |ui| {
-            for value in crate::settings::CarShading::ALL {
-                ui.selectable_value(&mut settings.car_shading, value, value.label());
-            }
+    ui.small("Car materials and automatic lighting are configured in Lighting.");
+    ui.collapsing("Advanced material paths", |ui| {
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_label("Car material renderer").selected_text(settings.car_shading.label()).show_ui(ui, |ui| {
+                for value in crate::settings::CarShading::ALL {
+                    ui.selectable_value(&mut settings.car_shading, value, value.label());
+                }
+            });
+            controls::reset(ui, &mut settings.car_shading, defaults.car_shading, "Car material renderer");
         });
-        controls::reset(ui, &mut settings.car_shading, defaults.car_shading, "Car shading");
+        ui.small("Enhanced supports paint finishes, layered materials and environment lighting. Original PC is a reconstruction with remaining parity gaps. Simple reduces material detail.");
     });
-    ui.small("Original PC uses the PC material family; shadowless uses the low-shadow family. Custom Glossy supports clearcoat and sky/ground light.");
     ui.add_enabled_ui(lab.caps.is_none_or(|c| c.local_reflections), |ui| {
         controls::choice(
             ui,
@@ -36,7 +39,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             defaults.reflections,
         );
     });
-    ui.small("Car environment captures; resolution and update budgets are custom.");
+    ui.small("Captures the car surroundings. Resolution controls detail; update rate controls motion smoothness.");
     ui.add_enabled_ui(lab.caps.is_some_and(|c| c.local_reflections), |ui| {
         controls::checkbox(ui, &mut lab.options.cached_reflections, "Cached car reflections (High: 60 Hz)", defaults.appearance.lighting.cached_reflections)
             .on_hover_text("Captures all six faces together at 60 Hz (High), 20 Hz (Medium), or 10 Hz (Low), limited by base FPS. One metre of movement or streamed scenery refreshes early. Off: High captures every base frame. No image blending.");

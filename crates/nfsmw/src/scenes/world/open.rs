@@ -12,6 +12,7 @@ pub struct WorldLoad(Box<dyn FnOnce() -> WorldScene + Send>);
 impl WorldLoad {
     /// Puts the world together: starts its streaming threads and makes the scene.
     pub fn build(self) -> WorldScene {
+        let _trace = blackbox_trace::scope("World: build on the frame thread");
         (self.0)()
     }
 }
@@ -24,25 +25,34 @@ impl WorldScene {
     /// Reads the world from the install (see [`WorldLoad`]).
     pub fn load(dir: &GameDir, options: Options) -> Result<WorldLoad> {
         let drive = options.drive;
+        let at = options.at;
         // These loads need nothing another one produces, so they run at once. Every thread is joined before
-        // any result is used, and errors are reported in the order the steps used to run.
-        let (index, audio_environment, physics, globals, car, gameplay) = std::thread::scope(|s| {
-            let index = s.spawn(|| WorldIndex::open(dir, DEFAULT_TRACK));
+        // any result is used, and errors are reported in the order the steps used to run. The index thread goes on
+        // to start the streaming: the shared sets and the tiles around the start load while everything else is read.
+        let (index, audio_environment, physics, globals, car, gameplay, atmosphere) = std::thread::scope(|s| {
+            let index = s.spawn(|| start_streaming(dir, at));
             let audio = s.spawn(|| audio_environment(dir));
             let physics = s.spawn(|| PhysicsData::load(dir));
             let globals = s.spawn(|| load_global_textures(dir));
             let car = s.spawn(move || drive.map(|d| load_pending_car(dir, d)).transpose());
-            let gameplay = s.spawn(|| nfsmw_data::gameplay::load(dir));
-            (joined(index), joined(audio), joined(physics), joined(globals), joined(car), joined(gameplay))
+            let gameplay = s.spawn(|| nfsmw_data::gameplay::cached(dir));
+            let atmosphere = s.spawn(|| atmosphere(dir));
+            (
+                joined(index),
+                joined(audio),
+                joined(physics),
+                joined(globals),
+                joined(car),
+                joined(gameplay),
+                joined(atmosphere),
+            )
         });
-        let mut index = index?;
+        let (mut index, started) = index?;
         let override_groups = std::mem::take(&mut index.override_groups);
         let group_table = std::mem::take(&mut index.scenery_groups);
         let mut physics = physics?;
         physics.set_sequences(index.sequences.clone());
         let globals = globals?;
-        let stream =
-            dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?.to_path_buf();
         let pending_car = car?;
         if let Some(environment) = &audio_environment {
             log::info!(
@@ -53,10 +63,6 @@ impl WorldScene {
         }
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
-        let atmosphere = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
-            .and_then(|bytes| lighting::Clouds::read(&bytes))
-            .map_err(|error| log::warn!("authored cloud map unavailable: {error:#}"))
-            .unwrap_or_default();
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
             log::warn!("midday visual treatment is missing or invalid; grading disabled");
@@ -68,28 +74,32 @@ impl WorldScene {
         );
         // The traffic world holds `Rc`s, so it is made in `build`; the road network and the helicopter sheet are read here.
         let road_network = index.road_network.clone();
-        let heli_sheet = road_network.is_some().then(|| {
-            nfsmw_data::world::heli_sheet::read(dir, &index.stream_file)
-                .inspect(|sheet| log::info!("helicopter sheet: {} triangles", sheet.len()))
-                .map_err(|e| log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"))
-                .ok()
-        });
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
             .with_hierarchies(index.model_hierarchies.clone());
+        // The loader threads place each section's scenery as far as it needs no renderer. A catalog of their own,
+        // built from the same tables, keeps them off the one the frame thread uses.
+        prepare_on_loaders(
+            &started.streamer,
+            PropCatalog::new(index.prop_bounds.clone(), physics.database())
+                .with_hierarchies(index.model_hierarchies.clone()),
+            override_groups.clone(),
+        );
         log::info!("{} props have collision bounds", props.len());
         // The mods' map packs take residency indices after the install's sections; their interiors refer to them
         // by those.
         let installed: std::collections::HashSet<i16> = index.sections.iter().map(|s| s.number).collect();
         let first_pack = index.sections.len();
         // The garage catalog reads the physics, sequences included, so it waits for `set_sequences` above. The mod
-        // packs need neither and are read on this thread while the catalog is built.
-        let (garage_catalog, map_packs, interiors) = std::thread::scope(|s| {
+        // packs need neither and are read on this thread while the catalog is built. The helicopter sheet walks the
+        // stream file's chunk headers, which takes a while, so it runs beside them.
+        let (garage_catalog, map_packs, interiors, heli_sheet) = std::thread::scope(|s| {
             let garage_catalog = s.spawn(|| garage::catalog(dir, &physics));
+            let heli_sheet = s.spawn(|| heli_sheet(dir, &index.stream_file, road_network.is_some()));
             let map_packs =
                 crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed);
             let interiors =
                 crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack);
-            (joined(garage_catalog), map_packs, interiors)
+            (joined(garage_catalog), map_packs, interiors, joined(heli_sheet))
         });
         let garage_catalog = garage_catalog?;
         let (map_blips, race_starts, entry_zones, gameplay) = match gameplay {
@@ -97,7 +107,7 @@ impl WorldScene {
                 super::hud::interior_blips(&data),
                 super::hud::race_start_blips(&data),
                 entry_zones::EntryZones::from_data(&data),
-                Some(std::sync::Arc::new(data)),
+                Some(data),
             ),
             Err(e) => {
                 log::warn!("race and interior blips, entry zones and races are off: {e:#}");
@@ -114,12 +124,10 @@ impl WorldScene {
                 world.request_nis_cop();
                 world.set_roadblock_physics(&props);
                 world.set_track_barriers(std::mem::take(&mut index.track_barriers));
-                if let Some(sheet) = heli_sheet.flatten() {
+                if let Some(sheet) = heli_sheet {
                     world.set_heli_sheet(sheet);
                 }
             }
-            let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
-            let streamer = Streamer::spawn(stream, index.sections.clone(), threads);
             let start = options.at.unwrap_or_else(|| index.centre());
             let camera = FlyCamera {
                 position: Vec3::new(start[0], start[1], options.height),
@@ -140,10 +148,10 @@ impl WorldScene {
                 track: index.track.clone(),
                 camera,
                 residency: {
-                    let mut residency = Residency::new(
+                    let mut residency = Residency::adopt(
                         index.sections,
                         index.visible,
-                        streamer,
+                        started,
                         globals,
                         index.collision_grid,
                         props,
@@ -260,6 +268,46 @@ impl WorldScene {
             scene
         })))
     }
+}
+
+/// Reads the streaming index and starts the streaming on it, which is the first thing the world needs and the one
+/// the rest waits on the least: the stream's loader threads start on the shared sets and the tiles around `at` (the
+/// middle of the map when the caller names no start) while the other loads run.
+fn start_streaming(dir: &GameDir, at: Option<[f32; 2]>) -> Result<(WorldIndex, super::residency::start::Started)> {
+    let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
+    let stream =
+        dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?.to_path_buf();
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
+    let at = at.unwrap_or_else(|| index.centre());
+    let started = super::residency::start::begin(stream, &index.sections, &index.visible, at, threads);
+    Ok((index, started))
+}
+
+/// The authored cloud map of the track, or none (with a warning) when it cannot be read. The track file is the one the
+/// streaming index came from, so this reads the copy that is already in memory.
+fn atmosphere(dir: &GameDir) -> lighting::Clouds {
+    nfsmw_data::shared_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+        .and_then(|bytes| lighting::Clouds::read(&bytes))
+        .map_err(|error| log::warn!("authored cloud map unavailable: {error:#}"))
+        .unwrap_or_default()
+}
+
+/// Has the stream's loader threads place each section's scenery as far as that needs no renderer
+/// (`resident/prepare.rs`).
+fn prepare_on_loaders(streamer: &Streamer, catalog: PropCatalog, groups: std::collections::HashMap<u16, u16>) {
+    streamer.set_prepare(super::resident::worker_hook(catalog, groups));
+}
+
+/// The helicopter's height sheet, when the track has a road network to fly over: `None` when there is no network,
+/// else the sheet or `None` (with a warning) when it cannot be read.
+fn heli_sheet(dir: &GameDir, stream_file: &str, has_roads: bool) -> Option<blackbox_roads::HeliSheet> {
+    if !has_roads {
+        return None;
+    }
+    nfsmw_data::world::heli_sheet::read(dir, stream_file)
+        .inspect(|sheet| log::info!("helicopter sheet: {} triangles", sheet.len()))
+        .map_err(|e| log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"))
+        .ok()
 }
 
 /// The audio environment of the track, or `None` (with a warning) when it cannot be read.

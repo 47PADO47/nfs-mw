@@ -32,6 +32,7 @@ mod moment_feed;
 mod net_export;
 mod nis_poses;
 mod original_camera;
+mod parallel;
 mod pattern;
 mod police;
 mod policy;
@@ -225,9 +226,15 @@ pub struct TrafficWorld {
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
+    /// When the step integrates the cars on several threads, and the starts of their steps by car index (`parallel.rs`).
+    parallel: parallel::Parallel,
+    starts: Vec<Option<super::drive::StepStart>>,
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
+    /// The rigs and window states of the last `update_damaged_windows`, kept so the frame does not allocate
+    /// (`car/glass.rs`).
+    window_requests: std::cell::RefCell<Vec<(Rc<CarRig>, Vec<super::drive::SurfaceDamage>)>>,
     /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
     speech_view: Option<PlayerView>,
     /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
@@ -306,8 +313,11 @@ impl TrafficWorld {
             shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
+            parallel: parallel::Parallel::default(),
+            starts: Vec::new(),
             hits: Vec::new(),
             passes: Vec::new(),
+            window_requests: Default::default(),
             speech_view: None,
             speech_watch: Default::default(),
         }

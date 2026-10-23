@@ -6,7 +6,7 @@ impl Quality {
         name.parse().ok()
     }
     pub(super) fn apply(self, settings: &mut Settings) -> RenderExperiments {
-        settings.select_graphics_quality(self);
+        settings.select_overall_quality(self);
         settings.appearance.lighting
     }
 }

@@ -8,6 +8,9 @@ mod layout;
 #[cfg(test)]
 mod original_tests;
 mod prefilter;
+mod probe;
+#[cfg(test)]
+mod probe_tests;
 mod screen;
 pub(in crate::gpu) mod screen_draw;
 #[cfg(test)]
@@ -33,6 +36,7 @@ pub(super) const SHADER: &str = concat!(
     "\n",
     include_str!("../../shaders/reflection_screen.wgsl"),
     "\n",
+    include_str!("../../shaders/reflection_probe.wgsl"),
     include_str!("../../shaders/paint_surface.wgsl"),
     include_str!("../../shaders/material_layers.wgsl")
 );
@@ -54,10 +58,13 @@ pub(super) struct Glossy {
     static_environment: wgpu::TextureView,
     irradiance: irradiance::Irradiance,
     filtered: Option<prefilter::Prefilter>,
+    /// Whether `scene` references a local capture cube, which lives as long as its texture and is drawn into in place.
+    capture_bound: bool,
     /// Group 3 per material.
     materials: Slots<Material>,
     /// The vehicle reflection brightness the material blocks were last packed with.
     brightness: f32,
+    probe: probe::Probe,
 }
 
 struct Material {
@@ -102,6 +109,7 @@ impl Glossy {
         let irradiance = irradiance::Irradiance::new(device, cache);
         let screen = screen::Screen::new(device);
         let filtered = prefilter::Prefilter::new(device, cache);
+        let probe = probe::Probe::new(device);
         let scene = scene_group(
             device,
             &layouts,
@@ -113,6 +121,7 @@ impl Glossy {
             &screen,
             filtered.as_ref().map_or(&view, |f| &f.view),
             filtered.as_ref().map_or(&view, |f| &f.linear_view),
+            &probe,
         );
         Self {
             layouts,
@@ -127,8 +136,10 @@ impl Glossy {
             static_environment: view,
             irradiance,
             filtered,
+            capture_bound: false,
             materials: Slots::new(),
             brightness: 1.0,
+            probe,
         }
     }
 
@@ -139,30 +150,52 @@ impl Glossy {
         view: &wgpu::TextureView,
         face_view: &wgpu::TextureView,
     ) {
-        self.scene = scene_group(
-            device,
-            &self.layouts,
-            &self.rig,
-            view,
-            face_view,
-            &self.sampler,
-            &self.irradiance.buffer,
-            &self.screen,
-            self.filtered.as_ref().map_or(view, |f| &f.view),
-            self.filtered.as_ref().map_or(view, |f| &f.linear_view),
-        );
+        if self.environment != *view || self.faces != *face_view {
+            self.scene = scene_group(
+                device,
+                &self.layouts,
+                &self.rig,
+                view,
+                face_view,
+                &self.sampler,
+                &self.irradiance.buffer,
+                &self.screen,
+                self.filtered.as_ref().map_or(view, |f| &f.view),
+                self.filtered.as_ref().map_or(view, |f| &f.linear_view),
+                &self.probe,
+            );
+        }
         self.environment = view.clone();
         self.faces = face_view.clone();
+        self.capture_bound = true;
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
         }
     }
 
-    pub(super) fn restore_environment(&mut self) {
+    pub(super) fn restore_environment(&mut self, queue: &wgpu::Queue) {
+        queue.write_buffer(&self.probe.control, 0, bytemuck::cast_slice(&[0.0_f32; 4]));
+        self.probe.active = false;
         self.scene = self.static_scene.clone();
         self.environment = self.static_environment.clone();
         self.faces = self.static_faces.clone();
+        self.capture_bound = false;
+        self.irradiance.dirty = true;
+        if let Some(filter) = &mut self.filtered {
+            filter.dirty = true;
+        }
+    }
+
+    /// Whether [`use_environment`](Self::use_environment) is still what the scene group holds. A capture binds its cube
+    /// once, not on every refresh: the texture is the same, only its contents change.
+    pub(super) fn capture_bound(&self) -> bool {
+        self.capture_bound
+    }
+
+    /// Every face of the bound capture cube is fresh: the diffuse light and the prefiltered copy follow on the next
+    /// irradiance update, recorded after the passes that drew it.
+    pub(super) fn environment_refreshed(&mut self) {
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
@@ -213,6 +246,7 @@ fn scene_group(
     screen: &screen::Screen,
     filtered: &wgpu::TextureView,
     linear_filtered: &wgpu::TextureView,
+    probe: &probe::Probe,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("glossy scene"),
@@ -228,6 +262,8 @@ fn scene_group(
             wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&screen.depth) },
             wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(filtered) },
             wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::TextureView(linear_filtered) },
+            wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&probe.depth) },
+            wgpu::BindGroupEntry { binding: 11, resource: probe.control.as_entire_binding() },
         ],
     })
 }
@@ -286,6 +322,12 @@ fn ensure<'a>(
 }
 
 impl Renderer {
+    /// Build the glossy state now (rig, default environment, irradiance and screen-reflection resources) instead of
+    /// at the first call that needs it, so that the first frame with glossy draws does not pay for it.
+    pub(in crate::gpu) fn ensure_glossy(&mut self) {
+        ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
+    }
+
     pub(in crate::gpu) fn supports_irradiance(&self) -> bool {
         let limits = self.device.limits();
         self.info.api != blackbox_gfx::GraphicsApi::Gl
@@ -293,7 +335,7 @@ impl Renderer {
             && limits.max_storage_buffer_binding_size >= 288
             && limits.max_compute_invocations_per_workgroup >= 9
     }
-    pub(in crate::gpu) fn update_irradiance(&mut self) {
+    pub(in crate::gpu) fn encode_irradiance(&mut self, encoder: &mut wgpu::CommandEncoder) {
         let _trace = blackbox_trace::scope("Renderer CPU: update irradiance");
         if self.experiments.paint_response
             && let Some(glossy) = &mut self.glossy
@@ -303,13 +345,13 @@ impl Renderer {
                 .any(|m| m.source.model == blackbox_gfx::GlossyModel::Custom && m.source.surface.is_some())
             && let Some(filter) = &mut glossy.filtered
         {
-            filter.update(&self.device, &self.queue, &glossy.environment, &glossy.sampler);
+            filter.encode(&self.device, encoder, &glossy.environment, &glossy.sampler);
         }
         if !self.experiments.car_skylight || !self.supports_irradiance() {
             return;
         }
         if let Some(glossy) = &mut self.glossy {
-            glossy.irradiance.update(&self.device, &self.queue, &glossy.environment, &glossy.sampler);
+            glossy.irradiance.encode(&self.device, encoder, &glossy.environment, &glossy.sampler);
         }
     }
     /// Whether any glossy resource exists. Nothing glossy (rig, environment cube map, bind groups, pipelines)
@@ -328,7 +370,9 @@ impl Renderer {
         let brightness = self.graphics.vehicle_reflection_brightness.0;
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
-        self.queue.write_buffer(&glossy.rig, 0, bytemuck::bytes_of(&RigUniform::new(rig)));
+        let mut block = RigUniform::new(rig);
+        block.to_light[0][3] = self.experiments.sun_angle.to_radians().sin().powi(2);
+        self.queue.write_buffer(&glossy.rig, 0, bytemuck::bytes_of(&block));
         glossy.sync_brightness(&self.queue, brightness);
     }
 
@@ -350,6 +394,8 @@ impl Renderer {
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
+        self.queue.write_buffer(&glossy.probe.control, 0, bytemuck::cast_slice(&[0.0_f32; 4]));
+        glossy.probe.active = false;
         glossy.scene = scene_group(
             &self.device,
             &glossy.layouts,
@@ -361,11 +407,13 @@ impl Renderer {
             &glossy.screen,
             glossy.filtered.as_ref().map_or(&view, |f| &f.view),
             glossy.filtered.as_ref().map_or(&view, |f| &f.linear_view),
+            &glossy.probe,
         );
         glossy.faces = face_view.clone();
         glossy.static_faces = face_view;
         glossy.environment = view.clone();
         glossy.static_environment = view;
+        glossy.capture_bound = false;
         glossy.irradiance.dirty = true;
         if let Some(filter) = &mut glossy.filtered {
             filter.dirty = true;

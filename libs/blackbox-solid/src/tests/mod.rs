@@ -2,6 +2,7 @@ mod builder;
 mod filtered;
 mod rigid;
 mod skin;
+mod winding;
 
 use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 
@@ -112,13 +113,56 @@ fn independent_sky_and_normal_uvs_survive_mixed_buffers() {
     }
     let file = solid_file("UVS", &groups, &[vertex_buffer(3, 36, 0.0), sky, normal]);
     let solid = &read_solids(&file).unwrap()[0];
-    assert_eq!(solid.secondary_uvs.len(), solid.vertices.len());
-    assert_eq!(solid.secondary_uvs[0], solid.vertices[0].uv);
-    assert_eq!(solid.secondary_uvs[3..6], [[0.5, 0.75], [1.5, 0.75], [2.5, 0.75]]);
-    assert_eq!(solid.secondary_uvs[6], [99.0, 0.0]);
-    assert_eq!(solid.tangents.len(), solid.vertices.len());
-    assert_eq!(&solid.tangents[..6], &[[0.0; 4]; 6]);
-    assert_eq!(&solid.tangents[6..], &[[0.25, -0.5, 1.0, -1.0]; 3]);
+    let uvs = solid.secondary_uvs.as_ref().expect("a buffer has second UVs");
+    assert_eq!(uvs.len(), solid.vertices.len());
+    assert_eq!(uvs[0], solid.vertices[0].uv);
+    assert_eq!(uvs[3..6], [[0.5, 0.75], [1.5, 0.75], [2.5, 0.75]]);
+    assert_eq!(uvs[6], [99.0, 0.0]);
+    let tangents = solid.tangents.as_ref().expect("a buffer has tangents");
+    assert_eq!(tangents.len(), solid.vertices.len());
+    assert_eq!(&tangents[..6], &[[0.0; 4]; 6]);
+    assert_eq!(&tangents[6..], &[[0.25, -0.5, 1.0, -1.0]; 3]);
+    // The accessors give the same values, and the fallbacks outside the stored channels.
+    assert_eq!(solid.secondary_uv(4), [1.5, 0.75]);
+    assert_eq!(solid.secondary_uv(99), [0.0; 2]);
+    assert_eq!(solid.tangent(7), [0.25, -0.5, 1.0, -1.0]);
+    assert_eq!(solid.tangent(99), [0.0; 4]);
+}
+
+#[test]
+fn extra_channels_are_absent_when_no_buffer_has_them() {
+    let groups = [
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 5, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+    ];
+    let file = solid_file("PLAIN", &groups, &[vertex_buffer(3, 36, 0.0), vertex_buffer(3, 36, 0.0)]);
+    let solid = &read_solids(&file).unwrap()[0];
+    assert_eq!(solid.vertices.len(), 6);
+    assert_eq!(solid.secondary_uvs, None);
+    assert_eq!(solid.tangents, None);
+    assert!(solid.skin.is_none());
+    assert_eq!(solid.secondary_uv(2), solid.vertices[2].uv);
+    assert_eq!(solid.tangent(2), [0.0; 4]);
+}
+
+#[test]
+fn a_channel_that_starts_late_is_backfilled_and_one_that_ends_early_is_padded() {
+    // Effect 19 is the sky layer (44 bytes, second UVs); the plain buffers around it have none.
+    let groups = [
+        Group { effect: 19, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+        Group { effect: 0, vertices: 3, indices: vec![0, 1, 2], bone_table: None },
+    ];
+    let mut sky = vertex_buffer(3, 44, 0.0);
+    for v in sky.as_chunks_mut::<44>().0 {
+        v[36..40].copy_from_slice(&7.0_f32.to_le_bytes());
+    }
+    let file = solid_file("SKYFIRST", &groups, &[sky, vertex_buffer(3, 36, 0.0)]);
+    let solid = &read_solids(&file).unwrap()[0];
+    let uvs = solid.secondary_uvs.as_ref().expect("the sky buffer has second UVs");
+    assert_eq!(uvs.len(), 6);
+    assert_eq!(uvs[0][0], 7.0);
+    assert_eq!(uvs[3], solid.vertices[3].uv);
+    assert_eq!(solid.tangents, None);
 }
 
 #[test]
@@ -171,6 +215,8 @@ fn unknown_wide_declarations_do_not_become_tangent_data() {
     let file =
         solid_file("BONE", &[Group { effect: 2, vertices: 3, indices: vec![0, 1, 2], bone_table: None }], &[vertices]);
     let solid = &read_solids(&file).unwrap()[0];
-    assert_eq!(solid.secondary_uvs, vec![[0.0; 2]; 3]);
-    assert_eq!(solid.tangents, vec![[0.0; 4]; 3]);
+    assert_eq!(solid.secondary_uvs, None);
+    assert_eq!(solid.tangents, None);
+    assert_eq!(solid.secondary_uv(1), solid.vertices[1].uv);
+    assert_eq!(solid.tangent(1), [0.0; 4]);
 }

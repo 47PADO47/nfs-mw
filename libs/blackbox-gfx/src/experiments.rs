@@ -27,6 +27,13 @@ impl std::fmt::Display for LightingDebug {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RenderExperiments {
+    /// Procedural atmosphere and sun-lit cloud volume in the native sky pass.
+    pub enhanced_sky: bool,
+    pub sky_wind_speed: f32,
+    pub sky_sun_size: f32,
+    pub sky_sun_brightness: f32,
+    pub sky_brightness: f32,
+    pub sky_sunset_warmth: f32,
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
     pub sun_shadows: bool,
@@ -43,6 +50,10 @@ pub struct RenderExperiments {
     pub clearcoat: bool,
     /// Opt-in surfaces use calibrated highlights and filtered environment reflections.
     pub paint_response: bool,
+    /// Reproject current local capture depth for nearby custom surfaces.
+    pub local_reflection_correction: bool,
+    /// The game may match custom car lights to authored world lighting.
+    pub weather_car_lighting: bool,
     pub car_skylight: bool,
     pub world_ambient: bool,
     /// Minimum ambient share of authored prelit illumination; dark baked art receives a larger share.
@@ -51,6 +62,8 @@ pub struct RenderExperiments {
     pub world_ambient_tint: f32,
     pub freeze_sun: bool,
     pub lighting_debug: LightingDebug,
+    /// Overall indirect lighting multiplier, independent of hemisphere calibration.
+    pub indirect_strength: f32,
     pub sky_strength: f32,
     pub ground_strength: f32,
     pub soft_shadows: bool,
@@ -76,6 +89,12 @@ pub struct RenderExperiments {
 impl Default for RenderExperiments {
     fn default() -> Self {
         Self {
+            enhanced_sky: true,
+            sky_wind_speed: 2.0,
+            sky_sun_size: 2.0,
+            sky_sun_brightness: 1.0,
+            sky_brightness: 1.0,
+            sky_sunset_warmth: 1.0,
             original_world_materials: false,
             sun_shadows: false,
             cached_shadows: false,
@@ -86,12 +105,15 @@ impl Default for RenderExperiments {
             contact_shadows: false,
             clearcoat: false,
             paint_response: true,
+            local_reflection_correction: true,
+            weather_car_lighting: true,
             car_skylight: false,
             world_ambient: false,
             world_ambient_share: 0.6,
             world_ambient_tint: 0.35,
             freeze_sun: false,
             lighting_debug: LightingDebug::Off,
+            indirect_strength: 1.0,
             sky_strength: 0.8,
             ground_strength: 0.5,
             soft_shadows: true,
@@ -113,12 +135,18 @@ impl Default for RenderExperiments {
 impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
+            sky_wind_speed: finite(self.sky_wind_speed, 2.0).clamp(0.0, 12.0),
+            sky_sun_size: finite(self.sky_sun_size, 2.0).clamp(0.5, 3.0),
+            sky_sun_brightness: finite(self.sky_sun_brightness, 1.0).clamp(0.0, 3.0),
+            sky_brightness: finite(self.sky_brightness, 1.0).clamp(0.25, 2.0),
+            sky_sunset_warmth: finite(self.sky_sunset_warmth, 1.0).clamp(0.0, 2.0),
             shadow_resolution: self.shadow_resolution.clamp(512, 8192).next_power_of_two(),
             shadow_detail_resolution: self
                 .shadow_detail_resolution
                 .clamp(512, 8192)
                 .next_power_of_two()
                 .max(self.shadow_resolution.clamp(512, 8192).next_power_of_two()),
+            indirect_strength: finite(self.indirect_strength, 1.0).clamp(0.0, 2.0),
             sky_strength: finite(self.sky_strength, 0.8).clamp(0.0, 2.0),
             ground_strength: finite(self.ground_strength, 0.5).clamp(0.0, 2.0),
             world_ambient_share: finite(self.world_ambient_share, 0.6).clamp(0.35, 0.9),

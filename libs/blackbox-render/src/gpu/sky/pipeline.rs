@@ -1,7 +1,8 @@
 //! Dedicated sky layout: two source textures and a retained independent UV channel.
 
 use super::super::{
-    instances::INSTANCE_LAYOUT, pipelines::VERTEX_ATTRIBUTES, resources::DEPTH_FORMAT, targets::write_mask,
+    draw_list::instance_view::instance_layout, pipelines::VERTEX_ATTRIBUTES, resources::DEPTH_FORMAT,
+    targets::write_mask,
 };
 
 pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -20,6 +21,42 @@ pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         entries: &[
             texture(0),
             texture(1),
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D3,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D3,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D3,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
             wgpu::BindGroupLayoutEntry {
                 binding: 2,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -40,12 +77,14 @@ pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     })
 }
 
+/// `store`: the shader reads its instances from the instance store, through a slot per instance.
 pub(super) fn create(
     device: &wgpu::Device,
     shader: &wgpu::ShaderModule,
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
     blend: bool,
+    store: bool,
     cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -61,7 +100,7 @@ pub(super) fn create(
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &VERTEX_ATTRIBUTES,
                 }),
-                Some(INSTANCE_LAYOUT),
+                Some(instance_layout(store)),
                 Some(wgpu::VertexBufferLayout {
                     array_stride: 8,
                     step_mode: wgpu::VertexStepMode::Vertex,

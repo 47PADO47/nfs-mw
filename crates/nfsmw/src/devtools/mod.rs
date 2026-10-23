@@ -10,6 +10,7 @@ mod overlay;
 mod readout;
 mod theme_style;
 pub(crate) mod trace;
+mod ui_gate;
 
 use bevy_app::{App, Last, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -40,6 +41,10 @@ impl Plugin for DevToolsPlugin {
     }
 }
 
+/// The LAN menu's state, when the front end has one.
+type LanParams<'w> =
+    (Option<ResMut<'w, crate::frontend::lan::LanUi>>, Option<NonSendMut<'w, crate::frontend::lan::LanBackend>>);
+
 /// Run the UI pass: feed egui this frame's input, draw the panels, publish the output.
 #[allow(clippy::too_many_arguments)]
 fn run_ui(
@@ -58,22 +63,59 @@ fn run_ui(
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
-    mut lan: (Option<ResMut<crate::frontend::lan::LanUi>>, Option<NonSendMut<crate::frontend::lan::LanBackend>>),
+    // Bevy takes at most 16 system parameters: the pass's own memory and the LAN menu's state are one tuple.
+    (mut styled_for, mut settled, mut skipped, mut lan): (
+        Local<Option<blackbox_ui::Skin>>,
+        Local<ui_gate::Settled>,
+        Local<bool>,
+        LanParams<'_>,
+    ),
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
+    // A frame with nothing egui-drawn up skips the whole pass (run, tessellation, conversion, output). The pass that
+    // follows the last panel clears the renderer's layer; after it nothing is handed over until a panel is up again.
+    let visible = ui_gate::Visible {
+        scene: host.scene.wants_ui(),
+        console: console.open,
+        garage: garage.open,
+        graphics_lab: lab.open,
+        metrics: settings.show_metrics != ShowMetrics::Off,
+        readout: !metrics.hud.is_empty(),
+        trace: trace::indicator_up(&lab.recorder),
+        platform_feedback: platform.visible(),
+    };
+    if !ui_gate::egui_needed(visible, *settled) {
+        // No panel could take the events: drop them rather than let them pile up.
+        input.events.clear();
+        *skipped = true;
+        // What the lab's `show` does to the lighting options whether it is open or not.
+        if let Some(clean) = graphics_lab::out_of_range_lighting(&settings) {
+            settings.appearance.lighting = clean;
+        }
+        return;
+    }
     let (width, height) = (window.width(), window.height());
+    let mut events = vec![egui::Event::ModifiersChanged(input.modifiers)];
+    // After skipped frames egui has not seen the pointer move: tell it where it is, so a panel that opens under it
+    // hovers at once.
+    if std::mem::take(&mut *skipped) {
+        events.extend(input.pointer.map(egui::Event::PointerMoved));
+    }
+    events.append(&mut input.events);
     let raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height))),
         time: Some(time.elapsed_secs_f64()),
         predicted_dt: time.delta_secs(),
-        events: std::iter::once(egui::Event::ModifiersChanged(input.modifiers))
-            .chain(std::mem::take(&mut input.events))
-            .collect(),
+        events,
         focused: window.focused,
         ..Default::default()
     };
-    // The panels draw in the active theme's palette, radius, padding and text size, as the game does.
-    gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
+    // The panels draw in the active theme's palette, radius, padding and text size, as the game does. The style is
+    // built and set only when the skin it comes from changes, not every frame.
+    if styled_for.as_ref() != Some(themes.skin()) {
+        gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
+        *styled_for = Some(themes.skin().clone());
+    }
     let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
@@ -111,4 +153,10 @@ fn run_ui(
             }
         }
     });
+    let drew_nothing = out.layer.as_ref().is_some_and(|layer| layer.meshes.is_empty());
+    *settled = ui_gate::Settled::after_pass(
+        drew_nothing,
+        gui.ctx.egui_wants_pointer_input(),
+        gui.ctx.egui_wants_keyboard_input(),
+    );
 }

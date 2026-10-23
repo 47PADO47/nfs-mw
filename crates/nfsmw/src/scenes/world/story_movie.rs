@@ -113,7 +113,16 @@ impl WorldScene {
 
     /// Draws the subtitles of the movie that plays.
     pub(in crate::scenes::world) fn show_story_movie(&self, ctx: &egui::Context) {
+        if !self.subtitles_up() {
+            return;
+        }
         show_subtitles(ctx, self.story_movie.subtitle_lines());
+    }
+
+    /// Whether the movie that plays has a subtitle line up.
+    pub(in crate::scenes::world) fn subtitles_up(&self) -> bool {
+        let (first, second) = self.story_movie.subtitle_lines();
+        first.is_some() || second.is_some()
     }
 }
 

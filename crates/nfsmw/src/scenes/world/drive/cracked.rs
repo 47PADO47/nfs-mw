@@ -24,6 +24,6 @@ impl Drive {
         sim.cracked_zones_into(&mut self.cracked.now);
         self.cracked.sent.clone_from(&self.cracked.now);
         let state = SurfaceDamage::new(self.cracked.mask(), sim.lamp_damage());
-        self.rig.prepare_surfaces(renderer, &std::collections::BTreeSet::from([state]), to_sun);
+        self.rig.prepare_surface_slice(renderer, &[state], to_sun);
     }
 }

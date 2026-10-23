@@ -1,20 +1,54 @@
+use super::terrain::TerrainQuery;
 use super::*;
+
+/// What the start of a step leaves for the rest of it: the library's input and the terrain query.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::scenes::world) struct StepStart {
+    pub(super) input: InputState,
+    /// `None` without a collision world: the car then only meets the road.
+    pub(super) terrain: Option<TerrainQuery>,
+}
+
+impl StepStart {
+    /// Whether the step has a collision world, so the body's terrain caches prepare the wheels' ground.
+    pub(super) fn prepared(&self) -> bool {
+        self.terrain.is_some()
+    }
+}
 
 impl CarSim {
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
+    ///
+    /// The step is [`Self::begin_step`], the [`Self::integration`] and [`Self::end_step`]; a caller that integrates many
+    /// cars at once runs the three itself (`ai/parallel.rs`).
     pub fn step(
         &mut self,
         input: &DriveInput,
         ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        let collision = world.as_ref().map(|(collision, _)| *collision);
+        let start = self.begin_step(input, collision.is_some(), world.as_mut().map(|(_, props)| &mut **props));
+        self.integration().run(&start, ground, collision);
+        self.end_step(&start, ground, world)
+    }
+
+    /// The start of a step, up to the integration: the input, the terrain query and the explosions that push the body.
+    /// `props` is `None` without a collision world.
+    pub(in crate::scenes::world) fn begin_step(
+        &mut self,
+        input: &DriveInput,
+        has_world: bool,
+        props: Option<&mut PropWorld>,
+    ) -> StepStart {
         self.reset_collision.advance(FIXED_STEP);
-        self.refresh_ground_reference(world.as_ref().map(|(collision, _)| *collision));
+        // Taken before the explosions below: they can wake a sleeping body. The plane is refreshed by the integration.
+        let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
-        if let (Some((_, props)), Some(events)) = (world.as_mut(), &self.events) {
+        if let (Some(props), Some(events)) = (props, &self.events) {
             props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
         }
         if let Some(events) = &self.events {
@@ -23,7 +57,17 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        self.step_with_ground(&input, ground, world.is_some());
+        StepStart { input, terrain }
+    }
+
+    /// The rest of a step after the integration: props, walls, contacts, damage, effects and sounds.
+    pub(in crate::scenes::world) fn end_step(
+        &mut self,
+        start: &StepStart,
+        ground: &dyn Ground,
+        world: Option<(&CollisionWorld, &mut PropWorld)>,
+    ) -> Impact {
+        let input = start.input;
         let mut impact = match world {
             Some((collision, props)) => {
                 let frame = self

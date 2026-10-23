@@ -447,6 +447,10 @@ impl Scene for Pausable {
         self.inner.ui(ctx)
     }
 
+    fn wants_ui(&self) -> bool {
+        !self.concealed() && self.inner.wants_ui()
+    }
+
     fn commands(&self) -> &'static [(&'static str, &'static str)] {
         self.inner.commands()
     }

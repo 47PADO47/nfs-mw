@@ -181,7 +181,7 @@ impl Renderer {
             Some(pass) => pass,
             None => MotionPass::new(&self.device, &self.shared.bindings.texture_layout, self.pipeline_cache.as_ref()),
         };
-        pass.encode(self, encoder, (&motion.view, &scene.depth_view), &frame, instances, &history.buffer.buffer);
+        pass.encode(self, encoder, (&motion.view, &scene.depth_view), &frame, instances, &history);
         self.temporal.motion = Some(pass);
         self.temporal.history = Some(history);
     }

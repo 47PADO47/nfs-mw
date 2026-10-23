@@ -306,6 +306,7 @@ fn assemble(
         hdr_format,
         post,
         reflections: None,
+        pending_reflections: None,
         projected: None,
         experiments: Default::default(),
         experiment_stats: blackbox_gfx::ExperimentStats { supported: api != GraphicsApi::Gl, ..Default::default() },
@@ -340,6 +341,7 @@ fn assemble(
         pipeline_cache,
         pipeline_cache_path,
         frames: 0,
+        prewarmed: None,
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

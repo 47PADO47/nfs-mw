@@ -64,6 +64,8 @@ pub struct CarSim {
     brake_lamp_age: f32,
     ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
     wheel_ground: std::cell::RefCell<[blackbox_collision::ground_reference::GroundFaceCache; 4]>,
+    /// The candidate window of the wheels' ground rays when the car is integrated beside others (`terrain.rs`).
+    ground_window: blackbox_collision::CandidateSet,
     /// The car touched a prop (a fixed or a movable one) this step; read once by the traffic (`take_prop_struck`).
     prop_struck: bool,
     /// The props the car hit with their cost to state, until the traffic takes them (`take_smacked`).
@@ -127,6 +129,7 @@ impl CarSim {
             brake_lamp_age: 0.0,
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
+            ground_window: Default::default(),
             pending_sound_contacts: Vec::new(),
             effect_source: physics.effect_source,
             effect_owner: crate::scenes::world::impact_effects::next_owner(),
@@ -397,6 +400,8 @@ mod performance;
 mod sound_contacts;
 mod step;
 mod terrain;
+pub(in crate::scenes::world) use step::StepStart;
+pub(in crate::scenes::world) use terrain::Integration;
 mod trailer;
 
 #[cfg(test)]

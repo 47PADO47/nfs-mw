@@ -49,7 +49,7 @@ pub(super) fn header(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Se
         return;
     }
     ui.horizontal_wrapped(|ui| {
-        ui.label("Visual style:");
+        ui.label("Visual style:").on_hover_text("Sets the overall material and lighting look, then applies the current rendering quality. Custom keeps your manual choices.");
         for style in VisualStyle::ALL {
             if ui.selectable_label(settings.visual_style() == style, style.label()).clicked() {
                 settings.select_visual_style(style);
@@ -143,7 +143,7 @@ pub(super) fn diagnostics(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &Setti
         }
     }
     if !super::view::blackbox(lab, settings) {
-        ui.label("Bevy controls follow the active renderer's capabilities. Black Box experiments remain stored.");
+        ui.label("Bevy controls follow the active renderer's capabilities. Black Box lighting settings remain stored.");
         return;
     }
     ui.label(crate::settings::appearance::registry::REFERENCE_POLICY);

@@ -9,15 +9,19 @@ use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, Stre
 
 use super::keys;
 use super::props::PropWorld;
-use super::resident::{Placed, ReflectionPlaced, SectionResources, place, place_reflections};
+use super::resident::{Placed, ReflectionPlaced, SectionResources, resolve_placed, resolve_reflections, take_prepared};
 use super::zone::Zones;
+mod cull;
 mod loading;
 mod lockstep;
 mod parts;
 mod ready;
 mod shadow_support;
+mod shared_upload;
+pub(super) mod start;
 mod texture_detail;
 mod traffic_support;
+mod upload;
 use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
@@ -34,10 +38,13 @@ mod tests;
 
 /// Requests in flight at once.
 const MAX_IN_FLIGHT: usize = 8;
-/// Bytes of section data uploaded per frame (uploads run on the render thread): textures, vertices and
-/// indices, see `SectionData::upload_bytes`. The first arrived section of a frame always goes through, so a
-/// section bigger than this still loads, one per frame.
-const UPLOAD_BYTES_PER_FRAME: usize = 8 * 1024 * 1024;
+/// Bytes of section data uploaded per frame while the world is shown (uploads run on the render thread): the
+/// texture data the GPU receives, vertices and indices, see `SectionData::upload_bytes`. The first arrived section
+/// of a frame always goes through, so a section bigger than this still loads, one per frame.
+const UPLOAD_BYTES_PER_FRAME: usize = 4 * 1024 * 1024;
+/// The same budget until the world has been ready once. The frontend keeps the world concealed until then, so a
+/// frame may take longer to get it ready sooner.
+const CONCEALED_UPLOAD_BYTES_PER_FRAME: usize = 32 * 1024 * 1024;
 
 enum TileState {
     Requested,
@@ -63,6 +70,11 @@ pub struct Residency {
     pub sky: super::sky::Sky,
     pub shared_placed: Vec<Placed>,
     shared_ready: bool,
+    /// The shared sets while they go to the GPU over several frames.
+    shared_upload: Option<shared_upload::SharedUpload>,
+    /// Whether the residency has been complete once (`complete`): from then on the world is shown, and uploads use the
+    /// smaller budget.
+    settled: bool,
     tiles: HashMap<usize, TileState>,
     /// Loaded sections waiting for the render thread, oldest first.
     arrived: VecDeque<SectionData>,
@@ -71,6 +83,8 @@ pub struct Residency {
     has_zone: bool,
     /// Tiles the current zone loads, drawn ones first.
     wanted: Vec<usize>,
+    /// The same tiles as a set, for lookups.
+    wanted_set: HashSet<usize>,
     /// Additional light support, independent of colour visibility and readiness.
     shadow_wanted: Vec<usize>,
     shadow_range: f32,
@@ -78,6 +92,8 @@ pub struct Residency {
     shadow_extent: [f32; 2],
     shadow_candidates: Vec<(usize, f32)>,
     shadow_eligible: usize,
+    /// What the shadow support was last worked out for.
+    shadow_key: Option<shadow_support::ShadowKey>,
     /// Tiles the current zone draws.
     drawn: HashSet<usize>,
     /// Tiles the previous zone drew, still drawn until the current zone's tiles are all resident,
@@ -106,13 +122,18 @@ pub struct Residency {
     /// Scratch for `unload_unwanted`, kept between frames so a frame allocates nothing.
     keep_scratch: HashSet<usize>,
     unwanted_scratch: Vec<usize>,
+    /// Scratch for `request_wanted`.
+    request_scratch: Vec<usize>,
     /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
     lockstep: bool,
 }
 
 impl Residency {
+    /// A residency over `streamer`, which is asked for the shared sets here. The world starts its streamer earlier
+    /// and uses [`Residency::adopt`]; this is for tests that build one by hand.
+    #[cfg(test)]
     pub fn new(
-        mut sections: Vec<StreamingSection>,
+        sections: Vec<StreamingSection>,
         visible: VisibleSections,
         streamer: Streamer,
         globals: GlobalTextures,
@@ -120,40 +141,57 @@ impl Residency {
         catalog: PropCatalog,
         mod_packs: Vec<MapPack>,
     ) -> Self {
-        // Every shared set stays loaded, including the sky geometry in X0.
-        let shared: Vec<usize> = (0..sections.len()).filter(|&i| !sections[i].is_spatial()).collect();
-        for &i in &shared {
-            streamer.request(i);
-        }
+        start::request_shared(&streamer, &sections);
+        let started = start::Started { streamer, requested: Vec::new() };
+        Self::adopt(sections, visible, started, globals, collision_grid, catalog, mod_packs)
+    }
+
+    /// A residency over a streamer that is already working (`start::begin`): the shared sets and the first tiles were
+    /// requested when it started, so they have been loading while the rest of the world was read.
+    pub fn adopt(
+        mut sections: Vec<StreamingSection>,
+        visible: VisibleSections,
+        started: start::Started,
+        globals: GlobalTextures,
+        collision_grid: Option<Grid>,
+        catalog: PropCatalog,
+        mod_packs: Vec<MapPack>,
+    ) -> Self {
+        let shared_total = sections.iter().filter(|section| !section.is_spatial()).count();
         let mod_base = sections.len();
         let zones = Zones::new(visible, &sections);
         // A mod pack is a section of its own file: its streamer reads that file from offset 0, as entry 0.
         let mod_streamers =
             mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
+        let tiles = started.requested.iter().map(|&i| (i, TileState::Requested)).collect();
         Self {
             texture_discard: None,
             traffic_support: Default::default(),
-            shared_total: shared.len(),
+            shared_total,
             zones,
             sections,
-            streamer,
+            streamer: started.streamer,
             shared_pending: Vec::new(),
             globals,
             shared: SectionResources::default(),
             sky: super::sky::Sky::default(),
             shared_placed: Vec::new(),
             shared_ready: false,
-            tiles: HashMap::new(),
+            shared_upload: None,
+            settled: false,
+            tiles,
             arrived: VecDeque::new(),
             has_zone: false,
             wanted: Vec::new(),
+            wanted_set: HashSet::new(),
             shadow_wanted: Vec::new(),
             shadow_range: 0.0,
             shadow_direction: None,
             shadow_extent: [1.0, 0.0],
             shadow_candidates: Vec::new(),
             shadow_eligible: 0,
+            shadow_key: None,
             drawn: HashSet::new(),
             previous: HashSet::new(),
             unresolved: 0,
@@ -169,6 +207,7 @@ impl Residency {
             pinned: HashSet::new(),
             keep_scratch: HashSet::new(),
             unwanted_scratch: Vec::new(),
+            request_scratch: Vec::new(),
             lockstep: false,
         }
     }
@@ -204,6 +243,7 @@ impl Residency {
         self.unload_unwanted(renderer);
         self.request_wanted();
         self.request_mod();
+        self.settled = self.settled || self.complete();
     }
 
     /// The loader threads decode the textures this renderer cannot draw block-compressed. The streamers are spawned
@@ -221,29 +261,32 @@ impl Residency {
         self.previous = std::mem::replace(&mut self.drawn, self.zones.drawn());
         self.wanted = self.zones.wanted();
         // Nearest first within the drawn tiles, then within the rest.
-        let distance =
-            |i: usize| centres.iter().map(|&[x, y]| self.sections[i].distance_to(x, y)).fold(f32::INFINITY, f32::min);
-        let key = |i: usize| (!self.drawn.contains(&i), distance(i));
-        self.wanted.sort_by(|&a, &b| {
-            let (ka, kb) = (key(a), key(b));
-            ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
-        });
+        start::order_wanted(&mut self.wanted, &self.drawn, &self.sections, centres);
+        self.wanted_set.clear();
+        self.wanted_set.extend(self.wanted.iter().copied());
+        self.shadow_key = None;
+        self.traffic_support.computed = false;
         self.update_shadow_support(renderer, centres[0]);
-        // Requests the new zone doesn't need are dropped; they are ignored when they arrive.
-        // Map packs are not in any zone's list: they are kept by their own wants (`mod_tiles.rs`).
-        let wanted: HashSet<usize> = self.wanted.iter().copied().collect();
+        // Requests the new zone does not need are dropped: the workers skip them if they have not started them, and
+        // what arrives anyway is ignored. Map packs are not in any zone's list: they are kept by their own wants
+        // (`mod_tiles.rs`).
         let retained_requests: Vec<_> = self
             .shadow_wanted
             .iter()
             .copied()
-            .filter(|i| !wanted.contains(i) && matches!(self.tiles.get(i), Some(TileState::Requested)))
+            .filter(|i| !self.wanted_set.contains(i) && matches!(self.tiles.get(i), Some(TileState::Requested)))
             .take(shadow_support::MAX_SHADOW_IN_FLIGHT)
             .collect();
+        let (streamer, wanted, mod_base) = (&self.streamer, &self.wanted_set, self.mod_base);
         self.tiles.retain(|i, s| {
-            wanted.contains(i)
-                || *i >= self.mod_base
+            let keep = wanted.contains(i)
+                || *i >= mod_base
                 || retained_requests.contains(i)
-                || matches!(s, TileState::Resident { .. })
+                || matches!(s, TileState::Resident { .. });
+            if !keep {
+                streamer.cancel(*i);
+            }
+            keep
         });
         log::debug!("zone {:?}: {} tiles drawn, {} loaded", self.zones.name(), self.drawn.len(), self.wanted.len());
     }
@@ -253,104 +296,6 @@ impl Residency {
             self.handle(event);
         }
         self.receive_mod();
-    }
-
-    fn finish_shared(&mut self, renderer: &mut dyn RenderBackend) {
-        if self.shared_pending.len() < self.shared_total {
-            return;
-        }
-        let pending = std::mem::take(&mut self.shared_pending);
-        let mut shared = SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0));
-        for data in &pending {
-            shared.upload_textures(renderer, data);
-        }
-        let globals = std::mem::take(&mut self.globals);
-        shared.upload_texture_list(renderer, &globals.textures, &[]);
-        shared.anims.extend(globals.anims);
-        shared.anims.extend(pending.iter().flat_map(|d| d.anims.iter().cloned()));
-        let empty = SectionResources::default();
-        for data in &pending {
-            shared.upload_meshes(renderer, data, &empty);
-        }
-        // The shared models of InGameA.bun (sky domes and the other SKY_* models); a stream solid of the same name wins.
-        shared.upload_solid_list(renderer, &globals.solids, None, &empty, true);
-        self.sky.release(renderer);
-        self.sky = super::sky::Sky::upload(
-            renderer,
-            pending.iter().flat_map(|data| &data.solids).chain(&globals.solids),
-            &shared,
-        );
-        for data in &pending {
-            let (placed, unresolved) = place(data, &shared, &empty, &self.catalog, &self.override_groups);
-            let mut reflected = place_reflections(data, &shared, &empty);
-            for reflected in &mut reflected {
-                reflected.player_index = reflected.player_index.map(|i| i + self.shared_placed.len());
-            }
-            shared.reflection_placed.extend(reflected);
-            self.shared_placed.extend(placed);
-            self.unresolved += unresolved;
-        }
-        for (index, placed) in self.shared_placed.iter_mut().enumerate() {
-            placed.key = keys::shared(index);
-        }
-        self.props.add_tile(usize::MAX, &mut self.shared_placed);
-        for (index, reflected) in shared.reflection_placed.iter_mut().enumerate() {
-            reflected.bind_player(&self.shared_placed, keys::shared(index | (1 << 31)));
-        }
-        log::info!("shared sets resident: {} models, {} textures", shared.meshes.len(), shared.materials.len());
-        self.shared = shared;
-        self.shared_ready = true;
-        self.visual_revision = self.visual_revision.wrapping_add(1);
-    }
-
-    /// Upload arrived sections, oldest first, until the frame's byte budget is spent. In lockstep, all of them in tile
-    /// order once every request has arrived (`residency/lockstep.rs`).
-    fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
-        if self.holds_uploads() {
-            return;
-        }
-        let lockstep = self.lockstep_order();
-        if !lockstep {
-            self.arrived.make_contiguous().sort_unstable_by_key(|data| !self.wanted.contains(&data.index));
-        }
-        let mut spent = 0;
-        while let Some(data) = self.arrived.pop_front() {
-            if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
-                continue; // no longer wanted
-            }
-            let bytes = data.upload_bytes();
-            if !lockstep && spent > 0 && spent + bytes > UPLOAD_BYTES_PER_FRAME {
-                self.arrived.push_front(data);
-                break;
-            }
-            spent += bytes;
-            self.upload_tile(renderer, data);
-        }
-    }
-
-    fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
-        let mut resources = SectionResources {
-            anims: std::mem::take(&mut data.anims),
-            ..SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0))
-        };
-        resources.upload_textures(renderer, &data);
-        resources.upload_meshes(renderer, &data, &self.shared);
-        let (mut placed, unresolved) = place(&data, &resources, &self.shared, &self.catalog, &self.override_groups);
-        for (index, object) in placed.iter_mut().enumerate() {
-            object.key = keys::tile(data.index, index);
-        }
-        self.props.add_tile(data.index, &mut placed);
-        resources.reflection_placed = place_reflections(&data, &resources, &self.shared);
-        for (index, reflected) in resources.reflection_placed.iter_mut().enumerate() {
-            reflected.bind_player(&placed, keys::tile(data.index, index | (1 << 31)));
-        }
-        self.unresolved += unresolved;
-        let packs = data.collision.iter().map(|p| p.section).collect();
-        for pack in data.collision {
-            self.insert_collision(pack, data.index);
-        }
-        self.tiles.insert(data.index, TileState::Resident { resources: Box::new(resources), placed, packs });
-        self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 
     /// Free the tiles the zone no longer needs, once everything it needs is resident (so the
@@ -392,12 +337,14 @@ impl Residency {
     fn request_wanted(&mut self) {
         let in_flight = self.tiles.values().filter(|s| matches!(s, TileState::Requested)).count();
         let free = MAX_IN_FLIGHT.saturating_sub(in_flight);
-        let missing: Vec<usize> =
-            self.wanted.iter().copied().filter(|i| !self.tiles.contains_key(i)).take(free).collect();
-        for i in missing {
+        let mut missing = std::mem::take(&mut self.request_scratch);
+        missing.clear();
+        missing.extend(self.wanted.iter().copied().filter(|i| !self.tiles.contains_key(i)).take(free));
+        for &i in &missing {
             self.tiles.insert(i, TileState::Requested);
             self.streamer.request(i);
         }
+        self.request_scratch = missing;
         self.request_shadow_support();
     }
 

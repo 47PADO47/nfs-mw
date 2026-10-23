@@ -1,108 +1,100 @@
-//! Plays one movie against a clock: video frames decoded when they come due, the audio decoded up front.
+//! The picture of a movie, made off the frame thread: a worker reads the file, decodes the VP6 frames and turns them into
+//! RGBA, and sends them ahead of the clock through a small bounded queue. The frame thread only takes what is due.
 
-use std::io::Cursor;
-use std::sync::Arc;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Receiver, Sender, SyncSender, TryRecvError, channel, sync_channel};
+use std::thread;
 
 use anyhow::{Context, Result, anyhow};
 use blackbox_movie::{Demuxer, MovieHeader, Packet, Timeline, Vp6Decoder, YuvFrame};
-use ea_audio::Pcm;
-use ea_audio::schl::{StreamDecoder, header};
 
-type Source = Demuxer<Cursor<Arc<[u8]>>>;
+/// Messages the worker may run ahead of the frame thread: the header, then the pictures that wait for their time.
+const AHEAD: usize = 3;
+/// The read buffer of the movie file. A story movie is over 100 MB, so it is read in blocks and never loaded whole.
+const READ_BUFFER: usize = 1 << 20;
 
-/// What a step of the clock did.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Step {
-    /// The frame on screen is still the right one.
-    Same,
-    /// A new frame is in [`Movie::rgba`].
-    Frame,
-    /// The movie is over.
-    Finished,
+/// One decoded picture: frame `index` of the movie, RGBA8.
+pub(super) struct Picture {
+    pub index: u32,
+    pub rgba: Vec<u8>,
 }
 
-pub struct Movie {
-    demuxer: Source,
-    decoder: Vp6Decoder,
-    timeline: Timeline,
-    header: MovieHeader,
-    frame: YuvFrame,
-    rgba: Vec<u8>,
-    clock: f64,
-    over: bool,
+/// What the worker sends.
+pub(super) enum Message {
+    /// The file is open and its header is read: always the first message.
+    Opened(MovieHeader),
+    /// The next picture, in order. Pictures before the start offset are not sent.
+    Frame(Picture),
+    /// The movie cannot be played (a damaged file, a decoding error). The worker stops after it.
+    Failed(String),
 }
 
-impl Movie {
-    pub fn open(bytes: Vec<u8>) -> Result<(Self, Option<Pcm>)> {
-        let bytes: Arc<[u8]> = bytes.into();
-        let audio = decode_audio(Demuxer::new(Cursor::new(bytes.clone())).context("reading the movie")?)?;
-        let demuxer = Demuxer::new(Cursor::new(bytes)).context("reading the movie")?;
-        let header = *demuxer.header();
-        let decoder = Vp6Decoder::new(header.width, header.height).map_err(|e| anyhow!("the video decoder: {e}"))?;
-        let rgba = vec![0; usize::from(header.width) * usize::from(header.height) * 4];
-        let movie = Self {
-            demuxer,
-            decoder,
-            timeline: Timeline::from_header(&header),
-            header,
-            frame: YuvFrame::default(),
-            rgba,
-            clock: 0.0,
-            over: false,
-        };
-        Ok((movie, audio))
+/// The frame thread's end of the video worker. Dropping it stops the worker.
+pub(super) struct VideoStream {
+    messages: Receiver<Message>,
+    /// Pictures the frame thread did not show, handed back for the worker to fill again.
+    recycle: Sender<Vec<u8>>,
+}
+
+impl VideoStream {
+    /// Starts the worker on the movie file at `path`, which decodes from the frame due at `start` seconds. Opening the
+    /// file and reading its header happen on the worker; the first [`Message`] reports them.
+    pub fn spawn(path: PathBuf, start: f64) -> Result<Self> {
+        let (tx, messages) = sync_channel(AHEAD);
+        let (recycle, spare) = channel();
+        thread::Builder::new()
+            .name("movie-video".into())
+            .spawn(move || run(&path, start, &tx, &spare))
+            .context("starting the video decoder")?;
+        Ok(Self { messages, recycle })
     }
 
-    pub fn size(&self) -> [u32; 2] {
-        [u32::from(self.header.width), u32::from(self.header.height)]
+    /// The next message, if the worker has one ready. `Disconnected` means the worker is done.
+    pub fn try_next(&self) -> Result<Message, TryRecvError> {
+        self.messages.try_recv()
     }
 
-    pub fn duration(&self) -> f64 {
-        self.header.duration()
-    }
-
-    /// The frame last stepped to, RGBA8.
-    pub fn rgba(&self) -> &[u8] {
-        &self.rgba
-    }
-
-    /// Moves the clock on by `dt` seconds and decodes up to the frame that is due.
-    pub fn step(&mut self, dt: f64) -> Result<Step> {
-        if self.over {
-            return Ok(Step::Finished);
-        }
-        self.clock += dt.max(0.0);
-        let update = self.timeline.update(self.clock);
-        let Some(target) = update.present else {
-            self.over = update.finished;
-            return Ok(if update.finished { Step::Finished } else { Step::Same });
-        };
-        // Frames before the due one are decoded and dropped: later frames predict from them.
-        loop {
-            let Some(packet) = self.demuxer.next_packet().map_err(|e| anyhow!("reading a frame: {e}"))? else {
-                self.over = true;
-                return Ok(Step::Finished);
-            };
-            let Packet::Video(video) = packet else { continue };
-            self.decoder.decode_into(&video.data, &mut self.frame).map_err(|e| anyhow!("decoding a frame: {e}"))?;
-            if video.index >= target {
-                self.frame.to_rgba(&mut self.rgba);
-                return Ok(Step::Frame);
-            }
-        }
+    /// Gives a picture that was not shown back to the worker, so the next one needs no new allocation.
+    pub fn give_back(&self, rgba: Vec<u8>) {
+        // The worker may be gone already: then the buffer is simply freed.
+        let _ = self.recycle.send(rgba);
     }
 }
 
-/// The sound of the movie, decoded: the interleaved samples of every audio block.
-fn decode_audio(mut demuxer: Source) -> Result<Option<Pcm>> {
-    let Some(raw) = demuxer.audio_header().map(|h| h.to_vec()) else { return Ok(None) };
-    let stream = header::parse(&raw).map_err(|e| anyhow!("the movie's audio header: {e}"))?;
-    let mut decoder = StreamDecoder::new(&stream).map_err(|e| anyhow!("the movie's audio: {e}"))?;
-    let mut samples = Vec::new();
-    while let Some(packet) = demuxer.next_packet().map_err(|e| anyhow!("reading the movie: {e}"))? {
-        if let Packet::Audio(block) = packet {
-            decoder.decode_block(&block.data, &mut samples).map_err(|e| anyhow!("decoding the movie's audio: {e}"))?;
+/// The worker: decodes the movie into `tx` and ends with it, with a [`Message::Failed`] first on an error.
+fn run(path: &Path, start: f64, tx: &SyncSender<Message>, spare: &Receiver<Vec<u8>>) {
+    let Err(e) = decode(path, start, tx, spare) else { return };
+    // A receiver that is gone has no use for the reason.
+    let _ = tx.send(Message::Failed(format!("{e:#}")));
+}
+
+/// Decodes every frame from the one due at `start`, in order, and sends it. A full queue makes this wait, which keeps
+/// the worker a few frames ahead of the clock and no more. Returns quietly when the receiver is dropped.
+fn decode(path: &Path, start: f64, tx: &SyncSender<Message>, spare: &Receiver<Vec<u8>>) -> Result<()> {
+    let file = File::open(path).with_context(|| format!("opening {}", path.display()))?;
+    let mut demuxer = Demuxer::new(BufReader::with_capacity(READ_BUFFER, file)).context("reading the movie")?;
+    let header = *demuxer.header();
+    let mut decoder = Vp6Decoder::new(header.width, header.height).map_err(|e| anyhow!("the video decoder: {e}"))?;
+    if tx.send(Message::Opened(header)).is_err() {
+        return Ok(());
+    }
+    // Frames before this one are decoded, because later frames predict from them, and not sent.
+    let first = Timeline::from_header(&header).frame_at(start).unwrap_or(0);
+    let mut yuv = YuvFrame::default();
+    while let Some(packet) = demuxer.next_packet().map_err(|e| anyhow!("reading a frame: {e}"))? {
+        let Packet::Video(video) = packet else { continue };
+        decoder.decode_into(&video.data, &mut yuv).map_err(|e| anyhow!("decoding a frame: {e}"))?;
+        if video.index < first {
+            continue;
+        }
+        let mut rgba = spare.try_recv().unwrap_or_default();
+        rgba.resize(yuv.rgba_len(), 0);
+        yuv.to_rgba(&mut rgba);
+        if tx.send(Message::Frame(Picture { index: video.index, rgba })).is_err() {
+            return Ok(());
         }
     }
-    Ok(Some(Pcm { sample_rate: stream.sample_rate, channels: stream.channels, samples, loop_range: None }))
+    Ok(())
 }

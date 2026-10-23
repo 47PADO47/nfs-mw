@@ -1,11 +1,24 @@
-//! What a mouse click on the menus presses, for the front end's frame system (`plugin.rs`).
+//! Where a pointer press lands on the front end: the world map picture and the screens' buttons.
 
-use blackbox_feng::runtime::pad;
-use glam::Vec2;
+use super::*;
 
-use super::flow::Frontend;
-use super::logic::{Command, Env};
-use crate::input::{Action, Bindings, InputDevice};
+/// Whether the pointer is over the world map's picture, where the map draws its own cross cursor. Outside it (the
+/// buttons, the list) the system pointer shows, so it can click. `app::cursor::update` owns the pointer's visibility
+/// and asks this.
+pub fn map_pointer_on_picture(fe: &Frontend, window: &Window) -> bool {
+    let map_on_top =
+        matches!(fe.stage, Stage::Map) && fe.screens.top() == Some(crate::frontend::ids::screen::WORLD_MAP);
+    if !map_on_top {
+        return false;
+    }
+    // The themed full-screen map draws its own cursor over the whole window.
+    if fe.map_chrome == Chrome::Drawn {
+        return true;
+    }
+    feng_point(window)
+        .map(layout::view_of)
+        .is_some_and(|view| (0.0..=1.0).contains(&view[0]) && (0.0..=1.0).contains(&view[1]))
+}
 
 /// What a click on the menus presses.
 pub(super) enum Press {
@@ -46,7 +59,7 @@ pub(super) fn press_at(
     if fe.screens.focus_button_at(point) {
         return Press::Accept;
     }
-    if fe.screens.release_at(point, super::ids::MOUSE_LEFT_RELEASED) {
+    if fe.screens.release_at(point, crate::frontend::ids::MOUSE_LEFT_RELEASED) {
         return Press::Nothing;
     }
     Press::Nothing

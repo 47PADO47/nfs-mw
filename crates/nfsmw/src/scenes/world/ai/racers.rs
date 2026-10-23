@@ -3,9 +3,9 @@
 
 use blackbox_collision::CollisionWorld;
 use blackbox_roads::{LaneType, NavKind, RoadNav, SegmentFilter};
-use blackbox_vehicle::performance::{Performance, measure_with_integration};
+use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
-use nfsmw_data::car::physics::SurfaceTable;
+use nfsmw_data::car::physics::{SurfaceTable, measured};
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::TrafficWorld;
@@ -83,7 +83,8 @@ impl TrafficWorld {
         }
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        let own = measure_with_integration(&model.physics.spec, model.physics.tire_integration);
+        // Measured once per distinct car spec: every race has the same cars on its grids again and again.
+        let own = measured::performance_of_spec(&model.physics.spec, model.physics.tire_integration);
         let mut state = RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed);
         state.held = spec.held;
         let start = Start { stagger: spec.id as u32 % 8, speed: spec.speed, cruise: Cruise::default(), patrol: false };

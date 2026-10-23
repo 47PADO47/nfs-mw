@@ -4,6 +4,9 @@ use bevy_ecs::prelude::*;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::time::{Duration, Instant};
 
+/// How long a clipboard or browser request's feedback stays on screen.
+const FEEDBACK_SHOWN: Duration = Duration::from_secs(8);
+
 struct Worker {
     send: SyncSender<egui::OutputCommand>,
     results: Receiver<Result<&'static str, String>>,
@@ -44,11 +47,16 @@ impl Platform {
         self.message = Some((message, error, Instant::now()));
     }
 
+    /// Whether the feedback message is still up, so [`Self::show`] draws it.
+    pub fn visible(&self) -> bool {
+        self.message.as_ref().is_some_and(|(_, _, at)| at.elapsed() <= FEEDBACK_SHOWN)
+    }
+
     pub fn show(&self, ctx: &egui::Context) {
-        let Some((message, error, at)) = &self.message else { return };
-        if at.elapsed() > Duration::from_secs(8) {
+        if !self.visible() {
             return;
         }
+        let Some((message, error, _)) = &self.message else { return };
         egui::Area::new(egui::Id::new("platform_feedback"))
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -12.0))
             .interactable(false)

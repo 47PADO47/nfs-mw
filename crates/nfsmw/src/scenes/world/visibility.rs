@@ -1,16 +1,28 @@
 //! Choosing what to draw this frame: frustum culling, the game's LOD rule
 //! (`docs/specs/scenery-lod.md`, which also acts as the draw distance), then
 //! sorting by mesh so the renderer can instance repeated models.
+//!
+//! The frame paths sweep the residency tile by tile ([`collect_main`], [`collect_rear`]): a tile's box is tested once,
+//! and only the objects of a tile the view reaches are tested one by one, from compact cull data (`resident/cull.rs`).
+//! The per-object rules live in `sweep.rs`; the flat collectors below run them on a plain list of objects.
 
 use blackbox_gfx::Instance;
 use blackbox_scene::Frustum;
-use blackbox_scenery::LodView;
 use blackbox_scenery::layout::LodRules;
 use glam::Mat4;
 
+use super::detail::DetailState;
 use super::props::PropWorld;
-use super::resident::Placed;
+use super::resident::{CullTile, Placed};
 use super::scenery_groups::SceneryGroups;
+
+mod sort;
+mod sweep;
+#[cfg(test)]
+mod tile_tests;
+
+pub use sort::sort_by_mesh;
+use sweep::Sweep;
 
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
 pub(super) const REFERENCE_HEIGHT: f32 = 480.0;
@@ -28,7 +40,7 @@ pub struct Camera {
 }
 
 /// Include nearby casters outside the player frustum. Bevy culls these independently for each cascade.
-/// The result is sorted by mesh. The frame paths append more after the scenery and use the unsorted collector.
+/// The result is sorted by mesh. The frame paths append more after the scenery and use the tile collectors.
 #[cfg(test)]
 pub fn collect_with_shadows<'a>(
     placed: impl Iterator<Item = &'a Placed>,
@@ -38,21 +50,8 @@ pub fn collect_with_shadows<'a>(
     shadow_distance: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_unsorted_with_shadows(placed, camera, rules, props, shadow_distance, out);
-    out.sort_unstable_by_key(|i| i.mesh);
-}
-
-/// [`collect_with_shadows`] without the sort, for a frame that appends more instances after the scenery. The caller
-/// calls [`sort_by_mesh`] once after its last append.
-pub fn collect_unsorted_with_shadows<'a>(
-    placed: impl Iterator<Item = &'a Placed>,
-    camera: &Camera,
-    rules: &LodRules,
-    props: &PropWorld,
-    shadow_distance: f32,
-    out: &mut Vec<Instance>,
-) {
-    collect_inner(placed, camera, rules, props, None, (REFERENCE_HEIGHT, shadow_distance), None, out);
+    collect_flat(placed, camera, rules, props, None, (REFERENCE_HEIGHT, shadow_distance), out);
+    sort_by_mesh(out);
 }
 
 /// A small environment capture needs its own projected-size LOD, rather than the player's 480px rule.
@@ -66,15 +65,8 @@ pub fn collect_for_height<'a>(
     height: f32,
     out: &mut Vec<Instance>,
 ) {
-    collect_inner(placed, camera, rules, props, None, (height, 0.0), None, out);
-    out.sort_unstable_by_key(|i| i.mesh);
-}
-
-/// Sorts `instances` by mesh: every copy of a mesh ends up adjacent, so the renderer draws each run as one instanced
-/// draw. Call it after the last instance of a frame is appended. Unstable like the scenery sort always was, so it
-/// sorts in place without allocating.
-pub fn sort_by_mesh(instances: &mut [Instance]) {
-    instances.sort_unstable_by_key(|i| i.mesh);
+    collect_flat(placed, camera, rules, props, None, (height, 0.0), out);
+    sort_by_mesh(out);
 }
 
 /// Where placed object `p` is drawn this frame, or `None` when its prop is knocked over. A non-prop has no entry in
@@ -90,101 +82,74 @@ pub(super) fn current_pose(p: &Placed, props: &PropWorld) -> Option<(Mat4, black
     Some(props.pose(p.prop_id).unwrap_or((p.transform, p.bounds)))
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn collect_main<'a>(
-    placed: impl Iterator<Item = &'a Placed>,
-    camera: &Camera,
-    rules: &LodRules,
-    props: &PropWorld,
-    groups: &SceneryGroups,
-    shadow_distance: f32,
-    detail: &mut super::detail::DetailState,
-    out: &mut Vec<Instance>,
-) {
-    detail.begin();
-    collect_inner(placed, camera, rules, props, Some(groups), (REFERENCE_HEIGHT, shadow_distance), Some(detail), out);
-    detail.finish();
-}
-
-/// `groups` decides which grouped instances are drawn. `None` draws none of them, the rule for the callers that do not
-/// read the group set yet.
-#[allow(clippy::too_many_arguments)]
-fn collect_inner<'a>(
+/// The per-object path over a plain list, the reference the tile collectors must match. `groups` decides which grouped
+/// instances are drawn; `None` draws none of them.
+#[cfg(test)]
+fn collect_flat<'a>(
     placed: impl Iterator<Item = &'a Placed>,
     camera: &Camera,
     rules: &LodRules,
     props: &PropWorld,
     groups: Option<&SceneryGroups>,
-    (height, shadow_distance): (f32, f32),
-    mut detail: Option<&mut super::detail::DetailState>,
+    sizes: (f32, f32),
     out: &mut Vec<Instance>,
 ) {
-    let frustum = Frustum::from_view_proj(&camera.view_proj);
-    let _trace = blackbox_trace::scope("World: visibility / caster selection");
-    let caster_ray = glam::Vec3::from_array(camera.light_dir).normalize_or_zero() * 80.0;
-    let view = LodView {
-        position: camera.position,
-        forward: camera.forward,
-        pixel_scale: LodView::pixel_scale_for(camera.fov_y_radians, height),
-    };
-    out.clear();
+    let mut sweep = Sweep::new(camera, rules, props, groups, sizes, None, None, out);
     for p in placed {
-        if p.group != 0 && !groups.is_some_and(|groups| groups.admits(p.group)) {
-            continue;
-        }
-        if detail.as_ref().is_some_and(|d| !d.settings.world.admits(p.flags)) {
-            continue;
-        }
-        let Some((transform, bounds)) = current_pose(p, props) else {
-            continue;
-        };
-        // A turned race wall is mirrored along its own length (`docs/specs/race-barriers.md` section 3).
-        let turned = p.flags & blackbox_scenery::INSTANCE_TURNABLE != 0 && groups.is_some_and(|g| g.turned(p.group));
-        let (transform, bounds) = match turned {
-            true => turned_pose(transform, &bounds),
-            false => (transform, bounds),
-        };
-        let in_view = frustum.intersects(&bounds);
-        // A margin along the light ray admits casters beyond the last receiver cascade.
-        let caster =
-            near_caster(&bounds, camera.position, shadow_distance) && reaches_view(&bounds, &frustum, caster_ray);
-        if !in_view && !caster {
-            continue;
-        }
-        let slots = p.lods.map(|m| m.is_some());
-        let position = transform.w_axis.truncate().to_array();
-        // Keep the player's projected-size LOD for visible geometry. A shadow must not change it.
-        let visible_lod = in_view
-            .then(|| match detail.as_deref_mut() {
-                Some(detail) => detail.choose(p, position, &view, rules),
-                None => rules.choose(&view, position, p.radius, p.flags, slots, p.detailed),
-            })
-            .flatten();
-        if in_view && detail.is_some() && visible_lod.is_none() {
-            continue;
-        }
-        let shadow_lod = || {
-            if !caster {
-                return None;
-            }
-            // Off-camera LOD must not disappear merely because the object is behind the player.
-            let shadow_view = LodView {
-                forward: (glam::Vec3::from_array(position) - glam::Vec3::from_array(camera.position))
-                    .normalize_or_zero()
-                    .to_array(),
-                ..view
-            };
-            rules.choose(&shadow_view, position, p.radius, p.flags, slots, p.detailed)
-        };
-        let Some(slot) = visible_lod.or_else(shadow_lod) else {
-            continue;
-        };
-        if p.prop_id != NOT_A_PROP && props.model_instances(p.prop_id, transform, out) {
-            continue;
-        }
-        if let Some(mesh) = p.lods[slot] {
-            out.push(Instance::keyed(mesh, transform, p.key));
-        }
+        sweep.visit(p);
+    }
+}
+
+/// The player's view: every tile of `tiles` (`Residency::cull_tiles`), unsorted. `original` lists the authored shadow
+/// overlays too. `groups` decides which grouped instances are drawn.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn collect_main<'a>(
+    tiles: impl Iterator<Item = CullTile<'a>>,
+    original: bool,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    groups: &SceneryGroups,
+    shadow_distance: f32,
+    detail: &mut DetailState,
+    out: &mut Vec<Instance>,
+) {
+    let _trace = blackbox_trace::scope("World: visibility / caster selection");
+    detail.begin();
+    let mut sweep = Sweep::new(
+        camera,
+        rules,
+        props,
+        Some(groups),
+        (REFERENCE_HEIGHT, shadow_distance),
+        None,
+        Some(&mut *detail),
+        out,
+    );
+    for tile in tiles {
+        sweep.visit_tile(&tile, original);
+    }
+    detail.finish();
+}
+
+/// The rear-view mirror's view, unsorted: nearby casters outside the frustum are included, and nothing whose origin is
+/// farther than `far` from the camera is added (the mirror's far plane, `ReflectionDistance::mirror_far`), so the
+/// capture needs no second pass to cut the list. The frame path appends more after it and sorts once.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn collect_rear<'a>(
+    tiles: impl Iterator<Item = CullTile<'a>>,
+    original: bool,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    shadow_distance: f32,
+    far: Option<f32>,
+    out: &mut Vec<Instance>,
+) {
+    let _trace = blackbox_trace::scope("World: visibility / caster selection");
+    let mut sweep = Sweep::new(camera, rules, props, None, (REFERENCE_HEIGHT, shadow_distance), far, None, out);
+    for tile in tiles {
+        sweep.visit_tile(&tile, original);
     }
 }
 

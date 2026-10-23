@@ -18,6 +18,8 @@ mod cop_cars;
 mod cop_wait;
 mod events;
 mod handlers;
+mod kind;
+mod loading;
 mod player;
 mod world;
 

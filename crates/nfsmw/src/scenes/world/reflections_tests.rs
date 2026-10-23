@@ -5,6 +5,18 @@ use crate::viewer::Scene;
 use blackbox_render::{Renderer, RendererOptions};
 use std::time::{Duration, Instant};
 
+/// Updates until the refresh under way has drawn every face: a refresh is spread over a few updates, and only then do
+/// the per-face lists form one snapshot.
+fn settle(world: &mut WorldScene, renderer: &mut Renderer) {
+    for _ in 0..8 {
+        world.update(renderer, &ActionState::default(), 0.0);
+        if world.reflection_last.is_none_or(|stamp| stamp.progress.rotation.idle()) {
+            return;
+        }
+    }
+    panic!("the reflection refresh never completed");
+}
+
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR) and a Vulkan GPU"]
 fn streaming_refreshes_a_paused_low_quality_capture() {
@@ -49,6 +61,7 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
         assert!(start.elapsed() < Duration::from_secs(60), "streaming timed out");
         std::thread::sleep(Duration::from_millis(5));
     }
+    settle(&mut world, &mut renderer);
     assert_eq!(world.clock, 0.0);
     assert!(revisions.len() > 1, "loading scenery refreshed the capture with the clock paused");
     assert_eq!(world.reflection_last.unwrap().scenery, world.residency.visual_revision());
@@ -64,14 +77,14 @@ fn streaming_refreshes_a_paused_low_quality_capture() {
     let mut experiments = renderer.render_experiments();
     experiments.original_shadows = false;
     renderer.set_render_experiments(experiments);
-    world.update(&mut renderer, &ActionState::default(), 0.0);
+    settle(&mut world, &mut renderer);
     assert_ne!(world.reflection_last, unchanged, "toggling overlays invalidates a paused capture");
     assert!(world.reflection_faces.iter().map(Vec::len).sum::<usize>() < before_faces);
     assert!(world.reflection_faces.iter().flatten().all(|i| !authored.contains(&i.key)));
     assert!(world.frame(1.0).1.iter().all(|i| !authored.contains(&i.key)), "main view omits the same overlays");
     experiments.original_shadows = true;
     renderer.set_render_experiments(experiments);
-    world.update(&mut renderer, &ActionState::default(), 0.0);
+    settle(&mut world, &mut renderer);
     assert_eq!(world.reflection_faces.iter().map(Vec::len).sum::<usize>(), before_faces);
 
     graphics.reflections = ReflectionQuality::High;
@@ -163,6 +176,26 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
     world.refresh_effects(&mut renderer);
     assert!(world.reflection_last.is_some());
     assert_eq!(world.clock, 0.0, "refresh must not advance simulation");
+    for tuning in [
+        [3.0, 2.0, 1.0, 1.0, 1.0],
+        [3.0, 2.5, 1.0, 1.0, 1.0],
+        [3.0, 2.5, 0.5, 1.0, 1.0],
+        [3.0, 2.5, 0.5, 0.5, 1.0],
+        [3.0, 2.5, 0.5, 0.5, 1.5],
+    ] {
+        let mut options = renderer.render_experiments();
+        [
+            options.sky_wind_speed,
+            options.sky_sun_size,
+            options.sky_sun_brightness,
+            options.sky_brightness,
+            options.sky_sunset_warmth,
+        ] = tuning;
+        renderer.set_render_experiments(options);
+        world.refresh_effects(&mut renderer);
+        assert_eq!(world.reflection_last.unwrap().sky_tuning, tuning, "sky edits refresh a frozen probe");
+        assert_eq!(world.clock, 0.0);
+    }
     world.set_rain(true, 0.4);
     assert_eq!(world.rain.target(), 1.0);
     world.set_rain(false, 0.4);

@@ -9,6 +9,7 @@ mod events;
 mod fields;
 mod geometry;
 mod jump;
+pub mod measured;
 pub mod performance;
 mod powertrain;
 mod reactions;

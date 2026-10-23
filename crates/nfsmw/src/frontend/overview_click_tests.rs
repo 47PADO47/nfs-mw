@@ -55,6 +55,7 @@ impl Harness {
 
 #[test]
 fn the_chevrons_step_the_rival_and_wrap() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut h) = overview(13) else { return };
     assert!(h.shows("blacklist 13"), "the page opens at the career's rival");
     assert!(h.click_on(STEPPER_UP), "the top chevron takes the click");
@@ -67,6 +68,7 @@ fn the_chevrons_step_the_rival_and_wrap() {
 
 #[test]
 fn the_arrows_walk_the_sheets_and_the_option_opens_the_bio() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut h) = overview(13) else { return };
     assert!(h.shows("Race Events"));
     assert!(!h.click_on(ARROW_LEFT), "the left arrow is hidden on the first sheet");
@@ -92,6 +94,7 @@ fn the_arrows_walk_the_sheets_and_the_option_opens_the_bio() {
 
 #[test]
 fn the_pad_steps_picks_opens_and_leaves() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut h) = overview(13) else { return };
     h.press(pad::UP);
     assert!(h.shows("blacklist 14"), "up steps to the next rival");

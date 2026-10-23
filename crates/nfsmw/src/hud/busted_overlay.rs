@@ -3,8 +3,10 @@
 //! its own scripts and nothing more. The HUD loads it into its runtime while [`HudState::busted_overlay`] is set and
 //! unloads it when that clears, so its fades start again on each bust.
 
+#[cfg(test)]
+use blackbox_feng::UiTree;
 use blackbox_feng::package::Package;
-use blackbox_feng::{PackageId, Runtime, UiTree};
+use blackbox_feng::{PackageId, Runtime};
 
 /// The overlay's package name in the install's HUD files.
 pub const OVERLAY_PACKAGE: &str = "BUSTED_OVERLAY.fng";
@@ -32,7 +34,13 @@ impl BustedOverlay {
         }
     }
 
+    /// The overlay's package, while it is up.
+    pub fn shown(&self) -> Option<PackageId> {
+        self.shown
+    }
+
     /// The overlay's tree, while it is up.
+    #[cfg(test)]
     pub fn tree(&self, runtime: &Runtime) -> Option<UiTree> {
         self.shown.map(|id| runtime.tree(id))
     }

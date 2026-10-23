@@ -2,7 +2,7 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 11] = [
+const SHADERS: [(&str, &str); 13] = [
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
     ("contact", include_str!("shaders/contact.wgsl")),
@@ -10,6 +10,8 @@ const SHADERS: [(&str, &str); 11] = [
     ("irradiance", include_str!("shaders/irradiance.wgsl")),
     ("shadow depth", include_str!("shaders/shadow_depth.wgsl")),
     ("sky", include_str!("shaders/sky.wgsl")),
+    ("enhanced sky", include_str!("shaders/sky_enhanced.wgsl")),
+    ("sky noise", include_str!("shaders/sky_noise.wgsl")),
     ("normal", include_str!("shaders/normal.wgsl")),
     ("window", include_str!("shaders/window.wgsl")),
     ("motion", include_str!("shaders/motion.wgsl")),
@@ -19,6 +21,7 @@ const SHADERS: [(&str, &str); 11] = [
 fn entry_points(name: &str) -> Vec<String> {
     let source = SHADERS.iter().find(|(n, _)| *n == name).expect("known shader").1;
     let source = match name {
+        "enhanced sky" => format!("{}\n{}", source, include_str!("shaders/sky_clouds.wgsl")),
         "scene" => format!(
             "{}\n{}\n{}",
             source,

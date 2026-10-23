@@ -40,3 +40,43 @@ fn a_pixel_jitter_shifts_the_image_right_and_down_by_that_many_render_pixels() {
 fn no_jitter_is_the_identity() {
     assert_eq!(jitter_matrix(Vec2::ZERO), Mat4::IDENTITY);
 }
+
+#[test]
+fn moved_runs_are_the_consecutive_flagged_instances_of_a_mesh_run() {
+    use super::motion::moved_runs;
+    let moved = [false, true, true, false, true, true, true];
+    assert_eq!(moved_runs(&moved, 0, 7).collect::<Vec<_>>(), [1..3, 4..7]);
+    assert_eq!(moved_runs(&moved, 2, 5).collect::<Vec<_>>(), [2..3, 4..5], "clipped to the mesh run");
+    assert_eq!(moved_runs(&moved, 3, 4).count(), 0);
+    assert_eq!(moved_runs(&[false; 3], 0, 3).count(), 0);
+    let runs: Vec<_> = moved_runs(&moved[..2], 0, 4).collect();
+    assert_eq!(runs.len(), 1, "instances past the flags are still");
+    assert_eq!(runs[0], 1..2);
+}
+
+/// What the fill draw does for one pixel, on the CPU: the world point from the depth the jittered projection
+/// wrote, then the vector between the unjittered previous and current projections.
+fn fill_vector(jittered: Mat4, current: Mat4, previous: Mat4, world: Vec3) -> Vec2 {
+    use super::motion::inverse;
+    let clip = jittered * world.extend(1.0);
+    let ndc = clip.truncate() / clip.w;
+    let h = Mat4::from_cols_array(&inverse(jittered)) * ndc.extend(1.0);
+    let rebuilt = h / h.w;
+    assert!((rebuilt.truncate() - world).length() < 1e-3 * world.length().max(1.0), "{rebuilt} vs {world}");
+    let (cur, prev) = (current * rebuilt, previous * rebuilt);
+    prev.truncate().truncate() / prev.w - cur.truncate().truncate() / cur.w
+}
+
+#[test]
+fn the_fill_draw_gives_the_camera_motion_of_a_still_point_whatever_the_jitter() {
+    let current = camera();
+    let jitter = jitter_matrix(Vec2::new(0.003, -0.002));
+    let point = Vec3::new(1.5, 7.0, 2.0);
+    assert_eq!(fill_vector(jitter * current, current, current, point), Vec2::ZERO, "a still camera");
+    // The camera moved one metre to the right since the last frame.
+    let previous = Projection::PerspectiveInfiniteReverse { fov_y: 1.0, aspect: 16.0 / 9.0, near: 0.1 }.matrix()
+        * glam::camera::rh::view::look_at_mat4(Vec3::new(-1.0, -5.0, 1.0), Vec3::new(-1.0, 5.0, 1.0), Vec3::Z);
+    let direct = ndc(previous * point.extend(1.0)).truncate() - ndc(current * point.extend(1.0)).truncate();
+    let filled = fill_vector(jitter * current, current, previous, point);
+    assert!((filled - direct).abs().max_element() < 1e-4, "{filled} vs {direct}");
+}

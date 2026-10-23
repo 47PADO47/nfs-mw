@@ -2,6 +2,7 @@
 
 use super::{PassContext, PassIo};
 use blackbox_gfx::{ColourTreatment, PostSettings};
+use blackbox_gpu_passes::BindCache;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -15,6 +16,8 @@ pub(super) struct Parameters {
     strengths: [f32; 4],
     black_curve: [f32; 4],
     colour_curve: [f32; 4],
+    /// `x` is the exposure of the fused tone mapping.
+    tonemap: [f32; 4],
 }
 
 fn parameters(settings: &PostSettings, profile: Option<&ColourTreatment>) -> Parameters {
@@ -24,6 +27,7 @@ fn parameters(settings: &PostSettings, profile: Option<&ColourTreatment>) -> Par
         strengths: [0.0; 4],
         black_curve: [0.0; 4],
         colour_curve: [0.0; 4],
+        tonemap: [0.0; 4],
     };
     let Some(p) = profile.copied() else { return out };
     let p = settings.colour_treatment_override.map_or(p, |replacement| replacement.apply(p));
@@ -42,7 +46,13 @@ pub(super) struct Composite {
     sampler: wgpu::Sampler,
     uniform: wgpu::Buffer,
     params: Parameters,
-    pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    /// Per output format and whether the tone mapping is fused into the draw.
+    pipelines: HashMap<(wgpu::TextureFormat, bool), wgpu::RenderPipeline>,
+    /// Bind groups per (input, blur) view pair. The gain map never changes for one composite (a new profile
+    /// builds a new one), and the sampler and parameter buffer are fixed, so a steady frame makes none.
+    bind_groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// The exposure of the tone mapping run as part of the draw, when the next pass of the chain was fused in.
+    tonemap: Option<f32>,
     /// Used by the pipeline built per output format.
     cache: Option<wgpu::PipelineCache>,
 }
@@ -114,6 +124,8 @@ impl Composite {
             uniform,
             params,
             pipelines: HashMap::new(),
+            bind_groups: BindCache::default(),
+            tonemap: None,
             cache: cache.cloned(),
         }
     }
@@ -121,6 +133,12 @@ impl Composite {
     /// Set the HDR flag (`tint.w`): with it the shader keeps positive scene values above 1 instead of clamping them.
     pub(super) fn set_hdr(&mut self, hdr: bool) {
         self.params.tint[3] = u8::from(hdr) as f32;
+    }
+
+    /// Run the tone mapping with `exposure` as part of the next draw (`None`: not at all).
+    pub(super) fn set_tonemap(&mut self, exposure: Option<f32>) {
+        self.tonemap = exposure;
+        self.params.tonemap[0] = exposure.unwrap_or(0.0);
     }
 
     pub(super) fn draw(
@@ -131,22 +149,26 @@ impl Composite {
         encoder: &mut wgpu::CommandEncoder,
     ) {
         ctx.queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&self.params));
-        let mut entries: Vec<_> = std::iter::once(io.input)
-            .chain(images)
-            .enumerate()
-            .map(|(i, view)| wgpu::BindGroupEntry {
-                binding: i as u32,
-                resource: wgpu::BindingResource::TextureView(view),
+        // The gain map (`images[1]`) is fixed for this composite, so the other two views are the whole key.
+        let group = self.bind_groups.get_or_insert_with(io.input, images[0], || {
+            ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("colour treatment inputs"),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(io.input) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(images[0]) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(images[1]) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                    wgpu::BindGroupEntry { binding: 4, resource: self.uniform.as_entire_binding() },
+                ],
             })
-            .collect();
-        entries.push(wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&self.sampler) });
-        entries.push(wgpu::BindGroupEntry { binding: 4, resource: self.uniform.as_entire_binding() });
-        let group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("colour treatment inputs"),
-            layout: &self.layout,
-            entries: &entries,
         });
-        let pipeline = self.pipelines.entry(io.output_format).or_insert_with(|| {
+        let fused = self.tonemap.is_some();
+        let entry = match fused {
+            true => "fs_main_tonemap",
+            false => "fs_main",
+        };
+        let pipeline = self.pipelines.entry((io.output_format, fused)).or_insert_with(|| {
             ctx.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("colour treatment"),
                 layout: Some(&self.pipeline_layout),
@@ -161,7 +183,7 @@ impl Composite {
                 multisample: Default::default(),
                 fragment: Some(wgpu::FragmentState {
                     module: &self.shader,
-                    entry_point: Some("fs_main"),
+                    entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: io.output_format,
@@ -187,7 +209,7 @@ impl Composite {
             multiview_mask: None,
         });
         pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.draw(0..3, 0..1);
     }
 }

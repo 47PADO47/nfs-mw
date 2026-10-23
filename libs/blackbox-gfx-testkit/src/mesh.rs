@@ -55,6 +55,7 @@ impl MeshBuilder {
                 texture: s.texture,
                 blend: s.blend,
                 shading: s.shading,
+                two_sided: true,
             });
         }
         self.range_start = end;

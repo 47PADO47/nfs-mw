@@ -5,6 +5,8 @@
 //   fs_down       mip i -> mip i+1: 13-tap downsample (the "dual filter" of the 2014 Call of Duty talk)
 //   fs_up         mip i+1 -> mip i, blended additively: 3x3 tent upsample
 //   fs_composite  scene + mip 0 * intensity -> output
+//   fs_composite_tonemap  the same, then the tone mapping of tonemap.wgsl (params.b.x is the exposure): the two
+//                 passes fused into one
 
 // Single taps are capped so one very bright texel cannot flash over the whole screen.
 const MAX_TAP: f32 = 32.0;
@@ -72,4 +74,18 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
     return vec4<f32>(base.rgb + glow * params.a.z, 1.0);
+}
+
+// The ACES fit of tonemap.wgsl, kept identical to it (a test compares the two texts).
+fn aces(x: vec3<f32>) -> vec3<f32> {
+    let mapped = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+    return clamp(mapped, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+@fragment
+fn fs_composite_tonemap(in: VsOut) -> @location(0) vec4<f32> {
+    let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
+    let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
+    let lit = base.rgb + glow * params.a.z;
+    return vec4<f32>(aces(max(lit, vec3<f32>(0.0)) * params.b.x), 1.0);
 }

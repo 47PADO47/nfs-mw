@@ -2,16 +2,18 @@
 
 use blackbox_gfx::RenderBackend;
 
-use super::{View, WorldScene, ground, sky, space};
+use super::{View, WorldScene, ground, space};
 use crate::input::{Action, ActionState};
 
 impl WorldScene {
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        self.original_sky = renderer.render_experiments().original_world_materials;
+        let options = renderer.render_experiments();
+        self.original_sky = options.original_world_materials || options.enhanced_sky;
         let _span = bevy_log::info_span!("world::update").entered();
         let _trace = blackbox_trace::scope("World: update");
         self.shadow_quality = renderer.graphics().shadows;
+        self.detail.mirror_far = renderer.graphics().reflection_distance.mirror_far();
         // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
         self.update_arrest_nis();
         self.update_nis(input, dt);
@@ -101,7 +103,7 @@ impl WorldScene {
         self.wet_road.step(dt, self.rain.intensity() > 0.0);
         self.update_atmosphere(sim_dt);
         self.clock += sim_dt * self.tuning.animation_speed;
-        renderer.set_sky_state(sky::state(self.atmosphere.intensity(), self.clock));
+        self.update_sky(renderer);
 
         self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
 

@@ -76,7 +76,10 @@ fn network<'a>(backend: Option<&'a mut LanBackend>, fallback: &'a mut Fallback) 
 pub(in crate::frontend) fn build(app: &mut App) {
     app.init_resource::<LanUi>().add_systems(
         Update,
-        update.after(crate::frontend::plugin_keys::collect_typed).before(crate::app::FrameSet::Frontend),
+        update
+            .after(crate::frontend::plugin_keys::collect_typed)
+            .before(crate::app::FrameSet::Frontend)
+            .run_if(resource_exists::<Frontend>),
     );
 }
 

@@ -21,16 +21,19 @@
 //!   nodes are copied as they are, including the world transform.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use blackbox_ui::{Component, DrawList, LayoutCx, Rect, UiTree};
 
 use super::frame::{FengSource, FrameCell};
+use super::structure::{NONE, Structure};
 
 /// Which nodes of a tree an adapter emits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Scope {
-    /// The nodes under one of `roots` (name hashes), except those under an `excluded` name.
-    Under { roots: Vec<u32>, excluded: Vec<u32> },
+    /// The nodes under one of `roots` (name hashes), except those under an `excluded` name. The lists are shared, so
+    /// a scope is cheap to make and to compare.
+    Under { roots: Arc<[u32]>, excluded: Arc<[u32]> },
     /// Every visible node of the package. A hidden node is left out, as the presenter leaves it out of the draw order.
     Package,
 }
@@ -69,7 +72,42 @@ impl Component for FengSubtree {
 
     fn build(&self, out: &mut DrawList) {
         let Some(tree) = self.frame.get(self.source) else { return };
-        emit(&tree, &self.scope, out);
+        // The HUD package keeps its shape, so the owners of its nodes are worked out once (`structure.rs`).
+        let (FengSource::Hud, Scope::Under { .. }) = (self.source, &self.scope) else {
+            emit(&tree, &self.scope, out);
+            return;
+        };
+        self.frame.with_structure(&tree, |structure| emit_under(&tree, structure, &self.scope, out));
+    }
+}
+
+/// [`emit`] for a scope with roots, reading the owners from the cached `structure` of `tree`. The same nodes, in the
+/// same order, with the same parent links.
+fn emit_under(tree: &UiTree, structure: &mut Structure, scope: &Scope, out: &mut DrawList) {
+    let slot = structure.owner_slot(tree, scope);
+    let Structure { owners, parents, placed, .. } = structure;
+    let owners = &owners[slot].1;
+    placed.clear();
+    placed.resize(tree.nodes.len(), NONE);
+    // The position each kept node gets in `out`. Kept nodes keep their relative order.
+    let mut next = out.len() as u32;
+    for (pos, &root) in owners.iter().enumerate() {
+        if root == NONE || !tree.nodes[root as usize].visible {
+            continue;
+        }
+        placed[pos] = next;
+        next += 1;
+    }
+    for (pos, node) in tree.nodes.iter().enumerate() {
+        if placed[pos] == NONE {
+            continue;
+        }
+        let mut copy = node.clone();
+        copy.parent = match parents[pos] {
+            NONE => None,
+            at => Some(placed[at as usize]).filter(|p| *p != NONE).map(|p| p as usize),
+        };
+        out.push(copy);
     }
 }
 

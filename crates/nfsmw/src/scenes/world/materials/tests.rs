@@ -1,8 +1,29 @@
 use super::*;
 
+/// No texture is known: every group keeps both faces.
+fn no_sides(_: u32) -> Option<Sidedness> {
+    None
+}
+
+#[test]
+fn groups_cull_by_their_texture_and_the_car_effect_culls_blended_ones_too() {
+    let sides = |hash| match hash {
+        1 => Some(Sidedness { two_sided: false, blended: false }),
+        2 => Some(Sidedness { two_sided: false, blended: true }),
+        _ => Some(Sidedness { two_sided: true, blended: false }),
+    };
+    let lookup = Lookup(|_| None, false, Vec::new(), sides);
+    assert!(!lookup.two_sided(1, 0), "an opaque world texture is single-sided");
+    assert!(lookup.two_sided(2, 0), "blended world surfaces keep both faces");
+    assert!(!lookup.two_sided(2, 4), "the car effect culls blended surfaces");
+    assert!(lookup.two_sided(3, 0) && lookup.two_sided(4, 4), "flagged and cut-out textures keep both faces");
+    assert!(Lookup(|_| None, false, Vec::new(), no_sides).two_sided(1, 0), "unknown textures keep both faces");
+    assert!(Lookup(|_| None, true, Vec::new(), sides).two_sided(1, 0), "sky domes keep both faces");
+}
+
 #[test]
 fn original_effects_have_distinct_routing_and_unsupported_families_stay_explicit() {
-    let lookup = Lookup(|_| None, false, Vec::new());
+    let lookup = Lookup(|_| None, false, Vec::new(), no_sides);
     assert_eq!(lookup.effect_shading(0), Some(Shading::World));
     assert_eq!(lookup.effect_shading(6), Some(Shading::Tree));
     assert_eq!(lookup.effect_shading(8), Some(Shading::WorldNoFog));
@@ -10,7 +31,7 @@ fn original_effects_have_distinct_routing_and_unsupported_families_stay_explicit
     for effect in [1, 2, 3, 4, 5, 7, 19, u32::MAX] {
         assert_eq!(lookup.effect_shading(effect), None);
     }
-    let sky = Lookup(|_| None, true, Vec::new());
+    let sky = Lookup(|_| None, true, Vec::new(), no_sides);
     for effect in [0, 6, 8, 17, 19] {
         assert_eq!(sky.effect_shading(effect), None);
     }
@@ -55,8 +76,8 @@ fn solid() -> Solid {
             };
             3
         ],
-        secondary_uvs: vec![[0.0; 2]; 3],
-        tangents: vec![[1.0, 0.0, 0.0, -1.0]; 3],
+        secondary_uvs: Some(vec![[0.0; 2]; 3]),
+        tangents: Some(vec![[1.0, 0.0, 0.0, -1.0]; 3]),
         indices: vec![0, 1, 2],
         groups: vec![group.clone(), group],
         skin: None,
@@ -73,14 +94,14 @@ fn normal_groups_require_complete_inputs_cache_triplets_and_release_idempotently
     let handles = normal_materials(&mut backend, &model, &lookup, &mut resources.normal_materials);
     assert_eq!(handles[0], handles[1]);
     assert_eq!(resources.normal_materials.len(), 1);
-    let materials = Lookup(lookup, false, handles);
+    let materials = Lookup(lookup, false, handles, no_sides);
     let draws = blackbox_scene::solid_mesh(&model, &materials, Shading::Prelit);
     assert!(draws.iter().all(|d| matches!(d.shading, Shading::WorldNormal(_)) && d.blend == BlendMode::AlphaTest));
     model.groups[1].texture_slots[3] = 0xFF;
     let handles = normal_materials(&mut backend, &model, &lookup, &mut resources.normal_materials);
     assert!(handles[0].is_some());
     assert!(handles[1].is_none());
-    let draws = blackbox_scene::solid_mesh(&model, &Lookup(lookup, false, handles), Shading::Prelit);
+    let draws = blackbox_scene::solid_mesh(&model, &Lookup(lookup, false, handles, no_sides), Shading::Prelit);
     assert_eq!(draws[1].shading, Shading::Prelit);
     resources.release_normal_materials(&mut backend);
     resources.release_normal_materials(&mut backend);

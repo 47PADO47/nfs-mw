@@ -6,9 +6,11 @@
 mod aabb;
 mod frustum;
 mod meshes;
+mod sides;
 mod textures;
 
 pub use aabb::Aabb;
 pub use frustum::Frustum;
-pub use meshes::{MaterialLookup, solid_mesh, upload_rigid_part, upload_solid};
+pub use meshes::{MaterialLookup, solid_mesh, solid_vertices, upload_rigid_part, upload_solid};
+pub use sides::Sidedness;
 pub use textures::{blend_mode, upload_texture, upload_texture_predecoded, upload_texture_predecoded_mips};

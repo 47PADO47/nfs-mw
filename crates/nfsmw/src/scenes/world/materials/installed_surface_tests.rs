@@ -103,9 +103,9 @@ fn installed_original_road_and_donut_windows_resolve_materials_and_release() {
         .with_texture_tracking();
     let mut shared = SectionResources::default();
     shared.upload_texture_list(&mut renderer, &textures, &[]);
-    shared.upload_solid_list(&mut renderer, &models.solids, None, &SectionResources::default(), false);
+    shared.upload_solid_list(&mut renderer, &models.solids, &SectionResources::default(), false);
     let mut local = SectionResources::default();
-    local.upload_solid_list(&mut renderer, &tile.solids, None, &shared, false);
+    local.upload_solid_list(&mut renderer, &tile.solids, &shared, false);
     let road_mesh = local.meshes[&road.name_hash].0;
     for (i, group) in road.groups.iter().enumerate() {
         let Shading::WorldNormal(handle) = renderer.mesh_draws[&road_mesh][i].shading else {
@@ -118,9 +118,10 @@ fn installed_original_road_and_donut_windows_resolve_materials_and_release() {
         assert_eq!([desc.diffuse, desc.normal, desc.specular], expected);
     }
     let uploaded = &renderer.mesh_tangents[&road_mesh];
-    assert_eq!(uploaded.len(), road.tangents.len());
-    assert!(road.tangents.iter().any(|t| t[..3].iter().any(|v| v.abs() > 0.01)), "ID1 authored tangent decoding");
-    for (i, (actual, authored)) in uploaded.iter().zip(&road.tangents).enumerate() {
+    let authored_tangents = road.tangents.as_deref().expect("the road has authored tangents");
+    assert_eq!(uploaded.len(), authored_tangents.len());
+    assert!(authored_tangents.iter().any(|t| t[..3].iter().any(|v| v.abs() > 0.01)), "ID1 authored tangent decoding");
+    for (i, (actual, authored)) in uploaded.iter().zip(authored_tangents).enumerate() {
         assert_eq!(actual.map(f32::to_bits), authored.map(f32::to_bits), "road tangent {i}");
     }
     let shop_mesh = shared.meshes[&shop.name_hash].0;

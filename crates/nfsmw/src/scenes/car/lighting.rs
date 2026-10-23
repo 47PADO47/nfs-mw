@@ -30,6 +30,21 @@ pub fn rig(to_sun: Vec3) -> LightingRig {
     }
 }
 
+/// Custom world response follows the same authored colour/intensity as scenery.
+/// The installed values are already display-space lighting multipliers, like the
+/// legacy custom rig. Do not apply another transfer function here.
+pub fn world_rig(to_sun: Vec3, light: Option<blackbox_gfx::SurfaceLight>) -> LightingRig {
+    let Some(light) = light else { return rig(to_sun) };
+    let mut result = rig(to_sun);
+    result.lights[0].color = Vec3::from_array(light.diffuse).clamp(Vec3::ZERO, Vec3::ONE);
+    let ambient = Vec3::from_array(light.ambient).clamp(Vec3::ZERO, Vec3::ONE) * light.ambient_alpha.clamp(0.0, 1.0);
+    // Without probe irradiance the two directional fills follow authored ambient.
+    // With probe irradiance enabled the shader replaces these fills, avoiding double light.
+    result.lights[1].color = ambient * 0.65;
+    result.lights[2].color = ambient * 0.45;
+    result
+}
+
 /// The direction at `(azimuth offset, elevation)` degrees, the azimuth counted from `to_sun`'s.
 fn around(to_sun: Vec3, (offset, elevation): (f32, f32)) -> Vec3 {
     let azimuth = to_sun.y.atan2(to_sun.x) + offset.to_radians();
@@ -63,5 +78,45 @@ mod tests {
         for light in rig(Vec3::Z).lights {
             assert!(light.to_light.is_finite());
         }
+    }
+}
+
+#[cfg(test)]
+mod weather_tests {
+    use super::*;
+
+    #[test]
+    fn missing_world_inputs_keep_the_viewer_rig() {
+        assert_eq!(world_rig(Vec3::Z, None), rig(Vec3::Z));
+    }
+
+    #[test]
+    fn cloud_and_sun_inputs_control_key_and_fills_separately() {
+        let mut light = blackbox_gfx::SurfaceLight {
+            shadow_strength: 1.0,
+            ambient: [0.0; 3],
+            ambient_alpha: 1.0,
+            diffuse: [0.0; 3],
+            specular: [0.0; 3],
+            specular_power: 16.0,
+            reflection_scale: 0.0,
+            reflective_specular_scale: 1.0,
+        };
+        light.diffuse = [0.8, 0.6, 0.4];
+        light.ambient = [0.2, 0.3, 0.5];
+        let clear = world_rig(Vec3::Z, Some(light));
+        assert_eq!(clear.lights[0].color, Vec3::new(0.8, 0.6, 0.4));
+        light.diffuse = [0.1; 3];
+        let cloud = world_rig(Vec3::Z, Some(light));
+        assert!(cloud.lights[0].color.length() < clear.lights[0].color.length());
+        assert_eq!(cloud.lights[1], clear.lights[1]);
+        light.ambient_alpha = 0.0;
+        let sheltered = world_rig(Vec3::Z, Some(light));
+        assert_eq!(sheltered.lights[0], cloud.lights[0]);
+        assert_eq!(sheltered.lights[1].color, Vec3::ZERO);
+        assert_eq!(sheltered.lights[2].color, Vec3::ZERO);
+        light.diffuse = [0.0; 3];
+        light.ambient = [0.0; 3];
+        assert!(world_rig(Vec3::Z, Some(light)).lights.iter().all(|l| l.color == Vec3::ZERO));
     }
 }

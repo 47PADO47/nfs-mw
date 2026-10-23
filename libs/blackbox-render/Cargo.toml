@@ -23,6 +23,7 @@ blackbox-gfx.workspace = true
 blackbox-gpu-passes.workspace = true
 blackbox-smaa.workspace = true
 bytemuck.workspace = true
+foldhash.workspace = true
 fsr3-wgpu.workspace = true
 glam.workspace = true
 log.workspace = true

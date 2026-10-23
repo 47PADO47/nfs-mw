@@ -30,7 +30,8 @@ pub(super) fn scenery<'a>(
         let size = view.projected_size(transform.w_axis.truncate().to_array(), p.radius + 6.0);
         let Some(slot) = slot(p.flags, size) else { continue };
         let Some(mesh) = p.lods[slot] else { continue };
-        out.push(Instance::keyed(mesh, scenery_transform(transform, p.flags), p.key));
+        let instance = Instance::keyed(mesh, scenery_transform(transform, p.flags), p.key);
+        out.push(instance.with_flipped_winding(p.flip_winding()));
     }
     out.sort_unstable_by_key(|instance| instance.mesh);
 }

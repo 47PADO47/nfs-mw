@@ -7,9 +7,9 @@ impl TrafficWorld {
         let mut contacts = Vec::new();
         for car in &mut self.cars {
             let (tractor, trailer) = car.sims_mut();
-            contacts.extend(tractor.take_owned_sound_contacts());
+            tractor.drain_owned_sound_contacts_into(&mut contacts);
             if let Some(trailer) = trailer {
-                contacts.extend(trailer.take_owned_sound_contacts());
+                trailer.drain_owned_sound_contacts_into(&mut contacts);
             }
         }
         contacts

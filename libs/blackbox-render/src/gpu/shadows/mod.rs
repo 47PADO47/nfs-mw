@@ -23,10 +23,12 @@ mod retention_tests;
 mod sampling_tests;
 #[cfg(test)]
 mod stability_tests;
+mod stagger;
 #[cfg(test)]
 mod surface_tests;
 #[cfg(test)]
 mod tests;
+mod upload;
 #[cfg(test)]
 mod wide_tests;
 
@@ -50,8 +52,18 @@ pub(super) struct Shadows {
     instances: Vec<InstanceBuffer>,
     bounds: Vec<(usize, Vec3, f32)>,
     selected: Vec<usize>,
-    matrices: Vec<[f32; 16]>,
+    scratch: upload::CasterScratch,
+    /// Each caster's slot in the instance store, when the casters are read from it.
+    caster_slots: Vec<u32>,
+    /// The casters are read from the instance store (bind group 2) through a slot each.
+    store: bool,
+    /// Scratch partitions of `selected` into static and moving casters.
+    fixed: Vec<usize>,
+    moving: Vec<usize>,
     fit_points: Vec<Vec3>,
+    rendered: stagger::Rendered,
+    /// Far cascades refresh on their `stagger::PERIOD`. Image tests need every cascade fresh each frame.
+    stagger: bool,
 }
 
 impl Renderer {
@@ -122,6 +134,9 @@ impl Renderer {
                 || self.shared.shadows.layer_count != layers
                 || self.shared.shadows.detail_resolution != detail)
         {
+            if let Some(shadows) = &mut self.shadows {
+                shadows.rendered.reset();
+            }
             self.shared.shadows = maps::Maps::new(
                 &self.device,
                 &self.shared.glossy.material,
@@ -153,8 +168,8 @@ impl Renderer {
         }
         params.environment = [
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
-            settings.sky_strength,
-            settings.ground_strength,
+            settings.sky_strength * settings.indirect_strength,
+            settings.ground_strength * settings.indirect_strength,
             u8::from(settings.paint_response) as f32,
         ];
         params.world = [
@@ -178,6 +193,14 @@ impl Renderer {
             params.options[0] = 0.0;
             params.environment[0] = 0.0;
         }
+        // Cascades that skip this frame keep sampling with the matrix their map was rendered with.
+        let mut due = [true; 4];
+        if let Some(fitted) = fit.as_ref().filter(|_| settings.sun_shadows && stats.supported)
+            && let Some(shadows) = self.shadows.as_mut()
+        {
+            let force = !shadows.stagger || frame.camera_cut || settings.shadow_projection.is_some();
+            due = shadows.rendered.plan(&mut params, fitted.count, force);
+        }
         self.queue.write_buffer(&self.shared.shadows.buffer, 0, bytemuck::bytes_of(&params));
         let Some(fit) = fit.filter(|_| settings.sun_shadows && stats.supported) else {
             if let Some(shadows) = &mut self.shadows {
@@ -191,6 +214,11 @@ impl Renderer {
         };
         let mut shadows = self.shadows.take().expect("prepared shadow pipelines");
         let casters = self.shadow_casters.as_deref().unwrap_or(visible);
+        if shadows.store {
+            let main_view = self.shadow_casters.is_none();
+            let store = &mut self.draw_list.store;
+            upload::caster_slots(store, &self.device, &self.queue, casters, main_view, &mut shadows.caster_slots);
+        }
         if settings.cached_shadows {
             shadows.cache.prepare(casters);
         }
@@ -198,7 +226,12 @@ impl Renderer {
             shadows.cache = cache::Cache::default();
         }
         stats.cascades = fit.count as u32;
+        let mut fixed = std::mem::take(&mut shadows.fixed);
+        let mut moving = std::mem::take(&mut shadows.moving);
         for cascade in 0..fit.count {
+            if !due[cascade] {
+                continue;
+            }
             let _trace = blackbox_trace::scope(
                 ["Shadow CPU: cascade 0", "Shadow CPU: cascade 1", "Shadow CPU: cascade 2", "Shadow CPU: cascade 3"]
                     [cascade],
@@ -212,25 +245,30 @@ impl Renderer {
             }
             let planes = clip_planes(matrix);
             shadows.selected.clear();
-            shadows.matrices.clear();
             for &(index, center, radius) in &shadows.bounds {
                 if !intersects(&planes, center, radius) {
                     continue;
                 }
                 shadows.selected.push(index);
-                shadows.matrices.push(casters[index].transform.to_cols_array());
             }
             let selected = &shadows.selected;
-            shadows.instances[cascade].upload(&self.device, &self.queue, &shadows.matrices);
+            // Each draw below uploads just the casters it draws, into the buffer it binds.
+            let slots = shadows.store.then_some(shadows.caster_slots.as_slice());
             self.queue.write_buffer(&shadows.buffers[cascade], 0, bytemuck::cast_slice(&matrix.to_cols_array()));
             let target = &self.shared.shadows.layers[cascade];
             let size = fit.params.resolutions[cascade];
             let projection_stable = shadows.cache.projection(cascade, matrix, frame.camera_cut);
             if settings.cached_shadows && settings.shadow_projection.is_none() && projection_stable {
-                let (fixed, moving): (Vec<_>, Vec<_>) =
-                    selected.iter().copied().partition(|&i| shadows.cache.stable[i]);
+                fixed.clear();
+                moving.clear();
+                for &i in selected {
+                    match shadows.cache.stable[i] {
+                        true => fixed.push(i),
+                        false => moving.push(i),
+                    }
+                }
                 if !fixed.is_empty() {
-                    let fingerprint = cache::fingerprint(self, matrix, &fixed, casters);
+                    let fingerprint = shadows.cache.fingerprint(self, matrix, &fixed, casters);
                     let (view, dirty, reuse_final) = shadows.cache.image(
                         &self.device,
                         cascade,
@@ -240,8 +278,8 @@ impl Renderer {
                         !moving.is_empty(),
                     );
                     if dirty {
-                        let matrices: Vec<_> = fixed.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
-                        shadows.static_instances[cascade].upload(&self.device, &self.queue, &matrices);
+                        let buffer = &mut shadows.static_instances[cascade];
+                        shadows.scratch.upload(&self.device, &self.queue, buffer, casters, &fixed, slots);
                         shadows.draw_selected(
                             self,
                             encoder,
@@ -272,8 +310,8 @@ impl Renderer {
                         destination,
                         wgpu::Extent3d { width: size as u32, height: size as u32, depth_or_array_layers: 1 },
                     );
-                    let matrices: Vec<_> = moving.iter().map(|&i| casters[i].transform.to_cols_array()).collect();
-                    shadows.instances[cascade].upload(&self.device, &self.queue, &matrices);
+                    let buffer = &mut shadows.instances[cascade];
+                    shadows.scratch.upload(&self.device, &self.queue, buffer, casters, &moving, slots);
                     shadows.draw_selected(
                         self,
                         encoder,
@@ -290,6 +328,8 @@ impl Renderer {
                 }
             }
             shadows.cache.invalidate_final(cascade);
+            let buffer = &mut shadows.instances[cascade];
+            shadows.scratch.upload(&self.device, &self.queue, buffer, casters, selected, slots);
             shadows.draw_selected(
                 self,
                 encoder,
@@ -303,6 +343,8 @@ impl Renderer {
                 &mut stats,
             );
         }
+        shadows.fixed = fixed;
+        shadows.moving = moving;
         stats.map_mib += shadows.cache.mib();
         self.shadows = Some(shadows);
         stats.shadow_cpu_ms = start.elapsed().as_secs_f32() * 1000.0;

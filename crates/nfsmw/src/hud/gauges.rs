@@ -19,6 +19,22 @@ pub(super) fn ensure_script(rt: &mut Runtime, o: ObjectRef, script: u32) {
     }
 }
 
+const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+/// A decimal digit as text, with no allocation. Anything above 9 shows as 0, as the readout always has.
+pub(super) fn digit_text(digit: u32) -> &'static str {
+    DIGITS.get(digit as usize).copied().unwrap_or("0")
+}
+
+/// The gear digit: `R` in reverse, `N` in neutral, else the gear up to 9.
+pub(super) fn gear_text(gear: i32) -> &'static str {
+    match gear {
+        g if g < 0 => "R",
+        0 => "N",
+        g => DIGITS[g.min(9) as usize],
+    }
+}
+
 /// The three speed digits (ones, tens, hundreds) and the unit label. The game shows whole units, and no leading zero
 /// (the ones digit always shows).
 pub(super) fn speed_readout(rt: &mut Runtime, digits: &[Option<ObjectRef>; 3], units: Option<ObjectRef>, s: &HudState) {
@@ -26,7 +42,7 @@ pub(super) fn speed_readout(rt: &mut Runtime, digits: &[Option<ObjectRef>; 3], u
     let values = [speed % 10, (speed / 10) % 10, (speed / 100) % 10];
     for (i, slot) in digits.iter().enumerate() {
         let Some(o) = *slot else { continue };
-        rt.set_text(o, char::from_digit(values[i], 10).unwrap_or('0').to_string());
+        rt.set_text_str(o, digit_text(values[i]));
         let leading_zero = i > 0 && values[i] == 0 && speed < 10u32.pow(i as u32);
         rt.set_hidden(o, leading_zero);
     }

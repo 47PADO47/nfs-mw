@@ -18,10 +18,17 @@ use crate::settings::{Settings, SpeedUnits};
 use crate::ui::present::Screen;
 use crate::ui::{Presenter, SharedAssets, UiAssets};
 
-/// Loads the split-screen HUDs and adds the system that draws them. Call it once, after the shared assets exist.
-pub fn install(app: &mut App, dir: &GameDir, assets: &UiAssets) {
-    let Some(huds) = SplitHuds::load(dir, assets) else { return };
-    app.insert_resource(huds).add_systems(Update, present.in_set(FrameSet::Hud));
+/// Adds the system that draws the split-screen HUDs. It waits for them: the HUD's loader thread builds them ([`load`]).
+pub fn install(app: &mut App) {
+    app.add_systems(
+        Update,
+        present.in_set(FrameSet::Hud).run_if(resource_exists::<SplitHuds>).run_if(resource_exists::<SharedAssets>),
+    );
+}
+
+/// Loads the split-screen HUDs, once the shared assets exist. `None` when the install lacks them.
+pub fn load(dir: &GameDir, assets: &UiAssets) -> Option<SplitHuds> {
+    SplitHuds::load(dir, assets)
 }
 
 /// The state of each player's HUD for this frame; `None` while no split-screen race is on. A player the scene gives no

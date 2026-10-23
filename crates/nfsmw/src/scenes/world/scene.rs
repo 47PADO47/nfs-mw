@@ -71,6 +71,12 @@ impl Scene for WorldScene {
         0.0
     }
 
+    /// Whether any of the panels above has something to draw (see `ui_panels::Panels`). The scene's readout line is the
+    /// metrics overlay's, so the UI pass asks the metrics for it.
+    fn wants_ui(&self) -> bool {
+        self.panels().any()
+    }
+
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.story_movie.picture()
     }
@@ -181,7 +187,7 @@ impl Scene for WorldScene {
     }
 
     fn prepare_frame(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
-        self.original_sky = renderer.render_experiments().original_world_materials;
+        self.update_sky(renderer);
         self.update_wet_reflections(renderer, aspect);
     }
 

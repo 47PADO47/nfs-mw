@@ -1,6 +1,9 @@
 //! What the FEng screens read from the install besides their packages: the fonts, the textures and the language
 //! strings. Shared by the HUD and the menus.
 
+mod load;
+pub(crate) use load::read_wanted;
+
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
@@ -9,19 +12,22 @@ use blackbox_feng::font::uv_size;
 use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
 use blackbox_text::StringTable;
-use blackbox_tpk::{Texture, decode_rgba8, read_texture_packs, read_texture_packs_filtered};
-use game_install::{GameDir, Provider};
+use blackbox_tpk::{Texture, decode_rgba8};
+use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
-use nfsmw_data::read_unwrapped;
 use nfsmw_data::shared;
 use nfsmw_data::shared_unwrapped;
 
 use super::fonts::CustomFontSet;
 use super::fonts::tier::Tier;
 use super::late_textures::{LateTextures, TextureRef};
-use super::tips;
 use crate::settings::custom_fonts;
 use crate::settings::hd_content;
+
+/// The result of a loader thread; a panic in it goes on in the thread that joins it.
+fn joined<T>(handle: std::thread::ScopedJoinHandle<'_, T>) -> T {
+    handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
 
 /// The minimap and world map variants whose textures are loaded up front (the career stage picks one at run time).
 const MAP_VARIANTS: [MapVariant; 3] = [MapVariant::Full, MapVariant::Unlock1, MapVariant::Unlock2];
@@ -139,40 +145,6 @@ pub fn decode_png_rgba(data: &[u8]) -> Result<Image> {
     Ok(Image { width: frame.width, height: frame.height, rgba, blend: 1 })
 }
 
-/// Adds the textures of `GLOBAL/RIVALS.BIN` (90 pictures, about 60 MiB once decoded) to `textures`, first name wins. The
-/// file is read unwrapped, not through the shared memo, so its 21 MB of compressed blobs are freed after the load. A
-/// missing file is skipped quietly, as the other packs are.
-fn add_rivals(dir: &GameDir, textures: &mut HashMap<u32, Texture>) {
-    let Ok(data) = read_unwrapped(dir, RIVALS_FILE) else { return };
-    // Only the menu pictures are decoded: the `_IG` variants would double the 30 MB they take.
-    let wanted: HashSet<u32> = (1..=15)
-        .flat_map(|n| ["", "_BG", "_GRAF"].map(|suffix| fe_hash_upper(&format!("RIVAL_{n:02}{suffix}"))))
-        .collect();
-    match read_texture_packs_filtered(&data, |hash| wanted.contains(&hash)) {
-        Ok(packs) => {
-            for t in packs.into_iter().flat_map(|p| p.textures) {
-                textures.entry(t.name_hash).or_insert(t);
-            }
-        }
-        Err(e) => log::warn!("{RIVALS_FILE}: texture packs do not read: {e}"),
-    }
-}
-
-/// Adds the loading tips' pictures (`TIP_*`) of `GLOBAL/DYNTEX.BIN`, the pack of textures the original loads on demand,
-/// to `textures`, first name wins. Only the tips are decoded: the pack holds 278 other textures.
-fn add_tips(dir: &GameDir, textures: &mut HashMap<u32, Texture>) {
-    let Ok(data) = read_unwrapped(dir, TIPS_FILE) else { return };
-    let wanted: HashSet<u32> = tips::TIPS.iter().map(|key| fe_hash_upper(&tips::picture_name(key))).collect();
-    match read_texture_packs_filtered(&data, |hash| wanted.contains(&hash)) {
-        Ok(packs) => {
-            for t in packs.into_iter().flat_map(|p| p.textures) {
-                textures.entry(t.name_hash).or_insert(t);
-            }
-        }
-        Err(e) => log::warn!("{TIPS_FILE}: texture packs do not read: {e}"),
-    }
-}
-
 pub struct UiAssets {
     fonts: HashMap<u32, Font>,
     textures: HashMap<u32, Texture>,
@@ -233,55 +205,18 @@ impl UiAssets {
         // The stock sizes of the font textures come from the install's own packs, not from an overlay (which may hold an
         // HD copy): only a pack the install serves counts. The first such pack wins, as in the loaded textures below.
         let font_textures: HashSet<u32> = fonts.values().map(|f| f.texture_hash).collect();
-        let mut stock: HashMap<u32, (u32, u32)> = HashMap::new();
-        let mut textures: HashMap<u32, Texture> = HashMap::new();
-        let gauge_packs: Vec<_> = (1..=10).map(|i| format!("GLOBAL/HUDS_Custom_{i:02}.bin")).collect();
-        for rel in TEXTURE_FILES.iter().copied().chain(gauge_packs.iter().map(String::as_str)) {
-            let Ok(data) = shared_unwrapped(dir, rel) else { continue };
-            let from_install = matches!(dir.provider(rel), Some(Provider::Install));
-            match read_texture_packs(&data) {
-                Ok(packs) => {
-                    for t in packs.into_iter().flat_map(|p| p.textures) {
-                        if from_install && font_textures.contains(&t.name_hash) {
-                            stock.entry(t.name_hash).or_insert((t.width, t.height));
-                        }
-                        textures.entry(t.name_hash).or_insert(t);
-                    }
-                }
-                Err(e) => log::warn!("{rel}: texture packs do not read: {e}"),
-            }
-        }
-        add_rivals(dir, &mut textures);
-        add_tips(dir, &mut textures);
-
-        // The minimap's tiles are textures too: the HUD swaps them into its pieces by name. Every variant's map is read,
-        // since the career stage picks one (`nfsmw_career::regions::MapVariant`).
-        for variant in MAP_VARIANTS {
-            let stem = variant.minimap_file().trim_end_matches(".BIN");
-            match nfsmw_data::minimap::read_tiles(dir, stem) {
-                Ok(tiles) => {
-                    for t in tiles.tiles {
-                        textures.entry(t.name_hash).or_insert(t);
-                    }
-                }
-                Err(e) => log::warn!("the minimap tiles {stem} do not read: {e:#}"),
-            }
-        }
-
-        // The world map's picture is one of the `TRACK_MAP*` textures of `TrackMaps.bin` (314 MB), one per variant;
-        // only those textures are read.
-        let world_maps = MAP_VARIANTS.map(|v| fe_hash_upper(v.world_map_texture()));
-        match shared_unwrapped(dir, "TRACKS/L2RA/TrackMaps.bin") {
-            Ok(data) => match read_texture_packs_filtered(&data, |h| world_maps.contains(&h)) {
-                Ok(packs) => {
-                    for t in packs.into_iter().flat_map(|p| p.textures) {
-                        textures.entry(t.name_hash).or_insert(t);
-                    }
-                }
-                Err(e) => log::warn!("TrackMaps.bin: the world map picture does not read: {e:#}"),
-            },
-            Err(e) => log::warn!("TrackMaps.bin: {e:#}"),
-        }
+        // The groups of textures are independent reads, so they run side by side; they are merged in the order below,
+        // which is their priority (first name wins).
+        let (mut textures, stock, rivals_and_tips, minimap_tiles, world_maps) = std::thread::scope(|scope| {
+            let rivals_and_tips = scope.spawn(|| load::rivals_and_tips(dir));
+            let minimap_tiles = scope.spawn(|| load::minimap_tiles(dir));
+            let world_maps = scope.spawn(|| load::world_maps(dir));
+            let (textures, stock) = load::texture_files(dir, &font_textures);
+            (textures, stock, joined(rivals_and_tips), joined(minimap_tiles), joined(world_maps))
+        });
+        load::merge(&mut textures, rivals_and_tips);
+        load::merge(&mut textures, minimap_tiles);
+        load::merge(&mut textures, world_maps);
 
         let strings = shared::language(dir)
             .ok()

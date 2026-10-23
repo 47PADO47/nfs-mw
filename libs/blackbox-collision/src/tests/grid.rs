@@ -5,7 +5,7 @@ use crate::{CollisionPack, CollisionWorld, Error, Grid, InstanceRef, RayOptions}
 const ASPHALT: u32 = 0x19DB_2F1E;
 
 /// One node: index, then per kind the element values.
-fn node(index: u16, kinds: [&[u32]; 4]) -> Vec<u8> {
+pub(super) fn node(index: u16, kinds: [&[u32]; 4]) -> Vec<u8> {
     let mut v = Vec::new();
     push_u32(&mut v, 0); // runtime list pointer
     push_u16(&mut v, index);
@@ -25,7 +25,7 @@ fn node(index: u16, kinds: [&[u32]; 4]) -> Vec<u8> {
 }
 
 /// A 4 x 3 grid (rows x cols) of 64 m cells whose corner is (-100, 0, -50).
-fn grid_payload(nodes: &[Vec<u8>]) -> Vec<u8> {
+pub(super) fn grid_payload(nodes: &[Vec<u8>]) -> Vec<u8> {
     let mut head = Vec::new();
     for c in [-100.0f32, 0.0, -50.0, 1.0, 64.0, 1.0 / 64.0] {
         push_f32(&mut head, c);

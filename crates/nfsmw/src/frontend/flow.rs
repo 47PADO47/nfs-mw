@@ -10,6 +10,8 @@ use flow_loading::{Load, LoadingScreen};
 
 use super::browse::Browse;
 use super::camera_rig::CameraRig;
+use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
+use super::infractions::{InfractionsLogic, Ticket};
 use super::loading;
 use super::logic::{Args, Command, Env, PauseCtx, QuitTo, ScreenLogic};
 use super::look::Look;
@@ -23,11 +25,10 @@ use crate::scenes::world::DEFAULT_CAR;
 use crate::settings::{Partial, Settings};
 use nfsmw_career::rapsheet::EndGame;
 
-#[path = "flow_backdrop.rs"]
-mod flow_backdrop;
-// Career on the main menu: starting or resuming a career (`start_career`).
 #[path = "flow_arrival.rs"]
 mod flow_arrival;
+#[path = "flow_backdrop.rs"]
+mod flow_backdrop;
 #[path = "flow_bust.rs"]
 mod flow_bust;
 #[path = "flow_career.rs"]
@@ -113,9 +114,6 @@ pub enum Stage {
     },
 }
 
-use super::ids::screen::{INFRACTIONS, LOADING, LOADING_TIPS, MAIN_MENU, PAUSE_MENU, SPLASH, SPLASH_WIDE, WORLD_MAP};
-use super::infractions::{InfractionsLogic, Ticket};
-
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
 const WIDE_ASPECT: f32 = 1.4;
 
@@ -134,6 +132,8 @@ pub struct Frontend {
     pub(super) conceal: ConcealFlag,
     /// Where the start of free roam is while the loading screen is up (`flow_loading.rs`).
     load: Option<Load>,
+    /// A load, new career or created alias waiting for the career tables a thread reads (`flow_save.rs`).
+    save_job: Option<flow_save::SaveJob>,
     /// Settings changed in the menus and not yet written to the config file.
     pub(super) changed: Partial,
     /// A transition just happened: no screen listens until every pad button is let go.
@@ -218,6 +218,7 @@ impl Frontend {
             paused: PauseFlag::default(),
             conceal: ConcealFlag::default(),
             load: None,
+            save_job: None,
             changed: Partial::default(),
             latch: true,
             console_was_open: false,

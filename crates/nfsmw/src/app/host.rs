@@ -43,6 +43,9 @@ pub struct Host {
     pub flow_driven: bool,
     /// A screenshot run waits while this is set (a scripted menu is still running).
     pub hold_capture: bool,
+    /// UI parts (the menus' and the HUD's assets) still load on background threads: a screenshot waits for them and a
+    /// benchmark does not start before them (`ui/loading.rs`).
+    pub ui_loading: bool,
     /// The rear-view mirror drawn over the HUD (see [`super::mirror`]).
     pub mirror: super::mirror::MirrorOverlay,
     pub streaks: super::streaks::StreakOverlay,
@@ -101,6 +104,7 @@ impl Host {
             cancel_handled: false,
             flow_driven: false,
             hold_capture: false,
+            ui_loading: false,
             mirror: Default::default(),
             streaks: Default::default(),
             split: Default::default(),
@@ -171,6 +175,7 @@ impl Host {
     /// Initialises `scene` and puts it in the window. Returns the scene it replaced, which the caller closes or
     /// parks. On error the window keeps its scene.
     fn install(&mut self, mut scene: Box<dyn Scene>) -> anyhow::Result<Box<dyn Scene>> {
+        let _trace = blackbox_trace::scope("Scene: install and init");
         self.apply_scene_settings(scene.as_mut());
         self.init_scene(scene.as_mut())?;
         self.apply_driving_settings(scene.as_mut());

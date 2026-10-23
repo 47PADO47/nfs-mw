@@ -97,6 +97,7 @@ mod step_bench_tests;
 mod story_movie;
 mod sun;
 mod teardown;
+mod ui_panels;
 mod update;
 mod vehicle_effects;
 mod visibility;

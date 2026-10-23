@@ -56,7 +56,7 @@ fn installed_wet_road_feed_refreshes_quality_pose_and_dry_lifecycle() {
     world.prepare_frame(&mut renderer, 16.0 / 9.0);
     assert!(renderer.projected.is_none(), "dry transitions remove the active view");
     assert_eq!(world.surface_light().unwrap().reflection_scale, 0.0);
-    renderer.set_render_experiments(blackbox_gfx::RenderExperiments::default());
+    renderer.set_render_experiments(blackbox_gfx::RenderExperiments { enhanced_sky: false, ..Default::default() });
     world.prepare_frame(&mut renderer, 16.0 / 9.0);
     assert!(!world.original_sky, "paused material changes refresh sky selection before either view");
     renderer.set_render_experiments(blackbox_gfx::RenderExperiments {

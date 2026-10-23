@@ -338,7 +338,7 @@ impl WorldScene {
     }
 
     /// The text of the message card that is up, if one is.
-    fn race_card_text(&self) -> Option<&str> {
+    pub(in crate::scenes::world) fn race_card_text(&self) -> Option<&str> {
         let session = self.race.as_ref()?;
         match &session.stage {
             Stage::Intro { current: Playing::Message { text, .. }, .. }

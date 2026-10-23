@@ -137,7 +137,10 @@ impl AmbientOcclusion {
                 blackbox_gfx::AoQuality::Off => (1, 0, 0),
                 blackbox_gfx::AoQuality::Low => (2, 2, 6),
                 blackbox_gfx::AoQuality::Medium => (2, 3, 6),
-                blackbox_gfx::AoQuality::High => (1, 4, 8),
+                // Half resolution: the composite pass upsamples with a depth and normal aware bilateral
+                // filter, so High keeps its slice and step budget at a quarter of the pixel work. There is no
+                // quality above High to keep at full resolution.
+                blackbox_gfx::AoQuality::High => (2, 4, 8),
             },
             AoMethod::TemporalXeGtao => match settings.quality {
                 blackbox_gfx::AoQuality::Off => (1, 0, 0),

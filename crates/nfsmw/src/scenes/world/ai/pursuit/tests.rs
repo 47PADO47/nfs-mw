@@ -41,6 +41,7 @@ mod installed_hiding;
 mod installed_route;
 mod lockout;
 mod net_export;
+mod parallel;
 mod placement;
 mod recycling;
 mod roadblock;

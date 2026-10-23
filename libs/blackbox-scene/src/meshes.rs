@@ -29,6 +29,12 @@ pub trait MaterialLookup {
     fn effect_shading(&self, _effect_id: u32) -> Option<Shading> {
         None
     }
+
+    /// Whether groups with this texture, drawn with effect `effect_id`, keep both faces ([`DrawRange::two_sided`]).
+    /// Both faces by default; a lookup that knows the texture packs answers with [`crate::Sidedness`].
+    fn two_sided(&self, _texture_hash: u32, _effect_id: u32) -> bool {
+        true
+    }
 }
 
 impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
@@ -37,15 +43,15 @@ impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for F {
     }
 }
 
-/// The renderer vertices of a solid: the CPU half of an upload, which streamed solids get on their loader
-/// thread (`nfsmw-data`'s `SectionData::solid_vertices`).
-pub fn solid_vertices(solid: &Solid) -> Vec<Vertex> {
-    solid.vertices.iter().map(render_vertex).collect()
+/// The renderer vertices of a solid: its decoded vertices, borrowed as they are. Both vertex types are the same 36
+/// bytes (position, normal, D3DCOLOR, uv), so there is no per-vertex copy and a streamed solid holds them once.
+pub fn solid_vertices(solid: &Solid) -> &[Vertex] {
+    render_vertices(&solid.vertices)
 }
 
-/// One solid vertex as a renderer vertex (the common attributes only).
-fn render_vertex(v: &blackbox_solid::Vertex) -> Vertex {
-    Vertex { position: v.position, normal: v.normal, color_bgra: v.color_bgra, uv: v.uv }
+/// Solid vertices as renderer vertices, without copying.
+fn render_vertices(vertices: &[blackbox_solid::Vertex]) -> &[Vertex] {
+    bytemuck::cast_slice(vertices)
 }
 
 /// The draw ranges of a solid, indexing the vertices of [`solid_vertices`]. Textures resolve through
@@ -90,6 +96,8 @@ fn group_draw(
         texture: material.map(|(t, _)| t),
         blend: material.map_or(BlendMode::Opaque, |(_, b)| b),
         shading,
+        // A group without a texture the lookup knows keeps both faces.
+        two_sided: material.is_none() || g.diffuse_texture(solid).is_none_or(|h| materials.two_sided(h, g.effect_id)),
     }
 }
 
@@ -122,13 +130,12 @@ pub fn upload_solid(
     if solid.vertices.is_empty() || solid.indices.is_empty() {
         return None;
     }
-    let vertices = solid_vertices(solid);
     let draws = solid_mesh(solid, materials, shading);
     Some(backend.create_mesh(&MeshDesc {
         label: &solid.name,
-        vertices: &vertices,
-        secondary_uvs: Some(&solid.secondary_uvs),
-        tangents: Some(&solid.tangents),
+        vertices: solid_vertices(solid),
+        secondary_uvs: solid.secondary_uvs.as_deref(),
+        tangents: solid.tangents.as_deref(),
         indices: &solid.indices,
         draws,
     }))
@@ -148,11 +155,10 @@ pub fn upload_rigid_part(
         return None;
     }
     let indices = part.indices.iter().map(|&i| u16::try_from(i).ok()).collect::<Option<Vec<u16>>>()?;
-    let vertices: Vec<Vertex> = part.vertices.iter().map(render_vertex).collect();
     let draws = part_draws(solid, part, materials, shading);
     Some(backend.create_mesh(&MeshDesc {
         label: &solid.name,
-        vertices: &vertices,
+        vertices: render_vertices(&part.vertices),
         secondary_uvs: None,
         tangents: None,
         indices: &indices,
@@ -186,8 +192,8 @@ mod tests {
 
     fn solid() -> Solid {
         Solid {
-            secondary_uvs: Vec::new(),
-            tangents: Vec::new(),
+            secondary_uvs: None,
+            tangents: None,
             name: "TEST".into(),
             name_hash: 0,
             version: 0,
@@ -211,6 +217,25 @@ mod tests {
             groups: vec![group(0), group(1), group(0xFF)],
             skin: None,
         }
+    }
+
+    #[test]
+    fn renderer_vertices_are_the_solid_vertices_as_they_are() {
+        let mut solid = solid();
+        solid.vertices[0] = SolidVertex {
+            position: [1.0, 2.0, 3.0],
+            normal: [0.0, 1.0, 0.0],
+            color_bgra: [4, 5, 6, 7],
+            uv: [0.25, 0.75],
+        };
+        let vertices = solid_vertices(&solid);
+        assert_eq!(vertices.len(), solid.vertices.len());
+        assert_eq!(vertices.as_ptr().cast::<u8>(), solid.vertices.as_ptr().cast::<u8>(), "borrowed, not copied");
+        let v = &vertices[0];
+        assert_eq!(
+            (v.position, v.normal, v.color_bgra, v.uv),
+            ([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [4, 5, 6, 7], [0.25, 0.75])
+        );
     }
 
     struct Shiny;
@@ -246,6 +271,10 @@ mod tests {
         fn effect_shading(&self, effect: u32) -> Option<Shading> {
             (effect == 22).then_some(Shading::Sky)
         }
+
+        fn two_sided(&self, texture_hash: u32, effect: u32) -> bool {
+            texture_hash != 42 || effect != 22
+        }
     }
 
     #[test]
@@ -261,5 +290,15 @@ mod tests {
         assert_eq!(draws.iter().map(|d| d.shading).collect::<Vec<_>>(), [Shading::Sky, Shading::Lit, Shading::Prelit]);
         assert!(draws.iter().all(|d| d.texture == Some(TextureHandle::from_raw(17))));
         assert!(draws.iter().all(|d| d.blend == BlendMode::AlphaBlend));
+        assert_eq!(draws.iter().map(|d| d.two_sided).collect::<Vec<_>>(), [false, false, true]);
+    }
+
+    #[test]
+    fn groups_draw_both_faces_unless_the_lookup_knows_their_texture_is_single_sided() {
+        let mut solid = solid();
+        solid.texture_hashes.push(42);
+        solid.groups[0].texture_slots[0] = 0;
+        let draws = solid_mesh(&solid, &Shiny, Shading::Lit);
+        assert!(draws.iter().all(|d| d.two_sided), "the default lookup and untextured groups keep both faces");
     }
 }
