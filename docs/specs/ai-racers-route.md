@@ -82,13 +82,19 @@ an opponent keeps driving at cruising speed along the road and is removed when t
 - **Aim past the gate.** A path ends at its goal and a car at the end of a path stops. An opponent therefore drives to a
   point 40 m beyond the gate's centre along the gate's heading, and the gate is crossed on the way (`race/flow.rs`,
   `next_aim`) **[unconfirmed]**. The player's GPS blip and the checkpoint blip use the gate's centre.
-- **Emulation.** The world streams its collision around the player, so a car far from the player has no ground and
-  waits for it (`ai/simulation.rs`). A racer more than 450 m from the player is therefore not simulated: the race moves
-  its place along the route, straight towards the next gate's centre, at `0.7 * top speed * (0.8 + 0.2 * skill)`, and
-  it feeds the same gate tests, so it reaches checkpoints, laps and the finish like a driven car. When the racer is
-  nearer than 300 m to the player again, its car is put back on the road at that place, facing the next gate, rolling at
-  its last speed (`race/emulate.rs`, `AiCar::relocate_racer`) **[unconfirmed]**. The original's own handling of far cars
-  is the simulation level of detail ([ai-simulation-lod.md](ai-simulation-lod.md)); the numbers above are not its.
+- **Far racers keep driving [ours].** The world streams its collision around every AI car
+  (`ai/policy.rs`, `residency/traffic_support.rs`), so a racer far from the player is simulated like a near one and
+  follows its route. Only a racer whose surroundings are not loaded (it outran the streaming) switches to the stand-in of
+  [ai-simulation-lod.md](ai-simulation-lod.md) section 3, after 0.25 s off the loaded world: the car is moved towards its
+  drive target at the stand-in speed of section 3.2 (braking at 30 m/s², speeding up with `lerp(0.5, 1, skill)` of its
+  acceleration, at most `lerp(0.75, 1, skill)` of its top speed), level and with no ground, at the think rate's targets
+  (`ai/car/stand_in.rs`, `CarSim::place_kinematic`). Its gates are crossed by that travel, as a driven car's are. After
+  0.25 s back on the loaded world it is put on the ground where it stands, rolling at its stand-in speed. A stand-in is
+  never stuck. The straight-line emulation this replaces (a frozen car whose race place slid to each gate's centre, then
+  was put back on the road when the player came near) counted gates the car never drove to and could finish a race off
+  the route.
+- **No gate for a teleport [ours].** The race engine counts no gate for a move longer than 60 m in one tick
+  (`RaceConfig::max_move`): a reset, a fall back onto the road or any placement only moves the racer.
 - **Stuck racers** reverse with the same recovery as a cop (section 7.1 of [ai-driver-control.md](ai-driver-control.md)).
 
 ## Open questions

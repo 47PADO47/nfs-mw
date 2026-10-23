@@ -19,8 +19,8 @@ use blackbox_roads::Body;
 pub const RACER_THINK_STEPS: u32 = THINK_STEPS;
 /// The path to the target is searched again this often, seconds.
 const REPATH_PERIOD: f32 = 1.0;
-/// The share of its top speed an emulated racer averages on a route with bends and traffic **[unconfirmed]**.
-const EMULATED_SHARE: f32 = 0.7;
+/// How hard a racer's stand-in brakes, m/s² (`docs/specs/ai-simulation-lod.md` section 3.2).
+const STAND_IN_BRAKING: f32 = 30.0;
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
 fn look_ahead(speed_limit: f32) -> f32 {
     30.0 + 70.0 * ramp(speed_limit, 0.0, 100.0)
@@ -65,9 +65,6 @@ pub struct RacerState {
     pub held: bool,
     /// Where the racer was told to cruise to after finishing: a speed (m/s).
     cruise: f32,
-    /// The racer is far from the player and is not simulated: the race moves it along the route instead
-    /// (`docs/specs/ai-racers-route.md` section 6).
-    pub emulated: bool,
     /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
     /// before the race gives it one, or without a road network.
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
@@ -111,7 +108,6 @@ impl RacerState {
             glue: 0.0,
             held: true,
             cruise: 25.0,
-            emulated: false,
             route: None,
             leg: None,
             on_route: false,
@@ -141,11 +137,11 @@ impl RacerState {
         self.leg = leg;
     }
 
-    /// The speed an emulated racer covers its route at, m/s: a share of the limits it would drive at, by skill, and the
-    /// catch-up. **[unconfirmed]** (`docs/specs/ai-racers-route.md` section 6).
-    pub fn emulated_speed(&self) -> f32 {
-        let skill = self.skill();
-        self.limits.top_speed * EMULATED_SHARE * (0.8 + 0.2 * skill)
+    /// The speed of the racer's stand-in after `dt` seconds at `current` m/s, when the think asks for `wanted`
+    /// (`ai/car/stand_in.rs`).
+    pub fn stand_in_speed(&self, current: f32, wanted: f32, dt: f32) -> f32 {
+        let accel = self.performance.acceleration_at(current);
+        stand_in_speed(current, wanted, accel, self.limits.top_speed, self.skill(), dt)
     }
 
     /// The think: a path to the goal, the look-ahead point and the requested speed.
@@ -256,9 +252,37 @@ impl RacerState {
     }
 }
 
+/// The speed of a stand-in after `dt` seconds (`docs/specs/ai-simulation-lod.md` section 3.2): it brakes at 30 m/s²
+/// down to `wanted`, or speeds up with the car's acceleration `accel`, half of it for the weakest skill, up to
+/// `wanted`; never above `lerp(0.75, 1, skill)` of its top speed.
+pub fn stand_in_speed(current: f32, wanted: f32, accel: f32, top_speed: f32, skill: f32, dt: f32) -> f32 {
+    let skill = skill.clamp(0.0, 1.0);
+    let speed = match current > wanted {
+        true => (current - STAND_IN_BRAKING * dt).max(wanted),
+        false => (current + accel * dt * (0.5 + 0.5 * skill)).min(wanted),
+    };
+    speed.clamp(0.0, top_speed * (0.75 + 0.25 * skill))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stand_in_speeds_up_by_skill_and_brakes_hard() {
+        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 1.0, 0.5) - 12.0).abs() < 1e-5);
+        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 0.0, 0.5) - 11.0).abs() < 1e-5, "half the pull");
+        assert_eq!(stand_in_speed(49.0, 50.0, 4.0, 80.0, 1.0, 1.0), 50.0, "never past the wanted speed");
+        assert_eq!(stand_in_speed(50.0, 20.0, 4.0, 80.0, 1.0, 0.5), 35.0, "30 m/s² of braking");
+        assert_eq!(stand_in_speed(50.0, 49.0, 4.0, 80.0, 1.0, 0.5), 49.0);
+    }
+
+    #[test]
+    fn a_stand_in_never_beats_its_skills_share_of_the_top_speed() {
+        assert_eq!(stand_in_speed(70.0, 90.0, 4.0, 80.0, 0.0, 1.0), 60.0);
+        assert_eq!(stand_in_speed(70.0, 90.0, 40.0, 80.0, 1.0, 1.0), 80.0);
+        assert_eq!(stand_in_speed(0.0, -5.0, 4.0, 80.0, 1.0, 1.0), 0.0, "it does not reverse");
+    }
 
     fn performance(top: f32, grip: f32) -> Performance {
         Performance {

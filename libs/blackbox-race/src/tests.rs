@@ -309,3 +309,14 @@ fn a_zone_beside_the_road_is_not_touched_by_the_road() {
     let mut race = wrong_way_race(&[true]);
     assert!(drive(&mut race, 0, 100.0, &[-40.0, -60.0]).is_empty(), "the slab is 150 m wide, not 250 m");
 }
+
+#[test]
+fn a_move_longer_than_the_limit_counts_no_gate() {
+    let config = RaceConfig { max_move: Some(60.0), ..Default::default() };
+    let mut race = started(1, config, &[true, false]);
+    assert!(race.move_racer(0, Vec3::new(0.0, 0.0, 150.0)).is_empty(), "a 150 m jump over the first gate");
+    assert_eq!(race.racers()[0].progress.reached, 0);
+    assert!(race.racers()[0].percent > 0.0, "the place still counts for the ranking");
+    let driven = drive(&mut race, 1, 0.0, &[50.0, 99.0, 101.0]);
+    assert_eq!(driven, vec![RaceEvent::Checkpoint { racer: 1, number: 1 }], "a driven crossing counts");
+}

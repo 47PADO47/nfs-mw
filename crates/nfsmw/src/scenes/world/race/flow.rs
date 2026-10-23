@@ -96,7 +96,7 @@ impl WorldScene {
             engine.set_speed(0, self.players.lead().map_or(0.0, |d| d.speed().abs()));
             events.extend(engine.move_racer(0, position));
         }
-        events.extend(self.step_racers(session, player, dt));
+        events.extend(self.step_racers(session));
         events.extend(self.coop_dnf(session));
         self.count_collisions(session);
         self.drag_assist(session);
@@ -107,6 +107,21 @@ impl WorldScene {
         let tick = tick_of(&events);
         self.race_events(session, events);
         tick
+    }
+
+    /// Feeds the engine the places and speeds of the AI racers this tick. Every racer's car drives, near or far (a far
+    /// one by its stand-in, `ai/car/stand_in.rs`), so the engine counts a gate only when the car has crossed it.
+    fn step_racers(&mut self, session: &mut RaceSession) -> Vec<RaceEvent> {
+        let mut events = Vec::new();
+        let (Some(engine), Some(traffic)) = (session.engine.as_mut(), self.traffic.as_ref()) else { return events };
+        for (id, at, speed) in traffic.racers() {
+            if !engine.racers()[id].racing() {
+                continue;
+            }
+            engine.set_speed(id, speed);
+            events.extend(engine.move_racer(id, at));
+        }
+        events
     }
 
     /// Adds the player's collisions with traffic since the last frame to the race's count, while the player is racing.
@@ -128,7 +143,6 @@ impl WorldScene {
         session.log_clock = 0.0;
         let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_ref()) else { return };
         for (id, position, speed) in traffic.racers() {
-            let position = session.emu.get(id).copied().flatten().unwrap_or(position);
             let racer = &engine.racers()[id];
             let gate = next_gate(engine.course(), racer.progress.reached);
             let away = gate.map_or(-1.0, |g| g.distance(position));

@@ -11,7 +11,6 @@ mod command;
 mod coop_finish;
 mod demo;
 mod drag;
-mod emulate;
 mod final_race;
 mod final_race_events;
 mod finish;
@@ -166,8 +165,6 @@ pub(super) struct RaceSession {
     pub demo_clock: f32,
     /// The lane of the player's car in a drag race (`drag.rs`).
     pub lane: drag::Lane,
-    /// Where each emulated racer is on its route (physics space); `None` for a racer that is simulated.
-    pub emu: Vec<Option<glam::Vec3>>,
     /// Seconds since the last debug line about the racers.
     pub log_clock: f32,
     pub banner: Banner,

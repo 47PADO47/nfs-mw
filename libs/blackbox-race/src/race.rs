@@ -24,6 +24,9 @@ pub struct RaceConfig {
     pub speed_traps: usize,
     /// Points lost per second past the time limit (speed-trap races).
     pub overtime_penalty: f32,
+    /// A move longer than this (metres) is a teleport: it places the racer and counts no gate. `None` counts every
+    /// move.
+    pub max_move: Option<f32>,
 }
 
 impl Default for RaceConfig {
@@ -35,6 +38,7 @@ impl Default for RaceConfig {
             countdown: 3.0,
             speed_traps: 0,
             overtime_penalty: 0.0,
+            max_move: None,
         }
     }
 }
@@ -246,6 +250,10 @@ impl Race {
         let from = racer.position;
         racer.position = to;
         if phase != Phase::Racing || !racer.racing() {
+            return events;
+        }
+        if self.config.max_move.is_some_and(|limit| from.distance(to) > limit) {
+            racer.percent = self.course.percent(&racer.progress, to);
             return events;
         }
         let mut raised = Vec::new();

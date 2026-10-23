@@ -10,6 +10,10 @@ use glam::Vec3;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
 
+/// A racer that moves farther than this in one tick (metres) was put somewhere (a reset, a teleport): the move counts
+/// no gate (`blackbox_race::RaceConfig::max_move`).
+pub(in crate::scenes::world) const MAX_MOVE: f32 = 60.0;
+
 /// The gates in the order a racer crosses them: each lap's checkpoints, then its finish line.
 pub(in crate::scenes::world) fn gates_of(course: &Course) -> Vec<Gate> {
     let lap = course.checkpoints.iter().chain(course.finish.iter()).copied();

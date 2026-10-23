@@ -81,6 +81,7 @@ pub fn config_of(race: &Race) -> RaceConfig {
         countdown: if p.do_countdown && !p.rolling_start { COUNTDOWN_SECS } else { 0.0 },
         speed_traps: p.speed_traps.len(),
         overtime_penalty: p.overtime_penalty,
+        max_move: Some(super::route::MAX_MOVE),
     }
 }
 

@@ -136,7 +136,6 @@ impl WorldScene {
             }
         }
         session.plan = kept;
-        session.emu = vec![None; grid.len()];
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
         session.engine = Some(Race::new(prep.course, prep.config, &grid));
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.

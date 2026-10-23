@@ -151,25 +151,8 @@ impl TrafficWorld {
         }
     }
 
-    /// Which way the racer points on the minimap (render space); `None` for an emulated one, which has no car moving.
+    /// Which way the racer points on the minimap (render space).
     pub fn racer_heading(&self, id: usize) -> Option<[f32; 2]> {
-        let car = self.cars.iter().find(|car| car.racer_id() == Some(id))?;
-        let emulated = car.is_racer_emulated();
-        (!emulated).then(|| car.heading())
-    }
-
-    /// Puts the emulated racer `id` back on the road at `at` (physics space), facing `forward`. `false` when it cannot
-    /// stand there yet (the ground is not loaded): it stays emulated.
-    pub fn relocate_racer(
-        &mut self,
-        id: usize,
-        at: Vec3,
-        forward: Vec3,
-        collision: &CollisionWorld,
-        surfaces: &SurfaceTable,
-    ) -> bool {
-        let Some(car) = self.cars.iter_mut().find(|car| car.racer_id() == Some(id)) else { return false };
-        let speed = car.race_speed().max(15.0);
-        car.relocate_racer(&self.network, &self.index, at, forward, speed, &WorldGround { collision, surfaces })
+        self.cars.iter().find(|car| car.racer_id() == Some(id)).map(AiCar::heading)
     }
 }
