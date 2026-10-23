@@ -343,3 +343,61 @@ fn the_side_bins_keep_their_numbers_and_only_opm_is_a_test_bin() {
     assert!(SideBin::Opm.is_test_bin());
     assert!(!SideBin::ChallengeSeries.is_test_bin());
 }
+
+// --- restoring a loaded career ---
+
+/// The ids a saved career would report as won: `won` is a list of event ids.
+fn restore_with(bl: &mut Blacklist, won: &[&str], challenges: &[(u8, &str)]) {
+    let challenges = challenges.to_vec();
+    bl.restore_progress(
+        |event| won.contains(&event),
+        |bin| challenges.iter().filter(|(b, _)| *b == bin).map(|(_, id)| (*id).to_owned()).collect(),
+    );
+}
+
+#[test]
+fn a_loaded_career_at_the_prologue_has_no_bin_entered() {
+    let mut bl = start(16);
+    restore_with(&mut bl, &["15.w1"], &[]);
+    assert!((1..=15).all(|n| state(&bl, n).is_none()));
+}
+
+#[test]
+fn a_loaded_career_gets_its_won_races_back() {
+    let mut bl = start(15);
+    bl.bounty_changed(0);
+    restore_with(&mut bl, &["15.w1", "15.w3", "14.w1"], &[(15, "c1")]);
+    let record = bl.bin(15).expect("bin 15");
+    assert_eq!(record.races_won, ["15.w1", "15.w3"]);
+    assert_eq!(record.challenges, ["c1"]);
+    assert_eq!(record.counters(), Counters { races_won: 2, challenges: 1 });
+    assert_eq!(record.state, Some(BinState::RivalLocked));
+    assert!(state(&bl, 14).is_none(), "bin 14 was never entered, so its record is not touched");
+}
+
+#[test]
+fn a_loaded_career_reopens_a_rival_whose_gate_was_met() {
+    let mut bl = start(15);
+    bl.bounty_changed(20_000);
+    let w: Vec<String> = (1..=3).map(|k| format!("15.w{k}")).collect();
+    let won: Vec<&str> = w.iter().map(String::as_str).collect();
+    restore_with(&mut bl, &won, &[(15, "a"), (15, "b"), (15, "c")]);
+    assert_eq!(state(&bl, 15), Some(BinState::RivalUnlocked));
+}
+
+#[test]
+fn the_bins_the_career_has_gone_past_are_done() {
+    let mut bl = start(13);
+    restore_with(&mut bl, &["15.w1"], &[]);
+    assert_eq!(state(&bl, 15), Some(BinState::Done));
+    assert_eq!(state(&bl, 14), Some(BinState::Done));
+    assert_eq!(state(&bl, 13), Some(BinState::RivalLocked));
+    assert_eq!(bl.bin(15).expect("bin 15").races_won, ["15.w1"]);
+}
+
+#[test]
+fn a_current_bin_whose_boss_races_are_all_won_is_done() {
+    let mut bl = start(15);
+    restore_with(&mut bl, &["15.b1", "15.b2"], &[]);
+    assert_eq!(state(&bl, 15), Some(BinState::Done));
+}

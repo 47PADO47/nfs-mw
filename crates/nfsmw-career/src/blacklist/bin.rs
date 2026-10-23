@@ -137,6 +137,21 @@ impl BinRecord {
         true
     }
 
+    /// Rebuilds the bin from a loaded career (`career-blacklist.md` sections 4.3 and 8): the races of the bin that the saved
+    /// race records say were won in the career, the challenges the milestone and speed-trap tables say were passed, and
+    /// the resting state. A bin the career has gone past (`beaten`) is `done` whatever its boss races say, since the
+    /// current bin only moves down when a rival is beaten.
+    pub(super) fn restore(&mut self, bounty: u32, beaten: bool, won: &dyn Fn(&str) -> bool, challenges: Vec<String>) {
+        self.races_won = self.def.races.iter().filter(|race| won(race)).cloned().collect();
+        self.rival_races_won = self.def.rival_events.iter().filter(|race| won(race)).cloned().collect();
+        self.challenges = challenges;
+        let all_won = !self.def.rival_events.is_empty() && self.rival_races_won.len() >= self.def.rival_events.len();
+        self.state = Some(match beaten || all_won {
+            true => BinState::Done,
+            false => self.gate_state(bounty),
+        });
+    }
+
     fn gate_state(&self, bounty: u32) -> BinState {
         if rival_gate_open(&self.def, self.counters(), bounty) {
             return BinState::RivalUnlocked;
