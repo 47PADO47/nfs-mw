@@ -53,12 +53,17 @@ struct VsIn {
     @location(1) normal: vec3<f32>,
     @location(2) color_bgra: vec4<f32>,
     @location(3) uv: vec2<f32>,
-    // Per-instance model matrix, one column per attribute.
-    @location(4) model_0: vec4<f32>,
-    @location(5) model_1: vec4<f32>,
-    @location(6) model_2: vec4<f32>,
-    @location(7) model_3: vec4<f32>,
 };
+
+// instance input: begin
+// The per-instance model matrix, one column per attribute. A renderer with an instance store replaces this block
+// (see `instance_view.rs`): the instance then carries a slot at location 4 and the matrix is read from the store.
+struct InstanceIn {
+    @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
+    @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+};
+fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+// instance input: end
 
 struct VsOut {
     @invariant @builtin(position) clip: vec4<f32>,
@@ -72,8 +77,8 @@ struct VsOut {
 };
 
 @vertex
-fn vs_main(v: VsIn) -> VsOut {
-    let model = mat4x4<f32>(v.model_0, v.model_1, v.model_2, v.model_3);
+fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
+    let model = instance_model(placed);
     let world = model * vec4<f32>(v.position, 1.0);
     var out: VsOut;
     out.clip = globals.view_proj * world;

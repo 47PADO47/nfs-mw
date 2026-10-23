@@ -20,6 +20,7 @@ mod cop_blip;
 mod cop_blip_tests;
 mod elements;
 mod event_tiles;
+mod frame_cache;
 mod gauge_colors;
 mod gauges;
 mod hiding_mark;
@@ -81,7 +82,10 @@ pub use leaders::{Entry as LeaderEntry, LeaderRow, Leaders};
 pub use map_source::MapSource;
 #[cfg(test)]
 pub use message::current as current_mod_message;
-pub use message::{Tone as ModMessageTone, hide as hide_mod_message, set as set_mod_message, show as show_mod_message};
+pub use message::{
+    Tone as ModMessageTone, hide as hide_mod_message, is_up as mod_message_up, set as set_mod_message,
+    show as show_mod_message,
+};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};

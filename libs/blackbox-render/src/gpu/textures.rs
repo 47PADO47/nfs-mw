@@ -6,7 +6,6 @@ use crate::{PixelFormat, TextureDesc, TextureHandle};
 impl Renderer {
     /// Upload a texture. BC formats need [`Self::supports_bc`] and a block-aligned size.
     pub fn create_texture(&mut self, desc: &TextureDesc<'_>) -> TextureHandle {
-        self.draw_revision = self.draw_revision.wrapping_add(1);
         let (format, block, block_bytes) = match desc.format {
             PixelFormat::Bc1 => (wgpu::TextureFormat::Bc1RgbaUnorm, 4, 8),
             PixelFormat::Bc2 => (wgpu::TextureFormat::Bc2RgbaUnorm, 4, 16),
@@ -68,26 +67,22 @@ impl Renderer {
 
     /// Free a texture. Draws that still reference it fall back to white.
     pub fn destroy_texture(&mut self, handle: TextureHandle) {
-        self.draw_revision = self.draw_revision.wrapping_add(1);
         if handle.raw() != 0 {
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
-            self.redirects.retain(|&from, &mut to| from != handle.raw() && to != handle.raw());
+            self.redirects.forget(handle.raw());
         }
     }
 
     /// Draw `to` wherever `from` is used, until changed (`None` restores `from`).
     /// Animated textures switch frames this way without touching meshes.
     pub fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
-        if self.redirects.get(&from.raw()).copied() != to.map(|t| t.raw()) {
-            self.draw_revision = self.draw_revision.wrapping_add(1);
-        }
         match to {
             Some(to) if to != from => {
                 self.redirects.insert(from.raw(), to.raw());
             }
             _ => {
-                self.redirects.remove(&from.raw());
+                self.redirects.remove(from.raw());
             }
         }
     }

@@ -127,6 +127,7 @@ impl TrafficWorld {
                 ),
                 key: blackbox_gfx::InstanceKey::TRANSIENT,
                 shadow: Default::default(),
+                flip_winding: false,
             });
         }
     }

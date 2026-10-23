@@ -75,6 +75,7 @@ impl InfoRecord<'_> {
             alpha_usage: AlphaUsage::from(self.raw[l.alpha_usage]),
             alpha_sorting: self.raw[l.alpha_sorting] != 0,
             alpha_blend: self.raw[l.alpha_blend],
+            flags: self.raw[l.flags],
             data,
             palette,
         }

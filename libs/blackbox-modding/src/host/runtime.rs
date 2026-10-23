@@ -144,6 +144,12 @@ impl ModRuntime {
         self.loaded.iter().map(summary).collect()
     }
 
+    /// What discovery found for each loaded mod (manifest, folder, library), in load order. A host that places a
+    /// mod's files after start-up reads the folders here instead of scanning the roots a second time.
+    pub fn loaded_candidates(&self) -> Vec<Candidate> {
+        self.loaded.iter().map(|loaded| loaded.candidate.clone()).collect()
+    }
+
     /// The mods refused, with their reasons.
     pub fn rejected(&self) -> &[Rejected] {
         &self.rejected

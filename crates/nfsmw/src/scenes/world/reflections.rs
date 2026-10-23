@@ -1,5 +1,7 @@
 //! The original local car environment capture. This is separate from wet-road reflections.
 //!
+//! One update draws only some of the cube's faces (`reflections_slices.rs`), so a refresh is spread over a few frames.
+//!
 //! The cube's reach, scenery detail and content come from the requested settings (`reflection_distance`,
 //! `reflection_lod`, `reflection_content`; docs/specs/hd-reflections.md, sections 6 to 8).
 use blackbox_gfx::reflection::content::ReflectionContent;
@@ -14,17 +16,19 @@ use super::{WorldScene, visibility};
 
 #[path = "reflections_cadence.rs"]
 mod cadence;
+#[path = "reflections_slices.rs"]
+mod slices;
 
 /// Half the edge of the box a traffic car is tested in, metres: a car fits in a box this size around its origin.
 const TRAFFIC_HALF_EXTENT: f32 = 4.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CaptureStamp {
-    seconds: f32,
+    /// Where and when the refresh under way began, and the faces it has left.
+    progress: slices::Progress,
     cached: bool,
     quality: ReflectionQuality,
     size: u32,
-    origin: Vec3,
     scenery: u64,
     original_shadows: bool,
     original_sky: bool,
@@ -50,29 +54,34 @@ impl WorldScene {
             self.reflection_last = None;
             return;
         }
-        // Cadence and resolution are rewrite choices; all faces share one snapshot. Never accumulate
-        // temporal history: at high speed the previous world must not trail across the paint.
+        // Cadence, slicing and resolution are rewrite choices; the faces of one update share one snapshot. Never
+        // accumulate temporal history: at high speed the previous world must not trail across the paint.
         let cached = renderer.render_experiments().cached_reflections;
         let origin = drive.pose().position + Vec3::Z * 0.95;
         let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
         let (distance, lod, content) =
             (graphics.reflection_distance, graphics.reflection_lod, graphics.reflection_content);
-        if self.reflection_last.is_some_and(|last| {
-            last.cached == cached
-                && last.quality == quality
-                && last.size == size
-                && last.distance == distance
-                && last.lod == lod
-                && last.content == content
-                && last.custom != self.car_shading.is_original()
-                && last.scenery == scenery
-                && last.original_shadows == self.original_shadows
-                && last.original_sky == self.original_sky
-                && cadence::reuse(cached, quality, last.seconds, self.clock, last.origin.distance_squared(origin))
-        }) {
-            return;
-        }
+        let previous = self.reflection_last;
+        let same_cube = |last: &CaptureStamp| last.cached == cached && last.quality == quality && last.size == size;
+        let content_changed = previous.is_some_and(|last| {
+            last.distance != distance
+                || last.lod != lod
+                || last.content != content
+                || last.custom == self.car_shading.is_original()
+                || last.scenery != scenery
+                || last.original_shadows != self.original_shadows
+                || last.original_sky != self.original_sky
+        });
+        let inputs = slices::Inputs {
+            cached,
+            quality,
+            now: self.clock,
+            origin,
+            same_cube: previous.as_ref().is_some_and(same_cube),
+            content_changed,
+        };
+        let Some((progress, faces)) = slices::plan(previous.map(|last| last.progress), &inputs) else { return };
         let template = FrameParams {
             view: glam::Mat4::IDENTITY,
             projection: blackbox_gfx::Projection::Identity,
@@ -118,17 +127,17 @@ impl WorldScene {
             &cameras,
             &blackbox_scenery::layout::MOST_WANTED.lod,
             self.residency.props(),
-            (
-                height,
-                match self.car_shading.is_original() {
-                    true => None,
-                    false => far,
-                },
-            ),
+            height,
+            match self.car_shading.is_original() {
+                true => None,
+                false => far,
+            },
+            faces,
             &mut self.reflection_faces,
             &mut self.reflection_scratch,
         );
-        for (face, camera) in cameras.iter().enumerate() {
+        // The faces left out keep their last lists, which the renderer does not read.
+        for (face, camera) in cameras.iter().enumerate().filter(|(face, _)| (faces >> face) & 1 != 0) {
             add_traffic(
                 &self.reflection_scratch.traffic,
                 origin,
@@ -156,13 +165,13 @@ impl WorldScene {
             quality,
             frame: template,
             faces: self.reflection_faces.each_ref().map(Vec::as_slice),
+            refresh: faces,
         }));
         self.reflection_last = Some(CaptureStamp {
-            seconds: self.clock,
+            progress,
             cached,
             quality,
             size,
-            origin,
             scenery,
             original_shadows: self.original_shadows,
             original_sky: self.original_sky,

@@ -77,6 +77,11 @@ struct Profile {
     prelude: bool,
 }
 
+/// Tests that put a career into [`CareerHandle::shared`], or read what the shared career opens, take this so they do not
+/// see each other's career when they run in parallel.
+#[cfg(test)]
+pub(crate) static SHARED_CAREER_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 impl CareerHandle {
     /// The process's career handle. The screens are built by name with no constructor data (`frontend::factory`), so
     /// they reach the career through this one handle, which the front end, the HUD and the world also hold.

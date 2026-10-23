@@ -190,6 +190,7 @@ fn response_toggle_original_models_and_probe_restoration_keep_their_contracts() 
         frame: frame(),
         faces: [&[]; 6],
         quality: ReflectionQuality::Low,
+        refresh: blackbox_gfx::reflection::ALL_FACES,
     }));
     let captured = r.capture(96, 96, &frame(), &instances).unwrap();
     assert_ne!(center(&before), center(&captured));

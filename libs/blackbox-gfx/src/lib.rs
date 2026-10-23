@@ -41,7 +41,7 @@ pub use caps::{
     AaSet, Capabilities, Denoiser, Downgrade, EnumSet, Note, Resolved, RestartSet, RtSupport, SetMember, Setting,
     TonemapSet, UpscalerSet, resolve,
 };
-pub use capture::RgbaImage;
+pub use capture::{RgbaImage, ViewCaptureUi};
 pub use display::{DisplaySettings, DisplayStatus, HdrMode};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
 pub use error::RenderError;

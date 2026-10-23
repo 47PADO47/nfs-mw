@@ -11,64 +11,22 @@ use blackbox_gfx::{Instance, RenderBackend};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
 use blackbox_sequence::Package;
 use game_install::GameDir;
-use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::camera;
-use super::cars::{self, CarSpot, CarTrack, Target};
+use super::cars::{CarSpot, CarTrack, Target};
 use super::characters::{Characters, Materials};
 use super::cop_wait::CopWait;
 use super::events::{NisEvent, NisEvents};
 use super::handlers::NisScreen;
+use super::loading::Loading;
 use crate::audio::nis::NisAudioRequest;
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
 
+pub use super::kind::{NisKind, NisOutcome};
+
 /// Frames per second of a scene's clock (`docs/specs/nis-scenes.md`, section 0).
 pub const SCENE_FPS: f32 = 30.0;
-
-/// The kind of a scene. It decides whether the player may skip the scene.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NisKind {
-    /// A race start or an intro.
-    Intro,
-    /// A police arrest. The player cannot skip it.
-    Arrest,
-    /// Any other scene: a replay, a finish, a free-roam scene.
-    Outro,
-    /// A cinematic moment: a camera on a collapse.
-    Moment,
-    /// An ending. The player cannot skip it.
-    Ending,
-}
-
-impl NisKind {
-    /// Whether the player may skip a scene of this kind: arrests and endings never are.
-    pub fn skippable(self) -> bool {
-        !matches!(self, Self::Arrest | Self::Ending)
-    }
-
-    /// The kind a scene name implies, for the console: by its prefix (Arrest, Ending, Intro, WM for a moment), without
-    /// regard to case. Any other name is an [`NisKind::Outro`].
-    pub fn of_scene(name: &str) -> Self {
-        const PREFIXES: [(&str, NisKind); 4] = [
-            ("arrest", NisKind::Arrest),
-            ("ending", NisKind::Ending),
-            ("intro", NisKind::Intro),
-            ("wm", NisKind::Moment),
-        ];
-        let lower = name.to_ascii_lowercase();
-        PREFIXES.iter().find(|(prefix, _)| lower.starts_with(prefix)).map_or(NisKind::Outro, |&(_, kind)| kind)
-    }
-}
-
-/// How a scene ended. A scene that is stopped from the console counts as skipped.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NisOutcome {
-    /// The scene ran to its end.
-    Completed,
-    /// The scene ended early: the player skipped it, or it was stopped.
-    Skipped,
-}
 
 /// What a scene needs before it can play: its clock, its camera, where it stands and its kind.
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +108,8 @@ impl Playing {
 #[derive(Default)]
 pub struct NisPlayer {
     play: Option<Playing>,
+    /// The scene being read on a thread; it starts playing when the read is done.
+    loading: Option<Loading>,
     /// How the last scene ended, until the world takes it.
     outcome: Option<NisOutcome>,
     /// The camera jumped since the world last asked (a scene began or ended).
@@ -165,9 +125,11 @@ pub struct NisPlayer {
 }
 
 impl NisPlayer {
-    /// Loads the scene `scene` from the install and starts it, standing at `marker` when its type places it there (types
-    /// 0, 2 and 3; the others play in render space). Its camera is track `track`, or track 0 when the scene's set has no
-    /// track `track`. The error names what failed.
+    /// Starts loading the scene `scene` from the install, standing at `marker` when its type places it there (types 0, 2
+    /// and 3; the others play in render space). Its camera is track `track`, or track 0 when the scene's set has no
+    /// track `track`. The data is read on a thread, so the scene begins on a later frame (see [`NisPlayer::advance`]);
+    /// until then the player counts as playing, and a scene that fails to load ends as skipped. The error names what
+    /// failed to start.
     pub fn play(
         &mut self,
         dir: &GameDir,
@@ -176,18 +138,42 @@ impl NisPlayer {
         kind: NisKind,
         track: u32,
     ) -> Result<(), String> {
+        let _trace = blackbox_trace::scope("NIS: start loading the scene");
         self.refuse_while_playing()?;
-        let bundle = NisBundle::load(dir, scene).map_err(|e| format!("{e:#}"))?;
-        let library = CameraLibrary::load(dir).map_err(|e| format!("{e:#}"))?;
-        let camera = camera_track(&library, &bundle.name, track);
-        if camera.is_none() {
-            log::info!("NIS {}: no camera set, so a slow orbit plays for the scene", bundle.name);
-        }
-        let plan = Plan::new(&bundle.name, &bundle.scene, camera, marker, kind)
-            .ok_or_else(|| format!("{scene} has neither a frame window nor a camera track"))?;
-        let cars = cars::read_tracks(&bundle.anim.banks);
-        let characters = Characters::from_bundle(&bundle);
-        self.start_with_cars(plan, cars, bundle.sequence.clone(), characters)
+        let loading = Loading::start(dir, scene, marker, kind, track)?;
+        // The scene's voice decodes while the scene loads.
+        crate::audio::nis::prefetch(dir, scene);
+        self.last = Some(format!("{scene}: loading"));
+        self.loading = Some(loading);
+        Ok(())
+    }
+
+    /// Starts the loaded scene when its thread is done. A scene that cannot start ends as skipped.
+    fn finish_loading(&mut self) {
+        let Some(result) = self.loading.as_mut().and_then(Loading::poll) else { return };
+        let Some(loading) = self.loading.take() else { return };
+        let _trace = blackbox_trace::scope("NIS: prepare the loaded scene");
+        let started = result.and_then(|loaded| {
+            let ready = loading.prepare(loaded)?;
+            self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)
+        });
+        let Err(error) = started else { return };
+        log::warn!("NIS {}: the scene is not played: {error}", loading.name);
+        self.give_up(&loading.name, &format!("failed ({error})"));
+    }
+
+    /// Ends the load that is under way as skipped. Returns whether one was.
+    fn cancel_loading(&mut self) -> bool {
+        let Some(loading) = self.loading.take() else { return false };
+        self.give_up(&loading.name, "stopped");
+        true
+    }
+
+    /// The scene `name` will not play: it ends as skipped, so the world carries on.
+    fn give_up(&mut self, name: &str, why: &str) {
+        self.last = Some(format!("{name}: {why}"));
+        self.outcome = Some(NisOutcome::Skipped);
+        self.cut = true;
     }
 
     /// Starts a prepared scene with no cars and no events. Refused while another plays, or when the scene has no time to
@@ -237,8 +223,9 @@ impl NisPlayer {
     }
 
     fn refuse_while_playing(&self) -> Result<(), String> {
-        match self.play.as_ref() {
-            Some(playing) => Err(format!("NIS {} is playing; stop it first", playing.name)),
+        let loading = self.loading.as_ref().map(|loading| loading.name.as_str());
+        match self.play.as_ref().map(|playing| playing.name.as_str()).or(loading) {
+            Some(name) => Err(format!("NIS {name} is playing; stop it first")),
             None => Ok(()),
         }
     }
@@ -246,6 +233,7 @@ impl NisPlayer {
     /// Plays `dt` seconds of real time: the clock, the events that fall in it (returned, each once, in order) and the
     /// screen. The scene ends when its clock runs out.
     pub fn advance(&mut self, dt: f32) -> Vec<NisEvent> {
+        self.finish_loading();
         let Some(playing) = self.play.as_mut() else { return Vec::new() };
         let before = playing.run.elapsed();
         let finished = playing.run.advance(dt) == PlaybackState::Finished;
@@ -271,6 +259,9 @@ impl NisPlayer {
 
     /// Ends the scene now, whatever its kind. Returns whether a scene was playing.
     pub fn stop(&mut self) -> bool {
+        if self.cancel_loading() {
+            return true;
+        }
         if self.play.is_none() {
             return false;
         }
@@ -440,7 +431,7 @@ impl NisPlayer {
 
     /// Whether a scene plays. The world freezes, hides its HUD and gives the camera to the scene while it does.
     pub fn is_playing(&self) -> bool {
-        self.play.is_some()
+        self.play.is_some() || self.loading.is_some()
     }
 
     /// The camera sample of the scene now, from its track. `None` with no track, or when the track has no sample.
@@ -474,22 +465,10 @@ impl NisPlayer {
                 playing.run.elapsed(),
                 playing.run.clock().duration()
             ),
+            None if self.loading.is_some() => "loading the scene".to_owned(),
             None => "none playing".to_owned(),
         };
         format!("NIS: {now}; last: {}", self.last.as_deref().unwrap_or("none"))
-    }
-}
-
-/// The camera of a scene: its track `track`, or track 0 when its set has no such track. `None` when the scene has no
-/// camera set at all.
-fn camera_track(library: &CameraLibrary, scene: &str, track: u32) -> Option<Track> {
-    match library.track(scene, track as usize) {
-        Some(found) => Some(found.clone()),
-        None if track == 0 => None,
-        None => {
-            log::warn!("NIS {scene}: no camera track {track}; using track 0");
-            library.track(scene, 0).cloned()
-        }
     }
 }
 

@@ -3,6 +3,7 @@
 pub mod anim_view;
 pub mod assets;
 pub mod car;
+pub mod culling;
 pub mod feng;
 pub mod sidebar;
 pub mod sounds;

@@ -23,6 +23,14 @@ work would change collision outcomes and elapsed game time. Invalid/nonpositive
 frame times add no time. Streaming pauses the entire simulation until the required
 area is resident, so moving cars cannot hit traffic frozen by streaming.
 
+## Parallel AI integration
+
+From eight AI cars up, the 60 Hz step integrates the cars on several threads (`ai/parallel.rs`). Only the
+integration runs there: each car's start (search, think with every random draw, driver, input, explosions) runs
+first in car order, and its end (props, walls, damage, effects, sounds) runs afterwards in car order. No car reads
+another car's new state within a step, and each thread casts rays through its own candidate window, so the
+result is bit-identical to the serial order; `ai/pursuit/tests/parallel.rs` compares both every tick.
+
 ## Verification
 
 The three-car scenario in `drive/sim/tests/frame_rate.rs` records every tick's

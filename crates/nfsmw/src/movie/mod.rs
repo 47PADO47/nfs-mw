@@ -3,6 +3,7 @@
 mod framing;
 mod playback;
 mod player;
+mod sound;
 mod subtitles;
 
 use anyhow::Result;
@@ -147,8 +148,9 @@ fn present(
 #[cfg(test)]
 mod tests {
     use super::playback::find;
-    use super::player::{Movie, Step};
     use super::*;
+    use std::thread;
+    use std::time::{Duration, Instant};
 
     /// With the install (`NFSMW_GAME_DIR`): a movie opens, its sound is as long as its picture, stepping the clock
     /// shows every frame once in order and ends; a name that is a prefix of several movies is refused.
@@ -158,20 +160,27 @@ mod tests {
         let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
         assert!(find(&dir, "blacklist").is_err(), "several movies start with it");
         assert_eq!(find(&dir, "EALOGO").unwrap(), "ealogo_english_ntsc.vp6");
-        let file = find(&dir, "ealogo").unwrap();
-        let (mut movie, audio) = Movie::open(dir.read(&format!("MOVIES/{file}")).unwrap()).unwrap();
-        let audio = audio.expect("the logo has sound");
-        assert!(
-            (-0.3..2.0).contains(&(audio.duration_secs() - movie.duration())),
-            "{} vs {}",
-            audio.duration_secs(),
-            movie.duration()
-        );
+        let mut movie = MoviePlayback::open(&dir, "ealogo", 0.0).unwrap();
+        // The workers open the file; the clock holds until they are done.
+        let opening = Instant::now();
+        while !movie.loaded() {
+            movie.advance(0.0);
+            assert!(!movie.finished(), "the logo did not open");
+            assert!(opening.elapsed() < Duration::from_secs(30), "the logo never opened");
+            thread::sleep(Duration::from_millis(5));
+        }
+        let audio = movie.take_clip().expect("the logo has sound");
+        let duration = movie.duration().unwrap();
+        assert!((-0.3..2.0).contains(&(audio.duration_secs() - duration)), "{} vs {duration}", audio.duration_secs());
+        // In real time, so the video worker keeps up as it does in the game.
         let (mut frames, mut steps) = (0, 0);
-        while movie.step(1.0 / 60.0).unwrap() != Step::Finished {
-            frames += usize::from(movie.rgba().iter().any(|&b| b != 0));
+        while !movie.finished() {
+            movie.advance(1.0 / 60.0);
+            let new_picture = movie.picture().and_then(|picture| picture.rgba);
+            frames += usize::from(new_picture.is_some_and(|rgba| rgba.iter().any(|&b| b != 0)));
             steps += 1;
-            assert!(steps < 60 * 10, "the movie never ends");
+            assert!(steps < 60 * 20, "the movie never ends");
+            thread::sleep(Duration::from_millis(16));
         }
         assert!(frames > 20, "{frames} steps showed a picture");
     }

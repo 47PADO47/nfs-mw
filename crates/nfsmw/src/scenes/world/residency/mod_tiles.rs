@@ -32,10 +32,16 @@ impl Residency {
 
     /// Which map packs the camera at (x, y) wants: those whose anchor is within [`MOD_MARGIN`], and the pinned ones.
     pub(super) fn update_mod_wanted(&mut self, x: f32, y: f32) {
+        if self.mod_packs.is_empty() {
+            return;
+        }
         let near = (0..self.mod_packs.len())
             .map(|k| self.mod_base + k)
             .filter(|&tile| self.sections[tile].distance_to(x, y) <= MOD_MARGIN);
-        let mut wanted: Vec<usize> = near.chain(self.pinned.iter().copied()).collect();
+        let mut wanted = std::mem::take(&mut self.mod_wanted);
+        wanted.clear();
+        wanted.extend(near);
+        wanted.extend(self.pinned.iter().copied());
         wanted.sort_unstable();
         wanted.dedup();
         self.mod_wanted = wanted;
@@ -43,8 +49,11 @@ impl Residency {
 
     /// Request the wanted map packs that are not in flight or loaded yet.
     pub(super) fn request_mod(&mut self) {
-        let missing: Vec<usize> = self.mod_wanted.iter().copied().filter(|t| !self.tiles.contains_key(t)).collect();
-        for tile in missing {
+        for k in 0..self.mod_wanted.len() {
+            let tile = self.mod_wanted[k];
+            if self.tiles.contains_key(&tile) {
+                continue;
+            }
             self.tiles.insert(tile, TileState::Requested);
             self.mod_streamers[tile - self.mod_base].request(0);
         }

@@ -6,7 +6,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::car::{AiCar, Ctx};
 use super::stop::Lights;
-use super::{Focus, TrafficWorld, activation};
+use super::{Focus, TrafficWorld, activation, parallel, police::Police};
 use crate::scenes::world::{drive::STEP, props::PropWorld};
 use crate::viewer::camera::Lens;
 
@@ -40,6 +40,10 @@ impl TrafficWorld {
     }
 
     /// Integrate all AI bodies once. Pair contacts follow before the poses are published.
+    ///
+    /// With enough cars the integrations run on several threads (`parallel.rs`): every car's start first, in car order,
+    /// then the integrations, then every car's end in car order. The cars come out bit for bit as the plain order
+    /// leaves them, each car's whole step before the next car's.
     pub fn step(&mut self, focus: Focus, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
         // Every car as the others' trails see it (a hitched trailer is part of its tractor), with whether it is
         // a cop, then the trailers that came loose.
@@ -64,6 +68,9 @@ impl TrafficWorld {
             }
         }
         self.population_stats.waiting_collision = 0;
+        let threads = self.parallel.threads(self.cars.len());
+        let mut starts = std::mem::take(&mut self.starts);
+        starts.clear();
         let searching = !self.police.is_perp_in_sight();
         let search_cruise = self.search_cruise();
         for (me, car) in self.cars.iter_mut().enumerate() {
@@ -96,17 +103,31 @@ impl TrafficWorld {
             };
             let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
             self.population_stats.waiting_collision += usize::from(!ready);
+            if threads > 1 {
+                starts.push(match ready {
+                    true => car.begin_step(&mut ctx, props),
+                    false => None,
+                });
+                continue;
+            }
             if ready {
                 car.step(&mut ctx, collision, props, surfaces);
             }
-            if car.take_wreck() {
-                self.police.record_wreck(&car.name);
+            car_after_step(car, &mut self.police);
+        }
+        if threads > 1 {
+            parallel::integrate(&mut self.cars, &starts, collision, surfaces, threads);
+            for (car, start) in self.cars.iter_mut().zip(&starts) {
+                if let Some(start) = start {
+                    car.finish_step(start, collision, props, surfaces);
+                }
+                car_after_step(car, &mut self.police);
             }
-            car.step_lights();
         }
         self.watch_cops_against_walls();
         self.bodies = bodies;
         self.aims = aims;
+        self.starts = starts;
         self.signal_time += STEP;
         self.breaker_zones.step(STEP);
     }
@@ -153,4 +174,12 @@ impl TrafficWorld {
             self.manage(activation::PERIOD, at, collision, surfaces);
         }
     }
+}
+
+/// What follows a car's step in car order, stepped or not: a new wreck is counted and the light bars advance.
+fn car_after_step(car: &mut AiCar, police: &mut Police) {
+    if car.take_wreck() {
+        police.record_wreck(&car.name);
+    }
+    car.step_lights();
 }

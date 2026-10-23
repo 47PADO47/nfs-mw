@@ -3,15 +3,29 @@
 use blackbox_gfx::{
     BlendMode, NormalMaterialDesc, NormalMaterialHandle, NormalModel, RenderBackend, Shading, TextureHandle,
 };
-use blackbox_scene::MaterialLookup;
+use blackbox_scene::{MaterialLookup, Sidedness};
 use blackbox_solid::Solid;
 use std::collections::HashMap;
 
-pub(super) struct Lookup<F>(pub F, pub bool, pub Vec<Option<Shading>>);
+/// The materials of one solid: the textures, whether it is a sky, the per-group routed shading, and which faces each
+/// texture draws.
+pub(super) struct Lookup<F, S>(pub F, pub bool, pub Vec<Option<Shading>>, pub S);
 
-impl<F: Fn(u32) -> Option<(TextureHandle, BlendMode)>> MaterialLookup for Lookup<F> {
+impl<F, S> MaterialLookup for Lookup<F, S>
+where
+    F: Fn(u32) -> Option<(TextureHandle, BlendMode)>,
+    S: Fn(u32) -> Option<Sidedness>,
+{
     fn material(&self, hash: u32) -> Option<(TextureHandle, BlendMode)> {
         self.0(hash)
+    }
+
+    /// Sky domes are seen from inside and keep both faces; other groups follow their texture.
+    fn two_sided(&self, hash: u32, effect: u32) -> bool {
+        if self.1 {
+            return true;
+        }
+        self.3(hash).is_none_or(|s| s.draws_both(crate::scenes::culling::culls_blended(effect)))
     }
 
     fn group_shading(&self, index: usize) -> Option<Shading> {
@@ -61,7 +75,7 @@ pub(super) fn normal_materials(
                 return None;
             }
             let buffer = solid.vertex_buffers.get(group.vertex_buffer as usize)?;
-            if buffer.stride != 60 || solid.tangents.len() < solid.vertices.len() {
+            if buffer.stride != 60 || solid.tangents.as_ref().is_none_or(|t| t.len() < solid.vertices.len()) {
                 return None;
             }
             let textures: Option<Vec<TextureHandle>> = [0, 1, 3]

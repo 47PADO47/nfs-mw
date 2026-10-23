@@ -48,6 +48,7 @@ impl super::Glossy {
             0,
             bytemuck::cast_slice(&origin.extend(u8::from(enabled) as f32).to_array()),
         );
+        self.probe.active = true;
         if self.probe.depth == *depth {
             return;
         }

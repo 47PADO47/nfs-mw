@@ -12,6 +12,7 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::update").entered();
         let _trace = blackbox_trace::scope("World: update");
         self.shadow_quality = renderer.graphics().shadows;
+        self.detail.mirror_far = renderer.graphics().reflection_distance.mirror_far();
         // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
         self.update_arrest_nis();
         self.update_nis(input, dt);

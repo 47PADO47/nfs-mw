@@ -2,10 +2,32 @@
 use super::{MAX_IN_FLIGHT, Residency, TileState};
 use blackbox_gfx::RenderBackend;
 
+/// How far the focus may drift before the shadow support is worked out again, metres.
+const REFRESH_DISTANCE: f32 = 10.0;
 pub(super) const MAX_SHADOW_IN_FLIGHT: usize = 2;
 pub(super) const MAX_EXTRA_TILES: usize = 32;
 const UPSTREAM_SUPPORT: f32 = 180.0;
 const RETENTION_PREFERENCE: f32 = 32.0;
+
+/// What the shadow support was worked out for.
+pub(super) struct ShadowKey {
+    focus: [f32; 2],
+    range: f32,
+    direction: Option<[f32; 2]>,
+    extent: [f32; 2],
+}
+
+impl ShadowKey {
+    /// Whether the support worked out for `self` is still the one `now` would give: the settings are the same and the
+    /// focus has not moved far. The support has hysteresis of tens of metres, so a short drift cannot change it.
+    fn holds_for(&self, now: &ShadowKey) -> bool {
+        let moved = glam::Vec2::from_array(self.focus).distance_squared(glam::Vec2::from_array(now.focus));
+        self.range == now.range
+            && self.direction == now.direction
+            && self.extent == now.extent
+            && moved <= REFRESH_DISTANCE * REFRESH_DISTANCE
+    }
+}
 
 impl Residency {
     /// The full receiver disk is swept upstream; aiming the camera does not change support.
@@ -43,6 +65,12 @@ impl Residency {
             true => distance.min(960.0),
             false => 0.0,
         };
+        let key =
+            ShadowKey { focus, range: self.shadow_range, direction: self.shadow_direction, extent: self.shadow_extent };
+        if self.shadow_key.as_ref().is_some_and(|last| last.holds_for(&key)) {
+            return;
+        }
+        self.shadow_key = Some(key);
         let mut previous = std::mem::take(&mut self.shadow_wanted);
         let mut candidates = std::mem::take(&mut self.shadow_candidates);
         candidates.clear();
@@ -54,7 +82,7 @@ impl Residency {
             return;
         }
         for (i, section) in self.sections.iter().enumerate() {
-            if !section.is_spatial() || self.wanted.contains(&i) {
+            if !section.is_spatial() || self.wanted_set.contains(&i) {
                 continue;
             }
             let retained = previous.contains(&i) || matches!(self.tiles.get(&i), Some(TileState::Resident { .. }));
@@ -99,7 +127,7 @@ impl Residency {
         let shadow_in_flight = self
             .tiles
             .iter()
-            .filter(|(i, tile)| !self.wanted.contains(i) && matches!(tile, TileState::Requested))
+            .filter(|(i, tile)| !self.wanted_set.contains(i) && matches!(tile, TileState::Requested))
             .count();
         let free = MAX_IN_FLIGHT.saturating_sub(in_flight).min(MAX_SHADOW_IN_FLIGHT.saturating_sub(shadow_in_flight));
         let missing: Vec<_> =

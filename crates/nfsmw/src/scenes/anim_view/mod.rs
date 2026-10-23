@@ -229,6 +229,7 @@ fn upload(renderer: &mut dyn RenderBackend, label: &str, color: [u8; 4]) -> Mesh
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::Lit,
+            two_sided: true,
         }],
     })
 }

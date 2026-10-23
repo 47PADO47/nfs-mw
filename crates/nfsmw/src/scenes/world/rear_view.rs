@@ -1,7 +1,9 @@
 //! The rear-view mirror's frame: the world as seen from the player's car, looking back. The player's car is
 //! left out, as the mirror shows what is behind it.
 
+use blackbox_gfx::reflection::distance::within;
 use blackbox_gfx::{Fog, FrameParams, Instance};
+use glam::Vec3;
 
 use super::{WorldScene, visibility};
 use crate::viewer::camera::{Camera, RearView};
@@ -25,14 +27,20 @@ impl WorldScene {
             true => 0.0,
             false => self.shadow_quality.sampling().2,
         };
-        visibility::collect_unsorted_with_shadows(
-            self.residency.placed().filter(|p| original || !p.original_shadow),
+        // The mirror's far plane is applied while scanning, so the capture's own cut (`app/mirror.rs`) finds nothing left
+        // to drop and the list is not copied.
+        let far = self.detail.mirror_far;
+        visibility::collect_rear(
+            self.residency.cull_tiles(),
+            original,
             &cull,
             rules,
             self.residency.props(),
             caster_distance,
+            far,
             &mut self.rear_visible,
         );
+        let scenery = self.rear_visible.len();
         self.residency.props().fragment_instances(&mut self.rear_visible);
         if self.original_sky {
             self.residency.sky.place(
@@ -45,6 +53,8 @@ impl WorldScene {
         if let Some(traffic) = &self.traffic {
             traffic.instances(&mut self.rear_visible);
         }
+        // The sources after the scenery are few; their origins are cut here to the same limit.
+        limit_tail(&mut self.rear_visible, scenery, lens.position, far);
         // Every source has appended now: one sort puts the copies of each mesh together.
         visibility::sort_by_mesh(&mut self.rear_visible);
         let fog_end = self.fog_distance;
@@ -62,4 +72,20 @@ impl WorldScene {
         };
         Some((params, &self.rear_visible))
     }
+}
+
+/// Drops the instances from `from` on whose origin is farther than `far` from `camera`, keeping the order of the rest.
+fn limit_tail(list: &mut Vec<Instance>, from: usize, camera: Vec3, far: Option<f32>) {
+    if far.is_none() {
+        return;
+    }
+    let mut kept = from;
+    for i in from..list.len() {
+        if !within(camera, list[i].transform.w_axis.truncate(), far) {
+            continue;
+        }
+        list.swap(kept, i);
+        kept += 1;
+    }
+    list.truncate(kept);
 }

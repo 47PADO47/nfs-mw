@@ -58,6 +58,8 @@ pub(super) struct Glossy {
     static_environment: wgpu::TextureView,
     irradiance: irradiance::Irradiance,
     filtered: Option<prefilter::Prefilter>,
+    /// Whether `scene` references a local capture cube, which lives as long as its texture and is drawn into in place.
+    capture_bound: bool,
     /// Group 3 per material.
     materials: Slots<Material>,
     /// The vehicle reflection brightness the material blocks were last packed with.
@@ -134,6 +136,7 @@ impl Glossy {
             static_environment: view,
             irradiance,
             filtered,
+            capture_bound: false,
             materials: Slots::new(),
             brightness: 1.0,
             probe,
@@ -164,6 +167,7 @@ impl Glossy {
         }
         self.environment = view.clone();
         self.faces = face_view.clone();
+        self.capture_bound = true;
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
@@ -176,6 +180,22 @@ impl Glossy {
         self.scene = self.static_scene.clone();
         self.environment = self.static_environment.clone();
         self.faces = self.static_faces.clone();
+        self.capture_bound = false;
+        self.irradiance.dirty = true;
+        if let Some(filter) = &mut self.filtered {
+            filter.dirty = true;
+        }
+    }
+
+    /// Whether [`use_environment`](Self::use_environment) is still what the scene group holds. A capture binds its cube
+    /// once, not on every refresh: the texture is the same, only its contents change.
+    pub(super) fn capture_bound(&self) -> bool {
+        self.capture_bound
+    }
+
+    /// Every face of the bound capture cube is fresh: the diffuse light and the prefiltered copy follow on the next
+    /// irradiance update, recorded after the passes that drew it.
+    pub(super) fn environment_refreshed(&mut self) {
         self.irradiance.dirty = true;
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
@@ -302,6 +322,12 @@ fn ensure<'a>(
 }
 
 impl Renderer {
+    /// Build the glossy state now (rig, default environment, irradiance and screen-reflection resources) instead of
+    /// at the first call that needs it, so that the first frame with glossy draws does not pay for it.
+    pub(in crate::gpu) fn ensure_glossy(&mut self) {
+        ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
+    }
+
     pub(in crate::gpu) fn supports_irradiance(&self) -> bool {
         let limits = self.device.limits();
         self.info.api != blackbox_gfx::GraphicsApi::Gl
@@ -387,6 +413,7 @@ impl Renderer {
         glossy.static_faces = face_view;
         glossy.environment = view.clone();
         glossy.static_environment = view;
+        glossy.capture_bound = false;
         glossy.irradiance.dirty = true;
         if let Some(filter) = &mut glossy.filtered {
             filter.dirty = true;

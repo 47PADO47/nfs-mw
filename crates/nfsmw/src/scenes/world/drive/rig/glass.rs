@@ -1,6 +1,8 @@
 //! Per-actor window variants; sharing a cop model must not share its damage.
 use super::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::collections::BTreeSet;
 
 /// Only live window/brake combinations need an affected-solid appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,7 +36,15 @@ impl CarRig {
         self.prepare_surfaces(renderer, &masks.iter().map(|&glass| SurfaceDamage::new(glass, 0)).collect(), to_sun);
     }
 
+    #[cfg(test)]
     pub fn prepare_surfaces(&self, renderer: &mut dyn RenderBackend, masks: &BTreeSet<SurfaceDamage>, to_sun: Vec3) {
+        let masks: Vec<_> = masks.iter().copied().collect();
+        self.prepare_surface_slice(renderer, &masks, to_sun);
+    }
+
+    /// [`Self::prepare_surfaces`] for states in a slice, ascending and without repeats (what iterating the set gives),
+    /// so a caller that keeps its buffer from frame to frame builds no set.
+    pub fn prepare_surface_slice(&self, renderer: &mut dyn RenderBackend, masks: &[SurfaceDamage], to_sun: Vec3) {
         let mut variants = self.glass.borrow_mut();
         let dead: Vec<_> = variants.keys().filter(|m| !masks.contains(m)).copied().collect();
         for mask in dead {

@@ -183,6 +183,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode, supplied_refl
             texture: Some(handles[0]),
             blend,
             shading: Shading::WorldNormal(material),
+            two_sided: true,
         }],
     });
     let frame = FrameParams {

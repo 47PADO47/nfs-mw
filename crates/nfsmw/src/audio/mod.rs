@@ -33,6 +33,7 @@ pub use view::AudioView;
 pub mod cell_call;
 pub mod commands;
 mod coverage;
+mod decode_worker;
 mod engine;
 mod explosion;
 mod fx;
@@ -43,6 +44,7 @@ pub mod nis;
 pub mod oneshot;
 mod pcm;
 mod plugin;
+mod preload;
 pub mod preview;
 pub mod preview_play;
 mod radio;
@@ -124,8 +126,8 @@ pub struct Audio {
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
     banks: HashMap<String, Arc<Vec<u8>>>,
-    /// Decoded bank sounds by (bank path, index).
-    sounds: HashMap<(String, usize), StaticSoundData>,
+    /// Decoded bank sounds by (bank path, index), filled by the frame thread and by the decode worker.
+    decoder: decode_worker::Decoder,
     sound_channels: HashMap<(String, usize), u16>,
     impact_counter: u32,
     prop_sounds: HashMap<u32, Arc<nfsmw_data::sound::CollisionSounds>>,
@@ -232,7 +234,7 @@ impl Audio {
             dir,
             volumes,
             banks: HashMap::new(),
-            sounds: HashMap::new(),
+            decoder: decode_worker::Decoder::default(),
             sound_channels: HashMap::new(),
             impact_counter: 0,
             prop_sounds: HashMap::new(),
@@ -306,19 +308,19 @@ impl Audio {
         Ok(parsed.sounds().len())
     }
 
-    /// Sound number `index` of `bank`, decoded (and kept for next time).
+    /// Sound number `index` of `bank`, decoded (and kept for next time). A sound the decode worker has decoded ahead
+    /// (see `preload`) is taken from the table, one it is decoding is waited for, and any other is decoded here.
     pub fn bank_sound(&mut self, bank: &str, index: usize) -> Result<StaticSoundData, String> {
-        let key = (bank.to_owned(), index);
-        if let Some(data) = self.sounds.get(&key) {
-            return Ok(data.clone());
-        }
-        let bytes = self.bank_bytes(bank)?;
-        let parsed = Bank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
-        let decoded = parsed.decode(index).map_err(|e| format!("{bank} #{index}: {e}"))?;
-        let data = pcm::sound(&decoded);
-        self.sound_channels.insert(key.clone(), decoded.channels);
-        self.sounds.insert(key, data.clone());
-        Ok(data)
+        let decoded = match self.decoder.acquire(bank, index) {
+            decode_worker::Found::Ready(decoded) => decoded,
+            decode_worker::Found::Failed(error) => return Err(error),
+            decode_worker::Found::Mine(claim) => {
+                let bytes = self.bank_bytes(bank);
+                claim.decode(bank, bytes)?
+            }
+        };
+        self.sound_channels.entry((bank.to_owned(), index)).or_insert(decoded.channels);
+        Ok(decoded.data)
     }
 
     /// Play a sound in a group.
@@ -360,6 +362,7 @@ impl Audio {
     pub fn load_car_engine_upgraded(&mut self, car: &str, upgrades: SoundUpgrades) -> Result<CarEngine, String> {
         let db = self.database()?;
         let set = nfsmw_data::sound::car_sound(&db, car, upgrades).map_err(|e| format!("{car}: {e:#}"))?;
+        self.preload_sound_set(&set);
         let loops = EngineLoops::load(&self.dir, &set.engine).map_err(|e| format!("{car}: {e:#}"))?;
         let accel = loops.accel.ok_or_else(|| format!("{car} has no Ginsu engine loop"))?;
         let voice = EngineVoice { accel, decel: loops.decel, start: EngineMix::default() };

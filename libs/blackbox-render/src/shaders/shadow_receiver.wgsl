@@ -1,4 +1,5 @@
-// Original spatial tent PCF / directional PCSS, following NVIDIA's blocker-distance concept.
+// Directional PCSS (NVIDIA's blocker-distance concept) with a per-pixel rotated Vogel-disk filter,
+// early-outs for fully lit and fully shadowed pixels, and dithered cascade handoffs.
 // No frame seed, jitter, history or reprojection. SHADOW_GROUP selects the material layout.
 struct ShadowData {
     matrices: array<mat4x4<f32>, 4>, splits: vec4<f32>, options: vec4<f32>,
@@ -61,37 +62,57 @@ const BLOCKERS = array<vec2<f32>, 16>(
     vec2<f32>(-0.924, -0.383), vec2<f32>(-0.383, -0.924), vec2<f32>(0.383, -0.924), vec2<f32>(0.924, -0.383)
 );
 
-// Pair adjacent texel weights into one hardware bilinear comparison. Wide sparse
-// kernels can leave whole texels unsampled; this integrates their complete tent footprint.
-fn tent_pair(center: f32, radius: f32, first: f32, pair: i32) -> vec2<f32> {
-    let a = first + f32(pair * 2);
-    let wa = max(1.0 - abs(a - center) / radius, 0.0);
-    let wb = max(1.0 - abs(a + 1.0 - center) / radius, 0.0);
-    let weight = wa + wb;
-    if weight <= 0.0 { return vec2<f32>(0.0); }
-    return vec2<f32>(a + wb / weight, weight);
+// Per-pixel screen position for the rotation and cascade dithering below. Entry points that know
+// it set it in direct_visibility; elsewhere it stays zero, which gives a fixed, unrotated pattern.
+var<private> shadow_pixel: vec2<f32>;
+
+// Interleaved gradient noise (Jimenez): cheap, stable per pixel, no frame seed or history.
+fn interleaved_noise(pixel: vec2<f32>) -> f32 {
+    return fract(52.9829189 * fract(dot(pixel, vec2<f32>(0.06711056, 0.00583715))));
 }
 
-fn dense_tent(uv: vec2<f32>, cascade: u32, reference: f32, gradient: vec2<f32>, radius: f32) -> f32 {
-    let size = shadow_size(cascade);
-    let center = uv * size - 0.5;
-    let extent = ceil(radius);
-    let first = floor(center) - extent;
-    let pairs = i32(extent) + 1;
+// Vogel (golden angle) disks, radius sqrt((i + 0.5) / N). Twelve taps for the soft filter,
+// twenty for the dense one.
+const VOGEL_12 = array<vec2<f32>, 12>(
+    vec2<f32>(0.2041, 0.0000), vec2<f32>(-0.2607, 0.2388), vec2<f32>(0.0399, -0.4547),
+    vec2<f32>(0.3286, 0.4286), vec2<f32>(-0.6030, -0.1067), vec2<f32>(0.5712, -0.3634),
+    vec2<f32>(-0.1911, 0.7107), vec2<f32>(-0.3644, -0.7016), vec2<f32>(0.7906, 0.2887),
+    vec2<f32>(-0.8224, 0.3395), vec2<f32>(0.3965, -0.8472), vec2<f32>(0.2930, 0.9341)
+);
+const VOGEL_20 = array<vec2<f32>, 20>(
+    vec2<f32>(0.1581, 0.0000), vec2<f32>(-0.2019, 0.1850), vec2<f32>(0.0309, -0.3522),
+    vec2<f32>(0.2545, 0.3320), vec2<f32>(-0.4671, -0.0826), vec2<f32>(0.4425, -0.2815),
+    vec2<f32>(-0.1480, 0.5505), vec2<f32>(-0.2822, -0.5434), vec2<f32>(0.6124, 0.2236),
+    vec2<f32>(-0.6371, 0.2630), vec2<f32>(0.3071, -0.6563), vec2<f32>(0.2269, 0.7235),
+    vec2<f32>(-0.6840, -0.3964), vec2<f32>(0.8024, -0.1764), vec2<f32>(-0.4897, 0.6966),
+    vec2<f32>(-0.1131, -0.8730), vec2<f32>(0.6945, 0.5853), vec2<f32>(-0.9346, 0.0386),
+    vec2<f32>(0.6817, -0.6784), vec2<f32>(-0.0456, 0.9864)
+);
+
+fn disk_tap(i: i32, dense: bool) -> vec2<f32> {
+    if dense { return VOGEL_20[i]; }
+    return VOGEL_12[i];
+}
+
+// Centre-weighted disk of hardware bilinear comparisons, `radius` texels across, rotated per pixel
+// so the few taps trade banding for fine noise. Replaces the 5x5 grid and the dense tent.
+fn disk_filter(uv: vec2<f32>, cascade: u32, reference: f32, gradient: vec2<f32>, radius: f32, dense: bool) -> f32 {
+    let texel = 1.0 / shadow_size(cascade);
+    let angle = interleaved_noise(shadow_pixel) * 6.2831853;
+    let spin = vec2<f32>(cos(angle), sin(angle));
+    var taps = 12;
+    if dense { taps = 20; }
     var visibility = 0.0;
     var weights = 0.0;
-    for (var y = 0; y < pairs; y++) {
-        let py = tent_pair(center.y,radius,first.y,y);
-        for (var x = 0; x < pairs; x++) {
-            let px = tent_pair(center.x,radius,first.x,x);
-            let weight = px.y * py.y;
-            if weight <= 0.0 { continue; }
-            let sample_uv = clamp((vec2<f32>(px.x,py.x)+0.5)/size,vec2<f32>(0.5/size),vec2<f32>(1.0-0.5/size));
-            visibility += weight * shadow_compare(sample_uv,cascade,reference + dot(gradient,sample_uv-uv));
-            weights += weight;
-        }
+    for (var i = 0; i < taps; i++) {
+        let tap = disk_tap(i, dense);
+        let rotated = vec2<f32>(tap.x * spin.x - tap.y * spin.y, tap.x * spin.y + tap.y * spin.x);
+        let weight = 1.0 - 0.5 * dot(tap, tap);
+        let sample_uv = clamp(uv + rotated * radius * texel, vec2<f32>(0.5 * texel), vec2<f32>(1.0 - 0.5 * texel));
+        visibility += weight * shadow_compare(sample_uv,cascade,reference + dot(gradient, sample_uv - uv));
+        weights += weight;
     }
-    return visibility / max(weights,1e-6);
+    return visibility / weights;
 }
 
 // Visibility, accepted blocker fraction, filter radius in units of the eight-texel budget.
@@ -144,33 +165,21 @@ fn cascade_sample(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> vec3<f32
             let gap = reference + dot(gradient, sample_center - uv) - d;
             if d < 1.0 && gap > bias { separation += gap * span; count += 1.0; }
         }
-        if count > 0.0 {
-            radius = max(radius, clamp(separation / count * shadow_data.softness.x / texel_world, 0.0, maximum_radius));
-        }
+        // No tap sees a blocker: the receiver is lit, whatever the filter would have averaged.
+        if count < 0.5 { return vec3<f32>(1.0,0.0,radius/8.0); }
+        radius = max(radius, clamp(separation / count * shadow_data.softness.x / texel_world, 0.0, maximum_radius));
         blocker_fraction = count / 16.0;
+        // Every tap is a blocker and the penumbra fits inside the search: fully shadowed.
+        if count > 15.5 && radius < 2.5 { return vec3<f32>(0.0,blocker_fraction,radius/8.0); }
     }
-    var visibility = 0.0;
-    var weights = 0.0;
-    var dense = 1.0;
     if shadow_data.softness.z > 0.5 && radius > 2.0 {
-        dense = dense_tent(uv,cascade,reference,gradient,radius);
+        let dense = disk_filter(uv,cascade,reference,gradient,radius,true);
         if radius >= 3.0 { return vec3<f32>(dense,blocker_fraction,radius/8.0); }
-    }
-    for (var y = -2; y <= 2; y++) {
-        for (var x = -2; x <= 2; x++) {
-            let weight = f32((3 - abs(x)) * (3 - abs(y)));
-            let offset = vec2<f32>(f32(x), f32(y)) * radius * texel * 0.5;
-            let sample_uv = clamp(uv + offset, vec2<f32>(0.5 * texel), vec2<f32>(1.0 - 0.5 * texel));
-            visibility += weight * shadow_compare(sample_uv,cascade,reference + dot(gradient, sample_uv - uv));
-            weights += weight;
-        }
-    }
-    var filtered = visibility / weights;
-    if shadow_data.softness.z > 0.5 && radius > 2.0 {
         // A continuous handoff avoids popping as PCSS estimates cross the narrow-kernel limit.
-        filtered = mix(filtered,dense,smoothstep(2.0,3.0,radius));
+        let narrow = disk_filter(uv,cascade,reference,gradient,radius,false);
+        return vec3<f32>(mix(narrow,dense,smoothstep(2.0,3.0,radius)),blocker_fraction,radius/8.0);
     }
-    return vec3<f32>(filtered, blocker_fraction, radius / 8.0);
+    return vec3<f32>(disk_filter(uv,cascade,reference,gradient,radius,false),blocker_fraction,radius/8.0);
 }
 
 fn sun_sample(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -184,14 +193,18 @@ fn sun_sample(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     for (var i = 0u; i < count; i++) {
         if depth < shadow_data.splits[i] { cascade = i; break; }
     }
-    var sample = cascade_sample(world, normal, cascade);
     let end = shadow_data.splits[cascade];
     let overlap = select(0.8,0.65,shadow_data.softness.w > 0.5 && cascade + 1u < count);
     let transition = smoothstep(end * overlap, end, depth);
-    if cascade + 1u < count && transition > 0.0 {
-        sample = mix(sample, cascade_sample(world, normal, cascade + 1u), transition);
+    if cascade + 1u < count {
+        // Dithered handoff: one cascade per pixel, the next one with probability `transition`.
+        // The noise is offset from the filter rotation so the two do not correlate.
+        let pick = interleaved_noise(shadow_pixel + vec2<f32>(47.0,13.0));
+        if transition > pick { return cascade_sample(world, normal, cascade + 1u); }
+        return cascade_sample(world, normal, cascade);
     }
-    if cascade + 1u == count { sample.x = mix(sample.x, 1.0, transition); }
+    var sample = cascade_sample(world, normal, cascade);
+    sample.x = mix(sample.x, 1.0, transition);
     return sample;
 }
 
@@ -248,6 +261,7 @@ fn car_direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) 
 }
 
 fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {
+    shadow_pixel = pixel;
     var visibility = sun_visibility(world, normal);
     if shadow_data.contact.z > 0.5 {
         let p = clamp(vec2<i32>(pixel), vec2<i32>(0), vec2<i32>(shadow_data.contact.xy) - vec2<i32>(1));
@@ -257,6 +271,7 @@ fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f
 }
 
 fn lighting_debug_colour(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> vec3<f32> {
+    shadow_pixel = pixel;
     if shadow_data.debug.x > 3.5 {
         let sample = sun_sample(world,normal);
         return vec3<f32>(select(sample.y,sample.z,shadow_data.debug.x>4.5));

@@ -270,11 +270,10 @@ Rules:
 - **Mods.** Aero: RestoreBackfaceCulling (default 1) and DisableBackFaceCulling (default 0). The second turns
   culling off for all draws. A front-end car fix flips the culling state around the front-end car draw
   [community]. sniten: GeometryFix and "barrier animation" only, no culling option [community].
-- **Original.** The culling state is a global flag. Its reader and writers were not fully mapped in this pass
-  [unconfirmed].
-- **Port now.** The scene pipeline in `libs/blackbox-render/src/gpu/pipelines.rs` sets `cull_mode: None` at line
-  186 [read]. Which pipeline that is has not been checked. Shadow pipelines also use no culling
-  (`shadows/pipelines.rs`).
+- **Original.** Mapped in [backface-culling.md](backface-culling.md): culling per texture and effect, a global
+  enable byte and a per-view cull mode [exe].
+- **Port now.** The colour, prepass, normal-map, window and motion pipelines cull single-sided draws by that rule;
+  shadow maps and the sky keep both faces ([backface-culling.md](backface-culling.md) section 3).
 - **Proposed setting.** `backface_culling`: `original` (default) or `off`. Applies to the car and front-end
   pipelines only. The port keeps its current behaviour when `original`.
 - **Backends.** Native. Culling state is wgpu, so it is backend specific.
@@ -366,7 +365,7 @@ Road, front-end cube (sections 4, 13) and the rest of section 8 are still open.
 | Distance caps (section 7) | Done, native and bevy mirror | `reflection_distance`; `within` and `cull_instances` in `libs/blackbox-gfx/src/reflection/distance.rs` |
 | Restored content: traffic in the car cube (section 8, traffic only) | Done, native | `reflection_content`; `scenes/world/reflections.rs` |
 | Vehicle reflection brightness (section 9) | Done, native | `vehicle_reflection_brightness`; `MaterialUniform::new` and `Glossy::sync_brightness` |
-| Backface culling (section 12) | Documented, not changed | 17.8 |
+| Backface culling (section 12) | Culling by the original rule; no setting yet ([backface-culling.md](backface-culling.md)) | 17.8 |
 | Road, front-end cube (sections 4, 13); lights, flares, particles (section 8) | Not started | 17.10 |
 
 ### 17.1 Settings as built

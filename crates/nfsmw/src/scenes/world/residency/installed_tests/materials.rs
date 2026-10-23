@@ -71,24 +71,25 @@ fn installed_original_normal_materials_resolve_resident_bindings_and_release() {
                 let mesh = resources.meshes[&solid.name_hash].0;
                 assert_eq!(renderer.mesh_draws[&mesh][index].shading, Shading::WorldNormal(handle), "{}", solid.name);
                 let uploaded = &renderer.mesh_tangents[&mesh];
-                assert_eq!(uploaded.len(), solid.tangents.len(), "{} tangent count", solid.name);
+                let tangents = solid.tangents.as_deref().expect("a normal-mapped solid has tangents");
+                assert_eq!(uploaded.len(), tangents.len(), "{} tangent count", solid.name);
                 // Authored payload can contain NaNs: preserve its bits and report those
                 // referenced by this draw separately from upload correctness.
-                for (vertex, (actual, expected)) in uploaded.iter().zip(&solid.tangents).enumerate() {
+                for (vertex, (actual, expected)) in uploaded.iter().zip(tangents).enumerate() {
                     assert_eq!(actual.map(f32::to_bits), expected.map(f32::to_bits), "{} tangent {vertex}", solid.name);
                 }
                 let first = group.first_index as usize;
                 for &vertex in &solid.indices[first..first + group.num_indices as usize] {
                     referenced_vertices += 1;
                     let vertex = group.base_vertex as usize + usize::from(vertex);
-                    if solid.tangents[vertex].iter().any(|value| !value.is_finite()) {
+                    if tangents[vertex].iter().any(|value| !value.is_finite()) {
                         if nonfinite_tangents == 0 {
                             eprintln!("first authored nonfinite tangent: {} vertex {vertex}", solid.name);
                         }
                         nonfinite_tangents += 1;
                     }
                 }
-                assert!(solid.tangents.iter().any(|value| value[..3].iter().any(|value| value.abs() > 0.01)));
+                assert!(tangents.iter().any(|value| value[..3].iter().any(|value| value.abs() > 0.01)));
             }
         }
     }

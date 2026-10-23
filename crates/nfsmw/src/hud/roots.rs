@@ -5,6 +5,8 @@
 //! and `bind.rs`. The grouping decisions (the pursuit board, the gear inside the tachometer, the minimap's blips) are
 //! recorded in `docs/specs/ui-themes.md` section 8.
 
+use std::sync::{Arc, OnceLock};
+
 use blackbox_feng::fe_hash_upper;
 
 use super::bind::GEAR;
@@ -16,10 +18,13 @@ use super::speedbreaker;
 /// The name hashes one HUD element's adapter takes: the roots of its subtrees, and the subtrees that belong to
 /// another element and so are left out. A node is in the element when its nearest root-or-excluded ancestor (itself
 /// included) is a root.
+///
+/// The lists are shared (`Arc`): each element builds its roots once, and a clone is two reference counts. The adapters
+/// compare the lists by identity to find the node ownership they worked out for the package (`ui/theme/original`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Roots {
-    pub roots: Vec<u32>,
-    pub excluded: Vec<u32>,
+    pub roots: Arc<[u32]>,
+    pub excluded: Arc<[u32]>,
 }
 
 impl Roots {
@@ -28,24 +33,32 @@ impl Roots {
     }
 }
 
+/// The roots of one element, built on the first call and shared after it.
+fn shared(cell: &'static OnceLock<Roots>, build: impl FnOnce() -> Roots) -> Roots {
+    cell.get_or_init(build).clone()
+}
+
 fn name(text: &str) -> u32 {
     fe_hash_upper(text)
 }
 
 /// The speedometer group: the digits, the units and the group's own frame.
 pub(crate) fn speedometer() -> Roots {
-    Roots::new(SPEEDOMETER, [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(SPEEDOMETER, []))
 }
 
 /// The tachometer group: the needle, the face, the redline, the shift light and the fill. The gear digit sits inside
 /// the group, so it is left out here and belongs to [`gear`].
 pub(crate) fn tachometer() -> Roots {
-    Roots::new(TACHOMETER, [name(GEAR)])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(TACHOMETER, [name(GEAR)]))
 }
 
 /// The gear digit (`3rdPersonGear`), on its own.
 pub(crate) fn gear() -> Roots {
-    Roots::new([name(GEAR)], [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([name(GEAR)], []))
 }
 
 /// The vehicle heat group: the flame and the multiplier (`Heat_Meter_Group`), and the group of the two heat arcs that ring
@@ -56,61 +69,81 @@ const HEAT_ARCS_GROUP: u32 = 0xB0F6_3386;
 /// The minimap: the track group (the four tile pieces, and the blips, which the game draws inside it), the backing
 /// disc, the player's arrow and the heat group and arcs around it. The blips are left out here and belong to [`blips`].
 pub(crate) fn minimap() -> Roots {
-    Roots::new([name(MINIMAP_GROUP), name(BACKING), name(ARROW), HEAT_GROUP, HEAT_ARCS_GROUP], blip_icons())
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || {
+        Roots::new(
+            [name(MINIMAP_GROUP), name(BACKING), name(ARROW), HEAT_GROUP, HEAT_ARCS_GROUP],
+            blip_icons().iter().copied(),
+        )
+    })
 }
 
 /// The four tile pieces of the minimap on their own, for a theme that draws the rest of the minimap itself.
 pub(crate) fn minimap_tiles() -> Roots {
-    Roots::new(MINIMAP_PIECES.map(name), [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(MINIMAP_PIECES.map(name), []))
 }
 
 /// The player's arrow on its own.
 pub(crate) fn minimap_arrow() -> Roots {
-    Roots::new([name(ARROW)], [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([name(ARROW)], []))
 }
 
 /// The police detector: its group (the green laser, the direction arrow and the two LED rows), and the backing it stands on
 /// in either layout (on its own, or in the rear-view mirror). The cool-down bar is not in this group.
 pub(crate) fn police_radar() -> Roots {
-    Roots::new([0x0627_43F5, 0x839E_7D77, 0x9EE0_6631], [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([0x0627_43F5, 0x839E_7D77, 0x9EE0_6631], []))
 }
 
 /// The map blips: the pool objects of every style the HUD registers.
 pub(crate) fn blips() -> Roots {
-    Roots::new(blip_icons(), [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(blip_icons().iter().copied(), []))
 }
 
 /// The signed busted/evade meter and its cool-down bar, with the pursuit board and the cops count. The board is the
 /// chase's display (timer, cops, meter), so it belongs to the same slot as the meter.
 pub(crate) fn pursuit_meter() -> Roots {
-    Roots::new(PURSUIT_BOARD.into_iter().chain(PURSUIT_COPS).chain(COOLDOWN), [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(PURSUIT_BOARD.into_iter().chain(PURSUIT_COPS).chain(COOLDOWN), []))
 }
 
 /// The nitrous gauge: its group and its bar.
 pub(crate) fn nitrous() -> Roots {
-    Roots::new(NITROUS, [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(NITROUS, []))
 }
 
 /// The turbo gauge: its group, with the needle inside it.
 pub(crate) fn turbo() -> Roots {
-    Roots::new([name(TURBO_GROUP)], [])
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([name(TURBO_GROUP)], []))
 }
 
 /// The speed breaker meter: its icon, its group, its mask and the linear group.
 pub(crate) fn speedbreaker() -> Roots {
-    Roots::new(
-        [name(speedbreaker::ICON), name(speedbreaker::GROUP), name(speedbreaker::MASK), speedbreaker::LINEAR_GROUP],
-        [],
-    )
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || {
+        Roots::new(
+            [name(speedbreaker::ICON), name(speedbreaker::GROUP), name(speedbreaker::MASK), speedbreaker::LINEAR_GROUP],
+            [],
+        )
+    })
 }
 
 /// The name hashes of the map blips' pool objects: the built-in styles, which `HudBinding::new` registers, and the
 /// map icon styles, which the HUD plugin adds. The same list `BlipBinding::icon_hashes` gives for the live binding.
-pub(crate) fn blip_icons() -> Vec<u32> {
-    blip_styles::builtin()
-        .into_iter()
-        .chain(blip_styles::map_icon_styles())
-        .flat_map(|style| style.icons())
-        .map(|icon| name(&icon))
-        .collect()
+/// Hashed once.
+pub(crate) fn blip_icons() -> &'static [u32] {
+    static ICONS: OnceLock<Vec<u32>> = OnceLock::new();
+    ICONS.get_or_init(|| {
+        blip_styles::builtin()
+            .into_iter()
+            .chain(blip_styles::map_icon_styles())
+            .flat_map(|style| style.icons())
+            .map(|icon| name(&icon))
+            .collect()
+    })
 }

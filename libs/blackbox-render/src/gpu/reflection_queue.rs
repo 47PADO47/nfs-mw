@@ -10,6 +10,8 @@ pub(super) struct Pending {
     fade: Option<f32>,
     frame: FrameParams,
     faces: [Vec<Instance>; 6],
+    /// The faces to draw: those of every call since the last capture, since a call may wait for the frame's shadows.
+    refresh: u8,
 }
 
 impl Renderer {
@@ -29,7 +31,12 @@ impl Renderer {
             fade: scene.fade_distance,
             frame: scene.frame,
             faces: std::array::from_fn(|_| Vec::new()),
+            refresh: 0,
         });
+        pending.refresh = match pending.ready {
+            true => pending.refresh | scene.refresh,
+            false => scene.refresh,
+        };
         pending.ready = true;
         pending.shadows = scene.sun_shadows;
         pending.origin = scene.origin;
@@ -56,6 +63,7 @@ impl Renderer {
                 quality: pending.quality,
                 frame: pending.frame,
                 faces: pending.faces.each_ref().map(Vec::as_slice),
+                refresh: pending.refresh,
             }),
             Some(encoder),
         );

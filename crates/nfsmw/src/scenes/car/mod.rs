@@ -119,11 +119,9 @@ impl CarScene {
 
     /// Let the console load other cars from `dir`, with the same options.
     pub fn with_source(mut self, dir: GameDir, options: LoadOptions) -> Self {
-        self.preview_lighting = dir
-            .read("GLOBAL/ATTRIBUTES.BIN")
-            .ok()
-            .and_then(|bytes| blackbox_attrib::Database::open(&bytes).ok())
-            .and_then(|db| nfsmw_data::time_of_day::load(&db));
+        // The session's parsed attributes (read once, see `nfsmw_data::shared`), not a read of the file per backdrop.
+        self.preview_lighting =
+            nfsmw_data::shared::attributes(&dir).ok().and_then(|db| nfsmw_data::time_of_day::load(&db));
         self.source = Some(Source { dir, options });
         self
     }

@@ -19,12 +19,14 @@ use crate::frontend::logic::Command;
 
 #[test]
 fn the_rival_movie_names_the_stage_in_two_digits() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     assert_eq!(rival_movie(15), "blacklist_15");
     assert_eq!(rival_movie(3), "blacklist_03");
 }
 
 #[test]
 fn the_bio_counter_plays_the_rival_movie_and_then_sets_the_opening_seen_at_stage_15() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let mut settings = CareerSettings::new_career();
     settings.stage = FIRST_RIVAL_STAGE;
     let mut context = FrontEndContext::CAREER;
@@ -38,6 +40,7 @@ fn the_bio_counter_plays_the_rival_movie_and_then_sets_the_opening_seen_at_stage
 
 #[test]
 fn the_bio_continuation_starts_the_stepper_at_its_rival_movie() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     assert_eq!(bio_continue(), Command::BlacklistStep(BlacklistStepper { counter: BIO_COUNTER }));
 }
 
@@ -65,6 +68,7 @@ fn career_flags() -> Flags {
 
 #[test]
 fn the_first_visit_plays_the_intro_and_the_bio_enters_bin_15() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut rig) = prologue_rig() else { return };
     assert!(rig.with(|fe, host, _| fe.first_visit_intro(host)), "the intro plays at stage 16");
     assert!(matches!(rig.fe.stage, Stage::Movie { .. }), "the intro movie plays: {:?}", rig.fe.stage);
@@ -78,6 +82,7 @@ fn the_first_visit_plays_the_intro_and_the_bio_enters_bin_15() {
 
 #[test]
 fn the_bio_accept_plays_the_rival_movie_then_ends_at_the_safe_house_with_the_opening_seen() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut rig) = prologue_rig() else { return };
     rig.with(|fe, host, _| fe.first_visit_intro(host));
     rig.with(|fe, host, env| fe.end_movie(host, env));
@@ -97,6 +102,7 @@ fn the_bio_accept_plays_the_rival_movie_then_ends_at_the_safe_house_with_the_ope
 
 #[test]
 fn a_second_visit_does_not_replay_the_intro() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut rig) = prologue_rig() else { return };
     rig.with(|fe, host, _| fe.first_visit_intro(host));
     rig.with(|fe, host, env| fe.end_movie(host, env));

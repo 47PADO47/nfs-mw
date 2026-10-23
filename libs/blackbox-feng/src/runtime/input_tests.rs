@@ -144,3 +144,14 @@ fn input_can_be_switched_off_by_a_package_response() {
     step(&mut rt, pad::RIGHT, 1);
     assert_eq!(rt.focus(id), Some(1));
 }
+
+#[test]
+fn a_focus_move_changes_the_revision_and_a_repeated_focus_does_not() {
+    let (mut rt, id) = row(&[]);
+    let before = rt.revision(id);
+    rt.set_focus(id, 2);
+    let moved = rt.revision(id);
+    assert_ne!(moved, before, "a cached tree must not keep showing the old focus");
+    rt.set_focus(id, 2);
+    assert_eq!(rt.revision(id), moved, "focusing the focused button changes nothing");
+}

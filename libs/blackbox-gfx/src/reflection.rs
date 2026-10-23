@@ -278,20 +278,24 @@ fn clamp_round(value: f32, low: u32, high: u32) -> u32 {
     value.round().clamp(low as f32, high as f32) as u32
 }
 
-/// One surroundings snapshot. The caller supplies scenery outside the main view too, and excludes
-/// the reflective object itself. Effects and UI are deliberately absent from this pass.
+/// One surroundings snapshot: scenery outside the main view too, without the reflective object itself, and no effects or UI.
 pub struct ReflectionScene<'a> {
     /// Reuse current-frame world-space sun visibility in the capture, without screen masks.
     pub sun_shadows: bool,
-    /// Optional smooth transition to the capture clear colour over the outer 15% of this distance.
-    /// None preserves captured pixels exactly. This is independent of object selection.
+    /// Fade the capture to its clear colour over the outer 15% of this distance; `None` keeps the pixels exactly.
     pub fade_distance: Option<f32>,
     pub origin: Vec3,
     pub quality: ReflectionQuality,
     pub frame: FrameParams,
     /// Frustum/LOD-selected scenery for each face, including objects behind the main camera.
     pub faces: [&'a [Instance]; 6],
+    /// Bit `n` set: face `n` is drawn by this call. A clear bit keeps that face's last capture and its `faces` entry
+    /// is not read. [`ALL_FACES`] is a whole snapshot; a backend that ignores the mask must draw every face.
+    pub refresh: u8,
 }
+
+/// Every face of the cube.
+pub const ALL_FACES: u8 = 0b11_1111;
 
 /// RH face cameras (+X, -X, +Y, -Y, +Z, -Z). A capture must flip the image vertically
 /// when storing it: standard cube addressing has the opposite handedness to a RH camera.

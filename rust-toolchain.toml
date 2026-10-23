@@ -2,4 +2,5 @@
 # Bevy setup guide: nightly enables the Cranelift backend and -Zshare-generics (both in .cargo/config.toml).
 # Explicit `cargo +1.95.0 ...` still selects the pinned stable MSRV toolchain.
 channel = "nightly"
-components = ["rustc-codegen-cranelift-preview"]
+# rustfmt and clippy too: CI (and a fresh machine) installs this nightly with only what is listed here.
+components = ["rustc-codegen-cranelift-preview", "rustfmt", "clippy"]

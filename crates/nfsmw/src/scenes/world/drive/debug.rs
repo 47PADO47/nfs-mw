@@ -123,6 +123,7 @@ pub(in crate::scenes::world) fn upload_box(
             texture: None,
             blend: BlendMode::Opaque,
             shading: Shading::Prelit,
+            two_sided: true,
         }],
     })
 }

@@ -259,12 +259,7 @@ impl HudBinding {
 
     fn tachometer(&mut self, rt: &mut Runtime, s: &HudState) {
         if let Some(o) = self.gear {
-            let text = match s.gear {
-                g if g < 0 => "R".to_string(),
-                0 => "N".to_string(),
-                g => g.min(9).to_string(),
-            };
-            rt.set_text(o, text);
+            rt.set_text_str(o, super::gauges::gear_text(s.gear));
             let alpha = if s.shifting { GEAR_SHIFTING_ALPHA } else { 255 };
             rt.set_colour_rgba(o, [0, 0, 0, alpha]);
         }

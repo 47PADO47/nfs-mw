@@ -8,6 +8,9 @@ impl Residency {
     /// Free the GPU resources of the sky, the shared sets and of every resident tile. Repeated calls are harmless:
     /// what is freed is taken out of the residency.
     pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        if let Some(upload) = self.shared_upload.take() {
+            upload.release(renderer);
+        }
         self.sky.release(renderer);
         self.release_normal_materials(renderer);
         std::mem::take(&mut self.shared).release(renderer);

@@ -40,6 +40,7 @@ fn captured_sun_visibility_tracks_casters_without_a_stale_frame() {
             quality: ReflectionQuality::Low,
             frame,
             faces: [&wall; 6],
+            refresh: blackbox_gfx::reflection::ALL_FACES,
         }));
         r.capture(96, 96, &frame, &wall).unwrap();
         let capture = r.reflections.as_ref().unwrap();

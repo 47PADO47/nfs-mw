@@ -59,7 +59,7 @@ pub fn load_in_background(dir: &GameDir) {
     let dir = dir.clone();
     let spawned = std::thread::Builder::new().name("quick-race-board".into()).spawn(move || {
         let map = nfsmw_data::minimap::open_city_calibration(&dir).ok();
-        let board = match nfsmw_data::gameplay::load(&dir) {
+        let board = match nfsmw_data::gameplay::cached(&dir) {
             Ok(data) => Board::from_data(&data, map.as_ref()),
             Err(e) => {
                 log::warn!("quick race: no track list: {e:#}");

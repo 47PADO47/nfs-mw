@@ -81,14 +81,12 @@ impl Renderer {
         drop(prepare_trace);
         self.encode_scene(&mut encoder, scene, &target, frame, instances);
         self.encode_post(&mut encoder, scene, &target, size);
-        submit(&queue, encoder);
         {
-            let _trace = blackbox_trace::scope("GPU API: SMAA resolve / submit");
-            target.resolve();
+            // SMAA records into the frame encoder: scene, post, SMAA and UI go out in one submit.
+            let _trace = blackbox_trace::scope("Renderer CPU: encode SMAA");
+            target.encode_into(&mut encoder);
         }
         self.smaa = Some(aa);
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("UI after SMAA") });
         #[cfg(all(windows, feature = "streamline"))]
         if let Some(hudless) = &hudless {
             self.composite_generation(&mut encoder, hudless, output);

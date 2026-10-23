@@ -112,6 +112,7 @@ fn sky_ground_controls_and_local_capture_restore_refresh_the_probe() {
         origin: Vec3::ZERO,
         frame,
         faces: [&[]; 6],
+        refresh: blackbox_gfx::reflection::ALL_FACES,
         quality: ReflectionQuality::Low,
     }));
     let local = center(&mut r, &frame, &instances);

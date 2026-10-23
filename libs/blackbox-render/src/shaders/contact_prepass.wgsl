@@ -4,16 +4,24 @@
 struct In {
     @location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
     @location(2) color: vec4<f32>, @location(3) uv: vec2<f32>,
-    @location(4) m0: vec4<f32>, @location(5) m1: vec4<f32>, @location(6) m2: vec4<f32>, @location(7) m3: vec4<f32>,
 };
+// instance input: begin
+// The per-instance model matrix, one column per attribute. A renderer with an instance store replaces this block
+// (see `instance_view.rs`): the instance then carries a slot at location 4 and the matrix is read from the store.
+struct InstanceIn {
+    @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
+    @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+};
+fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+// instance input: end
 struct Out { @invariant @builtin(position) clip: vec4<f32>, @location(0) normal: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) alpha: f32, @location(3) world: vec3<f32>, };
-@vertex fn vs_main(v: In) -> Out {
+@vertex fn vs_main(v: In, placed: InstanceIn) -> Out {
     var out: Out;
-    let model = mat4x4<f32>(v.m0, v.m1, v.m2, v.m3);
+    let model = instance_model(placed);
     let world = model * vec4<f32>(v.position, 1.0);
     out.clip = camera * world;
     out.world = world.xyz;
-    out.normal = cross(v.m1.xyz, v.m2.xyz) * v.normal.x + cross(v.m2.xyz, v.m0.xyz) * v.normal.y + cross(v.m0.xyz, v.m1.xyz) * v.normal.z;
+    out.normal = cross(model[1].xyz, model[2].xyz) * v.normal.x + cross(model[2].xyz, model[0].xyz) * v.normal.y + cross(model[0].xyz, model[1].xyz) * v.normal.z;
     out.uv = v.uv; out.alpha = v.color.a;
     return out;
 }

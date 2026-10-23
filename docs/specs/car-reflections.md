@@ -37,11 +37,15 @@ not part of this capture.
 The renderer produces square 90-degree perspective views with a common origin,
 in cube addressing order +X, -X, +Y, -Y, +Z, -Z. The game uses Z-up coordinates;
 reflection sampling stays in game coordinates, matching the existing glossy
-shader. All six faces are updated as one set before a subsequent player view
-samples them. No GPU-to-CPU readback
-is needed during play. Each face has its own camera uniform and instance buffer,
-so the complete capture uses one queue submission without one face overwriting
-another's camera. Those buffers and render targets are reused between captures.
+shader. Each face is drawn straight into its cube face, the store pass's vertical
+flip folded into the face's view. A refresh is spread over a few frames: High
+draws two faces a frame (a full cube every three frames), Medium and Low three,
+the cached mode all six; the first capture, a settings change, a clock jump or
+30 m of travel draws all six at once. Irradiance is projected once all six faces
+are fresh. No GPU-to-CPU readback is needed during play. Each face has its own
+camera uniform and instance buffer, so a capture uses one queue submission
+without one face overwriting another's camera. Those buffers and render targets
+are reused between captures.
 
 Captures preserve the original gamma-space scene colour. Bloom, tone mapping,
 TAA, FSR and the player-view render scale do not alter a reflection capture.
@@ -57,7 +61,8 @@ resources and restores the previous static environment. The scenery is limited
 by what is already streamed.
 
 `reflections` defaults to medium: low uses 64-pixel faces at up to 15 captures per
-second, medium uses 128 at up to 30, high uses 256 every frame. Each face uses its
+second, medium uses 128 at up to 30, high uses 256 with two faces refreshed every
+frame. Each face uses its
 own scenery frustum/LOD selection at its capture resolution rather than drawing
 the entire surroundings six times. The same object may use different meshes in
 the player view and capture. Simple car shading skips captures. Video options,

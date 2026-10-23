@@ -30,6 +30,15 @@ struct Monitor {
     history: Arc<Mutex<VecDeque<Snapshot>>>,
 }
 
+/// The process's CPU seconds so far and its memory counters (`working_set_bytes`, `peak_working_set_bytes` ...), for
+/// `--bench-seconds`. `None` and an empty list where the OS gives none.
+pub(crate) fn process_counters() -> (Option<f64>, Vec<(&'static str, f64)>) {
+    #[cfg(windows)]
+    return (windows::cpu_seconds(), windows::sample());
+    #[cfg(not(windows))]
+    (None, Vec::new())
+}
+
 pub(super) fn unix_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }

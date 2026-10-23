@@ -68,6 +68,14 @@ fn read_group(r: &[u8], layout: &SolidLayout) -> ShadingGroup {
     }
 }
 
+/// One vertex buffer of a solid, checked: the effect run it serves, its vertex count and its stride.
+struct BufferPlan<'a> {
+    run: std::ops::Range<usize>,
+    data: &'a [u8],
+    count: usize,
+    stride: usize,
+}
+
 /// Assign groups to buffers (one buffer per run of equal effect ids), decode every buffer.
 fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Solid) -> Result<(), String> {
     let mut runs: Vec<std::ops::Range<usize>> = Vec::new();
@@ -83,8 +91,7 @@ fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Soli
     if runs.len() != buffers.len() {
         return Err(format!("{} vertex buffers for {} effect runs", buffers.len(), runs.len()));
     }
-    let mut skin = Vec::new();
-    let mut any_skinned = false;
+    let mut plans = Vec::with_capacity(runs.len());
     for (index, (run, data)) in runs.into_iter().zip(buffers).enumerate() {
         let count: u32 = solid.groups[run.clone()].iter().map(|g| g.num_vertices).sum();
         if count == 0 || data.len() % count as usize != 0 {
@@ -94,37 +101,88 @@ fn read_vertex_buffers(buffers: &[&[u8]], layout: &SolidLayout, solid: &mut Soli
         if stride < BASE_VERTEX_STRIDE {
             return Err(format!("vertex buffer {index}: unexpected stride {stride}"));
         }
+        plans.push(BufferPlan { run, data, count: count as usize, stride });
+    }
+    // Every count is bounded by its buffer's length, so this reserves what the data holds, once.
+    let total: usize = plans.iter().map(|p| p.count).sum();
+    solid.vertices.reserve_exact(total);
+    solid.vertex_buffers.reserve_exact(plans.len());
+    let mut skin: Option<Vec<SkinVertex>> = None;
+    for (index, plan) in plans.into_iter().enumerate() {
+        let BufferPlan { run, data, count, stride } = plan;
+        let before = solid.vertices.len();
         let effect_id = solid.groups[run.start].effect_id;
         if layout.skinned_effects.contains(&effect_id) {
-            any_skinned = true;
-            skin.extend(read_skin(&solid.groups[run.clone()], data, stride)?);
-        } else {
-            skin.extend(std::iter::repeat_n(ROOT_SKIN, count as usize));
+            let rows = read_skin(&solid.groups[run.clone()], data, stride)?;
+            let all = skin.get_or_insert_with(|| {
+                let mut all = Vec::with_capacity(total);
+                all.extend(std::iter::repeat_n(ROOT_SKIN, before));
+                all
+            });
+            all.extend(rows);
+        } else if let Some(all) = skin.as_mut() {
+            all.extend(std::iter::repeat_n(ROOT_SKIN, count));
         }
         let tangent = stride == 60 && layout.tangent_effects.contains(&effect_id);
-        let first_vertex = solid.vertices.len() as u32;
+        let has_secondary = matches!((stride, tangent), (44, _) | (60, true));
+        let first_vertex = before as u32;
         for g in &mut solid.groups[run] {
             g.vertex_buffer = index as u32;
             g.base_vertex = first_vertex;
         }
-        for vertex in data.chunks_exact(stride) {
-            solid.vertices.push(read_vertex(vertex));
-            let secondary = match (stride, tangent) {
-                (44, _) | (60, true) => [f32_at(vertex, 36), f32_at(vertex, 40)],
-                _ => [f32_at(vertex, 28), f32_at(vertex, 32)],
-            };
-            solid.secondary_uvs.push(secondary);
-            solid.tangents.push(match tangent {
-                true => [f32_at(vertex, 44), f32_at(vertex, 48), f32_at(vertex, 52), f32_at(vertex, 56)],
-                false => [0.0; 4],
-            });
-        }
-        solid.vertex_buffers.push(VertexBuffer { stride, first_vertex, vertex_count: count });
+        solid.vertices.extend(data.chunks_exact(stride).map(read_vertex));
+        let appended = Appended { vertices: &solid.vertices, before, data, stride, total };
+        extend_channel(
+            &mut solid.secondary_uvs,
+            has_secondary.then_some(|v: &[u8]| [f32_at(v, 36), f32_at(v, 40)]),
+            |v| v.uv,
+            &appended,
+        );
+        extend_channel(
+            &mut solid.tangents,
+            tangent.then_some(|v: &[u8]| [f32_at(v, 44), f32_at(v, 48), f32_at(v, 52), f32_at(v, 56)]),
+            |_| [0.0; 4],
+            &appended,
+        );
+        solid.vertex_buffers.push(VertexBuffer { stride, first_vertex, vertex_count: count as u32 });
     }
-    if any_skinned {
-        solid.skin = Some(skin);
-    }
+    solid.skin = skin;
     Ok(())
+}
+
+/// A buffer just decoded into the solid's vertices, for [`extend_channel`].
+struct Appended<'a> {
+    /// All the solid's vertices so far, the buffer's included.
+    vertices: &'a [Vertex],
+    /// Index of the buffer's first vertex in `vertices`.
+    before: usize,
+    data: &'a [u8],
+    stride: usize,
+    /// Vertex count of the whole solid, for the channel's capacity.
+    total: usize,
+}
+
+/// Append one buffer's values to an optional per-vertex channel. `read` decodes a vertex's value when the buffer
+/// has the channel; `fill` gives the value of a vertex without one. The channel only comes into being at the first
+/// buffer that has it, backfilled for the vertices before it, so a solid with no such buffer holds no channel at all.
+fn extend_channel<T: Copy>(
+    channel: &mut Option<Vec<T>>,
+    read: Option<impl Fn(&[u8]) -> T>,
+    fill: impl Fn(&Vertex) -> T,
+    buffer: &Appended<'_>,
+) {
+    if read.is_none() && channel.is_none() {
+        return;
+    }
+    let values = channel.get_or_insert_with(|| {
+        let mut values = Vec::with_capacity(buffer.total);
+        values.extend(buffer.vertices[..buffer.before].iter().map(&fill));
+        values
+    });
+    match read {
+        Some(read) => values.extend(buffer.data.chunks_exact(buffer.stride).map(read)),
+        None => values.extend(buffer.vertices[buffer.before..].iter().map(&fill)),
+    }
 }
 
 fn read_vertex(v: &[u8]) -> Vertex {

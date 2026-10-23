@@ -22,6 +22,9 @@ mod hud_slots;
 mod menu;
 #[cfg(test)]
 mod menu_tests;
+mod structure;
+#[cfg(test)]
+mod structure_tests;
 mod subtree;
 #[cfg(test)]
 mod tests;

@@ -1,16 +1,32 @@
-//! The colour pass's draw list: every draw of one pass's instances, sorted into a bucket per pipeline.
-//! The pass then walks each pipeline's bucket instead of every instance run, and each bucket keeps
-//! the order the old per-pipeline walk drew in.
+//! A scene pass's draw lists: every draw of one view's instances, sorted into a list per pipeline. The colour
+//! pass walks each pipeline's bucket, and the normal-map, window and sky passes walk their own lists, instead
+//! of each re-walking every instance and its draws. Each list keeps the order the old per-pipeline walk drew in,
+//! so blended draws stay in the order they were given.
 
-use std::collections::HashMap;
+// The instance store lives beside the draw lists: a view's lists draw instance ranges of the slot list the store
+// gave that view.
+#[path = "instance_store.rs"]
+pub(super) mod instance_store;
+#[path = "instance_view.rs"]
+pub(super) mod instance_view;
 
+use super::cull::Face;
+use super::draw_mask::DrawMask;
 use super::meshes::GpuMesh;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
+use super::redirects::Redirects;
 use super::slots::Slots;
 use crate::{BlendMode, DrawRange, Instance, Shading, TextureHandle};
 
 /// One bucket per (blend, shading) pair, in draw order.
-const BUCKETS: usize = BLEND_ORDER.len() * SHADINGS.len();
+pub(super) const BUCKETS: usize = BLEND_ORDER.len() * SHADINGS.len();
+const _: () = assert!(BUCKETS <= 32);
+
+/// The (blend, shading) pairs in draw order: blend modes outermost, shadings inside. The position of a
+/// pair is its bucket index.
+pub(super) fn combinations() -> impl Iterator<Item = (BlendMode, Shading)> {
+    BLEND_ORDER.into_iter().flat_map(|b| SHADINGS.into_iter().map(move |s| (b, s)))
+}
 
 /// Whether a draw of shading `draw` belongs in the bucket of pipeline `bucket`: the draws that share it, and the
 /// neighbours a view may borrow (the frame's draw rules pick among them).
@@ -18,6 +34,19 @@ pub(super) fn takes(draw: Shading, bucket: Shading) -> bool {
     draw.same_pipeline(bucket)
         || (bucket == Shading::WorldNoFog && matches!(draw, Shading::World | Shading::WorldNormal(_)))
         || (bucket == Shading::Prelit && matches!(draw, Shading::WorldNormal(_) | Shading::WorldWindow(_)))
+}
+
+/// Whether this view draws `d` in the pipeline `shading`. The bucket holds the draws that share a pipeline with
+/// it; the rules here decide which of those (and which neighbours a view borrows) this view draws.
+pub(super) fn drawn_here(d: &DrawRange, shading: Shading, projected: bool, original: bool) -> bool {
+    let own = d.shading.same_pipeline(shading) && !(projected && d.shading == Shading::World);
+    let projected_borrow =
+        projected && shading == Shading::WorldNoFog && matches!(d.shading, Shading::World | Shading::WorldNormal(_));
+    let prelit_borrow = !projected
+        && !original
+        && shading == Shading::Prelit
+        && matches!(d.shading, Shading::WorldNormal(_) | Shading::WorldWindow(_));
+    own || projected_borrow || prelit_borrow
 }
 
 /// One draw of one run of instances, ready to bind and draw.
@@ -31,18 +60,48 @@ pub(super) struct Cmd {
     pub(super) texture: usize,
     /// The instances drawn: a range of the instance buffer.
     pub(super) instances: (u32, u32),
+    /// The faces drawn, before the view's own mirroring (`Face::seen`).
+    pub(super) face: Face,
 }
 
-/// The draws of one colour pass, bucketed by pipeline. Kept on the renderer so the buckets reuse their
-/// capacity from frame to frame.
+/// One draw of a normal-map, window or sky material. The material is the draw's own shading, so it is read from
+/// the mesh when the draw is made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct LayerCmd {
+    /// The mesh's slot.
+    pub(super) mesh: usize,
+    /// Index into the mesh's `draws`.
+    pub(super) draw: u32,
+    /// The instances drawn: a range of the instance buffer.
+    pub(super) instances: (u32, u32),
+    /// The faces drawn, before the view's own mirroring (`Face::seen`).
+    pub(super) face: Face,
+}
+
+/// The run of instances that starts at `start`: it ends before the next instance of another mesh, and when
+/// `by_mirror` before the next one that mirrors otherwise ([`Instance::mirrored`]), since a single-sided draw keeps
+/// the other face for those. Returns the run's end and whether it mirrors (always `false` without `by_mirror`).
+pub(super) fn run(instances: &[Instance], start: usize, by_mirror: bool) -> (usize, bool) {
+    let first = &instances[start];
+    let mirrored = by_mirror && first.mirrored();
+    let same = |i: &&Instance| i.mesh == first.mesh && (!by_mirror || i.mirrored() == mirrored);
+    (start + instances[start..].iter().take_while(same).count(), mirrored)
+}
+
+/// The draws of one scene pass, sorted into lists. Kept on the renderer so the lists reuse their capacity from
+/// frame to frame.
 #[derive(Default)]
 pub(super) struct DrawList {
     buckets: Vec<Vec<Cmd>>,
-    normal: [Vec<Cmd>; 4],
-    window: [Vec<Cmd>; 4],
-    meshes: Vec<crate::MeshHandle>,
-    revision: Option<u64>,
-    sky: Vec<Cmd>,
+    /// Normal-map draws, one list per blend mode in `BLEND_ORDER`. A run of one mesh is one instanced draw.
+    normal: [Vec<LayerCmd>; BLEND_ORDER.len()],
+    /// Window draws, one list per blend mode in `BLEND_ORDER`.
+    window: [Vec<LayerCmd>; BLEND_ORDER.len()],
+    /// Sky layer draws of every layer kind, one instance at a time in instance order (the layers blend, so the
+    /// order between instances is part of the picture).
+    sky: Vec<LayerCmd>,
+    /// Every instance's matrix at a persistent slot; the views upload slot lists into it.
+    pub(super) store: instance_store::InstanceStore,
 }
 
 impl DrawList {
@@ -52,273 +111,124 @@ impl DrawList {
         bucket
     }
 
-    pub(super) fn sky(&self) -> &[Cmd] {
+    /// The normal-map draws of blend mode number `blend` (in `BLEND_ORDER`), in draw order.
+    pub(super) fn normal(&self, blend: usize) -> &[LayerCmd] {
+        let Some(list) = self.normal.get(blend) else { return &[] };
+        list
+    }
+
+    /// The window draws of blend mode number `blend` (in `BLEND_ORDER`), in draw order.
+    pub(super) fn window(&self, blend: usize) -> &[LayerCmd] {
+        let Some(list) = self.window.get(blend) else { return &[] };
+        list
+    }
+
+    /// The sky layer draws of every kind, in instance order.
+    pub(super) fn sky(&self) -> &[LayerCmd] {
         &self.sky
     }
 
-    pub(super) fn normal(&self, mode: BlendMode) -> &[Cmd] {
-        &self.normal[blend_index(mode)]
-    }
-
-    pub(super) fn window(&self, mode: BlendMode) -> &[Cmd] {
-        &self.window[blend_index(mode)]
-    }
-
-    /// Sort the draws of `instances` into the buckets, replacing what an earlier build put there.
+    /// Sort the draws of `instances` into the lists, replacing what an earlier build put there.
     pub(super) fn build(
         &mut self,
         instances: &[Instance],
-        revision: u64,
         meshes: &Slots<GpuMesh>,
-        redirects: &HashMap<usize, usize>,
+        redirects: &Redirects,
         textures: &Slots<wgpu::BindGroup>,
-    ) -> bool {
+    ) {
         let _trace = blackbox_trace::scope("Renderer CPU: build draw list");
-        if self.revision == Some(revision)
-            && self.meshes.len() == instances.len()
-            && self.meshes.iter().zip(instances).all(|(mesh, instance)| *mesh == instance.mesh)
-        {
-            return false;
-        }
-        self.meshes.clear();
-        self.meshes.extend(instances.iter().map(|i| i.mesh));
-        self.revision = Some(revision);
         self.fill(
             instances,
-            |slot| meshes.get(slot).map(|mesh| mesh.draws.as_slice()),
+            |slot| meshes.get(slot).map(|mesh| (mesh.draws.as_slice(), mesh.draw_masks.as_slice())),
             |texture| resolve_texture(texture, redirects, textures),
         );
-        true
     }
 
     /// The walk behind [`Self::build`], over plain draw lists so the tests need no device. `draws_of`
-    /// gives a mesh's draws (`None` for a mesh that is not live); `texture_of` gives a draw's texture slot.
+    /// gives a mesh's draws and their masks (`None` for a mesh that is not live); `texture_of` gives a draw's
+    /// texture slot.
     fn fill<'a>(
         &mut self,
         instances: &[Instance],
-        draws_of: impl Fn(usize) -> Option<&'a [DrawRange]>,
+        draws_of: impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask])>,
         texture_of: impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
-        self.sky.clear();
         self.buckets.resize_with(BUCKETS, Vec::new);
         for bucket in &mut self.buckets {
             bucket.clear();
         }
-        for bucket in self.normal.iter_mut().chain(self.window.iter_mut()) {
-            bucket.clear();
+        for list in self.normal.iter_mut().chain(&mut self.window) {
+            list.clear();
         }
+        self.sky.clear();
         let mut start = 0;
         while start < instances.len() {
-            let mesh = instances[start].mesh;
-            let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh).count();
-            if let Some(draws) = draws_of(mesh.raw()) {
-                self.push_run(mesh.raw(), draws, (start as u32, end as u32), &texture_of);
-            }
+            let mesh = instances[start].mesh.raw();
+            let Some((draws, masks)) = draws_of(mesh) else {
+                start = run(instances, start, false).0;
+                continue;
+            };
+            let (end, mirrored) = run(instances, start, draws.iter().any(|d| !d.two_sided));
+            self.push_run(mesh, (draws, masks), ((start as u32, end as u32), mirrored), &texture_of);
             start = end;
         }
     }
 
-    /// Add one run of `mesh`'s draws, drawn over `instances`, in order. Each draw goes into every bucket
-    /// whose blend and shading it matches, and is skipped when it has no texture to bind.
+    /// Add one run of `mesh`'s draws (with their masks), drawn over `instances` that all mirror or not, in order.
+    /// Each draw goes into every list its mask names. A colour draw is skipped when it has no texture to bind.
     fn push_run(
         &mut self,
         mesh: usize,
-        draws: &[DrawRange],
-        instances: (u32, u32),
+        (draws, masks): (&[DrawRange], &[DrawMask]),
+        (instances, mirrored): ((u32, u32), bool),
         texture_of: &impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
-        for (index, d) in draws.iter().enumerate() {
-            let resolved = texture_of(d.texture);
-            let cmd = Cmd { mesh, draw: index as u32, texture: resolved.unwrap_or(0), instances };
-            let mode = blend_index(d.blend);
-            match d.shading {
-                Shading::WorldNormal(_) => self.normal[mode].push(cmd),
-                Shading::WorldWindow(_) => self.window[mode].push(cmd),
-                Shading::SkyLayer(_) => self.sky.push(cmd),
-                _ => {}
-            }
-            if resolved.is_none() {
-                continue;
-            }
-            // Only walk the shading family once; blend modes cannot overlap.
-            for (index, shading) in SHADINGS.into_iter().enumerate() {
-                if takes(d.shading, shading) {
-                    self.buckets[mode * SHADINGS.len() + index].push(cmd);
+        for (index, (d, mask)) in draws.iter().zip(masks).enumerate() {
+            let draw = index as u32;
+            let face = Face::of(d, mirrored);
+            let layer = LayerCmd { mesh, draw, instances, face };
+            for (blend, (normal, window)) in self.normal.iter_mut().zip(&mut self.window).enumerate() {
+                if mask.normal(blend) {
+                    normal.push(layer);
+                }
+                if mask.window(blend) {
+                    window.push(layer);
                 }
             }
+            let mut slots = mask.colour_slots().peekable();
+            if slots.peek().is_none() {
+                continue;
+            }
+            let Some(texture) = texture_of(d.texture) else { continue };
+            let cmd = Cmd { mesh, draw, texture, instances, face };
+            for slot in slots {
+                self.buckets[slot].push(cmd);
+            }
         }
-    }
-}
-
-fn blend_index(mode: BlendMode) -> usize {
-    match mode {
-        BlendMode::Opaque => 0,
-        BlendMode::AlphaTest => 1,
-        BlendMode::AlphaBlend => 2,
-        BlendMode::Additive => 3,
+        // Sky layers blend without depth writes, so their order is the picture: every instance on its own, each with
+        // all its sky draws in mesh order, as the old pass drew them.
+        if !masks.iter().any(|mask| mask.sky()) {
+            return;
+        }
+        for i in instances.0..instances.1 {
+            let sky_draws = masks.iter().enumerate().filter(|(_, mask)| mask.sky());
+            self.sky.extend(sky_draws.map(|(index, _)| LayerCmd {
+                mesh,
+                draw: index as u32,
+                instances: (i, i + 1),
+                face: Face::of(&draws[index], mirrored),
+            }));
+        }
     }
 }
 
 /// The texture slot a draw binds: its redirect when it has one (animated textures), else the white
 /// fallback in slot 0. `None` when neither slot is live.
-fn resolve_texture<T>(
-    texture: Option<TextureHandle>,
-    redirects: &HashMap<usize, usize>,
-    textures: &Slots<T>,
-) -> Option<usize> {
-    let wanted = texture.map(|t| redirects.get(&t.raw()).copied().unwrap_or(t.raw()));
+fn resolve_texture<T>(texture: Option<TextureHandle>, redirects: &Redirects, textures: &Slots<T>) -> Option<usize> {
+    let wanted = texture.map(|t| redirects.resolve(t.raw()));
     [wanted, Some(0)].into_iter().flatten().find(|&slot| textures.get(slot).is_some())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{GlossyMaterialHandle, MeshHandle};
-    use glam::Mat4;
-
-    fn glossy(raw: usize) -> Shading {
-        Shading::Glossy(GlossyMaterialHandle::from_raw(raw))
-    }
-
-    fn draw(blend: BlendMode, shading: Shading, texture: Option<usize>) -> DrawRange {
-        DrawRange {
-            first_index: 0,
-            index_count: 3,
-            base_vertex: 0,
-            texture: texture.map(TextureHandle::from_raw),
-            blend,
-            shading,
-        }
-    }
-
-    /// Mesh slot 3 is dead and slot 4 is past the end, so runs of them must be skipped.
-    fn test_meshes() -> Vec<Option<Vec<DrawRange>>> {
-        vec![
-            Some(vec![
-                draw(BlendMode::Opaque, Shading::Lit, Some(1)),
-                draw(BlendMode::AlphaBlend, Shading::Prelit, None),
-                draw(BlendMode::Opaque, glossy(2), Some(2)),
-                draw(BlendMode::Additive, Shading::Sky, Some(7)),
-                draw(BlendMode::AlphaTest, Shading::Lit, Some(2)),
-            ]),
-            Some(vec![
-                draw(BlendMode::Opaque, glossy(3), Some(1)),
-                draw(BlendMode::Opaque, glossy(4), Some(1)),
-                draw(BlendMode::Additive, glossy(5), None),
-            ]),
-            Some(vec![
-                draw(BlendMode::AlphaBlend, Shading::Sky, Some(1)),
-                draw(BlendMode::Opaque, Shading::Lit, Some(1)),
-                draw(BlendMode::AlphaBlend, glossy(6), Some(2)),
-            ]),
-            None,
-        ]
-    }
-
-    fn test_textures() -> Slots<u8> {
-        let mut textures = Slots::new();
-        textures.insert(0);
-        textures.insert(1);
-        textures.insert(2);
-        textures
-    }
-
-    fn instances(meshes: &[usize]) -> Vec<Instance> {
-        meshes.iter().map(|&m| Instance::new(MeshHandle::from_raw(m), Mat4::IDENTITY)).collect()
-    }
-
-    /// The old colour pass: for every pipeline in order, walk every run of instances and draw every
-    /// matching draw of its mesh.
-    fn reference(
-        instances: &[Instance],
-        meshes: &[Option<Vec<DrawRange>>],
-        texture_of: impl Fn(Option<TextureHandle>) -> Option<usize>,
-    ) -> Vec<(usize, Cmd)> {
-        let mut out = Vec::new();
-        let pipelines = BLEND_ORDER.into_iter().flat_map(|b| SHADINGS.into_iter().map(move |s| (b, s)));
-        for (slot, (mode, shading)) in pipelines.enumerate() {
-            let mut start = 0;
-            while start < instances.len() {
-                let mesh = instances[start].mesh;
-                let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh).count();
-                let draws = meshes.get(mesh.raw()).and_then(|m| m.as_deref()).unwrap_or(&[]);
-                for (index, d) in draws.iter().enumerate() {
-                    if d.blend != mode || !takes(d.shading, shading) {
-                        continue;
-                    }
-                    let Some(texture) = texture_of(d.texture) else { continue };
-                    let cmd =
-                        Cmd { mesh: mesh.raw(), draw: index as u32, texture, instances: (start as u32, end as u32) };
-                    out.push((slot, cmd));
-                }
-                start = end;
-            }
-        }
-        out
-    }
-
-    fn flatten(list: &DrawList) -> Vec<(usize, Cmd)> {
-        (0..BUCKETS).flat_map(|slot| list.bucket(slot).iter().map(move |&cmd| (slot, cmd))).collect()
-    }
-
-    #[test]
-    fn buckets_hold_the_draws_in_the_old_loop_order() {
-        let meshes = test_meshes();
-        let redirects = HashMap::from([(2usize, 1usize)]);
-        let textures = test_textures();
-        let texture_of = |t: Option<TextureHandle>| resolve_texture(t, &redirects, &textures);
-        let runs = instances(&[0, 0, 1, 2, 2, 0, 1, 1, 3, 4, 0, 2]);
-        let mut list = DrawList::default();
-        list.fill(&runs, |slot| meshes.get(slot).and_then(|m| m.as_deref()), texture_of);
-        let got = flatten(&list);
-        assert!(!got.is_empty());
-        assert_eq!(got, reference(&runs, &meshes, texture_of));
-
-        // A second build replaces the first rather than adding to it.
-        let fewer = instances(&[2, 1]);
-        list.fill(&fewer, |slot| meshes.get(slot).and_then(|m| m.as_deref()), texture_of);
-        assert_eq!(flatten(&list), reference(&fewer, &meshes, texture_of));
-    }
-
-    #[test]
-    fn retained_families_preserve_runs_and_blend_order_without_a_generic_texture() {
-        let mut list = DrawList::default();
-        let draws = [
-            draw(BlendMode::Opaque, Shading::WorldNormal(blackbox_gfx::NormalMaterialHandle::from_raw(1)), None),
-            draw(BlendMode::AlphaBlend, Shading::WorldWindow(blackbox_gfx::WindowMaterialHandle::from_raw(2)), None),
-            draw(BlendMode::Additive, Shading::SkyLayer(blackbox_gfx::SkyMaterialHandle::from_raw(3)), None),
-        ];
-        list.fill(&instances(&[0, 0, 1, 0]), |mesh| (mesh == 0).then_some(draws.as_slice()), |_| None);
-        assert_eq!(list.normal(BlendMode::Opaque).iter().map(|c| c.instances).collect::<Vec<_>>(), [(0, 2), (3, 4)]);
-        assert_eq!(
-            list.window(BlendMode::AlphaBlend).iter().map(|c| c.instances).collect::<Vec<_>>(),
-            [(0, 2), (3, 4)]
-        );
-        assert_eq!(list.sky().iter().map(|c| c.instances).collect::<Vec<_>>(), [(0, 2), (3, 4)]);
-        assert!(flatten(&list).is_empty());
-    }
-
-    #[test]
-    fn texture_slots_follow_redirects_then_fall_back_to_white() {
-        let textures = test_textures();
-        let redirects = HashMap::from([(5usize, 1usize), (6usize, 9usize)]);
-        assert_eq!(resolve_texture(None, &redirects, &textures), Some(0));
-        assert_eq!(resolve_texture(Some(TextureHandle::from_raw(2)), &redirects, &textures), Some(2));
-        assert_eq!(resolve_texture(Some(TextureHandle::from_raw(5)), &redirects, &textures), Some(1));
-        // A redirect to a dead slot, and a dead slot with no redirect, both fall back to white.
-        assert_eq!(resolve_texture(Some(TextureHandle::from_raw(6)), &redirects, &textures), Some(0));
-        assert_eq!(resolve_texture(Some(TextureHandle::from_raw(7)), &redirects, &textures), Some(0));
-    }
-
-    #[test]
-    fn no_texture_when_white_is_gone() {
-        let mut textures: Slots<u8> = Slots::new();
-        let white = textures.insert(0);
-        textures.remove(white);
-        assert_eq!(resolve_texture(None, &HashMap::new(), &textures), None);
-    }
-}
-
-#[cfg(test)]
-#[path = "draw_list_cache_tests.rs"]
-mod cache_tests;
+#[path = "draw_list_tests.rs"]
+mod tests;
