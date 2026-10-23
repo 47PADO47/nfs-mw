@@ -28,7 +28,7 @@ fn the_samples_cover_the_catalogue_once_each() {
     let samples = samples::all();
     let ids: HashSet<u16> = samples.iter().map(Message::type_id).collect();
     assert_eq!(ids.len(), samples.len());
-    assert_eq!(ids.len(), 56);
+    assert_eq!(ids.len(), 61);
     for id in &ids {
         assert_eq!(Message::known_format(*id), Some(1));
     }

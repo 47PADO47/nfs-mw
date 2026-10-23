@@ -10,13 +10,17 @@
 //! - one target's end: `PursuitEnd` for that car (the pursuit's own end has no message of its own: its last target's
 //!   `PursuitEnd` is it).
 //!
-//! Knockouts, trap scores, tag passes, penalties and the end of a round have no message yet; the end of a round is the
-//! `RaceResults` of its record ([`crate::results::RaceRecord::to_message`]) and the lobby's phase change.
+//! - knockout, trap score, tag pass, penalty: `KnockedOut`, `TrapScore` (speeds in cm/s), `TagPassed` (the first holder
+//!   has no `from_entity`), `Penalty`.
+//!
+//! The end of a round has no message of its own: it is the `RaceResults` of its record
+//! ([`crate::results::RaceRecord::to_message`]) and the lobby's phase change.
 
 use nfsmw_sim::{PlayerId, Tick};
 
 use crate::message::{
-    EventHead, HeatChange, LapComplete, List, Message, PursuitEnd, PursuitStart, RaceFinish, Role, RoleChanged,
+    EventHead, HeatChange, KnockedOut, LapComplete, List, Message, Penalty, PursuitEnd, PursuitStart, RaceFinish, Role,
+    RoleChanged, TagPassed, TrapScore,
 };
 use crate::results::Roster;
 
@@ -53,13 +57,40 @@ pub fn messages(event: &ModeEvent, tick: Tick, roster: &Roster) -> Vec<Message> 
             .map(|entity_id| Message::PursuitEnd(PursuitEnd { head, pursuit_id: *pursuit, reason: *reason, entity_id }))
             .into_iter()
             .collect(),
-        ModeEvent::PursuitEnded { .. }
-        | ModeEvent::KnockedOut { .. }
-        | ModeEvent::TrapScored { .. }
-        | ModeEvent::TagPassed { .. }
-        | ModeEvent::Penalty { .. }
-        | ModeEvent::Over { .. } => Vec::new(),
+        ModeEvent::KnockedOut { player, lap } => entity(*player)
+            .map(|entity_id| Message::KnockedOut(KnockedOut { head, entity_id, lap: *lap }))
+            .into_iter()
+            .collect(),
+        ModeEvent::TrapScored { player, trap, speed, total } => entity(*player)
+            .map(|entity_id| {
+                Message::TrapScore(TrapScore {
+                    head,
+                    entity_id,
+                    trap: *trap,
+                    speed_cm_s: cm_per_s(*speed),
+                    total_cm_s: cm_per_s(*total),
+                })
+            })
+            .into_iter()
+            .collect(),
+        ModeEvent::TagPassed { from, to } => {
+            let from_entity = from.and_then(entity);
+            entity(*to)
+                .map(|to_entity| Message::TagPassed(TagPassed { head, from_entity, to_entity }))
+                .into_iter()
+                .collect()
+        }
+        ModeEvent::Penalty { player, ms } => entity(*player)
+            .map(|entity_id| Message::Penalty(Penalty { head, entity_id, ms: *ms }))
+            .into_iter()
+            .collect(),
+        ModeEvent::PursuitEnded { .. } | ModeEvent::Over { .. } => Vec::new(),
     }
+}
+
+/// Metres per second as whole centimetres per second; negative and non-finite values read as zero.
+fn cm_per_s(metres_per_s: f32) -> u32 {
+    (metres_per_s.max(0.0) * 100.0).round() as u32
 }
 
 fn pursuit_start(head: EventHead, pursuit: u16, targets: &[PlayerId], heat: u8, roster: &Roster) -> Message {

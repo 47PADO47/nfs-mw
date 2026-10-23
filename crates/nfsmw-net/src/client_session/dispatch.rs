@@ -73,6 +73,7 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
                 self.lobby.add_chat(line.clone());
                 self.events.push(SessionEvent::Chat(line));
             }
+            Message::QuickRelay(quick) => self.events.push(SessionEvent::Quick(quick)),
             Message::SystemNotice(notice) => {
                 self.lobby.add_notice(notice.clone());
                 self.events.push(SessionEvent::Notice(notice));

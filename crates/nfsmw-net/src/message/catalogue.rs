@@ -128,6 +128,7 @@ catalogue! {
     ChatMessage = 0x0201, Chat, 1;
     SystemNotice = 0x0202, Chat, 1;
     QuickMessage = 0x0203, Chat, 1;
+    QuickRelay = 0x0204, Chat, 1;
     BulkStart = 0x0300, Bulk, 1;
     BulkChunk = 0x0301, Bulk, 1;
     BulkEnd = 0x0302, Bulk, 1;
@@ -137,6 +138,10 @@ catalogue! {
     LapComplete = 0x1102, Events, 1;
     RaceFinish = 0x1103, Events, 1;
     RaceResults = 0x1104, Events, 1;
+    KnockedOut = 0x1105, Events, 1;
+    TrapScore = 0x1106, Events, 1;
+    TagPassed = 0x1107, Events, 1;
+    Penalty = 0x1108, Events, 1;
     PursuitStart = 0x1110, Events, 1;
     PursuitEnd = 0x1111, Events, 1;
     HeatChange = 0x1112, Events, 1;

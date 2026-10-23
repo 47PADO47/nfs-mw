@@ -178,13 +178,18 @@ impl<W: WorldControl> Server<W> {
         }
     }
 
-    /// A quick message. The catalogue has no server-to-client quick message yet, so it is checked and counted only.
+    /// A quick message: checked against the table of ids, the mute and the chat rate, then relayed to every seated
+    /// player as a `QuickRelay` naming the sender.
     fn on_quick(&mut self, slot: u8, quick: &nfsmw_net::message::QuickMessage) {
         let Some(sender) = self.sender(slot) else {
             return;
         };
-        if let Err(refusal) = self.chat.quick(sender, quick, self.now_ms) {
-            log::debug!("slot {slot}: quick message refused: {refusal:?}");
+        match self.chat.quick(sender, quick, self.now_ms) {
+            Ok(relay) => {
+                let message = nfsmw_net::message::QuickRelay { from_slot: relay.from, id: relay.id };
+                self.broadcast(Message::QuickRelay(message));
+            }
+            Err(refusal) => log::debug!("slot {slot}: quick message refused: {refusal:?}"),
         }
     }
 

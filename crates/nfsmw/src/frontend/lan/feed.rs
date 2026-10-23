@@ -5,9 +5,10 @@
 use std::collections::VecDeque;
 
 use nfsmw_net::client_session::{ChatLine, LobbyView, SessionEvent};
-use nfsmw_net::message::ChatChannel;
+use nfsmw_net::message::{ChatChannel, Message};
 use nfsmw_net::roles::LocalMutes;
 
+use super::quick::quick_line;
 use super::text::{end_text, notice_text, ordinal, slot_name};
 
 /// Lines kept.
@@ -63,7 +64,19 @@ impl Feed {
     /// Adds the lines `event` makes, naming players from `lobby` and leaving out chat from `mutes`.
     pub fn take(&mut self, event: &SessionEvent, lobby: Option<&LobbyView>, mutes: &LocalMutes) {
         match event {
-            SessionEvent::Chat(line) if shows(line, lobby, mutes) => self.push(FeedKind::Chat, chat_text(line, lobby)),
+            SessionEvent::Chat(line) if shows(line.from_slot, lobby, mutes) => {
+                self.push(FeedKind::Chat, chat_text(line, lobby));
+            }
+            SessionEvent::Quick(quick) if shows(quick.from_slot, lobby, mutes) => {
+                let Some(line) = quick_line(quick.id) else { return };
+                let name = slot_name(lobby, u32::from(quick.from_slot));
+                self.push(FeedKind::Chat, format!("{name}: {line}"));
+            }
+            SessionEvent::Game(message) => {
+                if let Some(text) = game_text(message, lobby) {
+                    self.push(FeedKind::Notice, text);
+                }
+            }
             SessionEvent::Notice(notice) => self.push(FeedKind::Notice, notice_text(notice, lobby)),
             SessionEvent::Ended(reason) => self.push(FeedKind::Notice, format!("Session over: {}", end_text(reason))),
             SessionEvent::ConnectionLost => self.push(FeedKind::Notice, "Connection lost, trying to resume".into()),
@@ -80,8 +93,27 @@ impl Feed {
     }
 }
 
-fn shows(line: &ChatLine, lobby: Option<&LobbyView>, mutes: &LocalMutes) -> bool {
-    let Some(row) = lobby.and_then(|lobby| lobby.player(line.from_slot)) else {
+/// The notice a mode's event makes: a knockout, a speed trap, the tag changing hands, a reset's time penalty. A car is
+/// the entity with its slot's number (`world-host.md` section 4). Other gameplay events make none.
+fn game_text(message: &Message, lobby: Option<&LobbyView>) -> Option<String> {
+    let name = |entity: u16| slot_name(lobby, u32::from(entity));
+    match message {
+        Message::KnockedOut(out) => Some(format!("{} is knocked out (lap {})", name(out.entity_id), out.lap)),
+        Message::TrapScore(trap) => {
+            // Centimetres per second to kilometres per hour.
+            let kmh = trap.speed_cm_s as f32 * 0.036;
+            Some(format!("{}: speed trap {}, {kmh:.0} km/h", name(trap.entity_id), u32::from(trap.trap) + 1))
+        }
+        Message::TagPassed(tag) => Some(format!("{} is it", name(tag.to_entity))),
+        Message::Penalty(penalty) => {
+            Some(format!("{}: +{:.0} s for the reset", name(penalty.entity_id), penalty.ms as f32 / 1000.0))
+        }
+        _ => None,
+    }
+}
+
+fn shows(slot: u8, lobby: Option<&LobbyView>, mutes: &LocalMutes) -> bool {
+    let Some(row) = lobby.and_then(|lobby| lobby.player(slot)) else {
         return true;
     };
     mutes.shows(row.player_id)
@@ -124,6 +156,37 @@ mod tests {
         feed.take(&SessionEvent::LobbyChanged, lobby, &mutes);
         let lines: Vec<&str> = feed.last(10).map(|line| line.text.as_str()).collect();
         assert_eq!(lines, ["Ann: hi", "Bob joined", "Session over: you left"]);
+    }
+
+    #[test]
+    fn quick_lines_and_mode_events_make_lines() {
+        use nfsmw_net::message::{EventHead, KnockedOut, Penalty, QuickRelay, TagPassed, TrapScore};
+        let net = MockNetFrontend::in_lobby(&["Host", "Ann", "Bob"], 0);
+        let lobby = net.lobby();
+        let mut mutes = LocalMutes::new();
+        mutes.set([2; 16], true);
+        let head = EventHead { seq: 1, tick: 100, target_tick: 0 };
+        let mut feed = Feed::default();
+        feed.take(&SessionEvent::Quick(QuickRelay { from_slot: 1, id: 3 }), lobby, &mutes);
+        feed.take(&SessionEvent::Quick(QuickRelay { from_slot: 2, id: 3 }), lobby, &mutes);
+        feed.take(&SessionEvent::Quick(QuickRelay { from_slot: 1, id: 63 }), lobby, &mutes);
+        feed.take(&SessionEvent::Game(KnockedOut { head, entity_id: 2, lap: 2 }.into()), lobby, &mutes);
+        let trap = TrapScore { head, entity_id: 1, trap: 0, speed_cm_s: 6_940, total_cm_s: 6_940 };
+        feed.take(&SessionEvent::Game(trap.into()), lobby, &mutes);
+        feed.take(&SessionEvent::Game(TagPassed { head, from_entity: Some(1), to_entity: 2 }.into()), lobby, &mutes);
+        feed.take(&SessionEvent::Game(Penalty { head, entity_id: 1, ms: 5_000 }.into()), lobby, &mutes);
+        let lines: Vec<&str> = feed.last(10).map(|line| line.text.as_str()).collect();
+        assert_eq!(
+            lines,
+            [
+                "Ann: Go go go!",
+                "Bob is knocked out (lap 2)",
+                "Ann: speed trap 1, 250 km/h",
+                "Bob is it",
+                "Ann: +5 s for the reset",
+            ],
+            "a muted player's quick line and a line outside the table are left out"
+        );
     }
 
     #[test]
