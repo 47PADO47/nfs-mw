@@ -33,6 +33,16 @@ impl WorldScene {
             true => 0.0,
             false => dt,
         };
+        // The free camera looks with the right stick, which also shifts the car: the stick moves one or the other.
+        let mut free_camera_input;
+        let input = if self.view == View::Fly {
+            free_camera_input = input.clone();
+            free_camera_input.consume(Action::ShiftUp);
+            free_camera_input.consume(Action::ShiftDown);
+            &free_camera_input
+        } else {
+            input
+        };
         self.update_car_shading(renderer);
         if let Some(traffic) = self.traffic.as_ref() {
             traffic.update_damaged_windows(renderer, self.sun.to_sun());
