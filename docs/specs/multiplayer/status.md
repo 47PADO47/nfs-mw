@@ -33,8 +33,10 @@ This page lists what exists, what was verified and how, and everything that is n
 Open work of this build, in rough order of importance:
 
 1. **Two PCs by hand.** Nothing has been played across a real network. The loopback end-to-end run is the only live check.
-2. **Room passwords.** The PAKE exists in the library, but the server refuses a configured password and the client binds it to
-   zeros, because `ClientEndpoint` does not yet expose the handshake hash.
+2. **Room passwords: built, not played across two PCs.** The server runs the SPAKE2 exchange ([server](server.md) section 3),
+   both ends bind it to the Noise handshake hash (`Connected` carries it), and the Host screen's password reaches the server.
+   Tested with the real handshake, a wrong password, no answer and the host's own in-memory client. A listen host's own client
+   binds to zeros, as the in-memory link has no handshake.
 3. **Physical extraction of the world** into `nfsmw-sim`. The server runs the game's own `WorldScene` behind a renderer that draws
    nothing, so it links the renderer crates, the host is not `Send` and the listen host runs two worlds (the server's and its own
    client's).
@@ -43,7 +45,7 @@ Open work of this build, in rough order of importance:
 5. **Races with remote players.** A remote player in a race seat is not fed network pedals, players 3 to 16 stay in free roam
    during a race, and the knockout, speed-trap and tag rules have no wire messages yet ([modes.md](modes.md)).
 6. **Global block.** Pursuit and race fields are filled from the world, but the client does not apply time of day.
-7. **Server details.** The identity key is new on every start, "everyone wait" cannot be triggered, quick messages are checked
+7. **Server details.** A server keeps its identity key only when `identity_file` is set (the default is a new key every start), "everyone wait" cannot be triggered, quick messages are checked
    but not relayed, and a peer that changes address is dropped (no path validation).
 8. **Front end.** The post-race page of the original is not wired to a session's end, there is no voting from the HUD during a
    race, no whisper from the menu, and `net_name` cannot be saved from the menu. The LAN screens are egui panels, not FEng.

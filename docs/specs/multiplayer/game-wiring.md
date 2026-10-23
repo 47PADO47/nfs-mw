@@ -156,7 +156,7 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | Trait call | As built |
 |---|---|
 | `status` | `Idle`, `Scanning`, `Connecting` (the listen server is opening, or connecting, admitting, reconnecting), `InLobby` (lobby and results phases), `Playing` (loading to running), `Spectating`, `Disconnected` (the session's end reason, or why hosting or connecting failed) |
-| `host` | A listen server with the screen's settings (checked), port and name; the player's name and car come from the options. A room password is refused: the server cannot check one yet |
+| `host` | A listen server with the screen's settings (checked), port and name; the player's name and car come from the options. The room password goes to the server's config (`ServeOptions::password`) and turns `password_required` on |
 | `connect`, `leave`, `scan` | `NetSession::join` with the password, `leave`, a 2 s scan on port 9750 |
 | `set_ready`, `choose_loadout`, `set_role`, `update_settings`, `vote`, `admin`, `say`, `quick_message`, `follow` | The client session's commands |
 | `start_race` | The host says ready: the lobby starts by itself once everyone is ready; the client session has no early-start message |
@@ -193,6 +193,6 @@ run on 2026-10-22: 323 m driven, 515 own-car checks, 239 corrections (95th perce
 - The predicted car's replays run the tick's effects and sounds again; props it knocks over are local and do not move (the
   client runs no prop physics).
 - Time of day: the server sends it (`fill_global`); the client does not set its own clock from it yet.
-- `start_race` is a ready; `set_net_sim` is refused; room passwords are refused when hosting.
+- `start_race` is a ready; `set_net_sim` is refused.
 - The car is the default car (`BMWM3GTR`) from the command line; the transmission setting of the client and the server's car
   may differ, which the prediction then corrects.
