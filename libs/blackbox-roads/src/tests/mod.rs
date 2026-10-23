@@ -1,8 +1,10 @@
 mod geometry;
 mod gps;
 mod install;
+mod locate;
 mod nav;
 mod path;
+mod route;
 mod signal;
 mod signal_props;
 pub(crate) mod synth;

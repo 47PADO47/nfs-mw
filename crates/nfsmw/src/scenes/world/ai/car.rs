@@ -31,6 +31,7 @@ mod racing;
 mod setup;
 mod sound;
 mod speech;
+mod stand_in;
 mod state_hash;
 mod stepping;
 pub(super) mod support_drive;
@@ -152,6 +153,8 @@ pub struct AiCar {
     /// The player car's speed (m/s) at the last physics step: the crash gate of `hits.rs` reads it.
     player_speed: f32,
     pub(in crate::scenes::world::ai) damage_distance: f32,
+    /// A racer off the loaded world moves by its stand-in (`car/stand_in.rs`).
+    stand_in: stand_in::StandIn,
 }
 
 impl AiCar {
@@ -243,6 +246,7 @@ impl AiCar {
             avoid: avoid::Avoid::default(),
             player_speed: 0.0,
             damage_distance: 0.0,
+            stand_in: stand_in::StandIn::default(),
         })
     }
 
@@ -341,7 +345,9 @@ impl AiCar {
             Role::Racer(racer) => {
                 let pressing = self.controls.gas >= 0.5;
                 let reversing = self.driver.reverse_override_left() > 0.0;
+                // A stand-in is not driven, so it cannot be stuck.
                 let stuck = !racer.held
+                    && !self.stand_in.active
                     && racer.stuck.update(cop::THINK_PERIOD, pressing, reversing, false, state.body.position);
                 if stuck {
                     log::info!("race: {} is stuck, reversing", self.name);

@@ -325,6 +325,11 @@ impl CarSim {
         CarPose { position: space::to_render(origin.to_array()), rotation: Quat::from_mat3(&cols), wheels }
     }
 
+    /// The rolling radius of each wheel in the model's wheel order (front left, front right, rear right, rear left).
+    pub fn wheel_radii(&self) -> [f32; 4] {
+        std::array::from_fn(|i| self.vehicle.wheel(PHYSICS_WHEEL[i]).radius)
+    }
+
     /// Fill `out` with the zones whose glass is cracked, in order. `out` is cleared first and keeps its capacity,
     /// so a caller that reuses it allocates nothing per frame.
     pub fn cracked_zones_into(&self, out: &mut Vec<usize>) {

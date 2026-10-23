@@ -24,6 +24,11 @@ impl TrafficWorld {
         self.cars.get(index).map(|car| car.pose(self.alpha))
     }
 
+    /// The rolling radius of each wheel of the car at `index`, in the model's wheel order.
+    pub fn car_wheel_radii(&self, index: usize) -> Option<[f32; 4]> {
+        self.cars.get(index).map(AiCar::wheel_radii)
+    }
+
     /// The index of the civilian car nearest `point` that no index in `taken` names. Police cars are left out.
     pub fn nearest_car(&self, point: Vec3, taken: &[usize]) -> Option<usize> {
         self.nearest_where(point, taken, |car| !car.is_police())

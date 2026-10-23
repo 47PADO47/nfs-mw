@@ -26,6 +26,7 @@ mod node;
 mod path;
 mod profile;
 mod road;
+mod route;
 mod segment;
 mod signal;
 mod signal_props;
@@ -61,6 +62,10 @@ pub use node::RoadNode;
 pub use path::{MAX_PATH_SEGMENTS, PathRequest, PathResult, PathState, PathType, find_path};
 pub use profile::{RoadProfile, Zone, zone};
 pub use road::Road;
+pub use route::{
+    CHECK_SPACING, END_REACH, Goal, Leg, LegPath, LegSource, Route, RouteBuilder, RoutePoint, RouteStep, build_leg,
+    build_route,
+};
 pub use segment::{RoadSegment, flags};
 pub use signal::{
     ALL_RED_TIME, AMBER_TIME, Approach, DEFAULT_KERB, GREEN_TIME, Junction, Light, MIN_SIGNAL_APPROACHES,

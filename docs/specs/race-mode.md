@@ -299,7 +299,8 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 | Gates, course, laps, ranking, the clock, knockout, speed-trap points, tollbooth bonus, catch-up | `libs/blackbox-race` (pure, tested) |
 | The race parameters and the opponents' characters from the install | `crates/nfsmw-data/src/gameplay/params.rs` |
 | Starting a race (from a zone, `race start`, or a quick race), the grid, loading the opponents' cars | `scenes/world/race/start.rs`, `load.rs` |
-| The running race: positions, events, goals, catch-up, far racers | `race/flow.rs`, `emulate.rs` |
+| The running race: positions, events, goals, catch-up | `race/flow.rs` |
+| The opponents' route, its shortcuts, and far racers | `race/route.rs`, `shortcuts.rs`, `ai/racer_route.rs`, `ai/car/stand_in.rs` |
 | The drag race's steering assist and lanes | `race/drag.rs`, `drive/grid.rs` |
 | The result, the career glue and the clean-up | `race/finish.rs`, `career/events.rs` (`career_race_finished`) |
 | The place, lap, clock, progress and 3-2-1-GO | `hud/race.rs` (the HUD package's objects) |

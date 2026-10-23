@@ -7,7 +7,8 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::car::{AiCar, Ctx};
 use super::stop::Lights;
 use super::{Focus, TrafficWorld, activation, parallel, police::Police};
-use crate::scenes::world::{drive::STEP, props::PropWorld};
+use crate::scenes::world::drive::{STEP, WorldGround};
+use crate::scenes::world::props::PropWorld;
 use crate::viewer::camera::Lens;
 
 impl TrafficWorld {
@@ -104,6 +105,16 @@ impl TrafficWorld {
                 lights,
             };
             let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
+            // A racer off the loaded world does not wait for it: its stand-in drives on (`car/stand_in.rs`).
+            if car.update_stand_in(ready, &WorldGround { collision, surfaces }) {
+                car.stand_in_step(&mut ctx);
+                if threads > 1 {
+                    starts.push(None);
+                    continue;
+                }
+                car_after_step(car, &mut self.police);
+                continue;
+            }
             self.population_stats.waiting_collision += usize::from(!ready);
             if threads > 1 {
                 starts.push(match ready {

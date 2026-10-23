@@ -266,6 +266,24 @@ fn a_skipped_scene_hands_back_its_cars_too() {
     assert!(!nis.needs_links());
 }
 
+#[test]
+fn a_race_intro_hands_back_every_car_but_the_player() {
+    let spot = CarSpot { position: Vec3::new(1.0, 2.0, 3.0), rotation: glam::Quat::IDENTITY };
+    let spots = vec![(Target::Player, spot), (Target::Traffic(3), spot)];
+    assert_eq!(handed_back(spots.clone(), false), spots, "a scene stands the player where it leaves the car");
+    assert_eq!(handed_back(spots, true), vec![(Target::Traffic(3), spot)], "the race's car stays on its grid slot");
+}
+
+#[test]
+fn keeping_the_player_in_place_lasts_until_the_next_scene() {
+    let mut nis = NisPlayer::default();
+    nis.keep_player_in_place();
+    assert!(nis.player_stays);
+    nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
+    nis.advance(3.0);
+    assert!(!nis.player_stays, "the scene's end takes the flag");
+}
+
 /// One engine, named after the scene: a call (id 13) at time zero and a call (id 11) at 1 s, over a 2 s action.
 fn sequence() -> Package {
     let mut states = BTreeMap::new();

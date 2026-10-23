@@ -38,7 +38,7 @@ impl WorldScene {
             previous.release(renderer);
         }
         let rig = CarRig::upload(renderer, self.car_keys.next(), model, self.car_shading, sun::to_sun());
-        let request = SpawnRequest { near, heading, exact: None };
+        let request = SpawnRequest { near, heading, exact: None, strict: false };
         let mut drive = Drive::new(name, rig, physics, request, None, visuals);
         let car_trails = self.car_trails();
         drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);

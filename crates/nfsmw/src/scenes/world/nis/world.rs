@@ -23,7 +23,8 @@ impl WorldScene {
         let view = drive.player_view();
         let (collision, _) = self.residency.world_parts();
         let at = view.position;
-        let ground = space::ground_below(collision, at.x, at.y, at.z + 10.0, at.z - 10.0).unwrap_or(at.z);
+        let ground =
+            space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0).unwrap_or(at.z);
         let anchor = Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(view.forward));
         self.nis.play(&self.dir, name, anchor, kind, track)
     }

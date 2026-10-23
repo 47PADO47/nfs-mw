@@ -59,6 +59,8 @@ pub struct Hit {
     pub section: u32,
     /// Index of the instance in its pack.
     pub instance: usize,
+    /// The instance's scenery group, 0 when it belongs to none.
+    pub group: u16,
 }
 
 /// The ends of a segment, lengthened to [`MIN_SEGMENT`] when shorter. `None` for a point.
@@ -225,6 +227,7 @@ pub(crate) fn cast_subject(
             surface_flags: c.flags,
             section: identity.0,
             instance: identity.1,
+            group: inst.group,
         };
         if accept(&hit) {
             best = Some(hit);

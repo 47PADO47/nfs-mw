@@ -5,7 +5,9 @@ use blackbox_race::{CatchUp, Race};
 use glam::Vec3;
 use nfsmw_data::pursuit::ai_vehicle;
 
-use super::{RaceSession, Stage, intro};
+use nfsmw_data::gameplay::ShortcutMarker;
+
+use super::{RaceSession, Stage, intro, shortcuts};
 use crate::scenes::world::ai::{ModelState, RacerSpawn};
 use crate::scenes::world::{WorldScene, space};
 
@@ -93,8 +95,18 @@ impl WorldScene {
         let speed = if prep.rolling { prep.initial_speed } else { 0.0 };
         let mut kept = vec![session.plan[0].clone()];
         let mut grid = vec![(true, player_physics)];
+        let markers: Vec<ShortcutMarker> = match &self.gameplay {
+            Some(data) => {
+                session.origin.race.params.shortcuts.iter().filter_map(|k| data.shortcut(*k)).copied().collect()
+            }
+            None => Vec::new(),
+        };
         if let Some(traffic) = self.traffic.as_mut() {
             let collision = self.residency.collision();
+            let shortcuts = match &session.route {
+                Some(route) => shortcuts::shortcuts_of(traffic, route, &markers),
+                None => Vec::new(),
+            };
             for plan in session.plan.iter().skip(1) {
                 let Some(model) = plan.model.clone() else { continue };
                 let spec = RacerSpawn {
@@ -113,12 +125,18 @@ impl WorldScene {
                     log::warn!("race: {} could not be put on the grid", plan.name);
                     continue;
                 }
+                if let Some(base) = &session.route {
+                    let id = kept.len();
+                    let taken =
+                        shortcuts::rolls(&shortcuts, plan.skill, shortcuts::seed_of(session.origin.race.key, id));
+                    traffic.set_racer_route(id, shortcuts::racer_route(traffic, base, &shortcuts, &taken));
+                }
                 grid.push((plan.person.is_some(), Vec3::from(space::to_physics(plan.spawn.position))));
                 kept.push(plan.clone());
             }
+            session.shortcuts = shortcuts;
         }
         session.plan = kept;
-        session.emu = vec![None; grid.len()];
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
         session.engine = Some(Race::new(prep.course, prep.config, &grid));
         // The intro plays on the grid before the countdown (`intro.rs`); a race with no steps starts now.

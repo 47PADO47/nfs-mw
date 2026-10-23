@@ -164,6 +164,7 @@ impl Drive {
                     near: [self.previous.position.x, self.previous.position.y],
                     heading: None,
                     exact: None,
+                    strict: false,
                 });
             }
         }

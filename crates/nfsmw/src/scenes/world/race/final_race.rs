@@ -212,7 +212,8 @@ impl WorldScene {
         let at = space::to_render(placement.position.to_array());
         let forward = space::to_render(world_heading(placement.heading_deg).to_array());
         let (collision, _) = self.residency.world_parts();
-        let ground = space::ground_below(collision, at.x, at.y, at.z + 10.0, at.z - 10.0).unwrap_or(at.z);
+        let ground =
+            space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0).unwrap_or(at.z);
         Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(forward))
     }
 }

@@ -17,6 +17,11 @@ impl Residency {
         self.collision.set_group_enabled(group, enabled);
     }
 
+    /// Makes scenery group `group`'s barriers walls from both sides for the cars, or from their front only again.
+    pub(in crate::scenes::world) fn set_collision_two_sided(&mut self, group: u16, two_sided: bool) {
+        self.collision.set_group_two_sided(group, two_sided);
+    }
+
     /// Whether `p` is in the world: an ungrouped instance always, a grouped one (a career gate) while its scenery
     /// group is switched on (`set_collision_group`), so drawing, shadows and collision agree.
     pub(super) fn group_shown(&self, p: &Placed) -> bool {

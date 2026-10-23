@@ -64,6 +64,13 @@ impl WorldScene {
             let drive = &mut guest.drive;
             drive.set_markers(self.markers_on);
             let Some(request) = drive.waiting_for_road() else { continue };
+            // A race start waits for its own ground and is never moved to another road.
+            if request.strict
+                && let Some(spawn) = request.exact
+            {
+                drive.place_strict(spawn, collision, surfaces);
+                continue;
+            }
             let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
             let top = estimate.unwrap_or(0.0) + 40.0;
             let placed = match request.exact {

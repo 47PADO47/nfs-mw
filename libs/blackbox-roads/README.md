@@ -5,6 +5,10 @@ junctions that traffic, racers and cops drive on.
 
 - `RoadNav`: a cursor on a lane that advances along the graph (traffic and direction rules, lane types).
 - `lane_line`, `closest_segment`: lane geometry and "which road am I on".
+- `Route`: an ordered route through goals (`build_leg` searches a leg, `RouteBuilder` joins them), with
+  `locate` (the nearest point, in 3D so a bridge is not the road under it), `point_at` (the point at a
+  distance) and `window` (the segments a navigator follows, `RoadNav::follow`). A leg with no road is kept as
+  a straight line.
 - `RoadNetwork` (the `RNgp` group of the `0x3B800` world map blob): nodes, segments, profiles (lane layouts)
   and roads. `RoadNetwork::read(&bytes)` takes the track's world metadata file.
 - `TrackZones` (chunk `0x3414A` of the track path manager): the typed polygons that tag areas of the map

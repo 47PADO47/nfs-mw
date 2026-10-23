@@ -26,22 +26,30 @@ impl WorldGround<'_> {
         max_distance: f32,
         cast: impl FnOnce([f32; 3], [f32; 3], &RayOptions) -> Option<Hit>,
     ) -> Option<GroundHit> {
-        // Tyres meet faces only; walls are the body's business. Faces flagged 0x08 are not ground (the
-        // original's ground-height queries skip them), and scenery-group geometry is off in free roam.
-        let options = RayOptions {
-            barriers: false,
-            skip_groups: true,
-            exclude: u32::from(SURFACE_NO_GROUND) | u32::from(GROUP_EXCLUSION),
-            ..RayOptions::default()
-        };
         let end = origin + dir * max_distance;
-        let hit = cast(origin.to_array(), end.to_array(), &options)?;
+        let hit = cast(origin.to_array(), end.to_array(), &tyre_rays())?;
         Some(GroundHit {
             distance: hit.t * max_distance,
             normal: Vec3::from(hit.normal),
             surface: self.surfaces.grip(hit.surface_hash),
         })
     }
+}
+
+/// The rays a tyre casts. Tyres meet faces only; walls are the body's business. Faces flagged 0x08 are not ground (the
+/// original's ground-height queries skip them), and scenery-group geometry is off in free roam.
+fn tyre_rays() -> RayOptions {
+    RayOptions {
+        barriers: false,
+        skip_groups: true,
+        exclude: u32::from(SURFACE_NO_GROUND) | u32::from(GROUP_EXCLUSION),
+        ..RayOptions::default()
+    }
+}
+
+/// The first surface a tyre could stand on going down from `(x, top, z)` to `(x, bottom, z)` (physics space).
+pub fn drivable_ground_below(collision: &CollisionWorld, x: f32, z: f32, top: f32, bottom: f32) -> Option<Hit> {
+    collision.ray_cast([x, top, z], [x, bottom, z], &tyre_rays())
 }
 
 impl Ground for WorldGround<'_> {

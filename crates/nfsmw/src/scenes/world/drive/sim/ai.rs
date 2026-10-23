@@ -36,13 +36,7 @@ impl CarSim {
         let forward = Vec3::new(heading.x, -(up.x * heading.x + up.z * heading.z) / up.y, heading.z).normalize();
         let right = up.cross(forward).normalize();
         let orientation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
-        let spec = self.vehicle.spec();
-        let ride = spec
-            .chassis
-            .axle(0, self.vehicle.tunings.ride_height)
-            .ride
-            .max(spec.chassis.axle(1, self.vehicle.tunings.ride_height).ride);
-        let position = Vec3::new(x, top - hit.distance + (spec.dimension.y + ride) / up.y, z);
+        let position = Vec3::new(x, top - hit.distance + self.ride_lift() / up.y, z);
         if !position.is_finite() || !orientation.is_finite() {
             return false;
         }
@@ -54,6 +48,29 @@ impl CarSim {
         }
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         true
+    }
+
+    /// How far above the road the body's centre stands at rest: the body's half height and the higher axle's ride.
+    pub fn ride_lift(&self) -> f32 {
+        let spec = self.vehicle.spec();
+        let ride = |axle| spec.chassis.axle(axle, self.vehicle.tunings.ride_height).ride;
+        spec.dimension.y + ride(0).max(ride(1))
+    }
+
+    /// Puts the car's body over the road point `road` (physics space), its nose along `forward` (which may climb or
+    /// fall) and level across, rolling at `speed`, with no ground under it: the stand-in of a car off the loaded world
+    /// (`ai/car/stand_in.rs`). The next step does not sweep from where the car was.
+    pub fn place_kinematic(&mut self, road: Vec3, forward: Vec3, speed: f32) {
+        let Some(forward) = forward.try_normalize() else { return };
+        let Some(right) = Vec3::Y.cross(forward).try_normalize() else { return };
+        let up = forward.cross(right);
+        let orientation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
+        let position = road + Vec3::Y * self.ride_lift();
+        if !position.is_finite() || !orientation.is_finite() || !speed.is_finite() {
+            return;
+        }
+        self.vehicle.place_moving(position, orientation, speed.max(0.0));
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
     }
 
     /// Makes the car take its controls from an AI: no dead zone, no automatic reverse or idle braking,

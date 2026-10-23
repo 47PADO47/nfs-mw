@@ -29,7 +29,7 @@ impl WorldScene {
             arrested: self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active()),
         };
         let (collision, _) = self.residency.world_parts();
-        let ground = |at: Vec3| space::ground_below(collision, at.x, at.y, at.z + 10.0, at.z - 10.0);
+        let ground = |at: Vec3| space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0);
         for scene in scenes {
             if self.moment.request(&scene, &facts, ground).is_ok() {
                 break;

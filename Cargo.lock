@@ -4117,6 +4117,7 @@ dependencies = [
  "blackbox-minimap",
  "blackbox-nis",
  "blackbox-particles",
+ "blackbox-race",
  "blackbox-roads",
  "blackbox-scenery",
  "blackbox-sequence",

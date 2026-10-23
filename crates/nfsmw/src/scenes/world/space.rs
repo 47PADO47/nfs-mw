@@ -5,6 +5,10 @@
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
 
+/// How far above a car's position the ground under it is looked for: enough for the road it stands on, not the
+/// bridge over it.
+pub const CAR_GROUND_ABOVE: f32 = 2.0;
+
 /// Render space to physics space.
 pub fn to_physics(p: Vec3) -> [f32; 3] {
     [-p.y, p.z, p.x]
@@ -15,10 +19,11 @@ pub fn to_render(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[2], -p[0], p[1])
 }
 
-/// The first surface below `(x, y, from_z)` (render space) down to `to_z`, as a height.
+/// The first surface a car could stand on below `(x, y, from_z)` (render space) down to `to_z`, as a height: the faces
+/// a tyre meets, so not the no-ground faces or the scenery groups that are off.
 pub fn ground_below(collision: &CollisionWorld, x: f32, y: f32, from_z: f32, to_z: f32) -> Option<f32> {
     let [px, _, pz] = to_physics(Vec3::new(x, y, 0.0));
-    collision.ground(px, pz, from_z, to_z).map(|hit| hit.point[1])
+    super::drive::drivable_ground_below(collision, px, pz, from_z, to_z).map(|hit| hit.point[1])
 }
 
 #[cfg(test)]

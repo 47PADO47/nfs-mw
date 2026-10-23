@@ -306,7 +306,8 @@ impl WorldScene {
         let started = match at {
             Stand::RaceStart(spawn) => {
                 let anchor = self.race_start_anchor(spawn);
-                self.play_nis_at(scene, track, anchor)
+                // The car stays on its grid slot: the scene only draws it, and must not stand it where the clip ends.
+                self.play_nis_at(scene, track, anchor).inspect(|()| self.nis.keep_player_in_place())
             }
             Stand::PlayerCar => self.play_nis(scene, track),
         };
@@ -323,7 +324,8 @@ impl WorldScene {
     fn race_start_anchor(&mut self, spawn: Spawn) -> Anchor {
         let at = spawn.position;
         let (collision, _) = self.residency.world_parts();
-        let ground = space::ground_below(collision, at.x, at.y, at.z + 10.0, at.z - 10.0).unwrap_or(at.z);
+        let ground =
+            space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0).unwrap_or(at.z);
         let forward = Vec3::new(spawn.heading.cos(), spawn.heading.sin(), 0.0);
         Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(forward))
     }

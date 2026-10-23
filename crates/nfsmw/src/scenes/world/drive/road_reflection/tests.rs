@@ -19,7 +19,7 @@ fn installed_player_road_feed_reuses_interpolated_parts_without_uploads() {
         "BMWM3GTR".to_owned(),
         rig,
         physics,
-        SpawnRequest { near: [1945.0, 1850.0], heading: None, exact: None },
+        SpawnRequest { near: [1945.0, 1850.0], heading: None, exact: None, strict: false },
         None,
         Default::default(),
     );

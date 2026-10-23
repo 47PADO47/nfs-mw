@@ -53,3 +53,15 @@ pub fn chain_road() -> RoadNetwork {
         roads: vec![Road { scale: 1.0, speech_id: 0 }],
     }
 }
+
+/// Two straight 100 m roads along +z over each other: segment 0 at y = 0, segment 1 a bridge at y = 10.
+pub fn stacked_roads() -> RoadNetwork {
+    let node =
+        |y: f32, z: f32, segment: u16| RoadNode { position: Vec3::new(0.0, y, z), profile: 0, segments: vec![segment] };
+    RoadNetwork {
+        nodes: vec![node(0.0, 0.0, 0), node(0.0, 100.0, 0), node(10.0, 0.0, 1), node(10.0, 100.0, 1)],
+        segments: vec![segment([0, 1], 100.0, 0), segment([2, 3], 100.0, 0)],
+        profiles: vec![two_way_profile()],
+        roads: vec![Road { scale: 1.0, speech_id: 0 }],
+    }
+}

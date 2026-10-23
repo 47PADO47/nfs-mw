@@ -23,7 +23,24 @@ converted from map to physics space.
   GPS-style look-ahead) **[decomp]**, and searched again when the car reaches the checkpoint or leaves the path.
 - `Shortcuts[]` markers mark places where a racer may cut: when a racer's route passes within a marker's radius,
   it takes the shortcut with a probability between `ShortcutMinChance` and `ShortcutMaxChance` (values above 1 are
-  percentages) **[verified]** data, **[unconfirmed]** rule. The rewrite does not take shortcuts yet.
+  percentages) **[verified]** data, **[unconfirmed]** rule.
+- **The rewrite's route [ours].** The whole route is built once when the race starts: the road from the grid through
+  every gate of every lap, with the race's barrier lines closing the roads they cross (`blackbox_roads::build_route`,
+  `ai/race_route.rs`). Each leg tries a route search with the lines, then the same with the lines lifted within 60 m of
+  its ends, then a plain racer search with no lines; a leg whose road does not pass through its gate (its centre line
+  sampled every 2 m) does not count, and a leg with none is missing. On the install 2,207 legs of 217 courses give
+  2,106, 55, 3 and 43 missing (`race_routes`, a real-install test). The network's barrier flags are clear again
+  afterwards, as before.
+- **Shortcuts in the rewrite [ours].** A marker's shortcut is the road from the start of the route's nearest leg
+  through the marker to the leg's end, kept when it is at most 1.25 times the leg (661 of the 971 markers of the
+  courses). Each racer rolls once per shortcut on the grid, with the chance `lerp(min, max, skill)`, from a seed of the
+  race and the racer, and drives its own copy of the route with the legs it rolled for replaced (`race/shortcuts.rs`).
+- **Following the route [ours].** When a racer searches again (every second, at a dead end, and when it reaches a
+  gate) its navigator follows its route instead of the shortest road (`ai/racer_route.rs`): from the navigator's own
+  segment when that is on the current or the next leg; else from the nearest point of those legs when the car is within
+  12 m of it on the ground and 3 m up or down (so not on a bridge over the route); else along a racer path to the point
+  80 m further along the route. A leg with no road keeps the plain search to the gate. A racer on its route is not
+  snapped back to the road nearest it when its look-ahead falls far behind (that cut corners and dropped its trail).
 - The route length is the sum of the straight lines start, checkpoint 1 ... finish, measured on the road
   (`RaceLength` is the editor's stored value, 0 for a few races) **[unconfirmed]**. It is only used for percent
   complete and for the catch-up error, so a straight-line sum is used when the road path is not yet known.
@@ -65,13 +82,19 @@ an opponent keeps driving at cruising speed along the road and is removed when t
 - **Aim past the gate.** A path ends at its goal and a car at the end of a path stops. An opponent therefore drives to a
   point 40 m beyond the gate's centre along the gate's heading, and the gate is crossed on the way (`race/flow.rs`,
   `next_aim`) **[unconfirmed]**. The player's GPS blip and the checkpoint blip use the gate's centre.
-- **Emulation.** The world streams its collision around the player, so a car far from the player has no ground and
-  waits for it (`ai/simulation.rs`). A racer more than 450 m from the player is therefore not simulated: the race moves
-  its place along the route, straight towards the next gate's centre, at `0.7 * top speed * (0.8 + 0.2 * skill)`, and
-  it feeds the same gate tests, so it reaches checkpoints, laps and the finish like a driven car. When the racer is
-  nearer than 300 m to the player again, its car is put back on the road at that place, facing the next gate, rolling at
-  its last speed (`race/emulate.rs`, `AiCar::relocate_racer`) **[unconfirmed]**. The original's own handling of far cars
-  is the simulation level of detail ([ai-simulation-lod.md](ai-simulation-lod.md)); the numbers above are not its.
+- **Far racers keep driving [ours].** The world streams its collision around every AI car
+  (`ai/policy.rs`, `residency/traffic_support.rs`), so a racer far from the player is simulated like a near one and
+  follows its route. Only a racer whose surroundings are not loaded (it outran the streaming) switches to the stand-in of
+  [ai-simulation-lod.md](ai-simulation-lod.md) section 3, after 0.25 s off the loaded world: the car is moved towards its
+  drive target at the stand-in speed of section 3.2 (braking at 30 m/s², speeding up with `lerp(0.5, 1, skill)` of its
+  acceleration, at most `lerp(0.75, 1, skill)` of its top speed), level and with no ground, at the think rate's targets
+  (`ai/car/stand_in.rs`, `CarSim::place_kinematic`). Its gates are crossed by that travel, as a driven car's are. After
+  0.25 s back on the loaded world it is put on the ground where it stands, rolling at its stand-in speed. A stand-in is
+  never stuck. The straight-line emulation this replaces (a frozen car whose race place slid to each gate's centre, then
+  was put back on the road when the player came near) counted gates the car never drove to and could finish a race off
+  the route.
+- **No gate for a teleport [ours].** The race engine counts no gate for a move longer than 60 m in one tick
+  (`RaceConfig::max_move`): a reset, a fall back onto the road or any placement only moves the racer.
 - **Stuck racers** reverse with the same recovery as a cop (section 7.1 of [ai-driver-control.md](ai-driver-control.md)).
 
 ## Open questions

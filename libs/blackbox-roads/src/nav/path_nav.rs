@@ -42,12 +42,19 @@ impl RoadNav {
         if result.segments.is_empty() || (path_type == PathType::Gps && result.state != PathState::Full) {
             return result.state;
         }
+        self.follow(net, result.segments, Some((located.segment, located.t)), path_type);
+        result.state
+    }
+
+    /// Starts following `segments` (a path found before, or part of a route) to `goal` (a segment and its
+    /// stored-direction parameter), as a path found for `path_type`. The cursor turns to the way the path leaves its
+    /// segment when the path starts there.
+    pub fn follow(&mut self, net: &RoadNetwork, segments: Vec<u16>, goal: Option<(u16, f32)>, path_type: PathType) {
         self.kind = NavKind::Path;
         self.path_type = path_type;
-        self.goal = Some((located.segment, located.t));
-        self.path = result.segments;
+        self.goal = goal;
+        self.path = segments;
         self.turn_towards_path(net);
-        result.state
     }
 
     /// Makes the cursor head the way the path leaves its segment.

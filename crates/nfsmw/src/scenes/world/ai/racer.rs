@@ -2,13 +2,16 @@
 //! skill. Specs: `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-driver-speed-skill.md`.
 
 use blackbox_driver::{CarLimits, SpeedGovernor, StuckDetector, potential_acceleration, potential_speed, ramp};
-use blackbox_roads::{PathState, PathType, RandomSource, RoadNav, trail_curvature, update_occluded_position};
+use blackbox_roads::{
+    PathState, PathType, RandomSource, RoadNav, RoadNetwork, SegmentIndex, trail_curvature, update_occluded_position,
+};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::car::Ctx;
 use super::cop::{THINK_PERIOD, THINK_STEPS};
+use super::racer_route::follow_route;
 use super::traffic::CarState;
 use blackbox_roads::Body;
 
@@ -16,8 +19,8 @@ use blackbox_roads::Body;
 pub const RACER_THINK_STEPS: u32 = THINK_STEPS;
 /// The path to the target is searched again this often, seconds.
 const REPATH_PERIOD: f32 = 1.0;
-/// The share of its top speed an emulated racer averages on a route with bends and traffic **[unconfirmed]**.
-const EMULATED_SHARE: f32 = 0.7;
+/// How hard a racer's stand-in brakes, m/s² (`docs/specs/ai-simulation-lod.md` section 3.2).
+const STAND_IN_BRAKING: f32 = 30.0;
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
 fn look_ahead(speed_limit: f32) -> f32 {
     30.0 + 70.0 * ramp(speed_limit, 0.0, 100.0)
@@ -62,9 +65,13 @@ pub struct RacerState {
     pub held: bool,
     /// Where the racer was told to cruise to after finishing: a speed (m/s).
     cruise: f32,
-    /// The racer is far from the player and is not simulated: the race moves it along the route instead
-    /// (`docs/specs/ai-racers-route.md` section 6).
-    pub emulated: bool,
+    /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
+    /// before the race gives it one, or without a road network.
+    pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// The leg of the route the racer is on (`race/route.rs`, `leg_of`); `None` after the finish.
+    leg: Option<usize>,
+    /// The last search put the navigator on the route (`racer_route.rs`).
+    on_route: bool,
     /// A person drives this racer (split screen): the pedals they hold this frame. The think, the driver, the emulation
     /// and the catch-up leave the racer alone (`docs/specs/split-screen.md` section 3).
     pub human: Option<crate::scenes::world::drive::DriveInput>,
@@ -101,7 +108,9 @@ impl RacerState {
             glue: 0.0,
             held: true,
             cruise: 25.0,
-            emulated: false,
+            route: None,
+            leg: None,
+            on_route: false,
             human: None,
         }
     }
@@ -120,11 +129,19 @@ impl RacerState {
         self.goal = goal;
     }
 
-    /// The speed an emulated racer covers its route at, m/s: a share of the limits it would drive at, by skill, and the
-    /// catch-up. **[unconfirmed]** (`docs/specs/ai-racers-route.md` section 6).
-    pub fn emulated_speed(&self) -> f32 {
-        let skill = self.skill();
-        self.limits.top_speed * EMULATED_SHARE * (0.8 + 0.2 * skill)
+    /// The leg of its route the racer is on now. A new leg searches again at once.
+    pub fn set_leg(&mut self, leg: Option<usize>) {
+        if leg != self.leg {
+            self.repath = 0.0;
+        }
+        self.leg = leg;
+    }
+
+    /// The speed of the racer's stand-in after `dt` seconds at `current` m/s, when the think asks for `wanted`
+    /// (`ai/car/stand_in.rs`).
+    pub fn stand_in_speed(&self, current: f32, wanted: f32, dt: f32) -> f32 {
+        let accel = self.performance.acceleration_at(current);
+        stand_in_speed(current, wanted, accel, self.limits.top_speed, self.skill(), dt)
     }
 
     /// The think: a path to the goal, the look-ahead point and the requested speed.
@@ -143,27 +160,15 @@ impl RacerState {
         let to_goal = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
             self.repath = REPATH_PERIOD;
-            let state = nav.find_path_to(net, index, goal, None, PathType::Racer);
-            self.path_state = Some(state);
-            log::debug!(
-                "racer {}: path from ({:.0}, {:.0}) to ({:.0}, {:.0}): {state:?}, {} segment(s)",
-                self.id,
-                car.body.position.x,
-                car.body.position.z,
-                goal.x,
-                goal.z,
-                nav.path.len()
-            );
-            if state == PathState::NoWay {
-                nav.dead_end = false;
-            }
+            self.repath_to(net, index, nav, car, goal);
         }
         let look = look_ahead(self.governor.speed_limit);
         let gap = nav.position.distance(car.body.position);
         let toward = to_goal.try_normalize().unwrap_or(Vec3::ZERO);
         if gap < look {
             nav.advance_with_lookahead(net, look - gap, toward, look, rng);
-        } else if gap > 2.5 * look
+        } else if !self.on_route
+            && gap > 2.5 * look
             && nav.init_at_point(
                 net,
                 index,
@@ -194,6 +199,36 @@ impl RacerState {
         RacerThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
     }
 
+    /// Searches the racer's road again: along its route (`racer_route.rs`), or, on a leg with no road or with no route,
+    /// the shortest road to `goal`.
+    fn repath_to(&mut self, net: &RoadNetwork, index: &SegmentIndex, nav: &mut RoadNav, car: &CarState, goal: Vec3) {
+        let at = car.body.position;
+        let follow = match (&self.route, self.leg) {
+            (Some(route), Some(leg)) => follow_route((net, index), route, leg, nav, at),
+            _ => None,
+        };
+        self.on_route = follow.is_some();
+        if let Some(follow) = follow {
+            log::debug!("racer {}: on its route, leg {:?}: {follow:?}", self.id, self.leg);
+            nav.dead_end = false;
+            return;
+        }
+        let state = nav.find_path_to(net, index, goal, None, PathType::Racer);
+        self.path_state = Some(state);
+        log::debug!(
+            "racer {}: path from ({:.0}, {:.0}) to ({:.0}, {:.0}): {state:?}, {} segment(s)",
+            self.id,
+            at.x,
+            at.z,
+            goal.x,
+            goal.z,
+            nav.path.len()
+        );
+        if state == PathState::NoWay {
+            nav.dead_end = false;
+        }
+    }
+
     /// After the finish: follow the road at a cruising speed.
     fn cruise_think<R: RandomSource>(
         &mut self,
@@ -217,9 +252,37 @@ impl RacerState {
     }
 }
 
+/// The speed of a stand-in after `dt` seconds (`docs/specs/ai-simulation-lod.md` section 3.2): it brakes at 30 m/s²
+/// down to `wanted`, or speeds up with the car's acceleration `accel`, half of it for the weakest skill, up to
+/// `wanted`; never above `lerp(0.75, 1, skill)` of its top speed.
+pub fn stand_in_speed(current: f32, wanted: f32, accel: f32, top_speed: f32, skill: f32, dt: f32) -> f32 {
+    let skill = skill.clamp(0.0, 1.0);
+    let speed = match current > wanted {
+        true => (current - STAND_IN_BRAKING * dt).max(wanted),
+        false => (current + accel * dt * (0.5 + 0.5 * skill)).min(wanted),
+    };
+    speed.clamp(0.0, top_speed * (0.75 + 0.25 * skill))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stand_in_speeds_up_by_skill_and_brakes_hard() {
+        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 1.0, 0.5) - 12.0).abs() < 1e-5);
+        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 0.0, 0.5) - 11.0).abs() < 1e-5, "half the pull");
+        assert_eq!(stand_in_speed(49.0, 50.0, 4.0, 80.0, 1.0, 1.0), 50.0, "never past the wanted speed");
+        assert_eq!(stand_in_speed(50.0, 20.0, 4.0, 80.0, 1.0, 0.5), 35.0, "30 m/s² of braking");
+        assert_eq!(stand_in_speed(50.0, 49.0, 4.0, 80.0, 1.0, 0.5), 49.0);
+    }
+
+    #[test]
+    fn a_stand_in_never_beats_its_skills_share_of_the_top_speed() {
+        assert_eq!(stand_in_speed(70.0, 90.0, 4.0, 80.0, 0.0, 1.0), 60.0);
+        assert_eq!(stand_in_speed(70.0, 90.0, 40.0, 80.0, 1.0, 1.0), 80.0);
+        assert_eq!(stand_in_speed(0.0, -5.0, 4.0, 80.0, 1.0, 1.0), 0.0, "it does not reverse");
+    }
 
     fn performance(top: f32, grip: f32) -> Performance {
         Performance {

@@ -128,6 +128,9 @@ Given a point, a heading and a direction weight `w`:
    half width to the left or right outermost zone edge (interpolated between the end profiles), so a car
    inside the road has zero side distance; then add `w × 10 × (1 − |dot(heading, segment direction)|)`.
    For one-way segments the dot is signed: driving against the flow scores up to 20 more.
+   **[ours]** With `w > 0` a road far above or below the point also scores `3 × max(|dy| − 3 m, 0)`, where
+   `dy` is the height difference to the closest point: the original's search is flat, so a car on a bridge
+   could snap to the road under it.
 5. Take the lowest score (initial threshold 20,000). Return the segment, the closest point and `T`.
 
 ### 3.2 Initialising on a segment **[decomp]**

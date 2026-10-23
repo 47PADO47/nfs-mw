@@ -227,7 +227,6 @@ impl WorldScene {
             glue_clock: 0.0,
             demo_clock: 0.0,
             lane: Default::default(),
-            emu: Vec::new(),
             log_clock: 0.0,
             banner: Banner::default(),
             lap_mark: 0.0,
@@ -240,6 +239,8 @@ impl WorldScene {
             walls: self.raise_race_walls(&race.barriers),
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
+            route: None,
+            shortcuts: Vec::new(),
             restarted: false,
         });
         Ok(format!("{}: pursuit challenge, {label} at heat {heat}", race.name))

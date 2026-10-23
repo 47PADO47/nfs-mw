@@ -14,6 +14,7 @@ mod params;
 mod planes;
 mod races;
 mod rewards;
+mod shortcuts;
 mod story;
 mod triggers;
 
@@ -28,6 +29,7 @@ pub use params::{Character, RaceParams};
 pub use planes::PlaneTrigger;
 pub use races::{Placement, Race, RaceType};
 pub use rewards::RewardRecord;
+pub use shortcuts::ShortcutMarker;
 pub use story::RaceStory;
 pub use triggers::{BoxTrigger, SphereTrigger};
 
@@ -55,6 +57,8 @@ pub struct GameplayData {
     pub triggers: Vec<BoxTrigger>,
     /// Every sphere trigger (collections that inherit `radiustrigger`): the speed traps of the races.
     pub spheres: Vec<SphereTrigger>,
+    /// Every shortcut marker (collections that inherit `shortcut`): the places racers may cut through.
+    pub shortcuts: Vec<ShortcutMarker>,
     /// Every plane trigger (collections that inherit `planetrigger`): the wrong-way zones of the races, among others.
     pub planes: Vec<PlaneTrigger>,
     /// The auto shop and safe house zones, in database order.
@@ -80,6 +84,11 @@ impl GameplayData {
     /// The box trigger with this collection key (a race's `finish` or one of its `checkpoints`).
     pub fn trigger(&self, key: u32) -> Option<&BoxTrigger> {
         self.triggers.iter().find(|t| t.key == key)
+    }
+
+    /// The shortcut marker with this collection key (an entry of a race's `Shortcuts`).
+    pub fn shortcut(&self, key: u32) -> Option<&ShortcutMarker> {
+        self.shortcuts.iter().find(|m| m.key == key)
     }
 
     /// The sphere trigger with this collection key (an entry of a race's `SpeedTrapList`).
@@ -116,6 +125,7 @@ impl GameplayData {
             triggers: triggers::triggers(db),
             spheres: triggers::spheres(db),
             planes: planes::planes(db),
+            shortcuts: shortcuts::shortcuts(db),
             markers: markers::markers(db),
             characters: params::characters(db),
             bins: bins::bins(db),

@@ -114,9 +114,10 @@ pattern each resolves to match its §3.
 ## Racers
 
 A race (`race start <name>` in the console, a race zone, or Quick Race) puts AI racers on the grid: cars of the traffic
-world with the PID driver and a racer think (`ai/racer.rs`) that paths to the next gate of the race, limited by the
-skill and by the car matched to the player's. They are exempt from the traffic's removal rules, are held until GO, and
-are moved along the route by the race when they are far from the player (`race/emulate.rs`). The rules and the data
+world with the PID driver and a racer think (`ai/racer.rs`) that follows the race's route (`ai/racer_route.rs`, built
+at the start by `race/route.rs`), limited by the skill and by the car matched to the player's. They are exempt from the
+traffic's removal rules, are held until GO, keep driving when they are far from the player, and move by a stand-in only
+while their surroundings are not loaded (`ai/car/stand_in.rs`). The rules and the data
 are in [race-mode.md](specs/race-mode.md), [ai-racers.md](specs/ai-racers.md), [ai-racers-route.md](specs/ai-racers-route.md)
 and [ai-racers-catchup.md](specs/ai-racers-catchup.md).
 

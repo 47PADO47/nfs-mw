@@ -10,6 +10,7 @@
 //! `camera.rs`, the console `command.rs`, and the world's side `world.rs`.
 
 mod camera;
+mod car_memory;
 mod car_world;
 mod cars;
 mod characters;
@@ -21,6 +22,7 @@ mod handlers;
 mod kind;
 mod loading;
 mod player;
+mod rev_rock;
 mod world;
 
 pub(super) use command::nis_command;

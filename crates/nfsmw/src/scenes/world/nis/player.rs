@@ -13,6 +13,7 @@ use blackbox_sequence::Package;
 use game_install::GameDir;
 
 use super::camera;
+use super::car_memory::CarMemory;
 use super::cars::{CarSpot, CarTrack, Target};
 use super::characters::{Characters, Materials};
 use super::cop_wait::CopWait;
@@ -22,6 +23,7 @@ use super::loading::Loading;
 use crate::audio::nis::NisAudioRequest;
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
+use cars_api::handed_back;
 
 pub use super::kind::{NisKind, NisOutcome};
 
@@ -86,6 +88,8 @@ struct Playing {
     voice: bool,
     /// The scene's characters (`characters.rs`), uploaded once the world prepares them.
     characters: Characters,
+    /// What the world remembers of the linked cars between frames (`car_memory.rs`).
+    memory: CarMemory,
 }
 
 impl Playing {
@@ -118,6 +122,8 @@ pub struct NisPlayer {
     last: Option<String>,
     /// The linked cars where they stood when the last scene ended, until the world takes them (`take_final_cars`).
     final_cars: Option<Vec<(Target, CarSpot)>>,
+    /// The scene that plays or loads leaves the player's car where it was (`keep_player_in_place`).
+    player_stays: bool,
     /// The flash and the overlay the playing scene shows; cleared when it ends.
     screen: NisScreen,
     /// The characters of the scenes that ended, freed by the next [`NisPlayer::prepare_characters`].
@@ -145,6 +151,7 @@ impl NisPlayer {
         crate::audio::nis::prefetch(dir, scene);
         self.last = Some(format!("{scene}: loading"));
         self.loading = Some(loading);
+        self.player_stays = false;
         Ok(())
     }
 
@@ -218,6 +225,7 @@ impl NisPlayer {
             owner: Rc::new(()),
             voice: false,
             characters,
+            memory: CarMemory::default(),
         });
         Ok(())
     }
@@ -271,7 +279,7 @@ impl NisPlayer {
 
     fn end(&mut self, outcome: NisOutcome) {
         let Some(playing) = self.play.take() else { return };
-        self.final_cars = Some(playing.spots());
+        self.final_cars = Some(handed_back(playing.spots(), std::mem::take(&mut self.player_stays)));
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
         self.screen.clear();
@@ -351,79 +359,6 @@ impl NisPlayer {
         self.play.as_ref().map(|playing| playing.name.as_str())
     }
 
-    /// Whether a scene plays and its car channels still wait for their real cars (see [`NisPlayer::set_links`]).
-    pub fn needs_links(&self) -> bool {
-        self.play.as_ref().is_some_and(|playing| playing.links.is_none())
-    }
-
-    /// Gives the playing scene's car channels their real cars. Called once per scene: a channel missing from `links`
-    /// stays off. Does nothing when no scene plays.
-    pub fn set_links(&mut self, links: Vec<(usize, Target)>) {
-        if let Some(playing) = self.play.as_mut() {
-            playing.links = Some(links);
-        }
-    }
-
-    /// The cop channels of the playing scene still waiting for a police car, in slot order. Empty when none waits or no
-    /// scene plays.
-    pub fn cop_waiting(&self) -> &[usize] {
-        self.play.as_ref().map_or(&[][..], |playing| playing.cop_wait.slots())
-    }
-
-    /// Makes the cop channels `slots` of the playing scene wait for a police car (see [`CopWait`]). Called once per scene,
-    /// after [`NisPlayer::set_links`]. Does nothing when no scene plays.
-    pub fn wait_for_cops(&mut self, slots: Vec<usize>) {
-        if let Some(playing) = self.play.as_mut() {
-            playing.cop_wait = CopWait::new(slots);
-        }
-    }
-
-    /// Gives the waiting cop channel `slot` its real car: the channel is linked and no longer waits.
-    pub fn link_waiting_cop(&mut self, slot: usize, target: Target) {
-        let Some(playing) = self.play.as_mut() else { return };
-        playing.cop_wait.resolve(slot);
-        if let Some(links) = playing.links.as_mut() {
-            links.push((slot, target));
-        }
-    }
-
-    /// The traffic indices of the police cars the linked channels take: the cars the scene borrows or spawns.
-    pub fn linked_cars(&self) -> Vec<usize> {
-        let Some(links) = self.play.as_ref().and_then(|playing| playing.links.as_ref()) else { return Vec::new() };
-        links
-            .iter()
-            .filter_map(|&(_, target)| match target {
-                Target::Traffic(index) | Target::Spawned(index) => Some(index),
-                Target::Player => None,
-            })
-            .collect()
-    }
-
-    /// Spends `dt` real seconds on the waiting cop channels. Returns the channels that give up now, once their time is
-    /// up (see [`CopWait::tick`]).
-    pub fn tick_cop_wait(&mut self, dt: f32) -> Vec<usize> {
-        self.play.as_mut().map_or_else(Vec::new, |playing| playing.cop_wait.tick(dt))
-    }
-
-    /// Each car channel of the playing scene with its slot and its pose now, in render space and before the ground lift.
-    /// Empty when no scene plays.
-    pub fn car_slots(&self) -> Vec<(usize, CarSpot)> {
-        let Some(playing) = self.play.as_ref() else { return Vec::new() };
-        let time = playing.run.scene_time();
-        playing.cars.iter().map(|car| (car.slot, car.spot(&playing.anchor, time))).collect()
-    }
-
-    /// The linked cars' poses now, in render space and before the ground lift. Empty when no scene plays or none is
-    /// linked.
-    pub fn car_spots(&self) -> Vec<(Target, CarSpot)> {
-        self.play.as_ref().map_or_else(Vec::new, Playing::spots)
-    }
-
-    /// The linked cars' poses where the last scene ended, once: the next call gives `None` until another scene ends.
-    pub fn take_final_cars(&mut self) -> Option<Vec<(Target, CarSpot)>> {
-        self.final_cars.take()
-    }
-
     /// Whether the camera jumped since this was last called: a scene began or ended.
     pub fn take_cut(&mut self) -> bool {
         std::mem::take(&mut self.cut)
@@ -472,6 +407,8 @@ impl NisPlayer {
     }
 }
 
+#[path = "player_cars.rs"]
+mod cars_api;
 #[cfg(test)]
 #[path = "player_tests.rs"]
 mod tests;

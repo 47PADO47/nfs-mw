@@ -1,0 +1,160 @@
+use glam::Vec3;
+
+use super::synth::*;
+use crate::{Goal, PathType, RouteBuilder, SegmentIndex, build_leg};
+
+fn goal(z: f32) -> Goal {
+    Goal { position: Vec3::new(1.0, 0.0, z), forward: Vec3::Z }
+}
+
+/// The chain road (two 100 m segments along +z) from z = 10 through goals at z = 150 and z = 190.
+fn chain_route() -> (crate::RoadNetwork, crate::Route) {
+    let net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let mut builder = RouteBuilder::new(&net);
+    let mut from = goal(10.0);
+    for to in [goal(150.0), goal(190.0)] {
+        let path = build_leg(&net, &index, from, to, PathType::RaceRoute).expect("a road");
+        builder.push(from, to, Some(&path));
+        from = to;
+    }
+    let route = builder.finish();
+    (net, route)
+}
+
+#[test]
+fn the_legs_follow_the_goals_in_order() {
+    let (net, route) = chain_route();
+    assert_eq!(route.legs.len(), 2);
+    let segments: Vec<u16> = route.steps.iter().map(|s| s.segment).collect();
+    assert_eq!(segments, vec![0, 1, 1], "start to the first goal, then on to the second");
+    assert!(route.steps.iter().all(|s| s.node_ind == 1), "all along the stored direction");
+    assert!((route.legs[0].length - 140.0).abs() < 1.0, "{}", route.legs[0].length);
+    assert!((route.legs[1].length - 40.0).abs() < 1.0, "{}", route.legs[1].length);
+    assert!((route.length - 180.0).abs() < 1.0);
+    let (at, forward) = route.point_at(&net, 140.0).expect("a point");
+    assert!((at.z - 150.0).abs() < 1.0 && forward.z > 0.99, "{at:?}");
+    assert_eq!(route.leg_at(139.0), 0);
+    assert_eq!(route.leg_at(141.0), 1);
+    assert_eq!(route.window(0), vec![0, 1]);
+    assert_eq!(route.window(1), vec![1]);
+    assert_eq!(route.window_goal(0), route.legs[1].goal);
+}
+
+#[test]
+fn a_position_is_located_along_the_route() {
+    let (net, route) = chain_route();
+    let found = route.locate(&net, Vec3::new(3.0, 0.5, 120.0), 0..2).expect("on the route");
+    assert_eq!((found.leg, route.steps[found.step].segment), (0, 1));
+    assert!((found.distance - 110.0).abs() < 1.0, "{}", found.distance);
+    assert!((found.gap - 3.0).abs() < 0.1 && (found.rise - 0.5).abs() < 0.1);
+    let later = route.locate(&net, Vec3::new(0.0, 0.0, 170.0), 1..2).expect("on the second leg");
+    assert_eq!(later.leg, 1);
+    assert!((later.distance - 160.0).abs() < 1.0, "{}", later.distance);
+}
+
+#[test]
+fn a_route_under_a_bridge_is_not_located_on_the_bridge() {
+    let net = stacked_roads();
+    let index = SegmentIndex::build(&net);
+    let (from, to) = (goal(10.0), goal(90.0));
+    let path = build_leg(&net, &index, from, to, PathType::RaceRoute).expect("the lower road");
+    assert_eq!(path.segments, vec![0], "the leg keeps to the road its goals are on");
+    let mut builder = RouteBuilder::new(&net);
+    builder.push(from, to, Some(&path));
+    let route = builder.finish();
+    let below = route.locate(&net, Vec3::new(1.0, 0.4, 50.0), 0..1).expect("on the road");
+    assert!(below.rise.abs() < 0.5);
+    let above = route.locate(&net, Vec3::new(1.0, 10.4, 50.0), 0..1).expect("still the nearest piece");
+    assert!(above.rise > 9.0, "the bridge is 10 m over the route: {}", above.rise);
+}
+
+#[test]
+fn a_missing_leg_is_a_straight_line_with_no_road() {
+    let net = chain_road();
+    let mut builder = RouteBuilder::new(&net);
+    builder.push(goal(0.0), goal(5000.0), None);
+    let route = builder.finish();
+    assert!(route.legs[0].missing());
+    assert_eq!(route.legs[0].goal, None);
+    assert!((route.length - 5000.0).abs() < 1e-3);
+    let (at, _) = route.point_at(&net, 2500.0).expect("a point");
+    assert!((at.z - 2500.0).abs() < 1e-3);
+    assert!(route.window(0).is_empty());
+    assert!(route.locate(&net, Vec3::ZERO, 0..1).is_none());
+}
+
+#[test]
+fn a_goal_off_the_map_has_no_leg() {
+    let net = chain_road();
+    let index = SegmentIndex::build(&net);
+    assert!(build_leg(&net, &index, goal(10.0), goal(5000.0), PathType::RaceRoute).is_none());
+}
+
+/// A barrier line across the chain road at z = 150 (segment 1), in the 2-D frame the lines use.
+fn line_at_150() -> crate::ActiveBarrier {
+    crate::ActiveBarrier { a: glam::Vec2::new(150.0, 10.0), b: glam::Vec2::new(150.0, -10.0), drive_through: false }
+}
+
+#[test]
+fn every_leg_is_found_on_an_open_road() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let (route, sources) =
+        crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0), goal(190.0)], (&[], &[]), |_, _| true);
+    assert_eq!(sources, vec![crate::LegSource::Closed; 2]);
+    assert!(route.legs.iter().all(|leg| !leg.missing()));
+}
+
+#[test]
+fn a_line_next_to_a_goal_is_lifted_for_that_leg_and_the_flags_end_clear() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let lines = [line_at_150()];
+    let (route, sources) = crate::build_route(&mut net, &index, goal(10.0), &[goal(190.0)], (&lines, &[]), |_, _| true);
+    assert_eq!(sources, vec![crate::LegSource::OpenEnds], "the line closes the goal's segment");
+    assert!(!route.legs[0].missing());
+    assert!(net.segments.iter().all(|s| !s.has(crate::flags::CROSSES_BARRIER)), "no flag is left behind");
+}
+
+#[test]
+fn a_leg_whose_road_misses_its_check_is_missing() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let (route, sources) =
+        crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0)], (&[], &[]), |_, points| points.len() > 1000);
+    assert_eq!(sources, vec![crate::LegSource::Missing]);
+    assert!(route.legs[0].missing());
+}
+
+#[test]
+fn the_check_sees_the_leg_and_its_centre_line() {
+    let mut net = chain_road();
+    let index = SegmentIndex::build(&net);
+    let mut seen = Vec::new();
+    crate::build_route(&mut net, &index, goal(10.0), &[goal(150.0), goal(190.0)], (&[], &[]), |leg, points| {
+        let (first, last) = (points[0], points[points.len() - 1]);
+        seen.push((leg, first.z.round(), last.z.round()));
+        true
+    });
+    assert_eq!(seen, vec![(0, 10.0, 150.0), (1, 150.0, 190.0)]);
+}
+
+#[test]
+fn a_leg_hands_back_its_road_and_a_splice_replaces_it() {
+    let (net, route) = chain_route();
+    let index = SegmentIndex::build(&net);
+    let first = route.leg_path(0).expect("the first leg's road");
+    assert_eq!(first.segments, vec![0, 1]);
+    assert!((first.from_t - 0.1).abs() < 1e-3);
+    assert_eq!(route.spliced(&net, &[]), route, "nothing replaced, the same route");
+    // The first leg through a point at z = 60 on the way: the same road in two searches, joined.
+    let via = goal(60.0);
+    let a = build_leg(&net, &index, goal(10.0), via, PathType::RaceRoute).unwrap();
+    let b = build_leg(&net, &index, via, goal(150.0), PathType::RaceRoute).unwrap();
+    let joined = a.join(&b);
+    assert_eq!(joined.segments, vec![0, 1], "the shared segment once");
+    let spliced = route.spliced(&net, &[(0, joined)]);
+    assert!((spliced.length - route.length).abs() < 1.0);
+    assert_eq!(spliced.legs[1], route.legs[1]);
+}

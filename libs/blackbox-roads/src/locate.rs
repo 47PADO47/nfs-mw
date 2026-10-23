@@ -12,6 +12,10 @@ pub const SEARCH_RADIUS: f32 = 32.0;
 const DIRECTION_WEIGHT: f32 = 10.0;
 /// Initial best score.
 const WORST_SCORE: f32 = 20_000.0;
+/// Height difference a car may have from a road it is on (suspension, kerbs, ramps).
+const HEIGHT_SLACK: f32 = 3.0;
+/// Score per metre of height difference beyond [`HEIGHT_SLACK`], so a bridge never beats the road below.
+const HEIGHT_WEIGHT: f32 = 3.0;
 
 /// Which segments a search may consider.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -47,7 +51,8 @@ pub struct Located {
 }
 
 /// The segment closest to `point` among those near it. With `direction_weight > 0` the distance is the
-/// distance to the edge of the road and `heading` breaks ties towards the segment direction.
+/// distance to the edge of the road, `heading` breaks ties towards the segment direction and a road far
+/// above or below the point (a bridge over it, the road under it) scores worse.
 pub fn closest_segment(
     net: &RoadNetwork,
     index: &SegmentIndex,
@@ -77,6 +82,7 @@ pub fn closest_segment(
                 false => 1.0 - along.abs(),
             };
             score = (lateral - half).max(0.0) + direction_weight * DIRECTION_WEIGHT * alignment;
+            score += height_penalty(point.y - on_road.y);
         }
         if score < best_score {
             best_score = score;
@@ -84,6 +90,11 @@ pub fn closest_segment(
         }
     }
     best.map(|(_, located)| located)
+}
+
+/// The score added for a road `dy` metres above or below the point.
+fn height_penalty(dy: f32) -> f32 {
+    HEIGHT_WEIGHT * (dy.abs() - HEIGHT_SLACK).max(0.0)
 }
 
 /// Half the width of the drivable cross section of segment `s` at `t`, to the outer edge of its

@@ -29,13 +29,13 @@ impl AiCar {
     }
 
     /// The start of [`Self::step`]: the think, the driver and the start of the body's step. `None` when the car does
-    /// not step (an emulated racer).
+    /// not step (a racer on its stand-in moves by `stand_in.rs` instead).
     pub(in crate::scenes::world::ai) fn begin_step<R: RandomSource>(
         &mut self,
         ctx: &mut Ctx<'_, R>,
         props: &mut PropWorld,
     ) -> Option<StepStart> {
-        if self.racer_emulated() {
+        if self.stand_in.active {
             return None;
         }
         self.sim.collision_goal =

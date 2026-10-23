@@ -11,7 +11,6 @@ mod command;
 mod coop_finish;
 mod demo;
 mod drag;
-mod emulate;
 mod final_race;
 mod final_race_events;
 mod finish;
@@ -25,14 +24,19 @@ pub(super) mod mods;
 mod names;
 mod outro;
 mod report;
+pub(in crate::scenes::world) mod reset;
 mod restart;
+pub(in crate::scenes::world) mod route;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]
 mod setup_course_tests;
+pub(in crate::scenes::world) mod shortcuts;
 mod split;
 mod start;
 mod startable;
+#[cfg(test)]
+pub(in crate::scenes::world) mod test_roads;
 mod wrong_way;
 
 pub(super) use command::race_command;
@@ -164,8 +168,6 @@ pub(super) struct RaceSession {
     pub demo_clock: f32,
     /// The lane of the player's car in a drag race (`drag.rs`).
     pub lane: drag::Lane,
-    /// Where each emulated racer is on its route (physics space); `None` for a racer that is simulated.
-    pub emu: Vec<Option<glam::Vec3>>,
     /// Seconds since the last debug line about the racers.
     pub log_clock: f32,
     pub banner: Banner,
@@ -190,6 +192,10 @@ pub(super) struct RaceSession {
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.
     pub origin: Origin,
+    /// The road the opponents follow through every gate of every lap (`route.rs`); `None` without a road network.
+    pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// The route's shortcuts, found when the racers go on the grid (`shortcuts.rs`).
+    pub shortcuts: Vec<shortcuts::Shortcut>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
     /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).
     pub restarted: bool,

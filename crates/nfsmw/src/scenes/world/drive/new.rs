@@ -75,6 +75,7 @@ impl Drive {
             steps: 0,
             manual_resets: 0,
             last_good: None,
+            strict_since: None,
             fall: FallWatch::default(),
             last_check: 0,
             presses: Presses::default(),

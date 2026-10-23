@@ -46,6 +46,7 @@ impl Drive {
             near: [spawn.position.x, spawn.position.y],
             heading: Some(spawn.heading),
             exact: Some(spawn),
+            strict: true,
         });
     }
 }
