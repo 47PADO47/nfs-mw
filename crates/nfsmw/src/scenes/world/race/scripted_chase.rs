@@ -157,6 +157,9 @@ impl ChaseRun {
     /// call trigger; the others are not required.
     pub fn new(data: &GameplayData, race: &str) -> ChaseRun {
         let zones = TRIGGER_CHILDREN.map(|child| zone_named(data, race, child));
+        let found: Vec<&str> =
+            TRIGGER_CHILDREN.iter().zip(&zones).filter(|(_, zone)| zone.is_some()).map(|(name, _)| *name).collect();
+        log::info!("chase: {race} has the triggers {found:?}");
         if zones[CALL].is_none() {
             log::warn!("chase: {race} lacks its call trigger, so the scripted chase will not run");
         }

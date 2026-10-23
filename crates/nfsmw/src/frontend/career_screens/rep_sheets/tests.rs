@@ -6,7 +6,7 @@ use nfsmw_data::gameplay::{BountyJump, GameplayData, Milestone, MilestoneType, P
 
 use super::bounty::{bounty_rows, on_offer};
 use super::milestones::{Entry, goal_text, milestone_rows, render_xy};
-use super::race::{race_rows, status_of};
+use super::race::{race_rows, speed_text, status_of};
 use super::{Kind, Status, walk};
 
 /// A bin with two free races and one boss race.
@@ -221,4 +221,12 @@ fn a_trap_not_yet_unlocked_is_locked() {
     let set = MilestoneSet::new(&[]);
     let rows = milestone_rows(&set, std::slice::from_ref(&trap), &GameplayData::default(), 14);
     assert_eq!(rows[0].status(), Status::Locked);
+}
+
+#[test]
+fn a_recorded_speed_is_written_in_the_players_unit() {
+    assert_eq!(speed_text(Some(100.0), true, "KPH"), "100 KPH");
+    assert_eq!(speed_text(Some(100.0), false, "MPH"), "62 MPH");
+    assert_eq!(speed_text(None, true, "KPH"), "--");
+    assert_eq!(speed_text(Some(0.0), false, "MPH"), "--");
 }

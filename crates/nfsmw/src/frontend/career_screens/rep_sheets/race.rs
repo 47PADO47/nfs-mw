@@ -25,8 +25,12 @@ const TRACK_NAME: u32 = 0x0F2C_D475;
 /// The police line (label and value): the original derives the value from data that was not read, so it is hidden.
 const POLICE: [u32; 2] = [0x9CA1_1B4A, 0x0000_9B21];
 const BEST: u32 = 0x8FD4_1BB4;
-/// The groups of the average and the top speed: a race keeps neither, so they are hidden.
-const SPEEDS: [u32; 2] = [0x6716_A779, 0xB0F9_8EEE];
+/// The values of the average and the top speed (the labels beside them are the package's own).
+const AVERAGE: u32 = 0xEBD7_F926;
+const TOP: u32 = 0xDE91_45FB;
+const KMH_TO_MPH: f32 = 0.621_371;
+const KPH_LABEL: u32 = 0x8569_A25F;
+const MPH_LABEL: u32 = 0x8569_AB44;
 const CASH: [u32; 2] = [0xFFBB_BF24, 0x03A8_0495];
 const DISTANCE: u32 = 0x080C_9DAA;
 const LAPS_GROUP: u32 = 0xEDE0_7C9B;
@@ -36,9 +40,8 @@ const UNLOCK_LABEL: u32 = 0xBD56_3BE5;
 /// Every object of the package the page names.
 #[cfg(test)]
 pub(super) fn used() -> Vec<u32> {
-    let mut all = vec![KIND_NAME, KIND_ICON, TRACK_NAME, BEST, DISTANCE, LAPS_GROUP, LAPS];
+    let mut all = vec![KIND_NAME, KIND_ICON, TRACK_NAME, BEST, DISTANCE, LAPS_GROUP, LAPS, AVERAGE, TOP];
     all.extend(POLICE);
-    all.extend(SPEEDS);
     all.extend(CASH);
     all
 }
@@ -165,7 +168,7 @@ impl Page for RacePage {
             cx.rt.set_texture(icon, text::mode_icon(row.kind));
         }
         cx.text_object(TRACK_NAME, &track_name(cx.assets, &row.event));
-        for hidden in POLICE.into_iter().chain(SPEEDS) {
+        for hidden in POLICE {
             cx.hide(hidden, true);
         }
         // A race that is not open has no record to show.
@@ -174,6 +177,10 @@ impl Page for RacePage {
             _ => records::time_text(records::best(&row.event).time),
         };
         cx.text_object(BEST, &best);
+        let record = records::best(&row.event);
+        let speed_unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
+        cx.text_object(AVERAGE, &speed_text(record.average, metric, &speed_unit));
+        cx.text_object(TOP, &speed_text(record.top, metric, &speed_unit));
         for name in CASH {
             cx.text_object(name, &crate::frontend::infractions::money(row.cash));
         }
@@ -203,6 +210,13 @@ impl Page for RacePage {
     fn first(&self) -> usize {
         self.rows.iter().position(|row| row.status == Status::Open).unwrap_or(0)
     }
+}
+
+/// A recorded speed in the player's unit with the unit's word, `--` for a race never finished.
+pub fn speed_text(kmh: Option<f32>, metric: bool, unit: &str) -> String {
+    let Some(kmh) = kmh.filter(|speed| *speed > 0.0) else { return "--".to_owned() };
+    let value = if metric { kmh } else { kmh * KMH_TO_MPH };
+    format!("{value:.0} {unit}")
 }
 
 /// `Unlock this track by beating <alias>, Blacklist member <bin>.`

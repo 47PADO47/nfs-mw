@@ -26,6 +26,10 @@ impl WorldScene {
         {
             crate::frontend::custom_race::records::note_time(&session.event, time);
             crate::frontend::custom_race::records::note_lap(&session.event, time - session.lap_mark);
+            let stats = &engine.racers()[0].stats;
+            // The average is the distance driven over the race time, both as the race recorded them.
+            let average = stats.distance / time * 3.6;
+            crate::frontend::custom_race::records::note_run(&session.event, average, stats.top_speed * 3.6);
         }
         session.stage = Stage::Results { left: RACE_OVER_SECS };
         self.note_race_outcome(session);

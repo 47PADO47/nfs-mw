@@ -127,9 +127,14 @@ impl UiScript {
             match words[..] {
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
-                ["wait", s] => {
-                    steps.push_back(Step { mask: 0, frames: frames(s)?, key: None, pointer: None, text: None, console: None })
-                }
+                ["wait", s] => steps.push_back(Step {
+                    mask: 0,
+                    frames: frames(s)?,
+                    key: None,
+                    pointer: None,
+                    text: None,
+                    console: None,
+                }),
                 ["hold", name, s] => steps.push_back(Step {
                     mask: button(name)?,
                     frames: frames(s)?,
@@ -138,12 +143,24 @@ impl UiScript {
                     text: None,
                     console: None,
                 }),
-                ["key", name] => {
-                    steps.push_back(Step { mask: 0, frames: 1, key: Some(key(name)?), pointer: None, text: None, console: None })
-                }
+                ["key", name] => steps.push_back(Step {
+                    mask: 0,
+                    frames: 1,
+                    key: Some(key(name)?),
+                    pointer: None,
+                    text: None,
+                    console: None,
+                }),
                 ["pointer", x, y] => {
                     let at = Vec2::new(number(x)?, number(y)?);
-                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: Some(at), text: None, console: None });
+                    steps.push_back(Step {
+                        mask: 0,
+                        frames: 1,
+                        key: None,
+                        pointer: Some(at),
+                        text: None,
+                        console: None,
+                    });
                 }
                 ["console", ref command @ ..] if !command.is_empty() => steps.push_back(Step {
                     mask: 0,
@@ -154,10 +171,24 @@ impl UiScript {
                     console: Some(command.join(" ")),
                 }),
                 ["type", text] => {
-                    steps.push_back(Step { mask: 0, frames: 1, key: None, pointer: None, text: Some(text.to_owned()), console: None });
+                    steps.push_back(Step {
+                        mask: 0,
+                        frames: 1,
+                        key: None,
+                        pointer: None,
+                        text: Some(text.to_owned()),
+                        console: None,
+                    });
                 }
                 [name] => {
-                    steps.push_back(Step { mask: button(name)?, frames: 4, key: None, pointer: None, text: None, console: None });
+                    steps.push_back(Step {
+                        mask: button(name)?,
+                        frames: 4,
+                        key: None,
+                        pointer: None,
+                        text: None,
+                        console: None,
+                    });
                     steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None, console: None });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
