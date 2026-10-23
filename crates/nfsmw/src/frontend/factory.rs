@@ -189,7 +189,8 @@ pub fn look_for(name: &str, args: &Args) -> Option<Look> {
     if is(screen::CAR_SELECT) && args.in_lot() {
         return Some(Look::CarLot(CarLook::of_profile(&CareerHandle::shared())));
     }
-    let safehouse_screen = career_slot(&name).is_some() && !is(screen::MC_LIST);
+    // Opened from the pause menu the career screens keep the world behind them; there is no room to stand in.
+    let safehouse_screen = career_slot(&name).is_some() && !is(screen::MC_LIST) && !args.pause;
     safehouse_screen.then(|| Look::SafeHouse(CarLook::of_profile(&CareerHandle::shared())))
 }
 
@@ -228,6 +229,9 @@ pub fn pose_for(name: &str, args: &Args) -> Option<&'static str> {
     ];
     if is(screen::CAR_SELECT) && args.in_lot() {
         return Some("carlot_car_select");
+    }
+    if args.pause && is(screen::SAFE_HOUSE_RIVAL_CHALLENGE) {
+        return None;
     }
     poses.iter().find(|(file, _)| is(file)).map(|(_, pose)| *pose)
 }

@@ -155,6 +155,8 @@ struct Sheet {
     zoom: Zoom,
     shown_map: Option<usize>,
     vertical: bool,
+    /// What the sheet was opened with, for the screens it goes back to.
+    args: Args,
 }
 
 impl Sheet {
@@ -172,6 +174,7 @@ impl Sheet {
             zoom: Zoom::at(Crop::WHOLE),
             shown_map: None,
             vertical: false,
+            args,
         }
     }
 
@@ -234,7 +237,7 @@ impl Sheet {
     /// Back: the overview, at the rival the sheet showed.
     fn back(&mut self, cx: &mut Cx) {
         self.maps.release(cx.assets);
-        reputation_overview::open(cx, self.bin);
+        reputation_overview::open(cx, self.bin, self.args);
     }
 
     /// The question was answered No or the dialog was left with Back: the maps were let go, so read them again.

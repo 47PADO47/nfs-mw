@@ -20,8 +20,9 @@ use super::blacklist::{DISABLED_ALPHA, RivalRow, career_rows, current_bin, rank_
 use super::{RIVAL_LIST_READY, safehouse_menu::money_text};
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Plain, ScreenLogic};
-use crate::ui::Text;
+use crate::frontend::logic::{Args, Command, Cx, Pick, Plain, ScreenLogic};
+use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
+use crate::ui::{Text, UiAssets};
 
 /// Objects of the package by name hash. The title, alias, challenge text and ticker lines are groups whose strings get
 /// the text; the numbers of the panel are strings.
@@ -180,9 +181,26 @@ impl Sheet {
     }
 }
 
+/// One entry of the Remastered look's list for a rival: a sheet, or the Challenge Rival button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Entry {
+    Sheet(Sheet),
+    Challenge,
+}
+
+/// The Remastered look has no overview page: the rival shows as a list of the four sheets, then the Challenge Rival
+/// button unless the rival is beaten (it is greyed while the button is off). Same rules as the Original page's button.
+pub fn entries(button: Button) -> Vec<(Entry, bool)> {
+    let mut list: Vec<(Entry, bool)> = SHEETS.into_iter().map(|sheet| (Entry::Sheet(sheet), true)).collect();
+    if button != Button::Hidden {
+        list.push((Entry::Challenge, button == Button::On));
+    }
+    list
+}
+
 /// The page opened at `bin` (the screens it opened come back here).
-pub fn open(cx: &mut Cx, bin: u8) {
-    let args = Args { safehouse: true, rival: bin, ..Args::default() };
+pub fn open(cx: &mut Cx, bin: u8, from: Args) {
+    let args = super::blacklist::carry(from, bin, false);
     cx.send(Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_string(), args));
 }
 
@@ -232,6 +250,11 @@ struct Overview {
     /// The rival the page was opened for, or 0 for the career's own.
     asked: u8,
     sheet: usize,
+    /// What the page was opened with, for the menu it goes back to and the screens it opens.
+    args: Args,
+    /// The Remastered look is on: the page is a list and `cursor` is the entry on it.
+    vertical: bool,
+    cursor: usize,
 }
 
 /// The logic of `name` (lower case) when it is the overview.
@@ -243,7 +266,15 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if current_bin().is_none() {
         return Some(Box::new(Plain));
     }
-    Some(Box::new(Overview { shown: FIRST_RIVAL_STAGE, low: FIRST_RIVAL_STAGE, asked: args.rival, sheet: 0 }))
+    Some(Box::new(Overview {
+        shown: FIRST_RIVAL_STAGE,
+        low: FIRST_RIVAL_STAGE,
+        asked: args.rival,
+        sheet: 0,
+        args,
+        vertical: false,
+        cursor: 0,
+    }))
 }
 
 /// A game text, empty when missing.
@@ -309,6 +340,37 @@ impl Overview {
         cx.hide(ARROW_RIGHT, self.sheet + 1 == SHEETS.len());
     }
 
+    /// The Remastered list's entries of the shown rival.
+    fn list_entries(&self) -> Vec<(Entry, bool)> {
+        entries(read(self.shown).map_or(Button::Hidden, |panel| panel.button))
+    }
+
+    /// Does what the entry under the cursor is: opens its sheet, or starts the challenge.
+    fn activate(&self, cx: &mut Cx) {
+        let Some((entry, enabled)) = self.list_entries().get(self.cursor).copied() else { return };
+        if !enabled {
+            return;
+        }
+        match entry {
+            Entry::Sheet(sheet) => {
+                let Some(name) = sheet.screen() else { return };
+                let args = super::blacklist::carry(self.args, self.shown, true);
+                cx.send(Command::Switch(name.to_string(), args));
+            }
+            Entry::Challenge => cx.send(Command::ChallengeRival { bin: self.shown }),
+        }
+    }
+
+    fn back(&self, cx: &mut Cx) {
+        // The Remastered look goes back to the list of rivals, the Original to the menu it came from.
+        if self.vertical {
+            let args = super::blacklist::carry(self.args, self.shown, false);
+            return cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_string(), args));
+        }
+        let (next, args) = super::blacklist::home(self.args);
+        cx.send(Command::Switch(next.to_string(), args));
+    }
+
     fn step_rival(&mut self, cx: &mut Cx, up: bool) {
         let next = step(self.shown, self.low, up);
         if next == self.shown {
@@ -328,7 +390,7 @@ impl Overview {
 
     fn accept(&self, cx: &mut Cx) {
         let Some(name) = SHEETS[self.sheet].screen() else { return };
-        let args = Args { safehouse: true, rival: self.shown, overview: true, ..Args::default() };
+        let args = super::blacklist::carry(self.args, self.shown, true);
         cx.send(Command::Switch(name.to_string(), args));
     }
 
@@ -338,13 +400,14 @@ impl Overview {
         if panel.button != Button::On {
             return;
         }
-        let args = Args { safehouse: true, rival: self.shown, overview: true, ..Args::default() };
+        let args = super::blacklist::carry(self.args, self.shown, true);
         cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_CHALLENGE.to_string(), args));
     }
 }
 
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
+        self.vertical = cx.vertical_look();
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
         // Nothing to step through while the career is at rival 15.
@@ -356,8 +419,62 @@ impl ScreenLogic for Overview {
         self.fill_sheet(cx);
     }
 
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.vertical = cx.vertical_look();
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
+    }
+
+    /// Up and Down step the Remastered list as Left and Right step the sheets of the Original page.
+    fn rotate_pad(&self) -> bool {
+        self.vertical
+    }
+
+    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+        if !self.vertical {
+            return None;
+        }
+        let text = |label: u32| Text::Game(label).resolve(assets).unwrap_or_default();
+        let entries = self
+            .list_entries()
+            .into_iter()
+            .map(|(entry, enabled)| match entry {
+                Entry::Sheet(sheet) => MenuEntry::plain(text(sheet.label()), enabled),
+                Entry::Challenge => MenuEntry::plain(text(label_hash("RIVAL_CHALLENGE_ACTIVATED")), enabled),
+            })
+            .collect();
+        let title = text(label_hash("TITLE_BLACKLIST_NUMBER")).replace("%d", &self.shown.to_string());
+        Some(MenuList {
+            title,
+            message: String::new(),
+            entries,
+            selected: self.cursor,
+            first: 0,
+            hints: Vec::new(),
+            style: MenuStyle::Sub,
+            nudge: None,
+            scroll: 0.0,
+            aspect: DEFAULT_ASPECT,
+        })
+    }
+
+    fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        if row >= self.list_entries().len() {
+            return;
+        }
+        self.cursor = row;
+        if matches!(pick, Pick::Press(..)) {
+            self.activate(cx);
+        }
+    }
+
     // The page has no focused button to answer an accept, so the pad press is the accept.
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & pad::ACCEPT != 0 && self.vertical {
+            return self.activate(cx);
+        }
         if bits & pad::ACCEPT != 0 {
             self.accept(cx);
         }
@@ -395,15 +512,19 @@ impl ScreenLogic for Overview {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
+            PAD_LEFT | PAD_RIGHT if self.vertical => {
+                let last = self.list_entries().len().saturating_sub(1);
+                self.cursor = match message == PAD_RIGHT {
+                    true => (self.cursor + 1).min(last),
+                    false => self.cursor.saturating_sub(1),
+                };
+            }
             PAD_UP => self.step_rival(cx, true),
             PAD_DOWN => self.step_rival(cx, false),
             PAD_LEFT => self.step_sheet(cx, false),
             PAD_RIGHT => self.step_sheet(cx, true),
             CHALLENGE_KEY => self.challenge(cx),
-            PAD_BACK => {
-                let args = Args { safehouse: true, ..Args::default() };
-                cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), args));
-            }
+            PAD_BACK => self.back(cx),
             _ => {}
         }
     }

@@ -58,7 +58,7 @@ impl Default for Args {
             safehouse: false,
             rival: 0,
             sub: Sub::Options,
-            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false, coop_locked: false },
+            pause_ctx: PauseCtx { race: false, quit: QuitTo::Main, coop: false, coop_locked: false, blacklist: None },
             custom: false,
             sequence: false,
             first_car: false,

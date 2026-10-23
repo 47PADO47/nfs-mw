@@ -199,15 +199,26 @@ fn is_focused(cx: &Cx, guid: u32) -> bool {
     def.objects.get(focus.index).is_some_and(|o| o.guid == guid)
 }
 
-/// Opens `next` in place of this screen, with the safe house argument the screens of the safe house pass on.
-fn switch(cx: &mut Cx, next: &str) {
-    cx.send(Command::Switch(next.to_string(), Args { safehouse: true, ..Args::default() }));
+/// What a screen opened from the Blacklist pages passes on: the safe house flag, the pause menu it came from (if any)
+/// and its context, and the rival the page shows. The pages open from the pause menu in the career too.
+pub(super) fn carry(from: Args, rival: u8, overview: bool) -> Args {
+    Args { safehouse: true, rival, overview, pause: from.pause, pause_ctx: from.pause_ctx, ..Args::default() }
 }
 
-/// Leaves for the next screen of [`leave_screen`] at the career's current bin.
-fn leave(cx: &mut Cx) {
-    let stage = current_bin().unwrap_or(FIRST_RIVAL_STAGE);
-    switch(cx, leave_screen(stage));
+/// The menu the Blacklist pages go back to: the safe house menu, or the pause menu when they were opened from it.
+pub(super) fn home(from: Args) -> (&'static str, Args) {
+    match from.pause {
+        true => (screen::PAUSE_MENU, Args { pause: true, pause_ctx: from.pause_ctx, ..Args::default() }),
+        false => {
+            (leave_screen(current_bin().unwrap_or(FIRST_RIVAL_STAGE)), Args { safehouse: true, ..Args::default() })
+        }
+    }
+}
+
+/// Leaves for [`home`].
+fn go_home(cx: &mut Cx, from: Args) {
+    let (next, args) = home(from);
+    cx.send(Command::Switch(next.to_string(), args));
 }
 
 /// The command an accepted challenge button sends: the rival's boss race starts, when the button is on.
@@ -224,25 +235,27 @@ struct ChallengeLogic {
     overview: bool,
     /// Whether the Remastered look draws the list of rivals (`Cx::vertical_look`).
     vertical: bool,
+    /// What the screen was opened with, for the menu it goes back to.
+    args: Args,
 }
 
 impl ChallengeLogic {
     fn new(args: Args) -> Self {
-        Self { selected: FIRST_RIVAL_STAGE, asked: args.rival, overview: args.overview, vertical: false }
+        Self { selected: FIRST_RIVAL_STAGE, asked: args.rival, overview: args.overview, vertical: false, args }
     }
 
     /// Leaves for the screen the player came from: the reputation overview at this rival, or the safe house menu.
     fn back(&self, cx: &mut Cx) {
         if self.overview {
-            return super::reputation_overview::open(cx, self.selected);
+            return super::reputation_overview::open(cx, self.selected, self.args);
         }
-        leave(cx);
+        go_home(cx, self.args);
     }
 
-    /// Opens the bio of the selected rival.
+    /// Opens the selected rival's page: the list of its sheets and the challenge, which also leads to the bio.
     fn view_rival(&self, cx: &mut Cx) {
-        let args = Args { safehouse: true, rival: self.selected, ..Args::default() };
-        cx.send(Command::Switch(screen::SAFE_HOUSE_RIVAL_BIO.to_string(), args));
+        let args = carry(self.args, self.selected, false);
+        cx.send(Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_string(), args));
     }
 
     /// The row of the selected rival, when there is a career.
@@ -367,6 +380,8 @@ struct BioLogic {
     first_visit: bool,
     /// Opened from the reputation overview (`Args::overview`): leaving goes back to it.
     overview: bool,
+    /// What the screen was opened with, for the menu it goes back to.
+    args: Args,
 }
 
 impl BioLogic {
@@ -378,6 +393,7 @@ impl BioLogic {
             sequence: args.sequence,
             first_visit: false,
             overview: args.overview,
+            args,
         }
     }
 
@@ -445,8 +461,8 @@ impl ScreenLogic for BioLogic {
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_ACCEPT | PAD_BACK if self.first_visit => cx.send(bio_continue()),
-            PAD_ACCEPT | PAD_BACK if self.overview => super::reputation_overview::open(cx, self.bin),
-            PAD_ACCEPT | PAD_BACK => switch(cx, screen::MAIN_MENU_SUB),
+            PAD_ACCEPT | PAD_BACK if self.overview => super::reputation_overview::open(cx, self.bin, self.args),
+            PAD_ACCEPT | PAD_BACK => go_home(cx, self.args),
             _ => {}
         }
     }

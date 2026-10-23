@@ -144,3 +144,13 @@ fn the_ticker_names_the_bounty_by_its_reward_label() {
     use blackbox_text::label_hash;
     assert_eq!(LABEL_BOUNTY, label_hash("BL_BOUNTY_REWARD"));
 }
+
+#[test]
+fn the_remastered_list_has_the_four_sheets_then_the_challenge_unless_the_rival_is_beaten() {
+    let on = entries(Button::On);
+    assert_eq!(on.len(), 5);
+    assert_eq!(on[4], (Entry::Challenge, true));
+    assert!(on[..4].iter().all(|(entry, enabled)| matches!(entry, Entry::Sheet(_)) && *enabled));
+    assert_eq!(entries(Button::Off)[4], (Entry::Challenge, false), "greyed while the button is off");
+    assert_eq!(entries(Button::Hidden).len(), 4, "a beaten rival has no challenge");
+}

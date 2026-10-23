@@ -301,6 +301,15 @@ pub trait Scene {
     fn race_active(&self) -> bool {
         false
     }
+    /// The rap sheet's jump: the car goes to the point (render space x and y) and stands on the road nearest it. Returns
+    /// whether there was a car to move.
+    fn jump_player(&mut self, _at: [f32; 2]) -> bool {
+        false
+    }
+    /// Starts the career event `event` (an event id) in the running world. Returns whether the race could start.
+    fn start_career_event(&mut self, _event: &str) -> bool {
+        false
+    }
     /// Runs the race in progress again from its grid. Returns whether there was a race to restart.
     fn restart_race(&mut self) -> bool {
         false

@@ -67,6 +67,8 @@ pub struct PauseCtx {
     pub quit: QuitTo,
     pub coop: bool,
     pub coop_locked: bool,
+    /// The career is being played outside a race and has entered the Blacklist: the pause menu lists Blacklist at this stage.
+    pub blacklist: Option<u8>,
 }
 
 pub use super::footer::Footer;

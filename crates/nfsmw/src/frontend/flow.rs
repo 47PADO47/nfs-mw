@@ -378,7 +378,8 @@ impl Frontend {
         self.paused.set(true);
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
-        let pause_ctx = PauseCtx { race, quit: self.origin, ..flow_coop::coop_pause(host) };
+        let blacklist = self.pause_blacklist(race);
+        let pause_ctx = PauseCtx { race, quit: self.origin, blacklist, ..flow_coop::coop_pause(host) };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }

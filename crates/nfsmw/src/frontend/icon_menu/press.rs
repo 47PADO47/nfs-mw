@@ -90,6 +90,15 @@ impl IconMenu {
             (Kind::SafeHouse, Pending::Pressed(id)) => safehouse_menu::press(cx, self.args, id),
             (Kind::Pause, Pending::Pressed(Id::Resume | Id::ResumeRace)) => cx.send(Command::Resume),
             (Kind::Pause, Pending::Pressed(Id::EndCoop)) => cx.send(Command::EndCoop),
+            (Kind::Pause, Pending::Pressed(Id::SafeHouseBlacklist(stage))) => {
+                let args = Args { safehouse: true, pause: true, rival: stage, ..self.args };
+                // The Remastered look has no overview page: its Blacklist is the list of rivals.
+                let screen = match self.vertical {
+                    true => screen::SAFE_HOUSE_RIVAL_CHALLENGE,
+                    false => screen::SAFE_HOUSE_REPUTATION_OVERVIEW,
+                };
+                cx.send(Command::Switch(screen.into(), args));
+            }
             (Kind::Pause, Pending::Pressed(Id::RestartRace)) => {
                 cx.send(Command::Confirm(Confirm::restart_race(Command::RestartRace)));
             }

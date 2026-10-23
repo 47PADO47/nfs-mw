@@ -181,6 +181,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
         }
         false => list.push(icon(Id::Resume, RESUME_TEXTURE, 0x01BD_185C, true)),
     }
+    if let Some(stage) = ctx.blacklist {
+        list.push(icon(Id::SafeHouseBlacklist(stage), 0x2C14_AC23, 0x80B9_FF9B, true));
+    }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
     if ctx.coop {
         // Greyed out while player 2 races or is chased: their car cannot leave a race or a chase halfway.
