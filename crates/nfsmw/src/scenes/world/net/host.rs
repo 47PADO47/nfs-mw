@@ -9,6 +9,7 @@ use nfsmw_sim::{PlayerId, SimEvent, Tick};
 
 use super::super::drive::{DriveInput, STEP};
 use super::super::players::LEAD;
+use super::super::props::MovingProp;
 use super::super::session_rules::SessionRules;
 use super::super::{DriveOptions, Options, WorldScene};
 use super::catalog::CarCatalog;
@@ -54,6 +55,9 @@ pub struct WorldSimHost {
     pub(super) tick: Tick,
     pub(super) ids: EntityTable,
     pub(super) catalog: CarCatalog,
+    /// The props in motion after the last tick: found once per tick (a pass over every prop collider of the loaded
+    /// tiles) for the entity table and the export both.
+    pub(super) props: Vec<MovingProp>,
     /// The host's own player has joined (its car is the lead and is always in the world).
     pub(super) lead_joined: bool,
     /// Players whose next tick resets their car.
@@ -96,6 +100,7 @@ impl WorldSimHost {
             tick: 0,
             ids: EntityTable::default(),
             catalog: CarCatalog::new(nfsmw_data::car::list(dir)),
+            props: Vec::new(),
             lead_joined: false,
             resets: Vec::new(),
             pursuit: PursuitTracker::default(),
@@ -185,8 +190,8 @@ impl WorldSimHost {
 
     /// The events of the tick that just ran (`events/`), and the entity ids of what the world now has.
     pub(super) fn collect_events(&mut self, events: &mut Vec<SimEvent>) {
-        let mut props = Vec::new();
-        self.ids.refresh(super::export::natives(&self.scene, &mut props));
+        self.scene.residency.props().moving_props(&mut self.props);
+        self.ids.refresh(super::export::natives(&self.scene, &self.props));
         let contacts = std::mem::take(&mut self.scene.players.contacts);
         let ids = &self.ids;
         super::events::contact_events(&contacts, |party| super::sim::party_id(ids, party), events);

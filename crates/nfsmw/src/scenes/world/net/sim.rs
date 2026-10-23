@@ -70,7 +70,7 @@ impl WorldSim for WorldSimHost {
     }
 
     fn entities(&self, out: &mut Vec<EntityView>) {
-        super::export::export(&self.scene, &self.ids, &self.catalog, out);
+        super::export::export(&self.scene, &self.props, &self.ids, &self.catalog, out);
     }
 
     fn own_state(&self, id: PlayerId) -> Option<OwnState> {

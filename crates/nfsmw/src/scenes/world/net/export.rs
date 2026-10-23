@@ -28,8 +28,9 @@ struct Motion {
     angular: Vec3,
 }
 
-/// The things the world has to replicate now besides the players, by their world identity. `props` is scratch.
-pub fn natives(scene: &WorldScene, props: &mut Vec<MovingProp>) -> Vec<Native> {
+/// The things the world has to replicate now besides the players, by their world identity. `props` are the props in
+/// motion after the tick (`WorldSimHost::props`).
+pub fn natives(scene: &WorldScene, props: &[MovingProp]) -> Vec<Native> {
     let mut natives = Vec::new();
     if let Some(traffic) = scene.traffic.as_ref() {
         natives.extend(
@@ -38,7 +39,6 @@ pub fn natives(scene: &WorldScene, props: &mut Vec<MovingProp>) -> Vec<Native> {
         natives.extend(traffic.net_helicopter().map(|_| Native::Helicopter));
         natives.extend(traffic.spike_strips().map(|(block, index, _)| strip(block, index)));
     }
-    scene.residency.props().moving_props(props);
     natives.extend(props.iter().map(|prop| Native::Prop(prop.id)));
     natives
 }
@@ -48,8 +48,15 @@ fn strip(block: u32, index: usize) -> Native {
 }
 
 /// Every entity of the world appended to `out`, in ascending id order. A thing the table has no id for yet (it
-/// appeared after the table's last refresh) is left out until it has one.
-pub fn export(scene: &WorldScene, table: &EntityTable, catalog: &CarCatalog, out: &mut Vec<EntityView>) {
+/// appeared after the table's last refresh) is left out until it has one. `props` are the props in motion after the
+/// tick, the same the table was refreshed with.
+pub fn export(
+    scene: &WorldScene,
+    props: &[MovingProp],
+    table: &EntityTable,
+    catalog: &CarCatalog,
+    out: &mut Vec<EntityView>,
+) {
     let start = out.len();
     players(scene, catalog, out);
     if let Some(traffic) = scene.traffic.as_ref() {
@@ -74,9 +81,7 @@ pub fn export(scene: &WorldScene, table: &EntityTable, catalog: &CarCatalog, out
             out.push(view(id, EntityKind::Roadblock, &motion, SPIKE_STRIP_TYPE, FLAG_SPIKE_STRIP));
         }
     }
-    let mut props = Vec::new();
-    scene.residency.props().moving_props(&mut props);
-    for prop in &props {
+    for prop in props {
         let Some(id) = table.get(Native::Prop(prop.id)) else { continue };
         let motion = Motion {
             position: prop.position,
