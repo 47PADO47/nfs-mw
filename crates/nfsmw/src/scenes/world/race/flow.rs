@@ -71,7 +71,12 @@ impl WorldScene {
             return;
         }
         let Some((query, options)) = self.queued_race.take() else { return };
-        match self.start_race(&query, options) {
+        // The post-race screen's Restart queues its race as a restart.
+        let started = match self.queued_again.take() {
+            Some(kit) => self.begin_again(kit),
+            None => self.start_race(&query, options),
+        };
+        match started {
             Ok(line) => log::info!("race: {line}"),
             Err(why) => log::warn!("race {query}: {why}"),
         }

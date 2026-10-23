@@ -206,6 +206,7 @@ impl WorldScene {
                 gameplay,
                 race: None,
                 queued_race: None,
+                queued_again: None,
                 queued_split: None,
                 split: None,
                 second_view: split::SecondView::new(),

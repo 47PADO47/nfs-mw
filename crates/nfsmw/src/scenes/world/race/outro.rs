@@ -48,6 +48,7 @@ impl WorldScene {
         }
         if let Some(name) = next_race(won, session.chain.as_deref(), session.options.career) {
             self.queued_race = Some((name, session.options));
+            self.queued_again = None;
         }
         false
     }
