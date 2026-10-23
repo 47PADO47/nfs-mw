@@ -28,7 +28,7 @@ fn installed_player_lamps_follow_idle_braking_reverse_and_processed_pedals() {
         "ELISE".into(),
         rig,
         physics,
-        SpawnRequest { near: [0.0; 2], heading: None, exact: None },
+        SpawnRequest { near: [0.0; 2], heading: None, exact: None, strict: false },
         None,
         Default::default(),
     );
