@@ -1,6 +1,7 @@
 mod geometry;
 mod gps;
 mod install;
+mod locate;
 mod nav;
 mod path;
 mod signal;
