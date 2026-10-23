@@ -72,12 +72,7 @@ pub enum Notice {
 /// The notices of the change from `before` to `after`, in order: a race that began, then the results that are new.
 pub fn observe(before: &Snapshot, after: &Snapshot) -> Vec<Notice> {
     let mut notices = Vec::new();
-    let began = after.now.filter(|now| before.now.is_none_or(|was| was.id != now.id));
-    if let Some(now) = began {
-        let row = after.rows.iter().find(|row| row.id == now.id);
-        let (kind, racers, laps) = row.map_or((0, 0, 0), |row| (row.kind, row.racers, row.laps));
-        notices.push(Notice::Started { race: now.id, kind, racers, laps });
-    }
+    notices.extend(started(before.now, after.now, &after.rows));
     for (race, outcome) in &after.results {
         let known = before.results.iter().any(|(id, was)| id == race && was == outcome);
         if !known {
@@ -85,6 +80,14 @@ pub fn observe(before: &Snapshot, after: &Snapshot) -> Vec<Notice> {
         }
     }
     notices
+}
+
+/// The notice of a race that began between two frames, with the row of the list for what it was.
+fn started(before: Option<Now>, after: Option<Now>, rows: &[RaceRow]) -> Option<Notice> {
+    let now = after.filter(|now| before.is_none_or(|was| was.id != now.id))?;
+    let row = rows.iter().find(|row| row.id == now.id);
+    let (kind, racers, laps) = row.map_or((0, 0, 0), |row| (row.kind, row.racers, row.laps));
+    Some(Notice::Started { race: now.id, kind, racers, laps })
 }
 
 /// What a mod asks of the races.
@@ -136,6 +139,19 @@ pub fn publish(snapshot: Snapshot) {
         state.snapshot = snapshot;
         state.notices.extend(changes);
         // Nothing drains them in a session without mods: the oldest go first.
+        let excess = state.notices.len().saturating_sub(MAX_NOTICES);
+        state.notices.drain(..excess);
+    });
+}
+
+/// Publish the race that runs, the rest of the snapshot as it was: the list and the results change only when a race
+/// is registered or finished, so a frame that has nothing new does not build them again.
+pub fn publish_now(now: Option<Now>) {
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let began = started(state.snapshot.now, now, &state.snapshot.rows);
+        state.snapshot.now = now;
+        state.notices.extend(began);
         let excess = state.notices.len().saturating_sub(MAX_NOTICES);
         state.notices.drain(..excess);
     });
@@ -268,6 +284,19 @@ mod tests {
         publish(done.clone());
         publish(done);
         assert_eq!(drain_notices(), vec![Notice::Finished { race: 7, outcome }]);
+    }
+
+    #[test]
+    fn publishing_only_the_running_race_notices_a_start_once_and_keeps_the_list() {
+        clear();
+        publish(Snapshot { rows: vec![row(7)], ..Snapshot::default() });
+        publish_now(Some(now(7)));
+        publish_now(Some(now(7)));
+        assert_eq!(drain_notices(), vec![Notice::Started { race: 7, kind: 2, racers: 4, laps: 3 }]);
+        publish_now(None);
+        publish_now(Some(now(7)));
+        assert_eq!(drain_notices().len(), 1, "the same race starting again is a new start");
+        assert_eq!(STATE.with(|state| state.borrow().snapshot.rows.len()), 1, "the list stays");
     }
 
     #[test]
