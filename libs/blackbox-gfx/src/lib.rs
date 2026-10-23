@@ -35,7 +35,9 @@ pub mod stats;
 pub mod texture;
 pub mod treatment;
 pub mod ui;
+pub mod water;
 pub mod window;
+pub use water::SurfaceWater;
 
 pub use api::{GraphicsApi, ParseGraphicsApiError};
 pub use backend::RenderBackend;

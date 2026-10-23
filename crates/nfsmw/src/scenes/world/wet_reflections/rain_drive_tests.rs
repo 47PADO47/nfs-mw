@@ -10,20 +10,33 @@ use std::time::{Duration, Instant};
 #[test]
 #[ignore = "requires installed highway and a Vulkan GPU"]
 fn installed_highway_wet_road_changes_pixels_across_sections() {
-    check_road_sections(&[[-130.0, 4089.0], [-78.0, 4108.0]]);
+    check_road_sections(&[[-130.0, 4089.0], [-78.0, 4108.0]], false);
 }
 
 #[test]
 #[ignore = "known junction capture occlusion; original-game comparison pending"]
 fn installed_junction_reflection_occlusion_reproduction() {
-    check_road_sections(&[[2191.0, 2515.0]]);
+    check_road_sections(&[[2191.0, 2515.0]], false);
 }
 
-fn check_road_sections(points: &[[f32; 2]]) {
+#[test]
+#[ignore = "requires installed highway and a GPU"]
+fn installed_enhanced_wet_material_changes_highway_pixels() {
+    check_road_sections(&[[-130.0, 4089.0], [-527.0, 2507.0], [1749.0, 1954.0], [2363.0, 3125.0]], true);
+}
+
+fn check_road_sections(points: &[[f32; 2]], enhanced: bool) {
     use blackbox_gfx::{RenderBackend, RenderExperiments};
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let size = std::env::var("NFSMW_SURFACE_CAPTURE_SIZE")
+        .ok()
+        .map(|s| {
+            let (w, h) = s.split_once('x').expect("capture size WIDTHxHEIGHT");
+            (w.parse::<u32>().unwrap(), h.parse::<u32>().unwrap())
+        })
+        .unwrap_or((960, 540));
     let mut renderer = blackbox_render::Renderer::headless(
-        (960, 540),
+        size,
         blackbox_render::RendererOptions {
             backend: blackbox_gfx::GraphicsApi::Vulkan,
             vsync: false,
@@ -35,6 +48,7 @@ fn check_road_sections(points: &[[f32; 2]]) {
     renderer.set_render_experiments(RenderExperiments {
         original_world_materials: true,
         enhanced_sky: true,
+        enhanced_wet_surfaces: enhanced,
         ..Default::default()
     });
     for &at in points {
@@ -43,7 +57,8 @@ fn check_road_sections(points: &[[f32; 2]]) {
             Options {
                 at: Some(at),
                 height: 3.0,
-                heading: 20.0,
+                // This shoulder faces the embankment at 20 degrees; look back across the road.
+                heading: if at[0] == 2363.0 { 200.0 } else { 20.0 },
                 pitch: -12.0,
                 fog_distance: 1500.0,
                 wait_for_load: true,
@@ -62,7 +77,7 @@ fn check_road_sections(points: &[[f32; 2]]) {
         for amount in [0.0, 1.0] {
             world.wet_road.override_amount = Some(amount);
             world.prepare_frame(&mut renderer, 16.0 / 9.0);
-            if amount > 0.0 {
+            if amount > 0.0 && !enhanced {
                 let image = renderer.read_projected_scene().unwrap().unwrap();
                 let lower = &image.rgba[(image.width * (image.height / 2) * 4) as usize..];
                 let sky = lower
@@ -72,7 +87,7 @@ fn check_road_sections(points: &[[f32; 2]]) {
                     .filter(|p| p[2] > p[0].saturating_add(20) && p[2] > p[1].saturating_add(10))
                     .count();
                 if let Some(folder) = std::env::var_os("NFSMW_SURFACE_CAPTURE_DIR") {
-                    let path = std::path::PathBuf::from(folder).join(format!("projected-{}.png", at[0]));
+                    let path = std::path::PathBuf::from(folder).join(format!("projected-{enhanced}-{}.png", at[0]));
                     let mut encoder =
                         png::Encoder::new(std::fs::File::create(path).unwrap(), image.width, image.height);
                     encoder.set_color(png::ColorType::Rgba);
@@ -87,8 +102,26 @@ fn check_road_sections(points: &[[f32; 2]]) {
             let (frame, instances) = world.frame(16.0 / 9.0);
             renderer.render(&frame, instances).unwrap();
             let image = renderer.read_output().unwrap().unwrap();
+            if std::env::var_os("NFSMW_SURFACE_CAPTURE_SIZE").is_some() {
+                let mut samples = Vec::new();
+                for i in 0..20 {
+                    renderer.render(&frame, instances).unwrap();
+                    renderer.read_output().unwrap().unwrap();
+                    if i >= 4
+                        && let Some(ms) = renderer.experiment_stats().gpu_frame_ms
+                    {
+                        samples.push(ms);
+                    }
+                }
+                samples.sort_by(f32::total_cmp);
+                eprintln!(
+                    "road GPU {size:?} {at:?} enhanced={enhanced} water={amount}: median {:?} ms ({} samples)",
+                    samples.get(samples.len() / 2),
+                    samples.len()
+                );
+            }
             if let Some(folder) = std::env::var_os("NFSMW_SURFACE_CAPTURE_DIR") {
-                let path = std::path::PathBuf::from(folder).join(format!("highway-{}-{amount}.png", at[0]));
+                let path = std::path::PathBuf::from(folder).join(format!("highway-{enhanced}-{}-{amount}.png", at[0]));
                 let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), image.width, image.height);
                 encoder.set_color(png::ColorType::Rgba);
                 encoder.set_depth(png::BitDepth::Eight);

@@ -155,7 +155,15 @@ fn store_shader_variants_validate() {
                 receiver
             ),
         ),
-        ("normal", format!("{}\n{}", instance_source(include_str!("../shaders/normal.wgsl"), Some(3)), receiver)),
+        (
+            "normal",
+            format!(
+                "{}\n{}\n{}",
+                instance_source(include_str!("../shaders/normal.wgsl"), Some(3)),
+                receiver,
+                include_str!("../shaders/road_reflection.wgsl")
+            ),
+        ),
         ("window", format!("{}\n{}", instance_source(include_str!("../shaders/window.wgsl"), Some(3)), receiver)),
         ("sky", instance_source(include_str!("../shaders/sky.wgsl"), Some(2))),
         ("shadow depth", instance_source(include_str!("../shaders/shadow_depth.wgsl"), Some(2))),

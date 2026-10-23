@@ -18,6 +18,8 @@ macro_rules! lighting {
 }
 lighting! {
     enhanced_sky: bool,
+    enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
+    road_reflection_range: f32, road_reflection_fade: f32,
     sky_wind_speed: f32, sky_sun_size: f32, sky_sun_brightness: f32, sky_brightness: f32, sky_sunset_warmth: f32,
     original_world_materials: bool, sun_shadows: bool, far_shadows: bool, contact_shadows: bool, clearcoat: bool, paint_response: bool,
     local_reflection_correction: bool, weather_car_lighting: bool,

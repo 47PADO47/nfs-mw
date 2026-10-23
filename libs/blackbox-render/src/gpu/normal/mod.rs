@@ -1,5 +1,6 @@
 //! Retained tangent-space scenery materials; per-frame light data is shared.
 
+mod bindings;
 pub(super) mod pipeline;
 #[cfg(test)]
 mod reflect_tests;
@@ -7,15 +8,18 @@ mod reflect_tests;
 mod surface_boundary_tests;
 #[cfg(test)]
 mod tests;
+mod water;
 
 use super::draw_list::{instance_store, instance_view};
 use super::{Renderer, cull::Face, draw_list::LayerCmd, meshes::GpuMesh, pipelines::BLEND_ORDER, slots::Slots};
+use bindings::material_group;
 use blackbox_gfx::{BlendMode, FrameParams, NormalMaterialDesc, NormalMaterialHandle};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 struct Material {
     bind_group: wgpu::BindGroup,
+    water_group: Option<wgpu::BindGroup>,
     model: blackbox_gfx::NormalModel,
     views: [wgpu::TextureView; 4],
     offset: wgpu::Buffer,
@@ -35,6 +39,7 @@ pub(super) struct Normal {
     pipelines: HashMap<wgpu::TextureFormat, pipeline::FaceSets>,
     /// Instances are read from the instance store, bound at group 3.
     store: bool,
+    water: water::Water,
 }
 
 impl Normal {
@@ -57,9 +62,10 @@ impl Normal {
             label: Some("normal scenery shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}",
+                    "{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), store.then_some(3)),
-                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+                    include_str!("../../shaders/road_reflection.wgsl")
                 )
                 .into(),
             ),
@@ -67,7 +73,7 @@ impl Normal {
         let sampler = sampler.clone();
         let lighting = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("normal scenery shared specular"),
-            contents: bytemuck::cast_slice(&[0.0_f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]),
+            contents: bytemuck::cast_slice(&[[0.0_f32; 4]; 4]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         // WebGPU initializes new textures to zero. Absence of a projected view adds no light.
@@ -94,6 +100,7 @@ impl Normal {
             materials: Slots::new(),
             pipelines: HashMap::new(),
             store,
+            water: water::Water::new(device),
         }
     }
 
@@ -104,6 +111,7 @@ impl Normal {
         (format, culled): (wgpu::TextureFormat, bool),
         frame: &FrameParams,
         cache: Option<&wgpu::PipelineCache>,
+        water: (blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments),
     ) {
         let (store, shader, layout) = (self.store, &self.shader, &self.layout);
         pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |mode, face| {
@@ -117,7 +125,25 @@ impl Normal {
         queue.write_buffer(
             &self.lighting,
             0,
-            bytemuck::cast_slice(&[specular, [reflection, highlight_scale, 0.0, 0.0]]),
+            bytemuck::cast_slice(&[
+                specular,
+                [
+                    reflection,
+                    highlight_scale,
+                    u8::from(
+                        water.1.enhanced_wet_surfaces
+                            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
+                    ) as f32,
+                    0.0,
+                ],
+                [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
+                [
+                    u8::from(water.1.enhanced_wet_surfaces) as f32,
+                    water.1.puddle_coverage,
+                    water.1.puddle_scale,
+                    water.1.water_ripples,
+                ],
+            ]),
         );
     }
 
@@ -129,7 +155,7 @@ impl Normal {
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
-        (mode, mirrored_view): (BlendMode, bool),
+        (mode, mirrored_view, water_pass): (BlendMode, bool, bool),
         meshes: &'a Slots<GpuMesh>,
         list: &[LayerCmd],
         shadows: &'a wgpu::BindGroup,
@@ -154,9 +180,19 @@ impl Normal {
             let Some(draw) = mesh.draws.get(cmd.draw as usize) else { continue };
             let blackbox_gfx::Shading::WorldNormal(handle) = draw.shading else { continue };
             let Some(material) = self.materials.get(handle.raw()) else { continue };
+            if water_pass && !material.uses_projected {
+                continue;
+            }
             let Some(tangents) = &mesh.tangents else { continue };
             if bound_material != Some(handle.raw()) {
-                pass.set_bind_group(1, &material.bind_group, &[]);
+                pass.set_bind_group(
+                    1,
+                    match water_pass {
+                        true => material.water_group.as_ref().unwrap_or(&material.bind_group),
+                        false => &material.bind_group,
+                    },
+                    &[],
+                );
                 bound_material = Some(handle.raw());
             }
             let face = cmd.face.seen(mirrored_view);
@@ -186,6 +222,34 @@ impl Normal {
 }
 
 impl Renderer {
+    pub(super) fn prepare_normal(&mut self, frame: &FrameParams, format: wgpu::TextureFormat, culled: bool) {
+        if self.experiments.enhanced_wet_surfaces {
+            self.ensure_glossy();
+        }
+        let environment = self.glossy.as_ref().map(|g| g.road_environment());
+        let Some(normal) = &mut self.normal else { return };
+        if let Some((environment, base)) = environment {
+            if normal.water.base_environment != base {
+                normal.water.base_environment = base;
+                normal.rebind_water(&self.device);
+            }
+            if normal.water.environment != environment {
+                normal.water.environment = environment;
+                for material in normal.materials.iter_mut() {
+                    material.water_group = None;
+                }
+            }
+        }
+        normal.prepare(
+            &self.device,
+            &self.queue,
+            (format, culled),
+            frame,
+            self.pipeline_cache.as_ref(),
+            (self.surface_water, self.experiments),
+        );
+    }
+
     pub(super) fn reflective_surface(&self, shading: blackbox_gfx::Shading) -> bool {
         if !self.experiments.original_world_materials {
             return false;
@@ -220,15 +284,24 @@ impl Renderer {
                 desc.uv_offset[0],
                 desc.uv_offset[1],
                 u8::from(desc.model == blackbox_gfx::NormalModel::Reflective) as f32,
-                0.0,
+                u8::from(desc.reflection.is_none()) as f32,
             ]),
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let views = [diffuse.clone(), normal_map.clone(), specular.clone(), reflection.clone()];
-        let bind_group =
-            material_group(&self.device, &normal.material_layout, &normal.sampler, &normal.lighting, &views, &offset);
+        let bind_group = material_group(
+            &self.device,
+            &normal.material_layout,
+            &normal.sampler,
+            &normal.lighting,
+            &views,
+            &offset,
+            &normal.water,
+            false,
+        );
         Some(NormalMaterialHandle::from_raw(normal.materials.insert(Material {
             bind_group,
+            water_group: None,
             model: desc.model,
             uses_projected: desc.reflection.is_none() && desc.model == blackbox_gfx::NormalModel::Reflective,
             diffuse: desc.diffuse,
@@ -241,72 +314,5 @@ impl Renderer {
         if let Some(normal) = &mut self.normal {
             normal.materials.remove(handle.raw());
         }
-    }
-}
-
-impl Normal {
-    pub(super) fn set_sampler(&mut self, device: &wgpu::Device, sampler: &wgpu::Sampler) {
-        self.sampler = sampler.clone();
-        for material in self.materials.iter_mut() {
-            material.bind_group = material_group(
-                device,
-                &self.material_layout,
-                sampler,
-                &self.lighting,
-                &material.views,
-                &material.offset,
-            );
-        }
-    }
-}
-fn material_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    sampler: &wgpu::Sampler,
-    lighting: &wgpu::Buffer,
-    views: &[wgpu::TextureView; 4],
-    offset: &wgpu::Buffer,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("normal scenery material"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
-            wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&views[2]) },
-            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(sampler) },
-            wgpu::BindGroupEntry { binding: 4, resource: offset.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 5, resource: lighting.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&views[3]) },
-        ],
-    })
-}
-
-impl Normal {
-    pub(super) fn set_projected(&mut self, device: &wgpu::Device, view: Option<&wgpu::TextureView>) {
-        let same = match (&self.projected, view) {
-            (Some(a), Some(b)) => a == b,
-            (None, None) => true,
-            _ => false,
-        };
-        if same {
-            return;
-        }
-        self.projected = view.cloned();
-        let view = self.projected.as_ref().unwrap_or(&self.black_reflection);
-        for material in self.materials.iter_mut().filter(|m| m.uses_projected) {
-            material.views[3] = view.clone();
-            material.bind_group = material_group(
-                device,
-                &self.material_layout,
-                &self.sampler,
-                &self.lighting,
-                &material.views,
-                &material.offset,
-            );
-        }
-    }
-    pub(super) fn capture_diffuse(&self, handle: NormalMaterialHandle) -> Option<blackbox_gfx::TextureHandle> {
-        self.materials.get(handle.raw()).map(|m| m.diffuse)
     }
 }

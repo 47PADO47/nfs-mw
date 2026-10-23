@@ -309,6 +309,7 @@ fn assemble(
         pending_reflections: None,
         projected: None,
         planar_receivers: Vec::new(),
+        surface_water: Default::default(),
         experiments: Default::default(),
         experiment_stats: blackbox_gfx::ExperimentStats { supported: api != GraphicsApi::Gl, ..Default::default() },
         shadows: None,

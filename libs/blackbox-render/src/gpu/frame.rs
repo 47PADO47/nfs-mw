@@ -5,13 +5,11 @@ use super::Renderer;
 use super::cull::Face;
 use super::draw_list::drawn_here;
 use super::draw_list::instance_view::upload_view;
-use super::effects::SoftDraw;
 use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::targets::SceneTargets;
 use crate::{FrameParams, Instance, RenderError, Shading};
-
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
     /// (window minimised or the surface had to be reconfigured). A headless renderer draws into its
@@ -250,20 +248,14 @@ impl Renderer {
             sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());
             sky.prepare_clouds(&self.device, encoder, &self.shared.bindings.globals_layout, &bind_group, &globals);
         }
-        if self.experiments.original_world_materials
-            && !projected
-            && let Some(normal) = &mut self.normal
-        {
-            normal.prepare(&self.device, &self.queue, (format, culled), frame, self.pipeline_cache.as_ref());
+        if self.experiments.original_world_materials && !projected {
+            self.prepare_normal(frame, format, culled);
         }
         if (self.experiments.original_world_materials || projected)
             && let Some(window) = &mut self.window
         {
             window.prepare(&self.device, (format, culled), self.pipeline_cache.as_ref());
         }
-        // Every instance run and draw is sorted into the pass's lists once, up front: the sky, normal-map, window
-        // and colour draws below walk their own list instead of every instance. A draw is only skipped there when
-        // this view's rules (projected, reflection, original materials) exclude it.
         self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
@@ -310,7 +302,15 @@ impl Renderer {
             {
                 let list = self.draw_list.normal(mode_index);
                 let shadows = &self.shared.shadows.fallback;
-                normal.draw(&mut pass, format, view, &self.meshes, list, shadows, store_group.as_ref());
+                normal.draw(
+                    &mut pass,
+                    format,
+                    (mode, mirrored_view, false),
+                    &self.meshes,
+                    list,
+                    shadows,
+                    store_group.as_ref(),
+                );
             }
             if (original || projected)
                 && let Some(window) = &self.window
@@ -406,9 +406,18 @@ impl Renderer {
                     pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
                 }
             }
-            if screen && mode == blackbox_gfx::BlendMode::AlphaTest {
+            if mode == blackbox_gfx::BlendMode::AlphaTest
+                && (screen || self.road_reflections_active(frame, reflection || reduced))
+            {
                 drop(pass);
-                self.encode_screen_glossy(encoder, target, depth, frame, instances);
+                self.encode_material_reflections(
+                    encoder,
+                    target,
+                    depth,
+                    frame,
+                    instances,
+                    (screen, reflection || reduced),
+                );
                 pass = super::glossy::screen_draw::resume(encoder, target, depth);
                 pass.set_bind_group(0, &bind_group, &[]);
                 pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
@@ -423,12 +432,6 @@ impl Renderer {
         self.effects.draw(&mut pass);
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);
-        let soft = SoftDraw {
-            target,
-            depth,
-            globals: &self.shared.bindings.globals_bind_group,
-            inverse_view_proj: self.world_to_clip(frame).inverse(),
-        };
-        self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
+        self.encode_soft_effects(encoder, target, depth, frame);
     }
 }

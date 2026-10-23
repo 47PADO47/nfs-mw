@@ -310,3 +310,25 @@ fn quality_preserves_capture_range_for_other_materials_and_renderers() {
 
 #[path = "budget_tests.rs"]
 mod budget_tests;
+
+#[test]
+fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
+    let mut s = settings();
+    s.select_visual_style(VisualStyle::Enhanced);
+    assert!(s.appearance.lighting.enhanced_wet_surfaces);
+    s.appearance.lighting.puddle_coverage = 0.4;
+    s.appearance.lighting.puddle_scale = 13.0;
+    s.appearance.lighting.water_ripples = 1.2;
+    s.appearance.lighting.road_reflection_range = 500.0;
+    s.appearance.lighting.road_reflection_fade = 0.8;
+    let stored = s.appearance.value().unwrap();
+    assert_eq!(Appearance::read(&stored, "water round-trip").unwrap(), s.appearance);
+    s.select_visual_style(VisualStyle::OriginalPc);
+    assert!(!s.appearance.lighting.enhanced_wet_surfaces);
+    assert!(
+        !Appearance::read(&toml::from_str("version=1").unwrap(), "older profile")
+            .unwrap()
+            .lighting
+            .enhanced_wet_surfaces
+    );
+}

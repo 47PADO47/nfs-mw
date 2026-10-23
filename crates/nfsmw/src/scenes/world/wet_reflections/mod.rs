@@ -20,11 +20,12 @@ use blackbox_gfx::{Fog, FrameParams, ProjectedReflectionScene, RenderBackend};
 
 impl WorldScene {
     pub(super) fn update_wet_reflections(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
+        renderer.set_surface_water(self.wet_road.water());
         let options = renderer.render_experiments();
         let active = renderer.capabilities().projected_reflections
             && options.original_world_materials
             && self.wet_road.eligible();
-        if !active {
+        if !active || options.enhanced_wet_surfaces {
             renderer.set_projected_reflection_scene(None);
             self.wet_road.instances.clear();
             return;
@@ -73,7 +74,8 @@ impl WorldScene {
             frame,
             instances: &self.wet_road.instances,
             size: self.wet_road.resolution.size(),
-            blur: self.wet_road.quality == RoadReflections::Blurred,
+            // Enhanced receivers filter the film themselves, preserving sharp puddle detail.
+            blur: self.wet_road.quality == RoadReflections::Blurred && !options.enhanced_wet_surfaces,
         }));
     }
 

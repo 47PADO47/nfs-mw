@@ -141,6 +141,8 @@ pub trait RenderBackend {
     /// Transparent planar image through explicitly selected diffuse textures. Unsupported
     /// backends leave the authored receiver unchanged. `None` releases the image and bindings.
     fn set_planar_reflection_scene(&mut self, _scene: Option<crate::PlanarReflectionScene<'_>>) {}
+    /// Supply persistent surface water independently of reflection capture quality.
+    fn set_surface_water(&mut self, _water: crate::SurfaceWater) {}
 
     // --- layers ----------------------------------------------------------------------------------
 

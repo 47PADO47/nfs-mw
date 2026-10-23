@@ -366,3 +366,12 @@ PC precipitation, screen-water optics, surface tire effects and rain audio behav
 were independently specified in docs/specs/rain-pc.md before implementation.
 Original executable analysis and dbalatoni13/nfsmw (CC0-1.0) were read-only references;
 no original code or game assets are distributed. https://github.com/dbalatoni13/nfsmw
+
+Enhanced wet-surface design references
+--------------------------------------
+Sebastien Lagarde, Water drop 3a / 3b / 4a (2013): wet-material response,
+water accumulation and reflection principles. Conceptual references only;
+no article code or assets copied and no permissive license assumed.
+https://seblagarde.wordpress.com/2013/03/19/water-drop-3a-physically-based-wet-surfaces/
+https://seblagarde.wordpress.com/2013/04/14/water-drop-3b-physically-based-wet-surfaces/
+https://seblagarde.wordpress.com/2013/09/08/water-drop-4a-reflecting-wet-world/

@@ -394,3 +394,6 @@ fn projected_capture_reverses_faces_without_changing_two_sided_textures() {
         }
     }
 }
+
+#[path = "enhanced_wet_tests.rs"]
+mod enhanced;
