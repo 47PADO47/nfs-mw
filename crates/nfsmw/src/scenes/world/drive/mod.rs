@@ -61,7 +61,7 @@ pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
-pub(super) use ground::WorldGround;
+pub(super) use ground::{WorldGround, drivable_ground_below};
 pub use input::DriveInput;
 use input::Presses;
 #[cfg(feature = "multiplayer")]

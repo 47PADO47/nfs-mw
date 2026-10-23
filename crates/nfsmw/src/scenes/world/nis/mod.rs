@@ -10,6 +10,7 @@
 //! `camera.rs`, the console `command.rs`, and the world's side `world.rs`.
 
 mod camera;
+mod car_memory;
 mod car_world;
 mod cars;
 mod characters;

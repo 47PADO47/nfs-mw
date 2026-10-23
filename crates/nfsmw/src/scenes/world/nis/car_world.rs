@@ -5,15 +5,13 @@
 
 use glam::{Quat, Vec3};
 
+use super::car_memory::first_ground_below;
 use super::cars::{self, CarSpot, Target};
 use super::cop_cars::{self, SlotKind};
 use super::cop_wait::WAIT_LIMIT;
 use crate::scenes::world::drive::CarPose;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
-
-/// How far above and below a car the ground is looked for, in metres.
-const GROUND_REACH: f32 = 20.0;
 
 impl WorldScene {
     /// Links the playing scene's car channels to the real cars, once per scene. Channel 1 is the player's car. A civilian
@@ -112,10 +110,16 @@ impl WorldScene {
         })
     }
 
-    /// Drives the playing scene's cars this frame: each linked car takes its spot, lifted onto the ground under it.
+    /// Drives the playing scene's cars this frame: each linked car takes its spot, lifted onto the ground under it (the
+    /// ground it last stood on when none is found this frame).
     pub(in crate::scenes::world) fn drive_nis_cars(&mut self) {
         for (target, spot) in self.nis.car_spots() {
-            let spot = cars::lifted(spot, self.ground_at(spot.position));
+            let last = self.nis.car_memory().and_then(|memory| memory.ground(target));
+            let ground = self.ground_at(spot.position, last);
+            if let (Some(height), Some(memory)) = (ground, self.nis.car_memory()) {
+                memory.set_ground(target, height);
+            }
+            let spot = cars::lifted(spot, ground);
             self.set_nis_car(target, Some(spot));
         }
     }
@@ -159,15 +163,15 @@ impl WorldScene {
     /// Places the player's car at `spot`, lifted onto the ground under it, at rest. The drive does it the way a race
     /// places its cars, once the world around it has loaded.
     fn stand_player(&mut self, spot: CarSpot) {
-        let spot = cars::lifted(spot, self.ground_at(spot.position));
+        let spot = cars::lifted(spot, self.ground_at(spot.position, None));
         let Some(drive) = self.players.lead_mut() else { return };
         drive.place_exactly(Spawn { position: spot.position, heading: heading_of(spot.rotation) }, 0.0);
     }
 
-    /// The ground height under `at` (render space), looked for within [`GROUND_REACH`] above and below it.
-    fn ground_at(&mut self, at: Vec3) -> Option<f32> {
+    /// The ground height under a car at `at` (render space), from a little above it down (`car_memory.rs`), else `last`.
+    fn ground_at(&mut self, at: Vec3, last: Option<f32>) -> Option<f32> {
         let (collision, _) = self.residency.world_parts();
-        space::ground_below(collision, at.x, at.y, at.z + GROUND_REACH, at.z - GROUND_REACH)
+        first_ground_below(|from, to| space::ground_below(collision, at.x, at.y, from, to), at.z, last)
     }
 }
 

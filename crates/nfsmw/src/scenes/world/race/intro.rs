@@ -323,7 +323,8 @@ impl WorldScene {
     fn race_start_anchor(&mut self, spawn: Spawn) -> Anchor {
         let at = spawn.position;
         let (collision, _) = self.residency.world_parts();
-        let ground = space::ground_below(collision, at.x, at.y, at.z + 10.0, at.z - 10.0).unwrap_or(at.z);
+        let ground =
+            space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0).unwrap_or(at.z);
         let forward = Vec3::new(spawn.heading.cos(), spawn.heading.sin(), 0.0);
         Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(forward))
     }
