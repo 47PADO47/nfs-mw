@@ -167,7 +167,7 @@ car lot `0xff0000ff` blue (the game's blue), safe house `0x00ff00` green **[scre
 Race blips keep the package colour: their own colours are not known **[unconfirmed]**. The tint is set only on a
 plain white object (`blip_style::colour_to_apply`), so a package colour is never overwritten.
 
-**Orientation.** A fixed blip (a race, an interior, a checkpoint) turns with the player's arrow: it is placed with the player's heading, so it shares the arrow's rotation. A moving blip (a cop, the helicopter) is placed with its own heading (`MapBlip::heading`), so it points the way it is going, as the arrow does for the player. Its rotation is `bearing(its heading) - turn`, the same rule as the arrow's. This departs from the binary's `mPolyRotation = 0` for blips (step 7): a moving blip is a rewrite choice, not a retail behaviour.
+**Orientation.** A fixed blip (a race, an interior, a checkpoint) stays upright on the screen: on a north-up map it is placed pointing north (rotation 0, as the binary's `mPolyRotation = 0`), and on a turning map with the player's heading, so the picture's turn cancels it. A moving blip (a cop, the helicopter) is placed with its own heading (`MapBlip::heading`), so it points the way it is going, as the arrow does for the player. Its rotation is `bearing(its heading) - turn`, the same rule as the arrow's. This departs from the binary's `mPolyRotation = 0` for moving blips (step 7): a moving blip is a rewrite choice, not a retail behaviour.
 
 **Visibility.** Shops, car lots and safe houses are always eligible. Cops show only inside the view, pursuing or not. Race blips are drawn only while the view covers
 their zone: the blip's own place is inside the disc, not pinned to its rim (`Blip::inside` in
