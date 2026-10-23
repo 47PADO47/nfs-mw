@@ -26,6 +26,14 @@ and police red/blue/white bits 4096/8192/16384. Bright red/blue markers share
 their corresponding color's bit. A marker without a mapped VehicleFX bit
 does not acquire an invented damage classification.
 
+For the player, braking means the processed regular brake control, not the raw
+pedal action. The input controller can apply automatic braking when coasting
+slowly or stopped without a pedal held. That control keeps brake textures and
+flares lit at a stop. Automatic reverse swaps the pedals before this predicate;
+handbrake clears regular braking. Use the same processed state for lamp surfaces
+and flares. Do not infer lamp state directly from speed or add a stopped-only
+brightness multiplier. Released outer tail flares retain their separate 0.5 base.
+
 **[decomp]** The damage behavior reports every mapped lamp broken when the
 vehicle is explicitly destroyed; otherwise it reads a separate per-lamp damage
 mask. Destruction and repair must reach the renderer, including taillight trail

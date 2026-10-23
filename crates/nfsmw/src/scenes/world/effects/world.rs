@@ -1,6 +1,5 @@
 //! Upload world effects against the active camera, independent of UI/HUD rendering.
 
-use crate::scenes::world::sign_lamps;
 use blackbox_gfx::{EffectLayer, RenderBackend};
 
 use super::super::{View, WorldScene};
@@ -24,8 +23,10 @@ impl WorldScene {
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
+        let environment = self.environment_effects(renderer);
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
+            layer.textured.extend(environment);
             self.object_fx.textured(position, forward, &mut layer.textured);
             self.car_damage_fx.textured(position, forward, &mut layer.textured);
             self.impact_fx.textured(forward, &mut layer.textured);
@@ -56,6 +57,7 @@ impl WorldScene {
             drive.tail_trails.clear();
         }
         let layer = drive.effects.build(position, forward);
+        layer.textured.extend(environment);
         // No entry discs during a race or a cutscene: the garages and the other races' starts are not offered then.
         if self.view == View::Chase && self.race.is_none() && !cutscene {
             entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
@@ -71,9 +73,6 @@ impl WorldScene {
         for quad in drops {
             blackbox_gfx::EffectLayer::quad(&mut layer.streaks, quad, RAIN_COLOUR);
         }
-        // The lamp list changes with the scenery, not per frame.
-        let signs = self.shadow_feed.curve_lamps(&self.residency, &self.scenery_groups);
-        sign_lamps::glows(signs.iter().copied(), drive.lamp_time, position, forward, &mut layer.glows);
         if let Some(traffic) = &self.traffic {
             traffic.spike_geometry(&mut layer.streaks);
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);

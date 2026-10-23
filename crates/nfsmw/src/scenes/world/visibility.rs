@@ -132,6 +132,35 @@ pub(super) fn collect_main<'a>(
     detail.finish();
 }
 
+/// A small filtered set, such as marked scenery, with the same main-view rules. Avoid collecting every unmarked mesh.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn collect_subset<'a>(
+    placed: impl Iterator<Item = &'a Placed>,
+    camera: &Camera,
+    rules: &LodRules,
+    props: &PropWorld,
+    groups: &SceneryGroups,
+    shadow_distance: f32,
+    detail: &mut DetailState,
+    out: &mut Vec<Instance>,
+) {
+    detail.begin();
+    let mut sweep = Sweep::new(
+        camera,
+        rules,
+        props,
+        Some(groups),
+        (REFERENCE_HEIGHT, shadow_distance),
+        None,
+        Some(&mut *detail),
+        out,
+    );
+    for p in placed {
+        sweep.visit(p);
+    }
+    detail.finish();
+}
+
 /// The rear-view mirror's view, unsorted: nearby casters outside the frustum are included, and nothing whose origin is
 /// farther than `far` from the camera is added (the mirror's far plane, `ReflectionDistance::mirror_far`), so the
 /// capture needs no second pass to cut the list. The frame path appends more after it and sorts once.
@@ -205,7 +234,6 @@ mod tests {
             casts_sun_shadow: true,
             spawner: None,
             parts: None,
-            curve_lamp: None,
             signal: None,
         };
         let lens = blackbox_gfx::reflection::face_frame(

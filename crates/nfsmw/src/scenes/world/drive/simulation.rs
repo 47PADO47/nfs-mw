@@ -84,10 +84,10 @@ impl Drive {
     /// Read the final state after car/prop contacts, then emit effects, telemetry and traces.
     pub fn finish_step(&mut self, collision: &CollisionWorld, surfaces: &SurfaceTable, step: DriveStep) {
         let DriveStep { input, impact } = step;
-        self.brake_lamp = input.brake;
         self.steer_lamp = input.steer;
         self.lamp_time += clock::STEP;
         let Some(sim) = self.sim.as_mut() else { return };
+        self.brake_lamp = sim.lamp_brake();
         let (strength, speed, slip) = sim.drift_charge();
         self.breaker.charge_drift(strength, speed, slip, clock::STEP);
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));

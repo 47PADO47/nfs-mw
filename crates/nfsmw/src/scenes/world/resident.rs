@@ -50,8 +50,6 @@ pub struct Placed {
     /// Original physics pose and stable identity, when this instance has a spawner.
     pub spawner: Option<blackbox_scenery::ObjectSpawner>,
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
-    /// The flashing lamp on a curve warning sign: its place in the world, or `None` for other objects.
-    pub curve_lamp: Option<glam::Vec3>,
     /// The lamp head of a real traffic light (`ai/signal_props.rs`), or `None` for other objects.
     pub signal: Option<super::ai::signal_props::SignalHead>,
 }
@@ -84,7 +82,6 @@ impl Placed {
             casts_sun_shadow: true,
             spawner: None,
             parts: None,
-            curve_lamp: None,
             signal: None,
         }
     }
@@ -103,6 +100,8 @@ pub struct SectionResources {
     /// Which faces the surfaces of each texture in `materials` draw.
     pub(super) sides: HashMap<u32, Sidedness>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
+    /// Authored environment lights owned by the same lifetime as their model mesh.
+    pub(super) flare_markers: HashMap<MeshHandle, Arc<[nfsmw_data::world::lights::Marker]>>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
     /// The cull data of the `Placed` list the residency keeps beside these resources, built on the first sweep after
@@ -183,12 +182,17 @@ impl SectionResources {
             let materials = super::materials::Lookup(&lookup, sky, normal_materials, &sides);
             let shading = shading_for(&solid.name);
             if let Some(mesh) = upload_solid(renderer, solid, &materials, shading) {
+                let markers = nfsmw_data::world::lights::markers(solid);
+                if !markers.is_empty() {
+                    self.flare_markers.insert(mesh, markers.into());
+                }
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
                 meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
             }
         }
         for (hash, mesh) in meshes {
             if let Some(previous) = self.meshes.insert(hash, mesh) {
+                self.flare_markers.remove(&previous.0);
                 renderer.destroy_mesh(previous.0);
             }
         }

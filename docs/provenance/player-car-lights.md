@@ -2,6 +2,20 @@
 
 Spec: [player-car-lights](../specs/player-car-lights.md).
 
+## Stopped player lamp follow-up (2026-10-23)
+
+The identity-matched PC vehicle FX task (`0x6703B0`) reads the regular brake
+field from `IInput::GetControls` and admits player brake lamps immediately.
+The CC0 input-controller reference (`Physics/Behaviors/PInput.cpp`) writes
+automatic low-speed braking into that control after processing pedal actions
+and automatic reverse. Handbrake clears regular braking afterward. The remake
+already exposes this processed state through `CarSim::lamp_brake`, but its
+player presentation previously saved the raw `DriveInput.brake` instead.
+That bypass omitted automatic idle braking and could light brake lamps while
+the brake action was actually accelerating in reverse. This is a state-feed
+defect; the ordinary tail base and authored flare profile remain independent.
+This evidence does not establish complete pixel equivalence of both renderers.
+
 ## Traffic adapter audit (2026-10-21)
 
 The identity-matched PC `RenderFlaresOnCar` inspection at `0x742950`

@@ -57,6 +57,7 @@ mod object_geometry;
 mod open;
 pub use open::WorldLoad;
 mod damage_effects;
+mod environment_lights;
 mod impact_effects;
 #[cfg(test)]
 mod performance_tests;
@@ -81,7 +82,6 @@ mod scenery_groups;
 mod session_rules;
 use session_rules::ViewSource;
 mod shadow_feed;
-mod sign_lamps;
 mod simulation;
 mod sky;
 mod sound;
@@ -188,6 +188,7 @@ pub struct WorldScene {
     wet_road: wet_reflections::WetRoad,
     /// Seconds since the scene started, for texture animations.
     clock: f32,
+    environment_lights: environment_lights::EnvironmentLights,
     sun: sun::Sun,
     /// The day-night clock: the hour of day, the sun for it and the lights.
     day: day::DayClock,

@@ -20,7 +20,6 @@ fn near_object(key: InstanceKey) -> Placed {
         casts_sun_shadow: true,
         spawner: None,
         parts: None,
-        curve_lamp: None,
         signal: None,
     }
 }

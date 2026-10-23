@@ -188,6 +188,7 @@ impl WorldScene {
                 reflection_scratch: Default::default(),
                 reflection_last: None,
                 clock: 0.0,
+                environment_lights: super::environment_lights::EnvironmentLights::new(physics.database()),
                 sun: sun::Sun::new(),
                 day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
                 physics_aspect: 16.0 / 9.0,

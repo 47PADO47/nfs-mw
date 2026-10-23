@@ -124,7 +124,10 @@ noclip's `particles.ts` approximates a few emitter types with hard-coded templat
 AttribSys has `light_flares_cg` (8 fields, 22 collections). **No `LightSourcesPack` (`0x80135000`) or
 `LightFlaresPack` (`0x80135100`) chunk occurs anywhere in the install**: all bChunk files outside
 `SOUND/` were scanned, plus `STREAML2RA.BUN` **[verified]**. Only `LightMaterials` (`0x00135200`, 156 per
-GlobalB file) exist. Where world light flares come from (scenery/solid markers? AttribSys?) is open.
+GlobalB file) exist. Scenery light flares are generated from solid position
+markers: the marker integer parameter selects the role, with appearance from
+AttribSys. The runtime mapping and blink behavior are documented in
+[environment prop lights](../specs/environment-prop-lights.md).
 NFS-ModTools' `LightPackReader` targets other games' packs.
 
 ## References
