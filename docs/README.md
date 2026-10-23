@@ -2,6 +2,8 @@
 
 Runtime customization: [garage-overlay.md](garage-overlay.md).
 
+Original menu UI: [fixes and parity audit](menu-ui-parity.md).
+
 Native physics work: [collision and destruction parity](native-physics-parity.md).
 
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
