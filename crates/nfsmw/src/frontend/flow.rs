@@ -145,7 +145,7 @@ pub struct Frontend {
     /// The LAN menu is on screen and takes the input this frame (`lan/system.rs`); the screens wait (`lan/gate.rs`).
     pub(super) lan_input: bool,
     /// Settings are written to the config file (not in screenshot runs).
-    save: bool,
+    pub(super) save: bool,
     /// The pad mask of the last frame, for the start press that pauses.
     pub(super) last_mask: u32,
     /// A slot waiting for its next key (the controls screen asked; `plugin.rs` takes the key).

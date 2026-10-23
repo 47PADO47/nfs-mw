@@ -117,7 +117,7 @@ fn update(
     mut ui: ResMut<LanUi>,
     mut fe: ResMut<Frontend>,
     mut backend: Option<NonSendMut<LanBackend>>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
     actions: Res<ActionState>,
     keys: Res<ButtonInput<KeyCode>>,
     mut typed: ResMut<TypedKeys>,
@@ -133,6 +133,7 @@ fn update(
         ui.menu.open(&net.status());
     }
     let mut cx = Cx::new(net, &settings, &ui.cars);
+    let mut saved_name = None;
     if let Some(answer) = link::take_car_answer() {
         if let Some(folder) = answer {
             ui.menu.car_chosen(&folder, &mut cx);
@@ -190,9 +191,26 @@ fn update(
                 ui.menu.open = false;
                 link::request_car_select();
             }
+            MenuOut::SaveName(name) => saved_name = Some(name),
         }
     }
     fe.lan_input = ui.menu.visible(&cx.net.status());
+    if let Some(name) = saved_name {
+        save_name(&mut settings, name, fe.save);
+    }
+}
+
+/// The player's new name: in the settings now, and in the config file as `net_name` when the front end saves.
+fn save_name(settings: &mut Settings, name: crate::settings::net::NetName, save: bool) {
+    settings.net.name = name;
+    if !save {
+        return;
+    }
+    let layer = crate::settings::net::NetLayer { name: Some(name), ..Default::default() };
+    match Settings::save(&crate::settings::Partial { net: layer, ..Default::default() }) {
+        Ok(path) => log::info!("net_name saved to {}", path.display()),
+        Err(e) => log::warn!("net_name could not be saved: {e:#}"),
+    }
 }
 
 /// Left and right pressed this frame step the spectator camera to the previous or next racer.
