@@ -169,11 +169,13 @@ impl Sheet {
         }
     }
 
-    /// The screen the sheet opens. The race, milestone and bounty sheets are not built yet, so those stay greyed.
+    /// The screen the sheet opens.
     pub fn screen(self) -> Option<&'static str> {
         match self {
+            Sheet::RaceEvents => Some(screen::SAFE_HOUSE_RACE_SHEET),
+            Sheet::Milestones => Some(screen::SAFE_HOUSE_MILESTONES),
+            Sheet::Bounty => Some(screen::SAFE_HOUSE_BOUNTY),
             Sheet::Bio => Some(screen::SAFE_HOUSE_RIVAL_BIO),
-            Sheet::RaceEvents | Sheet::Milestones | Sheet::Bounty => None,
         }
     }
 }
@@ -220,7 +222,7 @@ fn parts(cx: &Cx, name: u32) -> Vec<ObjectRef> {
 }
 
 /// Whether a shown part of the object named `name` lies under `point`.
-fn hit(cx: &Cx, name: u32, point: Vec2) -> bool {
+pub(super) fn hit(cx: &Cx, name: u32, point: Vec2) -> bool {
     cx.rt.object_at(&parts(cx, name), point).is_some()
 }
 

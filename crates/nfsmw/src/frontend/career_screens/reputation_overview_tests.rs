@@ -116,7 +116,7 @@ fn a_completed_career_defeats_every_rival() {
 }
 
 #[test]
-fn the_sheets_are_named_by_the_games_labels_and_only_the_bio_is_built() {
+fn the_sheets_are_named_by_the_games_labels_and_each_opens_its_package() {
     use blackbox_text::label_hash;
     let labels = [
         (Sheet::RaceEvents, "REP_SHEET_RACE_EVENTS"),
@@ -127,8 +127,16 @@ fn the_sheets_are_named_by_the_games_labels_and_only_the_bio_is_built() {
     for (sheet, key) in labels {
         assert_eq!(sheet.label(), label_hash(key), "{key}");
     }
-    let open: Vec<Sheet> = SHEETS.into_iter().filter(|sheet| sheet.screen().is_some()).collect();
-    assert_eq!(open, [Sheet::Bio]);
+    let screens: Vec<Option<&str>> = SHEETS.into_iter().map(Sheet::screen).collect();
+    assert_eq!(
+        screens,
+        [
+            Some("SafeHouseRaceSheet.fng"),
+            Some("SafeHouseMilestones.fng"),
+            Some("SafeHouseBounty.fng"),
+            Some("SafeHouseRivalBio.fng"),
+        ]
+    );
 }
 
 #[test]
