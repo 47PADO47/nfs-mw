@@ -1,4 +1,5 @@
 use nfsmw_career::blacklist::{BinDef, Blacklist};
+use nfsmw_career::settings::Flags;
 
 use super::super::blacklist::rival_rows;
 use super::*;
