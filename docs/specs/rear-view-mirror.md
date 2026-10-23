@@ -42,7 +42,8 @@ estimates. Nothing has been compared with the original game's mirror yet.
 ## What the Rust build does
 
 - `viewer/camera/rear_view.rs`: `RearView`, a `Camera` at the car's pose. The eye is `EYE` (0.2, 0, 1.1) in the
-  car frame and it looks at `LOOK` (-30, 0, 1). The vertical FOV is 40 degrees. **All three are estimates.**
+  car frame and it looks at `LOOK` (-30, 0, 1). The vertical FOV is 24 degrees (about 70 degrees across the mirror strip; 40 looked like a fish-eye). **All three
+  are estimates.**
 - `scenes/world/rear_view.rs`: the world as seen from that camera, using the same visibility path as the main
   view. The player's car is left out; traffic and props are kept.
 - `Scene::rear_view` (`viewer/mod.rs`): optional; `WorldScene` implements it, other scenes return `None`.
