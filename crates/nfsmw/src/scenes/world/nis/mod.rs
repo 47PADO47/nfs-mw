@@ -22,6 +22,7 @@ mod handlers;
 mod kind;
 mod loading;
 mod player;
+mod rev_rock;
 mod world;
 
 pub(super) use command::nis_command;

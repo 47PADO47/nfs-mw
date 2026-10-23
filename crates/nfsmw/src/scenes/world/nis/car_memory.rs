@@ -2,9 +2,10 @@
 //! whose probe finds none keeps the car where it was instead of dropping it to its clip height; and where it stood and
 //! how far its wheels had turned, so the wheels roll with the distance the scene moves the car.
 
-use glam::Vec3;
+use glam::{Quat, Vec3};
 
 use super::cars::Target;
+use super::rev_rock::RevRock;
 
 /// How far above a car's clip position its ground is looked for: enough for a kerb or a bump of the clip, not for the
 /// bridge over the road. And how far below.
@@ -19,6 +20,8 @@ struct Rolling {
     target: Target,
     at: Vec3,
     spin: [f32; 4],
+    /// Metres the car moved last frame.
+    travel: f32,
 }
 
 /// The playing scene's memory of its cars.
@@ -26,6 +29,9 @@ struct Rolling {
 pub struct CarMemory {
     grounds: Vec<(Target, f32)>,
     rolling: Vec<Rolling>,
+    /// The scene time of the last frame, and the rev of the race-start scene (`rev_rock.rs`).
+    clock: Option<f32>,
+    rev: RevRock,
 }
 
 impl CarMemory {
@@ -48,15 +54,34 @@ impl CarMemory {
     /// along `forward` over its radius in `radii`. A jump of more than [`CUT_JUMP`] (a cut) rolls nothing.
     pub fn roll(&mut self, target: Target, at: Vec3, forward: Vec3, radii: [f32; 4], start: [f32; 4]) -> [f32; 4] {
         let Some(rolling) = self.rolling.iter_mut().find(|r| r.target == target) else {
-            self.rolling.push(Rolling { target, at, spin: start });
+            self.rolling.push(Rolling { target, at, spin: start, travel: 0.0 });
             return start;
         };
         let moved = at - std::mem::replace(&mut rolling.at, at);
+        rolling.travel = 0.0;
         if moved.length() > CUT_JUMP {
             return rolling.spin;
         }
+        rolling.travel = moved.length();
         rolling.spin = rolled(rolling.spin, radii, moved.dot(forward));
         rolling.spin
+    }
+}
+
+impl CarMemory {
+    /// Notes the scene's time this frame; gives the scene seconds since the last frame (0 on the first).
+    pub fn tick(&mut self, time: f32) -> f32 {
+        let dt = self.clock.map_or(0.0, |last| (time - last).max(0.0));
+        self.clock = Some(time);
+        dt
+    }
+
+    /// The rev rock of the player's car after `dt` scene seconds (`rev_rock.rs`), at the speed the scene moved it last
+    /// frame ([`CarMemory::roll`] runs first).
+    pub fn rev_rock(&mut self, dt: f32) -> Quat {
+        let travel = self.rolling.iter().find(|r| r.target == Target::Player).map_or(0.0, |r| r.travel);
+        let speed = if dt > 0.0 { travel / dt } else { 0.0 };
+        self.rev.step(dt, speed)
     }
 }
 

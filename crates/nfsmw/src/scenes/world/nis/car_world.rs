@@ -113,6 +113,10 @@ impl WorldScene {
     /// Drives the playing scene's cars this frame: each linked car takes its spot, lifted onto the ground under it (the
     /// ground it last stood on when none is found this frame).
     pub(in crate::scenes::world) fn drive_nis_cars(&mut self) {
+        let dt = match (self.nis.scene_time(), self.nis.car_memory()) {
+            (Some(time), Some(memory)) => memory.tick(time),
+            _ => 0.0,
+        };
         for (target, spot) in self.nis.car_spots() {
             let last = self.nis.car_memory().and_then(|memory| memory.ground(target));
             let ground = self.ground_at(spot.position, last);
@@ -120,7 +124,7 @@ impl WorldScene {
                 memory.set_ground(target, height);
             }
             let spot = cars::lifted(spot, ground);
-            self.set_nis_car(target, Some(spot));
+            self.set_nis_car(target, Some(spot), dt);
         }
     }
 
@@ -145,15 +149,24 @@ impl WorldScene {
     }
 
     /// Gives the car of `target` the pose `spot`, its wheels rolled with the distance the scene moved it
-    /// (`car_memory.rs`), or clears its override with `None`.
-    fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>) {
-        let memory = self.nis.car_memory();
+    /// (`car_memory.rs`), or clears its override with `None`. In a race's start scene the player's body rocks with the
+    /// rev (`rev_rock.rs`), `dt` scene seconds after the last frame.
+    fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>, dt: f32) {
+        let race_start = self.nis.race_start_scene();
+        let mut memory = self.nis.car_memory();
         match target {
             Target::Player => {
                 let Some(drive) = self.players.lead_mut() else { return };
                 let base = drive.pose();
                 let radii = drive.sim().map_or([DEFAULT_RADIUS; 4], |sim| sim.wheel_radii());
-                let pose = spot.map(|spot| posed(spot, base, rolled_wheels(memory, target, spot, radii, base)));
+                let pose = spot.map(|spot| {
+                    let spin = rolled_wheels(memory.as_deref_mut(), target, spot, radii, base);
+                    let turn = match (race_start, memory) {
+                        (true, Some(memory)) => memory.rev_rock(dt),
+                        _ => Quat::IDENTITY,
+                    };
+                    posed(CarSpot { rotation: spot.rotation * turn, ..spot }, base, spin)
+                });
                 drive.set_nis_pose(pose);
             }
             Target::Traffic(index) | Target::Spawned(index) => {

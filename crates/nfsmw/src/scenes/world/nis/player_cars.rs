@@ -82,6 +82,17 @@ impl NisPlayer {
         self.final_cars.take()
     }
 
+    /// Whether the scene that plays is a race's start, which leaves the player's car on its grid slot (see
+    /// [`NisPlayer::keep_player_in_place`]).
+    pub fn race_start_scene(&self) -> bool {
+        self.player_stays && self.play.is_some()
+    }
+
+    /// The playing scene's time, seconds; `None` when no scene plays.
+    pub fn scene_time(&self) -> Option<f32> {
+        self.play.as_ref().map(|playing| playing.run.scene_time())
+    }
+
     /// Leaves the player's car where it was when the scene that plays or loads ends: the scene's last pose of it is not
     /// handed back (a race's intro, whose car never left its grid slot). Cleared by the next [`NisPlayer::play`].
     pub fn keep_player_in_place(&mut self) {
