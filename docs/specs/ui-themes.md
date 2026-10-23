@@ -182,11 +182,11 @@ the T1 draft are resolved here.
 | `RegionUnlock` (43) | `SafehouseRegionUnlock.fng` → `career_screens/region_unlock.rs` |
 | `MemoryCard` (44) | `MC_Main.fng`, `MC_List.fng` → `career_screens/save.rs` |
 | `Sms` (45) | `SMS_Mailboxes.fng`, `SMS_Message.fng` → `career_screens/sms.rs` |
+| `LanMenu` (31), `LanHud` (32) | No FEng package: the LAN pages and the session HUD (`frontend/lan/`), published in the frame cell's `LanCell`. Original draws them with the toolkit in the game's look (`original/lan.rs`), Remastered as the vertical list (`remastered/menu/lan.rs`); the HUD pieces share `lan_hud.rs`. Neither is a menu-cell slot (`ElementId::is_menu`) |
 
 **Screens with no slot yet.** These exist but are not in the catalogue, because no theme needs to override them yet
 (the rule "each slot needs a consumer"): `Track_Options.fng` (`custom_race/track_options.rs`), `Options_PC_Controller.fng` and
-`Pause_PC_Controller.fng` (`controls_screen.rs`), `Dialog.fng` (`confirm.rs`), `Credits.fng`, `EA_Trax_Jukebox.fng`
-(`jukebox.rs`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
+`Pause_PC_Controller.fng` (`controls_screen.rs`), `Infractions.fng`, `WS_Loading.fng` (`loading.rs`). Add a slot when
 a theme or a mod needs it, with its number from the next free block.
 
 **Slot kinds.** HUD slots receive a snapshot of `HudState` through `BuildCx`. Front-end slots receive the screen's

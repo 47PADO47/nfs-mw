@@ -52,7 +52,7 @@ Open work of this build, in rough order of importance:
 7. **Server details.** A server keeps its identity key only when `identity_file` is set (the default is a new key every start), "everyone wait" cannot be triggered, and a peer that changes address is
    dropped (no path validation). Quick messages are relayed to everyone as `QuickRelay`.
 8. **Front end.** The post-race page of the original is not wired to a session's end, there is no voting from the HUD during a
-   race, no whisper from the menu, and `net_name` cannot be saved from the menu. The LAN screens are egui panels, not FEng.
+   race, no whisper from the menu, and `net_name` cannot be saved from the menu. The LAN screens and the session HUD are drawn with the game's UI toolkit in the Original and Remastered styles (no FEng package exists for them).
 9. **Text rules.** NFKC normalisation, confusable folding and grapheme counting need Unicode tables and are not done.
 10. **Fuzzing.** The cargo-fuzz targets type-check but have never been run under libFuzzer; the in-tree seeded tests are what
     runs in CI.

@@ -65,7 +65,7 @@ subnets; the default is the private ranges). Broadcast itself is not exercised b
 |---|---|
 | `NetSession` (a Bevy resource) | Owns the net-thread handles and queues; holds connection state, lobby state, clock estimate, and statistics. Created by the "LAN game" menu entry or by `--connect`/`--host` |
 | `NetWorldScene` (a `Scene`) | The multiplayer world. `update` drains the inbox, advances the clock, runs the fixed-step accumulator for the owner's car (sample input, quantise, step, store history), applies reconciliation, and advances the display time of remote entities. `frame` builds the instance list from the owner's pose plus the interpolated remote poses, through the code the single-player world uses for AI cars (`CarPose`). Planned: it reuses the `Players` list (section 4, step 3a), one entry per seat |
-| Lobby screens | FEng front-end screens (the same host layer as the menus) driven by `NetSession`; egui panels for the debug view |
+| Lobby screens | Pages drawn by the themes' `LanMenu` slot (the toolkit the menus use), driven by `NetSession` through `NetFrontend` |
 | HUD hooks | The HUD reads the same `HudState` as single player; the multiplayer scene fills it from the server's pursuit, race and own-car blocks (heat, busted meter, position, lap) |
 | Console | `net.host`, `net.connect <addr>`, `net.disconnect`, `net.stats`, `net.sim <loss> <rtt> <jitter>`, `net.kick <slot>`, `net.say`, `net.lead`. They go through the existing command table so scripts and telemetry control can share them |
 | Settings | New keys in the layered settings (CLI > environment > config file > defaults): `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`, `net_identity_file` (the identity key path, by `security.md`) |
@@ -104,8 +104,9 @@ player is `PlayerId(0)`, the lead. The full description and the gaps: [world hos
 built against a seam, the `NetFrontend` trait (`frontend/lan/backend.rs`), which the game's `NetSession` implements and keeps in
 the non-send resource `LanBackend`; the full description is [frontend](frontend.md). The main menu's LAN icon opens the LAN menu
 (host, join with discovery, direct connect and the password prompt, the lobby with ready, car, role, chat, quick lines, votes,
-the player menu and the host's settings and start, the results). The original has no LAN screens in its packages, so these are
-egui panels in the active theme's style rather than FEng screens; the car select is the custom race's `Car_Select.fng`. The
+the player menu and the host's settings and start, the results). The original has no LAN screens in its packages, so the
+Original and Remastered themes draw them with the game's UI toolkit (the `LanMenu` and `LanHud` slots, no egui); the car select
+is the custom race's `Car_Select.fng`. The
 session HUD draws the chat and notice feed, the vote, the countdown and the spectator panel. The console has `net.host`,
 `net.connect`, `net.disconnect`, `net.stats`, `net.sim`, `net.kick`, `net.say`, `net.lead`, `net.scan`, `net.servers` and
 `net.status`; the settings are `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats` and

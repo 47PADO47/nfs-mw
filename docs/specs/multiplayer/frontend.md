@@ -7,12 +7,23 @@ Where this file and the code disagree, the code's tests are the reference and th
 
 ## 1. What the player sees
 
-The main menu's **LAN** icon (the install's `Main_Icon_LAN` picture and `lan` label, enabled now) opens the LAN menu. The
-original game has no LAN screens in this build's packages, so there is no FEng package to run: the menu is an **egui panel**
-(the layer of the developer panels) drawn over the main menu, in the active UI theme's palette, radius, padding and text size
-(`devtools/theme_style.rs`), so it follows Original, Custom and Remastered alike. The main menu stays under it and takes no
-input while it is up. The menu is pad-driven like the FEng menus (up, down, left, right, accept, back; a `--ui-script` drives
-it), takes typed text on its text rows, and takes clicks on its rows and chevrons.
+The main menu's **LAN** icon (the install's `Main_Icon_LAN` picture and `lan` label, enabled now) opens the LAN menu, so a
+session is hosted, joined and played from the menus with no command line. The original game has no LAN screens in this build's
+packages, so there is no FEng package to run: the pages and the session HUD are drawn with the game's own UI toolkit, as the
+menus and the settings are (no egui). The menu publishes each page as plain data (`present.rs`: a [`MenuList`] and the lines
+around it, a `LanPage`) into the theme registry's `LanCell`, and the themes' components of the `LanMenu` slot draw it:
+
+- **Original** (`ui/theme/original/lan.rs`): the game's own fonts (`FONT_MW_TITLE` for the title, `FONT_MW_BODY` for the rest),
+  the logo at the top right, white rows with the gold selection of the icon menu, values between gold chevrons, a chat column on
+  a dark plate and the key-cap footer.
+- **Remastered** (`ui/theme/remastered/menu/lan.rs`): the vertical list (the slanted bar, the lightning bolt, the wide title,
+  the ruled footer) of the same entries, with the line under the title, the failure line and the side column added.
+- **Custom** and the mod themes fall back to the Original look, as for every slot a theme leaves.
+
+The two themes put the rows in the same places, so one hit test serves both. A page covers the front end: the screens under it
+are not drawn and take no input while it is up. The menu is pad-driven like the FEng menus (up, down, left, right, accept,
+back; a `--ui-script` drives it), takes typed text on its text rows, and takes mouse clicks (a row, a chevron of a choice, the
+select and back hints of the footer).
 
 | Page | Rows | Notes |
 |---|---|---|
@@ -58,7 +69,8 @@ the start counts down five seconds, the race lasts five more with a chat line, a
 record. The screenshots of section 6 use it.
 
 **Files.** `backend.rs`, `handle.rs` (the resource), `menu/` (the pages: `mod.rs` the keys of each page, `host_form.rs`,
-`browser.rs`, `lobby.rs`, `player.rs`, `follow.rs`, `page_view.rs`, `rows.rs`, `field.rs`, `cx.rs`), `view.rs` (egui), `system.rs`
+`browser.rs`, `lobby.rs`, `player.rs`, `follow.rs`, `page_view.rs`, `rows.rs`, `field.rs`, `cx.rs`), `present.rs` (the page and the HUD as
+theme data, and the click map), `system.rs`
 (the Bevy systems), `gate.rs` (the front end waits while the menu is up, and opens the car select it asked for), `link.rs` (the
 requests between the FEng screens and the menu), `feed.rs`, `hud.rs`, `results.rs`, `text.rs`, `car.rs`, `quick.rs`,
 `address.rs`, `host_options.rs`, `offline.rs`, `demo.rs`, `mock.rs` (tests).
@@ -69,7 +81,9 @@ in hex.
 
 ## 3. The session HUD
 
-While the session's world has the screen (`lan/hud.rs`, drawn by `view.rs`):
+While the session's world has the screen (`lan/hud.rs`, published as a `LanHud` and drawn by the themes' `LanHud` slot: one
+builder, `ui/theme/lan_hud.rs`, with each theme's font and colours; it is presented by its own system, so it shows while the car's
+HUD is hidden too):
 
 - **Feed** (MP-40), bottom left: chat lines (`Ann: go`, `Ann (whisper): ...`) and notices (join, leave, kick, mute, vote,
   result, `Session over: ...`, connection lost and resumed), six at most, each for 8 s and fading over its last 2 s. Chat of a
@@ -143,8 +157,8 @@ Original and Remastered styles, the HUD while racing (feed, vote banner, the net
 
 ## 7. Not built
 
-- FEng screens for LAN: the install has none to run; the egui panels stand in. The original's post-race page for a session's
-  results waits for the session world's race end (section 1).
+- FEng screens for LAN: the install has none to run; the Original theme draws the pages with the toolkit in the game's look
+  instead. The original's post-race page for a session's results waits for the session world's race end (section 1).
 - Voting from the HUD while racing: the vote prompt says to vote in the lobby (the pause key opens the FEng pause menu, not the
   LAN menu, in a session; ADR 0011 keeps the world running).
 - Team chat and whispers from the menu (the feed shows them; `say` sends to all); quick lines from other players (the catalogue
