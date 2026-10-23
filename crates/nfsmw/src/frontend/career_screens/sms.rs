@@ -5,8 +5,8 @@
 //!
 //! `Args` carries no message id, so the list stores the id it opens in [`OPENED`] and the message screen reads it when
 //! it starts. Opening a story message the first time asks the audio system for its voice ([`crate::audio::cell_call`]);
-//! Replay (pad button 4) asks again, cutting the line in progress. Delete (pad button 5) empties the slot at once and
-//! goes back to the list: the original asks first in `InGameDialog.fng`, and that question's label is not known yet.
+//! Replay (pad button 4) asks again, cutting the line in progress. Delete (pad button 5) asks "Are you sure you want to
+//! delete this SMS message?" (`0x8C3C2171`); Yes empties the slot and goes back (`Command::DeleteSms`), No keeps it.
 
 use std::sync::Mutex;
 
@@ -17,6 +17,7 @@ use nfsmw_career::settings::SmsInbox;
 
 use crate::audio::cell_call;
 use crate::career::CareerHandle;
+use crate::frontend::confirm::Confirm;
 use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE, screen};
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
 use crate::ui::Text;
@@ -26,6 +27,8 @@ use crate::ui::Text;
 /// open action.
 pub const REPLAY: u32 = PAD_BUTTON0 + 4;
 pub const DELETE: u32 = PAD_BUTTON0 + 5;
+/// The delete question's label: "Are you sure you want to delete this SMS message?".
+const DELETE_QUESTION: u32 = 0x8C3C_2171;
 
 /// The messages the list sends: the Read button (`0x775CE5DF`), a row (`0x0C407210`), the tab hotspots (`0x9120409E`,
 /// either one), and the list's arrows (`0x72619778` up, `0x911C0A4B` down).
@@ -175,13 +178,24 @@ fn show_row(cx: &mut Cx, slot: usize, entry: Option<ListEntry>) {
     show_object(cx, ROW_NEW[slot], entry.unread);
 }
 
+/// The question the delete button asks (`0x8C3C2171`): its Yes answer deletes message `id`, then runs `then` to close the
+/// screen.
+pub fn delete_question(id: u32, then: Command) -> Confirm {
+    Confirm::new(Text::Game(DELETE_QUESTION), Command::DeleteSms { id, then: Box::new(then) })
+}
+
+/// What leaving the message screen does: back to the safe house menu when the inbox was opened there, otherwise the screen
+/// pops.
+pub fn leave_command(args: Args) -> Command {
+    if !args.safehouse {
+        return Command::Pop;
+    }
+    Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() })
+}
+
 /// Back: to the safe house menu when the inbox was opened there, otherwise the screen pops.
 fn leave(cx: &mut Cx, args: Args) {
-    if !args.safehouse {
-        cx.send(Command::Pop);
-        return;
-    }
-    cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() }));
+    cx.send(leave_command(args));
 }
 
 /// The inbox list of one tab, six rows at a time.
@@ -311,10 +325,7 @@ impl ScreenLogic for MessageLogic {
         match message {
             INIT_COMPLETE => open_message(id),
             REPLAY => replay_voice(id),
-            DELETE => {
-                delete(id);
-                leave(cx, self.args);
-            }
+            DELETE => cx.send(Command::Confirm(delete_question(id, leave_command(self.args)))),
             _ => {}
         }
     }

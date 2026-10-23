@@ -127,6 +127,12 @@ pub enum Command {
     EndCoop,
     /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
     StartFirstDrive,
+    /// The inbox's delete question was answered Yes: message `id` goes back to state 0, then `then` closes the screen
+    /// (`career_screens/sms.rs`).
+    DeleteSms {
+        id: u32,
+        then: Box<Command>,
+    },
     /// Leave the car lot that a free-roam zone opened: the world starts again at the zone (`flow_prologue.rs`).
     LeaveCarLot,
     /// Set the GPS route to a point on the road (render space x, y), then close the map and go on driving.

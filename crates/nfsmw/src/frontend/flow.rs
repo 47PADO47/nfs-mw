@@ -438,6 +438,7 @@ impl Frontend {
                 Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
                 Command::StartFirstDrive => self.start_first_drive(host, env),
                 Command::LeaveCarLot => self.leave_car_lot(host, env),
+                Command::DeleteSms { id, then } => self.delete_sms(id, *then, host, env),
                 Command::RestartRace => self.restart_race(host),
                 Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
                 Command::Resume => self.resume_driving(env),
