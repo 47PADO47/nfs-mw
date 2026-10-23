@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn q_and_e_shift_and_the_bumpers_too() {
+    fn q_and_e_shift_and_the_right_stick_too() {
         let bindings = Bindings::default();
         for (key, action) in [(KeyCode::KeyE, Action::ShiftUp), (KeyCode::KeyQ, Action::ShiftDown)] {
             let mut state = ActionState::default();
@@ -232,14 +232,29 @@ mod tests {
             let other = if action == Action::ShiftUp { Action::ShiftDown } else { Action::ShiftUp };
             assert!(!state.pressed(other));
         }
+        // As in NFS-XtendedInput, the right stick pushed up shifts up and pushed down shifts down.
+        for (push, action, other) in
+            [(1.0, Action::ShiftUp, Action::ShiftDown), (-1.0, Action::ShiftDown, Action::ShiftUp)]
+        {
+            let mut state = ActionState::default();
+            let mut snap = Snapshot::default();
+            snap.pad_axes.insert(GamepadAxis::RightStickY, push);
+            state.update(&bindings, &snap, false);
+            assert!(state.just_pressed(action), "{push}");
+            assert!(!state.pressed(other));
+            state.update(&bindings, &snap, false);
+            assert!(!state.just_pressed(action), "a held stick shifts once");
+        }
+        // The bumpers no longer shift: they change the camera and look back.
         for (button, action) in
-            [(GamepadButton::RightTrigger, Action::ShiftUp), (GamepadButton::LeftTrigger, Action::ShiftDown)]
+            [(GamepadButton::RightTrigger, Action::CycleCamera), (GamepadButton::LeftTrigger, Action::LookBack)]
         {
             let mut state = ActionState::default();
             let mut snap = Snapshot::default();
             snap.pad_buttons.insert(button);
             state.update(&bindings, &snap, false);
             assert!(state.just_pressed(action), "{button:?}");
+            assert!(!state.pressed(Action::ShiftUp) && !state.pressed(Action::ShiftDown));
         }
     }
 

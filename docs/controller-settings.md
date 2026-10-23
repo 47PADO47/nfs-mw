@@ -12,10 +12,32 @@ backing out saves the changed settings. Deadzones move in 5 percent steps and se
 steps. The config file and console accept finer integer percentages.
 
 Speedbreaker toggles with **Left Ctrl**, the mouse's **Back thumb button**, or
-the gamepad's **East face button** (Xbox B / PlayStation Circle). Press again
+the gamepad's **West face button** (Xbox X / PlayStation Square). Press again
 to stop it. **Right Ctrl** and Q downshift; Left Ctrl does not also downshift.
 The original keyboard Controls screen includes a Speedbreaker row. The `keys`
 listing reflects live assignments; its gamepad button labels use Xbox names.
+
+## Default gamepad layout
+
+The defaults follow the Xbox 360 layout of [NFS-XtendedInput](mods/nfs-xtendedinput.md)'s Most Wanted
+config (`NFS_XtendedInput.default.ini`), so the remake and the original play alike.
+
+| Action | Gamepad |
+|---|---|
+| Accelerate / brake | RT / LT |
+| Steer | Left stick |
+| Handbrake | A |
+| Nitrous | B |
+| Speedbreaker | X |
+| Shift up / down | Right stick up / down (not in the free camera, where it looks) |
+| Change camera / look back | RB / LB |
+| Reset car | Back |
+| Engage event | D-pad up (A also does, and skips a cutscene) |
+| World map | D-pad left |
+| Next song | Right stick click |
+| Pause | Start |
+| Free camera (remake only) | Y |
+| Menus | D-pad or left stick, A accept, B back; X, LB, RB are post-race, race stats and showcase buttons; LT / RT page through racers |
 
 | Setting | Default | Range |
 |---|---|---|
@@ -141,8 +163,8 @@ again toggles it off. Leave `per_second` off for this button action. Wheel
 assignments persist through `bind-save`, like keyboard, mouse and pad bindings.
 
 The radio has three button actions, bound like any other: `radio_toggle` (pause and resume; M, the media
-play/pause key, pad right stick click), `radio_next` (`.`, media next, pad D-pad right) and `radio_previous`
-(`,`, media previous, pad D-pad left). They work while driving and are ignored in the pause menu, which uses the
+play/pause key), `radio_next` (`.`, media next, pad right stick click) and `radio_previous`
+(`,`, media previous). The pad's D-pad is left to the map and the HUD shortcuts. They work while driving and are ignored in the pause menu, which uses the
 D-pad itself. A press of `radio_previous` within 3 s of a song's start goes back to the song before; later it
 starts the song again. The console `radio` command does the same without keys (`radio prev|pause|resume|toggle`).
 

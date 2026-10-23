@@ -41,7 +41,7 @@ fn keyboard_mouse_and_gamepad_defaults_toggle_speedbreaker_without_driving_confl
     let mut mouse = Snapshot::default();
     mouse.buttons.insert(MouseButton::Back);
     let mut gamepad = Snapshot::default();
-    gamepad.pad_buttons.insert(GamepadButton::East);
+    gamepad.pad_buttons.insert(GamepadButton::West);
     for snapshot in [keyboard, mouse, gamepad] {
         exercise_toggle(&Bindings::default(), snapshot);
     }
@@ -86,7 +86,7 @@ fn persisted_wheel_button_and_analog_sources_reach_the_same_toggle_meter() {
         assert!(saved.contains("unknown_setting"));
         exercise_toggle(&restored, pressed);
         let mut old = Snapshot::default();
-        old.pad_buttons.insert(GamepadButton::East);
+        old.pad_buttons.insert(GamepadButton::West);
         let mut state = ActionState::default();
         state.update(&restored, &old, false);
         assert!(!state.pressed(Action::Speedbreaker), "rebinding replaces the previous pad-family source");
