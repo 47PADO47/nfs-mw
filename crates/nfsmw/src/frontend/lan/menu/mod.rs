@@ -133,6 +133,7 @@ impl LanMenu {
             Page::Browser => self.browser.typing(),
             Page::Lobby => self.lobby.typing(),
             Page::Settings => self.settings_form.as_ref().is_some_and(HostForm::typing),
+            Page::Player => self.player.typing(),
             _ => false,
         }
     }
@@ -180,6 +181,7 @@ impl LanMenu {
             Page::Browser => self.browser.take(typed),
             Page::Lobby => self.lobby.take(typed),
             Page::Settings => self.settings_form.iter_mut().for_each(|form| form.take(typed)),
+            Page::Player => self.player.take(typed),
             _ => {}
         }
     }
@@ -338,6 +340,8 @@ impl LanMenu {
         match key {
             LanKey::Up => self.player.up(&lobby),
             LanKey::Down => self.player.down(&lobby),
+            // Back while typing a whisper only ends the typing.
+            LanKey::Back if self.player.back() => {}
             LanKey::Back => self.page = Page::Lobby,
             LanKey::Accept if self.player.accept(cx, &mut self.mutes) => self.page = Page::Lobby,
             _ => {}

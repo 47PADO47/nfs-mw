@@ -171,6 +171,9 @@ pub trait NetFrontend {
     /// Says `text` to everybody (MP-40).
     fn say(&mut self, text: &str) -> Result<bool, LimitError>;
 
+    /// Says `text` to the player in `slot` only (MP-40).
+    fn whisper(&mut self, slot: u8, text: &str) -> Result<bool, LimitError>;
+
     /// Sends preset line `id` (MP-44).
     fn quick_message(&mut self, id: u16) -> bool;
 

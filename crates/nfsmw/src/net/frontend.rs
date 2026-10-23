@@ -155,6 +155,10 @@ impl NetFrontend for NetSession {
         self.with_session(|session| session.say(text)).unwrap_or(Ok(false))
     }
 
+    fn whisper(&mut self, slot: u8, text: &str) -> Result<bool, LimitError> {
+        self.with_session(|session| session.whisper(slot, text)).unwrap_or(Ok(false))
+    }
+
     fn quick_message(&mut self, id: u16) -> bool {
         self.with_session(|session| session.quick_message(id)).unwrap_or(false)
     }

@@ -91,6 +91,10 @@ impl NetFrontend for Offline {
         Ok(false)
     }
 
+    fn whisper(&mut self, _slot: u8, _text: &str) -> Result<bool, LimitError> {
+        Ok(false)
+    }
+
     fn quick_message(&mut self, _id: u16) -> bool {
         false
     }

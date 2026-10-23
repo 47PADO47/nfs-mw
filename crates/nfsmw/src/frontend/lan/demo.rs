@@ -278,6 +278,19 @@ impl NetFrontend for DemoNet {
         Ok(true)
     }
 
+    fn whisper(&mut self, slot: u8, text: &str) -> Result<bool, LimitError> {
+        let text = nfsmw_net::message::ChatText::new(text)?;
+        let Some(from) = self.lobby.as_ref().and_then(|lobby| lobby.my_slot) else { return Ok(false) };
+        let line = ChatLine {
+            from_slot: from,
+            channel: ChatChannel::Whisper,
+            text: format!("to slot {slot}: {}", text.as_str()),
+            tick: self.frame,
+        };
+        self.events.push(SessionEvent::Chat(line));
+        Ok(true)
+    }
+
     fn quick_message(&mut self, _id: u16) -> bool {
         self.seated()
     }
