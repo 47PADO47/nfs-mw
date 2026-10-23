@@ -50,8 +50,10 @@ const TIPS_NEW: u32 = 0x000F_321F;
 /// The message screen's objects: the body, the sender and subject values, and the replay hint and voice group that are
 /// hidden for non-story messages (the voice group's role is read from its script only, unconfirmed).
 const BODY: u32 = 0x000F_A6B1;
-const FROM: u32 = 0x000E_5A97;
-const SUBJECT: u32 = 0x000F_9301;
+/// The sender's value sits on the package's second row and the subject's on its first (`From:` and `Subject:` are the labels
+/// above them in the window): the values are named for the row they stand on.
+const FROM: u32 = 0x000F_9301;
+const SUBJECT: u32 = 0x000E_5A97;
 const REPLAY_HINT: u32 = 0x000F_A582;
 const VOICE: u32 = 0x000F_4BA4;
 
