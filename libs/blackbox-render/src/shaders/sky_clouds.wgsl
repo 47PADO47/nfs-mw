@@ -39,7 +39,7 @@ fn cloud_height(h: f32, kind: f32) -> f32 {
     return a*a*stratus + 2.0*kind*a*cumulus + kind*kind*storm;
 }
 
-fn density(p: vec3<f32>, amount: f32) -> f32 {
+fn density(p: vec3<f32>, amount: f32, footprint: f32) -> f32 {
     let height = (p.z - CLOUD_BOTTOM) / CLOUD_THICKNESS;
     if height <= 0.0 || height >= 1.0 { return 0.0; }
     // Scroll is seconds * 0.02. Bound height-dependent shear so long sessions
@@ -57,14 +57,14 @@ fn density(p: vec3<f32>, amount: f32) -> f32 {
     let broken = mix(partly, mostly, clamp(amount*2.0, 0.0, 1.0));
     let coverage = mix(broken, overcast, smoothstep(0.5, 1.0, amount)) * smoothstep(0.0, 0.3, amount);
     if coverage <= 0.001 { return 0.0; }
-    let base = textureSampleLevel(cloud_noise, cloud_sampler, q/25.0, 0.0);
+    let base = textureSampleLevel(cloud_noise, cloud_sampler, q/25.0, clamp(log2(max(footprint * 128.0 / 25.0, 1.0)), 0.0, 2.0));
     let low_fbm = dot(base.gba, vec3(0.625, 0.25, 0.125));
     var cloud = remap_cloud(base.r, -(1.0-low_fbm), 1.0);
     cloud = remap_cloud(cloud, 1.0-coverage, 1.0) * coverage;
     cloud *= cloud_height(height, mix(0.6*weather.g, 0.8, smoothstep(0.5, 1.0, amount)));
     if cloud <= 0.0 { return 0.0; }
     let detail_position = q + vec3(wind*0.27, -wind*0.16, wind*0.035);
-    let detail = textureSampleLevel(cloud_detail, cloud_sampler, detail_position/1.5, 0.0).rgb;
+    let detail = textureSampleLevel(cloud_detail, cloud_sampler, detail_position/1.5, log2(max(footprint * 32.0 / 1.5, 1.0))).rgb;
     let erosion = dot(detail, vec3(0.625, 0.25, 0.125));
     let result = remap_cloud(cloud, erosion*0.1, 1.0);
     return pow(result, mix(1.0, 0.75, amount));
