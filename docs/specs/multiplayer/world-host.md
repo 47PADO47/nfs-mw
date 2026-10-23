@@ -187,7 +187,9 @@ track chosen). In the world (`players/race.rs`, `race/start.rs`):
   client is needed. What a client does need is to land on the grid: it is far from where its world opened, so a state more than
   100 m from the car is a teleport, answered with a spawn request at the state's place (streaming follows the request) and not
   with a car set down on ground that is not loaded, which fell through the world and was put back at its old spot every few
-  frames (`net_client/car.rs`).
+  frames (`net_client/car.rs`). While the road streams in, the prediction ring keeps recording saves at the old spot; a rewind
+  does not restore a save that is itself more than 100 m from the car (`GameCar::restore`), or each rewind would carry the car
+  back and start the teleport over.
 - **No screens.** A session's race has no race-over message and no post-race screen: it ends the moment the engine says it is
   over (`SessionRules::race_screens`), the people's cars come back behind the lead, and the server's own results follow.
 

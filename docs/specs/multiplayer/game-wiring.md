@@ -180,7 +180,8 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | A client in a race seat (the bot has the host's seat): its car is set down on the far grid by the first own block, then follows the server's race car for four seconds at up to 25 m/s with no snaps and a median correction under 20 cm (measured 1.3 cm, 95th percentile 4.7 cm) | `net_client/installed.rs` | yes |
 | End to end: the real `Server` over a `WorldSimHost`, a client-mode world and a bot over loopback UDP, the session starts by itself, the client drives 20 s; the server's car follows, the prediction stays within the lead's distance plus 1 m of the server's car every second, no snaps, corrections under the snap distance, the bot drawn interpolated 90 % of frames or more | `net_client/installed.rs` | yes |
 
-The end-to-end test paces its fake 60 Hz clock to the wall clock: the net threads run in real time, and a clock that outruns
+The installed-game tests take turns (`installed_turn.rs`): several open the real world and pace a real-time clock, and run side
+by side they starve each other's net threads. The end-to-end test paces its fake 60 Hz clock to the wall clock: the net threads run in real time, and a clock that outruns
 them makes every datagram look late, so the input lead climbs to its maximum and the server drops the inputs as too early. A
 run on 2026-10-22: 323 m driven, 515 own-car checks, 239 corrections (95th percentile 6 cm), no snaps, the bot interpolated in
 1,195 of 1,200 frames.
