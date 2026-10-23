@@ -198,6 +198,8 @@ impl WorldScene {
                 speech_look: Default::default(),
                 pending_car,
                 players: players::Players::default(),
+                car_keys: Default::default(),
+                rules: Default::default(),
                 traffic,
                 map_blips,
                 race_starts,
@@ -259,6 +261,8 @@ impl WorldScene {
                 story_movie: Default::default(),
                 photo_shot: None,
                 breaker_icons: Default::default(),
+                #[cfg(feature = "multiplayer")]
+                net_client: None,
             };
             scene.switch_default_scenery_groups();
             scene

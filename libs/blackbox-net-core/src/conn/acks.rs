@@ -85,6 +85,27 @@ impl RecvWindow {
         (shifted & 0xFFFF_FFFF) as u32
     }
 
+    /// Whether [`RecvWindow::record`] would accept `seq`, without marking it: the same refusals, no change. Used before
+    /// a sealed packet is opened, so a duplicate or stale number costs no cipher work.
+    pub fn check(&self, seq: u32) -> Result<(), ConnError> {
+        if !self.any || seq_newer(seq, self.newest) {
+            return Ok(());
+        }
+        let age = self.newest.wrapping_sub(seq);
+        if age >= WINDOW_BITS {
+            return Err(ConnError::TooOld);
+        }
+        let word = (age / 64) as usize;
+        let bit = 1u64 << (age % 64);
+        let Some(slot) = self.bits.get(word) else {
+            return Err(ConnError::TooOld);
+        };
+        if *slot & bit != 0 {
+            return Err(ConnError::Duplicate);
+        }
+        Ok(())
+    }
+
     /// Marks `seq` as received. Refuses a number already marked ([`ConnError::Duplicate`]) and one more than 1024 behind
     /// the newest ([`ConnError::TooOld`]); a newer number moves the window forward.
     pub fn record(&mut self, seq: u32) -> Result<(), ConnError> {

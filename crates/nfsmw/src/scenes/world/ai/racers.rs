@@ -99,7 +99,7 @@ impl TrafficWorld {
             spec.spawn.position.x,
             spec.spawn.position.y
         );
-        self.cars.push(car);
+        self.admit(car);
         if let (Some(automatic), Some(car)) = (spec.person, self.cars.last_mut()) {
             car.seat_person(automatic);
         }

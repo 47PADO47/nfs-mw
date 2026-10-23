@@ -1,7 +1,10 @@
 # Multiplayer protocol: messages, layout, versioning
 
-Status: **design only**. Nothing is built, and every byte count below is a design target, not a measurement. Written
-2026-10-16. Decisions and budgets: [ADR 0006](../../decisions/0006-multiplayer-netcode.md) and [bandwidth](bandwidth.md).
+Status: **partly built**. The transport layers (sections 4 and 5: handshake, sealing, cookies, rate limits) are built in
+`libs/blackbox-net-core`, and the wire foundation of `crates/nfsmw-net` (entity schema, input frame, reliable messages, version
+checks, loadouts; 2026-10-22) is built and unit-tested; a running session is not. Byte counts not marked built are design
+targets, not measurements. Written 2026-10-16. Decisions and budgets: [ADR 0006](../../decisions/0006-multiplayer-netcode.md) and
+[bandwidth](bandwidth.md).
 Algorithms that use these messages: [sync model](sync-model.md). The secure channel (Noise handshake with `snow`, the stateless
 cookie, ChaCha20-Poly1305 sealing, the replay window, rekeying, connect tokens, the room password) is specified in
 `security.md` section 4 and in `security-gameplay.md`; this file fixes the packet layouts, fields and states, and where the two
@@ -14,7 +17,8 @@ ADR 0009 wins; the sections it changes carry a note. In short:
 - Frames are `type u8, length varint, payload` (no `len` inside `RELIABLE`). Entity ids are `u16`, gap-coded in id order.
 - The kind is written only in full records, and the field mask has one bit per schema field. Message types are namespaced.
 - Header byte 0: bit 0 says the ack block is valid (the sender has received a packet); the format moves to bits 3..1.
-- The built `conn` and `replicate` modules of `libs/blackbox-net-core` are the reference layout until sealing exists.
+- The built `conn`, `replicate` and `secure` modules of `libs/blackbox-net-core` are the reference layout; the handshake and
+  sealing as built are in [protocol-handshake](protocol-handshake.md).
 
 ## 1. Layers
 
@@ -31,9 +35,10 @@ handshake          Hello, Challenge, Noise messages (section 4); runs once per c
  beside it:        discovery on its own UDP port (section 3), unauthenticated hints only
 ```
 
-Bit-packed frames (input, snapshot, ping) write fields most significant bit first (section 6.1). Reliable messages are postcard
-(section 7). Every decoder is a pure function on `&[u8]` with the rules of `security-gameplay.md` 1.1: size limits first,
-canonical form only, trailing bytes are an error, every count checked against the bytes left.
+Bit-packed frames (input, snapshot, ping) write fields most significant bit first (section 6.1). Reliable messages are postcard's
+wire format (section 7, [protocol-messages.md](protocol-messages.md)). Every decoder is a pure function on `&[u8]` with the
+rules of `security-gameplay.md` 1.1: size limits first, canonical form only, trailing bytes are an error, every count checked
+against the bytes left.
 
 ## 2. Transport mapping
 
@@ -86,46 +91,16 @@ The list shows `key_hash` status ("known", "new") and greys out servers whose `p
 only; a typed address is the fallback across routers. The online server list (milestone 11) is a separate HTTPS service, not in
 this file.
 
+**As built (2026-10-22):** the datagrams are `discovery::Request` and `Reply`; the responder and the scan that send them are
+`endpoint::DiscoveryResponder` and `endpoint::DiscoveryScan` ([operations security](security-ops.md) section 2.3).
+
 ## 4. Handshake
 
-The handshake is stateless on the server until a client proves it can receive at its address (`security.md` 4.4). All handshake
-packets have the handshake bit set in byte 0 and are sent in the clear (Noise messages carry their own encryption).
-
-**Byte 0 of every packet.**
-
-| Bit | Handshake packet | Data packet |
-|---|---|---|
-| 7 | 1 | 0 |
-| 6 to 4 | `hs_type` (below) | key phase (2 bits at 6 and 5), bit 4 reserved 0 |
-| 3 to 0 | packet format version (0) | reserved 0 |
-
-`hs_type`: 0 `Hello`, 1 `Challenge`, 2 `HelloCookie`, 3 `NoiseMsg2`, 4 `NoiseMsg3`, 5 `Reject`.
-
-| Packet | Dir | Fields after byte 0 | Size |
-|---|---|---|---|
-| `Hello` | C to S | `proto_major` u8, `format_version` u8, `client_nonce` 16 bytes, `client_conn_id` u16, zero padding | exactly 512 |
-| `Challenge` | S to C | `server_conn_id` u16, `bucket` u8, `cookie` 32 bytes | 37 (never larger than the request) |
-| `HelloCookie` | C to S | `proto_major`, `format_version`, `pattern` u8 (0 = XX, 1 = XK), `client_nonce`, `client_conn_id`, `server_conn_id`, `bucket`, `cookie`, `noise1_len` u16, Noise message 1, zero padding | exactly 512 |
-| `NoiseMsg2` | S to C | `client_conn_id` u16, `len` u16, Noise message 2 | under 3 × 512 |
-| `NoiseMsg3` | C to S | `server_conn_id` u16, `len` u16, Noise message 3 | under 512 |
-| `Reject` | S to C | `reason` u8: 1 server full, 2 protocol major unsupported, 3 shutting down. Sent only to an address that presented a valid cookie | 2 |
-
-**Cookie.** `cookie = HMAC(server_secret, client_address || client_nonce || bucket_time)`, 32 bytes, bucket length 15 s; the
-server accepts the current and the previous bucket (`bucket` names which). It keeps no state between `Hello` and `HelloCookie`.
-The secret rotates every hour with two kept. A `HelloCookie` that fails the check is dropped silently.
-
-**Flow.**
-
-1. `Hello` (client nonce, its connection id). The server computes the cookie and answers `Challenge`; no other work.
-2. `HelloCookie` with Noise message 1. The server verifies the cookie in constant time, only then allocates a handshake slot and
-   runs the Noise step. Until message 3 verifies, the server sends the client at most 3 times the bytes it has received from it.
-3. `NoiseMsg2`, then `NoiseMsg3`. LAN uses pattern `XX`; online uses `XK` with the server key from the connect token. The Noise
-   prologue is `nfsmw-mp/<major>`. A version mismatch fails the handshake before any game data.
-4. Both sides switch to data packets (keys from the Noise transport state, one per direction). The first sealed reliable message is
-   `Auth` from the client; the server's first sealed packet confirms the keys.
-
-A handshake that does not progress is dropped after 5 s (the slot is freed). A client retries `Hello` with a fresh nonce at 0.5 s,
-1 s and 2 s, then reports "no answer".
+**Built** (2026-10-22): the byte layouts, the cookie, the flow, the retries and every difference from the first design are in
+[protocol-handshake](protocol-handshake.md). In short: byte 0 has the handshake bit and `hs_type`; `Hello` and `HelloCookie` are
+padded to exactly 512 bytes and `Challenge` is 36, so no reply is larger than its request; the cookie binds the address, the
+client nonce and both connection ids, and the server keeps no state until it comes back; then `NoiseMsg2` and `NoiseMsg3` run
+Noise `XX` (LAN) or `XK` (pinned key) with the game's prologue `nfsmw-mp/<major>`.
 
 **After the keys (control channel).**
 
@@ -153,20 +128,11 @@ the slot is still held, the server answers `JoinAccepted` with the same `player_
 
 ### 5.1 Sealed packet
 
-| Offset | Size | Field | Sealed? |
-|---|---|---|---|
-| 0 | 1 | flags (bit 7 = 0, key phase at bits 6 and 5) | no, authenticated |
-| 1 | 2 | connection id (of the receiver) | no, authenticated |
-| 3 | 4 | packet number (low 32 bits; the receiver expands it to 64 bits for the nonce) | no, authenticated |
-| 7 | 4 | `ack`: largest packet number received from the peer | yes |
-| 11 | 4 | `ack_bits`: bit `i` set means packet `ack - 1 - i` was received | yes |
-| 15 | n | frames | yes |
-| 15 + n | 16 | authentication tag | |
-
-The 7 header bytes are the associated data. A packet with an invalid tag is dropped silently and counted (no error reply). The
-receiver keeps a window of 1,024 packet numbers and drops duplicates and older numbers before parsing a frame. A packet from a new
-address with a valid tag and a newer number is accepted, but no bulk data goes to the new address until it answers a
-`PATH_CHALLENGE`. Rekeying every 2^24 packets or one hour is signalled by the key phase bits (`security.md` 4.4).
+**Built** (2026-10-22), layout in [protocol-handshake](protocol-handshake.md) section 5: flags, connection id and packet number
+(7 bytes) in the clear as associated data; `ack`, `ack_bits` and the frames sealed with ChaCha20-Poly1305 under the Noise
+transport keys; a 16-byte tag. The receive window of 1,024 numbers is checked before the tag and updated after it; a bad tag is
+dropped silently and counted. Flag bits 6 and 5 are the key phase (rekey every 2^24 packets or one hour). Path validation on a new
+address (`PATH_CHALLENGE`) is not built yet.
 
 ### 5.2 Frame types
 
@@ -245,6 +211,13 @@ Per-tick input:
 | `gear_select` | 1 + 4 | a present flag, then the gear id; read only when the `flags` bit says so |
 | `clutch` | 4 | 0..15 → 0..1; present only when the `flags` bit says so |
 
+> **Built** (`nfsmw-net`, module `input`): the payload after the frame type and length (ADR 0009), so `type` is not repeated
+> inside it; 3 header bytes, at most 43 bytes. Flags bit 1 is set exactly when some input carries a gear, and `same` is used
+> whenever an input equals the one before; a decoder refuses any other form, a steer code above 510, both shift edges at once,
+> reserved bits, nonzero padding and trailing bytes. The client builds each frame from the newest unacknowledged ticks (up to 8),
+> so every input is repeated until `ack_input` passes it. The server drops inputs for ticks it has simulated and more than 12 ticks
+> ahead, holds the last input for 6 ticks (100 ms) without its shift edges, then uses no pedal and a quarter brake.
+
 A reset is not an input bit: it is the reliable message `ResetRequest` (section 7.2), limited to one per 10 s. The packet-level
 acknowledgements of the sealed packet replace any snapshot acknowledgement field: the server knows which snapshot packets the
 client received from `ack` and `ack_bits` of the client's packets.
@@ -299,6 +272,25 @@ The field widths of the player car are in [bandwidth](bandwidth.md) section 1.1 
 `world_bounds` at join; orientation 32 bits, smallest three; linear velocity 3 × 14 for ±400 m/s; angular velocity 3 × 10 for
 ±16 rad/s; wheels 36; skid and smoke 8; engine 22; inputs 20).
 
+> **Built** (`nfsmw-net`, module `schema`): the seven kinds register in wire order, so the replicate kind id is the wire kind
+> minus one. Fields per kind (widths in bits; `d` = difference-coded): player car: position 3 × 20 d, orientation 32, linear
+> velocity 3 × 14, angular velocity 3 × 10, wheel compression 24, wheels on ground 4, wheel steer 8, skid 8, rpm 10, gear 4, flags
+> 16, type 16, owner 6, inputs 20 (286 bits full with the kind id). Reduced player car: position 3 × 20 d, yaw 8, speed 8, flags 8,
+> owner 6. Traffic: position 3 × 20 d, yaw 8, speed 9, flags 8, type 16. Police: position 3 × 20 d, yaw 10, speed 10, flags 16,
+> type 16. Helicopter: position 3 × 20 d, orientation 32, flags 24, type 16. Roadblock: position 3 × 20 (raw), yaw 8, flags 8,
+> type 16. Moving prop: position 3 × 20 d, orientation 32, flags 8, type 16. Owner is 0 for none, else the player id plus one.
+> Speeds are signed forward speeds over -32..96 m/s. The own block is built as listed above (226 bits used, 30 reserved zero). The
+> global block is built in module `frames` (below). `schema_id` is a 64-bit FNV-1a over the replicate schema id, the position range and the fixed
+> ranges.
+
+> **Built** (`nfsmw-net`, module `frames`, 2026-10-22): the payload is `part` 4, `parts` 4, `flags` 8 (bit 0 own block, bit 1
+> global block, bits 2 to 7 zero; the cause is inside the own block), `ack_input` 16, the own block (part 0 only), the global
+> block (part 0 only), then the replicate body (tick 32, baseline distance varint, entry count varint, entries) zero padded to
+> the byte; every block is a whole number of bytes. The global block is 96 bits: phase 4, heat 4, busted 8, cooldown 8,
+> pursuit status 3, place 5, lap 6, checkpoint 8, time of day 16 (minutes × 45), 34 reserved zero. `PING` is seq 8 and
+> client time 32; `PONG` adds the receive and send ticks as 32 + 8 bits each. Each part's body names the same tick and
+> distance and holds a disjoint, ascending set of entities; the client applies part 0 to the baseline, part 1 to that, and so on.
+
 **Parts.** A snapshot too large for one datagram is split into parts. Each part repeats `tick`, `baseline` and `flags` (without the
 own and global bits); part 0 carries those blocks; every part holds complete entities. A client applies parts in any order and treats
 the snapshot as complete when all arrived. The server learns that the snapshot was received from the packet acknowledgements of
@@ -315,117 +307,9 @@ The server answers in the same loop iteration. Rates and use: [sync model](sync-
 
 ## 7. Reliable messages
 
-All are postcard structs: `type` u16, `format` u8, body. Direction: C (client to server), S (server to client). A new optional field
-is appended at the end of a body; a reader that knows an older format decodes the fields it knows and skips the rest by the message
-length (`security-gameplay.md` 1.1, rule 8).
-
-> **ADR 0009:** `type` numbers fall in namespaces: core `0x0000`–`0x0FFF` (admission, lobby, session), game `0x1000`–`0x7FFF`
-> (events, loadout, modes), mods `0x8000`–`0xFFFF`. A receiver skips an unknown type and counts it.
-
-### 7.1 Admission (channel `control`)
-
-| Type | Name | Dir | Fields |
-|---|---|---|---|
-| 0x0001 | Auth | C | `proto_minor`, `sim_build` (8 bytes), `data_id` (16), `caps` (flags: clutch, wheel, spectate-only), `connect_token` (optional, online), `resume` (optional) |
-| 0x0002 | PakeStart | S | `scheme` (SPAKE2), the server's first message (opaque) |
-| 0x0003 | PakeMsg | both | opaque bytes |
-| 0x0004 | PakeConfirm | both | confirmation tag over the PAKE key and the Noise handshake hash |
-| 0x0005 | Join | C | `display_name`, `loadout` (7.4), `mod_manifest` (list of id, version, hash) |
-| 0x0006 | JoinAccepted | S | `player_id` (16 bytes, the hash of the identity key), `slot` (0..31), `entity_id` (u8), `session_seed` (u64), `tick` (u32), `snapshot_hz`, `settings` (7.3), `world_bounds`, `resume_token`, `server_caps`, `proto_minor` |
-| 0x0007 | JoinRejected | S | `reason`: ServerFull, ProtocolMismatch, DataMismatch, ModMismatch, Banned, InProgress, LoadoutRejected, RateLimited, ServerShuttingDown; `detail` (a code, no free text), `server_proto`, `server_data_id` |
-| 0x0008 | Kick | S | `reason`, `ban_minutes` (0 = none) |
-
-A failed password, token, ban epoch or key check closes the connection with the same generic result as a full room and reveals
-nothing else (`security.md` 4.6 and 4.8).
-
-### 7.2 Lobby and session (channel `control`)
-
-| Type | Name | Dir | Fields |
-|---|---|---|---|
-| 0x0010 | LobbyState | S | `players` (slot, id, name, loadout summary, ready, role, team, ping, flags), `settings`, `phase`, `host_slot` |
-| 0x0011 | LobbyDelta | S | the changed rows (add, update, remove) |
-| 0x0012 | SetReady | C | `ready` |
-| 0x0013 | SelectLoadout | C | `loadout` |
-| 0x0014 | SetRole | C | racer, cop or spectator (checked against the settings) |
-| 0x0015 | UpdateSettings | C | host or admin only: a partial settings struct |
-| 0x0016 | StartCountdown | S | `start_tick` (target tick), `seconds` |
-| 0x0017 | CancelCountdown | S | `reason` |
-| 0x0018 | LoadWorld | S | track or region id, `mode`, rules, time of day, weather, traffic density, `spawn_slot` |
-| 0x0019 | LoadComplete | C | `streaming_ready` |
-| 0x001A | StartAt | S | `start_tick`; the owner's input is neutral until then |
-| 0x001B | Vote | C | `kind`, `option` |
-| 0x001C | VoteState | S | `kind`, `options`, `counts`, `ends_tick` |
-| 0x001D | HostCommand | C | admin command: kick, ban, mute, restart, change mode (checked against the sender's role) |
-| 0x001E | StreamingStall | C | `stalled` (bool) |
-| 0x001F | ResultRequest | C | ask for the last result record again (after a reconnect) |
-| 0x0020 | ResetRequest | C | `tick`; at most one per 10 s; the server validates and answers with a `Respawn` event |
-
-### 7.3 Settings struct
-
-`name`, `max_players` (2..16), `max_spectators`, `mode`, `track`, `laps`, `traffic_density` (0..100), `cop_level_cap`, `pursuits`
-(bool), `collision` (full, ghost, ghost-start), `catch_up` (bool), `nitrous` (bool), `damage` (visual, off), `allowed_cars` (list or
-class), `join_in_progress` (closed, free roam, between races), `password_required` (bool), `public` (bool), `required_mods`,
-`sim_build_match` (bool). At most 1 KiB (`security-gameplay.md` 1.2).
-
-### 7.4 Loadout
-
-`car_type` (hash id), `parts` (slot and part id pairs, the ids the car assembly uses), `paint` (id and colour indices), `wheel_set`
-(id), `plate` (a short filtered string). Never numbers that tune the car: the server rebuilds the vehicle parameters from these ids
-with its own game data (`security-gameplay.md` section 3, layer L2).
-
-### 7.5 Modes
-
-`0` free roam, `1` circuit, `2` sprint, `3` drag, `4` speedtrap, `5` knockout, `6` pursuit co-op, `7` cops vs racers, `8` tag, `9` to
-`127` reserved, `128` to `255` custom (a mod mode id).
-
-### 7.6 Gameplay events (channel `events`, server to client)
-
-Every event record: `seq` (u32, per connection), `tick` (when it happened), `target_tick` (0 if none, else the tick at which a client
-must apply it), `type`, body. Events are idempotent; a client ignores a `seq` it has applied.
-
-| Type | Name | Body |
-|---|---|---|
-| 0x0100 | RaceStart | `target_tick`, `order` |
-| 0x0101 | Checkpoint | `entity_id`, `index`, `tick` |
-| 0x0102 | LapComplete | `entity_id`, `lap`, `time_ms` |
-| 0x0103 | RaceFinish | `entity_id`, `place`, `time_ms` |
-| 0x0104 | RaceResults | the result record (also written to the replay) |
-| 0x0110 | PursuitStart | `pursuit_id`, `targets`, `heat` |
-| 0x0111 | PursuitEnd | `pursuit_id`, `reason` (busted, evaded, abandoned), `entity_id` |
-| 0x0112 | HeatChange | `entity_id`, `level` |
-| 0x0113 | Infraction | `entity_id`, `kind`, `fine` |
-| 0x0114 | BustedProgress | `entity_id`, `fraction` (on a change of step) |
-| 0x0115 | RoadblockEvent | `id`, `state`, `position`, `yaw` |
-| 0x0116 | SpikeEvent | `id`, `state`, `wheel` hit |
-| 0x0120 | Collision | `a`, `b` (entity ids or world), `impulse`, `point`, `normal` (quantised) |
-| 0x0121 | Damage | `entity_id`, `zone`, `severity`, `glazed` |
-| 0x0122 | Puncture | `entity_id`, `wheel` |
-| 0x0123 | Repair | `entity_id` |
-| 0x0130 | Respawn | `entity_id`, `position`, `yaw`, `cause` |
-| 0x0131 | PhaseChange | `phase` (lobby, loading, countdown, running, results), `target_tick` |
-| 0x0132 | EntityRemoved | `entity_id`, `reason` |
-| 0x0140 | PlayerJoined | `slot`, `player_id`, `name` |
-| 0x0141 | PlayerLeft | `slot`, `reason` |
-| 0x0142 | RoleChanged | `slot`, `role` |
-| 0x0150 | ClockEvent | `time_of_day`, `rate` |
-
-### 7.7 Chat (channel `chat`)
-
-| Type | Name | Dir | Fields |
-|---|---|---|---|
-| 0x0200 | ChatSend | C | `channel` (all, team, whisper), `to_slot`, `text` |
-| 0x0201 | ChatMessage | S | `from_slot`, `channel`, `text`, `tick` |
-| 0x0202 | SystemNotice | S | `code` (join, leave, kick, mute, vote, result), `args` |
-| 0x0203 | QuickMessage | C | `id` (a preset line, MP-44) |
-
-`text` is UTF-8, 1 to 200 characters, normalised and filtered by the receiver (`security-gameplay.md` 1.1); chat is limited to one
-message per second with a burst of 3.
-
-### 7.8 Bulk (channel `bulk`)
-
-`BulkStart {kind, id, length, hash}` (kinds: session data, mod manifest, replay chunk), then `BulkChunk {id, offset, bytes}` of at
-most 1 KiB each, then `BulkEnd {id}`. The receiver verifies `length` and the 32-byte `hash` before use. Maximum 4 MiB per transfer
-(`security-gameplay.md` 1.2). Only data, never code, and only what the client consented to (`security-gameplay.md` section 7).
+The catalogue (admission, lobby and session, the settings struct, the loadout, modes, gameplay events, chat and bulk), its
+encoding and its type numbers are in [protocol-messages.md](protocol-messages.md). Built in `crates/nfsmw-net` (module `message`):
+postcard's wire format written by hand, `type` u16, `format` u8, body; gameplay events moved to the game namespace (`0x11xx`).
 
 ## 8. Versioning and compatibility
 
@@ -436,7 +320,7 @@ most 1 KiB each, then `BulkEnd {id}`. The receiver verifies `length` and the 32-
 | `proto_major` | Hello, Noise prologue (`nfsmw-mp/<major>`), discovery | Bumped for any incompatible change of a header, a known frame or a required message. A mismatch cannot connect |
 | `proto_minor` | `Auth`, `JoinAccepted`, discovery reply | Bumped for additive changes. Both sides use the lower value for optional features |
 | `format` | each reliable message | One byte per message type; decoding is a match on `(type, format)` |
-| `schema_id` | `JoinAccepted` (inside `server_caps`) | A 32-bit hash of the entity schema tables (kinds, fields, widths, ranges). A schema change bumps `proto_minor` and keeps the old schema served for one release |
+| `schema_id` | `JoinAccepted` (inside `server_caps`) | A 64-bit hash of the entity schema tables (kinds, fields, widths, ranges; ADR 0009). A schema change bumps `proto_minor` and keeps the old schema served for one release |
 | `sim_build` | `Auth` | The git hash and target. Informational unless the server requires a match |
 | `data_id` | `Auth`, discovery (short) | The identified game data (8.3) |
 
@@ -465,6 +349,14 @@ the mod API (milestone 12) exists.
 - Major mismatch: the Noise prologue differs and the handshake fails; the server may send `Reject(2)` after a valid cookie. The UI
   maps both to the same text. Discovery shows such servers greyed, with their versions.
 
+> **Built** (`nfsmw-net`, module `version`): major 1, minor 0. `data_id` is the first 16 bytes of SHA-256 over a tag, the
+> executable's SHA-256 and the required files (name and size, sorted by name); `sim_build` is 8 bytes of SHA-256 over the git hash
+> and the target. The server checks, in order: major (`ProtocolMismatch`, detail 1 the client must update, 2 the server must),
+> minor against the oldest it serves (the client must update), `data_id` (`DataMismatch`), the sim build only when the server
+> requires it (`SimBuildMismatch`, a reason added for MP-62), then the mods (`ModMismatch`, detail the number of differences) under
+> the off, lenient (LAN default) or strict policy of `security-gameplay.md` 7.3, ignoring client-only mods. The accepted minor is
+> the lower of the two. Optional features are listed with the first minor that has them; none is defined yet.
+
 ## 9. Limits (format side)
 
 The enforcement values (rate limits, strikes) are in `security-gameplay.md` sections 1.2 and 5; the format fixes these:
@@ -477,7 +369,7 @@ The enforcement values (rate limits, strikes) are in `security-gameplay.md` sect
 | Datagram | 1,200 bytes |
 | Input frame | 8 ticks |
 | Snapshot parts | 8 |
-| Reliable message | 16 KiB; bulk transfer 4 MiB |
+| Reliable message | 16,382 bytes (what 16 fragments carry, `conn::MAX_MESSAGE`); bulk transfer 4 MiB |
 | Fragments per message | 16 |
 | Messages in flight per channel | 256 |
 | Chat text | 200 characters |

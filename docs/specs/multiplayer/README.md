@@ -2,7 +2,11 @@
 
 Design for LAN multiplayer (milestone 10) that online multiplayer (milestone 11) reuses without a rewrite: one host-authoritative
 server program, the same on a LAN and on the internet, over our own UDP layer. Written 2026-10-16, revised by [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md) on 2026-10-21. The generic layer
-(`libs/blackbox-net-core`) is built; the rest is design.
+(`libs/blackbox-net-core`) is built, including the handshake, sealing, rate limits and hand-off queues (feature `netcode`); so are
+the protocol and client session (`nfsmw-net`), the server loop (`nfsmw-server`), the real world behind it and the game's side
+(2026-10-22: [game wiring](game-wiring.md)). Online play is design.
+
+What exists and what is still open is summarised in [status.md](status.md).
 
 The decision record is [ADR 0006](../../decisions/0006-multiplayer-netcode.md). The files here hold the requirements, the wire format,
 the algorithms and the security design it refers to.
@@ -10,18 +14,27 @@ the algorithms and the security design it refers to.
 Read in this order:
 
 1. [features.md](features.md): scope, the priority legend (P0, P1, P2), the feature catalogue (modes, lobby, discovery, chat,
-   spectators, reconnect, replays, checks), the latency, loss, player-count and bandwidth targets, and the open questions.
+   spectators, reconnect, replays, checks), the latency, loss, player-count and bandwidth targets, and the open questions;
+   [modes.md](modes.md): the game modes, fairness rules, result record and replay format as built in `crates/nfsmw-net`.
 2. [ADR 0006](../../decisions/0006-multiplayer-netcode.md): topology, tick rate, what is simulated where, prediction, snapshots,
    transport, serialization, clocks, determinism, the Bevy mapping, the crate split, and what is kept of the original LAN protocol
    (nothing).
 3. [sync-model.md](sync-model.md): the owner's prediction and reconciliation, interpolation and extrapolation of remote cars, car
    collisions, clock synchronisation, the determinism list, session lifecycle, failure behaviour and tuning values.
 4. [protocol.md](protocol.md): discovery, the handshake packets, the sealed packet, frame types, the input, snapshot and ping
-   layouts, the reliable message catalogue, versioning and limits.
+   layouts, versioning and limits; [protocol-messages.md](protocol-messages.md): the reliable message catalogue, its encoding and
+   type numbers (built in `crates/nfsmw-net`). The handshake and sealing as built (2026-10-22) are in
+   [protocol-handshake.md](protocol-handshake.md).
 5. [bandwidth.md](bandwidth.md): record sizes, per-packet overhead, the arithmetic for LAN and online cases, server totals.
 6. [transport-options.md](transport-options.md): crates evaluated, why our own UDP layer, the reliability layer, serialization.
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
-   order of work for milestone 10.
+   order of work for milestone 10; [client-session.md](client-session.md): the client's session driver as built (API and
+   lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it;
+   [world-host.md](world-host.md): the real world behind the server; [game-wiring.md](game-wiring.md): the game's side as
+   built (`--host`, `--connect`, `--dedicated`, `--discover`, `NetSession`, the listen server's thread, the world's client
+   mode);
+   [frontend.md](frontend.md): the LAN menu, the lobby, the session HUD, the `net.*` console commands and the `net_*` settings as
+   built, and the `NetFrontend` seam they use.
 8. [ADR 0009](../../decisions/0009-multiplayer-netcode-revisions.md): the revisions made before building (16-bit ids, shared delta
    encoding, layers, skippable frames, registries, the session state machine). It overrides the files above where they disagree.
 9. [determinism.md](determinism.md): the audit of the sim against D1 to D8 and the planned fix for each finding.

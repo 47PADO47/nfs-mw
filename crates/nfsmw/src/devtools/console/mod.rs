@@ -15,6 +15,8 @@ mod gfx_tests;
 mod hud_layout_tests;
 #[cfg(test)]
 mod motion_blur_sync_tests;
+mod net_cmd;
+mod net_parse;
 mod parse;
 mod settings_cmd;
 mod settings_keys;

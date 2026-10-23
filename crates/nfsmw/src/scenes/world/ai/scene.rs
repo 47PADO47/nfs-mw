@@ -43,7 +43,7 @@ impl WorldScene {
                     speed: drive.speed(),
                     body: Some(drive.ai_body()),
                 };
-                (focus, self.car_lens(drive, drive.camera(), self.physics_aspect))
+                (focus, self.guest_rules_lens(drive))
             })
             .collect()
     }
@@ -89,6 +89,7 @@ impl WorldScene {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
         let barred = self.race_bars_cops();
         let guests = self.guest_traffic_views();
+        let blocking_models = self.rules.blocking_models;
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.set_guests(guests);
         traffic.configure(wanted, share);
@@ -97,8 +98,10 @@ impl WorldScene {
         traffic.set_lights(self.traffic_setting.lights);
         traffic.set_avoidance(self.traffic_setting.avoidance);
         // The models the manager asks for are read on the loader's worker. A warm-up run (`traffic warmup`) waits for
-        // them in the frame they are asked for, so it sees the same cars every time; a playing scene does not wait.
-        let (submit, blocking) = (self.residency.complete() && traffic.wants_models(), !traffic.settled());
+        // them in the frame they are asked for, so it sees the same cars every time; a playing scene does not wait, unless
+        // a session's rules make the server's model choice independent of the loader's timing (`session_rules.rs`).
+        let (submit, blocking) =
+            (self.residency.complete() && traffic.wants_models(), !traffic.settled() || blocking_models);
         load_requested(self, renderer, submit, blocking);
         if self.traffic_setting.lights && self.lamp_meshes.is_none() {
             self.lamp_meshes = Some(LampMeshes::upload(renderer));

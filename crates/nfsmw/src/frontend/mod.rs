@@ -29,6 +29,8 @@ mod footer;
 mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
+// LAN play: the menu path, the lobby, the session HUD and the `NetFrontend` seam (`docs/specs/multiplayer/frontend.md`).
+pub(crate) mod lan;
 mod loading;
 mod loading_tips;
 mod logic;

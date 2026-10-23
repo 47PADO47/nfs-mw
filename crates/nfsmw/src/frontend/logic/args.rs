@@ -34,6 +34,8 @@ pub struct Args {
     pub player: u8,
     /// Player 2's car select of a co-op career: the car picked is seated for player 2 (`career_screens/car_select.rs`).
     pub coop: bool,
+    /// The car select of a LAN session (with `custom`): the pick goes back to the LAN menu (`lan/link.rs`).
+    pub lan: bool,
 }
 
 impl Default for Args {
@@ -52,6 +54,7 @@ impl Default for Args {
             overview: false,
             player: 0,
             coop: false,
+            lan: false,
         }
     }
 }

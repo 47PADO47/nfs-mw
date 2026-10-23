@@ -2,6 +2,8 @@
 
 mod dump_anim;
 mod install;
+#[cfg(feature = "multiplayer")]
+mod net;
 mod setup;
 mod start;
 
@@ -13,6 +15,13 @@ use crate::input::Bindings;
 use crate::scenes::{car::CarScene, world::WorldScene};
 use crate::settings::{Partial, Settings};
 
+/// The LAN switches the game starts with (`--host`, `--connect`); nothing without multiplayer.
+#[cfg(feature = "multiplayer")]
+type NetLaunch = crate::cli::NetArgs;
+#[cfg(not(feature = "multiplayer"))]
+#[derive(Default)]
+struct NetLaunch;
+
 /// Runs the window with the front end on top of an empty backdrop. `settings` are the ones the caller loaded, so a
 /// command loads them once.
 #[allow(clippy::too_many_arguments)]
@@ -20,7 +29,7 @@ fn run_front_end(
     dir: &game_install::GameDir,
     settings: &Settings,
     mods: crate::modding::Mods,
-    start: crate::frontend::Start,
+    (start, launch): (crate::frontend::Start, &NetLaunch),
     script: Option<&str>,
     look: Option<crate::frontend::Look>,
     view: &crate::cli::ViewArgs,
@@ -28,6 +37,12 @@ fn run_front_end(
 ) -> Result<()> {
     let script = script.map(crate::frontend::UiScript::parse).transpose().map_err(anyhow::Error::msg)?;
     let mut options = view.run_options(dir, true).with_mods(mods);
+    #[cfg(feature = "multiplayer")]
+    {
+        options.net = Some(net::plugin(dir, launch, settings));
+    }
+    #[cfg(not(feature = "multiplayer"))]
+    let _ = launch;
     // The picture of a screen (`view-screen --screenshot`) shows the camera where its intro ends.
     let camera = match settled {
         true => crate::frontend::CameraRig::settled(),
@@ -51,6 +66,14 @@ fn run_front_end(
 
 pub fn run(cli: Cli) -> Result<()> {
     let game_dir = cli.game_dir.as_deref();
+    #[cfg(feature = "multiplayer")]
+    if let Some(result) = net::run_without_window(&cli.net, game_dir) {
+        return result;
+    }
+    #[cfg(feature = "multiplayer")]
+    let launch = cli.net.clone();
+    #[cfg(not(feature = "multiplayer"))]
+    let launch = NetLaunch;
     // No command at all: the game, as `play` starts it.
     let command = cli.command.unwrap_or_else(Command::play);
     match command {
@@ -112,8 +135,8 @@ pub fn run(cli: Cli) -> Result<()> {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let settings = Settings::load(view.settings_layer());
             let scripted = skip_boot || ui_script.is_some();
-            let start = start::of(drive, aliases, scripted, settings.skip_intro);
-            run_front_end(&dir, &settings, mods, start, ui_script.as_deref(), None, &view, false)
+            let start = start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro);
+            run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
         Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -139,7 +162,16 @@ pub fn run(cli: Cli) -> Result<()> {
             let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;
             let settings = Settings::load(view.settings_layer());
             let settled = view.screenshot.is_some();
-            run_front_end(&dir, &settings, mods, start, ui_script.as_deref().or(settle), look, &view, settled)
+            run_front_end(
+                &dir,
+                &settings,
+                mods,
+                (start, &launch),
+                ui_script.as_deref().or(settle),
+                look,
+                &view,
+                settled,
+            )
         }
         Command::FengViewer { name, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
@@ -209,4 +241,15 @@ pub fn run(cli: Cli) -> Result<()> {
             )
         }
     }
+}
+
+/// `--host` and `--connect` go straight into free roam, where the session's world runs.
+#[cfg(feature = "multiplayer")]
+fn session_starts(launch: &NetLaunch) -> bool {
+    launch.starts_session()
+}
+
+#[cfg(not(feature = "multiplayer"))]
+fn session_starts(_launch: &NetLaunch) -> bool {
+    false
 }

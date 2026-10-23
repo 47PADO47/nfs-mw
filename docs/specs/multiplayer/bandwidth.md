@@ -118,7 +118,22 @@ An operator's uplink must carry the "to all clients" column; the online 16-playe
 Per second: 60 world steps; at 16 players and 20 Hz 320 snapshot encodes (each about 60 entities, a few microseconds each, so
 under 2 ms in total per second); 480 input decodes; 320 + 480 AEAD seals and opens of about 1 KB (ChaCha20-Poly1305 runs at
 more than 1 GB/s on a desktop CPU, so well under 1 ms per second). The budget is **4 ms of 16.7 ms per tick for the world** and
-**0.5 ms for the network**. The world step itself is not measured and is the first benchmark of the plan.
+**0.5 ms for the network**.
+
+**Measured, 2026-10-22** (`cargo test -p nfsmw world_step_costs -- --ignored --nocapture`, `scenes/world/step_bench_tests.rs`).
+One frame of the installed city with one 60 Hz tick, on a renderer that draws nothing, under a session's rules; every player
+holds the throttle, the traffic setting asks for 16 cars with a fifth of them cops, and streaming runs in lockstep outside the
+timing. The time is the scene's whole frame, so it is an upper bound of the step. 1200 timed ticks after a 40 s warm-up, on
+an AMD Ryzen 7 9800X3D with 32 GB, the workspace's dev profile (optimised, with debug info). The numbers are indicative: one
+machine, one spot of the map, and fewer traffic cars on the road than asked for at 1 and 8 players.
+
+| Players | Traffic and cop cars | Mean | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 1 | 7 | 1.20 ms | 1.20 ms | 1.44 ms | 1.65 ms |
+| 8 | 7 | 1.67 ms | 1.51 ms | 2.51 ms | 4.71 ms |
+| 16 | 15 | 2.87 ms | 2.62 ms | 4.35 ms | 6.10 ms |
+
+The mean stays inside the 4 ms budget at 16 players; the p95 at 16 players does not.
 
 ## 6. Levers when a budget is exceeded
 

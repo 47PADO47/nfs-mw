@@ -19,7 +19,7 @@ pub struct DriveStep {
 impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
-        self.frame_input = DriveInput::from_actions(actions, self.wheel);
+        self.frame_input = self.remote_input.unwrap_or_else(|| DriveInput::from_actions(actions, self.wheel));
         if self.script.is_none() {
             self.presses.note(&self.frame_input);
         }

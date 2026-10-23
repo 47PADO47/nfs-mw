@@ -55,6 +55,7 @@ pub mod mods;
 pub mod motion_blur;
 #[cfg(test)]
 mod motion_blur_tests;
+pub mod net;
 mod partial;
 mod post;
 #[cfg(test)]
@@ -321,6 +322,8 @@ pub struct Settings {
     pub custom_fonts: custom_fonts::CustomFonts,
     /// The front-end shadows: a sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
     pub fe_shadows: fe_shadows::FeShadows,
+    /// The LAN play settings: name, port, snapshot rate, interpolation delay, the overlay line, the identity file.
+    pub net: net::NetSettings,
 }
 
 impl From<Partial> for Settings {
@@ -432,6 +435,7 @@ impl From<Partial> for Settings {
             hd_content: hd_content::HdContent::from_layer(p.hd_content),
             custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
             fe_shadows: fe_shadows::FeShadows::from_layer(p.fe_shadows),
+            net: net::NetSettings::from_layer(p.net),
             speedbreaker: SpeedbreakerTuning::default(),
         };
         settings.settle_preset();

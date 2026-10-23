@@ -8,14 +8,14 @@ use nfsmw_data::car::CarModel;
 use super::super::{
     WorldScene,
     drive::{CarRig, Drive, SpawnRequest},
-    keys, sun,
+    sun,
 };
 use super::{LEAD, Player, PlayerId};
 
 impl WorldScene {
     /// Bring a second (or later) player into the world in `model`, near `near` (map x, y), heading if given.
     ///
-    /// The car takes a fresh render key from `keys::next_car`, the allocator traffic uses. The lead keeps
+    /// The car takes a fresh render key from the world's `car_keys`, the allocator traffic uses. The lead keeps
     /// `keys::PLAYER_CAR` (0), and the allocator starts at 1, so the two never share a key.
     pub(in crate::scenes::world) fn add_player(
         &mut self,
@@ -37,7 +37,7 @@ impl WorldScene {
         if let Some(previous) = self.players.remove(id) {
             previous.release(renderer);
         }
-        let rig = CarRig::upload(renderer, keys::next_car(), model, self.car_shading, sun::to_sun());
+        let rig = CarRig::upload(renderer, self.car_keys.next(), model, self.car_shading, sun::to_sun());
         let request = SpawnRequest { near, heading, exact: None };
         let mut drive = Drive::new(name, rig, physics, request, None, visuals);
         let car_trails = self.car_trails();

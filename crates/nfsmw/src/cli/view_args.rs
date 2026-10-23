@@ -237,6 +237,8 @@ pub struct ViewArgs {
     pub custom_fonts: crate::settings::custom_fonts::CustomFontsArgs,
     #[command(flatten)]
     pub fe_shadows: crate::settings::fe_shadows::FeShadowsArgs,
+    #[command(flatten)]
+    pub net: crate::settings::net::NetArgs,
     /// Enable skid marks [env NFSMW_SKID_MARKS; config `skid_marks`; default on].
     #[arg(long, conflicts_with = "no_skid_marks")]
     pub skid_marks: bool,
@@ -356,6 +358,8 @@ impl ViewArgs {
             audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,
             mods: None,
+            #[cfg(feature = "multiplayer")]
+            net: None,
         }
     }
 
@@ -402,6 +406,7 @@ impl ViewArgs {
             hd_content: self.hd_content.layer(),
             custom_fonts: self.custom_fonts.layer(),
             fe_shadows: self.fe_shadows.layer(),
+            net: self.net.layer(),
             skid_marks: switch(self.skid_marks, self.no_skid_marks),
             collision_sparks: switch(self.collision_sparks, self.no_collision_sparks),
             spark_style: self.spark_style,

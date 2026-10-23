@@ -16,7 +16,8 @@ pub mod tether;
 mod view;
 
 pub use blackbox_net_core::session::PlayerId;
-pub(super) use contact::collide_players;
+pub use contact::{Party, TickContact};
+pub(super) use contact::{collide_players, touch_contact};
 
 use super::drive::Drive;
 
@@ -42,11 +43,13 @@ impl<D> Player<D> {
 /// without a world.
 pub struct Players<D = Drive> {
     list: Vec<Player<D>>,
+    /// The contacts of the players' cars in the last tick, with each other and with the traffic (`contact.rs`).
+    pub contacts: Vec<TickContact>,
 }
 
 impl<D> Default for Players<D> {
     fn default() -> Self {
-        Self { list: Vec::new() }
+        Self { list: Vec::new(), contacts: Vec::new() }
     }
 }
 

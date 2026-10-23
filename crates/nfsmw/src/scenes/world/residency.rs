@@ -13,6 +13,7 @@ use super::resident::{Placed, ReflectionPlaced, SectionResources, resolve_placed
 use super::zone::Zones;
 mod cull;
 mod loading;
+mod lockstep;
 mod parts;
 mod ready;
 mod shadow_support;
@@ -25,6 +26,8 @@ use crate::modding::content::scenery::MapPack;
 
 #[cfg(test)]
 mod installed_tests;
+#[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
+mod lend;
 mod mod_tiles;
 mod release;
 mod scenery_groups;
@@ -121,6 +124,8 @@ pub struct Residency {
     unwanted_scratch: Vec<usize>,
     /// Scratch for `request_wanted`.
     request_scratch: Vec<usize>,
+    /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
+    lockstep: bool,
 }
 
 impl Residency {
@@ -203,6 +208,7 @@ impl Residency {
             keep_scratch: HashSet::new(),
             unwanted_scratch: Vec::new(),
             request_scratch: Vec::new(),
+            lockstep: false,
         }
     }
 
@@ -311,6 +317,9 @@ impl Residency {
         unwanted.extend(
             self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i) && !self.shadow_wanted.contains(i)),
         );
+        // The map's order is a random hash; removals touch the prop world and the collision, so they go in tile order
+        // (`docs/specs/multiplayer/determinism.md`, D3).
+        unwanted.sort_unstable();
         for i in unwanted.drain(..) {
             if let Some(TileState::Resident { resources, packs, .. }) = self.tiles.remove(&i) {
                 self.visual_revision = self.visual_revision.wrapping_add(1);

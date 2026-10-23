@@ -1,0 +1,24 @@
+[package]
+name = "nfsmw-server"
+description = "NFS: Most Wanted multiplayer server loop over a WorldSim, with TOML config, logging and bots."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-net-core = { workspace = true, features = ["netcode"] }
+getrandom.workspace = true
+log.workspace = true
+nfsmw-net.workspace = true
+nfsmw-sim.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[[bin]]
+name = "nfsmw-server"
+path = "src/main.rs"
+
+[lints]
+workspace = true

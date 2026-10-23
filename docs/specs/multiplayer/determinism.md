@@ -1,7 +1,7 @@
 # Determinism audit of the world sim (D1 to D8)
 
-Status: written 2026-10-21 by reading the code. **Steps 1 and 2 of the fix order are applied** (police, sight, roadblocks,
-cop health and a running race tick with the physics; one random stream per traffic system); the rest is planned. The requirements D1
+Status: written 2026-10-21 by reading the code. **Steps 1 to 5 of the fix order are applied** (2026-10-22), in the scene and
+not in an extracted `nfsmw-sim`; each row says what is done and what is not. The requirements D1
 to D8 come from [sync model](sync-model.md) section 6. This file checks the single-player world against them and gives the fix
 planned for each finding. The fixes belong to the `nfsmw-sim` extraction ([integration](integration.md) section 4). They change
 single-player behaviour only where a finding says so, and the frame-rate trace test (`drive/sim/tests/frame_rate.rs`) guards
@@ -22,10 +22,10 @@ The problems are in the scene code that will become `nfsmw-sim`.
 | ~~Police, sight, pursuit camera, roadblocks and cop health run once per frame with `steps * STEP`, also on frames with 0 ticks~~ | `simulation.rs` (`police_step`) | | **Done:** they run inside the tick loop with `STEP`, after `physics_step`. `ai/pursuit/tests/frame_rate.rs` checks a chase at 30, 60 and 144 FPS and after a stall |
 | ~~The sight test is sampled at frame boundaries~~ | `ai/collide.rs` | | **Done:** `update_sight` now gets `STEP` once per tick |
 | ~~The race engine and racer emulation tick on float `sim_dt` per frame~~ | `race/flow.rs` (`race_tick`) | | **Done:** a running race steps once per tick inside the tick loop, so a crossing is tested at the tick it happens. Loading, results and challenge races stay on frame time (a challenge is event-driven) |
-| Speedbreaker depletion uses real frame time; the speedbreaker ramp, cinematic moments and `game_speed` scale the tick rate | `drive/time_scale.rs:25-38,67-77`, `moment_world.rs:41-47`, `simulation.rs:58-71` | A session cannot slow time for one player | In a session, time scaling is off. Speedbreaker becomes a per-car effect or is disabled (features.md decides), and moments play on the client only. Single player keeps them |
-| The car spawns after a 10 s wall-clock wait | `drive_input.rs:20` (field in `mod.rs`) | Wall clock in the spawn | Count ticks instead; the wait belongs to the client's loading state |
-| The whole sim pauses until local streaming is ready; each AI car steps only if its collision is resident | `simulation.rs:50,59-60`, `ai/simulation.rs:89-93` | Local streaming state gates the shared world | The server keeps collision resident around every player ([integration](integration.md) section 2). Clients hold only their own car (`StreamingStall`) |
-| Race opponent names are seeded from `SystemTime` | `race/start.rs:102,198` | Names only, but replays differ | Seed from the session seed at the caller |
+| ~~Speedbreaker depletion uses real frame time; the speedbreaker ramp, cinematic moments and `game_speed` scale the tick rate~~ | `drive/time_scale.rs`, `moment_world.rs`, `simulation.rs` | | **Done as a session rule:** `SessionRules::time_scale_allowed` (`session_rules.rs`). Off, the tick runs at 1.0 whatever `game_speed` and the moments ask, and the speedbreaker is barred for every player (`Drive::bar_speedbreaker`). A per-car speedbreaker waits for features.md. Single player keeps all of it |
+| The car spawns after a 10 s wall-clock wait | `drive_input.rs:20` (field in `mod.rs`) | Wall clock in the spawn | **Not done.** Count ticks instead; the wait belongs to the client's loading state |
+| The whole sim pauses until local streaming is ready; each AI car steps only if its collision is resident | `simulation.rs:50,59-60`, `ai/simulation.rs:89-93` | Local streaming state gates the shared world | **Partly done.** The gate already waits for every player's surroundings (co-op). `SessionRules::lockstep_streaming` makes tiles join in lockstep (`residency/lockstep.rs`): all requested tiles together, in tile order. The world host can wait before each tick until every wanted tile is in and none is in flight, the traffic's support tiles included (`HostConfig::settle_streaming`, [world host](world-host.md)): without the support tiles a host's traffic could wait on the disk where another's did not, which made two hosts part about once in four runs. The scene itself does not wait, and clients do not yet hold only their own car (`StreamingStall`) |
+| ~~Race opponent names are seeded from `SystemTime`~~ | `race/start.rs` | | **Done:** `SessionRules::name_seed` is the session seed; single player keeps the clock |
 
 ## D3: hash order
 
@@ -37,9 +37,9 @@ Three to check during the extraction:
 
 | Where | Question | Planned fix |
 |---|---|---|
-| `props/phases.rs:23` (foldhash `FixedState`) | Each body is handled alone, then sorted. Looks safe | Keep; add a comment saying why |
-| `props/streaming.rs:46` (`std` `HashMap`, random seed) | Safe only if a prop id belongs to one tile | Assert it in debug builds |
-| `residency.rs:349-359` | Tile removal order follows a random hash; removals look independent | Sort the keys before removing |
+| `props/phases.rs:23` (foldhash `FixedState`) | Each body is handled alone, then sorted. Looks safe | **Not done:** keep; add a comment saying why |
+| `props/streaming.rs:46` (`std` `HashMap`, random seed) | Safe only if a prop id belongs to one tile | **Not done:** assert it in debug builds |
+| `residency.rs` (`unload_unwanted`) | Tile removal order follows a random hash; removals look independent | **Done:** the keys are sorted before removing |
 
 ## D4: random numbers
 
@@ -54,12 +54,12 @@ Three to check during the extraction:
 
 | Finding | Where | Effect | Planned fix |
 |---|---|---|---|
-| AI cars are stepped and collide in `Vec` order, which is spawn order; impulses are resolved one after another | `ai/mod.rs:140`, `ai/simulation.rs:61`, `ai/collide.rs:95-160` | Deterministic only if spawns happen in the same order | Give every entity a server id at spawn (ADR 0009 section 1). Keep the `Vec` sorted by id, or step in id order |
-| AI keys come from a process-wide counter that model uploads also advance; the key is the tie-break of roadblock stealing | `keys.rs:21`, `ai/car.rs:178`, `ai/models.rs:314-358`, `ai/roadblock/steal.rs:31` | Ties depend on render-side work | Use the server entity id as the tie-break; keep render keys for the renderer |
-| Which models exist depends on a loader thread's timing, and spawns pick among loaded models | `ai/scene.rs:64-77`, `ai/model_loader.rs:150`, `ai/population.rs:242-249` | The world depends on local load timing | The server picks models from the full catalogue; a client shows a stand-in until the model arrives |
-| AI crash damage, despawning and prop lifetimes read the local camera, aspect ratio and camera mode | `ai/collide.rs:130`, `ai/car/hits.rs:28`, `ai/population.rs:257-275`, `props/lifetime.rs:145`, `ai/scene.rs:11-24` | A camera changes gameplay | Replace the camera with "the nearest player's view" (the set of player positions) on the server; single player passes its one view |
-| Ids of props without a spawner follow tile arrival order | `props.rs:147-149`, `residency.rs:291` | Contact candidate order follows the id | Derive the id from the tile and the index inside it |
-| Fixed phase order: props, player, traffic, player against traffic, finish steps | `simulation.rs:164-192` | Deterministic, but the player always resolves first | With several players: all player cars in id order, then AI, then pairs in id order (sync model section 4) |
+| ~~AI cars are stepped and collide in `Vec` order, which is spawn order~~ | `ai/entities.rs` | | **Done:** every car takes an entity id from its world as it joins (`TrafficWorld::admit`); the list stays in id order (joins append, removals keep the order), so cars step and collide in id order. `ai/pursuit/tests/entities.rs` |
+| ~~AI keys come from a process-wide counter that model uploads also advance; the key is the tie-break of roadblock stealing~~ | `keys.rs`, `ai/car/accessors.rs` | | **Done:** each world owns its render keys (`keys::CarKeys`, shared with its models), so two worlds in one process number their cars apart. `AiCar::key` is the entity id; the roadblock steal and director and the 911 call read it. Render keys are presentation only |
+| Which models exist depends on a loader thread's timing, and spawns pick among loaded models | `ai/scene.rs`, `ai/model_loader.rs`, `ai/population.rs` | The world depends on local load timing | **Partly done:** `SessionRules::blocking_models` finishes every model load in the frame that asks for it (one loader thread, first in first out), so the same requests give the same models. Picking from the full catalogue with client stand-ins is not done |
+| ~~AI crash damage, despawning and prop lifetimes read the local camera, aspect ratio and camera mode~~ | `camera_choice.rs`, `simulation.rs`, `ai/collide.rs`, `props/lifetime.rs` | | **Done:** the crash gate and a car's own damage measure from the nearest player's view, prop lifetimes and despawns from every player's view. `SessionRules::views` picks the views: single player passes this machine's camera (unchanged); a session passes each player's car chase camera at a fixed aspect, with no camera mode, cut scene or free camera. The cops' spawn window and the helicopter follow the lead's view, as the police follow the lead |
+| Ids of props without a spawner follow tile arrival order | `props.rs:147-149`, `residency.rs:291` | Contact candidate order follows the id | **Partly done:** lockstep streaming makes the arrival order the tile order in a session. Deriving the id from the tile and the index inside it is not done |
+| Fixed phase order: props, player, traffic, player against traffic, finish steps | `simulation.rs` | Deterministic, but the player always resolves first | **Partly done** (ADR 0010): the player cars step in id order, then the AI. The pairs are the chased player against traffic, then the others against traffic, then player pairs; strict id order for the pairs is not done |
 
 ## D6: threads
 
@@ -76,7 +76,21 @@ They belong to the protocol (`sim_build` in `Auth`) and the client prediction (q
 1. **Done.** Move police, sight, roadblocks, cop health and the race engine into the tick loop (D2). This also makes
    single-player AI independent of the frame rate. The chase frame-rate test covers traffic and police.
 2. **Done.** Split the AI random stream per system (D4).
-3. Server entity ids and id-order stepping; the camera inputs become a set of views (D5).
-4. Session-only rules: no time scaling, server-side residency, server-side model choice (D2, D5).
-5. A headless test that runs 10 minutes of scripted free roam twice and compares state hashes ([integration](integration.md)
-   section 4, step 6).
+3. **Done.** Per-world entity ids and id-order stepping; the camera inputs become a set of views (D5).
+4. **Done as far as the scene allows.** Session-only rules (`SessionRules`, owned by the world, defaults equal to single
+   player): no time scaling, seeded streams and names, the players' own views, blocking model loads, lockstep streaming (D2,
+   D3, D5). Server-side model choice from the full catalogue and a sim that waits for every tile in flight are not done.
+   The `session` console command sets the rules and prints the state hash.
+5. **Done.** `WorldScene::state_hash` (FNV-1a over 64 bits, `state_hash.rs`) covers the players' cars, the traffic and its
+   streams, the police, the pursuit and the race, in id order. `scenes/world/determinism_tests.rs` runs a scripted free-roam
+   drive with traffic and patrol cops twice in one process from the same start and compares the hash every second: 150
+   simulated seconds, not 10 minutes, so both runs fit in about 21 s of test time (installed game, ignored without
+   `NFSMW_GAME_DIR`). Before lockstep streaming the test failed twice in about twelve runs, both on the first run after a
+   build (cold disk cache); with it, it passed the four
+   runs since, one of them the first after a build. `ai/pursuit/tests/state_hash.rs` checks the traffic part without the
+   install. The test now asks for the traffic's support tiles before it waits, as the world host does (D2 above); it still
+   failed once in six runs on 2026-10-22, the first run after a build, so a cold-cache cause remains.
+6. **Done (2026-10-22)** for the real world behind `WorldSim`: `scenes/world/net/tests/installed.rs` drives two
+   `WorldSimHost`s from one seed with the same scripted input for 40 simulated seconds (two players, 16 cars with cops)
+   and compares the events every tick and the hash and entity views every second. It passed the seven runs since the
+   support-tile fix, the first after a build among them ([world host](world-host.md)).

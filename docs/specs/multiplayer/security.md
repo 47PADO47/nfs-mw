@@ -3,7 +3,8 @@
 Security design for LAN multiplayer (milestone 10) that the online mode (milestone 11) reuses without a rewrite.
 This file is the entry point. [Gameplay security](security-gameplay.md) covers input validation, fuzzing, authority,
 anti-cheat and the mod policy. [Operations security](security-ops.md) covers denial of service, privacy, server
-hardening, testing and release gates. Design only, nothing is built. New design: no source is copied from anywhere.
+hardening, testing and release gates. New design: no source is copied from anywhere. The transport part (sections 4.1 to 4.8)
+is built in `libs/blackbox-net-core` behind the `netcode` feature; section 8 says what and where. The rest is design.
 
 Companions: [ADR 0006, multiplayer netcode](../../decisions/0006-multiplayer-netcode.md) (sync model and wire
 format), [ADR 0005, native mod plugins](../../decisions/0005-native-mod-plugins.md), [multiplayer README](README.md),
@@ -354,5 +355,25 @@ in the release gates ([operations security](security-ops.md) section 5) enforces
   client is unmodified.
 - The channel protects against outsiders. It does not protect against the peer you are talking to. That is the job
   of validation and authority ([gameplay security](security-gameplay.md)).
+
+## 8. As built (2026-10-22)
+
+In `libs/blackbox-net-core`, module `secure` (feature `netcode`), sans-IO; byte layouts in
+[protocol-handshake](protocol-handshake.md). Tests run with `cargo test -p blackbox-net-core --all-features`.
+
+| Item | Status |
+|---|---|
+| S-01 Noise, sealing | Built. `snow` 0.10 (RustCrypto resolver, no `ring`) runs `XX` and `XK`; sealing uses the split keys directly with `chacha20poly1305`, the Noise `ChaChaPoly` nonce layout and Noise `REKEY`, because `snow`'s stateless transport takes no associated data. Key phases, the 3 s old key and the replay window are built and tested |
+| S-02 cookie | Built: keyed BLAKE2s over the address, nonce and both connection ids; 15 s buckets, two secrets; 512-byte requests, 36-byte `Challenge`; 3x limit per slot |
+| S-04 identity, TOFU | Built as a pure API: `IdentityKey` (zeroised secret, the caller stores it), `KeyId` (SHA-256, 16 bytes), fingerprint, the four 11-bit phrase indices (the game supplies the word list), `assess` and `admit` over a caller's `PeerStore` |
+| S-05 room password | Built: symmetric SPAKE2 with the handshake hash as identity, role-specific confirmation tags; experimental (no known audit of `spake2`). NFKC normalisation is the caller's |
+| S-06 connect tokens | Built on the server side and for minting: XChaCha20-Poly1305, two `kid`s, every check of 4.8, single use in a bounded table |
+| 4.6 guess limits, auth failures | Built: `ratelimit::FailureRule::PASSWORD` and `AUTH` |
+| Path validation (4.4) | Not built: `PATH_CHALLENGE` frames are still skipped |
+| Accounts (5), result signing, OS credential store | Not built (milestone 11) |
+
+Licences checked with `cargo deny check licenses` and `all-features = true` on 2026-10-22: `snow`, `chacha20poly1305`,
+`blake2`, `sha2`, `spake2`, `getrandom`, `zeroize`, `crossbeam-queue` are MIT or Apache-2.0; `curve25519-dalek` and `subtle` are
+BSD-3-Clause; `triple_buffer` is MPL-2.0; all are on the allow list.
 
 Continue with [gameplay security](security-gameplay.md) and [operations security](security-ops.md).

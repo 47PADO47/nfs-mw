@@ -24,9 +24,12 @@ mod new;
 mod nis_pose;
 mod original_camera;
 mod placement;
+#[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
+mod predict;
 #[cfg(test)]
 mod presentation_tests;
 mod release;
+mod remote;
 mod render;
 mod rig;
 mod road_reflection;
@@ -60,12 +63,16 @@ use fall::FallWatch;
 pub(super) use ground::WorldGround;
 pub use input::DriveInput;
 use input::Presses;
+#[cfg(feature = "multiplayer")]
+pub(super) use predict::DriveSave;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
 use sim::Telemetry;
 pub(super) use sim::memo::{StepMemo, SurfaceHit};
 pub(super) use sim::pair_contact::PairContact;
+#[cfg(feature = "multiplayer")]
+pub(super) use sim::predict::SimMotion;
 pub(super) use sim::{CarSim, Integration, StepStart};
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;
@@ -116,8 +123,12 @@ pub struct Drive {
     request: Option<SpawnRequest>,
     alpha: f32,
     frame_input: DriveInput,
+    /// The input of a network seat, which replaces the devices' input while it is set (`remote.rs`).
+    remote_input: Option<DriveInput>,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
+    /// A session's rules forbid time scaling, so the speedbreaker is off (`session_rules.rs`).
+    breaker_barred: bool,
     /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
     sabotaged: bool,
     /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
@@ -131,6 +142,9 @@ pub struct Drive {
     current: CarPose,
     /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
+    /// The pose a multiplayer client draws its own car at: the prediction plus the smoothed correction
+    /// (`predict.rs`); `None` draws the physics pose.
+    net_pose: Option<CarPose>,
     telemetry: Telemetry,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,

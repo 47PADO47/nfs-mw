@@ -29,9 +29,15 @@ impl AiCar {
         (self.roadblock && self.roadblock_group != 0).then_some(self.roadblock_group)
     }
 
-    /// The car's identity for the roadblock and the pursuit: stable for the car's life.
+    /// The car's identity for the roadblock and the pursuit: its entity id in the world, stable for the car's life and
+    /// independent of render-side work such as model uploads (`docs/specs/multiplayer/determinism.md`, D5).
     pub fn key(&self) -> u32 {
-        self.render_id
+        self.entity
+    }
+
+    /// Gives the car its entity id as it joins the world (`TrafficWorld::admit`).
+    pub(in crate::scenes::world::ai) fn set_entity(&mut self, entity: u32) {
+        self.entity = entity;
     }
 
     /// A roadblock car joins the chase as an ordinary pursuit cop, as the cheat rule recruits it (`AIPursuit` takes the

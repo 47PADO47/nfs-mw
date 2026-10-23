@@ -95,7 +95,7 @@ impl TrafficWorld {
         {
             pursuit.involved += 1;
         }
-        self.cars.push(car);
+        self.admit(car);
         true
     }
 

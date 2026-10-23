@@ -8,6 +8,7 @@ use nfsmw_data::gameplay::Race;
 use super::super::race::{RacerPlan, SplitSetup, is_story_race};
 use super::coop::GUEST;
 use super::tether::behind;
+use super::{LEAD, PlayerId};
 use crate::input::PlayerDevice;
 
 /// How far behind player 1 player 2 comes back after a race, in metres.
@@ -18,7 +19,8 @@ impl WorldScene {
     /// scripted chase and final race, which player 1 drives alone while player 2 waits parked (section 12).
     pub(in crate::scenes::world) fn coop_race_setup(&self, race: &Race) -> Option<SplitSetup> {
         let session = self.coop.as_ref()?;
-        if is_story_race(race) {
+        // A network session without player 2 has no guest car for the race seat: player 1 races alone.
+        if is_story_race(race) || session.guest_car.is_empty() {
             return None;
         }
         let lead = self.players.lead()?;
@@ -47,20 +49,24 @@ impl WorldScene {
 
     /// The race is over: player 2's free-roam car comes back behind player 1.
     pub(in crate::scenes::world) fn unpark_guest_after_race(&mut self) {
-        self.return_guest_behind_lead();
+        self.return_guests_behind_lead(&[GUEST]);
     }
 
-    /// Player 2 back in play, behind player 1 and facing the same way.
-    pub(in crate::scenes::world) fn return_guest_behind_lead(&mut self) {
-        if !self.players.is_parked(GUEST) {
-            return;
-        }
+    /// The parked players among `ids` back in play, in a line behind player 1 (the first `BACK_BEHIND` metres behind,
+    /// each next one as far again) and facing the same way. A player in play or not in the world is left alone.
+    pub(in crate::scenes::world) fn return_guests_behind_lead(&mut self, ids: &[PlayerId]) {
         let Some(lead) = self.players.lead() else { return };
-        let heading = lead.heading();
-        let spot = behind(lead.position(), glam::Vec3::new(heading.cos(), heading.sin(), 0.0), BACK_BEHIND);
-        self.players.park(GUEST, false);
-        if let Some(guest) = self.players.get_mut(GUEST) {
-            guest.respawn_near([spot.x, spot.y], Some(heading));
+        let (position, heading) = (lead.position(), lead.heading());
+        let forward = glam::Vec3::new(heading.cos(), heading.sin(), 0.0);
+        let parked = ids.iter().copied().filter(|&id| id != LEAD && self.players.is_parked(id));
+        let mut rank = 0.0;
+        for id in parked.collect::<Vec<_>>() {
+            rank += 1.0;
+            let spot = behind(position, forward, BACK_BEHIND * rank);
+            self.players.park(id, false);
+            if let Some(guest) = self.players.get_mut(id) {
+                guest.respawn_near([spot.x, spot.y], Some(heading));
+            }
         }
     }
 }

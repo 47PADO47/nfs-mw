@@ -71,6 +71,7 @@ impl Plugin for FrontendPlugin {
             .add_systems(Update, update.in_set(FrameSet::Frontend).run_if(ready))
             .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
             .add_systems(Update, pointer::apply.run_if(resource_exists::<SharedAssets>));
+        super::lan::build(app);
     }
 }
 
@@ -148,6 +149,9 @@ fn update(
     let mut current = *settings;
     let mut env = Env { settings: &mut current, changed: &mut changed, caps, mods: map.mods.as_deref() };
     fe.begin(host, &mut env);
+    if super::lan::gate(fe, host, &mut env) {
+        return;
+    }
     // The sidebar's pick is shown on the frame after it was clicked (its scene runs after this system).
     let picked = fe.browse.as_ref().and_then(Browse::take);
     if let Some(name) = picked {

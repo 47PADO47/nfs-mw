@@ -42,6 +42,8 @@ impl IconMenu {
             (Kind::Main, Pending::Pressed(Id::Options)) => {
                 cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args }));
             }
+            // The LAN menu is an egui panel over the main menu, which stays as it is under it (`lan/link.rs`).
+            (Kind::Main, Pending::Pressed(Id::LanPlay)) => crate::frontend::lan::link::request_open(),
             (Kind::Main, Pending::Pressed(Id::AliasManager)) => {
                 cx.send(Command::Switch(screen::MC_PROFILE_MANAGER.into(), self.args));
             }
@@ -134,6 +136,12 @@ impl IconMenu {
         // Quit and Restart ask at once, without the pause menu leaving: its icons stay as they are, so the menu still
         // reacts when the question is answered No or dismissed.
         if self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace) {
+            self.act(cx, Pending::Pressed(id));
+            return;
+        }
+        // LAN opens its panel over the main menu, which does not leave: its buttons go back on as for a greyed icon.
+        if id == Id::LanPlay {
+            cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
             self.act(cx, Pending::Pressed(id));
             return;
         }

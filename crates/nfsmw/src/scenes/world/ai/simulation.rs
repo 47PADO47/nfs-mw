@@ -73,9 +73,11 @@ impl TrafficWorld {
         starts.clear();
         let searching = !self.police.is_perp_in_sight();
         let search_cruise = self.search_cruise();
+        // A car's own crash damage is gated by the nearest player's view (`collide.rs`).
+        let eyes: Vec<glam::Vec3> = self.guest_eyes().collect();
         for (me, car) in self.cars.iter_mut().enumerate() {
             let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
-            car.damage_distance = view.map_or(f32::INFINITY, |v| v.distance(car.physics_position()));
+            car.damage_distance = super::population::view_distance(view, &eyes, car.physics_position());
             car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng.nav);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);

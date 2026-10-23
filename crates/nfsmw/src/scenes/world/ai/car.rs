@@ -14,7 +14,6 @@ use super::stop;
 use super::traffic::{self, Cruise};
 use super::trailer::TrailerCar;
 use crate::scenes::world::drive::{CarPose, CarRig, CarSim, STEP, WorldGround};
-use crate::scenes::world::keys;
 use crate::scenes::world::road::Spawn;
 
 mod accessors;
@@ -25,12 +24,14 @@ mod glass;
 mod goal_drive;
 mod hits;
 mod lighting;
+mod net;
 mod original_camera;
 mod patrol;
 mod racing;
 mod setup;
 mod sound;
 mod speech;
+mod state_hash;
 mod stepping;
 pub(super) mod support_drive;
 mod towing;
@@ -68,8 +69,11 @@ const ROADBLOCK_GOAL: u32 = blackbox_attrib::vlt_hash("AIGoalStaticRoadBlock");
 pub struct AiCar {
     pub name: String,
     rig: Rc<CarRig>,
-    /// This physical vehicle's identity, independent of its shared model rig.
+    /// This physical vehicle's render identity, independent of its shared model rig. Presentation only.
     render_id: u32,
+    /// The car's entity id in its world, given when it joins the world's list (`TrafficWorld::admit`); 0 before. The
+    /// gameplay tie-breaks read this one, never `render_id` (`docs/specs/multiplayer/determinism.md`, D5).
+    entity: u32,
     /// Persistent phase in [0,1), advancing with simulation even while lamps are off.
     light_phase: f32,
     sim: CarSim,
@@ -178,12 +182,13 @@ impl AiCar {
         let damage = sim.collision_role.cop.then(|| CopDamage::for_model(&name, physics.events.as_deref()));
         let pose = sim.pose();
         let radius = physics.spec.dimension.length();
-        let render_id = keys::next_car();
+        let render_id = model.keys.next();
         let light_phase = (render_id.wrapping_mul(0x9e37_79b9) >> 8) as f32 / 16_777_216.0;
         Some(Self {
             name,
             rig,
             render_id,
+            entity: 0,
             light_phase,
             sim,
             trailer,

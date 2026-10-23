@@ -41,6 +41,10 @@ impl Plugin for DevToolsPlugin {
     }
 }
 
+/// The LAN menu's state, when the front end has one.
+type LanParams<'w> =
+    (Option<ResMut<'w, crate::frontend::lan::LanUi>>, Option<NonSendMut<'w, crate::frontend::lan::LanBackend>>);
+
 /// Run the UI pass: feed egui this frame's input, draw the panels, publish the output.
 #[allow(clippy::too_many_arguments)]
 fn run_ui(
@@ -59,11 +63,12 @@ fn run_ui(
     mut capture: ResMut<crate::input::MouseCapture>,
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
-    // Bevy takes at most 16 system parameters: the pass's own memory is one tuple.
-    (mut styled_for, mut settled, mut skipped): (
+    // Bevy takes at most 16 system parameters: the pass's own memory and the LAN menu's state are one tuple.
+    (mut styled_for, mut settled, mut skipped, mut lan): (
         Local<Option<blackbox_ui::Skin>>,
         Local<ui_gate::Settled>,
         Local<bool>,
+        LanParams<'_>,
     ),
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
@@ -111,10 +116,17 @@ fn run_ui(
         gui.ctx.set_global_style(theme_style::style_from(themes.skin()));
         *styled_for = Some(themes.skin().clone());
     }
+    let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
-        overlay::show(ctx, settings.show_metrics, &metrics, left);
+        let net = lan_ui.as_deref_mut().and_then(|ui| crate::frontend::lan::stats_line(ui, lan_backend.as_deref_mut()));
+        let net = overlay::net_line_shown(settings.show_metrics, settings.net.show_stats, net);
+        overlay::show(ctx, settings.show_metrics, &metrics, left, net.as_deref());
+        // The LAN menu, or the session's HUD pieces, over the menus and the world (`frontend/lan`).
+        if let Some(ui) = lan_ui.as_deref_mut() {
+            crate::frontend::lan::show(ctx, ui, lan_backend.as_deref_mut(), &settings);
+        }
         trace::indicator(ctx, &lab.recorder);
         platform.show(ctx);
         console::show(ctx, &mut console);

@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+mod lan;
 mod players;
 
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
@@ -81,6 +82,8 @@ pub struct CarSelect {
     leaving: Option<Leave>,
     /// The player (0 or 1) who picks: always 0 outside split screen.
     player: usize,
+    /// Opened by the LAN lobby: the pick goes back to it (`car_select/lan.rs`).
+    lan: bool,
 }
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
@@ -118,7 +121,7 @@ pub(crate) fn progress() -> Progress {
 impl CarSelect {
     pub fn new(args: Args) -> Self {
         let player = usize::from(args.player.min(1));
-        Self { pool: None, list: List::Stock, entries: Vec::new(), at: 0, leaving: None, player }
+        Self { pool: None, list: List::Stock, entries: Vec::new(), at: 0, leaving: None, player, lan: args.lan }
     }
 
     /// Takes the cars once they were read (in the background when the front end started), and shows the car chosen last (the
@@ -266,6 +269,10 @@ impl CarSelect {
 
     /// The package has left: go where the answer was.
     fn finish(&mut self, cx: &mut Cx) {
+        if self.lan {
+            let way = self.leaving.take();
+            return self.finish_lan(cx, way);
+        }
         match self.leaving.take() {
             Some(Leave::Back) => self.back(cx),
             Some(Leave::Showcase) => {

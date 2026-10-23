@@ -1,6 +1,12 @@
 # Multiplayer sync model: prediction, interpolation, collisions, clocks, determinism
 
-Status: **design only**. Nothing is built. Written 2026-10-16. This file holds the algorithms that
+Status: **client side built** (2026-10-22) in `crates/nfsmw-net` and wired into the game the same day
+([game wiring](game-wiring.md)): prediction (`predict`),
+reconciliation and smoothing (`reconcile`), interpolation (`interp`), clock and lead (`clock`), the overlay counters
+(`netstats`) and the `net.sim` setting (`netsim`), all driven from the wire by `client_session::ClientSession`
+([client session](client-session.md)). The session lifecycle rules of section 7 are built (see the note there).
+Notes marked **Built** below say what exists and where it departs from the text; section 10 has the measured figures.
+Written 2026-10-16. This file holds the algorithms that
 [ADR 0006](../../decisions/0006-multiplayer-netcode.md) decides on. The ADR gives the reasons and the budgets; this file
 gives the steps, the state kept, the tuning values and the failure behaviour. The wire formats are in
 [protocol](protocol.md). Where a number is a tuning value it is marked **(tuning)** and is to be set by the test
@@ -69,6 +75,22 @@ The snapshot carries, in its own-car block, the authoritative reduced state at t
 Replay is bounded: at most 15 steps for a 250 ms lead (the worst playable case) and 128 for a very bad link, after which
 the client stops predicting and waits (shows the "connection problem" marker, holds input at neutral).
 
+**Built:** `predict::Predictor` (the ring, quantise-then-step, the stall at 128) over the `predict::PredictedCar` trait
+the game implements (`predict::ToyCar` for the toy world), and `reconcile::Reconciler::apply` (steps 1 to 7, with the
+thresholds in `reconcile::Tuning`). The rest of the car comes from a saved copy (`PredictedCar::Saved`) of tick `A`. A
+tick dropped by a frame stall is replayed with the input before it, shift edges cleared, as the server holds it. Measured
+with the toy car: the own block's rounding alone stays under the thresholds, but with little room on the velocity term
+(the velocity quantiser has no exact zero and rounds each axis by up to 2.4 cm/s, so up to 4.2 cm/s of the 5 cm/s
+threshold). Since every rewind re-injects that rounding, a client on the same build still makes small corrections
+(20 to 130 a minute, median about 1 cm, almost all tripped by the velocity term); all are hidden by the offset.
+
+**The game's car (2026-10-22, [game wiring](game-wiring.md) section 4):** `GameCar` predicts the real `Drive` with the
+server's own physics tick (`Drive::set_remote_input`); `Saved` is the cloned `blackbox_vehicle::Vehicle` plus the drive's
+poses and telemetry, and `set_state` writes the own block's pose and velocities into the body. Measured on the installed
+world over loopback (the end-to-end test: a session start, 2 s idle, then 20 s of full throttle to 37 m/s, 323 m): 515
+own-car checks over the run, 239 corrections (95th percentile 6 cm), no snaps. The rate is higher than the toy car's because the real car's
+velocity moves more between ticks; every correction stayed under the snap distance and was hidden by the offset.
+
 ### 2.4 Smoothing the correction
 
 The physics car always jumps to the corrected state. What is drawn is `physics_pose + offset`, where `offset` holds the
@@ -79,7 +101,13 @@ unapplied part of past corrections:
 - On **snap**, the offset is cleared and the drawn pose jumps; the camera is told so that it does not smear.
 - The camera follows the drawn pose, not the physics pose.
 
-Wheel spin and suspension travel are not smoothed; they follow the physics state.
+Wheel spin and suspension travel are not smoothed; they follow the physics state. In the game the drawn pose is
+`ClientSession::own_pose` through a drawn-pose override of the `Drive` (`Drive::set_net_pose`); the chase camera still
+follows the physics pose.
+
+**Built:** `reconcile::VisualOffset` (position and rotation, half-life decay); `Reconciler::drawn_pose`. Causes of
+section 2.6: `reset` and `teleport` snap, `freeze` holds the input neutral until a block without it, `contact` reconciles
+normally. `reconcile::CorrectionStats` keeps the median, 95th percentile and per-minute rates.
 
 ### 2.5 What the server does with the input
 
@@ -115,6 +143,12 @@ tick. With deltas, the client reconstructs the full record at each received tick
 Entities not mentioned in a delta keep their baseline record, and the record is stored again for the new tick (so
 the buffer always has the state at each received tick).
 
+**Session (built):** `ClientSession` decodes each complete snapshot (all parts, merged in part order) into its view of that
+tick, kept for 64 ticks as the baselines later snapshots name, then pushes every entity of the view except the own car to
+the interpolator and marks entities that left the view as removed at that tick. A snapshot older than the newest one fed
+is kept as a view but not fed. A missing baseline is reported with `BaselineLost`; the client sends no acknowledgement of
+its own, because the server reads delivery from the packet acknowledgements of the parts.
+
 ### 3.2 Choosing the display time
 
 `R = S_est - delay`, advanced at the same rate as `S_est`. The client finds the two records `a` and `b` with
@@ -123,6 +157,11 @@ the buffer always has the state at each received tick).
 The **adaptive allowance** raises `delay` by up to one snapshot interval when the measured snapshot arrival jitter
 (a running 95th percentile of lateness) exceeds half an interval, and lowers it again slowly (one tick per second).
 The delay never goes below two intervals. A change in delay is slewed over 1 s, not stepped.
+
+**Built:** `interp::Interpolator` and `interp::AdaptiveDelay`. `S_est` is the server's current tick, so a snapshot is
+already the one-way trip old when it arrives; the built display time is `R = S_est - transit - delay`, with `transit` the
+smallest snapshot age seen over the last 64 snapshots. Without it, any link slower than a few milliseconds would
+extrapolate all the time.
 
 ### 3.3 Interpolating a car
 
@@ -153,6 +192,12 @@ display time `R >= removal.tick`, so a car does not vanish earlier than it appea
 
 A new entity (first record) appears at display time `R >= first.tick`. Traffic fades in over 0.5 s on the client at
 spawn (the single-player world already hides spawns, so this is a rendering matter only).
+
+**Built:** sections 3.3 to 3.5 in `interp` for the pose, motion and flags of an `EntityView` (wheels, rpm and gear are
+the game's to add): Hermite position, shorter-arc slerp, flags switching at `u = 0.5`, extrapolation with the velocity
+decay and the lagging mark, the 100 ms blend back, appear and remove at display time, the traffic fade-in and the fade-out
+of lagging traffic and police. Two records further apart than 1.5 times the faster one's travel plus 5 m are a teleport
+and are not smoothed. Memory: 16 records per entity, 1,024 entities, an entity silent for 5 s is forgotten.
 
 ## 4. Collisions between cars
 
@@ -236,11 +281,20 @@ Changing the lead changes the client's `C` against `S_est`: when it grows, the c
 frame (up to 2, bounded); when it shrinks it skips ticks of simulation but keeps its history (the car is re-based by the
 next reconciliation). Both are rare.
 
+**Built:** `clock::NetClock` (PONG samples into `blackbox_net_core::clock::ClockSync`, with the server's holding time
+taken out; the local clock slews or steps by the net-core rule, whose slew gain is 0.01 per tick rather than the 0.1
+above), `clock::PingSchedule` and `clock::LeadControl` (start at half the round trip plus the input buffer; never above
+the server's 12-tick early limit). A missing input counts like a late one.
+
 ### 5.4 Events with target ticks
 
 Race start, countdowns, and pursuit state changes carry a target server tick `T`. The client acts when its `S_est >= T`.
 Only the owner's launch matters: the owner's inputs before `T` are held neutral by the server, and the client holds them
 neutral until its predicted `C >= T` (not `S_est`), so the car starts when the lights change on the owner's own clock.
+
+**Session (built):** `ClientSession` holds a gameplay event with a nonzero `target_tick` until `S_est` reaches it and drops
+a `seq` it has seen (per connection). `StartAt` and `RaceStart` set the start tick at once, so input for every predicted
+tick before it is replaced by neutral input before quantising.
 
 ## 6. Determinism requirements
 
@@ -277,6 +331,25 @@ is the snapshot stream, not the inputs.
 | Late joiner in free roam | The same as a join; other players appear in the first full snapshot | |
 | Leaving | A `Disconnect` message, or a timeout of 10 s; the car is removed on the next snapshot | control stream |
 | Reconnect | A resume token (from the first join) within 30 s returns the slot; the server keeps the car as a ghost; the first snapshot after is full | control stream |
+
+**Built (2026-10-22, `crates/nfsmw-net`, rules only, not yet driven by a server loop):**
+
+- `lobby::Lobby` runs the lobby rows of this table over the `blackbox-net-core` phase machine. Racers and cops are its peers;
+  spectators are not, so the load barrier never waits for them. The start countdown fixes the tick at which loading begins
+  (`StartCountdown`); every connected member gets `LoadWorld` with its grid slot; a racer still loading at the barrier's deadline
+  (120 s) watches the race as a spectator and races the next one (`CancelCountdown(LoadTimeout)` to it); the machine's countdown
+  fixes the race start tick and the lobby broadcasts `StartAt`. "Everyone wait" holds only the lobby and the results screen; the
+  sim never pauses.
+- `join::JoinGate::admit` orders the join checks (source rate, shutdown, versions and data, bans, password, resume, policy,
+  limits, loadout); `join::placement` seats a joiner of a running race as a spectator who races next.
+- `drop::Presence` detects the 10 s silence (and the 2 s lag mark); `drop::on_drop` gives the leaving player's pursuit up at once,
+  parks a timed-out car as a non-colliding ghost and holds the slot for 30 s; `on_expiry` removes the car, scores a racer as not
+  finished and frees the slot; `on_resume` restores the car and asks for a full snapshot. A quit, kick or ban never holds the slot.
+- `drop::ResumeBook` keeps only hashes of the resume tokens the caller draws, single use and bound to the player id; a stolen token
+  presented by another identity is refused without burning it.
+- Late join: `drop::SessionData` (the lobby and every car) travels as one `SessionData` bulk transfer, split by `BulkSender` into
+  ordered chunks under a byte budget per call, reassembled by `BulkReceiver` with its own size limit (64 KiB), in-order offsets, the
+  announced length and the SHA-256.
 
 Full snapshots are used when: the client has no acknowledged baseline in the last 64 ticks; after a reset or teleport of
 the owner; after a stall longer than 1 s. A full snapshot is split into parts if it exceeds one datagram
@@ -324,6 +397,21 @@ the owner; after a stall longer than 1 s. A full snapshot is split into parts if
 4. **Contacts:** two clients drive into each other with scripted inputs at 100 ms RTT; measure how long the owner's car
    passes through the other's drawn pose with and without 4.3 and 4.4.
 5. **Overload:** the server tick overrun and client stall cases of section 8.
+
+**Built:** tests 1 and 2 in `nfsmw-net` (rewind and replay equal a straight run bit for bit; the circle is drawn within
+5 cm), and test 3 in part: `crates/nfsmw-net/tests/client_sync` runs a toy world as the server and a client predicting a
+toy car and interpolating a second player, through the link simulator at 2 and 5 % loss and 20 to 150 ms round trip
+(jitter a fifth of it), free roam without contacts. Measured on 2026-10-22, deterministic per seed:
+
+| Run | Corrections | Median | p95 | Largest | Snaps | Remote car p95 (interpolating) |
+|---|---|---|---|---|---|---|
+| 2 %, 20 ms, 2 min | 31/min | 0.8 cm | 2.2 cm | 2.4 cm | 0 | 0.17 cm |
+| 2 to 5 %, 20 to 150 ms, 1 min each | 27 to 132/min | 0.9 to 1.6 cm | 2.2 to 2.7 cm | 3.4 cm | 0 | 0.17 to 0.5 cm |
+| client model 0.2 % off (another build) | 107/min | 0.8 cm | 2.4 cm | 2.5 cm | 0 | 0.17 cm |
+
+The toy car has no contacts and no tyre state, so these figures only show that the algorithm and its tuning meet the
+targets of [features](features.md) section 4; the real car must be measured again (open question 1). Tests 4 and 5 need
+the server loop and the game.
 
 ## 11. Open questions
 

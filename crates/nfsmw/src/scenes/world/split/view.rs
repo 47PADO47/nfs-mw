@@ -122,6 +122,9 @@ impl WorldScene {
         for guest in self.players.guests() {
             guest.drive.instances_with_detail(Some(&car_view), out);
         }
+        // A multiplayer client's remote cars: other players, traffic, police (`net_client/remote.rs`).
+        #[cfg(feature = "multiplayer")]
+        self.remote_car_instances(out);
         // Each half shows its own player's route arrow: the first player's in theirs, a co-op guest's in the second.
         let arrow = match viewer {
             Viewer::First => self.route_arrow(),

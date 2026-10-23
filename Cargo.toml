@@ -114,6 +114,9 @@ save-store = { path = "libs/save-store" }
 nfsmw-career = { path = "crates/nfsmw-career" }
 nfsmw-data = { path = "crates/nfsmw-data" }
 nfsmw-modding = { path = "crates/nfsmw-modding" }
+nfsmw-net = { path = "crates/nfsmw-net" }
+nfsmw-server = { path = "crates/nfsmw-server" }
+nfsmw-sim = { path = "crates/nfsmw-sim" }
 
 # Third-party (see docs/rust-stack.md for why each was picked)
 # Bevy: the ECS shell (docs/decisions/0001-bevy.md), plus the render crates only blackbox-bevy-render uses
@@ -167,6 +170,17 @@ raw-window-handle = "0.6"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
+# Multiplayer transport security and hand-off (blackbox-net-core features `netcode` and `handoff`; docs/rust-stack.md).
+# Versions match what snow itself pulls, so each crypto crate is compiled once.
+blake2 = { version = "0.10", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false }
+crossbeam-queue = "0.3"
+getrandom = "0.3"
+snow = { version = "0.10", default-features = false, features = ["use-chacha20poly1305", "use-blake2", "use-sha2", "use-curve25519", "use-getrandom", "risky-raw-split"] }
+spake2 = "0.4"
+subtle = { version = "2.6", default-features = false }
+triple_buffer = "9"
+zeroize = "1"
 texture2ddecoder = "0.1"
 symphonia = { version = "0.6", default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm", "id3v2", "id3v1", "ape"] }
 thiserror = "2"

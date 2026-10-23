@@ -7,7 +7,21 @@ use std::thread::JoinHandle;
 use anyhow::Result;
 
 use super::*;
-use crate::scenes::world::{WorldLoad, WorldScene};
+use crate::scenes::world::{DriveOptions, Options, WorldLoad, WorldScene};
+
+/// How free roam starts: the stock car on the start of the track, and the world waits for its load so the
+/// loading screen covers it (`wait_for_load`).
+pub(in crate::frontend) fn free_roam_options(car: &str) -> Options {
+    Options {
+        at: None,
+        height: 40.0,
+        heading: 45.0,
+        pitch: -20.0,
+        fog_distance: 3000.0,
+        wait_for_load: true,
+        drive: Some(DriveOptions { car: car.to_owned(), script: None }),
+    }
+}
 
 /// The loading screen a start shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

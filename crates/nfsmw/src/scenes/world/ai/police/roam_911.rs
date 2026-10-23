@@ -50,7 +50,7 @@ impl super::super::TrafficWorld {
     pub(in crate::scenes::world::ai) fn note_traffic_hits(&mut self, hits: &[(usize, f32)]) {
         for &(owner, closing) in hits {
             let Some(car) = self.cars.get(owner) else { continue };
-            self.cops.roam.note_traffic(car.render_key(), closing);
+            self.cops.roam.note_traffic(car.key(), closing);
         }
     }
 

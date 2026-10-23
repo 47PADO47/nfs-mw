@@ -77,15 +77,27 @@ impl WorldScene {
         self.start_queued_coop(renderer);
         self.place_guests();
         self.feed_second_player();
-        let sim_dt = match frozen {
-            true => 0.0,
-            false => self.update_simulation(renderer, input, dt),
+        // Single player runs the world's rules; a multiplayer client predicts its car and draws the rest from the
+        // server (`frame_systems.rs`).
+        let systems = self.frame_systems();
+        let sim_dt = match (frozen, systems.world_simulation) {
+            (true, _) => 0.0,
+            (false, true) => self.update_simulation(renderer, input, dt),
+            (false, false) => self.update_net_client(renderer, input, dt),
         };
-        self.update_catch_up(input);
+        if systems.catch_up {
+            self.update_catch_up(input);
+        }
         self.follow_second_player(dt);
-        self.update_race(renderer, input, dt);
-        self.update_entry(input, dt);
-        self.update_career(dt);
+        if systems.races {
+            self.update_race(renderer, input, dt);
+        }
+        if systems.entry {
+            self.update_entry(input, dt);
+        }
+        if systems.career {
+            self.update_career(dt);
+        }
         self.feed_focus(renderer, sim_dt);
         self.rain.update(sim_dt, camera);
         self.wet_road.step(dt, self.rain.intensity() > 0.0);

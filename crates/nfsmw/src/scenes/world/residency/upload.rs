@@ -13,13 +13,16 @@ impl Residency {
     }
 
     /// Upload arrived sections, the wanted ones first and the oldest first among them, until the frame's byte budget
-    /// is spent.
+    /// is spent. In lockstep, all of them in tile order once every request has arrived (`residency/lockstep.rs`).
     pub(super) fn upload_arrived(&mut self, renderer: &mut dyn RenderBackend) {
-        if self.arrived.is_empty() {
+        if self.arrived.is_empty() || self.holds_uploads() {
             return;
         }
-        let wanted = &self.wanted_set;
-        self.arrived.make_contiguous().sort_by_key(|data| !wanted.contains(&data.index));
+        let lockstep = self.lockstep_order();
+        if !lockstep {
+            let wanted = &self.wanted_set;
+            self.arrived.make_contiguous().sort_by_key(|data| !wanted.contains(&data.index));
+        }
         let budget = self.upload_budget();
         let mut spent = 0;
         while let Some(data) = self.arrived.pop_front() {
@@ -27,7 +30,7 @@ impl Residency {
                 continue; // no longer wanted
             }
             let bytes = data.upload_bytes();
-            if spent > 0 && spent + bytes > budget {
+            if !lockstep && spent > 0 && spent + bytes > budget {
                 self.arrived.push_front(data);
                 break;
             }

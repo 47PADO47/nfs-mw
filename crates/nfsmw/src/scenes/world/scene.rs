@@ -50,6 +50,15 @@ impl Scene for WorldScene {
         self.route_to(target)
     }
 
+    #[cfg(feature = "multiplayer")]
+    fn attach_net_client(&mut self, client: &crate::net::ClientHandle) -> bool {
+        self.attach_client(client)
+    }
+
+    fn runs_while_paused(&self) -> bool {
+        self.is_net_client()
+    }
+
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         crate::hud::show_interact_prompt(ctx, &self.entry.popup);
         crate::hud::show_mod_message(ctx);

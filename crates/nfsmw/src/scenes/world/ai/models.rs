@@ -16,7 +16,7 @@ use super::model_loader::{
 };
 use super::{CopCar, CopModel, ModelRequest, TrafficModel};
 use crate::scenes::world::drive::CarRig;
-use crate::scenes::world::{WorldScene, keys, sun};
+use crate::scenes::world::{WorldScene, sun};
 
 /// The models a frame installs while they arrive in the background.
 const INSTALLS_PER_FRAME: usize = 2;
@@ -311,7 +311,7 @@ fn install_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &
 }
 
 fn install_helicopter(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, model: CarModel) {
-    let rig = Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
+    let rig = Rc::new(CarRig::upload(renderer, scene.car_keys.next(), model, scene.car_shading, sun::to_sun()));
     if let Some(traffic) = scene.traffic.as_mut() {
         traffic.set_helicopter_rig(rig);
     }
@@ -320,7 +320,7 @@ fn install_helicopter(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, 
 /// The roadblock's spike strip and sawhorse are uploaded as rigs, drawn at the poses of the roadblocks.
 fn install_roadblock_props(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, models: RoadblockModels) {
     let rig = |scene: &WorldScene, renderer: &mut dyn RenderBackend, model: CarModel| {
-        Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()))
+        Rc::new(CarRig::upload(renderer, scene.car_keys.next(), model, scene.car_shading, sun::to_sun()))
     };
     let spike = rig(scene, renderer, models.spike);
     let sawhorse = rig(scene, renderer, models.sawhorse);
@@ -355,8 +355,17 @@ fn parts(scene: &WorldScene, name: String, type_name: &str, model: CarModel, phy
 /// The GPU part of loading a car: its rig.
 fn upload(scene: &WorldScene, renderer: &mut dyn RenderBackend, car: CarParts) -> TrafficModel {
     let CarParts { name, model, physics, tractor, audio_profile } = car;
-    let rig = Rc::new(CarRig::upload(renderer, keys::next_car(), model, scene.car_shading, sun::to_sun()));
-    TrafficModel { name, rig, physics, tractor, trailer: None, cop_lights: None, audio_profile }
+    let rig = Rc::new(CarRig::upload(renderer, scene.car_keys.next(), model, scene.car_shading, sun::to_sun()));
+    TrafficModel {
+        name,
+        rig,
+        physics,
+        tractor,
+        trailer: None,
+        cop_lights: None,
+        audio_profile,
+        keys: scene.car_keys.clone(),
+    }
 }
 
 #[cfg(test)]

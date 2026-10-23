@@ -188,6 +188,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         hd_content: hd_content::read(&table),
         custom_fonts: custom_fonts::read(&table),
         fe_shadows: fe_shadows::read(&table, origin),
+        net: super::net::read(&table, origin),
     }
 }
 

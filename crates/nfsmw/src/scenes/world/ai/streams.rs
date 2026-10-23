@@ -40,6 +40,13 @@ impl Default for Streams {
     }
 }
 
+impl super::TrafficWorld {
+    /// Restarts every stream from `world_seed`: a session's seed (`session_rules.rs`).
+    pub fn reseed(&mut self, world_seed: u64) {
+        self.rng = Streams::new(world_seed);
+    }
+}
+
 /// The stream of system `id`: the world seed mixed with the id by the SplitMix64 finaliser, so that neighbouring ids give
 /// unrelated streams.
 fn stream(world_seed: u64, id: u64) -> SplitMix {

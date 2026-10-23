@@ -46,17 +46,7 @@ impl CarSim {
         // Taken before the explosions below: they can wake a sleeping body. The plane is refreshed by the integration.
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
-        let input = InputState {
-            throttle: input.throttle,
-            brake: input.brake,
-            steer: input.steer,
-            handbrake: f32::from(u8::from(input.handbrake)),
-            nos: input.nos,
-            shift_up: input.shift_up,
-            shift_down: input.shift_down,
-            gear_select: input.gear_select,
-            clutch: input.clutch,
-        };
+        let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some(props), Some(events)) = (props, &self.events) {
             props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);

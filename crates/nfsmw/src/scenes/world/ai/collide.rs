@@ -4,6 +4,7 @@ use blackbox_pursuit::sight;
 use glam::Vec3;
 
 use super::TrafficWorld;
+use super::population::view_distance;
 
 use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
@@ -36,14 +37,14 @@ pub(super) enum DriverClass {
 }
 
 /// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
-/// the player did it, how far the car is from the player (metres), and the class and speed (m/s) of the party that hit
+/// the player did it, how far the car is from the nearest player's view (metres), and the class and speed (m/s) of the party that hit
 /// it.
 pub(super) struct Hit {
     owner: usize,
     impulse: f32,
     damage: crate::scenes::world::events::DamageHit,
     by_player: bool,
-    from_camera: f32,
+    from_view: f32,
     striker: DriverClass,
     speed: f32,
     /// How the two cars met, for the police radio.
@@ -83,14 +84,17 @@ impl TrafficWorld {
     /// not hit each other; a trailer that came loose is a body like any other. Also decides the sounds of the step:
     /// an authored whoosh for a close pass. Autonomous horns belong to the audio producer.
     pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
+        self.touches.clear();
         self.hit_timer = (self.hit_timer - STEP).max(0.0);
         for car in &mut self.cars {
             car.tick_quiet();
         }
         let events = self.events;
         let focus = player.as_deref().map(|p| p.body().position);
+        // The crash gate measures from the nearest player's view, not from this machine's camera alone (`session_rules.rs`).
         let view = self.damage_view.or(focus);
-        let far = |sim: &CarSim| view.map_or(f32::INFINITY, |f| f.distance(sim.body().position));
+        let eyes: Vec<Vec3> = self.guest_eyes().collect();
+        let far = |sim: &CarSim| view_distance(view, &eyes, sim.body().position);
         let mut parts: Vec<Part<'_>> = Vec::new();
         for (owner, car) in self.cars.iter_mut().enumerate() {
             let coupled = car.is_coupled();
@@ -107,6 +111,9 @@ impl TrafficWorld {
         passes.clear();
         // The traffic cars the player hit this step and how fast they closed: the free-roam 911 counts the hard ones.
         let mut traffic_hits: Vec<(usize, f32)> = Vec::new();
+        // Every pair that touched, by car index (`None` is the player), with its closing speed: a server's contact
+        // events (`touches.rs`).
+        let mut touched: Vec<(Option<usize>, usize, f32)> = Vec::new();
         for i in 0..parts.len() {
             let (head, tail) = parts.split_at_mut(i + 1);
             let part = &mut head[i];
@@ -127,12 +134,15 @@ impl TrafficWorld {
                             impulse: hit.impulse,
                             damage: hit.damage[1],
                             by_player: true,
-                            from_camera: far(target),
+                            from_view: far(target),
                             striker: DriverClass::Human,
                             speed: player_speed,
                             contact: hit.pair,
                         });
                     });
+                if collided {
+                    touched.push((None, owner, closing));
+                }
                 if collided && part.class == DriverClass::Traffic {
                     traffic_hits.push((owner, closing));
                 }
@@ -157,13 +167,14 @@ impl TrafficWorld {
                 let speed_a = part.sim.body().linear_velocity.length();
                 let speed_b = other.sim.body().linear_velocity.length();
                 let (owner_a, owner_b, class_a, class_b) = (part.owner, other.owner, part.class, other.class);
-                part.sim.collide_with_each(other.sim, |hit, a, b| {
+                let closing = (part.sim.body().linear_velocity - other.sim.body().linear_velocity).length();
+                let collided = part.sim.collide_with_each(other.sim, |hit, a, b| {
                     hits.push(Hit {
                         owner: owner_a,
                         impulse: hit.impulse,
                         damage: hit.damage[0],
                         by_player: false,
-                        from_camera: far(a),
+                        from_view: far(a),
                         striker: class_b,
                         speed: speed_b,
                         contact: hit.pair,
@@ -173,15 +184,19 @@ impl TrafficWorld {
                         impulse: hit.impulse,
                         damage: hit.damage[1],
                         by_player: false,
-                        from_camera: far(b),
+                        from_view: far(b),
                         striker: class_a,
                         speed: speed_a,
                         contact: hit.pair,
                     });
                 });
+                if collided && owner_a != owner_b {
+                    touched.push((Some(owner_a), owner_b, closing));
+                }
             }
         }
         drop(parts);
+        self.note_touches(&touched);
         self.note_traffic_hits(&traffic_hits);
         self.player_hits.tick(STEP);
         self.player_hits.note(traffic_hits.iter().map(|&(owner, _)| owner));
@@ -198,7 +213,7 @@ impl TrafficWorld {
                 hit.striker,
                 hit.speed,
                 hit.damage,
-                hit.from_camera,
+                hit.from_view,
             );
             self.strikes.cop |= first_damage;
         }

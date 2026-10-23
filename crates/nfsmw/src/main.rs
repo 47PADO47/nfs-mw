@@ -18,6 +18,8 @@ mod hud;
 mod input;
 mod modding;
 mod movie;
+#[cfg(feature = "multiplayer")]
+mod net;
 mod preset_store;
 mod save_format;
 mod saves;
@@ -32,8 +34,12 @@ mod weather;
 use clap::Parser;
 
 fn main() -> anyhow::Result<()> {
-    devtools::install_logging();
+    let cli = cli::Cli::parse();
+    // A dedicated server logs as the server does (stderr and its config's log file, `net/dedicated.rs`).
+    if !cli.is_dedicated() {
+        devtools::install_logging();
+    }
     #[cfg(feature = "trace")]
     blackbox_bevy_render::init_tracing();
-    commands::run(cli::Cli::parse())
+    commands::run(cli)
 }

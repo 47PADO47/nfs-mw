@@ -322,6 +322,17 @@ pub trait Scene {
     fn paused(&self) -> bool {
         false
     }
+    /// Takes a multiplayer client: the world scene runs in client mode from now on and drives the session
+    /// (`scenes/world/net_client/`). `false` from a scene that cannot (a menu, a viewer).
+    #[cfg(feature = "multiplayer")]
+    fn attach_net_client(&mut self, _client: &crate::net::ClientHandle) -> bool {
+        false
+    }
+    /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
+    /// input.
+    fn runs_while_paused(&self) -> bool {
+        false
+    }
     /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.
     fn set_tire_effects(&mut self, _smoke: bool, _skid_marks: bool) {}
     /// Apply optional collision sparks and high-speed wind trails.

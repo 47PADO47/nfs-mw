@@ -17,6 +17,7 @@ mod cop_lights;
 mod cop_manager;
 mod damage_effects;
 mod data;
+mod entities;
 mod goal_aims;
 mod hit_count;
 mod hitch;
@@ -28,6 +29,7 @@ mod manager;
 mod model_loader;
 mod models;
 mod moment_feed;
+mod net_export;
 mod nis_poses;
 mod original_camera;
 mod parallel;
@@ -55,10 +57,12 @@ mod sirens;
 mod spawn;
 mod spawn_requests;
 mod spikes;
+mod state_hash;
 mod stop;
 mod streams;
 mod support;
 mod tally;
+mod touches;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
@@ -79,6 +83,7 @@ pub use cop::CopCar;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;
 pub(super) use models::load_requested;
+pub use net_export::{NetCar, NetCarKind};
 pub use pattern::{Pattern, Patterns};
 pub use police::PlayerView;
 pub use population::{ModelRequest, PatrolPlan};
@@ -87,6 +92,7 @@ pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_a
 pub use pursuit::{CopModel, Pursuit};
 pub use racers::{ModelState, RacerSpawn};
 pub use tally::RoadblockTally;
+pub use touches::{CarTouch, Toucher};
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -114,6 +120,8 @@ pub struct TrafficModel {
     pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
     /// Installed class IDs for the authored traffic producers.
     pub audio_profile: crate::audio::traffic::TrafficProfile,
+    /// The world's car render keys: each car placed from the model takes the next (`keys.rs`).
+    pub keys: Rc<super::keys::CarKeys>,
 }
 
 pub struct TrafficWorld {
@@ -142,7 +150,10 @@ pub struct TrafficWorld {
     police: police::Police,
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
+    /// The cars in entity-id order (ntities.rs).
     cars: Vec<AiCar>,
+    /// The entity id the last admitted car took (ntities.rs).
+    next_entity: u32,
     /// One random stream per system (`streams.rs`).
     rng: streams::Streams,
     alpha: f32,
@@ -201,6 +212,8 @@ pub struct TrafficWorld {
     player_hits: hit_count::HitCount,
     /// The co-op guests' focus and camera this tick (`population/guests.rs`); empty outside co-op.
     guests: Vec<(Focus, crate::viewer::camera::Lens)>,
+    /// The car pairs that touched in the last tick (`touches.rs`).
+    touches: Vec<CarTouch>,
     /// Which player the population manager spawns around next (`population/guests.rs`).
     spawn_turn: usize,
     /// A co-op chase's targets after the primary (`coop_chase.rs`); empty outside co-op.
@@ -260,6 +273,7 @@ impl TrafficWorld {
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),
+            next_entity: 0,
             rng: streams::Streams::default(),
             alpha: 0.0,
             target: 0,
@@ -292,6 +306,7 @@ impl TrafficWorld {
             spike_hits: 0,
             player_hits: Default::default(),
             guests: Vec::new(),
+            touches: Vec::new(),
             spawn_turn: 0,
             secondary_targets: Vec::new(),
             secondary_seen: false,

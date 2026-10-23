@@ -80,6 +80,8 @@ impl WorldScene {
                 state.blips.extend_from_slice(&self.map_blips);
             }
             state.blips.extend_from_slice(&self.mod_blips);
+            #[cfg(feature = "multiplayer")]
+            self.apply_net_hud(state);
         }
         hud
     }
