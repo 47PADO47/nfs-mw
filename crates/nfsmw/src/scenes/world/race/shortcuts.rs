@@ -13,7 +13,7 @@ use crate::scenes::world::ai::TrafficWorld;
 
 /// A shortcut a racer may take: the legs it replaces (the same leg of every lap) and their road through the marker.
 #[derive(Debug, Clone)]
-pub(super) struct Shortcut {
+pub(in crate::scenes::world) struct Shortcut {
     pub marker: ShortcutMarker,
     pub legs: Vec<usize>,
     pub path: LegPath,

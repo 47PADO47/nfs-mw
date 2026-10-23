@@ -127,6 +127,7 @@ mod tests {
             challenge: None,
             origin: Origin { race: race(), course },
             route: None,
+            shortcuts: Vec::new(),
             restarted: false,
             map: crate::hud::MapSource::default(),
             walls: Default::default(),

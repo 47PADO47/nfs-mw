@@ -233,6 +233,7 @@ impl WorldScene {
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
             route,
+            shortcuts: Vec::new(),
             restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))

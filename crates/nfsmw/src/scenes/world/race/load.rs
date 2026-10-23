@@ -134,6 +134,7 @@ impl WorldScene {
                 grid.push((plan.person.is_some(), Vec3::from(space::to_physics(plan.spawn.position))));
                 kept.push(plan.clone());
             }
+            session.shortcuts = shortcuts;
         }
         session.plan = kept;
         session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();

@@ -9,10 +9,13 @@ use super::{FLOWN_AWAY, View, WorldScene, ground, road};
 
 /// How long a car may wait for its surroundings to load before it is placed on the nearest road anyway.
 const ROAD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+/// How far above a car reset where it stands the road under it is looked for.
+const RESET_ABOVE: f32 = 3.0;
 
 impl WorldScene {
     /// Put a waiting car on the road once the area around it has loaded; the physics runs in `update_simulation`.
     pub(super) fn prepare_drive(&mut self) {
+        self.reset_onto_race_route();
         let (Some(drive), physics) = (self.players.lead_mut(), &self.physics) else { return };
         drive.set_markers(self.markers_on);
         let Some(request) = drive.waiting_for_road() else {
@@ -55,12 +58,17 @@ impl WorldScene {
         }
         self.waiting_since = None;
         let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
-        let top = estimate.unwrap_or(0.0) + 40.0;
+        // A car reset where it stands looks for a road from just above itself first, so not on a bridge over it.
+        let at = drive.position();
+        let own = (drive.has_sim() && (at.x - request.near[0]).hypot(at.y - request.near[1]) < 1.0).then_some(at.z);
+        let tops = [own.map(|z| z + RESET_ABOVE), Some(estimate.unwrap_or(0.0) + 40.0)];
         let found = match request.exact {
             Some(spawn) if drive.spawn(spawn, collision, surfaces) => Some(spawn),
-            _ => road::find(request.near, |x, y| road::probe(collision, x, y, top)).filter(|&spawn| {
-                // `spawn` consumed the request when it failed above; ask again only on success.
-                drive.spawn(spawn, collision, surfaces)
+            _ => tops.into_iter().flatten().find_map(|top| {
+                road::find(request.near, |x, y| road::probe(collision, x, y, top)).filter(|&spawn| {
+                    // `spawn` consumed the request when it failed above; ask again only on success.
+                    drive.spawn(spawn, collision, surfaces)
+                })
             }),
         };
         match found {

@@ -24,16 +24,19 @@ pub(super) mod mods;
 mod names;
 mod outro;
 mod report;
+pub(in crate::scenes::world) mod reset;
 mod restart;
 pub(in crate::scenes::world) mod route;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]
 mod setup_course_tests;
-mod shortcuts;
+pub(in crate::scenes::world) mod shortcuts;
 mod split;
 mod start;
 mod startable;
+#[cfg(test)]
+pub(in crate::scenes::world) mod test_roads;
 mod wrong_way;
 
 pub(super) use command::race_command;
@@ -191,6 +194,8 @@ pub(super) struct RaceSession {
     pub origin: Origin,
     /// The road the opponents follow through every gate of every lap (`route.rs`); `None` without a road network.
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// The route's shortcuts, found when the racers go on the grid (`shortcuts.rs`).
+    pub shortcuts: Vec<shortcuts::Shortcut>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
     /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).
     pub restarted: bool,

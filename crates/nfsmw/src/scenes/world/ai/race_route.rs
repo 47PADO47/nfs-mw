@@ -65,6 +65,17 @@ impl TrafficWorld {
         route.spliced(&self.network, replaced)
     }
 
+    /// Where the player's car goes back onto `route` on leg `leg` after a reset (`race/reset.rs`).
+    pub fn race_reset_spot(
+        &self,
+        route: &Route,
+        leg: usize,
+        variants: &[LegPath],
+        near: glam::Vec3,
+    ) -> Option<(glam::Vec3, glam::Vec3)> {
+        crate::scenes::world::race::reset::reset_spot(&self.network, route, leg, variants, near)
+    }
+
     /// The racer `id` follows `route` from now on (`ai/racer.rs`).
     pub fn set_racer_route(&mut self, id: usize, route: Arc<Route>) {
         if let Some(racer) = self.racer_mut(id) {

@@ -240,6 +240,7 @@ impl WorldScene {
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
             route: None,
+            shortcuts: Vec::new(),
             restarted: false,
         });
         Ok(format!("{}: pursuit challenge, {label} at heat {heat}", race.name))
