@@ -30,7 +30,13 @@ fn entry_points(name: &str) -> Vec<String> {
             include_str!("shaders/world_surface.wgsl"),
             include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
         ),
-        "normal" | "window" => {
+        "normal" => format!(
+            "{}\n{}\n{}",
+            source,
+            include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+            include_str!("shaders/road_reflection.wgsl")
+        ),
+        "window" => {
             format!("{}\n{}", source, include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"))
         }
         _ => source.to_string(),

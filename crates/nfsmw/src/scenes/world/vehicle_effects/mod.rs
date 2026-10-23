@@ -63,6 +63,9 @@ impl VehicleEffects {
     pub fn set_body(&mut self, pose: CarPose, bounds: nfsmw_data::car::physics::CarBounds) {
         self.body = body::BodyClip::new(pose, bounds);
     }
+    pub fn set_surface_water(&mut self, water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>) {
+        self.water.surface_water = water;
+    }
     pub fn set_rain(&mut self, active: bool) {
         self.water.active = active;
     }

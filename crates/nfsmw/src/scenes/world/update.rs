@@ -90,7 +90,10 @@ impl WorldScene {
                 .map(|map| map.at(glam::Vec3::from_array(space::to_physics(drive.position()))))
                 .unwrap_or_default();
             let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
-            let wet = self.rain.intensity() > 0.0 && exposed;
+            let enhanced = options.enhanced_wet_surfaces;
+            let water = self.wet_road.water();
+            let wet = (self.rain.intensity() > 0.0 || (enhanced && water.dampness > 0.05)) && exposed;
+            drive.vehicle_effects.set_surface_water(enhanced.then_some((water, options)));
             drive.vehicle_effects.set_rain(wet);
             drive.effects.set_wet(wet);
         }
@@ -124,7 +127,7 @@ impl WorldScene {
             .unwrap_or_default();
         let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
         self.rain.update_view(sim_dt, lens.position, lens.forward, exposed);
-        self.wet_road.step(sim_dt, self.rain.intensity() > 0.0);
+        self.wet_road.step_rain(sim_dt, self.rain.intensity());
         if let Some(traffic) = &mut self.traffic {
             traffic.step_rain(
                 self.physics.database(),
@@ -132,6 +135,7 @@ impl WorldScene {
                 super::ai::RainView {
                     camera: lens.position,
                     intensity: self.rain.intensity(),
+                    water: options.enhanced_wet_surfaces.then_some((self.wet_road.water(), options)),
                     environment: self.audio_environment.as_ref(),
                     dt: sim_dt,
                 },

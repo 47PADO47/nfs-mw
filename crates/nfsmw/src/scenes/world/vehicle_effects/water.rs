@@ -8,6 +8,7 @@ use nfsmw_data::vehicle_effects::TireWaterData;
 pub(in crate::scenes::world) struct WaterContact {
     pub point: Vec3,
     pub surface: u32,
+    pub normal: Vec3,
     pub slip: f32,
     pub slide: f32,
     pub flat: bool,
@@ -16,6 +17,7 @@ pub(in crate::scenes::world) struct WaterEffects {
     data: TireWaterData,
     groups: [PcSparks; 12],
     pub active: bool,
+    pub surface_water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>,
 }
 impl WaterEffects {
     pub fn new(data: TireWaterData) -> Self {
@@ -27,6 +29,7 @@ impl WaterEffects {
                 group
             }),
             active: false,
+            surface_water: None,
         }
     }
     pub fn clear(&mut self) {
@@ -59,7 +62,16 @@ impl WaterEffects {
                 let selected = contact.filter(|_| self.active).and_then(|c| {
                     let effect = self.data.wet(c.surface, kind, c.flat)?;
                     let speed = [velocity.length(), c.slip.abs(), c.slide.abs()][kind];
-                    let intensity = ((speed - effect.min) / (effect.max - effect.min)).clamp(0.0, 1.0);
+                    let amount = self.surface_water.map_or(1.0, |(water, options)| {
+                        let slope = ((c.normal.z - 0.90) / 0.095).clamp(0.0, 1.0);
+                        let puddle =
+                            water.puddle(c.point.truncate().to_array(), options.puddle_coverage, options.puddle_scale)
+                                * slope
+                                * slope
+                                * (3.0 - 2.0 * slope);
+                        (water.dampness * 0.35 + puddle * 0.65).clamp(0.0, 1.0)
+                    });
+                    let intensity = ((speed - effect.min) / (effect.max - effect.min)).clamp(0.0, 1.0) * amount;
                     (intensity > 0.0).then_some((effect, c.point, intensity))
                 });
                 let Some((effect, point, intensity)) = selected else {
@@ -101,7 +113,7 @@ mod tests {
             rotation: glam::Quat::IDENTITY,
             wheels: [nfsmw_data::car::WheelPose::default(); 4],
         };
-        let contact = WaterContact { point: Vec3::ZERO, surface, slip: 0.0, slide: 0.0, flat: false };
+        let contact = WaterContact { point: Vec3::ZERO, normal: Vec3::Z, surface, slip: 0.0, slide: 0.0, flat: false };
         for _ in 0..120 {
             water.age(1.0 / 60.0);
             water.step([Some(contact); 4], pose, Vec3::X * effect.max, 1.0 / 60.0);
