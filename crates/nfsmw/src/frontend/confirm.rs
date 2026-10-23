@@ -256,7 +256,10 @@ impl ScreenLogic for ConfirmLogic {
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         match pick {
             Pick::Hover => focus(cx, if row == 0 { YES_HOLDER } else { NO_HOLDER }),
-            Pick::Press(..) => self.answer(cx, row == 0),
+            Pick::Press(..) => {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+                self.answer(cx, row == 0);
+            }
         }
     }
 
@@ -300,6 +303,7 @@ impl ScreenLogic for ConfirmLogic {
         let (Some(yes), Some(no)) = (by_guid(cx, YES_HOLDER), by_guid(cx, NO_HOLDER)) else { return true };
         if let Some(hit) = cx.rt.object_at(&[yes, no], point) {
             cx.rt.focus_button(hit);
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
             self.answer(cx, hit == yes);
         }
         true
@@ -403,6 +407,7 @@ impl ScreenLogic for AlertLogic {
 
     fn pick_row(&mut self, cx: &mut Cx, _row: usize, pick: Pick) {
         if matches!(pick, Pick::Press(..)) {
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
             self.close(cx);
         }
     }

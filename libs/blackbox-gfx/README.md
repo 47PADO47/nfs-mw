@@ -80,3 +80,7 @@ implementation.
 `GraphicsSettings::texture_filtering` requests Trilinear, 8x or 16x scene sampling.
 Capabilities report the maximum anisotropy and whether a change needs restart.
 Resolution preserves the saved request and reports unsupported selections.
+
+`PlanarReflectionScene` carries a caller-reflected camera, source clipping plane,
+object instances and receiver textures. Backends preserve authored diffuse alpha
+and geometry; unsupported backends keep the original surface.

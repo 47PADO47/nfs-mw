@@ -27,6 +27,9 @@ D-pad and left-stick menu navigation. Existing driving bindings and saved respon
   engages at 0.55 and releases at 0.35 of raw stick travel, independently of driving deadzone response.
 - The FEng runtime supplies direction repetition. Each newly focused screen waits for neutral input,
   preventing a held action or repeated direction from carrying through a screen transition **[ours]**.
+- Menu wheel scrolling consumes physical mouse-wheel lines separately from viewer Zoom. The default D-pad
+  also controls viewer zoom, so routing Zoom into the menu wheel would move the selection twice and retain
+  fractional extra moves across short taps. D-pad navigation uses only the runtime's pad path **[ours]**.
 - After an option package's initialization scripts complete, restore the selected setting row's focus.
   The pause package can otherwise leave focus on an original footer button **[verified files/runtime]**.
 - All group transforms include size, including negative x mirroring and animated selection brackets.

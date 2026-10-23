@@ -47,8 +47,15 @@ pub(super) struct Part {
 impl Part {
     pub(super) fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Part, String> {
         let result: Result<Part, String> = (|| {
-            let bytes = audio.bank_bytes(bank)?;
-            let parsed = ModuleBank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?;
+            let parsed = match audio.module_banks.get(bank) {
+                Some(parsed) => parsed.clone(),
+                None => {
+                    let bytes = audio.bank_bytes(bank)?;
+                    let parsed = std::sync::Arc::new(ModuleBank::parse(&bytes).map_err(|e| format!("{bank}: {e}"))?);
+                    audio.module_banks.insert(bank.to_owned(), parsed.clone());
+                    parsed
+                }
+            };
             let module = parsed.module_of(class).ok_or_else(|| format!("{bank} has no {class} module"))?;
             let instance = Instance::new(&parsed, module, seed).map_err(|e| format!("{bank}: {e}"))?;
             let mut voices = Voices::default();

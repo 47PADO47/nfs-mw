@@ -12,7 +12,7 @@
 
 use std::sync::Mutex;
 
-use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
+use blackbox_feng::ids::{PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_feng::runtime::pad;
 
 use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
@@ -149,14 +149,6 @@ pub fn moved(selected: usize, count: usize, down: bool) -> usize {
     selected.saturating_sub(1)
 }
 
-/// The text of a list row; the selected one is marked.
-pub fn row_text(alias: &str, selected: bool) -> String {
-    if selected {
-        return format!("> {alias}");
-    }
-    alias.to_owned()
-}
-
 /// The profiles the list shows: the listable aliases of this build's folder and of the original game's save folder
 /// (`career/sources.rs`), or none when there is neither.
 pub(crate) fn list_aliases() -> Vec<String> {
@@ -286,10 +278,7 @@ impl AliasListLogic {
         let rows = page_rows(&self.aliases, self.selected);
         for index in 0..ROWS {
             let selected = start + index == self.selected;
-            let text = match rows.get(index) {
-                Some(alias) => row_text(alias, selected),
-                None => String::new(),
-            };
+            let text = rows.get(index).cloned().unwrap_or_default();
             let Some(row) = cx.named(&format!("option_name_{}", index + 1)) else { continue };
             cx.rt.set_text(row, text);
             let script = match selected && index < rows.len() {
@@ -297,7 +286,47 @@ impl AliasListLogic {
                 false => SCRIPT_UNHIGHLIGHT,
             };
             cx.rt.run_script(row, script);
+            if selected && index < rows.len() && cx.rt.buttons(cx.package).contains(&row) {
+                cx.rt.focus_button(row);
+            }
         }
+    }
+
+    /// Resolve a visible page slot before changing selection; aliases on later pages keep their logical index.
+    fn row_at(&self, cx: &Cx, point: glam::Vec2) -> Option<usize> {
+        use crate::frontend::logic::anchor_offset;
+        let start = page_start(self.selected);
+        let tree = cx.rt.tree(cx.package);
+        let mut best = None;
+        for slot in 0..ROWS.min(self.aliases.len().saturating_sub(start)) {
+            let Some(object) = cx.named(&format!("option_name_{}", slot + 1)) else { continue };
+            let Some(node) = tree.nodes.iter().find(|node| node.index == object.index && node.visible) else {
+                continue;
+            };
+            let Some(info) = cx.rt.string_info(object) else { continue };
+            // String quads carry scale, not their drawn text dimensions. Hit the authored
+            // column and measured line height rather than the one-unit transform box.
+            let scale = glam::Vec2::new(info.scale.0.abs().max(1e-6), info.scale.1.abs().max(1e-6));
+            let measured = cx.text_size(object).abs() / scale;
+            let width = measured.x.max(info.max_width.max(0) as f32);
+            let height = measured.y.max(1.0);
+            let origin = glam::Vec2::new(
+                anchor_offset(info.justification, width, 1, 2),
+                anchor_offset(info.justification, height, 4, 8),
+            );
+            let local = node.world.inverse().transform_point3(point.extend(0.0)).truncate();
+            if !local.is_finite()
+                || (local - origin).cmplt(glam::Vec2::splat(-4.0)).any()
+                || (local - origin).cmpgt(glam::Vec2::new(width, height) + glam::Vec2::splat(4.0)).any()
+            {
+                continue;
+            }
+            let distance = (local.y - origin.y - height * 0.5).abs();
+            if best.is_none_or(|(_, previous)| distance < previous) {
+                best = Some((start + slot, distance));
+            }
+        }
+        best.map(|(index, _)| index)
     }
 
     fn pick(&self, cx: &mut Cx) {
@@ -328,6 +357,36 @@ impl ScreenLogic for AliasListLogic {
         self.show(cx);
     }
 
+    fn hover(&mut self, cx: &mut Cx, point: glam::Vec2) {
+        let Some(index) = self.row_at(cx, point) else {
+            return;
+        };
+        if index == self.selected {
+            return;
+        }
+        self.selected = index;
+        self.show(cx);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        let Some(index) = self.row_at(cx, point) else {
+            return true;
+        };
+        self.selected = index;
+        self.show(cx);
+        crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+        self.pick(cx);
+        true
+    }
+
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        // A focused row can answer BUTTON_PRESSED instead of the package's PAD_ACCEPT.
+        // Read the one gesture here so keyboard/controller acceptance does not depend on the row asset.
+        if bits & pad::ACCEPT != 0 {
+            self.pick(cx);
+        }
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
             PAD_UP => {
@@ -338,7 +397,6 @@ impl ScreenLogic for AliasListLogic {
                 self.selected = moved(self.selected, self.aliases.len(), true);
                 self.show(cx);
             }
-            PAD_ACCEPT => self.pick(cx),
             PAD_BACK => cx.send(Command::Pop),
             _ => {}
         }

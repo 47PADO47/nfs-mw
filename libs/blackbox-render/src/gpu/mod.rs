@@ -17,6 +17,7 @@ mod draw_mask;
 mod effects;
 mod filtering;
 mod frame;
+mod frame_globals;
 mod glossy;
 #[cfg(test)]
 mod hdr_tests;
@@ -34,6 +35,9 @@ mod parallel;
 mod parity;
 mod pipeline_cache;
 mod pipelines;
+mod planar;
+#[cfg(test)]
+mod planar_tests;
 mod post;
 mod prewarm;
 #[cfg(test)]
@@ -109,6 +113,7 @@ pub struct Renderer {
     reflections: Option<reflections::ReflectionCapture>,
     pending_reflections: Option<reflection_queue::Pending>,
     projected: Option<projected::ProjectedCapture>,
+    planar_receivers: Vec<usize>,
     surface_water: blackbox_gfx::SurfaceWater,
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,

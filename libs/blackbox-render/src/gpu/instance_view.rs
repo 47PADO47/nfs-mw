@@ -1,9 +1,9 @@
 //! One view's instance upload and the instance input of the shaders that read it.
 //!
-//! With the instance store a view's buffer holds two regions: from 0, one matrix per instance position, written
-//! only for runs of meshes with glossy draws (the glossy pipelines read their matrices as vertex attributes); then
+//! With the instance store a view's buffer holds two regions: from 0, one model and receiver metadata per instance position, written
+//! only for runs of meshes with glossy draws (the glossy pipelines read this data as vertex attributes); then
 //! the slot list, one `u32` per instance, which every other pipeline reads as its per-instance attribute. Without
-//! the store the buffer holds every matrix from 0, as before.
+//! the store the buffer holds every model and flags record from 0, as before.
 
 use super::instance_store::InstanceStore;
 use crate::gpu::{
@@ -43,9 +43,11 @@ pub(in crate::gpu) fn instance_source(source: &str, group: Option<u32>) -> Strin
         panic!("the shader has no instance input block");
     };
     format!(
-        "{}struct InstanceIn {{ @location(4) slot: u32, }};\n\
-         @group({group}) @binding(0) var<storage, read> instance_models: array<mat4x4<f32>>;\n\
-         fn instance_model(i: InstanceIn) -> mat4x4<f32> {{ return instance_models[i.slot]; }}\n{}",
+        "{}struct InstanceData {{ model: mat4x4<f32>, flags: vec4<f32>, }};\n\
+         struct InstanceIn {{ @location(4) slot: u32, }};\n\
+         @group({group}) @binding(0) var<storage, read> instance_models: array<InstanceData>;\n\
+         fn instance_model(i: InstanceIn) -> mat4x4<f32> {{ return instance_models[i.slot].model; }}\n\
+         fn instance_receives_shadow(i: InstanceIn) -> u32 {{ return u32(instance_models[i.slot].flags.x); }}\n{}",
         &source[..start],
         &source[end + END.len()..]
     )
@@ -70,7 +72,7 @@ pub(in crate::gpu) fn upload_view(
     store.assign(instances, &mut slots);
     store.flush(device, queue);
     let count = instances.len() as u64;
-    let region = count * 64;
+    let region = count * 80;
     reserve(buffer, device, queue, region + count * 4);
     let mut matrices = std::mem::take(&mut store.matrices);
     write_glossy_runs(queue, &buffer.buffer, meshes, instances, &mut matrices);
@@ -101,8 +103,8 @@ fn reserve(buffer: &mut InstanceBuffer, device: &wgpu::Device, queue: &wgpu::Que
     if buffer.buffer.size() >= bytes {
         return;
     }
-    let entries = bytes.div_ceil(64) as usize;
-    buffer.upload(device, queue, &vec![[0.0_f32; 16]; entries]);
+    let entries = bytes.div_ceil(80) as usize;
+    buffer.upload(device, queue, &vec![[0.0_f32; 20]; entries]);
 }
 
 /// Write the matrices of every run of instances whose mesh has a glossy draw at their positions in `buffer`,
@@ -112,7 +114,7 @@ fn write_glossy_runs(
     buffer: &wgpu::Buffer,
     meshes: &Slots<GpuMesh>,
     instances: &[Instance],
-    matrices: &mut Vec<[f32; 16]>,
+    matrices: &mut Vec<[f32; 20]>,
 ) {
     matrices.clear();
     let mut pending = 0;
@@ -126,16 +128,16 @@ fn write_glossy_runs(
             pending = start;
         }
         if glossy {
-            matrices.extend(instances[start..end].iter().map(|i| i.transform.to_cols_array()));
+            matrices.extend(instances[start..end].iter().map(crate::gpu::instances::instance_words));
         }
         if !glossy && !matrices.is_empty() {
-            queue.write_buffer(buffer, pending as u64 * 64, bytemuck::cast_slice(matrices.as_slice()));
+            queue.write_buffer(buffer, pending as u64 * 80, bytemuck::cast_slice(matrices.as_slice()));
             matrices.clear();
         }
         start = end;
     }
     if !matrices.is_empty() {
-        queue.write_buffer(buffer, pending as u64 * 64, bytemuck::cast_slice(matrices.as_slice()));
+        queue.write_buffer(buffer, pending as u64 * 80, bytemuck::cast_slice(matrices.as_slice()));
         matrices.clear();
     }
 }

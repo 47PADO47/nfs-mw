@@ -244,7 +244,12 @@ impl Screens {
             self.with_logic(top, env, &mut commands, |logic, cx| logic.pad_pressed(cx, pressed));
         }
         self.deliver_start_press(env, &mut commands);
-        for out in self.runtime.take_outgoing() {
+        let outgoing = self.runtime.take_outgoing();
+        crate::audio::menu::request_batch(outgoing.iter().filter_map(|out| match out {
+            Outgoing::Sound { message, package, .. } => Some((*package, *message)),
+            _ => None,
+        }));
+        for out in outgoing {
             match out {
                 Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
                 Outgoing::Package { kind, name, .. } => commands.extend(command::package_command(kind, name)),

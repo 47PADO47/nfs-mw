@@ -5,10 +5,10 @@
 pub enum Footer {
     #[default]
     Standard,
-    /// Only Back: the menus that open from the main menu and are left by Back (the career menu, the alias manager, the Quick
-    /// Race menu, the safe house menu, the profile list).
+    /// Only Back: the alias manager, Quick Race and profile list; also the Remastered career and safe house lists.
     BackOnly,
-    /// Back and Accept: the custom race's track list and the mode select of a mode with no tutorial.
+    /// Back then Accept: the original category, career and safe house carousels; the custom race's track list and
+    /// the mode select of a mode with no tutorial.
     BackAccept,
     /// Back, Accept and `2 View Tutorial`: the mode select on a mode that has a tutorial movie.
     Tutorial,

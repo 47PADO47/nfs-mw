@@ -23,6 +23,7 @@ pub(super) struct Cache {
 struct Stamp {
     mesh: usize,
     transform: [u32; 16],
+    casts: bool,
 }
 struct Entry {
     image: wgpu::TextureView,
@@ -43,8 +44,11 @@ impl Cache {
                 self.stable.push(false);
                 continue;
             }
-            let stamp =
-                Stamp { mesh: instance.mesh.raw(), transform: instance.transform.to_cols_array().map(f32::to_bits) };
+            let stamp = Stamp {
+                mesh: instance.mesh.raw(),
+                transform: instance.transform.to_cols_array().map(f32::to_bits),
+                casts: instance.shadow.cast,
+            };
             self.current.insert(instance.key, stamp);
             self.stable.push(self.previous.get(&instance.key) == Some(&stamp));
         }
@@ -125,6 +129,7 @@ fn image(device: &wgpu::Device, size: u32) -> wgpu::TextureView {
 fn caster_hash(renderer: &Renderer, instance: &Instance) -> u64 {
     let mut hash = foldhash::fast::FixedState::default().build_hasher();
     instance.key.hash(&mut hash);
+    instance.shadow.cast.hash(&mut hash);
     instance.transform.to_cols_array().map(f32::to_bits).hash(&mut hash);
     if let Some(mesh) = renderer.meshes.get(instance.mesh.raw()) {
         mesh.vertices.hash(&mut hash);

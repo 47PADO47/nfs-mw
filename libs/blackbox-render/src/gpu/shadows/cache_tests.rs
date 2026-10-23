@@ -5,6 +5,22 @@ use blackbox_gfx::{InstanceKey, RenderBackend, RenderExperiments};
 use glam::{Mat4, Vec3};
 
 #[test]
+fn caster_flag_changes_invalidate_static_identity_without_transform_changes() {
+    use blackbox_gfx::{Instance, MeshHandle};
+    let mut cache = super::cache::Cache::default();
+    let mut instance = Instance::keyed(MeshHandle::from_raw(0), Mat4::IDENTITY, InstanceKey::new(1, 0));
+    cache.prepare(&[instance]);
+    cache.prepare(&[instance]);
+    assert_eq!(cache.stable, [true]);
+    instance.shadow.cast = false;
+    cache.prepare(&[instance]);
+    assert_eq!(cache.stable, [false]);
+    instance.shadow.cast = true;
+    cache.prepare(&[instance]);
+    assert_eq!(cache.stable, [false]);
+}
+
+#[test]
 #[ignore = "needs a GPU"]
 fn cached_static_depth_matches_redraw_and_dynamic_changes_do_not_trail() {
     let _gpu = test_support::serial();

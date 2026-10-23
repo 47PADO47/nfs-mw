@@ -125,7 +125,11 @@ impl ScreenLogic for NameEntry {
 
     fn pick_row(&mut self, cx: &mut Cx, _row: usize, pick: Pick) {
         if matches!(pick, Pick::Press(..)) {
+            let before = cx.commands.len();
             self.accept(cx);
+            if matches!(cx.commands.get(before), Some(Command::Pop)) {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
         }
     }
 

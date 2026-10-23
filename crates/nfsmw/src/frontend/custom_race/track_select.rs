@@ -285,10 +285,14 @@ impl ScreenLogic for TrackSelect {
         let (tracks, regions) = (find(cx, TRACK_ARROWS), find(cx, REGION_ARROWS));
         let all: Vec<_> = tracks.iter().chain(regions.iter()).flatten().copied().collect();
         let Some(hit) = cx.rt.object_at(&all, point) else { return false };
+        let before = (self.at, state::with(|s| s.filter));
         match (tracks.iter().position(|o| *o == Some(hit)), regions.iter().position(|o| *o == Some(hit))) {
             (Some(side), _) => self.step(cx, if side == 0 { -1 } else { 1 }),
             (_, Some(side)) => self.step_region(cx, side == 1),
             _ => return false,
+        }
+        if before != (self.at, state::with(|s| s.filter)) {
+            crate::audio::menu::request(PAD_RIGHT);
         }
         true
     }

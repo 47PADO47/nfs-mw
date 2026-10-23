@@ -60,7 +60,12 @@ impl IconMenu {
             self.select(cx, strip);
         }
         if matches!(pick, Pick::Press(..)) {
+            let before = cx.commands.len();
             self.press(cx);
+            let external = self.icons[row].enabled && self.icons[row].id == Id::LanPlay;
+            if cx.commands.len() != before || self.pending.is_some() || external {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
         }
     }
 

@@ -251,11 +251,9 @@ fn update(
     }
     // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
     let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list;
-    *wheel = if menus { *wheel + actions.value(Action::Zoom) } else { 0.0 };
-    let notches = wheel.trunc();
-    *wheel -= notches;
-    if menus && notches != 0.0 {
-        let commands = fe.screens.scroll(notches as i32, &mut env);
+    let notches = super::plugin_keys::menu_wheel_steps(&actions, &mut wheel, menus);
+    if notches != 0 {
+        let commands = fe.screens.scroll(notches, &mut env);
         fe.apply(commands, host, &mut env);
     }
     if fe.latch {

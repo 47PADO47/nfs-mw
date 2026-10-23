@@ -32,7 +32,13 @@ Which stage the main menu uses, and whether the car is part of the stage or draw
 Candidates: stage 1 (`PLATFORMCRIB.BIN`, the name suggests the menu's own room) and the car from the showroom
 model in `FRONTEND/FrontB.lzc` (a `GeometryPack`, see formats/frontend.md).
 
-## 1a. What `PlatformCrib.BIN` contains [verified, `python tools/chunkdump.py`]
+## 1a. What `PlatformCrib.BIN` contains
+
+The counts below describe the earlier inspected asset snapshot, not a universal contract. Other supported
+installations contain 15 crib solids, including emitter and light helpers. The room loader follows the selected
+stage file and `Stage::draws`; regression tests compare those drawable names and order rather than a fixed count.
+
+Historical snapshot [verified, `python tools/chunkdump.py`]:
 
 - Root: a `TexturePack` (19,924,984 bytes, its `TexturePackDataArray` is 19,923,064 bytes) and a `GeometryPack`
   (406,080 bytes, 12 children).

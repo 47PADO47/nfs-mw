@@ -92,6 +92,9 @@ impl Renderer {
             shadows.bounds.clear();
             let casters = self.shadow_casters.as_deref().unwrap_or(visible);
             for (index, instance) in casters.iter().enumerate() {
+                if !instance.shadow.cast {
+                    continue;
+                }
                 let Some(mesh) = self.meshes.get(instance.mesh.raw()) else { continue };
                 if !mesh.draws.iter().any(|draw| draw.index_count > 0 && casts(draw.blend, draw.shading)) {
                     continue;

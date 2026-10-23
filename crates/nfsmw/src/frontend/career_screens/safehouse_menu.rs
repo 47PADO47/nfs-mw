@@ -101,6 +101,10 @@ impl ScreenLogic for SafeHouseMenu {
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         self.menu.pick_row(cx, row, pick);
     }
+
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        self.menu.click(cx, point)
+    }
 }
 
 /// Runs the selected icon: its item decides the screen, and every screen it opens stays in the safe house.

@@ -85,12 +85,18 @@ impl CameraRig {
             return;
         }
         state.shown = Some(screen);
-        if std::mem::take(&mut state.fresh) {
+        let first = std::mem::take(&mut state.fresh);
+        if first && !state.settled {
             return;
         }
         let Some(goal) = state.book.as_ref().and_then(|book| book.screen(screen)) else { return };
+        let settle = first && state.settled;
         if let Some(motion) = &mut state.motion {
             motion.retarget(&goal);
+            // A direct screenshot of a submenu needs that screen's rest pose, not the stage intro's final pose.
+            if settle {
+                motion.advance(INTRO_OVER);
+            }
         }
     }
 

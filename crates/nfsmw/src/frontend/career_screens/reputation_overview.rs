@@ -22,7 +22,7 @@ use super::blacklist::{DISABLED_ALPHA, career_rows, current_bin, rank_title, riv
 use super::{RIVAL_LIST_READY, safehouse_menu::money_text};
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Pick, Plain, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
@@ -120,7 +120,12 @@ struct Overview {
     /// The Remastered look is on: the page is a list and `cursor` is the entry on it.
     vertical: bool,
     cursor: usize,
+    row: Row,
 }
+
+#[path = "reputation_overview_row.rs"]
+mod row;
+use row::Row;
 
 /// The logic of `name` (lower case) when it is the overview.
 pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
@@ -139,6 +144,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         args,
         vertical: false,
         cursor: 0,
+        row: Row::default(),
     }))
 }
 
@@ -197,6 +203,9 @@ impl Overview {
     }
 
     fn fill_sheet(&self, cx: &mut Cx) {
+        if !self.vertical {
+            self.row.place(cx, self.sheet);
+        }
         let sheet = SHEETS[self.sheet];
         let Some(title) = cx.object(OPTION_TITLE) else { return };
         cx.label(title, sheet.label());
@@ -273,6 +282,7 @@ impl Overview {
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.vertical_look();
+        self.row.start(cx);
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
         // Nothing to step through while the career is at rival 15.
@@ -284,8 +294,18 @@ impl ScreenLogic for Overview {
         self.fill_sheet(cx);
     }
 
-    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+    fn tick(&mut self, cx: &mut Cx, dt: f32) {
         self.vertical = cx.vertical_look();
+        if !self.vertical {
+            self.row.tick(cx, self.sheet, dt);
+        }
+    }
+
+    fn footer(&self) -> Footer {
+        if self.vertical {
+            return Footer::Standard;
+        }
+        Footer::BackAccept
     }
 
     fn vertical(&self) -> bool {
@@ -348,28 +368,64 @@ impl ScreenLogic for Overview {
     // The mouse takes the screen's own buttons: the two chevrons, the two arrows, the option and the challenge button
     // (the footer's Back and Accept are taken by the front end).
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if !self.vertical
+            && let Some(sheet) = self.row.hit(cx, point)
+        {
+            self.sheet = sheet;
+            self.fill_sheet(cx);
+            let before = cx.commands.len();
+            self.accept(cx);
+            if before != cx.commands.len() {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
+            return true;
+        }
         if hit(cx, STEPPER_UP, point) {
+            let before = self.shown;
             self.step_rival(cx, true);
+            if before != self.shown {
+                crate::audio::menu::request(PAD_UP);
+            }
             return true;
         }
         if hit(cx, STEPPER_DOWN, point) {
+            let before = self.shown;
             self.step_rival(cx, false);
+            if before != self.shown {
+                crate::audio::menu::request(PAD_DOWN);
+            }
             return true;
         }
         if hit(cx, ARROW_LEFT, point) {
+            let before = self.sheet;
             self.step_sheet(cx, false);
+            if before != self.sheet {
+                crate::audio::menu::request(PAD_LEFT);
+            }
             return true;
         }
         if hit(cx, ARROW_RIGHT, point) {
+            let before = self.sheet;
             self.step_sheet(cx, true);
+            if before != self.sheet {
+                crate::audio::menu::request(PAD_RIGHT);
+            }
             return true;
         }
         if hit(cx, BUTTON_GROUP, point) {
+            let before = cx.commands.len();
             self.challenge(cx);
+            if before != cx.commands.len() {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
             return true;
         }
         if OPTION_PARTS.iter().any(|&part| hit(cx, part, point)) {
+            let before = cx.commands.len();
             self.accept(cx);
+            if before != cx.commands.len() {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
             return true;
         }
         false

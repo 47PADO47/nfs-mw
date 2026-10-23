@@ -1,6 +1,6 @@
-//! The persistent instance store: every instance's model matrix in one renderer-owned storage buffer, at a slot
+//! The persistent instance store: every instance's model matrix and receiver metadata in one renderer-owned storage buffer, at a slot
 //! that a keyed instance keeps from frame to frame. Each frame only the slots whose matrix changed are written,
-//! and each view uploads a list of 4-byte slot indices instead of a 64-byte matrix per instance.
+//! and each view uploads a list of 4-byte slot indices instead of an 80-byte model and metadata record.
 //!
 //! Slots are handed out per epoch. An epoch starts with each scene frame (and each view capture), when every
 //! encoder that used the store has been submitted, so a slot is written at most once while any one submission
@@ -25,8 +25,8 @@ pub(in crate::gpu) const RETAIN_EPOCHS: u32 = 120;
 const JOIN_GAP: u32 = 4;
 /// Slots the store holds before it first grows.
 const INITIAL_SLOTS: u32 = 4096;
-/// Bytes of one slot: a column-major 4x4 matrix.
-const SLOT_BYTES: u64 = 64;
+/// Bytes of one slot: a column-major 4x4 matrix and aligned receiver metadata.
+const SLOT_BYTES: u64 = 80;
 
 /// Whether `device` can read the store from vertex shaders. GL may lack vertex-stage storage buffers, and a
 /// device created with WebGL2 limits has none at all.
@@ -91,7 +91,7 @@ struct Entry {
 #[derive(Default)]
 pub(in crate::gpu) struct SlotTable {
     keys: HashMap<InstanceKey, Entry, BuildHasherDefault<KeyHasher>>,
-    data: Vec<[u32; 16]>,
+    data: Vec<[u32; 20]>,
     free: Vec<u32>,
     /// The transient slots handed out this epoch, in order.
     transient: Vec<u32>,
@@ -110,7 +110,7 @@ impl SlotTable {
     }
 
     /// What every slot holds.
-    pub(in crate::gpu) fn data(&self) -> &[[u32; 16]] {
+    pub(in crate::gpu) fn data(&self) -> &[[u32; 20]] {
         &self.data
     }
 
@@ -135,7 +135,7 @@ impl SlotTable {
 
     /// The slot of an instance with `key` and model matrix `data` for this epoch, writing the matrix if the slot
     /// held something else.
-    pub(in crate::gpu) fn assign(&mut self, key: InstanceKey, data: [u32; 16]) -> u32 {
+    pub(in crate::gpu) fn assign(&mut self, key: InstanceKey, data: [u32; 20]) -> u32 {
         if key.is_transient() {
             return self.claim_transient(data);
         }
@@ -159,7 +159,7 @@ impl SlotTable {
         slot
     }
 
-    fn claim_transient(&mut self, data: [u32; 16]) -> u32 {
+    fn claim_transient(&mut self, data: [u32; 20]) -> u32 {
         let slot = match self.reuse.get(self.reuse_at) {
             Some(&slot) => {
                 self.reuse_at += 1;
@@ -177,11 +177,11 @@ impl SlotTable {
             return slot;
         }
         // A new slot holds zeros, like the zero-initialised GPU buffer.
-        self.data.push([0; 16]);
+        self.data.push([0; 20]);
         (self.data.len() - 1) as u32
     }
 
-    fn write(&mut self, slot: u32, data: [u32; 16]) {
+    fn write(&mut self, slot: u32, data: [u32; 20]) {
         let stored = &mut self.data[slot as usize];
         if *stored == data {
             return;
@@ -261,7 +261,7 @@ pub(in crate::gpu) struct InstanceStore {
     /// The main view's instances were uploaded by this frame's scene and not yet drawn by its colour pass.
     main_ready: bool,
     /// Scratch for the matrices a view still uploads itself (glossy draws).
-    pub(in crate::gpu) matrices: Vec<[f32; 16]>,
+    pub(in crate::gpu) matrices: Vec<[f32; 20]>,
     overflow_logged: bool,
 }
 
@@ -286,7 +286,9 @@ impl InstanceStore {
     pub(in crate::gpu) fn assign(&mut self, instances: &[Instance], out: &mut Vec<u32>) {
         out.clear();
         let table = &mut self.table;
-        out.extend(instances.iter().map(|i| table.assign(i.key, bytemuck::cast(i.transform.to_cols_array()))));
+        out.extend(
+            instances.iter().map(|i| table.assign(i.key, bytemuck::cast(crate::gpu::instances::instance_words(i)))),
+        );
     }
 
     /// Write the changed slots to the GPU buffer, growing it (and rewriting it whole) when it is too small.

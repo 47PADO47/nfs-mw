@@ -53,6 +53,8 @@ mod quick_race;
 mod renderer_options;
 mod rewards;
 mod room;
+mod room_floor;
+mod room_materials;
 mod scene;
 mod screens;
 mod script;

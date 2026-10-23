@@ -49,17 +49,7 @@ impl Renderer {
             );
         }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(desc.label),
-            layout: &self.shared.bindings.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.shared.bindings.sampler),
-                },
-            ],
-        });
+        let bind_group = self.diffuse_group(&view, None);
         let slot = self.textures.insert(bind_group);
         self.texture_views.insert(slot, view);
         TextureHandle::from_raw(slot)
@@ -68,6 +58,7 @@ impl Renderer {
     /// Free a texture. Draws that still reference it fall back to white.
     pub fn destroy_texture(&mut self, handle: TextureHandle) {
         if handle.raw() != 0 {
+            self.planar_receivers.retain(|&receiver| receiver != handle.raw());
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
             self.redirects.forget(handle.raw());

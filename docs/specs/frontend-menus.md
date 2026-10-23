@@ -97,6 +97,30 @@ package `PAD_BACK` reaches the game at once and the game runs `FORWARD`. On `EXI
 applied (`React`) and the screen is switched. The icon menus remember the option they were left on (this rewrite
 keys that by the package and which menu it is, since the pause package is two menus).
 
+**Host input corrections (implementation-derived).** A native pointer click identifies the visible carousel
+object, maps its slot through the current window base, and selects that logical icon before activation.
+Changing only the package focus leaves the controller's selected icon unchanged and can open another screen.
+When a pushed dialog or profile list closes, the retained carousel restores its reaction flag and clears its
+pending leave action as well as restoring the icon fade. Otherwise a No or Back answer can leave the carousel
+visible but unable to accept another selection. Safe house Resume, the alias manager's dialogs/lists and career
+New/Load overlay the retained menu directly, like pause Quit/Restart, without playing its leave scripts:
+No/Back preserves its header and brackets as well as its icons. Installed-package regressions cover direct and
+windowed icon clicks, visible headers, and repeated safe house/Alias Save questions after cancellation. These are
+host correctness rules, not new
+claims about original executable behaviour.
+
+**Footer and profile-list presentation [observed screenshots].** User-supplied PC reference screenshots
+(2026-10-23) show Back followed by Accept in the original option-category, career and safe house carousels.
+These native footers publish both actions in that order; the Remastered list keeps its existing footer policy.
+The reference profile list shows the alias name without a text prefix: the package supplies selection colour
+and brackets. Keep alias strings unchanged and run the installed row's highlight/unhighlight scripts.
+Rows are text objects with authored column widths, not focus buttons. Pointer bounds use the column and
+measured font height; the one-unit string transform is not a hit rectangle. Highlight scripts route the
+package's row-specific cursor messages, moving its selection brackets.
+Native pointer picking resolves the occupied slot on the current page before selecting or loading its alias;
+empty slots consume the click without loading the previously selected alias. Keyboard/controller Accept reads
+one gesture from the pad layer, so a row asset's own BUTTON_PRESSED response cannot suppress the selection.
+
 The package leaves a stand-in icon (`OPTION_MASTER`, the image at the cursor) that the scroller hides, and
 it positions the icons itself every frame: the package's scripts also write colours and sizes, so the host writes
 its values after the update.

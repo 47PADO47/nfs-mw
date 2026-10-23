@@ -75,7 +75,11 @@ impl ScreenLogic for RegionUnlockLogic {
         if !is_continue_point(point, centre) {
             return false;
         }
-        self.press(cx, UnlockInput::MouseReleaseOnContinue);
+        let event = self.screen.input(UnlockInput::MouseReleaseOnContinue);
+        if matches!(event, UnlockEvent::Accepted { .. }) {
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+        }
+        self.handle(cx, event);
         true
     }
 }

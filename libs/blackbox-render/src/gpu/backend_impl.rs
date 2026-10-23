@@ -103,6 +103,9 @@ impl RenderBackend for Renderer {
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
         self.capture_projected(scene);
     }
+    fn set_planar_reflection_scene(&mut self, scene: Option<blackbox_gfx::PlanarReflectionScene<'_>>) {
+        self.capture_planar(scene);
+    }
     fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
         self.queue_reflections(scene);
     }

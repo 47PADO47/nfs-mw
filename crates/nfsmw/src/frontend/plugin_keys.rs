@@ -61,6 +61,14 @@ pub(super) fn pad_mask(actions: &ActionState) -> u32 {
     .fold(0, |mask, (_, bit)| mask | bit)
 }
 
+/// Menu wheel notches come only from the mouse. Viewer Zoom also includes the D-pad, which already navigates the pad mask.
+pub(super) fn menu_wheel_steps(actions: &ActionState, wheel: &mut f32, active: bool) -> i32 {
+    *wheel = if active { *wheel + actions.menu_scroll() } else { 0.0 };
+    let notches = wheel.trunc();
+    *wheel -= notches;
+    notches as i32
+}
+
 /// The pad mask while a screen takes text: Enter accepts and Escape goes back; the letters and Backspace are text.
 pub(super) fn text_mask(keys: &ButtonInput<KeyCode>) -> u32 {
     let mut mask = 0;
@@ -86,3 +94,7 @@ pub(super) fn start_press(
     let keys: std::collections::HashSet<KeyCode> = script_key.into_iter().collect();
     crate::input::start_press(&keys, [])
 }
+
+#[cfg(test)]
+#[path = "navigation_tests.rs"]
+mod navigation_tests;

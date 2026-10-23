@@ -19,16 +19,23 @@ impl Renderer {
             anisotropy_clamp: filtering.anisotropy(),
             ..Default::default()
         });
-        for (slot, view) in &self.texture_views {
-            let Some(group) = self.textures.get_mut(*slot) else { continue };
-            *group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("scene texture filtering"),
-                layout: &self.shared.bindings.texture_layout,
-                entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(view) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
-                ],
-            });
+        self.shared.bindings.sampler = sampler.clone();
+        let groups: Vec<_> = self
+            .texture_views
+            .iter()
+            .map(|(&slot, view)| {
+                let projected = self
+                    .projected
+                    .as_ref()
+                    .filter(|_| self.planar_receivers.contains(&slot))
+                    .map(|capture| (capture.output(), capture.receiver_matrix));
+                (slot, self.diffuse_group(view, projected))
+            })
+            .collect();
+        for (slot, group) in groups {
+            if let Some(old) = self.textures.get_mut(slot) {
+                *old = group;
+            }
         }
         if let Some(normal) = &mut self.normal {
             normal.set_sampler(&self.device, &sampler);

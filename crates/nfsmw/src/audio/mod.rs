@@ -39,6 +39,7 @@ mod explosion;
 mod fx;
 mod heli;
 mod interactive;
+pub mod menu;
 mod mixer;
 pub mod nis;
 pub mod oneshot;
@@ -119,6 +120,7 @@ pub struct Audio {
     heli: heli::Slot,
     sirens: siren::Slot,
     common: common_effects::CommonPlayback,
+    menu: menu::MenuPlayer,
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
     explosion: explosion::Slot,
@@ -128,6 +130,7 @@ pub struct Audio {
     volumes: Volumes,
     /// The bytes of the banks read so far, by path under `SOUND/`.
     banks: HashMap<String, Arc<Vec<u8>>>,
+    module_banks: HashMap<String, Arc<blackbox_aems::ModuleBank>>,
     /// Decoded bank sounds by (bank path, index), filled by the frame thread and by the decode worker.
     decoder: decode_worker::Decoder,
     sound_channels: HashMap<(String, usize), u16>,
@@ -229,6 +232,7 @@ impl Audio {
             heli: heli::Slot::default(),
             sirens: siren::Slot::default(),
             common: common_effects::CommonPlayback::default(),
+            menu: menu::MenuPlayer::default(),
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),
             explosion: explosion::Slot::default(),
@@ -237,6 +241,7 @@ impl Audio {
             dir,
             volumes,
             banks: HashMap::new(),
+            module_banks: HashMap::new(),
             decoder: decode_worker::Decoder::default(),
             sound_channels: HashMap::new(),
             impact_counter: 0,

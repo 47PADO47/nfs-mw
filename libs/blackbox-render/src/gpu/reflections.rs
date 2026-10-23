@@ -25,10 +25,12 @@ pub(super) enum CaptureKind {
     Cube,
     LitCube,
     Projected,
+    Planar,
 }
 
 pub(super) struct CaptureView {
     pub kind: CaptureKind,
+    pub clip_plane: [f32; 4],
     pub globals: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub instances: InstanceBuffer,
@@ -47,7 +49,13 @@ impl CaptureView {
             layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() }],
         });
-        Self { kind: CaptureKind::Cube, globals, bind_group, instances: InstanceBuffer::new(device) }
+        Self {
+            kind: CaptureKind::Cube,
+            clip_plane: [0.0; 4],
+            globals,
+            bind_group,
+            instances: InstanceBuffer::new(device),
+        }
     }
 }
 
