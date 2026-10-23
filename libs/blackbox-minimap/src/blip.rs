@@ -13,6 +13,12 @@ const GONE: f32 = 0.23;
 /// `1 / (GONE - FADE_FROM)`: the game's constant, 9.5238.
 const FADE_SLOPE: f32 = 9.523_81;
 
+/// The minimap's radius in world metres: an element nearer the player than this, on a picture `width` metres wide drawn
+/// at `zoom`, is drawn where it is; a farther one is pinned to the circle's edge.
+pub fn inside_radius(width: f32, zoom: f32) -> f32 {
+    EDGE * width / zoom
+}
+
 /// What to do with the element's object.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Blip {
@@ -82,6 +88,16 @@ mod tests {
 
     fn view(heading: [f32; 2]) -> View {
         View::new(GRID, &MAP, [4000.0, 4000.0], heading, 1.0)
+    }
+
+    #[test]
+    fn the_inside_radius_is_where_an_element_stops_being_pinned() {
+        let radius = inside_radius(MAP.width, 1.0);
+        assert!((radius - 480.0).abs() < 1e-3, "{radius}");
+        let v = view([0.0, 1.0]);
+        let inside = place(&v, Orientation::North, at(4000.0 + radius - 1.0, 4000.0), [0.0, 1.0], false, 1024.0);
+        let outside = place(&v, Orientation::North, at(4000.0 + radius + 1.0, 4000.0), [0.0, 1.0], false, 1024.0);
+        assert!(inside.inside && !outside.inside);
     }
 
     #[test]

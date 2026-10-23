@@ -1,5 +1,6 @@
 //! A cop that fell out of play is taken off the road by the cop manager's rule, not by the traffic's unseen time
-//! (`docs/specs/ai-pursuit-cops.md` sections 2 and 3.3).
+//! (`docs/specs/ai-pursuit-cops.md` sections 2 and 3.3), and in the rewrite only once it is unseen for the offscreen
+//! grace and off the minimap (about 400 m).
 
 use super::free_roam::{patrol, renderer};
 use super::*;
@@ -25,7 +26,8 @@ fn player_at(z: f32, speed: f32) -> Focus {
         half_width: 1.0,
         half_length: 2.0,
     };
-    Focus { position: [0.0, z], heading: 0.0, speed, body: Some(body) }
+    // The map position is render x, y: render x is physics z.
+    Focus { position: [z, 0.0], heading: 0.0, speed, body: Some(body) }
 }
 
 /// Runs the world and the recycling for `seconds`, the camera and the player standing still.
@@ -53,13 +55,21 @@ fn world_with_a_driving_patrol_at(z: f32) -> TrafficWorld {
 }
 
 #[test]
-fn a_patrol_beyond_the_middle_of_the_window_goes_after_ten_seconds() {
+fn an_unseen_patrol_off_the_minimap_goes_after_ten_seconds() {
     let mut world = world_with_a_stationary_cop_at(150.0);
-    let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, true));
+    let (focus, camera) = (player_at(-300.0, 0.0), camera_at(-300.0, false));
     run(&mut world, focus, &camera, 9.0);
     assert_eq!(world.cars.len(), 1, "still there at 9 s");
     run(&mut world, focus, &camera, 2.0);
-    assert!(world.cars.is_empty(), "300 m from the camera is available once it is 10 s old");
+    assert!(world.cars.is_empty(), "450 m from the camera, unseen, is available once it is 10 s old");
+}
+
+#[test]
+fn a_patrol_on_the_minimap_stays_beyond_the_middle_of_the_window() {
+    let mut world = world_with_a_stationary_cop_at(150.0);
+    let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, true));
+    run(&mut world, focus, &camera, 30.0);
+    assert_eq!(world.cars.len(), 1, "300 m straight ahead is on the screen and on the minimap");
 }
 
 #[test]
@@ -71,11 +81,11 @@ fn a_patrol_inside_the_window_and_ahead_of_the_camera_stays() {
 }
 
 #[test]
-fn a_patrol_beside_the_camera_between_the_minimum_and_the_middle_goes() {
+fn a_patrol_beside_the_camera_stays_while_it_is_on_the_minimap() {
     let mut world = world_with_a_stationary_cop_at(100.0);
     let (focus, camera) = (player_at(-100.0, 0.0), camera_at(-100.0, false));
-    run(&mut world, focus, &camera, 11.0);
-    assert!(world.cars.is_empty(), "200 m off to the side is outside the forward cone");
+    run(&mut world, focus, &camera, 30.0);
+    assert_eq!(world.cars.len(), 1, "200 m off to the side: turning round finds it");
 }
 
 #[test]
@@ -112,5 +122,8 @@ fn a_wreck_in_play_stays_in_view_and_goes_once_it_may_respawn_out_of_play() {
     assert_eq!(world.cars.len(), 1, "a wreck 210 m ahead of the camera is in play");
     let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, false));
     run(&mut world, focus, &camera, 12.0);
-    assert!(world.cars.is_empty(), "turn away and it is out of the cone");
+    assert_eq!(world.cars.len(), 1, "turned away, but still on the minimap");
+    let (focus, camera) = (player_at(-350.0, 0.0), camera_at(-350.0, false));
+    run(&mut world, focus, &camera, 5.0);
+    assert!(world.cars.is_empty(), "out of view and off the minimap it goes");
 }

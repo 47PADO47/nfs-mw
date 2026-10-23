@@ -13,6 +13,9 @@ const MARGIN: f32 = 2.0;
 /// Weight `k` of the camera-eye distance in `min(|p - P1|, k |p - P0|)` (spec §8). It is 1 until the original's
 /// view object is confirmed to be the camera (spec §11, open question).
 const EYE_WEIGHT: f32 = 1.0;
+/// The open city's minimap radius, metres: `blackbox_minimap::inside_radius` of its 6659 m picture at the retail zoom
+/// of 1 (`docs/specs/hud-minimap.md`). A car or cop the player can find on the minimap is never removed **[ours]**.
+pub const MINIMAP_RADIUS: f32 = 400.0;
 
 /// What the camera sees this tick, and the distances the removal rules measure from.
 #[derive(Clone, Copy)]
@@ -70,6 +73,16 @@ impl Viewing {
     pub fn away(&self, p: Vec3) -> f32 {
         (p.x - self.focus[0]).hypot(p.y - self.focus[1])
     }
+
+    /// Whether `p` (render space) is inside the minimap's circle around the player.
+    pub fn on_minimap(&self, p: Vec3) -> bool {
+        self.away(p) <= MINIMAP_RADIUS
+    }
+
+    /// Whether a body unseen for `offscreen` seconds at `p` may go: unseen longer than the grace and off the minimap.
+    pub fn forgotten(&self, offscreen: f32, p: Vec3) -> bool {
+        offscreen > self.grace && !self.on_minimap(p)
+    }
 }
 
 /// Whether a sphere of `radius` around `centre` may reach into the frustum. The test runs against the box around
@@ -87,6 +100,16 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    #[ignore = "needs the game; checks the minimap radius against the open city's calibration"]
+    fn the_minimap_radius_matches_the_city_picture() {
+        let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
+        let map = nfsmw_data::minimap::open_city_calibration(&dir).unwrap();
+        let radius = blackbox_minimap::inside_radius(map.width, 1.0);
+        assert!((radius - MINIMAP_RADIUS).abs() < 5.0, "{radius}");
+    }
+
     /// A 90 degree square lens at `eye` looking along `target` (Z up).
     fn lens(eye: Vec3, target: Vec3) -> Lens {
         Lens::look_at(eye, target, 90.0, 0.1, 1.0)
@@ -94,6 +117,17 @@ mod tests {
 
     fn frustum_looking_north() -> Frustum {
         Frustum::from_view_proj(&lens(Vec3::ZERO, Vec3::Y).view_proj())
+    }
+
+    #[test]
+    fn a_body_is_forgotten_once_unseen_past_the_grace_and_off_the_minimap() {
+        let focus = Focus { position: [0.0, 0.0], heading: 0.0, speed: 0.0, body: None };
+        let view = Viewing::new(&lens(Vec3::ZERO, Vec3::Y), focus);
+        let near = Vec3::new(0.0, -MINIMAP_RADIUS + 10.0, 0.0);
+        let far = Vec3::new(0.0, -MINIMAP_RADIUS - 10.0, 0.0);
+        assert!(!view.forgotten(60.0, near), "a cop or car on the minimap stays however long it is unseen");
+        assert!(!view.forgotten(3.9, far), "off the minimap, but not unseen for 4 s yet");
+        assert!(view.forgotten(4.1, far));
     }
 
     #[test]
