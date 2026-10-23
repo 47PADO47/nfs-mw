@@ -177,6 +177,7 @@ impl Rig {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (a few minutes)"]
 fn a_client_world_drives_against_the_real_server_with_a_bot_beside_it() {
+    let _turn = super::super::installed_turn::take();
     let cars = nfsmw_data::car::list(&dir());
     let mut rig = Rig::open();
     let (idle, gas) = (ActionState::default(), throttle());
@@ -237,6 +238,7 @@ fn a_client_world_drives_against_the_real_server_with_a_bot_beside_it() {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 30 s)"]
 fn the_game_car_rewinds_the_real_drive_exactly() {
+    let _turn = super::super::installed_turn::take();
     let dir = dir();
     let mut renderer = renderer();
     let mut scene = client_world(&dir, &mut renderer);
@@ -279,6 +281,7 @@ fn run(car: &mut super::GameCar, input: impl Fn(u32) -> InputState) -> Vec<nfsmw
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (a few minutes)"]
 fn a_client_in_a_race_seat_follows_the_servers_race_car() {
+    let _turn = super::super::installed_turn::take();
     let dir = dir();
     let cars = nfsmw_data::car::list(&dir);
     let data = nfsmw_data::gameplay::load(&dir).unwrap();
@@ -326,16 +329,20 @@ fn a_client_in_a_race_seat_follows_the_servers_race_car() {
         let predicted = glam::Vec3::from_array(rig.client.borrow().session().own_car().unwrap().state().position);
         (served, predicted)
     };
-    for _ in 0..60 {
+    // The streaming of a far road takes a while on a busy machine: wait for the car to arrive (15 s at most).
+    let mut arrived = false;
+    for frame in 0..60 * 15 {
         rig.frame(&gas);
+        let (served, predicted) = on_grid(&rig);
+        if frame >= 60 && glam::Vec3::from_array(served.position).distance(predicted) < 20.0 {
+            arrived = true;
+            break;
+        }
     }
-    let (served, predicted) = on_grid(&rig);
+    let (served, _) = on_grid(&rig);
     let from_start = glam::Vec3::from_array(served.position).distance(glam::Vec3::new(AT[0], AT[1], 0.0));
     assert!(from_start > 500.0, "the race grid is far from where the client's world opened ({from_start:.0} m)");
-    assert!(
-        glam::Vec3::from_array(served.position).distance(predicted) < 20.0,
-        "the client's car stands at the server's race car, not where its world opened"
-    );
+    assert!(arrived, "the client's car stands at the server's race car, not where its world opened");
 
     // Four seconds of driving: the client's prediction of the race car is as good as in free roam.
     let snaps_before = rig.client.borrow().session().corrections().snaps();

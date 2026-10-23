@@ -146,7 +146,15 @@ impl PredictedCar for GameCar {
     fn restore(&mut self, saved: &GameCarSave) {
         let mut desk = self.desk.borrow_mut();
         if let (Some(lent), Some(drive)) = (desk.lent.as_mut(), saved.drive.as_ref()) {
-            lent.drive.predict_restore(drive);
+            // A save from before a teleport is of no use: the car stood somewhere else then. Restoring it would put
+            // the car back at the old place, and the state set right after would start the teleport over.
+            let teleported = lent
+                .drive
+                .motion()
+                .is_some_and(|motion| motion.position.distance(Vec3::from_array(saved.state.position)) > TELEPORT_M);
+            if !teleported {
+                lent.drive.predict_restore(drive);
+            }
         }
         desk.state = saved.state;
     }

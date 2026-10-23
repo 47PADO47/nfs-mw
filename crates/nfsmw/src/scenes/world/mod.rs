@@ -35,6 +35,8 @@ mod ground;
 mod heli_wash;
 mod hud;
 mod hud_pursuit;
+#[cfg(test)]
+mod installed_turn;
 mod keys;
 mod lighting;
 mod materials;
