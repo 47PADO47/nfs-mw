@@ -63,10 +63,31 @@ impl RoadReflectionResolution {
     }
 }
 
+pub(super) fn finite_scale(value: Option<f32>, fallback: f32, maximum: f32) -> f32 {
+    value.filter(|v| v.is_finite()).unwrap_or(fallback).clamp(0.0, maximum)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::settings::{Partial, Settings, VisualStyle, file, write};
+
+    #[test]
+    fn rain_size_saves_merges_and_sanitizes() {
+        assert_eq!(Settings::from(Partial::default()).rain_droplet_scale, 0.5);
+        let lower = Partial { rain_droplet_scale: Some(0.25), ..Default::default() };
+        let requested = file::parse("rain_droplet_scale = 0.75", "test");
+        let s = Settings::from(requested.or(lower));
+        let stored = write::merge("unknown = 'keep'", &s.appearance_layer()).unwrap();
+        let restored = Settings::from(file::parse(&stored, "test"));
+        assert_eq!(restored.rain_droplet_scale, 0.75);
+        assert!(stored.contains("unknown = \"keep\""));
+        for (value, expected) in [(f32::NAN, 0.5), (f32::INFINITY, 0.5), (-1.0, 0.0), (9.0, 2.0)] {
+            let s = Settings::from(Partial { rain_droplet_scale: Some(value), ..Default::default() });
+            assert_eq!(s.rain_droplet_scale, expected);
+            assert_eq!(crate::settings::WorldTuning::from(&s).rain_droplet_scale, expected);
+        }
+    }
 
     #[test]
     fn road_reflections_round_trip_profiles_and_retain_unsupported_requests() {

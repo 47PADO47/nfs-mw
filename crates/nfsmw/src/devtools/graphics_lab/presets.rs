@@ -192,6 +192,7 @@ pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
     settings.reflection_extra.distance = snapshot.reflection_extra.distance;
     settings.reflection_cube_size = snapshot.reflection_cube_size;
     settings.texture_filtering = snapshot.texture_filtering;
+    settings.rain_droplet_scale = snapshot.rain_droplet_scale;
     settings.road_reflections = snapshot.road_reflections;
     settings.road_reflection_resolution = snapshot.road_reflection_resolution;
     settings.ao = snapshot.ao;

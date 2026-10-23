@@ -1,7 +1,11 @@
 //! Authored projected road captures. This is separate from car environment cubes.
+#[cfg(test)]
+mod fast_spray_tests;
 pub(super) mod geometry;
 #[cfg(test)]
 mod installed_tests;
+#[cfg(test)]
+mod rain_drive_tests;
 mod state;
 #[cfg(test)]
 mod tests;
@@ -45,7 +49,7 @@ impl WorldScene {
             fov_y_radians: lens.fov_y_degrees.to_radians(),
             light_dir: self.sun.direction().to_array(),
         };
-        // Content thresholds retain the original 240-line budget when image resolution increases.
+        // Retain the original capture content thresholds.
         geometry::scenery(
             self.residency.reflection_placed(),
             &camera,

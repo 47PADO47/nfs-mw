@@ -6,6 +6,7 @@ use super::{
 
 #[derive(Clone, Copy)]
 pub(in crate::audio) struct AmbientLevels {
+    pub rain: [i32; 2],
     pub wind: [i32; 6],
     pub road: [i32; 8],
     pub road_azimuth: [i32; 2],
@@ -19,6 +20,7 @@ pub(in crate::audio) struct AmbientLevels {
 impl Default for AmbientLevels {
     fn default() -> Self {
         Self {
+            rain: [0; 2],
             wind: [0, 0, 13107, 13107, 0, 4096],
             road: [11468; 8],
             road_azimuth: [0; 2],
@@ -37,6 +39,7 @@ impl CarMixer {
         let mut wind = std::array::from_fn(|i| raw(object::WIND, i));
         wind[5] = (self.mixer.pitch(player_object(object::WIND), 5).unwrap_or(1.0) * 4096.0) as i32;
         AmbientLevels {
+            rain: [0, 1].map(|i| raw(object::RAIN, i)),
             wind,
             road: [5, 6, 7, 8, 9, 10, 10, 11].map(|i| raw(object::ROAD, i)),
             road_azimuth: [0, 1].map(|i| raw(object::ROAD, i)),

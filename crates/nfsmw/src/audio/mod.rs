@@ -51,6 +51,7 @@ mod radio;
 mod refs;
 mod siren;
 mod speech;
+mod thunder;
 mod trace;
 pub mod traffic;
 mod tuning;
@@ -121,6 +122,7 @@ pub struct Audio {
     wet: wet::Slot,
     speedbreaker: speedbreaker::Slot,
     explosion: explosion::Slot,
+    thunder: thunder::Slot,
     nis: nis::NisAudio,
     dir: GameDir,
     volumes: Volumes,
@@ -230,6 +232,7 @@ impl Audio {
             wet: wet::Slot::default(),
             speedbreaker: speedbreaker::Slot::default(),
             explosion: explosion::Slot::default(),
+            thunder: thunder::Slot::default(),
             nis: nis::NisAudio::default(),
             dir,
             volumes,

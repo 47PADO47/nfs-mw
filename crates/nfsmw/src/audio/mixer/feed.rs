@@ -84,6 +84,7 @@ pub fn publish(m: &mut Mixer, f: &Frame<'_>, view: &crate::audio::AudioView) {
     object_input(m, object::SKIDS, 1, q15(skids.skid_side));
     object_input(m, object::SKIDS, 3, q15(skids.skid_load));
     object_input(m, object::ROAD, 0, flag(skids.road_changed));
+    object_input(m, object::RAIN, 2, flag(view.rain_intensity > 0.01));
     positions(m, view, input.speed.abs());
 }
 

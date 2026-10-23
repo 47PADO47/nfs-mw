@@ -263,6 +263,7 @@ impl Settings {
             reflection_cube_size: Some(self.reflection_cube_size),
             reflection_distance: Some(self.reflection_extra.distance),
             texture_filtering: Some(self.texture_filtering),
+            rain_droplet_scale: Some(self.rain_droplet_scale),
             road_reflections: Some(self.road_reflections),
             road_reflection_resolution: Some(self.road_reflection_resolution),
             shadows: Some(self.shadows),

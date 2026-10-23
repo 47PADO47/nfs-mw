@@ -138,8 +138,10 @@ impl Audio {
         if state.is_some() {
             self.prepare_breaker_moments();
             self.prepare_explosion();
+            self.prepare_thunder();
         }
         self.update_speedbreaker(state.is_some_and(|state| state.view.speedbreaker), dt);
+        self.update_thunder(state.map(|state| state.view), dt);
         let mut car = self.car.take();
         let mut failed = self.failed.take();
         self.follow_car(&mut car, &mut failed, state, dt);

@@ -3,7 +3,9 @@
 //! The model is pure. Callers pass the frame time, the zone samples and the base roll; nothing here
 //! reads the game or the GPU. Values the spec has not measured yet are parameters, not constants.
 
+mod curtain;
 pub mod drops;
+pub mod lens;
 pub mod rain;
 #[cfg(test)]
 mod tests;
@@ -106,14 +108,13 @@ impl Weather {
     }
 }
 
-/// The base roll from the time-like input in seconds (spec: the base roll section). The input is whole seconds, then
-/// integer division by 360 gives a 16-bit angle index, and the roll is `1 - |cos(angle)|` clamped at 0.
-/// For every input the index is 0 or 1, so the roll is effectively 0: the zone map alone decides the rain.
-pub fn base_roll(seconds: f32) -> f32 {
-    let whole = seconds.round() as i64;
-    let index = ((whole / 360) as u16) as f32;
-    let cos = (index * std::f32::consts::TAU / 65536.0).cos();
-    (1.0 - cos.abs()).max(0.0)
+/// Original spatial weather gate. Free roam supplies time=1, race uses its wrapping clock.
+pub fn regional_gate(time: f32, x: f32) -> f32 {
+    if !time.is_finite() || !x.is_finite() {
+        return 1.0;
+    }
+    let index = (((0.714_285_73 * time + 0.02 * x) * 65_536.0).trunc() as i64 / 360) as u16;
+    1.0 - (f32::from(index) * std::f32::consts::TAU / 65_536.0).cos().max(0.0)
 }
 
 /// One first-order step toward `target`: the lag is `1 / rate` seconds scaled by the frame time.

@@ -30,6 +30,8 @@ mod model_loader;
 mod models;
 mod moment_feed;
 mod net_export;
+mod water;
+pub(in crate::scenes::world) use water::RainView;
 mod nis_poses;
 mod original_camera;
 mod parallel;
@@ -127,6 +129,7 @@ pub struct TrafficModel {
 }
 
 pub struct TrafficWorld {
+    water: water::Water,
     network: RoadNetwork,
     index: SegmentIndex,
     /// The track barrier lines (`road_barriers.rs`).
@@ -258,6 +261,7 @@ impl TrafficWorld {
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
+            water: Default::default(),
             signals: SignalController::new(&network),
             signal_time: 0.0,
             signal_lamps: signal_props::SignalLamps::default(),

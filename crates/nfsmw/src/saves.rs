@@ -150,6 +150,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         graphics_preset: Some(s.graphics_preset),
         shadows: Some(s.shadows),
         car_shading: Some(s.car_shading),
+        rain_droplet_scale: Some(s.rain_droplet_scale),
         road_reflections: Some(s.road_reflections),
         road_reflection_resolution: Some(s.road_reflection_resolution),
         traffic: Some(s.traffic),

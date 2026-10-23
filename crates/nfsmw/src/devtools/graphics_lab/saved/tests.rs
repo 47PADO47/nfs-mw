@@ -57,6 +57,7 @@ fn saved_blackbox_profile_restores_complete_requests_and_preserves_runtime_prefe
     settings.fe_shadows.bias = 1.5;
     settings.motion_blur = false;
     settings.motion_blur_strength = 0.4;
+    settings.rain_droplet_scale = 0.3;
     settings.backend = blackbox_gfx::GraphicsApi::Vulkan;
     settings.window_mode = crate::settings::WindowMode::Borderless;
     settings.monitor = crate::settings::Monitor::Index(2);

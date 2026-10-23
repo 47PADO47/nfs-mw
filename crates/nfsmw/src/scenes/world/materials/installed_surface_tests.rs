@@ -34,6 +34,74 @@ fn vertical_hit(a: Vec3, b: Vec3, c: Vec3, p: Vec2) -> Option<f32> {
     Some(u * a.z + v * b.z + (1.0 - u - v) * c.z)
 }
 
+#[test]
+#[ignore = "requires installed highway road materials"]
+fn installed_highway_road_receiver_diagnostic() {
+    let mut dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    if let Some(path) = std::env::var_os("NFSMW_TEST_OVERLAY") {
+        dir.add_overlay("test", path, 1).unwrap();
+    }
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let textures = load(&dir, &index, "Y0").textures;
+    for hash in [3688049701, 116275821, 3677663908, 3077042670] {
+        let texture = textures.iter().find(|t| t.name_hash == hash).expect("highway texture");
+        let rgba = blackbox_tpk::decode_rgba8(texture).unwrap();
+        let means: [f64; 4] = std::array::from_fn(|c| {
+            rgba.as_chunks::<4>().0.iter().map(|p| f64::from(p[c])).sum::<f64>() / (rgba.len() / 4) as f64
+        });
+        eprintln!(
+            "road texture {hash:08x} {} {}x{} {:?} mean RGBA {means:?}",
+            texture.name, texture.width, texture.height, texture.format
+        );
+    }
+    for point in [Vec3::new(-130.0, 4089.0, 234.8), Vec3::new(-78.0, 4108.0, 231.3), Vec3::new(2191.0, 2515.0, 135.6)] {
+        let mut hits = 0;
+        for section in index.sections.iter().filter(|s| s.distance_to(point.x, point.y) < 50.0) {
+            let tile = load(&dir, &index, &section.name);
+            let solids: std::collections::HashMap<_, _> = tile.solids.iter().map(|s| (s.name_hash, s)).collect();
+            for scenery in &tile.scenery {
+                for instance in &scenery.instances {
+                    let Some(info) = scenery.info_of(instance) else { continue };
+                    let Some(solid) = info.solid_keys.first().and_then(|key| solids.get(key)) else { continue };
+                    let model = Mat4::from_cols_array_2d(&instance.matrix_columns());
+                    for group in &solid.groups {
+                        let first = group.first_index as usize;
+                        for triangle in solid.indices[first..first + group.num_indices as usize].as_chunks::<3>().0 {
+                            let vertices =
+                                triangle.map(|i| &solid.vertices[group.base_vertex as usize + usize::from(i)]);
+                            let p = vertices.map(|v| model.transform_point3(Vec3::from_array(v.position)));
+                            let Some(z) = vertical_hit(p[0], p[1], p[2], point.truncate()) else { continue };
+                            if (z - point.z).abs() > 2.0 {
+                                continue;
+                            }
+                            hits += 1;
+                            let hash = solid.texture_hashes[group.texture_slots[0] as usize];
+                            let texture = textures.iter().find(|t| t.name_hash == hash);
+                            eprintln!(
+                                "road flags {:x} slots {:?} diffuse {:?}",
+                                instance.exclude_flags,
+                                info.solid_keys,
+                                texture.map(|t| (&t.name, t.alpha_blend, t.alpha_usage))
+                            );
+
+                            eprintln!(
+                                "highway {point:?}: {} {} effect {} stride {} texture slots {:?} alpha {:?}",
+                                section.name,
+                                solid.name,
+                                group.effect_id,
+                                solid.vertex_buffers[group.vertex_buffer as usize].stride,
+                                group.texture_slots.map(|s| solid.texture_hashes.get(usize::from(s)).copied()),
+                                vertices.map(|v| v.color_bgra[3])
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(hits > 0, "must resolve the actual road under {point:?}");
+    }
+}
+
 fn assert_actual_road(tile: &SectionData, road: &Solid) {
     let mut hits = Vec::new();
     for section in &tile.scenery {
