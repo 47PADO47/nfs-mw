@@ -38,6 +38,7 @@ fn racing(host: &WorldSimHost) -> bool {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 2 minutes)"]
 fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
+    let _turn = super::super::super::installed_turn::take();
     let mut host = open(5, Some((0, 0)));
     for id in PEOPLE {
         host.add_player(id, &join(CAR)).unwrap();

@@ -23,6 +23,7 @@ fn run(host: &mut super::super::host::WorldSimHost, ticks: u32, inputs: &SimInpu
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 30 s)"]
 fn a_bump_between_two_players_is_a_contact_event() {
+    let _turn = super::super::super::installed_turn::take();
     let mut host = open(3, Some((0, 0)));
     host.add_player(GUEST, &join(CAR)).unwrap();
     // The guest stands still on the road 9 m in front of the lead, facing the same way. It is put there before its
@@ -52,6 +53,7 @@ fn a_bump_between_two_players_is_a_contact_event() {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 30 s)"]
 fn a_chase_started_and_stopped_from_the_console_starts_and_ends_the_leads_pursuit() {
+    let _turn = super::super::super::installed_turn::take();
     let mut host = open(4, Some((8, 0)));
     let (scene, renderer) = host.scene_mut();
     pursuit_command(scene, renderer, &["2"]).unwrap();
