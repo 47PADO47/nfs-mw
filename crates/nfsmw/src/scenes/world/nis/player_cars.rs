@@ -81,4 +81,18 @@ impl NisPlayer {
     pub fn take_final_cars(&mut self) -> Option<Vec<(Target, CarSpot)>> {
         self.final_cars.take()
     }
+
+    /// Leaves the player's car where it was when the scene that plays or loads ends: the scene's last pose of it is not
+    /// handed back (a race's intro, whose car never left its grid slot). Cleared by the next [`NisPlayer::play`].
+    pub fn keep_player_in_place(&mut self) {
+        self.player_stays = true;
+    }
+}
+
+/// The linked cars handed back at a scene's end: all of them, or without the player's car when it stays in place.
+pub(super) fn handed_back(spots: Vec<(Target, CarSpot)>, player_stays: bool) -> Vec<(Target, CarSpot)> {
+    match player_stays {
+        true => spots.into_iter().filter(|&(target, _)| target != Target::Player).collect(),
+        false => spots,
+    }
 }

@@ -23,6 +23,7 @@ use super::loading::Loading;
 use crate::audio::nis::NisAudioRequest;
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
 use crate::viewer::camera::Lens;
+use cars_api::handed_back;
 
 pub use super::kind::{NisKind, NisOutcome};
 
@@ -121,6 +122,8 @@ pub struct NisPlayer {
     last: Option<String>,
     /// The linked cars where they stood when the last scene ended, until the world takes them (`take_final_cars`).
     final_cars: Option<Vec<(Target, CarSpot)>>,
+    /// The scene that plays or loads leaves the player's car where it was (`keep_player_in_place`).
+    player_stays: bool,
     /// The flash and the overlay the playing scene shows; cleared when it ends.
     screen: NisScreen,
     /// The characters of the scenes that ended, freed by the next [`NisPlayer::prepare_characters`].
@@ -148,6 +151,7 @@ impl NisPlayer {
         crate::audio::nis::prefetch(dir, scene);
         self.last = Some(format!("{scene}: loading"));
         self.loading = Some(loading);
+        self.player_stays = false;
         Ok(())
     }
 
@@ -275,7 +279,7 @@ impl NisPlayer {
 
     fn end(&mut self, outcome: NisOutcome) {
         let Some(playing) = self.play.take() else { return };
-        self.final_cars = Some(playing.spots());
+        self.final_cars = Some(handed_back(playing.spots(), std::mem::take(&mut self.player_stays)));
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
         self.screen.clear();

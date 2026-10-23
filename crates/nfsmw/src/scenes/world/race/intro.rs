@@ -306,7 +306,8 @@ impl WorldScene {
         let started = match at {
             Stand::RaceStart(spawn) => {
                 let anchor = self.race_start_anchor(spawn);
-                self.play_nis_at(scene, track, anchor)
+                // The car stays on its grid slot: the scene only draws it, and must not stand it where the clip ends.
+                self.play_nis_at(scene, track, anchor).inspect(|()| self.nis.keep_player_in_place())
             }
             Stand::PlayerCar => self.play_nis(scene, track),
         };
