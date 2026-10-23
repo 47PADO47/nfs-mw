@@ -13,7 +13,7 @@ use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 use crate::scenes::world::race::RaceOptions;
 
-const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit | story carlot | story cash <amount>";
+const USAGE: &str = "usage: story status | story race <event id> | story arrival | story firstvisit | story carlot | story cash <amount> | story cops";
 
 /// The safe house zone the console's requests name: the same one a safe house entry names.
 const SAFE_HOUSE_ZONE: &str = "menu_gate_safehouse/zone_safehouse_1";
@@ -28,6 +28,8 @@ pub(super) enum StoryCommand {
     FirstVisit,
     /// The first car's lot, as the end of the scripted chase opens it.
     CarLot,
+    /// Asks for the cops of the scripted chase of 16.2.1 at its spawn points, as the cop trigger does.
+    Cops,
     /// Sets the career's cash, to test a purchase without playing for the money.
     Cash(u32),
 }
@@ -40,6 +42,7 @@ pub(super) fn parse(args: &[&str]) -> Result<StoryCommand, String> {
         ["arrival"] => Ok(StoryCommand::Arrival),
         ["firstvisit"] => Ok(StoryCommand::FirstVisit),
         ["carlot"] => Ok(StoryCommand::CarLot),
+        ["cops"] => Ok(StoryCommand::Cops),
         ["cash", amount] => amount.parse().map(StoryCommand::Cash).map_err(|_| USAGE.to_owned()),
         _ => Err(USAGE.into()),
     }
@@ -54,6 +57,7 @@ pub(in crate::scenes::world) fn story_command(scene: &mut WorldScene, args: &[&s
         StoryCommand::FirstVisit => first_visit(scene),
         StoryCommand::CarLot => car_lot(scene),
         StoryCommand::Cash(amount) => cash(scene, amount),
+        StoryCommand::Cops => cops(scene),
     }
 }
 
@@ -120,6 +124,15 @@ fn first_visit(scene: &mut WorldScene) -> Result<String, String> {
     Ok("the safe house is requested: at stage 16 the first visit's intro plays first".into())
 }
 
+/// Asks for the scripted chase's cops at the spawn points of race 16.2.1.
+fn cops(scene: &mut WorldScene) -> Result<String, String> {
+    let data = scene.gameplay.as_ref().ok_or("the race data could not be read from the install")?;
+    let points = crate::scenes::world::race::scripted_chase::cop_points(data, "16_2_1_d_day_intro");
+    let line = format!("{} cop spawn point(s) of 16.2.1 asked for", points.len());
+    scene.career.scripted_cops.extend(points);
+    Ok(line)
+}
+
 /// Sets the career's cash.
 fn cash(scene: &mut WorldScene, amount: u32) -> Result<String, String> {
     scene
@@ -150,6 +163,7 @@ mod tests {
         assert_eq!(parse(&["arrival"]), Ok(StoryCommand::Arrival));
         assert_eq!(parse(&["firstvisit"]), Ok(StoryCommand::FirstVisit));
         assert_eq!(parse(&["carlot"]), Ok(StoryCommand::CarLot));
+        assert_eq!(parse(&["cops"]), Ok(StoryCommand::Cops));
         assert_eq!(parse(&["cash", "30000"]), Ok(StoryCommand::Cash(30_000)));
         assert!(parse(&["cash", "lots"]).is_err());
     }

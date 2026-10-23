@@ -80,7 +80,9 @@ use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
 use car::AiCar;
-pub(super) use commands::{pursuit_command, roadblock_command, signals_command, speeding_pursuit, traffic_command};
+pub(super) use commands::{
+    pursuit_command, roadblock_command, scripted_cops, signals_command, speeding_pursuit, traffic_command,
+};
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;

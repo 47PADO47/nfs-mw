@@ -124,6 +124,14 @@ pub fn zone_named(data: &GameplayData, race: &str, child: &str) -> Option<Zone> 
     data.spheres.iter().find(|zone| zone.name == name).map(|zone| Zone::Sphere(zone.clone()))
 }
 
+/// The places the cops of the race `race` spawn at, in order: each spawn point's position and the direction it faces
+/// (physics space).
+pub fn cop_points(data: &GameplayData, race: &str) -> Vec<(Vec3, Vec3)> {
+    data.cop_spawns_of(race)
+        .map(|spawn| (spawn.placement.position, world_heading(spawn.placement.heading_deg)))
+        .collect()
+}
+
 /// The entries of this frame: a trigger fires when the player goes from outside its volume to inside it. Updates
 /// `inside` to `now`.
 pub fn enter_edges(inside: &mut [bool; 4], now: [bool; 4]) -> [bool; 4] {
@@ -303,9 +311,9 @@ impl WorldScene {
                 }
             }
             ChaseEvent::SpawnCops { count, .. } => {
-                log::warn!(
-                    "chase: {count} mid-size cop(s) asked for at the cop trigger; placing cars at a spot is not built yet"
-                );
+                let points = self.chase_cop_points();
+                log::info!("chase: {count} mid-size cop(s) asked for, {} spawn point(s) in the race", points.len());
+                self.career.scripted_cops.extend(points);
             }
             ChaseEvent::DispIntroRace => log::info!("chase: the race intro display is not drawn yet"),
             ChaseEvent::BailPursuit { a, b } => {
@@ -331,6 +339,12 @@ impl WorldScene {
         }
     }
 
+    /// The spawn points of the chase's cops: the race's `cop_spawn_N` children, each facing as its marker does.
+    fn chase_cop_points(&self) -> Vec<(Vec3, Vec3)> {
+        let (Some(session), Some(data)) = (self.race.as_ref(), self.gameplay.as_ref()) else { return Vec::new() };
+        cop_points(data, &session.name)
+    }
+
     /// The chase's race goes to postrace: the race has no result and no results screen; its outro plays (the movie of
     /// `16.2.1`) and the race's chain runs, or for `16.2.1` the car lot opens when the outro is over (`JumpToCarLot`).
     fn chase_post_race(&mut self) {
@@ -345,8 +359,9 @@ impl WorldScene {
         self.race = Some(session);
     }
 
-    /// The chase is over: the engine runs again for whatever comes next, and the sabotage is lifted.
+    /// The chase is over: no cops are still asked for, the engine runs again for whatever comes next, and the sabotage is lifted.
     fn stop_chase_effects(&mut self) {
+        self.career.scripted_cops.clear();
         if let Some(drive) = self.players.lead_mut() {
             drive.set_sabotaged(false);
         }

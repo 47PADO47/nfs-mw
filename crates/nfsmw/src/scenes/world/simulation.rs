@@ -149,6 +149,7 @@ impl WorldScene {
             traffic.update_sight(STEP, &cast);
         }
         ai::speeding_pursuit(self, renderer);
+        ai::scripted_cops(self, renderer);
         // The helicopter's sight asks the world whether the line to the player is clear.
         let (collision, _) = self.residency.world_parts();
         let mut roadblock_view = None;

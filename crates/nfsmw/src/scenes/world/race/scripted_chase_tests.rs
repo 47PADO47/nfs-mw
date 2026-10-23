@@ -192,3 +192,25 @@ fn a_sabotaged_car_that_still_runs_fast_blows_after_the_timeout() {
     run.step(Vec3::new(0.0, 0.0, 3.0), 0.2, false);
     assert!(run.engine_blown());
 }
+
+#[test]
+fn the_cops_spawn_at_the_races_own_spawn_points_facing_their_markers() {
+    use nfsmw_data::gameplay::{CopSpawn, Placement};
+    let spawn = |name: &str, x: f32, heading_deg: f32| CopSpawn {
+        key: 1,
+        name: name.into(),
+        placement: Placement { position: Vec3::new(x, 100.0, 800.0), heading_deg },
+    };
+    let mut data = GameplayData::default();
+    data.cop_spawns = vec![
+        spawn("16_2_1_d_day_intro/cop_spawn_1", 11.0, 0.0),
+        spawn("16_2_1_d_day_intro/cop_spawn_2", 21.0, 90.0),
+        spawn("16_2_3_sprint/cop_spawn_1", 99.0, 0.0),
+    ];
+    let points = cop_points(&data, "16_2_1_d_day_intro");
+    assert_eq!(points.len(), 2, "only this race's points");
+    assert_eq!(points[0].0, Vec3::new(11.0, 100.0, 800.0));
+    assert!((points[0].1 - Vec3::Z).length() < 1e-5, "heading 0 faces +z");
+    assert!((points[1].1 - Vec3::new(-1.0, 0.0, 0.0)).length() < 1e-5, "heading 90 faces -x");
+    assert!(cop_points(&data, "16_1_0_partial_dday").is_empty());
+}
