@@ -35,14 +35,8 @@ fn racing(host: &WorldSimHost) -> bool {
     engine.is_some_and(|engine| engine.phase() == Phase::Racing)
 }
 
-#[test]
-#[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 2 minutes)"]
-fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
-    let _turn = super::super::super::installed_turn::take();
-    let mut host = open(5, Some((0, 0)));
-    for id in PEOPLE {
-        host.add_player(id, &join(CAR)).unwrap();
-    }
+/// A request for the first sprint of the install (no story race) with `players` racing.
+fn sprint_request(host: &WorldSimHost, players: Vec<PlayerId>) -> RaceRequest {
     let data = host.scene().gameplay.clone().expect("the race data");
     let sprint = data
         .races
@@ -54,13 +48,24 @@ fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
                 && !crate::scenes::world::race::is_story_race(race)
         })
         .expect("a sprint race in the install");
-    let request = RaceRequest {
+    RaceRequest {
         mode: Mode::Sprint,
         track: blackbox_feng::fe_hash_upper(&sprint.name),
         laps: 0,
         traffic_density: 0,
-        players: vec![LEAD, PEOPLE[0], PEOPLE[1]],
-    };
+        players,
+    }
+}
+
+#[test]
+#[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 2 minutes)"]
+fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
+    let _turn = super::super::super::installed_turn::take();
+    let mut host = open(5, Some((0, 0)));
+    for id in PEOPLE {
+        host.add_player(id, &join(CAR)).unwrap();
+    }
+    let request = sprint_request(&host, vec![LEAD, PEOPLE[0], PEOPLE[1]]);
     host.start_race(&request).expect("the world starts the race");
     assert_eq!(host.scene().race_people, PEOPLE, "the remote players are the race's people, in grid order");
     for id in PEOPLE {
@@ -138,6 +143,48 @@ fn remote_players_race_beside_the_lead_and_are_their_own_cars_to_the_clients() {
 
     host.stop_race();
     assert!(host.scene().race.is_none() && host.scene().race_people.is_empty());
+    for id in PEOPLE {
+        assert!(!host.scene().players.is_parked(id), "player {} is back on the road", id.0);
+    }
+}
+
+#[test]
+#[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 1 minute)"]
+fn an_idle_lead_is_a_computer_racer_the_race_does_not_wait_for() {
+    let _turn = super::super::super::installed_turn::take();
+    let mut host = open(6, Some((0, 0)));
+    for id in PEOPLE {
+        host.add_player(id, &join(CAR)).unwrap();
+    }
+    // A dedicated server: nobody took slot 0, so the request names the people alone.
+    let request = sprint_request(&host, PEOPLE.to_vec());
+    host.start_race(&request).expect("the world starts the race");
+    let mut events: Vec<SimEvent> = Vec::new();
+    for tick in 0..60 * 120 {
+        host.step(&SimInputs::default(), &mut events);
+        if host.race_staged() {
+            break;
+        }
+        assert!(tick < 60 * 119, "the grid never stood");
+    }
+    let engine = host.scene().race.as_ref().and_then(|session| session.engine.as_ref()).expect("a race engine");
+    let humans: Vec<bool> = engine.racers().iter().map(|racer| racer.human).take(3).collect();
+    assert_eq!(humans, [false, true, true], "the idle lead is a computer racer, the people are the humans");
+    let states = crate::scenes::world::net::sim::racer_states(host.scene()).expect("a race engine");
+    let seated: Vec<_> = states.iter().filter_map(|racer| racer.player).collect();
+    assert_eq!(seated, PEOPLE, "the race events name the people, not the idle lead");
+
+    // The people are done and the race is over at once; nothing waits for the lead.
+    let go = host.tick + 200;
+    host.schedule_race_go(go);
+    while host.tick < go + 5 {
+        host.step(&SimInputs::default(), &mut events);
+    }
+    host.scene_mut().0.knock_out_every_human();
+    for _ in 0..3 {
+        host.step(&SimInputs::default(), &mut events);
+    }
+    assert!(host.scene().race.is_none(), "the race ended with the people, not 30 s after");
     for id in PEOPLE {
         assert!(!host.scene().players.is_parked(id), "player {} is back on the road", id.0);
     }

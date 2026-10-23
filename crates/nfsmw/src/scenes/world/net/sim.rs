@@ -189,9 +189,12 @@ pub(super) fn chase_state(scene: &WorldScene) -> ChaseState {
 pub(super) fn racer_states(scene: &WorldScene) -> Option<Vec<RacerState>> {
     let engine = scene.race.as_ref()?.engine.as_ref()?;
     let people = &scene.race_people;
+    // The lead sits in the first seat unless nobody drives its car (a dedicated server's idle one); then it is a
+    // computer racer and the humans are the people alone.
+    let lead = (!scene.race_lead_idle).then_some(LEAD);
     let mut seats = match people.is_empty() {
-        true => vec![LEAD, super::super::players::coop::GUEST],
-        false => std::iter::once(LEAD).chain(people.iter().copied()).collect(),
+        true => lead.into_iter().chain([super::super::players::coop::GUEST]).collect::<Vec<_>>(),
+        false => lead.into_iter().chain(people.iter().copied()).collect(),
     }
     .into_iter();
     let racers = engine.racers().iter().map(|racer| RacerState {

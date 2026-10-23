@@ -49,9 +49,12 @@ impl WorldControl for WorldSimHost {
         };
         // The grid stands and waits: the server schedules GO (`schedule_race_go`) once everyone has loaded.
         self.scene.hold_next_race(true);
+        // A dedicated server's lead car has no driver unless a player took slot 0: it is not a racer to wait for.
+        self.scene.set_race_lead_idle(!request.players.contains(&PlayerId(0)));
         let begun = self.scene.begin_race(race, options, None);
         if begun.is_err() {
             self.scene.hold_next_race(false);
+            self.scene.set_race_lead_idle(false);
         }
         begun.map(drop)
     }
@@ -71,6 +74,7 @@ impl WorldControl for WorldSimHost {
     fn stop_race(&mut self) {
         self.race_go_at = None;
         self.scene.hold_next_race(false);
+        self.scene.set_race_lead_idle(false);
         self.scene.abandon_race();
     }
 

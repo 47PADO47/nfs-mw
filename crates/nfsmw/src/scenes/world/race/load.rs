@@ -98,7 +98,7 @@ impl WorldScene {
         let player_perf = drive.performance();
         let speed = if prep.rolling { prep.initial_speed } else { 0.0 };
         let mut kept = vec![session.plan[0].clone()];
-        let mut grid = vec![(true, player_physics)];
+        let mut grid = vec![(!self.race_lead_idle, player_physics)];
         let markers: Vec<ShortcutMarker> = match &self.gameplay {
             Some(data) => {
                 session.origin.race.params.shortcuts.iter().filter_map(|k| data.shortcut(*k)).copied().collect()

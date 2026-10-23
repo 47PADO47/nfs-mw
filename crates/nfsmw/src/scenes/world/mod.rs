@@ -231,6 +231,9 @@ pub struct WorldScene {
     /// The next race stages on the grid and waits for [`WorldScene::release_staged_race`] instead of counting down by
     /// itself (`race/hold.rs`). A server sets it before it starts the session's race.
     race_hold: bool,
+    /// Nobody drives the lead's car in the next race (a dedicated server's idle car): it stands on the grid as a
+    /// computer racer, so the race does not wait for it (`race/hold.rs`).
+    race_lead_idle: bool,
     /// The split-screen match being played: the second player's actions and camera (`split/`).
     split: Option<split::SplitState>,
     /// The bottom half's draw list and cut, for a split-screen race or co-op (`split/view.rs`).

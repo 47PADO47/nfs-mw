@@ -176,9 +176,11 @@ track chosen). In the world (`players/race.rs`, `race/start.rs`):
   (it goes on without the race after 60 s). When the lobby's countdown begins it calls `schedule_race_go(target tick)`, and the
   host releases the world's countdown `lead` ticks before that tick: GO is the round's start tick. The lobby's countdown is 180
   ticks, the same as the world's, so the release comes at once.
-- **Events.** `racer_states` names the lead and then the people, so laps, finishes and speed-trap passes reach the mode rules by
-  player id; the co-op DNF timer (30 s after the first human finishes) ends a race whose lead nobody drives, such as a
-  dedicated server's idle car.
+- **Events.** `racer_states` names the lead (when someone drives it) and then the people, so laps, finishes and speed-trap passes
+  reach the mode rules by player id.
+- **The idle lead.** A dedicated server's lead car has no driver unless a player took slot 0. When the request's players do not
+  include slot 0 the lead stands on the grid as a computer racer (`race_lead_idle`, `race/hold.rs`), so the engine's humans are
+  the people alone and the race ends when they are done, not 30 s after the first of them finishes.
 - **Own-car block.** A person's race car is an AI car, not a `Drive`, but `own_state` reads its gauges (rpm, gear, nitrous,
   shifting) from the racer (`racer_hud`) and the player is not flagged parked.
 - **Prediction.** The person's racer is an AI body (`drive/sim/ai.rs`, `configure_human`) with the player's own control set-up

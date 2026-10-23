@@ -10,6 +10,12 @@ impl WorldScene {
         self.race_hold = hold;
     }
 
+    /// Whether nobody drives the lead's car in the next race: it is then a computer racer on the grid, and the race ends when
+    /// the people are done.
+    pub(in crate::scenes::world) fn set_race_lead_idle(&mut self, idle: bool) {
+        self.race_lead_idle = idle;
+    }
+
     /// The ticks the staged race's countdown takes to reach GO, `None` unless a race stands on the grid waiting.
     pub(in crate::scenes::world) fn staged_race(&self) -> Option<u32> {
         match self.race.as_ref()?.stage {
