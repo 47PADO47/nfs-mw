@@ -135,6 +135,8 @@ machine, one spot of the map, and fewer traffic cars on the road than asked for 
 
 The mean stays inside the 4 ms budget at 16 players; the p95 at 16 players does not.
 
+**Re-measured, 2026-10-23** on the same machine and profile (`world_step_costs`, and `host_tick_costs` in `scenes/world/net/tests/bench.rs`, which times what the server asks of the host each tick). 16 players: the scene frame has a mean of 2.55 ms and a p95 of 3.34 ms (p99 3.82 ms); the host's step with its event collection a mean of 2.35 ms and a p95 of 3.09 ms (p99 3.57 ms); the entity export 5 microseconds and the 16 seats' own state 2 microseconds. The p95 is inside the budget in these runs, so the 4.35 ms above is run to run noise and not a fixed cost. The slowest ticks (up to 4.9 ms) are scattered with no period, which points at ticks with many contacts and not at one hot path. Per-player cost is about 0.07 ms.
+
 ## 6. Levers when a budget is exceeded
 
 In order of use: lower the snapshot rate for far entities; widen the quantisation steps of traffic and police (position 2 cm to

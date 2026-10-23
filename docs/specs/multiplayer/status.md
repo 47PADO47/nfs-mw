@@ -60,8 +60,9 @@ Open work of this build, in rough order of importance:
     Broadcast itself and IPv6 are untested (the tests use 127.0.0.1).
 12. **Tuning.** Several rule numbers are marked **[ours]** in [modes.md](modes.md) and the 10 Hz spectator rate, the start
     countdown and similar values are first guesses to be set by play.
-13. **World timing.** The 16-player world step has a mean of 2.87 ms and a p95 of 4.35 ms in the dev profile
-    ([bandwidth.md](bandwidth.md) section 5); the p95 is above the 4 ms budget.
+13. **World timing.** The 16-player world step has a mean of 2.4 ms and a p95 of 3.1 ms in the dev profile when measured again
+    ([bandwidth.md](bandwidth.md) section 5); the first measurement's p95 of 4.35 ms did not repeat. The slowest ticks (up to
+    5 ms) are scattered and not yet explained.
 14. **Determinism leftovers.** The 10 s wall-clock wait before the car spawns, model choice from the full catalogue, prop ids from
     tile and index and strict id order for car pairs ([determinism.md](determinism.md)).
 
