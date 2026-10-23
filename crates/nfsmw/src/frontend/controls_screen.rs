@@ -190,6 +190,7 @@ impl ScreenLogic for ControlsLogic {
         focus(cx, self.layout, self.cell);
         if matches!(pick, Pick::Press(..)) {
             cx.send(Command::Remap(ROWS[self.cell.row], self.cell.slot));
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
         }
     }
 

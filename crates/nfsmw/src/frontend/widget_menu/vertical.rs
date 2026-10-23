@@ -9,6 +9,25 @@ use crate::ui::theme::remastered::menu::layout::{MAX_ROWS, window_start};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuNudge, MenuStyle, MenuValue};
 
 impl WidgetMenu {
+    /// Pointer edits have no FEng pad announcement. Play feedback only when the edit succeeds.
+    pub(super) fn change_from_pointer(&mut self, cx: &mut Cx, forward: bool) {
+        let Some(row) = self.rows.get(self.selected).copied() else { return };
+        if self.leaving || !row.setting.enabled_in(cx.settings, &cx.caps) {
+            return;
+        }
+        let before = *cx.settings;
+        let data = data_of(cx, row.setting);
+        let commands = cx.commands.len();
+        self.change(cx, forward);
+        if before != *cx.settings || data != data_of(cx, row.setting) || commands != cx.commands.len() {
+            let message = match row.setting {
+                options::Setting::AdvancedGraphics => blackbox_feng::ids::BUTTON_PRESSED,
+                _ => blackbox_feng::ids::PAD_RIGHT,
+            };
+            crate::audio::menu::request(message);
+        }
+    }
+
     /// How many rows show at once: the package's own count, or the vertical list's window when that is smaller.
     pub(super) fn window(&self) -> usize {
         match self.vertical {
@@ -61,7 +80,7 @@ impl WidgetMenu {
         }
         self.select(cx, row);
         let Pick::Press(way, _) = pick else { return };
-        self.change(cx, way != Way::Back);
+        self.change_from_pointer(cx, way != Way::Back);
     }
 }
 

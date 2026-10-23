@@ -353,6 +353,7 @@ impl ScreenLogic for ChallengeLogic {
         }
         if matches!(pick, Pick::Press(..)) {
             self.view_rival(cx);
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
         }
     }
 

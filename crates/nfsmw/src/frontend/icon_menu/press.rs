@@ -142,9 +142,16 @@ impl IconMenu {
         }
         cx.memory.insert(self.memory_key(cx), i);
         let id = self.icons[i].id;
-        // Quit and Restart ask at once, without the pause menu leaving: its icons stay as they are, so the menu still
-        // reacts when the question is answered No or dismissed.
-        if self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace) {
+        // Dialogs and profile lists overlay the retained menu. Do not run its leave scripts: No/Back must preserve its
+        // header and brackets as well as its icons and input, as for the pause quit/restart questions.
+        if (self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace))
+            || matches!(
+                (self.kind, id),
+                (Kind::SafeHouse, Id::SafeHouseResume)
+                    | (Kind::AliasManager, Id::AliasCreate | Id::AliasLoad | Id::AliasSave | Id::AliasDelete)
+                    | (Kind::Career, Id::CareerNew | Id::CareerLoad)
+            )
+        {
             self.act(cx, Pending::Pressed(id));
             return;
         }

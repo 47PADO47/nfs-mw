@@ -304,11 +304,11 @@ impl WidgetMenu {
         let arrow = cx.rt.object_at(&arrows, point);
         self.select(cx, self.top + slot);
         if self.rows[self.selected].setting == options::Setting::AdvancedGraphics {
-            self.change(cx, true);
+            self.change_from_pointer(cx, true);
             return true;
         }
         if let Some(arrow) = arrow {
-            self.change(cx, Some(arrow) == right);
+            self.change_from_pointer(cx, Some(arrow) == right);
         }
         true
     }

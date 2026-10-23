@@ -5,6 +5,18 @@ use super::*;
 #[path = "overview_click_tests.rs"]
 mod overview_click_tests;
 
+#[path = "icon_click_tests.rs"]
+mod icon_click_tests;
+
+#[path = "reference_visual_tests.rs"]
+mod reference_visual_tests;
+
+#[path = "navigation_screen_tests.rs"]
+mod navigation_screen_tests;
+
+#[path = "menu_audio_tests.rs"]
+mod menu_audio_tests;
+
 impl Harness {
     /// A click at a point of the screen, as the front end hands it over; false when the screen does not take it.
     pub(in crate::frontend) fn click(&mut self, point: glam::Vec2) -> bool {

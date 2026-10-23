@@ -17,11 +17,13 @@ pub struct ActionState {
     before: [f32; Action::ALL.len()],
     /// The UI had the keyboard when the actions were last resolved, so every game action reads as released.
     typing: bool,
+    /// Physical wheel movement in lines, separate from viewer Zoom bindings such as the D-pad.
+    menu_scroll: f32,
 }
 
 impl Default for ActionState {
     fn default() -> Self {
-        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false }
+        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false, menu_scroll: 0.0 }
     }
 }
 
@@ -29,6 +31,7 @@ impl ActionState {
     /// Let an overlay claim this frame, including the frame it opened or closed.
     pub fn capture_ui(&mut self) {
         self.typing = true;
+        self.menu_scroll = 0.0;
         for action in Action::ALL {
             if !action.works_in_ui() {
                 self.now[action.index()] = 0.0;
@@ -67,6 +70,11 @@ impl ActionState {
         self.now[action.index()]
     }
 
+    /// Normalized mouse-wheel lines for menu scrolling. Viewer zoom can also come from pad buttons.
+    pub fn menu_scroll(&self) -> f32 {
+        self.menu_scroll
+    }
+
     /// The UI (the console) has the keyboard: the game actions read as released, which is not the player letting go.
     pub fn typing(&self) -> bool {
         self.typing
@@ -86,6 +94,7 @@ impl ActionState {
     pub fn update(&mut self, bindings: &Bindings, snapshot: &Snapshot, ui_focus: bool) {
         self.before = self.now;
         self.typing = ui_focus;
+        self.menu_scroll = if ui_focus { 0.0 } else { snapshot.scroll };
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
             // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.

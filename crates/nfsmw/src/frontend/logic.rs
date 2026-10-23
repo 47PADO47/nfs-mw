@@ -372,7 +372,7 @@ fn anchor_fraction(justification: u32) -> f32 {
 
 /// Where the text starts relative to the string's position along one axis: 0, minus half the length when the
 /// justification has the `centre` bit, minus the whole length with the `far` bit.
-fn anchor_offset(justification: u32, length: f32, centre: u32, far: u32) -> f32 {
+pub(super) fn anchor_offset(justification: u32, length: f32, centre: u32, far: u32) -> f32 {
     if justification & centre != 0 {
         return -length * 0.5;
     }

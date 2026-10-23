@@ -67,6 +67,7 @@ const ORANGE: (u32, u32) = (0xFFFF_AE40, 0x00FF_AE40);
 /// The picture rectangle of a bundled image that is drawn whole.
 const WHOLE_IMAGE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
+mod pointer;
 mod press;
 mod profile;
 mod vertical;
@@ -248,6 +249,9 @@ impl IconMenu {
 
     /// Writes where each icon is, how big and how opaque, from the scroll value and the clock.
     fn place(&self, cx: &mut Cx) {
+        // Authored entrance/exit scripts can show their stand-in again after start.
+        // The host owns the actual strip, including every frame of its leave fade.
+        cx.hide(ids::OPTION_MASTER, true);
         let scroll = self.scroll.value();
         let fade = self.fade.value();
         let half = scroller::WIDTH * 0.5;
@@ -288,9 +292,10 @@ impl IconMenu {
 
 impl ScreenLogic for IconMenu {
     fn resume(&mut self, cx: &mut Cx) {
-        // Quit starts the package's leave animation before the question opens; answering No keeps this menu, so
-        // its icons come back to full size.
+        // A retained menu regains control after its dialog/list closes, including callers that began leaving.
         self.fade.restore();
+        self.reacts = true;
+        self.pending = None;
         // A load over this menu may have changed the profile.
         match self.kind {
             Kind::Career => cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), self.args)),
@@ -361,6 +366,9 @@ impl ScreenLogic for IconMenu {
 
     fn footer(&self) -> Footer {
         match self.kind {
+            Kind::Career | Kind::SafeHouse | Kind::Categories { pause: false, .. } if !self.vertical => {
+                Footer::BackAccept
+            }
             Kind::Career | Kind::QuickRace | Kind::AliasManager | Kind::SafeHouse => Footer::BackOnly,
             Kind::CustomRace if self.tutorial().is_some() => Footer::Tutorial,
             Kind::CustomRace => Footer::BackAccept,
@@ -374,6 +382,10 @@ impl ScreenLogic for IconMenu {
 
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         self.pick(cx, row, pick);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        self.click_icon(cx, point)
     }
 
     fn list(&self, assets: &UiAssets) -> Option<MenuList> {

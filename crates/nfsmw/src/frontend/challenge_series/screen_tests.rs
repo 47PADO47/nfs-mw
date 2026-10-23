@@ -168,13 +168,17 @@ impl Harness {
 fn a_click_on_an_open_event_asks_to_launch_it_and_on_a_locked_one_does_nothing() {
     let Some(mut h) = Harness::open() else { return };
     let locked = h.centre("EVENT_ICON_3");
+    crate::audio::menu::take();
     assert!(h.click(locked), "the screen takes a click on an icon");
     h.run(0, 60);
     assert_eq!(h.screens.top(), Some(screen::CHALLENGE_SERIES), "a locked event asks nothing: {:?}", h.commands);
+    assert!(crate::audio::menu::take().is_empty(), "locked event click stays silent after updates");
     let open = h.centre("EVENT_ICON_2");
     assert!(h.click(open));
     h.run(0, 60);
     assert_eq!(h.screens.top(), Some(screen::DIALOG), "an open event asks to launch: {:?}", h.commands);
+    let sounds = crate::audio::menu::take();
+    assert_eq!(sounds.iter().filter(|&&id| id == 4).count(), 1, "{sounds:?}");
 }
 
 /// Whether the commands play this tutorial and come back to the series.

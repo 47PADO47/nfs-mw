@@ -381,7 +381,11 @@ impl ChallengeSeries {
         }
         cx.memory.insert(Self::memory_key(), self.grid.current);
         self.refresh(cx);
+        let before = cx.commands.len();
         self.press(cx);
+        if cx.commands.len() != before {
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+        }
         true
     }
 

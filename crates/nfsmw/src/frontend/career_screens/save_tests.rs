@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "save_pointer_tests.rs"]
+mod pointer;
+
 fn names(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| (*s).to_owned()).collect()
 }
@@ -90,12 +93,6 @@ fn the_selection_stays_inside_the_list() {
     assert_eq!(moved(2, 3, true), 2);
     assert_eq!(moved(0, 3, true), 1);
     assert_eq!(moved(0, 0, true), 0);
-}
-
-#[test]
-fn the_selected_row_is_marked() {
-    assert_eq!(row_text("MWO", true), "> MWO");
-    assert_eq!(row_text("MWO", false), "MWO");
 }
 
 #[test]
