@@ -5,7 +5,7 @@ use crate::scenes::world::{space, vehicle_effects::TireWaterEffects};
 use blackbox_attrib::Database;
 use blackbox_collision::CollisionWorld;
 use glam::Vec3;
-use nfsmw_data::vehicle_effects::TireWaterData;
+use nfsmw_data::vehicle_effects::{AxleScale, TireWaterData};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -38,7 +38,11 @@ impl TrafficWorld {
             if !near && !self.water.actors.contains_key(&key) {
                 continue;
             }
-            let group = self.water.actors.entry(key).or_insert_with(|| TireWaterEffects::new(data.clone()));
+            let group = self.water.actors.entry(key).or_insert_with(|| {
+                let mut group = TireWaterEffects::new(data.clone());
+                group.scale = AxleScale::read(db, &car.name);
+                group
+            });
             let environment = view
                 .environment
                 .map(|map| map.at(Vec3::from_array(space::to_physics(car.position()))))

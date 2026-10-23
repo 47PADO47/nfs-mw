@@ -16,8 +16,9 @@ in [docs/README.md](../README.md). Provenance and the executable findings:
   precipitation (non-zero rain amount, car within 60 m of that view's camera, and a shelter flag on the view's rain
   object clear). It does not look at the surface, the time of day or any puddle.
 - Intensity is the clamped linear ramp of an input between the record's minimum and maximum. Drive uses the car
-  speed. Slip and slide use the tire's slip and lateral speed, each multiplied by a per-axle factor read from the
-  vehicle's attributes (not yet decoded here). A ramp of zero disconnects the group; otherwise the group is placed
+  speed. Slip and slide use the tire's slip and lateral speed, each multiplied by a per-axle (front, rear) factor from the
+  car's `ecar` record: `SlipFX` for slip, `SkidFX` for slide. Stock cars use slip 1/1 and slide 0.1/1.0 (the front
+  axle barely produces slide effects); 29 trucks and vans use slip 0.1/0.1 and slide 0.1/1.0. A ramp of zero disconnects the group; otherwise the group is placed
   at the tire's ground point in the car's frame, inherits the car's velocity and takes the ramp as its intensity.
   A record whose maximum does not exceed its minimum always ramps to zero.
 - Emission is gated to wheels on the ground, and to cars near a view: the followed car, or a car within about 80 m
@@ -58,10 +59,12 @@ track, not a rule here.
   ([destroyed-cop-tires.md](destroyed-cop-tires.md)) to avoid doubling them.
 - The enhanced puddle and dampness scaling applies only to wet records; dry records run at the ramp intensity.
 - Particle appearance is the installed emitter data and the reference brightness of 2 from rain-pc.md.
+- The per-axle factors scale the input before the ramp, for the player and for traffic by model name. Physics wheels
+  0 and 1 are the front axle.
 
 ## Not covered
 
-- The per-axle slip and slide factors (kept at one), the 80 m camera gate (traffic uses the existing 60 m) and the
+- The 80 m camera gate (traffic uses the existing 60 m) and the
   second-view rain test.
 - Procedural smoke on loose ground, which could be replaced by the authored smoke.
 - Pixel comparison with the original; the groups are driven by this port's wheel slip and lateral speed.

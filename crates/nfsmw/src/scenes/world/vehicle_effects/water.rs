@@ -2,7 +2,7 @@
 use super::super::drive::CarPose;
 use super::pc_sparks::PcSparks;
 use glam::Vec3;
-use nfsmw_data::vehicle_effects::TireWaterData;
+use nfsmw_data::vehicle_effects::{AxleScale, TireWaterData};
 
 #[derive(Clone, Copy)]
 pub(in crate::scenes::world) struct WaterContact {
@@ -18,6 +18,8 @@ pub(in crate::scenes::world) struct WaterEffects {
     groups: [PcSparks; 12],
     /// Rain on the car: tires run their wet records, else their dry ones (dust, grass, leaves).
     pub wet: bool,
+    /// The car's per-axle slip and slide factors (`AxleScale`).
+    pub scale: AxleScale,
     pub surface_water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>,
 }
 impl WaterEffects {
@@ -30,6 +32,7 @@ impl WaterEffects {
                 group
             }),
             wet: false,
+            scale: AxleScale::default(),
             surface_water: None,
         }
     }
@@ -62,7 +65,7 @@ impl WaterEffects {
                 let group = &mut self.groups[wheel * 3 + kind];
                 let selected = contact.and_then(|c| {
                     let effect = self.data.effect(c.surface, kind, self.wet, c.flat)?;
-                    let speed = [velocity.length(), c.slip.abs(), c.slide.abs()][kind];
+                    let speed = [velocity.length(), c.slip.abs(), c.slide.abs()][kind] * self.scale.factor(wheel, kind);
                     let amount = self.surface_water.filter(|_| self.wet).map_or(1.0, |(water, options)| {
                         let slope = ((c.normal.z - 0.90) / 0.095).clamp(0.0, 1.0);
                         let puddle =
@@ -180,5 +183,24 @@ mod tests {
             water.step([Some(contact(asphalt, 3.0)); 4], pose(), Vec3::X * 40.0, 1.0 / 60.0);
         }
         assert!(emitted(&water) > 0, "a sliding tire throws the authored leaves");
+    }
+    #[test]
+    #[ignore = "requires the original surface and emitter profiles"]
+    fn installed_front_axle_slide_is_damped_so_only_the_rear_throws_leaves() {
+        let (db, data) = installed();
+        let asphalt = db.collection("simsurface", "asphalt").expect("installed asphalt").key();
+        let scale = nfsmw_data::vehicle_effects::AxleScale::read(&db, "BMWM3GTR");
+        let run = |wheels: [bool; 4]| {
+            let mut water = WaterEffects::new(data.clone());
+            water.scale = scale;
+            for _ in 0..240 {
+                water.age(1.0 / 60.0);
+                let contacts = wheels.map(|on| on.then(|| contact(asphalt, 1.5)));
+                water.step(contacts, pose(), Vec3::X * 40.0, 1.0 / 60.0);
+            }
+            emitted(&water)
+        };
+        assert_eq!(run([true, true, false, false]), 0, "1.5 m/s on the front axle scales to 0.15, below the ramp");
+        assert!(run([false, false, true, true]) > 0, "the rear axle keeps the full slide");
     }
 }

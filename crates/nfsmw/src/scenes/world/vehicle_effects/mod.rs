@@ -48,8 +48,10 @@ pub struct VehicleEffects {
 
 impl VehicleEffects {
     pub fn new(data: VisualEffectsData) -> Self {
+        let mut water = water::WaterEffects::new(data.tire_water.clone());
+        water.scale = data.axle_scale;
         Self {
-            water: water::WaterEffects::new(data.tire_water.clone()),
+            water,
             data,
             sparks: Sparks::default(),
             trails: Trails::default(),

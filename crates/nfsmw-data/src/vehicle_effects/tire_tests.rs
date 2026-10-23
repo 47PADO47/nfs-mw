@@ -79,3 +79,22 @@ fn installed_dry_paved_surfaces_keep_only_leaves() {
     let water = db.collection("simsurface", "water").expect("installed water").key();
     assert!(data.effect(water, 0, false, false).is_some(), "water surfaces always spray");
 }
+
+#[test]
+fn unscaled_axles_pass_every_input_through() {
+    let scale = AxleScale::default();
+    assert!((0..4).all(|wheel| (0..3).all(|kind| scale.factor(wheel, kind) == 1.0)));
+}
+
+#[test]
+#[ignore = "requires original global attribute packs"]
+fn installed_axle_scales_damp_front_slide_and_heavy_vehicle_slip() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+    let car = AxleScale::read(&db, "BMWM3GTR");
+    assert_eq!([car.factor(0, 2), car.factor(1, 2), car.factor(2, 2), car.factor(3, 2)], [0.1, 0.1, 1.0, 1.0]);
+    assert_eq!([car.factor(0, 1), car.factor(3, 1), car.factor(0, 0)], [1.0, 1.0, 1.0]);
+    let truck = AxleScale::read(&db, "truck");
+    assert_eq!([truck.factor(0, 1), truck.factor(3, 1)], [0.1, 0.1]);
+    assert_eq!(AxleScale::read(&db, "no_such_car"), AxleScale::read(&db, "default"));
+}

@@ -17,7 +17,7 @@ All addresses are for the stock 1.3 executable (image base as loaded). Names are
 |---|---|---|
 | `0x00988e0c`, `0x00988e14`, `0x00988e18` | `SimSurface` class, "unknown" and "null" surface instances | Set by the initialiser at `0x006e9790`. The "null" surface (`0x90a4d09a`) is the default every wheel starts on. |
 | `0x007453a0` | Per-wheel effect state constructor | Zeroes three group slots, then binds the null surface; the two surface flags at +0x84 (wet) and +0x85 (flat) start clear. |
-| `0x00738d50` | Per-wheel surface bind | Reads the three record arrays of a `simsurface` (arrays at +0x00, +0x44 and +0x88 of its data, each a count then records of 20 bytes from +8). Index is 2 if flat and the array has 3+, else 1 if wet and 2+, else 0. It copies the record's group key and min/max into the wheel's slot and restarts the slot when the key changes. The array order is drive, slip, slide. |
+| `0x00738d50` | Per-wheel surface bind | Reads the three record arrays of a `simsurface` (arrays at +0x00 drive, +0x44 slide and +0x88 slip of its data, matching the class layout offsets; each is a count then records of 20 bytes from +8). Index is 2 if flat and the array has 3+, else 1 if wet and 2+, else 0. It copies the record's group key and min/max into the wheel's slot and restarts the slot when the key changes. |
 | `0x00738f50` | Per-wheel per-frame rebind | Rebinds only when the surface, wet flag or flat flag changed. |
 | `0x007457d0` | Per-wheel group update | Three inputs. All three zero disconnects the groups; otherwise, if the wheel is flagged in contact, rebinds and updates each group. |
 | `0x00745290` | One group update | Ramp of the input over the record's min..max; zero or less disconnects and frees the emitter after a short delay; positive places the emitter at the tire, passes the car velocity and sets the emitter's intensity to the ramp. |
@@ -27,11 +27,13 @@ All addresses are for the stock 1.3 executable (image base as loaded). Names are
 | `0x00744c70` | Per-view rain test | True if the view's rain object has a non-zero amount, the car is under 60 units from the view's camera, and one of two flags on the view's rain object is clear; which flag is read depends on whether the car is nearer than 10 units to the camera and is the followed car. |
 | `0x00744c00` and global `0x009885c8` | Effect gate | The tire-effect work runs when the global flag is set, for the followed car, or for a car whose camera distance field (at most 80) and a visibility counter pass. The visibility counter is not decoded. |
 
-Inputs: slide-array group = per-axle factor times the tire's lateral figure; slip-array group = per-axle factor
-times the tire's slip figure; drive-array group = the car's speed (magnitude of its velocity vector). The per-axle
-factors come from two small float arrays in the vehicle's attribute record (counts at +0x90 and +0xc4) and are not
-yet decoded. The tire figures are slots of the car's physics state; their exact identity is not established beyond
-agreeing with the spec's slip and lateral speed.
+Inputs: the drive group gets the car's speed (magnitude of its velocity vector). The slip group gets the `SlipFX`
+factor of the wheel's axle times one tire figure, and the slide group the `SkidFX` factor times another. Both factors
+are two-float arrays (front, rear) in the car's `ecar` record, found at the layout offsets 0xc4 and 0x90, and were
+matched to the field names by their hashes. Installed values: the 71 stock and racer cars use slip 1/1 and slide
+0.1/1.0 (front slide damped to a tenth); the 29 trucks, vans and similar use slip 0.1/0.1 and slide 0.1/1.0. The tire
+figures are slots of the car's physics state; their identity is not established beyond agreeing with the spec's slip
+and lateral speed, so the port keeps its existing assignment.
 
 **Not found:** any test of the surface's name or class. A surface behaves as dust, grass or leaves purely because
 its arrays hold those groups. The hashes of the three field names do not appear as immediates in code, so the

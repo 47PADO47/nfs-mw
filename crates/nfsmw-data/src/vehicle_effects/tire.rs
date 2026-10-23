@@ -57,6 +57,44 @@ impl TireWaterData {
         effect.leaves_only()
     }
 }
+/// The per-axle (front, rear) factors a car's `ecar` record multiplies into the slip (`SlipFX`) and slide
+/// (`SkidFX`) inputs before the surface's speed ramp. Drive uses the car speed unscaled. Stock cars damp the front
+/// axle's slide to a tenth; trucks and vans damp slip on both axles.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AxleScale {
+    slip: [f32; 2],
+    slide: [f32; 2],
+}
+impl Default for AxleScale {
+    fn default() -> Self {
+        Self { slip: [1.0; 2], slide: [1.0; 2] }
+    }
+}
+impl AxleScale {
+    /// The record of `car_type`, else the `default` one; a malformed array leaves the unscaled factors.
+    pub fn read(db: &Database, car_type: &str) -> Self {
+        let car = db.collection("ecar", &car_type.to_ascii_lowercase()).or_else(|| db.collection("ecar", "default"));
+        let Some(car) = car else { return Self::default() };
+        let pair = |field: &str| -> Option<[f32; 2]> {
+            let values = car.get(field)?.as_array()?;
+            let at = |i: usize| match values.get(i)? {
+                Value::Float(v) if v.is_finite() && *v >= 0.0 => Some(*v),
+                _ => None,
+            };
+            Some([at(0)?, at(1)?])
+        };
+        Self { slip: pair("SlipFX").unwrap_or([1.0; 2]), slide: pair("SkidFX").unwrap_or([1.0; 2]) }
+    }
+    /// The factor for physics wheel `wheel` (front pair first) of kind drive (0), slip (1) or slide (2).
+    pub fn factor(&self, wheel: usize, kind: usize) -> f32 {
+        let axle = (wheel / 2).min(1);
+        match kind {
+            1 => self.slip[axle],
+            2 => self.slide[axle],
+            _ => 1.0,
+        }
+    }
+}
 impl TireEffect {
     fn leaves_only(mut self) -> Option<Self> {
         let leaves = vlt_hash(LEAVES);
