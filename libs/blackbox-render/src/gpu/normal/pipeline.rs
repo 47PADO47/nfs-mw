@@ -113,7 +113,8 @@ pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     })
 }
 
-/// `store`: the shader reads its instances from the instance store, through a slot per instance.
+/// `store`: the shader reads its instances from the instance store, through a slot per instance. `clip`: the
+/// variant that discards fragments behind the view's clip plane (a planar-reflection capture).
 #[allow(clippy::too_many_arguments)]
 pub(in crate::gpu) fn create(
     device: &wgpu::Device,
@@ -123,8 +124,11 @@ pub(in crate::gpu) fn create(
     (mode, face): (BlendMode, Face),
     tangent: bool,
     store: bool,
+    clip: bool,
     cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
+    let constants = [("CLIP_PLANE", f64::from(u8::from(clip)))];
+    let options = || wgpu::PipelineCompilationOptions { constants: &constants, ..Default::default() };
     let (entry, blend, depth_write) = match mode {
         BlendMode::Opaque => ("fs_opaque", None, true),
         BlendMode::AlphaTest => ("fs_alpha_test", None, true),
@@ -163,7 +167,7 @@ pub(in crate::gpu) fn create(
         vertex: wgpu::VertexState {
             module: shader,
             entry_point: Some("vs_main"),
-            compilation_options: Default::default(),
+            compilation_options: options(),
             buffers: &buffers,
         },
         primitive: wgpu::PrimitiveState { cull_mode: face.cull_mode(), ..Default::default() },
@@ -178,7 +182,7 @@ pub(in crate::gpu) fn create(
         fragment: Some(wgpu::FragmentState {
             module: shader,
             entry_point: Some(entry),
-            compilation_options: Default::default(),
+            compilation_options: options(),
             targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: write_mask(format) })],
         }),
         multiview_mask: None,

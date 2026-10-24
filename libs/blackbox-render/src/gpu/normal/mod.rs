@@ -38,7 +38,10 @@ pub(super) struct Normal {
     black_reflection: wgpu::TextureView,
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
-    pipelines: HashMap<wgpu::TextureFormat, pipeline::FaceSets>,
+    /// Per target format and whether the variant discards fragments behind the clip plane (`(format, clip)`).
+    pipelines: HashMap<(wgpu::TextureFormat, bool), pipeline::FaceSets>,
+    /// Pick and build the clip-plane variants (a planar-reflection capture); the main view leaves it off.
+    clip: bool,
     /// Instances are read from the instance store, bound at group 3.
     store: bool,
     water: water::Water,
@@ -102,9 +105,15 @@ impl Normal {
             projected: None,
             materials: Slots::new(),
             pipelines: HashMap::new(),
+            clip: false,
             store,
             water: water::Water::new(device),
         }
+    }
+
+    /// Pick (and from the next [`Self::prepare`] on, build) the variants that discard fragments behind the clip plane.
+    pub(super) fn use_clip(&mut self, clip: bool) {
+        self.clip = clip;
     }
 
     pub(super) fn prepare(
@@ -116,9 +125,9 @@ impl Normal {
         cache: Option<&wgpu::PipelineCache>,
         water: (blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments),
     ) {
-        let (store, shader, layout) = (self.store, &self.shader, &self.layout);
-        pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |mode, face| {
-            pipeline::create(device, shader, layout, format, (mode, face), true, store, cache)
+        let (store, shader, layout, clip) = (self.store, &self.shader, &self.layout, self.clip);
+        pipeline::fill_faces(self.pipelines.entry((format, clip)).or_default(), culled, |mode, face| {
+            pipeline::create(device, shader, layout, format, (mode, face), true, store, clip, cache)
         });
         let specular = frame
             .surface_light
@@ -168,7 +177,7 @@ impl Normal {
         if list.is_empty() {
             return;
         }
-        let Some(pipelines) = self.pipelines.get(&format) else { return };
+        let Some(pipelines) = self.pipelines.get(&(format, self.clip)) else { return };
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
         let Some(two_sided) = pipeline::pick(pipelines, index, Face::Both) else { return };
         pass.set_pipeline(two_sided);

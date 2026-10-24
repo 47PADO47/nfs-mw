@@ -7,6 +7,9 @@ override PRELIT: bool = false;
 // Off for the sky, which sits beyond the fog.
 override FOG: bool = true;
 override WORLD_KIND: u32 = 0u;
+// Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
+// the opaque draws of the main view keep early depth testing.
+override CLIP_PLANE: bool = false;
 
 struct Globals {
     view_proj: mat4x4<f32>,
@@ -104,7 +107,7 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
 }
 
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
-    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
+    if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z);
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         return world_pixel(in, texel, receive_ao);

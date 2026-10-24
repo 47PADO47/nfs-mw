@@ -3,6 +3,9 @@
 // docs/specs/car-assembly.md section 8. Output stays in the colour range of the target: no
 // tone mapping here.
 
+// Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
+// the opaque draws of the main view keep early depth testing.
+override CLIP_PLANE: bool = false;
 struct Globals {
     view_proj: mat4x4<f32>,
     camera_pos: vec4<f32>,
@@ -133,7 +136,7 @@ struct Shaded {
 };
 
 fn shade(in: VsOut, receive_ao: bool) -> Shaded {
-    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
+    if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSample(diffuse, diffuse_sampler, in.uv);
     if material.specular_min.w > 0.5 { return original_pixel(in, tex); }
     let n = normalize(in.normal);

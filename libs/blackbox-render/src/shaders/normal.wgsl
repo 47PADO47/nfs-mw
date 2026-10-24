@@ -1,4 +1,7 @@
 // Tangent-space scenery; docs/specs/world-normal-materials.md.
+// Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
+// the opaque draws of the main view keep early depth testing.
+override CLIP_PLANE: bool = false;
 struct Globals {
     view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>,
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
@@ -84,7 +87,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     return out;
 }
 fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
-    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
+    if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
     let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
     let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
@@ -191,7 +194,8 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     // Receiver pixel size for the road march's origin bias. Derivatives must stay in uniform control flow.
     let world_footprint = max(length(dpdx(in.world)),length(dpdy(in.world)));
     var filtered = vec3(0.0);
-    if light.reflection.z > 0.5 && uv_offset.value.w>0.5 {
+    let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
+    if road_environment_path {
         let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
         let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
         filtered = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
@@ -200,7 +204,9 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
         if reflectance > 0.0 {
             filtered = road_environment_at(in.world,world_n,ray,filtered,pool,world_footprint);
         }
-    } else {
+    }
+    // The capture taps only serve the paths that do not trace the road environment.
+    if !road_environment_path {
         let uv = in.projected_reflection.xy/in.projected_reflection.w;
         let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
         let radius = mix(3.5,0.35,pool);

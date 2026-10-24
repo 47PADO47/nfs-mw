@@ -58,6 +58,7 @@ impl Renderer {
         let frame = self.warm_params();
         let formats = self.scene_formats();
         self.warm_formats(&formats, &frame);
+        self.warm_clip_variants(&frame);
         self.warm_frame(&frame);
         self.warm_captures(&frame);
         // Captures leave their own format selected; the next scene pass selects its format again, but keep the
@@ -187,6 +188,21 @@ impl Renderer {
         if projected {
             self.warm_formats(&[CAPTURE_FORMAT], frame);
         }
+    }
+
+    /// The clip-plane variants a planar-reflection capture draws with (see [`Self::select_clip_variant`]). A planar
+    /// capture needs projected captures, reflections on and the HDR scene format, so the variants are built, in that
+    /// format only, just when all three hold; every other renderer never compiles them.
+    fn warm_clip_variants(&mut self, frame: &FrameParams) {
+        let planar = self.caps.projected_reflections
+            && self.graphics.reflections != ReflectionQuality::Off
+            && self.hdr_format == super::targets::HDR_FORMAT;
+        if !planar {
+            return;
+        }
+        self.select_clip_variant(true);
+        self.warm_formats(&[super::targets::HDR_FORMAT], frame);
+        self.select_clip_variant(false);
     }
 
     /// What a scene pass into each of `formats` builds on its first use, without drawing. The scene pipelines and

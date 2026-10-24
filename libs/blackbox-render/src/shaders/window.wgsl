@@ -1,4 +1,7 @@
 // Authored world glazing; docs/specs/world-window-materials.md.
+// Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
+// the opaque draws of the main view keep early depth testing.
+override CLIP_PLANE: bool = false;
 struct Globals {
     view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>,
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
@@ -79,7 +82,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     return out;
 }
 fn shade(v: Output) -> vec4<f32> {
-    if dot(globals.clip_plane, vec4<f32>(v.world, 1.0)) < 0.0 { discard; }
+    if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(v.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,v.uv,globals.fog_range.z);
     let reflection = textureSampleBias(reflection_texture,material_sampler,v.reflection_uv,globals.fog_range.z);
     let plane = receiver_normal(v.world,v.normal);

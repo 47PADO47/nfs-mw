@@ -277,6 +277,8 @@ impl Renderer {
         let format = targets.color_format();
         // The projected capture shares the main camera but keeps the opposite faces.
         let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view() ^ projected);
+        // Only a planar capture discards fragments behind its clip plane; the main view keeps early depth.
+        self.select_clip_variant(planar);
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {

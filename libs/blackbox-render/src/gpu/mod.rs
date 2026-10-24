@@ -6,6 +6,7 @@ mod adapters;
 pub(crate) mod ao;
 mod backend_impl;
 mod capture;
+mod clip_variant;
 mod contact;
 mod cull;
 #[cfg(test)]
