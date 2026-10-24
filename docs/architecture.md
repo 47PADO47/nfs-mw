@@ -312,7 +312,8 @@ through its mask by composing the picture with the rotated mask into one texture
 with `Scene::hud_state`; nothing else knows FEng.
 
 - `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI]]` for
-  reference shots), and it is on while driving unless the `hud` setting is off (`hud = false` in the config file,
+  reference shots, or `--hud-scenario <name>` for a labelled, deterministic fixture:
+  [custom-hud-scenarios](specs/custom-hud-scenarios.md)), and it is on while driving unless the `hud` setting is off (`hud = false` in the config file,
   `NFSMW_HUD=off`, `--no-hud`, console `set hud off`). The free camera never shows it. `--screenshot` captures it.
 - **Shown, from game state:** the speedometer (whole units, cut off; km/h); the tachometer (the face and the end of the
   needle's sweep from `MAX_RPM`, the red zone mask turned by the original's table, the gear digit that dims while a gear
