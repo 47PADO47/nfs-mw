@@ -1,4 +1,4 @@
-//! The named choices of the `[hud]` table: the preset, the map mode, the notification level and the palette.
+//! The named choices of the `[custom_hud]` table: the preset, the map mode, the notification level and the palette.
 
 /// A starting point for the HUD options. A preset fills only the options the player has not set
 /// ([`HudPreset::layer`](super::HudPreset::layer)).

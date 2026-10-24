@@ -42,7 +42,7 @@ impl Shake {
         self.0.advance(seconds);
     }
 
-    /// Scales the shake's amplitude by `intensity`, 0 to 1 (`[hud] camera_shake`).
+    /// Scales the shake's amplitude by `intensity`, 0 to 1 (`[custom_hud] camera_shake`).
     pub fn set_intensity(&mut self, intensity: f32) {
         self.0.set_intensity(intensity);
     }

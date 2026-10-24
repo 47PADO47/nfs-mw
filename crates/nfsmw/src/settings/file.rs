@@ -104,7 +104,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
         speech_volume: field(&table, origin, "speech_volume", percent),
-        hud: super::hud::read_switch(&table, origin),
+        hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
         skip_intro: field(&table, origin, "skip_intro", boolean),

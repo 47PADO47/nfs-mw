@@ -17,7 +17,7 @@ pub fn fov_for_speed(speed: f32) -> f32 {
     REST_FOV_DEGREES + (TOP_FOV_DEGREES - REST_FOV_DEGREES) * t * t * t
 }
 
-/// [`fov_for_speed`] with its widening over the rest FOV scaled by `intensity` (`[hud] fov_intensity`, 0 to 1): 1 is the
+/// [`fov_for_speed`] with its widening over the rest FOV scaled by `intensity` (`[custom_hud] fov_intensity`, 0 to 1): 1 is the
 /// full curve, 0 keeps the rest FOV at every speed. A value that is not a number is the full curve.
 pub fn scaled_fov_for_speed(speed: f32, intensity: f32) -> f32 {
     let full = fov_for_speed(speed);
@@ -36,7 +36,7 @@ pub struct DynamicFov<'a> {
     pub speed: f32,
     /// Degrees added on top of the speed's field of view (the high-speed effects' nitrous kick).
     pub kick: f32,
-    /// How much of the speed widening applies, 0 to 1 (`[hud] fov_intensity`); the kick is not scaled.
+    /// How much of the speed widening applies, 0 to 1 (`[custom_hud] fov_intensity`); the kick is not scaled.
     pub intensity: f32,
 }
 

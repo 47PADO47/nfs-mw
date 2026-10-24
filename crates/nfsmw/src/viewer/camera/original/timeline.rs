@@ -100,7 +100,7 @@ impl Timeline {
         self.bodies.push_back(BodyKey { time: self.physics_time, frame });
     }
 
-    /// Scales the contact shake by the player's multiplier, 0 to 1 (`[hud] camera_shake`).
+    /// Scales the contact shake by the player's multiplier, 0 to 1 (`[custom_hud] camera_shake`).
     pub fn set_shake_intensity(&mut self, intensity: f32) {
         self.shake.set_intensity(intensity);
     }

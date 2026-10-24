@@ -228,7 +228,7 @@ impl Drive {
         self.rig.set_scale(scale);
     }
 
-    /// The chase camera's contact shake multiplier, 0 to 1 (`[hud] camera_shake`).
+    /// The chase camera's contact shake multiplier, 0 to 1 (`[custom_hud] camera_shake`).
     pub fn set_camera_shake(&mut self, intensity: f32) {
         self.chase.set_shake_intensity(intensity);
     }

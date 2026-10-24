@@ -249,7 +249,7 @@ pub struct Settings {
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
-    /// The Custom HUD's options (`[hud]`): preset, size, map, information, accessibility, camera, haptics, volume.
+    /// The Custom HUD's options (`[custom_hud]`): preset, size, map, information, accessibility, camera, haptics, volume.
     pub hud_options: hud::HudSettings,
     /// The look of all HUD and menu UI: the original (default), Remastered (its own cluster, minimap, menus and world
     /// map), or Custom (the rewrite's own modern HUD and menus, `docs/decisions/0013-custom-hud.md`). A slot a look

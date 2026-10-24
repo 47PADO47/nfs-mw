@@ -1,12 +1,12 @@
 # HUD settings
 
-The `[hud]` table of the config file holds the options of the Custom HUD (`ui_style = "custom"`): a preset, the
+The `[custom_hud]` table of the config file holds the options of the Custom HUD (`ui_style = "custom"`): a preset, the
 display size, the map, which information shows, notifications, accessibility, the camera and feedback. Code:
 `crates/nfsmw/src/settings/hud/`. The options page in the menus comes later; until then the table is set in the config
 file or from the console.
 
 ```toml
-[hud]
+[custom_hud]
 preset = "balanced"        # minimal, balanced or advanced
 scale = 1.0                # 0.75 to 1.5
 map_mode = "centered"      # off, compact, centered or expanded
@@ -37,7 +37,6 @@ camera_shake = 0.5         # 0 (none) to 1 (as it is)
 | `fov_intensity` | 0 to 1 | 1.0 | Multiplies how far the Dynamic FOV camera widens with speed; 0 keeps its rest FOV. |
 | `haptics` | `true`, `false` | `true` | Controller rumble for HUD events. |
 | `hud_volume` | 0 to 1 | 0.8 | The volume of the HUD's own sounds. |
-| `enabled` | `true`, `false` | `true` | The HUD on or off: the old top-level `hud` switch (below). |
 
 A number outside its range is clamped. A value of the wrong kind (a string for a number, an unknown name) is reported
 in the log and only that key is ignored; the others still apply. A config file without the table changes nothing.
@@ -64,13 +63,11 @@ leaves the other options as they are.
 
 ## The `hud` switch
 
-The config file's old `hud = false` hides the HUD, and TOML cannot hold a plain key and a table under one name. So the
-switch is read from either place: `hud = false`, or `enabled = false` inside `[hud]`. A write keeps the plain switch
-while the table has no option, and moves it into the table as `enabled` once one is written. A build older than the
-table reads a `[hud]` table as a bad `hud` value, warns, and shows the HUD.
+The top-level `hud = false` still hides the HUD in every style. It is a separate key from the `[custom_hud]` table,
+which holds only the Custom style's options.
 
 ## Console
 
-`get hud.<key>` and `set hud.<key> <value>`, for example `set hud.map_mode compact` or `set hud.camera_shake 0`. A
-switch with no value flips (`set hud.haptics`). Console changes last for the run. `get` lists every key. The camera
-multipliers apply on the next frame.
+`get custom_hud.<key>` and `set custom_hud.<key> <value>`, for example `set custom_hud.map_mode compact` or
+`set custom_hud.camera_shake 0`. A switch with no value flips (`set custom_hud.haptics`). Console changes last for the
+run. `get` lists every key. The camera multipliers apply on the next frame.

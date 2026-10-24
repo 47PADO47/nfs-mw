@@ -22,9 +22,9 @@ pub struct WorldTuning {
     pub rain_droplet_scale: f32,
     /// The restored sparks and the speed trail (`[xenon_effects]`).
     pub xenon_effects: XenonEffects,
-    /// The camera's contact shake, a multiplier from 0 (none) to 1 (as it is) (`[hud] camera_shake`).
+    /// The camera's contact shake, a multiplier from 0 (none) to 1 (as it is) (`[custom_hud] camera_shake`).
     pub camera_shake: f32,
-    /// How far the Dynamic FOV camera widens with speed, a multiplier of the widening (`[hud] fov_intensity`).
+    /// How far the Dynamic FOV camera widens with speed, a multiplier of the widening (`[custom_hud] fov_intensity`).
     pub fov_intensity: f32,
 }
 

@@ -1,4 +1,4 @@
-//! The `[hud]` table: reading, the shared `hud` switch, and writing through the config file's per-key merge.
+//! The `[custom_hud]` table: reading, and writing through the config file's per-key merge.
 
 use toml::Table;
 
@@ -14,7 +14,7 @@ fn table(text: &str) -> Table {
 fn the_table_is_read() {
     let layer = read(
         &table(
-            "[hud]\npreset = 'advanced'\nscale = 1.25\nopacity = 1\ntext_size = 1.1\nmap_mode = 'expanded'\n\
+            "[custom_hud]\npreset = 'advanced'\nscale = 1.25\nopacity = 1\ntext_size = 1.1\nmap_mode = 'expanded'\n\
              map_opacity = 0.5\nmap_zoom = 1.5\nadvanced_telemetry = false\nworld_markers = false\nrace_info = false\n\
              pursuit_info = false\nfree_roam_extras = true\nnotifications = 'off'\nhigh_contrast = true\n\
              palette = 'deuteranopia'\nmotion_reduction = true\ncamera_shake = 0.5\nfov_intensity = 0\n\
@@ -52,7 +52,7 @@ fn the_table_is_read() {
 #[test]
 fn a_bad_value_drops_only_its_own_key() {
     let layer = read(
-        &table("[hud]\nscale = 'big'\nopacity = 0.5\nmap_mode = 'huge'\nhaptics = 1\nrace_info = false\n"),
+        &table("[custom_hud]\nscale = 'big'\nopacity = 0.5\nmap_mode = 'huge'\nhaptics = 1\nrace_info = false\n"),
         "test",
     );
     assert_eq!(
@@ -65,45 +65,28 @@ fn a_bad_value_drops_only_its_own_key() {
 #[test]
 fn a_file_without_the_table_changes_nothing() {
     assert_eq!(read(&table("vsync = true\n"), "test"), HudLayer::default());
-    assert_eq!(read(&table("hud = false\n"), "test"), HudLayer::default());
+    assert_eq!(read(&table("custom_hud = 3\n"), "test"), HudLayer::default());
     assert_eq!(Settings::from(file::parse("hud = false\n", "test")).hud_options, HudSettings::default());
 }
 
 #[test]
-fn the_switch_is_read_from_the_plain_key_or_the_table() {
-    assert_eq!(read_switch(&table("hud = false\n"), "test"), Some(false));
-    assert_eq!(read_switch(&table("[hud]\nenabled = false\nscale = 1.2\n"), "test"), Some(false));
-    assert_eq!(read_switch(&table("[hud]\nscale = 1.2\n"), "test"), None);
-    assert_eq!(read_switch(&table("hud = 'maybe'\n"), "test"), None);
-    assert_eq!(read_switch(&table("[hud]\nenabled = 'yes'\n"), "test"), None);
-    let p = file::parse("[hud]\nenabled = false\nmap_mode = 'off'\n", "test");
+fn the_hud_switch_is_its_own_key() {
+    let p = file::parse("hud = false\n[custom_hud]\nmap_mode = 'off'\n", "test");
     assert_eq!((p.hud, p.hud_options.map_mode), (Some(false), Some(MapMode::Off)));
 }
 
 #[test]
 fn only_the_keys_the_layer_sets_are_written() {
-    let mut t = table("vsync = true\n[hud]\nscale = 1.2\n");
-    merge_into(&mut t, None, &HudLayer { map_zoom: Some(1.5), ..HudLayer::default() });
-    let section = t["hud"].as_table().unwrap();
+    let mut t = table("vsync = true\n[custom_hud]\nscale = 1.2\n");
+    merge_into(&mut t, &HudLayer { map_zoom: Some(1.5), ..HudLayer::default() });
+    let section = t["custom_hud"].as_table().unwrap();
     assert_eq!(section.len(), 2);
     assert_eq!(section["scale"].as_float(), Some(1.2), "a key the layer leaves unset is kept");
     assert_eq!(section["map_zoom"].as_float(), Some(1.5));
     assert_eq!(t["vsync"].as_bool(), Some(true));
-}
-
-#[test]
-fn the_plain_switch_stays_plain_until_an_option_is_written() {
-    let mut t = table("");
-    merge_into(&mut t, Some(false), &HudLayer::default());
-    assert_eq!(t["hud"].as_bool(), Some(false));
-    merge_into(&mut t, None, &HudLayer { haptics: Some(false), ..HudLayer::default() });
-    let section = t["hud"].as_table().unwrap();
-    assert_eq!(section["enabled"].as_bool(), Some(false), "the old switch moves into the table");
-    assert_eq!(section["haptics"].as_bool(), Some(false));
-    merge_into(&mut t, Some(true), &HudLayer::default());
-    let section = t["hud"].as_table().unwrap();
-    assert_eq!(section["enabled"].as_bool(), Some(true), "a table keeps the switch inside it");
-    assert_eq!(section["haptics"].as_bool(), Some(false));
+    let mut untouched = table("vsync = true\n");
+    merge_into(&mut untouched, &HudLayer::default());
+    assert!(!untouched.contains_key("custom_hud"), "an empty layer writes no table");
 }
 
 #[test]
@@ -128,6 +111,7 @@ fn the_options_round_trip_through_the_config_merge() {
     };
     let text = merge("game_dir = 'D:/NFS'\nhud = true\n", &changes).unwrap();
     assert!(text.contains("game_dir"));
+    assert_eq!(text.parse::<Table>().unwrap()["hud"].as_bool(), Some(false), "the switch stays a plain key");
     assert_eq!(file::parse(&text, "test"), changes);
     let resolved = Settings::from(file::parse(&text, "test"));
     assert!(!resolved.hud);

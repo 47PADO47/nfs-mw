@@ -1,5 +1,6 @@
-//! The console's `hud.<key>` settings: `get hud.scale`, `set hud.map_mode compact`, `set hud.haptics` (a switch flips).
-//! A console change lasts for the run. `set hud.preset` applies the preset's values at once.
+//! The console's `custom_hud.<key>` settings: `get custom_hud.scale`, `set custom_hud.map_mode compact`,
+//! `set custom_hud.haptics` (a switch flips). A console change lasts for the run. `set custom_hud.preset` applies the
+//! preset's values at once.
 
 use std::str::FromStr;
 
@@ -10,26 +11,26 @@ use crate::settings::parse_bool;
 
 /// The console keys, in the order `get` lists them.
 pub const KEYS: [&str; 20] = [
-    "hud.preset",
-    "hud.scale",
-    "hud.opacity",
-    "hud.text_size",
-    "hud.map_mode",
-    "hud.map_opacity",
-    "hud.map_zoom",
-    "hud.advanced_telemetry",
-    "hud.world_markers",
-    "hud.race_info",
-    "hud.pursuit_info",
-    "hud.free_roam_extras",
-    "hud.notifications",
-    "hud.high_contrast",
-    "hud.palette",
-    "hud.motion_reduction",
-    "hud.camera_shake",
-    "hud.fov_intensity",
-    "hud.haptics",
-    "hud.hud_volume",
+    "custom_hud.preset",
+    "custom_hud.scale",
+    "custom_hud.opacity",
+    "custom_hud.text_size",
+    "custom_hud.map_mode",
+    "custom_hud.map_opacity",
+    "custom_hud.map_zoom",
+    "custom_hud.advanced_telemetry",
+    "custom_hud.world_markers",
+    "custom_hud.race_info",
+    "custom_hud.pursuit_info",
+    "custom_hud.free_roam_extras",
+    "custom_hud.notifications",
+    "custom_hud.high_contrast",
+    "custom_hud.palette",
+    "custom_hud.motion_reduction",
+    "custom_hud.camera_shake",
+    "custom_hud.fov_intensity",
+    "custom_hud.haptics",
+    "custom_hud.hud_volume",
 ];
 
 /// Whether the console key names one of the options.
@@ -40,14 +41,14 @@ pub fn is_key(key: &str) -> bool {
 /// The on/off option a console key names, for a switch with no value.
 pub fn flag<'a>(s: &'a mut HudSettings, key: &str) -> Option<&'a mut bool> {
     match key {
-        "hud.advanced_telemetry" => Some(&mut s.advanced_telemetry),
-        "hud.world_markers" => Some(&mut s.world_markers),
-        "hud.race_info" => Some(&mut s.race_info),
-        "hud.pursuit_info" => Some(&mut s.pursuit_info),
-        "hud.free_roam_extras" => Some(&mut s.free_roam_extras),
-        "hud.high_contrast" => Some(&mut s.high_contrast),
-        "hud.motion_reduction" => Some(&mut s.motion_reduction),
-        "hud.haptics" => Some(&mut s.haptics),
+        "custom_hud.advanced_telemetry" => Some(&mut s.advanced_telemetry),
+        "custom_hud.world_markers" => Some(&mut s.world_markers),
+        "custom_hud.race_info" => Some(&mut s.race_info),
+        "custom_hud.pursuit_info" => Some(&mut s.pursuit_info),
+        "custom_hud.free_roam_extras" => Some(&mut s.free_roam_extras),
+        "custom_hud.high_contrast" => Some(&mut s.high_contrast),
+        "custom_hud.motion_reduction" => Some(&mut s.motion_reduction),
+        "custom_hud.haptics" => Some(&mut s.haptics),
         _ => None,
     }
 }
@@ -55,14 +56,14 @@ pub fn flag<'a>(s: &'a mut HudSettings, key: &str) -> Option<&'a mut bool> {
 /// The number option a console key names, with its range.
 fn number<'a>(s: &'a mut HudSettings, key: &str) -> Option<(&'a mut f32, (f32, f32))> {
     match key {
-        "hud.scale" => Some((&mut s.scale, SCALE_RANGE)),
-        "hud.opacity" => Some((&mut s.opacity, OPACITY_RANGE)),
-        "hud.text_size" => Some((&mut s.text_size, TEXT_SIZE_RANGE)),
-        "hud.map_opacity" => Some((&mut s.map_opacity, MAP_OPACITY_RANGE)),
-        "hud.map_zoom" => Some((&mut s.map_zoom, MAP_ZOOM_RANGE)),
-        "hud.camera_shake" => Some((&mut s.camera_shake, UNIT_RANGE)),
-        "hud.fov_intensity" => Some((&mut s.fov_intensity, UNIT_RANGE)),
-        "hud.hud_volume" => Some((&mut s.hud_volume, UNIT_RANGE)),
+        "custom_hud.scale" => Some((&mut s.scale, SCALE_RANGE)),
+        "custom_hud.opacity" => Some((&mut s.opacity, OPACITY_RANGE)),
+        "custom_hud.text_size" => Some((&mut s.text_size, TEXT_SIZE_RANGE)),
+        "custom_hud.map_opacity" => Some((&mut s.map_opacity, MAP_OPACITY_RANGE)),
+        "custom_hud.map_zoom" => Some((&mut s.map_zoom, MAP_ZOOM_RANGE)),
+        "custom_hud.camera_shake" => Some((&mut s.camera_shake, UNIT_RANGE)),
+        "custom_hud.fov_intensity" => Some((&mut s.fov_intensity, UNIT_RANGE)),
+        "custom_hud.hud_volume" => Some((&mut s.hud_volume, UNIT_RANGE)),
         _ => None,
     }
 }
@@ -77,9 +78,9 @@ pub fn get(s: &HudSettings, key: &str) -> String {
         return value.to_string();
     }
     match key {
-        "hud.preset" => s.preset.to_string(),
-        "hud.map_mode" => s.map_mode.to_string(),
-        "hud.notifications" => s.notifications.to_string(),
+        "custom_hud.preset" => s.preset.to_string(),
+        "custom_hud.map_mode" => s.map_mode.to_string(),
+        "custom_hud.notifications" => s.notifications.to_string(),
         _ => s.palette.to_string(),
     }
 }
@@ -101,10 +102,10 @@ pub fn set(s: &mut HudSettings, key: &str, value: &str) -> Result<(), String> {
         return Ok(());
     }
     match key {
-        "hud.preset" => s.apply_preset(HudPreset::from_str(value)?),
-        "hud.map_mode" => s.map_mode = value.parse()?,
-        "hud.notifications" => s.notifications = value.parse()?,
-        "hud.palette" => s.palette = value.parse()?,
+        "custom_hud.preset" => s.apply_preset(HudPreset::from_str(value)?),
+        "custom_hud.map_mode" => s.map_mode = value.parse()?,
+        "custom_hud.notifications" => s.notifications = value.parse()?,
+        "custom_hud.palette" => s.palette = value.parse()?,
         _ => return Err(format!("unknown setting {key}")),
     }
     Ok(())
@@ -113,16 +114,16 @@ pub fn set(s: &mut HudSettings, key: &str, value: &str) -> Result<(), String> {
 /// What an option accepts, for the usage line of a `set` with no value. Switches have none: they flip.
 pub fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
-        "hud.preset" => "<minimal|balanced|advanced>",
-        "hud.scale" => "<0.75-1.5>",
-        "hud.opacity" => "<0.2-1>",
-        "hud.text_size" => "<0.8-1.5>",
-        "hud.map_mode" => "<off|compact|centered|expanded>",
-        "hud.map_opacity" => "<0.1-0.9>",
-        "hud.map_zoom" => "<0.5-2>",
-        "hud.notifications" => "<all|important|off>",
-        "hud.palette" => "<default|deuteranopia|tritanopia>",
-        "hud.camera_shake" | "hud.fov_intensity" | "hud.hud_volume" => "<0-1>",
+        "custom_hud.preset" => "<minimal|balanced|advanced>",
+        "custom_hud.scale" => "<0.75-1.5>",
+        "custom_hud.opacity" => "<0.2-1>",
+        "custom_hud.text_size" => "<0.8-1.5>",
+        "custom_hud.map_mode" => "<off|compact|centered|expanded>",
+        "custom_hud.map_opacity" => "<0.1-0.9>",
+        "custom_hud.map_zoom" => "<0.5-2>",
+        "custom_hud.notifications" => "<all|important|off>",
+        "custom_hud.palette" => "<default|deuteranopia|tritanopia>",
+        "custom_hud.camera_shake" | "custom_hud.fov_intensity" | "custom_hud.hud_volume" => "<0-1>",
         _ => return None,
     })
 }

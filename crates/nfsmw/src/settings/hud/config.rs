@@ -1,8 +1,4 @@
-//! The `[hud]` table of the config file.
-//!
-//! The key `hud` was a plain switch (`hud = false` hides the HUD), and TOML cannot hold a switch and a table under one
-//! key. So the switch is read from either place: `hud = false`, or `enabled = false` inside the table. A write keeps the
-//! plain switch while no option of the table is set, and moves it into the table as `enabled` once one is.
+//! The `[custom_hud]` table of the config file. The HUD's on/off switch stays the separate top-level `hud` key.
 
 use std::str::FromStr;
 
@@ -10,27 +6,10 @@ use toml::{Table, Value};
 
 use super::HudLayer;
 
-/// The key of the table, and of the old switch.
-const KEY: &str = "hud";
-/// The switch's key inside the table.
-const ENABLED: &str = "enabled";
+/// The key of the table.
+const KEY: &str = "custom_hud";
 
-/// The HUD on/off switch: `hud = true/false`, or `enabled` in the `[hud]` table. A value of the wrong kind is reported
-/// and left unset.
-pub fn read_switch(table: &Table, origin: &str) -> Option<bool> {
-    let value = table.get(KEY)?;
-    let value = match value.as_table() {
-        Some(section) => section.get(ENABLED)?,
-        None => value,
-    };
-    let parsed = value.as_bool();
-    if parsed.is_none() {
-        log::warn!("{origin}: ignoring `hud`: expected true or false, or a [hud] table");
-    }
-    parsed
-}
-
-/// The options of the `[hud]` table. Each key is read on its own: one of the wrong kind is reported and left unset, the
+/// The options of the `[custom_hud]` table. Each key is read on its own: one of the wrong kind is reported and left unset, the
 /// others still apply. Numbers are clamped later, by `HudSettings::from_layer`.
 pub fn read(table: &Table, origin: &str) -> HudLayer {
     let Some(section) = table.get(KEY).and_then(Value::as_table) else {
@@ -62,7 +41,7 @@ pub fn read(table: &Table, origin: &str) -> HudLayer {
 
 /// Reads `key` through `convert`; a value of the wrong kind is reported and ignored.
 fn field<T>(section: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> Result<T, String>) -> Option<T> {
-    convert(section.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `[hud] {key}`: {e}")).ok()
+    convert(section.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `[custom_hud] {key}`: {e}")).ok()
 }
 
 fn number(section: &Table, origin: &str, key: &str) -> Option<f32> {
@@ -87,38 +66,17 @@ fn choice<T: FromStr<Err = String>>(section: &Table, origin: &str, key: &str) ->
     field(section, origin, key, |v| T::from_str(v.as_str().ok_or_else(|| "expected a string".to_owned())?))
 }
 
-/// Puts the switch and the options `changes` sets into the file's table, keeping its other keys. With no option set the
-/// switch is written where it already is (the plain key, or `enabled` in an existing table).
-pub fn merge_into(table: &mut Table, switch: Option<bool>, changes: &HudLayer) {
+/// Puts the options `changes` sets into the `[custom_hud]` table of `table`, keeping the rest of the file. A value under
+/// the key that is not a table is left alone rather than overwritten.
+pub fn merge_into(table: &mut Table, changes: &HudLayer) {
     if *changes == HudLayer::default() {
-        put_switch(table, switch);
         return;
     }
     let entry = table.entry(KEY).or_insert_with(|| Value::Table(Table::new()));
-    if !entry.is_table() {
-        // The old plain switch becomes the table's `enabled`; a value of any other kind was ignored when read.
-        let mut section = Table::new();
-        if let Some(on) = entry.as_bool() {
-            section.insert(ENABLED.to_owned(), Value::Boolean(on));
-        }
-        *entry = Value::Table(section);
-    }
     let Some(section) = entry.as_table_mut() else { return };
-    if let Some(on) = switch {
-        section.insert(ENABLED.to_owned(), Value::Boolean(on));
-    }
     for (key, value) in entries(changes) {
         section.insert(key.to_owned(), value);
     }
-}
-
-fn put_switch(table: &mut Table, switch: Option<bool>) {
-    let Some(on) = switch else { return };
-    if let Some(section) = table.get_mut(KEY).and_then(Value::as_table_mut) {
-        section.insert(ENABLED.to_owned(), Value::Boolean(on));
-        return;
-    }
-    table.insert(KEY.to_owned(), Value::Boolean(on));
 }
 
 /// The keys and values a layer sets, in the order the table lists them.

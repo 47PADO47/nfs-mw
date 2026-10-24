@@ -41,7 +41,7 @@ pub(in crate::viewer::camera) struct Shake {
     pending: Vec3,
     current: Option<Pulse>,
     previous: Option<Pulse>,
-    /// The player's shake multiplier (`[hud] camera_shake`): 1 keeps the original amplitude, 0 removes the shake.
+    /// The player's shake multiplier (`[custom_hud] camera_shake`): 1 keeps the original amplitude, 0 removes the shake.
     intensity: f32,
 }
 

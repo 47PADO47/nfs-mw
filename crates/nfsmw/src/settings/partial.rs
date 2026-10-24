@@ -119,7 +119,7 @@ pub struct Partial {
     pub camera_mode: Option<CameraMode>,
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
-    /// The Custom HUD's options (`[hud]`).
+    /// The Custom HUD's options (`[custom_hud]`).
     pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
