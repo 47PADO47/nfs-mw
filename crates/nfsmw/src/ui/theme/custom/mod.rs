@@ -42,6 +42,7 @@ mod layout_tests;
 mod map_legend;
 mod markers;
 mod notify;
+pub mod mode;
 pub mod palette;
 #[allow(dead_code)]
 pub mod plate;
