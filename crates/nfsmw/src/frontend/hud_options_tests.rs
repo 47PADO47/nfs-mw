@@ -136,3 +136,14 @@ fn the_preview_reads_the_result_in_words() {
     s.ui_style = UiStyle::Original;
     assert!(!note(&s).contains("map,"), "under another style the line says what applies");
 }
+
+#[test]
+fn the_hud_page_lists_every_key_with_the_speed_units_after_the_orientation() {
+    let rows = super::super::rows(super::super::Category::Hud, &crate::settings::test_caps::native());
+    assert_eq!(rows.len(), HudSetting::ALL.len() + 1, "every key, the orientation and the speed units");
+    let at = |setting| rows.iter().position(|row| row.setting == setting).expect("listed");
+    assert_eq!(at(super::super::Setting::CustomHud(HudSetting::Preset)), 0, "the preset comes first");
+    let orientation = at(super::super::Setting::CustomHud(HudSetting::MapOrientation));
+    assert_eq!(at(super::super::Setting::SpeedUnits), orientation + 1);
+    assert_eq!(rows.last().map(|row| row.setting), Some(super::super::Setting::CustomHud(HudSetting::HudVolume)));
+}
