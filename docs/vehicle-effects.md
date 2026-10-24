@@ -69,6 +69,30 @@ F12 console: `set collision_sparks on`, `set spark_style restored-experimental`,
 `vehicle-effects` shows style/counts; `vehicle-effects clear` removes particles.
 CLI > environment > file > defaults is the usual priority.
 
+## Tuning (config file only)
+
+The restored sparks and the speed trail have more options in the `[xenon_effects]` table of the config file. They are not
+in the menus, the console or the command line. Every default keeps the effects as described above.
+
+```toml
+[xenon_effects]
+contrail_speed = 44.0          # m/s from which the trail shows (1 to 200)
+contrail_min_intensity = 0.1   # strength at that speed (0 to 1)
+contrail_max_intensity = 0.75  # strength from twice that speed up
+spark_intensity = 1.0          # restored sparks: above 1 means more particles, below 1 dimmer ones (0 to 4)
+nos_contrails = false          # also show the trail while the nitrous burns, at full strength, at any speed
+nis_contrails = false          # also show the trail on the player's car in cutscenes
+contrail_rate = 60.0           # trail emissions per second (1 to 240)
+spark_rate = 60.0              # spark emissions per second while scraping (1 to 240)
+max_sparks = 2048              # live restored sparks (16 to 10000)
+max_trails = 256               # live trail particles (16 to 10000)
+shadows = false                # sparks and trail take the sun's shadow (native renderer only)
+```
+
+`nos_contrails` and `nis_contrails` apply to the car trail and, for `nos_contrails`, the view streaks. With
+`nis_contrails` off, no trail shows in a cutscene. `shadows` needs Shadows on in Options; the Bevy renderer ignores it.
+Source of the options: [the restoration mod page](mods/nfsmw_xenoneffects.md).
+
 Behavior and evidence: [PC particles](specs/pc-collision-particles.md),
 [source-owned contact effects](specs/source-contact-effects.md),
 [effect inventory](specs/vehicle-visual-effects.md),

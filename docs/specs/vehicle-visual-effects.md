@@ -184,7 +184,8 @@ across body probes. Impact bursts contain at most 48 particles; scraping uses
 160 times intensity particles/second with at most 24 owed per step and no debt
 after contact loss. Sparks cap at 768 and wind trails at 256. Wind trails use
 240 times intensity particles/second and the speed-only restoration rule;
-NOS does not bypass the threshold. Spark life is capped at 1.5 seconds and trail
+NOS does not bypass the threshold unless `nos_contrails` is set: then the wind and the view streaks show at the
+maximum strength while the nitrous burns, as the restoration's CG style does. Spark life is capped at 1.5 seconds and trail
 life at 0.5 seconds. These limits, particle gravity/motion, additive masks and
 fade are **[host approximation]**, not native emitter unit conversions.
 

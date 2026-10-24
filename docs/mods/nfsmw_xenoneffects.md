@@ -18,6 +18,39 @@ Status of this page: built from the repository README, the root file listing, `d
 | Latest visible activity | Last commit 2023-02-23; first commit listed 2023-02-21 (commits page, read 2026-10-14) [source] |
 | Popularity | 51 stars, 4 forks, 1 open issue, 1 open pull request [README page stats] |
 
+## Status in nfs-mw
+
+Implemented from the specs, not ported from this mod's code. Player guide: [vehicle-effects.md](../vehicle-effects.md).
+Behaviour: [xenon-particle-motion.md](../specs/xenon-particle-motion.md) and
+[vehicle-visual-effects.md](../specs/vehicle-visual-effects.md). The "How we could implement it" section below is the
+plan this page started from; it is kept as the record of the reasoning.
+
+| Mod feature | nfs-mw |
+|---|---|
+| Sparks, bounce, per-emitter elasticity | Done: Collision Sparks "Restored (Experimental)". Elasticity 160 and 120 come from the installed emitter data. |
+| Contrails above 44 m/s, 0.1 to 0.75 | Done: Speed Trails, "Car Only" style. The view streaks follow the same curve. |
+| `ContrailSpeed`, `ContrailMin/MaxIntensity` | `contrail_speed`, `contrail_min_intensity`, `contrail_max_intensity` |
+| `SparkIntensity` | `spark_intensity` (1 keeps the authored look; above 1 scales the count) |
+| `UseCGStyle` (contrails during NOS, no fade-in) | `nos_contrails`: also at any speed while the nitrous burns, at the maximum strength |
+| `NISContrails` | `nis_contrails`: the player's car in a cutscene, from the motion the scene gives it. With it off, no trail shows in a cutscene. |
+| `PassShadowMap` | `shadows`: native renderer only (see below) |
+| `ContrailTargetFPS`, `SparkTargetFPS` | `contrail_rate`, `spark_rate`: emissions per second, default 60 for both (the mod defaults to 30 and 60) |
+| `MaxParticles` | `max_sparks` (default 2048) and `max_trails` (default 256); the mod's single cap of 10000 is not kept |
+| `LimitContrailRate`, `LimitSparkRate`, `NGEffectListSize`, `TexturePack`, `UseD3DDeviceTexture` | Not needed: the rates always apply, there is no effect list, and masks are procedural. No texture pack is read. |
+| Reset on restart (a bug in the mod) | Done: reset, disable and style changes clear the particles. |
+
+All options are the `[xenon_effects]` table of the config file. Nothing else sets them. Numbers outside their range are
+clamped (`contrail_speed` 1 to 200, intensities 0 to 1, `spark_intensity` 0 to 4, rates 1 to 240, caps 16 to 10000).
+
+Differences from the mod:
+
+- **Shadows.** The native renderer darkens the spark streaks, their glows and the wind trail to a third of their colour in
+  the sun's full shadow, using the same shadow map as the world. The Bevy renderer ignores `shadows` and draws them lit,
+  since its effect pass has no access to Bevy's shadow bindings. The rear-view mirror takes no shadow.
+- **Cutscene trail.** The scene's car has no physics, so its speed is the distance it moved over the frame. A jump of more
+  than 120 m/s is a camera or car cut and starts no trail.
+- **Nitrous.** The trail follows the physics' nitrous burning, as the nitrous flames do.
+
 ## What it does
 
 Each feature below is user-visible in the game, with evidence.

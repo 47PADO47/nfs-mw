@@ -126,6 +126,9 @@ Use the authored 30:10 spark-profile ratio, not a 50:50 alternation.
 Wind uses total velocity magnitude at threshold 44 m/s. Intensity rises from
 0.1 to 0.75 between 44 and 88 m/s. The host uses a fixed 60 Hz dispatch for
 repeatable presentation; the restoration allows configurable dispatch limits.
+The `[xenon_effects]` table sets the speed, the intensity range and both dispatch
+rates (default 60 Hz, [vehicle effects](../vehicle-effects.md)); `nos_contrails` also shows the wind at full strength
+while the nitrous burns, with no fade-in.
 Use the full car body transform and authored volume around its origin. Do not
 move the volume to a rear bumper or scale it by approximate body dimensions.
 Motion and segment direction follow particle velocity, including negative
@@ -137,7 +140,8 @@ that interval. This improves frame-rate stability without changing density.
 
 ## Limits and impact glow
 
-The initial host limits are 2048 sparks and 256 wind particles. Overflow retires
+The initial host limits are 2048 sparks and 256 wind particles. They are the defaults of
+`max_sparks` and `max_trails`. Overflow retires
 the oldest particle. Disable/reset/camera behavior remains as documented in
 [vehicle visual effects](vehicle-visual-effects.md).
 
