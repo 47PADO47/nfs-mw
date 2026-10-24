@@ -33,6 +33,8 @@ pub(super) struct Normal {
     material_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     lighting: wgpu::Buffer,
+    /// What `lighting` holds as of the last queued write, so views of one frame with the same data write it once.
+    written_lighting: Option<[[f32; 4]; 4]>,
     black_reflection: wgpu::TextureView,
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
@@ -95,6 +97,7 @@ impl Normal {
             material_layout,
             sampler,
             lighting,
+            written_lighting: None,
             black_reflection,
             projected: None,
             materials: Slots::new(),
@@ -122,29 +125,30 @@ impl Normal {
             .map_or([0.0, 0.0, 0.0, 1.0], |l| [l.specular[0], l.specular[1], l.specular[2], l.specular_power]);
         let reflection = frame.surface_light.map_or(0.0, |l| l.reflection_scale);
         let highlight_scale = frame.surface_light.map_or(1.0, |l| l.reflective_specular_scale);
-        queue.write_buffer(
-            &self.lighting,
-            0,
-            bytemuck::cast_slice(&[
-                specular,
-                [
-                    reflection,
-                    highlight_scale,
-                    u8::from(
-                        water.1.enhanced_wet_surfaces
-                            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
-                    ) as f32,
-                    0.0,
-                ],
-                [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
-                [
-                    u8::from(water.1.enhanced_wet_surfaces) as f32,
-                    water.1.puddle_coverage,
-                    water.1.puddle_scale,
-                    water.1.water_ripples,
-                ],
-            ]),
-        );
+        let lighting = [
+            specular,
+            [
+                reflection,
+                highlight_scale,
+                u8::from(
+                    water.1.enhanced_wet_surfaces
+                        && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
+                ) as f32,
+                0.0,
+            ],
+            [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
+            [
+                u8::from(water.1.enhanced_wet_surfaces) as f32,
+                water.1.puddle_coverage,
+                water.1.puddle_scale,
+                water.1.water_ripples,
+            ],
+        ];
+        if self.written_lighting == Some(lighting) {
+            return;
+        }
+        queue.write_buffer(&self.lighting, 0, bytemuck::cast_slice(&lighting));
+        self.written_lighting = Some(lighting);
     }
 
     /// Draw the normal-map scenery of blend mode `mode`: `list` holds only those draws, in the order they were
