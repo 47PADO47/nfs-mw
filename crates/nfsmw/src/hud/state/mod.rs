@@ -8,6 +8,8 @@
 //! - `nav`: the GPS route with its next turn, and the places on the map;
 //! - `events`: what changed this frame, once per change;
 //! - `marks`: the places the world markers stand on, with their occlusion.
+//! - `context`: what the Custom HUD's contextual layouts read (the race's stage and intro, the entry card, the end of a
+//!   chase).
 
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
@@ -16,6 +18,7 @@ use super::blip_style::MapBlip;
 use super::pursuit::PursuitHud;
 
 mod camera;
+mod context;
 mod events;
 mod marks;
 mod nav;
@@ -24,6 +27,7 @@ mod race_info;
 mod vehicle;
 
 pub use camera::HudCamera;
+pub use context::{EntryAction, EntryPrompt, HudContext, RaceIntro, RaceStage, entry_action};
 pub use events::HudEvent;
 pub use marks::{EntranceMark, MarkPoint, WorldMarks};
 #[cfg(test)]
@@ -143,6 +147,8 @@ pub struct HudState {
     /// The places the world markers stand on: the ground under the places near the car, the breakers in sight, and
     /// which of them the static world hides.
     pub world_marks: WorldMarks,
+    /// What the Custom HUD's contextual layouts read beyond the readout (`context.rs`).
+    pub context: HudContext,
 }
 
 impl Default for HudState {
@@ -194,6 +200,7 @@ impl Default for HudState {
             events: Vec::new(),
             events_frame: 0,
             world_marks: WorldMarks::default(),
+            context: HudContext::default(),
         }
     }
 }

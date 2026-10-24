@@ -81,13 +81,15 @@ pub use blip_styles::{
 };
 pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
-pub use leaders::{Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_MPH, LeaderRow, Leaders, game_word};
+pub use leaders::{
+    Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_KNOCKED_OUT, LABEL_MPH, LeaderRow, Leaders, game_word,
+};
 pub use map_source::MapSource;
 #[cfg(test)]
 pub use message::current as current_mod_message;
 pub use message::{
-    Tone as ModMessageTone, hide as hide_mod_message, is_up as mod_message_up, set as set_mod_message,
-    show as show_mod_message,
+    Tone as ModMessageTone, advance as advance_mod_message, hide as hide_mod_message, is_up as mod_message_up,
+    line as mod_message_line, set as set_mod_message, show as show_mod_message,
 };
 pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;
@@ -99,8 +101,9 @@ pub use radio::{Card, RadioHud};
 #[cfg(test)]
 pub use state::TurnDirection;
 pub use state::{
-    ConditionWarning, HEAVY_DAMAGE, HelicopterIntel, HudCamera, HudEvent, HudState, HudTelemetry, LastKnown,
-    MapPosition, NavMarker, NavMarkerKind, NavRoute, PoliceIntel, PursuitPhase, RaceInfo, RivalGap, TireCondition,
+    ConditionWarning, EntryAction, EntryPrompt, HEAVY_DAMAGE, HelicopterIntel, HudCamera, HudContext, HudEvent, HudState,
+    HudTelemetry, LastKnown, MapPosition, NavMarker, NavMarkerKind, NavRoute, PoliceIntel, PursuitPhase, RaceInfo, RivalGap, TireCondition,
     VehicleCondition, checkpoint_gap, cosmetic_level, known_roadblocks, next_turn, rival_of, shows_rival_gap, sighted,
+    RaceIntro, RaceStage, entry_action,
 };
 pub use state::{EntranceMark, MarkPoint, WorldMarks};

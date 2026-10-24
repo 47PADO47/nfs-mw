@@ -63,6 +63,23 @@ pub fn current() -> Option<ModMessage> {
     CARD.with(|card| card.borrow().clone())
 }
 
+/// The text and tone of the message on screen, if any: what a HUD that draws the message itself shows.
+pub fn line() -> Option<(String, Tone)> {
+    CARD.with(|card| card.borrow().as_ref().map(|message| (message.text.clone(), message.tone)))
+}
+
+/// Counts `dt` seconds off the message without drawing it, for a HUD that draws the message itself (the Custom HUD,
+/// from [`line`]); [`show`] does both. Takes the message down when it runs out.
+pub fn advance(dt: f32) {
+    CARD.with(|card| {
+        let mut card = card.borrow_mut();
+        let Some(message) = card.as_mut() else { return };
+        if message.tick(dt) {
+            *card = None;
+        }
+    });
+}
+
 /// Draw the message centred near the top of the window, and count its time off by the frame's time. The world's `ui`
 /// calls it each frame.
 pub fn show(ctx: &egui::Context) {

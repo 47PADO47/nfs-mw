@@ -1,6 +1,6 @@
 //! The mod message's timing and its one slot on screen.
 
-use super::message::{ModMessage, Tone, current, hide, set};
+use super::message::{ModMessage, Tone, advance, current, hide, line, set};
 
 #[test]
 fn a_message_counts_down_and_runs_out() {
@@ -24,4 +24,14 @@ fn a_new_message_replaces_the_one_on_screen_and_hide_takes_it_down() {
     assert_eq!((shown.text.as_str(), shown.tone), ("second", Tone::Big));
     hide();
     assert!(current().is_none());
+}
+
+#[test]
+fn a_hud_that_draws_the_message_reads_its_line_and_counts_its_time() {
+    set("drift", Tone::Warning, 1.0);
+    assert_eq!(line(), Some(("drift".to_owned(), Tone::Warning)));
+    advance(0.5);
+    assert!(line().is_some(), "half its time is left");
+    advance(0.5);
+    assert_eq!(line(), None, "advanced past its time, it is taken down");
 }

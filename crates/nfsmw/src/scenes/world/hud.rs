@@ -85,6 +85,7 @@ impl WorldScene {
             state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
             state.message = self.race_message().or_else(|| self.lead_catch_up_line());
+            state.context = self.hud_context();
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();
             self.race_blips(&mut state.blips);
