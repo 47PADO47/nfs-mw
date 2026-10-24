@@ -26,10 +26,19 @@ fn chasing_cop(world: &mut TrafficWorld, at: Vec3) {
 }
 
 fn tick(world: &mut TrafficWorld) {
-    world.seen_by_cops = true;
+    world.update_sight(0.25, &|_, _| None);
     world.update_police(
         0.25,
-        &PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 10.0, nitrous: 0.0, throttle: 0.0 },
+        &PlayerView {
+            nos_input: false,
+            nitrous_boost: 0.0,
+            velocity: (Vec3::X) * (10.0),
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 10.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        },
         &|_, _| true,
     );
 }
@@ -39,6 +48,11 @@ fn running() -> TrafficWorld {
     chasing_cop(&mut world, Vec3::new(2.0, 0.0, 20.0));
     world.player_position = Some(Vec3::ZERO);
     world.start_pursuit(1, vec![wave()], player());
+    // Radio fixtures hold the cars still rather than running their physical AI tasks.
+    // Supply their clear observation explicitly; task cadence is covered in visibility.rs.
+    for car in &mut world.cars {
+        car.report_sight(false, true);
+    }
     world.player_speed = 40.0;
     for _ in 0..8 {
         tick(&mut world);
@@ -59,6 +73,15 @@ fn the_chase_feed_lists_the_cop_with_its_distance_and_sight() {
     assert!(cop.los, "the world's sight test sees the player and the cop is in range");
     assert_eq!(cop.vehicle, Vehicle::Patrol);
     assert!(cop.health > 0.99);
+}
+
+#[test]
+fn another_cops_global_sighting_does_not_give_a_blocked_cop_radio_sight() {
+    let mut world = running();
+    world.cars[0].report_sight(false, false);
+    world.seen_by_cops = true;
+    let feed = world.pursuit_feed().unwrap();
+    assert!(!feed.speech.cops()[0].los);
 }
 
 #[test]

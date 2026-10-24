@@ -92,7 +92,7 @@ impl TrafficWorld {
         let asked = roadblock::cars_asked(site.cr_width);
         let level = self.police.level().unwrap_or(1);
         let cooling = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
-        let spikes = !cooling && roadblock::takes_spikes(level, self.rng.roadblock.next_f32());
+        let spikes = !cooling && self.rng.roadblock.next_f32() * 100.0 < self.police.roadblock_odds(level).spike_chance;
         let list: &[Layout] = if spikes { &SPIKES } else { &NORMAL };
         let layout = roadblock::pick(list, site.cr_width, asked).ok_or("no roadblock layout fits this road")?;
         let placed = roadblock::place(layout, &site.road);

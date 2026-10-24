@@ -96,6 +96,8 @@ impl TrafficWorld {
         if matches!(pick, Pick::Traffic(_)) && occupied + slots > self.target {
             return Err(Rejection::Budget);
         }
+        nav.half_width = model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
         if collision.resident_near(nav.position.to_array(), 40.0) == Some(false) {
             return Err(Rejection::Collision);
         }
@@ -119,8 +121,6 @@ impl TrafficWorld {
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.half_width = model.physics.spec.dimension.x;
-        nav.enable_trail(&self.network);
         nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, rng);
         let start = Start {
             stagger: (rng.next_f32() * 10.0) as u32,
@@ -234,6 +234,8 @@ impl TrafficWorld {
             return false;
         }
         let model = &self.models[index];
+        nav.half_width = model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
         let length = model.trailer.as_ref().map_or(0.0, |t| 2.0 * t.physics.spec.dimension.z);
         let others = self.cars.iter().map(|c| (c.physics_position(), c.trailer_length()));
         if !clear_of_cars(nav.position, length, others) {
@@ -242,8 +244,6 @@ impl TrafficWorld {
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.half_width = model.physics.spec.dimension.x;
-        nav.enable_trail(&self.network);
         nav.advance_with_lookahead(
             &self.network,
             START_LOOK_AHEAD,

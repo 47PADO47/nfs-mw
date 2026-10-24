@@ -38,6 +38,7 @@ impl TrafficWorld {
 
     pub fn set_alpha(&mut self, alpha: f32) {
         self.alpha = alpha;
+        self.police.set_heli_alpha(alpha);
     }
 
     /// Integrate all AI bodies once. Pair contacts follow before the poses are published.
@@ -55,11 +56,17 @@ impl TrafficWorld {
         bodies.extend(self.guest_bodies().map(|b| (b, false)));
         self.watch_ground(focus.body.map(|b| b.position), collision);
         let target = self.pursuit_target(focus.body);
+        // Normal driving establishes the vehicle's road history before any chase.
+        // A running pursuit may use only its published visible or remembered target.
+        let tracking_body = if self.pursuit.is_none() { focus.body } else { target };
+        let racing = self.police.pursuit_context().racing;
+        let target_road =
+            self.target_road.update(&self.network, &self.index, tracking_body, racing, self.police.is_jerk(), STEP);
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
         let mut aims = std::mem::take(&mut self.aims);
         aims.clear();
         if let Some(player) = target.as_ref() {
-            self.cop_aims(player, &mut aims);
+            self.cop_aims(player, collision, &mut aims);
         }
         let chasers = self.secondary_assignments(target);
         for (aim, chaser) in aims.iter_mut().zip(&chasers) {
@@ -77,9 +84,11 @@ impl TrafficWorld {
         // A car's own crash damage is gated by the nearest player's view (`collide.rs`).
         let eyes: Vec<glam::Vec3> = self.guest_eyes().collect();
         for (me, car) in self.cars.iter_mut().enumerate() {
+            let secondary = chasers.get(me).copied().flatten();
+            let shared_target_road = !racing && secondary.is_none();
             let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
             car.damage_distance = super::population::view_distance(view, &eyes, car.physics_position());
-            car.search_mode(searching, search_cruise, &self.network, &self.index, &mut self.rng.nav);
+            car.search_mode(searching, search_cruise, &self.network, &self.index);
             let position = glam::Vec3::from_array(super::super::space::to_physics(car.position()));
             let point = Vec2::new(position.x, position.z);
             // A police car inside a breaker zone is destroyed, however it got there (`ApplyBreakerZones`); it is counted
@@ -91,6 +100,19 @@ impl TrafficWorld {
             car.set_breaker_stop(car.is_roadblock());
             car.set_avoidance(self.avoidance);
             car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
+            if let super::car::Role::Cop(cop) = &mut car.role {
+                cop.environment(super::cop::Environment {
+                    reaction: self.police.level_tuning(self.police.level().unwrap_or(1)).map(|row| row.speed_reaction),
+                    level: self.police.level().unwrap_or(1),
+                    nitrous: self.police.target_nitrous(),
+                    nitrous_input: self.police.target_nitrous_input(),
+                    nitrous_boost: self.police.target_nitrous_boost(),
+                    jerk: self.police.is_jerk(),
+                    racing,
+                    shared_target_road,
+                    target_road: if shared_target_road { target_road } else { None },
+                });
+            }
             let mut ctx = Ctx {
                 net: &self.network,
                 index: &self.index,
@@ -98,16 +120,17 @@ impl TrafficWorld {
                 bodies: &bodies,
                 me,
                 player: match car.is_cop() && !car.is_searching() {
-                    true => chasers.get(me).copied().flatten().or(target),
+                    true => secondary.or(target),
                     false => focus.body,
                 },
                 aims: &aims,
                 lights,
             };
             let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
+            car.set_sight_active(ready);
             // A racer off the loaded world does not wait for it: its stand-in drives on (`car/stand_in.rs`).
             if car.update_stand_in(ready, &WorldGround { collision, surfaces }) {
-                car.stand_in_step(&mut ctx);
+                car.stand_in_step(&mut ctx, collision);
                 if threads > 1 {
                     starts.push(None);
                     continue;
@@ -118,7 +141,7 @@ impl TrafficWorld {
             self.population_stats.waiting_collision += usize::from(!ready);
             if threads > 1 {
                 starts.push(match ready {
-                    true => car.begin_step(&mut ctx, props),
+                    true => car.begin_step(&mut ctx, props, collision),
                     false => None,
                 });
                 continue;

@@ -2,7 +2,7 @@
 
 use blackbox_gfx::RenderBackend;
 use blackbox_vehicle::performance::Performance;
-use nfsmw_data::pursuit::{ground_cops, heat_row, heat_rows, wave_names};
+use nfsmw_data::pursuit::{ground_cops, wave_names};
 
 use super::models::{load_cop_models, load_helicopter_model};
 use super::traffic_events::{Sighting, starts_pursuit};
@@ -80,7 +80,7 @@ pub(in crate::scenes::world) fn pursuit_command(
         }
         [heat] => {
             let heat: u32 = heat.parse().ok().filter(|h| (1..=10).contains(h)).ok_or(USAGE)?;
-            let player = scene.players.lead().ok_or("not driving (use the drive command first)")?.performance();
+            let player = scene.players.lead().ok_or("not driving (use the drive command first)")?.ai_performance();
             log::info!(
                 "the player's car: top speed {:.0} m/s, grip {:.2} to {:.2}, acceleration {:.1?}",
                 player.top_speed,
@@ -88,7 +88,7 @@ pub(in crate::scenes::world) fn pursuit_command(
                 player.end_grip,
                 player.acceleration
             );
-            begin_pursuit(scene, renderer, heat, player)
+            begin_pursuit(scene, renderer, heat, player, true)
         }
         _ => Err(USAGE.into()),
     }
@@ -118,12 +118,13 @@ fn begin_pursuit(
     renderer: &mut dyn RenderBackend,
     heat: u32,
     player: Performance,
+    forced: bool,
 ) -> Result<String, String> {
     let db = scene.physics.database();
-    heat_row(db, heat).ok_or("no cop table for that heat")?;
+    let context = scene.traffic.as_ref().ok_or("this track has no road network")?.police.pursuit_context();
     // The chase re-reads its wave at every heat level it climbs to, so the cop models of all levels load now. The waves
     // the mods set take the install's rows here, so the cars they name load too.
-    let rows = with_heat_overrides(heat_rows(db));
+    let rows = with_heat_overrides(context.table().rows(db).ok_or("the pursuit escalation table is incomplete")?);
     let names = wave_names(&rows);
     let missing = load_wave_models(scene, renderer, &names);
     let rows = without_models(rows, &missing);
@@ -138,6 +139,7 @@ fn begin_pursuit(
     if !traffic.police.can_begin() {
         return Err("finish the arrest and infractions screen before starting another pursuit".into());
     }
+    traffic.police.set_forced_pursuit(forced);
     traffic.start_pursuit(heat, rows, player);
     Ok(format!("pursuit at heat {heat}: {}", start_names.join(", ")))
 }
@@ -169,14 +171,62 @@ pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, rendere
     // The speed comes from the drive now; the traffic supplies the rest (the sight and the recent hit).
     let heat = traffic.police.patrol_heat();
     let sight = Sighting { player_speed: drive.speed().abs(), ..traffic.sighting(heat) };
-    if !starts_pursuit(&traffic.events(), &sight) {
+    let scripted =
+        traffic.requested_chase_ready(scene.traffic_focus(), scene.residency.collision(), &scene.physics.surfaces);
+    if !scripted && !starts_pursuit(&traffic.events(), &sight) {
         return;
     }
-    let player = drive.performance();
-    match begin_pursuit(scene, renderer, heat, player) {
-        Ok(line) => log::info!("speeding: {line}"),
+    let player = drive.ai_performance();
+    match begin_pursuit(scene, renderer, heat, player, false) {
+        Ok(line) => log::info!(
+            "{}: {line}",
+            match scripted {
+                true => "scripted cop",
+                false => "patrol offence",
+            }
+        ),
         Err(e) => log::warn!("speeding: no chase: {e}"),
     }
+}
+
+/// Installs event rules even while no chase runs, so natural sightings use the same context as scripted starts.
+pub(in crate::scenes::world) fn configure_pursuit_context(
+    scene: &mut WorldScene,
+    context: super::PursuitContext,
+) -> Result<(), String> {
+    let Some(traffic) = scene.traffic.as_mut() else { return Ok(()) };
+    if traffic.police.pursuit_context() == context {
+        return Ok(());
+    }
+    let db = scene.physics.database();
+    let table = context.table();
+    let rows = with_heat_overrides(table.rows(db).ok_or("the pursuit escalation table is incomplete")?);
+    let backups = table.backups(db).ok_or("the pursuit backup table is incomplete")?;
+    let formations = table.formations(db).ok_or("the pursuit formation table is incomplete")?;
+    let tuning = table.tuning(db).ok_or("the pursuit level tuning table is incomplete")?;
+    let support = table.support(db).ok_or("the pursuit support table is incomplete")?;
+    traffic.police.set_pursuit_context(context);
+    traffic.police.set_heat_growth(table.growth(db));
+    traffic.police.set_formation_rows(formations);
+    traffic.police.set_level_tuning(tuning);
+    traffic.police.set_support_rows(support);
+    traffic.police.set_rep_table(table.rep(db));
+    traffic.backup_rows = backups.clone();
+    if let Some(pursuit) = traffic.pursuit.as_mut() {
+        pursuit.rows = rows;
+        pursuit.set_backups(backups);
+    }
+    Ok(())
+}
+
+/// Event starts use the prepared context and obey its limits. Development console starts remain explicit overrides.
+pub(in crate::scenes::world) fn start_event_pursuit(
+    scene: &mut WorldScene,
+    renderer: &mut dyn RenderBackend,
+    heat: u32,
+) -> Result<String, String> {
+    let player = scene.players.lead().ok_or("not driving")?.ai_performance();
+    begin_pursuit(scene, renderer, heat, player, false)
 }
 
 /// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map

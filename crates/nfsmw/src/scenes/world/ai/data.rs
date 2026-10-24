@@ -63,6 +63,15 @@ impl TrafficWorld {
         self.cops.start_session();
         self.load_911_data(db);
         self.backup_rows = nfsmw_data::pursuit::backup_rows(db);
+        if let Some(rows) = nfsmw_data::pursuit::PursuitTable::OpenWorld.formations(db) {
+            self.police.set_formation_rows(rows);
+        }
+        if let Some(rows) = nfsmw_data::pursuit::PursuitTable::OpenWorld.tuning(db) {
+            self.police.set_level_tuning(rows);
+        }
+        if let Some(rows) = nfsmw_data::pursuit::PursuitTable::OpenWorld.support(db) {
+            self.police.set_support_rows(rows);
+        }
         if let Some(heat) = nfsmw_data::pursuit::career_heat(db) {
             self.police.set_heat_growth(heat.growth.to_vec());
         }

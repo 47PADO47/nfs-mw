@@ -81,6 +81,11 @@ impl WorldScene {
     /// What a race holds on the world, given back: the racers, the race's walls, the traffic count a console command had
     /// set, the grid hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
     pub(super) fn release_race(&mut self, session: &mut RaceSession) {
+        if session.event == super::scripted_chase::CHASE_EVENT
+            && let Some(traffic) = self.traffic.as_mut()
+        {
+            traffic.cancel_cop_spawns();
+        }
         // A race given up in its intro or outro takes the movie or NIS it plays with it.
         if matches!(session.stage, Stage::Intro { .. } | Stage::Outro { .. }) {
             self.stop_nis();
@@ -93,6 +98,9 @@ impl WorldScene {
         self.end_photo_shot();
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.clear_racers();
+        }
+        if let Err(why) = crate::scenes::world::ai::configure_pursuit_context(self, Default::default()) {
+            log::warn!("race: could not restore open-world pursuit data: {why}");
         }
         self.traffic_manual = session.previous_traffic;
         if let Some(drive) = self.players.lead_mut() {

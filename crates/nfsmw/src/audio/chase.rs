@@ -142,6 +142,14 @@ impl Audio {
         self.chase_radio.take_911_call()
     }
 
+    /// Muted or unavailable speech must not hold the police's setup gate.
+    pub fn police_speech_phase(&mut self) -> Option<blackbox_pursuit::siren::Phase> {
+        if !self.speech.audible() || self.speech.loaded_mut().is_none() {
+            return None;
+        }
+        Some(self.chase_radio.police_phase())
+    }
+
     /// The chase radio's state, for the console's `speech flow`.
     pub fn chase_flow_status(&self) -> String {
         self.chase_radio.status()

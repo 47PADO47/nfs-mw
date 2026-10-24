@@ -46,7 +46,12 @@ impl Police {
 
     /// The speed under which the player is busted at `level`, metres per second.
     pub fn bust_speed(&self, level: u32) -> f32 {
-        self.settings().bust_speed_mps(level)
+        let configured = self.settings().bust_speed_mps(level);
+        let stock = crate::settings::bartender::vanilla::BUST_SPEED_KPH[(level as usize).clamp(1, 10) - 1] / 3.6;
+        match configured == stock {
+            true => self.level_tuning(level).map_or(configured, |row| row.bust_speed_kmh / 3.6),
+            false => configured,
+        }
     }
 
     /// Advances the busted timer one frame. Returns `true` on the frame the player is busted; the world then ends the
@@ -218,7 +223,10 @@ impl super::super::TrafficWorld {
         let tuning = MeterTuning {
             bust_dead_zone: 35.0,
             evade_dead_zone: 50.0,
-            front_sight: blackbox_pursuit::sight::ranges(level).0,
+            front_sight: self
+                .police
+                .level_tuning(level)
+                .map_or(blackbox_pursuit::sight::ranges(level).0, |row| row.front_los),
             warning_speed: 100.0 / 3.6,
             neutral_speed: 70.0 * super::super::traffic::MPH,
             fresh_sighting: 0.29,

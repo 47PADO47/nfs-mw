@@ -10,6 +10,21 @@ use glam::Mat4;
 
 use super::props::{Kit, Physics};
 
+#[cfg(test)]
+mod pending_tests {
+    use super::*;
+
+    #[test]
+    fn blocked_heavy_placement_expires_at_its_selected_duration() {
+        let mut blocks =
+            Roadblocks { heavy: Some(HeavyRequest { big_suv: 80.0, remaining: 20.0 }), ..Default::default() };
+        blocks.age_heavy(20.0);
+        assert!(blocks.has_pending_support(), "native request expires strictly below zero");
+        blocks.age_heavy(0.01);
+        assert!(!blocks.has_pending_support());
+    }
+}
+
 /// One roadblock that stands (`AIRoadBlock`). Its cars are the world's cars that carry `id` as their group.
 pub(in crate::scenes::world::ai) struct Roadblock {
     pub id: u32,
@@ -41,8 +56,8 @@ pub struct Stats {
 pub(super) struct HeavyRequest {
     /// Big SUV chance of the option, percent.
     pub big_suv: f32,
-    /// Seconds the request has waited.
-    pub waited: f32,
+    /// Pending support duration, seconds; expiry is independent of placement eligibility.
+    pub remaining: f32,
 }
 
 /// All the roadblocks of the world, the request lottery and the loaded props.
@@ -51,7 +66,7 @@ pub struct Roadblocks {
     pub(super) list: Vec<Roadblock>,
     pub(super) next_id: u32,
     pub(super) dispatcher: Dispatcher,
-    /// Seconds since the manager's last run (it runs every half second).
+    /// Seconds since the manager's last run (one per two simulation ticks).
     pub(super) clock: f32,
     pub(super) heavy: Option<HeavyRequest>,
     pub(super) stats: Stats,
@@ -65,6 +80,19 @@ pub struct Roadblocks {
 }
 
 impl Roadblocks {
+    pub(in crate::scenes::world::ai) fn has_pending_support(&self) -> bool {
+        self.heavy.is_some()
+    }
+
+    pub(super) fn age_heavy(&mut self, dt: f32) {
+        if let Some(request) = self.heavy.as_mut() {
+            request.remaining -= dt;
+            if request.remaining < 0.0 {
+                self.heavy = None;
+            }
+        }
+    }
+
     /// A chase starts: the lottery, the request and the statistics begin again. Standing roadblocks stay.
     pub fn begin_chase(&mut self) {
         self.end_chase();

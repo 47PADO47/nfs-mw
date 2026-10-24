@@ -89,3 +89,68 @@ fn installed_cop_alias_loads_once_and_discards_duplicate_completions_before_uplo
         installed.0, installed.1
     );
 }
+
+#[test]
+#[ignore = "needs installed heat-one-to-five police models, alias geometry, physics and pursuit tables"]
+fn installed_cop_loading_keeps_requested_vehicle_physics_and_ai_when_geometry_is_inherited() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let mut scene = WorldScene::open(
+        &dir,
+        Options {
+            at: None,
+            height: 40.0,
+            heading: 0.0,
+            pitch: -15.0,
+            fog_distance: 1500.0,
+            wait_for_load: false,
+            drive: None,
+        },
+    )
+    .unwrap();
+    let rows = nfsmw_data::pursuit::heat_rows(scene.physics.database());
+    assert!(rows.len() >= 5, "all five ordinary heat fleets must be available");
+    let mut names = vec!["copcross".to_owned()];
+    for row in rows.iter().take(5) {
+        for cop in &row.cops {
+            if cop.name != "copheli" && !names.contains(&cop.name) {
+                names.push(cop.name.clone());
+            }
+        }
+    }
+    let cars = nfsmw_data::car::list(&dir);
+    assert!(!cars.iter().any(|name| name.eq_ignore_ascii_case("copcross")), "Cross must exercise geometry inheritance");
+    let mut renderer = NullBackend::new(crate::settings::test_caps::native());
+    load_cop_models(&mut scene, &mut renderer, &names).unwrap();
+    pump(&mut scene, &mut renderer, true);
+    let mut mismatches = Vec::new();
+    for name in &names {
+        let expected = scene.physics.car(name).unwrap_or_else(|error| panic!("{name}: {error:#}"));
+        let expected_ai = ai_vehicle(scene.physics.database(), name);
+        let expected_performance =
+            nfsmw_data::car::physics::measured::ai_performance_of_spec(&expected.spec, expected.tire_integration);
+        let loaded = scene
+            .traffic
+            .as_ref()
+            .unwrap()
+            .cop_models
+            .iter()
+            .find(|model| model.model.name.eq_ignore_ascii_case(name))
+            .unwrap_or_else(|| panic!("production loader did not install requested vehicle {name}"));
+        let actual = &loaded.model.physics;
+        let same_spec = format!("{:?}", actual.spec) == format!("{:?}", expected.spec);
+        let same_ai = loaded.car.ai == expected_ai;
+        let same_performance = loaded.car.performance == expected_performance;
+        eprintln!(
+            "COP_LOAD name={name} requested_mass={} loaded_mass={} requested_ai={expected_ai:?} loaded_ai={:?} requested_top={} loaded_top={} spec_equal={same_spec} performance_equal={same_performance}",
+            expected.spec.mass,
+            actual.spec.mass,
+            loaded.car.ai,
+            expected_performance.top_speed,
+            loaded.car.performance.top_speed,
+        );
+        if !same_spec || !same_ai || !same_performance || actual.tire_integration != expected.tire_integration {
+            mismatches.push(name.clone());
+        }
+    }
+    assert!(mismatches.is_empty(), "geometry donors must not replace requested vehicle physics or AI: {mismatches:?}");
+}

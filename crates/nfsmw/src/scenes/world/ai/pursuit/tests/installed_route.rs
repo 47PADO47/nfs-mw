@@ -4,26 +4,29 @@ use super::*;
 use crate::input::ActionState;
 use crate::scenes::world::{Options, WorldScene, drive::STEP, props::PropWorld};
 use crate::viewer::{Scene, camera::Lens};
-use blackbox_roads::{SplitMix, zone};
+use blackbox_roads::{LaneType, NavKind, SplitMix, zone};
 use game_install::GameDir;
 
-const LOADED_START: [f32; 2] = [2974.2, 3001.9];
+pub(super) const LOADED_START: [f32; 2] = [2974.2, 3001.9];
 
-fn diagnostic(world: &TrafficWorld) -> String {
+pub(super) fn diagnostic(world: &TrafficWorld) -> String {
     let cars = world
         .cars
         .iter()
         .map(|car| {
             format!(
-                "{} id={} position={:?} velocity={:?} airborne={:.2} searching={} controls={:?}; {}",
+                "{} id={} position={:?} velocity={:?} airborne={:.2} searching={} sight_active={} sight_age={:.3} controls={:?}; {}; {}",
                 car.name,
                 car.audio_emitter().id,
                 car.physics_position(),
                 car.body().velocity,
                 car.airborne_time(),
                 car.is_searching(),
+                car.sight_active(),
+                car.sight_age(),
                 car.controls(),
                 car.debug(),
+                search_navigation_diagnostic(world, car),
             )
         })
         .collect::<Vec<_>>()
@@ -33,6 +36,25 @@ fn diagnostic(world: &TrafficWorld) -> String {
         world.police.has_contact(),
         world.police.is_perp_in_sight(),
         world.pursuit_status()
+    )
+}
+
+fn search_navigation_diagnostic(world: &TrafficWorld, car: &AiCar) -> String {
+    let mut nav =
+        RoadNav::new(NavKind::Traffic, LaneType::Traffic, SegmentFilter { traffic: true, ..Default::default() });
+    let initialized =
+        nav.init_at_point(&world.network, &world.index, car.physics_position(), car.physics_forward(), false);
+    if !initialized {
+        return "search_nav_init=false".into();
+    }
+    let segment = world.network.segment(nav.segment);
+    let (selected_segment, selected_lane, selected_node) = (nav.segment, nav.lane, nav.node_ind);
+    // A private probe stream keeps failure diagnostics from changing the real driver's random state.
+    let spawn_allowed = nav.can_traffic_spawn(&world.network, &mut SplitMix(53_012));
+    format!(
+        "search_nav_init=true segment={selected_segment} flags={:#06x} decision={} lane={selected_lane} node={selected_node} traffic_spawn_allowed={spawn_allowed}",
+        segment.flags,
+        segment.is_decision(),
     )
 }
 
@@ -126,7 +148,7 @@ fn supported_start(
     );
 }
 
-fn target(nav: &RoadNav, speed: f32) -> Body {
+pub(super) fn target(nav: &RoadNav, speed: f32) -> Body {
     Body {
         position: nav.position + Vec3::Y * 0.5,
         velocity: nav.forward * speed,
@@ -136,13 +158,55 @@ fn target(nav: &RoadNav, speed: f32) -> Body {
     }
 }
 
-fn tick(
+pub(super) fn tick(
     world: &mut TrafficWorld,
     body: Body,
-    collision: &CollisionWorld,
-    surfaces: &SurfaceTable,
+    scene: &mut WorldScene,
+    renderer: &mut NullBackend,
     props: &mut PropWorld,
 ) {
+    tick_with_boost(world, body, scene, renderer, props, 0.0);
+}
+
+pub(super) fn tick_with_boost(
+    world: &mut TrafficWorld,
+    body: Body,
+    scene: &mut WorldScene,
+    renderer: &mut NullBackend,
+    props: &mut PropWorld,
+    nitrous_boost: f32,
+) {
+    // This fixture isolates physical chase/search, so both the cop and target must
+    // retain collision residency. A fixed opening camera would suspend the cop.
+    let mut centres: Vec<_> = world
+        .cars
+        .iter()
+        .map(|car| {
+            let at = car.position();
+            [at.x, at.y]
+        })
+        .collect();
+    let target_at = space::to_render(body.position.to_array());
+    centres.push([target_at.x, target_at.y]);
+    for _ in 0..2000 {
+        scene.residency.update_centres(renderer, &centres);
+        let collision = scene.residency.collision();
+        let supported = world
+            .cars
+            .iter()
+            .all(|car| collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false));
+        if scene.residency.complete() && supported {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(scene.residency.complete(), "route fixture collision must finish streaming");
+    let collision = scene.residency.collision();
+    assert!(
+        world.cars.iter().all(|car| collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false)),
+        "the route fixture must keep the physical cop active"
+    );
+    let surfaces = &scene.physics.surfaces;
     let position = space::to_render(body.position.to_array());
     let forward = space::to_render([body.forward.x, 0.0, body.forward.y]);
     let heading = forward.y.atan2(forward.x);
@@ -152,12 +216,16 @@ fn tick(
     world.collide(None);
     world.finish_step(focus, &camera, &camera, props, collision, surfaces);
     world.player_position = Some(body.position);
+    world.player_speed = body.velocity.length();
     let cast = crate::scenes::world::drive::sight::sight_cast(collision);
     world.update_sight(STEP, &cast);
     world.update_police(
         STEP,
         &crate::scenes::world::ai::PlayerView {
+            nos_input: false,
+            nitrous_boost,
             position,
+            velocity: space::to_render(body.velocity.to_array()),
             forward,
             speed: body.velocity.length(),
             throttle: f32::from(u8::from(body.velocity.length() > 0.0)),
@@ -168,14 +236,16 @@ fn tick(
     assert!(world.cars.iter().all(AiCar::is_finite), "physical police state must remain finite: {}", diagnostic(world));
 }
 
-#[test]
-#[ignore = "needs installed city collision, road network and patrol geometry selected by NFSMW_GAME_DIR"]
-fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
+pub(super) fn open() -> (WorldScene, NullBackend, TrafficWorld) {
+    open_at(LOADED_START)
+}
+
+pub(super) fn open_at(at: [f32; 2]) -> (WorldScene, NullBackend, TrafficWorld) {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
     let mut scene = WorldScene::open(
         &dir,
         Options {
-            at: Some(LOADED_START),
+            at: Some(at),
             height: 40.0,
             heading: 0.0,
             pitch: -15.0,
@@ -204,15 +274,20 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
     let mut world = scene.traffic.take().unwrap();
     world.cars.clear();
     world.configure(0, 0);
+    (scene, renderer, world)
+}
+
+#[test]
+#[ignore = "needs installed city collision, road network and patrol geometry selected by NFSMW_GAME_DIR"]
+fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
+    let (mut scene, mut renderer, mut world) = open();
     let model = world.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case("copmidsize")).unwrap();
     let performance = blackbox_vehicle::performance::measure_with_integration(
         &model.model.physics.spec,
         model.model.physics.tire_integration,
     );
     let mut rng = SplitMix(53_012);
-    let collision = scene.residency.collision();
-    let surfaces = &scene.physics.surfaces;
-    let (car, mut route) = supported_start(&world, model, collision, surfaces);
+    let (car, mut route) = supported_start(&world, model, scene.residency.collision(), &scene.physics.surfaces);
     let (segment, lane) = (route.segment, route.lane);
     let identity = car.audio_emitter().id;
     let initial = car.physics_position();
@@ -222,7 +297,7 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
     let mut body = target(&route, 18.0);
     world.player_position = Some(body.position);
     {
-        let cast = crate::scenes::world::drive::sight::sight_cast(collision);
+        let cast = crate::scenes::world::drive::sight::sight_cast(scene.residency.collision());
         world.update_sight(0.25, &cast);
         assert!(world.sighting(1).seen, "the real road fixture starts within actual clear sight");
     }
@@ -232,12 +307,15 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
     for row in &mut rows {
         row.cops = vec![nfsmw_data::pursuit::CopRecord { name: "copmidsize".into(), count: 1, chance: 100 }];
     }
+    // Keep the single-unit heat-1 fixture in the stock starting career range.
+    world.set_career_bin(Some(16));
     world.start_pursuit(1, rows, performance);
+    assert_eq!(world.police.level(), Some(1));
     let mut props = PropWorld::default();
     for _ in 0..120 {
         route.advance_with_lookahead(&world.network, 18.0 * STEP, Vec3::ZERO, 0.0, &mut rng);
         body = target(&route, 18.0);
-        tick(&mut world, body, collision, surfaces, &mut props);
+        tick(&mut world, body, &mut scene, &mut renderer, &mut props);
     }
     assert_eq!(world.cars[0].audio_emitter().id, identity);
     let displacement = world.cars[0].physics_position() - initial;
@@ -252,13 +330,13 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
         diagnostic(&world)
     );
     for _ in 0..30 {
-        tick(&mut world, target(&route, 0.0), collision, surfaces, &mut props);
+        tick(&mut world, target(&route, 0.0), &mut scene, &mut renderer, &mut props);
     }
     assert!(world.police.level().is_some(), "a brief stop at distance is not an immediate bust");
     let mut search = false;
     for _ in 0..900 {
         route.advance_with_lookahead(&world.network, 70.0 * STEP, Vec3::ZERO, 0.0, &mut rng);
-        tick(&mut world, target(&route, 70.0), collision, surfaces, &mut props);
+        tick(&mut world, target(&route, 70.0), &mut scene, &mut renderer, &mut props);
         search = world.cars.iter().any(AiCar::is_searching);
         if search {
             break;
@@ -277,19 +355,42 @@ fn installed_police_drive_stop_search_and_reacquire_on_real_roads() {
     assert!(reunion.init_at_point(&world.network, &world.index, cop.physics_position(), cop.physics_forward(), false));
     reunion.advance_with_lookahead(&world.network, 25.0, Vec3::ZERO, 0.0, &mut rng);
     // Reposition the kinematic target onto this unit's nearby installed lane to isolate actual reacquisition.
-    for _ in 0..60 {
-        tick(&mut world, target(&reunion, 15.0), collision, surfaces, &mut props);
+    // Cooldown refuses ground sightings for its first 2.5 seconds. Leave room
+    // for that display gate and this unit's next staggered visibility query.
+    for _ in 0..240 {
+        tick(&mut world, target(&reunion, 15.0), &mut scene, &mut renderer, &mut props);
         if world.police.has_contact() && world.cars.iter().all(|car| !car.is_searching()) {
             break;
         }
     }
+    let collision = scene.residency.collision();
+    let reunion_body = target(&reunion, 15.0);
+    let reunion_render = space::to_render(reunion_body.position.to_array());
+    let reunion_ground =
+        crate::scenes::world::road::probe(collision, reunion_render.x, reunion_render.y, reunion_render.z + 10.0);
+    let cast = crate::scenes::world::drive::sight::sight_cast(collision);
+    let sight_diagnostic: Vec<_> = world
+        .cars
+        .iter()
+        .map(|car| {
+            let from = car.physics_position() + Vec3::Y * 0.5;
+            let to = reunion_body.position + Vec3::Y * 0.5;
+            let hit = cast(from, to).map(|hit| (hit.point, hit.normal, hit.info));
+            (car.sight_active(), car.sight_age(), hit)
+        })
+        .collect();
+    drop(cast);
     assert!(
         world.police.has_contact(),
-        "range and real geometry must reacquire the visible target: target={:?}; {}",
+        "range and real geometry must reacquire the visible target: target={:?} ground={reunion_ground:?} allowed={} hidden={} ground_age={:?} unit_sight={sight_diagnostic:?}; {}",
         target(&reunion, 15.0).position,
+        world.police.sight_allowed(),
+        world.hidden_from_cars(),
+        world.police.observed_ground_age(),
         diagnostic(&world)
     );
     assert!(world.cars.iter().all(|car| !car.is_searching()));
+    assert_eq!(world.police.level(), Some(1));
     assert!(world.cars.iter().any(|car| car.audio_emitter().id == identity), "reacquisition preserves the unit");
     eprintln!(
         "installed police route: segment {segment}, lane {lane}; initial displacement {displacement:?}; chase/stop/search/reacquisition"

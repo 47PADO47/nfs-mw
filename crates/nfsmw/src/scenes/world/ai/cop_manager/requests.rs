@@ -11,6 +11,8 @@ pub enum Role {
     Patrol,
     /// It joins the player's chase (`StartPursuit`).
     Chase,
+    /// It holds an authored roadblock position (`StartRoadBlock`).
+    Roadblock,
 }
 
 /// One request: the car, where, which way it faces, and what it does.
@@ -41,6 +43,10 @@ impl Queue {
 
     pub fn len(&self) -> usize {
         self.waiting.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Request> {
+        self.waiting.iter()
     }
 
     /// Hands every waiting request to `place`, oldest first; the ones it returns `false` for stay queued.

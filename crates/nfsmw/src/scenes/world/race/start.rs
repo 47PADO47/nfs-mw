@@ -164,13 +164,18 @@ impl WorldScene {
         // race has no police (`docs/specs/split-screen.md`).
         let police = match split.is_some() && coop.is_none() {
             true => Police::CallOff,
-            false => heat::police_of(options.heat, p.pursuit_race),
+            false => heat::police_of(options.heat, p.pursuit_race || p.cops_in_race),
         };
         if let Some(traffic) = self.traffic.as_mut() {
             match police {
                 Police::Chase(heat) => traffic.set_carried_heat(heat as f32),
                 Police::CallOff => traffic.stop_pursuit(),
-                Police::Keep => {}
+                Police::Keep => {
+                    if p.force_heat_level > 0 {
+                        let carried = traffic.heat_value().max(p.force_heat_level as f32);
+                        traffic.set_carried_heat(carried);
+                    }
+                }
             }
         }
         let heat_chase = police.chase().map(HeatChase::Waiting);
@@ -196,6 +201,10 @@ impl WorldScene {
             Some(_) => self.finish_flares.clear(),
             None => self.show_finish_flares(&data, &race),
         }
+        crate::scenes::world::ai::configure_pursuit_context(
+            self,
+            super::police_context::context_of(&race, options.career),
+        )?;
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(&race),
             map: crate::hud::MapSource::of_race(

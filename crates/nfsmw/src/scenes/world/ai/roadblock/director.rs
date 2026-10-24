@@ -4,7 +4,7 @@
 //! is left. Repeated roadblocks follow from the release: the pursuit asks again once its roadblock is gone.
 
 use blackbox_collision::CollisionWorld;
-use blackbox_pursuit::roadblock::request::{Ask, odds};
+use blackbox_pursuit::roadblock::request::Ask;
 use blackbox_pursuit::roadblock::standing::{self, Car, SEES_YOU};
 use blackbox_pursuit::support::Strategy;
 use glam::Vec3;
@@ -12,16 +12,12 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::build::Cause;
 use super::state::HeavyRequest;
-use crate::scenes::world::ai::support;
 use crate::scenes::world::ai::{PlayerView, TrafficWorld};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::space;
 
 /// The cop manager runs its roadblock logic this often, seconds.
-const RUN_PERIOD: f32 = 0.5;
-/// A heavy roadblock request that finds no site for this long is dropped, seconds (the original retries without end;
-/// a chase that cannot place one should not hold the request for ever).
-const HEAVY_PATIENCE: f32 = 60.0;
+const RUN_PERIOD: f32 = 2.0 * crate::scenes::world::drive::STEP;
 
 impl TrafficWorld {
     /// Advances the roadblocks by `dt` seconds of simulated time. `props` is the prop world (the sawhorses live there).
@@ -38,18 +34,18 @@ impl TrafficWorld {
         self.roadblocks.dispatcher.tick(dt);
         if self.police.take_roadblock_request() {
             let level = self.police.level().unwrap_or(1);
-            let big_suv = support::big_suv_chance(level, Strategy::HeavyRoadblock);
-            self.roadblocks.heavy = Some(HeavyRequest { big_suv, waited: 0.0 });
+            let big_suv = self.police.big_suv_chance(level, Strategy::HeavyRoadblock);
+            self.roadblocks.heavy = Some(HeavyRequest { big_suv, remaining: self.police.roadblock_request_duration() });
             self.roadblocks.dispatcher.heavy_chosen();
         }
+        self.roadblocks.age_heavy(dt);
         self.roadblocks_watch(dt, target, pursuing);
         self.roadblocks.clock += dt;
         if self.roadblocks.clock >= RUN_PERIOD {
-            let step = self.roadblocks.clock;
             self.roadblocks.clock = 0.0;
             self.roadblocks_release();
             if pursuing {
-                self.roadblocks_request(step, view, collision, props, surfaces);
+                self.roadblocks_request(view, collision, props, surfaces);
             }
         }
         self.police.set_roadblock_standing(self.roadblocks.any());
@@ -127,6 +123,7 @@ impl TrafficWorld {
             block.recruited += 1;
         }
         self.roadblocks.stats.recruited += 1;
+        self.police.ground_deployed(&self.cars[index].name);
         log::info!("roadblock {id}: a car joins the chase (the perp was cheating)");
     }
 
@@ -145,13 +142,17 @@ impl TrafficWorld {
     /// The manager's run: the heavy support request first, then the lottery (`UpdateSupportCops`, `UpdatePursuits`).
     fn roadblocks_request(
         &mut self,
-        step: f32,
         view: PlayerView,
         collision: &CollisionWorld,
         mut props: Option<&mut PropWorld>,
         surfaces: &SurfaceTable,
     ) {
-        if let Some(mut heavy) = self.roadblocks.heavy.take() {
+        if self.world_moment {
+            return;
+        }
+        if self.police.is_perp_in_sight()
+            && let Some(heavy) = self.roadblocks.heavy.take()
+        {
             let built = match self.roadblocks.any() {
                 true => None,
                 false => Some(self.build_roadblock(
@@ -162,17 +163,15 @@ impl TrafficWorld {
                     surfaces,
                 )),
             };
-            heavy.waited += step;
             match built {
                 Some(Ok(cars)) => {
                     log::info!("support: a heavy roadblock of {cars} cop cars");
                     self.police.heavy_roadblock_built();
                 }
-                Some(Err(e)) if heavy.waited < HEAVY_PATIENCE => {
+                Some(Err(e)) => {
                     log::debug!("support: no heavy roadblock yet: {e}");
                     self.roadblocks.heavy = Some(heavy);
                 }
-                Some(Err(e)) => log::warn!("support: the heavy roadblock was dropped: {e}"),
                 None => {}
             }
         }
@@ -187,12 +186,12 @@ impl TrafficWorld {
             bailed: false,
             roadblock_exists: self.roadblocks.any(),
             pursuit_time: self.police.pursuit_secs(),
-            min_delay: support::minimum_delay(level),
+            min_delay: self.police.support_minimum_delay(level),
             in_sight: self.police.is_perp_in_sight(),
             last_known_distance: last_known,
         };
         let rolls = [self.rng_unit(), self.rng_unit()];
-        if !self.roadblocks.dispatcher.poll(&ask, &odds(level), rolls) {
+        if !self.roadblocks.dispatcher.poll(&ask, &self.police.roadblock_odds(level), rolls) {
             return;
         }
         match self.build_roadblock(Cause::Lottery, view, collision, props, surfaces) {

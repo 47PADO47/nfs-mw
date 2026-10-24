@@ -92,6 +92,7 @@ impl WorldScene {
         let blocking_models = self.rules.blocking_models;
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.set_guests(guests);
+        traffic.set_pursuit_options(self.traffic_setting.pursuit);
         traffic.configure(wanted, share);
         traffic.bar_cops(barred);
         traffic.set_policy(self.traffic_setting.policy);

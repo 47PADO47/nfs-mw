@@ -7,6 +7,7 @@
 
 use blackbox_collision::CollisionWorld;
 mod audio;
+mod cinematic;
 mod hits;
 pub(in crate::scenes::world) mod memo;
 pub(in crate::scenes::world) mod pair_contact;
@@ -42,6 +43,7 @@ const MAX_VISIBLE_TRAVEL: f32 = 0.25;
 
 pub struct CarSim {
     vehicle: Vehicle,
+    cinematic_controls: Option<blackbox_vehicle::ControlConfig>,
     reset_collision: reset_collision::ResetCollision,
     /// Where the body box's centre is relative to the model's origin, in physics axes.
     pivot: Vec3,
@@ -104,6 +106,7 @@ impl CarSim {
         }
         Self {
             vehicle,
+            cinematic_controls: None,
             reset_collision: Default::default(),
             prop_struck: false,
             smacked: Vec::new(),

@@ -35,16 +35,59 @@ impl WorldScene {
                 break;
             }
         }
+        self.sync_moment_ownership();
     }
 
     /// Plays `sim_dt` seconds of the cut and applies what it asks of the world: the camera jump and the busted hold.
     pub(super) fn step_moment(&mut self, sim_dt: f32) {
         self.moment.advance(sim_dt);
+        self.sync_moment_ownership();
         if self.moment.take_cut() {
             self.cut.arm();
         }
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.hold_busted(self.moment.holds_busted());
+        }
+    }
+
+    /// Apply camera ownership at each physics tick, reusing the normal race driver on the existing player body.
+    pub(super) fn update_moment_control(&mut self) {
+        self.sync_moment_ownership();
+        if !self.moment.hides_hud() {
+            return;
+        }
+        let Some(drive) = self.players.lead() else { return };
+        let body = drive.ai_body();
+        let Some(view) = drive.sim().map(|sim| sim.driver_view()) else { return };
+        let performance = drive.ai_performance();
+        let ai = nfsmw_data::pursuit::ai_vehicle(self.physics.database(), &drive.car_name);
+        let mass = drive.physical_mass();
+        let input = self
+            .traffic
+            .as_mut()
+            .map(|traffic| traffic.moment_input(&mut self.moment.driver, body, view, performance, ai, mass))
+            .unwrap_or_default();
+        if let Some(drive) = self.players.lead_mut() {
+            drive.set_cinematic_input(Some(input));
+        }
+    }
+
+    fn sync_moment_ownership(&mut self) {
+        let active = self.moment.hides_hud();
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.hold_world_moment(active);
+        }
+        if active {
+            if self.moment.driver.is_none()
+                && let Some(drive) = self.players.lead_mut()
+            {
+                drive.set_cinematic_input(Some(Default::default()));
+            }
+            return;
+        }
+        self.moment.driver = None;
+        if let Some(drive) = self.players.lead_mut() {
+            drive.set_cinematic_input(None);
         }
     }
 }

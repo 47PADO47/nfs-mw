@@ -231,6 +231,7 @@ impl WorldScene {
                     lights: false,
                     avoidance: false,
                     policy: Default::default(),
+                    pursuit: Default::default(),
                 },
                 lamp_meshes: None,
                 traffic_manual: None,

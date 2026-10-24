@@ -30,9 +30,8 @@ impl WorldScene {
     }
 
     /// Plays the arrest scene the bust asks for (`busted-sequence.md` section 4), as an arrest NIS (not skippable).
-    /// The spec's arrest-spot search is not in the port yet, so the scene is anchored at the player's pose instead: the
-    /// player's car position on the ground, facing the car's heading (see [`WorldScene::play_nis`]). A scene that cannot
-    /// play (no car, no bundle, another scene on) is answered at once, so the bust keeps its plain hold.
+    /// The scene uses the queried road cross-section midpoint, facing the player's car. An unavailable road or scene
+    /// is answered immediately, so the existing no-scene payment/race outcome can continue.
     pub(in crate::scenes::world) fn update_arrest_nis(&mut self) {
         let Some(name) = self.traffic.as_mut().and_then(|traffic| traffic.take_arrest_request()) else { return };
         if self.coop.is_some() {
@@ -43,7 +42,15 @@ impl WorldScene {
             }
             return;
         }
-        let Err(error) = self.play_nis_as(name, 0, NisKind::Arrest) else { return };
+        let anchor = self
+            .players
+            .lead()
+            .zip(self.traffic.as_ref())
+            .and_then(|(drive, traffic)| traffic.arrest_anchor(drive.ai_body()));
+        let result = anchor
+            .ok_or_else(|| "no arrest road location".to_owned())
+            .and_then(|anchor| self.nis.play(&self.dir, name, anchor, NisKind::Arrest, 0));
+        let Err(error) = result else { return };
         log::warn!("busted: the arrest scene {name} cannot play ({error}); the ticket follows the hold");
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.arrest_scene_over();

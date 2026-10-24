@@ -28,6 +28,7 @@ impl AiCar {
         nav.enable_trail(net);
         self.nav = nav;
         self.role = Role::Cop(Box::new(cop::CopState::new(car, player, self.speed().abs())));
+        self.sight.without_target();
         self.driver = Driver::new(ControllerKind::Pid, false);
         self.patrol = false;
         self.waiting = false;
@@ -74,7 +75,6 @@ impl AiCar {
         cruise: Cruise,
         net: &RoadNetwork,
         index: &SegmentIndex,
-        rng: &mut impl RandomSource,
     ) -> bool {
         if !self.is_cop() || self.roadblock || self.support.is_some() || self.arrested {
             return false;
@@ -83,7 +83,7 @@ impl AiCar {
             return true;
         }
         if !self.searching {
-            self.search_mode(true, cruise, net, index, rng);
+            self.search_mode(true, cruise, net, index);
         }
         if !self.searching {
             return false;
@@ -103,19 +103,35 @@ impl AiCar {
     }
 
     /// Entering a hiding zone while watched does not erase sight; losing sight there latches per cop until exit.
-    pub(in crate::scenes::world::ai) fn report_sight(&mut self, hidden: bool, visible: bool) -> bool {
+    pub(in crate::scenes::world::ai) fn test_target_sight(&mut self, hidden: bool, visible: bool) -> bool {
         if hidden && self.perp_hidden_from_me {
             self.sees_player = false;
             return false;
         }
         self.perp_hidden_from_me = hidden && !visible;
         self.sees_player = visible;
+        if visible {
+            self.saw_target();
+        }
         visible
+    }
+
+    /// Force a fixture's observation without advancing its physical vehicle task.
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn report_sight(&mut self, hidden: bool, visible: bool) -> bool {
+        let seen = self.test_target_sight(hidden, visible);
+        if !seen {
+            self.sight.without_target();
+        }
+        seen
     }
 
     /// Whether this cop saw the player at the last sight test (the per-car answer behind the flee rule's "can see you").
     pub fn sees_player(&self) -> bool {
-        self.sees_player
+        match self.is_cop() {
+            true => self.sight_age() <= 0.0,
+            false => self.sees_player,
+        }
     }
 
     /// How this car stands to a cop about to be put on the traffic lanes (`CheckSpawnPosition`'s lane test): a car that
@@ -125,6 +141,11 @@ impl AiCar {
         use blackbox_pursuit::spawn_rules::Neighbour;
         if self.nav.kind != NavKind::Traffic {
             return Neighbour::Other;
+        }
+        if !self.is_wrecked()
+            && let Some((from_lane, to_lane)) = self.avoid.changing_lanes()
+        {
+            return Neighbour::ChangingTraffic { from_lane, to_lane, node: self.nav.node_ind };
         }
         match self.is_wrecked() {
             true => Neighbour::Wreck,
@@ -139,7 +160,6 @@ impl AiCar {
         cruise: Cruise,
         net: &RoadNetwork,
         index: &SegmentIndex,
-        rng: &mut impl RandomSource,
     ) {
         if !self.is_cop()
             || self.roadblock
@@ -157,9 +177,6 @@ impl AiCar {
         let mut nav = RoadNav::new(kind, lane, filter);
         nav.half_width = self.half.0;
         if !nav.init_at_point(net, index, self.physics_position(), self.physics_forward(), false) {
-            return;
-        }
-        if searching && !nav.can_traffic_spawn(net, rng) {
             return;
         }
         nav.enable_trail(net);

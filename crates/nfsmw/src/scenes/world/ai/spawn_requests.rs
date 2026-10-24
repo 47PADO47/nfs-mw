@@ -17,7 +17,7 @@ use super::cop::CopState;
 use super::cop_manager::requests::{Request, Role as RequestRole};
 use super::traffic::Cruise;
 use super::{Focus, TrafficWorld};
-use crate::scenes::world::drive::WorldGround;
+use crate::scenes::world::drive::{CarSim, WorldGround};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
 
@@ -28,6 +28,72 @@ const OVERLAP_MARGIN: f32 = 2.0;
 const START_LOOK_AHEAD: f32 = 30.0;
 
 impl TrafficWorld {
+    /// An explicit chase request starts the pursuit once its car can be placed, without an offence or sighting.
+    pub(super) fn requested_chase_ready(
+        &self,
+        focus: Focus,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        !self.world_moment
+            && self.cops.spawning_enabled()
+            && self.police.can_begin()
+            && self.cops.requests.iter().any(|request| {
+                request.role == RequestRole::Chase
+                    && self.request_spot_clear(request, focus)
+                    && self.requested_chase_supported(request, collision, surfaces)
+            })
+    }
+
+    /// Use the placement queries without allocating a render key or advancing the spawn RNG.
+    /// Model loading and overlap alone cannot establish that a queued unit can stand on the world.
+    fn requested_chase_supported(
+        &self,
+        request: &Request,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        if collision.resident_near(request.at.to_array(), 30.0) == Some(false) {
+            return false;
+        }
+        let Some(model) = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(&request.name))
+        else {
+            return false;
+        };
+        let filter = SegmentFilter { cop: true, no_decision: true, ..Default::default() };
+        let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
+        if !nav.init_at_point(&self.network, &self.index, request.at, request.forward, false) {
+            return false;
+        }
+        let render = space::to_render(request.at.to_array());
+        let facing = space::to_render(request.forward.to_array());
+        let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
+        let mut sim = CarSim::for_rig(model.model.physics.clone(), &model.model.rig);
+        sim.configure_ai();
+        sim.place_traffic_moving(&WorldGround { collision, surfaces }, spawn, super::pursuit::START_SPEED)
+    }
+
+    fn request_spot_clear(&self, request: &Request, focus: Focus) -> bool {
+        let Some(model) = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(&request.name))
+        else {
+            return false;
+        };
+        let radius = model.model.physics.spec.dimension.length() + OVERLAP_MARGIN;
+        let overlaps_car =
+            self.cars.iter().any(|car| car.physics_position().distance(request.at) < car.bounding_radius() + radius);
+        let overlaps_player = focus
+            .body
+            .into_iter()
+            .chain(self.guest_bodies())
+            .any(|body| body.position.distance(request.at) < body.half_width.hypot(body.half_length) + radius);
+        !overlaps_car && !overlaps_player
+    }
+
+    /// A scripted `NoNewPursuitsOrCops` cancels requests which have not been placed yet.
+    pub fn cancel_cop_spawns(&mut self) {
+        self.cops.requests = Default::default();
+    }
+
     /// The police cars on the road now, helicopter apart (`mNumActiveCopCars`): patrols, chase cops, support cars and roadblock
     /// cars, wrecks included until the patrol pass recycles them.
     pub fn active_cop_cars(&self) -> usize {
@@ -56,14 +122,13 @@ impl TrafficWorld {
         self.cops.requests.len()
     }
 
-    /// Step 7 of the manager's run: tries each queued request in order (`UpdateSpawnRequests`). A chase request has no
-    /// chase to join once the chase is over, and is dropped.
+    /// Step 7 of the manager's run: tries queued requests in order. A chase request waits for scene pursuit construction.
     pub(super) fn service_spawn_requests(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
-        if self.cops.requests.is_empty() {
+        if self.world_moment {
             return;
         }
-        if self.pursuit.is_none() {
-            self.cops.requests.drop_role(RequestRole::Chase);
+        if self.cops.requests.is_empty() {
+            return;
         }
         let mut requests = std::mem::take(&mut self.cops.requests);
         requests.service(|request| self.try_spawn_request(request, focus, collision, surfaces));
@@ -88,12 +153,16 @@ impl TrafficWorld {
             self.request_cop(&request.name);
             return false;
         }
+        if !self.request_spot_clear(request, focus) {
+            return false;
+        }
         let Some(car) = self.build_requested_car(request, collision, surfaces) else { return false };
         log::info!("cop manager: {} placed by a spawn request as {:?}", car.name, request.role);
         if request.role == RequestRole::Chase
             && let Some(pursuit) = self.pursuit.as_mut()
         {
             pursuit.involved += 1;
+            self.police.ground_deployed(&car.name);
         }
         self.admit(car);
         true
@@ -121,8 +190,13 @@ impl TrafficWorld {
         if chase && performance.is_none() {
             return None;
         }
-        let (mut nav, cruise, speed) = match chase {
-            true => {
+        let (mut nav, cruise, speed) = match request.role {
+            RequestRole::Roadblock => (
+                RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter { cop: true, ..Default::default() }),
+                Cruise::default(),
+                0.0,
+            ),
+            RequestRole::Chase => {
                 let filter = SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() };
                 (
                     RoadNav::new(NavKind::Direction, LaneType::Cop, filter),
@@ -130,7 +204,7 @@ impl TrafficWorld {
                     super::pursuit::START_SPEED,
                 )
             }
-            false => {
+            RequestRole::Patrol => {
                 let cruise = self.patrol.as_ref()?.cruise;
                 let nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
                 (nav, cruise, cruise.street.min(cruise.highway))
@@ -139,15 +213,16 @@ impl TrafficWorld {
         if !nav.init_at_point(&self.network, &self.index, request.at, request.forward, false) {
             return None;
         }
-        if !chase && !nav.can_traffic_spawn(&self.network, &mut self.rng.police) {
+        if request.role == RequestRole::Patrol && !nav.can_traffic_spawn(&self.network, &mut self.rng.police) {
             return None;
         }
+        nav.half_width = model.model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
+        // Script requests retain their explicit physical pose; only their navigation is prepared here.
         let render = space::to_render(request.at.to_array());
         let facing = space::to_render(request.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.half_width = model.model.physics.spec.dimension.x;
-        nav.enable_trail(&self.network);
-        if !chase {
+        if request.role == RequestRole::Patrol {
             nav.advance_with_lookahead(
                 &self.network,
                 START_LOOK_AHEAD,
@@ -160,8 +235,17 @@ impl TrafficWorld {
             Some(performance) if chase => Role::Cop(Box::new(CopState::new(model.car, performance, speed))),
             _ => Role::Traffic,
         };
-        let start = Start { stagger: (self.rng.police.next_f32() * 8.0) as u32, speed, cruise, patrol: !chase };
-        AiCar::place(&model.model, role, nav, spawn, start, &WorldGround { collision, surfaces })
+        let start = Start {
+            stagger: (self.rng.police.next_f32() * 8.0) as u32,
+            speed,
+            cruise,
+            patrol: request.role == RequestRole::Patrol,
+        };
+        let mut car = AiCar::place(&model.model, role, nav, spawn, start, &WorldGround { collision, surfaces })?;
+        if request.role == RequestRole::Roadblock {
+            car.set_roadblock();
+        }
+        Some(car)
     }
 
     /// `UpdateCopPriorities`: takes the active cop with the lowest priority off the road. Cops behind the player and out of

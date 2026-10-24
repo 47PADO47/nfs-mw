@@ -28,7 +28,16 @@ fn police_tick(world: &mut TrafficWorld) {
     world.seen_by_cops = true;
     world.update_police(
         0.25,
-        &PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 10.0, nitrous: 0.0, throttle: 0.0 },
+        &PlayerView {
+            nos_input: false,
+            nitrous_boost: 0.0,
+            velocity: (Vec3::X) * (10.0),
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 10.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        },
         &|_, _| true,
     );
 }

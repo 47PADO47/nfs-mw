@@ -1,7 +1,7 @@
 use super::*;
 
 fn chase(secs: f32) -> Chase {
-    Chase { on: true, heat: 1, secs, unseen: 0.0, pressing: false }
+    Chase { speech_phase: None, on: true, heat: 1, secs, unseen: 0.0, pressing: false }
 }
 
 fn cop(id: u32) -> CarFacts {

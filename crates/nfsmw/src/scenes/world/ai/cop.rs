@@ -1,6 +1,7 @@
 //! A cop's think: path to the player, steer point past traffic, speed from the car's limits.
 //! Spec: `docs/specs/ai-driver-speed-skill.md` (§1, §3 to §5), `docs/specs/ai-driver-control.md` (§7.1).
 
+use blackbox_collision::CollisionWorld;
 use blackbox_driver::{CarLimits, SpeedGovernor, StuckDetector, potential_acceleration, potential_speed};
 use blackbox_driver::{PursuitContext, ramp};
 use blackbox_roads::{Body, PathState, PathType, RandomSource, RoadNav};
@@ -12,13 +13,30 @@ use nfsmw_data::pursuit::AiVehicle;
 use super::car::Ctx;
 use super::traffic::CarState;
 
+mod close;
+mod history;
+mod motion;
+#[cfg(test)]
+mod reinforcement_tests;
+mod road_nos;
+#[cfg(test)]
+mod road_nos_tests;
+mod roads;
+pub(super) mod separation;
+#[cfg(test)]
+mod shared_target_tests;
+mod state_hash;
+
+pub(in crate::scenes::world::ai) use road_nos::Input as RoadNitrous;
+pub(super) use roads::TargetRoad;
+
 /// Cops think every eighth physics step.
 pub const THINK_STEPS: u32 = 8;
 pub const THINK_PERIOD: f32 = THINK_STEPS as f32 / 60.0;
 /// The path to the player is searched again this often, seconds.
 const REPATH_PERIOD: f32 = 1.0;
 /// A cop has the skill of its constructor value.
-const SKILL: f32 = 0.5;
+const SKILL: f32 = 1.0;
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
 fn look_ahead(speed_limit: f32) -> f32 {
     30.0 + 70.0 * ramp(speed_limit, 0.0, 100.0)
@@ -49,11 +67,32 @@ pub struct CopState {
     limits: CarLimits,
     player: Performance,
     governor: SpeedGovernor,
+    road_nos: road_nos::State,
     pub stuck: StuckDetector,
     repath: f32,
     last_find: Vec3,
     last_speed: f32,
     path_state: Option<PathState>,
+    close: close::Close,
+    environment: Environment,
+    pub(super) ram_allowed: bool,
+    #[cfg(test)]
+    pub(super) last_diagnostic: String,
+}
+
+/// Live pursuit values shared by the driving actions.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct Environment {
+    pub reaction: Option<f32>,
+    pub level: u32,
+    pub nitrous: bool,
+    pub nitrous_input: bool,
+    pub nitrous_boost: f32,
+    pub jerk: bool,
+    pub racing: bool,
+    /// The primary uses the shared tracker even when it cannot publish a road.
+    pub shared_target_road: bool,
+    pub target_road: Option<TargetRoad>,
 }
 
 /// What the player looks like to the cop.
@@ -71,6 +110,14 @@ pub struct CopThink {
     pub speed: f32,
 }
 
+/// Physical context needed to select and run a pursuit driving action.
+pub(super) struct ActionInputs<'a> {
+    pub collision: &'a CollisionWorld,
+    pub grade: f32,
+    pub ram: bool,
+    pub nitrous: RoadNitrous,
+}
+
 impl CopState {
     pub fn new(car: CopCar, player: Performance, speed: f32) -> Self {
         Self {
@@ -78,30 +125,136 @@ impl CopState {
             car,
             player,
             governor: SpeedGovernor::begin(speed),
+            road_nos: road_nos::State::default(),
             stuck: StuckDetector::default(),
             repath: 0.0,
             last_find: Vec3::ZERO,
             last_speed: speed,
             path_state: None,
+            close: close::Close::default(),
+            environment: Environment::default(),
+            ram_allowed: false,
+            #[cfg(test)]
+            last_diagnostic: String::new(),
         }
     }
 
     /// A return from lane search starts a fresh pursuit path and speed governor at the existing car's speed.
     pub fn resume_chase(&mut self, speed: f32) {
+        let environment = self.environment;
         *self = Self::new(self.car, self.player, speed);
+        self.environment = environment;
+    }
+
+    pub(super) fn environment(&mut self, environment: Environment) {
+        self.environment = environment;
+    }
+
+    pub(super) fn nitrous(&self) -> bool {
+        match self.close.active() {
+            true => self.close.nos,
+            false => self.road_nos.requested(),
+        }
+    }
+
+    pub(super) fn close_active(&self) -> bool {
+        self.close.active()
+    }
+
+    #[cfg(test)]
+    pub(super) fn target_road_observation(&self) -> (bool, Option<TargetRoad>) {
+        (self.environment.shared_target_road, self.environment.target_road)
     }
 
     /// The think of the race action in pursuit mode.
-    pub fn think<R: RandomSource>(
+    pub(super) fn think<R: RandomSource>(
         &mut self,
         ctx: &mut Ctx<'_, R>,
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
         traffic: impl IntoIterator<Item = Body>,
+        inputs: ActionInputs<'_>,
     ) -> CopThink {
+        let ActionInputs { collision, grade, ram, nitrous } = inputs;
+        let traffic: Vec<Body> = traffic.into_iter().collect();
+        #[cfg(test)]
+        let mut diagnostic_traffic = traffic.clone();
+        let road = match self.environment.shared_target_road {
+            true => self.environment.target_road,
+            false => roads::target(ctx, target, self.environment.level, self.environment.jerk),
+        };
+        let clear_target = roads::clear(collision, car.body.position, target.body.position);
+        // Drivability to the cop's road is a separate test from target visibility.
+        let own_road = roads::at_car(ctx, &car.body, self.environment.level);
+        let clear_nav = roads::clear(collision, car.body.position + car.body.velocity * 0.65, nav.position);
+        self.ram_allowed = clear_target && clear_nav;
+        if ram && self.ram_allowed {
+            #[cfg(test)]
+            {
+                self.last_diagnostic = "action=ram".into();
+            }
+            self.road_nos.leave();
+            self.close.leave();
+            self.repath = 0.0;
+            return CopThink { target: target.aim.unwrap_or(target.body.position), speed: car.forward_speed.abs() };
+        }
+        let road_gap = road.as_ref().map_or(0.0, |road| road.gap);
+        if close::eligible(&car.body, &target.body, road_gap, clear_target, clear_nav) {
+            self.road_nos.leave();
+            if !self.close.active()
+                && let Some(own) = own_road.as_ref()
+            {
+                *nav = own.clone();
+                nav.enable_trail(ctx.net);
+            }
+            let avoidance = roads::wall(collision, &car.body);
+            let reaction = self.environment.reaction.unwrap_or(
+                [1.75, 1.5, 0.75, 0.5, 0.1, 0.1, 0.5, 0.0, 0.0, 0.0]
+                    [(self.environment.level as usize).clamp(1, 10) - 1],
+            );
+            let direction = road.as_ref().map_or(target.body.forward, |r| r.direction);
+            let aim = target.aim.unwrap_or(target.body.position);
+            let aim = road.as_ref().map_or(aim, |road| road.centre + aim - target.body.position);
+            let think = self.close.think(
+                close::Input {
+                    car: &self.car,
+                    me: &car.body,
+                    target: &target.body,
+                    aim,
+                    road_direction: road.as_ref().map(|r| r.direction),
+                    separation: separation::steer(&car.body, traffic.iter().copied(), 2.7, 5.3),
+                    avoidance,
+                    performance: &self.player,
+                    forward_speed: car.forward_speed,
+                    grade,
+                    reaction,
+                    target_nos: self.environment.nitrous,
+                    target_nos_input: self.environment.nitrous_input,
+                    jerk: self.environment.jerk,
+                },
+                |point| roads::snap(ctx, nav, &car.body, point, direction, &traffic, self.environment.level),
+            );
+            #[cfg(test)]
+            {
+                self.last_diagnostic = format!(
+                    "{} road_gap={road_gap:.3} clear_target={clear_target} clear_nav={clear_nav}",
+                    self.close.diagnostic()
+                );
+            }
+            return think;
+        }
+        if !self.road_nos.active() {
+            self.repath = 0.0;
+            self.governor = SpeedGovernor::begin(car.forward_speed);
+            self.last_speed = car.forward_speed;
+            self.road_nos.begin();
+        }
+        self.close.leave();
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
-        let goal = target.aim.unwrap_or(target.body.position);
+        // The road chase intercepts the player's future road. Formation slots
+        // belong to the close/ram actions and must not turn a distant cop back.
+        let goal = road.as_ref().map_or(target.body.position, |r| r.seek);
         self.repath -= THINK_PERIOD;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
@@ -113,13 +266,12 @@ impl CopState {
                 nav.dead_end = false;
             }
         }
-        // Keep the cursor a look-ahead's distance ahead of the car, steering towards the target.
+        // Keep the cursor on the forward tangent's look-ahead circle. Its
+        // distance alone cannot tell whether the car has already passed it.
         let look = look_ahead(self.governor.speed_limit);
         let gap = nav.position.distance(car.body.position);
         let toward = to_target.try_normalize().unwrap_or(Vec3::ZERO);
-        if gap < look {
-            nav.advance_with_lookahead(net, look - gap, toward, look, rng);
-        } else if gap > 2.5 * look {
+        if gap > 2.5 * look {
             // The cursor is far behind or off to the side: start again from the car.
             if nav.init_at_point(
                 net,
@@ -131,6 +283,10 @@ impl CopState {
                 nav.enable_trail(net);
                 self.repath = 0.0;
             }
+        }
+        let advance = motion::nav_advance(nav.position - car.body.position, nav.forward, look);
+        if advance > 0.0 {
+            nav.advance_with_lookahead(net, advance, toward, look, rng);
         }
         // Everything but the player is something to steer round.
         let occlusion = nav
@@ -144,28 +300,39 @@ impl CopState {
         };
 
         let speed = car.forward_speed;
-        let offset = Vec2::new(-to_target.x, -to_target.z);
-        let seek = Vec2::new(self.last_find.x - goal.x, self.last_find.z - goal.z)
-            .try_normalize()
-            .unwrap_or(target.body.forward);
+        let (offset, seek) = motion::speed_vectors(&car.body, &target.body, self.last_find);
         let context = PursuitContext {
-            distant: self.car.ai.max_speed_kmh / 3.6,
+            distant: self.car.ai.max_speed_kmh / 3.6
+                * match self.environment.jerk {
+                    true => 1.1,
+                    false => 1.0,
+                },
             offset,
             seek_dir: seek,
             target_speed: target.body.velocity.length(),
             forward: car.body.forward,
-            steer_dir: car.body.forward,
-            target_steer_dir: target.body.forward,
-            race_running: false,
-            jerk: false,
+            steer_dir: Vec2::new(nav.position.x - car.body.position.x, nav.position.z - car.body.position.z)
+                .normalize_or_zero(),
+            target_steer_dir: road.as_ref().map_or(target.body.forward, |r| r.direction),
+            race_running: self.environment.racing,
+            jerk: self.environment.jerk,
         };
         let potential = potential_speed(&self.limits, curvature, SKILL, Some(&context));
+        #[cfg(test)]
+        let table_speed = speed.abs().max(self.governor.speed_limit);
         let table = self
             .car
             .performance
             .acceleration_at(speed.abs().max(self.governor.speed_limit))
             .min(self.player.acceleration_at(speed.abs().max(self.governor.speed_limit)));
-        let accel = potential_acceleration(table, &self.limits, SKILL, None, 0.0);
+        let scale = match (self.environment.racing, self.environment.jerk) {
+            (true, _) => 2.0,
+            (_, true) => 1.5,
+            _ => 1.0,
+        };
+        let boost = nitrous.acceleration_boost(self.environment.nitrous_boost);
+        let accel = potential_acceleration(table * scale, &self.limits, SKILL, boost, grade);
+        let actual_acceleration = (speed - self.last_speed) / THINK_PERIOD;
         let wanted = self.governor.update(speed, potential, accel, SKILL, THINK_PERIOD);
         self.last_speed = speed;
         log::trace!(
@@ -173,6 +340,56 @@ impl CopState {
             context.max_cop_speed(),
             self.path_state
         );
-        CopThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
+        let destination = occlusion.as_ref().map_or(nav.position, |o| o.position);
+        let turning = motion::needs_turnaround(&car.body, destination);
+        self.road_nos.update(
+            nitrous,
+            self.environment.nitrous_boost,
+            road_nos::Decision {
+                speed,
+                requested_speed: wanted,
+                potential_speed: potential,
+                potential_acceleration: accel,
+                actual_acceleration,
+                occluded: occlusion.as_ref().is_some_and(|o| o.occluded()),
+                stopping: turning,
+                skill: SKILL,
+            },
+            THINK_PERIOD,
+        );
+        #[cfg(test)]
+        {
+            diagnostic_traffic.sort_by(|a, b| {
+                a.position
+                    .distance_squared(car.body.position)
+                    .total_cmp(&b.position.distance_squared(car.body.position))
+            });
+            diagnostic_traffic.truncate(4);
+            let forward = close::lift(car.body.forward, 0.0);
+            let own_acceleration = self.car.performance.acceleration_at(table_speed);
+            let player_acceleration = self.player.acceleration_at(table_speed);
+            self.last_diagnostic = format!(
+                "action=road position={:?} raw_nav={:?} raw_nav_ahead={:.2} destination={destination:?} destination_ahead={:.2} last_find={:?} target_position={:?} path={:?} curvature={curvature:.6} potential={potential:.3} maxcap={:.3} table_speed={table_speed:.3} own_accel={own_acceleration:.3} player_accel={player_acceleration:.3} table_min={table:.3} accel={accel:.3} actual_accel={actual_acceleration:.3} wanted={wanted:.3} NOSboost={boost:?} own_top={:.3} player_top={:.3} matched_top={:.3} player_performance={:?} occlusion={occlusion:?} nearest={diagnostic_traffic:?}",
+                car.body.position,
+                nav.position,
+                (nav.position - car.body.position).dot(forward),
+                (destination - car.body.position).dot(forward),
+                self.last_find,
+                target.body.position,
+                self.path_state,
+                context.max_cop_speed(),
+                self.car.performance.top_speed,
+                self.player.top_speed,
+                self.limits.top_speed,
+                self.player,
+            );
+        }
+        if turning {
+            let mut future = own_road.unwrap_or_else(|| nav.clone());
+            let heading = close::lift(car.body.forward, 0.0);
+            future.advance(net, car.body.velocity.length().max(2.0), heading, rng);
+            return motion::brake_on_future_road(future.position);
+        }
+        CopThink { target: destination, speed: wanted }
     }
 }

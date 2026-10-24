@@ -104,13 +104,16 @@ fn the_career_bin_caps_the_chase_heat_and_sets_how_fast_it_climbs() {
     assert!((climb(Some(15), 60) - 1.1).abs() < 0.01, "600 s a level at the start of the Blacklist");
     assert!(climb(Some(15), 5000) <= 2.0, "the start of the Blacklist never leaves heat 2");
     assert!(climb(Some(10), 5000) <= 3.0, "bin 10 stops at heat 3");
-    assert!(climb(None, 5000) > 5.0, "free roam has the whole scale");
+    assert!((climb(None, 5) - (1.0 + 5.0 / 600.0)).abs() < 0.0001, "sandbox stays at heat 1 during the opening");
+    assert!((climb(None, 60) - 1.1).abs() < 0.01, "no-profile sandbox uses the initial career growth bucket");
+    assert_eq!(climb(None, 5000), 5.0, "ordinary sandbox heat stops at 5");
 }
 
 #[test]
 fn a_forced_chase_raises_the_bin_range_to_its_level() {
     let mut police = Police::default();
     police.set_career_bin(Some(15));
+    police.set_forced_pursuit(true);
     police.begin(6);
     assert_eq!(police.level(), Some(6));
 }

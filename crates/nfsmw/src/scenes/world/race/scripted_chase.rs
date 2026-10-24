@@ -71,6 +71,7 @@ pub struct ChaseRun {
     call_secs: Option<f32>,
     /// The call was requested in the last frame, so it is taken as started in this one.
     call_requested: bool,
+    cops_allowed: bool,
 }
 
 impl ChaseRun {
@@ -85,12 +86,23 @@ impl ChaseRun {
 
     /// The run over these volumes, in the order of [`TRIGGER_CHILDREN`].
     pub fn from_zones(zones: [Option<Zone>; 4]) -> ChaseRun {
-        ChaseRun { chase: Chase::new(), zones, inside: [false; 4], call_secs: None, call_requested: false }
+        ChaseRun {
+            chase: Chase::new(),
+            zones,
+            inside: [false; 4],
+            call_secs: None,
+            call_requested: false,
+            cops_allowed: false,
+        }
     }
 
     /// Whether the chase has ended: the race went to postrace.
     pub fn is_finished(&self) -> bool {
         self.chase.is_finished()
+    }
+
+    pub(super) fn cops_allowed(&self) -> bool {
+        self.cops_allowed
     }
 
     /// One frame: `point` is the player's place (physics space) and `dt` the frame's time. Returns what the chase asks
@@ -123,6 +135,13 @@ impl ChaseRun {
             dt,
         };
         let events = self.chase.update(input);
+        for event in &events {
+            match event {
+                ChaseEvent::CopsOn => self.cops_allowed = true,
+                ChaseEvent::NoNewPursuits => self.cops_allowed = false,
+                _ => {}
+            }
+        }
         self.call_requested = events.iter().any(|event| matches!(event, ChaseEvent::PlaceCall { .. }));
         events
     }
@@ -187,9 +206,7 @@ impl WorldScene {
                 }
             }
             ChaseEvent::SpawnCops { count, .. } => {
-                log::warn!(
-                    "chase: {count} mid-size cop(s) asked for at the cop trigger; placing cars at a spot is not built yet"
-                );
+                self.queue_opening_cops(count);
             }
             ChaseEvent::DispIntroRace => log::info!("chase: the race intro display is not drawn yet"),
             ChaseEvent::BailPursuit { a, b } => {
@@ -200,6 +217,7 @@ impl WorldScene {
             }
             ChaseEvent::NoNewPursuits => {
                 if let Some(traffic) = self.traffic.as_mut() {
+                    traffic.cancel_cop_spawns();
                     traffic.bar_cops(true);
                 }
             }
@@ -207,6 +225,24 @@ impl WorldScene {
             ChaseEvent::FadeOut => log::info!("chase: the screen fades out"),
             ChaseEvent::PostRace => self.chase_post_race(),
         }
+    }
+
+    fn queue_opening_cops(&mut self, count: u8) {
+        let Some(session) = self.race.as_ref() else { return };
+        let spots = &session.origin.race.params.scripted_cop_spawns;
+        if spots.len() < usize::from(count) {
+            log::warn!("chase: {} of {count} authored police placements available", spots.len());
+        }
+        let Some(traffic) = self.traffic.as_mut() else { return };
+        for spot in spots.iter().take(usize::from(count)) {
+            traffic.queue_cop_spawn(
+                "copmidsize",
+                spot.position,
+                nfsmw_data::gameplay::world_heading(spot.heading_deg),
+                crate::scenes::world::ai::CopRequestRole::Patrol,
+            );
+        }
+        log::info!("chase: {} authored police spawns queued", spots.len().min(usize::from(count)));
     }
 
     /// The chase's race goes to postrace: the race ends without a result, then `JumpToCarLot` opens the car lot.

@@ -71,9 +71,13 @@ impl AiCar {
     }
 
     /// One step of the stand-in: the think on its turn, then the car moves towards its drive target.
-    pub(in crate::scenes::world::ai) fn stand_in_step<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>) {
+    pub(in crate::scenes::world::ai) fn stand_in_step<R: RandomSource>(
+        &mut self,
+        ctx: &mut Ctx<'_, R>,
+        collision: &blackbox_collision::CollisionWorld,
+    ) {
         if (self.steps + self.stagger).is_multiple_of(RACER_THINK_STEPS) {
-            self.think(ctx);
+            self.think(ctx, collision);
         }
         let Role::Racer(racer) = &self.role else { return };
         let speed = racer.stand_in_speed(self.stand_in.speed, self.speed, STEP);

@@ -261,9 +261,10 @@ impl Worker {
         Ok(Loaded::Cop(Box::new(CopLoad { folder, model })))
     }
 
-    /// The cop's performance (measured once per distinct car spec in the process, see `measured`) and its light textures.
+    /// The cop's analytical action performance (cached by spec) and its light textures.
     fn extras(&self, _car_type: &str, hashes: &[u32], staged: StagedCop) -> Loaded {
-        let performance = measured::performance_of_spec(&staged.car.physics.spec, staged.car.physics.tire_integration);
+        let performance =
+            measured::ai_performance_of_spec(&staged.car.physics.spec, staged.car.physics.tire_integration);
         let textures = self.textures(hashes);
         Loaded::CopExtras(Box::new(CopExtrasLoad { staged, performance, textures }))
     }

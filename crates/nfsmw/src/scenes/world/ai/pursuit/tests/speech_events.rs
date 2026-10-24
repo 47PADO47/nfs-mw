@@ -186,6 +186,9 @@ fn tunnel_zone() -> TrackZone {
 
 fn drive_to(world: &mut TrafficWorld, z: f32) {
     let view = PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (space::to_render(Vec3::Z.to_array())) * (20.0),
         position: space::to_render([0.0, 0.0, z]),
         forward: space::to_render(Vec3::Z.to_array()),
         speed: 20.0,
@@ -214,6 +217,9 @@ fn the_roads_direction_follows_the_car_and_stays_put_when_the_car_turns_round() 
     let forward = world.pursuit_feed().unwrap().speech.player.road_forward.expect("on the road");
     assert!(forward[2].abs() > 0.99, "the road runs along z: {forward:?}");
     let view = |dir: Vec3| PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (space::to_render(dir.to_array())) * (10.0),
         position: Vec3::ZERO,
         forward: space::to_render(dir.to_array()),
         speed: 10.0,
@@ -232,8 +238,13 @@ fn the_roads_direction_follows_the_car_and_stays_put_when_the_car_turns_round() 
 fn a_built_roadblock_reports_its_spike_strip_and_a_dodge_is_told_once() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
     world.add_cop_model(cop_model(&mut renderer(), "copx", player()));
+    world.police.set_forced_pursuit(true);
     world.start_pursuit(9, vec![wave()], player());
+    assert_eq!(world.police.level(), Some(9));
     let view = |z: f32| PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (space::to_render(Vec3::Z.to_array())) * (20.0),
         position: space::to_render([0.0, 0.0, z]),
         forward: space::to_render(Vec3::Z.to_array()),
         speed: 20.0,

@@ -7,7 +7,16 @@ use glam::Quat;
 mod free_roam;
 
 pub(super) fn view(speed: f32) -> PlayerView {
-    PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed, nitrous: 0.0, throttle: 0.0 }
+    PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (Vec3::X) * (speed),
+        position: Vec3::ZERO,
+        forward: Vec3::X,
+        speed,
+        nitrous: 0.0,
+        throttle: 0.0,
+    }
 }
 
 pub(super) fn sensed(seen: bool) -> Sensed {
@@ -25,6 +34,7 @@ pub(super) fn sensed(seen: bool) -> Sensed {
         formation_random: [0.5, 0.5],
         formation_gap: None,
         support_random: 0.5,
+        support_priority_random: 0.5,
     }
 }
 
@@ -63,11 +73,15 @@ fn speeding_while_chased_is_recorded_once() {
 }
 
 #[test]
-fn losing_the_cops_is_resisting_arrest() {
+fn cooldown_records_resisting_arrest_after_the_sight_grace() {
     let mut police = Police::default();
     police.begin(1);
     police.update(0.1, true, &view(5.0), sensed(true));
     police.update(0.1, true, &view(5.0), sensed(false));
+    assert!(!police.infractions().contains(Infraction::ResistingArrest));
+    for _ in 0..120 {
+        police.update(0.1, true, &view(5.0), sensed(false));
+    }
     assert!(police.infractions().contains(Infraction::ResistingArrest));
 }
 
@@ -286,7 +300,9 @@ fn the_helicopter_reports_present_once_it_has_joined() {
 #[test]
 fn a_roadblock_reports_standing_once_placed() {
     let mut police = Police::default();
+    police.set_forced_pursuit(true);
     police.begin(7);
+    assert_eq!(police.level(), Some(7));
     assert!(!police.roadblock_standing());
     police.roadblock_placed();
     assert!(police.roadblock_standing());
@@ -298,7 +314,9 @@ fn the_helicopter_takes_its_spawn_distance_and_fuel_from_the_settings() {
     let mut settings = HeliSettings::default();
     settings.spawn_distance = crate::settings::helicopter::Levels::flat(120.0);
     police.set_heli_settings(settings);
+    police.set_forced_pursuit(true);
     police.begin(8);
+    assert_eq!(police.level(), Some(8));
     police.heli_wait = 0.0;
     police.try_join(&view(5.0));
     let heli = police.heli.expect("joined");
@@ -323,10 +341,11 @@ fn a_chase_counts_its_seconds_only_while_it_runs() {
     let mut police = Police::default();
     police.begin(1);
     police.update(2.0, true, &view(0.0), sensed(false));
-    assert_eq!(police.pursuit_time, 2.0);
+    assert!((police.pursuit_time - 2.0).abs() < 1e-5, "all thirty four-tick decisions must run");
+    let elapsed = police.pursuit_time;
     police.end(EndReason::None);
     police.update(2.0, false, &view(0.0), sensed(false));
-    assert_eq!(police.pursuit_time, 2.0, "no clock runs without a chase");
+    assert_eq!(police.pursuit_time, elapsed, "no clock runs without a chase");
 }
 
 #[test]

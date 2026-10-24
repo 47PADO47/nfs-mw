@@ -13,8 +13,8 @@ use blackbox_vehicle::performance::Performance;
 use nfsmw_data::car::physics::SurfaceTable;
 
 use super::super::{Focus, TrafficWorld};
+use super::car_model;
 use super::spawn::SupportSpot;
-use super::{big_suv_chance, car_model};
 
 /// One chase's support request and the bookkeeping of its cars.
 #[derive(Debug, Default)]
@@ -37,6 +37,10 @@ pub struct Session {
 }
 
 impl Session {
+    pub(in crate::scenes::world::ai) fn is_busy(&self) -> bool {
+        self.order.is_some()
+    }
+
     /// Starts a request from the roll, when no request of this chase is pending or active. A heavy roadblock is not
     /// taken here: the roadblock is built by its own code (`ai/roadblock.rs`). A strategy the chase dropped is refused.
     /// Returns whether it was taken.
@@ -85,21 +89,38 @@ impl Session {
 }
 
 impl TrafficWorld {
-    /// An already active support order still expires while the ordinary cops search; no pending offensive cars spawn.
+    /// Active heavy support leaves on loss of contact or collapse; pending retries and leaders are separate.
+    pub(in crate::scenes::world::ai) fn cancel_heavy_support(&mut self) {
+        let Some(session) = self.pursuit.as_mut().map(|p| &mut p.support) else { return };
+        let Some(order) = session.order else { return };
+        if !order.is_active() || !order.strategy().is_heavy() {
+            return;
+        }
+        let serial = session.serial;
+        session.order = None;
+        session.cars.clear();
+        session.placed = 0;
+        let cruise = self.search_cruise();
+        for car in self.cars.iter_mut().filter(|car| car.support_serial() == Some(serial)) {
+            car.set_support(None);
+            car.start_flee(cruise, &self.network, &self.index);
+        }
+    }
+
+    /// Pending and active support timers continue during search; pending offensive cars cannot spawn.
     pub(in crate::scenes::world::ai) fn age_search_support(&mut self, dt: f32) {
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         let session = &mut pursuit.support;
         session.delay.tick(dt);
         let Some(mut order) = session.order else { return };
-        if !order.is_active() {
-            return;
-        }
         if !order.tick(dt) {
             session.order = Some(order);
             return;
         }
         let serial = session.serial;
         session.order = None;
+        session.cars.clear();
+        session.placed = 0;
         self.release_support(serial);
     }
 
@@ -136,11 +157,18 @@ impl TrafficWorld {
     fn run_support(&mut self, session: &mut Session, step: Step, collision: &CollisionWorld, surfaces: &SurfaceTable) {
         session.delay.tick(step.dt);
         let Some(mut order) = session.order else { return };
+        if order.tick(step.dt) {
+            let serial = session.serial;
+            session.order = None;
+            session.cars.clear();
+            session.placed = 0;
+            self.release_support(serial);
+            return;
+        }
         if order.is_active() {
-            let ended = order.tick(step.dt);
             let serial = session.serial;
             let lost = session.placed > 0 && !self.cars.iter().any(|c| c.support_serial() == Some(serial));
-            session.order = match ended || lost {
+            session.order = match lost {
                 true => None,
                 false => Some(order),
             };
@@ -149,9 +177,13 @@ impl TrafficWorld {
             }
             return;
         }
+        if self.world_moment {
+            session.order = Some(order);
+            return;
+        }
         let strategy = order.strategy();
         let wanted = order.cars_wanted() as usize;
-        let big_suv = big_suv_chance(step.level, strategy);
+        let big_suv = self.police.big_suv_chance(step.level, strategy);
         let taking = session.cars.len() < wanted;
         while session.cars.len() < wanted {
             let index = session.cars.len() as u32;

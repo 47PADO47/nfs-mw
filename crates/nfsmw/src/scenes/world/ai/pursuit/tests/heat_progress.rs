@@ -10,7 +10,16 @@ fn natural_heat_growth_changes_the_world_wave_after_one_configured_level() {
     let mut world = TrafficWorld::new(straight_road(300.0));
     world.start_pursuit(1, vec![wave(), second], player());
     assert_eq!(world.police.settings().time_per_level(1), 600.0);
-    let view = PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 25.0, nitrous: 0.0, throttle: 0.5 };
+    let view = PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (Vec3::X) * (25.0),
+        position: Vec3::ZERO,
+        forward: Vec3::X,
+        speed: 25.0,
+        nitrous: 0.0,
+        throttle: 0.5,
+    };
     let sensed = Sensed {
         seen: true,
         unit_random: 0.5,
@@ -25,6 +34,7 @@ fn natural_heat_growth_changes_the_world_wave_after_one_configured_level() {
         formation_random: [0.5; 2],
         formation_gap: None,
         support_random: 0.5,
+        support_priority_random: 0.5,
     };
     let collision = floor();
     let surfaces = SurfaceTable::default();

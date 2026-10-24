@@ -15,7 +15,30 @@ struct Side {
     /// The car's speed, and how fast it moved along the contact normal, before the hit.
     speed: f32,
     along_normal: f32,
+    signed_normal: f32,
     forward: Vec3,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blackbox_vehicle::rigid_body::RigidBodySpec;
+
+    fn body(velocity: Vec3) -> RigidBody {
+        let mut body = RigidBody::new(1000.0, Vec3::ONE, Vec3::ONE, RigidBodySpec::default());
+        body.linear_velocity = velocity;
+        body
+    }
+
+    #[test]
+    fn signed_normal_velocity_distinguishes_causing_a_rear_end_from_being_rear_ended() {
+        let me = body(Vec3::X * 20.0);
+        let stopped = body(Vec3::ZERO);
+        let normal = -Vec3::X;
+        assert!(PairContact::capture(&me, &stopped, Vec3::ZERO, normal, 20.0).first_caused());
+        let rear_ender = body(-Vec3::X * 20.0);
+        assert!(!PairContact::capture(&stopped, &rear_ender, Vec3::ZERO, normal, 20.0).first_caused());
+    }
 }
 
 impl Side {
@@ -26,6 +49,7 @@ impl Side {
             dimension: body.dimension(),
             speed: body.linear_velocity.length(),
             along_normal: body.linear_velocity.dot(normal).abs(),
+            signed_normal: body.linear_velocity.dot(normal),
             forward: axes.z_axis,
         }
     }
@@ -43,6 +67,11 @@ pub struct PairContact {
 }
 
 impl PairContact {
+    /// Whether the first body contributed more velocity into the contact than the second body.
+    /// The contact normal points towards the first body. Preserve signs to distinguish being hit from causing a hit.
+    pub fn first_caused(&self) -> bool {
+        -self.first.signed_normal > self.second.signed_normal
+    }
     pub(super) fn capture(first: &RigidBody, second: &RigidBody, point: Vec3, normal: Vec3, closing: f32) -> Self {
         Self {
             first: Side::of(first, point, normal),

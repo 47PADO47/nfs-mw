@@ -23,7 +23,7 @@ impl AiCar {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
-        let Some(start) = self.begin_step(ctx, props) else { return };
+        let Some(start) = self.begin_step(ctx, props, collision) else { return };
         self.sim.integration().run(&start, &WorldGround { collision, surfaces }, Some(collision));
         self.finish_step(&start, collision, props, surfaces);
     }
@@ -34,6 +34,7 @@ impl AiCar {
         &mut self,
         ctx: &mut Ctx<'_, R>,
         props: &mut PropWorld,
+        collision: &CollisionWorld,
     ) -> Option<StepStart> {
         if self.stand_in.active {
             return None;
@@ -47,7 +48,10 @@ impl AiCar {
         };
         let human = self.human_pedals();
         if human.is_none() && !self.is_wrecked() && (self.steps + self.stagger).is_multiple_of(think_steps) {
-            self.think(ctx);
+            self.think(ctx, collision);
+            if matches!(self.role, Role::Cop(_)) {
+                self.queue_sight_task();
+            }
         }
         let mut view = self.sim.driver_view();
         view.in_shock = self.shock > 0.0;
@@ -64,11 +68,24 @@ impl AiCar {
         let held = self.controls.steer;
         if human.is_none() {
             self.controls = self.driver.step(&view, &request, STEP, clock);
+            if let super::Role::Cop(cop) = &self.role {
+                self.controls.nos = cop.nitrous()
+                    && !self.searching
+                    && !self.fleeing
+                    && self.goal_drive().command().is_none()
+                    && !reversing
+                    && self.sim.telemetry().has_nos;
+            }
         }
         if let Some(controls) = self.accident.controls(self.tractor, held) {
             self.controls = controls;
         }
         self.hold_goal_brake();
+        let airborne_action = matches!(&self.role, super::Role::Cop(cop) if !cop.close_active()
+            && !(cop.ram_allowed && self.goal_drive().command().is_some()));
+        if airborne_action && !reversing && self.airborne > 1.5 {
+            self.controls = AiControls::default();
+        }
         if self.breaker_stop {
             self.controls = AiControls { brake: 1.0, ..AiControls::default() };
         }

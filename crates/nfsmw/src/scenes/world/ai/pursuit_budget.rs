@@ -104,7 +104,7 @@ impl TrafficWorld {
         let kind = types[index].0.clone();
         let cruise = self.search_cruise();
         let count = count.min(MOST_PER_RUN);
-        let Self { cars, network, index: lanes, rng, .. } = self;
+        let Self { cars, network, index: lanes, .. } = self;
         let (mut already, mut watching) = (0u32, 0u32);
         let mut candidates: Vec<(usize, f32, bool)> = Vec::new();
         for (i, car) in cars.iter().enumerate().filter(|(_, car)| is_chase_cop(car)) {
@@ -128,7 +128,7 @@ impl TrafficWorld {
             if sees && watching <= KEEP_WATCHING {
                 continue;
             }
-            if cars[i].start_flee(cruise, network, lanes, &mut rng.police) {
+            if cars[i].start_flee(cruise, network, lanes) {
                 log::info!("pursuit: {} is sent away, over what the chase wants", cars[i].name);
                 if sees && rank == 0 {
                     watching -= 1;

@@ -23,6 +23,7 @@ mod load;
 pub(super) mod mods;
 mod names;
 mod outro;
+mod police_context;
 mod report;
 pub(in crate::scenes::world) mod reset;
 mod restart;
@@ -203,9 +204,10 @@ pub(super) struct RaceSession {
 
 impl RaceSession {
     /// Whether the police are part of this race: the pursuit races, the pursuit challenges and the races with a Heat Level
-    /// above None. Every other race is clear of cops, whatever its `CopsInRace` says. **[ours]**
+    /// above None, or a stock race with `CopsInRace` enabled.
     pub fn has_police(&self) -> bool {
-        let police = heat::police_of(self.options.heat, self.origin.race.params.pursuit_race);
+        let params = &self.origin.race.params;
+        let police = heat::police_of(self.options.heat, params.pursuit_race || params.cops_in_race);
         self.challenge.is_some() || police != heat::Police::CallOff
     }
 }
@@ -213,6 +215,9 @@ impl RaceSession {
 impl crate::scenes::world::WorldScene {
     /// Whether a race that has no police is on, so the cops are kept out of the world.
     pub(in crate::scenes::world) fn race_bars_cops(&self) -> bool {
+        if self.race.as_ref().is_some_and(|race| race.event == scripted_chase::CHASE_EVENT) {
+            return self.career.chase.as_ref().is_none_or(|run| !run.cops_allowed());
+        }
         self.race.as_ref().is_some_and(|race| !race.has_police())
     }
 }

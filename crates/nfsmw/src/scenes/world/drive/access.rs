@@ -22,10 +22,19 @@ impl Drive {
         let (position, forward) = self.sensing_pose();
         crate::scenes::world::ai::PlayerView {
             position: space::to_render(position.to_array()),
+            velocity: space::to_render(self.sim.as_ref().map_or(forward * self.speed(), CarSim::velocity).to_array()),
             forward: space::to_render(forward.to_array()),
             speed: self.speed(),
             nitrous: self.telemetry.nitrous_burn(),
-            throttle: self.frame_input.throttle,
+            nos_input: self.sim.as_ref().map_or(self.frame_input.nos, CarSim::nos_input),
+            nitrous_boost: self.sim.as_ref().map_or(0.0, |sim| {
+                let spec = sim.nitrous_spec();
+                if spec.present() {
+                    return spec.torque_boost;
+                }
+                0.0
+            }),
+            throttle: self.cinematic_input.map_or(self.frame_input.throttle, |input| input.throttle),
         }
     }
 
@@ -60,6 +69,11 @@ impl Drive {
     /// What the car can do flat out (measured by driving the model flat out), for cops that are matched to it.
     pub(in crate::scenes::world) fn performance(&self) -> blackbox_vehicle::performance::Performance {
         nfsmw_data::car::physics::measured::performance_of_spec(&self.physics.spec, self.physics.tire_integration)
+    }
+
+    /// The analytical curve exposed to pursuit actions; physical engine and driving settings are unchanged.
+    pub(in crate::scenes::world) fn ai_performance(&self) -> blackbox_vehicle::performance::Performance {
+        nfsmw_data::car::physics::measured::ai_performance_of_spec(&self.physics.spec, self.physics.tire_integration)
     }
 
     /// The physics of the car, once it stands on a road.

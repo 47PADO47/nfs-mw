@@ -17,6 +17,10 @@ pub(super) struct State {
 }
 
 impl Police {
+    pub(in crate::scenes::world::ai) fn roadblock_request_duration(&self) -> f32 {
+        self.roadblock.duration
+    }
+
     /// Whether a roadblock was asked for since the last call (the world places it).
     pub fn take_roadblock_request(&mut self) -> bool {
         std::mem::take(&mut self.roadblock_requested)
@@ -69,5 +73,23 @@ impl Police {
         let active = self.roadblock.active_secs > 0.0;
         self.roadblock.active_secs = (self.roadblock.active_secs - dt).max(0.0);
         active
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_built_heavy_roadblock_does_not_pause_the_next_support_check_clock() {
+        let mut police = Police::default();
+        police.begin(5);
+        police.pursuit_time = 1000.0;
+        police.roadblock.duration = 20.0;
+        police.heavy_roadblock_built();
+        police.tick_support(20.0, true, 5, [0.99; 2]);
+        assert!(police.support_timer < 0.0);
+        police.tick_support(0.1, true, 5, [0.99; 2]);
+        assert_eq!(police.support_timer, super::super::SUPPORT_CHECK);
     }
 }

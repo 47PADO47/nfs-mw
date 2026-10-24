@@ -3,6 +3,17 @@
 
 use super::TrafficWorld;
 
+/// Deployment and impact totals retained until the next pursuit begins.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PursuitCostTally {
+    pub traffic_hits: u32,
+    pub patrol_cars: u32,
+    pub support_cars: u32,
+    pub helicopters: u32,
+    pub property_value: u32,
+    pub property_count: u32,
+}
+
 /// The chase's roadblock statistics (`NotifyRoadblockDeployed`, `NotifyRoadblockDodged`, `NotifySpikeStripDodged`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RoadblockTally {
@@ -14,12 +25,9 @@ pub struct RoadblockTally {
 }
 
 impl TrafficWorld {
-    /// The ids of the cops that have been within the engagement radius of the player in this chase so far (the ones
-    /// that count toward "cops involved"). Empty with no chase.
-    pub fn engaged_cop_ids(&self) -> Vec<u32> {
-        self.pursuit.as_ref().map_or_else(Vec::new, |pursuit| pursuit.engaged.iter().copied().collect())
+    pub fn pursuit_cost_tally(&self) -> PursuitCostTally {
+        self.police.cost_tally()
     }
-
     /// The roadblock statistics of the last chase; they stay after it ends until the next chase begins.
     pub fn roadblock_tally(&self) -> RoadblockTally {
         let stats = self.roadblocks.stats();

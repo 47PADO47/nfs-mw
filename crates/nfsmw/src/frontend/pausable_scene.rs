@@ -280,6 +280,10 @@ impl Scene for Pausable {
         self.inner.start_911_call(secs);
     }
 
+    fn note_police_speech(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
+        self.inner.note_police_speech(phase);
+    }
+
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
         if self.concealed() {
             return blackbox_pursuit::EndReason::None;

@@ -3,6 +3,8 @@
 
 use std::rc::Rc;
 
+mod placement;
+
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::EndReason;
 use blackbox_pursuit::backup::Budget;
@@ -28,8 +30,10 @@ const MIN_DISTANCE: f32 = 150.0;
 const MAX_DISTANCE: f32 = 400.0;
 /// No cop starts nearer than this to another car (`CheckSpawnPosition`'s 40 m for a spot that is not a traffic lane).
 const MIN_GAP: f32 = blackbox_pursuit::spawn_rules::ANY_OTHER;
-/// A cop starts rolling at this speed, m/s.
+/// Default rolling speed for explicit requests and support placements, m/s.
 pub(super) const START_SPEED: f32 = 15.0;
+/// Ordinary automatic reinforcements enter at rest, before their first AI step.
+pub(super) const REINFORCEMENT_START_SPEED: f32 = 0.0;
 /// A cop car model with what limits how fast an AI drives it.
 pub struct CopModel {
     pub model: TrafficModel,
@@ -57,9 +61,11 @@ pub struct Pursuit {
     pub(super) last_seen: Option<blackbox_roads::Body>,
     pub heat: u32,
     /// The rows of the heat levels, index = level - 1 (`nfsmw_data::pursuit::heat_rows`).
-    rows: Vec<HeatRow>,
+    pub(super) rows: Vec<HeatRow>,
     player: Performance,
     spawn_timer: f32,
+    requested_missing: u32,
+    fast_spawn_next: bool,
     pub(super) involved: u32,
     /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
     pub(super) budget: Budget,
@@ -84,6 +90,8 @@ impl Pursuit {
             last_seen: None,
             damaged: Default::default(),
             spawn_timer: 0.0,
+            requested_missing: 0,
+            fast_spawn_next: false,
             involved: 0,
             support: Default::default(),
         }
@@ -116,12 +124,32 @@ impl Pursuit {
 
     /// The helicopter was picked: it counts among the cops involved and arms the next spawn delay like a car does.
     pub(super) fn sent_helicopter(&mut self) {
-        let delay = self.row().map(|r| match self.involved < 3 {
-            true => r.time_between_first_four_spawns,
-            false => r.time_between_cop_spawns,
+        self.joined(false);
+    }
+
+    /// Arms the successful-join delay; unsuccessful placement never consumes the fast-spawn alternation.
+    fn joined(&mut self, cooldown: bool) {
+        let early = self.involved < 3 && !cooldown;
+        let mut delay = self.row().map_or(0.0, |row| match early {
+            true => row.time_between_first_four_spawns,
+            false => row.time_between_cop_spawns,
         });
+        if !early && self.requested_missing > 2 && self.row().is_some() {
+            if self.fast_spawn_next {
+                delay = 0.2;
+            }
+            self.fast_spawn_next = !self.fast_spawn_next;
+        }
         self.involved += 1;
-        self.spawn_timer = delay.unwrap_or(0.0);
+        self.spawn_timer = delay;
+    }
+
+    /// Spawn decisions must remain visible to determinism checks before their future cars differ.
+    pub(super) fn hash_spawn_into(&self, hash: &mut crate::scenes::world::StateHasher) {
+        hash.f32(self.spawn_timer);
+        hash.u32(self.involved);
+        hash.u32(self.requested_missing);
+        hash.bool(self.fast_spawn_next);
     }
 
     /// Follows the police heat level: a new level takes effect at once. Returns true when the level changed.
@@ -209,6 +237,7 @@ impl TrafficWorld {
                 && let Some(pursuit) = self.pursuit.as_mut()
             {
                 pursuit.involved += 1;
+                self.police.ground_deployed(&car.name);
             }
         }
         for name in super::support::support_models() {
@@ -242,6 +271,7 @@ impl TrafficWorld {
 
     /// Ends the chase with `reason` and removes the cops. The reason stays readable after it (the end card, the camera).
     pub fn end_pursuit(&mut self, reason: EndReason) {
+        self.cops.requests.drop_role(super::cop_manager::requests::Role::Chase);
         self.pursuit = None;
         self.police.end(reason);
         if reason == EndReason::Evaded {
@@ -301,10 +331,18 @@ impl TrafficWorld {
         if !self.police.can_begin() {
             return;
         }
+        if let Some(request) = self.police.take_support_request() {
+            self.ask_support(request);
+        }
+        if !self.police.is_perp_in_sight() || self.collapse_active() {
+            self.cancel_heavy_support();
+        }
         match self.police.is_perp_in_sight() {
             true => self.update_support(sim_dt, focus, collision, surfaces),
             false => self.age_search_support(sim_dt),
         }
+        let busy = self.pursuit.as_ref().is_some_and(|p| p.support.is_busy()) || self.roadblocks.has_pending_support();
+        self.police.set_support_busy(busy);
         let level = self.police.level();
         let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         let Some(pursuit) = self.pursuit.as_mut() else { return };
@@ -317,6 +355,9 @@ impl TrafficWorld {
         pursuit.spawn_timer -= sim_dt;
         self.update_budget(sim_dt, focus);
         self.flee_surplus(focus, cooldown);
+        if self.world_moment {
+            return;
+        }
         // A latched roadblock request stops the manager from spawning pursuit cops until the roadblock stands.
         if self.roadblocks.dispatcher_latched() {
             return;
@@ -337,114 +378,25 @@ impl TrafficWorld {
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         // The next type of the current wave, weighted by its chance among those the wave still needs.
-        let pick = {
+        let (pick, missing) = {
             let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
             let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
                 |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
+            let missing = slots.iter().map(|slot| slot.count.saturating_sub(have(slot.name) as u32)).sum();
             let roll = self.rng.police.next_f32();
-            pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned())
+            (pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned()), missing)
         };
+        pursuit.requested_missing = missing;
         let Some(name) = pick else { return };
-        let Some((first_four, later)) =
-            pursuit.row().map(|r| (r.time_between_first_four_spawns, r.time_between_cop_spawns))
-        else {
-            return;
-        };
-        let involved = pursuit.involved;
-        let delay = match involved < 3 {
-            true => first_four,
-            false => later,
-        };
         let performance = pursuit.player;
         let spawned = match self.police.is_perp_in_sight() {
             true => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
             false => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
         };
         if spawned && let Some(p) = self.pursuit.as_mut() {
-            p.involved += 1;
-            p.spawn_timer = delay;
+            p.joined(cooldown);
         }
-    }
-
-    /// Puts a cop car of `name` on the cop roads 150 to 400 m from the camera, facing the player. The spot comes from the
-    /// walk from the player's seek-ahead point; when the roads or the checks give none, from the disc 200 m ahead
-    /// (`seek_spawn.rs`). Nothing is placed, and the timer is not reset, when neither passes.
-    fn spawn_cop(
-        &mut self,
-        name: &str,
-        focus: Focus,
-        target: Vec3,
-        player: Performance,
-        collision: &CollisionWorld,
-        surfaces: &SurfaceTable,
-    ) -> bool {
-        let Some(body) = focus.body else { return false };
-        let band = Some((MIN_DISTANCE, MAX_DISTANCE));
-        for at in self.chase_spawn_points(&body) {
-            let spot = CopSpot { at, target, speed: START_SPEED, player, band };
-            if self.spawn_cop_at(name, spot, collision, surfaces) {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Puts a cop car of `name` on the cop road at `spot.at`, rolling at `spot.speed` and facing `spot.target`. The spawn path
-    /// of every cop, the wave's and the support cars' (`ai/support/spawn.rs`). Returns whether the car stands.
-    pub(super) fn spawn_cop_at(
-        &mut self,
-        name: &str,
-        spot: CopSpot,
-        collision: &CollisionWorld,
-        surfaces: &SurfaceTable,
-    ) -> bool {
-        let CopSpot { at: physics_at, target, speed, player, band } = spot;
-        let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
-            return false;
-        };
-        let toward = Vec3::new(target.x - physics_at.x, 0.0, target.z - physics_at.z);
-        let filter = SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() };
-        let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
-        if !nav.init_at_point(&self.network, &self.index, physics_at, toward, false) {
-            return false;
-        }
-        if self.cops.bars_spawn(nav.position) {
-            return false;
-        }
-        // The window is measured from the camera (`AISpawnManager::GetBasePosition`), the player until the world gives it.
-        let gap = self.cops.window_gap(nav.position, target);
-        if band.is_some_and(|(near, far)| !(near..=far).contains(&gap)) {
-            return false;
-        }
-        if self.cars.iter().any(|c| c.physics_position().distance(nav.position) < MIN_GAP) {
-            return false;
-        }
-        let render = space::to_render(nav.position.to_array());
-        let facing = space::to_render(nav.forward.to_array());
-        let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.half_width = model.model.physics.spec.dimension.x;
-        nav.enable_trail(&self.network);
-        let state = CopState::new(model.car, player, speed);
-        let start = Start {
-            stagger: (self.rng.police.next_f32() * 8.0) as u32,
-            speed,
-            cruise: Cruise::default(),
-            patrol: false,
-        };
-        let Some(car) = AiCar::place(
-            &model.model,
-            Role::Cop(Box::new(state)),
-            nav,
-            spawn,
-            start,
-            &WorldGround { collision, surfaces },
-        ) else {
-            return false;
-        };
-        log::info!("pursuit: {} at ({:.0}, {:.0}), {:.0} m from the camera", car.name, render.x, render.y, gap);
-        self.admit(car);
-        true
     }
 
     /// One line for the `pursuit status` command.
@@ -461,7 +413,7 @@ impl TrafficWorld {
         let formation = self.police.last_formation().map_or("none yet".to_owned(), |f| format!("{f:?}"));
         let to_evade = self.pursuit_feed().map_or(0.0, |feed| feed.secs_to_evade);
         let heat = self.police.heat_value();
-        let seconds_per_level = self.police.settings().time_per_level(p.heat);
+        let seconds_per_level = self.police.heat_growth_seconds(p.heat);
         let roadblocks = self.roadblocks.stats();
         let helicopter = self.helicopter_status().map_or("no helicopter".to_owned(), |h| {
             format!(
