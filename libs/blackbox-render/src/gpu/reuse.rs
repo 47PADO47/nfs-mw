@@ -125,7 +125,8 @@ impl Renderer {
     pub(super) fn submit_reuse(&mut self, output: &wgpu::TextureView, size: (u32, u32)) {
         let _trace = blackbox_trace::scope("Renderer CPU: reuse kept scene image");
         let device = self.device.clone();
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("reused frame") });
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("reused frame") });
         if let Some(kept) = &self.reuse.image {
             encoder.copy_texture_to_texture(
                 kept.texture.as_image_copy(),
@@ -134,7 +135,7 @@ impl Renderer {
             );
         }
         self.encode_ui(&mut encoder, output, size);
-        self.queue.submit([encoder.finish()]);
+        self.submit_after_captures(encoder.finish());
     }
 }
 
