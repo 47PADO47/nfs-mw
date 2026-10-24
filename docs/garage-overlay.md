@@ -1,6 +1,6 @@
-# Runtime garage overlay
+# Diagnostic garage overlay
 
-Press **F6** in a driving or world scene to open the garage. Press F6 or Escape,
+Press **F6** in a driving or world scene to open the diagnostic garage. Press F6 or Escape,
 or click the window's close button, to return. The `garage` input action can be
 rebound with the existing `bind` / `bind-save` commands. `--open-garage` starts a
 world viewer with the overlay open, including screenshot runs. The console and
@@ -10,7 +10,12 @@ Use `--open-garage --garage-tab tuning` to start on the tuning controls.
 The garage pauses the world's driving simulation while streaming continues.
 It takes the keyboard and releases the cursor. Closing restores the previous
 cursor capture. The front end receives no garage clicks or closing Escape.
-Open the garage from gameplay, rather than the front end's pause menu.
+F6 is a developer tool: changes apply immediately to the current running rig.
+It never purchases career parts, spends career cash or markers, cools career
+heat, or writes the career car's customization record. Its explicit named
+presets remain separate user files. The normal **My Cars**, career **Garage**
+and in-world shop entries use preview, purchase/save and discard instead.
+See the [garage parity matrix](garage-parity.md) for those paths and limits.
 
 ## Available controls
 
@@ -80,9 +85,9 @@ config. Choose a saved name and **Load preset** to apply it immediately. Saving
 the same name replaces it. Presets survive car changes and application restarts;
 they do not load automatically at startup. Unavailable cars, stages and parts
 are rejected through the normal garage validation before replacing the rig.
-No original game assets are modified. Career heat cooling follows fitted paint
-and tint changes through the existing cooling table. Restoring installed paint
-reloads the stock assembled model. Career save integration remains separate work.
+No original game assets are modified. Diagnostic changes do not cool career
+heat or enter career saves. Restoring installed paint reloads the stock assembled
+model. Normal career checkout owns the separate cash, marker, heat and save work.
 
 Speedbreaker toggles with **Left Ctrl**, the mouse **Back thumb button**, or
 **Xbox B / PlayStation Circle**. Wheel buttons and pedals can use the same
@@ -97,9 +102,11 @@ The driving model also includes documented handling corrections, but complete
 original driving parity requires reference driving comparisons across surfaces,
 cornering, jumps and contacts. See the vehicle and Speedbreaker specs for
 the implemented behavior and remaining comparison limits.
-Movable decals, fixed-livery recoloring, automatic per-car selection recall and controller
-navigation within egui are also deferred. The existing camera modes have their
-existing behavior; this contribution does not establish camera parity.
+Movable decals and fixed-livery recoloring are unsupported. The normal garage
+adds fixed-position decals, paired door numbers, per-car saves and action-based
+controller navigation. The legacy F6 widgets retain their pointer controls.
+The existing camera modes have their existing behavior; this contribution does
+not establish camera parity.
 
 Console captures can select the same identities with `parts paint <index>` and
 `parts tint <index>`; `parts` lists available choices and `stock` restores each

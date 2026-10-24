@@ -1,6 +1,7 @@
 # nfs-mw docs
 
 Runtime customization: [garage-overlay.md](garage-overlay.md).
+Normal garage coverage: [garage-parity.md](garage-parity.md).
 
 Original menu UI: [fixes and parity audit](menu-ui-parity.md).
 
