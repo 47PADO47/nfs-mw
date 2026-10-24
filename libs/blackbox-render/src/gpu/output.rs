@@ -10,6 +10,9 @@ pub(super) enum Output {
         config: wgpu::SurfaceConfiguration,
         /// The surface offers `Mailbox`, the present mode without vsync that never tears and never waits.
         mailbox: bool,
+        /// Without vsync, present through `Mailbox` where offered instead of the platform's own no-vsync mode
+        /// (`Immediate` where offered, which tears). Off until [`super::Renderer::set_mailbox`] asks for it.
+        wants_mailbox: bool,
         #[cfg(all(windows, feature = "streamline"))]
         dx12: Option<super::dlss::dx12::Surface>,
     },
@@ -76,8 +79,20 @@ impl Output {
 
     /// Switch vertical sync; a texture has none.
     pub(super) fn set_vsync(&mut self, device: &wgpu::Device, vsync: bool) {
-        let Self::Window { config, mailbox, .. } = self else { return };
-        config.present_mode = present_mode(vsync, *mailbox);
+        let Self::Window { config, mailbox, wants_mailbox, .. } = self else { return };
+        config.present_mode = present_mode(vsync, *mailbox && *wants_mailbox);
+        self.configure(device);
+    }
+
+    /// Present through `Mailbox` without vsync, where the surface offers it.
+    pub(super) fn set_mailbox(&mut self, device: &wgpu::Device, wanted: bool) {
+        let Self::Window { config, mailbox, wants_mailbox, .. } = self else { return };
+        if *wants_mailbox == wanted {
+            return;
+        }
+        *wants_mailbox = wanted;
+        let vsync = matches!(config.present_mode, wgpu::PresentMode::AutoVsync);
+        config.present_mode = present_mode(vsync, *mailbox && wanted);
         self.configure(device);
     }
 
@@ -110,8 +125,8 @@ pub(super) const MAX_FRAME_LATENCY: u32 = 2;
 /// What a swapchain also needs to be copied from and to.
 pub(super) const COPY_USAGES: wgpu::TextureUsages = wgpu::TextureUsages::COPY_SRC.union(wgpu::TextureUsages::COPY_DST);
 
-/// The present mode for the vsync setting. Without vsync `Mailbox` shows the newest finished frame at each refresh
-/// without tearing, when the surface has it; otherwise the platform's own no-vsync mode.
+/// The present mode for the vsync setting. Without vsync, `mailbox` (asked for and offered) shows the newest finished
+/// frame at each refresh without tearing; otherwise the platform's own no-vsync mode, `Immediate` where offered.
 pub(super) fn present_mode(vsync: bool, mailbox: bool) -> wgpu::PresentMode {
     if vsync {
         return wgpu::PresentMode::AutoVsync;
@@ -131,5 +146,28 @@ impl super::Renderer {
             self.presentation.suspend(&self.device);
         }
         self.output.set_frame_latency(&self.device, frames);
+    }
+
+    /// Without vsync, present through `Mailbox` (no tearing; the newest frame at each refresh) where the surface
+    /// offers it, instead of the platform's own no-vsync mode. Off by default.
+    pub fn set_mailbox(&mut self, wanted: bool) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
+        self.output.set_mailbox(&self.device, wanted);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::present_mode;
+
+    #[test]
+    fn mailbox_replaces_only_the_no_vsync_mode_and_only_when_wanted() {
+        assert_eq!(present_mode(false, false), wgpu::PresentMode::AutoNoVsync);
+        assert_eq!(present_mode(false, true), wgpu::PresentMode::Mailbox);
+        assert_eq!(present_mode(true, true), wgpu::PresentMode::AutoVsync);
+        assert_eq!(present_mode(true, false), wgpu::PresentMode::AutoVsync);
     }
 }
