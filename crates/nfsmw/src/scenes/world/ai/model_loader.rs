@@ -280,7 +280,8 @@ impl Worker {
     /// `XO_SPIKEBELT_1B_DW_00`); the rest of the shared set is dropped.
     fn roadblock_props(&self) -> Result<Loaded, String> {
         use crate::scenes::world::ai::roadblock::props::{SAWHORSE_MODEL, SPIKE_MODEL};
-        let hashes = [SPIKE_MODEL, SAWHORSE_MODEL].map(blackbox_hash::bstring_hash);
+        // The pack hashes the upper-case names; `bstring_hash` is case-sensitive.
+        let hashes = [SPIKE_MODEL, SAWHORSE_MODEL].map(|name| blackbox_hash::bstring_hash(&name.to_ascii_uppercase()));
         let shared =
             nfsmw_data::world::SharedAssets::load_selected(&self.dir, nfsmw_data::world::DEFAULT_TRACK, &hashes)
                 .map_err(|e| format!("the shared scenery: {e:#}"))?;
@@ -314,5 +315,18 @@ fn serve(mut worker: Worker, jobs: Receiver<(Request, Job)>, done: Sender<Done>)
         if done.send(Done { request, result }).is_err() {
             return;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn installed_roadblock_props_load_through_the_worker() {
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let loaded = Worker { dir }.roadblock_props();
+        assert!(matches!(loaded, Ok(Loaded::RoadblockProps(_))), "{:?}", loaded.err());
     }
 }
