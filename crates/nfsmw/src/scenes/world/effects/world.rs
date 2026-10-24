@@ -20,6 +20,7 @@ impl WorldScene {
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
+        let shut_races = self.shut_race_zones();
         let environment = self.environment_effects(renderer);
         let rain = self.rain_effects(position);
         let Some(drive) = self.players.lead_mut() else {
@@ -60,7 +61,7 @@ impl WorldScene {
         layer.textured.extend(environment);
         // No entry discs during a race or a cutscene: the garages and the other races' starts are not offered then.
         if self.view == View::Chase && self.race.is_none() && !cutscene {
-            entry_marks::push_discs(&self.entry.zones, car, self.clock, &mut layer.surfaces);
+            entry_marks::push_discs(&self.entry.zones, car, self.clock, &shut_races, &mut layer.surfaces);
         }
         drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
