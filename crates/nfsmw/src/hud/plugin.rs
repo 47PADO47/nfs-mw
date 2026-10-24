@@ -86,9 +86,13 @@ impl Plugin for HudPlugin {
             .insert_non_send(self.career.clone())
             .insert_resource(self.initial.clone())
             .add_systems(Update, poll.in_set(FrameSet::Prepare).run_if(resource_exists::<PendingHud>))
+            // The scene's update moves the world first, so the HUD reads the frame it draws.
             .add_systems(
                 Update,
-                sync.in_set(FrameSet::SceneUpdate).run_if(ready).run_if(resource_exists::<SharedAssets>),
+                sync.in_set(FrameSet::SceneUpdate)
+                    .after(crate::app::render::update_scene)
+                    .run_if(ready)
+                    .run_if(resource_exists::<SharedAssets>),
             )
             .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
             .add_systems(
@@ -192,6 +196,7 @@ fn sync(
     career: NonSend<CareerHandle>,
     settings: Res<Settings>,
     assets: Res<SharedAssets>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut state: ResMut<HudState>,
     mut hud: ResMut<Hud>,
 ) {
@@ -207,6 +212,10 @@ fn sync(
     }
     // The unit is the player's setting, not the scene's: every HUD look reads it from here.
     state.use_mph = settings.speed_units == SpeedUnits::Imperial;
+    // World-space markers project into the window the HUD is drawn over, in the presenter's logical pixels.
+    if let (Some(camera), Ok(window)) = (state.camera.as_mut(), windows.single()) {
+        camera.viewport = [window.width(), window.height()];
+    }
     let hud = &mut *hud;
     hud.event_tiles.update(state.map_source.event(), &assets.0);
     let stem = resolve_stem(
