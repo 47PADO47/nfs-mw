@@ -13,6 +13,21 @@ and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body 
 Pursuit tuning: [pursuit-tuning.md](pursuit-tuning.md) (the Bartender file: cop cap, heat growth, bust speed, fines)
 and [fairbusts-reset.md](fairbusts-reset.md) (the reset penalty of the busted timer and its file).
 
+Police parity: [event context and heat tables](ai-pursuit-context.md),
+[scripted requests and spawn placement](ai-pursuit-scripted-spawning.md),
+and [optional police limits](pursuit-limit-options.md) (F8 enhancements, off by default).
+
+Recorded reinforcement follow-up: [road interception and cursor advance](ai-pursuit-reinforcement-driving.md),
+[spawn cursor and join timing](ai-pursuit-reinforcement-lifecycle.md), and
+[AI performance estimation and physical acceleration](ai-pursuit-acceleration-handoff.md).
+Sustained speed follow-up: [road-action nitrous and reentry](ai-pursuit-road-nitrous.md)
+and [actual-fleet catch-up acceptance](ai-pursuit-catchup-acceptance.md).
+[Persistent target road tracking](ai-road-target-tracker.md) supplies one shared
+free-roam primary observation to the pursuit drivers; installed chase acceptance
+remains separate from its synthetic road tests.
+[Physical player city acceptance](ai-pursuit-physical-target-acceptance.md) uses
+the BMW's real physics while retaining the separate recorded-target stress.
+
 Mods: [mod-manager.md](mod-manager.md) (the Mods page of the options: the listed mods, their on/off switches and when they take effect). [mod-save-data.md](mod-save-data.md) (per-profile data a mod keeps in the save: the `bb.saves` interface, the file, save and delete).
 
 Rendering: [backface-culling.md](backface-culling.md) (which faces the original draws: texture flags, the car effect,

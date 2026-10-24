@@ -11,6 +11,9 @@ in [ai-pursuit-roadblocks.md](ai-pursuit-roadblocks.md). The per-cop driving of 
   the method are in [../provenance/ai-pursuit.md](../provenance/ai-pursuit.md). Nothing was copied from source code.
 - **Data:** the per-level `pursuitsupport` rows (strategy, chance, duration, `ChanceBigSUV`, leader priority) are the
   install's, read by the spec's earlier pass ([../formats/pursuit-data.md](../formats/pursuit-data.md)).
+- **Additional source, 2026-10-23:** [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw)
+  (CC0-1.0, decompiled), `AIPursuit.cpp` `GroundSupportRequest::Update` and
+  `RequestGroundSupport`, `AICopManager.cpp` activation paths. Read for facts only.
 
 Evidence tags as in the [docs README](../README.md#evidence-tags). Everything here is **[decomp]** from the binary
 unless marked **[verified]** (install data) or **[unconfirmed]**. Distances are metres, times seconds, speeds m/s
@@ -220,7 +223,12 @@ says the same).
 
 ## 13. Open questions
 
-- **Q1** The request timer's countdown and the reset rule are not located. The pursuit's support slot (`+0x44`) is on an
+- **Q1, resolved in reconstructed source:** the option duration starts when the
+  request becomes pending. Both pending and active requests count down; a timer
+  strictly below zero resets the request and releases its cars. Activation
+  restarts the timer at the option's full duration. This continues while the
+  target is unseen, even though pending placements do not run. **[decomp]**
+  The earlier native trace did not locate this method. The pursuit's support slot (`+0x44`) is on an
   interface subobject; the object's labelled vtable does not hold its methods (the bytes after the label are string
   data), so the pursuit's own update was not found.
 - **Q2** `ReqDenied` is sent each tick while placement fails, and the cars stay in the request. Confirm by a run or by
@@ -256,33 +264,28 @@ says the same).
 
 ## Port status
 
-- **Pure rules (`libs/blackbox-pursuit/src/support/`):** `order.rs` is the request's state (pending, active for the option's
-  duration, denied tries counted); `cars.rs` is the car each slot takes (cars per strategy, the SUV roll with `ChanceBigSUV`,
-  the leader's cross car and two V cars); `placement.rs` is the search (heavy `400 - (60 + 10 k)` ahead, leader `-(150 + 10 k)`
-  behind, the try counter kept across the cars, the pursuit offsets `(0,-20)`, `(-4,-24)`, `(4,-24)`); `delay.rs` is the shared
-  3.0 s ram timer; `ram.rs` is the head-on drive (intercept from the spec's quadratic, 27.78 m/s, start speed of 5.2).
-- **Game (`crates/nfsmw/.../ai/support/`, `ai/car/support_drive.rs`):** a request is run each tick from the cop pursuit
-  (`session.rs`). Its cars are taken, then placed through the cop spawn path (`spawn_cop_at` in `pursuit.rs`, shared with the
-  wave), tagged with the request's serial. A ram SUV drives at its intercept; a leader car holds its close-chase point; the
-  others chase. A request ends when its timer runs out or when none of its cars is left, and the cars return to the chase.
-  Support cars count in the chase's cop count (they are cops).
-- **The roll (`ai/police/roll.rs`):** the check every 10 s, the priority check of the leader options once per heat, then the
-  base roll over the heavy and leader options. A heavy roadblock goes to the world as before. A ram or leader request is
-  handed over on the next step (`take_support_request`, then `TrafficWorld::ask_support`). The roll uses one uniform number
-  for both its priority check and its base roll (the binary draws one each): a deviation, unconfirmed in effect.
-- **Formation exclusion (`ai/cop_aims.rs`):** support cars are left out of the formation, finisher and collapse cop list
-  (section 3 of the formations spec), so they keep the chase's aim or their own drive.
-- **Not built:** the flee of the support cars when the perpetrator is lost or a collapse begins (formations spec section 6).
-- **Heavy roadblock (built in `ai/roadblock/`):** a `HEAVY_ROADBLOCK` roll is retried on every manager run (0.5 s) until it
-  stands, for at most 60 s (the original retries without end); its cars are the SUV models (`copsuv` with `ChanceBigSUV`,
-  otherwise `copsuvl`), laid out by the same builder as the lottery's roadblock; while it is active (the option's duration)
-  the support roll is not made. The original passes exactly four SUVs and steals out-of-view cops for any further car;
-  the rewrite creates the cars the layout needs.
-- **Unconfirmed, chosen in the port:** (a) the ram's start gate reads "start only while the target is below 26.82 m/s"; the
-  spec gives 26.82 only as the start speed cap. (b) The try counter stops at `k = 7` for every later try of a request. (c) A
-  ram that finds no target goes back to the start gate; the spec never finishes it while the target exists. (d) The
-  `ChanceBigSUV` of heat 3's rows is read as 0 (the rows give none in brackets). (e) A request whose intercept has no real
-  root takes `t = 0`. (f) A refused placement is retried on each step with no limit (the binary's `ReqDenied` repeats).
-- **Verified:** `cargo test -p blackbox-pursuit` passes (the support module's 38 tests) and clippy with `-D warnings` is clean.
-  The game side has no run yet: the tests and the spawn and drive in the chase need a headless run.
+- Pure rules model request acquisition, placement, pending and active duration,
+  car selection, shared ram delay and head-on drive. Pending duration expires
+  strictly below zero; activation restores the option's full duration.
+- World adapters load the selected context's support rows, acquire and place
+  tagged cars, execute their goals, and release expired or empty requests.
+  Active heavy cars flee on tracked contact loss or an actual collapse. Leaders
+  retain their separate lifetime. Placement pauses during a cinematic moment.
+- Leader priority and ordinary selection use independent random samples. A
+  pending or active support order blocks another roll. The check is evaluated
+  on the pursuit decision cadence, with elapsed seconds.
+- Heavy roadblock requests retry at the manager's two-tick cadence while the
+  target is tracked, until placement or pending-duration expiry. Their timer
+  continues while placement is blocked. This replaces the old arbitrary
+  sixty-second retry cutoff. A built request stays active for its duration.
+- Synthetic world regressions cover delayed model arrival, pending expiry,
+  activation restart, loss of contact, collapse, leader expiry and car loss.
+  Execution results are recorded in the validation run, not implied here.
 
+Remaining limits: original pool-first/partial acquisition semantics, uncertain
+ram start-speed gates, spawn-speed handoff and callback details require further
+native or matched behavior evidence. The rewrite creates the roadblock layout's
+required cars; the original supplies four SUVs and may recruit additional cars.
+The request's later placement attempts retain the documented search counter.
+See [coverage](../police-ai-parity.md) and
+[implementation provenance](../provenance/ai-pursuit-scripted-spawning.md).

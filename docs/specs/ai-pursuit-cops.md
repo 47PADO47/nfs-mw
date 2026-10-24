@@ -36,7 +36,7 @@ State and limits: **[decomp]**
 
 | Item | Value |
 |---|---|
-| max cop cars | 8 (`min(8, platform budget 8)`) **[unconfirmed]**: PC budget not read |
+| max cop cars | 8 (`min(8, platform budget 8)`) **[PC static verified]** |
 | max active cop cars | 8 |
 | max helicopters | 1 |
 | lockout timer at construction / restart | 60 s |
@@ -44,6 +44,12 @@ State and limits: **[decomp]**
 | challenge races | restart lockout 0 |
 | patrol limit field | `mMaxPatrolCopCars = 2` is stored but the patrol count comes from `NumPatrolCars` |
 | cop car pool | cars are created on demand by name, kept un-spawned in a list and reused (`GetAvailableCopVehicleByName`) |
+
+PC constructor inspection on 2026-10-23 corroborates the initial car budget,
+active budget, helicopter limits and two-patrol field. It clamps maximum cars
+by platform budget, then applies development SkipFE overrides separately.
+This verifies initial values, not arbitrary mod patches or later runtime writes.
+See [core provenance](../provenance/police-ai-parity-core.md).
 
 **Spawning enabled?** `VehicleSpawningEnabled(isDespawn)`: false when "no new pursuits or cops" was requested (only for
 spawning), when the lockout timer is above 0 or cops are disabled (`MSetCopsEnabled`, a debug / mission switch), or when a
@@ -323,7 +329,6 @@ support after the support delay.
 
 ## Open questions
 
-- Platform cop-car budget on PC (the decomp is the GameCube build, budget 8 assumed).
 - Exact weighting of the greedy slot assignment ties; the decomp marks `AssignClosestOffsets` as not matching.
 - Roadblock cop recruitment: the cheat rule's single recruit is built (roadblock director); `SpikesHit` (up to three cars) has no caller in the sources, so the rewrite has no trigger for it.
 - Whether `copcompact` (tether weight 100) is ever spawned (it is in `aivehicle` but in no `cops` row).

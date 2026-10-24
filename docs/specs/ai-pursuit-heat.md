@@ -25,7 +25,8 @@ object itself is in [ai-pursuit.md](ai-pursuit.md); cops, spawning and support i
   code is not in the decompiled sources read. **[unconfirmed]** When the player's car object is destroyed (leaving
   the world) the heat, capped at 5, is written back to the career car record. **[decomp]**
 - The collection rows that heat selects are `pursuitescalation` (ai-pursuit.md section 2): `heattable[level-1]` outside
-  races, `racetable[level-1]` during a race. The ten `heattable` rows (levels 1 to 10) are the collections named by
+  races, `racetable[level-1]` during a non-pursuit race's racing phase. Pursuit events and loading/intro/results retain
+  `heattable` (`AIVehicle.cpp` heat selection; [context spec](ai-pursuit-context.md)). The ten `heattable` rows (levels 1 to 10) are the collections named by
   hash `0xE1A5CE21, 0x6F9CE5C1, 0x5C9DA40B, 0x7D4A777E, 0x59B2CAEF, 0xB8F1F245, 0xF3E10B20, 0x8D5ED471, 0x5CAE20A1,
   0xED01800F`. **[verified]** Levels 8 to 10 are not used by normal career play (they exist for the "Most Wanted"
   scripted pursuits, challenge series and the opening pursuit; the race-bin table caps normal heat at 5).
@@ -166,6 +167,18 @@ bins 15 and 14, 360 s in bin 13, 240 s in 12, 180 s in 11 and 120 s from bin 10 
 240 s in bin 1; level 5 always takes 600 s; levels 6 to 10 take 600, 600, 780, 820, 2000 s. The bin's maximum heat stops
 the growth (bins 15 and 14 end at heat 2, so early in the career the heat never leaves levels 1 and 2). Whenever the integer part changes, the pursuit resets `ActiveFormationTime`, the support
 priority check and re-reads `RepPointsPerMinute`.
+
+#### Remake sandbox policy without a career
+
+The standalone world viewer can start an ordinary free-roam chase without a career profile. This is a remake
+entry point, so the original's profile-absent arithmetic above does not define a useful default experience.
+**[remake policy]** For this entry point, the game adapter applies the install's initial career growth bucket
+(index 14) and caps ordinary heat at 5. Stock levels 1 through 5 therefore take 600 seconds per level instead of
+one second. The low-level `seconds_per_level` query retains the original profile-absent base-time behavior.
+
+Loaded careers keep their own bucket and bounds. Races, challenges and the fixed final pursuit keep their existing
+event rules. A nonstock Bartender `TimePerLevel` overrides the sandbox growth policy. Forced console starts can
+raise the heat cap to the requested level, and an explicit F8 heat cap can expose the special rows.
 
 ### 3.3 Jumps and resets
 
@@ -346,8 +359,9 @@ car select screen (x0.95); get busted three times and confirm the impound.
   on screen. See
   [provenance](../provenance/ai-pursuit-busted.md).
 - **Heat growth** (section 3.2): `TimePerHeatLevel` times `ScaleEscalationPerBucket[min(bin, 14)]` from the install, with the
-  Blacklist's current bin (`scenes/world/ai/police/heat_model.rs`); a world without a career uses bin 15 (600 s a level for
-  levels 1 to 5). A Bartender `TimePerLevel` that differs from the stock value overrides it. **[decomp]** The bin's maximum heat
+  Blacklist's current bin (`scenes/world/ai/police/heat_model.rs`). The original profile-absent query uses `TimePerHeatLevel`
+  without a bucket multiplier. Ordinary remake free roam without a career uses the sandbox policy in section 3.2;
+  this uses bucket 14 and a heat-5 cap. A Bartender `TimePerLevel` that differs from stock overrides it. The bin's maximum heat
   (section 3.1: bins 15/14 and 13: 2, 12 to 9: 3, 8 to 5: 4, 4 to 1: 5; 16: 1) caps the chase, a config range wins, and a
   forced chase raises the cap to its level. The `race_bin_NN` records are not read; the table is the one verified above.
 - **Backup values** (`FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`): read per level

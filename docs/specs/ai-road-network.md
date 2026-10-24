@@ -152,6 +152,46 @@ segments, which always run in the stored direction.
 `InitAtPoint` = closest segment + `InitAtSegment`. `InitAtPath(position)` first finds the closest point on the
 current path's segments (straight-line distance) and starts there, with the direction taken from the path order.
 
+### 3.3 Installed target-trace geometry checks **[ours]**
+
+An opt-in installed-city pursuit fixture can read an explicitly selected private
+target trace. Captured coordinates and trajectories remain outside the repository.
+Its map-fit check must distinguish physical geometry from a driving navigator's
+heading-weighted selection cost. Section 3.1's weighted search measures lateral
+road-edge distance and heading; it is not a nearest physical-lane distance query.
+The index also returns broad-phase bucket candidates, not an exact-radius set.
+A selected cursor's endpoint can therefore be farther away than a nearby lane.
+This does not by itself establish an error in the original navigation behavior.
+
+For geometric association, the fixture projects each target sample onto nearby
+cop-allowed lane curves without heading weighting. It considers cop-drivable
+zone types at both ends, interpolates lane width, and keeps longitudinal
+endpoint distance while allowing the interpolated half-width only laterally.
+The nearest physical lane must be within 30 m of its bounds and 8 m vertically.
+These are engineering setup guards, not original-game tuning constants.
+Diagnostics retain the production weighted cursor and unbiased closest centre
+lines with both cop and unrestricted segment filters. Production navigation is
+unchanged by these fixture-only queries.
+
+The target's actual installed tyre-ground query must find a known material with
+positive lateral and drive grip, an upward normal above 0.97, and a body origin
+between 0.5 m below and 4 m above that support. This allows physical pavement
+variants and metal road plates. It deliberately does not use the fresh-spawn
+road finder, whose asphalt/concrete allowlist is a placement heuristic. Actual
+collision residency, heights and nearby lane geometry remain required; material
+acceptance alone cannot establish map compatibility. No target coordinates are
+snapped or moved to satisfy the checks. All raw samples must pass before pursuit
+scoring begins. These checks do not prove swept collision clearance or exact
+geometry equivalence between installations.
+
+The fixture's rolling cop uses the ordinary reinforcement path that accepts the
+chosen cursor intact. It verifies the resulting body remains within 2 m of that
+cursor with forward-vector dot product above 0.99. Explicit manual requests
+still locate a cursor again using the weighted search; their parity remains a
+separate boundary. Physical backward placement measures evaluated lane travel
+in small steps rather than treating a navigator's chord-based parameter metres
+as physical arc length. The original initial-gap checks remain in force.
+
 ## 4. Moving along the graph
 
 ### 4.1 Advancing **[decomp]**
