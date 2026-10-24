@@ -173,6 +173,10 @@ impl Renderer {
             self.projected = None;
             return;
         };
+        let _trace = match kind {
+            CaptureKind::Planar => blackbox_trace::scope("Renderer CPU: planar capture"),
+            _ => blackbox_trace::scope("Renderer CPU: projected capture"),
+        };
         let limit = self.device.limits().max_texture_dimension_2d.min(MAX_EDGE);
         let size = scene.size.map(|edge| edge.min(limit));
         let mut capture =

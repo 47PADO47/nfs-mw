@@ -302,7 +302,10 @@ impl PostChain {
                     Extent::Output => ctx.output_size,
                 };
                 let key = (size, scene.color_format);
-                scratch[slot].get_or_make(key, || Scratch::new(ctx.device, size, scene.color_format));
+                scratch[slot].get_or_make(key, || {
+                    let _trace = blackbox_trace::scope("Renderer CPU: post scratch image created");
+                    Scratch::new(ctx.device, size, scene.color_format)
+                });
                 written[slot] = Some(key);
             }
             let (input, input_size) = match step.source {

@@ -99,6 +99,7 @@ impl CloudMap {
         if self.key == Some(key) && distance_squared < 32.0 * 32.0 {
             return;
         }
+        let _trace = blackbox_trace::scope("Renderer CPU: cloud map rebuilt");
         let pipeline = self.pipeline.get_or_insert_with(|| {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("cloud lighting generation"),

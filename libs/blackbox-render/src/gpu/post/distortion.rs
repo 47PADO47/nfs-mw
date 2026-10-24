@@ -204,6 +204,7 @@ impl PostChain {
             return;
         };
         if !self.has(NAME) {
+            let _trace = blackbox_trace::scope("Renderer CPU: lens distortion pass created");
             self.insert(usize::MAX, Box::new(DistortionPass::new(device, view, self.cache.as_ref())));
         }
         for pass in &mut self.passes {
