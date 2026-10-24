@@ -1,11 +1,25 @@
 //! Current-frame world colour, captured before glossy objects and UI are drawn.
 use wgpu::util::DeviceExt;
 
+/// The views the glossy scene group binds and that can be replaced: it is rebuilt only when one of them is.
+#[derive(PartialEq)]
+pub(in crate::gpu) struct SceneKey {
+    pub environment: wgpu::TextureView,
+    pub faces: wgpu::TextureView,
+    pub filtered: wgpu::TextureView,
+    pub linear_filtered: wgpu::TextureView,
+    pub color: wgpu::TextureView,
+    pub depth: wgpu::TextureView,
+    pub probe: wgpu::TextureView,
+}
+
 pub(in crate::gpu) struct Screen {
     pub control: wgpu::Buffer,
     pub color: wgpu::TextureView,
     pub depth: wgpu::TextureView,
     depth_copy: Option<wgpu::RenderPipeline>,
+    /// The glossy scene group of the last [`Self::scene_group`], with the views it was built from.
+    scene: Option<(SceneKey, wgpu::BindGroup)>,
 }
 impl Screen {
     pub fn new(device: &wgpu::Device) -> Self {
@@ -19,19 +33,36 @@ impl Screen {
             color: image(device, (1, 1), wgpu::TextureFormat::Rgba16Float),
             depth: super::super::resources::create_depth(device, 1, 1),
             depth_copy: None,
+            scene: None,
         }
+    }
+    /// The glossy scene group for `key`: the one built last time when the views are the same, else `build`'s.
+    /// `build` gets the screen so it can bind its current colour and depth.
+    pub fn scene_group(&mut self, key: SceneKey, build: impl FnOnce(&Screen) -> wgpu::BindGroup) -> wgpu::BindGroup {
+        if let Some((cached, group)) = &self.scene
+            && *cached == key
+        {
+            return group.clone();
+        }
+        let group = build(self);
+        self.scene = Some((key, group.clone()));
+        group
     }
     pub fn disable(&self, queue: &wgpu::Queue) {
         queue.write_buffer(&self.control, 0, bytemuck::cast_slice(&[0.0f32; 4]));
     }
+    /// Switch the reflection on with the ray `control` block: enabled flag, near plane, range and fade.
+    pub fn enable(&self, queue: &wgpu::Queue, control: [f32; 4]) {
+        queue.write_buffer(&self.control, 0, bytemuck::cast_slice(&control));
+    }
+    /// Copy the world colour and the scenery depth drawn so far. The caller sets the ray control with
+    /// [`Self::enable`].
     pub fn capture(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         source: &wgpu::TextureView,
         depth: &wgpu::TextureView,
-        near: f32,
     ) {
         let texture = source.texture();
         let size = (texture.width(), texture.height());
@@ -63,8 +94,6 @@ impl Screen {
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, &inputs, &[]);
         pass.draw(0..3, 0..1);
-        drop(pass);
-        queue.write_buffer(&self.control, 0, bytemuck::cast_slice(&[1.0, near, 50.0f32, 0.0]));
     }
 }
 fn image(device: &wgpu::Device, size: (u32, u32), format: wgpu::TextureFormat) -> wgpu::TextureView {

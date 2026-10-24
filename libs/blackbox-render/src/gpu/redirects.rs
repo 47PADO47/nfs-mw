@@ -10,6 +10,7 @@ pub(super) struct Redirects {
 
 impl Redirects {
     /// The slot drawn in place of `from`, when it has a redirect.
+    #[cfg(test)]
     pub(super) fn get(&self, from: &usize) -> Option<&usize> {
         self.to.get(*from)?.as_ref()
     }
