@@ -78,7 +78,10 @@ impl Drop for Scratch {
 }
 
 fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+    // Two folders up from `libs/blackbox-modding`. Not `join("..")`: Windows does not resolve `..` in a verbatim
+    // (`\\?\`) path, which is what cargo can hand out, and a working directory like that is refused.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2);
+    root.expect("the manifest folder is two levels below the workspace root").to_path_buf()
 }
 
 /// The platform's file name of the hello library, as cargo produces it.
