@@ -96,7 +96,11 @@ where
     if let Some(f) = caps.formats.iter().copied().find(|f| !f.is_srgb()) {
         config.format = f;
     }
-    config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
+    let mailbox = caps.present_modes.contains(&wgpu::PresentMode::Mailbox);
+    // The native Direct3D 12 swapchain of the DLSS path knows only the vsync and tearing modes.
+    #[cfg(all(windows, feature = "streamline"))]
+    let mailbox = mailbox && options.backend != Backend::Dx12;
+    config.present_mode = super::output::present_mode(options.vsync, mailbox);
     #[cfg(all(windows, feature = "streamline"))]
     let dx12 = {
         if let Some(runtime) = &mut dlss {
@@ -123,6 +127,7 @@ where
         Output::Window {
             surface,
             config,
+            mailbox,
             #[cfg(all(windows, feature = "streamline"))]
             dx12,
         },
