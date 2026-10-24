@@ -5,12 +5,15 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use game_install::{GameDir, GameSpec, KnownBuild, RegistryValue};
 
+/// The installer's registry key: the install folder and the installed language are values under it.
+pub const REGISTRY_KEY: &str = r"SOFTWARE\EA GAMES\Need for Speed Most Wanted";
+
 pub const SPEC: GameSpec = GameSpec {
     name: "NFS: Most Wanted",
     env_var: "NFSMW_GAME_DIR",
     app_dir: "nfsmw",
     // Written by the retail installer.
-    registry: &[RegistryValue { key: r"SOFTWARE\EA GAMES\Need for Speed Most Wanted", value: "Install Dir" }],
+    registry: &[RegistryValue { key: REGISTRY_KEY, value: "Install Dir" }],
     required_files: &[
         "GLOBAL/GLOBALB.LZC",
         "GLOBAL/ATTRIBUTES.BIN",
