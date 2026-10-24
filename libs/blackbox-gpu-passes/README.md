@@ -69,7 +69,7 @@ effects.upload(&device, &queue, &effect_layer);          // writes buffers only
 
 // ... inside the scene's render pass (colour + reverse-Z depth), after the opaque and blended draws:
 pass.set_bind_group(0, &bindings.globals_bind_group, &[]);
-effects.draw(&mut pass);                                 // surfaces, particles, streaks, glows
+effects.draw(&mut pass, None);                           // surfaces, particles, streaks, glows
 effects.draw_textured(&mut pass, |h| my_textures.get(h)); // group 1 is set per batch
 drop(pass);
 

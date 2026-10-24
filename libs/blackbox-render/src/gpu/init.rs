@@ -270,7 +270,15 @@ fn assemble(
     let instances = instances::InstanceBuffer::new(&device);
     let mut ui = super::ui::Ui::new(&device, pipeline_cache.as_ref());
     ui.use_format(&device, format);
-    let effects = super::effects::Effects::new(&device, plan.format, &shared.bindings, pipeline_cache.as_ref());
+    // The streaks and glows can take the sun's shadow: the receiver sits at group 1 of their pipelines.
+    let receiver = include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1");
+    let effects = super::effects::Effects::with_shadows(
+        &device,
+        plan.format,
+        &shared.bindings,
+        pipeline_cache.as_ref(),
+        Some(super::effects::ShadowReceiver { wgsl: &receiver, layout: &shared.glossy.material }),
+    );
 
     let api = api_of(adapter_info.backend);
     let info = BackendInfo {

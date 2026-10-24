@@ -23,6 +23,7 @@ pub struct EffectVertex {
     pub uv: [f32; 2],
     /// Procedural particles: age in seconds and stable variation seed.
     /// Textured particles: positive RGBA brightness multiplier in X (zero defaults to one), unused Y.
+    /// Streaks and glows: X unused; a Y of one takes the sun's shadow in the native renderer (the Bevy renderer ignores it).
     pub detail: [f32; 2],
 }
 

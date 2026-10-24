@@ -16,6 +16,8 @@ struct VsOut {
     @location(1) uv: vec2<f32>,
     @location(2) world: vec3<f32>,
     @location(3) brightness: f32,
+    // Streaks and glows only: set when the vertex takes the sun's shadow (`detail.y`).
+    @location(4) shadowed: f32,
 };
 
 @vertex
@@ -26,6 +28,7 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>, @loc
     out.uv = uv;
     out.world = position;
     out.brightness = select(1.0, detail.x, detail.x > 0.0);
+    out.shadowed = detail.y;
     return out;
 }
 
@@ -88,7 +91,7 @@ fn streak_color(in: VsOut) -> vec4<f32> {
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     // Additive light disappears into fog; blending toward the fog colour would emit luminous fog.
-    return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
+    return vec4<f32>(in.color.rgb * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
 }
 
 @fragment
@@ -110,7 +113,7 @@ fn glow_color(in: VsOut) -> vec4<f32> {
     let mask = edge * edge * (0.25 + 0.75 * core);
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
-    return vec4<f32>(in.color.rgb * (1.0 - fog), in.color.a * mask);
+    return vec4<f32>(in.color.rgb * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
 }
 
 @fragment

@@ -39,11 +39,21 @@ pub mod test_support;
 pub use batch::Batch;
 pub use bind_cache::BindCache;
 
-/// The WGSL of the world effects (`vs_main` and the `fs_*` stages), for renderers that build their own
-/// effect pipelines. [`TexturedEffects`] and the renderer's effect pipelines use the same source.
-pub const EFFECTS_WGSL: &str = include_str!("shaders/effects.wgsl");
+/// The WGSL of the world effects without a shadow-reception hook (`vs_main` and the `fs_*` stages).
+pub const EFFECTS_BASE_WGSL: &str = include_str!("shaders/effects.wgsl");
 
-pub use effects::{Effects, SoftDraw};
+/// The hook that leaves the streaks and glows unshadowed, and the one that makes the vertices that ask for it take the
+/// sun's shadow. The second needs the shadow receiver (`direct_visibility`, `shadow_data`) in front, with its bind
+/// group at 1; see [`ShadowReceiver`].
+pub const EFFECTS_UNSHADOWED_WGSL: &str = include_str!("shaders/effects_unshadowed.wgsl");
+pub const EFFECTS_SHADOWED_WGSL: &str = include_str!("shaders/effects_shadowed.wgsl");
+
+/// The WGSL of the world effects (`vs_main` and the `fs_*` stages), for renderers that build their own
+/// effect pipelines. [`TexturedEffects`] and [`Effects::new`] use this source, with no shadows.
+pub const EFFECTS_WGSL: &str =
+    concat!(include_str!("shaders/effects.wgsl"), include_str!("shaders/effects_unshadowed.wgsl"));
+
+pub use effects::{Effects, ShadowReceiver, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};
 pub use fsr1::{FSR1_EASU, FSR1_RCAS, Fsr1Io, Fsr1Pass, Fsr1Stage, RcasScale, fsr1_passes};
 pub use radial_blur::{RADIAL_MAX_TAPS, RadialBlur, RadialBlurIo, RadialBlurSettings};

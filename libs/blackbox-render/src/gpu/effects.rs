@@ -4,7 +4,7 @@
 use super::Renderer;
 use crate::EffectLayer;
 
-pub(super) use blackbox_gpu_passes::{Effects, SoftDraw};
+pub(super) use blackbox_gpu_passes::{Effects, ShadowReceiver, SoftDraw};
 
 impl Renderer {
     /// Replace the world effects drawn in every following scene/capture, until replaced again.

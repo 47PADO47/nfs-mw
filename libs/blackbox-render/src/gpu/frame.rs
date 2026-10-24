@@ -217,7 +217,7 @@ impl Renderer {
         {
             return;
         }
-        self.effects.draw(&mut pass);
+        self.effects.draw(&mut pass, Some(&self.shared.shadows.fallback));
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);
         self.encode_soft_effects(encoder, &view.target, &view.depth, frame);

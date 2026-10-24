@@ -94,7 +94,7 @@ impl Bench {
                 multiview_mask: None,
             });
             pass.set_bind_group(0, &self.bindings.globals_bind_group, &[]);
-            self.effects.draw(&mut pass);
+            self.effects.draw(&mut pass, None);
             self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         }
         Pixels { width, rgba: self.gpu.finish(encoder, &target) }

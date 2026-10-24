@@ -174,7 +174,7 @@ pub fn effects_main_pass(
         multiview_mask: None,
     });
     pass.set_bind_group(0, &inner.bindings.globals_bind_group, &[]);
-    inner.effects.draw(&mut pass);
+    inner.effects.draw(&mut pass, None);
     let textured = &inner.textured;
     inner.effects.draw_textured(&mut pass, |h| textured.get(&h.raw()));
 }

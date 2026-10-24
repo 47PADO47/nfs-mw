@@ -16,6 +16,8 @@ mod display;
 mod dlss;
 mod draw_list;
 mod draw_mask;
+#[cfg(test)]
+mod effect_shadow_tests;
 mod effects;
 mod filtering;
 mod frame;

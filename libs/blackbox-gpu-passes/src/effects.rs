@@ -15,11 +15,11 @@ use std::collections::HashMap;
 
 use blackbox_gfx::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TextureHandle};
 
-use crate::EFFECTS_WGSL;
 use crate::batch::Batch;
 use crate::soft_particles::SoftParticles;
 use crate::textured_effects::TexturedEffects;
 use crate::world::{DEPTH_FORMAT, EFFECT_VERTEX_ATTRIBUTES, WorldBindings, write_mask};
+use crate::{EFFECTS_BASE_WGSL, EFFECTS_SHADOWED_WGSL, EFFECTS_UNSHADOWED_WGSL};
 
 /// What [`Effects::draw_soft`] draws into and reads.
 pub struct SoftDraw<'a> {
@@ -33,6 +33,15 @@ pub struct SoftDraw<'a> {
     pub inverse_view_proj: glam::Mat4,
 }
 
+/// What lets the streaks and glows take the sun's shadow: the renderer's shadow receiver and the layout of its bind
+/// group. The WGSL is `shadow_receiver.wgsl` with its group set to 1, and the bind group handed to [`Effects::draw`]
+/// must match the layout. A vertex takes the shadow when its `detail.y` is set.
+#[derive(Clone, Copy)]
+pub struct ShadowReceiver<'a> {
+    pub wgsl: &'a str,
+    pub layout: &'a wgpu::BindGroupLayout,
+}
+
 pub struct Effects {
     batches: [Batch; 4],
     shader: wgpu::ShaderModule,
@@ -41,6 +50,8 @@ pub struct Effects {
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 4]>,
     format: wgpu::TextureFormat,
     soft: SoftParticles,
+    /// Built with a shadow receiver: group 1 is its bind group.
+    shadowed: bool,
     detailed: bool,
     soft_distance: f32,
     textured: TexturedEffects,
@@ -55,13 +66,30 @@ impl Effects {
         bindings: &WorldBindings,
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
+        Self::with_shadows(device, format, bindings, cache, None)
+    }
+
+    /// [`Self::new`], with the streaks and glows able to take the sun's shadow when `shadows` is given. [`Self::draw`]
+    /// then needs the shadow bind group.
+    pub fn with_shadows(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        bindings: &WorldBindings,
+        cache: Option<&wgpu::PipelineCache>,
+        shadows: Option<ShadowReceiver<'_>>,
+    ) -> Self {
+        let source = match &shadows {
+            Some(receiver) => format!("{}\n{EFFECTS_BASE_WGSL}{EFFECTS_SHADOWED_WGSL}", receiver.wgsl),
+            None => format!("{EFFECTS_BASE_WGSL}{EFFECTS_UNSHADOWED_WGSL}"),
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world effects"),
-            source: wgpu::ShaderSource::Wgsl(EFFECTS_WGSL.into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
+        let groups = [Some(&bindings.globals_layout), shadows.map(|receiver| receiver.layout)];
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world effects"),
-            bind_group_layouts: &[Some(&bindings.globals_layout)],
+            bind_group_layouts: &groups[..1 + usize::from(shadows.is_some())],
             immediate_size: 0,
         });
         let mut effects = Self {
@@ -69,6 +97,7 @@ impl Effects {
             shader,
             layout,
             pipelines: HashMap::new(),
+            shadowed: shadows.is_some(),
             format,
             soft: SoftParticles::new(device, format, bindings, cache),
             detailed: false,
@@ -165,8 +194,14 @@ impl Effects {
 
     /// Draw the surface overlays, particles, streaks and glows into a pass that has the world's colour and
     /// depth attached and the globals bound to group 0. Detailed particles are left to [`Self::draw_soft`].
-    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
+    /// `shadows` is the bind group of the [`ShadowReceiver`] the effects were built with; effects built with one and
+    /// drawn without it draw nothing, since their pipelines cannot run without the group.
+    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, shadows: Option<&wgpu::BindGroup>) {
         let Some(pipelines) = self.pipelines.get(&self.format) else { return };
+        if self.shadowed {
+            let Some(shadows) = shadows else { return };
+            pass.set_bind_group(1, shadows, &[]);
+        }
         for (i, (batch, pipeline)) in self.batches.iter().zip(pipelines).enumerate() {
             if batch.count() == 0 || (i == 1 && self.detailed) {
                 continue;

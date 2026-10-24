@@ -63,3 +63,15 @@ fn every_shader_parses_and_validates() {
         assert!(!entry_points(name).is_empty(), "{name} has entry points");
     }
 }
+
+#[test]
+fn the_effects_shader_with_the_shadow_receiver_validates_and_keeps_its_entry_points() {
+    use blackbox_gpu_passes::{EFFECTS_BASE_WGSL, EFFECTS_SHADOWED_WGSL};
+    let receiver = include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1");
+    let source = format!("{receiver}\n{EFFECTS_BASE_WGSL}{EFFECTS_SHADOWED_WGSL}");
+    let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
+    Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module).unwrap();
+    for entry in ["vs_main", "fs_streak", "fs_streak_srgb", "fs_glow", "fs_glow_srgb", "fs_textured"] {
+        assert!(module.entry_points.iter().any(|e| e.name == entry), "{entry} survives");
+    }
+}
