@@ -134,8 +134,7 @@ are never languages.
 For each locale of the chain in turn, the first of:
 
 1. the language packs' `_game/` entries for that locale, the last-loaded mod first;
-2. the game table for that locale;
-3. the rewrite catalogue's `_game` fallbacks for that locale (English car names the table lacks).
+2. the game table for that locale.
 
 If every source misses, the text is the one of label `0x9BB9CCC3`, the original's default-string error
 ([confirmation-dialogs.md](confirmation-dialogs.md)), and the miss is logged once per label. FEng objects keep their own text
@@ -187,8 +186,9 @@ The rewrite does not show `LS_LangSelect.fng`: the registry value and the system
 
 ## 7. Testing aids
 
-- **`en-XA`** is a pseudo-locale made from `en` at load time: every letter accented, each message about a third longer, and
-  wrapped in `⟦ ⟧`. On screen, text without the brackets is not from the catalogue. Game labels are left as they are.
+- **`en-XA`** is a pseudo-locale made from `en` at load time: vowels and some consonants accented (Latin-1, so the game's
+  fonts draw them), each message padded by a third with `~` and wrapped in `[ ]`. On screen, rewrite text without the
+  brackets is not from the catalogue. Game labels are left as they are.
 - `cargo xtask i18n-check` checks the catalogues against the code (section 8).
 - `nfsmw strings --match-catalog` lists English catalogue messages whose text is also a game label, the first step of moving a
   string to the original's translations.

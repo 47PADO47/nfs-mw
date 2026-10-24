@@ -1,0 +1,19 @@
+[package]
+name = "blackbox-i18n"
+description = "Translations for EA Black Box game rewrites: locales and Fluent catalogues layered over the game's string tables."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-text.workspace = true
+fluent-bundle.workspace = true
+fluent-syntax.workspace = true
+log.workspace = true
+sys-locale.workspace = true
+unic-langid.workspace = true
+
+[lints]
+workspace = true
