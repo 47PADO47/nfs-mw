@@ -27,6 +27,9 @@ pub(in crate::gpu) fn fill_faces(
         false => 1,
     };
     let missing = &FACES[sets.len().min(wanted)..wanted];
+    if missing.is_empty() {
+        return;
+    }
     let keys: Vec<(Face, BlendMode)> = missing.iter().flat_map(|&face| BLEND_ORDER.map(|mode| (face, mode))).collect();
     let mut built = parallel::build(&keys, |&(face, mode)| make(mode, face)).into_iter();
     for _ in missing {
