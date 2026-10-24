@@ -201,6 +201,8 @@ impl WorldScene {
         drop(trace);
         self.update_reflections(renderer);
         self.update_shadow_casters(renderer);
+        // Both have read the traffic cars; the next frame moves them.
+        self.shadow_feed.cars.invalidate();
     }
 }
 
