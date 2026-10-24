@@ -223,6 +223,8 @@ pub struct WorldScene {
     rules: session_rules::SessionRules,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// The roads the Custom map draws, built from the traffic's road network when the world opened (`hud/map_roads`).
+    map_roads: Option<crate::hud::MapRoadsHandle>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,

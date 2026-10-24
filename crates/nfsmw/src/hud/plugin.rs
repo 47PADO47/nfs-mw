@@ -245,6 +245,8 @@ fn sync(
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }
+    // The Custom map follows the car whatever the minimap setting says, so it keeps the place before the setting hides it.
+    state.map_car = state.minimap;
     let orientation = settings.minimap.orientation();
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
 }

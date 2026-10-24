@@ -141,6 +141,14 @@ impl WorldScene {
                     world.set_heli_sheet(sheet);
                 }
             }
+            // The Custom map's roads: simplified once per network, then shared with the HUD every frame.
+            let map_roads = traffic.as_ref().map(|world| {
+                let roads = crate::hud::MapRoads::build(world.road_graph().0, |p| {
+                    let at = space::to_render(p.to_array());
+                    [at.x, at.y]
+                });
+                crate::hud::MapRoadsHandle::new(roads)
+            });
             let start = options.at.unwrap_or_else(|| index.centre());
             let camera = FlyCamera {
                 position: Vec3::new(start[0], start[1], options.height),
@@ -219,6 +227,7 @@ impl WorldScene {
                 car_keys: Default::default(),
                 rules: Default::default(),
                 traffic,
+                map_roads,
                 map_blips,
                 race_starts,
                 gameplay,
