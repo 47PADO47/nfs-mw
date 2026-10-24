@@ -63,6 +63,9 @@ pub(super) fn restore(settings: &mut Settings, text: &str) -> Result<()> {
     if let Some(value) = table.get("traffic_tuning") {
         ensure!(crate::settings::TrafficPolicy::read(value, "F8 profile").is_some(), "Invalid traffic tuning");
     }
+    if let Some(value) = table.get("pursuit_options") {
+        ensure!(crate::settings::PursuitOptions::read(value, "F8 profile").is_some(), "Invalid pursuit options");
+    }
     if let Some(value) = table.get("detail") {
         ensure!(crate::settings::DetailSettings::read(value, "graphics profile").is_some(), "Invalid detail settings");
     }

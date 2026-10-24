@@ -291,6 +291,7 @@ impl Settings {
             hd_content: self.hd_content.into(),
             custom_fonts: self.custom_fonts.into(),
             traffic_policy: Some(self.traffic_policy),
+            pursuit_options: Some(self.pursuit_options),
             traffic: Some(self.traffic),
             cop_share: Some(self.cop_share),
             traffic_lights: Some(self.traffic_lights),

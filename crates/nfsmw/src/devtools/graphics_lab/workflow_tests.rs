@@ -218,3 +218,17 @@ fn bevy_retains_shared_detail_and_traffic_tabs_and_resets() {
     super::tests::click(&ctx, &mut lab, &mut settings, "Reset section");
     assert_eq!(settings.detail, profiles::defaults(&settings).detail);
 }
+
+#[test]
+fn police_limit_controls_are_explicitly_enabled_and_traffic_reset_restores_reference() {
+    let ctx = egui::Context::default();
+    let mut settings = Settings::from(Partial::default());
+    let mut lab = GraphicsLab { open: true, ..Default::default() };
+    super::tests::click(&ctx, &mut lab, &mut settings, "Traffic");
+    assert!(!settings.pursuit_options.enhanced);
+    super::tests::click(&ctx, &mut lab, &mut settings, "Police limits (enhancement)");
+    super::tests::click(&ctx, &mut lab, &mut settings, "Enhanced police limits");
+    assert!(settings.pursuit_options.enhanced);
+    super::tests::click(&ctx, &mut lab, &mut settings, "Reset section");
+    assert_eq!(settings.pursuit_options, Default::default());
+}

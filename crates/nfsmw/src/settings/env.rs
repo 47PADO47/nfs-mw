@@ -98,6 +98,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
     Partial {
         ui_theme: None,
         traffic_policy: None,
+        pursuit_options: None,
         detail: None,
         appearance: None,
         always_rain: None,

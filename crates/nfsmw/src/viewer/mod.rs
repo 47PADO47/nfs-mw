@@ -276,6 +276,8 @@ pub trait Scene {
     }
     /// The speech made the 911 call: the player's 911 timer runs `secs` seconds and the cops are let in.
     fn start_911_call(&mut self, _secs: f32) {}
+    /// The speech controller's actual phase, or unavailable/muted speech.
+    fn note_police_speech(&mut self, _phase: Option<blackbox_pursuit::siren::Phase>) {}
     /// How the last chase ended, while none runs: the speech says the suspect's escape once per end. `None` before any.
     fn pursuit_ended(&self) -> blackbox_pursuit::EndReason {
         blackbox_pursuit::EndReason::None

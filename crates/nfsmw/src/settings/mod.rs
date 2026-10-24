@@ -57,6 +57,8 @@ pub mod motion_blur;
 mod motion_blur_tests;
 pub mod net;
 mod partial;
+pub mod pursuit_options;
+pub use pursuit_options::PursuitOptions;
 mod post;
 #[cfg(test)]
 mod post_tests;
@@ -176,6 +178,7 @@ pub const DEFAULT_SHOW_HUD_ON_LOOK_BACK: bool = false;
 #[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy, PartialEq)]
 pub struct Settings {
     pub traffic_policy: TrafficPolicy,
+    pub pursuit_options: PursuitOptions,
     pub detail: DetailSettings,
     pub appearance: Appearance,
     pub controls: Controls,
@@ -334,6 +337,7 @@ impl From<Partial> for Settings {
         let p = p.or(requested.layer());
         let mut settings = Self {
             traffic_policy: p.traffic_policy.unwrap_or_default().sanitized(),
+            pursuit_options: p.pursuit_options.unwrap_or_default().sanitized(),
             detail: p.detail.unwrap_or_default(),
             appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,
