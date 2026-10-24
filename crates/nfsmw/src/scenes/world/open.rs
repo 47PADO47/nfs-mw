@@ -207,6 +207,7 @@ impl WorldScene {
                 sun: sun::Sun::new(),
                 day: super::day::DayClock::new(nfsmw_data::day_night::DayNightConfig::default()),
                 physics_aspect: 16.0 / 9.0,
+                drawn_aspect: 16.0 / 9.0,
                 physics_clock: drive::FixedClock::default(),
                 speedbreaker_clock: drive::SpeedbreakerClock::default(),
                 view: if pending_car.is_some() { View::Chase } else { View::Fly },

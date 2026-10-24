@@ -202,6 +202,8 @@ pub struct WorldScene {
     day: day::DayClock,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
+    /// The aspect ratio of the last frame drawn (`frame.rs`), for the HUD's camera (`camera_choice.rs`).
+    drawn_aspect: f32,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
     speedbreaker_clock: drive::SpeedbreakerClock,

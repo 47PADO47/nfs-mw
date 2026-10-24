@@ -74,6 +74,8 @@ impl WorldScene {
             }
             self.career.hud.apply(state);
             state.race = self.race_hud();
+            state.race_info = self.race_info();
+            state.camera = self.hud_camera();
             state.leaders = self.race_leaders();
             state.message = self.race_message().or_else(|| self.lead_catch_up_line());
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
