@@ -140,3 +140,36 @@ fn installed_far_camera_skips_inactive_barriers_on_height_changing_roads() {
     eprintln!("{slopes} installed road slope samples, {witnesses} inactive camera-barrier hits");
     assert!(slopes > 100 && witnesses > 0, "must exercise actual sloping roads and inactive barriers");
 }
+
+#[test]
+fn a_clearance_answers_only_the_inputs_it_was_computed_from() {
+    use super::ClearanceMemo;
+    use crate::scenes::world::scenery_groups::SceneryGroups;
+    use crate::viewer::camera::{Lens, original::Avoidable};
+
+    let lens = Lens::look_at(Vec3::new(0.0, -5.0, 2.0), Vec3::ZERO, 60.0, 0.1, 16.0 / 9.0);
+    let body = Avoidable { transform: glam::Mat4::IDENTITY, half_extents: Vec3::ONE, velocity: Vec3::ZERO };
+    let memo = ClearanceMemo {
+        lens,
+        car: Vec3::ZERO,
+        aspect: (16.0_f32 / 9.0).to_bits(),
+        revision: 3,
+        groups: SceneryGroups::default(),
+        bodies: vec![body],
+        out: lens,
+    };
+    let groups = SceneryGroups::default();
+    let aspect = 16.0 / 9.0;
+    assert!(memo.answers(&lens, Vec3::ZERO, aspect, 3, &groups, &[body]));
+    assert!(!memo.answers(&lens, Vec3::X, aspect, 3, &groups, &[body]), "the car moved");
+    assert!(!memo.answers(&lens, Vec3::ZERO, 1.0, 3, &groups, &[body]), "another aspect");
+    assert!(!memo.answers(&lens, Vec3::ZERO, aspect, 4, &groups, &[body]), "the scenery changed");
+    assert!(!memo.answers(&lens, Vec3::ZERO, aspect, 3, &groups, &[]), "a body left");
+    let moved = Avoidable { velocity: Vec3::Y, ..body };
+    assert!(!memo.answers(&lens, Vec3::ZERO, aspect, 3, &groups, &[moved]), "a body moved");
+    let mut other = groups.clone();
+    other.set(7, true);
+    assert!(!memo.answers(&lens, Vec3::ZERO, aspect, 3, &other, &[body]), "a group switched on");
+    let turned = Lens::look_at(Vec3::new(1.0, -5.0, 2.0), Vec3::ZERO, 60.0, 0.1, aspect);
+    assert!(!memo.answers(&turned, Vec3::ZERO, aspect, 3, &groups, &[body]), "another lens");
+}
