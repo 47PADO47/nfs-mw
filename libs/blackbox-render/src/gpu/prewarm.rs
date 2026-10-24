@@ -173,7 +173,8 @@ impl Renderer {
                 }),
                 Some(&mut encoder),
             );
-            self.queue.submit([encoder.finish()]);
+            // The faces recorded on worker threads wait as queued captures and go first.
+            self.submit_after_captures(encoder.finish());
             // The capture is kept, so the first real one reuses it, but it is empty: glossy surfaces keep the
             // static environment until a real capture replaces it.
             if let Some(glossy) = self.glossy.as_mut() {

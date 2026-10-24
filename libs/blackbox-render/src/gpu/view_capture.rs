@@ -200,7 +200,8 @@ impl Renderer {
                 Ok(())
             }
         };
-        self.queue.submit([encoder.finish()]);
+        // Reflection faces recorded on worker threads wait as queued captures and go first.
+        self.submit_after_captures(encoder.finish());
         self.end_temporal();
         self.output = output;
         self.post.set_display(&self.device, mapping);

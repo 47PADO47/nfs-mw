@@ -17,7 +17,7 @@ use super::{
     draw_list::DrawList,
     instances::InstanceBuffer,
     resources::Globals,
-    scene_pass::PreparedView,
+    scene_pass::{PreparedView, SceneDraw},
     targets::{FrameTargets, SceneTargets},
 };
 
@@ -228,8 +228,12 @@ impl Renderer {
         self.reflections = Some(capture);
     }
 
-    /// Records `faces` of the cube into `encoder`. Once every face has been drawn since the last time, the diffuse
-    /// and specular light are marked to be projected from the cube again, instead of once per capture.
+    /// Records `faces` of the cube after the commands `encoder` holds.
+    ///
+    /// The faces are prepared here in face order, then recorded at the same time, each into a command buffer of its
+    /// own, when there are several. Those go out ahead of what `encoder` records next, in the same submission, as
+    /// queued captures do (see `queued.rs`): the commands recorded before the faces with the first face, then every
+    /// other face in order, so the GPU runs everything in the order a face-by-face recording gave.
     fn draw_cube_faces(
         &mut self,
         capture: &mut ReflectionCapture,
@@ -240,12 +244,26 @@ impl Renderer {
         let _trace = blackbox_trace::scope("Renderer CPU: reflection faces");
         capture.store.configure(&self.queue, scene.fade_distance, scene.frame.clear_color);
         let prepared = self.prepare_cube_faces(capture, scene, faces, encoder);
+        self.cover_faces(capture, faces);
         let draw = self.scene_draw();
-        for (face, view) in &prepared {
-            let _trace = blackbox_trace::scope("Renderer CPU: record reflection face");
-            draw.record(encoder, view, &capture.lists[*face]);
-            capture.store.draw(encoder, &capture.faces[*face], *face);
+        let outputs = (&capture.store, &capture.faces, &capture.lists);
+        if prepared.len() < PARALLEL_FACES {
+            for job in &prepared {
+                record_face(draw, outputs, encoder, job);
+            }
+            return;
         }
+        let after = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        let before = std::mem::replace(encoder, after);
+        let recorded = record_in_parallel(draw, &self.device, outputs, &prepared, before);
+        for commands in recorded {
+            self.queue_capture(commands);
+        }
+    }
+
+    /// Count `faces` as drawn. Once every face has been drawn since the last time, the diffuse and specular light are
+    /// marked to be projected from the cube again, instead of once per capture.
+    fn cover_faces(&mut self, capture: &mut ReflectionCapture, faces: u8) {
         capture.covered |= faces;
         if capture.covered != ALL_FACES {
             return;
@@ -294,4 +312,57 @@ impl Renderer {
         }
         prepared
     }
+}
+
+/// Fewer faces than this are recorded on the frame thread, into the frame's encoder: a worker is only worth starting
+/// beside another face.
+const PARALLEL_FACES: usize = 2;
+
+/// What recording a face writes besides its colour pass: the cube store, the cube's faces and the faces' draw lists.
+type FaceOutputs<'a> = (&'a super::reflection_store::Store, &'a [wgpu::TextureView; 6], &'a [DrawList; 6]);
+
+/// Record one prepared face into `encoder`: its colour pass, then the store into its face of the cube.
+fn record_face(
+    draw: SceneDraw<'_>,
+    (store, faces, lists): FaceOutputs<'_>,
+    encoder: &mut wgpu::CommandEncoder,
+    (face, view): &(usize, PreparedView),
+) {
+    let _trace = blackbox_trace::scope("Renderer CPU: record reflection face");
+    draw.record(encoder, view, &lists[*face]);
+    store.draw(encoder, &faces[*face], *face);
+}
+
+/// Record the prepared faces `jobs` at the same time: the first on this thread after the commands `first` holds,
+/// every other into an encoder of its own on a scoped worker thread. Recording only reads the renderer's state, and
+/// wgpu's device, encoders and resources may be used from any thread. Returns the command buffers in the jobs' order,
+/// `first`'s at the start.
+fn record_in_parallel(
+    draw: SceneDraw<'_>,
+    device: &wgpu::Device,
+    outputs: FaceOutputs<'_>,
+    jobs: &[(usize, PreparedView)],
+    mut first: wgpu::CommandEncoder,
+) -> Vec<wgpu::CommandBuffer> {
+    let Some((head, rest)) = jobs.split_first() else { return vec![first.finish()] };
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = rest
+            .iter()
+            .map(|job| {
+                scope.spawn(move || {
+                    let label = Some("reflection face");
+                    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label });
+                    record_face(draw, outputs, &mut encoder, job);
+                    encoder.finish()
+                })
+            })
+            .collect();
+        record_face(draw, outputs, &mut first, head);
+        let mut commands = Vec::with_capacity(jobs.len());
+        commands.push(first.finish());
+        for worker in workers {
+            commands.push(worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)));
+        }
+        commands
+    })
 }

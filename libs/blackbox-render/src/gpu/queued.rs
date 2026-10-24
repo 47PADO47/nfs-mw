@@ -12,6 +12,12 @@
 //!
 //! The planar capture reads the sun shadow data and the normal-scenery lighting, which every frame rewrites, and the
 //! rear-view mirror writes the shared globals and post uniforms, so both keep a submission of their own.
+//!
+//! The reflection cube's faces, when several are recorded at once on worker threads, wait here too: the commands
+//! their encoder held before them, then one command buffer per face (see `reflections.rs`). They are queued in the
+//! middle of recording that encoder, which goes out right after them in the same submission, so they see the writes
+//! they saw when they were recorded into it. Whoever submits that encoder does so with
+//! [`Renderer::submit_after_captures`].
 
 use wgpu::util::DeviceExt;
 
