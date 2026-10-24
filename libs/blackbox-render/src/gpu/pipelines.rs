@@ -3,6 +3,9 @@
 
 use std::collections::HashMap;
 
+/// Pipeline tables are looked up per draw bucket: a fast hash, as the keys are small and not attacker-chosen.
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 use super::cull::{FACES, Face};
 use super::draw_list::{instance_store, instance_view};
 use super::glossy::Layouts;
@@ -37,7 +40,10 @@ pub(super) struct Pipelines {
     /// format gets its pipelines the first time a scene is drawn into it, a glossy pipeline only once glossy shading
     /// is in use, and the culling variants only once a single-sided draw exists. The depth-prepared set holds only
     /// the draws [`equal_depth`] allows; the rest use the plain set.
-    sets: HashMap<(wgpu::TextureFormat, bool), Vec<Option<wgpu::RenderPipeline>>>,
+    sets: FastMap<(wgpu::TextureFormat, bool), Vec<Option<wgpu::RenderPipeline>>>,
+    /// The `(format, glossy, culled)` requests of [`Self::use_format`] that left nothing missing, so a repeated
+    /// request (every view of a frame makes one) returns without walking the sets.
+    complete: Vec<(wgpu::TextureFormat, bool, bool)>,
     /// A mesh with a single-sided draw was created: the culling variants are built from then on.
     culled: bool,
     format: wgpu::TextureFormat,
@@ -122,7 +128,8 @@ impl Pipelines {
             glossy_layouts: shared.glossy.clone(),
             globals_layout: shared.bindings.globals_layout.clone(),
             texture_layout: shared.bindings.texture_layout.clone(),
-            sets: HashMap::new(),
+            sets: FastMap::default(),
+            complete: Vec::new(),
             culled: false,
             format,
             cache: cache.cloned(),
@@ -137,6 +144,10 @@ impl Pipelines {
     /// Everything built stays for later switches.
     pub(super) fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat, glossy: bool) {
         self.format = format;
+        let request = (format, glossy, self.culled);
+        if self.complete.contains(&request) {
+            return;
+        }
         if glossy && self.glossy.is_none() {
             self.glossy = Some(self.glossy_module(device));
         }
@@ -170,6 +181,7 @@ impl Pipelines {
             let Some(set) = self.sets.get_mut(&(format, prepared)) else { continue };
             set[index(blend, shading, face)] = Some(pipeline);
         }
+        self.complete.push(request);
     }
 
     /// Build the culling variants from the next [`Self::use_format`] on: a single-sided draw exists.
