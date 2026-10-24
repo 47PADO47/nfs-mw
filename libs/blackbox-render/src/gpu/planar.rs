@@ -1,6 +1,7 @@
 //! Diffuse receivers keep their normal draw bucket and authored alpha/order.
 use super::Renderer;
 use crate::TextureHandle;
+use blackbox_gpu_passes::BindCache;
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
@@ -8,6 +9,14 @@ pub(super) struct Bindings {
     fallback: wgpu::TextureView,
     sampler: wgpu::Sampler,
     disabled: wgpu::Buffer,
+    /// The projection every receiver of the current planar capture samples with. Rewritten, never recreated.
+    projection: wgpu::Buffer,
+    /// Receiver groups with the planar image off, keyed by the receiver's own view.
+    defaults: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// Receiver groups sampling a planar image, keyed by the receiver's view and that image.
+    enabled: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// The surface sampler the cached groups were built with.
+    built_with: Option<wgpu::Sampler>,
 }
 
 pub(super) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -62,73 +71,157 @@ impl Bindings {
             contents: &[0; 80],
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        Self { fallback, sampler, disabled }
+        let projection = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("planar receiver projection"),
+            size: 80,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        Self {
+            fallback,
+            sampler,
+            disabled,
+            projection,
+            defaults: BindCache::default(),
+            enabled: BindCache::default(),
+            built_with: None,
+        }
+    }
+
+    pub(super) fn write_projection(&self, queue: &wgpu::Queue, matrix: Mat4) {
+        queue.write_buffer(&self.projection, 0, bytemuck::cast_slice(&projection_words(matrix)));
+    }
+
+    /// Forget the cached groups when the surface sampler they were built with has been replaced.
+    fn use_sampler(&mut self, sampler: &wgpu::Sampler) {
+        if self.built_with.as_ref() == Some(sampler) {
+            return;
+        }
+        self.defaults = BindCache::default();
+        self.enabled = BindCache::default();
+        self.built_with = Some(sampler.clone());
+    }
+
+    /// The group of the receiver `diffuse`: sampling `image` with the current projection, or with the planar
+    /// image off. Made once per input pair, then reused every frame.
+    fn receiver_group(
+        &mut self,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        sampler: &wgpu::Sampler,
+        diffuse: &wgpu::TextureView,
+        image: Option<&wgpu::TextureView>,
+    ) -> wgpu::BindGroup {
+        let Some(image) = image else {
+            let make = || build_group(device, layout, sampler, &self.sampler, diffuse, &self.fallback, &self.disabled);
+            return self.defaults.get_or_insert_with(diffuse, &self.fallback, make).clone();
+        };
+        let make = || build_group(device, layout, sampler, &self.sampler, diffuse, image, &self.projection);
+        self.enabled.get_or_insert_with(diffuse, image, make).clone()
     }
 }
 
+/// The uniform of a receiver: the projection, then the enabled flag.
+fn projection_words(matrix: Mat4) -> [f32; 20] {
+    let mut words = [0.0; 20];
+    words[..16].copy_from_slice(&matrix.to_cols_array());
+    words[16] = 1.0;
+    words
+}
+
+fn build_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+    planar_sampler: &wgpu::Sampler,
+    diffuse: &wgpu::TextureView,
+    image: &wgpu::TextureView,
+    params: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("diffuse and planar receiver"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(diffuse) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(image) },
+            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(planar_sampler) },
+            wgpu::BindGroupEntry { binding: 4, resource: params.as_entire_binding() },
+        ],
+    })
+}
+
 impl Renderer {
+    /// An uncached group, for a texture that was just made or whose sampler just changed.
     pub(super) fn diffuse_group(
         &self,
         diffuse: &wgpu::TextureView,
         projected: Option<(&wgpu::TextureView, Mat4)>,
     ) -> wgpu::BindGroup {
-        let (image, matrix, enabled) = match projected {
-            Some((image, matrix)) => (image, matrix, 1.0),
-            None => (&self.shared.planar.fallback, Mat4::ZERO, 0.0),
+        let planar = &self.shared.planar;
+        let (image, params) = match projected {
+            Some((image, matrix)) => {
+                planar.write_projection(&self.queue, matrix);
+                (image, &planar.projection)
+            }
+            None => (&planar.fallback, &planar.disabled),
         };
-        let params = projected.map(|_| {
-            let mut words = matrix.to_cols_array().to_vec();
-            words.extend([enabled, 0.0, 0.0, 0.0]);
-            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("planar receiver projection"),
-                contents: bytemuck::cast_slice(&words),
-                usage: wgpu::BufferUsages::UNIFORM,
-            })
-        });
-        let params = params.as_ref().unwrap_or(&self.shared.planar.disabled);
-        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("diffuse and planar receiver"),
-            layout: &self.shared.bindings.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(diffuse) },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.shared.bindings.sampler),
-                },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(image) },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Sampler(&self.shared.planar.sampler),
-                },
-                wgpu::BindGroupEntry { binding: 4, resource: params.as_entire_binding() },
-            ],
-        })
+        let bindings = &self.shared.bindings;
+        build_group(&self.device, &bindings.texture_layout, &bindings.sampler, &planar.sampler, diffuse, image, params)
     }
 
     pub(super) fn clear_planar_receivers(&mut self) {
+        if self.planar_receivers.is_empty() {
+            return;
+        }
+        self.shared.planar.use_sampler(&self.shared.bindings.sampler);
         for handle in std::mem::take(&mut self.planar_receivers) {
             let Some(view) = self.texture_views.get(&handle) else { continue };
-            let group = self.diffuse_group(view, None);
+            let bindings = &self.shared.bindings;
+            let layout = &bindings.texture_layout;
+            let group = self.shared.planar.receiver_group(&self.device, layout, &bindings.sampler, view, None);
             if let Some(slot) = self.textures.get_mut(handle) {
                 *slot = group;
             }
         }
     }
 
+    /// Point `receivers` at `image`. The previous receivers were already cleared by the capture.
     pub(super) fn bind_planar_receivers(
         &mut self,
         receivers: &[TextureHandle],
         matrix: Mat4,
         image: &wgpu::TextureView,
     ) {
-        self.clear_planar_receivers();
+        self.shared.planar.write_projection(&self.queue, matrix);
+        self.shared.planar.use_sampler(&self.shared.bindings.sampler);
         for handle in receivers {
             let Some(view) = self.texture_views.get(&handle.raw()) else { continue };
-            let group = self.diffuse_group(view, Some((image, matrix)));
+            let bindings = &self.shared.bindings;
+            let group = self.shared.planar.receiver_group(
+                &self.device,
+                &bindings.texture_layout,
+                &bindings.sampler,
+                view,
+                Some(image),
+            );
             if let Some(slot) = self.textures.get_mut(handle.raw()) {
                 *slot = group;
             }
             self.planar_receivers.push(handle.raw());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_uniform_is_the_matrix_then_the_enabled_flag() {
+        let matrix = Mat4::from_translation(glam::Vec3::new(1.0, 2.0, 3.0));
+        let words = projection_words(matrix);
+        assert_eq!(words[..16], matrix.to_cols_array());
+        assert_eq!(words[16..], [1.0, 0.0, 0.0, 0.0]);
     }
 }
