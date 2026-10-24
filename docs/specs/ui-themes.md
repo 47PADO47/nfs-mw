@@ -143,22 +143,8 @@ The catalogue below is final for this milestone (T6). Each slot's number is expl
 of the mod ABI: never reused, never renumbered. "Original source" was confirmed in the code in T6; the `?` entries of
 the T1 draft are resolved here.
 
-**HUD (state-fed):**
-
-| Slot (id) | Original source (confirmed in code) |
-|---|---|
-| `Tachometer` (1) | Group guid `0x5164D4EA` (`TACHOMETER`, `hud/elements.rs`) in `HUD_SingleRace.fng`. Needle `3rdPersonNeedle`, face `TAC_Lines_7500`, redline `RPM_REDLINE`, shift light `Shift_light`, fill guid `0x456E`. Bound by `HudBinding::tachometer` (`hud/bind.rs`) |
-| `Speedometer` (2) | Group guid `0x941FFF09` (`SPEEDOMETER`). Digits `SPEED_DIGIT_1..3`, units `3rdPersonSpeedUnits`. Bound by `HudBinding::speedometer` |
-| `GearIndicator` (3) | Object `3rdPersonGear`, inside the tachometer group. Text and shift-time alpha set in `HudBinding::tachometer`. **Confirmed** (was `?`) |
-| `Minimap` (4) | `hud/minimap.rs` (`GROUP`, `BACKING`, `ARROW`), shown by `hud/elements.rs`, placed by `hud/viewport.rs` ([hud-minimap.md](hud-minimap.md)) |
-| `Blips` (5) | `hud/blips.rs`; styles from `hud/blip_style.rs` and `hud/blip_styles.rs` |
-| `PursuitMeter` (6) | `hud/pursuit_meter.rs` (meter guid `0x7B422BA3`, cool-down guid `0x84A226EC`). The pursuit board (timer and cops count, groups `0xDE89E070` and `0xE0B1430B`) is bound in `HudBinding::pursuit`. **Decided (T7):** the board is part of this slot (section 8, slot map) |
-| `Nitrous` (7) | Group guid `0x87C38E97`, bar guid `0xEDFB6D37` (`nos_bar`), icon guid `0x27DDF583` (`nos_icon`, scripts `SCRIPT_NOS_BURNING` and `SCRIPT_NOS_READY`). Bound by `HudBinding::nitrous`. **Confirmed** (was `?`) |
-| `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
-| `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
-| `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: `ui/theme/custom/radio_card.rs`, fed by `hud/radio.rs` data (built in T9, [ui-themes-custom.md](ui-themes-custom.md)) |
-| `PoliceRadar` (12) | `hud/radar.rs`, `hud/roots.rs::police_radar`: the detector group (laser, arrow, two LED rows) and its backing in either layout. Original: the package's objects. Remastered: a pill with dashes and a dial ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)) |
-| `BustedOverlay` (11) | `hud/busted_overlay.rs`, package `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), loaded by the HUD while `HudState::busted_overlay` is set. **Confirmed** (was `?`) |
+**HUD (state-fed):** slots 1 to 12, and the Custom HUD's slots 13 to 19 (ADR 0013), with the Original source of each,
+are in [ui-themes-slots.md](ui-themes-slots.md).
 
 **Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
 
@@ -341,13 +327,15 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
   excludes them, and the blips slot emits them. The exclusion holds wherever they sit under those roots.
 - **Pursuit board in `PursuitMeter`.** The board (`PURSUIT_BOARD`, timer and cops count) and the meter and cool-down
   bar are one slot. They are bound together, and show only during a chase. A split would add a slot with no consumer.
-  The bounty row is in neither the catalogue nor this slot, unless it sits under the board group. Not checked.
+  The bounty row sits under the board group **[verified]**; it is its own slot, `BountyRow` (15), and the board excludes
+  it ([ui-themes-slots.md](ui-themes-slots.md)).
 - **Radar cool-down.** The cool-down bar (`0x84A226EC`) is a root of `PursuitMeter`, so its membership is its own.
-- **Not in any slot.** The rear-view mirror's bezel (`0x7FAC287B`) and the bounty row; the composer appends every node no slot
-  claims (`hud_slots::emit_unclaimed`). The police radar and its laser (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`, with the mirror
+- **Not in any slot.** The rear-view mirror's bezel (`0x7FAC287B`); the composer appends every node no slot
+  claims (`hud_slots::emit_unclaimed`). The race readout, the leaderboard and the banner groups were here too until the
+  Custom HUD gave them slots 13, 14 and 16. The police radar and its laser (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`, with the mirror
   backing `0x9EE06631`) are the `PoliceRadar` slot (12), and the heat group and arcs (`0xC46A80A9`, `0xB0F63386`) the `Minimap` slot's.
-- **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer), and the blip icons
-  sit under the minimap. The synthetic tests check that no node is claimed twice. The real-package check is owed
+- **Unchecked assumption.** The gear sits inside another slot's root (the tachometer), the blip icons under the minimap,
+  and the bounty row under the pursuit board (read from the package). The synthetic tests check that no node is claimed twice. The real-package check is owed
   ([ui-themes-compose.md](ui-themes-compose.md) section 7).
 
 **Ghidra was not used.** Every identity above was already pinned by the Rust code (`elements.rs`, `bind.rs`,
