@@ -219,7 +219,7 @@ simulation), and an awake-prop list needs hooks inside the vehicle library.
 | The road reflection march ran on pixels the mask leaves unreflective, and the capture taps ran even where the environment path replaced them. | The march runs only where the reflectance is above zero, and the taps only on the paths that use them. |
 | The planar clip-plane `discard` was compiled into every opaque shader, which turns off early depth for the main view. | A pipeline-overridable constant: only planar-capture pipelines carry it. |
 | Menus and the pause screen drew the full scene, the planar floor capture and the shadow list every frame while nothing moved, and ran unbounded without vsync. | Still frames reuse the kept scene image and draw only the UI (not under temporal AA or upscalers); the floor capture and shadows are skipped while their inputs hold; menus are capped to the display's refresh rate. |
-| The swapchain queue depth was fixed at 2 and the present mode was FIFO-or-immediate. | A `frame_latency` setting (1 or 2, default 2) and Mailbox when vsync is off and the surface offers it. |
+| The swapchain queue depth was fixed at 2. | A `frame_latency` setting (1 or 2, default 2). With vsync off, the native renderer keeps the platform's own mode (Immediate where offered, which can tear); `present_mode = "mailbox"` (env `NFSMW_PRESENT_MODE`) opts into Mailbox, which never tears and shows the newest frame at each refresh. |
 
 ## How to measure
 

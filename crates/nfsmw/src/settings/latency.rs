@@ -17,6 +17,53 @@ pub fn parse_frame_latency(text: &str) -> Result<u32, String> {
         .ok_or_else(|| format!("expected 1 or 2, got {text:?}"))
 }
 
+/// How frames reach the display with vsync off (`present_mode`). `Immediate` shows each frame as soon as it is done and
+/// can tear; `Mailbox` shows the newest finished frame at each refresh, never tears, and drops the frames in between.
+/// The native renderer takes it at start; the Bevy backend always uses Mailbox without vsync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PresentMode {
+    #[default]
+    Immediate,
+    Mailbox,
+}
+
+impl std::fmt::Display for PresentMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Immediate => "immediate",
+            Self::Mailbox => "mailbox",
+        })
+    }
+}
+
+impl std::str::FromStr for PresentMode {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "immediate" => Ok(Self::Immediate),
+            "mailbox" => Ok(Self::Mailbox),
+            _ => Err(format!("expected immediate or mailbox, got {value:?}")),
+        }
+    }
+}
+
+/// The swapchain options, read when the renderer starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Swapchain {
+    /// Frames the swapchain may queue ahead, 1 or 2 (`frame_latency`).
+    pub frame_latency: u32,
+    pub present_mode: PresentMode,
+}
+
+impl Swapchain {
+    pub fn from_partial(p: &super::Partial) -> Self {
+        Self {
+            frame_latency: p.frame_latency.unwrap_or(DEFAULT_FRAME_LATENCY),
+            present_mode: p.present_mode.unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct FrameGeneration(pub u32);
 

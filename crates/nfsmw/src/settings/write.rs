@@ -82,6 +82,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.frame_latency {
         put("frame_latency", Value::Integer(i64::from(v)));
     }
+    if let Some(v) = changes.present_mode {
+        put("present_mode", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.show_metrics {
         put("show_metrics", Value::String(v.to_string()));
     }
@@ -405,6 +408,7 @@ mod tests {
             vsync: Some(false),
             max_fps: Some(MaxFps::from_str("120").unwrap()),
             frame_latency: Some(1),
+            present_mode: Some(super::super::PresentMode::Mailbox),
             show_metrics: Some(ShowMetrics::Advanced),
             show_readout: Some(ShowReadout::Full),
             master_volume: Some(Percent(10)),
