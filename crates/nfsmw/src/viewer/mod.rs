@@ -3,10 +3,12 @@
 
 pub mod camera;
 mod race_report;
+mod static_hash;
 pub use race_report::{
     PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
     photo_picture,
 };
+pub use static_hash::StaticHash;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
