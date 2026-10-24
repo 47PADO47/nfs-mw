@@ -143,6 +143,7 @@ fn update(
     }
     let (fe, host) = (&mut *fe, &mut *host);
     fe.screens.set_aspect(window.width() / window.height());
+    fe.screens.set_list_geometry(super::screens::ListGeometry::of(&settings));
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
