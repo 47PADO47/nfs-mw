@@ -48,7 +48,7 @@ chip when there is something to say (section 4), notifications ([notifications.m
   when the car moves away or the place is entered. A discovered place is never announced again.
 - **Feedback lane** above the cluster: near misses, bounty deltas ([feedback.md](feedback.md)).
 
-**Optional** (`[hud] free_roam_extras`, on in the Advanced preset): cash (career), bounty (`HudState::career_bounty`)
+**Optional** (`[custom_hud] free_roam_extras`, on in the Advanced preset): cash (career), bounty (`HudState::career_bounty`)
 and the distance to the GPS target, as a single line under the radio card zone. Each value shows only when the game
 has it; outside a career the cash and bounty are absent.
 
@@ -68,7 +68,7 @@ Remastered keep the egui cards.
 | race strip | position and lap or checkpoint | + progress bar and distance | + rival gap source checkpoint |
 | leaderboard | hidden | three rows (ahead, you, behind) | up to eight rows |
 | pursuit panel | heat and status | + duration and bounty | + cost to state, units involved |
-| world markers | off | on | on |
+| world markers | as set (default on) | as set (default on) | as set (default on) |
 | free-roam extras | off | off | on |
 | notifications | important | all | all |
 

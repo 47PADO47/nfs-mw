@@ -25,8 +25,8 @@ Remastered; only the drawing changes. The rename keeps one predicate, not two co
   a slider is a 10-segment bar like the HUD's.
 - **Motion:** the selection moves with a 150 ms ease; screens crossfade over `mode_change`. Motion reduction: no
   movement, instant selection, 150 ms crossfades.
-- **Scale:** menus have their own scale (1.0) and take `[hud] text_size`, `high_contrast` and `palette`, not
-  `[hud] scale` ([visual-identity.md](visual-identity.md) section 6).
+- **Scale:** menus have their own scale (1.0) and take `[custom_hud] text_size`, `high_contrast` and `palette`, not
+  `[custom_hud] scale` ([visual-identity.md](visual-identity.md) section 6).
 - **Backdrop:** the existing menu backdrop ([menu-backdrop.md](../menu-backdrop.md)) with a `surface` scrim behind the
   list for contrast.
 
@@ -54,12 +54,12 @@ retired.
 
 ## 4. The HUD options page
 
-A new **HUD** category in the options (PR 11a), with one row per `[hud]` key ([settings.md](settings.md)) and the reused
+A new **HUD** category in the options (PR 11a), with one row per `[custom_hud]` key ([settings.md](settings.md)) and the reused
 settings, in this order:
 
 | Row | Setting |
 |---|---|
-| Preset | `preset`, with "Reset to preset" |
+| Preset | `preset`; picking one applies its six options at once (`HudSettings::apply_preset`) |
 | HUD scale | `scale` |
 | HUD opacity | `opacity` |
 | Text size | `text_size` |

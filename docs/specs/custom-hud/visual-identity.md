@@ -57,7 +57,7 @@ an icon. Pursuit danger is red text and rules on a dark plate. The two never loo
 
 ## 3. High contrast
 
-`[hud] high_contrast = true` replaces the token values after the palette is chosen:
+`[custom_hud] high_contrast = true` replaces the token values after the palette is chosen:
 
 | Token | High contrast |
 |---|---|
@@ -78,7 +78,7 @@ scenery.
 
 ## 4. Colour-vision palettes
 
-`[hud] palette = default | deuteranopia | tritanopia`. A palette replaces only the hues that carry meaning; `text`,
+`[custom_hud] palette = default | deuteranopia | tritanopia`. A palette replaces only the hues that carry meaning; `text`,
 `text_secondary`, `surface`, `surface_raised` and `rule` do not change. The replacements come from the Okabe and Ito
 colour-blind-safe set, lightened where a dark plate needs it.
 
@@ -97,8 +97,8 @@ against confirmation). **[unconfirmed]** until that check.
 
 ## 5. Opacity
 
-- `[hud] opacity` (0.3 to 1.0, default 1.0) multiplies the alpha of every Custom HUD node.
-- The map has its own `[hud] map_opacity` (0.1 to 0.8, default 0.35), applied to the road layer; the map's markers use
+- `[custom_hud] opacity` (0.2 to 1.0, default 0.9) multiplies the alpha of every Custom HUD node.
+- The map has its own `[custom_hud] map_opacity` (0.1 to 0.9, default 0.35), applied to the road layer; the map's markers use
   `opacity` like the rest of the HUD so the player arrow and confirmed cops stay legible.
 - **Floor.** A critical notification and the vehicle-disabled warning never draw below 0.8 alpha, whatever `opacity`
   says: a safety message must stay readable.
@@ -106,9 +106,9 @@ against confirmation). **[unconfirmed]** until that check.
 
 ## 6. Scale
 
-- `[hud] scale` (0.75 to 1.5, default 1.0) scales every Custom HUD element about its anchor. It does not move anchors
+- `[custom_hud] scale` (0.75 to 1.5, default 1.0) scales every Custom HUD element about its anchor. It does not move anchors
   (see [layout.md](layout.md)).
-- `[hud] text_size` (0.8 to 1.5, default 1.0) scales text only, on top of `scale`. A plate grows to fit; a row that
+- `[custom_hud] text_size` (0.8 to 1.5, default 1.0) scales text only, on top of `scale`. A plate grows to fit; a row that
   would overflow its zone wraps or elides with an ellipsis, never overlaps another zone.
 - Menus have their own scale (1.0 for now) and take `text_size` but not `scale`, so the HUD scale is separate from the
   menu scale, as the brief asks.
@@ -132,6 +132,6 @@ clock (`CustomFeedCell`), never on frame counts.
 | `speed_spring` | about 60 ms settle | the speed scale ([telemetry.md](telemetry.md)) |
 | `delta_hold` | 2.0 s | the bounty delta before it fades |
 
-**Motion reduction** (`[hud] motion_reduction = true`): slides become fades in place, pulses become a static highlight
+**Motion reduction** (`[custom_hud] motion_reduction = true`): slides become fades in place, pulses become a static highlight
 held for the pulse's duration, map zoom and mode changes become 150 ms crossfades, and the speed scale keeps its spring
 (it is a reading, not decoration). Nothing is removed: the same information arrives, without movement.

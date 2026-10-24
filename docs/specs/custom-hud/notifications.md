@@ -67,7 +67,7 @@ game. `K` is the dedupe key type.
   condition is cleared (the caller clears the key) and then after a short tail (1 s).
 - **Dismiss.** `dismiss_top()` removes the top-most dismissible visible item. A Critical item is not dismissible while
   its condition holds.
-- **Filter.** The `[hud] notifications` setting filters at push time: `all` passes everything; `important` passes
+- **Filter.** The `[custom_hud] notifications` setting filters at push time: `all` passes everything; `important` passes
   Critical, High and Medium; `off` passes Critical only. A critical warning is never filtered out: it is the safety
   floor.
 

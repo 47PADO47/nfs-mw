@@ -6,7 +6,7 @@ the map and the world. It is not a corner minimap. Built in PR 7a (`libs/blackbo
 
 ## 1. Modes
 
-`[hud] map_mode = off | compact | centered | expanded`, default **`centered`** (the owner's decision,
+`[custom_hud] map_mode = off | compact | centered | expanded`, default **`centered`** (the owner's decision,
 [ADR 0013](../../decisions/0013-custom-hud.md) decision 3). Changes apply on the next frame, with no restart.
 
 | Mode | What is drawn |
@@ -20,8 +20,10 @@ the map and the world. It is not a corner minimap. Built in PR 7a (`libs/blackbo
 U-turn, from `next_turn` (PR 3b: the direction and the distance, derived from the junction angles on the GPS path). The
 distance is rounded to 10 m (metric) or 50 ft below 1000 ft and 0.1 mi above (imperial), following `speed_units`.
 
-**Expanded** is a temporary view. The `MapExpand` action toggles it and returns to the previous mode; `MapMode` from
-Expanded also returns to the previous mode. Its road opacity is `min(map_opacity + 0.25, 0.85)`.
+**Expanded** is the on-demand view. The `MapExpand` action toggles it and returns to the previous mode; `MapMode`
+from Expanded also returns to the previous mode. `expanded` is also a value of `map_mode`, so a config can start with
+it; the way back is then `centered` ([settings.md](settings.md)). Its road opacity is
+`max(map_opacity, min(map_opacity + 0.25, 0.85))`.
 
 ## 2. Geometry and placement
 
@@ -29,7 +31,7 @@ Expanded also returns to the previous mode. Its road opacity is `min(map_opacity
   box height and a vertical radius of 34% (Centered), or 64% and 46% (Expanded). The last 12% of the radius fades the
   roads to zero (soft edge). **[ours]**, tuned on screen in PR 7b.
 - The view radius in the world is `base / map_zoom` with `base` = 300 m (Centered) or 900 m (Expanded).
-  `[hud] map_zoom` is 0.5 to 2.0, default 1.0. **[ours]**
+  `[custom_hud] map_zoom` is 0.5 to 2.0, default 1.0. **[ours]**
 - The player is at the centre. The overlay never captures input and never moves the camera.
 
 ## 3. Orientation
@@ -121,8 +123,8 @@ Rules:
   action collides with a driving action.
 - **Remappable** through `[bindings]` and the controls screen; the controls list shows them, and prompts use the live
   binding (`ui/prompts.rs`).
-- **Persistence.** Zoom and mode changes made with the keys change the live `[hud]` setting and are saved through the
-  same write path as the options page.
+- **Persistence.** Zoom and mode changes made with the keys change the live `Settings.hud_options` for the run, like
+  the console's `set custom_hud.*`. Whether they are also written to the config is decided in PR 7b. **[unconfirmed]**
 - `ToggleHud` is a session toggle, not saved: a HUD hidden by mistake comes back on the next start.
 
 ## 9. Performance

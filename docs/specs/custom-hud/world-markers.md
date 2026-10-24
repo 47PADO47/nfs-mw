@@ -3,7 +3,7 @@
 Markers that belong to a place in the world (checkpoints, event entrances, pursuit breakers, sighted threats) are
 projected through the gameplay camera and drawn in the `WorldMarkers` slot (18), with edge arrows for targets outside
 the view. Screen-space information stays in the HUD zones. Built in PR 9
-(`crates/nfsmw/src/ui/theme/custom/markers/{project,rules,draw}.rs`). Off with `[hud] world_markers = false`.
+(`crates/nfsmw/src/ui/theme/custom/markers/{project,rules,draw}.rs`). Off with `[custom_hud] world_markers = false`.
 Index: [README.md](README.md).
 
 This is a different thing from the ground circles at shops, safe houses and race starts
@@ -49,7 +49,7 @@ Confirmed threats draw solid, last-known ones hollow and fading.
 - **Distance styling:** full alpha within 50 m; labels hidden beyond 300 m; marks fade to 0.35 alpha at their range limit.
 - **Text** positions are snapped to whole pixels and low-pass filtered (one pole, about 50 ms) on screen, so camera
   motion does not make labels shimmer.
-- Marks respect `[hud] opacity` and the palette tokens; high contrast adds the plate outline to labels.
+- Marks respect `[custom_hud] opacity` and the palette tokens; high contrast adds the plate outline to labels.
 
 ## 5. Priority and cap
 

@@ -137,7 +137,7 @@ next to them does not move.
 
 ## 6. Text size and wrapping
 
-`[hud] text_size` scales every glyph size above. Text in a notification wraps at the plate's width (two lines at most,
+`[custom_hud] text_size` scales every glyph size above. Text in a notification wraps at the plate's width (two lines at most,
 then an ellipsis). Numeric fields never wrap; a field too narrow for its value at a large `text_size` drops its unit
 label first, then the field elides. Menus follow the same rule. **[ours]**
 

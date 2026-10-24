@@ -87,7 +87,7 @@ A row of 24 segments under the digits. The lit count is `presented / top × 24`,
 
 ## 8. Advanced row
 
-Shown with the Advanced preset or `[hud] advanced_telemetry = true`. Each field is drawn only when its value exists;
+Shown with the Advanced preset or `[custom_hud] advanced_telemetry = true`. Each field is drawn only when its value exists;
 absent metrics leave no gap and no placeholder.
 
 | Field | Format | Shown when |

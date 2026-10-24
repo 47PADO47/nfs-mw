@@ -42,7 +42,7 @@ nfsmw play --ui-style custom --hud-scenario <name> --screenshot <out> --muted
 ```
 
 - **Resolutions:** 1280×720 (16:9), 2560×1080 (21:9), 5120×1440 (32:9).
-- **Plus** a high-contrast pass (`--exec "set hud.high_contrast on"`) at 1280×720, and one pass per colour-vision
+- **Plus** a high-contrast pass (`--exec "set custom_hud.high_contrast on"`) at 1280×720, and one pass per colour-vision
   palette at 1280×720.
 - Output goes to a temporary folder the script prints; nothing is written into the repository.
 - The scripts **never take focus**: every run is offscreen (`--screenshot`), muted, and waits for the process, not for

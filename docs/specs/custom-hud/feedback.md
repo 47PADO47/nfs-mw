@@ -24,7 +24,8 @@ simulation has neither ([not-shown.md](not-shown.md)).
 ### 2.1 Volume groups
 
 - **HUD effects:** a new `Group::Hud` in `crates/nfsmw/src/audio/volume.rs` (beside `Sfx`, `Music` and `Engine`), with
-  its level from `[hud] hud_volume` (0 to 100, default 80), multiplied by the master volume like the other groups.
+  its level from `[custom_hud] hud_volume` (0 to 1, default 0.8), multiplied by the master volume like the other
+  groups.
 - **Police dispatch:** the existing `speech_volume` setting (the police dispatch's radio lines, default 90). It is not
   duplicated; the options row is relabelled `Police dispatch volume` in the menu (PR 10 / PR 11a). Its key and saved
   value do not change.
@@ -57,7 +58,7 @@ Cues are brief and distinct from the game's own pursuit music and speech, which 
 ## 3. Haptics
 
 - **API:** `GamepadRumbleRequest` from `bevy_gilrs` 0.20 (already a dependency of `crates/nfsmw`).
-- **When:** only with `[hud] haptics = true` (default **false**: the brief asks for rumble only when the player turns it
+- **When:** only with `[custom_hud] haptics = true` (default **false**: the brief asks for rumble only when the player turns it
   on) and only on a pad that reports force-feedback support. A pad without it is skipped silently.
 - **Patterns** (PR 10), weak and strong motor intensities and a duration:
 

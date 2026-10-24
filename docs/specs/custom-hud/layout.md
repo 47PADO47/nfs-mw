@@ -16,9 +16,9 @@ The Custom HUD is laid out in a **content box**, not across the whole window.
 - World markers and their edge arrows are the exception: they use the whole window, because they point at the world
   ([world-markers.md](world-markers.md)).
 - Below 16:9 (4:3, 5:4) the elements keep their anchors and shrink: the effective scale is
-  `scale × clamp(a / (16/9), 0.8, 1.0)`, so a 4:3 window draws at 0.8 of `[hud] scale`.
+  `scale × clamp(a / (16/9), 0.8, 1.0)`, so a 4:3 window draws at 0.8 of `[custom_hud] scale`.
 - The existing `hud_layout` setting (`pc`, `classic`, `xbox360`, [hud-viewport.md](../hud-viewport.md)) places the
-  Original and Remastered HUDs. Custom ignores it: the content box and `[hud] scale` replace it.
+  Original and Remastered HUDs. Custom ignores it: the content box and `[custom_hud] scale` replace it.
 
 Units are the presenter's HUD units: the box is 480 units high, so a 16:9 box is about 853 units wide.
 
@@ -101,7 +101,7 @@ accepted inside the stack, which merges as a whole.
 ## 6. The feed
 
 Custom components read one shared cell, `CustomFeedCell` (PR 5), filled once per frame in `hud/plugin.rs::present`:
-the frame's `HudState` behind an `Arc` (a clone is a reference count), the notification view, the `[hud]` settings,
+the frame's `HudState` behind an `Arc` (a clone is a reference count), the notification view, the `[custom_hud]` settings,
 the elapsed time and the screen. Remastered keeps reading `DriveFeedCell`, which does not change.
 `hud_component()` keeps its signature for mod token themes (`ui/theme/modded`) and returns the new components as they
 land.

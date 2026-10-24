@@ -48,7 +48,7 @@ produce a second transition.
 
 ## 2. The panel
 
-Top-right, compact. It shows only while the phase is not `None` and `[hud] pursuit_info` is on (with it off, only the
+Top-right, compact. It shows only while the phase is not `None` and `[custom_hud] pursuit_info` is on (with it off, only the
 status label and the cooldown bar remain: the minimum needed to play).
 
 ```
