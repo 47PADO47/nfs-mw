@@ -9,6 +9,7 @@ use super::visibility::{self, NOT_A_PROP};
 use blackbox_gfx::{Instance, RenderBackend};
 
 mod cache;
+pub(super) mod cars;
 mod rig;
 mod statics;
 
@@ -20,6 +21,9 @@ pub(super) struct ShadowFeed {
     /// True once the renderer reads `casters` for its sun shadows, so the frame lists need not carry
     /// the off-camera casters.
     pub fed: bool,
+    /// The traffic cars without per-view detail, shared by the shadow casters and the car environment capture of one
+    /// frame (`update.rs` invalidates it once both have run).
+    pub cars: cars::SharedCars,
     /// The static part of `casters`, and what it was built for.
     statics: cache::Cached<statics::Statics>,
     /// The car lighting rig the renderer has.
@@ -91,7 +95,7 @@ impl WorldScene {
         feed.statics.value.push_props(props, &mut feed.casters);
         props.fragment_instances(&mut feed.casters);
         if let Some(traffic) = &self.traffic {
-            traffic.instances(&mut feed.casters);
+            feed.casters.extend_from_slice(feed.cars.get(traffic, cars::User::Shadows));
         }
         if let Some(drive) = self.players.lead() {
             drive.instances(&mut feed.casters);

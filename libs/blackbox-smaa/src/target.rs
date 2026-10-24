@@ -97,4 +97,20 @@ impl SmaaTarget {
     ) -> SmaaFrame<'a> {
         SmaaFrame { target: self, device, queue, output_view, encoded: false }
     }
+
+    /// The view the scene renders into, for a caller that knows the output view only after the scene is recorded
+    /// (a swapchain image acquired late). `None` when the mode is [`SmaaMode::Disabled`]: the scene then renders
+    /// straight into the output view.
+    pub fn input_view(&self) -> Option<&wgpu::TextureView> {
+        self.inner.as_ref().map(|inner| &inner.targets.color)
+    }
+
+    /// Record the three passes from [`Self::input_view`] into `output_view`, like [`SmaaFrame::encode_into`].
+    /// Does nothing when the mode is [`SmaaMode::Disabled`].
+    pub fn encode_to(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+        let Some(inner) = self.inner.as_ref() else {
+            return;
+        };
+        crate::frame::encode_passes(encoder, inner, output_view);
+    }
 }

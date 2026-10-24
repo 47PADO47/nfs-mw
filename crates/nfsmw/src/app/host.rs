@@ -29,6 +29,8 @@ pub struct Host {
     /// The window size the renderer was last resized to.
     pub size: (u32, u32),
     pub limiter: FrameLimiter,
+    /// What the last frames drew, to show a still menu from the renderer's kept scene image (`render/static_frame.rs`).
+    pub static_frames: super::render::StaticFrames,
     pub latency_pacing: bool,
     pub cpu_work_started: Instant,
     pub cpu_update_ms: f32,
@@ -93,7 +95,8 @@ impl Host {
             graphics: Applied::default(),
             pending_capture: None,
             size: (0, 0),
-            limiter: FrameLimiter::new(settings.max_fps),
+            limiter: FrameLimiter::new(),
+            static_frames: Default::default(),
             latency_pacing: false,
             cpu_work_started: Instant::now(),
             cpu_update_ms: 0.0,

@@ -33,10 +33,15 @@ pub(super) struct Normal {
     material_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     lighting: wgpu::Buffer,
+    /// What `lighting` holds as of the last queued write, so views of one frame with the same data write it once.
+    written_lighting: Option<[[f32; 4]; 4]>,
     black_reflection: wgpu::TextureView,
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
-    pipelines: HashMap<wgpu::TextureFormat, pipeline::FaceSets>,
+    /// Per target format and whether the variant discards fragments behind the clip plane (`(format, clip)`).
+    pipelines: HashMap<(wgpu::TextureFormat, bool), pipeline::FaceSets>,
+    /// Pick and build the clip-plane variants (a planar-reflection capture); the main view leaves it off.
+    clip: bool,
     /// Instances are read from the instance store, bound at group 3.
     store: bool,
     water: water::Water,
@@ -95,13 +100,20 @@ impl Normal {
             material_layout,
             sampler,
             lighting,
+            written_lighting: None,
             black_reflection,
             projected: None,
             materials: Slots::new(),
             pipelines: HashMap::new(),
+            clip: false,
             store,
             water: water::Water::new(device),
         }
+    }
+
+    /// Pick (and from the next [`Self::prepare`] on, build) the variants that discard fragments behind the clip plane.
+    pub(super) fn use_clip(&mut self, clip: bool) {
+        self.clip = clip;
     }
 
     pub(super) fn prepare(
@@ -113,38 +125,39 @@ impl Normal {
         cache: Option<&wgpu::PipelineCache>,
         water: (blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments),
     ) {
-        let (store, shader, layout) = (self.store, &self.shader, &self.layout);
-        pipeline::fill_faces(self.pipelines.entry(format).or_default(), culled, |mode, face| {
-            pipeline::create(device, shader, layout, format, (mode, face), true, store, cache)
+        let (store, shader, layout, clip) = (self.store, &self.shader, &self.layout, self.clip);
+        pipeline::fill_faces(self.pipelines.entry((format, clip)).or_default(), culled, |mode, face| {
+            pipeline::create(device, shader, layout, format, (mode, face), true, store, clip, cache)
         });
         let specular = frame
             .surface_light
             .map_or([0.0, 0.0, 0.0, 1.0], |l| [l.specular[0], l.specular[1], l.specular[2], l.specular_power]);
         let reflection = frame.surface_light.map_or(0.0, |l| l.reflection_scale);
         let highlight_scale = frame.surface_light.map_or(1.0, |l| l.reflective_specular_scale);
-        queue.write_buffer(
-            &self.lighting,
-            0,
-            bytemuck::cast_slice(&[
-                specular,
-                [
-                    reflection,
-                    highlight_scale,
-                    u8::from(
-                        water.1.enhanced_wet_surfaces
-                            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
-                    ) as f32,
-                    0.0,
-                ],
-                [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
-                [
-                    u8::from(water.1.enhanced_wet_surfaces) as f32,
-                    water.1.puddle_coverage,
-                    water.1.puddle_scale,
-                    water.1.water_ripples,
-                ],
-            ]),
-        );
+        let lighting = [
+            specular,
+            [
+                reflection,
+                highlight_scale,
+                u8::from(
+                    water.1.enhanced_wet_surfaces
+                        && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
+                ) as f32,
+                0.0,
+            ],
+            [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
+            [
+                u8::from(water.1.enhanced_wet_surfaces) as f32,
+                water.1.puddle_coverage,
+                water.1.puddle_scale,
+                water.1.water_ripples,
+            ],
+        ];
+        if self.written_lighting == Some(lighting) {
+            return;
+        }
+        queue.write_buffer(&self.lighting, 0, bytemuck::cast_slice(&lighting));
+        self.written_lighting = Some(lighting);
     }
 
     /// Draw the normal-map scenery of blend mode `mode`: `list` holds only those draws, in the order they were
@@ -164,7 +177,7 @@ impl Normal {
         if list.is_empty() {
             return;
         }
-        let Some(pipelines) = self.pipelines.get(&format) else { return };
+        let Some(pipelines) = self.pipelines.get(&(format, self.clip)) else { return };
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
         let Some(two_sided) = pipeline::pick(pipelines, index, Face::Both) else { return };
         pass.set_pipeline(two_sided);

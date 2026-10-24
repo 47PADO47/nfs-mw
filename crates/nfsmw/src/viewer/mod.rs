@@ -3,10 +3,12 @@
 
 pub mod camera;
 mod race_report;
+mod static_hash;
 pub use race_report::{
     PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
     photo_picture,
 };
+pub use static_hash::StaticHash;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -393,6 +395,13 @@ pub trait Scene {
     /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
     /// input.
     fn runs_while_paused(&self) -> bool {
+        false
+    }
+    /// A menu is up over this scene (the backdrop, or the frozen world under the pause menu or the loading screen):
+    /// nothing in the picture moves unless the camera or the instances do, so the game caps the frame rate there and
+    /// a frame that looks like the last one is not drawn again (`app/render/static_frame.rs`). Anything that
+    /// animates by itself, or changes the renderer's state while running, must answer `false`.
+    fn menu_frame(&self) -> bool {
         false
     }
     /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.

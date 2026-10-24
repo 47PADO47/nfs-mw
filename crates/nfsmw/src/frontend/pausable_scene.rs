@@ -145,6 +145,18 @@ impl Scene for Pausable {
         self.inner.ready()
     }
 
+    /// A frozen or concealed world does not move on its own: the camera and the instances are what the picture is. A
+    /// pending refresh of its effect buffers changes renderer state, so that frame is not still.
+    fn menu_frame(&self) -> bool {
+        if self.effects_dirty {
+            return false;
+        }
+        if self.concealed() || (self.paused.get() && !self.inner.runs_while_paused()) {
+            return true;
+        }
+        self.inner.menu_frame()
+    }
+
     fn race_staging(&self) -> bool {
         self.inner.race_staging()
     }

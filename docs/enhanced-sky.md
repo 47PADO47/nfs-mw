@@ -47,8 +47,12 @@ are rendered into a 1536×384 upper-hemisphere map in linear RGBA16F. Nearby vie
 share that map, including reflection faces and mirrors. The atmosphere and sun disk
 are still evaluated per pixel in each view, keeping the solar disk sharp.
 
-The map updates whenever wind time, cloud coverage or sunlight changes. A camera
-move of 32 m also rebuilds it, including at frozen time. Nearby eyes share one
+The map updates whenever wind time, cloud coverage or sunlight changes. Wind and
+slow sun drift rebuild one of four horizontal row bands per frame, cycling, so each
+texel is still a complete single-frame march (at most three frames old, no blending
+with history). A visible jump in coverage, sunset warmth or sun direction, or a
+camera move of 32 m, rebuilds every row at once, including at frozen time. The light
+march through each cloud sample uses four steps. Nearby eyes share one
 origin: their cloud parallax is approximated because the cloud base is 2 km high.
 Cloud detail has a fixed angular resolution and is bilinearly reconstructed;
 longitude wraps across the seam. No previous-frame blending or fixed reflection

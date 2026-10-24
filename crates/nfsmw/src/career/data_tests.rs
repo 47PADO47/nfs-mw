@@ -11,7 +11,7 @@ use nfsmw_data::gameplay::{self, GameplayData, Race};
 use nfsmw_data::pursuit::{CareerHeat, HEAT_LEVELS};
 use nfsmw_data::rank_thresholds::{RankThresholds, STATISTICS, THRESHOLDS};
 
-use super::{CareerData, event_id};
+use super::{CareerData, event_id, race_event_id, race_has_event};
 
 /// A race with a collection key and a data name; everything else empty.
 fn race(key: u32, name: &str) -> Race {
@@ -287,4 +287,17 @@ fn the_install_gives_fifteen_bins_fifty_five_milestones_and_thirty_nine_traps() 
     assert_eq!(data.bins.len(), 15);
     assert_eq!(data.milestones.len(), 55);
     assert_eq!(data.traps.len(), 39);
+}
+
+#[test]
+fn a_race_has_the_event_it_stores_or_the_one_its_name_gives() {
+    let named = race(1, "race_bin_10/10_2_1_sprint");
+    assert!(race_has_event(&named, "10.2.1"));
+    assert!(!race_has_event(&named, "10.2.2"));
+    let stored = Race { event: Some("19.8.18".to_owned()), ..race(2, "race_bin_10/10_2_1_sprint") };
+    assert!(race_has_event(&stored, "19.8.18"));
+    assert!(!race_has_event(&stored, "10.2.1"), "a stored id replaces the one the name gives");
+    for race in [&named, &stored] {
+        assert!(race_has_event(race, &race_event_id(race)));
+    }
 }

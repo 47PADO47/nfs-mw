@@ -371,6 +371,8 @@ impl Renderer {
     /// The vehicle reflection brightness of the requested settings is applied here too, since the lighting is set
     /// every frame the cars are drawn.
     pub fn set_lighting_rig(&mut self, rig: &LightingRig) {
+        // A capture queued for the frame keeps the rig and material blocks it was recorded with.
+        self.flush_captures();
         let brightness = self.graphics.vehicle_reflection_brightness.0;
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
@@ -395,6 +397,8 @@ impl Renderer {
             log::warn!("environment faces are smaller than {size}x{size} RGBA8: keeping the old environment");
             return;
         }
+        // A capture queued for the frame keeps the probe settings it was recorded with.
+        self.flush_captures();
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));

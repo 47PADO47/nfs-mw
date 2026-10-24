@@ -53,4 +53,9 @@ fn check(backend: wgpu::Backends) {
     assert!(near(pixels[32 * 64 + 32], [153, 77, 31, 255]), "stock 1.2 multiplier {:?}", pixels[32 * 64 + 32]);
     chain.set_distortion(&gpu.device, None, &[]);
     assert_eq!(chain.names(), ["fxaa"]);
+    assert!(chain.has(NAME), "the pass is parked, not dropped");
+    chain.set_effects(&gpu.device, PostSettings::default());
+    assert!(chain.names().is_empty() && !chain.has_passes(), "an idle lens pass is no pass");
+    chain.set_distortion(&gpu.device, Some(&view), &[region]);
+    assert_eq!(chain.names(), [NAME]);
 }

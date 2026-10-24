@@ -7,6 +7,8 @@
 mod bevy;
 mod native;
 pub mod select;
+mod static_frame;
+pub use static_frame::StaticFrames;
 
 use std::time::Instant;
 
@@ -160,12 +162,19 @@ pub fn draw(
     mut exit: MessageWriter<AppExit>,
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time>,
+    settings: Res<Settings>,
 ) {
     let _span = bevy_log::info_span!("render::draw").entered();
     let _trace = blackbox_trace::scope("Render bridge: draw");
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.end_latency_simulation();
+    // A menu over a backdrop or a frozen world holds still: once its picture has settled the renderer shows the kept
+    // scene image and draws only the UI, and the scene's own per-frame renderer work (captures, the rear view) waits.
+    // Screenshot and benchmark runs draw every frame.
+    let split_on = host.scene.split_active();
+    let still = host.screenshot.is_none() && host.bench.is_none() && !split_on && host.scene.menu_frame();
+    let settled = still && host.static_frames.settled(&**renderer);
     for patch in ui.patches.drain(..) {
         renderer.update_ui_texture(&patch.as_patch());
     }
@@ -175,12 +184,11 @@ pub fn draw(
     for id in ui.freed.drain(..) {
         renderer.free_ui_texture(id);
     }
-    if host.rear_view_mirror {
+    if host.rear_view_mirror && !settled {
         host.mirror.update(renderer.as_mut(), host.scene.as_mut());
     }
     // The streaks go over the last HUD layer, every frame, so they stay while the presenter is quiet.
     let size = [window.width(), window.height()];
-    let split_on = host.scene.split_active();
     let strength = if split_on { 0.0 } else { host.scene.speed_streaks() };
     // Their clock stops with the game, so a paused frame shows them still rather than racing past the menu.
     let clock = host.streaks.advance(time.delta_secs(), host.scene.paused());
@@ -192,7 +200,9 @@ pub fn draw(
     }
 
     let aspect = renderer.aspect_ratio();
-    host.scene.prepare_frame(renderer.as_mut(), aspect);
+    if !settled {
+        host.scene.prepare_frame(renderer.as_mut(), aspect);
+    }
     let blank = super::split::blank_frame();
     let (params, instances) = match split_on {
         true => (blank, &[][..]),
@@ -236,6 +246,8 @@ pub fn draw(
         let _span = bevy_log::info_span!("render::submit").entered();
         let _trace = blackbox_trace::scope("Render bridge: submit");
         host.cpu_update_ms = host.cpu_work_started.elapsed().as_secs_f32() * 1000.0;
+        let reuse = host.static_frames.next(&**renderer, (still, host.scene_changes), &settings, &params, instances);
+        renderer.set_scene_reuse(reuse);
         renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
     };
     if let Err(e) = result {

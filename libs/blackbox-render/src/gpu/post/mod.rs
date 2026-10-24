@@ -82,8 +82,15 @@ pub(super) struct PassIo<'a> {
 }
 
 pub(super) trait PostPass {
-    fn set_distortion(&mut self, _view: &wgpu::TextureView, _regions: &[blackbox_gfx::DistortionRegion]) {}
+    /// The lens regions to draw, or `None` for no view (nothing to draw).
+    fn set_distortion(&mut self, _view: Option<&wgpu::TextureView>, _regions: &[blackbox_gfx::DistortionRegion]) {}
     fn name(&self) -> &'static str;
+
+    /// Whether this pass has anything to draw. An inactive pass stays in the chain (so it is not rebuilt when it
+    /// becomes active again) but is left out of every frame's plan and of [`PostChain::names`].
+    fn active(&self) -> bool {
+        true
+    }
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
     fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
@@ -148,6 +155,13 @@ pub(super) struct PostChain {
     temporal: Option<Box<dyn PostPass>>,
     /// The ping-pong images, kept for two sizes so a frame at each view size reuses its own.
     scratch: [SizedPair<ScratchKey, Scratch>; 2],
+    /// How many encodes in a row each ping-pong slot went unused (see [`plan::slot_expired`]).
+    scratch_idle: [u32; 2],
+    /// [`plan::signature`] of `passes` as of the last encode: the images are freed when it changes.
+    signature: u64,
+    /// Buffers `encode` refills every frame instead of allocating.
+    extents: Vec<Extent>,
+    steps: Vec<plan::Step>,
     /// How many passes at the front of `passes` are the post effects of `settings`.
     effect_count: usize,
     settings: crate::PostSettings,
@@ -169,6 +183,10 @@ impl PostChain {
             display: None,
             temporal: None,
             scratch: [SizedPair::new(), SizedPair::new()],
+            scratch_idle: [0; 2],
+            signature: 0,
+            extents: Vec::new(),
+            steps: Vec::new(),
             effect_count: 0,
             settings: crate::PostSettings::default(),
             fuse: true,
@@ -204,10 +222,10 @@ impl PostChain {
         self.passes.retain(|p| p.name() != name);
     }
 
-    /// Whether any pass runs (post effects, upscalers). When none does, the scene can be drawn straight
-    /// into the output.
+    /// Whether any pass runs (post effects, upscalers; an inactive pass does not count). When none does, the
+    /// scene can be drawn straight into the output.
     pub(super) fn has_passes(&self) -> bool {
-        !self.passes.is_empty() || self.temporal.is_some()
+        self.temporal.is_some() || self.passes.iter().any(|p| p.active())
     }
 
     /// Put the temporal upscaler first in the chain, or take it out with `None`.
@@ -225,6 +243,7 @@ impl PostChain {
         for images in &mut self.scratch {
             images.clear();
         }
+        self.scratch_idle = [0; 2];
     }
 
     /// How many ping-pong images are allocated.
@@ -233,9 +252,11 @@ impl PostChain {
         self.scratch.iter().map(|images| images.len()).sum()
     }
 
-    /// The pass names in execution order, not counting the output copy (see [`PostChain::encode`]).
+    /// The names of the passes that run, in execution order, not counting the output copy (see
+    /// [`PostChain::encode`]).
     pub(super) fn names(&self) -> Vec<&'static str> {
-        self.temporal.iter().chain(self.passes.iter()).map(|p| p.name()).collect()
+        let active = self.passes.iter().filter(|p| p.active());
+        self.temporal.iter().chain(active).map(|p| p.name()).collect()
     }
 
     /// Surface diagnostics bypass grading/effects without changing saved or requested settings.
@@ -267,27 +288,40 @@ impl PostChain {
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, resolve, temporal, scratch, fuse, .. } = self;
+        let Self { passes, resolve, temporal, scratch, scratch_idle, signature, extents, steps, fuse, .. } = self;
         let scene = ctx.scene;
+        // A different set of passes (settings changed) frees the images; the same set with fewer passes running
+        // on some frames (the mirror capture has no temporal upscaler) keeps them, see `slot_expired` below.
+        let now = plan::signature(passes.iter().map(|pass| pass.name()));
+        if now != *signature {
+            *signature = now;
+            *scratch_idle = [0; 2];
+            for images in scratch.iter_mut() {
+                images.clear();
+            }
+        }
         // The temporal upscaler only runs on a frame that carries its inputs.
         let upscaler = temporal.as_mut().filter(|_| ctx.temporal.is_some() && scene.motion.is_some());
-        let temporal_last = upscaler.is_some() && passes.is_empty();
+        let temporal_last = upscaler.is_some() && !passes.iter().any(|pass| pass.active());
         let mut chain: Vec<&mut dyn PostPass> = Vec::with_capacity(passes.len() + 2);
         if let Some(pass) = upscaler {
             chain.push(pass.as_mut());
         }
-        for pass in passes.iter_mut() {
+        for pass in passes.iter_mut().filter(|pass| pass.active()) {
             chain.push(pass.as_mut());
         }
         fusion::fuse_tonemap(&mut chain, *fuse);
-        let extents: Vec<Extent> = chain.iter().map(|pass| pass.extent()).collect();
-        if plan::needs_resolve(&extents, temporal_last, scene.size, ctx.output_size, output.1) {
+        extents.clear();
+        extents.extend(chain.iter().map(|pass| pass.extent()));
+        if plan::needs_resolve(extents.as_slice(), temporal_last, scene.size, ctx.output_size, output.1) {
             chain.push(resolve as &mut dyn PostPass);
         }
-        let steps = plan::plan(chain.len());
-        // A chain that got shorter no longer needs its second (or any) ping-pong image.
+        plan::plan_into(chain.len(), steps);
+        // A slot the chain no longer uses keeps its images for a while: another view of the same frame (the mirror)
+        // may use it again at once. It is freed only after many encodes without a use.
         for (slot, images) in scratch.iter_mut().enumerate() {
-            if !steps.iter().any(|step| step.target == Target::Scratch(slot)) {
+            let used = steps.iter().any(|step| step.target == Target::Scratch(slot));
+            if plan::slot_expired(&mut scratch_idle[slot], used) {
                 images.clear();
             }
         }
@@ -295,14 +329,17 @@ impl PostChain {
         let mut written: [Option<ScratchKey>; 2] = [None, None];
         // Once a pass has upscaled, every pass after it writes the output size.
         let mut upscaled = false;
-        for (pass, step) in chain.into_iter().zip(steps) {
+        for (pass, step) in chain.into_iter().zip(steps.iter().copied()) {
             if let Target::Scratch(slot) = step.target {
                 let size = match plan::written_extent(upscaled, pass.extent()) {
                     Extent::Render => scene.size,
                     Extent::Output => ctx.output_size,
                 };
                 let key = (size, scene.color_format);
-                scratch[slot].get_or_make(key, || Scratch::new(ctx.device, size, scene.color_format));
+                scratch[slot].get_or_make(key, || {
+                    let _trace = blackbox_trace::scope("Renderer CPU: post scratch image created");
+                    Scratch::new(ctx.device, size, scene.color_format)
+                });
                 written[slot] = Some(key);
             }
             let (input, input_size) = match step.source {

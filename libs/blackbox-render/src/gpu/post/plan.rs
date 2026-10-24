@@ -29,19 +29,51 @@ pub(super) struct Step {
 /// The steps for `pass_count` passes run in order. The first reads the scene, the last writes the
 /// output, and every pass in between alternates between the two scratch images so no pass reads
 /// the image it writes.
+#[cfg(test)]
 pub(super) fn plan(pass_count: usize) -> Vec<Step> {
-    (0..pass_count)
-        .map(|i| Step {
-            source: match i {
-                0 => Source::Scene,
-                _ => Source::Scratch((i - 1) % 2),
-            },
-            target: match i + 1 == pass_count {
-                true => Target::Output,
-                false => Target::Scratch(i % 2),
-            },
-        })
-        .collect()
+    let mut steps = Vec::new();
+    plan_into(pass_count, &mut steps);
+    steps
+}
+
+/// [`plan`] into `steps`, which is cleared first, so a chain that runs every frame reuses one buffer.
+pub(super) fn plan_into(pass_count: usize, steps: &mut Vec<Step>) {
+    steps.clear();
+    steps.extend((0..pass_count).map(|i| Step {
+        source: match i {
+            0 => Source::Scene,
+            _ => Source::Scratch((i - 1) % 2),
+        },
+        target: match i + 1 == pass_count {
+            true => Target::Output,
+            false => Target::Scratch(i % 2),
+        },
+    }));
+}
+
+/// How many encodes in a row a ping-pong image may go unused before it is freed. A chain that is shorter on some
+/// frames (the rear-view mirror runs without the temporal upscaler) must not free the image the next frame needs.
+pub(super) const SCRATCH_IDLE_FRAMES: u32 = 120;
+
+/// Count one encode against the idle counter of a ping-pong slot: `used` resets it, else it grows. Returns whether
+/// the slot has been idle for [`SCRATCH_IDLE_FRAMES`] and its images should be freed.
+pub(super) fn slot_expired(idle: &mut u32, used: bool) -> bool {
+    if used {
+        *idle = 0;
+        return false;
+    }
+    *idle = idle.saturating_add(1);
+    *idle >= SCRATCH_IDLE_FRAMES
+}
+
+/// A hash of the pass names in order, to notice that the set of passes changed (not just which of them run).
+pub(super) fn signature<'a>(names: impl Iterator<Item = &'a str>) -> u64 {
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+    names.fold(0xcbf2_9ce4_8422_2325, |hash, name| {
+        let hash = name.bytes().fold(hash, |h, byte| (h ^ u64::from(byte)).wrapping_mul(PRIME));
+        // A separator, so ["ab", "c"] and ["a", "bc"] differ.
+        (hash ^ 0xff).wrapping_mul(PRIME)
+    })
 }
 
 /// The size a pass that is not last writes: its own `extent`, except that once a pass has upscaled (`upscaled`)
@@ -141,6 +173,37 @@ mod tests {
                 assert_eq!(steps[i + 1].source, Source::Scratch(written));
             }
         }
+    }
+
+    #[test]
+    fn plan_into_reuses_the_buffer_and_matches_plan() {
+        let mut steps = Vec::new();
+        for count in [4, 1, 0, 3] {
+            plan_into(count, &mut steps);
+            assert_eq!(steps, plan(count));
+        }
+    }
+
+    #[test]
+    fn a_slot_expires_only_after_it_has_been_idle_for_many_frames() {
+        let mut idle = 0;
+        for _ in 0..SCRATCH_IDLE_FRAMES - 1 {
+            assert!(!slot_expired(&mut idle, false));
+        }
+        assert!(!slot_expired(&mut idle, true), "use resets the count");
+        for _ in 0..SCRATCH_IDLE_FRAMES - 1 {
+            assert!(!slot_expired(&mut idle, false));
+        }
+        assert!(slot_expired(&mut idle, false));
+    }
+
+    #[test]
+    fn the_signature_follows_the_names_and_their_order() {
+        let sig = |names: &[&str]| signature(names.iter().copied());
+        assert_eq!(sig(&["bloom", "fxaa"]), sig(&["bloom", "fxaa"]));
+        assert_ne!(sig(&["bloom", "fxaa"]), sig(&["fxaa", "bloom"]));
+        assert_ne!(sig(&["ab", "c"]), sig(&["a", "bc"]));
+        assert_ne!(sig(&[]), sig(&["bloom"]));
     }
 
     #[test]

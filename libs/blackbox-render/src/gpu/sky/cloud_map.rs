@@ -1,24 +1,16 @@
 //! Current-frame cloud lighting shared by all nearby views. No temporal history.
 
 use super::super::resources::Globals;
+use super::cloud_schedule::{Key, Rebuild, Schedule};
 
 const SIZE: (u32, u32) = (1536, 384);
-
-#[derive(Clone, Copy, PartialEq)]
-struct Key {
-    scroll: f32,
-    coverage: f32,
-    sun: [f32; 4],
-    light: [f32; 3],
-    warmth: f32,
-}
 
 pub(super) struct CloudMap {
     pub layout: wgpu::BindGroupLayout,
     pub group: wgpu::BindGroup,
     view: wgpu::TextureView,
     pipeline: Option<wgpu::RenderPipeline>,
-    key: Option<Key>,
+    schedule: Schedule,
     origin: [f32; 3],
     pub updates: u64,
 }
@@ -73,7 +65,7 @@ impl CloudMap {
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
             ],
         });
-        Self { layout, group, view, pipeline: None, key: None, origin: [0.0; 3], updates: 0 }
+        Self { layout, group, view, pipeline: None, schedule: Schedule::default(), origin: [0.0; 3], updates: 0 }
     }
 
     pub fn prepare(
@@ -95,10 +87,12 @@ impl CloudMap {
         let origin: [f32; 3] = globals.camera_pos[..3].try_into().unwrap();
         // Capture eyes differ by metres while clouds start kilometres away. Keep the
         // first nearby eye; large moves/teleports rebuild immediately, even at frozen time.
+        // Wind and slow sun drift refresh one band of rows per call (see `cloud_schedule`).
         let distance_squared: f32 = origin.iter().zip(self.origin).map(|(a, b)| (a - b).powi(2)).sum();
-        if self.key == Some(key) && distance_squared < 32.0 * 32.0 {
+        let Some(rebuild) = self.schedule.plan(key, distance_squared >= 32.0 * 32.0) else {
             return;
-        }
+        };
+        let _trace = blackbox_trace::scope("Renderer CPU: cloud map rebuilt");
         let pipeline = self.pipeline.get_or_insert_with(|| {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("cloud lighting generation"),
@@ -131,22 +125,30 @@ impl CloudMap {
                 cache: None,
             })
         });
+        let load = match rebuild {
+            Rebuild::Full => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            Rebuild::Band(_) => wgpu::LoadOp::Load,
+        };
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("shared cloud lighting"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.view,
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                // A band keeps the other rows: each is a complete march from an earlier call, never a blend.
+                ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
             })],
             ..Default::default()
         });
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, bindings[0].1, &[]);
         pass.set_bind_group(1, bindings[1].1, &[]);
+        let (y, height) = rebuild.rows(SIZE.1);
+        pass.set_scissor_rect(0, y, SIZE.0, height);
         pass.draw(0..3, 0..1);
-        self.key = Some(key);
-        self.origin = origin;
+        if rebuild == Rebuild::Full {
+            self.origin = origin;
+        }
         self.updates += 1;
     }
 }

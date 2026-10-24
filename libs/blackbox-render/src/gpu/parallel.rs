@@ -21,13 +21,18 @@ fn parallel() -> bool {
     })
 }
 
+/// The number of cores, asked of the OS once: the answer does not change and the query is not free.
+fn cores() -> usize {
+    static CORES: OnceLock<usize> = OnceLock::new();
+    *CORES.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
+}
+
 /// How many workers to build `jobs` things with: one per core, never more than there are jobs.
 fn workers(jobs: usize) -> usize {
-    if !parallel() {
+    if jobs <= 1 || !parallel() {
         return 1;
     }
-    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-    cores.min(jobs)
+    cores().min(jobs)
 }
 
 /// `build` applied to every key, in the keys' order, spread over worker threads.
@@ -37,6 +42,9 @@ where
     T: Send,
     F: Fn(&K) -> T + Sync,
 {
+    if keys.is_empty() {
+        return Vec::new();
+    }
     let workers = workers(keys.len());
     if workers <= 1 {
         return keys.iter().map(&build).collect();
@@ -81,6 +89,14 @@ mod tests {
         let keys: Vec<u32> = (0..100).collect();
         let squares = build(&keys, |k| k * k);
         assert_eq!(squares, keys.iter().map(|k| k * k).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn workers_never_exceed_the_jobs_or_the_cores() {
+        assert_eq!(workers(0), 1);
+        assert_eq!(workers(1), 1);
+        assert!(workers(1000) <= cores().max(1));
+        assert!(workers(2) <= 2);
     }
 
     #[test]

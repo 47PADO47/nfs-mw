@@ -1,4 +1,7 @@
 // Tangent-space scenery; docs/specs/world-normal-materials.md.
+// Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
+// the opaque draws of the main view keep early depth testing.
+override CLIP_PLANE: bool = false;
 struct Globals {
     view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>,
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
@@ -84,7 +87,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     return out;
 }
 fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
-    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
+    if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
     let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
     let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
@@ -183,26 +186,37 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let water_n = unit(mix(n,vec3(ripple,1.0),pool*0.94));
     let nv = clamp(dot(water_n,v),0.0,1.0);
     let fresnel = 0.02+0.98*pow(1.0-nv,5.0);
-    let uv = in.projected_reflection.xy/in.projected_reflection.w;
-    let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
-    let radius = mix(3.5,0.35,pool);
-    let center = wet_capture(uv,pixel);
-    // Spatially filtered film; pooled water retains the capture's detail. No fabricated parallax offsets.
-    var filtered = (wet_capture(uv+pixel*vec2(radius,0.0),pixel)
-        +wet_capture(uv-pixel*vec2(radius,0.0),pixel)
-        +wet_capture(uv+pixel*vec2(0.0,radius),pixel)
-        +wet_capture(uv-pixel*vec2(0.0,radius),pixel)+center*4.0)/8.0;
-    if light.reflection.z > 0.5 && uv_offset.value.w>0.5 {
-        let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
-        let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
-        let fallback = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
-        filtered = road_environment_at(in.world,world_n,ray,fallback,pool);
-    }
     let mask = clamp(2.0*spec_tex.r*tex.a*in.ambient.a,0.0,1.0);
     // The legacy mask already attenuates the old nonphysical reflection. Keep its zero regions,
     // but let a continuous water layer approach dielectric reflectance within eligible regions.
     let water_mask = mix(mask,smoothstep(0.0,0.08,mask),pool);
     let reflectance = fresnel*mix(0.3,1.0,pool)*water_mask;
+    // Receiver pixel size for the road march's origin bias. Derivatives must stay in uniform control flow.
+    let world_footprint = max(length(dpdx(in.world)),length(dpdy(in.world)));
+    var filtered = vec3(0.0);
+    let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
+    if road_environment_path {
+        let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
+        let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
+        filtered = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
+        // A pixel the mask leaves unreflective shows nothing of the traced hit, so the march is skipped. Any
+        // reflectance above zero still marches: over a dark road even a fraction of a percent shows once encoded.
+        if reflectance > 0.0 {
+            filtered = road_environment_at(in.world,world_n,ray,filtered,pool,world_footprint);
+        }
+    }
+    // The capture taps only serve the paths that do not trace the road environment.
+    if !road_environment_path {
+        let uv = in.projected_reflection.xy/in.projected_reflection.w;
+        let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
+        let radius = mix(3.5,0.35,pool);
+        let center = wet_capture(uv,pixel);
+        // Spatially filtered film; pooled water retains the capture's detail. No fabricated parallax offsets.
+        filtered = (wet_capture(uv+pixel*vec2(radius,0.0),pixel)
+            +wet_capture(uv-pixel*vec2(radius,0.0),pixel)
+            +wet_capture(uv+pixel*vec2(0.0,radius),pixel)
+            +wet_capture(uv-pixel*vec2(0.0,radius),pixel)+center*4.0)/8.0;
+    }
     let base = 2.0*tex.rgb*(in.ambient.rgb*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
     let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let power = mix(24.0,192.0,pool);

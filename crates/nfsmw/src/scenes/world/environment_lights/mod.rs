@@ -19,6 +19,10 @@ use nfsmw_data::{
     world::lights::{Kind, Marker},
 };
 
+use super::scenery_groups::SceneryGroups;
+
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 /// Three world clocks, independent of the player and of texture animation speed.
 #[derive(Default)]
 pub(super) struct BlinkClock {
@@ -53,8 +57,13 @@ impl BlinkClock {
 pub(super) struct EnvironmentLights {
     pub blink: BlinkClock,
     profiles: Vec<(Kind, FlareProfile)>,
-    sources: HashMap<MeshHandle, Arc<[Marker]>>,
+    sources: FastMap<MeshHandle, Arc<[Marker]>>,
+    /// The placed objects that carry authored markers, built with `sources` and valid for the same scenery state.
+    candidates: Vec<super::resident::Placed>,
     revision: Option<u64>,
+    /// The scenery groups `candidates` was built for: switching one does not bump the revision, but it changes what
+    /// the residency lists as placed.
+    groups: SceneryGroups,
     detail: super::detail::DetailState,
     visible: Vec<Instance>,
 }
@@ -65,19 +74,25 @@ impl EnvironmentLights {
             blink: Default::default(),
             profiles: nfsmw_data::world::lights::profiles(db),
             sources: Default::default(),
+            candidates: Vec::new(),
             revision: None,
+            groups: Default::default(),
             detail: Default::default(),
             visible: Vec::new(),
         }
     }
 
-    fn refresh(&mut self, residency: &super::residency::Residency) {
+    /// Rebuilds the marker sources and the marked placements when the resident scenery or the switched-on groups
+    /// changed since the last build.
+    fn refresh(&mut self, residency: &super::residency::Residency, groups: &SceneryGroups) {
         let revision = residency.visual_revision();
-        if self.revision == Some(revision) {
+        if self.revision == Some(revision) && self.groups == *groups {
             return;
         }
         self.sources = residency.light_sources().collect();
+        self.candidates = residency.placed().filter(|p| self.contains(p)).cloned().collect();
         self.revision = Some(revision);
+        self.groups = groups.clone();
     }
 
     fn contains(&self, p: &super::resident::Placed) -> bool {

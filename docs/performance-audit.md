@@ -178,6 +178,49 @@ pipeline tables compile in parallel, one thread per core: with cold caches, crea
 The UI assets, the screens' catalog and the HUD's packages load on threads after the window is up: the front end and
 the HUD start when their loads are done, and screenshots and benchmarks wait for them.
 
+## Round four: rendering time (2026-10-24)
+
+Round four went through the frame again after the features that landed since round three: puddles and road
+reflections, planar floor captures, lens droplets, distant clouds, tire effects, the police overhaul and LAN.
+Numbers: [benchmarks/2026-10-24-perf-round-four.md](benchmarks/2026-10-24-perf-round-four.md). Trace scopes now count
+the suspects: "Renderer CPU: post scratch image created", "cloud map rebuilt", "lens distortion pass created",
+"planar capture", "projected capture", and "World: gameplay lens" / "simulation lens".
+
+### Renderer CPU
+
+| Finding | Fix |
+| --- | --- |
+| The mirror runs the main post chain without the temporal pass, so its shorter chain freed the scratch image the main view needed, which was rebuilt every frame. Lens droplets rebuilt their pass (shader, layouts, pipelines) each time they appeared. | Scratch slots are freed after 120 unused encodes or when the chain's passes change. The lens pass stays built and is skipped while it has no droplets. |
+| Every view (main, mirror, each cube face, captures) asked for its pipelines through ~200 SipHash lookups and rewrote the lighting, sky and screen-control uniforms. | A per-request "complete" memo and foldhash maps; the uniforms are written only when their values change; the core count is cached. |
+| Screen glossy and the road reflection pass made bind groups every frame and re-walked every instance. | Bind groups are cached by their views; screen glossy draws from the colour buckets; the road pass gets its own draw lists from the draw list build. |
+| Smaller churn: motion history (SipHash, full upload), planar receivers, prefilter and irradiance, contact shadows, soft particles, UI masks and binds, the face queue copied all six faces, and the pipeline cache file was written on the frame thread. | Cached groups and buffers, foldhash, only changed history runs uploaded, only drawn faces queued, the cache file written on a thread. |
+| The projected road capture paid its own encoder finish and submit. The window image was acquired before any recording. | The capture goes out in the frame's submission. The frame records shadows, reflections, the scene and post first and acquires the window image only for the passes that write it. The mirror and planar captures keep their own submits: they share uniforms with the main view. |
+| The reflection cube faces were recorded one after another on the frame thread. | Each face is prepared on the frame thread (slots, uploads, uniforms in the old order) and recorded on a worker thread into its own encoder; all go out in one submission, in face order. |
+
+### Game CPU
+
+| Finding | Fix |
+| --- | --- |
+| The reflection faces swept every placed object through ~250-byte records. Wet road reflections swept every reflected instance with prop lookups and sorted whole instances twice. | Per-tile culling from compact entries against the drawn faces; per-set culling with precomputed reflected bounds and index sorting. |
+| The plain traffic car list was rebuilt for each consumer, and every LOD part looked up its glass variant. | One list per frame for the shadow feed and reflections; other LODs are skipped first. |
+| The custom camera clearance ran its ray casts on each of ~13 lens calls a frame. The environment lights swept every resident object with SipHash lookups each frame. | The clearance is memoised on its inputs; the light candidates are kept per residency revision. |
+| The Original HUD theme cloned and recomposed the whole HUD tree every frame. The career race locks allocated event ids for every race each frame. | The Original theme presents the tree directly; the locks are kept until the career's bin states or side wins change. |
+| AI integration ran on one thread because per-tick thread spawns caused spikes. Cop thinks, tire spray and rain allocated each tick; residency hashed with SipHash. | Integration on Bevy's compute pool (bit-identical, four threads); scratch buffers and foldhash. |
+| About 60 frame systems, nearly all bound to the non-Send host, ran on the multi-threaded executor; the trace phase systems ran with no capture. | Single-threaded executors for the frame schedules; the phase systems run only while a capture records. |
+
+Not done: the police formation layout runs twice per tick on different inputs (sharing it would change the
+simulation), and an awake-prop list needs hooks inside the vehicle library.
+
+### GPU, menus and pacing
+
+| Finding | Fix |
+| --- | --- |
+| The cloud map's key held the wind scroll, so the 1536x384 map was ray-marched every frame. | Wind and slow sun drift refresh one of four row bands per frame (each texel is still a full single-frame march); clock jumps, coverage, warmth, sun and camera moves rebuild it all. The light march takes 4 steps instead of 6. |
+| The road reflection march ran on pixels the mask leaves unreflective, and the capture taps ran even where the environment path replaced them. | The march runs only where the reflectance is above zero, and the taps only on the paths that use them. |
+| The planar clip-plane `discard` was compiled into every opaque shader, which turns off early depth for the main view. | A pipeline-overridable constant: only planar-capture pipelines carry it. |
+| Menus and the pause screen drew the full scene, the planar floor capture and the shadow list every frame while nothing moved, and ran unbounded without vsync. | Still frames reuse the kept scene image and draw only the UI (not under temporal AA or upscalers); the floor capture and shadows are skipped while their inputs hold; menus are capped to the display's refresh rate. |
+| The swapchain queue depth was fixed at 2 and the present mode was FIFO-or-immediate. | A `frame_latency` setting (1 or 2, default 2) and Mailbox when vsync is off and the surface offers it. |
+
 ## How to measure
 
 Set `NFSMW_GAME_DIR` to the install first. Then run:

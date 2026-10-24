@@ -17,6 +17,9 @@
 //! `PoliceRadar` slot, with its laser; the heat arcs belong to the minimap. They are not lost. [`emit_unclaimed`] appends
 //! every node of the HUD package that no HUD slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use blackbox_ui::DrawList;
 #[cfg(test)]
 use blackbox_ui::UiTree;
@@ -84,6 +87,21 @@ pub(crate) fn claim_counts(tree: &UiTree) -> Vec<usize> {
     counts
 }
 
+/// The scratch [`emit_unclaimed`] keeps from one frame to the next, so a frame allocates nothing for it.
+struct Scratch {
+    /// Where each node's index lands in `out`.
+    lookup: HashMap<usize, usize, foldhash::fast::FixedState>,
+    /// Which positions of the HUD tree are not taken by any slot.
+    unclaimed: Vec<bool>,
+}
+
+thread_local! {
+    static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch {
+        lookup: HashMap::with_hasher(foldhash::fast::FixedState::default()),
+        unclaimed: Vec::new(),
+    });
+}
+
 /// Appends to `out` every node of the HUD package that no HUD slot takes, in the package's order, with `parent` links
 /// remapped to `out`'s positions. A node whose parent is not in `out` gets `None`. Does nothing when the HUD cell is
 /// empty.
@@ -91,32 +109,29 @@ pub(crate) fn claim_counts(tree: &UiTree) -> Vec<usize> {
 /// A node's index is kept, so the composer can put the whole list back in object order (`DrawList::sort_by_index`).
 pub(crate) fn emit_unclaimed(frame: &FrameCell, out: &mut DrawList) {
     let Some(tree) = frame.get(FengSource::Hud) else { return };
-    frame.with_structure(&tree, |structure| {
-        let mut slots = [0; HUD_SLOTS.len()];
-        for (k, slot) in HUD_SLOTS.iter().enumerate() {
-            slots[k] = hud_scope(*slot).map_or(NONE as usize, |scope| structure.owner_slot(&tree, &scope));
-        }
-        let taken = |pos: usize| slots.iter().any(|&s| s != NONE as usize && structure.keeps(&tree, s, pos));
-        // Where each node's index lands in `out`. The unclaimed nodes are added last, so they win an index that a slot's
-        // node also has.
-        let base = out.len();
-        let mut lookup: std::collections::HashMap<usize, usize> =
-            out.iter().enumerate().map(|(pos, node)| (node.index, pos)).collect();
-        let mut next = base;
-        for (pos, node) in tree.nodes.iter().enumerate() {
-            if taken(pos) {
-                continue;
+    SCRATCH.with_borrow_mut(|scratch| {
+        let Scratch { lookup, unclaimed } = scratch;
+        frame.with_structure(&tree, |structure| {
+            let mut slots = [0; HUD_SLOTS.len()];
+            for (k, slot) in HUD_SLOTS.iter().enumerate() {
+                slots[k] = hud_scope(*slot).map_or(NONE as usize, |scope| structure.owner_slot(&tree, &scope));
             }
-            lookup.insert(node.index, next);
-            next += 1;
-        }
-        for (pos, node) in tree.nodes.iter().enumerate() {
-            if taken(pos) {
-                continue;
+            let taken = |pos: usize| slots.iter().any(|&s| s != NONE as usize && structure.keeps(&tree, s, pos));
+            unclaimed.clear();
+            unclaimed.extend((0..tree.nodes.len()).map(|pos| !taken(pos)));
+            // Where each node's index lands in `out`. The unclaimed nodes are added last, so they win an index that a
+            // slot's node also has.
+            lookup.clear();
+            lookup.extend(out.iter().enumerate().map(|(pos, node)| (node.index, pos)));
+            let free = tree.nodes.iter().zip(unclaimed.iter()).filter(|(_, free)| **free);
+            for (next, (node, _)) in (out.len()..).zip(free) {
+                lookup.insert(node.index, next);
             }
-            let mut copy = node.clone();
-            copy.parent = node.parent.and_then(|parent| lookup.get(&parent).copied());
-            out.push(copy);
-        }
+            for (node, _) in tree.nodes.iter().zip(unclaimed.iter()).filter(|(_, free)| **free) {
+                let mut copy = node.clone();
+                copy.parent = node.parent.and_then(|parent| lookup.get(&parent).copied());
+                out.push(copy);
+            }
+        });
     });
 }

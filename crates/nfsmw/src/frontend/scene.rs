@@ -56,6 +56,8 @@ pub struct MenuScene {
     build: Build,
     /// Resolution and quality of the stationary room capture currently submitted to the renderer.
     reflection: Option<(blackbox_gfx::ReflectionQuality, u32)>,
+    /// What the shadow casters and the floor capture were last made from (`backdrop_still.rs`).
+    still: Option<still::StillKey>,
 }
 
 impl MenuScene {
@@ -212,6 +214,7 @@ impl Scene for MenuScene {
         renderer.set_planar_reflection_scene(None);
         renderer.set_reflection_scene(None);
         self.reflection = None;
+        self.still = None;
         // A worker still reading is left to finish; its result is dropped with the handle.
         self.build = Build::Idle;
         if let Some(mut car) = self.car.take() {
@@ -225,6 +228,7 @@ impl Scene for MenuScene {
 
     fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
         self.reflection = None;
+        self.still = None;
         let Some(car) = self.car.as_mut() else { return };
         car.reshow(renderer);
     }
@@ -233,6 +237,11 @@ impl Scene for MenuScene {
         self.advance(renderer);
         self.update_reflections(renderer);
         self.update_car(renderer, input, dt);
+        // The shadow casters and the floor capture only follow the camera, the instances and the settings, so a
+        // still backdrop leaves what the renderer holds from the last frame as it is.
+        if self.still_unchanged(renderer) {
+            return;
+        }
         self.update_menu_casters(renderer);
         self.update_floor_reflection(renderer);
     }
@@ -243,6 +252,11 @@ impl Scene for MenuScene {
     }
 
     fn radio_on_menus(&self) -> bool {
+        true
+    }
+
+    /// The backdrop holds still: only its camera moves, and `frame` shows when it does.
+    fn menu_frame(&self) -> bool {
         true
     }
 
@@ -372,6 +386,8 @@ mod backdrop_floor;
 mod backdrop_shadows;
 #[path = "backdrop_reflections.rs"]
 mod reflections;
+#[path = "backdrop_still.rs"]
+mod still;
 
 #[path = "pausable_audio.rs"]
 mod audio_forwarding;

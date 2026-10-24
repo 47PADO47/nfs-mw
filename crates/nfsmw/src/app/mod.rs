@@ -36,9 +36,9 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use bevy_a11y::AccessibilityPlugin;
-use bevy_app::{App, AppExit, Last, TaskPoolPlugin, TerminalCtrlCHandlerPlugin, Update};
+use bevy_app::{App, AppExit, First, Last, PreUpdate, TaskPoolPlugin, TerminalCtrlCHandlerPlugin, Update};
 use bevy_asset::AssetPlugin;
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SingleThreadedExecutor, SystemSet};
 use bevy_gilrs::GilrsPlugin;
 use bevy_image::ImagePlugin;
 use bevy_input::InputPlugin;
@@ -271,7 +271,26 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         crate::garage::start(&mut app, garage_tab);
     }
 
+    single_threaded_frame(&mut app);
     finish(app.run(), error.take())
+}
+
+/// Runs the frame's own schedules on the thread that owns the world. Nearly all of their systems take the `Host` as
+/// `NonSend`, which pins them to that thread, so the multi-threaded executor can only add its bookkeeping and a hop to
+/// the task pool per system. The pool stays free for the AI step (`scenes/world/ai/parallel.rs`) and the renderer.
+fn single_threaded_frame(app: &mut App) {
+    app.edit_schedule(First, |schedule| {
+        schedule.set_executor(SingleThreadedExecutor::new());
+    })
+    .edit_schedule(PreUpdate, |schedule| {
+        schedule.set_executor(SingleThreadedExecutor::new());
+    })
+    .edit_schedule(Update, |schedule| {
+        schedule.set_executor(SingleThreadedExecutor::new());
+    })
+    .edit_schedule(Last, |schedule| {
+        schedule.set_executor(SingleThreadedExecutor::new());
+    });
 }
 
 /// The exit code the Ctrl+C plugin ends the app with: the player asked to stop, so it is not a failure.
@@ -283,6 +302,25 @@ fn finish(exit: AppExit, error: Option<anyhow::Error>) -> Result<()> {
         AppExit::Success => error.map_or(Ok(()), Err),
         AppExit::Error(code) if code.get() == INTERRUPTED => error.map_or(Ok(()), Err),
         AppExit::Error(code) => Err(error.unwrap_or_else(|| anyhow!("the app exited with code {code}"))),
+    }
+}
+
+#[cfg(test)]
+mod schedule_tests {
+    use super::*;
+    use bevy_ecs::system::NonSendMut;
+
+    #[test]
+    fn the_frame_schedules_still_run_every_system_in_order_on_one_thread() {
+        let mut app = App::new();
+        app.insert_non_send(Vec::<u8>::new());
+        app.add_systems(First, |mut seen: NonSendMut<Vec<u8>>| seen.push(1));
+        app.add_systems(PreUpdate, |mut seen: NonSendMut<Vec<u8>>| seen.push(2));
+        app.add_systems(Update, |mut seen: NonSendMut<Vec<u8>>| seen.push(3));
+        app.add_systems(Last, |mut seen: NonSendMut<Vec<u8>>| seen.push(4));
+        single_threaded_frame(&mut app);
+        app.update();
+        assert_eq!(app.world().non_send::<Vec<u8>>().as_slice(), &[1, 2, 3, 4]);
     }
 }
 

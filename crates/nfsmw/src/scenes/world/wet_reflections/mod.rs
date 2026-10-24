@@ -1,4 +1,5 @@
 //! Authored projected road captures. This is separate from car environment cubes.
+pub(super) mod cull;
 #[cfg(test)]
 mod fast_spray_tests;
 pub(super) mod geometry;
@@ -53,8 +54,8 @@ impl WorldScene {
             light_dir: self.sun.direction().to_array(),
         };
         // Enhanced captures retain small sources and cull their reflected mesh bounds.
-        geometry::scenery(
-            self.residency.reflection_placed(),
+        geometry::scenery_sets(
+            self.residency.reflection_sets(),
             &camera,
             self.residency.props(),
             self.wet_road.resolution.size()[1] as f32,
@@ -69,7 +70,7 @@ impl WorldScene {
             );
         }
         self.append_wet_vehicles();
-        self.wet_road.instances.sort_unstable_by_key(|instance| instance.mesh);
+        visibility::sort_by_mesh(&mut self.wet_road.instances);
         renderer.set_projected_reflection_scene(Some(ProjectedReflectionScene {
             frame,
             instances: &self.wet_road.instances,

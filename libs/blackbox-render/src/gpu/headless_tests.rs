@@ -31,6 +31,8 @@ fn a_headless_renderer_draws_into_its_output() {
     assert!(renderer.draws_directly());
     assert!(renderer.read_output().is_some());
 
+    assert!(!renderer.acquires_late(), "a headless output is no window image to acquire late");
+
     let frame = clear_frame([0.2, 0.4, 0.6]);
     assert!(renderer.render(&frame, &[]).unwrap(), "a headless frame is always presented");
     let image = renderer.read_output().unwrap().unwrap();

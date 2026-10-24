@@ -9,7 +9,7 @@ use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, Stre
 
 use super::keys;
 use super::props::PropWorld;
-use super::resident::{Placed, ReflectionPlaced, SectionResources, resolve_placed, resolve_reflections, take_prepared};
+use super::resident::{Placed, SectionResources, resolve_placed, resolve_reflections, take_prepared};
 use super::zone::Zones;
 mod cull;
 mod lights;
@@ -121,7 +121,7 @@ pub struct Residency {
     /// Map packs an interior holds loaded (`pin`).
     pinned: HashSet<usize>,
     /// Scratch for `unload_unwanted`, kept between frames so a frame allocates nothing.
-    keep_scratch: HashSet<usize>,
+    keep_scratch: HashSet<usize, foldhash::fast::FixedState>,
     unwanted_scratch: Vec<usize>,
     /// Scratch for `request_wanted`.
     request_scratch: Vec<usize>,
@@ -206,7 +206,7 @@ impl Residency {
             mod_streamers,
             mod_wanted: Vec::new(),
             pinned: HashSet::new(),
-            keep_scratch: HashSet::new(),
+            keep_scratch: HashSet::default(),
             unwanted_scratch: Vec::new(),
             request_scratch: Vec::new(),
             lockstep: false,
@@ -310,14 +310,12 @@ impl Residency {
             self.previous.clear();
         }
         self.keep_scratch.clear();
-        self.keep_scratch.extend(self.wanted.iter().chain(&self.mod_wanted).copied());
+        self.keep_scratch.extend(self.wanted.iter().chain(&self.mod_wanted).chain(&self.shadow_wanted).copied());
         // Only the bounded support selection can retain extra geometry. Previous visits
         // must not accumulate every tile inside the larger hysteresis region.
         let mut unwanted = std::mem::take(&mut self.unwanted_scratch);
         unwanted.clear();
-        unwanted.extend(
-            self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i) && !self.shadow_wanted.contains(i)),
-        );
+        unwanted.extend(self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i)));
         // The map's order is a random hash; removals touch the prop world and the collision, so they go in tile order
         // (`docs/specs/multiplayer/determinism.md`, D3).
         unwanted.sort_unstable();
@@ -375,9 +373,21 @@ impl Residency {
         self.shared_placed.iter().chain(tiles).filter(|p| self.group_shown(p))
     }
 
+    /// The sets that hold the authored road view's placements: the shared sets, then every resident tile. Each set's
+    /// `reflection_placed` lists instances hidden from the player too. Their meshes/materials have exactly the owning
+    /// section's resident lifetime.
+    pub(super) fn reflection_sets(&self) -> impl Iterator<Item = &SectionResources> {
+        let tiles = self.tiles.values().filter_map(|state| match state {
+            TileState::Resident { resources, .. } => Some(&**resources),
+            TileState::Requested => None,
+        });
+        std::iter::once(&self.shared).chain(tiles)
+    }
+
     /// Only the authored road view's placements, including instances hidden from the player.
     /// Their meshes/materials have exactly the owning section's resident lifetime.
-    pub(super) fn reflection_placed(&self) -> impl Iterator<Item = &ReflectionPlaced> {
+    #[cfg(test)]
+    pub(super) fn reflection_placed(&self) -> impl Iterator<Item = &super::resident::ReflectionPlaced> {
         self.shared.reflection_placed.iter().chain(
             self.tiles
                 .values()

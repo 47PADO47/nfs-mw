@@ -258,7 +258,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
         return;
     }
     if before.max_fps != settings.max_fps {
-        host.limiter = FrameLimiter::new(settings.max_fps);
+        host.limiter = FrameLimiter::new();
     }
     if before.vsync != settings.vsync
         && let Some(renderer) = host.renderer.as_mut()

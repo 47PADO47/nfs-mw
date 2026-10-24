@@ -126,6 +126,7 @@ impl Scene for WorldScene {
         self.update_car_shading(renderer);
         self.update_shadow_casters(renderer);
         self.update_reflections(renderer);
+        self.shadow_feed.cars.invalidate();
         self.upload_effects(renderer);
     }
 

@@ -1,10 +1,12 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod acquire;
 mod activity;
 mod adapters;
 pub(crate) mod ao;
 mod backend_impl;
 mod capture;
+mod clip_variant;
 mod contact;
 mod cull;
 #[cfg(test)]
@@ -45,6 +47,7 @@ mod prewarm_bench;
 #[cfg(test)]
 mod prewarm_tests;
 mod projected;
+mod queued;
 mod redirects;
 mod reflection_queue;
 mod reflection_store;
@@ -54,6 +57,8 @@ mod reflection_store_tests;
 mod reflection_tests;
 mod reflections;
 mod resources;
+mod reuse;
+mod scene_pass;
 mod shadows;
 mod sized;
 mod sky;
@@ -158,6 +163,15 @@ pub struct Renderer {
     frames: u32,
     /// What the last [`Renderer::prewarm`] built for, so asking again with nothing changed does nothing.
     prewarmed: Option<prewarm::Warmed>,
+    /// The glossy screen-reflection control is known to hold "off" (set by the scene views that draw without
+    /// screen reflections), so they skip rewriting it. A screen-reflection capture clears this.
+    screen_control_off: bool,
+    /// Captures recorded before the frame that go out in its submission (see `queued.rs`).
+    queued_captures: queued::QueuedCaptures,
+    /// The window had no image for the last frame (minimised, resized): the next one acquires before recording.
+    surface_missed: bool,
+    /// The kept scene image a still frame shows again (`reuse.rs`).
+    reuse: reuse::Reuse,
 }
 
 impl Renderer {
@@ -305,6 +319,8 @@ impl Renderer {
     /// Recreate the scene targets when the surface size, the render scale or the passes in the chain
     /// ask for different ones, and free the post chain's images when the scene goes straight to the surface.
     fn refresh_targets(&mut self) {
+        // A resize, a new chain or new settings: whatever image was kept no longer shows what a frame would draw.
+        self.touch_scene();
         let plan = self.scene_plan(self.surface_size(), true);
         if self.targets.matches(&plan) {
             return;

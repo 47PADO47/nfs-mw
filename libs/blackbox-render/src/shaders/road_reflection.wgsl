@@ -15,10 +15,11 @@ fn road_delta(p:vec3<f32>,size:vec2<i32>)->f32 {
     if d<=0.0 { return -1e6; }
     return p.z-road_control.y/d;
 }
-fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:vec3<f32>,pool:f32)->vec3<f32> {
+// `footprint` is the receiver's world-space pixel size. The caller takes the derivatives in uniform control
+// flow, so this march may run behind per-pixel branches (such as skipping unreflective pixels).
+fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:vec3<f32>,pool:f32,footprint:f32)->vec3<f32> {
     if road_control.x<0.5 || globals.fog_range.w>0.5 { return fallback; }
     // A fixed centimetre bias can hit the receiver's own depth texel on distant roads.
-    let footprint = max(length(dpdx(world)),length(dpdy(world)));
     let origin = world+normal*max(0.06,footprint*0.25);
     let size = vec2<i32>(textureDimensions(road_depth));
     var previous = 0.15;

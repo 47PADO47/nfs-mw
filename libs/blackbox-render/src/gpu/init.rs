@@ -96,7 +96,11 @@ where
     if let Some(f) = caps.formats.iter().copied().find(|f| !f.is_srgb()) {
         config.format = f;
     }
-    config.present_mode = if options.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
+    let mailbox = caps.present_modes.contains(&wgpu::PresentMode::Mailbox);
+    // The native Direct3D 12 swapchain of the DLSS path knows only the vsync and tearing modes.
+    #[cfg(all(windows, feature = "streamline"))]
+    let mailbox = mailbox && options.backend != Backend::Dx12;
+    config.present_mode = super::output::present_mode(options.vsync, mailbox);
     #[cfg(all(windows, feature = "streamline"))]
     let dx12 = {
         if let Some(runtime) = &mut dlss {
@@ -114,6 +118,10 @@ where
     #[cfg(not(all(windows, feature = "streamline")))]
     let native = false;
     if !native {
+        // Copies from and to the swapchain let a still frame show the kept scene image again (`reuse.rs`).
+        if caps.usages.contains(super::output::COPY_USAGES) {
+            config.usage |= super::output::COPY_USAGES;
+        }
         surface.configure(&device, &config);
     }
 
@@ -123,6 +131,7 @@ where
         Output::Window {
             surface,
             config,
+            mailbox,
             #[cfg(all(windows, feature = "streamline"))]
             dx12,
         },
@@ -344,6 +353,10 @@ fn assemble(
         pipeline_cache_path,
         frames: 0,
         prewarmed: None,
+        screen_control_off: true,
+        queued_captures: Default::default(),
+        surface_missed: false,
+        reuse: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

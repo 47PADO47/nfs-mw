@@ -10,7 +10,7 @@ use nfsmw_career::settings::NodeStates;
 use nfsmw_data::gameplay::GameplayData;
 
 use super::events::RaceEntry;
-use crate::career::race_event_id;
+use crate::career::{race_event_id, race_has_event};
 use crate::scenes::world::WorldScene;
 
 /// The bins whose races open through the ladder.
@@ -22,14 +22,15 @@ pub(super) fn side_locked(data: &GameplayData, won: &BTreeSet<String>, event: &s
     if !is_side_event(event) {
         return false;
     }
-    let Some(race) = data.races.iter().find(|r| race_event_id(r) == event) else {
+    let Some(race) = data.races.iter().find(|r| race_has_event(r, event)) else {
         return false;
     };
     if race.params.initially_unlocked {
         return false;
     }
+    // The cheap test first: only a race that lists this one has its id made.
     let opened_by = |other: &nfsmw_data::gameplay::Race| {
-        won.contains(&race_event_id(other)) && other.params.unlock_races.contains(&race.key)
+        other.params.unlock_races.contains(&race.key) && won.contains(&race_event_id(other))
     };
     !data.races.iter().any(opened_by)
 }
@@ -55,6 +56,7 @@ impl WorldScene {
         let Some(data) = self.gameplay.clone() else { return };
         let won = self.career.handle.with(|career| side_events_won(&data, &career.settings.nodes()));
         self.career.side_won = won.unwrap_or_default();
+        self.career.locks.get_mut().invalidate();
     }
 
     /// Whether the ladder holds this race zone's event shut.

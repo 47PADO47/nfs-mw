@@ -71,20 +71,26 @@ fn installed_world_viewer_selects_multiple_lamps_without_player_and_obeys_visibi
     assert_eq!(count(&mut world), 12);
 
     world.residency.shared_placed[0].group = 7;
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     assert_eq!(count(&mut world), 0, "disabled scenery groups cannot leave ghost lights");
     world.residency.set_collision_group(7, true);
     world.scenery_groups.set(7, true);
     assert_eq!(count(&mut world), 12);
     world.residency.shared_placed[0].prop_id = 91;
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     world.residency.world_parts().1.knock(91);
     assert_eq!(count(&mut world), 0, "the real prop visibility path suppresses hidden lamps");
     world.residency.shared_placed[0].prop_id = 0;
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     world.residency.shared_placed[0].lods = [Some(MeshHandle::from_raw(2)); 4];
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     assert_eq!(count(&mut world), 0, "an unmarked selected model inherits no lamp");
     world.residency.shared_placed[0].lods = [Some(mesh); 4];
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     world.camera.yaw = 0.0;
     assert_eq!(count(&mut world), 0, "main-view frustum selection removes lamps behind the camera");
     world.camera.yaw = std::f32::consts::PI;
     world.residency.shared_placed.clear();
+    world.environment_lights.revision = None; // the test edits the placement in place, with no residency revision
     assert_eq!(count(&mut world), 0, "removing the placement removes every lamp");
 }

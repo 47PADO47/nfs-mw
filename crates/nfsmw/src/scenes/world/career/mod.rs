@@ -11,6 +11,7 @@ mod drive_to_target;
 mod events;
 mod hud;
 mod ladder;
+mod locks;
 mod phone;
 mod pursuit;
 mod rap_tally;
@@ -49,6 +50,8 @@ pub(super) struct WorldCareer {
     pub cooling: Option<Option<nfsmw_career::economy::cooling::CoolingTable>>,
     /// The events of the challenge bin the player has won this session (`events.rs`).
     pub side_won: std::collections::BTreeSet<String>,
+    /// Which race starts the career keeps shut, kept while the state they come from does not change (`locks.rs`).
+    pub locks: std::cell::RefCell<locks::RaceLocks>,
     /// The speed traps the car is inside (`speedtraps.rs`).
     pub traps: speedtraps::TrapWatch,
     /// The drive to the first safe house, asked for and running (`drive_to_target.rs`).

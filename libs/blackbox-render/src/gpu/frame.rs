@@ -1,15 +1,17 @@
 //! Drawing a frame: the scene straight into the surface, or into an offscreen image that the
-//! post-process chain then writes to the surface, then the UI over it.
+//! post-process chain then writes to the surface, then the UI over it. The surface image is acquired as late as the
+//! frame allows (see `acquire.rs`).
 
 use super::Renderer;
-use super::cull::Face;
-use super::draw_list::drawn_here;
+use super::acquire::{Acquired, FrameOutput, Recorded};
+use super::draw_list::DrawList;
 use super::draw_list::instance_view::upload_view;
-use super::output::Output;
-use super::pipelines::{BLEND_ORDER, SHADINGS};
+use super::pipelines::BLEND_ORDER;
 use super::post::PassContext;
+use super::reflections::{CaptureKind, CaptureView};
+use super::scene_pass::{PreparedView, begin_pass};
 use super::targets::SceneTargets;
-use crate::{FrameParams, Instance, RenderError, Shading};
+use crate::{FrameParams, Instance, RenderError};
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
     /// (window minimised or the surface had to be reconfigured). A headless renderer draws into its
@@ -19,64 +21,51 @@ impl Renderer {
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
         let _trace = blackbox_trace::scope("Renderer: frame");
         self.refresh_display(false);
+        // A still frame shows the kept scene image and draws only the UI (`reuse.rs`).
+        let reuse = self.begin_reuse();
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             self.presentation.render_start();
             self.prepare_generation(frame);
         }
-        let acquire_started = std::time::Instant::now();
-        let acquire_trace = blackbox_trace::scope("Wait: acquire surface");
-        let (surface_texture, view) = match &self.output {
-            #[cfg(all(windows, feature = "streamline"))]
-            Output::Window { dx12: Some(native), .. } => (None, native.view()?),
-            Output::Window { surface, config, .. } => {
-                let acquired = surface.get_current_texture();
-                blackbox_trace::global().counter(
-                    "Surface acquisition",
-                    &[("elapsed_ms", acquire_started.elapsed().as_secs_f64() * 1000.0)],
-                );
-                let outcome = match &acquired {
-                    wgpu::CurrentSurfaceTexture::Success(_) => "success",
-                    wgpu::CurrentSurfaceTexture::Suboptimal(_) => "suboptimal",
-                    wgpu::CurrentSurfaceTexture::Timeout => "timeout",
-                    wgpu::CurrentSurfaceTexture::Occluded => "occluded",
-                    wgpu::CurrentSurfaceTexture::Outdated => "outdated",
-                    wgpu::CurrentSurfaceTexture::Lost => "lost",
-                    wgpu::CurrentSurfaceTexture::Validation => "validation",
-                };
-                if outcome != "success" {
-                    blackbox_trace::global().note(
-                        "Surface acquisition outcome",
-                        &format!(
-                            "{outcome}; present_mode={:?}; {}x{}",
-                            config.present_mode, config.width, config.height
-                        ),
-                    );
+        // The window's image is acquired once the work for the renderer's own images is recorded when the frame
+        // allows it (see `acquire.rs`), else now, before anything is recorded.
+        let late = !reuse && self.acquires_late();
+        let early = match late {
+            true => None,
+            false => match self.acquire_output()? {
+                Some(acquired) => Some(acquired),
+                None => {
+                    self.flush_captures();
+                    return Ok(false);
                 }
-                let texture = match acquired {
-                    wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-                    wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
-                    wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                        #[cfg(all(windows, feature = "streamline"))]
-                        if self.dlss.is_some() {
-                            self.presentation.suspend(&self.device);
-                        }
-                        surface.configure(&self.device, config);
-                        return Ok(false);
-                    }
-                    #[allow(unreachable_patterns)]
-                    other => return Err(RenderError::Surface(format!("{other:?}"))),
-                };
-                let view = texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
-                (Some(texture), view)
-            }
-            Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
+            },
         };
-        self.performance.acquire_wait_ms = acquire_started.elapsed().as_secs_f32() * 1000.0;
-        drop(acquire_trace);
         let submit_started = std::time::Instant::now();
-        self.submit_frame(None, &view, self.surface_size(), frame, instances);
-        self.performance.cpu_render_ms = submit_started.elapsed().as_secs_f32() * 1000.0;
+        let output = match &early {
+            Some(acquired) => FrameOutput::View(acquired.view()),
+            None => FrameOutput::Surface,
+        };
+        let recorded = match (reuse, early.as_ref()) {
+            // A still frame acquires first (`late` is off for it) and shows the kept image under the UI.
+            (true, Some(acquired)) => {
+                self.submit_reuse(acquired.view(), self.surface_size());
+                Recorded::Given
+            }
+            _ => self.record_frame(None, output, self.surface_size(), frame, instances)?,
+        };
+        self.end_reuse();
+        let presented = match recorded {
+            Recorded::Given => early,
+            Recorded::Acquired(acquired) => Some(acquired),
+            Recorded::Skipped => return Ok(false),
+        };
+        // A late acquire waited in the middle of the recording; that wait is not recording time.
+        let waited = match late {
+            true => self.performance.acquire_wait_ms,
+            false => 0.0,
+        };
+        self.performance.cpu_render_ms = (submit_started.elapsed().as_secs_f32() * 1000.0 - waited).max(0.0);
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             self.presentation.marker(3);
@@ -85,14 +74,14 @@ impl Renderer {
         let present_started = std::time::Instant::now();
         let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
         #[cfg(all(windows, feature = "streamline"))]
-        if let Output::Window { dx12: Some(native), config, .. } = &self.output {
+        if let super::output::Output::Window { dx12: Some(native), config, .. } = &self.output {
             native.present(
                 &self.device,
                 &self.queue,
                 matches!(config.present_mode, wgpu::PresentMode::AutoVsync | wgpu::PresentMode::Fifo),
             )?;
         }
-        match surface_texture {
+        match presented.and_then(Acquired::into_surface) {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
@@ -148,8 +137,9 @@ impl Renderer {
         let _trace = blackbox_trace::scope("Renderer CPU: encode scene");
         let size = targets.unwrap_or(&self.targets).size();
         // Every encoder recorded with the instance store before this one has been submitted, so its slots can be
-        // handed out again. The colour pass and camera prepass use the same instance order and transforms.
-        self.draw_list.store.begin_frame();
+        // handed out again, except a queued capture's: the frame joins its epoch. The colour pass and camera prepass
+        // use the same instance order and transforms.
+        self.begin_store_epoch();
         self.upload_main_instances(instances);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 4);
@@ -190,9 +180,64 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
         reduced: bool,
-        capture: Option<&mut super::reflections::CaptureView>,
+        capture: Option<&mut CaptureView>,
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: color view");
+        let view = self.prepare_view(encoder, (targets, output), frame, instances, reduced, capture, None);
+        // A reflection view draws no effects and no material reflections: its pass is recorded whole.
+        if view.reflection {
+            self.scene_draw().record(encoder, &view, &self.draw_list);
+            return;
+        }
+        let mut pass = begin_pass(encoder, &view);
+        self.scene_draw().begin(&mut pass, &view, &self.draw_list);
+        for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
+            self.scene_draw().blend_mode(&mut pass, &view, &self.draw_list, (mode_index, mode));
+            if mode == blackbox_gfx::BlendMode::AlphaTest
+                && (view.screen || self.road_reflections_active(frame, reduced))
+            {
+                drop(pass);
+                // The screen capture switches the glossy control on.
+                self.screen_control_off &= !view.screen;
+                self.encode_material_reflections(
+                    encoder,
+                    &view.target,
+                    &view.depth,
+                    frame,
+                    instances,
+                    (view.screen, reduced),
+                );
+                pass = super::glossy::screen_draw::resume(encoder, &view.target, &view.depth);
+                pass.set_bind_group(0, &view.globals, &[]);
+                pass.set_vertex_buffer(1, view.instances.slice(view.slots_at..));
+            }
+        }
+        if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
+            && self.info.api != blackbox_gfx::GraphicsApi::Gl
+        {
+            return;
+        }
+        self.effects.draw(&mut pass);
+        self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
+        drop(pass);
+        self.encode_soft_effects(encoder, &view.target, &view.depth, frame);
+    }
+
+    /// Prepare one view's colour pass: write its globals and upload its instances, build the pipelines and materials
+    /// of its format, and sort its draws into `list` (default: the renderer's own lists). The view's scene is drawn
+    /// into `targets` (default: the window's): the offscreen image, or `output` itself when the targets are direct.
+    /// Everything the pass writes or builds is done here, so recording it only reads shared state (`scene_pass.rs`).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn prepare_view(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        (targets, output): (Option<&SceneTargets>, &wgpu::TextureView),
+        frame: &FrameParams,
+        instances: &[Instance],
+        reduced: bool,
+        capture: Option<&mut CaptureView>,
+        list: Option<&mut DrawList>,
+    ) -> PreparedView {
         let reflection = capture.is_some();
         let screen = !reflection
             && !reduced
@@ -201,12 +246,14 @@ impl Renderer {
             && self.glossy.is_some();
         if !screen
             && !reflection
+            && !self.screen_control_off
             && let Some(glossy) = &self.glossy
         {
             glossy.screen.disable(&self.queue);
+            self.screen_control_off = true;
         }
-        let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
-        let planar = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Planar);
+        let projected = capture.as_ref().is_some_and(|v| v.kind == CaptureKind::Projected);
+        let planar = capture.as_ref().is_some_and(|v| v.kind == CaptureKind::Planar);
         let globals = self.scene_globals(frame, capture.as_deref(), reduced, targets.is_some());
         let [r, g, b] = frame.clear_color;
         // `slots_at`: where the per-instance data of the non-glossy pipelines starts in the view's buffer. The glossy
@@ -231,17 +278,17 @@ impl Renderer {
         self.queue.write_buffer(uniform, 0, bytemuck::bytes_of(&globals));
         let bind_group = bind_group.clone();
         let instance_buffer = instance_buffer.clone();
-        let store_group = self.draw_list.store.bind_group().cloned();
+        let store = self.draw_list.store.bind_group().cloned();
 
         let targets = targets.unwrap_or(&self.targets);
-        let target_view = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view).clone();
-        let target = &target_view;
-        let depth_view = targets.depth_view().clone();
-        let depth = &depth_view;
-        let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
+        let target = targets.offscreen().map_or(output, |offscreen| &offscreen.color_view).clone();
+        let depth = targets.depth_view().clone();
+        let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == depth);
         let format = targets.color_format();
         // The projected capture shares the main camera but keeps the opposite faces.
         let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view() ^ projected);
+        // Only a planar capture discards fragments behind its clip plane; the main view keeps early depth.
+        self.select_clip_variant(planar);
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
@@ -256,182 +303,29 @@ impl Renderer {
         {
             window.prepare(&self.device, (format, culled), self.pipeline_cache.as_ref());
         }
-        self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("scene"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(match (planar, projected) {
-                        (true, _) => wgpu::Color::TRANSPARENT,
-                        (_, true) => wgpu::Color::BLACK,
-                        _ => wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 },
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: match prepared_depth {
-                        true => wgpu::LoadOp::Load,
-                        false => wgpu::LoadOp::Clear(0.0),
-                    },
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_bind_group(0, &bind_group, &[]);
-        pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
-        if let Some(sky) = &self.sky {
-            sky.draw(&mut pass, format, &self.meshes, self.draw_list.sky(), store_group.as_ref());
+        match list {
+            Some(list) => list.build(instances, &self.meshes, &self.redirects, &self.textures),
+            None => self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures),
         }
-
-        let original = self.experiments.original_world_materials;
-        for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
-            let view = (mode, mirrored_view);
-            if original
-                && !projected
-                && let Some(normal) = &self.normal
-            {
-                let list = self.draw_list.normal(mode_index);
-                let shadows = &self.shared.shadows.fallback;
-                normal.draw(
-                    &mut pass,
-                    format,
-                    (mode, mirrored_view, false),
-                    &self.meshes,
-                    list,
-                    shadows,
-                    store_group.as_ref(),
-                );
-            }
-            if (original || projected)
-                && let Some(window) = &self.window
-            {
-                let list = self.draw_list.window(mode_index);
-                let shadows = &self.shared.shadows.fallback;
-                window.draw(&mut pass, format, view, &self.meshes, list, shadows, store_group.as_ref());
-            }
-            for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
-                let slot = mode_index * SHADINGS.len() + shading_index;
-                let bucket = self.draw_list.bucket(slot);
-                if bucket.is_empty() {
-                    continue;
-                }
-                if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))
-                    || (reflection && !projected && !planar))
-                    && matches!(shading, Shading::Glossy(_))
-                {
-                    continue;
-                }
-                let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth, Face::Both) else { continue };
-                pass.set_pipeline(pipeline);
-                let mut bound_face = Face::Both;
-                let glossy_pipeline = matches!(shading, Shading::Glossy(_));
-                if !glossy_pipeline {
-                    pass.set_bind_group(2, &self.shared.shadows.fallback, &[]);
-                }
-                if !glossy_pipeline && let Some(store) = &store_group {
-                    pass.set_bind_group(3, store, &[]);
-                }
-                let glossy = match shading {
-                    Shading::Glossy(_) => match &self.glossy {
-                        Some(glossy) => Some(glossy),
-                        None => continue,
-                    },
-                    _ => None,
-                };
-                if let Some(glossy) = glossy {
-                    glossy.bind_scene(&mut pass);
-                }
-                // The glossy shader reads matrices, which the view's buffer holds from its start (restored below).
-                if glossy_pipeline && slots_at != 0 {
-                    pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                }
-                let mut bound_mesh = None;
-                let mut bound_texture = None;
-                for &cmd in bucket {
-                    let Some(mesh) = self.meshes.get(cmd.mesh) else { continue };
-                    let Some(d) = mesh.draws.get(cmd.draw as usize) else { continue };
-                    if !drawn_here(d, shading, projected, original) {
-                        continue;
-                    }
-                    if let (Shading::Glossy(material), Some(glossy)) = (d.shading, glossy)
-                        && !glossy.bind_material(&mut pass, material)
-                    {
-                        continue;
-                    }
-                    // A projected normal draw shows the capture's diffuse texture when it has one.
-                    let captured = match (projected, d.shading) {
-                        (true, Shading::WorldNormal(handle)) => {
-                            self.normal.as_ref().and_then(|n| n.capture_diffuse(handle))
-                        }
-                        _ => None,
-                    };
-                    let texture = match captured {
-                        Some(t) => self.redirects.resolve(t.raw()),
-                        None => cmd.texture,
-                    };
-                    let face = cmd.face.seen(mirrored_view);
-                    if face != bound_face
-                        && let Some(p) = self.pipelines.get(mode, shading, prepared_depth, face)
-                    {
-                        pass.set_pipeline(p);
-                        bound_face = face;
-                    }
-                    if bound_mesh != Some(cmd.mesh) {
-                        pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                        pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                        bound_mesh = Some(cmd.mesh);
-                    }
-                    if bound_texture != Some(texture) {
-                        let Some(bind) = self.textures.get(texture).or(self.textures.get(0)) else { continue };
-                        pass.set_bind_group(1, bind, &[]);
-                        bound_texture = Some(texture);
-                    }
-                    pass.draw_indexed(
-                        d.first_index..d.first_index + d.index_count,
-                        d.base_vertex,
-                        cmd.instances.0..cmd.instances.1,
-                    );
-                }
-                if glossy_pipeline && slots_at != 0 {
-                    pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
-                }
-            }
-            if mode == blackbox_gfx::BlendMode::AlphaTest
-                && (screen || self.road_reflections_active(frame, reflection || reduced))
-            {
-                drop(pass);
-                self.encode_material_reflections(
-                    encoder,
-                    target,
-                    depth,
-                    frame,
-                    instances,
-                    (screen, reflection || reduced),
-                );
-                pass = super::glossy::screen_draw::resume(encoder, target, depth);
-                pass.set_bind_group(0, &bind_group, &[]);
-                pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
-            }
+        PreparedView {
+            target,
+            depth,
+            clear: match (planar, projected) {
+                (true, _) => wgpu::Color::TRANSPARENT,
+                (_, true) => wgpu::Color::BLACK,
+                _ => wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 },
+            },
+            globals: bind_group,
+            instances: instance_buffer,
+            slots_at,
+            store,
+            format,
+            prepared_depth,
+            mirrored_view,
+            reflection,
+            projected,
+            planar,
+            screen,
         }
-        if reflection
-            || (self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
-                && self.info.api != blackbox_gfx::GraphicsApi::Gl)
-        {
-            return;
-        }
-        self.effects.draw(&mut pass);
-        self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
-        drop(pass);
-        self.encode_soft_effects(encoder, target, depth, frame);
     }
 }

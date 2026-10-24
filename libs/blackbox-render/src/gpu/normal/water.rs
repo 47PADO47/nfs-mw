@@ -79,11 +79,11 @@ impl Renderer {
         target: &wgpu::TextureView,
         depth: &wgpu::TextureView,
         frame: &FrameParams,
-        instances: &[blackbox_gfx::Instance],
+        _instances: &[blackbox_gfx::Instance],
         (cars, capture): (bool, bool),
     ) {
         if cars {
-            self.encode_screen_glossy(encoder, target, depth, frame, instances);
+            self.encode_screen_glossy(encoder, target, depth, frame);
         }
         self.encode_road_reflections(encoder, target, depth, frame, capture);
     }
@@ -100,21 +100,19 @@ impl Renderer {
         }
         let blackbox_gfx::Projection::PerspectiveInfiniteReverse { near, .. } = frame.projection else { return };
         let Some(normal) = &mut self.normal else { return };
+        // The draw list sorts the projected-reading draws into their own lists at its next build; until it has, the
+        // pass walks the full normal lists below.
+        let projected = normal.materials.iter_indexed().filter(|(_, m)| m.uses_projected).map(|(slot, _)| slot);
+        self.draw_list.set_projected(projected);
         let previous = normal.water.screen.color.clone();
-        normal.water.screen.capture(&self.device, &self.queue, encoder, target, depth, near);
+        normal.water.screen.capture(&self.device, encoder, target, depth);
         if normal.water.screen.color != previous {
             normal.rebind_water(&self.device);
         }
         // The base draw binds the static environment, never the cube being captured.
-        self.queue.write_buffer(
-            &normal.water.screen.control,
-            0,
-            bytemuck::cast_slice(&[
-                1.0,
-                near,
-                self.experiments.road_reflection_range,
-                self.experiments.road_reflection_fade,
-            ]),
+        normal.water.screen.enable(
+            &self.queue,
+            [1.0, near, self.experiments.road_reflection_range, self.experiments.road_reflection_fade],
         );
         for m in normal.materials.iter_mut().filter(|m| m.uses_projected && m.water_group.is_none()) {
             m.water_group = Some(material_group(
@@ -135,12 +133,13 @@ impl Renderer {
         // Scenery reads u32 slots after the glossy matrix prefix, exactly as the base draw does.
         pass.set_vertex_buffer(1, self.instances.buffer.slice(self.draw_list.store.main_offset()..));
         for (index, mode) in BLEND_ORDER.into_iter().take(2).enumerate() {
+            let list = self.draw_list.water(index).unwrap_or_else(|| self.draw_list.normal(index));
             normal.draw(
                 &mut pass,
                 format,
                 (mode, frame.mirrored_view(), true),
                 &self.meshes,
-                self.draw_list.normal(index),
+                list,
                 &self.shared.shadows.fallback,
                 store,
             );
