@@ -350,6 +350,9 @@ from the HUD layout so the composer does not apply the HUD viewport to it), the 
 and the world map's legend (`WorldMapChrome`). Every other slot falls back to Original. All of it draws through the
 presenter; nothing is drawn in egui.
 
+The Custom HUD 2026 ([ADR 0013](../decisions/0013-custom-hud.md), `docs/specs/custom-hud/`) rewrites the rest. Its first
+drive card is retired; its components build on the tokens, layout and feed in `ui/theme/custom/` as they land.
+
 The egui branch in `crates/nfsmw/src/devtools/mod.rs` (the `settings.radio_hud == RadioHudStyle::Custom` check and
 the call to `crate::hud::show_radio`) is removed. T9 checked that the metrics and console overlays do not depend on
 that branch: they draw as before.
