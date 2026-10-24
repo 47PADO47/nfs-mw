@@ -17,7 +17,7 @@ fn the_defaults_are_the_balanced_hud() {
     assert!(!d.high_contrast && !d.motion_reduction);
     assert_eq!(d.palette, HudPalette::Default);
     assert_eq!((d.camera_shake, d.fov_intensity), (1.0, 1.0));
-    assert!(d.haptics);
+    assert!(!d.haptics, "rumble only when the player turns it on");
     assert_eq!(d.hud_volume, 0.8);
     assert_eq!(Settings::from(Partial::default()).hud_options, d);
 }

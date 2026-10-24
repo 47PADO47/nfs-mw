@@ -35,7 +35,7 @@ camera_shake = 0.5         # 0 (none) to 1 (as it is)
 | `motion_reduction` | `true`, `false` | `false` | Calmer HUD animation. |
 | `camera_shake` | 0 to 1 | 1.0 | Multiplies the contact shake of every camera and the original cameras' terrain and vehicle noise; 0 is a steady camera. |
 | `fov_intensity` | 0 to 1 | 1.0 | Multiplies how far the Dynamic FOV camera widens with speed; 0 keeps its rest FOV. |
-| `haptics` | `true`, `false` | `true` | Controller rumble for HUD events. |
+| `haptics` | `true`, `false` | `false` | Controller rumble for HUD events, only when the player turns it on. |
 | `hud_volume` | 0 to 1 | 0.8 | The volume of the HUD's own sounds. |
 
 A number outside its range is clamped. A value of the wrong kind (a string for a number, an unknown name) is reported

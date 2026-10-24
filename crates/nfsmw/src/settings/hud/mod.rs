@@ -56,7 +56,7 @@ pub const DEFAULT_PURSUIT_INFO: bool = true;
 pub const DEFAULT_FREE_ROAM_EXTRAS: bool = false;
 pub const DEFAULT_HIGH_CONTRAST: bool = false;
 pub const DEFAULT_MOTION_REDUCTION: bool = false;
-pub const DEFAULT_HAPTICS: bool = true;
+pub const DEFAULT_HAPTICS: bool = false;
 
 /// The options as the settings hold them.
 #[derive(Debug, Clone, Copy, PartialEq)]

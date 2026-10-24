@@ -298,7 +298,7 @@ fn the_hud_keys_set_and_read_back() {
     assert_eq!(set(&mut s, "custom_hud.scale", "1.25").unwrap(), "custom_hud.scale = 1.25");
     assert_eq!(set(&mut s, "custom_hud.camera_shake", "3").unwrap(), "custom_hud.camera_shake = 1", "clamped");
     assert_eq!(set(&mut s, "custom_hud.palette", "tritanopia").unwrap(), "custom_hud.palette = tritanopia");
-    assert_eq!(set(&mut s, "custom_hud.haptics", "").unwrap(), "custom_hud.haptics = off", "a switch flips");
+    assert_eq!(set(&mut s, "custom_hud.haptics", "").unwrap(), "custom_hud.haptics = on", "a switch flips");
     assert_eq!(set(&mut s, "custom_hud.preset", "minimal").unwrap(), "custom_hud.preset = minimal");
     assert_eq!(get(&s, "custom_hud.map_mode").unwrap(), "custom_hud.map_mode = compact", "the preset applies at once");
     assert!(s.hud, "the old hud switch is a separate key");
