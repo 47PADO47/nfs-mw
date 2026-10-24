@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 
 use super::custom::WorldMapLegendCell;
-use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
+use super::custom::{CustomFeedCell, CustomTheme, DriveFeedCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
 use super::{ElementId, MenuListCell, build_themes, default_skin};
 use crate::frontend::world_map::Chrome;
@@ -112,7 +112,7 @@ fn the_custom_hud_slots_are_hud_slots_not_menus() {
 fn theme_ids_are_original_and_custom() {
     assert_eq!(OriginalTheme::new(FrameCell::new()).id(), ThemeId::Original);
     assert_eq!(
-        CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default(), WorldMapLegendCell::default()).id(),
+        CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), WorldMapLegendCell::default()).id(),
         ThemeId::Custom
     );
 }
@@ -123,6 +123,7 @@ fn registry_has_original_then_custom_and_remastered_with_original_active() {
         FrameCell::new(),
         RadioFeedCell::new(),
         DriveFeedCell::new(),
+        CustomFeedCell::new(),
         WorldMapLegendCell::new(),
         MenuListCell::new(),
         Default::default(),
@@ -138,6 +139,7 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
         FrameCell::new(),
         RadioFeedCell::new(),
         DriveFeedCell::new(),
+        CustomFeedCell::new(),
         WorldMapLegendCell::new(),
         MenuListCell::new(),
         Default::default(),
@@ -242,4 +244,25 @@ fn the_active_theme_tokens_reach_the_skin_the_components_read() {
         Some(blackbox_ui::Tokens::default().background),
         "the floor merges the neutral tokens"
     );
+}
+
+#[test]
+fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_palette() {
+    use crate::settings::hud::HudPalette;
+    use crate::settings::{UiStyle, UiTheme};
+
+    use super::custom::palette;
+    use super::custom::tokens::{Colours, CustomLook, keys};
+
+    let mut themes = super::UiThemes::build();
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.skin.colour(keys::TEXT), Some(Colours::BRIEF.text));
+    assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::bevy().secondary), "the Bevy cyan");
+    themes.set_ui_theme(UiTheme::Remastered);
+    assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::remastered().secondary), "the Remastered gold");
+    themes.set_custom_look(CustomLook { palette: HudPalette::Deuteranopia, high_contrast: true });
+    assert_eq!(themes.skin.colour(keys::TEXT), Some([255, 255, 255, 255]));
+    assert!(themes.skin.colour(keys::OUTLINE).is_some(), "high contrast outlines the plates");
+    themes.set_custom_look(CustomLook::default());
+    assert_eq!(themes.skin.colour(keys::OUTLINE), None, "the outline goes with high contrast");
 }
