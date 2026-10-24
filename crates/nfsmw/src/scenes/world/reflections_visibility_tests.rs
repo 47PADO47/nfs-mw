@@ -1,5 +1,6 @@
 use super::*;
 use blackbox_gfx::reflection::ALL_FACES;
+use blackbox_gfx::reflection::distance::within;
 use blackbox_gfx::{FrameParams, InstanceKey, MeshHandle, Projection};
 use blackbox_scene::Aabb;
 use glam::{Mat4, Vec3};
@@ -253,4 +254,77 @@ fn distance_tests_current_bounds_instead_of_discarding_a_near_wall_by_its_origin
     assert!(faces.iter().any(|face| !face.is_empty()));
     collect([&wall].into_iter(), &cameras, rules, &props, 1024.0, Some(80.0), ALL_FACES, &mut faces, &mut scratch);
     assert!(faces.iter().all(Vec::is_empty));
+}
+
+/// The scene cut into tiles of 50 objects, with authored shadow overlays and props among them.
+fn tiled() -> (Vec<Vec<Placed>>, Vec<crate::scenes::world::resident::TileCull>) {
+    let mut placed = scene();
+    for (i, p) in placed.iter_mut().enumerate() {
+        p.original_shadow = i % 5 == 0;
+        p.prop_id = if i % 13 == 0 { 500 + i as u32 } else { 0 };
+    }
+    let tiles: Vec<Vec<Placed>> = placed.chunks(50).map(<[Placed]>::to_vec).collect();
+    let culls = tiles.iter().map(|tile| crate::scenes::world::resident::TileCull::build(tile)).collect();
+    (tiles, culls)
+}
+
+fn ordered(face: &[Instance]) -> Vec<(usize, InstanceKey, [f32; 16])> {
+    face.iter().map(|i| (i.mesh.raw(), i.key, i.transform.to_cols_array())).collect()
+}
+
+#[test]
+fn the_tile_path_selects_what_the_flat_path_selects_in_the_same_order() {
+    let (tiles, culls) = tiled();
+    let collision = blackbox_collision::CollisionWorld::new(None);
+    let props = PropWorld::default();
+    let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+    let mut scratch = Scratch::default();
+    let mut selected_instances = 0;
+    for origin in [Vec3::ZERO, Vec3::new(45.0, -19.0, 4.0), Vec3::new(-300.0, 220.0, -10.0)] {
+        let cameras = cameras(origin);
+        for original_shadows in [false, true] {
+            for origin_far in [None, Some(150.0)] {
+                for far in [None, Some(200.0)] {
+                    for drawn in [ALL_FACES, 0b00_0101, 0b10_0000] {
+                        let listing = Listing { original_shadows, origin_far };
+                        let mut tiled_faces: [Vec<Instance>; 6] = std::array::from_fn(|_| Vec::new());
+                        let tile_list = tiles.iter().zip(&culls).map(|(placed, cull)| CullTile {
+                            placed,
+                            cull,
+                            collision: &collision,
+                        });
+                        collect_tiles(
+                            tile_list,
+                            listing,
+                            &cameras,
+                            rules,
+                            &props,
+                            480.0,
+                            far,
+                            drawn,
+                            &mut tiled_faces,
+                            &mut scratch,
+                        );
+                        let listed = tiles
+                            .iter()
+                            .flatten()
+                            .filter(|p| original_shadows || !p.original_shadow)
+                            .filter(|p| within(origin, p.transform.w_axis.truncate(), origin_far));
+                        let mut flat_faces: [Vec<Instance>; 6] = std::array::from_fn(|_| Vec::new());
+                        collect(listed, &cameras, rules, &props, 480.0, far, drawn, &mut flat_faces, &mut scratch);
+                        selected_instances += flat_faces.iter().map(Vec::len).sum::<usize>();
+                        for face in 0..6 {
+                            assert_eq!(
+                                ordered(&tiled_faces[face]),
+                                ordered(&flat_faces[face]),
+                                "face {face}, origin {origin}, shadows {original_shadows}, origin far {origin_far:?}, \
+                                 far {far:?}, drawn {drawn:#b}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(selected_instances > 100, "the comparison must include visible geometry");
 }
