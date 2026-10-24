@@ -169,18 +169,18 @@ impl DrawList {
         let _trace = blackbox_trace::scope("Renderer CPU: build draw list");
         self.fill(
             instances,
-            |slot| meshes.get(slot).map(|mesh| (mesh.draws.as_slice(), mesh.draw_masks.as_slice())),
+            |slot| meshes.get(slot).map(|mesh| (mesh.draws.as_slice(), mesh.draw_masks.as_slice(), mesh.single_sided)),
             |texture| resolve_texture(texture, redirects, textures),
         );
     }
 
     /// The walk behind [`Self::build`], over plain draw lists so the tests need no device. `draws_of`
-    /// gives a mesh's draws and their masks (`None` for a mesh that is not live); `texture_of` gives a draw's
-    /// texture slot.
+    /// gives a mesh's draws, their masks and whether any draw is single-sided (`None` for a mesh that is not
+    /// live); `texture_of` gives a draw's texture slot.
     fn fill<'a>(
         &mut self,
         instances: &[Instance],
-        draws_of: impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask])>,
+        draws_of: impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask], bool)>,
         texture_of: impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
         self.buckets.resize_with(BUCKETS, Vec::new);
@@ -195,11 +195,11 @@ impl DrawList {
         let mut start = 0;
         while start < instances.len() {
             let mesh = instances[start].mesh.raw();
-            let Some((draws, masks)) = draws_of(mesh) else {
+            let Some((draws, masks, single_sided)) = draws_of(mesh) else {
                 start = run(instances, start, false).0;
                 continue;
             };
-            let (end, mirrored) = run(instances, start, draws.iter().any(|d| !d.two_sided));
+            let (end, mirrored) = run(instances, start, single_sided);
             self.push_run(mesh, (draws, masks), ((start as u32, end as u32), mirrored), &texture_of);
             start = end;
         }

@@ -37,12 +37,14 @@ fn draw(blend: BlendMode, shading: Shading, texture: Option<usize>) -> DrawRange
 struct TestMesh {
     draws: Vec<DrawRange>,
     masks: Vec<DrawMask>,
+    single_sided: bool,
 }
 
 impl TestMesh {
     fn new(draws: Vec<DrawRange>) -> Self {
         let masks = draws.iter().map(DrawMask::of).collect();
-        Self { draws, masks }
+        let single_sided = draws.iter().any(|d| !d.two_sided);
+        Self { draws, masks, single_sided }
     }
 }
 
@@ -79,8 +81,8 @@ fn test_meshes() -> Vec<Option<TestMesh>> {
     ]
 }
 
-fn lookup<'a>(meshes: &'a [Option<TestMesh>]) -> impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask])> {
-    move |slot| meshes.get(slot)?.as_ref().map(|m| (m.draws.as_slice(), m.masks.as_slice()))
+fn lookup<'a>(meshes: &'a [Option<TestMesh>]) -> impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask], bool)> {
+    move |slot| meshes.get(slot)?.as_ref().map(|m| (m.draws.as_slice(), m.masks.as_slice(), m.single_sided))
 }
 
 fn test_textures() -> Slots<u8> {
