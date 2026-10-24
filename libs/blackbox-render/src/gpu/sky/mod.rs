@@ -44,6 +44,8 @@ pub(super) struct Sky {
     materials: Slots<Material>,
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 3]>,
     state: SkyState,
+    /// The material uniforms are stale: the state changed or a material was added since they were last written.
+    params_dirty: bool,
     /// Instances are read from the instance store, bound at group 2; the cloud map follows it.
     store: bool,
 }
@@ -111,6 +113,7 @@ impl Sky {
             materials: Slots::new(),
             pipelines: HashMap::new(),
             state: SkyState::default(),
+            params_dirty: true,
             store,
         }
     }
@@ -132,6 +135,11 @@ impl Sky {
                 pipeline::create(device, shader, &self.layout, format, layer, store, cache)
             })
         });
+        // Every view of a frame shares the sky state, so the uniforms are rewritten only when it changed.
+        if !self.params_dirty {
+            return;
+        }
+        self.params_dirty = false;
         let intensity = self.state.cloud_intensity.map(|x| match x.is_finite() {
             true => x.clamp(-1.0, 1.0),
             false => 0.0,
@@ -267,6 +275,7 @@ impl Renderer {
         });
         let views = [diffuse.clone(), miscellaneous.clone()];
         let bind_group = material_group(&self.device, sky, &views, &uniform);
+        sky.params_dirty = true;
         Some(SkyMaterialHandle::from_raw(sky.materials.insert(Material {
             uniform,
             bind_group,
@@ -282,9 +291,13 @@ impl Renderer {
     }
 
     pub fn set_sky_state(&mut self, state: SkyState) {
-        if let Some(sky) = &mut self.sky {
-            sky.state = state.sanitized();
+        let Some(sky) = &mut self.sky else { return };
+        let state = state.sanitized();
+        if sky.state == state {
+            return;
         }
+        sky.state = state;
+        sky.params_dirty = true;
     }
 }
 
