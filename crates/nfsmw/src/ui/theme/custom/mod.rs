@@ -13,6 +13,8 @@
 //! - [`plate`]: the translucent charcoal plate with its optional accent line.
 //! - [`text`]: text in the three font roles, sized by the HUD scale and `text_size`.
 //!
+//! Built on it (PR 6): [`cluster`], the horizontal telemetry cluster, which fills the drive slots.
+//!
 //! Kept from before the rewrite until their own PRs replace them:
 //!
 //! - [`radio_card`], [`radio_feed`], [`radio_placement`]: the radio card, its feed and its place.
@@ -21,6 +23,7 @@
 //! - [`skin`]: the radio card's and the legend's fonts; [`palette`]: the two palettes `ui_theme` picks.
 //! - [`hud_component`]: the slot-to-component map, also used by a mod theme that declares tokens.
 
+mod cluster;
 mod drive_feed;
 // The Custom components that read the feed, the layout, the plate and the text helpers land in PRs 6 to 9.
 #[allow(dead_code)]
@@ -54,9 +57,10 @@ pub use radio_card::RadioCard;
 pub use radio_feed::RadioFeedCell;
 pub use skin::card_skin;
 
-use blackbox_ui::{BuildCx, Component, SlotId, Theme, ThemeId, Tokens};
+use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId, Tokens};
 
 use crate::ui::theme::ElementId;
+use cluster::Cluster;
 
 /// The token-driven theme: its id, the tokens it declares, and the feeds its components read.
 #[derive(Clone, Debug)]
@@ -98,14 +102,19 @@ impl Theme for CustomTheme {
 /// The component the token-driven look draws for `slot`, or `None` for a slot it does not re-express. Shared by the
 /// built-in token theme and by a mod theme that declares tokens (`ui/theme/modded`).
 ///
-/// The HUD components read `feed`. Until the cluster, the map and the layouts land (PRs 6 to 9), every drive and HUD
-/// slot returns `None`, so it falls back to Original.
+/// The HUD components read `feed`. The telemetry cluster fills the drive slots; until the map and the layouts land
+/// (PRs 7 to 9), the other HUD slots return `None`, so they fall back to Original.
 pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell) -> Option<Box<dyn Component>> {
-    // No HUD component reads the feed yet; the next PRs hand it to theirs.
-    let _ = feed;
     // A slot id outside the catalogue has no component, and neither does any slot the look does not re-express.
     match ElementId::from_slot(slot)? {
         ElementId::RadioCard => Some(Box::new(RadioCard::new(radio.clone()))),
+        // The telemetry cluster draws the speed, the revs, the gear and the bars from one slot (PR 6).
+        ElementId::Speedometer => Some(Box::new(Cluster::new(feed.clone()))),
+        ElementId::Tachometer => Some(Box::new(Empty)),
+        ElementId::GearIndicator => Some(Box::new(Empty)),
+        ElementId::Nitrous => Some(Box::new(Empty)),
+        ElementId::Turbo => Some(Box::new(Empty)),
+        ElementId::Speedbreaker => Some(Box::new(Empty)),
         _ => None,
     }
 }

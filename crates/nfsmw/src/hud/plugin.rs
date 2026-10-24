@@ -338,6 +338,7 @@ fn present(
             hud: std::sync::Arc::new(HudState::clone(&state)),
             settings: settings.hud_options,
             units: settings.speed_units,
+            transmission: settings.transmission,
             elapsed_s: time.elapsed_secs(),
             delta_s: time.delta_secs(),
             screen,

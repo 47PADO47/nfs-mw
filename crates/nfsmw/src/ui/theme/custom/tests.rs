@@ -50,14 +50,25 @@ fn texts(nodes: &[UiNode]) -> Vec<&str> {
 }
 
 #[test]
-fn custom_fills_the_radio_card_and_the_map_legend_and_falls_back_for_every_other_slot() {
-    // The old drive card is gone; the new HUD components come in PRs 6 to 9, so every HUD slot falls back for now.
+fn custom_fills_the_radio_card_the_map_legend_and_the_drive_slots_and_falls_back_for_every_other_slot() {
+    // The telemetry cluster (PR 6) claims the drive slots; the other HUD components come in PRs 7 to 9, so the rest of
+    // the HUD falls back for now.
     let theme = CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), Default::default());
     let skin = default_skin();
     let cx = BuildCx::new(&skin);
     for element in ElementId::ALL {
         let filled = theme.element(element.slot(), &cx).is_some();
-        let custom = matches!(element, ElementId::RadioCard | ElementId::WorldMapChrome);
+        let custom = matches!(
+            element,
+            ElementId::RadioCard
+                | ElementId::WorldMapChrome
+                | ElementId::Speedometer
+                | ElementId::Tachometer
+                | ElementId::GearIndicator
+                | ElementId::Nitrous
+                | ElementId::Turbo
+                | ElementId::Speedbreaker
+        );
         assert_eq!(filled, custom, "{}", element.name());
     }
     assert!(theme.element(SlotId::new(9999), &cx).is_none(), "an id outside the catalogue has no Custom component");

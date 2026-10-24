@@ -147,9 +147,9 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {
-        // Custom fills only the radio card, and every other slot falls back to Original: the HUD and menu slots get
-        // their adapters, which draw nothing from an empty frame cell. The radio card draws nothing from an empty
-        // feed. The check is that resolution and build run for every slot without panicking.
+        // Custom fills the radio card and the drive slots, and every other slot falls back to Original: the HUD and
+        // menu slots get their adapters, which draw nothing from an empty frame cell. The radio card draws nothing from
+        // an empty feed. The check is that resolution and build run for every slot without panicking.
         let component = themes.resolve(slot.slot(), &BuildCx::new(&skin));
         let mut out = DrawList::new();
         component.build(&mut out);

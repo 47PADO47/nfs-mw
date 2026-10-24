@@ -11,10 +11,11 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::hud::HudState;
-use crate::settings::SpeedUnits;
 use crate::settings::hud::HudSettings;
+use crate::settings::{SpeedUnits, Transmission};
 use crate::ui::present::Screen;
 
+use super::cluster::ClusterMemory;
 use super::layout::CANVAS;
 
 /// What the notification manager shows this frame. A placeholder until the notification queue is drawn (PR 8): the
@@ -31,6 +32,9 @@ pub struct CustomFeed {
     pub settings: HudSettings,
     /// The unit the player reads speed in (`Settings::speed_units`).
     pub units: SpeedUnits,
+    /// Who changes gear (`Settings::transmission`): the cluster's shift cue also shows for a manual box past the shift
+    /// point.
+    pub transmission: Transmission,
     /// Seconds since the game started, on the frame clock. Animation runs on this, never on frame counts.
     pub elapsed_s: f32,
     /// The frame's length, in seconds, for the springs that integrate over time.
@@ -48,6 +52,7 @@ impl Default for CustomFeed {
             hud: Arc::default(),
             settings: HudSettings::default(),
             units: SpeedUnits::default(),
+            transmission: Transmission::default(),
             elapsed_s: 0.0,
             delta_s: 0.0,
             screen: CANVAS,
@@ -56,10 +61,11 @@ impl Default for CustomFeed {
     }
 }
 
-/// The shared cell. Clones share one feed.
+/// The shared cell. Clones share one feed, and one memory of the cluster's animation.
 #[derive(Clone, Debug, Default)]
 pub struct CustomFeedCell {
     feed: Arc<Mutex<CustomFeed>>,
+    cluster: ClusterMemory,
 }
 
 impl CustomFeedCell {
@@ -76,6 +82,12 @@ impl CustomFeedCell {
     /// This frame's feed. The HUD state is shared, so the copy is cheap.
     pub fn get(&self) -> CustomFeed {
         self.lock().clone()
+    }
+
+    /// What the cluster keeps between frames (its springs and pulses). The theme builds a new cluster each frame, so
+    /// the memory lives with the feed it is stepped from.
+    pub fn cluster(&self) -> &ClusterMemory {
+        &self.cluster
     }
 
     /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is
