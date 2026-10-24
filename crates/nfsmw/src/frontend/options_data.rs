@@ -25,6 +25,7 @@ impl Setting {
             Setting::Renderer(setting) => setting.data(s),
             Setting::UpscaleSharpness => steps::sharpening(s.upscale_sharpness),
             Setting::Hd(setting) => setting.data(s),
+            Setting::CustomHud(setting) => setting.data(s),
             Setting::Language => language::data(),
             Setting::HudLayout => match s.hud_layout {
                 // The platform names are not language.

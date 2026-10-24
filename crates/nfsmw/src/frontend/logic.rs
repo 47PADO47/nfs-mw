@@ -21,6 +21,8 @@ pub enum Category {
     Video,
     Gameplay,
     Player,
+    /// The Custom HUD's options (`hud_options.rs`), shown in every style.
+    Hud,
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,

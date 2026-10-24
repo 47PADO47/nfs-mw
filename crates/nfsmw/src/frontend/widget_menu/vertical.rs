@@ -47,6 +47,10 @@ impl WidgetMenu {
         }
         self.top = window_start(self.top, self.selected, self.rows.len());
         self.entries = self.rows.iter().map(|row| entry_of(cx, row)).collect();
+        self.note = match self.args.category {
+            super::super::logic::Category::Hud => options::hud_options::note(cx.settings),
+            _ => String::new(),
+        };
     }
 
     /// The page as a list, or `None` when it is not drawn as one.
@@ -61,7 +65,7 @@ impl WidgetMenu {
         };
         Some(MenuList {
             title: self.heading.clone(),
-            message: String::new(),
+            message: self.note.clone(),
             entries: self.entries.clone(),
             selected: self.selected,
             first: self.top,
@@ -104,6 +108,7 @@ pub(super) fn heading(_cx: &Cx, category: super::super::logic::Category, label: 
     match category {
         Category::Controls => t!("menus-control-options"),
         Category::Discord => "Discord".into(),
+        Category::Hud => t!("menus-hud"),
         Category::Mods => t!("menus-mods"),
         Category::CustomRace => Text::Game(TRACK_OPTIONS).show(),
         _ => Text::Game(label).resolve().unwrap_or_default(),

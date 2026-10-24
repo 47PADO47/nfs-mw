@@ -33,6 +33,7 @@ impl IconMenu {
             Id::ControlOptions => Some(t!("menus-control-options")),
             Id::EndCoop => Some(t!("menus-end-coop")),
             Id::Category(Category::Discord) => Some("Discord".into()),
+            Id::Category(Category::Hud) => Some(t!("menus-hud")),
             Id::Category(Category::Mods) => Some(t!("menus-mods")),
             Id::SafeHouseBlacklist(stage) => Some(t!("menus-blacklist-stage", stage = stage)),
             _ => None,

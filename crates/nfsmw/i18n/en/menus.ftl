@@ -8,6 +8,8 @@ menus-control-options = Control Options
 menus-end-coop = End Co-op
 # The option category of the installed mods' settings.
 menus-mods = Mods
+# The option category of the Custom HUD's options.
+menus-hud = HUD
 # The safe house's entry for one Blacklist rival's stage; $stage is its number, 15 down to 1.
 menus-blacklist-stage = Blacklist { $stage }
 

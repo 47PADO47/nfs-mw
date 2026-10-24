@@ -1,5 +1,6 @@
 //! Category layout for the option screens.
 use super::hd_options::HdSetting;
+use super::hud_options::HudSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
@@ -114,6 +115,16 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::CustomRace => crate::frontend::custom_race::options::rows()
             .into_iter()
             .map(|custom| row(Setting::Custom(custom), Title::Label(custom.title())))
+            .collect(),
+        // The HUD page: one row per `[custom_hud]` key, the map's orientation, then the speed units after it
+        // (docs/specs/custom-hud/menus.md, section 4).
+        Category::Hud => HudSetting::ALL
+            .into_iter()
+            .flat_map(|setting| {
+                let units = (setting == HudSetting::MapOrientation)
+                    .then(|| row(Setting::SpeedUnits, Title::Key("options-speed-units")));
+                [Some(row(Setting::CustomHud(setting), setting.title())), units].into_iter().flatten()
+            })
             .collect(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
