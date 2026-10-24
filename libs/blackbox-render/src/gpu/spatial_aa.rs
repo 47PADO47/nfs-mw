@@ -47,7 +47,7 @@ impl Renderer {
             {
                 timing.finish(&mut encoder);
             }
-            submit(&queue, encoder);
+            self.submit(encoder);
             if scene.is_none()
                 && let Some(timing) = &mut self.timing
             {
@@ -99,7 +99,7 @@ impl Renderer {
         {
             timing.finish(&mut encoder);
         }
-        submit(&queue, encoder);
+        self.submit(encoder);
         if scene.is_none()
             && let Some(timing) = &mut self.timing
         {
@@ -107,14 +107,15 @@ impl Renderer {
         }
         self.end_temporal();
     }
-}
 
-/// Keep command finalization separate from queue submission: both may enter the graphics driver.
-fn submit(queue: &wgpu::Queue, encoder: wgpu::CommandEncoder) {
-    let commands = {
-        let _trace = blackbox_trace::scope("GPU API: finish command encoder");
-        encoder.finish()
-    };
-    let _trace = blackbox_trace::scope("GPU API: queue submit");
-    queue.submit([commands]);
+    /// Keep command finalization separate from queue submission: both may enter the graphics driver. The captures
+    /// queued for this frame go out in the same submission, ahead of it.
+    fn submit(&mut self, encoder: wgpu::CommandEncoder) {
+        let commands = {
+            let _trace = blackbox_trace::scope("GPU API: finish command encoder");
+            encoder.finish()
+        };
+        let _trace = blackbox_trace::scope("GPU API: queue submit");
+        self.submit_after_captures(commands);
+    }
 }

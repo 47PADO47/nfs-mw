@@ -51,11 +51,14 @@ impl RenderBackend for Renderer {
         let previous = self.experiments;
         let old_screen = previous.screen_reflections;
         self.experiments = options.sanitized();
-        if (previous.sun_angle != self.experiments.sun_angle
-            || previous.local_reflection_correction != self.experiments.local_reflection_correction)
-            && let Some(glossy) = &self.glossy
+        if previous.sun_angle != self.experiments.sun_angle
+            || previous.local_reflection_correction != self.experiments.local_reflection_correction
         {
-            glossy.sync_probe_options(&self.queue, &self.experiments);
+            // A capture queued for the frame keeps the rig and probe lanes it was recorded with.
+            self.flush_captures();
+            if let Some(glossy) = &self.glossy {
+                glossy.sync_probe_options(&self.queue, &self.experiments);
+            }
         }
         if old_screen != self.experiments.screen_reflections {
             self.refresh_targets();

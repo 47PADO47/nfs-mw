@@ -45,6 +45,7 @@ mod prewarm_bench;
 #[cfg(test)]
 mod prewarm_tests;
 mod projected;
+mod queued;
 mod redirects;
 mod reflection_queue;
 mod reflection_store;
@@ -161,6 +162,8 @@ pub struct Renderer {
     /// The glossy screen-reflection control is known to hold "off" (set by the scene views that draw without
     /// screen reflections), so they skip rewriting it. A screen-reflection capture clears this.
     screen_control_off: bool,
+    /// Captures recorded before the frame that go out in its submission (see `queued.rs`).
+    queued_captures: queued::QueuedCaptures,
 }
 
 impl Renderer {

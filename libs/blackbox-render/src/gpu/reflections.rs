@@ -171,13 +171,15 @@ impl Renderer {
     pub(super) fn capture_reflections(
         &mut self,
         scene: Option<ReflectionScene<'_>>,
-        encoder: Option<&mut wgpu::CommandEncoder>,
+        mut encoder: Option<&mut wgpu::CommandEncoder>,
     ) {
         let Some(scene) = scene.filter(|s| s.quality != ReflectionQuality::Off) else {
-            if self.reflections.take().is_some()
-                && let Some(glossy) = self.glossy.as_mut()
-            {
-                glossy.restore_environment(&self.queue);
+            if self.reflections.take().is_some() {
+                // A queued capture's glossy draws read the probe settings this rewrites.
+                self.flush_captures();
+                if let Some(glossy) = self.glossy.as_mut() {
+                    glossy.restore_environment(&self.queue);
+                }
             }
             return;
         };
@@ -194,6 +196,11 @@ impl Renderer {
             true => ALL_FACES,
             false => scene.refresh & ALL_FACES,
         };
+        // A queued capture's glossy draws read the probe origin: the frame's encoder writes it after them.
+        if encoder.is_none() {
+            self.flush_captures();
+        }
+        let queued = self.captures_queued();
         // The cube texture outlives its captures, so the glossy group is built once, not on every refresh.
         if let Some(glossy) = self.glossy.as_mut() {
             if created || !glossy.capture_bound() {
@@ -202,6 +209,7 @@ impl Renderer {
             glossy.set_probe(
                 &self.device,
                 &self.queue,
+                encoder.as_deref_mut().filter(|_| queued),
                 &capture.depth,
                 scene.origin,
                 self.experiments.local_reflection_correction,

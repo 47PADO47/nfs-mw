@@ -204,6 +204,8 @@ impl Renderer {
             let force = !shadows.stagger || frame.camera_cut || settings.shadow_projection.is_some();
             due = shadows.rendered.plan(&mut params, fitted.count, force);
         }
+        // Glossy draws of a queued capture read the environment lanes: other ones send the capture first.
+        self.guard_shadow_environment(params.environment);
         self.queue.write_buffer(&self.shared.shadows.buffer, 0, bytemuck::bytes_of(&params));
         let Some(fit) = fit.filter(|_| settings.sun_shadows && stats.supported) else {
             if let Some(shadows) = &mut self.shadows {

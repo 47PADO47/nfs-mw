@@ -148,8 +148,9 @@ impl Renderer {
         let _trace = blackbox_trace::scope("Renderer CPU: encode scene");
         let size = targets.unwrap_or(&self.targets).size();
         // Every encoder recorded with the instance store before this one has been submitted, so its slots can be
-        // handed out again. The colour pass and camera prepass use the same instance order and transforms.
-        self.draw_list.store.begin_frame();
+        // handed out again, except a queued capture's: the frame joins its epoch. The colour pass and camera prepass
+        // use the same instance order and transforms.
+        self.begin_store_epoch();
         self.upload_main_instances(instances);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 4);

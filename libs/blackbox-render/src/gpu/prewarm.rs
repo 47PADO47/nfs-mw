@@ -154,6 +154,8 @@ impl Renderer {
     /// The environment cube capture (six scene passes) when reflections are on, else the
     /// scene pipelines the projected capture draws with when the world uses authored reflective materials.
     fn warm_captures(&mut self, frame: &FrameParams) {
+        // The warm capture is submitted on its own: a capture queued for the frame goes first, in recording order.
+        self.flush_captures();
         let quality = self.graphics.reflections;
         if quality != ReflectionQuality::Off && self.reflections.is_none() {
             let nothing: &[Instance] = &[];

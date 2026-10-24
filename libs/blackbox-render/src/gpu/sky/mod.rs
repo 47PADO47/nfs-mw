@@ -291,11 +291,13 @@ impl Renderer {
     }
 
     pub fn set_sky_state(&mut self, state: SkyState) {
-        let Some(sky) = &mut self.sky else { return };
         let state = state.sanitized();
-        if sky.state == state {
+        if self.sky.as_ref().is_none_or(|sky| sky.state == state) {
             return;
         }
+        // The next view rewrites the uniforms: a capture queued for the frame keeps the ones it was recorded with.
+        self.flush_captures();
+        let Some(sky) = &mut self.sky else { return };
         sky.state = state;
         sky.params_dirty = true;
     }

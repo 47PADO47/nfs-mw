@@ -109,8 +109,10 @@ impl ProjectedCapture {
     }
 }
 impl Renderer {
-    /// Read the unblurred projected scene for offscreen diagnostics.
-    pub fn read_projected_scene(&self) -> Option<Result<blackbox_gfx::RgbaImage, crate::RenderError>> {
+    /// Read the unblurred projected scene for offscreen diagnostics. A capture still queued for the next frame's
+    /// submission is submitted first.
+    pub fn read_projected_scene(&mut self) -> Option<Result<blackbox_gfx::RgbaImage, crate::RenderError>> {
+        self.flush_captures();
         let capture = self.projected.as_ref()?;
         let target = capture.scene.offscreen()?;
         let size = (capture.size[0], capture.size[1]);
@@ -177,6 +179,14 @@ impl Renderer {
             CaptureKind::Planar => blackbox_trace::scope("Renderer CPU: planar capture"),
             _ => blackbox_trace::scope("Renderer CPU: projected capture"),
         };
+        // An earlier capture still queued wrote the capture view's globals this one is about to rewrite.
+        self.flush_captures();
+        // A queued projected capture opens the instance store's epoch, which the frame joins (see `queued.rs`). The
+        // planar capture is submitted at once and draws in the epoch that is open, as before.
+        let queued = kind == CaptureKind::Projected;
+        if queued {
+            self.begin_store_epoch();
+        }
         let limit = self.device.limits().max_texture_dimension_2d.min(MAX_EDGE);
         let size = scene.size.map(|edge| edge.min(limit));
         let mut capture =
@@ -205,7 +215,15 @@ impl Renderer {
         if let Some(blur) = &mut capture.blur {
             blur.encode(&self.device, &self.queue, &mut encoder, output, size);
         }
-        self.queue.submit([encoder.finish()]);
+        // The projected capture reads nothing the frame rewrites without first sending it (see `queued.rs`), so it
+        // goes out ahead of the frame in the frame's own submission. The planar one reads the sun shadow data and
+        // the scenery lighting, which every frame rewrites.
+        match queued {
+            true => self.queue_capture(encoder.finish()),
+            false => {
+                self.queue.submit([encoder.finish()]);
+            }
+        }
         if let Some(normal) = &mut self.normal {
             normal.set_projected(&self.device, Some(capture.output()));
         }

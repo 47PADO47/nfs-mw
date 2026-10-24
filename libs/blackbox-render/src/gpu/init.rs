@@ -345,6 +345,7 @@ fn assemble(
         frames: 0,
         prewarmed: None,
         screen_control_off: true,
+        queued_captures: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {
