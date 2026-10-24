@@ -39,6 +39,8 @@ fn split_setup(arg: &str, scene: &WorldScene) -> Result<super::SplitSetup, Strin
         scene.players.lead().map_or_else(|| crate::scenes::world::DEFAULT_CAR.to_owned(), |d| d.car_name.clone());
     Ok(super::SplitSetup {
         cars: [first, car.to_owned()],
+        customs: [false; 2],
+        custom_ids: [None, None],
         devices: [crate::input::PlayerDevice::Keyboard, crate::input::PlayerDevice::KeyboardArrows],
         transmissions: [crate::settings::Transmission::Automatic; 2],
     })

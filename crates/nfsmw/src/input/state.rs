@@ -28,6 +28,47 @@ impl Default for ActionState {
 }
 
 impl ActionState {
+    /// Replace a scripted menu's buttons while retaining edges across frames.
+    #[cfg(test)]
+    pub(crate) fn update_menu_buttons(&mut self, pressed: &[Action]) {
+        self.before = self.now;
+        self.now.fill(0.0);
+        self.typing = false;
+        for action in pressed {
+            self.now[action.index()] = 1.0;
+        }
+    }
+
+    /// A normal menu owns driving input while preserving held menu buttons for edge detection.
+    pub fn capture_menu(&mut self) {
+        self.typing = true;
+        for action in Action::ALL {
+            let menu = matches!(
+                action,
+                Action::MenuUp
+                    | Action::OrbitX
+                    | Action::OrbitY
+                    | Action::MenuDown
+                    | Action::MenuLeft
+                    | Action::MenuRight
+                    | Action::MenuAccept
+                    | Action::MenuBack
+                    | Action::MenuStart
+                    | Action::MenuButton1
+                    | Action::MenuButton2
+                    | Action::MenuButton3
+                    | Action::MenuZoomIn
+                    | Action::MenuZoomOut
+                    | Action::MenuTriggerLeft
+                    | Action::MenuTriggerRight
+                    | Action::MenuQuit
+            );
+            if !menu && !action.works_in_ui() {
+                self.now[action.index()] = 0.0;
+            }
+        }
+    }
+
     /// Let an overlay claim this frame, including the frame it opened or closed.
     pub fn capture_ui(&mut self) {
         self.typing = true;
@@ -160,6 +201,22 @@ mod tests {
     use bevy_input::keyboard::KeyCode;
 
     use super::*;
+
+    #[test]
+    fn a_menu_captures_driving_without_repeating_a_held_navigation_button() {
+        let bindings = Bindings::default();
+        let mut state = ActionState::default();
+        state.update_for_test(&bindings, &[KeyCode::ArrowRight, KeyCode::KeyW], &[], false);
+        assert!(state.just_pressed(Action::MenuRight));
+        assert!(state.pressed(Action::Throttle));
+        state.capture_menu();
+        assert!(state.pressed(Action::MenuRight));
+        assert!(!state.pressed(Action::Throttle));
+        state.update_for_test(&bindings, &[KeyCode::ArrowRight, KeyCode::KeyW], &[], false);
+        assert!(!state.just_pressed(Action::MenuRight));
+        state.capture_menu();
+        assert!(!state.pressed(Action::Throttle));
+    }
 
     #[test]
     fn keys_and_stick_add_but_movement_stays_bounded() {

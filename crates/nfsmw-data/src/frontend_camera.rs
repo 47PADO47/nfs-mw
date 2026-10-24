@@ -26,6 +26,8 @@ const YAW: u32 = 0x803F_A14C; // 0x54
 
 /// The field of a screen collection that refers to its pose collection (layout offset 0).
 const POSE_REFERENCE: u32 = 0x28B5_440B;
+/// Whether the selected screen permits inspection input (the one-byte reflection Bool at layout 0x5A).
+const USER_ROTATE: u32 = 0x998D_D0DB;
 /// The screen collection a name with no collection of its own falls back to.
 const DEFAULT_SCREEN: &str = "default";
 
@@ -44,6 +46,12 @@ pub struct CameraAngle {
     pub duration: f32,
     /// The move's order `n` (`[0x48]`): how many times it swings past the pose before it settles.
     pub order: i32,
+}
+
+/// Input policy carried by a screen collection, separate from its referenced camera angle.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScreenOptions {
+    pub user_rotate: bool,
 }
 
 /// The `frontend` attributes of `GLOBAL/FE_ATTRIB.bin`, read for their camera poses.
@@ -70,10 +78,34 @@ impl PoseBook {
     /// The pose the screen collection called `name` (`mainmenu`, `career_manager`) refers to, which may be inherited from the
     /// collection's parents. A name with no collection gets the `default` collection's pose, as the original does.
     pub fn screen(&self, name: &str) -> Option<CameraAngle> {
-        let screen = self.db.collection(CLASS, name).or_else(|| self.db.collection(CLASS, DEFAULT_SCREEN))?;
+        let screen = self.screen_collection(name)?;
         let pose = self.db.resolve(screen.get_by_key(POSE_REFERENCE)?.as_ref_spec()?)?;
         read(pose)
     }
+
+    /// The original first tries the category-specific collection, then the screen's generic name, then default.
+    fn screen_collection(&self, name: &str) -> Option<CollectionRef<'_>> {
+        self.db
+            .collection(CLASS, name)
+            .or_else(|| generic_screen(name).and_then(|name| self.db.collection(CLASS, name)))
+            .or_else(|| self.db.collection(CLASS, DEFAULT_SCREEN))
+    }
+
+    /// Missing or wrongly typed input policy leaves inspection disabled.
+    pub fn screen_options(&self, name: &str) -> ScreenOptions {
+        ScreenOptions {
+            user_rotate: self
+                .screen_collection(name)
+                .and_then(|screen| screen.get_by_key(USER_ROTATE))
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        }
+    }
+}
+
+fn generic_screen(name: &str) -> Option<&str> {
+    let (screen, category) = name.rsplit_once('_')?;
+    category.parse::<u32>().ok().map(|_| screen)
 }
 
 /// The pose in the `frontend` collection called `name` of `db`, or `None` when it is missing or lacks a field.
@@ -103,4 +135,18 @@ fn read(c: CollectionRef<'_>) -> Option<CameraAngle> {
         duration: float(DURATION)?,
         order: c.get_by_key(ORDER).and_then(Value::as_i32)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn category_specific_screen_names_fall_back_without_removing_context() {
+        assert_eq!(super::generic_screen("customize_customizeparts_257"), Some("customize_customizeparts"));
+        assert_eq!(
+            super::generic_screen("customize_customizeparts_backroom_257"),
+            Some("customize_customizeparts_backroom")
+        );
+        assert_eq!(super::generic_screen("customize_customizeparts"), None);
+        assert_eq!(super::generic_screen("showcase"), None);
+    }
 }

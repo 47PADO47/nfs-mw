@@ -55,25 +55,54 @@ pub enum HintLabel {
     Randomize,
     Adjust,
     Done,
+    // The garage's own hints.
+    AddNewCar,
+    CustomizeCar,
+    DeleteCar,
+    Backroom,
+    MaxPerformance,
+    AddToCart,
+    ViewCart,
+    RemoveNumbers,
+    Remove,
+    Add,
+    Checkout,
+    ClearAll,
+    Cancel,
+    Help,
 }
 
 impl HintLabel {
     /// The label's text in the current language.
     pub fn text(self) -> String {
         let label = match self {
-            Self::Accept => 0x2B65_A216,       // H_ACCEPT
-            Self::Back => 0x61D5_96D7,         // H_BACK
-            Self::Quit => 0xC51F_BF74,         // PC_QUIT
-            Self::Defaults => 0x00CA_369E,     // H_DEFAULTS
-            Self::ViewTutorial => 0xCE39_D54D, // VIEW_TUTORIAL
-            Self::Showcase => 0xD616_E103,     // H_SHOWCASE
-            Self::Zoom => 0xC524_9616,         // PC_ZOOM
-            Self::ViewCar => 0x5DE7_9F0B,      // SHOWCASE_VIEW_CAR
-            Self::Continue => 0x8098_A54C,     // COMMON_CONTINUE
-            Self::GameStats => 0x7F73_40AF,    // COMMON_GAME_STATS
-            Self::Select => 0x3FC3_2947,       // COMMON_SELECT
-            Self::Randomize => 0x363D_108F,    // H_RANDOMIZE
-            Self::Done => 0x8CD6_BD6D,         // COMMON_DONE
+            Self::Accept => 0x2B65_A216,         // H_ACCEPT
+            Self::Back => 0x61D5_96D7,           // H_BACK
+            Self::Quit => 0xC51F_BF74,           // PC_QUIT
+            Self::Defaults => 0x00CA_369E,       // H_DEFAULTS
+            Self::ViewTutorial => 0xCE39_D54D,   // VIEW_TUTORIAL
+            Self::Showcase => 0xD616_E103,       // H_SHOWCASE
+            Self::Zoom => 0xC524_9616,           // PC_ZOOM
+            Self::ViewCar => 0x5DE7_9F0B,        // SHOWCASE_VIEW_CAR
+            Self::Continue => 0x8098_A54C,       // COMMON_CONTINUE
+            Self::GameStats => 0x7F73_40AF,      // COMMON_GAME_STATS
+            Self::Select => 0x3FC3_2947,         // COMMON_SELECT
+            Self::Randomize => 0x363D_108F,      // H_RANDOMIZE
+            Self::Done => 0x8CD6_BD6D,           // COMMON_DONE
+            Self::AddNewCar => 0xC259_8BD8,      // MYCAR_ADD_CAR
+            Self::CustomizeCar => 0xC984_7935,   // MYCAR_EDIT_CAR
+            Self::DeleteCar => 0xD5A1_1802,      // MYCAR_DELETE_CAR
+            Self::Backroom => 0xEE11_7BF4,       // H_BACKROOM
+            Self::MaxPerformance => 0x972C_3B80, // CM_MAX_PERF
+            Self::AddToCart => 0xCFDF_1D5A,      // H_ADD_TO_CART
+            Self::ViewCart => 0xE2DF_460A,       // H_VIEW_CART
+            Self::RemoveNumbers => 0xBE43_4A38,  // CN_REMOVE_NUMBERS
+            Self::Remove => 0x5DAB_CBC0,         // UNCHECK
+            Self::Add => 0x028F_EADD,            // CHECK
+            Self::Checkout => 0x2557_DE51,       // CSHOP_CHECKOUT
+            Self::ClearAll => CLEAR_ALL,         // CSHOP_CLEAR
+            Self::Cancel => 0x1A29_4DAD,         // COMMON_CANCEL
+            Self::Help => 0x61D8_F34F,           // H_HELP
             Self::Column => return t!("prompts-column"),
             Self::Remap => return t!("prompts-remap"),
             Self::ChangeMode => return t!("prompts-change-mode"),
@@ -83,6 +112,9 @@ impl HintLabel {
         i18n::game_or_error(label)
     }
 }
+
+/// `CSHOP_CLEAR`, the cart's Clear All: the garage's own footer is told apart by it (`garage_ui::prompts::hide_legacy`).
+pub(in crate::frontend) const CLEAR_ALL: u32 = 0xA1C1_EEE2;
 
 /// The game's hint labels that the packages' own footers show, which the drawn hints replace.
 const LEGACY_HINTS: [u32; 9] = [
@@ -100,6 +132,9 @@ const LEGACY_HINTS: [u32; 9] = [
 /// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
 pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
     use HintLabel as L;
+    if let Some(hints) = super::garage_ui::prompts::hints(footer, bindings, device) {
+        return hints;
+    }
     let (rows, main, splash) = (
         [screen::OPTIONS, screen::PAUSE_OPTIONS].iter().any(|s| name.eq_ignore_ascii_case(s)),
         name.eq_ignore_ascii_case(screen::MAIN_MENU),
@@ -134,7 +169,15 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
                 .collect();
             return vec![back, (zoom, L::Zoom, None), (arrows, L::ViewCar, None)];
         }
-        Footer::Standard => {}
+        Footer::Standard
+        | Footer::GarageManager { .. }
+        | Footer::GarageMain { .. }
+        | Footer::GarageCategories { .. }
+        | Footer::GarageParts
+        | Footer::GarageSelect
+        | Footer::GarageCart { .. }
+        | Footer::GarageTuning
+        | Footer::GarageNumbers => {}
     }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), L::Accept, Some(Action::MenuAccept))];
@@ -209,7 +252,10 @@ pub fn decorate(
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
     let Some(frame) = Frame::find(tree, name, footer) else { return Vec::new() };
-    hide_legacy_hints(tree, splash);
+    hide_legacy_hints(tree, splash, name.eq_ignore_ascii_case("Quick_Race_Brief.fng"));
+    if footer.is_garage() {
+        super::garage_ui::prompts::hide_legacy(tree);
+    }
     let first_hint = tree.nodes.len();
     let hints: Vec<(Vec<Prompt>, String, Option<Action>)> = hint_set(name, footer, bindings, device)
         .into_iter()
@@ -300,7 +346,7 @@ fn rect(tree: &mut UiTree, x: f32, y: f32, width: f32, height: f32, colour: [u8;
     push(tree, n);
 }
 
-fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
+fn hide_legacy_hints(tree: &mut UiTree, splash: bool, brief: bool) {
     // 0xD646_3100 is the Game Stats (and Randomize) button group.
     // 0xB8A7_C6CE is the profile list's own Accept; 0x28FD_842D the main menu's Game Stats card header.
     let names = [
@@ -314,9 +360,6 @@ fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
         super::ids::QUIT_BUTTON,
         // The overview's legacy Back triangle is a direct footer child, outside the Back text group.
         0x1AC9_4CA9,
-        // The Quick Play brief's own Back, Accept and Randomize hints.
-        super::prompt_layout::BRIEF_FOOTER,
-        super::prompt_layout::BRIEF_RANDOMIZE,
     ];
     // The draw tree does not keep the labels its strings came from, so a package's own hint is known by the text its
     // label has in the current language.
@@ -324,7 +367,10 @@ fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
     let mut hidden = vec![false; tree.nodes.len()];
     for (i, n) in tree.nodes.iter().enumerate() {
         let hint_text = n.text.as_deref().is_some_and(|t| words.iter().any(|word| word == t.trim()));
-        hidden[i] = hint_text || names.contains(&n.name_hash) || (splash && n.name_hash == 0xC4DF_3FF2);
+        // The brief's Randomize root has the generic name "Group", shared by unrelated screens.
+        let brief_hint =
+            brief && [super::prompt_layout::BRIEF_FOOTER, super::prompt_layout::BRIEF_RANDOMIZE].contains(&n.name_hash);
+        hidden[i] = hint_text || names.contains(&n.name_hash) || brief_hint || (splash && n.name_hash == 0xC4DF_3FF2);
     }
     // Ancestors precede descendants in the actual packages; the parent chain also handles other orderings.
     for i in 0..tree.nodes.len() {

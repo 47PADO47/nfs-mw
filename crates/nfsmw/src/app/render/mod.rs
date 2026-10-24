@@ -147,7 +147,7 @@ pub fn update_scene(
     if host.screenshot.is_some() && host.frames == 0 {
         screenshot::wait_ready(host.scene.as_mut(), renderer.as_mut());
     }
-    host.scene.set_garage_open(garage.open);
+    host.scene.set_garage_open(garage.open || garage.menu);
     host.scene.set_second_input(&split.second);
     host.scene.update(renderer.as_mut(), &actions, time.delta_secs().min(MAX_STEP));
 }

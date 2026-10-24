@@ -27,3 +27,8 @@ dialogs-retry-offer = You did not win this race. Try it again?
 # A race the story goes on from: it can only be run again.
 dialogs-race-lost-title = Race lost
 dialogs-race-lost-required = You have to win this race to go on. It starts again.
+
+## The garage (frontend/flow_garage.rs): the error itself is in the log.
+
+dialogs-tuning-failed = The tuning screen could not open.
+dialogs-garage-failed = The garage could not open.

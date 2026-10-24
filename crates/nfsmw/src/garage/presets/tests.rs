@@ -30,7 +30,7 @@ fn fixture() -> (Model, Selection) {
     }
     catalog.paintable_wheels.insert(304);
     catalog.gauge_skins = vec![0, 3];
-    car.parts = Some(catalog);
+    car.parts = Some(catalog.into());
     let mut selection = Selection {
         car: car.folder.clone(),
         color: Some([1, 100, 230]),
@@ -42,6 +42,7 @@ fn fixture() -> (Model, Selection) {
         backing: Some([10, 20, 30]),
         needle: None,
         digits: Some([200, 100, 50]),
+        ..Default::default()
     };
     selection.parts.vinyl_colors = [Some([40, 50, 60]), None, Some([70, 80, 90])];
     selection.tuning.profiles = [[-5; 7], [0; 7], [5; 7]];
@@ -89,4 +90,25 @@ fn legacy_presets_default_new_appearance_fields() {
     let restored = decode(text, &model).unwrap();
     assert_eq!(restored.gauges, Default::default());
     assert!(restored.parts.is_stock());
+}
+
+#[test]
+fn sparse_native_color_identities_roundtrip_one_channel_without_toml_nulls() {
+    let (mut model, mut selection) = fixture();
+    let catalog = model.cars[0].parts.as_mut().unwrap();
+    catalog.color_palettes[0] = vec![
+        customization::ColorChoice { hash: 701, rgb: [40, 50, 60], upgrade_level: 1 },
+        customization::ColorChoice { hash: 702, rgb: [40, 50, 60], upgrade_level: 2 },
+    ];
+    catalog.color_palettes[3] = vec![customization::ColorChoice { hash: 801, rgb: [10, 20, 30], upgrade_level: 1 }];
+    selection.parts.vinyl_color_parts = [Some(702), None, None];
+    selection.gauges.color_parts = [Some(801), None, None];
+    let encoded = encode(&selection).unwrap();
+    assert!(!encoded.contains("null"));
+    let decoded = decode(&encoded, &model).unwrap();
+    assert_eq!(decoded, selection);
+    assert_eq!(decoded.parts.vinyl_color_parts, [Some(702), None, None]);
+    assert_eq!(decoded.gauges.color_parts, [Some(801), None, None]);
+    let bad = encoded.replace("hash = 702", "hash = 999");
+    assert!(decode(&bad, &model).is_err(), "a native palette identity must belong to its channel");
 }

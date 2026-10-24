@@ -68,6 +68,11 @@ impl WorldScene {
         // the road is last place of one racer, not a win.
         if me.finished && place == 1 {
             crate::frontend::challenge_series::record_win(&session.event);
+            crate::frontend::challenge_series::record_profile_reward(
+                &session.event,
+                &self.career.handle,
+                self.career.profiles.as_ref(),
+            );
         }
     }
 

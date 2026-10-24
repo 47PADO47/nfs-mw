@@ -48,6 +48,10 @@ pub enum Look {
     Car(CarLook),
     /// The career car in the safe house interior: the safe house menu and the screens it opens.
     SafeHouse(CarLook),
+    /// The selected car in the customization shop's installed room.
+    Customization(CarLook),
+    /// The selected car in the shop's backroom, where marker upgrades are fitted.
+    Backroom(CarLook),
     /// A car in the car lot's own room: the lot zones' car select and the first car's purchase.
     CarLot(CarLook),
     /// The Showcase of the car lot: the lot's room, with the camera the arrow keys turn (`career_screens/car_lot.rs`).
@@ -70,6 +74,8 @@ impl Look {
             "main" => Ok(Look::Main),
             "car" => Ok(Look::Car(car)),
             "safehouse" => Ok(Look::SafeHouse(car)),
+            "customization" => Ok(Look::Customization(car)),
+            "backroom" => Ok(Look::Backroom(car)),
             "carlot" => Ok(Look::CarLot(car)),
             "showcase" => Ok(Look::Showcase(car)),
             "lotshowcase" => Ok(Look::LotShowcase(car)),

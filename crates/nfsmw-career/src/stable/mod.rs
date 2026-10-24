@@ -7,12 +7,14 @@
 
 mod car_record;
 mod career_record;
+mod customization;
 pub mod impound;
 mod sold;
 mod totals;
 
 pub use car_record::{CAR_RECORD_LEN, CarRecord, FREE_HANDLE, NO_INDEX};
 pub use career_record::{CAREER_RECORD_LEN, CareerRecord, DEFAULT_STRIKE_LIMIT, ImpoundState, UNUSED_INDEX};
+pub use customization::{CustomizationRecord, INSTALLED_PART_SLOTS};
 pub use sold::{SOLD_HISTORY_LEN, SoldHistory};
 pub use totals::InfractionSet;
 

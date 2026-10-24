@@ -1,6 +1,6 @@
 //! The entry prompts of the world: driving into an auto shop, a safe house or a race start offers its prompt on the HUD,
-//! and the Interact button enters it. The destinations are not built yet, so entering is a stub: it logs the entry and
-//! flashes a placeholder card. Spec: `docs/specs/world-markers.md`.
+//! and the Interact button enters it. Auto shops request the normal garage; other destinations follow the career
+//! entry flow or display their placeholder card. Spec: `docs/specs/world-markers.md`.
 //!
 //! A mod's interior (`docs/specs/mod-world-content.md`, section 3) is entered the same way. Its entry runs the steps of
 //! `modding::content::interior::machine`: the fade, the wait for its pack, the teleport, and the traffic and clock changes,
@@ -109,6 +109,9 @@ impl WorldScene {
     /// A stock zone holds the car: Interact enters it (a race, or the career's entry, or the stub), and its card is
     /// offered either way.
     fn update_stock_zone(&mut self, kind: ZoneKind, name: &str, pressed: bool, dt: f32) {
+        if kind == ZoneKind::AutoShop && !self.garage_entry_allowed() {
+            return self.hold_card(dt);
+        }
         if pressed {
             self.enter_stock_zone(kind, name);
         }
@@ -130,6 +133,17 @@ impl WorldScene {
         if kind == ZoneKind::Race {
             let career = race == RaceEntry::Open || self.career.handle.is_active();
             self.enter_race_zone(name, career);
+            return;
+        }
+        if kind == ZoneKind::AutoShop {
+            if !self.garage_entry_allowed() {
+                return;
+            }
+            self.remember_garage_exit(name);
+            if self.career.handle.is_active() {
+                self.career_visit_zone(kind, name);
+            }
+            self.garage.open_requested = true;
             return;
         }
         if self.career_enter_zone(kind, name) {

@@ -60,7 +60,7 @@ mod radar;
 mod radio;
 /// The FEng roots of each HUD element, for the Original theme's adapters (`ui/theme/original`).
 pub(crate) mod roots;
-mod skin;
+pub(crate) mod skin;
 mod speedbreaker;
 pub(crate) mod split;
 mod state;

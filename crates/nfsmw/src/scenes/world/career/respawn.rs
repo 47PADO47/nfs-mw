@@ -53,7 +53,7 @@ impl Respawns {
 
 impl WorldScene {
     /// Remembers the respawn marker of the zone called `name`, which the player engaged.
-    pub(super) fn career_visit_zone(&mut self, kind: ZoneKind, name: &str) {
+    pub(in crate::scenes::world) fn career_visit_zone(&mut self, kind: ZoneKind, name: &str) {
         let marker = self.entry.zones.zones.iter().find(|zone| zone.name == name).and_then(|zone| zone.respawn);
         self.career.respawn.visit(kind, marker);
     }

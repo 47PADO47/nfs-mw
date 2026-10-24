@@ -32,7 +32,7 @@ impl CameraMove {
     }
 
     /// The move that starts on `start` and runs onto `goal`; the goal's angles are moved to the turn nearest the start.
-    fn from_pose(start: CameraPose, goal: &CameraAngle) -> Self {
+    pub(super) fn from_pose(start: CameraPose, goal: &CameraAngle) -> Self {
         let mut goal_pose = CameraPose::from_angle(goal);
         goal_pose.pitch = nearest_turn(start.pitch, goal_pose.pitch);
         goal_pose.yaw = nearest_turn(start.yaw, goal_pose.yaw);
@@ -48,6 +48,10 @@ impl CameraMove {
     /// Lets `dt` seconds go by.
     pub fn advance(&mut self, dt: f32) {
         self.time += dt;
+    }
+
+    pub(super) fn finished(&self) -> bool {
+        self.duration <= 0.0 || self.time >= self.duration
     }
 
     /// Where the camera is now.

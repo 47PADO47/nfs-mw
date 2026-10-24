@@ -37,6 +37,17 @@ pub fn load(path: &Path, name: &str) -> Result<String> {
 }
 
 pub fn save(path: &Path, name: &str, payload: &str) -> Result<()> {
+    let text = updated(path, name, payload)?;
+    let parent = path.parent().context("Missing preset folder")?;
+    std::fs::create_dir_all(parent).context("Creating preset folder")?;
+    // Stage the complete document before replacing the previous version.
+    let temporary = path.with_extension("toml.tmp");
+    std::fs::write(&temporary, text).context("Writing preset staging file")?;
+    std::fs::rename(&temporary, path).context("Replacing presets")
+}
+
+/// Build the replacement without publishing it; paired native saves own their commit.
+pub(crate) fn updated(path: &Path, name: &str, payload: &str) -> Result<String> {
     let name = name.trim();
     ensure!(
         !name.is_empty() && name.chars().count() <= 64 && !name.chars().any(char::is_control),
@@ -50,11 +61,5 @@ pub fn save(path: &Path, name: &str, payload: &str) -> Result<()> {
         .as_table_mut()
         .context("Invalid preset list")?
         .insert(name.into(), payload.into());
-    let text = toml::to_string(&table).context("Serializing presets")?;
-    let parent = path.parent().context("Missing preset folder")?;
-    std::fs::create_dir_all(parent).context("Creating preset folder")?;
-    // Stage the complete document before replacing the previous version.
-    let temporary = path.with_extension("toml.tmp");
-    std::fs::write(&temporary, text).context("Writing preset staging file")?;
-    std::fs::rename(&temporary, path).context("Replacing presets")
+    toml::to_string(&table).context("Serializing presets")
 }

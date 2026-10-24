@@ -22,6 +22,9 @@ fn on_cancel(
     focus: &mut UiFocus,
     exit: &mut MessageWriter<AppExit>,
 ) {
+    if garage.menu {
+        return;
+    }
     if garage.open {
         garage.set_open(false, capture, focus);
         return;
@@ -61,6 +64,17 @@ pub fn update(
     let (window, mut cursor) = window.into_inner();
     let uses_mouse = host.scene.captures_mouse();
     garage.had_input = garage.open;
+    if host.scene.take_garage_request() {
+        garage.menu_requested = true;
+    }
+    // Normal sessions belong to the FEng front end. F6 never opens over a transaction.
+    if garage.menu || garage.menu_requested {
+        garage.start_requested = false;
+        actions.consume(Action::Garage);
+        capture.0 = false;
+        focus.0 = false;
+        actions.capture_menu();
+    }
     if garage.start_requested && !console.open && !host.scene.paused() && host.scene.garage().is_some() {
         if let Some(model) = host.scene.garage() {
             model.options_tab = garage.start_tab;
@@ -74,7 +88,9 @@ pub fn update(
         if let Some(lab) = lab.as_mut() {
             lab.close(&mut capture, &mut focus);
         }
-        toggle_garage(&mut host, &mut garage, &mut capture, &mut focus);
+        if !garage.menu {
+            toggle_garage(&mut host, &mut garage, &mut capture, &mut focus);
+        }
     }
     if garage.had_input {
         actions.capture_ui();
@@ -86,7 +102,13 @@ pub fn update(
         if garage_had_it {
             actions.consume(Action::Cancel);
         }
-    } else if uses_mouse && !console.open && !focus.0 && !garage.had_input && mouse.just_pressed(MouseButton::Left) {
+    } else if uses_mouse
+        && !garage.menu
+        && !console.open
+        && !focus.0
+        && !garage.had_input
+        && mouse.just_pressed(MouseButton::Left)
+    {
         capture.0 = true;
     }
     if *was_focused && !window.focused {
@@ -126,5 +148,6 @@ fn toggle_garage(
     }
     let Some(model) = host.scene.garage() else { return };
     model.reset_draft();
+    garage.menu = false;
     garage.set_open(true, capture, focus);
 }

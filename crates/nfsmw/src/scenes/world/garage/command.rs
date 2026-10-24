@@ -130,6 +130,7 @@ fn appearance(selection: &mut crate::garage::Selection, pair: &[&str; 2]) -> Res
     };
     if pair[1] == "stock" {
         *color = None;
+        clear_color_identity(selection, pair[0]);
         return Ok(true);
     }
     let hex = pair[1].trim_start_matches('#');
@@ -138,5 +139,36 @@ fn appearance(selection: &mut crate::garage::Selection, pair: &[&str; 2]) -> Res
     }
     let value = u32::from_str_radix(hex, 16).map_err(|_| "color must be RRGGBB or stock")?;
     *color = Some([(value >> 16) as u8, (value >> 8) as u8, value as u8]);
+    clear_color_identity(selection, pair[0]);
     Ok(true)
+}
+
+fn clear_color_identity(selection: &mut crate::garage::Selection, key: &str) {
+    match key {
+        "vinylcolor1" => selection.parts.vinyl_color_parts[0] = None,
+        "vinylcolor2" => selection.parts.vinyl_color_parts[1] = None,
+        "vinylcolor3" => selection.parts.vinyl_color_parts[2] = None,
+        "gaugebacking" => selection.gauges.color_parts[0] = None,
+        "gaugeneedle" => selection.gauges.color_parts[1] = None,
+        "gaugedigits" => selection.gauges.color_parts[2] = None,
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod color_identity_tests {
+    use super::*;
+
+    #[test]
+    fn console_rgb_edit_clears_native_identity_without_affecting_other_channels() {
+        let mut selection = crate::garage::Selection::default();
+        selection.parts.vinyl_color_parts = [Some(10), Some(11), Some(12)];
+        selection.gauges.color_parts = [Some(20), Some(21), Some(22)];
+        appearance(&mut selection, &["vinylcolor1", "010203"]).unwrap();
+        appearance(&mut selection, &["gaugedigits", "040506"]).unwrap();
+        assert_eq!(selection.parts.vinyl_color_parts, [None, Some(11), Some(12)]);
+        assert_eq!(selection.gauges.color_parts, [Some(20), Some(21), None]);
+        assert_eq!(selection.parts.vinyl_colors[0], Some([1, 2, 3]));
+        assert_eq!(selection.gauges.digits, Some([4, 5, 6]));
+    }
 }

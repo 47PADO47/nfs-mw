@@ -363,12 +363,21 @@ impl Pausable {
 #[path = "backdrop_build.rs"]
 mod build;
 
+#[path = "garage_backdrop.rs"]
+pub(crate) mod garage;
+
 #[path = "backdrop_floor.rs"]
 mod backdrop_floor;
 #[path = "backdrop_shadows.rs"]
 mod backdrop_shadows;
 #[path = "backdrop_reflections.rs"]
 mod reflections;
+
+#[path = "pausable_audio.rs"]
+mod audio_forwarding;
+
+#[path = "pausable_update.rs"]
+mod scene_update;
 
 #[path = "pausable_scene.rs"]
 mod forwarding;

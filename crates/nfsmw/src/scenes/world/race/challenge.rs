@@ -359,6 +359,11 @@ impl WorldScene {
         }
         if won {
             crate::frontend::challenge_series::record_win(&session.event);
+            crate::frontend::challenge_series::record_profile_reward(
+                &session.event,
+                &self.career.handle,
+                self.career.profiles.as_ref(),
+            );
         }
     }
 }

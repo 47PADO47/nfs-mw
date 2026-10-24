@@ -82,6 +82,7 @@ impl ProfileDir {
     /// Reads the profile of `alias` and runs the load checks on it. A refused file is an error carrying the
     /// check's report.
     pub fn read(&self, alias: &str) -> Result<Vec<u8>> {
+        super::paired_save::recover(self, alias)?;
         let file = self.file_of(alias)?;
         let bytes = fs::read(&file).with_context(|| format!("cannot read profile {}", file.display()))?;
         match check_load(&bytes, stored_stable_hash(&bytes)) {
@@ -93,6 +94,11 @@ impl ProfileDir {
     /// Writes the profile of `alias`, creating its folder. The bytes go to `<file>.tmp` first and are then renamed
     /// over the profile, so a failed write leaves the old file in place. The bytes are not checked here.
     pub fn write(&self, alias: &str, bytes: &[u8]) -> Result<()> {
+        super::paired_save::recover(self, alias)?;
+        self.write_native(alias, bytes)
+    }
+
+    pub(super) fn write_native(&self, alias: &str, bytes: &[u8]) -> Result<()> {
         let file = self.file_of(alias)?;
         let dir = file.parent().context("the profile has no folder")?;
         fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;

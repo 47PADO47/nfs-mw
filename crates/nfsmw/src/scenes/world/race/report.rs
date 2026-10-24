@@ -54,6 +54,7 @@ impl WorldScene {
                 // The final race's win ends the game: its end-game chain is due now, once the results are answered
                 // (`story-flow-2.md` section 5.4, `frontend/flow_endgame.rs`).
                 if won && session.options.career && session.event == FINAL_RACE_EVENT {
+                    self.career.handle.with(|career| career.mark_career_completed());
                     self.career.requests.push_back(CareerRequest::EndGame);
                 }
                 outro::begin(&mut session, won);

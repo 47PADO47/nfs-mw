@@ -88,7 +88,7 @@ pub struct CarSelect {
 
 /// The Blacklist position, the career's win and the developer's switch, which open the cars.
 pub(crate) fn progress() -> Progress {
-    let (stage, flags, owned, customs) = CareerHandle::shared()
+    let (stage, flags, owned) = CareerHandle::shared()
         .with_loaded(|career| {
             let names = |keep: &dyn Fn(&CarRecord) -> bool| -> Vec<String> {
                 let cars = career.stable.cars.iter().filter(|car| keep(car));
@@ -98,10 +98,13 @@ pub(crate) fn progress() -> Progress {
                 .collect()
             };
             let owned = names(&|car| !car.is_free() && car.is_owned());
-            let customs = names(&CarRecord::is_quick_race);
-            (career.stage(), career.settings.flags, owned, customs)
+            (career.stage(), career.settings.flags, owned)
         })
-        .unwrap_or((PROLOGUE_STAGE, Flags::EMPTY, Vec::new(), Vec::new()));
+        .unwrap_or((PROLOGUE_STAGE, Flags::EMPTY, Vec::new()));
+    let customs = crate::garage::my_cars::slots().unwrap_or_else(|error| {
+        log::warn!("My Cars slots could not be read: {error:#}");
+        Vec::new()
+    });
     // The profile's own flags (`HasBeatenCareer`, `HasBeatenSpecialChallengeEvent`, `HasBeatenChallengeSeries`,
     // `HasBeenAwardedCastrolGT`) count as much as the series wins this build keeps itself **[decomp]**.
     let mut series = crate::frontend::challenge_series::completion();
@@ -298,6 +301,7 @@ impl CarSelect {
                 race: race.clone(),
                 car: entry.car.folder.clone(),
                 preset: entry.preset.clone(),
+                custom: (self.list == List::MyCars).then(|| entry.key.trim_start_matches("custom:").to_owned()),
                 options,
                 transmission,
             }))

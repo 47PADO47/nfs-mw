@@ -197,6 +197,7 @@ impl AiCar {
     ) -> Option<Self> {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
+        sim.set_tunings(model.tunings);
         sim.configure_ai();
         if matches!(role, Role::Traffic) && !start.patrol {
             sim.configure_traffic();

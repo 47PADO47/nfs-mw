@@ -23,6 +23,18 @@ impl WorldScene {
         model: CarModel,
         script: Option<DriveScript>,
     ) -> Result<()> {
+        self.start_driving_setup(renderer, name, model, script, true)
+    }
+
+    /// Explicit garage requests already contain the complete requested setup.
+    pub(super) fn start_driving_setup(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        name: String,
+        model: CarModel,
+        script: Option<DriveScript>,
+        restore_saved: bool,
+    ) -> Result<()> {
         let physics = self.physics_of(&model)?;
         self.discover_garage_parts(&name)?;
         let visuals = nfsmw_data::vehicle_effects::VisualEffectsData::read(
@@ -69,6 +81,14 @@ impl WorldScene {
             drive.flames.set_enabled(self.exhaust_flames);
         }
         self.view = View::Chase;
+        if restore_saved
+            && self.career.garage.is_none()
+            && self.driving_current_career_car()
+            && let Err(error) = self.restore_career_garage(renderer)
+        {
+            self.garage.message = Some(Err(format!("Saved customization could not be restored: {error:#}")));
+            log::warn!("saved customization could not be restored: {error:#}");
+        }
         Ok(())
     }
 }

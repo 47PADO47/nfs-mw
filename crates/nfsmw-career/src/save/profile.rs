@@ -256,4 +256,9 @@ impl ProfileSave {
     pub fn career_completed_once(&self) -> bool {
         self.profile_buffer()[profile::COMPLETED_ONCE] != 0
     }
+
+    /// Mark this profile as having completed a career. Writing refreshes its checksums normally.
+    pub fn mark_career_completed(&mut self) {
+        self.bytes[PROFILE_AT + profile::COMPLETED_ONCE] = 1;
+    }
 }

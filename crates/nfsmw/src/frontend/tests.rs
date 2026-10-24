@@ -1,20 +1,20 @@
 //! The screens against the packages of the install (skipped without `NFSMW_GAME_DIR`): pad presses in, what the
 //! screens ask for and show out.
 
-use std::sync::Arc;
-
-use blackbox_feng::runtime::pad;
-use game_install::GameDir;
-
 use super::ids::screen;
 use super::logic::{Args, Category, Command, Env};
 use super::screens::Screens;
 use crate::settings::{Partial, Percent, Settings, test_caps};
 use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+use blackbox_feng::runtime::pad;
+use game_install::GameDir;
+use std::sync::Arc;
 const FRAME: f32 = 1.0 / 60.0;
 #[path = "click_tests.rs"]
 mod click_tests;
 mod custom_race_screen_tests;
+#[path = "garage_entry_tests.rs"]
+mod garage_entry_tests;
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
 #[path = "player_options_tests.rs"]

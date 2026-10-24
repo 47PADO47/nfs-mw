@@ -131,3 +131,19 @@ fn the_kinds_have_the_documented_types() {
     assert_eq!(MarkerKind::ExtraStrike.code(), 0x14);
     assert_eq!(MarkerKind::ImpoundRelease.code(), 0x15);
 }
+
+#[test]
+fn backroom_redemption_keeps_the_vinyl_count_wildcard_out_of_exact_consumption() {
+    let mut inventory = MarkerInventory::empty();
+    inventory.add_entries(14, 7, 1);
+    inventory.add_entries(14, 0, 1);
+    assert_eq!(inventory.count_entries(14, 0), 2);
+    assert!(inventory.redeem_part(14, 0));
+    assert_eq!(inventory.count_entries(14, 7), 1, "the earlier specific reward is untouched");
+    assert!(!inventory.redeem_part(14, 0), "counting any vinyl reward does not permit exact redemption");
+    assert!(inventory.redeem_part(14, 7));
+    let table = inventory.to_table();
+    assert_eq!(&table[..4], &[0; 4]);
+    assert_eq!(u32::from_le_bytes(table[4..8].try_into().unwrap()), 7, "the consumed entry retains its aux");
+    assert_eq!(&table[8..12], &[0; 4]);
+}

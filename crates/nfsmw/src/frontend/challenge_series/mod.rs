@@ -48,6 +48,7 @@ pub fn completion() -> Completion {
     Completion { special: won.is_won(SPECIAL_EVENT), all: all && !board.entries.is_empty() }
 }
 pub(crate) use board::{map_texture, route_on_map};
+pub(crate) use progress::record_profile_reward;
 pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};

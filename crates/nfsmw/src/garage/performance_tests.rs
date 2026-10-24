@@ -149,7 +149,7 @@ fn long_rim_catalog_can_be_searched_with_the_keyboard_before_selecting() {
     catalog.choices[Part::Wheels as usize] = (0..12)
         .map(|i| Choice { hash: 100 + i, label: format!("Rim {i:02}"), language_hash: None, carbon: false })
         .collect();
-    ui.model.cars[0].parts = Some(catalog);
+    ui.model.cars[0].parts = Some(catalog.into());
     assert!(ui.click("Parts").is_none());
     let row = ui.positions("Rims")[0];
     let combo = ui.positions("Stock").into_iter().find(|p| p.y > row.y && p.y < row.y + 40.0).unwrap();
@@ -174,7 +174,7 @@ fn model_parts_apply_on_select_restore_stock_and_unlock_aero_only_for_body_or_sp
             carbon: false,
         });
     }
-    ui.model.cars[0].parts = Some(catalog);
+    ui.model.cars[0].parts = Some(catalog.into());
     ui.model.draft.color = Some([30, 80, 130]);
     assert!(ui.click("Parts").is_none());
     for category in [Part::Wheels, Part::Hood, Part::Roof, Part::Body, Part::Spoiler] {
@@ -328,7 +328,7 @@ fn appearance_selectors_apply_paint_and_tint_without_changing_model_parts() {
         });
     }
     ui.model.cars[0].paintable = true;
-    ui.model.cars[0].parts = Some(catalog);
+    ui.model.cars[0].parts = Some(catalog.into());
     assert!(ui.click("Appearance").is_none());
     for (category, label) in [(Part::Paint, "Metallic silver"), (Part::WindowTint, "Dark smoke")] {
         let row = ui.positions(category.label())[0];
