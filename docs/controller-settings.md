@@ -20,6 +20,12 @@ listing reflects live assignments; its gamepad button labels use Xbox names.
 **X** dismisses the HUD's oldest notification (`dismiss_notification`). It has no gamepad default; bind one under
 `[bindings]` or from the console.
 
+The Custom HUD's map has its own keys, none of them a driving input: **Tab** cycles its mode (off, compact,
+centered, expanded; `map_mode`), **T** opens the expanded map and goes back (`map_expand`), **I** and **K** zoom it
+(`map_zoom_in`, `map_zoom_out`), **O** turns it north-up or heading-up (`map_orientation`), and **F1** hides or shows
+the HUD (`toggle_hud`). The keys change the live settings for the session only; the saved values stay those of
+the `[custom_hud]` table and the `minimap` and `hud` keys.
+
 ## Default gamepad layout
 
 The defaults follow the Xbox 360 layout of [NFS-XtendedInput](mods/nfs-xtendedinput.md)'s Most Wanted
@@ -37,6 +43,7 @@ config (`NFS_XtendedInput.default.ini`), so the remake and the original play ali
 | Reset car | Back |
 | Engage event | D-pad up (A also does, and skips a cutscene) |
 | World map | D-pad left |
+| HUD map mode / orientation | D-pad down / D-pad right |
 | Next song | Right stick click |
 | Pause | Start |
 | Free camera (remake only) | Y |

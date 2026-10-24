@@ -198,6 +198,7 @@ pub fn defaults() -> Vec<Binding> {
     .chain(driving())
     .chain(menus())
     .chain(radio())
+    .chain(hud_map())
     .collect()
 }
 
@@ -331,6 +332,28 @@ fn driving() -> Vec<Binding> {
     ]
 }
 
+/// The Custom HUD's map and the HUD's visibility (`docs/specs/custom-hud-map-impl.md`): Tab cycles the map's mode, T
+/// opens the expanded map, I and K zoom it, O turns it north-up or heading-up, F1 hides the HUD. On a pad D-pad down
+/// cycles the mode and D-pad right turns it; the other D-pad directions are Interact (up) and the world map (left).
+/// None of these keys or buttons is a driving input, so the map never accelerates, brakes or steers
+/// (`map_bindings_tests.rs`). The pad's D-pad down is also the free camera's zoom and a menu direction, which are read
+/// in other contexts.
+fn hud_map() -> Vec<Binding> {
+    use Action::*;
+    let key = Source::Key;
+    let button = Source::PadButton;
+    vec![
+        Binding::new(MapMode, key(KeyCode::Tab), 1.0),
+        Binding::new(MapExpand, key(KeyCode::KeyT), 1.0),
+        Binding::new(MapZoomIn, key(KeyCode::KeyI), 1.0),
+        Binding::new(MapZoomOut, key(KeyCode::KeyK), 1.0),
+        Binding::new(MapOrientation, key(KeyCode::KeyO), 1.0),
+        Binding::new(ToggleHud, key(KeyCode::F1), 1.0),
+        Binding::new(MapMode, button(GamepadButton::DPadDown), 1.0),
+        Binding::new(MapOrientation, button(GamepadButton::DPadRight), 1.0),
+    ]
+}
+
 /// The shift paddles of a steering wheel. A wheel shows up as a gamepad; the buttons the platform has no name for
 /// arrive as `GamepadButton::Other(code)` with a code that depends on the device, so the player gives the codes
 /// (the input layer logs the code of every unnamed button when it is pressed). A wheel whose paddles the platform
@@ -342,6 +365,10 @@ pub fn paddles(up: Option<u32>, down: Option<u32>) -> Vec<Binding> {
         .chain(down.map(|code| bind(Action::ShiftDown, code)))
         .collect()
 }
+
+#[cfg(test)]
+#[path = "map_bindings_tests.rs"]
+mod map_tests;
 
 #[cfg(test)]
 mod tests {
