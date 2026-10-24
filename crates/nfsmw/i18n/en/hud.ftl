@@ -60,3 +60,34 @@ hud-meter-nitrous = NOS
 hud-meter-boost = Boost
 # The speed breaker.
 hud-meter-speedbreaker = SB
+
+## The Custom HUD's notifications (hud/notify/catalog.rs)
+
+# $level is the chase's new heat level, a whole number.
+hud-notify-heat-up = Heat level { $level }
+hud-notify-roadblock = Roadblock reported
+hud-notify-roadblock-detail = Dispatch has a roadblock up
+hud-notify-helicopter = Helicopter tracking you
+hud-notify-contact-lost = Visual contact lost
+hud-notify-contact-lost-detail = Stay out of sight
+hud-notify-cooldown = Cooldown
+hud-notify-cooldown-detail = Stay hidden to get away
+hud-notify-escaped = Escaped
+hud-notify-busted = Busted
+# $number is the checkpoint just passed and $total the checkpoints of a lap.
+hud-notify-checkpoint = Checkpoint { $number }/{ $total }
+hud-notify-wrong-way = Wrong way
+hud-notify-wrong-way-detail = Back to the start
+# $lap is the lap just begun and $laps the laps of the race.
+hud-notify-lap = Lap { $lap }/{ $laps }
+# $place is the player's place written as an ordinal (2nd, 3rd).
+hud-notify-position = Position { $place }
+hud-notify-near-miss = Near miss
+# $speed is the speed in whole units, $unit the game's word for them (KM/H, MPH).
+hud-notify-speed-trap = Speed trap { $speed } { $unit }
+hud-notify-speed-trap-slow = Speed trap: too slow
+# $bounty is the milestone the bounty passed.
+hud-notify-bounty = Bounty { $bounty }
+hud-notify-tire = Tyre punctured
+hud-notify-heavy-damage = Heavy damage
+hud-notify-vehicle-critical = Vehicle disabled
