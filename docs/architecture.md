@@ -337,7 +337,7 @@ with `Scene::hud_state`; nothing else knows FEng.
 - **Looks.** `ui_style` picks Original (the packages above), Remastered (its own components, `ui/theme/remastered/`) or
   Custom. Custom is being rewritten from scratch as the rewrite's own modern HUD and menus: a horizontal telemetry
   cluster, a centred translucent map (on by default), contextual race and pursuit layouts, a notification queue and
-  world markers, with OS fonts and a `[hud]` settings table ([ADR 0013](decisions/0013-custom-hud.md),
+  world markers, with OS fonts and a `[custom_hud]` settings table ([ADR 0013](decisions/0013-custom-hud.md),
   [spec](specs/custom-hud/README.md)). Original and Remastered do not change.
 
 ## The front end
