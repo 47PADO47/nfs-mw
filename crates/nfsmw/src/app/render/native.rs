@@ -27,6 +27,8 @@ pub fn create(
     let handle = unsafe { raw.get_handle() };
     let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
     // How many frames the swapchain queues ahead; the default of 2 is what the surface starts with.
-    renderer.set_max_frame_latency(settings.frame_latency);
+    renderer.set_max_frame_latency(settings.swapchain.frame_latency);
+    // Without vsync the surface starts in the platform's own mode (Immediate where offered); Mailbox is opt-in.
+    renderer.set_mailbox(settings.swapchain.present_mode == crate::settings::PresentMode::Mailbox);
     Ok(Box::new(renderer))
 }
