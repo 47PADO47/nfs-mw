@@ -14,6 +14,8 @@ const DECAL_PLACEHOLDERS: &[&str] = &[
     "DUMMY_DECAL4",
     "DUMMY_DECAL5",
     "DUMMY_DECAL6",
+    "DUMMY_DECAL7",
+    "DUMMY_DECAL8",
     "DUMMY_NUMBER_LEFT",
     "DUMMY_NUMBER_RIGHT",
     "BOTTOM_DECAL",
@@ -195,7 +197,7 @@ mod tests {
         assert_eq!(s.resolve_for(bstring_hash(BRAKE), true), bstring_hash(BRAKE_LEFT));
         assert_eq!(s.resolve_for(bstring_hash(BRAKE), false), bstring_hash(BRAKE));
         assert!(s.hidden.contains(&bstring_hash("LEFT_DOOR_DECAL")));
-        assert_eq!(DECAL_PLACEHOLDERS.len(), 8 + 26);
+        assert_eq!(DECAL_PLACEHOLDERS.len(), 10 + 26);
     }
 
     #[test]

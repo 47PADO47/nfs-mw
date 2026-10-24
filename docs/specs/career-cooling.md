@@ -77,18 +77,23 @@ clamped to 1..=5, so a car with no heat reads as heat 1.
 - **Table:** `nfsmw-data/src/cooling.rs` reads the eleven floats. The career crate holds a plain
   `economy::cooling::CoolingTable` (no install types) with `CareerRecord::cool_for_part`, `preview_heat` and the meter
   rule `HeatMeter`.
-- **Where it applies:** the rewrite's garage fits a whole selection at once (`scenes/world/garage.rs`
-  `commit_garage_selection`). In career mode the parts that differ from the applied selection (body kit, spoiler, hood,
-  roof scoop, rims, and the paint colour) multiply the current car's heat (`scenes/world/career/cooling.rs`). The
-  rewrite's garage offers no decals, vinyls, numbers, rim paint or window tint, so those factors are read but unused.
-  There is no backroom shop and no price, so `extra` is always 1.0. A car swap in the garage is not a purchase.
+- **Where it applies:** only confirmed normal career garage checkout updates heat
+  (`scenes/world/garage/checkout.rs`, `scenes/world/career/cooling.rs`).
+  Pending selections are compared with the installed entry baseline. Model parts,
+  paint, tint, rim paint, vinyls and each changed supported decal slot use their
+  installed cooling factors. Slot 105 (left door's first number) follows the
+  reference's body-kit case; the other three number slots have no matched case.
+  Normal shop uses `extra = 1.0`; backroom uses `0.75`.
+  F6 previews, ordinary browsing, cancellation and car swaps do not cool heat.
 - **Persistence:** the record heat is the one saved with the profile (`stable` career record `+0xC`); the cooled value
   is what the next chase starts from (`spawn_heat`, floor 1).
-- **Shown:** the career car select draws the meter for the shown car (`frontend/career_screens/car_select.rs`). The
-  customization garage of the rewrite is an overlay window with no heat display; the preview is not drawn there.
+- **Shown:** the career car select draws its existing meter. Normal garage shows
+  current/preview heat with the same `HeatMeter` segment calculation. Its egui
+  presentation does not reproduce original FEng artwork or animation timing.
 
 ## 6. Open questions
 
-- The `NewNumbers` and `NewRimPaint` slots exist in the table but the garage code read only reaches the others.
+- `NewNumbers` exists in the table but no inspected slot reaches it. Rim paint
+  reaches its own factor through the paint-rim slot in the reference.
 - Whether the backroom shop's 0.75 is applied on top of the table value as the reconstruction does (`factor * extra`).
 - The meter's behaviour above heat 5 (clamped here, as the reconstruction clamps).

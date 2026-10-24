@@ -20,9 +20,38 @@ pub enum Footer {
     CarSelectLocked,
     /// Back, `9 0 Zoom` and the arrows `View Car`: the Showcase.
     Orbit,
+    GarageManager {
+        add: bool,
+    },
+    GarageMain {
+        shop: bool,
+    },
+    GarageCategories {
+        max_performance: bool,
+    },
+    GarageParts,
+    GarageSelect,
+    GarageCart {
+        active: bool,
+    },
+    GarageTuning,
+    GarageNumbers,
 }
 
 impl Footer {
+    pub fn is_garage(self) -> bool {
+        matches!(
+            self,
+            Self::GarageManager { .. }
+                | Self::GarageMain { .. }
+                | Self::GarageCategories { .. }
+                | Self::GarageParts
+                | Self::GarageSelect
+                | Self::GarageCart { .. }
+                | Self::GarageTuning
+                | Self::GarageNumbers
+        )
+    }
     /// Whether the footer is one of the custom race's car select (`Car_Select.fng` also serves the career's car lot).
     pub fn is_custom_car_select(self) -> bool {
         matches!(self, Footer::CarSelect | Footer::CarSelectLocked)

@@ -95,6 +95,27 @@ pub fn record_win(event: &str) {
     }
 }
 
+pub(crate) fn record_profile_reward(
+    event: &str,
+    handle: &crate::career::CareerHandle,
+    profiles: Option<&crate::career::ProfileDir>,
+) {
+    if event != "19.8.31" {
+        return;
+    }
+    let Some(profiles) = profiles else { return };
+    handle.with_loaded(|career| {
+        let before = career.settings.flags;
+        career.settings.flags.insert(nfsmw_career::settings::Flags::QUICK_RACE_JUNKMAN);
+        let alias = career.alias.clone();
+        let bytes = career.profile_bytes();
+        if let Err(error) = profiles.write(&alias, &bytes) {
+            career.settings.flags = before;
+            log::warn!("The My Cars Junkman reward could not be saved: {error:#}");
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

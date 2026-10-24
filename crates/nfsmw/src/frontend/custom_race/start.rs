@@ -8,6 +8,8 @@ pub struct CustomStart {
     /// The car type folder under `CARS/`, and the preset it is built with.
     pub car: String,
     pub preset: Option<String>,
+    /// My Cars identity: load the separately saved customization for this folder.
+    pub custom: Option<String>,
     pub options: crate::scenes::world::RaceOptions,
     pub transmission: crate::settings::Transmission,
 }

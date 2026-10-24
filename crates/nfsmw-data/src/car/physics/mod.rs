@@ -12,6 +12,7 @@ mod jump;
 pub mod measured;
 pub mod performance;
 mod powertrain;
+pub mod ratings;
 mod reactions;
 mod rolling_chassis;
 mod running_gear;

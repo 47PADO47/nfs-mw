@@ -24,6 +24,15 @@ impl Drive {
         self.request = Some(SpawnRequest { near, heading, exact: None, strict: false });
     }
 
+    /// A garage exit uses its authored marker, waiting for the ground instead of moving to a different road.
+    pub fn respawn_at(&mut self, spawn: Spawn) {
+        self.respawn_near([spawn.position.x, spawn.position.y], Some(spawn.heading));
+        if let Some(request) = &mut self.request {
+            request.exact = Some(spawn);
+            request.strict = true;
+        }
+    }
+
     /// The last place the car was on a road.
     pub fn last_good(&self) -> Option<Spawn> {
         self.last_good

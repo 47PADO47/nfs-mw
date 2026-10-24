@@ -30,6 +30,8 @@ mod finish_flares;
 mod frame;
 mod frame_systems;
 mod garage;
+pub(crate) use garage::catalog as garage_catalog;
+pub(crate) use garage::native_my_car_handle;
 mod gps;
 mod ground;
 mod heli_wash;
@@ -79,6 +81,8 @@ mod resident;
 mod road;
 mod rotor;
 mod scene;
+mod scene_effects;
+mod scene_hud;
 mod scene_space;
 mod scenery_groups;
 mod session_rules;
@@ -154,6 +158,8 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    garage_backdrop: Option<crate::frontend::GarageBackdrop>,
+    garage_exit: Option<nfsmw_data::gameplay::Placement>,
     audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
     common_sounds: Vec<crate::audio::CommonEvent>,
     sound_speedbreaker_active: bool,

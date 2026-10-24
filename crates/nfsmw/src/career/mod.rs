@@ -22,6 +22,7 @@ mod coop_state;
 mod data;
 mod io;
 mod mod_data;
+mod paired_save;
 mod rewards;
 mod sources;
 mod start;
@@ -47,8 +48,7 @@ pub enum CareerRequest {
     /// The scripted chase of 16.2.1 is over: `JumpToCarLot` opens the car lot in first-car mode, where the player picks the
     /// car the drive to the safe house is made in (`docs/specs/story-flow.md` section 2.3).
     FirstCarLot,
-    /// The player engaged an auto shop in career mode: the customization garage opens over the world, with no charge
-    /// (the garage has no price data yet).
+    /// The player engaged an auto shop in career mode: the customization garage opens over the frozen world.
     AutoShop { zone: String },
     /// A stage that closes fewer gates was reached: the region unlock screen is due (`career-regions.md` section 6).
     RegionUnlock { stage: u8 },

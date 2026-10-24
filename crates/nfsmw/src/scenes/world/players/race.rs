@@ -50,6 +50,8 @@ impl WorldScene {
         let lead = self.players.lead()?;
         Some(SplitSetup {
             cars: [lead.car_name.clone(), session.guest_car.clone()],
+            customs: [false; 2],
+            custom_ids: [None, None],
             // The world never reads the devices; the app seats them from the co-op session (`input/split.rs`).
             devices: [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows],
             transmissions: [lead.transmission(), session.transmission],

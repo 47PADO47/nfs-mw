@@ -22,7 +22,7 @@ use crate::app::Host;
 use crate::career::{CareerHandle, ProfileDir};
 use crate::input::Control;
 use crate::scenes::world::DEFAULT_CAR;
-use crate::settings::{Partial, Settings};
+use crate::settings::Partial;
 use nfsmw_career::rapsheet::EndGame;
 
 #[path = "flow_arrival.rs"]
@@ -43,6 +43,8 @@ mod flow_custom;
 mod flow_endgame;
 #[path = "flow_first_visit.rs"]
 pub(in crate::frontend) mod flow_first_visit;
+#[path = "flow_garage.rs"]
+mod flow_garage;
 #[path = "flow_loading.rs"]
 mod flow_loading;
 #[cfg(test)]
@@ -177,11 +179,19 @@ pub struct Frontend {
     pub(super) camera: CameraRig,
     /// An auto shop was engaged in career mode: the update system asks the garage to open (`poll_career`).
     pub(in crate::frontend) auto_shop_requested: bool,
+    /// My Cars owns the scene until its normal garage session closes.
+    pub(in crate::frontend) menu_garage: bool,
+    pub(in crate::frontend) menu_garage_requested: bool,
+    /// The original FEng garage screens share a snapshot; only scene transactions write the save.
+    pub(in crate::frontend) garage_ui: Option<super::garage_ui::GarageUi>,
+    pub(in crate::frontend) garage_tuning: bool,
     /// The race a quick race asked for: the world starts it as soon as it stands (`start_free_roam`).
     quick_race: Option<String>,
     pub(super) series: flow_series::Series,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
+    /// Apply the separately saved My Cars setup to this start, leaving Stock choices stock.
+    quick_custom: Option<String>,
     /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
     /// (`world_built`).
     race_options: Option<crate::scenes::world::RaceOptions>,
@@ -241,11 +251,16 @@ impl Frontend {
             look_override: None,
             camera: CameraRig::default(),
             auto_shop_requested: false,
+            menu_garage: false,
+            menu_garage_requested: false,
+            garage_ui: None,
+            garage_tuning: false,
             end_game: None,
             end_game_shown: None,
             quick_race: None,
             series: Default::default(),
             quick_car: None,
+            quick_custom: None,
             race_options: None,
             split: None,
             coop: None,
@@ -280,15 +295,6 @@ impl Frontend {
             Start::Browse(name) => self.show_browsed(&name, host, env),
             Start::Drive => self.start_free_roam(LoadingScreen::Plain, host, env),
         }
-    }
-
-    /// Shows `name` in place of the screens there are, over the scene already in the window (which stays).
-    pub(super) fn show_browsed(&mut self, name: &str, host: &mut Host, env: &mut Env) {
-        self.latch = true;
-        self.screens.clear();
-        let commands = self.screens.open(name, Args::default(), true, env);
-        self.stage = Stage::Menus;
-        self.apply(commands, host, env);
     }
 
     /// Goes on in the boot flow; after the last step the main menu.
@@ -379,7 +385,8 @@ impl Frontend {
         self.stage = Stage::Paused;
         let race = host.scene.race_active();
         let blacklist = self.pause_blacklist(race);
-        let pause_ctx = PauseCtx { race, quit: self.origin, blacklist, ..flow_coop::coop_pause(host) };
+        let tuning = host.scene.tuning_available().filter(|_| !self.series.active && self.split.is_none());
+        let pause_ctx = PauseCtx { race, quit: self.origin, blacklist, tuning, ..flow_coop::coop_pause(host) };
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -411,6 +418,8 @@ impl Frontend {
     pub(super) fn apply(&mut self, commands: Vec<Command>, host: &mut Host, env: &mut Env) {
         for command in commands {
             match command {
+                Command::OpenGarage => self.open_garage(host),
+                Command::OpenTuning => self.open_tuning(host, env),
                 Command::StartFreeRoam => {
                     self.career.end_play();
                     self.origin = QuitTo::Main;
@@ -481,19 +490,6 @@ impl Frontend {
                 | Command::Alert(_)
                 | Command::EnterName(_) => {}
             }
-        }
-    }
-
-    pub(super) fn save_settings(&self, changed: &mut Partial) {
-        if !self.save || *changed == Partial::default() {
-            return;
-        }
-        match Settings::save(changed) {
-            Ok(path) => {
-                log::info!("settings saved to {}", path.display());
-                *changed = Partial::default();
-            }
-            Err(e) => log::warn!("the settings could not be saved: {e:#}"),
         }
     }
 }

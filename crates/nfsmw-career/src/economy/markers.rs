@@ -150,6 +150,21 @@ impl MarkerInventory {
         true
     }
 
+    /// Backroom redemption uses an exact auxiliary key and clears kind/state (garage-shop.md).
+    pub fn redeem_part(&mut self, kind: u32, aux: u32) -> bool {
+        if !(1..=16).contains(&kind) {
+            return false;
+        }
+        let Some(entry) =
+            self.entries.iter_mut().find(|entry| entry.kind == kind && entry.aux == aux && entry.flag == 1)
+        else {
+            return false;
+        };
+        entry.kind = 0;
+        entry.flag = 0;
+        true
+    }
+
     /// Removes one held marker of `kind` (the first one in table order). Returns false when none is held.
     pub fn take(&mut self, kind: MarkerKind) -> bool {
         self.take_entry(kind.code(), 0)

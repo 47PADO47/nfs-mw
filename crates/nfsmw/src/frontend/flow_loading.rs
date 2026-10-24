@@ -8,6 +8,7 @@ use anyhow::Result;
 
 use super::*;
 use crate::scenes::world::{DriveOptions, Options, WorldLoad, WorldScene};
+use crate::viewer::Scene;
 
 /// How free roam starts: the stock car on the start of the track, and the world waits for its load so the
 /// loading screen covers it (`wait_for_load`).
@@ -75,6 +76,7 @@ impl Frontend {
             Ok(world) => world,
             Err(e) => {
                 log::error!("cannot start free roam: {e}");
+                self.quick_custom = None;
                 return;
             }
         };
@@ -118,6 +120,19 @@ impl Frontend {
             Err(_) => return self.loading_failed("the loading thread panicked", host, env),
         };
         world.set_career(self.career.clone(), self.profiles.clone());
+        if let Some(setup) = self.split.as_ref()
+            && setup.customs[1]
+        {
+            world.set_car_shading(env.settings.car_shading);
+            let result = host
+                .renderer
+                .as_mut()
+                .ok_or_else(|| anyhow::anyhow!("Renderer is not ready"))
+                .and_then(|renderer| world.prepare_custom_split(renderer.as_mut(), setup));
+            if let Err(error) = result {
+                return self.loading_failed(&format!("Player 2 My Cars setup: {error:#}"), host, env);
+            }
+        }
         if let Some(setup) = self.coop.as_ref().map(|session| session.setup.clone()) {
             world.queue_coop(setup);
         }
@@ -148,12 +163,18 @@ impl Frontend {
         if !self.replace_scene(host, Box::new(scene), true) {
             return self.loading_failed("the world could not be put in the window", host, env);
         }
+        if let Some(id) = self.quick_custom.take()
+            && let Err(error) = self.apply_my_car(host, &id)
+        {
+            return self.loading_failed(&format!("My Cars setup: {error:#}"), host, env);
+        }
         self.load = Some(Load::Streaming);
     }
 
     fn loading_failed(&mut self, reason: &str, host: &mut Host, env: &mut Env) {
         log::error!("cannot start free roam: {reason}");
         self.load = None;
+        self.quick_custom = None;
         self.show_menu(host, env);
     }
 

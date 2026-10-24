@@ -194,6 +194,17 @@ fn a_blank_profile_is_a_consistent_new_career() {
 }
 
 #[test]
+fn profile_completion_persists_independently_of_the_current_career_flags() {
+    let mut save = ProfileSave::new_blank("mwo").unwrap();
+    save.mark_career_completed();
+    let bytes = save.to_bytes();
+    let save = ProfileSave::parse(&bytes).unwrap();
+    assert!(save.career_completed_once());
+    assert!(!save.settings().unwrap().flags.contains(Flags::CAREER_COMPLETE));
+    assert!(save.integrity().all_ok());
+}
+
+#[test]
 fn a_blank_profile_keeps_only_the_first_32_name_bytes() {
     let long = "x".repeat(40);
     let save = ProfileSave::new_blank(&long).unwrap();

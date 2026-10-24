@@ -11,6 +11,13 @@ struct Part {
 }
 
 #[derive(Serialize, Deserialize)]
+struct Decal {
+    zone: usize,
+    position: usize,
+    hash: u32,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Stored {
     version: u32,
     car: String,
@@ -22,6 +29,8 @@ struct Stored {
     active_tuning: u8,
     parts: Vec<Part>,
     #[serde(default)]
+    decals: Vec<Decal>,
+    #[serde(default)]
     rim_color: Option<[u8; 3]>,
     #[serde(default)]
     vinyl_color1: Option<[u8; 3]>,
@@ -29,11 +38,13 @@ struct Stored {
     vinyl_color2: Option<[u8; 3]>,
     #[serde(default)]
     vinyl_color3: Option<[u8; 3]>,
+    #[serde(default, with = "super::color_parts")]
+    vinyl_color_parts: [Option<u32>; 3],
     #[serde(default)]
     gauges: super::GaugeSelection,
 }
 
-fn encode(selection: &Selection) -> Result<String> {
+pub(crate) fn encode(selection: &Selection) -> Result<String> {
     selection.tuning.validate()?;
     let stored = Stored {
         version: 1,
@@ -41,6 +52,7 @@ fn encode(selection: &Selection) -> Result<String> {
         vinyl_color1: selection.parts.vinyl_colors[0],
         vinyl_color2: selection.parts.vinyl_colors[1],
         vinyl_color3: selection.parts.vinyl_colors[2],
+        vinyl_color_parts: selection.parts.vinyl_color_parts,
         gauges: selection.gauges.clone(),
         car: selection.car.clone(),
         color: selection.color,
@@ -54,6 +66,18 @@ fn encode(selection: &Selection) -> Result<String> {
             .iter()
             .enumerate()
             .filter_map(|(slot, hash)| hash.map(|hash| Part { slot, hash }))
+            .collect(),
+        decals: selection
+            .parts
+            .decals
+            .iter()
+            .enumerate()
+            .flat_map(|(zone, positions)| {
+                positions
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(position, hash)| hash.map(|hash| Decal { zone, position, hash }))
+            })
             .collect(),
     };
     toml::to_string(&stored).context("Serializing car preset")
@@ -89,6 +113,16 @@ pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
     }
     parts.rim_color = stored.rim_color;
     parts.vinyl_colors = [stored.vinyl_color1, stored.vinyl_color2, stored.vinyl_color3];
+    parts.vinyl_color_parts = stored.vinyl_color_parts;
+    for decal in stored.decals {
+        let slot = parts
+            .decals
+            .get_mut(decal.zone)
+            .and_then(|zone| zone.get_mut(decal.position))
+            .context("Invalid preset decal position")?;
+        ensure!(slot.is_none(), "Duplicate preset decal position");
+        *slot = Some(decal.hash);
+    }
     if let Some(catalog) = &car.parts {
         stored.gauges.validate(catalog)?;
         catalog.validate(&parts)?;

@@ -61,6 +61,16 @@ pub struct Career {
 }
 
 impl Career {
+    /// Persistent profile completion, independent of this career's current progression flags.
+    pub fn career_completed_once(&self) -> bool {
+        self.profile.career_completed_once()
+    }
+
+    /// Record the completed career in the profile-wide unlock state.
+    pub fn mark_career_completed(&mut self) {
+        self.profile.mark_career_completed();
+    }
+
     /// A new career named `alias`: the settings of `opts` ([`new_career_with`]), an empty stable and history, a
     /// Blacklist at stage 16 and every milestone and speed trap locked.
     pub fn new(alias: &str, data: Arc<CareerData>, opts: &NewCareer) -> Result<Career> {
@@ -134,6 +144,9 @@ impl Career {
     /// A part that cannot be written is logged and its bytes stay as they were: the Blacklist's stage is always
     /// written, the milestone block only when its header counts already hold the records (see [`write_progress`]).
     pub fn profile_bytes(&mut self) -> Vec<u8> {
+        if self.settings.flags.contains(nfsmw_career::settings::Flags::CAREER_COMPLETE) {
+            self.profile.mark_career_completed();
+        }
         self.blacklist.apply_to_settings(&mut self.settings);
         self.write_race_records();
         if let Err(e) = self.write_progress() {

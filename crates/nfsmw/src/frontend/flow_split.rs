@@ -32,6 +32,7 @@ impl Frontend {
         self.race_options = Some(options);
         self.quick_race = Some(race);
         self.quick_car = Some(setup.cars[0].clone());
+        self.quick_custom = setup.custom_ids[0].clone();
         self.split = Some(setup);
         self.start_free_roam(LoadingScreen::Plain, host, env);
     }
@@ -74,6 +75,8 @@ mod tests {
     fn setup() -> SplitSetup {
         SplitSetup {
             cars: ["a".into(), "b".into()],
+            customs: [false; 2],
+            custom_ids: [None, None],
             devices: [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows],
             transmissions: [Transmission::Automatic; 2],
         }

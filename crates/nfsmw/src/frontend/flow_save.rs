@@ -9,6 +9,7 @@
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
+use crate::settings::{Partial, Settings};
 use anyhow::{Result, anyhow};
 use nfsmw_career::settings::NewCareer;
 
@@ -264,3 +265,18 @@ fn loaded_failed(alias: &str, e: &anyhow::Error) -> String {
 #[cfg(test)]
 #[path = "flow_save_tests.rs"]
 mod tests;
+
+impl Frontend {
+    pub(in crate::frontend) fn save_settings(&self, changed: &mut Partial) {
+        if !self.save || *changed == Partial::default() {
+            return;
+        }
+        match Settings::save(changed) {
+            Ok(path) => {
+                log::info!("settings saved to {}", path.display());
+                *changed = Partial::default();
+            }
+            Err(e) => log::warn!("the settings could not be saved: {e:#}"),
+        }
+    }
+}

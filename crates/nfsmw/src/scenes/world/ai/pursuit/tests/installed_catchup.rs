@@ -13,6 +13,7 @@ fn copy_model(source: &CopModel) -> CopModel {
     assert!(model.trailer.is_none(), "regular fleet fixture has no tractor");
     CopModel {
         model: TrafficModel {
+            tunings: model.tunings,
             name: model.name.clone(),
             rig: model.rig.clone(),
             physics: model.physics.clone(),

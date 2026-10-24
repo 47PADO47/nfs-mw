@@ -1,7 +1,7 @@
 //! The same named-preset controls in F6 and F8.
 use std::path::PathBuf;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Picker {
     pub(crate) path: Option<PathBuf>,
     pub(crate) name: String,

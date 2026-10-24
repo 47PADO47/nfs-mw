@@ -27,8 +27,17 @@ pub fn gameplay(to_sun: Vec3, material_specular_scale: f32) -> LightingRig {
 
 /// Default quick-race frontend profile, also used by several stock garage defaults.
 pub fn frontend(material_specular_scale: f32) -> LightingRig {
+    frontend_theta(material_specular_scale, 1.0)
+}
+
+/// The original backroom uses the same entries with theta negated before angle quantization.
+pub fn backroom(material_specular_scale: f32) -> LightingRig {
+    frontend_theta(material_specular_scale, -1.0)
+}
+
+fn frontend_theta(material_specular_scale: f32, theta_sign: f32) -> LightingRig {
     let lights = FRONTEND.map(|(theta, phi, rgb, scale)| {
-        DirectionalLight::new(spherical(theta + 180.0, 90.0 - phi), Vec3::from_array(rgb) * scale)
+        DirectionalLight::new(spherical(theta * theta_sign + 180.0, 90.0 - phi), Vec3::from_array(rgb) * scale)
     });
     LightingRig { lights, ambient: Vec3::ZERO, material_specular_scale }
 }
@@ -67,5 +76,19 @@ mod tests {
         assert_eq!(rig.lights[0].color, Vec3::new(1.0, 1.0, 0.95) * 0.98);
         assert!(rig.lights[0].to_light.y < -0.66 && rig.lights[0].to_light.z > 0.74);
         assert_ne!(rig.lights, gameplay(Vec3::Z, 1.0).lights);
+    }
+
+    #[test]
+    fn backroom_negates_theta_and_keeps_the_authored_colors_and_material_scale() {
+        let normal = frontend(0.7);
+        let mirrored = backroom(0.7);
+        assert_eq!(mirrored.material_specular_scale, normal.material_specular_scale);
+        assert_eq!(mirrored.ambient, normal.ambient);
+        for (actual, source) in mirrored.lights.iter().zip(&normal.lights) {
+            assert_eq!(actual.color, source.color);
+            assert!((actual.to_light.x - source.to_light.x).abs() < 0.0002);
+            assert!((actual.to_light.y + source.to_light.y).abs() < 0.0002);
+            assert!((actual.to_light.z - source.to_light.z).abs() < 0.0002);
+        }
     }
 }

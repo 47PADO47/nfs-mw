@@ -40,6 +40,21 @@ fn an_unchanged_selection_fits_nothing() {
 }
 
 #[test]
+fn decals_cool_per_slot_and_only_the_original_number_slot_cools() {
+    let old = selection("CAR");
+    let mut new = old.clone();
+    new.parts.decals[2][0] = Some(1);
+    new.parts.decals[2][1] = Some(2);
+    new.parts.decals[2][6] = Some(3);
+    new.parts.decals[2][7] = Some(4);
+    new.parts.decals[3][6] = Some(3);
+    new.parts.decals[3][7] = Some(4);
+    assert_eq!(fitted_parts(&old, &new), vec![CoolingPart::Decal, CoolingPart::Decal, CoolingPart::BodyKit]);
+    new.parts.vinyl_colors[0] = Some([1, 2, 3]);
+    assert_eq!(fitted_parts(&old, &new).len(), 3, "auxiliary vinyl color has no cooling switch");
+}
+
+#[test]
 fn a_car_swap_or_a_first_selection_is_not_a_purchase() {
     let mut new = selection("m3gtr");
     new.parts.parts[Category::Hood as usize] = Some(4);

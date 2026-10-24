@@ -482,3 +482,6 @@ fn car_lighting_panel_groups_features_and_retains_advanced_tuning() {
     assert_eq!(lab.options.sky_strength, 0.91);
     assert!(!lab.options.cached_reflections);
 }
+
+#[path = "graphics_lab_garage_tests.rs"]
+mod garage_transaction;

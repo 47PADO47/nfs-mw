@@ -89,7 +89,7 @@ pub struct Progress {
     /// The catalogue names of the cars the loaded profile owns, for the Career list.
     pub owned: Vec<String>,
     /// The catalogue names of the profile's quick race custom cars, for the My Cars list.
-    pub customs: Vec<String>,
+    pub customs: Vec<crate::garage::my_cars::Slot>,
     /// What the challenge series has been won of, which opens the SL 65 and the GT2.
     pub series: crate::frontend::challenge_series::Completion,
 }
@@ -98,7 +98,9 @@ pub struct Progress {
 fn garage_entries(names: &[String], prefix: &str, pool: &CarPool) -> Vec<Entry> {
     names
         .iter()
-        .filter_map(|name| pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name)))
+        .filter_map(|name| {
+            pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name) || car.folder.eq_ignore_ascii_case(name))
+        })
         .map(|car| Entry {
             car: car.clone(),
             preset: None,
@@ -114,7 +116,22 @@ pub fn entries(list: List, pool: &CarPool, progress: &Progress) -> Vec<Entry> {
     match list {
         List::Stock => pool.cars.iter().map(|car| stock_entry(car, progress)).collect(),
         List::Career => garage_entries(&progress.owned, "career", pool),
-        List::MyCars => garage_entries(&progress.customs, "custom", pool),
+        List::MyCars => progress
+            .customs
+            .iter()
+            .filter_map(|slot| {
+                let car = pool.cars.iter().find(|car| {
+                    car.name.eq_ignore_ascii_case(&slot.car) || car.folder.eq_ignore_ascii_case(&slot.car)
+                })?;
+                Some(Entry {
+                    car: car.clone(),
+                    preset: None,
+                    key: format!("custom:{}", slot.id),
+                    locked: false,
+                    unlock: Unlock::None,
+                })
+            })
+            .collect(),
         List::Bonus => {
             pool.presets.iter().filter_map(|preset| bonus_entry(&preset.name, &preset.car, progress)).collect()
         }
@@ -192,6 +209,10 @@ mod tests {
         PoolCar { name: name.into(), folder: folder.into(), rank, handle: 1, manufacturer: Some(1), stats: None }
     }
 
+    fn slot(id: &str, car: &str) -> crate::garage::my_cars::Slot {
+        crate::garage::my_cars::Slot { id: id.into(), label: id.into(), car: car.into(), vehicle_key: None }
+    }
+
     fn pool() -> CarPool {
         let preset = |name: &str| PoolPreset { name: name.into(), car: car("m3", "BMWM3GTRE46", 0) };
         CarPool {
@@ -224,6 +245,19 @@ mod tests {
         );
         assert_eq!(locked(4), [false, true, false]);
         assert_eq!(locked(2), [false, false, false]);
+    }
+
+    #[test]
+    fn my_cars_accepts_a_saved_folder_and_keeps_its_identity_separate_from_stock() {
+        let pool = CarPool { cars: vec![car("m3", "BMWM3GTRE46", 0)], ..CarPool::default() };
+        let progress = Progress { customs: vec![slot("first", "m3"), slot("second", "BMWM3GTRE46")], ..progress(16) };
+        let custom = entries(List::MyCars, &pool, &progress);
+        let stock = entries(List::Stock, &pool, &progress);
+        assert_eq!(custom.len(), 2, "each custom slot has an independent identity");
+        assert_eq!(custom[0].car.folder, "BMWM3GTRE46");
+        assert_eq!(custom[0].key, "custom:first");
+        assert_eq!(custom[1].key, "custom:second");
+        assert_ne!(custom[0].key, stock[0].key);
     }
 
     #[test]
@@ -271,10 +305,10 @@ mod tests {
         assert!(!career[0].locked);
         assert!(entries(List::Career, &pool(), &progress(16)).is_empty());
         assert!(entries(List::MyCars, &pool(), &owned).is_empty());
-        let customs = Progress { customs: vec!["cobaltss".into()], ..progress(16) };
+        let customs = Progress { customs: vec![slot("first", "cobaltss")], ..progress(16) };
         let mine = entries(List::MyCars, &pool(), &customs);
         assert_eq!(mine.len(), 1);
-        assert_eq!(mine[0].key, "custom:cobaltss");
+        assert_eq!(mine[0].key, "custom:first");
         assert!(entries(List::Career, &pool(), &customs).is_empty(), "a custom car is not a career car");
     }
 
