@@ -198,8 +198,8 @@ impl UiThemes {
         registry
     }
 
-    /// Makes the theme for `style` active, unless a mod theme was chosen. A theme that is not registered (Remastered, for
-    /// now) leaves Original active, so the registry never names a theme that nothing can fill.
+    /// Makes the theme for `style` active, unless a mod theme was chosen. A theme that is not registered leaves Original
+    /// active, so the registry never names a theme that nothing can fill.
     pub fn select(&mut self, style: UiStyle) {
         self.style = style;
         self.apply();
