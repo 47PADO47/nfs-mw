@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use blackbox_gfx::{DEFAULT_SOFT_DISTANCE, EffectVertex};
 
+use crate::bind_cache::BindCache;
 use crate::world::{EFFECT_VERTEX_ATTRIBUTES, WorldBindings, write_mask};
 
 #[repr(C)]
@@ -27,7 +28,10 @@ pub struct SoftParticles {
     format: wgpu::TextureFormat,
     layout: wgpu::BindGroupLayout,
     parameters: wgpu::Buffer,
+    /// The depth the next [`Self::bind`] samples, with its group.
     binding: Option<(wgpu::TextureView, wgpu::BindGroup)>,
+    /// Groups for the depth views seen lately: the main view and the mirror's alternate every frame.
+    groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
     /// Used by the pipeline built per format.
     cache: Option<wgpu::PipelineCache>,
 }
@@ -87,6 +91,7 @@ impl SoftParticles {
             layout,
             parameters,
             binding: None,
+            groups: BindCache::default(),
             cache: cache.cloned(),
         };
         soft.use_format(device, format);
@@ -148,14 +153,20 @@ impl SoftParticles {
         if self.binding.as_ref().is_some_and(|(view, _)| view == depth) {
             return;
         }
-        let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("soft particle depth"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(depth) },
-                wgpu::BindGroupEntry { binding: 1, resource: self.parameters.as_entire_binding() },
-            ],
-        });
+        let (layout, parameters) = (&self.layout, &self.parameters);
+        let binding = self
+            .groups
+            .get_or_insert_with(depth, depth, || {
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("soft particle depth"),
+                    layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(depth) },
+                        wgpu::BindGroupEntry { binding: 1, resource: parameters.as_entire_binding() },
+                    ],
+                })
+            })
+            .clone();
         self.binding = Some((depth.clone(), binding));
     }
 
