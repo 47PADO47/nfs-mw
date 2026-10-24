@@ -91,3 +91,143 @@ fn the_backup_rows_match_the_documented_table() {
     assert_eq!(trigger, [2, 2, 2, 2, 2, 2, 2, 3, 5, 5]);
     assert_eq!(timer, [180.0, 120.0, 120.0, 120.0, 90.0, 90.0, 90.0, 60.0, 45.0, 60.0]);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn all_heat_rows_preserve_context_composition_and_execution_tuning() {
+    use nfsmw_data::pursuit::{PursuitTable, ground_cops};
+    let dir = install().expect("set NFSMW_GAME_DIR to verify installed pursuit context rows");
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    let expected = [
+        (PursuitTable::OpenWorld, [4, 5, 7, 8, 10, 10, 6, 8, 4, 1]),
+        (PursuitTable::Race, [2, 3, 4, 5, 5, 6, 8, 8, 8, 8]),
+    ];
+    for (table, counts) in expected {
+        assert_selected_context_fields(&db, table);
+        let waves = table.rows(&db).expect("all ten wave rows");
+        let backups = table.backups(&db).expect("all ten backup rows");
+        let formations = table.formations(&db).expect("all ten formation rows");
+        let tuning = table.tuning(&db).expect("all ten tuning rows");
+        let support = table.support(&db).expect("all ten support rows");
+        assert_eq!(waves.len(), 10);
+        assert_eq!(formations.len(), 10);
+        assert_eq!(tuning.len(), 10);
+        assert_eq!(support.len(), 10);
+        assert_eq!(table.growth(&db).len(), 10);
+        for (index, wave) in waves.iter().enumerate() {
+            let count: u32 = ground_cops(wave).map(|cop| cop.count).sum();
+            assert_eq!(count, counts[index], "{table:?} heat {}", index + 1);
+            assert!(backups[index].engagement_radius > 0.0);
+            assert!(tuning[index].front_los > 0.0 && tuning[index].evade_timeout > 0.0);
+            assert!(support[index].minimum_delay >= 0.0);
+            assert!(!formations[index].records.is_empty());
+            if table == PursuitTable::Race {
+                assert_eq!(formations[index].stagger_time, 10.0);
+                assert_eq!(formations[index].collapse_speed, 15.0);
+                assert_eq!(tuning[index].speed_reaction, 0.0);
+                assert_eq!(
+                    tuning[index].rear_los,
+                    match index < 7 {
+                        true => 51.0,
+                        false => 101.0,
+                    }
+                );
+                assert_eq!(tuning[index].heli_gap, 120.0);
+            }
+        }
+    }
+    let waves = PursuitTable::OpenWorld.rows(&db).unwrap();
+    assert_ne!(
+        waves[9].full_engagement_cops,
+        ground_cops(&waves[9]).map(|cop| cop.count).sum::<u32>(),
+        "the engagement budget is separate from wave composition and active cop cap"
+    );
+}
+
+/// Report the exact context, heat and field before a table-level `Option` loses that information.
+fn assert_selected_context_fields(db: &Database, table: nfsmw_data::pursuit::PursuitTable) {
+    use blackbox_attrib::Value;
+    use nfsmw_data::pursuit::PursuitTable;
+    let escalation = db.collection("pursuitescalation", "default").expect("pursuitescalation/default");
+    let (levels, support) = match table {
+        PursuitTable::OpenWorld => ("heattable", "supporttable"),
+        PursuitTable::Race => ("racetable", "supportracetable"),
+    };
+    let floats = [
+        "StaggerFormationTime",
+        "BoxinTightness",
+        "BoxinDuration",
+        "RollingBlockTightness",
+        "RollingBlockDuration",
+        "CollapseAggression",
+        "CollapseSpeed",
+        "CollapseOuterRadius",
+        "frontLOSdistance",
+        "rearLOSdistance",
+        "heliLOSdistance",
+        "SpeedReactionTime",
+        "evadetimeout",
+        "HiddenZoneTimeMultiplier",
+        "HeliFuelTime",
+        "TimeBetweenHeliActive",
+        "SearchModeHeliSpawnChance",
+        "roadblockprobability",
+        "roadblockspikechance",
+        "SearchModeRoadblockRadius",
+        "SearchModeRoadblockChance",
+        "SearchModeCityMPH",
+        "SearchModeHwyMPH",
+        "BustSpeed",
+    ];
+    for index in 0..10 {
+        let row = db.resolve(escalation.get_at(levels, index).unwrap().as_ref_spec().unwrap()).unwrap();
+        for field in floats {
+            assert!(
+                row.get_f32(field).is_some(),
+                "{table:?} heat {} ({:08x}) {field}: expected Float, got {:?}",
+                index + 1,
+                row.key(),
+                row.get(field)
+            );
+        }
+        for field in ["CollapseInnerRadius", "MaxCopsCollapsing"] {
+            assert!(
+                row.get_i32(field).is_some(),
+                "{table:?} heat {} ({:08x}) {field}: expected Int32, got {:?}",
+                index + 1,
+                row.key(),
+                row.get(field)
+            );
+        }
+        let formations = row.get("CopFormations").and_then(Value::as_array).expect("CopFormations array");
+        assert!(!formations.is_empty(), "{table:?} heat {} has no formations", index + 1);
+        for record in formations {
+            assert!(
+                matches!(record, Value::Raw { bytes, .. } if bytes.len() == 12),
+                "{table:?} heat {} CopFormations: {record:?}",
+                index + 1
+            );
+        }
+        let row = db.resolve(escalation.get_at(support, index).unwrap().as_ref_spec().unwrap()).unwrap();
+        assert!(
+            row.get_f32("MinimumSupportDelay").is_some(),
+            "{table:?} heat {} MinimumSupportDelay: {:?}",
+            index + 1,
+            row.get("MinimumSupportDelay")
+        );
+        for (field, width) in [("AirSupportOptions", 12), ("HeavySupportOptions", 16), ("LeaderSupportOptions", 20)] {
+            if let Some(value) = row.get(field) {
+                let records = value
+                    .as_array()
+                    .unwrap_or_else(|| panic!("{table:?} heat {} {field}: expected array, got {value:?}", index + 1));
+                for record in records {
+                    assert!(
+                        matches!(record, Value::Raw { bytes, .. } if bytes.len() == width),
+                        "{table:?} heat {} {field}: expected {width} bytes, got {record:?}",
+                        index + 1
+                    );
+                }
+            }
+        }
+    }
+}

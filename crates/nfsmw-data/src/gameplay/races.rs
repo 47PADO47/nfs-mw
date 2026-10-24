@@ -119,7 +119,7 @@ fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
         finish: key_field(c, "racefinish"),
         checkpoints: key_array(c, "Checkpoint"),
         barriers: text_items(c.get("Barriers")),
-        params: RaceParams::read(c),
+        params: RaceParams::read(db, c),
         story: RaceStory::read(db, c),
     })
 }

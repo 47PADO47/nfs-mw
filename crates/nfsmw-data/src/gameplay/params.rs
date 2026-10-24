@@ -40,6 +40,10 @@ pub struct RaceParams {
     pub force_traffic_density: i32,
     /// `ForceHeatLevel` (hash `0xE4211F4F`): the heat the racers' cars start at, when above the current heat.
     pub force_heat_level: i32,
+    /// Event/bin heat limits. Spec: `docs/specs/ai-pursuit-context.md`.
+    pub pursuit_heat: crate::pursuit::EventHeat,
+    /// Authored police placements used by the opening script (`cop_spawn_1`, `cop_spawn_2`).
+    pub scripted_cop_spawns: Vec<Placement>,
     /// `CopsInRace`.
     pub cops_in_race: bool,
     /// `PursuitRace`: the challenge races.
@@ -108,6 +112,8 @@ impl Default for RaceParams {
             traffic_level: 100,
             force_traffic_density: 0,
             force_heat_level: 0,
+            pursuit_heat: Default::default(),
+            scripted_cop_spawns: Vec::new(),
             cops_in_race: false,
             pursuit_race: false,
             catch_up: true,
@@ -134,7 +140,7 @@ impl Default for RaceParams {
 }
 
 impl RaceParams {
-    pub(super) fn read(c: CollectionRef<'_>) -> Self {
+    pub(super) fn read(db: &Database, c: CollectionRef<'_>) -> Self {
         let d = Self::default();
         Self {
             do_countdown: c.get_bool("DoCountdown").unwrap_or(d.do_countdown),
@@ -148,6 +154,14 @@ impl RaceParams {
             traffic_level: c.get_i32("TrafficLevel").unwrap_or(d.traffic_level),
             force_traffic_density: c.get_i32("ForceTrafficDensity").unwrap_or(0),
             force_heat_level: c.get_i32("ForceHeatLevel").unwrap_or(0),
+            pursuit_heat: crate::pursuit::EventHeat::read(db, c.name().unwrap_or("")),
+            scripted_cop_spawns: ["cop_spawn_1", "cop_spawn_2"]
+                .into_iter()
+                .filter_map(|child| {
+                    let name = format!("{}/{child}", c.name()?);
+                    db.collection("gameplay", &name).map(super::placement)
+                })
+                .collect(),
             cops_in_race: c.get_bool("CopsInRace").unwrap_or(d.cops_in_race),
             pursuit_race: c.get_bool("PursuitRace").unwrap_or(d.pursuit_race),
             catch_up: c.get_bool("CatchUp").unwrap_or(d.catch_up),
