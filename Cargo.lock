@@ -4095,6 +4095,7 @@ dependencies = [
  "bevy_image",
  "bevy_input",
  "bevy_log",
+ "bevy_tasks",
  "bevy_time",
  "bevy_window",
  "bevy_winit",

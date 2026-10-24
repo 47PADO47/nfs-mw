@@ -103,6 +103,7 @@ fn run(parallel: Parallel) -> Vec<(Vec<[u32; 8]>, u32)> {
 
 #[test]
 fn the_traffic_step_is_the_same_on_one_thread_and_on_four() {
+    crate::scenes::world::ai::parallel::tests::init_pool();
     let threaded = Parallel { min_cars: 1, per_thread: 1, max_threads: 4 };
     assert_eq!(threaded.threads(9), 4, "the parallel run must really share the cars out");
     let serial = run(Parallel::SERIAL);

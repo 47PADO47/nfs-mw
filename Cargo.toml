@@ -144,6 +144,7 @@ bevy_post_process = "=0.20.0"
 bevy_reflect = "=0.20.0"
 bevy_render = "=0.20.0"
 bevy_shader = "=0.20.0"
+bevy_tasks = "=0.20.0"
 # Solari ray tracing (ADR 0004, `ray-tracing` feature of blackbox-bevy-render). Exists on crates.io for 0.20.0.
 bevy_solari = "=0.20.0"
 bevy_transform = "=0.20.0"
