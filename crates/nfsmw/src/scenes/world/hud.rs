@@ -80,6 +80,8 @@ impl WorldScene {
             state.camera = self.hud_camera();
             state.route = self.nav_route();
             state.markers = self.nav_markers();
+            state.events = self.hud_feed.events().to_vec();
+            state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
             state.message = self.race_message().or_else(|| self.lead_catch_up_line());
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);

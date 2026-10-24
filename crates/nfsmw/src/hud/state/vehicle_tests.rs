@@ -23,7 +23,7 @@ fn the_body_damage_is_the_share_of_the_panel_and_paint_levels() {
 fn a_sound_car_has_no_warning() {
     let condition = VehicleCondition { cosmetic: Some(0.2), ..Default::default() };
     assert_eq!(condition.warning(), None);
-    assert!(!condition.tire_damaged());
+    assert_eq!(condition.damaged_tires(), 0);
     assert_eq!(VehicleCondition::default().warning(), None, "no damage model, nothing to warn of");
 }
 
@@ -33,7 +33,7 @@ fn the_warning_is_the_most_serious_condition() {
     assert_eq!(condition.warning(), Some(ConditionWarning::HeavyDamage));
     condition.tires[2] = TireCondition::Punctured;
     assert_eq!(condition.warning(), Some(ConditionWarning::TirePunctured));
-    assert!(condition.tire_damaged());
+    assert_eq!(condition.damaged_tires(), 1);
     condition.tires[0] = TireCondition::Blown;
     assert_eq!(condition.warning(), Some(ConditionWarning::TireBlown));
     condition.disabled = true;

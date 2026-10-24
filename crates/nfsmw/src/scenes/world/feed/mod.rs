@@ -3,7 +3,13 @@
 //! the HUD's events, which take the chase's notices and add the changes only the HUD needs.
 //!
 //! - `pursuit`: the chase's snapshot and its notices;
-//! - `races`: the races' snapshot and its notices.
+//! - `races`: the races' snapshot and its notices;
+//! - `hud`: the HUD's events of a frame and the snapshot diff behind them;
+//! - `world`: the world's side of the HUD's events.
 
+pub(in crate::scenes::world) mod hud;
 pub(crate) mod pursuit;
 pub(crate) mod races;
+mod world;
+
+pub(in crate::scenes::world) use hud::HudFeed;

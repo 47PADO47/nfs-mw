@@ -96,7 +96,7 @@ pub use radio::{Card, RadioHud};
 #[cfg(test)]
 pub use state::TurnDirection;
 pub use state::{
-    HelicopterIntel, HudCamera, HudState, HudTelemetry, LastKnown, MapPosition, NavMarker, NavMarkerKind, NavRoute,
-    PoliceIntel, PursuitPhase, RaceInfo, RivalGap, TireCondition, VehicleCondition, checkpoint_gap, cosmetic_level,
-    known_roadblocks, next_turn, rival_of, shows_rival_gap, sighted,
+    ConditionWarning, HEAVY_DAMAGE, HelicopterIntel, HudCamera, HudEvent, HudState, HudTelemetry, LastKnown,
+    MapPosition, NavMarker, NavMarkerKind, NavRoute, PoliceIntel, PursuitPhase, RaceInfo, RivalGap, TireCondition,
+    VehicleCondition, checkpoint_gap, cosmetic_level, known_roadblocks, next_turn, rival_of, shows_rival_gap, sighted,
 };

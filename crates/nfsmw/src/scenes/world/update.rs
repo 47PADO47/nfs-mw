@@ -217,7 +217,9 @@ impl WorldScene {
             backdrop.update(renderer, input, dt);
             return;
         }
+        self.begin_hud_feed();
         self.update_frame(renderer, input, dt);
         self.update_route(dt);
+        self.end_hud_feed(dt);
     }
 }

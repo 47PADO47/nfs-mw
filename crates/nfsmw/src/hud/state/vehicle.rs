@@ -70,7 +70,6 @@ pub enum ConditionWarning {
 
 impl VehicleCondition {
     /// The most serious warning the condition calls for; `None` for a car with nothing to warn of.
-    #[allow(dead_code)] // read by the HUD events, not built yet
     pub fn warning(&self) -> Option<ConditionWarning> {
         if self.destroyed || self.disabled {
             return Some(ConditionWarning::Critical);
@@ -87,10 +86,9 @@ impl VehicleCondition {
         None
     }
 
-    /// Whether any tyre is punctured or blown.
-    #[allow(dead_code)] // read by the HUD events, not built yet
-    pub fn tire_damaged(&self) -> bool {
-        self.tires.iter().any(|tire| *tire != TireCondition::Sound)
+    /// How many tyres are punctured or blown.
+    pub fn damaged_tires(&self) -> usize {
+        self.tires.iter().filter(|tire| **tire != TireCondition::Sound).count()
     }
 }
 

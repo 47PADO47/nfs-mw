@@ -5,7 +5,8 @@
 //! - `race_info`: the race type, the next gate, the route left and the rival gap;
 //! - `camera`: the gameplay camera, for world-space markers;
 //! - `police`: the phase of the chase and what the player can know of the cops;
-//! - `nav`: the GPS route with its next turn, and the places on the map.
+//! - `nav`: the GPS route with its next turn, and the places on the map;
+//! - `events`: what changed this frame, once per change.
 
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
@@ -14,18 +15,20 @@ use super::blip_style::MapBlip;
 use super::pursuit::PursuitHud;
 
 mod camera;
+mod events;
 mod nav;
 mod police;
 mod race_info;
 mod vehicle;
 
 pub use camera::HudCamera;
+pub use events::HudEvent;
 #[cfg(test)]
 pub use nav::TurnDirection;
 pub use nav::{NavMarker, NavMarkerKind, NavRoute, next_turn};
 pub use police::{HelicopterIntel, LastKnown, PoliceIntel, PursuitPhase, known_roadblocks, sighted};
 pub use race_info::{RaceInfo, RivalGap, checkpoint_gap, rival_of, shows_rival_gap};
-pub use vehicle::{HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
+pub use vehicle::{ConditionWarning, HEAVY_DAMAGE, HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
 
 /// Where the car is, for the minimap (`docs/specs/hud-minimap.md`).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -130,6 +133,10 @@ pub struct HudState {
     pub route: Option<NavRoute>,
     /// The places on the map the player can go to (race starts, safe houses, shops), as the map shows them.
     pub markers: Vec<NavMarker>,
+    /// What changed this frame, once per change (`scenes/world/feed/hud.rs`).
+    pub events: Vec<HudEvent>,
+    /// The frame `events` belong to: a reader that gets the same frame twice (a paused scene) does not take them again.
+    pub events_frame: u64,
 }
 
 impl Default for HudState {
@@ -178,6 +185,8 @@ impl Default for HudState {
             police_intel: PoliceIntel::default(),
             route: None,
             markers: Vec::new(),
+            events: Vec::new(),
+            events_frame: 0,
         }
     }
 }

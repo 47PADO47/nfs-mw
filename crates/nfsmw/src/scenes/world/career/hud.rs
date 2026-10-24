@@ -29,6 +29,11 @@ impl CareerHud {
         Self { on: true, bounty: bounty_row(banked, pending), car_heat: meter_heat(heat), cash: 0 }
     }
 
+    /// The bounty row's number in career mode; `None` outside it.
+    pub(in crate::scenes::world) fn bounty(&self) -> Option<u32> {
+        self.on.then_some(self.bounty)
+    }
+
     /// The same values with the career's `cash`.
     pub(in crate::scenes::world) fn with_cash(self, cash: u32) -> Self {
         Self { cash, ..self }
