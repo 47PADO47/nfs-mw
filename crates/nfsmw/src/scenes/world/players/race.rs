@@ -83,8 +83,9 @@ impl WorldScene {
             return Err("a race with remote players needs the road network of the track".into());
         }
         for (racer, seat) in plan.iter_mut().skip(1).zip(people) {
-            racer.name =
-                self.player_name(seat.id).map_or_else(|| format!("Player {}", u16::from(seat.id.0) + 1), str::to_owned);
+            racer.name = self
+                .player_name(seat.id)
+                .map_or_else(|| crate::i18n::t!("coop-player", n = u16::from(seat.id.0) + 1), str::to_owned);
             racer.person = Some(seat.automatic);
         }
         self.race_people = people.iter().map(|seat| seat.id).collect();

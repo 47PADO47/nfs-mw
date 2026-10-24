@@ -104,7 +104,12 @@ impl WorldScene {
         if let Some(guest) = self.players.get_mut(GUEST) {
             guest.set_transmission(setup.transmission);
         }
-        let names = [LEAD, GUEST].map(|id| nfsmw_career::coop::player_name(&setup.alias, id.0 + 1)).to_vec();
+        // A blank alias names the players by number, in the current language.
+        let name = |number: u8| match setup.alias.trim().is_empty() {
+            true => crate::i18n::t!("coop-player", n = number),
+            false => nfsmw_career::coop::player_name(&setup.alias, number),
+        };
+        let names = [LEAD, GUEST].map(|id| name(id.0 + 1)).to_vec();
         log::info!("co-op: {} joins in {folder}", names[1]);
         self.coop = Some(CoopSession {
             names,
