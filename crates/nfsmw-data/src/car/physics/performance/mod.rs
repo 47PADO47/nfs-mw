@@ -2,8 +2,10 @@
 
 mod catalog;
 pub(crate) mod fields;
+mod frontend;
 mod resolve;
 pub use catalog::{CategoryOptions, PerformanceCatalog};
+pub use frontend::{PackageDetails, PerformanceDetails};
 pub use resolve::apply;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

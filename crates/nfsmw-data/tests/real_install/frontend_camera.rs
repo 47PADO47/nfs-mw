@@ -43,3 +43,21 @@ fn a_missing_pose_is_an_error() {
     let Some(dir) = install() else { return };
     assert!(frontend_camera::load(&dir, &["angle_entry_nowhere"]).is_err());
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn garage_camera_collections_use_generic_category_fallback_and_authored_inspection_flags() {
+    let Some(dir) = install() else { return };
+    let book = frontend_camera::PoseBook::load(&dir).unwrap();
+    for base in ["customize_customhud", "customize_customizecategory", "customize_customizeparts"] {
+        let missing_category = format!("{base}_4294967295");
+        assert_eq!(book.screen(&missing_category), book.screen(base), "missing category keeps its package camera");
+        assert_eq!(book.screen_options(&missing_category), book.screen_options(base));
+    }
+    for screen in ["default", "mycarsmanager", "customize_customizemain", "customize_customizeparts_260"] {
+        assert!(!book.screen_options(screen).user_rotate, "{screen} retains normal menu controls");
+    }
+    for screen in ["showcase", "customize_showcase"] {
+        assert!(book.screen_options(screen).user_rotate, "{screen} enables the inspection camera");
+    }
+}

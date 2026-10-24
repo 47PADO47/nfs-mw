@@ -9,6 +9,7 @@ pub mod customization;
 pub mod damage;
 pub mod damage_effects;
 pub mod damage_parts;
+mod decals;
 mod ecar;
 pub mod exhaust;
 mod folders;
@@ -20,6 +21,8 @@ mod paint;
 mod parts;
 pub mod physics;
 mod rim_paint;
+pub mod shop;
+pub mod shop_unlocks;
 mod stock;
 mod swaps;
 mod tables;
@@ -286,6 +289,7 @@ fn load_with(
     if customization.parts[customization::Category::Vinyl as usize].is_some() {
         vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model)?;
     }
+    decals::apply(dir, car, t, &slots, &mut model)?;
     Ok(model)
 }
 
