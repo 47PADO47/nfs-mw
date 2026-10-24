@@ -1,7 +1,7 @@
 //! Persistent RGBA8 mask composition, before the existing SDR/HDR/coverage UI draw.
 use super::{UiPass, UiTexture};
 use blackbox_gfx::UiTextureComposition;
-use wgpu::util::DeviceExt;
+use std::collections::HashMap;
 
 #[cfg(test)]
 #[path = "mask_tests.rs"]
@@ -10,6 +10,21 @@ mod tests;
 pub(super) struct MaskPass {
     pipeline: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
+    /// Per output texture, what its last composition bound.
+    compositions: HashMap<u64, Composition>,
+}
+
+/// The inputs of one output texture: valid while its picture, mask and output are the textures it was made for.
+struct Composition {
+    textures: [wgpu::Texture; 3],
+    uniform: wgpu::Buffer,
+    group: wgpu::BindGroup,
+}
+
+impl Composition {
+    fn uses(&self, textures: [&wgpu::Texture; 3]) -> bool {
+        self.textures.iter().zip(textures).all(|(made, now)| made == now)
+    }
 }
 
 #[repr(C)]
@@ -36,12 +51,39 @@ impl MaskPass {
             cache,
         });
         let layout = pipeline.get_bind_group_layout(0);
-        Self { pipeline, layout }
+        Self { pipeline, layout, compositions: HashMap::new() }
+    }
+
+    fn compose(&self, device: &wgpu::Device, textures: [&wgpu::Texture; 3]) -> Composition {
+        let uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("UI mask parameters"),
+            size: size_of::<Params>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let views = textures.map(|texture| texture.create_view(&Default::default()));
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("UI mask composition"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&views[2]) },
+                wgpu::BindGroupEntry { binding: 3, resource: uniform.as_entire_binding() },
+            ],
+        });
+        Composition { textures: textures.map(Clone::clone), uniform, group }
+    }
+
+    /// Forget the inputs kept for `output`, which is gone.
+    pub(super) fn forget(&mut self, output: u64) {
+        self.compositions.remove(&output);
     }
 
     fn encode(
-        &self,
+        &mut self,
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         command: &UiTextureComposition,
         [picture, mask, output]: [&UiTexture; 3],
@@ -53,36 +95,33 @@ impl MaskPass {
             sin_cos: [sin, cos],
             additive: [u32::from(command.additive), 0, 0, 0],
         };
-        // One immutable buffer per dispatch: later compositions of the same slot in this encoder
-        // cannot overwrite parameters still needed by an earlier dispatch.
-        let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("UI mask parameters"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-        let views = [picture, mask, output].map(|t| t.texture.create_view(&Default::default()));
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("UI mask composition"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&views[2]) },
-                wgpu::BindGroupEntry { binding: 3, resource: uniform.as_entire_binding() },
-            ],
-        });
+        // One buffer per output texture, rewritten for each composition: the pending compositions are keyed by
+        // output, so an encoder holds at most one dispatch of a slot.
+        let textures = [&picture.texture, &mask.texture, &output.texture];
+        let key = command.output.raw();
+        if self.compositions.get(&key).is_none_or(|made| !made.uses(textures)) {
+            let made = self.compose(device, textures);
+            self.compositions.insert(key, made);
+        }
+        let Some(composition) = self.compositions.get(&key) else { return };
+        queue.write_buffer(&composition.uniform, 0, bytemuck::bytes_of(&params));
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("UI mask composition / premultiply"),
             timestamp_writes: None,
         });
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, &composition.group, &[]);
         pass.dispatch_workgroups(output.size[0].div_ceil(8), output.size[1].div_ceil(8), 1);
     }
 }
 
 impl UiPass {
-    pub(super) fn compose_textures(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) {
+    pub(super) fn compose_textures(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
         for (_, command) in std::mem::take(&mut self.pending_compositions) {
             if command.output == command.picture
                 || command.output == command.mask
@@ -102,6 +141,7 @@ impl UiPass {
             let pass = self.mask_pass.get_or_insert_with(|| MaskPass::new(device, self.cache.as_ref()));
             pass.encode(
                 device,
+                queue,
                 encoder,
                 &command,
                 [
