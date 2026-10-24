@@ -15,7 +15,6 @@ pub struct HudCamera {
 impl HudCamera {
     /// Where a render-space point lands in the viewport, in logical pixels from the top left, with its clip depth; `None`
     /// for a point behind the camera (or on its plane).
-    #[allow(dead_code)] // read by the Custom HUD's world markers, not built yet
     pub fn project(&self, point: [f32; 3]) -> Option<([f32; 2], f32)> {
         let m = glam::Mat4::from_cols_array_2d(&self.view_proj);
         let clip = m * glam::Vec4::new(point[0], point[1], point[2], 1.0);

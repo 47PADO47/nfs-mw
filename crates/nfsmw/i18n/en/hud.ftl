@@ -102,3 +102,15 @@ hud-notify-bounty = Bounty { $bounty }
 hud-notify-tire = Tyre punctured
 hud-notify-heavy-damage = Heavy damage
 hud-notify-vehicle-critical = Vehicle disabled
+
+## The Custom HUD's world markers (ui/theme/custom/markers/draw.rs)
+
+# $gate is the next gate's number, $gates the gates of the race, $distance the distance to it (hud-marker-metres...).
+hud-marker-gate = { $gate }/{ $gates }  { $distance }
+# A race start, by its career event id (10.2.1).
+hud-marker-race = Race { $event }
+# Distances: $m whole metres, $km kilometres to a tenth, $ft whole feet, $mi miles to a tenth.
+hud-marker-metres = { $m } m
+hud-marker-kilometres = { $km } km
+hud-marker-feet = { $ft } ft
+hud-marker-miles = { $mi } mi

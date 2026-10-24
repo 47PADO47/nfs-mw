@@ -17,6 +17,7 @@ use crate::ui::present::Screen;
 
 use super::cluster::ClusterMemory;
 use super::layout::CANVAS;
+use super::markers::MarkerMemoryCell;
 
 /// What the notification manager shows this frame. A placeholder until the notification queue is drawn (PR 8): the
 /// field that holds it, [`CustomFeed::notifications`], is `None` until then.
@@ -66,6 +67,8 @@ impl Default for CustomFeed {
 pub struct CustomFeedCell {
     feed: Arc<Mutex<CustomFeed>>,
     cluster: ClusterMemory,
+    /// What the world markers keep between frames (`markers/memory.rs`): the components are rebuilt every frame.
+    markers: MarkerMemoryCell,
 }
 
 impl CustomFeedCell {
@@ -88,6 +91,11 @@ impl CustomFeedCell {
     /// the memory lives with the feed it is stepped from.
     pub fn cluster(&self) -> &ClusterMemory {
         &self.cluster
+    }
+
+    /// The world markers' memory, shared by every clone of the cell.
+    pub(super) fn markers(&self) -> MarkerMemoryCell {
+        self.markers.clone()
     }
 
     /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is

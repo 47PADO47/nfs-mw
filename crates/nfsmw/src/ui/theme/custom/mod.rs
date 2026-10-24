@@ -35,6 +35,9 @@ pub mod layout;
 #[cfg(test)]
 mod layout_tests;
 mod map_legend;
+// The world markers' slot arm comes with the next commit; the feed already holds their memory.
+#[allow(dead_code)]
+mod markers;
 pub mod palette;
 #[allow(dead_code)]
 pub mod plate;
