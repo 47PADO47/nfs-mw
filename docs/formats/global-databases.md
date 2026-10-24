@@ -48,9 +48,11 @@ The copies on the Desktop and in `D:\NFSTools\NFS Most Wanted Redux 2.3` differ;
 | `HUDTEXTURESPHOTOFINISH.BIN` | 996 KB | The win photo's backdrops: four 1024 x 512 DXT3 textures (`PHOTOFINISH_SPRINT`, `_RIVAL`, `_DRAG`, `_TOOBOOTH`), each a polaroid on gravel with a transparent window. HUFF/JDLZ entries. [race-finish-effects](../specs/race-finish-effects.md) | Listed in UI assets |
 | `HUDS_Custom_00.bin` … `HUDS_Custom_10.bin` | 15–23 KB each | Tachometer skin textures (`n_LINES_NN`, `TACH_NEEDLE_NN`, `TACH_FILL_NN`), 11 skins. | Texture names in `crates/nfsmw/src/hud/skin.rs`; all available packs loaded for garage gauge styles |
 
-The game loads `InGameB.lzc` (the same chunks, including the exhaust particle textures) and mod tools patch that file, so
-the shared reader (`nfsmw-data/src/shared.rs`) takes it when it exists and falls back to `InGameB.bun`. A custom NOS flame texture
-added to `INGAMEB.LZC` is not in the stock `.bun`.
+The game opens `GLOBALB`, `FRONTB` and `INGAMEB` from their `.LZC` files and only labels the loaded file with the `.BUN` name
+(decomp of the three pack loaders **[decomp]**); `InGameA`, `InGameSplitScreen`, `FRONTA`, `WIDESCREEN_GLOBAL` and
+`THINSCREEN_GLOBAL` are opened as `.bun`. Mod tools patch the `.lzc`, and the `.bun` next to it stays as shipped. The code
+already read `GlobalB.lzc` and `FrontB.lzc`; for the in-game pack `nfsmw-data::shared::pack_file` takes `InGameB.lzc` when it
+exists and falls back to `InGameB.bun`. A custom NOS flame texture added to `INGAMEB.LZC` is not in the stock `.bun`.
 
 ### Car, tuning and race data
 
