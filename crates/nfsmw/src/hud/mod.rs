@@ -36,6 +36,8 @@ mod leaderboard_tests;
 mod leaders;
 #[cfg(test)]
 mod leaders_tests;
+/// The Custom map's keys, applied to the settings.
+mod map_keys;
 /// The roads the Custom map draws, built once per network.
 mod map_roads;
 mod map_source;
