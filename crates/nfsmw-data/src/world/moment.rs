@@ -155,7 +155,7 @@ pub fn load(dir: &GameDir) -> Result<Arc<MomentData>> {
     let ingame = shared::ingame_b(dir)?;
     let l2ra = shared::l2ra(dir)?;
     let cameras = CameraLibrary::load(dir)?;
-    memo(dir, &[shared::INGAME_B_FILE, shared::L2RA_FILE], || MomentData::read(&ingame, &l2ra, cameras))
+    memo(dir, &[shared::ingame_b_file(dir), shared::L2RA_FILE], || MomentData::read(&ingame, &l2ra, cameras))
 }
 
 #[cfg(test)]

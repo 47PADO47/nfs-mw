@@ -181,7 +181,7 @@ mod animation_tests {
 pub fn particle_textures(dir: &GameDir, hashes: &[u32]) -> Result<Vec<Texture>> {
     let file = shared::ingame_b(dir)?;
     let packs = blackbox_tpk::read_texture_packs_filtered(&file, |hash| hashes.contains(&hash))
-        .with_context(|| format!("texture packs in {}", shared::INGAME_B_FILE))?;
+        .with_context(|| format!("texture packs in {}", shared::ingame_b_file(dir)))?;
     let mut found: Vec<Texture> = Vec::new();
     for texture in packs.into_iter().flat_map(|p| p.textures) {
         if hashes.contains(&texture.name_hash) && !found.iter().any(|t| t.name_hash == texture.name_hash) {

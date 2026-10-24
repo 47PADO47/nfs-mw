@@ -37,7 +37,7 @@ impl CameraLibrary {
     /// The install's library, read once per session.
     pub fn load(dir: &GameDir) -> Result<Arc<Self>> {
         let ingame = shared::ingame_b(dir)?;
-        memo(dir, &[shared::INGAME_B_FILE], || Self::from_bytes(&ingame))
+        memo(dir, &[shared::ingame_b_file(dir)], || Self::from_bytes(&ingame))
     }
 
     /// Adds a NIS set under `key` (the `bStringHash` of the scene name), replacing any set with that key. Lets a caller

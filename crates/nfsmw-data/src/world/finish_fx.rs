@@ -75,7 +75,7 @@ impl ReplayCameras {
 /// The install's replay cameras, read once per session.
 pub fn load_replay_cameras(dir: &GameDir) -> Result<Arc<ReplayCameras>> {
     let ingame = shared::ingame_b(dir)?;
-    memo(dir, &[shared::INGAME_B_FILE], || ReplayCameras::read(&ingame))
+    memo(dir, &[shared::ingame_b_file(dir)], || ReplayCameras::read(&ingame))
 }
 
 #[cfg(test)]

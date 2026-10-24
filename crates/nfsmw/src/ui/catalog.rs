@@ -60,6 +60,7 @@ impl Catalog {
     pub fn load(dir: &GameDir, files: &[&'static str]) -> Self {
         let mut catalog = Self { files: Vec::new(), index: HashMap::new(), entries: Vec::new() };
         for &file in files {
+            let file = nfsmw_data::shared::pack_file(dir, file);
             let packages = match memo(dir, &[file], || read_file(dir, file)) {
                 Ok(packages) => packages,
                 Err(e) => {
