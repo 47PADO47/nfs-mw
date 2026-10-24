@@ -39,7 +39,7 @@ impl Link for IpcLink {
 
 /// The wire form of a presence: the status line, and the start time when there is one.
 fn activity_of(presence: &Presence) -> Activity<'_> {
-    let activity = Activity::new().details(presence.details);
+    let activity = Activity::new().details(presence.details.as_str());
     let Some(started) = presence.started_at_ms else {
         return activity;
     };

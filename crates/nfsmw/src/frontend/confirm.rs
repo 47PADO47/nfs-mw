@@ -263,7 +263,7 @@ impl ScreenLogic for ConfirmLogic {
         }
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
@@ -412,7 +412,7 @@ impl ScreenLogic for AlertLogic {
         }
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }

@@ -16,7 +16,11 @@ fn original_reference_carousels_publish_back_then_accept() {
             &Bindings::default(),
             InputDevice::Xbox,
         );
-        assert_eq!(hints.into_iter().map(|(_, label, _)| label).collect::<Vec<_>>(), ["Back", "Accept"]);
+        use crate::frontend::prompts::HintLabel;
+        assert_eq!(
+            hints.into_iter().map(|(_, label, _)| label).collect::<Vec<_>>(),
+            [HintLabel::Back, HintLabel::Accept]
+        );
     }
 }
 

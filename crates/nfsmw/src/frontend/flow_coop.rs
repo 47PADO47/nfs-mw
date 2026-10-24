@@ -33,7 +33,10 @@ impl Frontend {
             (folder, None) => folder,
         };
         let seats = custom_state::with(|state| state.split.seated()).unwrap_or(DEFAULT_SEATS);
-        let alias = self.career.with_loaded(|career| career.alias.clone()).unwrap_or_else(|| "Player".into());
+        let alias = self
+            .career
+            .with_loaded(|career| career.alias.clone())
+            .unwrap_or_else(|| crate::i18n::t!("menus-player-fallback"));
         let lead = self.career.with_loaded(|career| career.settings.car_handle);
         let shared = lead == Some(handle);
         log::info!(

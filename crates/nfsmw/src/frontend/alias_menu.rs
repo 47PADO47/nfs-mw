@@ -28,9 +28,7 @@ pub fn press(cx: &mut Cx, id: Id) {
 fn ask_to_save(cx: &mut Cx) {
     let alias = CareerHandle::shared().with_loaded(|career| career.alias.clone());
     let Some(alias) = alias else {
-        cx.send(Command::Alert(Alert::new(Text::Literal(
-            "There is no alias to save. Create or load one first.".into(),
-        ))));
+        cx.send(Command::Alert(Alert::new(Text::key("dialogs-no-alias-to-save-first"))));
         return;
     };
     let template = Text::Game(SAVE_QUESTION).resolve();

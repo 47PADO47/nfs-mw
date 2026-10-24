@@ -57,18 +57,21 @@ pub fn input(
     }
 }
 
+/// The game's "Filter" (`OL_FILTER`), the hint of the tab keys.
+const FILTER: u32 = 0x4B61_40BF;
+
 /// The footer hints of the themed full-screen map: back, the legend key, and the tab keys, with the player's bindings.
 pub fn hints(bindings: &Bindings, device: InputDevice) -> Vec<MenuHint> {
     vec![
         MenuHint {
             keys: vec![prompts::for_action(bindings, Action::MenuBack, device)],
-            label: "Back",
+            label: crate::frontend::prompts::HintLabel::Back.text(),
             action: Some(Action::MenuBack),
         },
-        MenuHint { keys: vec![Prompt::Key("L".into())], label: "Legend", action: None },
+        MenuHint { keys: vec![Prompt::Key("L".into())], label: t!("prompts-legend"), action: None },
         MenuHint {
             keys: prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device),
-            label: "Filter",
+            label: Text::Game(FILTER).show(),
             action: None,
         },
     ]

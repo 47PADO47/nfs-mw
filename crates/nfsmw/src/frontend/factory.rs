@@ -79,7 +79,7 @@ pub fn make(name: &str, args: Args, mod_rows: bool) -> Box<dyn ScreenLogic> {
     }
     // A dialog opened by name (`view-screen`) shows a notice; confirmations open it with their own logic.
     if is(screen::DIALOG) {
-        return Box::new(AlertLogic::new(Alert::new(Text::Literal("Load complete.".into()))));
+        return Box::new(AlertLogic::new(Alert::new(Text::key("dialogs-load-complete"))));
     }
     if is(screen::CONTROLS) || is(screen::PAUSE_CONTROLS) {
         return Box::new(ControlsLogic::new(&name, args));

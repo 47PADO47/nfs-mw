@@ -214,7 +214,7 @@ pub fn hint_spots(hints: &[MenuHint], left: f32) -> Vec<HintSpot> {
             x += width + KEY_GAP;
         }
         let label_x = x - KEY_GAP + LABEL_GAP;
-        let end = label_x + text_width(hint.label, LABEL_SCALE);
+        let end = label_x + text_width(&hint.label, LABEL_SCALE);
         let area = Rect::new((start + end) / 2.0, HINT_Y, end - start + 6.0, KEY_HEIGHT + 4.0);
         spots.push(HintSpot { keys, label_x, area });
         x = end + HINT_GAP;
@@ -239,7 +239,7 @@ mod tests {
     use crate::ui::input_icons::Glyph;
 
     fn hint(keys: Vec<Prompt>, label: &'static str, action: Option<Action>) -> MenuHint {
-        MenuHint { keys, label, action }
+        MenuHint { keys, label: label.into(), action }
     }
 
     #[test]

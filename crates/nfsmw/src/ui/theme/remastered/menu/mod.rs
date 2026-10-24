@@ -22,12 +22,11 @@ use blackbox_ui::{
 use self::layout as place;
 use self::layout::HintSpot;
 use super::skin::keys;
+use crate::i18n::t;
 use crate::ui::input_icons::Glyph;
 use crate::ui::prompts::Prompt;
 use crate::ui::raster_text::{RASTER_MENU_FONT_KEY, width_units};
 use crate::ui::theme::{MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle};
-
-const TAGLINE: [&str; 2] = ["RACE YOUR WAY", "TO THE TOP"];
 
 /// The picture of an entry, when the theme shows pictures: its size, and the space between it and the text.
 const ICON_SIZE: f32 = 22.0;
@@ -264,7 +263,7 @@ impl<'a, 'b> Parts<'a, 'b> {
         );
         self.push(Panel::new(keys::MENU_RULE), tick);
         for (hint, spot) in hints.iter().zip(&spots) {
-            self.hint(hint.label, spot);
+            self.hint(&hint.label, spot);
         }
     }
 
@@ -292,7 +291,8 @@ impl<'a, 'b> Parts<'a, 'b> {
     }
 
     fn tagline(&mut self, right: f32) {
-        for (line, y) in TAGLINE.iter().zip(place::TAGLINE_Y) {
+        let tagline = [t!("menus-tagline-first").to_uppercase(), t!("menus-tagline-second").to_uppercase()];
+        for (line, y) in tagline.iter().zip(place::TAGLINE_Y) {
             self.text(
                 keys::FONT_MENU_WIDE,
                 line,
