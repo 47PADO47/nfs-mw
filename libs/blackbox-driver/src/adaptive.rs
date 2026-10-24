@@ -60,6 +60,24 @@ pub struct AdaptivePid {
 }
 
 impl AdaptivePid {
+    pub(crate) fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        for &(low, high) in &self.settings.ranges {
+            visit(low.to_bits());
+            visit(high.to_bits());
+        }
+        visit(self.settings.gamma.to_bits());
+        visit(self.settings.threshold.to_bits());
+        for value in self.coefficients.into_iter().chain(self.terms).chain([self.last_model_error]) {
+            visit(value.to_bits());
+        }
+        for window in self.windows.iter().chain(std::iter::once(&self.model_error_window)) {
+            visit(window.samples.len() as u32);
+            for &(time, value) in &window.samples {
+                visit(time.to_bits());
+                visit(value.to_bits());
+            }
+        }
+    }
     pub fn new(settings: AdaptiveSettings) -> Self {
         Self {
             settings,

@@ -123,6 +123,11 @@ pub struct SpeedGovernor {
 }
 
 impl SpeedGovernor {
+    /// Visits the speed limit and previous sample by their raw float bits.
+    pub fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        visit(self.speed_limit.to_bits());
+        visit(self.last_speed.to_bits());
+    }
     /// Starts at the car's current speed.
     pub fn begin(speed: f32) -> Self {
         Self { speed_limit: speed.max(0.0), last_speed: speed }

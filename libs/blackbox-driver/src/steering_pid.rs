@@ -37,6 +37,10 @@ pub struct SteeringPid {
 }
 
 impl SteeringPid {
+    pub(crate) fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        self.body_error.visit_state(visit);
+        self.controller.visit_state(visit);
+    }
     pub fn new(settings: AdaptiveSettings) -> Self {
         Self { body_error: PidError::new(5, 5, 30.0), controller: AdaptivePid::new(settings) }
     }

@@ -15,6 +15,18 @@ pub struct PidError {
 }
 
 impl PidError {
+    pub(crate) fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        visit(self.integral_len as u32);
+        visit(self.derivative_len as u32);
+        visit(self.frequency.to_bits());
+        visit(self.current.to_bits());
+        for values in [&self.times, &self.areas, &self.slopes] {
+            visit(values.len() as u32);
+            for value in values {
+                visit(value.to_bits());
+            }
+        }
+    }
     pub fn new(integral_len: usize, derivative_len: usize, frequency: f32) -> Self {
         Self {
             integral_len,

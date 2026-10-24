@@ -15,6 +15,12 @@ pub struct StuckDetector {
 }
 
 impl StuckDetector {
+    /// Visits the anchor and elapsed time by their raw float bits.
+    pub fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        for value in self.anchor.to_array().into_iter().chain([self.timer]) {
+            visit(value.to_bits());
+        }
+    }
     pub fn reset(&mut self) {
         self.timer = 0.0;
     }

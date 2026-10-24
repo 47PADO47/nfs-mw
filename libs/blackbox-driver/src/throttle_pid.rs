@@ -45,6 +45,10 @@ impl Default for ThrottlePid {
 }
 
 impl ThrottlePid {
+    pub(crate) fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        visit(self.state.to_bits());
+        self.speed_error.visit_state(visit);
+    }
     pub fn reset(&mut self) {
         *self = Self::default();
     }
