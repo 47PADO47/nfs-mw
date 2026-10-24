@@ -42,7 +42,9 @@ Option C.
    owns selection, the built-in catalogue, the fonts and live switching.
 4. **Mods.** A mod's `lang/<locale>/*.ftl` is its own namespace. `_core/`, `_game/` and `_mods/<id>/` translate others. A
    content-only mod can be a whole language pack, with a fallback font. `bb.i18n` 1.0 gives libraries `text`, `locale` and
-   `generation`; menu rows and theme names can be keys the host resolves at each draw. The ABI minor rises, so mods rebuild.
+   `generation`. Text a mod hands the host to keep (menu rows, theme names, HUD messages, interior prompts) that names a
+   message of the mod's catalogue is shown as that message, resolved at each draw. No existing table changes, so the ABI
+   version stays and built mods keep working.
 5. **Live switching.** The `Strings` behind `UiAssets` is swapped in place; FEng packages relabel when their resolver is set
    again, egui text redraws on a generation counter.
 6. **Scope.** Menus, HUD, LAN, co-op and dialogs. The F6 garage, the F8 lab, the performance overlay, the console, the CLI and

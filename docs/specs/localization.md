@@ -152,32 +152,32 @@ Arguments are Fluent variables. Plural and ordinal categories are CLDR's (`NUMBE
 
 ### 4.3 Numbers, times and units
 
-Formatting is in the catalogue, so translators control separators and order:
+Number formatting is in the catalogue, so translators control separators and order (`crate::i18n::fmt`):
 
 | Message | Arguments | English |
 |---|---|---|
-| `format-grouped` | `$digits` (the number's digits, grouped in threes with `,`) | `{ $digits }` |
-| `format-race-time` | `$m`, `$ss` (2 digits), `$cc` (2 digits) | `{ $m }:{ $ss }.{ $cc }` |
+| `group-separator` | none | `,`: put between each three digits of a whole number, the game's `%$d` |
 | `format-ordinal` | `$n` | `{ $n }st` / `nd` / `rd` / `th` |
 | `format-percent` | `$n` | `{ $n }%` |
 
-`format-grouped` gets the digits already grouped with `group-separator` (a message, `,` in English) so that a translation
-only changes the separator. Speed and distance unit words stay game labels (`KM/H`, `MPH`, `FT`, `M`).
+Times keep the original's fixed formats (`m:ss.cc`, `mm:ss.cc`), which do not change with the language. Speed and
+distance unit words stay game labels (`KM/H`, `MPH`, `FT`, `M`).
 
 ## 5. Fonts
 
 1. The FEng fonts are, first match by name wins: the selected language's `.bin`, `English.bin`, then the bundles
    (`GLOBALA.BUN`, `InGameB.bun`, `FrontB.lzc`). The user's custom fonts still win while they are on
    ([custom-fonts.md](custom-fonts.md)).
-2. A character the FEng font has no glyph for is drawn from a TrueType fallback at the FEng font's height: the language pack's
-   `lang/<locale>/font.ttf` (or `.otf`), then Ubuntu Light, which covers Latin, Greek and Cyrillic. Before this, such a character
-   was dropped.
+2. A FEng string with a character its font has no glyph for is drawn in TrueType fallback fonts instead, line by line, at the
+   FEng font's line height and justification: each character from the first of the language pack's
+   `lang/<locale>/font.ttf` (or `.otf`) and Ubuntu Light (Latin, Greek and Cyrillic) that has it. Before this, such a
+   character was dropped. Line breaks apply; word wrap does not, and a line wider than the box is squeezed.
 3. egui text (subtitles, mod messages) uses the same fallback fonts after egui's own.
 4. Text is not shaped: Arabic, Hebrew, Thai and the Indic scripts are not supported. CJK works with a pack's font.
 
 ## 6. Changing the language
 
-Options → Game Options has a **Language** row. Each language is listed by its own name: the catalogue's `language-name` for that
+Options has a **Language** row. Each language is listed by its own name: the catalogue's `language-name` for that
 locale, else the name the built-in table gives the game table (`Deutsch`). Picking one saves `language` and applies it at once:
 the string tables, the language fonts, every FEng screen (they relabel when the resolver changes) and every egui text. Mods read
 the change through `bb.i18n.generation`.
