@@ -7,7 +7,7 @@ use glam::Vec2;
 
 /// Metres per second in one km/h.
 pub const KMH: f32 = 1.0 / 3.6;
-/// The target counts as moving at this speed or more (5 km/h). Below it, the frame and the lead use its body heading.
+/// The slot frame uses velocity at this speed or more (5 km/h); below it, the frame uses body heading.
 pub const FRAME_SPEED: f32 = 5.0 * KMH;
 /// The lead term is off when the motion vector is this short (m/s).
 const LEAD_GATE: f32 = 0.01;
@@ -86,8 +86,8 @@ pub struct Step {
     pub limit: f32,
 }
 
-/// The target's motion vector: its velocity when it moves at 5 km/h or more, else its body heading normalised. The frame
-/// and the lead both read it (spec 2.4 and 5.2).
+/// The slot's orientation vector: velocity at 5 km/h or more, else body heading normalised (spec 2.4).
+/// Prediction uses actual target velocity separately (spec 5.2).
 pub fn motion_vector(velocity: Vec2, heading: Vec2) -> Vec2 {
     if velocity.length() >= FRAME_SPEED {
         return velocity;
@@ -120,15 +120,11 @@ pub fn lead_offset(cop: Vec2, slot: Vec2, motion: Vec2) -> Vec2 {
     r + motion * (LEAD_COEFFICIENT * r.dot(motion) / speed_sq)
 }
 
-/// The steering seek of the lead term (spec 5.2): `seek = r + v (1 + 0.7 dot(r, v) / |v|^2)`, that is [`lead_offset`]
-/// plus the one-second term `v`. The one-second term is only added when `|v| > 0.01`. A target ahead along `v` is led
-/// further; a slot behind the target shrinks the lead.
+/// The predictive steering seek (spec 5.2): [`lead_offset`] plus one second of actual velocity.
+/// The projection guard belongs only to [`lead_offset`]; even a smaller velocity retains its one-second term.
+/// Slot-frame heading is never substituted for predictive velocity.
 pub fn lead_seek(cop: Vec2, slot: Vec2, motion: Vec2) -> Vec2 {
-    let offset = lead_offset(cop, slot, motion);
-    if motion.length() <= LEAD_GATE {
-        return offset;
-    }
-    offset + motion
+    lead_offset(cop, slot, motion) + motion
 }
 
 /// The speed-jerk factors of a jerk pursuit (cop-cars spec section 1): the ceiling `1.1`, the speed multiplier `1.2`
@@ -214,7 +210,7 @@ pub fn drive(cop: Vec2, steer: Vec2, limit: f32) -> GoalCommand {
 /// One think of the ram action (spec 5): steer at the lead seek to `aim` (the slot point, from [`aim_for`]), at the
 /// speed `min(|steer|, limit)`. The box-in, rolling block and pit goals use this with their record's aim.
 pub fn ram(cop: &CopState, target: &TargetState, aim: Vec2, vehicle: AiVehicle) -> Step {
-    let seek = lead_seek(cop.position, aim, motion_vector(target.velocity, target.heading));
+    let seek = lead_seek(cop.position, aim, target.velocity);
     let limit = limit_step(cop, target, vehicle);
     Step { command: drive(cop.position, seek, limit), limit }
 }
@@ -278,11 +274,27 @@ mod tests {
     }
 
     #[test]
-    fn the_lead_of_a_stopped_target_runs_along_its_heading() {
-        // Cop at the origin, slot 10 m ahead, target still with heading +Z. |v| = 1 (heading), r = (0, 10), r.v = 10:
-        // seek = (0, 10) + (0, 1) (1 + 0.7 * 10 / 1) = (0, 18).
-        let seek = lead_seek(Vec2::ZERO, Vec2::new(0.0, 10.0), Vec2::Y);
-        assert!(vec_close(seek, Vec2::new(0.0, 18.0)), "{seek:?}");
+    fn a_stopped_targets_heading_orients_its_slot_without_adding_lead() {
+        let mut target = still_target_facing_plus_z();
+        let cop = CopState { position: Vec2::ZERO, forward_speed: 10.0, limit: 20.0, dt: 0.1 };
+        for heading in [Vec2::X, Vec2::Y] {
+            target.heading = heading;
+            let aim = aim_for(&target, Vec2::new(0.0, 10.0));
+            let step = ram(&cop, &target, aim, vehicle(360.0));
+            assert!(vec_close(aim, heading * 10.0));
+            assert_eq!(step.command.target_point, Some(aim));
+        }
+    }
+
+    #[test]
+    fn a_slow_targets_velocity_predicts_independently_of_its_slot_heading() {
+        let target = TargetState { velocity: Vec2::new(1.0, 0.0), ..still_target_facing_plus_z() };
+        let cop = CopState { position: Vec2::ZERO, forward_speed: 10.0, limit: 20.0, dt: 0.1 };
+        let aim = aim_for(&target, Vec2::new(0.0, 10.0));
+        assert_eq!(aim, Vec2::new(0.0, 10.0), "slow motion retains the body-heading slot frame");
+        let step = ram(&cop, &target, aim, vehicle(360.0));
+        assert_eq!(step.command.target_point, Some(Vec2::new(1.0, 10.0)));
+        assert!(vec_close(lead_seek(Vec2::ZERO, aim, Vec2::X * 0.005), aim + Vec2::X * 0.005));
     }
 
     #[test]
@@ -306,9 +318,8 @@ mod tests {
     }
 
     #[test]
-    fn the_arrival_offset_leaves_out_the_one_second_term() {
-        // Slot on the cop: the offset is zero even though a still target's heading is unit length. The steering seek
-        // keeps the one-second term, so it is the heading.
+    fn the_projection_offset_leaves_out_the_one_second_term() {
+        // Slot on the cop: the projected offset is zero; actual velocity still adds its one-second lead.
         let offset = lead_offset(Vec2::ZERO, Vec2::ZERO, Vec2::Y);
         let seek = lead_seek(Vec2::ZERO, Vec2::ZERO, Vec2::Y);
         assert!(vec_close(offset, Vec2::ZERO), "{offset:?}");
@@ -396,15 +407,15 @@ mod tests {
 
     #[test]
     fn the_ram_steers_at_the_lead_seek_and_caps_the_speed_by_the_limiter() {
-        // Cop at (0, -10) at rest, slot 14 ahead of a still target at the origin. Seek: r = (0, 24), v = (0, 1), factor
-        // 1 + 0.7 * 24 = 17.8, so seek = (0, 41.8). Limit grows from 0 by 4 * 0.5 = 2, so the speed is 2.
+        // Cop at (0, -10), slot 14 ahead of a stationary target. Prediction adds no velocity.
+        // The limiter grows from 0 by 4 * 0.5 = 2, so speed is 2 and the drive point remains the slot.
         let cop = CopState { position: Vec2::new(0.0, -10.0), forward_speed: 0.0, limit: 0.0, dt: 0.5 };
         let step = ram(&cop, &still_target_facing_plus_z(), Vec2::new(0.0, 14.0), vehicle(360.0));
         let cmd = step.command;
         assert!(close(step.limit, 2.0), "{}", step.limit);
         assert!(close(cmd.desired_speed, 2.0), "speed {}", cmd.desired_speed);
         assert!(!cmd.arrived);
-        assert!(cmd.target_point.is_some_and(|p| vec_close(p, Vec2::new(0.0, 31.8))), "{:?}", cmd.target_point);
+        assert!(cmd.target_point.is_some_and(|p| vec_close(p, Vec2::new(0.0, 14.0))), "{:?}", cmd.target_point);
     }
 
     #[test]

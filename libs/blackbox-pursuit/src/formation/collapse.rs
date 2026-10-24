@@ -58,6 +58,19 @@ fn ring(cops: &[Offset], members: &[usize], radius: f32) -> Vec<(usize, Offset)>
     }
     let mut ordered = members.to_vec();
     ordered.sort_by(|&a, &b| pseudo_angle(cops[a]).total_cmp(&pseudo_angle(cops[b])));
+    // Circular ordering alone starts on the positive side. The nearest-front member can be just to the other side.
+    let front = ordered
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| {
+            let front_gap = |cop: usize| {
+                let angle = pseudo_angle(cops[cop]);
+                angle.min(4.0 - angle)
+            };
+            front_gap(**a).total_cmp(&front_gap(**b))
+        })
+        .map_or(0, |(i, _)| i);
+    ordered.rotate_left(front);
     let n = ordered.len() as f32;
     ordered
         .into_iter()
@@ -132,5 +145,12 @@ mod tests {
         assert!((pseudo_angle(Vec2::new(1.0, 0.0)) - 1.0).abs() < 1e-5, "right");
         assert!((pseudo_angle(Vec2::new(0.0, -1.0)) - 2.0).abs() < 1e-5, "behind");
         assert!((pseudo_angle(Vec2::new(-1.0, 0.0)) - 3.0).abs() < 1e-5, "left");
+    }
+
+    #[test]
+    fn a_cop_just_left_of_front_starts_the_ring_before_one_farther_to_the_right() {
+        let cops = [Vec2::new(10.0, 1.0), Vec2::new(-1.0, 10.0), Vec2::new(0.0, -10.0)];
+        let slots = ring_slots(&cops, Level { speed_kmh: 0.0, inner: 4.0, outer: 8.0, max_cops: 4 });
+        assert_eq!(slots[0], (1, Vec2::new(0.0, 4.0)));
     }
 }

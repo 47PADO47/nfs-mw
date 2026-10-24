@@ -31,7 +31,7 @@ impl Order {
             wanted: cars_for(request.strategy),
             duration: request.duration,
             state: State::Pending,
-            timer: 0.0,
+            timer: request.duration.max(0.0),
             denials: 0,
         }
     }
@@ -83,15 +83,15 @@ impl Order {
         true
     }
 
-    /// Counts an active request down by `dt` seconds. Returns true on the tick it runs out: the request is then over and
-    /// its cars go back to the chase (the reset of spec section 6). A pending request does not count.
+    /// Counts a pending or active request down. The source resets only below zero; activation restarts the full duration.
+    /// Returns true once when the request expires and its cars should return to the chase.
     pub fn tick(&mut self, dt: f32) -> bool {
-        if !self.is_active() {
+        if !(dt > 0.0 && dt.is_finite()) {
             return false;
         }
         let before = self.timer;
         self.timer -= dt;
-        before > 0.0 && self.timer <= 0.0
+        before >= 0.0 && self.timer < 0.0
     }
 }
 
@@ -138,11 +138,12 @@ mod tests {
     }
 
     #[test]
-    fn the_timer_runs_only_while_active_and_ends_once() {
+    fn the_timer_runs_while_pending_and_restarts_on_activation() {
         let mut order = Order::new(request(Strategy::CrossFollow, 1.0));
-        assert!(!order.tick(5.0), "a pending request does not count down");
-        assert_eq!(order.timer(), 0.0);
+        assert!(!order.tick(0.5));
+        assert_eq!(order.timer(), 0.5);
         order.activate();
+        assert_eq!(order.timer(), 1.0);
         assert!(!order.tick(0.4));
         assert!(!order.tick(0.4));
         assert!(order.tick(0.4), "the tick that takes it to zero or below ends it");
@@ -154,5 +155,16 @@ mod tests {
         let mut order = Order::new(request(Strategy::Ram, 2.0));
         order.activate();
         assert!(order.tick(10.0));
+    }
+
+    #[test]
+    fn pending_and_zero_duration_requests_expire_only_below_zero() {
+        let mut order = Order::new(request(Strategy::Ram, 2.0));
+        assert!(!order.tick(2.0));
+        assert!(order.tick(0.01));
+        assert!(!order.tick(0.01), "expiry is an edge");
+        let mut zero = Order::new(request(Strategy::Ram, 0.0));
+        assert!(!zero.tick(0.0));
+        assert!(zero.tick(0.01));
     }
 }

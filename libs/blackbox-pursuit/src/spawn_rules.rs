@@ -17,6 +17,8 @@ pub const ANY_OTHER: f32 = 40.0;
 pub enum Neighbour {
     /// It follows the traffic lanes: its lane index and the end of its segment it heads for.
     Traffic { lane: usize, node: usize },
+    /// A traffic car occupies both its departure and arrival lane during the blend.
+    ChangingTraffic { from_lane: usize, to_lane: usize, node: usize },
     /// A wreck on the traffic lanes.
     Wreck,
     /// It does not follow the traffic lanes.
@@ -34,6 +36,12 @@ pub fn spacing(check_lane: bool, lane: usize, node: usize, neighbour: Neighbour)
         Neighbour::Wreck => SAME_LANE,
         Neighbour::Other => ANY_OTHER,
         Neighbour::Traffic { lane: l, node: n } if l == lane && n == node => SAME_LANE,
+        Neighbour::ChangingTraffic { from_lane, to_lane, node: n }
+            if n == node && (from_lane == lane || to_lane == lane) =>
+        {
+            SAME_LANE
+        }
+        Neighbour::ChangingTraffic { .. } => OTHER_LANE,
         Neighbour::Traffic { .. } => OTHER_LANE,
     }
 }
@@ -114,6 +122,17 @@ mod tests {
         for neighbour in [Neighbour::Traffic { lane: 1, node: 1 }, Neighbour::Wreck, Neighbour::Other] {
             assert_eq!(spacing(false, 1, 1, neighbour), 40.0);
         }
+    }
+
+    #[test]
+    fn a_lane_change_reserves_both_lanes_until_the_car_has_finished_moving() {
+        let changing = Neighbour::ChangingTraffic { from_lane: 1, to_lane: 2, node: 1 };
+        assert_eq!(spacing(true, 1, 1, changing), SAME_LANE);
+        assert_eq!(spacing(true, 2, 1, changing), SAME_LANE);
+        assert_eq!(spacing(true, 3, 1, changing), OTHER_LANE);
+        assert_eq!(spacing(true, 2, 0, changing), OTHER_LANE);
+        assert!(!clear(true, 2, 1, [(8.0, changing)]));
+        assert!(clear(true, 2, 1, [(8.0, Neighbour::Traffic { lane: 1, node: 1 })]));
     }
 
     #[test]
