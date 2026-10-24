@@ -132,16 +132,28 @@ fn the_dismiss_action_takes_the_oldest_notice() {
 }
 
 #[test]
-fn near_misses_wait_during_an_active_chase_and_go_stale() {
-    let chase = HudState { pursuit_phase: PursuitPhase::Active, ..frame(1, vec![HudEvent::NearMiss]) };
+fn a_bounty_milestone_waits_during_an_active_chase() {
+    let chase = HudState {
+        pursuit_phase: PursuitPhase::Active,
+        ..frame(1, vec![HudEvent::BountyMilestone { bounty: 20_000 }])
+    };
     assert!(intense(&chase));
     let mut notifications = HudNotifications::default();
     notifications.tick(0.016, intense(&chase));
     notifications.take_events(&chase, NotificationLevel::All);
     assert!(visible(&notifications).is_empty(), "a Low notice waits while the chase is active");
-    notifications.tick(2.0, true);
     notifications.tick(0.016, false);
-    assert!(visible(&notifications).is_empty(), "too late to tell: it went stale");
+    assert_eq!(visible(&notifications), [NoticeId::Bounty], "and shows once it is over");
+}
+
+#[test]
+fn near_misses_are_the_lanes_and_show_during_a_chase() {
+    let chase = HudState { pursuit_phase: PursuitPhase::Active, ..frame(1, vec![HudEvent::NearMiss]) };
+    let mut notifications = HudNotifications::default();
+    notifications.take_events(&chase, NotificationLevel::All);
+    notifications.tick(0.016, intense(&chase));
+    assert!(visible(&notifications).is_empty(), "a near miss is no queue notice");
+    assert!(notifications.lane.chip().is_some(), "it is a chip of the feedback lane, which does not wait");
 }
 
 #[test]

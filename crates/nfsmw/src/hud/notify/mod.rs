@@ -14,6 +14,8 @@
 
 mod catalog;
 mod feedback;
+#[cfg(test)]
+mod feedback_tests;
 mod output;
 mod signals;
 #[cfg(test)]
