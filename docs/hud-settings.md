@@ -33,7 +33,7 @@ camera_shake = 0.5         # 0 (none) to 1 (as it is)
 | `high_contrast` | `true`, `false` | `false` | Stronger plates and outlines. |
 | `palette` | `default`, `deuteranopia`, `tritanopia` | `default` | Colours for colour vision deficiencies. |
 | `motion_reduction` | `true`, `false` | `false` | Calmer HUD animation. |
-| `camera_shake` | 0 to 1 | 1.0 | Multiplies the camera's contact shake; 0 removes it. Applies to every camera. |
+| `camera_shake` | 0 to 1 | 1.0 | Multiplies the contact shake of every camera and the original cameras' terrain and vehicle noise; 0 is a steady camera. |
 | `fov_intensity` | 0 to 1 | 1.0 | Multiplies how far the Dynamic FOV camera widens with speed; 0 keeps its rest FOV. |
 | `haptics` | `true`, `false` | `true` | Controller rumble for HUD events. |
 | `hud_volume` | 0 to 1 | 0.8 | The volume of the HUD's own sounds. |

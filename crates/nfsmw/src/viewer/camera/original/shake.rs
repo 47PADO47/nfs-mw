@@ -47,6 +47,11 @@ impl Shake {
         self.0.set_intensity(intensity);
     }
 
+    /// The shake multiplier in force, which the camera noise also follows.
+    pub fn intensity(&self) -> f32 {
+        self.0.intensity()
+    }
+
     /// Drops every pulse, keeping the intensity.
     pub fn clear(&mut self) {
         self.0.clear();

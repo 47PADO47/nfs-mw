@@ -57,6 +57,11 @@ impl Shake {
         self.intensity = scaled_intensity(intensity);
     }
 
+    /// The multiplier in force, 0 to 1.
+    pub fn intensity(&self) -> f32 {
+        self.intensity
+    }
+
     /// Drops every pulse, as after a teleport, keeping the intensity.
     pub fn clear(&mut self) {
         *self = Self { intensity: self.intensity, ..Self::default() };

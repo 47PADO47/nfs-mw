@@ -100,7 +100,8 @@ impl Timeline {
         self.bodies.push_back(BodyKey { time: self.physics_time, frame });
     }
 
-    /// Scales the contact shake by the player's multiplier, 0 to 1 (`[custom_hud] camera_shake`).
+    /// Scales the contact shake and the terrain and vehicle noise by the player's multiplier, 0 to 1
+    /// (`[custom_hud] camera_shake`).
     pub fn set_shake_intensity(&mut self, intensity: f32) {
         self.shake.set_intensity(intensity);
     }
@@ -210,6 +211,7 @@ impl Timeline {
                             drag: input.noise.drag,
                             overrev: input.noise.overrev,
                             chopper_distances: &chopper_distances,
+                            intensity: self.shake.intensity(),
                         },
                     );
                     (sample, suppress)
