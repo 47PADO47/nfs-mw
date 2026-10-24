@@ -214,11 +214,11 @@ pub(super) fn sell_start(career: &Career, handle: u32) -> Start {
     }
     let Some(record) = career.stable.career_for_handle(handle) else { return Start::Nothing };
     if !record.is_free_to_drive() {
-        return Start::Refused(Text::Literal("This car is impounded, you cannot sell it.".into()));
+        return Start::Refused(label("CS_NO_DELETE_IMPOUNDED_CAR"));
     }
     let free_to_drive = career.stable.live_records().filter(|record| record.is_free_to_drive()).count();
     if free_to_drive <= 1 {
-        return Start::Refused(Text::Literal("You cannot sell the only car left in your safe house.".into()));
+        return Start::Refused(label("CL_LAST_CAR"));
     }
     let action = CarLotAction::Sell { handle };
     Start::Ask(Confirm::new(label("CS_SELL_CAR"), Command::CarLot(action)))
@@ -239,7 +239,7 @@ pub fn apply(career: &mut Career, action: &CarLotAction) -> Result<(), Text> {
 
 fn buy_car(career: &mut Career, cars: &[LotCar], key: u32, delivery: Delivery, limits: &Limits) -> Result<(), Text> {
     let Some(car) = carlot::by_frontend_key(cars, key) else {
-        return Err(Text::Literal("That car is not in the car lot.".into()));
+        return Err(Text::key("career-car-not-in-lot"));
     };
     let Some(customization) = free_customization(&career.stable) else { return Err(label("CAR_LOT_NO_ROOM")) };
     let bought = carlot::buy(&mut career.settings, &mut career.stable, car, delivery, customization, limits);
@@ -256,20 +256,20 @@ fn buy_text(error: PurchaseError) -> Text {
     match error {
         PurchaseError::NotEnoughCash => label("CAR_LOT_NO_CASH"),
         PurchaseError::GarageFull | PurchaseError::NoCareerSlot | PurchaseError::NoCarSlot => label("CAR_LOT_NO_ROOM"),
-        PurchaseError::NotOffered => Text::Literal("This car is not for sale.".into()),
-        PurchaseError::Locked => Text::Literal("This car is not available yet.".into()),
+        PurchaseError::NotOffered => Text::key("career-car-not-for-sale"),
+        PurchaseError::Locked => Text::key("career-car-not-available"),
         // The lot offers no car the player owns; only a preset car from a reward can be a duplicate.
-        PurchaseError::AlreadyOwned => Text::Literal("You already own this car.".into()),
+        PurchaseError::AlreadyOwned => Text::key("career-car-already-owned"),
     }
 }
 
 /// The notice for a refused sale (`docs/specs/career-car-lot.md` section 4).
 fn sell_text(error: SaleError) -> Text {
     match error {
-        SaleError::NotAllowed => Text::Literal("You cannot sell a car here.".into()),
-        SaleError::NoCareerRecord | SaleError::NoPrice => Text::Literal("That car is not in your safe house.".into()),
-        SaleError::Impounded => Text::Literal("This car is impounded, you cannot sell it.".into()),
-        SaleError::LastCar => Text::Literal("You cannot sell the only car left in your safe house.".into()),
+        SaleError::NotAllowed => Text::key("career-car-no-sale-here"),
+        SaleError::NoCareerRecord | SaleError::NoPrice => Text::key("career-car-not-in-safehouse"),
+        SaleError::Impounded => label("CS_NO_DELETE_IMPOUNDED_CAR"),
+        SaleError::LastCar => label("CL_LAST_CAR"),
     }
 }
 

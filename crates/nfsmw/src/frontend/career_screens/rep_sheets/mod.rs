@@ -86,8 +86,8 @@ pub trait Page: Send + Sync {
     fn name(&self, assets: &UiAssets, at: usize) -> String;
     /// The text to the right of the name in the vertical list.
     fn summary(&self, assets: &UiAssets, at: usize) -> String;
-    /// The vertical list's title.
-    fn heading(&self) -> &'static str;
+    /// The language label of the vertical list's title.
+    fn heading(&self) -> u32;
     /// Writes the entry's panel into the package.
     fn fill(&self, cx: &mut Cx, at: usize);
     /// The question Accept asks on this entry, `None` when Accept does nothing on it.
@@ -294,7 +294,7 @@ impl ScreenLogic for Sheet {
             })
             .collect();
         Some(MenuList {
-            title: self.page.heading().into(),
+            title: Text::Game(self.page.heading()).show(),
             message: String::new(),
             entries,
             selected: self.at,

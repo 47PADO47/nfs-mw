@@ -149,9 +149,9 @@ pub fn delete(id: u32) {
     CareerHandle::shared().with(|career| delete_message(&mut career.settings.sms, id));
 }
 
-/// The language table's text for `label`, or the label itself in brackets when the table has no such label.
+/// The language table's text for `label`, or the original's default-string error text when no language has it.
 fn lookup(cx: &Cx, label: &str) -> String {
-    Text::Game(label_hash(label)).resolve().unwrap_or_else(|| format!("[{label}]"))
+    Text::Game(label_hash(label)).show()
 }
 
 /// The row's caption: the sender and the subject of message `id`.

@@ -6,8 +6,8 @@ use nfsmw_career::economy::aftermath::{CarSelectEntry, CarSelectInfo, CarStatus}
 use nfsmw_career::economy::cooling::{HeatMeter, Segment};
 
 use super::car_lot::{set_label, set_text};
-use crate::frontend::infractions::money;
 use crate::frontend::logic::Cx;
+use crate::i18n::fmt::grouped;
 
 // Objects of `Car_Select.fng` by name hash (its dump, `nfsmw dump-screen Car_Select.fng`; the roles are the original's
 // as the specs give them).
@@ -232,7 +232,7 @@ pub(super) fn hide_lot_lines(cx: &mut Cx) {
 
 /// An amount as the ticket shows it (commas), saturating at the largest the screen's number type holds.
 pub(super) fn money_of(amount: u64) -> String {
-    money(u32::try_from(amount).unwrap_or(u32::MAX))
+    grouped(i64::from(u32::try_from(amount).unwrap_or(u32::MAX)))
 }
 
 /// Draws the header, the marker counts and the heat meter of a car.

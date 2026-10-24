@@ -50,9 +50,10 @@ fn the_question_fills_the_alias_in() {
 
 #[test]
 fn the_question_falls_back_without_text_an_alias_or_a_slot() {
-    assert_eq!(question(None, Some("MWO")), SAVE_QUESTION_FALLBACK);
-    assert_eq!(question(Some("no slot here"), Some("MWO")), SAVE_QUESTION_FALLBACK);
-    assert_eq!(question(Some("save %s?"), None), SAVE_QUESTION_FALLBACK);
+    assert_eq!(question(None, Some("MWO")), save_question_fallback());
+    assert_eq!(question(Some("no slot here"), Some("MWO")), save_question_fallback());
+    assert_eq!(question(Some("save %s?"), None), save_question_fallback());
+    assert_eq!(save_question_fallback(), "Save your career progress?");
 }
 
 #[test]

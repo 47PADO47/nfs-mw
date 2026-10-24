@@ -19,6 +19,7 @@ use crate::hud::{
     AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
     RACE_SPRINT, RACE_TOLLBOOTH, ROADBLOCK, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
+use crate::i18n::{Args, t};
 use crate::input::{Action, ActionState, Bindings, InputDevice};
 use crate::ui::Text;
 use crate::ui::prompts::{self, Prompt};
@@ -129,27 +130,28 @@ pub fn blip_rgba(style: &str) -> [u8; 4] {
 }
 
 /// The name of a blip style as the list shows it.
-pub fn style_name(style: &str) -> &'static str {
-    match style {
-        AUTO_SHOP => "Auto shop",
-        CAR_LOT => "Car lot",
-        SAFE_HOUSE => "Safe house",
-        RACE_SPRINT => "Sprint",
-        RACE_DRAG => "Drag",
-        RACE_CIRCUIT => "Circuit",
-        RACE_KNOCKOUT => "Knockout",
-        RACE_TOLLBOOTH => "Tollbooth",
-        RACE_SPEEDTRAP => "Speed trap",
-        ROADBLOCK => "Roadblock",
-        _ => "Blip",
-    }
+pub fn style_name(style: &str) -> String {
+    let id = match style {
+        AUTO_SHOP => "map-style-auto-shop",
+        CAR_LOT => "map-style-car-lot",
+        SAFE_HOUSE => "map-style-safe-house",
+        RACE_SPRINT => "map-style-sprint",
+        RACE_DRAG => "map-style-drag",
+        RACE_CIRCUIT => "map-style-circuit",
+        RACE_KNOCKOUT => "map-style-knockout",
+        RACE_TOLLBOOTH => "map-style-tollbooth",
+        RACE_SPEEDTRAP => "map-style-speed-trap",
+        ROADBLOCK => "map-style-roadblock",
+        _ => "map-style-blip",
+    };
+    crate::i18n::text(id, &Args::new())
 }
 
 /// A distance in metres as the card and the list show it.
 pub fn format_metres(metres: f32) -> String {
     match metres {
-        m if m < 1000.0 => format!("{m:.0} m"),
-        m => format!("{:.1} km", m / 1000.0),
+        m if m < 1000.0 => t!("map-distance-metres", m = format!("{m:.0}")),
+        m => t!("map-distance-km", km = format!("{:.1}", m / 1000.0)),
     }
 }
 
@@ -220,7 +222,8 @@ fn ask_gps(
     let Some(blip) = overlay.blips.get(index) else {
         return draw(fe, overlay, dt, chrome, host, env);
     };
-    let confirm = Confirm::new(Text::Literal("Activate GPS?".into()), Command::SetWaypoint(blip.world));
+    let question = Text::Game(blackbox_text::label_hash("WM_DLG_ACTIVATE_GPS"));
+    let confirm = Confirm::new(question, Command::SetWaypoint(blip.world));
     let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
     fe.apply(commands, host, env);
     draw(fe, overlay, dt, chrome, host, env);

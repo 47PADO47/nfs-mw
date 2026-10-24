@@ -39,7 +39,7 @@ impl PressStart {
     /// The headline with the player's number (the original formats it with `iPlayerNum + 1`).
     fn headline(cx: &Cx, player: usize) -> Option<String> {
         let template = crate::ui::Text::Game(PRESS_START).resolve()?;
-        Some(template.replace("%d", &(player + 1).to_string()))
+        Some(blackbox_text::printf::fill(&template, &[(player + 1).to_string().as_str()]))
     }
 
     /// Back: in co-op player 2's goes to player 1's Press Start and player 1's to the career menu, with co-op off; in split

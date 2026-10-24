@@ -117,8 +117,8 @@ impl Page for BountyPage {
         self.rows.get(at).map(|row| game_text(assets, place_key(row.number, "_DESC"))).unwrap_or_default()
     }
 
-    fn heading(&self) -> &'static str {
-        "Bounty"
+    fn heading(&self) -> u32 {
+        label_hash("REP_SHEET_BOUNTY")
     }
 
     fn fill(&self, cx: &mut Cx, at: usize) {

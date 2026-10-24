@@ -332,7 +332,8 @@ impl ScreenLogic for Overview {
                 Entry::Challenge => MenuEntry::plain(text(label_hash("RIVAL_CHALLENGE_ACTIVATED")), enabled),
             })
             .collect();
-        let title = text(label_hash("TITLE_BLACKLIST_NUMBER")).replace("%d", &self.shown.to_string());
+        let template = text(label_hash("TITLE_BLACKLIST_NUMBER"));
+        let title = blackbox_text::printf::fill(&template, &[self.shown.to_string().as_str()]);
         Some(MenuList {
             title,
             message: String::new(),

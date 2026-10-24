@@ -10,6 +10,7 @@ use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::challenge_series::{Crop, map_texture, route_on_map};
 use super::custom_race::Region;
+use crate::i18n::{self, Args};
 
 /// One track of the list.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,8 +19,8 @@ pub struct Track {
     pub name: String,
     /// The line the screen shows: the kind and the event, for example `Sprint 10.2.1`.
     pub title: String,
-    /// The race kind as the screen's second line shows it.
-    pub kind: &'static str,
+    /// The race kind as the screen's second line shows it, in the language of the time the board was read.
+    pub kind: String,
     /// The route length in metres, from the checkpoints and the finish (0 when there is none).
     pub length: f32,
     /// The race type, which picks the Quick Play brief's icon and mode name.
@@ -102,20 +103,21 @@ fn event_key(name: &str) -> Vec<u32> {
     id.split('.').map(|part| part.parse().unwrap_or(u32::MAX)).collect()
 }
 
-pub(super) fn kind_label(kind: RaceType) -> &'static str {
+/// The catalogue message of a race kind's name; `None` (no kind) and the kinds without a name of their own read "Race".
+fn kind_message(kind: Option<RaceType>) -> &'static str {
     match kind {
-        RaceType::Sprint => "Sprint",
-        RaceType::Circuit => "Circuit",
-        RaceType::Drag => "Drag",
-        RaceType::Knockout => "Circuit - K.O.",
-        RaceType::Tollbooth => "Tollbooth",
-        RaceType::SpeedTrap => "Speedtrap",
-        _ => "Race",
+        Some(RaceType::Sprint) => "career-race-kind-sprint",
+        Some(RaceType::Circuit) => "career-race-kind-circuit",
+        Some(RaceType::Drag) => "career-race-kind-drag",
+        Some(RaceType::Knockout) => "career-race-kind-knockout",
+        Some(RaceType::Tollbooth) => "career-race-kind-tollbooth",
+        Some(RaceType::SpeedTrap) => "career-race-kind-speedtrap",
+        _ => "career-race-kind-race",
     }
 }
 
 fn track_of(data: &GameplayData, race: &Race, map: Option<&Calibration>) -> Track {
-    let kind = race.race_type.map_or("Race", kind_label);
+    let kind = i18n::text(kind_message(race.race_type), &Args::new());
     let centres: Vec<glam::Vec3> = race
         .start
         .iter()
@@ -159,7 +161,7 @@ impl Track {
         Track {
             name: name.into(),
             title: String::new(),
-            kind: "Sprint",
+            kind: "Sprint".into(),
             length: 0.0,
             race_type: RaceType::Sprint,
             route: 0.0,

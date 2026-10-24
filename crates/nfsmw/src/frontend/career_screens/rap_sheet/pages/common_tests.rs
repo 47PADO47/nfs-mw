@@ -2,15 +2,20 @@ use super::*;
 
 #[test]
 fn a_template_takes_the_value_at_its_first_placeholder() {
-    assert_eq!(fill("BOUNTY: %$d", "1,000"), "BOUNTY: 1,000");
-    assert_eq!(fill("NAME: %s", "Rick"), "NAME: Rick");
-    assert_eq!(fill("CASE FILE: %s", "MW-1-ABCD"), "CASE FILE: MW-1-ABCD");
+    assert_eq!(value_text(Some("BOUNTY: %$d"), "1,000"), "BOUNTY: 1,000");
+    assert_eq!(value_text(Some("NAME: %s"), "Rick"), "NAME: Rick");
+    assert_eq!(value_text(Some("CASE FILE: %s"), "MW-1-ABCD"), "CASE FILE: MW-1-ABCD");
 }
 
 #[test]
 fn a_template_without_a_placeholder_is_returned_as_it_is() {
-    assert_eq!(fill("INFRACTIONS", "5"), "INFRACTIONS");
-    assert_eq!(fill("", "5"), "");
+    assert_eq!(value_text(Some("INFRACTIONS"), "5"), "INFRACTIONS");
+    assert_eq!(value_text(Some(""), "5"), "");
+}
+
+#[test]
+fn without_the_template_the_value_is_shown_alone() {
+    assert_eq!(value_text(None, "5"), "5");
 }
 
 #[test]

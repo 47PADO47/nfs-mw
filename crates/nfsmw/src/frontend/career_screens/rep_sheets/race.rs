@@ -15,6 +15,7 @@ use crate::frontend::custom_race::records;
 use crate::frontend::logic::{Command, Cx};
 use crate::frontend::quick_play::text;
 use crate::frontend::quick_race::{self, Board};
+use crate::i18n::t;
 use crate::settings::SpeedUnits;
 use crate::ui::{Text, UiAssets};
 
@@ -149,14 +150,14 @@ impl Page for RacePage {
         let Some(row) = self.rows.get(at) else { return String::new() };
         let kind = game_text(assets, text::mode_label(row.kind));
         match row.status {
-            Status::Done => format!("{kind}  (won)"),
+            Status::Done => t!("career-sheet-won", kind = kind),
             Status::Open => kind,
             Status::Locked => unlock_sentence(assets, self.bin),
         }
     }
 
-    fn heading(&self) -> &'static str {
-        "Race Events"
+    fn heading(&self) -> u32 {
+        label_hash("REP_SHEET_RACE_EVENTS")
     }
 
     fn fill(&self, cx: &mut Cx, at: usize) {
@@ -182,7 +183,7 @@ impl Page for RacePage {
         cx.text_object(AVERAGE, &speed_text(record.average, metric, &speed_unit));
         cx.text_object(TOP, &speed_text(record.top, metric, &speed_unit));
         for name in CASH {
-            cx.text_object(name, &crate::frontend::infractions::money(row.cash));
+            cx.text_object(name, &crate::i18n::fmt::grouped(i64::from(row.cash)));
         }
         cx.text_object(DISTANCE, &text::length_text(row.length, metric, &unit));
         let laps = matches!(row.kind, RaceType::Circuit | RaceType::Knockout);

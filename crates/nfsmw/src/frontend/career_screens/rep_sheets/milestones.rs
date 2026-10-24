@@ -13,8 +13,9 @@ use nfsmw_data::gameplay::GameplayData;
 
 use super::{Ask, Page, Status};
 use crate::career::CareerHandle;
-use crate::frontend::infractions::money;
 use crate::frontend::logic::{Command, Cx};
+use crate::i18n::fmt::grouped;
+use crate::i18n::t;
 use crate::settings::SpeedUnits;
 use crate::ui::{Text, UiAssets};
 
@@ -149,11 +150,11 @@ fn words(assets: &UiAssets, entry: &Entry, metric: bool) -> (String, String) {
             let Some(index) = label else { return (stat.name().to_owned(), goal) };
             let title = game_text(assets, label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}_SHORT")));
             let body = game_text(assets, label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}")));
-            (title, body.replace("%s", &goal))
+            (title, blackbox_text::printf::fill(&body, &[goal.as_str()]))
         }
         Entry::Trap { threshold, .. } => {
             let (speed, unit) = speed_in(assets, f32::from(*threshold), metric);
-            ("Speed Trap".to_owned(), format!("{speed} {unit}"))
+            (t!("career-sheet-speed-trap"), format!("{speed} {unit}"))
         }
     }
 }
@@ -184,14 +185,14 @@ impl Page for MilestonePage {
             Entry::Pursuit { bounty, .. } | Entry::Trap { bounty, .. } => bounty,
         };
         match row.status() {
-            Status::Done => "Complete".to_owned(),
-            Status::Locked => "Locked".to_owned(),
-            Status::Open => money(bounty),
+            Status::Done => t!("career-sheet-complete"),
+            Status::Locked => t!("career-sheet-locked"),
+            Status::Open => grouped(i64::from(bounty)),
         }
     }
 
-    fn heading(&self) -> &'static str {
-        "Milestone Events"
+    fn heading(&self) -> u32 {
+        label_hash("REP_SHEET_MILESTONE_EVENTS")
     }
 
     fn fill(&self, cx: &mut Cx, at: usize) {
@@ -205,7 +206,7 @@ impl Page for MilestonePage {
         let bounty = match row.entry {
             Entry::Pursuit { bounty, .. } | Entry::Trap { bounty, .. } => bounty,
         };
-        cx.text_object(REWARD, &money(bounty));
+        cx.text_object(REWARD, &grouped(i64::from(bounty)));
         for hidden in RECORDED {
             cx.hide(hidden, true);
         }

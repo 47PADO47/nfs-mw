@@ -23,9 +23,9 @@ use super::car_select_view::{LABEL_RELEASE, LABEL_USE_MARKER, draw_car, hide_hea
 use crate::career::{Career, CareerHandle};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
-use crate::frontend::infractions::money;
 use crate::frontend::logic::QuitTo;
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic, Sub};
+use crate::i18n::fmt::grouped;
 use crate::ui::Text;
 
 /// What the career car select asks the front end to do (`Command::CareerCar`, `flow_bust.rs`).
@@ -321,7 +321,8 @@ fn accept_command(career: &Career, handle: u32, cx: &Cx) -> Option<Command> {
     let release = |marker: bool| Command::CareerCar(CarSelectAction::Release { handle, marker });
     let fee_question = || {
         let template = Text::Game(TEXT_FEE_QUESTION).resolve().unwrap_or_default();
-        Confirm::new(Text::Literal(template.replace("%$d", &money(fee))), release(false))
+        let fee = grouped(i64::from(fee));
+        Confirm::new(Text::Literal(blackbox_text::printf::fill(&template, &[fee.as_str()])), release(false))
     };
     Some(match release_dialog(record, &career.settings, cost, &career.markers) {
         ReleaseDialog::Cannot | ReleaseDialog::Choose { cash: false, marker: false } => {
@@ -347,7 +348,7 @@ pub fn release(career: &mut Career, handle: u32, marker: bool) -> Result<(), Tex
     let cost = cost_of(career, handle);
     let way = if marker { ReleaseWay::Marker } else { ReleaseWay::Cash };
     let Some(record) = career.stable.career_for_handle_mut(handle) else {
-        return Err(Text::Literal("That car is not in your safe house.".into()));
+        return Err(Text::key("career-car-not-in-safehouse"));
     };
     nfsmw_career::economy::aftermath::release(way, &mut career.settings, record, cost, &mut career.markers)
         .map_err(|_| Text::Game(TEXT_CANNOT_RELEASE))
@@ -356,7 +357,7 @@ pub fn release(career: &mut Career, handle: u32, marker: bool) -> Result<(), Tex
 /// Applies an Extra Impound Strike marker the player confirmed.
 pub fn use_strike_marker(career: &mut Career, handle: u32) -> Result<(), Text> {
     let Some(record) = career.stable.career_for_handle_mut(handle) else {
-        return Err(Text::Literal("That car is not in your safe house.".into()));
+        return Err(Text::key("career-car-not-in-safehouse"));
     };
     match nfsmw_career::economy::aftermath::use_strike_marker(record, &mut career.markers) {
         true => Ok(()),
