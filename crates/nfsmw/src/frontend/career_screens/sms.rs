@@ -56,6 +56,9 @@ const FROM: u32 = 0x000F_9301;
 const SUBJECT: u32 = 0x000E_5A97;
 const REPLAY_HINT: u32 = 0x000F_A582;
 const VOICE: u32 = 0x000F_4BA4;
+/// The controller's copy of the Done, Delete and Re-Play buttons (the triangle, circle and square). It stands on the same
+/// line as the keyboard's copy (`PC_key_esc`, `1`, `2`), so showing both prints each label twice over the other.
+const GAMEPAD_FOOTER: u32 = 0x000F_A53F;
 
 /// The message the list opened last: the message screen shows it.
 static OPENED: Mutex<Option<u32>> = Mutex::new(None);
@@ -293,10 +296,17 @@ pub struct MessageLogic {
     args: Args,
 }
 
+/// Keeps the controller's copy of the footer off the screen: the package's scripts can show it again, so every tick
+/// puts it back (the world map keeps its keyboard prompts the same way).
+pub fn hide_gamepad_footer(cx: &mut Cx) {
+    show_object(cx, GAMEPAD_FOOTER, false);
+}
+
 /// Shows message `id` on the message screen and marks it read, as opening it does. The body, sender and subject come
 /// from the language table; the replay hint and the voice group show for story messages only.
 pub fn show_message(cx: &mut Cx, id: u32) {
     open_message(id);
+    hide_gamepad_footer(cx);
     let body = lookup(cx, &label_for(id));
     set_text(cx, BODY, body);
     let sender = lookup(cx, &from_label_for(id));
@@ -316,6 +326,10 @@ impl ScreenLogic for MessageLogic {
         };
         show_message(cx, id);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
+    }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        hide_gamepad_footer(cx);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

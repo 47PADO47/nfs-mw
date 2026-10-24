@@ -7,7 +7,7 @@
 use blackbox_feng::ids::PAD_BACK;
 use blackbox_feng::runtime::pad;
 
-use super::sms::{DELETE, REPLAY, delete_question, open_message, replay_voice, show_message};
+use super::sms::{DELETE, REPLAY, delete_question, hide_gamepad_footer, open_message, replay_voice, show_message};
 use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE};
 use crate::frontend::logic::{Command, Cx, ScreenLogic};
 
@@ -40,6 +40,10 @@ impl ScreenLogic for SmsPopup {
     fn start(&mut self, cx: &mut Cx) {
         show_message(cx, self.id);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
+    }
+
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        hide_gamepad_footer(cx);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
