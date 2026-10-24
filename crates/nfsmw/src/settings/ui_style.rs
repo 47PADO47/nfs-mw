@@ -11,9 +11,12 @@ pub enum UiStyle {
     /// The game's own screens and HUD, drawn through the authored `.fng` packages. Pixel-faithful by default.
     #[default]
     Original,
-    /// The rewrite's token-driven HUD: the speedometer, tachometer, gear, meters and radio card.
+    /// The rewrite's own modern HUD and menus, rewritten from scratch (`docs/decisions/0013-custom-hud.md`). Until the
+    /// rewrite lands it draws the drive card, the radio card and the world map's legend; the other slots fall back to
+    /// Original.
     Custom,
-    /// The remastered HUD. Not implemented yet: until it is, every slot falls back to Original.
+    /// The remastered look: its own cluster, minimap, pursuit timer, police radar, radio card, vertical menus and world
+    /// map (`ui/theme/remastered`). A slot it does not fill falls back to Original.
     Remastered,
 }
 names!(
