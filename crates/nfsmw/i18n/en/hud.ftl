@@ -54,12 +54,23 @@ hud-pursuit-wrecked = Wrecked
 # The side of the meter where the player is getting away (the other side is the game's BUSTED).
 hud-pursuit-escaping = Escaping
 
-## The Custom theme's meters (ui/theme/custom/meters.rs): short labels, shown in capitals.
+## The Custom HUD's telemetry cluster (ui/theme/custom/cluster): short labels, shown as written.
 
-hud-meter-nitrous = NOS
-hud-meter-boost = Boost
+# The speed units beside the speed digits.
+hud-cluster-kmh = KM/H
+hud-cluster-mph = MPH
+# The gear box: reverse and neutral (forward gears are their number).
+hud-cluster-gear-reverse = R
+hud-cluster-gear-neutral = N
+hud-cluster-nitrous = N2O
 # The speed breaker.
-hud-meter-speedbreaker = SB
+hud-cluster-speedbreaker = SB
+hud-cluster-boost = BOOST
+# The advanced row. $rpm is whole rpm; $psi and $g are numbers with one decimal; $load is a whole percentage.
+hud-cluster-rpm = { $rpm } rpm
+hud-cluster-psi = { $psi } psi
+hud-cluster-load = { $load }%
+hud-cluster-lateral-g = { $g } g
 
 ## The Custom HUD's notifications (hud/notify/catalog.rs)
 
