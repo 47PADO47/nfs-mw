@@ -20,6 +20,7 @@ mod flow;
 mod grid;
 mod heat;
 mod hold;
+mod hud_info;
 mod intro;
 mod load;
 pub(super) mod mods;
