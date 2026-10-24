@@ -64,11 +64,11 @@ in the game's style**, not raw FEng access:
 | Message | `menus.message(title: &str, text: &str)` | G | `frontend/prompts.rs` |
 | Confirm | `menus.confirm(title, text, f: impl FnOnce(&mut Ctx, bool))` | G | `frontend/confirm.rs` |
 | Text input | `menus.ask_text(title, initial, f: impl FnOnce(&mut Ctx, Option<&str>))` | G | `frontend/prompts.rs` (needs a text field; new) |
-| Translate | `menus.text(key: &str) -> String` looks the key up in the mod's `content/strings.toml`, falls back to the key | G | `modding/strings.rs` (new) |
+| Translate | **Built** as `bb.i18n` 1.0: `i18n.t(id)` / `i18n.t_args(id, args)` format the mod's `lang/<locale>/*.ftl` messages; a row label or choice that is a message id is shown translated ([translations.md](translations.md)) | G | `modding/backends/i18n.rs`, `crate::i18n` |
 | Replace FEng package | `menus.override_package(name: &str)`: use a package from the overlay instead of the install's. **Reserved** for a later minor; today the VFS overlay can already replace `*.fng` files wholesale | G | `libs/blackbox-feng`, VFS overlay |
 
-Mod page and row labels are plain UTF-8 drawn with the game's font (`libs/blackbox-text`); a mod can ship
-its own font through `bb.content`.
+Mod page and row labels are plain UTF-8 drawn with the game's font (`libs/blackbox-text`), or a message id of the mod's
+catalogue ([translations.md](translations.md)); characters the font lacks are drawn in the language's fallback font.
 
 ## Game interaction
 

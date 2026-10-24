@@ -1,0 +1,16 @@
+# A content-only language pack (docs/modding/translations.md): no library, only `lang/`.
+# It makes Brazilian Portuguese selectable, translates a few of the rewrite's own messages and the hello mod's
+# greeting, and names a new game label. It never holds the game's own text or translations of it.
+
+[mod]
+id = "example.lang-pack"
+name = "Example language pack"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["*"]

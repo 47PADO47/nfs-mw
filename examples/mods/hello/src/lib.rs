@@ -1,13 +1,14 @@
 //! `hello`: the smallest mod. It logs when it loads, counts the events it receives and logs each one, reads the clock on
 //! its first event when the host offers `bb.time` (an optional interface: the mod says so and goes on when it is absent),
-//! logs the player's speed on frame 100 when the host offers `bb.vehicles`, and logs when it unloads. It needs no other
-//! interface, so it runs in any host that offers a `*` game.
+//! logs the player's speed on frame 100 when the host offers `bb.vehicles`, greets in the player's language from its
+//! `lang/` folder when the host offers `bb.i18n`, and logs when it unloads. It needs no other interface, so it runs in any
+//! host that offers a `*` game.
 //!
 //! The clock is read on the first event, not at load: the host copies the scene's clock in at the start of the first
 //! frame, and a mod that reads at load (before any scene exists) gets "not ready".
 
 use blackbox_modding::abi::BB_EVENT_FRAME_START;
-use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+use blackbox_modding::sdk::{Ctx, Event, I18nArg, Level, Mod, ModResult, declare_mod};
 
 /// The frame whose player speed `hello` logs.
 const SPEED_FRAME: u64 = 100;
@@ -20,6 +21,7 @@ pub struct Hello {
 impl Mod for Hello {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
         ctx.log(Level::Info, "hello: loaded");
+        log_greeting(ctx);
         Ok(Hello { seen: 0 })
     }
 
@@ -54,6 +56,18 @@ fn log_clock(ctx: &Ctx) {
             &format!("hello: time {:.2} h, {} s per hour, frozen {}", clock.hour, clock.seconds_per_hour, clock.frozen),
         ),
         Err(error) => ctx.log(Level::Warn, &format!("hello: bb.time read failed: {error}")),
+    }
+}
+
+/// Log a greeting from the mod's own catalogue (`lang/<locale>/hello.ftl`) through `bb.i18n`, in the player's language.
+fn log_greeting(ctx: &Ctx) {
+    let Some(i18n) = ctx.i18n() else {
+        ctx.log(Level::Info, "hello: bb.i18n absent");
+        return;
+    };
+    match i18n.t_args("hello-greeting", &[("events", I18nArg::Int(0))]) {
+        Ok(text) => ctx.log(Level::Info, &format!("hello: {text}")),
+        Err(error) => ctx.log(Level::Warn, &format!("hello: bb.i18n failed: {error}")),
     }
 }
 
