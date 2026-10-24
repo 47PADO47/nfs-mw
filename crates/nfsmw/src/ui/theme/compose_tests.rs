@@ -269,7 +269,13 @@ fn the_custom_theme_leaves_every_hud_slot_to_original_until_its_components_land(
     themes.select(UiStyle::Custom);
     themes.frame().set(FengSource::Hud, synthetic_hud());
     for element in super::original::HUD_SLOTS {
-        assert_eq!(themes.provided_by(element), Some(ThemeId::Original), "{}", element.name());
+        // The notification stack is Custom's (PR 10); with no notification in the feed it draws nothing, and Original
+        // has nothing there either.
+        let expected = match element {
+            ElementId::Notifications => ThemeId::Custom,
+            _ => ThemeId::Original,
+        };
+        assert_eq!(themes.provided_by(element), Some(expected), "{}", element.name());
     }
     assert_same(&hud_layer(&themes, 0.0), &expected_hud());
 }

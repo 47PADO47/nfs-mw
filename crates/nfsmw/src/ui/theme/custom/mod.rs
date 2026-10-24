@@ -12,6 +12,7 @@
 //! - [`feed`]: [`CustomFeedCell`], the one cell every Custom component reads, filled by the HUD plugin each frame.
 //! - [`plate`]: the translucent charcoal plate with its optional accent line.
 //! - [`text`]: text in the three font roles, sized by the HUD scale and `text_size`.
+//! - `notify`: the `Notifications` slot, the notification stack and the feedback lane's chip.
 //!
 //! Built on it (PR 6): [`cluster`], the horizontal telemetry cluster, which fills the drive slots.
 //!
@@ -40,6 +41,7 @@ pub mod layout;
 mod layout_tests;
 mod map_legend;
 mod markers;
+mod notify;
 pub mod palette;
 #[allow(dead_code)]
 pub mod plate;
@@ -120,6 +122,7 @@ pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell)
         ElementId::Turbo => Some(Box::new(Empty)),
         ElementId::Speedbreaker => Some(Box::new(Empty)),
         ElementId::WorldMarkers => Some(Box::new(markers::WorldMarkers::new(feed.clone()))),
+        ElementId::Notifications => Some(Box::new(notify::Notifications::new(feed.clone()))),
         _ => None,
     }
 }

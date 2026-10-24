@@ -26,8 +26,8 @@ use blackbox_ui::notify::Priority;
 
 pub use catalog::{AudioCue, Category, Haptic, NoticeId};
 use catalog::{Dismissal, spec};
+pub use feedback::ChipKind;
 use feedback::FeedbackLane;
-pub use feedback::{Chip, ChipKind};
 pub(in crate::hud) use output::output;
 use signals::Signals;
 

@@ -102,6 +102,8 @@ hud-notify-bounty = Bounty { $bounty }
 hud-notify-tire = Tyre punctured
 hud-notify-heavy-damage = Heavy damage
 hud-notify-vehicle-critical = Vehicle disabled
+# The count badge of a notice or a chip that repeats: $count is how many times it came.
+hud-notify-count = ×{ $count }
 # The feedback lane's bounty chip: $amount is the bounty gained, already written with the language's digit grouping.
 hud-feedback-bounty-gain = +{ $amount }
 
