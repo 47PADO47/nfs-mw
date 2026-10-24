@@ -34,7 +34,7 @@ impl Drive {
 /// How fast a scene moved a car from `before` to `after` in `dt` seconds, or `None` when it did not move it by motion:
 /// no time passed, or the jump is a cut.
 fn scene_velocity(before: Vec3, after: Vec3, dt: f32) -> Option<Vec3> {
-    if !(dt > 0.0) {
+    if !dt.is_finite() || dt <= 0.0 {
         return None;
     }
     let velocity = (after - before) / dt;
