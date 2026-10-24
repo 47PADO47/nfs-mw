@@ -19,7 +19,7 @@ use super::common::{
 use super::rankings::{rank_of, stat_value, thresholds};
 use crate::career::{Career, CareerHandle};
 use crate::frontend::ids::{EXIT_COMPLETE, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT};
-use crate::frontend::logic::{Cx, ScreenLogic};
+use crate::frontend::logic::{Cx, ScreenLogic, wheel_as_rows};
 
 /// The title label and the header name.
 const TITLE: u32 = 0x8224_E17C;
@@ -244,6 +244,10 @@ impl ScreenLogic for RankingDetailPage {
         self.board.lifetime = load_views(cx).detail_lifetime;
         self.load(cx);
         self.paint(cx);
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

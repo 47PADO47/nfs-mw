@@ -57,6 +57,9 @@ impl RoomData {
         nfsmw_data::memo(dir, &sources, || {
             let file = dir.read(path).with_context(|| format!("reading {path}"))?;
             let mut solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
+            for solid in &mut solids {
+                solid.name = Stage::canonical_name(&solid.name).to_owned();
+            }
             let casters = solids.iter().filter(|solid| stage.shadow_source(&solid.name)).cloned().collect();
             solids.retain(|solid| stage.draws(&solid.name));
             let mut packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;

@@ -52,7 +52,7 @@ pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};
 use super::ids::{self, screen};
-use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::logic::{Args, Command, Cx, ScreenLogic, wheel_as_rows};
 use crate::settings::Transmission;
 use crate::ui::Text;
 use board::{Board, Entry};
@@ -421,6 +421,10 @@ impl ScreenLogic for ChallengeSeries {
 
     fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
         !self.leaving && self.click_icon(cx, point)
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

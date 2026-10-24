@@ -19,7 +19,7 @@ use super::{INITIALIZE_SCREEN, MC_MAIN_PREPARE, post_opening};
 use crate::career::{CareerHandle, Sources};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic, wheel_as_rows};
 use crate::ui::Text;
 
 /// The rows the list shows at once (`option_name_1` to `option_name_8`). The dump of `MC_List.fng` has eight row names;
@@ -385,6 +385,10 @@ impl ScreenLogic for AliasListLogic {
         if bits & pad::ACCEPT != 0 {
             self.pick(cx);
         }
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

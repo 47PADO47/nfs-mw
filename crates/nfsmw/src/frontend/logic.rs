@@ -74,9 +74,11 @@ pub struct PauseCtx {
 pub use super::footer::Footer;
 
 mod args;
+mod wheel;
 mod feedback;
 mod pointer;
 pub use args::Args;
+pub use wheel::wheel_as_rows;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {

@@ -2,7 +2,7 @@
 
 mod contacts;
 pub(super) mod cop_health;
-mod entry_marks;
+pub(in crate::scenes::world) mod entry_marks;
 #[cfg(test)]
 mod ground_tests;
 mod marks;

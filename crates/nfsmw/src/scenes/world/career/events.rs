@@ -12,6 +12,8 @@ use nfsmw_data::gameplay::RewardRecord;
 
 use crate::career::{AutosaveInputs, Career, event_id, grant_rewards, handle_autosave, race_event_id};
 use crate::scenes::world::WorldScene;
+use crate::scenes::world::effects::entry_marks;
+use crate::scenes::world::entry_zones::ZoneKind;
 
 /// The Blacklist's bins, 1 to 15 (`FIRST_RIVAL_STAGE`).
 const LAST_BIN: u8 = 15;
@@ -161,6 +163,16 @@ impl WorldScene {
             return false;
         };
         blacklisted || self.side_race_locked(&event)
+    }
+
+    /// The names of the race zones near the car whose events the career keeps shut: they get no disc on the road, as they
+    /// get no icon on the map (`race_start_blips`).
+    pub(in crate::scenes::world) fn shut_race_zones(&self) -> Vec<String> {
+        let Some(car) = self.players.lead().map(|drive| drive.position()) else { return Vec::new() };
+        let near = self.entry.zones.near(car, entry_marks::DRAW_RANGE);
+        near.filter(|zone| zone.kind == ZoneKind::Race && self.career_race_locked(&zone.name))
+            .map(|zone| zone.name.clone())
+            .collect()
     }
 
     /// The event-start autosave for an open race: the node is the race's event id. A boss race is flagged as one for
