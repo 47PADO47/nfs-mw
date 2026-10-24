@@ -14,8 +14,10 @@ mod lighting_tests;
 
 use super::{
     Renderer,
+    draw_list::DrawList,
     instances::InstanceBuffer,
     resources::Globals,
+    scene_pass::PreparedView,
     targets::{FrameTargets, SceneTargets},
 };
 
@@ -68,6 +70,9 @@ pub(super) struct ReflectionCapture {
     depth: wgpu::TextureView,
     depth_faces: [wgpu::TextureView; 6],
     views: [CaptureView; 6],
+    /// Each face's draw lists, kept for their capacity. Every face due is prepared before any is recorded, so each
+    /// keeps lists of its own.
+    lists: [DrawList; 6],
     store: super::reflection_store::Store,
     /// The faces drawn since the diffuse light was last projected from the cube.
     covered: u8,
@@ -144,6 +149,7 @@ impl ReflectionCapture {
             face_array,
             faces,
             views: std::array::from_fn(|_| CaptureView::new(device, layout)),
+            lists: std::array::from_fn(|_| DrawList::default()),
             scene,
             store,
             covered: 0,
@@ -231,30 +237,14 @@ impl Renderer {
         faces: u8,
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: reflection faces");
         capture.store.configure(&self.queue, scene.fade_distance, scene.frame.clear_color);
-        let kind = match scene.sun_shadows {
-            true => CaptureKind::LitCube,
-            false => CaptureKind::Cube,
-        };
-        for face in (0..6usize).filter(|&face| (faces >> face) & 1 != 0) {
-            let frame = face_frame(scene.origin, face, &scene.frame);
-            capture.views[face].kind = kind;
-            // Retain the actual depth of the faces drawn. Colour storage flips vertically; depth addressing applies
-            // that flip explicitly in the local-probe shader.
-            if let SceneTargets::Offscreen(targets) = &mut capture.scene {
-                targets.depth_view = capture.depth_faces[face].clone();
-            }
-            let output = capture.scene.offscreen().expect("capture is offscreen").color_view.clone();
-            self.encode_scene_mode(
-                encoder,
-                Some(&capture.scene),
-                &output,
-                &frame,
-                scene.faces[face],
-                false,
-                Some(&mut capture.views[face]),
-            );
-            capture.store.draw(encoder, &capture.faces[face], face);
+        let prepared = self.prepare_cube_faces(capture, scene, faces, encoder);
+        let draw = self.scene_draw();
+        for (face, view) in &prepared {
+            let _trace = blackbox_trace::scope("Renderer CPU: record reflection face");
+            draw.record(encoder, view, &capture.lists[*face]);
+            capture.store.draw(encoder, &capture.faces[*face], *face);
         }
         capture.covered |= faces;
         if capture.covered != ALL_FACES {
@@ -264,5 +254,44 @@ impl Renderer {
         if let Some(glossy) = self.glossy.as_mut() {
             glossy.environment_refreshed();
         }
+    }
+
+    /// Prepare the colour passes of `faces`, in face order, so their instance slots, uploads and uniform writes
+    /// happen in the order a face-by-face recording made them. A face whose sky clouds need relighting records that
+    /// into `encoder` (only the first face can: every face shares the eye and the light).
+    fn prepare_cube_faces(
+        &mut self,
+        capture: &mut ReflectionCapture,
+        scene: &ReflectionScene<'_>,
+        faces: u8,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> Vec<(usize, PreparedView)> {
+        let kind = match scene.sun_shadows {
+            true => CaptureKind::LitCube,
+            false => CaptureKind::Cube,
+        };
+        let mut prepared = Vec::with_capacity(faces.count_ones() as usize);
+        for face in (0..6usize).filter(|&face| (faces >> face) & 1 != 0) {
+            let _trace = blackbox_trace::scope("Renderer CPU: prepare reflection face");
+            let frame = face_frame(scene.origin, face, &scene.frame);
+            capture.views[face].kind = kind;
+            // Retain the actual depth of the faces drawn. Colour storage flips vertically; depth addressing applies
+            // that flip explicitly in the local-probe shader.
+            if let SceneTargets::Offscreen(targets) = &mut capture.scene {
+                targets.depth_view = capture.depth_faces[face].clone();
+            }
+            let output = capture.scene.offscreen().expect("capture is offscreen").color_view.clone();
+            let view = self.prepare_view(
+                encoder,
+                (Some(&capture.scene), &output),
+                &frame,
+                scene.faces[face],
+                false,
+                Some(&mut capture.views[face]),
+                Some(&mut capture.lists[face]),
+            );
+            prepared.push((face, view));
+        }
+        prepared
     }
 }
