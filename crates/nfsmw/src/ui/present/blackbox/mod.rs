@@ -226,11 +226,7 @@ impl BlackboxPresenter {
         let (id, aspect) = match self.raster.get(text, font_key) {
             Some(entry) => entry,
             None => {
-                let rendered = match face.mono {
-                    true => raster_text::render_mono(text, face.look),
-                    false => raster_text::render(text, face.look),
-                };
-                let Some(image) = rendered else { return };
+                let Some(image) = raster_text::render(text, face) else { return };
                 let aspect = image.width as f32 / image.height as f32;
                 let id = self.raster.insert(text, font_key, aspect, &mut out.freed);
                 send(id, image, out);

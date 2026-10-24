@@ -63,37 +63,53 @@ pub const TIMER: Look = Look { widen: 1.2, weight: 0.45, tracking: 0.02, bold: 2
 /// The menus' title: spaced, and bold.
 pub const MENU_TITLE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.2, bold: 4 };
 
+/// The font a face draws in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// The egui proportional font.
+    Egui,
+    /// The egui monospace font, the one the FPS overlay draws in.
+    EguiMono,
+}
+
 /// How a font key is drawn.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Face {
     pub look: Look,
-    /// The egui monospace font instead of the proportional one.
-    pub mono: bool,
+    pub source: Source,
     /// Drawn upright; the Remastered cluster's text leans.
     pub upright: bool,
 }
 
 /// The face a skin font key names, or `None` for a key that is not rasterised text (a FEng font hash).
 pub fn face(key: u32) -> Option<Face> {
-    let (look, mono, upright) = match key {
-        RASTER_FONT_KEY => (REMASTERED, false, false),
-        RASTER_NUMBER_FONT_KEY => (NUMBERS, false, false),
-        RASTER_UPRIGHT_FONT_KEY => (PLAIN, false, true),
-        RASTER_MONO_FONT_KEY => (PLAIN, true, true),
-        RASTER_MENU_FONT_KEY => (MENU, false, true),
-        RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, false, true),
-        RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, false, true),
-        RASTER_TIMER_FONT_KEY => (TIMER, false, true),
+    let (look, source, upright) = match key {
+        RASTER_FONT_KEY => (REMASTERED, Source::Egui, false),
+        RASTER_NUMBER_FONT_KEY => (NUMBERS, Source::Egui, false),
+        RASTER_UPRIGHT_FONT_KEY => (PLAIN, Source::Egui, true),
+        RASTER_MONO_FONT_KEY => (PLAIN, Source::EguiMono, true),
+        RASTER_MENU_FONT_KEY => (MENU, Source::Egui, true),
+        RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, Source::Egui, true),
+        RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, Source::Egui, true),
+        RASTER_TIMER_FONT_KEY => (TIMER, Source::Egui, true),
         _ => return None,
     };
-    Some(Face { look, mono, upright })
+    Some(Face { look, source, upright })
+}
+
+/// The font `source` names, or `None` when it does not load.
+fn source_font(source: Source) -> Option<&'static FontArc> {
+    match source {
+        Source::Egui => font(),
+        Source::EguiMono => mono_font(),
+    }
 }
 
 /// The width of a string drawn in the face `key` at text scale `scale`, in FEng units, as the presenter draws it. `None`
 /// for a key that is not rasterised text, or when the font does not load.
 pub fn width_units(key: u32, text: &str, scale: f32) -> Option<f32> {
     let face = face(key)?;
-    let font = if face.mono { mono_font()? } else { font()? };
+    let font = source_font(face.source)?;
     let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
     let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0);
     let width = advance(font, text, face.look).ceil().max(1.0) * face.look.widen;
@@ -200,20 +216,15 @@ pub fn render_fallback(text: &str) -> Option<Image> {
     Some(Image { width, height, rgba, blend: 1 })
 }
 
-/// The string as a white image, in the proportional font. See [`render_with`].
-pub fn render(text: &str, look: Look) -> Option<Image> {
-    render_with(text, look, false)
+/// The string as a white image, in the font and look of `face`, or `None` when the font does not load. See
+/// [`render_with`].
+pub fn render(text: &str, face: Face) -> Option<Image> {
+    Some(render_with(text, face.look, source_font(face.source)?))
 }
 
-/// The string as a white image, in the monospace font the FPS overlay uses.
-pub fn render_mono(text: &str, look: Look) -> Option<Image> {
-    render_with(text, look, true)
-}
-
-/// The string as a white image with its coverage in the alpha channel, `RASTER_HEIGHT_PX` tall, drawn as `look` says.
-/// `None` when the font does not load or the string is empty.
-fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
-    let font = if mono { mono_font()? } else { font()? };
+/// The string as a white image with its coverage in the alpha channel, `RASTER_HEIGHT_PX` tall, drawn in `font` as
+/// `look` says.
+fn render_with(text: &str, look: Look, font: &FontArc) -> Image {
     let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
     let ascent = scaled.ascent();
     let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0) as u32;
@@ -243,7 +254,7 @@ fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
         });
     }
     embolden(&mut rgba, width as usize, height as usize, look.bold as usize);
-    Some(stretch(Image { width, height, rgba, blend: 1 }, look.widen))
+    stretch(Image { width, height, rgba, blend: 1 }, look.widen)
 }
 
 /// Thickens every stroke by `radius` pixels in all directions: each pixel takes the largest coverage within the radius.
