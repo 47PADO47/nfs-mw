@@ -33,8 +33,9 @@ pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
 pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
-/// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere.
-const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
+/// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere. It sits inside the
+/// pursuit board's group.
+pub(super) const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
 /// The cool-down bar's "HIDING" text group and its car icon. They sit under the cool-down group and rest at zero
 /// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
 /// (`0x5c2a4f20`) answers no message in the package and stays at rest.
