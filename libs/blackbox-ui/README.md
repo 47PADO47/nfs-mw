@@ -201,6 +201,14 @@ visibility conventions belong to the producer. The FEng producer uses `visible &
 Group nor Other`. Entries in `draw_order` run farthest first (largest `z`), and the sort is stable, so later
 nodes draw on top of earlier ones at the same depth.
 
+## Notifications
+
+`notify::NotifyQueue<K, P>` is a small queue of HUD notices, generic over the host's key `K` and payload `P`. Each
+notice has a priority (`Critical`, `High`, `Medium`, `Low`, `Background`), a duration and a dedupe window. At most
+three are visible. Critical and High evict the least urgent visible notice when there is no room; Low and Background
+wait while the host says the game is intense; a repeat of a key within its window refreshes the visible notice's expiry
+without restarting it (its `started` time stays); `dismiss` takes a key away. The rules are in `src/notify.rs`.
+
 ## Dependencies
 
 `glam` (for the `Mat4`, `Quat` and `Vec3` fields of the draw tree) and `thiserror` (for `ThemeError`). No
