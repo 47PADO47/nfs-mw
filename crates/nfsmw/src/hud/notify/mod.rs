@@ -19,6 +19,8 @@ mod feedback_tests;
 mod output;
 mod signals;
 #[cfg(test)]
+mod scenario_tests;
+#[cfg(test)]
 mod tests;
 mod view;
 
