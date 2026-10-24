@@ -139,6 +139,24 @@ fn original_hud_layer_is_the_hud_tree_node_for_node() {
     assert_same(&hud_layer(&themes, 0.0), &expected_hud());
 }
 
+/// The HUD plugin presents the cell's HUD tree itself under the Original theme (`hud/plugin.rs`), so the composed layer
+/// must be that tree apart from the `parent` links, which nothing draws from.
+#[test]
+fn original_hud_layer_is_the_source_tree_but_for_parent_links() {
+    let themes = UiThemes::build();
+    themes.frame().set(FengSource::Hud, synthetic_hud());
+    let composed = hud_layer(&themes, 0.0);
+    let source = themes.frame().get(FengSource::Hud).expect("the HUD tree was stored");
+    assert_eq!(composed.draw_order, source.draw_order, "draw order");
+    assert_eq!(composed.nodes.len(), source.nodes.len(), "node count");
+    for (at, (a, e)) in composed.nodes.iter().zip(&source.nodes).enumerate() {
+        let (mut a, mut e) = (a.clone(), e.clone());
+        a.parent = None;
+        e.parent = None;
+        assert_eq!(format!("{a:?}"), format!("{e:?}"), "node at {at}");
+    }
+}
+
 #[test]
 fn the_hud_slots_claim_each_node_at_most_once() {
     let counts = super::original::claim_counts(&synthetic_hud());
