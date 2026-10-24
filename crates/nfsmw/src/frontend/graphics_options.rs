@@ -2,9 +2,10 @@
 
 use blackbox_gfx::Capabilities;
 
-use super::options::{Data, Title};
-use crate::settings::reflection_extra::{content_label, cycle, distance_label, lod_label, step_brightness};
-use crate::settings::reflection_res::{cube_menu_label, size_label, step_cube, step_size, step_tint, tint_label};
+#[cfg(test)]
+use super::options::Data;
+use crate::settings::reflection_extra::{cycle, step_brightness};
+use crate::settings::reflection_res::{step_cube, step_size, step_tint};
 use crate::settings::{
     AoQuality, CarShading, GraphicsPreset, Partial, Percent, ReflectionQuality, Settings, VisualTreatment,
 };
@@ -145,160 +146,6 @@ impl GraphicsSetting {
             | Self::TextureFiltering
             | Self::FeShadows => true,
         }
-    }
-
-    pub fn title(self) -> Title {
-        Title::Text(match self {
-            Self::Hdr => "HDR Output (Auto / On / Off)",
-            Self::Style => "Visual Style",
-            Self::Quality => "Overall Quality",
-            Self::ShadowPreset => "Shadow Quality",
-            Self::ReflectionPreset => "Reflection Quality",
-            Self::Preset => "Graphics Preset",
-            Self::CarShading => "Car Shading",
-            Self::WorldDetail => "World Level of Detail",
-            Self::CarGeometry => "Car Geometry Detail",
-            Self::VisualTreatment => "Visual Treatment (Experimental)",
-            Self::Reflections => "Car Reflections",
-            Self::RoadReflections => "Road Reflection Detail",
-            Self::TextureFiltering => "Texture Filtering",
-            Self::Shadows => "Enhanced Sun Shadows",
-            Self::ShadowResolution => "Sun Shadow Base Resolution",
-            Self::ShadowDistance => "Sun Shadow Distance",
-            Self::ShadowCasters => "Sun Shadow Caster Detail",
-            Self::CubeSize => "Car Cubemap Resolution (Per Face)",
-            Self::Pow2 => "Power-of-Two Cube Size",
-            Self::VehicleBrightness => "Vehicle Reflection Brightness",
-            Self::ReflectionDetail => "Reflection Detail",
-            Self::ReflectionContent => "Reflection Content",
-            Self::ReflectionDistance => "Reflection Distance",
-            Self::MirrorSize => "Mirror Reflection Size",
-            Self::MirrorTint => "Mirror Tint",
-            Self::FeShadows => "Front-End Shadows",
-            Self::AmbientOcclusion => "Ambient Occlusion",
-            Self::AoIntensity => "AO Intensity",
-            Self::AoComparison => "AO Comparison",
-        })
-    }
-
-    pub fn data(self, s: &Settings) -> Data {
-        if let Some(data) = super::feature_presets::data(self, s) {
-            return data;
-        }
-        if self == Self::TextureFiltering {
-            return Data::Text(s.texture_filtering.label().into());
-        }
-        if self == Self::VisualTreatment
-            && let Some(strength) = s.appearance.treatment_strength
-        {
-            return Data::Text(format!("Custom ({:.0}%)", strength * 100.0));
-        }
-        if self == Self::AoIntensity {
-            return Data::Text(format!("{}%", s.ao_intensity.0));
-        }
-        if self == Self::CubeSize {
-            return Data::Text(cube_menu_label(s));
-        }
-        if self == Self::MirrorSize {
-            return Data::Text(size_label(s.reflection_mirror_size));
-        }
-        if self == Self::VehicleBrightness {
-            return Data::Text(s.reflection_extra.brightness.to_string());
-        }
-        if self == Self::ReflectionDistance {
-            return Data::Text(distance_label(s.reflection_extra.distance));
-        }
-        if self == Self::ShadowResolution {
-            return Data::Text(format!(
-                "{} × {}",
-                s.appearance.lighting.shadow_resolution, s.appearance.lighting.shadow_resolution
-            ));
-        }
-        if self == Self::ShadowDistance {
-            let lighting = s.appearance.lighting;
-            return Data::Text(format!(
-                "{:.0} m{}",
-                lighting.shadow_distance,
-                match lighting.far_shadows {
-                    true => " (+ distant coverage)",
-                    false => "",
-                }
-            ));
-        }
-        if self == Self::ShadowCasters {
-            let radius = s.appearance.lighting.shadow_caster_min_radius;
-            return Data::Text(match radius {
-                r if r <= 0.0 => "All scenery".into(),
-                r => format!("Scenery radius ≥ {r:.1} m"),
-            });
-        }
-        Data::Text(
-            match self {
-                Self::Hdr => match s.appearance.display.mode {
-                    crate::settings::appearance::display::DisplayMode::Off => "Off",
-                    crate::settings::appearance::display::DisplayMode::Auto => "Auto",
-                    crate::settings::appearance::display::DisplayMode::On => "On",
-                },
-                Self::ShadowPreset | Self::ReflectionPreset => unreachable!("feature preset handled above"),
-                Self::Style => s.visual_style().label(),
-                Self::Quality => s.overall_quality().map_or("Custom", |q| q.label()),
-                Self::Preset => match s.graphics_preset {
-                    GraphicsPreset::Custom => "Custom",
-                    GraphicsPreset::Low => "Low",
-                    GraphicsPreset::Medium => "Medium",
-                    GraphicsPreset::High => "High",
-                    GraphicsPreset::Ultra => "Ultra",
-                },
-                Self::VisualTreatment => match s.visual_treatment {
-                    VisualTreatment::Off => "Off",
-                    VisualTreatment::Low => "Subtle",
-                    VisualTreatment::High => "Original",
-                    VisualTreatment::Reference => "Reference (mod)",
-                },
-                Self::Reflections => match s.reflections {
-                    ReflectionQuality::Off => "Static Sky",
-                    ReflectionQuality::Low => "Low",
-                    ReflectionQuality::Medium => "Medium",
-                    ReflectionQuality::High => "High",
-                },
-                Self::CubeSize | Self::MirrorSize | Self::VehicleBrightness => unreachable!("labelled above"),
-                Self::Pow2 => match s.reflection_pow2 {
-                    true => "On",
-                    false => "Off",
-                },
-                Self::MirrorTint => tint_label(s.mirror_tint),
-                Self::ReflectionDetail => lod_label(s.reflection_extra.lod),
-                Self::ReflectionContent => content_label(s.reflection_extra.content),
-                Self::ReflectionDistance => unreachable!("labelled above"),
-                Self::ShadowResolution | Self::ShadowDistance | Self::ShadowCasters => unreachable!("labelled above"),
-                Self::CarShading => s.car_shading.label(),
-                Self::WorldDetail => s.detail.world.label(),
-                Self::CarGeometry => s.detail.car.label(),
-                Self::RoadReflections => s.road_reflections.label(),
-                Self::Shadows => match (s.appearance.lighting.sun_shadows, s.appearance.lighting.shadow_resolution) {
-                    (false, _) => "Off",
-                    (true, 0..=1024) => "Low",
-                    (true, 1025..=2048) => "Medium",
-                    (true, _) => "High",
-                },
-                Self::FeShadows => match s.fe_shadows.enabled {
-                    true => "On",
-                    false => "Off",
-                },
-                Self::AmbientOcclusion => match s.ao {
-                    AoQuality::Off => "Off",
-                    AoQuality::Low => "Low",
-                    AoQuality::Medium => "Medium",
-                    AoQuality::High => "High",
-                },
-                Self::AoComparison => match s.ao_compare {
-                    true => "Split Screen",
-                    false => "Off",
-                },
-                Self::AoIntensity | Self::TextureFiltering => unreachable!("special value handled above"),
-            }
-            .to_owned(),
-        )
     }
 
     /// Moves to the next (or previous) value, wrapping, and records the change for the config file.
@@ -478,6 +325,10 @@ impl GraphicsSetting {
         before != *s
     }
 }
+
+#[path = "graphics_options_data.rs"]
+mod data;
+pub(super) use data::filtering_name;
 
 #[cfg(test)]
 #[path = "graphics_options_tests.rs"]

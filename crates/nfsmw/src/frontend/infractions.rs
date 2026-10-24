@@ -7,6 +7,7 @@
 
 use blackbox_feng::ids::{PAD_LEFT, PAD_RIGHT};
 use blackbox_pursuit::Infraction;
+use blackbox_text::label_hash;
 use nfsmw_career::economy::fine_of_counters;
 use nfsmw_career::economy::markers::MarkerKind;
 
@@ -14,6 +15,7 @@ use super::disabled;
 use super::ids::INIT_COMPLETE;
 use super::logic::{Command, Cx, ScreenLogic};
 use crate::career::Career;
+use crate::i18n::{self, fmt::grouped};
 
 /// Objects of `Infractions.fng` by name hash (its dump, `nfsmw dump-screen`). The ticket's values: this chase's infraction
 /// count and fines, the unserved count and fines (0 outside career mode), and the total due.
@@ -33,6 +35,10 @@ const MARKER_HOLDER: u32 = 0x000f_70e8;
 // pad's left and right moves (`PAD_LEFT`, `PAD_RIGHT`). The press is the button's own `BUTTON_PRESSED` (the original
 // handler tells the buttons apart by their name hashes `0xb8a7c6cc` for Marker and `0xb8a7c6cd` for Cash, which belong
 // to the holders above), so the logic listens for it through `ScreenLogic::pressed`.
+
+/// The language labels of the violation line's header (`MW_VIOLATION_HEADER`) and of no offence (`COMMON_NONE`).
+const VIOLATION_HEADER: u32 = 0xD3B0_5B5F;
+const NONE: u32 = 0x8CDC_3937;
 
 /// The chase's bill: each infraction with its fine (in HUD order) and the markers the player has. In career mode it also
 /// carries the car's unserved infractions and their fines, and the cash; outside career mode those read 0 and `None`.
@@ -84,41 +90,42 @@ impl Ticket {
         }
     }
 
-    /// The line on the ticket that names the offences: "Violation: Speeding, Racing", or "Violation: none".
+    /// The line on the ticket that names the offences after the "Violation:" header, or says none, in the language's
+    /// own words.
     fn violation_text(&self) -> String {
-        if self.lines.is_empty() {
-            return "Violation: none".to_owned();
-        }
-        let names: Vec<&str> = self.lines.iter().map(|(infraction, _)| label(*infraction)).collect();
-        format!("Violation: {}", names.join(", "))
+        let header = i18n::game_or_error(VIOLATION_HEADER);
+        let names: Vec<String> = self.lines.iter().map(|(offence, _)| i18n::game_or_error(label(*offence))).collect();
+        violation_line(&header, &names, &i18n::game_or_error(NONE))
     }
 }
 
-/// The infraction's name on the ticket.
-pub fn label(infraction: Infraction) -> &'static str {
-    match infraction {
-        Infraction::Speeding => "Speeding",
-        Infraction::Racing => "Racing",
-        Infraction::RecklessDriving => "Reckless driving",
-        Infraction::Assault => "Assault on police",
-        Infraction::HitAndRun => "Hit and run",
-        Infraction::DamageToProperty => "Damage to property",
-        Infraction::ResistingArrest => "Resisting arrest",
-        Infraction::OffRoad => "Off road",
+/// The header followed by the offences, comma separated, or by `none` when there is no offence.
+fn violation_line(header: &str, names: &[String], none: &str) -> String {
+    if names.is_empty() {
+        return format!("{header} {none}");
     }
+    format!("{header} {}", names.join(", "))
 }
 
-/// An amount with a comma every three digits, as the ticket shows it ("20,000").
-pub fn money(amount: u32) -> String {
-    let digits = amount.to_string();
-    let mut text = String::with_capacity(digits.len() + digits.len() / 3);
-    for (i, digit) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            text.push(',');
-        }
-        text.push(digit);
-    }
-    text
+/// The language label of the infraction's name, the pursuit HUD's and the busted screens' `INFRACTION_*`
+/// (`docs/specs/career-text.md` section 6.3; mask `0x01` is `INFRACTION_SPEEDING`, mask `0x02` `INFRACTION_RACING`).
+pub fn label(infraction: Infraction) -> u32 {
+    let key = match infraction {
+        Infraction::Speeding => "INFRACTION_SPEEDING",
+        Infraction::Racing => "INFRACTION_RACING",
+        Infraction::RecklessDriving => "INFRACTION_RECKLESS_DRIVING",
+        Infraction::Assault => "INFRACTION_ASSULTING_OFFICER",
+        Infraction::HitAndRun => "INFRACTION_HITNRUN",
+        Infraction::DamageToProperty => "INFRACTION_PROPERTY_DAMAGE",
+        Infraction::ResistingArrest => "INFRACTION_RESISTING_ARREST",
+        Infraction::OffRoad => "INFRACTION_OFFROAD",
+    };
+    label_hash(key)
+}
+
+/// An amount as the ticket shows it, grouped by thousands ("20,000" in English).
+fn amount(value: u32) -> String {
+    grouped(i64::from(value))
 }
 
 /// Shows a [`Ticket`] and answers the payment buttons.
@@ -133,13 +140,13 @@ impl InfractionsLogic {
 
     fn fill(&self, cx: &mut Cx) {
         let count = self.ticket.lines.len().to_string();
-        let fines = money(self.ticket.fines());
+        let fines = amount(self.ticket.fines());
         set_text(cx, VIOLATION, &self.ticket.violation_text());
         set_text(cx, PURSUIT_COUNT, &count);
         set_text(cx, PURSUIT_FINES, &fines);
         set_text(cx, UNSERVED_COUNT, &self.ticket.unserved_count.to_string());
-        set_text(cx, UNSERVED_FINES, &money(self.ticket.unserved_fines));
-        set_text(cx, TOTAL, &money(self.ticket.total_due()));
+        set_text(cx, UNSERVED_FINES, &amount(self.ticket.unserved_fines));
+        set_text(cx, TOTAL, &amount(self.ticket.total_due()));
     }
 
     /// Moves the focus to Marker, when the player has one.
@@ -213,12 +220,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn money_has_a_comma_every_three_digits() {
-        assert_eq!(money(0), "0");
-        assert_eq!(money(999), "999");
-        assert_eq!(money(1000), "1,000");
-        assert_eq!(money(80_000), "80,000");
-        assert_eq!(money(1_234_567), "1,234,567");
+    fn amounts_have_a_comma_every_three_digits() {
+        assert_eq!(amount(0), "0");
+        assert_eq!(amount(999), "999");
+        assert_eq!(amount(1000), "1,000");
+        assert_eq!(amount(80_000), "80,000");
+        assert_eq!(amount(1_234_567), "1,234,567");
     }
 
     #[test]
@@ -226,7 +233,8 @@ mod tests {
         let lines = vec![(Infraction::Speeding, 150), (Infraction::OffRoad, 75)];
         let ticket = Ticket { lines, ..Ticket::default() };
         assert_eq!(ticket.fines(), 225);
-        assert_eq!(ticket.violation_text(), "Violation: Speeding, Off road");
+        let names = ["Fast".to_owned(), "Off the road".to_owned()];
+        assert_eq!(violation_line("Ticket:", &names, "-"), "Ticket: Fast, Off the road");
     }
 
     #[test]
@@ -243,13 +251,14 @@ mod tests {
     fn a_clean_ticket_names_no_offence() {
         let ticket = Ticket::default();
         assert_eq!(ticket.fines(), 0);
-        assert_eq!(ticket.violation_text(), "Violation: none");
+        assert_eq!(violation_line("Ticket:", &[], "nothing"), "Ticket: nothing");
     }
 
     #[test]
-    fn every_infraction_has_a_name() {
-        for infraction in Infraction::ALL {
-            assert!(!label(infraction).is_empty());
-        }
+    fn every_infraction_has_a_name_of_its_own() {
+        let labels: std::collections::HashSet<u32> = Infraction::ALL.into_iter().map(label).collect();
+        assert_eq!(labels.len(), Infraction::ALL.len());
+        assert_eq!(label(Infraction::Speeding), label_hash("INFRACTION_SPEEDING"));
+        assert_eq!(label(Infraction::OffRoad), label_hash("INFRACTION_OFFROAD"));
     }
 }

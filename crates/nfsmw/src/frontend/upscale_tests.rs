@@ -1,5 +1,5 @@
 use super::logic::Category;
-use super::options::{Control, Data, Setting, Title, rows};
+use super::options::{Control, Data, Setting, Title, rows, shown};
 use crate::settings::{Partial, Percent, RenderScale, Settings, UpscaleMode};
 
 fn defaults() -> Settings {
@@ -10,14 +10,14 @@ fn defaults() -> Settings {
 fn the_video_screen_groups_spatial_upscaling_after_the_profile_controls() {
     let rows = rows(Category::Video, &crate::settings::test_caps::native());
     let titles: Vec<_> = rows.iter().map(|r| r.title).collect();
-    let first = titles.iter().position(|t| *t == Title::Text("Render Scale")).expect("render scale row");
+    let first = titles.iter().position(|t| *t == Title::Key("options-render-scale")).expect("render scale row");
     assert_eq!(
         titles[first - 1..first + 3],
         [
-            Title::Text("Advanced Graphics"),
-            Title::Text("Render Scale"),
-            Title::Text("Upscaler"),
-            Title::Text("Sharpening")
+            Title::Key("options-advanced-graphics"),
+            Title::Key("options-render-scale"),
+            Title::Key("options-upscaler"),
+            Title::Key("options-sharpening")
         ],
         "resolution controls sit together before scene effects"
     );
@@ -57,7 +57,7 @@ fn the_upscaler_row_cycles_both_ways_and_records_only_itself() {
     assert_eq!(Setting::Upscaler.data(&s), Data::Text("FSR 1".into()));
     for name in ["FSR 3", "FSR 4", "DLSS", "Off", "Bilinear"] {
         Setting::Upscaler.step(&mut s, &mut c, true);
-        assert_eq!(Setting::Upscaler.data(&s), Data::Text(name.into()));
+        assert_eq!(Setting::Upscaler.data(&s), shown(name));
     }
     assert_eq!(s.upscaler, UpscaleMode::Bilinear, "right from the last wraps to the first");
     assert_eq!(c, Partial { upscaler: Some(UpscaleMode::Bilinear), ..Partial::default() });
@@ -79,7 +79,7 @@ fn sharpening_is_off_medium_or_high() {
     assert_eq!(Setting::UpscaleSharpness.data(&s), Data::Text("High".into()), "the default 80 reads High");
     for (name, percent) in [("Off", 0), ("Medium", 50), ("High", 80)] {
         assert!(Setting::UpscaleSharpness.step(&mut s, &mut c, true));
-        assert_eq!(Setting::UpscaleSharpness.data(&s), Data::Text(name.into()));
+        assert_eq!(Setting::UpscaleSharpness.data(&s), shown(name));
         assert_eq!(s.upscale_sharpness, Percent(percent));
     }
     assert_eq!(c.upscale_sharpness, Some(Percent(80)));

@@ -81,7 +81,7 @@ fn check(h: &Harness, part: Option<u32>, black: bool, count: usize) {
         true => 0x41f0_a3a5,
         false => 0x436a_98e9,
     };
-    assert_eq!(caption.text, Text::Game(label).resolve(h.screens.assets()));
+    assert_eq!(caption.text, Text::Game(label).resolve());
     let buttons: Vec<_> = tree.nodes.iter().filter(|node| node.name_hash == 0x889b_acb6 && is_button(node)).collect();
     assert!(!buttons.is_empty(), "the native offscreen Toggle Colour button shares the caption hash");
     for button in buttons {

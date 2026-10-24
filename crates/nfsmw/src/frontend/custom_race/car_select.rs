@@ -235,10 +235,10 @@ impl CarSelect {
     fn show_unlock(&self, cx: &mut Cx, entry: &Entry) {
         let sentence = match (entry.locked, entry.unlock) {
             (false, _) | (true, Unlock::None) => None,
-            (true, Unlock::Label(label)) => Text::Game(label).resolve(cx.assets),
+            (true, Unlock::Label(label)) => Text::Game(label).resolve(),
             (true, Unlock::Rival(member)) => {
-                let template = Text::Game(text::RIVAL_LABEL).resolve(cx.assets);
-                let alias = Text::Game(label_hash(&text::alias_key(member))).resolve(cx.assets);
+                let template = Text::Game(text::RIVAL_LABEL).resolve();
+                let alias = Text::Game(label_hash(&text::alias_key(member))).resolve();
                 template.zip(alias).map(|(template, alias)| text::fill_sentence(&template, &alias, member))
             }
         };

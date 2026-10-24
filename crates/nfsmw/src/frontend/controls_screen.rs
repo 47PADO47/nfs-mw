@@ -13,8 +13,9 @@ use crate::input::{Action, Bindings, Control};
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
 use super::logic::{Args, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
-use crate::ui::UiAssets;
+use crate::i18n::{self, t};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
+use crate::ui::{UiAssets, prompts};
 
 /// The control each row changes, from the top. Steering is one axis, so its two rows are its two directions.
 ///
@@ -31,9 +32,13 @@ pub const ROWS: [Control; ROW_COUNT] = [
     Control::button(Action::ShiftDown),
 ];
 
-/// The control each row's name is, in the game's words (the English originals were not read from the table).
-const LABELS: [&str; ROW_COUNT] =
-    ["Accelerate", "Brake / Reverse", "Steer Left", "Steer Right", "Handbrake", "Speedbreaker", "N2O", "Shift Down"];
+/// The game's name for each row's control (`GAME_ACTION_GAS`, `GAME_ACTION_BRAKE`, `GAME_ACTION_STEERLEFT`,
+/// `GAME_ACTION_STEERRIGHT`, `GAME_ACTION_HANDBRAKE`, `GAME_ACTION_GAMEBREAKER`, `N2O`, `GAME_ACTION_SHIFTDOWN`).
+/// `GAME_ACTION_NOS` is not used: its English text reads `N20`.
+const LABELS: [u32; ROW_COUNT] =
+    [0x90B4_1FD0, 0x8DE9_E91A, 0x9054_2A63, 0x9B48_3E56, 0xB771_2E95, 0x4B22_DF6B, 0x0000_C62E, 0xB39C_462B];
+/// The list's title, "Controls" (`OPT_CONTROLLER`).
+const TITLE: u32 = 0x04DC_6DB5;
 /// Shown in every key field until the screen gets the bindings (the original shows the key names there).
 const KEY_PLACEHOLDER: &str = "---";
 
@@ -101,25 +106,29 @@ fn step(from: Cell, message: u32) -> Option<Cell> {
     })
 }
 
-/// The name a key shows as on the list: the code's name without its `Key` prefix (`KeyW` is `W`, `Space` is `SPACE`), with
-/// the long ones shortened (`ArrowDown` is `DOWN`, `ControlLeft` is `L CTRL`) so they fit a key cap.
+/// The name a key shows as on the list, in capitals: the key's name (`KeyW` is `W`, `Space` is `SPACE`), with the long
+/// ones shortened (`ArrowDown` is `DOWN`, `ControlLeft` is `L CTRL`) so they fit a key cap.
 fn key_name(key: KeyCode) -> String {
-    let code = format!("{key:?}");
-    let name = code.strip_prefix("Key").unwrap_or(&code);
-    let name = match name.strip_prefix("Arrow") {
-        Some(arrow) => arrow.to_owned(),
-        None => name.to_owned(),
+    let id = match key {
+        KeyCode::ArrowUp => "keys-up",
+        KeyCode::ArrowDown => "keys-down",
+        KeyCode::ArrowLeft => "keys-left",
+        KeyCode::ArrowRight => "keys-right",
+        KeyCode::ControlLeft => "keys-short-control-left",
+        KeyCode::ControlRight => "keys-short-control-right",
+        KeyCode::ShiftLeft => "keys-short-shift-left",
+        KeyCode::ShiftRight => "keys-short-shift-right",
+        KeyCode::AltLeft => "keys-short-alt-left",
+        KeyCode::AltRight => "keys-short-alt-right",
+        _ => return prompts::key_word(key).to_uppercase(),
     };
-    for (long, short) in [("Control", "CTRL"), ("Shift", "SHIFT"), ("Alt", "ALT")] {
-        if let Some(side) = name.strip_prefix(long) {
-            return format!("{} {short}", &side.to_uppercase()[..1]);
-        }
-    }
-    name.to_uppercase()
+    i18n::text(id, &i18n::Args::new()).to_uppercase()
 }
 
 /// What a slot says while the next key pressed will be bound to it.
-const WAITING: &str = "PRESS KEY";
+fn waiting_text() -> String {
+    t!("keys-waiting").to_uppercase()
+}
 
 /// The key names of each row, primary then secondary, from the bindings. A slot with no key shows the placeholder, and the
 /// slot `waiting` for its key says so.
@@ -128,7 +137,7 @@ pub fn key_texts(bindings: &Bindings, waiting: Option<(Control, usize)>) -> Vec<
         .map(|control| {
             let keys = bindings.keyboard_keys(*control);
             let text = |slot: usize| match waiting {
-                Some((wanted, at)) if wanted == *control && at == slot => WAITING.to_owned(),
+                Some((wanted, at)) if wanted == *control && at == slot => waiting_text(),
                 _ => keys.get(slot).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |k| key_name(*k)),
             };
             [text(0), text(1)]
@@ -172,7 +181,7 @@ impl ScreenLogic for ControlsLogic {
         self.vertical = cx.vertical_look();
         let layout = self.layout;
         for (row, label) in LABELS.iter().enumerate() {
-            set_text(cx, layout.title[row], label);
+            set_text(cx, layout.title[row], &i18n::game_or_error(*label));
         }
         focus(cx, layout, Cell { row: 0, slot: 0 });
     }
@@ -205,7 +214,7 @@ impl ScreenLogic for ControlsLogic {
             .iter()
             .enumerate()
             .map(|(row, label)| MenuEntry {
-                label: (*label).to_owned(),
+                label: i18n::game_or_error(*label),
                 enabled: true,
                 value: MenuValue::Keys { primary: key(row, 0), secondary: key(row, 1), focus: Some(self.cell.slot) },
                 icon: None,
@@ -213,7 +222,7 @@ impl ScreenLogic for ControlsLogic {
             .collect();
         let style = if self.args.pause { MenuStyle::Pause } else { MenuStyle::Sub };
         Some(MenuList {
-            title: "Controls".into(),
+            title: i18n::game_or_error(TITLE),
             message: String::new(),
             entries,
             selected: self.cell.row,
@@ -323,12 +332,14 @@ mod tests {
         assert_eq!(key_name(KeyCode::ArrowDown), "DOWN");
         assert_eq!(key_name(KeyCode::ControlLeft), "L CTRL");
         assert_eq!(key_name(KeyCode::ShiftRight), "R SHIFT");
+        assert_eq!(key_name(KeyCode::Escape), "ESCAPE");
+        assert_eq!(key_name(KeyCode::Digit1), "1");
     }
 
     #[test]
     fn a_slot_waiting_for_its_key_says_so() {
         let texts = key_texts(&Bindings(Vec::new()), Some((ROWS[1], 1)));
-        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), WAITING.to_owned()]);
+        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), waiting_text()]);
         assert_eq!(texts[0][1], KEY_PLACEHOLDER, "the others are as they were");
     }
 

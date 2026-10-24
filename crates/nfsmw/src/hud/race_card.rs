@@ -3,6 +3,9 @@
 
 use egui::{Align2, Color32, RichText};
 
+use crate::i18n::fmt::ordinal;
+use crate::i18n::t;
+
 /// What the race card keeps over the frame: the points of a speed-trap race (the HUD package has no object for them).
 #[derive(Debug, Clone, PartialEq)]
 pub struct RaceCard {
@@ -20,31 +23,19 @@ pub struct ResultCard {
     pub challenge: bool,
 }
 
-/// `1st`, `2nd`, `3rd`, `4th` ... `11th`, `12th`, `21st`.
-pub fn ordinal(n: u32) -> String {
-    let suffix = match (n % 100, n % 10) {
-        (11..=13, _) => "th",
-        (_, 1) => "st",
-        (_, 2) => "nd",
-        (_, 3) => "rd",
-        _ => "th",
-    };
-    format!("{n}{suffix}")
-}
-
 impl ResultCard {
     /// The heading: the place, or that the race was lost without a finish.
     pub fn title(&self) -> String {
         if self.challenge {
             return match self.time {
-                Some(_) => "Challenge complete".to_owned(),
-                None => "Challenge failed".to_owned(),
+                Some(_) => t!("hud-result-challenge-complete"),
+                None => t!("hud-result-challenge-failed"),
             };
         }
         match (self.time, self.place) {
-            (Some(_), 1) => "You won".to_owned(),
-            (Some(_), place) => format!("You finished {}", ordinal(place)),
-            (None, _) => "Race lost".to_owned(),
+            (Some(_), 1) => t!("hud-result-won"),
+            (Some(_), place) => t!("hud-result-placed", place = ordinal(place)),
+            (None, _) => t!("hud-result-lost"),
         }
     }
 }
@@ -60,7 +51,8 @@ pub fn show(ctx: &egui::Context, card: &RaceCard) {
                 .corner_radius(6.0)
                 .inner_margin(egui::Margin::same(10))
                 .show(ui, |ui| {
-                    ui.label(RichText::new(format!("Speed {points:.0}")).size(18.0).color(Color32::WHITE));
+                    let text = t!("hud-race-points", points = format!("{points:.0}"));
+                    ui.label(RichText::new(text).size(18.0).color(Color32::WHITE));
                 });
         },
     );

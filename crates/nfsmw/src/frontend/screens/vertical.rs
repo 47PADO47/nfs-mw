@@ -19,7 +19,7 @@ impl Screens {
         let mut list = screen.logic.list(&self.assets)?;
         list.hints = crate::frontend::prompts::hint_set(&screen.name, screen.logic.footer(), bindings, device)
             .into_iter()
-            .map(|(keys, label, action)| MenuHint { keys, label, action })
+            .map(|(keys, label, action)| MenuHint { keys, label: label.text(), action })
             .collect();
         list.aspect = self.aspect;
         Some(list)

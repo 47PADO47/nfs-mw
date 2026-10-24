@@ -79,7 +79,7 @@ pub use blip_styles::{
 };
 pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
-pub use leaders::{Entry as LeaderEntry, LeaderRow, Leaders};
+pub use leaders::{Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_MPH, LeaderRow, Leaders, game_word};
 pub use map_source::MapSource;
 #[cfg(test)]
 pub use message::current as current_mod_message;

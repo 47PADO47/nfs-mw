@@ -166,8 +166,8 @@ fn installed_garage_cart_localizes_stock_vinyl_and_binds_native_check_images() {
     let assets = h.screens.assets();
     let expected = format!(
         "{}: {}",
-        crate::ui::Text::Game(0xbfa5_2c55).resolve(assets).unwrap(),
-        crate::ui::Text::Game(0x60a6_62f5).resolve(assets).unwrap()
+        crate::ui::Text::Game(0xbfa5_2c55).resolve().unwrap(),
+        crate::ui::Text::Game(0x60a6_62f5).resolve().unwrap()
     );
     assert_eq!(name.text.as_deref(), Some(expected.as_str()));
     let check = |tree: &UiTree| {
@@ -192,14 +192,14 @@ fn installed_garage_choice_captions_use_language_labels_and_preserve_mod_fallbac
     let mut h = Harness::open(Page::Choices { row: Row::Part(Part::Hood), backroom: false }, model.clone());
     let caption =
         |h: &Harness, hash| shown(h).nodes.iter().find(|node| node.name_hash == hash).unwrap().text.clone().unwrap();
-    let stock = crate::ui::Text::Game(0x60a6_62f5).resolve(h.screens.assets()).unwrap();
+    let stock = crate::ui::Text::Game(0x60a6_62f5).resolve().unwrap();
     assert_eq!(caption(&h, 0x5e7b_09c9), stock);
     assert!(
         shown(&h).nodes.iter().all(|node| node.name_hash != 0x0dfb_7a2e),
         "the native PC parts package has one caption, without the Manager's separate shadow"
     );
     h.press(pad::RIGHT);
-    let localized = crate::ui::Text::Game(0x6134_c218).resolve(h.screens.assets()).unwrap();
+    let localized = crate::ui::Text::Game(0x6134_c218).resolve().unwrap();
     assert_eq!(caption(&h, 0x5e7b_09c9), localized);
     h.run(0, 60);
     assert_eq!(caption(&h, 0x5e7b_09c9), localized, "detail refresh must not restore a diagnostic caption");
@@ -252,13 +252,13 @@ fn installed_garage_decal_labels_follow_direct_location_routes_and_body_filtered
     let mut h = Harness::open(Page::DecalZones { backroom: false }, model);
     let caption =
         |h: &Harness| shown(h).nodes.iter().find(|node| node.name_hash == 0x5e7b_09c9).unwrap().text.clone().unwrap();
-    let windshield = crate::ui::Text::Game(0x301d_edd3).resolve(h.screens.assets()).unwrap();
+    let windshield = crate::ui::Text::Game(0x301d_edd3).resolve().unwrap();
     assert_eq!(caption(&h), windshield, "a direct texture-choice route still shows its location name");
     h.press(pad::ACCEPT);
     assert_eq!(h.top(), "Decals.fng", "single non-door positions bypass the slot selector");
     h.press(pad::RIGHT);
     assert_eq!(h.model.draft.parts.decals[0][0], Some(902));
-    let selected = crate::ui::Text::Game(0x055d_a70c).resolve(h.screens.assets()).unwrap();
+    let selected = crate::ui::Text::Game(0x055d_a70c).resolve().unwrap();
     assert_eq!(caption(&h), selected, "the caption must describe the body-compatible selected part");
 }
 

@@ -7,9 +7,9 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_BACK};
 use nfsmw_career::rapsheet::{Page, RapTotals, highlight_button, main_button_page};
 
 use super::open;
+use super::pages::common::{label_value, number};
 use crate::career::CareerHandle;
 use crate::frontend::ids::{EXIT_COMPLETE, INIT_COMPLETE};
-use crate::frontend::infractions::money;
 use crate::frontend::logic::{Cx, ScreenLogic};
 
 /// The six page buttons, `BUTTON_1` to `BUTTON_6` (`fe_hash_upper`), in number order.
@@ -41,21 +41,20 @@ pub fn serial_text(serial: &[u8; 16]) -> String {
     String::from_utf8_lossy(&serial[..end]).into_owned()
 }
 
-/// The text of each header and figure object. The wording of the labels other than the case file, the name and the
-/// bounty is taken from the label keys (`RAP_TOTAL_*`, `RAP_CARS_MONITORED`) and is not checked against the install.
+/// The text of each header and figure object: the language strings of the original (`RAP_CASE_FILE`,
+/// `RAP_PLAYER_NAME`, `RAP_TOTAL_*`, `RAP_CARS_MONITORED`, `docs/specs/career-rapsheet.md` section 3) with the value in
+/// them, or the value alone when the table lacks a string.
 pub fn figures(totals: &RapTotals, serial: &str, name: &str) -> Vec<(u32, String)> {
-    let bounty = u32::try_from(totals.bounty).unwrap_or(u32::MAX);
-    let fines_due = u32::try_from(totals.fines_due).unwrap_or(u32::MAX);
     vec![
-        (CASE_FILE, format!("CASE FILE: {serial}")),
-        (PLAYER_NAME, format!("NAME: {name}")),
-        (TOTAL_BOUNTY, format!("BOUNTY: {}", money(bounty))),
-        (TOTAL_COST_STATE, format!("COST TO STATE: {}", money(totals.cost_to_state))),
-        (TOTAL_CARS_IMPOUNDED, format!("CARS IMPOUNDED: {}", totals.cars_impounded)),
-        (TOTAL_FINES_DUE, format!("FINES DUE: {}", money(fines_due))),
-        (TOTAL_EVADED, format!("TIMES EVADED: {}", totals.times_evaded)),
-        (TOTAL_BUSTED, format!("TIMES BUSTED: {}", totals.times_busted)),
-        (CARS_MONITORED, format!("CARS MONITORED: {}", totals.cars_monitored)),
+        (CASE_FILE, label_value("RAP_CASE_FILE", serial)),
+        (PLAYER_NAME, label_value("RAP_PLAYER_NAME", name)),
+        (TOTAL_BOUNTY, label_value("RAP_TOTAL_BOUNTY", &number(totals.bounty))),
+        (TOTAL_COST_STATE, label_value("RAP_TOTAL_COST_STATE", &number(u64::from(totals.cost_to_state)))),
+        (TOTAL_CARS_IMPOUNDED, label_value("RAP_TOTAL_CARS_IMPOUNDED", &number(totals.cars_impounded as u64))),
+        (TOTAL_FINES_DUE, label_value("RAP_TOTAL_FINES_DUE", &number(totals.fines_due))),
+        (TOTAL_EVADED, label_value("RAP_TOTAL_EVADED_PURSUITS", &number(u64::from(totals.times_evaded)))),
+        (TOTAL_BUSTED, label_value("RAP_TOTAL_BUSTED_PURSUITS", &number(u64::from(totals.times_busted)))),
+        (CARS_MONITORED, label_value("RAP_CARS_MONITORED", &number(totals.cars_monitored as u64))),
     ]
 }
 

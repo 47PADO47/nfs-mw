@@ -67,7 +67,7 @@ impl Cart {
                 cx.rt.set_hidden(object, !visible);
                 if visible {
                     let row = self.rows[base + index];
-                    cx.rt.set_text(object, names::label(cx.assets, row, &state.model, &state.cart));
+                    cx.rt.set_text(object, names::label(row, &state.model, &state.cart));
                     cx.rt.set_position_xy(object, title.0 + 30.0, y);
                     chrome::focus(cx, object, base + index == self.picked);
                     if !rows::active(&state.model, &state.cart, row) {
@@ -88,7 +88,7 @@ impl Cart {
                     });
                     let text = value
                         .filter(|_| field == 0 || matches!(self.rows.get(base + index), Some(Row::Part(part)) if nfsmw_data::car::customization::Category::MODELS.contains(part)))
-                        .map(crate::frontend::infractions::money)
+                        .map(|cost| crate::i18n::fmt::grouped(i64::from(cost)))
                         .unwrap_or_default();
                     cx.rt.set_text(object, text);
                 }

@@ -4,7 +4,7 @@
 //! each page reads the career, fills its objects and answers its keys. Values that pass between pages live in the
 //! screen memory (see `common`).
 
-mod common;
+pub(super) mod common;
 mod cost;
 mod infractions;
 mod pursuit_detail;

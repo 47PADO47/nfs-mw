@@ -149,14 +149,14 @@ pub fn delete(id: u32) {
     CareerHandle::shared().with(|career| delete_message(&mut career.settings.sms, id));
 }
 
-/// The language table's text for `label`, or the label itself in brackets when the table has no such label.
-fn lookup(cx: &Cx, label: &str) -> String {
-    Text::Game(label_hash(label)).resolve(cx.assets).unwrap_or_else(|| format!("[{label}]"))
+/// The language table's text for `label`, or the original's default-string error text when no language has it.
+fn lookup(label: &str) -> String {
+    Text::Game(label_hash(label)).show()
 }
 
 /// The row's caption: the sender and the subject of message `id`.
-fn row_caption(cx: &Cx, id: u32) -> String {
-    format!("{}: {}", lookup(cx, &from_label_for(id)), lookup(cx, &subject_label_for(id)))
+fn row_caption(id: u32) -> String {
+    format!("{}: {}", lookup(&from_label_for(id)), lookup(&subject_label_for(id)))
 }
 
 fn show_object(cx: &mut Cx, guid: u32, shown: bool) {
@@ -178,7 +178,7 @@ fn show_row(cx: &mut Cx, slot: usize, entry: Option<ListEntry>) {
         return;
     };
     show_object(cx, ROW_BUTTONS[slot], true);
-    let caption = row_caption(cx, entry.id);
+    let caption = row_caption(entry.id);
     set_text(cx, ROW_TEXTS[slot], caption);
     show_object(cx, ROW_NEW[slot], entry.unread);
 }
@@ -307,11 +307,11 @@ pub fn hide_gamepad_footer(cx: &mut Cx) {
 pub fn show_message(cx: &mut Cx, id: u32) {
     open_message(id);
     hide_gamepad_footer(cx);
-    let body = lookup(cx, &label_for(id));
+    let body = lookup(&label_for(id));
     set_text(cx, BODY, body);
-    let sender = lookup(cx, &from_label_for(id));
+    let sender = lookup(&from_label_for(id));
     set_text(cx, FROM, sender);
-    let subject = lookup(cx, &subject_label_for(id));
+    let subject = lookup(&subject_label_for(id));
     set_text(cx, SUBJECT, subject);
     let story = is_story(id);
     show_object(cx, REPLAY_HINT, story);

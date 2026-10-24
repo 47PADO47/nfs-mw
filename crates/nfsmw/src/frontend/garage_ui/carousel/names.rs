@@ -3,7 +3,7 @@
 use super::super::{Page, choices::Item};
 use crate::frontend::{ids, logic::Cx};
 use crate::garage::{Model, menu_rows::Row};
-use crate::ui::{Text, UiAssets};
+use crate::ui::Text;
 use nfsmw_data::car::customization::Category as Part;
 
 pub(super) fn refresh(cx: &mut Cx, page: Page, item: &Item, model: &Model) {
@@ -11,16 +11,16 @@ pub(super) fn refresh(cx: &mut Cx, page: Page, item: &Item, model: &Model) {
         return;
     }
     let label = match item.row.zip(item.option) {
-        Some((row, option)) => part(cx.assets, model, row, option, &item.label),
-        None => category(cx.assets, page, item.next, model).unwrap_or_else(|| item.label.clone()),
+        Some((row, option)) => part(model, row, option, &item.label),
+        None => category(page, item.next, model).unwrap_or_else(|| item.label.clone()),
     };
     for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
         cx.text_object(hash, &label);
     }
 }
 
-fn part(assets: &UiAssets, model: &Model, row: Row, option: usize, fallback: &str) -> String {
-    let stock = || game(assets, 0x60a6_62f5).unwrap_or_else(|| "Stock".into());
+fn part(model: &Model, row: Row, option: usize, fallback: &str) -> String {
+    let stock = || game(0x60a6_62f5).unwrap_or_else(|| "Stock".into());
     let Some(catalog) = model.selected().and_then(|car| car.parts.as_ref()) else { return fallback.into() };
     if let Row::Gauge = row {
         let skin = option
@@ -31,9 +31,7 @@ fn part(assets: &UiAssets, model: &Model, row: Row, option: usize, fallback: &st
         return catalog
             .gauge_names
             .get(&skin)
-            .map(|choice| {
-                choice.language_hash.and_then(|label| game(assets, label)).unwrap_or_else(|| choice.label.clone())
-            })
+            .map(|choice| choice.language_hash.and_then(game).unwrap_or_else(|| choice.label.clone()))
             .unwrap_or_else(stock);
     }
     let (hash, choice) = match row {
@@ -59,7 +57,7 @@ fn part(assets: &UiAssets, model: &Model, row: Row, option: usize, fallback: &st
     }
     let native = hash.and_then(|hash| catalog.native_names.get(&hash));
     let language = choice.and_then(|choice| choice.language_hash).or_else(|| native.and_then(|name| name.1));
-    if let Some(label) = language.and_then(|label| game(assets, label)) {
+    if let Some(label) = language.and_then(game) {
         return label;
     }
     if let Some((name, _)) = native {
@@ -75,7 +73,7 @@ fn part(assets: &UiAssets, model: &Model, row: Row, option: usize, fallback: &st
     fallback.into()
 }
 
-fn category(assets: &UiAssets, page: Page, next: Option<Page>, model: &Model) -> Option<String> {
+fn category(page: Page, next: Option<Page>, model: &Model) -> Option<String> {
     let next = next?;
     let label = match (page, next) {
         (Page::RimBrands { .. }, _) => return None,
@@ -89,9 +87,9 @@ fn category(assets: &UiAssets, page: Page, next: Option<Page>, model: &Model) ->
         (Page::DecalSlots { .. }, Page::Choices { row: Row::Decal(_, position), .. }) => 0x7d21_2cfa + position as u32,
         _ => next.title_label(model)?,
     };
-    game(assets, label)
+    game(label)
 }
 
-fn game(assets: &UiAssets, hash: u32) -> Option<String> {
-    Text::Game(hash).resolve(assets)
+fn game(hash: u32) -> Option<String> {
+    Text::Game(hash).resolve()
 }

@@ -7,6 +7,7 @@ use glam::Vec2;
 
 use super::layout as place;
 use super::{BAR_STOPS, Parts, fitted};
+use crate::i18n::t;
 use crate::ui::theme::remastered::skin::keys;
 use crate::ui::theme::{MenuEntry, MenuList, MenuValue, RivalInfo, RivalStatus};
 
@@ -77,13 +78,14 @@ pub(super) fn status_colour(status: RivalStatus) -> &'static str {
     }
 }
 
-/// A status as the screen writes it.
-pub(super) fn status_text(status: RivalStatus) -> &'static str {
-    match status {
-        RivalStatus::Complete => "COMPLETE",
-        RivalStatus::InProgress => "IN PROGRESS",
-        RivalStatus::Locked => "LOCKED",
-    }
+/// A status as the screen writes it, in capitals.
+pub(super) fn status_text(status: RivalStatus) -> String {
+    let text = match status {
+        RivalStatus::Complete => t!("race-rival-complete"),
+        RivalStatus::InProgress => t!("race-rival-in-progress"),
+        RivalStatus::Locked => t!("race-rival-locked"),
+    };
+    text.to_uppercase()
 }
 
 impl Parts<'_, '_> {
@@ -144,7 +146,7 @@ impl Parts<'_, '_> {
             true,
         );
         let status = (status_text(info.status), status_colour(info.status));
-        self.text(keys::FONT_MENU, status.0, status.1, TEXT_SCALE, (bar_left + STATUS_RIGHT, y), true);
+        self.text(keys::FONT_MENU, &status.0, status.1, TEXT_SCALE, (bar_left + STATUS_RIGHT, y), true);
     }
 }
 

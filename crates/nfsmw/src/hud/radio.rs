@@ -44,10 +44,15 @@ impl Card {
     /// The time played, with the state when the song is held.
     pub fn status(&self) -> String {
         if self.paused {
-            return format!("{}  PAUSED", self.progress);
+            return format!("{}  {}", self.progress, paused_word());
         }
         self.progress.clone()
     }
+}
+
+/// The state of a held song, in capitals as the cards write it.
+pub(super) fn paused_word() -> String {
+    crate::i18n::t!("hud-radio-paused").to_uppercase()
 }
 
 /// The radio's card and how long it has been up.

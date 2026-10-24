@@ -34,7 +34,7 @@ fn installed_garage_header_keeps_committed_cart_separate_from_highlight() {
     let package = rt.load(catalog.find(page.package()).unwrap().clone());
     apply(&mut rt, package, &header);
     let string = |rt: &Runtime, hash| rt.string_info(rt.find(package, hash).unwrap()).unwrap().text;
-    assert_eq!(string(&rt, 0x6dfa_e796), crate::frontend::infractions::money(expected.cost));
+    assert_eq!(string(&rt, 0x6dfa_e796), crate::i18n::fmt::grouped(i64::from(expected.cost)));
     let total = string(&rt, 0x3614_0053);
     let mut preview = model.clone();
     preview.draft.parts.parts[Part::Body as usize] = None;

@@ -9,11 +9,11 @@ use nfsmw_career::stable::Stable;
 use super::car_lot::{Item, Key, set_text, show};
 use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
 use crate::career::Career;
-use crate::frontend::infractions::money;
 use crate::frontend::logic::Cx;
 use crate::frontend::look::{CarLook, CarRecordRef};
 use crate::frontend::quick_play::fill::logo_textures;
 use crate::frontend::quick_play::pool::{self, CarPool, PoolCar};
+use crate::i18n::fmt::grouped;
 
 /// The objects of `Car_Select.fng` the lot draws, by name hash (the custom race's car select draws the same package,
 /// `custom_race/car_select.rs`).
@@ -100,8 +100,8 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
     set_bar(cx, &ACCELERATION_STRIPS, acceleration);
     let locked = shown.row.is_some_and(|row| row.locked);
     cx.script(LOCKED_GROUP, if locked { SCRIPT_SHOW } else { SCRIPT_HIDE });
-    set_text(cx, COST_VALUE, shown.row.map(|row| money(row.price)).unwrap_or_default());
-    set_text(cx, FUNDS_VALUE, money(shown.cash));
+    set_text(cx, COST_VALUE, shown.row.map(|row| grouped(i64::from(row.price))).unwrap_or_default());
+    set_text(cx, FUNDS_VALUE, grouped(i64::from(shown.cash)));
 }
 
 /// The car a row shows in the room: a lot car by its catalogue record, an owned car by its record in the stable.

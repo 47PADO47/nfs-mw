@@ -1,5 +1,6 @@
 //! Capability-aware values shown by menu rows. Stored requests stay intact.
 use super::*;
+use crate::i18n::t;
 use blackbox_gfx::Capabilities;
 
 impl Setting {
@@ -7,13 +8,13 @@ impl Setting {
     /// `taa` reads FXAA on a renderer that has no TAA.
     pub fn data_in(self, s: &Settings, caps: &Capabilities) -> Data {
         if self == Setting::Graphics(GraphicsSetting::WorldDetail) {
-            return Data::Text(format!("{} (Textures: next world load)", s.detail.world.label()));
+            return Data::Text(t!("options-world-detail-value", level = s.detail.world.menu_label()));
         }
         if self == Setting::Renderer(RendererSetting::RayTracing) && !caps.ray_tracing.is_available() {
-            return Data::Text("Unavailable".into());
+            return message("options-unavailable");
         }
         if self == Setting::Renderer(RendererSetting::FrameGeneration) && !caps.frame_generation {
-            return Data::Text("Unavailable".into());
+            return message("options-unavailable");
         }
         if matches!(
             self,
@@ -30,26 +31,23 @@ impl Setting {
             && s.car_shading.is_original()
             && caps.renderer != "blackbox"
         {
-            return Data::Text("Custom shader fallback".into());
+            return message("options-car-shading-fallback");
         }
         let mut shown = s.effective(caps);
         if self == Setting::Graphics(GraphicsSetting::TextureFiltering) {
-            let suffix = match caps.restart_required.contains(blackbox_gfx::Setting::TextureFiltering) {
-                true => " (Restart)",
-                false => "",
-            };
-            return Data::Text(format!("{}{suffix}", shown.texture_filtering.label()));
+            let filtering = super::super::graphics_options::filtering_name(shown.texture_filtering);
+            return Data::Text(match caps.restart_required.contains(blackbox_gfx::Setting::TextureFiltering) {
+                true => t!("options-filtering-restart", filtering = filtering),
+                false => filtering,
+            });
         }
         if self == Setting::Graphics(GraphicsSetting::Shadows) && caps.renderer != "blackbox" {
-            return Data::Text(
-                match shown.shadows {
-                    crate::settings::ShadowQuality::Off => "Off",
-                    crate::settings::ShadowQuality::Low => "Low",
-                    crate::settings::ShadowQuality::Medium => "Medium",
-                    crate::settings::ShadowQuality::High => "High",
-                }
-                .into(),
-            );
+            return match shown.shadows {
+                crate::settings::ShadowQuality::Off => Data::Label(LABEL_OFF),
+                crate::settings::ShadowQuality::Low => message("options-low"),
+                crate::settings::ShadowQuality::Medium => message("options-medium"),
+                crate::settings::ShadowQuality::High => message("options-high"),
+            };
         }
         if !caps.scene_treatment {
             shown.appearance.treatment_strength = None;

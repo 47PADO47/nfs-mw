@@ -49,6 +49,7 @@ struct Screen {
 
 pub struct Screens {
     runtime: Runtime,
+    language: crate::ui::LanguageWatch,
     catalog: Catalog,
     assets: Arc<UiAssets>,
     stack: Vec<Screen>,
@@ -76,11 +77,10 @@ impl Screens {
     }
 
     pub fn new(catalog: Catalog, assets: Arc<UiAssets>) -> Self {
-        let mut runtime = crate::ui::runtime();
-        let strings = assets.clone();
-        runtime.set_string_resolver(move |label| strings.strings.as_ref()?.get(label));
+        let runtime = crate::ui::runtime();
         Self {
             runtime,
+            language: crate::ui::LanguageWatch::default(),
             catalog,
             assets,
             stack: Vec::new(),
@@ -238,6 +238,7 @@ impl Screens {
         let pressed = mask & !self.last_pad;
         self.last_pad = mask;
         self.runtime.set_pad_mask(mask);
+        self.language.apply(&mut self.runtime);
         self.runtime.update(dt);
         let mut commands = Vec::new();
         if let Some(top) = self.stack.last().map(|s| s.id).filter(|_| pressed != 0) {

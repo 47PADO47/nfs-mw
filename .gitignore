@@ -56,6 +56,8 @@
 !/crates/nfsmw-server/server.toml
 # The game binary's link settings (its main thread's stack).
 !/crates/nfsmw/build.rs
+# The rewrite's own translation catalogue (docs/decisions/0012-localization.md). Never game text.
+!/crates/nfsmw/i18n/*/*.ftl
 !/xtask/Cargo.toml
 !/xtask/src/**/*.rs
 
@@ -63,6 +65,7 @@
 !/examples/**/Cargo.toml
 !/examples/**/*.rs
 !/examples/**/mod.toml
+!/examples/mods/*/lang/**/*.ftl
 
 # Documentation (Markdown only)
 !/docs/**/*.md

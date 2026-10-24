@@ -274,7 +274,7 @@ fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
 /// loaded but not played, so `with_loaded`), else `player`.
 fn player_name() -> String {
     let alias = crate::career::CareerHandle::shared().with_loaded(|career| career.alias.clone());
-    alias.unwrap_or_else(|| "player".into())
+    alias.unwrap_or_else(|| crate::i18n::t!("race-player-fallback"))
 }
 
 fn plan_racers(

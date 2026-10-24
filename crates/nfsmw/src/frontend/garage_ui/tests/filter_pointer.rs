@@ -76,7 +76,7 @@ fn spoiler_group(h: &Harness, group: usize) {
     let caption = tree.nodes.iter().find(|node| node.name_hash == 0x7800_8599).unwrap();
     assert!(caption.visible && caption.world_colour[3] > 0);
     let label = [0x01f0_e2b2, 0x0205_b328, 0x0991_2746, 0x0e74_16fc][group];
-    assert_eq!(caption.text, Text::Game(label).resolve(h.screens.assets()));
+    assert_eq!(caption.text, Text::Game(label).resolve());
 }
 
 #[test]

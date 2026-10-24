@@ -142,7 +142,7 @@ impl Layouter<'_> {
             if is_newline(c) {
                 new_line = true;
             } else if c != b'\r' as u16 {
-                if self.font.glyph(c & 0xFF).is_some() {
+                if self.font.glyph(convert(c)).is_some() {
                     last_not_return = true;
                 }
                 if wrap {
@@ -186,6 +186,34 @@ impl Layouter<'_> {
 }
 
 impl Font {
+    /// Whether this font has a glyph for every character `text` shows (`$NAME$` icons, spaces and line breaks aside). A
+    /// string in a script the font does not cover draws nothing for those characters; the host draws it in a fallback
+    /// font instead (`docs/specs/localization.md` section 5).
+    pub fn draws(&self, text: &str) -> bool {
+        let utf16: Vec<u16> = text.encode_utf16().collect();
+        let mut in_icon = false;
+        let mut i = 0;
+        while i < utf16.len() {
+            let c = utf16[i];
+            i += 1;
+            if c == b'$' as u16 {
+                if utf16.get(i) == Some(&(b'$' as u16)) {
+                    i += 1;
+                    continue;
+                }
+                in_icon = !in_icon;
+                continue;
+            }
+            if in_icon || is_newline(c) || c == b'\r' as u16 || c == b' ' as u16 {
+                continue;
+            }
+            if self.glyph(convert(c)).is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Lays out `text` the way the game does. `texture_size` is the size the glyph coordinates are divided by: the
     /// font's native (stock) texture size, or the loaded texture's size when that is the choice (see [`super::uv_size`]).
     /// `$NAME$` button-icon sequences are skipped (no icon is drawn).

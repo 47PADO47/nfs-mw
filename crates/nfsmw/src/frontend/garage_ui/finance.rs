@@ -151,7 +151,7 @@ fn marker_category(page: Page, turbo: bool) -> (&'static [usize], u32) {
 
 fn apply(rt: &mut Runtime, package: PackageId, frame: &Frame) {
     let money = |value: i64| {
-        let amount = crate::frontend::infractions::money(value.unsigned_abs().min(u64::from(u32::MAX)) as u32);
+        let amount = crate::i18n::fmt::grouped(value.unsigned_abs().min(u64::from(u32::MAX)) as i64);
         match value < 0 {
             true => format!("-{amount}"),
             false => amount,

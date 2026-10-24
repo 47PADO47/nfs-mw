@@ -29,6 +29,7 @@ use crate::career::{CareerHandle, grant_rewards};
 use crate::frontend::ids::screen;
 use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
 use crate::frontend::quick_play::pool::Rng;
+use crate::i18n::t;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
@@ -182,14 +183,13 @@ fn label_key(reward: &Reward) -> Option<&'static str> {
 }
 
 /// The name of a card's marker from the game's text, or a plain word when the table has none.
-fn card_name(assets: &UiAssets, reward: &Reward) -> String {
-    label_key(reward)
-        .and_then(|key| Text::Game(label_hash(key)).resolve(assets))
-        .unwrap_or_else(|| "Marker".to_string())
+fn card_name(reward: &Reward) -> String {
+    label_key(reward).and_then(|key| Text::Game(label_hash(key)).resolve()).unwrap_or_else(|| t!("career-marker"))
 }
 
-/// The row after the cards: Continue.
-const CONTINUE_LABEL: &str = "Continue";
+/// The language labels of the row after the cards (`COMMON_CONTINUE`) and of the list's title (`PRR_TOKENS_TITLE`).
+const CONTINUE_LABEL: u32 = 0x8098_A54C;
+const TITLE_LABEL: u32 = 0x9A77_C9A7;
 
 /// Makes the screen for `name` (lower case) when it is the safe house markers screen.
 pub fn make(name: &str, _args: Args) -> Option<Box<dyn ScreenLogic>> {
@@ -297,7 +297,7 @@ impl ScreenLogic for MarkersLogic {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
@@ -307,14 +307,16 @@ impl ScreenLogic for MarkersLogic {
             .iter()
             .enumerate()
             .map(|(index, card)| {
-                let label =
-                    if card.revealed { card_name(assets, &card.reward) } else { format!("Marker {}", index + 1) };
+                let label = match card.revealed {
+                    true => card_name(&card.reward),
+                    false => t!("career-marker-card", n = index + 1),
+                };
                 MenuEntry::plain(label, !card.revealed && self.deck.can_pick())
             })
             .collect();
-        entries.push(MenuEntry::plain(CONTINUE_LABEL, self.deck.can_continue()));
+        entries.push(MenuEntry::plain(Text::Game(CONTINUE_LABEL).show(), self.deck.can_continue()));
         Some(MenuList {
-            title: "Markers".into(),
+            title: Text::Game(TITLE_LABEL).show(),
             message: String::new(),
             entries,
             selected: self.cursor,

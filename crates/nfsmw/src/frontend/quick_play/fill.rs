@@ -70,15 +70,14 @@ pub fn show(cx: &mut Cx, car: &PoolCar, track: &Track, pool: &CarPool, stage: u8
 }
 
 fn show_race(cx: &mut Cx, track: &Track) {
-    let kind =
-        Text::Game(text::mode_label(track.race_type)).resolve(cx.assets).unwrap_or_else(|| track.kind.to_owned());
+    let kind = Text::Game(text::mode_label(track.race_type)).resolve().unwrap_or_else(|| track.kind.to_owned());
     cx.text_group(MODE_TEXT_GROUP, &kind);
     set_texture(cx, MODE_ICON, text::mode_icon(track.race_type));
     let event = crate::career::event_id(&track.name);
-    let name = Text::Game(label_hash(&text::track_label_key(&event))).resolve(cx.assets).unwrap_or(event);
+    let name = Text::Game(label_hash(&text::track_label_key(&event))).resolve().unwrap_or(event);
     cx.text_object(TRACK_NAME, &name);
     let metric = cx.settings.speed_units == SpeedUnits::Metric;
-    let unit = Text::Game(text::unit_label(metric)).resolve(cx.assets).unwrap_or_default();
+    let unit = Text::Game(text::unit_label(metric)).resolve().unwrap_or_default();
     cx.text_object(LENGTH, &text::length_text(track.brief_length(), metric, &unit));
     cx.text_object(LAPS, &track.laps.to_string());
     cx.text_object(OPPONENTS, &track.opponents.to_string());
@@ -114,8 +113,8 @@ fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {
 fn show_unlock(cx: &mut Cx, unlock: Unlock) {
     let sentence = match unlock {
         Unlock::None => None,
-        Unlock::Label(label) => Text::Game(label).resolve(cx.assets),
-        Unlock::Rival(member) => rival_sentence(cx, member),
+        Unlock::Label(label) => Text::Game(label).resolve(),
+        Unlock::Rival(member) => rival_sentence(member),
     };
     let script = match sentence {
         Some(_) => SCRIPT_SHOW,
@@ -128,9 +127,9 @@ fn show_unlock(cx: &mut Cx, unlock: Unlock) {
 }
 
 /// `Unlock this car by beating <alias>, Blacklist member <n>.`; `None` when the language table lacks the alias or the sentence.
-fn rival_sentence(cx: &Cx, member: u8) -> Option<String> {
-    let template = Text::Game(text::RIVAL_LABEL).resolve(cx.assets)?;
-    let alias = Text::Game(label_hash(&text::alias_key(member))).resolve(cx.assets)?;
+fn rival_sentence(member: u8) -> Option<String> {
+    let template = Text::Game(text::RIVAL_LABEL).resolve()?;
+    let alias = Text::Game(label_hash(&text::alias_key(member))).resolve()?;
     Some(text::fill_sentence(&template, &alias, member))
 }
 

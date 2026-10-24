@@ -1,5 +1,6 @@
 //! The credits screen (`Credits.fng`), opened from the option categories' Credits icon. The roll is the install's
-//! credits file (`CREDITS/NA_ENGLISH.TXT`) in the package's text object `CreditsArea`. The package's own roll scripts
+//! credits file for the language (`CREDITS/NA_ENGLISH.TXT` when it has none of its own) in the package's text object
+//! `CreditsArea`. The package's own roll scripts
 //! do not start in this port and the renderer does not clip text, so the logic scrolls a window of lines through the
 //! box itself (docs/specs/frontend-menus.md, "Credits"). Back returns to the option categories.
 
@@ -16,6 +17,8 @@ use crate::ui::theme::{DEFAULT_ASPECT, MenuList, MenuStyle};
 
 /// The roll's text object in the package: `CreditsArea` (`fe_hash_upper`).
 const ROLL: u32 = 0xE609_3486;
+/// The list's title, "Credits" (`OPT_CREDITS`).
+const TITLE: u32 = 0x0905_101F;
 /// Lines shown in the box at once.
 const WINDOW: usize = 12;
 /// Lines of the roll the Remastered look shows at once, one more than fits so the roll can slide in and out.
@@ -44,9 +47,44 @@ pub fn prime(dir: &GameDir) {
     let _ = LINES.set(lines);
 }
 
+/// The roll every install has, the North American English one.
+const FALLBACK: &str = "CREDITS/NA_ENGLISH.TXT";
+
+/// The first credits file of the install that reads, in the order of [`candidates`].
 fn read_text(dir: &GameDir) -> Result<String, String> {
-    let bytes = dir.read("CREDITS/NA_ENGLISH.TXT").map_err(|e| format!("CREDITS/NA_ENGLISH.TXT: {e:#}"))?;
-    Ok(decode_utf16(&bytes).replace("\r\n", "\n"))
+    let mut errors = Vec::new();
+    for file in candidates() {
+        match dir.read(&file) {
+            Ok(bytes) => return Ok(decode_utf16(&bytes).replace("\r\n", "\n")),
+            Err(e) => errors.push(format!("{file}: {e:#}")),
+        }
+    }
+    Err(errors.join("; "))
+}
+
+/// The credits files to try, best first: the current language's own (`CREDITS/NA_GERMAN.TXT`; `UK_` for British
+/// English, as the installer or the language says), then [`FALLBACK`].
+fn candidates() -> Vec<String> {
+    let active = crate::i18n::current();
+    let mut files = Vec::new();
+    if let Some(game) = active.table.as_ref().and_then(|table| table.game) {
+        let british =
+            nfsmw_data::languages::registry_language() == Some("en-GB") || active.locale.to_string() == "en-GB";
+        files.push(credits_file(british, game.stem));
+    }
+    if !files.iter().any(|file| file.eq_ignore_ascii_case(FALLBACK)) {
+        files.push(FALLBACK.to_owned());
+    }
+    files
+}
+
+/// The credits file of a region and a language's file stem: `CREDITS/UK_ENGLISH.TXT`, `CREDITS/NA_FRENCH.TXT`.
+fn credits_file(british: bool, stem: &str) -> String {
+    let region = match british {
+        true => "UK",
+        false => "NA",
+    };
+    format!("CREDITS/{region}_{}.TXT", stem.to_uppercase())
 }
 
 /// UTF-16LE with a byte order mark, as the credits file is written.
@@ -114,7 +152,7 @@ impl ScreenLogic for CreditsLogic {
         let end = (first + LIST_WINDOW).min(self.lines.len());
         let message = self.lines.get(first..end).map_or_else(String::new, |lines| lines.join("\n"));
         Some(MenuList {
-            title: "Credits".into(),
+            title: crate::i18n::game_or_error(TITLE),
             message,
             entries: Vec::new(),
             selected: 0,
@@ -152,7 +190,15 @@ impl ScreenLogic for CreditsLogic {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_utf16, window};
+    use super::{FALLBACK, candidates, credits_file, decode_utf16, window};
+
+    #[test]
+    fn the_credits_file_follows_the_region_and_the_language() {
+        assert_eq!(credits_file(false, "German"), "CREDITS/NA_GERMAN.TXT");
+        assert_eq!(credits_file(true, "English"), "CREDITS/UK_ENGLISH.TXT");
+        assert_eq!(credits_file(false, "English"), FALLBACK);
+        assert_eq!(candidates().last().map(String::as_str), Some(FALLBACK), "the English roll is the last resort");
+    }
 
     #[test]
     fn the_credits_file_is_utf16_with_a_bom() {

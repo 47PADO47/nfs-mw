@@ -20,6 +20,7 @@ use crate::career::{CareerHandle, Sources};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::{self, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
 use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic, wheel_as_rows};
+use crate::i18n::{Args as TextArgs, t};
 use crate::ui::Text;
 
 /// The rows the list shows at once (`option_name_1` to `option_name_8`). The dump of `MC_List.fng` has eight row names;
@@ -45,7 +46,9 @@ const YES_LABEL: u32 = 0x70E0_1038;
 /// The manual-save question, "Are you sure you want to save the alias named %s?" (`%s` is the alias).
 const SAVE_QUESTION: u32 = 0x39B3_CCBA;
 /// The question when the table has no text for [`SAVE_QUESTION`] (or it has no `%s` to fill).
-const SAVE_QUESTION_FALLBACK: &str = "Save your career progress?";
+fn save_question_fallback() -> String {
+    t!("career-save-question")
+}
 
 /// The label the title shows for `mode`.
 pub(crate) const fn title_label(mode: ListMode) -> u32 {
@@ -82,11 +85,11 @@ fn list_mode() -> ListMode {
 
 /// The question the prompt asks: the save question with the alias filled in, or the fallback without an alias.
 pub fn question(template: Option<&str>, alias: Option<&str>) -> String {
-    let (Some(template), Some(alias)) = (template, alias) else { return SAVE_QUESTION_FALLBACK.to_owned() };
-    if !template.contains("%s") {
-        return SAVE_QUESTION_FALLBACK.to_owned();
+    let (Some(template), Some(alias)) = (template, alias) else { return save_question_fallback() };
+    if blackbox_text::printf::places(template) == 0 {
+        return save_question_fallback();
     }
-    template.replace("%s", alias)
+    blackbox_text::printf::fill(template, &[alias])
 }
 
 /// What Accept does on the prompt.
@@ -176,7 +179,7 @@ impl SavePromptLogic {
 
     /// Fills the question and the two labels, hides the third button and focuses the selected answer.
     fn show(&self, cx: &mut Cx) {
-        let template = Text::Game(SAVE_QUESTION).resolve(cx.assets);
+        let template = Text::Game(SAVE_QUESTION).resolve();
         let text = question(template.as_deref(), self.alias.as_deref());
         if let Some(q) = cx.guid(QUESTION) {
             cx.rt.set_text(q, text);
@@ -334,9 +337,9 @@ impl AliasListLogic {
         match self.mode {
             ListMode::Load => cx.send(Command::CareerLoad(alias.clone())),
             ListMode::Delete => {
-                let question = format!("Delete the career named {alias}? It cannot be undone.");
+                let question = Text::Key("career-delete-question", TextArgs::new().with("alias", alias.as_str()));
                 cx.send(Command::Pop);
-                cx.send(Command::Confirm(Confirm::new(Text::Custom(question), Command::CareerDelete(alias.clone()))));
+                cx.send(Command::Confirm(Confirm::new(question, Command::CareerDelete(alias.clone()))));
             }
         }
     }
@@ -350,7 +353,7 @@ impl ScreenLogic for AliasListLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.aliases = list_aliases();
         if self.aliases.is_empty() {
-            cx.send(Command::Alert(Alert::new(Text::Custom("There are no careers saved yet.".to_owned()))));
+            cx.send(Command::Alert(Alert::new(Text::key("career-no-saves"))));
         }
         cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
         self.show_title(cx);

@@ -262,8 +262,8 @@ pub(crate) fn clear_missing_decal_surfaces(model: &mut Model) {
             2 | 3 => 6,
             _ => 8,
         };
-        for position in count..limit {
-            model.draft.parts.decals[zone][position] = None;
+        for slot in model.draft.parts.decals[zone].iter_mut().take(limit).skip(count) {
+            *slot = None;
         }
         if !matches!(zone, 2 | 3) {
             continue;

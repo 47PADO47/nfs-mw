@@ -13,6 +13,7 @@ sha2.workspace = true
 serde_json = "1"
 blackbox-trace.workspace = true
 blackbox-hash.workspace = true
+blackbox-i18n.workspace = true
 anyhow.workspace = true
 bevy_a11y.workspace = true
 bevy_app.workspace = true

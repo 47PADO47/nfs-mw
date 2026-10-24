@@ -28,7 +28,27 @@ pub use strings::Text;
 pub use text::text_size;
 
 /// The PC UI service uses 1200 authored ticks per real second.
-/// Spec: `docs/specs/feng-runtime.md`.
+/// Spec: `docs/specs/feng-runtime.md`. Every label reads from the current language (`crate::i18n`).
 pub(crate) fn runtime() -> blackbox_feng::Runtime {
-    blackbox_feng::Runtime::with_tick_rate(1200.0)
+    let mut runtime = blackbox_feng::Runtime::with_tick_rate(1200.0);
+    runtime.set_string_resolver(crate::i18n::game);
+    runtime
+}
+
+/// Relabels a runtime's packages after the language changes. Each runtime owner keeps one and calls it every frame.
+#[derive(Debug, Default)]
+pub(crate) struct LanguageWatch {
+    seen: u64,
+}
+
+impl LanguageWatch {
+    pub(crate) fn apply(&mut self, runtime: &mut blackbox_feng::Runtime) {
+        let now = crate::i18n::generation();
+        if self.seen == now {
+            return;
+        }
+        self.seen = now;
+        // Setting the resolver again marks every package: each label is looked up in the new language.
+        runtime.set_string_resolver(crate::i18n::game);
+    }
 }

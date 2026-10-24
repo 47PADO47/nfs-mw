@@ -101,9 +101,8 @@ pub(super) fn read(record: &CustomizationRecord, tables: &CarTables, folder: &st
         selection.parts.parts[category as usize] = Some(hash);
     }
     for zone in DecalZone::ALL {
-        for position in 0..8 {
-            selection.parts.decals[zone as usize][position] =
-                saved_hash(record, tables, car.type_name_hash, zone.texture_slot(position))?;
+        for (position, slot) in selection.parts.decals[zone as usize].iter_mut().enumerate().take(8) {
+            *slot = saved_hash(record, tables, car.type_name_hash, zone.texture_slot(position))?;
         }
     }
     for i in 0..3 {
@@ -195,13 +194,8 @@ pub(super) fn write(
         }
     }
     for zone in DecalZone::ALL {
-        for position in 0..8 {
-            store_hash(
-                &mut record,
-                tables,
-                zone.texture_slot(position),
-                selection.parts.decals[zone as usize][position],
-            )?;
+        for (position, decal) in selection.parts.decals[zone as usize].iter().enumerate().take(8) {
+            store_hash(&mut record, tables, zone.texture_slot(position), *decal)?;
         }
     }
     for (i, color) in selection.parts.vinyl_colors.into_iter().enumerate() {

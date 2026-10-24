@@ -57,7 +57,7 @@ impl Frontend {
         };
         let text = Text::Game(blackbox_text::label_hash(notice.label()));
         let then = Command::CareerCar(CarSelectAction::Open(after.entry));
-        let alert = Alert { title: Text::Custom(String::new()), message: text, on_close: Some(Box::new(then)) };
+        let alert = Alert { title: Text::Literal(String::new()), message: text, on_close: Some(Box::new(then)) };
         let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(alert)), false, env);
         self.apply(commands, host, env);
     }
@@ -86,7 +86,7 @@ impl Frontend {
             }
         };
         let Some(Err(text)) = refused else { return };
-        let alert = Alert { title: Text::Custom(String::new()), message: text, on_close: None };
+        let alert = Alert { title: Text::Literal(String::new()), message: text, on_close: None };
         let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(alert)), false, env);
         self.apply(commands, host, env);
     }

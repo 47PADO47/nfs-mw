@@ -66,9 +66,9 @@ impl IconMenu {
     }
 }
 
-/// A percentage as the card prints it.
+/// A percentage as the card prints it, as the language writes one.
 fn percent(value: u8) -> String {
-    format!("{value}%")
+    crate::i18n::fmt::percent(i64::from(value))
 }
 
 #[cfg(test)]

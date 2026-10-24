@@ -68,8 +68,8 @@ fn installed_decals_bind_authored_surfaces_and_keep_other_zones_hidden() {
             let available = &catalog.decals[zone as usize];
             let Some(choice) = available.choices.first() else { continue };
             let mut selection = Selection::default();
-            for p in 0..available.positions {
-                selection.decals[zone as usize][p] = Some(choice.hash);
+            for slot in selection.decals[zone as usize].iter_mut().take(available.positions as usize) {
+                *slot = Some(choice.hash);
             }
             catalog.validate(&selection).unwrap();
             let car = crate::car::load_customized_driving(&dir, folder, &options, &selection).unwrap();

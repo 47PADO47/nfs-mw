@@ -73,6 +73,15 @@ fn parses_names_glyphs_and_kerning() {
 }
 
 #[test]
+fn draws_says_whether_every_shown_character_has_a_glyph() {
+    let f = sample();
+    assert!(f.draws("AB BA"));
+    assert!(f.draws("A$BUTTON_X$B\nA"), "icons and line breaks need no glyph");
+    assert!(!f.draws("AЖB"), "a Cyrillic letter the font lacks");
+    assert!(!f.draws("C"));
+}
+
+#[test]
 fn rejects_short_or_wrong_data() {
     assert!(Font::parse(&[0; 10]).is_err());
     let mut bad = font_bytes("x", &[], &[]);

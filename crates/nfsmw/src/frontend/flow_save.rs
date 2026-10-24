@@ -18,13 +18,16 @@ use crate::career::{Career, CareerData, ProfileDir, Sources};
 use crate::frontend::confirm::{Alert, AlertLogic};
 use crate::frontend::ids::screen::DIALOG;
 use crate::frontend::logic::{Command, Env, QuitTo};
+use crate::i18n::Args;
 use crate::ui::Text;
 
 use super::Frontend;
 use super::flow_prologue::FIRST_PROLOGUE_RACE;
 
 /// The notice when there is no per-user folder to keep profiles in.
-const NO_FOLDER: &str = "There is no per-user folder for the careers.";
+fn no_folder() -> Text {
+    Text::key("dialogs-no-career-folder")
+}
 
 /// What a command does once the career tables are read.
 enum Work {
@@ -46,13 +49,16 @@ impl Frontend {
     /// Saves the loaded profile to its file.
     pub(super) fn career_save(&mut self, host: &mut Host, env: &mut Env) {
         let Some(profiles) = self.profiles.clone() else {
-            return self.career_notice(NO_FOLDER.to_owned(), host, env);
+            return self.career_notice(no_folder(), host, env);
         };
         let Some((alias, bytes)) = self.career.with_loaded(|career| (career.alias.clone(), career.profile_bytes()))
         else {
-            return self.career_notice("There is no alias to save.".to_owned(), host, env);
+            return self.career_notice(Text::key("dialogs-no-alias-to-save"), host, env);
         };
         let result = profiles.write(&alias, &bytes);
+        if let Err(e) = &result {
+            log::warn!("the career {alias} could not be saved: {e:#}");
+        }
         let message = saved_message(&alias, &result);
         self.career_notice(message, host, env);
     }
@@ -97,7 +103,7 @@ impl Frontend {
             self.apply(commands, host, env);
         }
         let at_start = self.screens.top().is_none();
-        let message = Text::Custom(LOAD_COMPLETE.to_owned());
+        let message = Text::key("dialogs-load-complete");
         let alert = match at_start {
             true => Alert::then(message, Command::QuitTo(QuitTo::Main)),
             false => Alert::new(message),
@@ -107,7 +113,7 @@ impl Frontend {
 
     fn load_failed(&mut self, alias: &str, e: &anyhow::Error, host: &mut Host, env: &mut Env) {
         log::warn!("the career {alias} could not be loaded: {e:#}");
-        self.career_notice(loaded_failed(alias, e), host, env);
+        self.career_notice(loaded_failed(alias), host, env);
     }
 
     /// Makes a new career under `alias`, saves it and plays it: the world starts with the first prologue race (`16.1.0`) in
@@ -117,7 +123,7 @@ impl Frontend {
             return;
         }
         let Some(profiles) = self.profiles.clone() else {
-            return self.career_notice(NO_FOLDER.to_owned(), host, env);
+            return self.career_notice(no_folder(), host, env);
         };
         self.start_save_job(Work::New { alias: alias.to_owned(), profiles }, host, env);
     }
@@ -128,7 +134,7 @@ impl Frontend {
             Ok(career) => career,
             Err(e) => {
                 log::warn!("the career {alias} could not be made: {e:#}");
-                return self.career_notice(format!("The career could not be started. {e:#}"), host, env);
+                return self.career_notice(Text::key("dialogs-career-not-started"), host, env);
             }
         };
         log::info!("career: new career {alias}");
@@ -143,7 +149,7 @@ impl Frontend {
             return;
         }
         let Some(profiles) = self.profiles.clone() else {
-            return self.career_notice(NO_FOLDER.to_owned(), host, env);
+            return self.career_notice(no_folder(), host, env);
         };
         self.start_save_job(Work::Create { alias: alias.to_owned(), profiles }, host, env);
     }
@@ -154,20 +160,23 @@ impl Frontend {
             Ok(career) => career,
             Err(e) => {
                 log::warn!("the alias {alias} could not be made: {e:#}");
-                return self.career_notice(format!("The alias could not be created. {e:#}"), host, env);
+                return self.career_notice(Text::key("dialogs-alias-not-created"), host, env);
             }
         };
         log::info!("career: created the alias {alias}");
         self.career.load(career);
-        self.career_notice(format!("{alias} created."), host, env);
+        self.career_notice(Text::Key("dialogs-alias-created", Args::new().with("alias", alias)), host, env);
     }
 
     /// Deletes the profile of `alias`. The loaded profile is unloaded when it is the one deleted.
     pub(super) fn career_delete(&mut self, alias: &str, host: &mut Host, env: &mut Env) {
         let Some(profiles) = self.profiles.clone() else {
-            return self.career_notice(NO_FOLDER.to_owned(), host, env);
+            return self.career_notice(no_folder(), host, env);
         };
         let result = profiles.remove(alias);
+        if let Err(e) = &result {
+            log::warn!("the career {alias} could not be deleted: {e:#}");
+        }
         if result.is_ok() && self.career.with_loaded(|career| career.alias == alias).unwrap_or(false) {
             self.career.clear();
         }
@@ -220,8 +229,8 @@ impl Frontend {
     }
 
     /// Shows `message` as a notice over the screen that is up.
-    fn career_notice(&mut self, message: String, host: &mut Host, env: &mut Env) {
-        self.show_alert(Alert::new(Text::Custom(message)), host, env);
+    fn career_notice(&mut self, message: Text, host: &mut Host, env: &mut Env) {
+        self.show_alert(Alert::new(message), host, env);
     }
 
     fn show_alert(&mut self, alert: Alert, host: &mut Host, env: &mut Env) {
@@ -229,9 +238,6 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 }
-
-/// The notice after a successful load.
-const LOAD_COMPLETE: &str = "Load complete.";
 
 /// Makes a new career under `alias` from the career tables and writes its profile at once, as `start.rs` does for a new
 /// career.
@@ -241,25 +247,26 @@ fn new_saved(alias: &str, data: Arc<CareerData>, profiles: &ProfileDir) -> Resul
     Ok(career)
 }
 
-/// The notice after a save.
-fn saved_message(alias: &str, result: &Result<()>) -> String {
+/// The notice after a save. A failure only says so; why goes to the log.
+fn saved_message(alias: &str, result: &Result<()>) -> Text {
     match result {
-        Ok(()) => format!("{alias} saved."),
-        Err(e) => format!("The career could not be saved. {e:#}"),
+        Ok(()) => Text::Key("dialogs-alias-saved", Args::new().with("alias", alias)),
+        Err(_) => Text::key("dialogs-save-failed"),
     }
 }
 
-/// The notice after a delete.
-fn deleted_message(alias: &str, result: &Result<()>) -> String {
+/// The notice after a delete. A failure only says so; why goes to the log.
+fn deleted_message(alias: &str, result: &Result<()>) -> Text {
     match result {
-        Ok(()) => format!("{alias} deleted."),
-        Err(e) => format!("The career could not be deleted. {e:#}"),
+        Ok(()) => Text::Key("dialogs-alias-deleted", Args::new().with("alias", alias)),
+        Err(_) => Text::key("dialogs-delete-failed"),
     }
 }
 
-/// The notice when a profile could not be loaded (its checks refused it, or the tables could not be read).
-fn loaded_failed(alias: &str, e: &anyhow::Error) -> String {
-    format!("The career {alias} could not be loaded. {e:#}")
+/// The notice when a profile could not be loaded (its checks refused it, or the tables could not be read). Why goes to
+/// the log.
+fn loaded_failed(alias: &str) -> Text {
+    Text::Key("dialogs-load-failed", Args::new().with("alias", alias))
 }
 
 #[cfg(test)]

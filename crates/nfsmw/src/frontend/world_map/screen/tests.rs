@@ -8,7 +8,7 @@ use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
 use super::pools;
-use super::{EMPTY, WorldMapLogic};
+use super::{WorldMapLogic, empty};
 use crate::frontend::ids::screen::WORLD_MAP;
 use crate::frontend::logic::{Cx, ScreenLogic};
 use crate::frontend::world_map::{Camera, Filter, PlacedBlip, WorldMap, WorldMapFrame};
@@ -193,7 +193,7 @@ fn focusing_a_blip_moves_the_cursor_onto_it_and_fills_the_card() {
 fn an_empty_tab_says_so_in_the_first_row() {
     let mut h = Harness::open();
     h.tick(&frame(Vec::new()));
-    assert_eq!(h.text(pools::ROWS[0].text), EMPTY);
+    assert_eq!(h.text(pools::ROWS[0].text), empty());
     assert!(h.hidden(pools::ROWS[0].icon_group));
 }
 

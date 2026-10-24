@@ -41,14 +41,15 @@ fn the_serial_stops_at_the_first_zero() {
 
 #[test]
 fn the_header_and_figures_carry_the_career_numbers() {
+    // Without the install's language table each figure is its value alone (the labels' templates hold the wording).
     let figures = figures(&totals(), "MW-1", "Rick");
-    assert_eq!(text(&figures, CASE_FILE), "CASE FILE: MW-1");
-    assert_eq!(text(&figures, PLAYER_NAME), "NAME: Rick");
-    assert_eq!(text(&figures, TOTAL_BOUNTY), "BOUNTY: 1,234,567");
-    assert_eq!(text(&figures, TOTAL_COST_STATE), "COST TO STATE: 2,000");
-    assert_eq!(text(&figures, TOTAL_FINES_DUE), "FINES DUE: 1,500");
-    assert_eq!(text(&figures, TOTAL_BUSTED), "TIMES BUSTED: 5");
-    assert_eq!(text(&figures, CARS_MONITORED), "CARS MONITORED: 3");
+    assert_eq!(text(&figures, CASE_FILE), "MW-1");
+    assert_eq!(text(&figures, PLAYER_NAME), "Rick");
+    assert_eq!(text(&figures, TOTAL_BOUNTY), "1,234,567");
+    assert_eq!(text(&figures, TOTAL_COST_STATE), "2,000");
+    assert_eq!(text(&figures, TOTAL_FINES_DUE), "1,500");
+    assert_eq!(text(&figures, TOTAL_BUSTED), "5");
+    assert_eq!(text(&figures, CARS_MONITORED), "3");
     assert_eq!(figures.len(), 9);
 }
 

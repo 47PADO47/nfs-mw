@@ -11,9 +11,9 @@ impl Frontend {
         }
         let Some(renderer) = host.renderer.as_mut() else { return };
         if let Err(error) = host.scene.begin_tuning(renderer.as_mut()) {
-            let message = format!("{error:#}");
+            // The player reads a summary; `garage_error` logs the error chain.
             self.garage_error(host, error);
-            let alert = super::super::confirm::Alert::new(crate::ui::Text::Custom(message));
+            let alert = super::super::confirm::Alert::new(crate::ui::Text::key("dialogs-tuning-failed"));
             let commands = self.screens.open_with(
                 super::super::ids::screen::DIALOG,
                 Box::new(super::super::confirm::AlertLogic::new(alert)),
@@ -70,7 +70,7 @@ impl Frontend {
         if let Err(error) = host.scene.begin_garage(renderer.as_mut()) {
             log::error!("Cannot open garage: {error:#}");
             self.close_garage(host, env, overlay);
-            let alert = super::super::confirm::Alert::new(crate::ui::Text::Custom(format!("{error:#}")));
+            let alert = super::super::confirm::Alert::new(crate::ui::Text::key("dialogs-garage-failed"));
             let commands = self.screens.open_with(
                 super::super::ids::screen::DIALOG,
                 Box::new(super::super::confirm::AlertLogic::new(alert)),

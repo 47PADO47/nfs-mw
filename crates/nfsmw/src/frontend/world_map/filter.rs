@@ -28,12 +28,14 @@ impl Filter {
     /// The filter the map opens on.
     pub const DEFAULT: Filter = Filter::Locations;
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Filter::Locations => "Locations",
-            Filter::Races => "Races",
-            Filter::Pursuit => "Pursuit",
-        }
+    /// The tab's name, as the switch shows it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Filter::Locations => "map-filter-locations",
+            Filter::Races => "map-filter-races",
+            Filter::Pursuit => "map-filter-pursuit",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 
     /// The blip styles this filter shows.

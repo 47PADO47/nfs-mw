@@ -1,5 +1,6 @@
 //! The rows of the option screens and how each changes a setting (docs/specs/frontend-menus.md, section 3.1).
-//! The labels are the original language keys where one exists.
+//! The labels are the original language keys where one exists; the rest are messages of the rewrite's catalogue
+//! (`i18n/en/options.ftl`, `options-graphics.ftl`).
 
 use std::str::FromStr;
 
@@ -12,9 +13,12 @@ use super::post_options::PostSetting;
 use super::renderer_options::RendererSetting;
 use crate::app::pacing::MaxFps;
 use crate::devtools::ShowMetrics;
+use crate::i18n::Args;
+#[cfg(test)]
+use crate::settings::Transmission;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, Transmission, UiStyle,
-    UiTheme, UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, UiStyle, UiTheme,
+    UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -60,6 +64,8 @@ pub enum Setting {
     RenderScale,
     Upscaler,
     UpscaleSharpness,
+    /// The game's language (`options_language.rs`): its choices are the languages on offer, not a fixed list.
+    Language,
     /// A row of the custom race's options (`custom_race/settings.rs`); its value is the session's, not a setting.
     Custom(super::custom_race::settings::Row),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
@@ -76,15 +82,45 @@ pub enum Setting {
 pub enum Title {
     /// A key of the language table.
     Label(u32),
-    /// A setting the original has no label for.
-    Text(&'static str),
+    /// A message of the rewrite's catalogue, for a setting the original has no label for. A Mods row has the empty id:
+    /// its label comes from the mod (`mod_options::shown`).
+    Key(&'static str),
 }
 
-/// What a row's data shows.
+impl Title {
+    /// The title in the current language: a catalogue title's message, or a game label's text (empty when no table
+    /// has it).
+    pub fn text(self) -> String {
+        match self {
+            Title::Label(label) => crate::i18n::game(label).unwrap_or_default(),
+            Title::Key(id) => crate::i18n::text(id, &Args::new()),
+        }
+    }
+}
+
+/// What a row's data shows: a key of the language table, or text already in the current language (a catalogue
+/// message, a number, a name). Data is read each time the row is drawn, so a language change shows at once.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Data {
     Label(u32),
     Text(String),
+}
+
+/// A value from the rewrite's catalogue, in the current language.
+pub(super) fn message(id: &'static str) -> Data {
+    Data::Text(crate::i18n::text(id, &Args::new()))
+}
+
+/// The value a test expects for the English word: the original's On, Off and Auto are game labels (the tests load no
+/// game table), every other word is the catalogue's English text.
+#[cfg(test)]
+pub(super) fn shown(english: &str) -> Data {
+    match english {
+        "On" => Data::Label(LABEL_ON),
+        "Off" => Data::Label(LABEL_OFF),
+        "Auto" => Data::Label(LABEL_AUTO),
+        _ => Data::Text(english.into()),
+    }
 }
 
 /// A slider moves a value from 0 to 100; a toggle cycles through values.
@@ -118,9 +154,18 @@ mod caps_rows;
 mod steps;
 use steps::{cycle, next_scale, nudge};
 
+#[path = "options_data.rs"]
+mod data;
+
+#[path = "options_language.rs"]
+mod language;
+
+/// The original's `COMMON_AUTO` ("Auto"): the automatic transmission, and the Auto value of every row that has one.
+pub(super) const LABEL_AUTO: u32 = 0x8CD5_32A0;
+
 /// The original's Transmission row: its title and the two values (docs/specs/vehicle-manual-shifting.md, section 1).
 const LABEL_TRANSMISSION: u32 = 0xD314_07E7;
-const LABEL_AUTOMATIC: u32 = 0x8CD5_32A0;
+const LABEL_AUTOMATIC: u32 = LABEL_AUTO;
 const LABEL_MANUAL: u32 = 0x317D_3005;
 
 /// Frame limits the row cycles through.
@@ -178,113 +223,6 @@ impl Setting {
         }
     }
 
-    /// What the data string shows for a toggle.
-    pub fn data(self, s: &Settings) -> Data {
-        match self {
-            Setting::AdvancedGraphics => Data::Text("Open F8".into()),
-            Setting::Custom(row) => super::custom_race::options::data(row),
-            Setting::TrafficPreset => Data::Text(s.traffic_preset().label().into()),
-            Setting::Input(setting) => setting.data(s),
-            Setting::Post(setting) => setting.data(s),
-            Setting::Graphics(setting) => setting.data(s),
-            Setting::Renderer(setting) => setting.data(s),
-            Setting::UpscaleSharpness => Data::Text(steps::sharpening_name(s.upscale_sharpness).to_owned()),
-            Setting::Hd(setting) => setting.data(s),
-            Setting::HudLayout => Data::Text(
-                match s.hud_layout {
-                    HudLayout::Pc => "PC",
-                    HudLayout::Classic => "Centered",
-                    HudLayout::Xbox360 => "Xbox 360",
-                }
-                .to_owned(),
-            ),
-            Setting::UiStyle => Data::Text(s.ui_style.label().to_owned()),
-            Setting::SpeedUnits => Data::Text(s.speed_units.label().to_owned()),
-            Setting::UiTheme => Data::Text(s.ui_theme.label().to_owned()),
-            Setting::Minimap => Data::Text(
-                match s.minimap {
-                    MinimapMode::Fixed => "Fixed",
-                    MinimapMode::Rotating => "Rotating",
-                    MinimapMode::Off => "Off",
-                }
-                .into(),
-            ),
-            Setting::RenderScale => Data::Text(format!("{}%", s.render_scale.percent())),
-            Setting::Upscaler => Data::Text(
-                match s.upscaler {
-                    UpscaleMode::Off => "Off",
-                    UpscaleMode::Bilinear => "Bilinear",
-                    UpscaleMode::Fsr1 => "FSR 1",
-                    UpscaleMode::Fsr3 => "FSR 3",
-                    UpscaleMode::Fsr4 => "FSR 4",
-                    UpscaleMode::Dlss => "DLSS",
-                }
-                .to_owned(),
-            ),
-            Setting::Vsync => on_off(s.vsync),
-            Setting::Hud => on_off(s.hud),
-            Setting::TireSmoke => on_off(s.tire_smoke),
-            Setting::SkidMarks => on_off(s.skid_marks),
-            Setting::CollisionSparks if !s.collision_sparks => on_off(false),
-            Setting::CollisionSparks => Data::Text(s.spark_style.label().into()),
-            Setting::SpeedTrails => on_off(s.speed_trails),
-            Setting::SpeedTrailStyle => Data::Text(s.speed_trail_style.label().into()),
-            Setting::ExhaustFlames => on_off(s.exhaust_flames),
-            Setting::CustomFonts => on_off(s.custom_fonts.enabled),
-            Setting::TurnSignals => on_off(s.turn_signals),
-            Setting::CopHealthBars => on_off(s.cop_health_bars),
-            Setting::RearViewMirror => on_off(s.rear_view_mirror),
-            Setting::Discord => on_off(s.discord),
-            Setting::DiscordTimePlayed => on_off(s.discord_time_played),
-            Setting::SmokeQuality => Data::Text(
-                match s.smoke_quality {
-                    SmokeQuality::Standard => "Standard",
-                    SmokeQuality::High => "High",
-                }
-                .to_owned(),
-            ),
-            Setting::WindowMode => Data::Text(
-                match s.window_mode {
-                    WindowMode::Windowed => "Windowed",
-                    WindowMode::Borderless => "Borderless",
-                    WindowMode::Exclusive => "Exclusive",
-                }
-                .to_owned(),
-            ),
-            Setting::Transmission => Data::Label(match s.transmission {
-                Transmission::Automatic => LABEL_AUTOMATIC,
-                Transmission::Manual => LABEL_MANUAL,
-            }),
-            Setting::Camera => Data::Text(
-                match s.camera_mode {
-                    CameraMode::Chase => "Chase",
-                    CameraMode::DynamicFov => "Dynamic FOV",
-                    CameraMode::Bumper => "Bumper",
-                    CameraMode::Hood => "Hood",
-                    CameraMode::Close => "Close",
-                    CameraMode::Far => "Far",
-                    CameraMode::SuperFar => "Super far",
-                    CameraMode::Drift => "Drift",
-                    CameraMode::Pursuit => "Pursuit",
-                }
-                .to_owned(),
-            ),
-            Setting::MaxFps => Data::Text(match s.max_fps.to_string().as_str() {
-                "unlocked" => "Unlocked".to_owned(),
-                fps => format!("{fps} FPS"),
-            }),
-            Setting::Metrics => Data::Text(
-                match s.show_metrics {
-                    ShowMetrics::Off => "Off",
-                    ShowMetrics::Basic => "Basic",
-                    ShowMetrics::Advanced => "Advanced",
-                }
-                .to_owned(),
-            ),
-            _ => Data::Text(String::new()),
-        }
-    }
-
     /// Moves the setting one step (`forward`: right, else left) and records the change for the config file.
     /// Returns whether the value changed (a slider at its end does not).
     #[cfg(test)]
@@ -325,6 +263,7 @@ impl Setting {
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
             Setting::Renderer(setting) => return setting.step(s, changed, forward),
             Setting::Hd(setting) => return setting.step(s, changed, forward),
+            Setting::Language => return language::step(s, changed, forward),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);

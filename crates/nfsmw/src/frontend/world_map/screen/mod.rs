@@ -15,6 +15,7 @@ use nfsmw_career::regions::MapVariant;
 use super::control::{format_metres, icon_name, style_name, tint_of};
 use super::{Camera, Filter, PlacedBlip, WorldMapFrame, distance_metres, layout};
 use crate::frontend::logic::{Cx, ScreenLogic};
+use crate::i18n::t;
 
 /// Where the list's text starts (its left edge) and the width it is aligned in, in FEng units.
 const LIST_LEFT: f32 = 90.0;
@@ -30,7 +31,9 @@ const YELLOW: [u8; 3] = [255, 255, 0];
 /// The co-op second player's car: cyan, so the two marks tell apart on the picture.
 const SECOND_PLAYER: [u8; 3] = [80, 200, 255];
 /// The text the list shows when no blip of the filter is on the map.
-const EMPTY: &str = "No blips of this type on the map.";
+pub(super) fn empty() -> String {
+    t!("map-list-empty")
+}
 
 /// The map's screen logic. It keeps no state of its own: the frontend hands it the frame each tick. The variant is the
 /// career stage's map (`MapVariant::of_stage`, or the full map outside career mode), chosen when the map opens.
@@ -113,7 +116,7 @@ fn draw_picture(cx: &mut Cx, camera: Camera, filter: Filter, key: u32) {
         cx.rt.set_uv(o, camera.uv());
         set_picture_texture(cx, o, key);
     }
-    set_text(cx, pools::ZOOM, &format!("Zoom x{:.1}", camera.zoom()));
+    set_text(cx, pools::ZOOM, &format!("{} x{:.1}", t!("map-zoom"), camera.zoom()));
     set_text(cx, pools::TAB, &filter.label().to_uppercase());
 }
 
@@ -240,7 +243,7 @@ fn draw_list(cx: &mut Cx, frame: &WorldMapFrame) {
                 draw_row(cx, row, y, &place::row_text(blip, frame.player), blip, attached);
             }
             None if k == 0 && listed.is_empty() => {
-                draw_row_text(cx, row.text, y, EMPTY, WHITE);
+                draw_row_text(cx, row.text, y, &empty(), WHITE);
                 hide(cx, row.icon_group, true);
             }
             None => {
@@ -299,7 +302,7 @@ fn draw_cursor_and_card(cx: &mut Cx, frame: &WorldMapFrame) {
         return;
     };
     hide(cx, pools::CARD, false);
-    set_text(cx, pools::CARD_TITLE, style_name(blip.style));
+    set_text(cx, pools::CARD_TITLE, &style_name(blip.style));
     set_text(cx, pools::CARD_DISTANCE, &format_metres(distance_metres(frame.player, blip)));
     if let Some(icon) = cx.guid(pools::CARD_ICON) {
         show_icon(cx, icon, blip.style);

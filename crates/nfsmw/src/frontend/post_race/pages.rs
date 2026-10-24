@@ -4,6 +4,7 @@
 
 use nfsmw_data::gameplay::RaceType;
 
+use crate::i18n::fmt::percent;
 use crate::settings::SpeedUnits;
 use crate::viewer::{RaceReport, ReportRacer};
 
@@ -339,18 +340,18 @@ fn stage_rows(racer: &ReportRacer) -> Vec<[Cell; 3]> {
     let mut rows: Vec<[Cell; 3]> = blackbox_race::STAGE_PERCENTS
         .iter()
         .zip(racer.stats.stages)
-        .map(|(percent, mark)| match mark {
+        .map(|(share, mark)| match mark {
             Some(mark) => [
-                Cell::Text(format!("{percent:.0}%")),
+                Cell::Text(percent(share.round() as i64)),
                 Cell::Text(mark.place.to_string()),
                 Cell::Text(race_time(mark.time)),
             ],
-            None => dashes(format!("{percent:.0}%")),
+            None => dashes(percent(share.round() as i64)),
         })
         .collect();
     rows.push(match racer.time {
-        Some(time) => [Cell::Text("100%".into()), Cell::Text(racer.place.to_string()), Cell::Text(race_time(time))],
-        None => dashes("100%".into()),
+        Some(time) => [Cell::Text(percent(100)), Cell::Text(racer.place.to_string()), Cell::Text(race_time(time))],
+        None => dashes(percent(100)),
     });
     rows
 }

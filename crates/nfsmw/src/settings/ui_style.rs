@@ -23,12 +23,14 @@ names!(
 );
 impl UiStyle {
     pub const ALL: [Self; 3] = [Self::Original, Self::Custom, Self::Remastered];
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Original => "Original",
-            Self::Custom => "Custom",
-            Self::Remastered => "Remastered",
-        }
+    /// The style's name in the current language, as the options show it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Original => "options-original",
+            Self::Custom => "options-custom",
+            Self::Remastered => "options-remastered",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

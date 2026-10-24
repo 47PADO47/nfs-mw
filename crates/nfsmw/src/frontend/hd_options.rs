@@ -16,10 +16,10 @@ pub enum HdSetting {
 
 impl HdSetting {
     pub fn title(self) -> Title {
-        Title::Text(match self {
-            Self::Fonts => "HD Fonts",
-            Self::Cursor => "HD Cursor",
-            Self::Movies => "HD Movies",
+        Title::Key(match self {
+            Self::Fonts => "options-hd-fonts",
+            Self::Cursor => "options-hd-cursor",
+            Self::Movies => "options-hd-movies",
         })
     }
 

@@ -145,7 +145,13 @@ pub fn end_of_frame(
         let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
         let fps = host.frames as f32 / elapsed;
         log::debug!("{fps:.1} fps");
-        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.info().summary());
+        window.title = crate::i18n::t!(
+            "menus-window-title",
+            scene = host.scene.title(),
+            renderer = renderer.info().summary(),
+            fps = fps.round() as i64,
+            status = status,
+        );
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     if host.latency_pacing {

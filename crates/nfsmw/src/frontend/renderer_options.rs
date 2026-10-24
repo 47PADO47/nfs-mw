@@ -6,7 +6,8 @@ use std::sync::OnceLock;
 
 use blackbox_gfx::{Capabilities, GraphicsApi, Upscaler};
 
-use super::options::{Data, Title};
+use super::ids::LABEL_OFF;
+use super::options::{Data, LABEL_AUTO, Title, message};
 use super::post_options::pick;
 use crate::settings::{Partial, RayTracingLevel, RendererKind, Settings, UpscaleMode, UpscaleQuality};
 
@@ -22,12 +23,12 @@ pub enum RendererSetting {
 
 impl RendererSetting {
     pub fn title(self) -> Title {
-        Title::Text(match self {
-            Self::Renderer => "Renderer (After Restart)",
-            Self::GraphicsApi => "Graphics API (After Restart)",
-            Self::UpscaleQuality => "Upscale Quality",
-            Self::FrameGeneration => "Frame Generation",
-            Self::RayTracing => "Ray Tracing",
+        Title::Key(match self {
+            Self::Renderer => "options-renderer",
+            Self::GraphicsApi => "options-graphics-api",
+            Self::UpscaleQuality => "options-upscale-quality",
+            Self::FrameGeneration => "options-frame-generation",
+            Self::RayTracing => "options-ray-tracing",
         })
     }
 
@@ -41,41 +42,41 @@ impl RendererSetting {
         }
     }
 
+    /// What the row shows. The renderers', APIs' and upscalers' names are not language; Auto and Off are the original's.
     pub fn data(self, s: &Settings) -> Data {
-        Data::Text(
-            match self {
-                Self::Renderer => match s.renderer {
-                    RendererKind::Blackbox => "Black Box",
-                    RendererKind::Bevy => "Bevy",
-                },
-                Self::GraphicsApi => match s.backend {
-                    GraphicsApi::Auto => "Auto",
-                    GraphicsApi::Vulkan => "Vulkan",
-                    GraphicsApi::Dx12 => "DirectX 12",
-                    GraphicsApi::Gl => "OpenGL",
-                },
-                Self::UpscaleQuality => match s.upscale_quality {
-                    UpscaleQuality::Auto => "Auto",
-                    // DLSS at the output size is DLAA: it anti-aliases and does not upscale.
-                    UpscaleQuality::Native if s.upscaler == UpscaleMode::Dlss => "DLAA",
-                    UpscaleQuality::Native => "Native",
-                    UpscaleQuality::Quality => "Quality",
-                    UpscaleQuality::Balanced => "Balanced",
-                    UpscaleQuality::Performance => "Performance",
-                    UpscaleQuality::UltraPerformance => "Ultra Performance",
-                },
-                Self::FrameGeneration => {
-                    return Data::Text(s.frame_generation.to_string());
-                }
-                Self::RayTracing => match s.ray_tracing {
-                    RayTracingLevel::Off => "Off",
-                    RayTracingLevel::Low => "Low",
-                    RayTracingLevel::Medium => "Medium",
-                    RayTracingLevel::High => "High",
-                },
-            }
-            .to_owned(),
-        )
+        match self {
+            Self::Renderer => match s.renderer {
+                RendererKind::Blackbox => Data::Text("Black Box".into()),
+                RendererKind::Bevy => Data::Text("Bevy".into()),
+            },
+            Self::GraphicsApi => match s.backend {
+                GraphicsApi::Auto => Data::Label(LABEL_AUTO),
+                GraphicsApi::Vulkan => Data::Text("Vulkan".into()),
+                GraphicsApi::Dx12 => Data::Text("DirectX 12".into()),
+                GraphicsApi::Gl => Data::Text("OpenGL".into()),
+            },
+            Self::UpscaleQuality => match s.upscale_quality {
+                UpscaleQuality::Auto => Data::Label(LABEL_AUTO),
+                // DLSS at the output size is DLAA: it anti-aliases and does not upscale.
+                UpscaleQuality::Native if s.upscaler == UpscaleMode::Dlss => Data::Text("DLAA".into()),
+                UpscaleQuality::Native => message("options-upscale-native"),
+                UpscaleQuality::Quality => message("options-upscale-quality-mode"),
+                UpscaleQuality::Balanced => message("options-upscale-balanced"),
+                UpscaleQuality::Performance => message("options-upscale-performance"),
+                UpscaleQuality::UltraPerformance => message("options-upscale-ultra-performance"),
+            },
+            Self::FrameGeneration => match s.frame_generation.0 {
+                0 => Data::Label(LABEL_OFF),
+                // The multiplier (2x, 3x) is not language.
+                _ => Data::Text(s.frame_generation.to_string()),
+            },
+            Self::RayTracing => match s.ray_tracing {
+                RayTracingLevel::Off => Data::Label(LABEL_OFF),
+                RayTracingLevel::Low => message("options-low"),
+                RayTracingLevel::Medium => message("options-medium"),
+                RayTracingLevel::High => message("options-high"),
+            },
+        }
     }
 
     /// Moves to the next (or previous) value, wrapping, and records the change for the config file.
@@ -160,7 +161,7 @@ mod tests {
                 RendererSetting::GraphicsApi.data(&s)
             })
             .collect();
-        let text = |t: &str| Data::Text(t.into());
+        let text = crate::frontend::options::shown;
         assert_eq!(names, [text("Auto"), text("Vulkan"), text("DirectX 12"), text("OpenGL")]);
     }
 }

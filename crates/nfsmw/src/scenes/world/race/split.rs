@@ -3,6 +3,7 @@
 
 use super::RacerPlan;
 use super::setup::Opponent;
+use crate::i18n::t;
 use crate::input::PlayerDevice;
 use crate::settings::Transmission;
 
@@ -74,7 +75,7 @@ impl SplitSetup {
     /// bias are not used (a person drives them).
     pub(super) fn second_player(&self) -> Opponent {
         Opponent {
-            name: "Player 2".into(),
+            name: t!("coop-player", n = 2),
             name_label: None,
             skill: 1.0,
             bias: 1.0,
@@ -89,10 +90,10 @@ impl SplitSetup {
     /// Names the two racers and seats the second player's gearbox.
     pub(super) fn name_players(&self, plan: &mut [RacerPlan]) {
         if let Some(first) = plan.first_mut() {
-            first.name = "Player 1".into();
+            first.name = t!("coop-player", n = 1);
         }
         if let Some(second) = plan.get_mut(1) {
-            second.name = "Player 2".into();
+            second.name = t!("coop-player", n = 2);
             second.person = Some(self.transmissions[1].is_automatic());
         }
     }

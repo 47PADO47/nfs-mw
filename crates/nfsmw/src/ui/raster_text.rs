@@ -2,7 +2,8 @@
 //! fonts, which blur when scaled up, so the Remastered theme names this font key on its text instead. The presenter
 //! rasterises the string once and draws it as a texture (`ui/present/blackbox.rs`).
 
-use std::sync::OnceLock;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
 
@@ -126,6 +127,77 @@ fn font() -> Option<&'static FontArc> {
 
 fn mono_font() -> Option<&'static FontArc> {
     MONO_FONT.get_or_init(|| FontArc::try_from_slice(epaint_default_fonts::HACK_REGULAR).ok()).as_ref()
+}
+
+/// The keys of the fallback text: a FEng string with characters its font lacks, drawn in the language's fallback fonts
+/// (`docs/specs/localization.md` section 5). The low byte is the language generation, so an image drawn before a
+/// language change is not reused after it.
+const RASTER_FALLBACK_BASE: u32 = 0x5241_4600;
+
+/// The key of fallback text in the current language.
+pub fn fallback_key() -> u32 {
+    RASTER_FALLBACK_BASE | (crate::i18n::generation() & 0xFF) as u32
+}
+
+/// The language packs' fonts, by file, once each (`None` for a file that does not load).
+static PACK_FONTS: Mutex<Vec<(PathBuf, Option<FontArc>)>> = Mutex::new(Vec::new());
+
+fn pack_font(path: &Path) -> Option<FontArc> {
+    let mut fonts = PACK_FONTS.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((_, font)) = fonts.iter().find(|(p, _)| p == path) {
+        return font.clone();
+    }
+    let font = std::fs::read(path).ok().and_then(|bytes| FontArc::try_from_vec(bytes).ok());
+    if font.is_none() {
+        log::warn!("{}: not a font this build can read", path.display());
+    }
+    fonts.push((path.to_path_buf(), font.clone()));
+    font
+}
+
+/// The fallback fonts, first choice first: the current language's pack fonts, then the bundled proportional font (Latin,
+/// Greek and Cyrillic).
+fn fallback_fonts() -> Vec<FontArc> {
+    let mut out: Vec<FontArc> = crate::i18n::current().fonts.iter().filter_map(|path| pack_font(path)).collect();
+    out.extend(font().cloned());
+    out
+}
+
+/// A line of text as a white image in the fallback fonts, each character from the first font that has it. Sized like
+/// [`render`]: `RASTER_HEIGHT_PX` tall in the first font's metrics.
+pub fn render_fallback(text: &str) -> Option<Image> {
+    let chain = fallback_fonts();
+    let first = chain.first()?;
+    let scale = PxScale::from(RASTER_HEIGHT_PX);
+    let metrics = first.as_scaled(scale);
+    let ascent = metrics.ascent();
+    let height = (metrics.ascent() - metrics.descent()).ceil().max(1.0) as u32;
+    let mut glyphs = Vec::new();
+    let mut pen = 0.0_f32;
+    for ch in text.chars() {
+        let font = chain.iter().find(|f| f.glyph_id(ch).0 != 0).unwrap_or(first);
+        let id = font.glyph_id(ch);
+        glyphs.push((font, id.with_scale_and_position(scale, ab_glyph::point(pen, ascent))));
+        pen += font.as_scaled(scale).h_advance(id);
+    }
+    let width = pen.ceil().max(1.0) as u32;
+    let mut rgba = vec![0u8; (width * height * 4) as usize];
+    for (font, glyph) in glyphs {
+        let Some(outlined) = font.outline_glyph(glyph) else { continue };
+        let bounds = outlined.px_bounds();
+        outlined.draw(|x, y, coverage| {
+            let px = bounds.min.x as i64 + i64::from(x);
+            let py = bounds.min.y as i64 + i64::from(y);
+            if px < 0 || py < 0 || px >= i64::from(width) || py >= i64::from(height) {
+                return;
+            }
+            let at = (py as u32 * width + px as u32) as usize * 4;
+            let alpha = (coverage * 255.0).round() as u8;
+            let kept = alpha.max(rgba[at + 3]);
+            rgba[at..at + 4].copy_from_slice(&[255, 255, 255, kept]);
+        });
+    }
+    Some(Image { width, height, rgba, blend: 1 })
 }
 
 /// The string as a white image, in the proportional font. See [`render_with`].
@@ -258,6 +330,13 @@ mod tests {
         assert_eq!((bold.width, bold.height), (plain.width, plain.height));
         let covered = |image: &super::Image| image.rgba.as_chunks::<4>().0.iter().filter(|px| px[3] > 128).count();
         assert!(covered(&bold) > covered(&plain) * 3 / 2, "a bold stroke covers clearly more");
+    }
+
+    #[test]
+    fn fallback_text_draws_letters_the_game_fonts_lack() {
+        let image = super::render_fallback("Привет").expect("the bundled font has Cyrillic");
+        assert!(image.width > image.height, "six letters side by side");
+        assert!(image.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 200));
     }
 
     #[test]

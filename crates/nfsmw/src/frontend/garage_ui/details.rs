@@ -116,14 +116,13 @@ fn reward_details(model: &Model, row: Row, mut details: PackageDetails) -> Packa
 }
 
 fn performance(cx: &mut Cx, details: &PackageDetails) {
-    let name = Text::Game(details.name).resolve(cx.assets).unwrap_or_default();
+    let name = Text::Game(details.name).resolve().unwrap_or_default();
     for hash in [0x5e7b_09c9, crate::frontend::ids::ICON_TITLE, crate::frontend::ids::ICON_TITLE_SHADOW] {
         cx.text_object(hash, &name);
     }
     for line in 0..3 {
-        let text = (details.descriptions[line] != 0)
-            .then(|| Text::Game(details.descriptions[line]).resolve(cx.assets))
-            .flatten();
+        let text =
+            (details.descriptions[line] != 0).then(|| Text::Game(details.descriptions[line]).resolve()).flatten();
         let hash = fe_hash_upper(&format!("DETAIL_TEXT_LINE{}", line + 1));
         cx.hide(hash, text.is_none());
         cx.text_object(hash, text.as_deref().unwrap_or_default());

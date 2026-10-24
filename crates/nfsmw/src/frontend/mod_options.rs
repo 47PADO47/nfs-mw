@@ -12,17 +12,15 @@
 use blackbox_modding::host::MenuKind;
 
 use super::ids::{LABEL_OFF, LABEL_ON};
-use super::options::{Control, Data, Row, Setting, Title};
+use super::options::{Control, Data, Row, Setting, Title, message};
+use crate::i18n::t;
 use crate::modding::manager::Row as Switch;
 use crate::modding::{
     Mods, RowInfo, change_menu_row, has_ui_themes, menu_rows, step_ui_theme_choice, ui_theme_display,
 };
 
-/// The text a button row shows where a toggle shows its value.
-const PRESS: &str = "Press";
-/// The label of the UI theme row, and what it shows while the built-in style is chosen.
-const THEME_LABEL: &str = "UI theme";
-const BUILT_IN: &str = "Built-in style";
+/// The title of a Mods row: its label is the mod's, shown in its place (`shown`).
+const MOD_TITLE: Title = Title::Key("");
 
 /// What a Mods row shows: its label, its control and its data.
 pub struct Shown {
@@ -38,18 +36,17 @@ pub fn rows(mods: Option<&Mods>) -> Vec<Row> {
         return Vec::new();
     };
     let theme = theme_row(has_ui_themes(mods.bridge()));
-    let switches = (0..mods.manager().rows().len())
-        .map(|index| Row { setting: Setting::ModManaged(index), title: Title::Text("") });
-    let registered = menu_rows(mods.bridge())
-        .into_iter()
-        .map(|info| Row { setting: Setting::Mod(info.handle), title: Title::Text("") });
+    let switches =
+        (0..mods.manager().rows().len()).map(|index| Row { setting: Setting::ModManaged(index), title: MOD_TITLE });
+    let registered =
+        menu_rows(mods.bridge()).into_iter().map(|info| Row { setting: Setting::Mod(info.handle), title: MOD_TITLE });
     theme.into_iter().chain(switches).chain(registered).collect()
 }
 
 /// The UI theme row, when `offered`: a mod registered a theme, so there is a choice to make.
 fn theme_row(offered: bool) -> Option<Row> {
     match offered {
-        true => Some(Row { setting: Setting::ModTheme, title: Title::Text("") }),
+        true => Some(Row { setting: Setting::ModTheme, title: MOD_TITLE }),
         false => None,
     }
 }
@@ -91,18 +88,19 @@ pub fn change(mods: Option<&Mods>, setting: Setting, forward: bool) {
 
 /// The UI theme row shows the chosen mod theme's display text, or the built-in style when none is chosen.
 fn describe_theme(chosen: Option<String>) -> Shown {
-    let text = chosen.unwrap_or_else(|| BUILT_IN.to_owned());
-    Shown { label: THEME_LABEL.to_owned(), control: Control::Toggle, data: Data::Text(text) }
+    // A mod theme's display text is the mod's own.
+    let data = chosen.map_or_else(|| message("options-mods-built-in-style"), Data::Text);
+    Shown { label: t!("options-mods-ui-theme"), control: Control::Toggle, data }
 }
 
 /// A switch shows its mod's id, the switch's value, and a note when the next start will change what this run did.
 fn describe_switch(switch: &Switch) -> Shown {
-    let note = match (switch.loaded, switch.enabled) {
-        (true, false) => " (restart to unload)",
-        (false, true) => " (restart to load)",
-        _ => "",
+    let id = switch.id.as_str();
+    let label = match (switch.loaded, switch.enabled) {
+        (true, false) => t!("options-mods-restart-to-unload", id = id),
+        (false, true) => t!("options-mods-restart-to-load", id = id),
+        _ => switch.id.clone(),
     };
-    let label = format!("{}{note}", switch.id);
     let data = match switch.enabled {
         true => Data::Label(LABEL_ON),
         false => Data::Label(LABEL_OFF),
@@ -126,7 +124,8 @@ fn describe(info: RowInfo) -> Shown {
             let chosen = choices.get(info.value as usize).cloned().unwrap_or_default();
             (Control::Toggle, Data::Text(chosen))
         }
-        MenuKind::Button => (Control::Toggle, Data::Text(PRESS.to_owned())),
+        // A button row shows a word where a toggle shows its value.
+        MenuKind::Button => (Control::Toggle, message("options-mods-press")),
     };
     Shown { label: info.label, control, data }
 }

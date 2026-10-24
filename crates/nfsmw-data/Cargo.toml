@@ -27,6 +27,7 @@ blackbox-scenery.workspace = true
 blackbox-sequence.workspace = true
 blackbox-solid.workspace = true
 blackbox-streaming.workspace = true
+blackbox-text.workspace = true
 blackbox-tpk.workspace = true
 blackbox-vehicle.workspace = true
 ea-audio.workspace = true
@@ -39,7 +40,6 @@ serde.workspace = true
 [dev-dependencies]
 blackbox-anim.workspace = true
 blackbox-race.workspace = true
-blackbox-text.workspace = true
 
 [lints]
 workspace = true

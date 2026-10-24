@@ -171,7 +171,7 @@ pub fn alias_key(member: u8) -> String {
     format!("BLACKLIST_RIVAL_{member:02}_AKA")
 }
 
-/// A sentence with its `%s` and `%d` filled (the first of each).
+/// An unlock sentence with its printf places filled in order: the alias (`%s`), then the member's number (`%d`).
 pub fn fill_sentence(template: &str, alias: &str, member: u8) -> String {
-    template.replacen("%s", alias, 1).replacen("%d", &member.to_string(), 1)
+    blackbox_text::printf::fill(template, &[alias, member.to_string().as_str()])
 }

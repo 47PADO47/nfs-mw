@@ -16,8 +16,8 @@ fn colors() -> crate::garage::Model {
     let vinyl = catalog.choices[Part::Vinyl as usize][0].hash;
     catalog.vinyl_remaps.insert(vinyl, 3);
     catalog.gauge_skins.push(1);
-    for channel in 0..6 {
-        catalog.color_palettes[channel] = (0..2)
+    for (channel, palette) in catalog.color_palettes.iter_mut().enumerate().take(6) {
+        *palette = (0..2)
             .map(|index| ColorChoice {
                 hash: 1000 + channel as u32 * 10 + index,
                 rgb: [channel as u8 * 20, 80, 160],
@@ -134,8 +134,8 @@ fn installed_garage_numbers_edit_and_remove_both_door_pairs_as_one_cart_item() {
         catalog.decals[zone].body_positions.insert(1, 6);
         catalog.decals[zone].body_number_positions.insert(1, [true; 2]);
     }
-    for digit in 0..2 {
-        catalog.number_choices[digit] = (0..10)
+    for (digit, choices) in catalog.number_choices.iter_mut().enumerate().take(2) {
+        *choices = (0..10)
             .map(|value| Choice {
                 hash: 2000 + digit as u32 * 100 + value,
                 label: value.to_string(),

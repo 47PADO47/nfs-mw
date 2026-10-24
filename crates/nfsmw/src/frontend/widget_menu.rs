@@ -12,6 +12,7 @@ use super::logic::{Args, Command, Cx, Pick, ScreenLogic, Way};
 use super::mod_options;
 use super::options::{self, Control, Data, Row, Title};
 use super::widget_layout::{Layout, RowObjects};
+use crate::i18n::t;
 use crate::ui::theme::MenuEntry;
 
 mod vertical;
@@ -145,7 +146,7 @@ impl WidgetMenu {
         match (mod_options::shown(cx.mods, row.setting), row.title) {
             (Some(shown), _) => cx.rt.set_text(r.name, &shown.label),
             (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
-            (None, Title::Text(text)) => cx.rt.set_text(r.name, text),
+            (None, title @ Title::Key(_)) => cx.rt.set_text(r.name, title.text()),
         }
         let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));
@@ -236,7 +237,7 @@ impl WidgetMenu {
             return;
         }
         let Some(row) = self.rows.get(self.selected) else { return };
-        if !matches!(row.title, Title::Text(_)) {
+        if !matches!(row.title, Title::Key(_)) {
             return;
         }
         let Some(r) = self.objects.get(self.selected.saturating_sub(self.top)) else { return };
@@ -391,9 +392,9 @@ impl ScreenLogic for WidgetMenu {
         }
         match self.args.category {
             // The Controls icon opens the key list; this list is the Control Options item.
-            super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, "Control Options"),
+            super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, &t!("menus-control-options")),
             super::logic::Category::Discord => cx.text_group(ids::HEADER_TEXT, "Discord"),
-            super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, "Mods"),
+            super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, &t!("menus-mods")),
             _ => {}
         }
         self.refresh(cx);

@@ -58,6 +58,10 @@ pub use iface::{
     IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 pub use iface::{
+    BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn, IFACE_I18N,
+    IFACE_I18N_VERSION,
+};
+pub use iface::{
     BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbBlip, BbCommandCallbackFn, BbCommands,
     BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn, BbHotkeyFn, BbIface, BbInput, BbInputRegisterFn,
     BbInputUnregisterFn, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbMenuCallbackFn, BbMenuRow, BbMenus,

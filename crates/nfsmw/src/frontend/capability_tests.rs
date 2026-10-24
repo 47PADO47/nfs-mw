@@ -3,7 +3,7 @@
 
 use super::graphics_options::GraphicsSetting;
 use super::logic::Category;
-use super::options::{Data, Setting, Title, rows};
+use super::options::{Setting, rows, shown};
 use super::post_options::PostSetting;
 use super::renderer_options::RendererSetting;
 use crate::settings::test_caps;
@@ -15,12 +15,18 @@ fn defaults() -> Settings {
     Settings::from(Partial::default())
 }
 
-fn titles(category: Category, caps: &blackbox_gfx::Capabilities) -> Vec<Title> {
-    rows(category, caps).iter().map(|r| r.title).collect()
+/// The rows' titles as they read in English. A title that is a game label reads empty: the tests load no game table.
+fn titles(category: Category, caps: &blackbox_gfx::Capabilities) -> Vec<String> {
+    rows(category, caps).iter().map(|r| r.title.text()).collect()
 }
 
-fn text(s: &'static str) -> Title {
-    Title::Text(s)
+fn text(s: &'static str) -> String {
+    s.to_owned()
+}
+
+/// Where a setting's row is in a category.
+fn place(category: Category, caps: &blackbox_gfx::Capabilities, setting: Setting) -> usize {
+    rows(category, caps).iter().position(|r| r.setting == setting).unwrap_or_else(|| panic!("no {setting:?} row"))
 }
 
 #[test]
@@ -34,7 +40,7 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     let rt = Setting::Renderer(RendererSetting::RayTracing);
     assert!(video.contains(&text("Ray Tracing")), "ray tracing is listed on every renderer");
     assert!(!rt.enabled_in(&defaults(), &native), "but it is dimmed where it cannot run");
-    assert_eq!(rt.data_in(&defaults(), &native), Data::Text("Unavailable".into()));
+    assert_eq!(rt.data_in(&defaults(), &native), shown("Unavailable"));
     let (mut s, mut c) = (defaults(), Partial::default());
     assert!(!rt.advance(&mut s, &mut c, true, &native), "and it does not change");
     assert_eq!(c, Partial::default());
@@ -49,19 +55,22 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     assert_eq!(video[7], text("Advanced Graphics"));
     assert!(video.contains(&text("Shadow Quality")));
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
-    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 8);
+    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 9);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
     assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 2, "the Discord toggles have their own category");
 }
 
 #[test]
 fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
-    let video = titles(Category::Video, &test_caps::full());
+    let full = test_caps::full();
+    let video = titles(Category::Video, &full);
     assert!(video.len() < 40, "fine controls belong in F8");
     let at =
         |name: &'static str| video.iter().position(|t| *t == text(name)).unwrap_or_else(|| panic!("no {name} row"));
-    assert_eq!(at("Car Geometry Detail"), at("World Level of Detail") + 1);
-    assert_eq!(at("Traffic Range Preset"), at("Car Geometry Detail") + 1);
+    // The detail rows' titles are the original's labels.
+    let car_geometry = place(Category::Video, &full, Setting::Graphics(GraphicsSetting::CarGeometry));
+    assert_eq!(car_geometry, place(Category::Video, &full, Setting::Graphics(GraphicsSetting::WorldDetail)) + 1);
+    assert_eq!(at("Traffic Range Preset"), car_geometry + 1);
     assert_eq!(at("Reflection Quality"), at("Shadow Quality") + 1);
     assert_eq!(at("Upscale Quality"), at("Upscaler") + 1);
     for hidden in [
@@ -82,7 +91,7 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
 
 #[test]
 fn the_renderer_row_says_it_applies_after_a_restart() {
-    assert_eq!(RendererSetting::Renderer.title(), Title::Text("Renderer (After Restart)"));
+    assert_eq!(RendererSetting::Renderer.title().text(), "Renderer (After Restart)");
     assert!(RendererSetting::Renderer.shown(&test_caps::native()));
 }
 
@@ -90,10 +99,10 @@ fn the_renderer_row_says_it_applies_after_a_restart() {
 fn the_upscaler_row_cycles_only_what_the_native_renderer_runs() {
     let (mut s, mut c, caps) = (defaults(), Partial::default(), test_caps::native());
     let row = Setting::Upscaler;
-    assert_eq!(row.data_in(&s, &caps), Data::Text("FSR 1".into()));
+    assert_eq!(row.data_in(&s, &caps), shown("FSR 1"));
     for name in ["Off", "Bilinear", "FSR 1", "Off"] {
         assert!(row.advance(&mut s, &mut c, true, &caps));
-        assert_eq!(row.data_in(&s, &caps), Data::Text(name.into()));
+        assert_eq!(row.data_in(&s, &caps), shown(name));
     }
     row.advance(&mut s, &mut c, false, &caps);
     assert_eq!(s.upscaler, UpscaleMode::Fsr1, "left from off skips fsr3, fsr4 and dlss");
@@ -108,7 +117,7 @@ fn a_native_renderer_with_fsr3_cycles_it_and_shows_the_quality_mode() {
     let (mut s, mut c) = (defaults(), Partial::default());
     for name in ["FSR 3", "Off", "Bilinear", "FSR 1"] {
         assert!(Setting::Upscaler.advance(&mut s, &mut c, true, &caps));
-        assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
+        assert_eq!(Setting::Upscaler.data_in(&s, &caps), shown(name));
     }
     Setting::Upscaler.advance(&mut s, &mut c, false, &caps);
     assert_eq!(s.upscaler, UpscaleMode::Bilinear, "left from FSR 1 goes back one");
@@ -122,7 +131,7 @@ fn the_upscaler_row_cycles_all_six_on_a_full_renderer() {
     let (mut s, mut c, caps) = (defaults(), Partial::default(), test_caps::full());
     for name in ["FSR 3", "FSR 4", "DLSS", "Off", "Bilinear", "FSR 1"] {
         Setting::Upscaler.advance(&mut s, &mut c, true, &caps);
-        assert_eq!(Setting::Upscaler.data_in(&s, &caps), Data::Text(name.into()));
+        assert_eq!(Setting::Upscaler.data_in(&s, &caps), shown(name));
     }
 }
 
@@ -139,12 +148,7 @@ fn a_dlss_renderer_shows_the_temporal_rows_and_cycles_only_what_it_runs() {
     }
     assert_eq!(
         seen,
-        [
-            Data::Text("DLSS".into()),
-            Data::Text("Off".into()),
-            Data::Text("Bilinear".into()),
-            Data::Text("FSR 1".into())
-        ],
+        [shown("DLSS"), shown("Off"), shown("Bilinear"), shown("FSR 1")],
         "FSR 3 and FSR 4 are skipped: the DLSS mock's caps do not list them"
     );
 }
@@ -181,12 +185,9 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
         ..Partial::default()
     });
     let aa = Setting::Post(PostSetting::Aa);
-    assert_eq!(aa.data_in(&stored, &native), Data::Text("FXAA".into()));
-    assert_eq!(Setting::Upscaler.data_in(&stored, &native), Data::Text("FSR 1".into()));
-    assert_eq!(
-        Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native),
-        Data::Text("Unavailable".into())
-    );
+    assert_eq!(aa.data_in(&stored, &native), shown("FXAA"));
+    assert_eq!(Setting::Upscaler.data_in(&stored, &native), shown("FSR 1"));
+    assert_eq!(Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native), shown("Unavailable"));
     assert!(!aa.offered(&stored, &native) && !Setting::Upscaler.offered(&stored, &native));
     let (mut s, mut c) = (stored, Partial::default());
     aa.advance(&mut s, &mut c, true, &native);
@@ -206,25 +207,25 @@ fn the_renderer_rows_cycle_and_record_only_their_own_change() {
     let rt = Setting::Renderer(RendererSetting::RayTracing);
     for name in ["Low", "Medium", "High", "Off"] {
         assert!(rt.advance(&mut s, &mut c, true, &full));
-        assert_eq!(rt.data_in(&s, &full), Data::Text(name.into()));
+        assert_eq!(rt.data_in(&s, &full), shown(name));
     }
     assert_eq!(c, Partial { ray_tracing: Some(RayTracingLevel::Off), ..Partial::default() });
 
     let (mut s, mut c) = (defaults(), Partial::default());
     let quality = Setting::Renderer(RendererSetting::UpscaleQuality);
     s.upscaler = UpscaleMode::Dlss;
-    assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
+    assert_eq!(quality.data_in(&s, &full), shown("Quality"));
     for name in ["Balanced", "Performance", "Ultra Performance", "Auto", "DLAA", "Quality"] {
         quality.advance(&mut s, &mut c, true, &full);
-        assert_eq!(quality.data_in(&s, &full), Data::Text(name.into()));
+        assert_eq!(quality.data_in(&s, &full), shown(name));
     }
     assert_eq!(c, Partial { upscale_quality: Some(UpscaleQuality::Quality), ..Partial::default() });
 
     let (mut s, mut c, renderer) = (defaults(), Partial::default(), Setting::Renderer(RendererSetting::Renderer));
-    assert_eq!(renderer.data_in(&s, &test_caps::native()), Data::Text("Black Box".into()));
+    assert_eq!(renderer.data_in(&s, &test_caps::native()), shown("Black Box"));
     renderer.advance(&mut s, &mut c, true, &test_caps::native());
     assert_eq!((s.renderer, c.renderer), (RendererKind::Bevy, Some(RendererKind::Bevy)));
-    assert_eq!(renderer.data_in(&s, &test_caps::native()), Data::Text("Bevy".into()));
+    assert_eq!(renderer.data_in(&s, &test_caps::native()), shown("Bevy"));
     renderer.advance(&mut s, &mut c, false, &test_caps::native());
     assert_eq!(s.renderer, RendererKind::Blackbox);
 }
@@ -236,13 +237,13 @@ fn the_preset_row_reaches_ultra_and_the_native_renderer_shows_it_as_high() {
     let preset = Setting::Graphics(GraphicsSetting::Preset);
     for name in ["Low", "Medium", "High", "Ultra"] {
         preset.advance(&mut s, &mut c, true, &native);
-        assert_eq!(preset.data_in(&s, &native), Data::Text(name.into()));
+        assert_eq!(preset.data_in(&s, &native), shown(name));
     }
     assert_eq!(s.graphics_preset, GraphicsPreset::Ultra);
-    assert_eq!(Setting::Post(PostSetting::Aa).data_in(&s, &native), Data::Text("FXAA".into()));
+    assert_eq!(Setting::Post(PostSetting::Aa).data_in(&s, &native), shown("FXAA"));
     assert_eq!(c.ray_tracing, Some(RayTracingLevel::Medium), "the preset writes every key it sets");
     preset.advance(&mut s, &mut c, true, &native);
-    assert_eq!(preset.data_in(&s, &native), Data::Text("Custom".into()), "forward from ultra wraps to custom");
+    assert_eq!(preset.data_in(&s, &native), shown("Custom"), "forward from ultra wraps to custom");
 }
 
 #[test]
@@ -259,9 +260,9 @@ fn reflections_follow_renderer_support_and_glossy_shading() {
     s.car_shading = crate::settings::CarShading::Glossy;
     assert!(row.enabled(&s));
     assert!(row.advance(&mut s, &mut changes, true, &native));
-    assert_eq!(row.data_in(&s, &native), Data::Text("High".into()));
+    assert_eq!(row.data_in(&s, &native), shown("High"));
     assert!(!titles(Category::Video, &unsupported).contains(&text("Car Reflections")));
-    assert_eq!(row.data_in(&s, &unsupported), Data::Text("Static Sky".into()));
+    assert_eq!(row.data_in(&s, &unsupported), shown("Static Sky"));
 }
 
 #[test]
@@ -290,10 +291,7 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
     s.ao = AoQuality::Medium;
     assert!(Setting::Graphics(GraphicsSetting::AoIntensity).advance(&mut s, &mut changes, true, &native));
     assert_eq!(changes.ao_intensity, Some(Percent(75)));
-    assert_eq!(
-        Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
-        Data::Text("Off".into())
-    );
+    assert_eq!(Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported), shown("Off"));
 }
 
 #[test]
@@ -304,11 +302,11 @@ fn profile_menu_reports_backend_shadow_and_treatment_results_without_erasing_req
     s.appearance.treatment_strength = Some(0.73);
     let before = s;
     let shadows = Setting::Graphics(GraphicsSetting::Shadows);
-    assert_eq!(shadows.data_in(&s, &test_caps::full()), Data::Text("High".into()));
+    assert_eq!(shadows.data_in(&s, &test_caps::full()), shown("High"));
     let unsupported = blackbox_gfx::Capabilities { soft_shadows: false, scene_treatment: false, ..test_caps::full() };
-    assert_eq!(shadows.data_in(&s, &unsupported), Data::Text("Off".into()));
+    assert_eq!(shadows.data_in(&s, &unsupported), shown("Off"));
     let treatment = Setting::Graphics(GraphicsSetting::VisualTreatment);
-    assert_eq!(treatment.data_in(&s, &unsupported), Data::Text("Off".into()));
+    assert_eq!(treatment.data_in(&s, &unsupported), shown("Off"));
     assert_eq!(s, before);
 }
 
@@ -318,8 +316,8 @@ fn original_car_requests_explain_the_bevy_shader_fallback_without_changing_prefe
     let row = Setting::Graphics(GraphicsSetting::CarShading);
     for shading in [crate::settings::CarShading::Original, crate::settings::CarShading::OriginalUnshadowed] {
         s.car_shading = shading;
-        assert_eq!(row.data_in(&s, &test_caps::native()), Data::Text(shading.label().into()));
-        assert_eq!(row.data_in(&s, &test_caps::full()), Data::Text("Custom shader fallback".into()));
+        assert_eq!(row.data_in(&s, &test_caps::native()), shown(shading.label()));
+        assert_eq!(row.data_in(&s, &test_caps::full()), shown("Custom shader fallback"));
         assert_eq!(s.car_shading, shading);
     }
 }
@@ -333,16 +331,16 @@ fn filtering_restart_label_follows_the_running_backend_not_the_saved_renderer_re
         ..Default::default()
     });
     let row = Setting::Graphics(GraphicsSetting::TextureFiltering);
-    assert_eq!(row.data_in(&stored, &test_caps::native()), Data::Text("Anisotropic 16x".into()));
+    assert_eq!(row.data_in(&stored, &test_caps::native()), shown("Anisotropic 16x"));
     let bevy = blackbox_gfx::Capabilities {
         renderer: "bevy",
         restart_required: blackbox_gfx::RestartSet::of(&[blackbox_gfx::Setting::TextureFiltering]),
         ..test_caps::native()
     };
     let requested_native = Settings { renderer: RendererKind::Blackbox, ..stored };
-    assert_eq!(row.data_in(&requested_native, &bevy), Data::Text("Anisotropic 16x (Restart)".into()));
+    assert_eq!(row.data_in(&requested_native, &bevy), shown("Anisotropic 16x (Restart)"));
     let weak = blackbox_gfx::Capabilities { max_texture_anisotropy: 1, ..test_caps::native() };
-    assert_eq!(row.data_in(&stored, &weak), Data::Text("Trilinear".into()));
+    assert_eq!(row.data_in(&stored, &weak), shown("Trilinear"));
 }
 
 #[test]
@@ -368,16 +366,16 @@ fn the_temporal_upscalers_have_sharpening_frame_generation_and_dlaa_rows() {
     // No renderer has frame generation yet: the row is dimmed, reads Unavailable and changes nothing.
     let mut c = Partial::default();
     assert!(!frame_generation.enabled_in(&s, &full));
-    assert_eq!(frame_generation.data_in(&s, &full), Data::Text("Unavailable".into()));
+    assert_eq!(frame_generation.data_in(&s, &full), shown("Unavailable"));
     assert!(!frame_generation.advance(&mut s, &mut c, true, &full));
     assert_eq!(c, Partial::default());
 
     // DLSS at the output size is DLAA.
     s.upscale_quality = UpscaleQuality::Native;
-    assert_eq!(quality.data_in(&s, &full), Data::Text("DLAA".into()));
+    assert_eq!(quality.data_in(&s, &full), shown("DLAA"));
     s.upscaler = UpscaleMode::Fsr3;
-    assert_eq!(quality.data_in(&s, &full), Data::Text("Native".into()));
+    assert_eq!(quality.data_in(&s, &full), shown("Native"));
     s.upscaler = UpscaleMode::Dlss;
     s.upscale_quality = UpscaleQuality::Quality;
-    assert_eq!(quality.data_in(&s, &full), Data::Text("Quality".into()));
+    assert_eq!(quality.data_in(&s, &full), shown("Quality"));
 }

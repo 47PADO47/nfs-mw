@@ -448,11 +448,11 @@ fn controls_options_show_every_response_row_with_visible_values() {
         for (index, row) in rows.iter().enumerate() {
             let slot = index.min(visible - 1) + 1;
             let tree = h.screens.trees().pop().unwrap();
-            if let Title::Text(title) = row.title {
+            if let Title::Key(_) = row.title {
                 let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_NAME_{slot}"));
                 let node =
                     tree.nodes.iter().find(|node| node.name_hash == hash && node.visible).expect("visible option name");
-                assert_eq!(node.text.as_deref(), Some(title), "{name}, row {index}");
+                assert_eq!(node.text.as_deref(), Some(row.title.text().as_str()), "{name}, row {index}");
             }
             if let Data::Text(value) = row.setting.data(&h.settings) {
                 let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_DATA_{slot}"));

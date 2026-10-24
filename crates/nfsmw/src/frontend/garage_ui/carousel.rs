@@ -85,7 +85,7 @@ impl Carousel {
         }
         if let Page::Rims { brand, radius, .. } = self.page {
             cx.hide(0xe678_2841, brand == 0);
-            cx.text_object(0xe678_2841, &format!("{}\"", crate::frontend::infractions::money(radius)));
+            cx.text_object(0xe678_2841, &format!("{}\"", crate::i18n::fmt::grouped(i64::from(radius))));
         }
         self.filter_caption(cx);
         let state = self.handle.0.lock().unwrap();

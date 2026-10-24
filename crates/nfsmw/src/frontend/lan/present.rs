@@ -4,7 +4,7 @@
 
 use super::feed::FeedKind;
 use super::hud::HudView;
-use super::menu::rows::{PageView, Row, RowKind};
+use super::menu::rows::{HintDoes, HintKey, PageView, Row, RowKind};
 use crate::input::Action;
 use crate::ui::prompts::Prompt;
 use crate::ui::theme::remastered::menu::layout as place;
@@ -21,7 +21,7 @@ pub fn page_of(view: &PageView, first: usize, aspect: f32) -> LanPage {
         entries: view.rows.iter().map(entry_of).collect(),
         selected: view.selected,
         first,
-        hints: view.hints.iter().map(|(key, what)| hint_of(key, what)).collect(),
+        hints: view.hints.iter().map(|&(key, does)| hint_of(key, does)).collect(),
         style: MenuStyle::Sub,
         nudge: None,
         scroll: 0.0,
@@ -47,17 +47,19 @@ fn entry_of(row: &Row) -> MenuEntry {
     MenuEntry { label: row.label.clone(), enabled: row.enabled, value, icon: None }
 }
 
-fn hint_of(key: &str, what: &'static str) -> MenuHint {
-    MenuHint { keys: vec![Prompt::Key(key.to_owned())], label: what, action: hint_action(what) }
+fn hint_of(key: HintKey, does: HintDoes) -> MenuHint {
+    MenuHint { keys: vec![Prompt::Key(key.cap())], label: does.label(), action: hint_action(does) }
 }
 
 /// The action a click on a hint presses: the hints that select (or continue) press accept, those that go back (or stop
 /// typing) press back, and the ones that only say how to move do nothing.
-fn hint_action(what: &str) -> Option<Action> {
-    match what {
-        "Back" | "Stop typing" => Some(Action::MenuBack),
-        what if what.starts_with("Select") || what == "Continue" => Some(Action::MenuAccept),
-        _ => None,
+fn hint_action(does: HintDoes) -> Option<Action> {
+    match does {
+        HintDoes::Back | HintDoes::StopTyping => Some(Action::MenuBack),
+        HintDoes::Select | HintDoes::SelectOrType | HintDoes::SelectOrSay | HintDoes::Continue => {
+            Some(Action::MenuAccept)
+        }
+        HintDoes::Change | HintDoes::Move => None,
     }
 }
 

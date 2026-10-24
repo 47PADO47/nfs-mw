@@ -24,8 +24,12 @@ fn list(style: MenuStyle, selected: usize) -> MenuList {
         selected,
         first: 0,
         hints: vec![
-            MenuHint { keys: vec![Prompt::Key("Enter".into())], label: "Accept", action: Some(Action::MenuAccept) },
-            MenuHint { keys: vec![Prompt::Icon(Glyph::B)], label: "Back", action: Some(Action::MenuBack) },
+            MenuHint {
+                keys: vec![Prompt::Key("Enter".into())],
+                label: "Accept".into(),
+                action: Some(Action::MenuAccept),
+            },
+            MenuHint { keys: vec![Prompt::Icon(Glyph::B)], label: "Back".into(), action: Some(Action::MenuBack) },
         ],
         style,
         nudge: None,

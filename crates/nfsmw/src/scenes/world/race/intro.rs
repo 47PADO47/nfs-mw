@@ -5,7 +5,6 @@
 
 use std::collections::VecDeque;
 
-use blackbox_text::StringTable;
 use glam::Vec3;
 use nfsmw_career::story::prologue::{flashback_message, message_card_label};
 use nfsmw_career::story::{
@@ -339,13 +338,9 @@ impl WorldScene {
         Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(forward))
     }
 
-    /// A game label's text from the language table; empty when the table lacks it.
+    /// A game label's text in the current language; empty when no language has it.
     fn language_text(&self, label: u32) -> String {
-        nfsmw_data::shared::language(&self.dir)
-            .ok()
-            .and_then(|bytes| StringTable::from_file(&bytes).ok())
-            .and_then(|table| table.get(label))
-            .unwrap_or_default()
+        crate::i18n::game(label).unwrap_or_default()
     }
 
     /// The text of the message card that is up, if one is.

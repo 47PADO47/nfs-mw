@@ -56,9 +56,9 @@ impl WorldScene {
     }
 
     /// The prompt shown to `id` while they are offered a catch-up.
-    pub(in crate::scenes::world) fn catch_up_message(&self, id: PlayerId) -> Option<&'static str> {
+    pub(in crate::scenes::world) fn catch_up_message(&self, id: PlayerId) -> Option<String> {
         match self.takes_reset_for_catch_up(id) {
-            true => Some("Press Reset to catch up"),
+            true => Some(crate::i18n::t!("coop-catch-up")),
             false => None,
         }
     }

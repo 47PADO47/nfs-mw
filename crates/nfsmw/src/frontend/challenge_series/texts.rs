@@ -4,6 +4,7 @@
 use blackbox_text::label_hash;
 
 use super::board::Entry;
+use crate::i18n::fmt::grouped;
 
 /// The label of the header of an event (`cFrontendDatabase::GetChallengeHeaderHash`).
 pub fn header_label(tag: i32) -> u32 {
@@ -45,49 +46,14 @@ pub fn locked_line(index: usize) -> LockedLine {
 }
 
 /// The goal as the descriptions print it (`%$0.0f`): a time in minutes for the time statistics, else the number with
-/// its thousands separated by commas **[unconfirmed]** (the `$` flag of the original's printf was not read).
+/// its thousands grouped as the language writes them **[unconfirmed]** (the `$` flag of the original's printf was not
+/// read).
 pub fn goal_text(entry: &Entry) -> String {
     let goal = match entry.kind.time_goal() {
         true => entry.goal / 60.0,
         false => entry.goal,
     };
-    group_digits(goal.round() as i64)
-}
-
-/// A whole number with commas between the thousands.
-pub fn group_digits(value: i64) -> String {
-    let digits = value.unsigned_abs().to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i) % 3 == 0 {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    match value < 0 {
-        true => format!("-{out}"),
-        false => out,
-    }
-}
-
-/// A language string with its `%s` and `%d` places filled in order from `args`. A place with no argument is left empty.
-pub fn fill(template: &str, args: &[String]) -> String {
-    let mut out = String::new();
-    let mut rest = template;
-    let mut next = args.iter();
-    while let Some(at) = rest.find('%') {
-        out.push_str(&rest[..at]);
-        let after = &rest[at + 1..];
-        let Some(kind) = after.chars().next().filter(|c| matches!(c, 's' | 'd')) else {
-            out.push('%');
-            rest = after;
-            continue;
-        };
-        out.push_str(next.next().map_or("", String::as_str));
-        rest = &after[kind.len_utf8()..];
-    }
-    out.push_str(rest);
-    out
+    grouped(goal.round() as i64)
 }
 
 #[cfg(test)]
@@ -143,15 +109,16 @@ mod tests {
         assert_eq!(goal_text(&entry(Kind::Pursuit(m("cost_to_state_in_pursuit")), 200_000.0)), "200,000");
         assert_eq!(goal_text(&entry(Kind::Pursuit(m("bounty_in_pursuit")), 1_000_000.0)), "1,000,000");
         assert_eq!(goal_text(&entry(Kind::Pursuit(m("cops_damaged")), 5.0)), "5");
-        assert_eq!(group_digits(999), "999");
-        assert_eq!(group_digits(1000), "1,000");
+        assert_eq!(goal_text(&entry(Kind::Pursuit(m("cops_damaged")), 999.0)), "999");
+        assert_eq!(goal_text(&entry(Kind::Pursuit(m("cops_damaged")), 1000.0)), "1,000");
     }
 
     #[test]
     fn places_are_filled_in_order_and_a_lone_percent_stays() {
-        assert_eq!(fill("beating challenge %d or %d.", &["1".into(), "2".into()]), "beating challenge 1 or 2.");
-        assert_eq!(fill("at least %s minute", &["10".into()]), "at least 10 minute");
-        assert_eq!(fill("100% sure %s", &["x".into()]), "100% sure x");
-        assert_eq!(fill("%s and %s", &["a".into()]), "a and ");
+        use blackbox_text::printf::fill;
+        assert_eq!(fill("beating challenge %d or %d.", &["1", "2"]), "beating challenge 1 or 2.");
+        assert_eq!(fill("at least %s minute", &["10"]), "at least 10 minute");
+        assert_eq!(fill("50% off %s", &["x"]), "50% off x");
+        assert_eq!(fill("%s and %s", &["a"]), "a and ");
     }
 }

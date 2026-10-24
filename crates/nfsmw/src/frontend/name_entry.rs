@@ -9,6 +9,7 @@ use super::career_screens::save::{list_aliases, next_alias};
 use super::confirm::{Alert, set_text};
 use super::logic::{Command, Cx, Pick, ScreenLogic};
 use super::{confirm, ids};
+use crate::i18n::Args;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
@@ -59,13 +60,13 @@ impl NameEntry {
         format!("{prompt} {}_", self.text)
     }
 
-    fn prompt(&self, assets: &UiAssets) -> String {
-        Text::Game(PROMPT).resolve(assets).unwrap_or_else(|| "Enter name:".to_owned())
+    fn prompt(&self) -> String {
+        Text::Game(PROMPT).show()
     }
 
     fn refresh(&self, cx: &mut Cx) {
-        let message = self.shown(&self.prompt(cx.assets));
-        set_text(cx, confirm::MESSAGE, &Text::Custom(message));
+        let message = self.shown(&self.prompt());
+        set_text(cx, confirm::MESSAGE, &Text::Literal(message));
     }
 
     /// Takes the name when it is usable, else says why not.
@@ -74,8 +75,8 @@ impl NameEntry {
             return;
         }
         if list_aliases().iter().any(|alias| alias.eq_ignore_ascii_case(&self.text)) {
-            let notice = format!("The alias {} already exists.", self.text);
-            cx.send(Command::Alert(Alert::new(Text::Custom(notice))));
+            let notice = Text::Key("dialogs-alias-exists", Args::new().with("alias", self.text.as_str()));
+            cx.send(Command::Alert(Alert::new(notice)));
             return;
         }
         cx.send(Command::Pop);
@@ -133,14 +134,14 @@ impl ScreenLogic for NameEntry {
         }
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
-        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        let resolve = |text: &Text| text.resolve().unwrap_or_default();
         Some(MenuList {
             title: resolve(&Text::Game(HEADER)),
-            message: self.shown(&self.prompt(assets)),
+            message: self.shown(&self.prompt()),
             entries: vec![MenuEntry::plain(resolve(&Text::Game(confirm::CONTINUE)), true)],
             selected: 0,
             first: 0,

@@ -11,7 +11,7 @@ use super::{app_id_is_set, is_app_id};
 fn the_presence_follows_the_discord_and_time_settings() {
     assert_eq!(presence_for(PresenceStatus::Playing, false, true, 5), None, "off shows nothing");
     let plain = presence_for(PresenceStatus::Playing, true, false, 5).unwrap();
-    assert_eq!((plain.details, plain.started_at_ms), ("Playing NFS: Most Wanted", None));
+    assert_eq!((plain.details.as_str(), plain.started_at_ms), ("Playing NFS: Most Wanted", None));
     let timed = presence_for(PresenceStatus::Playing, true, true, 5).unwrap();
     assert_eq!(timed.started_at_ms, Some(5), "the session start is what Discord counts from");
 }

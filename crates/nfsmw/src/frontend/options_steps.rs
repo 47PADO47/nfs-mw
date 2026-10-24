@@ -1,4 +1,5 @@
 //! The stepping helpers the option rows share: the volume nudge, the render-scale presets and the wrap-around cycle.
+use super::{Data, LABEL_OFF, message};
 use crate::settings::{Percent, RenderScale};
 
 /// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
@@ -26,8 +27,13 @@ fn sharpening_level(p: Percent) -> usize {
     }
 }
 
-pub(super) fn sharpening_name(p: Percent) -> &'static str {
-    ["Off", "Medium", "High"][sharpening_level(p)]
+/// What the sharpening row reads: the original's Off, else Medium or High.
+pub(super) fn sharpening(p: Percent) -> Data {
+    match sharpening_level(p) {
+        0 => Data::Label(LABEL_OFF),
+        1 => message("options-medium"),
+        _ => message("options-high"),
+    }
 }
 
 /// The next sharpening level (`forward`) or the one before it, wrapping around.
@@ -54,12 +60,13 @@ pub(super) fn cycle(at: usize, len: usize, forward: bool) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use super::super::shown;
     use super::*;
 
     #[test]
     fn sharpening_cycles_off_medium_high_and_reads_values_between_as_the_nearest_level() {
-        let names: Vec<_> = [0, 1, 50, 65, 66, 80, 100].map(|p| sharpening_name(Percent(p))).to_vec();
-        assert_eq!(names, ["Off", "Medium", "Medium", "Medium", "High", "High", "High"]);
+        let names: Vec<_> = [0, 1, 50, 65, 66, 80, 100].map(|p| sharpening(Percent(p))).to_vec();
+        assert_eq!(names, ["Off", "Medium", "Medium", "Medium", "High", "High", "High"].map(shown));
         let mut p = Percent(0);
         let mut seen = Vec::new();
         for _ in 0..4 {

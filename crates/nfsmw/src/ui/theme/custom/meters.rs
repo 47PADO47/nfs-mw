@@ -10,6 +10,7 @@ use blackbox_ui::{Component, DrawList, LayoutCx, LinearProgress, Rect, Text, jus
 use super::drive_feed::{DriveFeed, DriveFeedCell};
 use super::drive_layout;
 use super::skin::drive;
+use crate::i18n::t;
 
 /// The boost that fills the boost bar, in psi. The bar is a scale of the usual boost of a road car, not a limit.
 pub(super) const BOOST_FULL_PSI: f32 = 30.0;
@@ -35,12 +36,14 @@ impl Kind {
         }
     }
 
-    fn label(self) -> &'static str {
-        match self {
-            Self::Nitrous => "NOS",
-            Self::Boost => "BOOST",
-            Self::Speedbreaker => "SB",
-        }
+    /// The meter's label, in capitals as the cluster writes it.
+    fn label(self) -> String {
+        let text = match self {
+            Self::Nitrous => t!("hud-meter-nitrous"),
+            Self::Boost => t!("hud-meter-boost"),
+            Self::Speedbreaker => t!("hud-meter-speedbreaker"),
+        };
+        text.to_uppercase()
     }
 
     fn colour(self) -> &'static str {

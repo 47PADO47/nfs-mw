@@ -14,12 +14,22 @@ names!(
 );
 impl TrafficPreset {
     pub const ALL: [Self; 3] = [Self::Reference, Self::Extended, Self::Custom];
+    /// The preset's English name, for the F8 graphics lab (which stays in English).
     pub const fn label(self) -> &'static str {
         match self {
             Self::Reference => "Reference",
             Self::Extended => "Extended",
             Self::Custom => "Custom",
         }
+    }
+    /// The preset's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::Reference => "options-traffic-reference",
+            Self::Extended => "options-traffic-extended",
+            Self::Custom => "options-custom",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

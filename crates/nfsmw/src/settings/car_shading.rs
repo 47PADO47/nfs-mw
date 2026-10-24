@@ -44,6 +44,7 @@ impl fmt::Display for CarShading {
 
 impl CarShading {
     pub const ALL: [Self; 4] = [Self::Simple, Self::Glossy, Self::Original, Self::OriginalUnshadowed];
+    /// The shading's English name, for the F8 graphics lab (which stays in English).
     pub fn label(self) -> &'static str {
         match self {
             Self::Simple => "Simple",
@@ -51,6 +52,16 @@ impl CarShading {
             Self::Original => "Original PC",
             Self::OriginalUnshadowed => "Original PC (shadowless)",
         }
+    }
+    /// The shading's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::Simple => "options-car-shading-simple",
+            Self::Glossy => "options-enhanced",
+            Self::Original => "options-original-pc",
+            Self::OriginalUnshadowed => "options-car-shading-shadowless",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
     pub fn is_original(self) -> bool {
         matches!(self, Self::Original | Self::OriginalUnshadowed)

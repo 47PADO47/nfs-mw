@@ -10,6 +10,7 @@ use blackbox_feng::runtime::pad;
 
 use super::confirm::Confirm;
 use super::logic::{Command, Cx, ScreenLogic};
+use crate::i18n::{self, fmt::grouped, t};
 use crate::settings::SpeedUnits;
 use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport};
 
@@ -38,6 +39,12 @@ const TOLL_TIME: u32 = 0x424B_B244;
 const TOLL_CASH: u32 = 0x4242_3E94;
 const TOLL_BONUS: u32 = 0x8A7F_929C;
 const TRAP_SPEED: u32 = 0xFCBE_3F57;
+/// The language labels of the cash word (`PHOTOFINISH_CASH`), the bounty line (`RAP_TOTAL_BOUNTY`, a `%$d` template) and
+/// the speed units (`HUD_KMH`, `HUD_MPH`).
+const CASH_WORD: u32 = 0xB7F2_B3C8;
+const BOUNTY_TEMPLATE: u32 = 0x364E_4525;
+const KPH_LABEL: u32 = 0x8569_A25F;
+const MPH_LABEL: u32 = 0x8569_AB44;
 const TRAP_BOUNTY: u32 = 0x3233_F0A4;
 /// The messages of the footer buttons: Race Stats and Restart (`PAD_BUTTON4` and `PAD_BUTTON5`).
 const STATS: u32 = PAD_BUTTON0 + 4;
@@ -105,7 +112,7 @@ impl PhotoLogic {
     fn fill(&self, cx: &mut Cx) {
         let p = &self.photo;
         let units = cx.settings.speed_units;
-        let cash = format!("CASH {}", p.cash);
+        let cash = format!("{} {}", i18n::game_or_error(CASH_WORD), p.cash);
         match p.kind {
             PhotoKind::Sprint => {
                 cx.text_object(SPRINT_CASH, &cash);
@@ -113,7 +120,9 @@ impl PhotoLogic {
             }
             PhotoKind::Drag => {
                 cx.text_object(RIVAL_CASH, &cash);
-                cx.text_object(RIVAL_TIME, &format!("{:.1} sec. @ {}", p.time, speed(p.speed, units)));
+                let secs = format!("{:.1}", p.time);
+                let time = t!("results-photo-drag-time", secs = secs, speed = speed(p.speed, units));
+                cx.text_object(RIVAL_TIME, &time);
             }
             PhotoKind::Tollbooth => {
                 cx.text_object(TOLL_SPEED, &speed(p.speed, units));
@@ -123,7 +132,9 @@ impl PhotoLogic {
             }
             PhotoKind::SpeedTrap => {
                 cx.text_object(TRAP_SPEED, &speed(p.speed, units));
-                cx.text_object(TRAP_BOUNTY, &format!("BOUNTY: {}", p.bounty));
+                let bounty = grouped(i64::from(p.bounty));
+                let line = blackbox_text::printf::fill(&i18n::game_or_error(BOUNTY_TEMPLATE), &[bounty.as_str()]);
+                cx.text_object(TRAP_BOUNTY, &line);
             }
         }
     }
@@ -188,11 +199,20 @@ fn clock_short(secs: f32) -> String {
     format!("{}:{:02}", whole / 60, whole % 60)
 }
 
-/// A speed in the player's unit.
+/// A speed in the player's unit, with the unit's word.
 fn speed(mps: f32, units: SpeedUnits) -> String {
+    let unit = match units {
+        SpeedUnits::Metric => KPH_LABEL,
+        SpeedUnits::Imperial => MPH_LABEL,
+    };
+    format!("{} {}", speed_number(mps, units), i18n::game_or_error(unit))
+}
+
+/// The number of a speed in the player's unit, whole.
+fn speed_number(mps: f32, units: SpeedUnits) -> String {
     match units {
-        SpeedUnits::Metric => format!("{:.0} KM/H", mps * 3.6),
-        SpeedUnits::Imperial => format!("{:.0} MPH", mps * 2.236_936),
+        SpeedUnits::Metric => format!("{:.0}", mps * 3.6),
+        SpeedUnits::Imperial => format!("{:.0}", mps * 2.236_936),
     }
 }
 
@@ -252,8 +272,8 @@ mod tests {
 
     #[test]
     fn a_speed_follows_the_unit() {
-        assert_eq!(speed(50.0, SpeedUnits::Metric), "180 KM/H");
-        assert_eq!(speed(50.0, SpeedUnits::Imperial), "112 MPH");
+        assert_eq!(speed_number(50.0, SpeedUnits::Metric), "180");
+        assert_eq!(speed_number(50.0, SpeedUnits::Imperial), "112");
     }
 
     #[test]

@@ -230,6 +230,8 @@ kind = "area"                            # optional; the only kind in this deliv
 ```
 
 - The file name is the key. A `key` in `[interior]` is optional and must equal it.
+- `label`, `prompt` and the exit's `prompt` may be message ids of the mod's `lang/` catalogue; they are then shown in the
+  player's language ([translations.md](translations.md)).
 - Inside: traffic count and cop share go to 0 for the names listed, and a chase stops when `cops` or `pursuit` is listed.
   The car, the traffic and the clock come back on exit. A chase is not resumed.
 - `lights` in `time` is checked and logged, but not applied yet: the headlights follow the hour.

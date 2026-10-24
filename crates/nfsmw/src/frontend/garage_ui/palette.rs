@@ -169,7 +169,7 @@ impl Palette {
                 cx.rt.set_colour_rgba(object, [swatch.rgb[0], swatch.rgb[1], swatch.rgb[2], 255]);
             }
         }
-        let family = self.family_label(cx);
+        let family = self.family_label();
         chrome::text(cx, "FINISH_NAME", &family);
         cx.text_object(0x7800_8599, &family);
         if matches!(self.page, Page::Paint { color: 2..=4, .. }) {
@@ -221,7 +221,7 @@ impl Palette {
         }
     }
 
-    fn family_label(&self, cx: &Cx) -> String {
+    fn family_label(&self) -> String {
         let family = &self.families[self.family];
         let label = (self.color() == 0 && matches!(family.as_str(), "GLOSS" | "METAL" | "PEARL"))
             .then(|| {
@@ -231,7 +231,7 @@ impl Palette {
                     .iter()
                     .find(|choice| catalog.paint_families.get(&choice.hash) == Some(family))?;
                 let (label, _) = catalog.paint_names.get(&choice.hash)?;
-                crate::ui::Text::Game(*label).resolve(cx.assets)
+                crate::ui::Text::Game(*label).resolve()
             })
             .flatten();
         label.unwrap_or_else(|| family.clone())

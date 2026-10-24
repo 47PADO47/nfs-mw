@@ -32,6 +32,8 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     let candidates = mods.loaded_candidates();
     layers::apply(&mut dir, &layers::plan(&loaded, &candidates));
     content::register(&dir, &content::plan(&loaded, &candidates));
+    // The language packs are mod content: the language is chosen once the mods' folders are known.
+    crate::i18n::start(&dir, Settings::load(view.settings_layer()).language);
     mods.set_install(&dir);
     Ok((dir, mods))
 }

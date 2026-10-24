@@ -188,7 +188,7 @@ impl ConfirmLogic {
 
 /// Sets an object's text to a [`Text`]; a game string the table lacks leaves the object as the package has it.
 pub(super) fn set_text(cx: &mut Cx, name: u32, text: &Text) {
-    let (Some(o), Some(value)) = (cx.object(name), text.resolve(cx.assets)) else { return };
+    let (Some(o), Some(value)) = (cx.object(name), text.resolve()) else { return };
     cx.rt.set_text(o, value);
 }
 
@@ -263,11 +263,11 @@ impl ScreenLogic for ConfirmLogic {
         }
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
-        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        let resolve = |text: &Text| text.resolve().unwrap_or_default();
         let c = &self.confirm;
         Some(MenuList {
             title: c.title.as_ref().map(resolve).unwrap_or_default(),
@@ -412,11 +412,11 @@ impl ScreenLogic for AlertLogic {
         }
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
-        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        let resolve = |text: &Text| text.resolve().unwrap_or_default();
         Some(MenuList {
             title: resolve(&self.alert.title),
             message: resolve(&self.alert.message),
@@ -446,13 +446,13 @@ mod tests {
 
     #[test]
     fn an_alert_without_a_follow_up_closes_to_nothing() {
-        let a = Alert::new(Text::Custom("Load complete.".into()));
+        let a = Alert::new(Text::Literal("Load complete.".into()));
         assert_eq!(a.on_close, None);
     }
 
     #[test]
     fn an_alert_remembers_what_to_run_when_closed() {
-        let a = Alert::then(Text::Custom("Saved.".into()), Command::Resume);
+        let a = Alert::then(Text::Literal("Saved.".into()), Command::Resume);
         assert_eq!(a.on_close.as_deref(), Some(&Command::Resume));
     }
 
@@ -479,8 +479,8 @@ mod tests {
 
     #[test]
     fn custom_text_stays_as_given() {
-        let c = Confirm::new(Text::Custom("Delete car?".into()), Command::QuitGame);
-        assert_eq!(c.message, Text::Custom("Delete car?".into()));
+        let c = Confirm::new(Text::Literal("Delete car?".into()), Command::QuitGame);
+        assert_eq!(c.message, Text::Literal("Delete car?".into()));
         assert_eq!(*c.on_yes, Command::QuitGame);
     }
 }

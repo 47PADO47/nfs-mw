@@ -62,10 +62,11 @@ pub fn fixed_label(career: bool, boss_bin: Option<u8>, racer_name: Option<&str>)
 /// Gives the opponents of `plan` (every racer after the player) their names: the fixed one when the data has one and the
 /// language table holds its text, else one drawn from the install's list and the mods'.
 pub(super) fn name_opponents(plan: &mut [super::RacerPlan], dir: &game_install::GameDir, seed: u32) {
+    // The pool is the install's list of names; the fixed names are in the current language.
     let table = nfsmw_data::shared::language(dir).ok().and_then(|bytes| StringTable::from_file(&bytes).ok());
     let pool = pool(table.as_ref(), crate::modding::content::racer_names());
     let Some((player, rest)) = plan.split_first_mut() else { return };
-    let resolve = |label: &str| table.as_ref()?.get(label_hash(label));
+    let resolve = |label: &str| crate::i18n::game(label_hash(label));
     name_racers(rest, &player.name, &resolve, &pool, seed);
 }
 

@@ -10,17 +10,14 @@ use super::super::main_page::serial_text;
 use super::super::open;
 use crate::career::Career;
 use crate::frontend::ids::LEAVE_SCREEN;
-use crate::frontend::infractions::money;
 use crate::frontend::logic::{Command, Cx};
+use crate::i18n::fmt::grouped;
 use crate::ui::Text;
 
 /// The case file header object, `CASE FILE: %s` with the serial (the same object on every page).
 pub const CASE_FILE: u32 = 0x1232_703A;
 /// The switch key of the infractions and the rankings pages (`0xC519BFC4`, "Switch View").
 pub const SWITCH_VIEW: u32 = 0xC519_BFC4;
-
-/// The placeholders a language string uses for a value.
-const TOKENS: [&str; 3] = ["%$d", "%$.0f", "%s"];
 
 /// Screen memory keys. The top 5 entry (1 to 5) last opened is the pursuit detail's argument, kept under the
 /// [`TOP_ENTRY`] key; the rankings keep the statistic the detail opens with and the two view flags.
@@ -29,11 +26,15 @@ pub const RANKING_STAT: &str = "RapSheetRankings";
 pub const RANKING_PAGE_VIEW: &str = "RapSheetRankings view";
 pub const RANKING_DETAIL_VIEW: &str = "RapSheetRankingsDetail view";
 
-/// The template filled with `value` at its first placeholder; a template without one is returned as it is.
-pub fn fill(template: &str, value: &str) -> String {
-    let found = TOKENS.iter().filter_map(|token| template.find(token).map(|at| (at, token.len()))).min();
-    let Some((at, len)) = found else { return template.to_owned() };
-    format!("{}{value}{}", &template[..at], &template[at + len..])
+/// A language string with `value` at its printf place; without the string (the table lacks it) the value alone.
+pub fn value_text(template: Option<&str>, value: &str) -> String {
+    let Some(template) = template else { return value.to_owned() };
+    blackbox_text::printf::fill(template, &[value])
+}
+
+/// The language string `key` with `value` in it; the value alone when the table lacks the string.
+pub fn label_value(key: &str, value: &str) -> String {
+    value_text(Text::Game(label_hash(key)).resolve().as_deref(), value)
 }
 
 /// Bytes of a zero-terminated text (a case id, a serial) up to the first zero.
@@ -42,9 +43,9 @@ pub fn text_to_nul(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
-/// A figure as the pages print it: digits with a comma every three places, saturating at 32 bits like the ticket.
+/// A figure as the pages print it: grouped by thousands (`%$d`), saturating at 32 bits like the ticket.
 pub fn number(value: u64) -> String {
-    money(u32::try_from(value).unwrap_or(u32::MAX))
+    grouped(i64::from(u32::try_from(value).unwrap_or(u32::MAX)))
 }
 
 /// Sets an object's text.
@@ -61,11 +62,7 @@ pub fn put_label(cx: &mut Cx, name: u32, key: &str) {
 
 /// Shows a language string with a value in it. Without the string in the table the value alone is shown.
 pub fn put_value(cx: &mut Cx, name: u32, key: &str, value: &str) {
-    let text = match Text::Game(label_hash(key)).resolve(cx.assets) {
-        Some(template) => fill(&template, value),
-        None => value.to_owned(),
-    };
-    put_text(cx, name, &text);
+    put_text(cx, name, &label_value(key, value));
 }
 
 /// The case file and the player's name, the header of every page.

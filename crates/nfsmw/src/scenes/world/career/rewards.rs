@@ -4,6 +4,7 @@
 
 use nfsmw_career::milestones::{Banked, MilestoneSet, StatType};
 
+use crate::i18n::t;
 use crate::viewer::{RewardLine, RewardsReport};
 
 /// The line a milestone gets: what it asked for, in plain words.
@@ -11,15 +12,16 @@ pub(super) fn milestone_text(stat: StatType, threshold: f32) -> String {
     let n = threshold.round() as u64;
     let time = |secs: u64| format!("{:02}:{:02}", secs / 60, secs % 60);
     match stat {
-        StatType::PursuitLength => format!("Chase for {}", time(n)),
-        StatType::PursuitEvasionTime => format!("Escape within {}", time(n)),
-        StatType::BountyInPursuit => format!("{n} bounty in one chase"),
-        StatType::CopsDestroyedInPursuit | StatType::CopsDestroyed => format!("{n} police cars destroyed"),
-        StatType::CostToStateInPursuit | StatType::CostToState => format!("{n} cost to state"),
-        StatType::RoadblocksDodged => format!("{n} roadblocks dodged"),
-        StatType::CopsDamaged => format!("{n} police cars hit"),
-        StatType::TotalInfractions => format!("{n} infractions in one chase"),
-        StatType::TireSpikesDodged => format!("{n} spike strips dodged"),
+        StatType::PursuitLength => t!("race-milestone-chase-for", time = time(n)),
+        StatType::PursuitEvasionTime => t!("race-milestone-escape-within", time = time(n)),
+        StatType::BountyInPursuit => t!("race-milestone-bounty", n = n),
+        StatType::CopsDestroyedInPursuit | StatType::CopsDestroyed => t!("race-milestone-cops-destroyed", n = n),
+        StatType::CostToStateInPursuit | StatType::CostToState => t!("race-milestone-cost-to-state", n = n),
+        StatType::RoadblocksDodged => t!("race-milestone-roadblocks", n = n),
+        StatType::CopsDamaged => t!("race-milestone-cops-hit", n = n),
+        StatType::TotalInfractions => t!("race-milestone-infractions", n = n),
+        StatType::TireSpikesDodged => t!("race-milestone-spike-strips", n = n),
+        // A statistic the rewards screen has no words for: its own name, which is not language.
         _ => format!("{} {n}", stat.name()),
     }
 }

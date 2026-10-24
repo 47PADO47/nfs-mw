@@ -1,6 +1,7 @@
 //! The post-processing rows of the Video options (docs/post-processing.md).
 
-use super::options::{Data, Title};
+use super::ids::{LABEL_OFF, LABEL_ON};
+use super::options::{Data, Title, message};
 use crate::settings::motion_blur::MOTION_BLUR_STRENGTH_RANGE;
 use crate::settings::{Partial, PostAa, PostBloom, PostTonemap, Settings};
 
@@ -17,45 +18,42 @@ impl PostSetting {
     pub const ALL: [Self; 5] = [Self::Aa, Self::Tonemap, Self::Bloom, Self::MotionBlur, Self::MotionBlurStrength];
 
     pub fn title(self) -> Title {
-        Title::Text(match self {
-            Self::Tonemap => "SDR Tone Mapping",
-            Self::Bloom => "Bloom",
-            Self::Aa => "Anti-Aliasing",
-            Self::MotionBlur => "Motion Blur (High Speed)",
-            Self::MotionBlurStrength => "Motion Blur Strength",
+        Title::Key(match self {
+            Self::Tonemap => "options-tonemap",
+            Self::Bloom => "options-bloom",
+            Self::Aa => "options-anti-aliasing",
+            Self::MotionBlur => "options-motion-blur",
+            Self::MotionBlurStrength => "options-motion-blur-strength",
         })
     }
 
+    /// What the row shows. On and Off are the original's; the effects' names (ACES, FXAA) are not language.
     pub fn data(self, s: &Settings) -> Data {
-        if self == Self::MotionBlurStrength {
-            return Data::Text(format!("{}%", (s.motion_blur_strength * 100.0).round() as u32));
-        }
-        Data::Text(
-            match self {
-                Self::MotionBlur => match s.motion_blur {
-                    true => "On",
-                    false => "Off",
-                },
-                Self::MotionBlurStrength => unreachable!("slider handled above"),
-                Self::Tonemap => match s.post_tonemap {
-                    PostTonemap::Off => "Off",
-                    PostTonemap::Aces => "ACES",
-                },
-                Self::Bloom => match s.post_bloom {
-                    PostBloom::Off => "Off",
-                    PostBloom::Low => "Low",
-                    PostBloom::Medium => "Medium",
-                    PostBloom::High => "High",
-                },
-                Self::Aa => match s.post_aa {
-                    PostAa::Off => "Off",
-                    PostAa::Fxaa => "FXAA",
-                    PostAa::Smaa => "SMAA",
-                    PostAa::Taa => "TAA",
-                },
+        match self {
+            Self::MotionBlurStrength => {
+                Data::Text(crate::i18n::fmt::percent((s.motion_blur_strength * 100.0).round() as i64))
             }
-            .to_owned(),
-        )
+            Self::MotionBlur => Data::Label(match s.motion_blur {
+                true => LABEL_ON,
+                false => LABEL_OFF,
+            }),
+            Self::Tonemap => match s.post_tonemap {
+                PostTonemap::Off => Data::Label(LABEL_OFF),
+                PostTonemap::Aces => Data::Text("ACES".into()),
+            },
+            Self::Bloom => match s.post_bloom {
+                PostBloom::Off => Data::Label(LABEL_OFF),
+                PostBloom::Low => message("options-low"),
+                PostBloom::Medium => message("options-medium"),
+                PostBloom::High => message("options-high"),
+            },
+            Self::Aa => match s.post_aa {
+                PostAa::Off => Data::Label(LABEL_OFF),
+                PostAa::Fxaa => Data::Text("FXAA".into()),
+                PostAa::Smaa => Data::Text("SMAA".into()),
+                PostAa::Taa => Data::Text("TAA".into()),
+            },
+        }
     }
 
     /// Moves to the next (or previous) value, wrapping, and records the change for the config file.
@@ -103,15 +101,16 @@ pub(super) fn pick<T: Copy + PartialEq>(all: &[T], current: T, forward: bool) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::options::shown;
 
     #[test]
     fn rows_cycle_both_ways_and_record_only_their_own_change() {
         let mut s = Settings::from(Partial::default());
         let mut changed = Partial::default();
-        assert_eq!(PostSetting::Bloom.data(&s), Data::Text("Off".into()));
+        assert_eq!(PostSetting::Bloom.data(&s), Data::Label(LABEL_OFF));
         for expected in ["Low", "Medium", "High", "Off"] {
             assert!(PostSetting::Bloom.step(&mut s, &mut changed, true));
-            assert_eq!(PostSetting::Bloom.data(&s), Data::Text(expected.into()));
+            assert_eq!(PostSetting::Bloom.data(&s), shown(expected));
         }
         assert!(PostSetting::Bloom.step(&mut s, &mut changed, false));
         assert_eq!(s.post_bloom, PostBloom::High, "left from off wraps to the last");
@@ -140,7 +139,7 @@ mod tests {
         }
         assert_eq!(s.motion_blur_strength, 2.0, "stops at the top of the range");
         assert!(PostSetting::MotionBlur.step(&mut s, &mut changed, true));
-        assert_eq!(PostSetting::MotionBlur.data(&s), Data::Text("Off".into()));
+        assert_eq!(PostSetting::MotionBlur.data(&s), Data::Label(LABEL_OFF));
         assert_eq!(changed.motion_blur, Some(false));
         assert_eq!(changed.motion_blur_strength, Some(2.0));
     }

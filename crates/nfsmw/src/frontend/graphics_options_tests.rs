@@ -50,11 +50,11 @@ fn the_front_end_shadow_row_is_shown_on_native_and_bevy_and_toggles_and_records(
     s.fe_shadows.enabled = false;
     assert!(GraphicsSetting::FeShadows.shown(&crate::settings::test_caps::native()));
     assert!(GraphicsSetting::FeShadows.shown(&crate::settings::test_caps::full()));
-    assert_eq!(GraphicsSetting::FeShadows.data(&s), Data::Text("Off".to_owned()));
+    assert_eq!(GraphicsSetting::FeShadows.data(&s), Data::Label(crate::frontend::ids::LABEL_OFF));
     assert!(GraphicsSetting::FeShadows.step(&mut s, &mut changed, true));
     assert!(s.fe_shadows.enabled);
     assert_eq!(changed.fe_shadows.enabled, Some(true));
-    assert_eq!(GraphicsSetting::FeShadows.data(&s), Data::Text("On".to_owned()));
+    assert_eq!(GraphicsSetting::FeShadows.data(&s), Data::Label(crate::frontend::ids::LABEL_ON));
     assert!(GraphicsSetting::FeShadows.step(&mut s, &mut changed, false));
     assert!(!s.fe_shadows.enabled);
     assert_eq!(changed.fe_shadows.enabled, Some(false));

@@ -40,8 +40,8 @@ fn installed_native_garage_roundtrip_keeps_colors_gauges_and_unrelated_bytes() {
     for category in [Category::Body, Category::Wheels] {
         selection.parts.parts[category as usize] = Some(catalog.choices[category as usize].last().unwrap().hash);
     }
-    for i in 0..3 {
-        selection.parts.vinyl_colors[i] = Some(nonstock_color(&tables, 79 + i));
+    for (i, color) in selection.parts.vinyl_colors.iter_mut().enumerate().take(3) {
+        *color = Some(nonstock_color(&tables, 79 + i));
     }
     selection.gauges.skin = 4;
     selection.gauges.backing = Some(nonstock_color(&tables, 133));
