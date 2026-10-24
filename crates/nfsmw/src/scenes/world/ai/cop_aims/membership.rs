@@ -55,7 +55,8 @@ impl TrafficWorld {
             Vec2::new(forward.x, forward.z),
         )
         .normalize_or_zero();
-        let layout = self.formation_layout(target, direction, clear);
+        // The gap reads only the slotted cops: the grid for the cars without a slot changes their aims alone.
+        let layout = self.formation_layout_with(target, direction, clear, false);
         let gaps: Vec<f32> = layout
             .positions
             .iter()
@@ -76,18 +77,34 @@ impl TrafficWorld {
         forward: Vec2,
         clear: &dyn Fn(Vec3, Vec3) -> bool,
     ) -> Layout {
+        self.formation_layout_with(target, forward, clear, true)
+    }
+
+    /// The layout of the cops around `target`. `extras` places the cops without a slot on the grid behind the
+    /// formation (their aims); the slots, the membership and every slotted cop's aim are the same without it.
+    fn formation_layout_with(
+        &self,
+        target: Vec3,
+        forward: Vec2,
+        clear: &dyn Fn(Vec3, Vec3) -> bool,
+        extras: bool,
+    ) -> Layout {
         let forward = forward.try_normalize().unwrap_or(Vec2::Y);
         let right = Vec2::new(forward.y, -forward.x);
         let player = Vec2::new(target.x, target.z);
         let heading = Vec3::new(forward.x, 0.0, forward.y);
-        let road = closest_segment(&self.network, &self.index, target, heading, 0.0, SegmentFilter::default());
-        let range = 60.0 + road.map_or(0.0, |hit| hit.point.distance(target));
         let cops: Vec<usize> = (0..self.cars.len())
             .filter(|&i| {
                 let car = &self.cars[i];
                 car.is_cop() && !car.is_fleeing() && car.support_serial().is_none()
             })
             .collect();
+        // The road sets the sight range and the herd's lanes, and both only matter to a cop.
+        let road = match cops.is_empty() {
+            true => None,
+            false => closest_segment(&self.network, &self.index, target, heading, 0.0, SegmentFilter::default()),
+        };
+        let range = 60.0 + road.map_or(0.0, |hit| hit.point.distance(target));
         let positions: Vec<Vec2> = cops
             .iter()
             .map(|&i| {
@@ -183,7 +200,7 @@ impl TrafficWorld {
                 .filter_map(|(&car, slot)| slot.map(|s| (self.cars[car].key(), offsets[s])))
                 .collect();
         }
-        if self.police.last_formation().is_none() {
+        if !extras || self.police.last_formation().is_none() {
             return Layout { cops, positions, eligible, slots: slots_of, aims };
         }
         let extra: Vec<usize> = (0..cops.len()).filter(|&i| slots_of[i].is_none()).collect();
