@@ -99,8 +99,8 @@ absent metrics leave no gap and no placeholder.
 | tyres | four dots, front-left, front-right, rear-left, rear-right | tyre states known |
 
 The tyre dots use shape as well as colour: a full dot is sound, a dot with a notch is punctured, a hollow ring is blown.
-Engine temperature, brake temperature and traction aids are not shown: the simulation does not compute them
-([not-shown.md](not-shown.md)).
+Engine and brake temperatures are not shown: the simulation does not compute them. Traction control acts inside the
+vehicle step but exposes no state to read ([not-shown.md](not-shown.md)).
 
 ## 9. Tests (PR 6)
 
