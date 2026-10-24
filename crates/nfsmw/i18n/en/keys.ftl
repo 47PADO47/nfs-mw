@@ -164,3 +164,12 @@ keys-short-alt-left = L Alt
 keys-short-alt-right = R Alt
 # A slot of the controls list waiting for the next key pressed.
 keys-waiting = Press key
+
+## The controls list's names for the HUD's actions (input/hud_labels.rs).
+
+keys-action-map-mode = Map mode
+keys-action-map-expand = Expand the map
+keys-action-map-zoom-in = Map zoom in
+keys-action-map-zoom-out = Map zoom out
+keys-action-map-orientation = Map north-up / heading-up
+keys-action-toggle-hud = Show or hide the HUD
