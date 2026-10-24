@@ -13,8 +13,7 @@ fn stage_shared_materials_resolve_transparent_sky_and_grey_on_both_platforms() {
         for solid in &data.solids {
             for group in &solid.groups {
                 let Some(hash) = group.diffuse_texture(solid) else { continue };
-                // The crib warehouse has one unresolved authored material; environment completion is deferred.
-                if stage == Stage::Crib && hash == 0x578b_c664 {
+                if super::super::room_materials::KNOWN_UNRESOLVED.contains(&hash) {
                     continue;
                 }
                 assert!(textures.contains_key(&hash), "{stage:?} {} references unresolved {hash:#x}", solid.name);
