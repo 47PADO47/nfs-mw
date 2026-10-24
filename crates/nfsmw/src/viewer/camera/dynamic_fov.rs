@@ -17,6 +17,17 @@ pub fn fov_for_speed(speed: f32) -> f32 {
     REST_FOV_DEGREES + (TOP_FOV_DEGREES - REST_FOV_DEGREES) * t * t * t
 }
 
+/// [`fov_for_speed`] with its widening over the rest FOV scaled by `intensity` (`[hud] fov_intensity`, 0 to 1): 1 is the
+/// full curve, 0 keeps the rest FOV at every speed. A value that is not a number is the full curve.
+pub fn scaled_fov_for_speed(speed: f32, intensity: f32) -> f32 {
+    let full = fov_for_speed(speed);
+    // The full curve exactly, not through the subtraction below.
+    if !intensity.is_finite() || intensity >= 1.0 {
+        return full;
+    }
+    REST_FOV_DEGREES + (full - REST_FOV_DEGREES) * intensity.max(0.0)
+}
+
 /// The chase camera with its field of view set by the car's speed. It borrows the chase camera
 /// (which does the following) and only changes how wide it sees.
 pub struct DynamicFov<'a> {
@@ -25,11 +36,13 @@ pub struct DynamicFov<'a> {
     pub speed: f32,
     /// Degrees added on top of the speed's field of view (the high-speed effects' nitrous kick).
     pub kick: f32,
+    /// How much of the speed widening applies, 0 to 1 (`[hud] fov_intensity`); the kick is not scaled.
+    pub intensity: f32,
 }
 
 impl Camera for DynamicFov<'_> {
     fn lens(&self, aspect: f32) -> Lens {
-        self.chase.lens_with_fov(aspect, fov_for_speed(self.speed) + self.kick)
+        self.chase.lens_with_fov(aspect, scaled_fov_for_speed(self.speed, self.intensity) + self.kick)
     }
 
     fn selectable(&self) -> bool {
@@ -63,11 +76,30 @@ mod tests {
     }
 
     #[test]
+    fn the_intensity_scales_only_the_widening_over_the_rest_fov() {
+        for speed in [0.0, TOP_SPEED / 2.0, TOP_SPEED, TOP_SPEED * 2.0] {
+            assert_eq!(scaled_fov_for_speed(speed, 1.0), fov_for_speed(speed), "1 is the full curve");
+            assert_eq!(scaled_fov_for_speed(speed, 0.0), REST_FOV_DEGREES, "0 is the rest FOV at {speed}");
+            assert_eq!(scaled_fov_for_speed(speed, f32::NAN), fov_for_speed(speed));
+        }
+        let half = scaled_fov_for_speed(TOP_SPEED, 0.5);
+        assert!((half - (REST_FOV_DEGREES + TOP_FOV_DEGREES) / 2.0).abs() < 1e-4);
+        assert_eq!(scaled_fov_for_speed(TOP_SPEED, 2.0), TOP_FOV_DEGREES, "clamped to 1");
+    }
+
+    #[test]
+    fn a_zero_intensity_keeps_the_rest_fov_and_the_kick() {
+        let chase = crate::viewer::camera::ChaseCamera::default().view();
+        let lens = DynamicFov { chase: &chase, speed: TOP_SPEED, kick: 5.0, intensity: 0.0 }.lens(16.0 / 9.0);
+        assert!((lens.fov_y_degrees - (REST_FOV_DEGREES + 5.0)).abs() < 1e-4);
+    }
+
+    #[test]
     fn keeps_the_chase_position_and_widens_the_lens() {
         let chase = crate::viewer::camera::ChaseCamera::default().view();
-        let lens = DynamicFov { chase: &chase, speed: TOP_SPEED, kick: 0.0 }.lens(16.0 / 9.0);
+        let lens = DynamicFov { chase: &chase, speed: TOP_SPEED, kick: 0.0, intensity: 1.0 }.lens(16.0 / 9.0);
         assert_eq!(lens.position, chase.lens(16.0 / 9.0).position);
         assert_eq!(lens.fov_y_degrees, TOP_FOV_DEGREES);
-        assert!(DynamicFov { chase: &chase, speed: 0.0, kick: 0.0 }.selectable());
+        assert!(DynamicFov { chase: &chase, speed: 0.0, kick: 0.0, intensity: 1.0 }.selectable());
     }
 }

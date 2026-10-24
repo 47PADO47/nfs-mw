@@ -164,7 +164,7 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
         let expected = match original::index_of(mode) {
             Some(_) => scene.original_camera.lens(drive.original_body(false).unwrap(), aspect, false).unwrap(),
             None if mode == CameraMode::DynamicFov => {
-                DynamicFov { chase: &chase, speed: drive.speed().abs(), kick }.lens(aspect)
+                DynamicFov { chase: &chase, speed: drive.speed().abs(), kick, intensity: 1.0 }.lens(aspect)
             }
             None => chase.lens_with_fov(aspect, chase.fov_degrees() + kick),
         };

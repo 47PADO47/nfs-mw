@@ -123,7 +123,8 @@ impl WorldScene {
         debug_assert!(chase.selectable());
         let kick = self.traffic.as_ref().map_or(0.0, |traffic| traffic.fov_kick());
         if self.camera_mode == CameraMode::DynamicFov {
-            return DynamicFov { chase: &chase, speed: drive.speed().abs(), kick }.lens(aspect);
+            let intensity = self.tuning.fov_intensity;
+            return DynamicFov { chase: &chase, speed: drive.speed().abs(), kick, intensity }.lens(aspect);
         }
         chase.lens_with_fov(aspect, chase.fov_degrees() + kick)
     }
