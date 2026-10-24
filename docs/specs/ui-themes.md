@@ -355,37 +355,35 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
 
 ## 9. The Custom theme: native components
 
-`Custom` implements `RadioCard` and returns `None` for every other slot. The card is built (T9) and described in
-[ui-themes-custom.md](ui-themes-custom.md): a `Panel` and three `Text` rows, emitted as neutral nodes. It draws through
-the presenter, and nothing is drawn in egui. It reads its state from a feed the plugin fills each frame (T12), and
-places itself from the HUD layout, so the composer does not apply the HUD viewport to it.
+`Custom` is being rewritten from scratch as the rewrite's own modern HUD and menus:
+[ADR 0013](../decisions/0013-custom-hud.md), spec [custom-hud/](custom-hud/README.md). Until that stack lands it fills
+`RadioCard` (T9, [ui-themes-custom.md](ui-themes-custom.md): a `Panel` and three `Text` rows, fed by the plugin, placed
+from the HUD layout so the composer does not apply the HUD viewport to it), the drive card (slots 1, 2, 3, 7, 8 and 9)
+and the world map's legend (`WorldMapChrome`). Every other slot falls back to Original. All of it draws through the
+presenter; nothing is drawn in egui.
 
 The egui branch in `crates/nfsmw/src/devtools/mod.rs` (the `settings.radio_hud == RadioHudStyle::Custom` check and
 the call to `crate::hud::show_radio`) is removed. T9 checked that the metrics and console overlays do not depend on
 that branch: they draw as before.
 
-## 10. Remastered: extension point and worked example
+## 10. Remastered
 
-`Remastered` is an enum variant and a documented extension point. It is not implemented in this milestone.
+`Remastered` is registered and built (`crates/nfsmw/src/ui/theme/remastered/`). It fills the tachometer (a dial), the
+speedometer with the gear, the nitrous, speed breaker and boost bars, the minimap with its heat ring, the police radar,
+the pursuit timer, the radio card, the full-screen world map, the vertical icon menus
+([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md), which added `Slant` and `Outline` to the base
+components) and the dialogs, key list, credits, Blacklist and LAN screens
+([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md), which added `Ring`). A slot it does not fill falls
+back to Original. It stays as it is: the Custom rewrite shares no code with it (ADR 0013).
 
-Worked design note, to show the component set is enough. The example is a fullscreen minimap:
-
-- The **original map** is drawn fullscreen behind everything, as a `Panel` with an `Image` child that uses the
-  existing map tiles (`hud/minimap.rs`, [hud-minimap.md](hud-minimap.md)).
-- The **legend** sits on the right, as a `Stack` of `Row`s, each `Text` plus `Image` (the blip icons from
-  `hud/blip_style.rs`).
-- The `Minimap` slot in the Remastered theme returns that `Panel`. The Blips slot can still return `None`, so the
-  original blips draw on the new map, or it can return a component of its own.
-
-The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
-
-Built since: the Remastered cluster, the map legend, the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components, and the dialogs, Blacklist, minimap with its heat ring and radio card ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)), which added `Ring`.
+The worked example this section first gave, a full-screen map with a legend on the right built from `Panel`, `Stack`,
+`Row`, `Text` and `Image` only, was meant to show that the base components are enough; the built theme confirmed it.
 
 ## 11. The `UiStyle` setting
 
 Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
-(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette of the token-driven HUD is the separate
-`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which applies only when the HUD is not Original (section 15).
+(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette is the separate
+`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which the Custom and Remastered HUDs read (section 15).
 
 - Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
   `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
@@ -411,8 +409,8 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
   `RadioHudStyle` stays as the parser for that legacy value. It is no longer a settings field.
 - **Live switch.** `ui::theme::sync_active_theme` runs in `FrameSet::Prepare` every frame and calls
   `UiThemes::select(settings.ui_style)`. An options change takes effect on the next frame, with no restart.
-  `theme_of` maps `UiStyle` to `ThemeId`. `Remastered` has no registered theme yet, so `select` leaves Original
-  active. The HUD and menu presenters resolve the slots each frame (T12).
+  `theme_of` maps `UiStyle` to `ThemeId`; a style whose theme is not registered leaves Original active (every built-in
+  style is registered). The HUD and menu presenters resolve the slots each frame (T12).
 - **Chyron gate.** `hud/plugin.rs` shows the EA Trax chyron only where the `RadioCard` slot resolves to Original
   (`UiThemes::provided_by`), so Custom's card replaces it and a mod theme that does not name the slot keeps it (T12).
 - **Tests:** `settings/ui_style_tests.rs` (defaults, tokens, the three layers, legacy mapping, write, CLI),
