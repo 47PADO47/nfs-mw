@@ -211,7 +211,7 @@ impl UiAssets {
     /// Loads the stock assets and keeps `custom` as the user's font set.
     pub fn load_with(dir: &GameDir, custom: CustomFontSet) -> Result<Self> {
         let mut fonts = HashMap::new();
-        for rel in FONT_FILES {
+        for rel in FONT_FILES.map(|rel| nfsmw_data::shared::pack_file(dir, rel)) {
             let Ok(data) = shared_unwrapped(dir, rel) else { continue };
             for chunk in find_all(&data, FENG_FONT) {
                 match Font::parse(chunk.payload) {

@@ -54,6 +54,16 @@ pub fn ingame_b_file(dir: &GameDir) -> &'static str {
     }
 }
 
+/// The file the game opens for the pack named `rel`. The game loads `GLOBALB`, `FRONTB` and `INGAMEB` from their
+/// `.LZC` files and keeps the `.BUN` name only as the label of the loaded file (the region loader and its two
+/// siblings, decomp). The callers already name the first two by their `.LZC`, so only `GLOBAL/InGameB.bun` changes.
+pub fn pack_file(dir: &GameDir, rel: &'static str) -> &'static str {
+    match rel.eq_ignore_ascii_case(INGAME_B_BUN_FILE) {
+        true => ingame_b_file(dir),
+        false => rel,
+    }
+}
+
 /// The in-game pack (see [`ingame_b_file`]) with its compression wrapper removed, read once per session.
 pub fn ingame_b(dir: &GameDir) -> Result<Arc<Vec<u8>>> {
     shared_unwrapped(dir, ingame_b_file(dir))
@@ -96,6 +106,11 @@ mod tests {
         let dir = GameDir::open(&root).unwrap();
         assert_eq!(ingame_b_file(&dir), "GLOBAL/INGAMEB.LZC");
         assert_eq!(ingame_b(&dir).unwrap().as_slice(), b"patched");
+
+        // A list that names the .bun (in any case) reads the .lzc; every other pack stays as named.
+        assert_eq!(pack_file(&dir, "GLOBAL/InGameB.bun"), "GLOBAL/INGAMEB.LZC");
+        assert_eq!(pack_file(&dir, "GLOBAL/INGAMEB.BUN"), "GLOBAL/INGAMEB.LZC");
+        assert_eq!(pack_file(&dir, "GLOBAL/InGameA.bun"), "GLOBAL/InGameA.bun");
         std::fs::remove_dir_all(root).unwrap();
     }
 }
