@@ -94,6 +94,6 @@ pub use race::{Count, Message, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
 pub use state::{
-    HudCamera, HudState, HudTelemetry, MapPosition, RaceInfo, RivalGap, TireCondition, VehicleCondition, checkpoint_gap,
-    cosmetic_level, rival_of, shows_rival_gap,
+    HudCamera, HudState, HudTelemetry, MapPosition, RaceInfo, RivalGap, TireCondition, VehicleCondition,
+    checkpoint_gap, cosmetic_level, rival_of, shows_rival_gap,
 };
