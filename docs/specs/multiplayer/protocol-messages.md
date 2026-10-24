@@ -175,5 +175,5 @@ The receiver verifies `length` and the hash before use. Only data, never code, a
   vote rules.
 - A server-to-client quick message (MP-44) and a lobby message that tells a player why its car was refused (MP-31); the lobby
   returns the reason to the server crate, which has no message to carry it yet.
-- Grapheme counting of text, and confusable folding.
+- Grapheme counting of text. (A joiner whose name is confusable with a member's is numbered by the lobby, not refused.)
 - Quantised collision and respawn vectors (they are `f32` today; events are rare enough that the bytes do not matter yet).

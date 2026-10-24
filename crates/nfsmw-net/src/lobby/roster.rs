@@ -152,7 +152,7 @@ impl Lobby {
 
     /// Seats an admitted joiner in the lowest free slot. A racer joins the phase machine (in the lobby, or straight
     /// into a running free roam with a [`Action::Spawn`]); a spectator is checked against the spectator limit.
-    pub fn add(&mut self, new: NewMember, now_ms: u64) -> Result<(u8, Vec<Action>), LobbyError> {
+    pub fn add(&mut self, mut new: NewMember, now_ms: u64) -> Result<(u8, Vec<Action>), LobbyError> {
         let slot = (0..MAX_SLOTS as u8).find(|slot| !self.members.contains_key(slot)).ok_or(LobbyError::Full)?;
         let racer = new.placement == Placement::Racer;
         if racer && self.racers() >= usize::from(self.settings.max_players) {
@@ -164,6 +164,7 @@ impl Lobby {
         if racer {
             self.session.join(peer(slot)).map_err(LobbyError::Session)?;
         }
+        new.name = super::names::unique(&new.name, self.members.values().map(|member| member.name.as_str()));
         let member = Member::new(slot, new, now_ms);
         let mut actions = vec![
             Action::Broadcast(delta(LobbyChange::Add(member.row(false)))),

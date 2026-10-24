@@ -53,7 +53,7 @@ Open work of this build, in rough order of importance:
    only after the new address answers a path challenge. Quick messages are relayed to everyone as `QuickRelay`.
 8. **Front end.** The post-race page of the original is not wired to a session's end (the LAN results page shows instead), and
    there is no team chat from the menu. F7 votes in a race, the player menu whispers and the Home page saves `net_name`. The LAN screens and the session HUD are drawn with the game's UI toolkit in the Original and Remastered styles (no FEng package exists for them).
-9. **Text rules.** Names, chat, plates and room passwords are in NFKC (`unicode-normalization`; the wire refuses text that is not). Confusable folding and grapheme counting are not done (the `char` count is the stricter bound).
+9. **Text rules.** Names, chat, plates and room passwords are in NFKC (`unicode-normalization`; the wire refuses text that is not). A joiner whose name is the same as a member's once confusable look-alikes and case are folded (`unicode-security` skeletons, `lobby/names.rs`) gets a number after it. Grapheme counting is not done (the `char` count is the stricter bound).
 10. **Fuzzing.** The cargo-fuzz targets type-check but have never been run under libFuzzer; the in-tree seeded tests are what
     runs in CI.
 11. **Sockets.** Sockets ask for 256 KiB buffers and the discovery port is shared (`socket2`), so two servers on one PC both answer
