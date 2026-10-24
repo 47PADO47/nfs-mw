@@ -44,12 +44,28 @@ This settles the **[unconfirmed]** of the design's section 6.
 - **The checkpoint tick** is a ring in the success colour that grows from the diamond and fades over the `pulse`
   duration (0.4 s), or with motion reduction a still ring held as long, at the gate that was passed.
 
+## Police threat indicators
+
+Built in `markers/threats.rs`, drawn in the same `WorldMarkers` slot, so they also need `[custom_hud] world_markers`.
+They show while `pursuit_phase` is not `None` and `[custom_hud] pursuit_info` is on (`fair-knowledge.md`).
+
+- **Confirmed threats only:** the cops in `PoliceIntel::sightings` and the helicopter while `in_sight` with a position.
+  Nothing positional comes from anywhere else, so a cop without a sighting has no indicator.
+- **The cap:** at most 3, nearest first across the ground.
+- **The look:** outside the view, a solid heavy chevron in the danger colour on the same edge ellipse as the gate's
+  arrow. Inside it, a small dot at 0.7 of the marker alpha, kept subtle because the cop is already visible. No label.
+- **The last-known place** (`PoliceIntel::last_known`) shows only while no threat is confirmed. It is hollow: an
+  outlined arrowhead at the edge, a thin ring inside the view. It fades linearly from 0.8 alpha to nothing over 20 s of
+  age and is dropped at 20 s. It is the place the police last saw the player, never drawn as a cop.
+- **Heights [ours]:** the intel is across the ground, so the scene gives the car's height (`WorldMarks::car_z`). A cop
+  or the last-known place floats 1.5 m above it, and the helicopter 25 m above it. That is a drawing height, not the
+  helicopter's altitude, and it hardly moves an edge arrow's direction.
+
 ## Not built
 
 - **Next checkpoints** (the two gates after the active one): `RaceInfo` carries the next gate only, and inventing the
   others is not allowed. They would need the race's gate list in the HUD state.
 - **The direction to take near a junction** at the active checkpoint: the route's `next_turn` is drawn by the race and
   map components, not repeated on the marker.
-- **Sighted-threat edge arrows** (cops and the helicopter outside the view, design section 3): not in this PR's brief;
-  `PoliceIntel` holds what they need.
+- **A distance label on the police arrows:** left off to keep them subtle.
 - **The interaction prompt** inside an event's entry zone stays the scene's own prompt.
