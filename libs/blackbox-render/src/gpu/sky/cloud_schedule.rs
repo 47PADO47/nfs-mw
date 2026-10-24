@@ -84,7 +84,8 @@ impl Schedule {
     }
 
     fn next_band(&mut self) -> Option<u32> {
-        let band = (0..BANDS).map(|offset| (self.cursor + offset) % BANDS).find(|band| self.stale >> band & 1 == 1)?;
+        let mut order = (0..BANDS).map(|offset| (self.cursor + offset) % BANDS);
+        let band = order.find(|&band| (self.stale >> band) & 1 == 1)?;
         self.stale &= !(1 << band);
         self.cursor = (band + 1) % BANDS;
         Some(band)
