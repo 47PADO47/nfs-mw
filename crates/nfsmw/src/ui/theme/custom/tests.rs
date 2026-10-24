@@ -68,6 +68,7 @@ fn custom_fills_the_radio_card_the_map_legend_and_the_drive_slots_and_falls_back
                 | ElementId::Nitrous
                 | ElementId::Turbo
                 | ElementId::Speedbreaker
+                | ElementId::WorldMarkers
         );
         assert_eq!(filled, custom, "{}", element.name());
     }

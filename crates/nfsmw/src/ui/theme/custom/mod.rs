@@ -22,6 +22,10 @@
 //! - [`drive_feed`]: the drive state the Remastered theme reads ([`DriveFeedCell`]).
 //! - [`skin`]: the radio card's and the legend's fonts; [`palette`]: the two palettes `ui_theme` picks.
 //! - [`hud_component`]: the slot-to-component map, also used by a mod theme that declares tokens.
+//!
+//! The HUD components:
+//!
+//! - [`markers`]: the world-space markers (the `WorldMarkers` slot).
 
 mod cluster;
 mod drive_feed;
@@ -35,8 +39,6 @@ pub mod layout;
 #[cfg(test)]
 mod layout_tests;
 mod map_legend;
-// The world markers' slot arm comes with the next commit; the feed already holds their memory.
-#[allow(dead_code)]
 mod markers;
 pub mod palette;
 #[allow(dead_code)]
@@ -105,8 +107,7 @@ impl Theme for CustomTheme {
 /// The component the token-driven look draws for `slot`, or `None` for a slot it does not re-express. Shared by the
 /// built-in token theme and by a mod theme that declares tokens (`ui/theme/modded`).
 ///
-/// The HUD components read `feed`. The telemetry cluster fills the drive slots; until the map and the layouts land
-/// (PRs 7 to 9), the other HUD slots return `None`, so they fall back to Original.
+/// The HUD components read `feed`. A slot the look does not re-express returns `None`, so it falls back to Original.
 pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell) -> Option<Box<dyn Component>> {
     // A slot id outside the catalogue has no component, and neither does any slot the look does not re-express.
     match ElementId::from_slot(slot)? {
@@ -118,6 +119,7 @@ pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell)
         ElementId::Nitrous => Some(Box::new(Empty)),
         ElementId::Turbo => Some(Box::new(Empty)),
         ElementId::Speedbreaker => Some(Box::new(Empty)),
+        ElementId::WorldMarkers => Some(Box::new(markers::WorldMarkers::new(feed.clone()))),
         _ => None,
     }
 }
