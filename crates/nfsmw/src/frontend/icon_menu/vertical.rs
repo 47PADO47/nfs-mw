@@ -43,11 +43,7 @@ impl IconMenu {
         if icon.texture == 0 {
             return None;
         }
-        let uv = match icon.id {
-            Id::ControlOptions => crate::ui::input_icons::Glyph::Controller.uv(),
-            _ => [0.0, 0.0, 1.0, 1.0],
-        };
-        Some(MenuIcon { texture: icon.texture, uv })
+        Some(MenuIcon { texture: icon.texture, uv: Self::icon_uv(icon).unwrap_or(super::WHOLE_IMAGE) })
     }
 
     /// The pointer is over (`activate` false) or pressed (`activate` true) the entry `row` of the vertical list.
@@ -55,9 +51,9 @@ impl IconMenu {
         if !self.reacts || row >= self.icons.len() {
             return;
         }
-        let strip = self.first_slot() + row;
-        if strip != self.selected {
-            self.select(cx, strip);
+        let entry = self.strip.first() + row;
+        if entry != self.strip.selected() {
+            self.select(cx, entry);
         }
         if matches!(pick, Pick::Press(..)) {
             let before = cx.commands.len();

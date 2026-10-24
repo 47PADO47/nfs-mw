@@ -67,6 +67,24 @@ pub fn pulled(x: f32, center: f32, width: f32, scale: f32) -> f32 {
     if x < center { x + pull } else { x - pull }
 }
 
+/// Where an icon of `width` ends up on the strip and how it is drawn.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placed {
+    /// The centre after the pull towards the middle.
+    pub x: f32,
+    pub scale: f32,
+    /// Whether the pulled icon is still inside the scroller.
+    pub visible: bool,
+}
+
+/// The place of the icon whose unpulled centre is `x` on a scroller centred on `center`.
+pub fn placed(x: f32, center: f32, width: f32) -> Placed {
+    let scale = scale(x, center, WIDTH);
+    let x = pulled(x, center, width, scale);
+    let half = WIDTH * 0.5;
+    Placed { x, scale, visible: x >= center - half && x <= center + half }
+}
+
 /// Idle to fade colour (`0xAARRGGBB`) by `scale`: `idle * scale + fade * (1 - scale)` per channel.
 pub fn fade_colour(idle: u32, fade: u32, scale: f32) -> [u8; 4] {
     let channel = |shift: u32| {
@@ -192,6 +210,16 @@ mod tests {
         assert_eq!(pulled(10.0, 100.0, 64.0, 1.0), 10.0);
         assert!(pulled(10.0, 100.0, 64.0, 0.5) > 10.0);
         assert!(pulled(190.0, 100.0, 64.0, 0.5) < 190.0);
+    }
+
+    #[test]
+    fn an_icon_is_shown_inside_the_scroller_and_hidden_outside_it() {
+        let at = placed(100.0, 100.0, 64.0);
+        assert_eq!((at.x, at.scale, at.visible), (100.0, 1.0, true));
+        let outside = placed(100.0 + WIDTH, 100.0, 64.0);
+        assert_eq!((outside.scale, outside.visible), (0.0, false));
+        let near = placed(100.0 + 59.0, 100.0, 64.0);
+        assert!(near.visible && near.x < 159.0, "a shrunk icon is pulled in");
     }
 
     #[test]
