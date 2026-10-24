@@ -32,7 +32,7 @@ disturbing Remastered or Original, without a second draw path, and without inven
    the existing `ab_glyph` 0.2.32 already provides. The file is read at run time from the player's machine, like the
    game install, so nothing is redistributed. When no face is found, the HUD falls back to the raster font the rewrite
    already embeds (egui's Ubuntu Light from `epaint_default_fonts`) with a narrower `Look`, and logs it once.
-3. **The centred map is the default, and on.** `[hud] map_mode` defaults to `centered`. The map is a player-centred
+3. **The centred map is the default, and on.** `[custom_hud] map_mode` defaults to `centered`. The map is a player-centred
    translucent overlay in the middle of the view, not a corner minimap. Its orientation reuses the existing `minimap`
    setting (`MinimapMode`), so there is one orientation switch.
 4. **New HUD slots, appended to the catalogue as ABI.** `ElementId` numbers are mod ABI ([ADR 0008](0008-ui-themes.md),
@@ -63,14 +63,14 @@ disturbing Remastered or Original, without a second draw path, and without inven
    rotated quads, joins, a clip with a soft edge). The NFS:MW catalogue of notifications, the map data and the mode
    logic stay in `crates/nfsmw`. Neither piece names the game; `blackbox-ui` stays Bevy-free.
 8. **One rich feed for Custom.** A `CustomFeedCell` holds the frame's `HudState` (behind an `Arc`), the notification
-   view, the `[hud]` settings and the elapsed time. Remastered keeps reading `DriveFeedCell`, unchanged.
-9. **A `[hud]` settings table** (PR 2) carries the presets (Minimal, Balanced, Advanced), scale, opacity, text size, the
-   map, the information toggles, the notification filter, accessibility (high contrast, colour-vision palettes, motion
-   reduction), camera shake and FOV multipliers, haptics and a HUD volume. It goes through the existing layered settings
-   and the per-key TOML merge, so an old config without the table loads with the defaults. TOML cannot hold the
-   existing top-level `hud = true | false` key beside a `[hud]` table, so that switch moves into the table as
-   `[hud] enabled`; the reader still accepts the old boolean and the writer replaces it
-   ([settings.md](../specs/custom-hud/settings.md) section 4).
+   view, the `[custom_hud]` options (`Settings.hud_options`) and the elapsed time. Remastered keeps reading `DriveFeedCell`, unchanged.
+9. **A `[custom_hud]` settings table** (PR 2, `crates/nfsmw/src/settings/hud/`, resolved as `Settings.hud_options`)
+   carries the presets (Minimal, Balanced, Advanced), scale, opacity, text size, the map, the information toggles, the
+   notification filter, accessibility (high contrast, colour-vision palettes, motion reduction), camera shake and FOV
+   multipliers, haptics (off by default) and a HUD volume. It goes through the existing per-key TOML merge, so an old
+   config without the table loads with the defaults; the console has `custom_hud.<key>`. The table is named
+   `custom_hud` because the top-level `hud = true | false` switch (show the HUD at all, in every style) already owns
+   the name `hud`; that switch stays exactly as it is. Keys and defaults: [hud-settings.md](../hud-settings.md).
 10. **Never invent data.** A metric the game does not compute is hidden, not faked. Optional data is `Option` and hides
     its widget when absent. The list of what is not shown, and why, is part of the spec.
 
@@ -82,7 +82,7 @@ chains. Each PR updates its section of the spec.
 | PR | Title | What it adds |
 |---|---|---|
 | 1 | `docs(ui): spec the Custom 2026 HUD and fix stale Remastered docs` | this ADR, the spec, stale doc fixes |
-| 2 | `feat(settings): a [hud] table for the Custom HUD` | `settings/hud.rs`, presets, console, merge |
+| 2 | `feat(settings): a [custom_hud] table for the Custom HUD` | `settings/hud/`, presets, console keys, merge, camera shake and FOV multipliers |
 | 3a | `feat(hud): telemetry, race, damage and camera data for the HUD` | `HudState` split, new fields, rival gap |
 | 3b | `feat(ai): an explicit pursuit phase and what the player knows` | `PursuitPhase`, `PoliceIntel`, `next_turn` |
 | 4 | `feat(hud): HUD events and the notification queue` | one feed detector, `HudEvent`, `NotifyQueue`, catalogue |
@@ -128,7 +128,7 @@ the stack Custom shows the Original pieces between PR 5 and PR 6; the stack merg
   Remastered gains no feature from this work.
 - **Fonts differ per machine.** The Custom HUD looks slightly different on each platform, and on a machine with none of
   the listed faces it uses the fallback. Layout must not depend on exact glyph widths beyond the tabular numerals rule.
-- **New settings surface.** The `[hud]` table, seven new input actions (map mode, expand, zoom in, zoom out,
+- **New settings surface.** The `[custom_hud]` table (the `hud` switch is untouched), seven new input actions (map mode, expand, zoom in, zoom out,
   orientation, toggle HUD, dismiss notification) and a `Hud` audio group. Defaults are chosen so an old config gets
   Balanced with the centred map.
 - **Costs.** About fifteen PRs; the map needs road simplification and a per-frame polyline build, whose frame cost is
