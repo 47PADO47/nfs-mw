@@ -16,7 +16,7 @@
 //! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the Custom look, its tokens, layout and feed, and its two palettes (Bevy, Remastered gold). It fills the
-//!   radio card and the map legend today, and returns `None` for the rest.
+//!   radio card, the map legend and the menus (`custom/menu`) today, and returns `None` for the rest.
 //! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`], by the
 //!   Mods page's theme choice through [`UiThemes::set_mod_choice`]; the style setting does not choose it
 //!   (`docs/specs/ui-themes.md` section 12).
@@ -51,6 +51,7 @@ use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, The
 
 use crate::frontend::world_map::Chrome;
 use crate::settings::{Settings, UiStyle, UiTheme};
+use custom::menu::MenuLook;
 use custom::tokens::{self as custom_tokens, CustomLook};
 use custom::{CustomFeedCell, CustomTheme, DriveFeedCell, RadioFeedCell, WorldMapLegendCell, palette};
 use modded::{ModHud, ModTheme};
@@ -74,6 +75,7 @@ pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) 
     themes.bypass_change_detection().select(settings.ui_style);
     themes.bypass_change_detection().set_ui_theme(settings.ui_theme);
     themes.bypass_change_detection().set_custom_look(CustomLook::of(&settings.hud_options));
+    themes.bypass_change_detection().set_menu_look(MenuLook::of(&settings.hud_options));
 }
 
 /// Keeps the mod themes and the player's mod theme choice in step with the mods, every frame. The mods are a non-send
@@ -108,7 +110,7 @@ pub fn build_themes(
     let mut themes =
         Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
-        .register(Box::new(CustomTheme::new(radio.clone(), custom, legend)))
+        .register(Box::new(CustomTheme::new(radio.clone(), custom, legend).with_menus(menus.clone())))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
         .register(Box::new(RemasteredTheme::new(frame.clone(), drive, radio, menus, map)))
@@ -143,12 +145,14 @@ pub struct UiThemes {
     base: Skin,
     /// `base` with the active theme's tokens merged in: what the components read. Rebuilt by [`UiThemes::refresh_skin`].
     skin: Skin,
-    /// The theme, palette and Custom look `skin` was built for, or `None` when it must be built again.
-    skin_of: Option<(ThemeId, UiTheme, CustomLook)>,
+    /// The theme, palette, Custom look and menu look `skin` was built for, or `None` when it must be built again.
+    skin_of: Option<(ThemeId, UiTheme, CustomLook, MenuLook)>,
     /// The palette the token-driven HUD takes its colours from (the settings' `ui_theme`).
     ui_theme: UiTheme,
     /// The Custom HUD's colour-vision palette and high contrast (the settings' `[custom_hud]`).
     custom_look: CustomLook,
+    /// What the Custom menus take from `[custom_hud]`: the text size and motion reduction.
+    menu_look: MenuLook,
     frame: FrameCell,
     radio: RadioFeedCell,
     drive: DriveFeedCell,
@@ -157,7 +161,7 @@ pub struct UiThemes {
     /// The open world map's legend, read by the Remastered map legend. Filled by the frontend plugin while the map is
     /// open under a theme that recolours it, cleared otherwise.
     legend: WorldMapLegendCell,
-    /// The icon menus' lists, read by the Remastered vertical menus. Filled by the frontend plugin each frame.
+    /// The icon menus' lists, read by the Remastered and Custom menus. Filled by the frontend plugin each frame.
     menus: MenuListCell,
     /// The open map as the Remastered theme draws it. Filled by the frontend plugin while the map is open.
     map: WorldMapViewCell,
@@ -194,6 +198,7 @@ impl UiThemes {
             skin_of: None,
             ui_theme: UiTheme::default(),
             custom_look: CustomLook::default(),
+            menu_look: MenuLook::default(),
             frame,
             radio,
             drive,
@@ -226,6 +231,13 @@ impl UiThemes {
     /// the skin.
     pub fn set_custom_look(&mut self, look: CustomLook) {
         self.custom_look = look;
+        self.refresh_skin();
+    }
+
+    /// Sets what the Custom menus take from `[custom_hud]` (the text size and motion reduction), once per frame. A
+    /// change rebuilds the skin.
+    pub fn set_menu_look(&mut self, look: MenuLook) {
+        self.menu_look = look;
         self.refresh_skin();
     }
 
@@ -301,7 +313,7 @@ impl UiThemes {
     /// look is kept, so the per-frame [`UiThemes::select`] costs one comparison.
     fn refresh_skin(&mut self) {
         let active = self.themes.active();
-        let wanted = (active, self.ui_theme, self.custom_look);
+        let wanted = (active, self.ui_theme, self.custom_look, self.menu_look);
         if self.skin_of == Some(wanted) {
             return;
         }
@@ -316,7 +328,8 @@ impl UiThemes {
             .clone()
             .merged(tokens.skin())
             .merged(remastered::palette_skin(&tokens))
-            .merged(custom_tokens::skin(self.custom_look, tokens.secondary));
+            .merged(custom_tokens::skin(self.custom_look, tokens.secondary))
+            .merged(self.menu_look.skin());
         self.skin_of = Some(wanted);
     }
 
@@ -392,8 +405,8 @@ impl UiThemes {
         self.custom.clone()
     }
 
-    /// The lists the Remastered vertical menus draw. The frontend plugin keeps this clone, clears it and sets each screen's
-    /// list once per frame.
+    /// The lists the Remastered and Custom menus draw. The frontend plugin keeps this clone, clears it and sets each
+    /// screen's list once per frame.
     pub fn menu_lists(&self) -> MenuListCell {
         self.menus.clone()
     }
