@@ -24,6 +24,13 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::RadioCard, 10),
     (ElementId::BustedOverlay, 11),
     (ElementId::PoliceRadar, 12),
+    (ElementId::RaceStatus, 13),
+    (ElementId::Leaderboard, 14),
+    (ElementId::BountyRow, 15),
+    (ElementId::Banner, 16),
+    (ElementId::Notifications, 17),
+    (ElementId::WorldMarkers, 18),
+    (ElementId::VehicleCondition, 19),
     (ElementId::MainMenu, 20),
     (ElementId::Categories, 21),
     (ElementId::PauseMenu, 22),
@@ -80,6 +87,25 @@ fn slot_id_wraps_the_explicit_number() {
 fn name_is_the_variant_name() {
     assert_eq!(ElementId::Tachometer.name(), "Tachometer");
     assert_eq!(ElementId::MemoryCard.name(), "MemoryCard");
+}
+
+#[test]
+fn the_custom_hud_slots_are_hud_slots_not_menus() {
+    let custom_hud = [
+        ElementId::RaceStatus,
+        ElementId::Leaderboard,
+        ElementId::BountyRow,
+        ElementId::Banner,
+        ElementId::Notifications,
+        ElementId::WorldMarkers,
+        ElementId::VehicleCondition,
+    ];
+    for slot in custom_hud {
+        assert!(!slot.is_menu(), "{} is classed as a menu", slot.name());
+        assert!((13..20).contains(&slot.raw()), "{} is outside the HUD block", slot.name());
+    }
+    // The first menu number is still a menu.
+    assert!(ElementId::MainMenu.is_menu());
 }
 
 #[test]
