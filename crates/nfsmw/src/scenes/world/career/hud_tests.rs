@@ -20,7 +20,17 @@ fn the_heat_meter_stays_within_its_top() {
 
 #[test]
 fn a_car_without_a_record_has_no_bounty_and_no_heat() {
-    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 0.0 });
+    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 0.0, cash: 0 });
+}
+
+#[test]
+fn the_career_cash_goes_into_the_state_in_career_mode_only() {
+    let mut state = HudState::default();
+    CareerHud::new(None, 0).with_cash(12_500).apply(&mut state);
+    assert_eq!(state.cash, Some(12_500));
+    let mut outside = HudState::default();
+    CareerHud::default().with_cash(12_500).apply(&mut outside);
+    assert_eq!(outside.cash, None, "outside career mode there is no cash to show");
 }
 
 #[test]
