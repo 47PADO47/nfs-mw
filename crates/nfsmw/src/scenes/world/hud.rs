@@ -71,11 +71,15 @@ impl WorldScene {
                 }
                 state.busted = self.busted_meter_for(LEAD, traffic);
                 state.busted_overlay = traffic.busted_overlay();
+                state.pursuit_phase = traffic.pursuit_phase();
+                state.police_intel = traffic.police_intel();
             }
             self.career.hud.apply(state);
             state.race = self.race_hud();
             state.race_info = self.race_info();
             state.camera = self.hud_camera();
+            state.route = self.nav_route();
+            state.markers = self.nav_markers();
             state.leaders = self.race_leaders();
             state.message = self.race_message().or_else(|| self.lead_catch_up_line());
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
@@ -126,7 +130,7 @@ pub(super) fn race_start_blips(data: &GameplayData) -> Vec<(String, MapBlip)> {
 }
 
 /// The first safe house, the one zone the map shows before it is reached.
-const FIRST_SAFE_HOUSE: &str = "menu_gate_safehouse/zone_safehouse_1";
+pub(super) const FIRST_SAFE_HOUSE: &str = "menu_gate_safehouse/zone_safehouse_1";
 
 impl WorldScene {
     /// Whether the career being played is still in its prologue (stage 16): the first safe house has not been reached.

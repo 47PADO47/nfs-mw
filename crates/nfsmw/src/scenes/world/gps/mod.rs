@@ -5,6 +5,7 @@
 //! The route is set from the world map (Activate GPS), the console (`gps <x> <y>`) and the mods (`set_waypoint`).
 
 mod arrow;
+mod hud;
 
 use std::f32::consts::{PI, TAU};
 
