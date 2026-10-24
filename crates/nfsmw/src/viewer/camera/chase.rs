@@ -136,7 +136,12 @@ impl ChaseCamera {
         self.orbit_yaw = 0.0;
         self.orbit_elevation = 0.0;
         self.previous_view = None;
-        self.shake = shake::Shake::default();
+        self.shake.clear();
+    }
+
+    /// Scales the contact shake by the player's multiplier, 0 to 1 (`[hud] camera_shake`).
+    pub fn set_shake_intensity(&mut self, intensity: f32) {
+        self.shake.set_intensity(intensity);
     }
 
     /// The followed car's world acceleration after all shared contacts, on the physics clock.

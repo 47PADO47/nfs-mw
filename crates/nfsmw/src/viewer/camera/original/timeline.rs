@@ -100,6 +100,11 @@ impl Timeline {
         self.bodies.push_back(BodyKey { time: self.physics_time, frame });
     }
 
+    /// Scales the contact shake by the player's multiplier, 0 to 1 (`[hud] camera_shake`).
+    pub fn set_shake_intensity(&mut self, intensity: f32) {
+        self.shake.set_intensity(intensity);
+    }
+
     pub fn reset(&mut self) {
         self.follow.reset();
         self.custom_breaker = Default::default();
@@ -109,7 +114,7 @@ impl Timeline {
         self.underpass.reset();
         self.anchor = anchor::History::default();
         self.impacts = impacts::Impacts::default();
-        self.shake = super::shake::Shake::default();
+        self.shake.clear();
         self.consumed_time = self.simulation_time;
         self.previous = None;
         self.current = None;

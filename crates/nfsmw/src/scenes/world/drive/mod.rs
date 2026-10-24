@@ -228,6 +228,11 @@ impl Drive {
         self.rig.set_scale(scale);
     }
 
+    /// The chase camera's contact shake multiplier, 0 to 1 (`[hud] camera_shake`).
+    pub fn set_camera_shake(&mut self, intensity: f32) {
+        self.chase.set_shake_intensity(intensity);
+    }
+
     /// Apply an impact to a zone (see `CarSim::inflict`).
     pub fn inflict(&mut self, zone: usize, severity: u8, glazed: bool) -> bool {
         match self.sim.as_mut() {

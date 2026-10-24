@@ -57,6 +57,10 @@ impl WorldScene {
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
         }
+        let camera_shake = self.tuning.camera_shake;
+        for drive in self.players.drives_mut() {
+            drive.set_camera_shake(camera_shake);
+        }
         if input.just_pressed(Action::ToggleHeadlights)
             && let Some(drive) = self.players.lead_mut()
         {

@@ -42,6 +42,16 @@ impl Shake {
         self.0.advance(seconds);
     }
 
+    /// Scales the shake's amplitude by `intensity`, 0 to 1 (`[hud] camera_shake`).
+    pub fn set_intensity(&mut self, intensity: f32) {
+        self.0.set_intensity(intensity);
+    }
+
+    /// Drops every pulse, keeping the intensity.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
     pub fn explosions(&mut self, sources: &[Explosion], eye: Vec3, seconds: f32) {
         for source in sources {
             if let Some(acceleration) = source.acceleration(eye, seconds) {

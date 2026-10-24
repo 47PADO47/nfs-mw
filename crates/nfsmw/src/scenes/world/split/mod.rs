@@ -72,7 +72,9 @@ impl WorldScene {
 
     /// Moves the second player's camera after their car, on the frame's clock.
     pub(super) fn follow_second_player(&mut self, dt: f32) {
+        let camera_shake = self.tuning.camera_shake;
         let (Some(split), Some(traffic)) = (self.split.as_mut(), self.traffic.as_ref()) else { return };
+        split.camera.set_shake_intensity(camera_shake);
         let Some(car) = traffic.racer_followed(SECOND, 1.0) else { return };
         if dt == 0.0 {
             // A run with no frame time puts the camera where it belongs at once.
