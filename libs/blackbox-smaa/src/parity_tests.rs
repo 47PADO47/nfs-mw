@@ -332,3 +332,26 @@ fn smaa_matches_the_smaa_crate_on_hard_edges() {
     );
     assert!(changed > 0, "the smaa crate changed no pixel of the input: the comparison would be vacuous");
 }
+
+/// The same passes, with the output view given only once the scene is drawn (a swapchain image acquired late).
+fn late_output_smaa(gpu: &Gpu, copy: &CopyPass) -> Vec<u8> {
+    let output = output_texture(gpu, "smaa.parity.late");
+    let output_view = output.create_view(&Default::default());
+    let target = SmaaTarget::new(&gpu.device, &gpu.queue, WIDTH, HEIGHT, FORMAT, SmaaMode::Smaa1X);
+    copy.draw_into(gpu, target.input_view().expect("an enabled target has an input view"));
+    let mut encoder =
+        gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("smaa.parity.late") });
+    target.encode_to(&mut encoder, &output_view);
+    gpu.queue.submit([encoder.finish()]);
+    read_back(gpu, &output)
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn an_output_view_given_late_gets_the_same_image() {
+    let Some(gpu) = gpu() else { return };
+    let input = upload(&gpu, &synthetic_scene());
+    let input_view = input.create_view(&Default::default());
+    let copy = CopyPass::new(&gpu.device, &input_view);
+    assert_eq!(late_output_smaa(&gpu, &copy), ported_smaa(&gpu, &copy));
+}

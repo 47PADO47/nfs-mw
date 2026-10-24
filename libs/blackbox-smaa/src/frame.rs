@@ -79,7 +79,7 @@ impl Drop for SmaaFrame<'_> {
 /// The three passes. The edge pass marks the pixels that have an edge in the stencil; the blend-weight pass only
 /// runs on those, because every other pixel's weights are zero and the target is cleared to zero. The neighbourhood
 /// pass reads weights of neighbouring pixels, so it keeps running on every pixel.
-fn encode_passes(encoder: &mut wgpu::CommandEncoder, inner: &Inner, output_view: &wgpu::TextureView) {
+pub(crate) fn encode_passes(encoder: &mut wgpu::CommandEncoder, inner: &Inner, output_view: &wgpu::TextureView) {
     encode_pass(
         encoder,
         "smaa.render_pass.edge_detect",
