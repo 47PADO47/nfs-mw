@@ -166,8 +166,19 @@ pub fn rows(bridge: &Bridge) -> Vec<RowInfo> {
         .menu_rows
         .borrow()
         .iter()
-        .map(|row| RowInfo { handle: row.handle, label: row.label.clone(), kind: row.kind.clone(), value: row.value })
+        .map(|row| RowInfo {
+            handle: row.handle,
+            label: crate::i18n::mod_label(&row.owner, &row.label),
+            kind: shown_kind(&row.owner, &row.kind),
+            value: row.value,
+        })
         .collect()
+}
+
+/// A row's kind as the page shows it: a list's choices that name messages of the mod's catalogue are those messages.
+fn shown_kind(owner: &str, kind: &MenuKind) -> MenuKind {
+    let MenuKind::List { choices } = kind else { return kind.clone() };
+    MenuKind::List { choices: choices.iter().map(|choice| crate::i18n::mod_label(owner, choice)).collect() }
 }
 
 /// A player's change to row `handle`: one step forward or back. The value is saved, and the mod's callback runs with the

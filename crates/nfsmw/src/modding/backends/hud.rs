@@ -22,8 +22,8 @@ fn tone_of(style: MessageStyle) -> ModMessageTone {
 }
 
 impl HudBackend for HudPort {
-    fn message(&self, _owner: &str, text: &str, style: MessageStyle, secs: f32) -> BackendResult<()> {
-        let request = WorldRequest::Message { text: text.to_owned(), tone: tone_of(style), secs };
+    fn message(&self, owner: &str, text: &str, style: MessageStyle, secs: f32) -> BackendResult<()> {
+        let request = WorldRequest::Message { text: crate::i18n::mod_label(owner, text), tone: tone_of(style), secs };
         self.0.world_requests.borrow_mut().push(request);
         Ok(())
     }

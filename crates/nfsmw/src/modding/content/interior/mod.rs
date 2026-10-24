@@ -77,12 +77,16 @@ fn read(m: &ModDir, path: &Path, packs: &[MapPack], first_tile: usize) -> Result
     Ok(ModInterior {
         owner: m.id.clone(),
         key: manifest.key,
-        label: manifest.label,
-        prompt: manifest.prompt,
+        // A text that is a message id of the mod's catalogue is that message (`docs/modding/translations.md`).
+        label: crate::i18n::mod_label(&m.id, &manifest.label),
+        prompt: manifest.prompt.map(|prompt| crate::i18n::mod_label(&m.id, &prompt)),
         entry: manifest.entry,
         tile: first_tile + at,
         spawn: manifest.spawn,
-        exit: manifest.exit,
+        exit: Exit {
+            shape: manifest.exit.shape,
+            prompt: manifest.exit.prompt.map(|prompt| crate::i18n::mod_label(&m.id, &prompt)),
+        },
         time: manifest.time,
         suspend: manifest.suspend,
     })

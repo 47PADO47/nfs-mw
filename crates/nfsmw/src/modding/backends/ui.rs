@@ -67,7 +67,10 @@ pub fn choice(bridge: &Bridge) -> Option<ThemeId> {
 pub fn chosen_display(bridge: &Bridge) -> Option<String> {
     let id = bridge.ui_theme_choice.get()?;
     let records = bridge.ui_themes.borrow();
-    records.iter().find(|record| record.theme.id() == id).map(|record| record.theme.display().to_owned())
+    records
+        .iter()
+        .find(|record| record.theme.id() == id)
+        .map(|record| crate::i18n::mod_label(&record.owner, record.theme.display()))
 }
 
 /// Moves the theme choice one step, forward or back: the built-in style, then each mod theme in registration order,

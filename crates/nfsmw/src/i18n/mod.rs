@@ -42,6 +42,13 @@ pub fn mod_text(mod_id: &str, id: &str, args: &Args) -> String {
     current().strings.text(&mod_namespace(mod_id), id, args)
 }
 
+/// Text a mod supplied (a menu label or choice, a theme's name, a HUD message, a content file's text): the mod's own
+/// message of that id when its catalogue has one, else the text as written. A mod names a message where it would write
+/// text, and a mod with no catalogue keeps working.
+pub fn mod_label(mod_id: &str, text: &str) -> String {
+    current().strings.try_text(&mod_namespace(mod_id), text, &Args::new()).unwrap_or_else(|| text.to_owned())
+}
+
 /// The text of a game label in the current language; `None` when no language of the chain has it.
 pub fn game(label: u32) -> Option<String> {
     current().strings.game(label)
