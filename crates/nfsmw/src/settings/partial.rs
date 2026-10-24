@@ -119,6 +119,8 @@ pub struct Partial {
     pub camera_mode: Option<CameraMode>,
     pub minimap: Option<MinimapMode>,
     pub hud_layout: Option<HudLayout>,
+    /// The Custom HUD's options (`[hud]`).
+    pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
     /// The HUD's speed unit (`speed_units`).
@@ -249,6 +251,7 @@ impl Partial {
             camera_mode: self.camera_mode.or(lower.camera_mode),
             minimap: self.minimap.or(lower.minimap),
             hud_layout: self.hud_layout.or(lower.hud_layout),
+            hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
             speed_units: self.speed_units.or(lower.speed_units),
             language: self.language.or(lower.language),

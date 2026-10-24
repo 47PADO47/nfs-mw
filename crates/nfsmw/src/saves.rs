@@ -166,6 +166,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         fe_shadows: s.fe_shadows.into(),
         net: s.net.into(),
         xenon_effects: Default::default(), // config file only; the menus never write it
+        hud_options: Default::default(),   // config file and console only until the options page writes it
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),

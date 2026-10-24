@@ -22,6 +22,10 @@ pub struct WorldTuning {
     pub rain_droplet_scale: f32,
     /// The restored sparks and the speed trail (`[xenon_effects]`).
     pub xenon_effects: XenonEffects,
+    /// The camera's contact shake, a multiplier from 0 (none) to 1 (as it is) (`[hud] camera_shake`).
+    pub camera_shake: f32,
+    /// How far the Dynamic FOV camera widens with speed, a multiplier of the widening (`[hud] fov_intensity`).
+    pub fov_intensity: f32,
 }
 
 impl Default for WorldTuning {
@@ -38,6 +42,8 @@ impl Default for WorldTuning {
             motion_blur: MotionBlur::default(),
             rain_droplet_scale: 0.5,
             xenon_effects: XenonEffects::default(),
+            camera_shake: hud::DEFAULT_CAMERA_SHAKE,
+            fov_intensity: hud::DEFAULT_FOV_INTENSITY,
         }
     }
 }
@@ -56,6 +62,8 @@ impl From<&Settings> for WorldTuning {
             motion_blur: MotionBlur::from(s),
             rain_droplet_scale: s.rain_droplet_scale,
             xenon_effects: s.xenon_effects,
+            camera_shake: s.hud_options.camera_shake,
+            fov_intensity: s.hud_options.fov_intensity,
         }
     }
 }

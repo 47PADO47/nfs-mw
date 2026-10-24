@@ -104,7 +104,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
         speech_volume: field(&table, origin, "speech_volume", percent),
-        hud: field(&table, origin, "hud", |v| v.as_bool().ok_or_else(|| "expected true or false".to_owned())),
+        hud: super::hud::read_switch(&table, origin),
         tire_smoke: field(&table, origin, "tire_smoke", boolean),
         radio: field(&table, origin, "radio", boolean),
         skip_intro: field(&table, origin, "skip_intro", boolean),
@@ -133,6 +133,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
+        hud_options: super::hud::read(&table, origin),
         // `radio_hud` is the legacy key: read only when this file sets no `ui_style` (`docs/specs/ui-themes.md` section 11).
         ui_theme: field(&table, origin, "ui_theme", |v| UiTheme::from_str(text_of(v)?)),
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {

@@ -115,9 +115,6 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speech_volume {
         put("speech_volume", Value::Integer(i64::from(v.0)));
     }
-    if let Some(v) = changes.hud {
-        put("hud", Value::Boolean(v));
-    }
     if let Some(v) = changes.tire_smoke {
         put("tire_smoke", Value::Boolean(v));
     }
@@ -308,6 +305,8 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     super::net::put_into(&changes.net, &mut put);
     hd_content::merge_into(&mut table, &changes.hd_content);
     custom_fonts::merge_into(&mut table, &changes.custom_fonts);
+    // The `hud` switch shares its key with the `[hud]` table, so both are written together.
+    super::hud::merge_into(&mut table, changes.hud, &changes.hud_options);
     toml::to_string(&table).context("serializing the config file")
 }
 
