@@ -33,31 +33,38 @@ This page lists what exists, what was verified and how, and everything that is n
 Open work of this build, in rough order of importance:
 
 1. **Two PCs by hand.** Nothing has been played across a real network. The loopback end-to-end run is the only live check.
-2. **Room passwords.** The PAKE exists in the library, but the server refuses a configured password and the client binds it to
-   zeros, because `ClientEndpoint` does not yet expose the handshake hash.
+2. **Room passwords: built, not played across two PCs.** The server runs the SPAKE2 exchange ([server](server.md) section 3),
+   both ends bind it to the Noise handshake hash (`Connected` carries it), and the Host screen's password reaches the server.
+   Tested with the real handshake, a wrong password, no answer and the host's own in-memory client. A listen host's own client
+   binds to zeros, as the in-memory link has no handshake.
 3. **Physical extraction of the world** into `nfsmw-sim`. The server runs the game's own `WorldScene` behind a renderer that draws
    nothing, so it links the renderer crates, the host is not `Send` and the listen host runs two worlds (the server's and its own
    client's).
 4. **Remote cars are stock.** A join's parts are not applied, and remote cars have no engine sound or detail. The helicopter,
    spike strips and moving props are not drawn on a client.
-5. **Races with remote players.** A remote player in a race seat is not fed network pedals, players 3 to 16 stay in free roam
-   during a race, and the knockout, speed-trap and tag rules have no wire messages yet ([modes.md](modes.md)).
-6. **Global block.** Pursuit and race fields are filled from the world, but the client does not apply time of day.
-7. **Server details.** The identity key is new on every start, "everyone wait" cannot be triggered, quick messages are checked
-   but not relayed, and a peer that changes address is dropped (no path validation).
-8. **Front end.** The post-race page of the original is not wired to a session's end, there is no voting from the HUD during a
-   race, no whisper from the menu, and `net_name` cannot be saved from the menu. The LAN screens are egui panels, not FEng.
-9. **Text rules.** NFKC normalisation, confusable folding and grapheme counting need Unicode tables and are not done.
+5. **Races with remote players: built on the server, not played.** The server asks the world for the session's race, every remote
+   player is a person on the grid driven by their seat's pedals and exported as their own car, and knockouts, speed-trap passes,
+   tag passes and penalties are wire messages ([world host](world-host.md) section 7, [modes.md](modes.md)). The people's cars have
+   own-car blocks, and the world's GO falls on the server's start tick (the load barrier waits for the staged grid). A client predicts its
+   race car as well as a free-roam one (median correction 1.3 cm), and a session's race ends the moment it is over, also on a
+   dedicated server, whose idle lead car is a computer racer on the grid and not one the race waits for.
+6. **Global block.** Pursuit and race fields are filled from the world. The client sets its day clock to the server's time of day when it strays more than 5 minutes from it (`net_client/hud.rs`); weather is not carried.
+7. **Server details.** A server started without a config file gets a new identity key every start (with one it keeps `server.key` beside it), and a peer that changes address moves
+   only after the new address answers a path challenge. Quick messages are relayed to everyone as `QuickRelay`.
+8. **Front end.** The post-race page of the original is not wired to a session's end (the LAN results page shows instead), and
+   there is no team chat from the menu. F7 votes in a race, the player menu whispers and the Home page saves `net_name`. The LAN screens and the session HUD are drawn with the game's UI toolkit in the Original and Remastered styles (no FEng package exists for them).
+9. **Text rules.** Names, chat, plates and room passwords are in NFKC (`unicode-normalization`; the wire refuses text that is not). A joiner whose name is the same as a member's once confusable look-alikes and case are folded (`unicode-security` skeletons, `lobby/names.rs`) gets a number after it. Grapheme counting is not done (the `char` count is the stricter bound).
 10. **Fuzzing.** The cargo-fuzz targets type-check but have never been run under libFuzzer; the in-tree seeded tests are what
     runs in CI.
-11. **Sockets.** `socket2` is not used: no enlarged socket buffers, and two servers on one PC cannot share the discovery port.
-    Broadcast itself and IPv6 are untested (the tests use 127.0.0.1).
+11. **Sockets.** Sockets ask for 256 KiB buffers and the discovery port is shared (`socket2`), so two servers on one PC both answer
+    discovery. Broadcast itself and IPv6 are untested (the tests use 127.0.0.1).
 12. **Tuning.** Several rule numbers are marked **[ours]** in [modes.md](modes.md) and the 10 Hz spectator rate, the start
     countdown and similar values are first guesses to be set by play.
-13. **World timing.** The 16-player world step has a mean of 2.87 ms and a p95 of 4.35 ms in the dev profile
-    ([bandwidth.md](bandwidth.md) section 5); the p95 is above the 4 ms budget.
-14. **Determinism leftovers.** The 10 s wall-clock wait before the car spawns, model choice from the full catalogue, prop ids from
-    tile and index and strict id order for car pairs ([determinism.md](determinism.md)).
+13. **World timing.** The 16-player world step has a mean of 2.3 ms and a p95 of 2.5 ms in the dev profile at 59 traffic cars
+    ([bandwidth.md](bandwidth.md) section 5); the first measurement's p95 of 4.35 ms came from threads started every tick and a
+    race list built every tick, both fixed. The machine is noisy: a run now and then is several times slower for its whole
+    length, so a figure needs two runs.
+14. **Determinism leftovers.** Model choice from the full catalogue and strict id order for car pairs ([determinism.md](determinism.md)).
 
 ## Not planned for milestone 10
 

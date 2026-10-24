@@ -48,8 +48,16 @@ impl LanMenu {
         PageView {
             title: "LAN Game".into(),
             subtitle: format!("Playing as {}", cx.settings.net.name),
-            rows: vec![Row::action("Host a Game", true), Row::action("Join a Game", true), Row::action("Back", true)],
-            selected: self.home.clamped(3),
+            rows: vec![
+                Row::action("Host a Game", true),
+                Row::action("Join a Game", true),
+                match self.name.editing {
+                    true => Row::text("Your name", self.name.shown(), true),
+                    false => Row::text("Your name", cx.settings.net.name.as_str(), false),
+                },
+                Row::action("Back", true),
+            ],
+            selected: self.home.clamped(super::HOME_ROWS),
             hints: MENU_HINTS.to_vec(),
             ..PageView::default()
         }

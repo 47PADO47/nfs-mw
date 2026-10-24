@@ -31,7 +31,10 @@ pub fn run(
     let seed = options.seed();
     log::info!("dedicated: opening the world (seed {seed:#x})");
     let host = WorldSimHost::open(dir, options.host_config(seed)).context("the server's world did not open")?;
-    let identity = IdentityKey::generate().map_err(|err| anyhow::anyhow!("no identity key: {err}"))?;
+    let identity = match &config.identity_file {
+        Some(path) => nfsmw_server::identity::load_or_create(path)?,
+        None => IdentityKey::generate().map_err(|err| anyhow::anyhow!("no identity key: {err}"))?,
+    };
     log::info!("identity {}", identity.key_id().fingerprint());
     let endpoint =
         nfsmw_server::bind(&config, identity).with_context(|| format!("cannot bind {}", config.game_addr()))?;

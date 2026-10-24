@@ -14,6 +14,8 @@ pub struct RacerState {
     pub lap_times: Vec<f32>,
     /// The race time of the finish, seconds.
     pub finished_at: Option<f32>,
+    /// The stored speed of each speed trap in m/s, by slot; `None` for a trap not passed.
+    pub trap_speeds: Vec<Option<f32>>,
 }
 
 /// What the players' racers had done at the last tick.
@@ -21,7 +23,12 @@ pub struct RacerState {
 pub struct RaceTracker {
     /// Per player: laps done and whether finished.
     seen: Vec<(PlayerId, usize, bool)>,
+    /// Per player: the stored speed of each speed trap, as of the last tick.
+    traps: Vec<(PlayerId, Vec<Option<f32>>)>,
 }
+
+/// Metres per second to kilometres per hour.
+const MS_TO_KMH: f32 = 3.6;
 
 /// Seconds to whole milliseconds, 0 for a time that is not a finite positive number.
 fn ms(seconds: f32) -> u32 {
@@ -36,6 +43,7 @@ impl RaceTracker {
     pub fn update(&mut self, racers: Option<&[RacerState]>, events: &mut Vec<SimEvent>) {
         let Some(racers) = racers else {
             self.seen.clear();
+            self.traps.clear();
             return;
         };
         let mut newly_finished = Vec::new();
@@ -49,6 +57,7 @@ impl RaceTracker {
                 events.push(SimEvent::LapCompleted { player, lap, time_ms });
             }
             self.set_seen(player, racer.lap_times.len(), finished || racer.finished_at.is_some());
+            self.trap_passes(player, &racer.trap_speeds, events);
             if !finished && racer.finished_at.is_some() {
                 newly_finished.push(index);
             }
@@ -60,6 +69,27 @@ impl RaceTracker {
             let place = u8::try_from(finished_before + rank + 1).unwrap_or(u8::MAX);
             events.push(SimEvent::RaceFinished { player, place, time_ms: ms(at) });
         }
+    }
+
+    /// A trap whose stored speed is new or higher than last tick's was passed (a pass pays only when it beats the best).
+    fn trap_passes(&mut self, player: PlayerId, speeds: &[Option<f32>], events: &mut Vec<SimEvent>) {
+        let at = match self.traps.iter().position(|(id, _)| *id == player) {
+            Some(at) => at,
+            None => {
+                self.traps.push((player, Vec::new()));
+                self.traps.len() - 1
+            }
+        };
+        let before = &mut self.traps[at].1;
+        for (slot, speed) in speeds.iter().enumerate() {
+            let Some(speed) = *speed else { continue };
+            if before.get(slot).copied().flatten() == Some(speed) {
+                continue;
+            }
+            let trap = u8::try_from(slot).unwrap_or(u8::MAX);
+            events.push(SimEvent::SpeedTrapPassed { player, trap, kmh: speed * MS_TO_KMH });
+        }
+        *before = speeds.to_vec();
     }
 
     fn seen_of(&self, player: PlayerId) -> (usize, bool) {
@@ -82,7 +112,7 @@ mod tests {
     const TWO: PlayerId = PlayerId(1);
 
     fn racer(player: Option<PlayerId>, laps: &[f32], finished_at: Option<f32>) -> RacerState {
-        RacerState { player, lap_times: laps.to_vec(), finished_at }
+        RacerState { player, lap_times: laps.to_vec(), finished_at, trap_speeds: Vec::new() }
     }
 
     fn run(tracker: &mut RaceTracker, racers: Option<&[RacerState]>) -> Vec<SimEvent> {
@@ -100,6 +130,28 @@ mod tests {
         assert_eq!(run(&mut tracker, Some(&lap)), []);
         let second = [racer(Some(ONE), &[61.5, 120.0], None)];
         assert_eq!(run(&mut tracker, Some(&second)), [SimEvent::LapCompleted { player: ONE, lap: 2, time_ms: 58_500 }]);
+    }
+
+    #[test]
+    fn a_trap_pass_comes_once_and_again_only_when_it_beats_the_best() {
+        let mut tracker = RaceTracker::default();
+        let at = |speeds: &[Option<f32>]| {
+            [RacerState { player: Some(ONE), lap_times: Vec::new(), finished_at: None, trap_speeds: speeds.to_vec() }]
+        };
+        assert_eq!(run(&mut tracker, Some(&at(&[None, None]))), []);
+        let first = at(&[None, Some(50.0)]);
+        assert_eq!(run(&mut tracker, Some(&first)), [SimEvent::SpeedTrapPassed { player: ONE, trap: 1, kmh: 180.0 }]);
+        assert_eq!(run(&mut tracker, Some(&first)), [], "a pass comes once");
+        let better = at(&[Some(40.0), Some(55.0)]);
+        assert_eq!(
+            run(&mut tracker, Some(&better)),
+            [
+                SimEvent::SpeedTrapPassed { player: ONE, trap: 0, kmh: 144.0 },
+                SimEvent::SpeedTrapPassed { player: ONE, trap: 1, kmh: 198.0 },
+            ]
+        );
+        assert_eq!(run(&mut tracker, None), []);
+        assert_eq!(run(&mut tracker, Some(&first)).len(), 1, "a new race starts clean");
     }
 
     #[test]

@@ -9,7 +9,7 @@ Status: built 2026-10-22 (integration.md section 5, steps 3 and 4, server side).
 
 `Server<W: WorldControl>` is the authoritative server of one session over any world that implements
 `nfsmw_sim::WorldSim` (plus `WorldControl`, a small trait with defaults for what the server asks beyond `WorldSim`: a
-reset to the road and the parked ghost car of a dropped player). It owns:
+reset to the road, the parked ghost car of a dropped player, and `start_race`, `race_staged`, `schedule_race_go` and `stop_race` for a world that runs its own races). It owns:
 
 | Piece | From |
 |---|---|
@@ -67,7 +67,7 @@ runs before each tick (the bots of `--bots N`).
 | Feature | As built |
 |---|---|
 | Join (MP-21, MP-23, MP-24) | `JoinAccepted` carries the slot, the car's entity id (or `0xFFFF` before it has one), the session seed, the tick, the snapshot rate of the role, the settings, the world bounds, a 32-byte resume token (from the OS CSPRNG), the schema id. A refusal is `JoinRejected` with the server's versions, then a close |
-| Password | Not supported: the PAKE exchange is not wired, so a configured password is a config error |
+| Password | `Auth` is answered with `PakeStart` (SPAKE2 bound to the Noise handshake hash, `server/password.rs`). A `Join` that comes first waits; the client's message and tag are checked, the server's tag goes back when they match, and then the `Join` is judged with the proof. A wrong password, none, or an exchange older than 5 s is `JoinRejected(ServerFull)`, counted by the guess limits; the client turns a refusal that follows its own exchange into "wrong password". The host's own in-memory client binds to a zero hash |
 | Late join (MP-53) | A joiner of a running session gets `LobbyState` and the `SessionData` blob on the bulk channel, then snapshots from a full one. A joiner of a running race is a spectator who races next time; of a running free roam, a racer whose car spawns with a `Respawn` (`JoinInProgress`) |
 | Drops (MP-50) | A quit releases the slot (`PlayerLeft`, `EntityRemoved`); a timeout of a slot with a resume token holds it 30 s, flags the row away and parks the car (neutral input; the ghost needs `WorldControl::set_ghost`, which the toy world does not have) |
 | Resume (MP-51) | `Auth.resume` with the token, from the same identity key, takes the slot back, gets a new token, `LobbyState` and a full snapshot. A token from another key is a normal join |
@@ -104,7 +104,8 @@ wrong type, a value out of range or session settings that do not hold together i
 | `collision`, `catch_up`, `nitrous`, `damage`, `allowed_cars`, `password_required`, `sim_build_match` | `full`, false, true, `visual`, `any`, false, false | As `nfsmw_net::settings` |
 | `bind`, `port` | `0.0.0.0`, 9750 | The game port; 0 lets the system pick |
 | `discovery` | true | Answer LAN discovery on `port + 1` |
-| `password` | empty | Must stay empty (no PAKE yet) |
+| `password` | empty | The room password, at most 64 characters; non-empty turns `password_required` on, and `password_required = true` without one is an error |
+| `identity_file` | `server.key` beside the config file | Where the server's identity key is kept (made on the first start, private to the user: mode 0600, or an `icacls` grant on Windows). Set to `""`: a new key every start. Without a config file: a new key every start |
 | `snapshot_hz` | 20 | 1 to 60 per second; spectators get at most 10 |
 | `snapshot_budget` | 16384 | Snapshot bytes per second to one client, 1024 to 32768 |
 | `relevancy_radius` | 600 | Metres, 10 to 20,000 |
@@ -142,12 +143,11 @@ The server's mean tick with three bots is about 0.12 ms.
 
 ## 8. Not built
 
-- The room password (PAKE) and the connect tokens of online play.
+- The connect tokens of online play.
 - Snapshot parts (a snapshot always fits one datagram at the configured budgets).
 - The global block's pursuit and race fields come from `WorldControl::fill_global` (default: zero); the game's world fills
   them ([game wiring](game-wiring.md) section 3), the toy world does not. The own block's correction cause `Freeze`.
 - Ghost cars and server-side resets need `WorldControl` from the world; the toy world resets but has no ghosts, the game's
   world does both (`scenes/world/net/control.rs`).
 - The telemetry bridge of MP-84 and an admin console.
-- Bans do not expire from memory (they stop applying at their end time), and the server's own identity key is new on
-  every start (no `identity_file` key yet).
+- Bans do not expire from memory (they stop applying at their end time).

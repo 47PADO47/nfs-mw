@@ -35,6 +35,8 @@ mod ground;
 mod heli_wash;
 mod hud;
 mod hud_pursuit;
+#[cfg(test)]
+mod installed_turn;
 mod keys;
 mod lighting;
 mod materials;
@@ -225,6 +227,15 @@ pub struct WorldScene {
     queued_again: Option<race::RestartKit>,
     /// The two players of the split-screen race `queued_race` starts (`race/split.rs`); `None` for a one-player race.
     queued_split: Option<SplitSetup>,
+    /// The network seats racing as people beside the lead, in grid order: racer `n + 1` is `race_people[n]`
+    /// (`players/race.rs`). Empty outside a race with remote players.
+    race_people: Vec<players::PlayerId>,
+    /// The next race stages on the grid and waits for [`WorldScene::release_staged_race`] instead of counting down by
+    /// itself (`race/hold.rs`). A server sets it before it starts the session's race.
+    race_hold: bool,
+    /// Nobody drives the lead's car in the next race (a dedicated server's idle car): it stands on the grid as a
+    /// computer racer, so the race does not wait for it (`race/hold.rs`).
+    race_lead_idle: bool,
     /// The split-screen match being played: the second player's actions and camera (`split/`).
     split: Option<split::SplitState>,
     /// The bottom half's draw list and cut, for a split-screen race or co-op (`split/view.rs`).
@@ -286,7 +297,7 @@ pub struct WorldScene {
     /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
     cut: CameraCut,
     /// When the car started waiting for a road (no physics while it waits).
-    waiting_since: Option<std::time::Instant>,
+    waiting_since: Option<drive_input::RoadWait>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).

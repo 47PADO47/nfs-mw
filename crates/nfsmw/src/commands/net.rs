@@ -39,6 +39,7 @@ pub fn serve_options(args: &NetArgs) -> ServeOptions {
         car: player().car,
         seed: None,
         settings: None,
+        password: None,
     }
 }
 

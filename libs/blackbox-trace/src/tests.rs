@@ -77,3 +77,19 @@ fn worker_threads_share_clock_and_have_distinct_tracks() {
         .collect();
     assert_eq!(workers.len(), 3);
 }
+
+#[test]
+fn totals_add_up_the_runs_of_a_scope_by_name() {
+    let recorder = Recorder::default();
+    assert!(recorder.start(100));
+    for _ in 0..3 {
+        let _scope = recorder.scope("step");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    recorder.note("bookmark", "not a scope");
+    let totals = recorder.stop().unwrap().totals();
+    assert_eq!(totals.len(), 1);
+    let step = totals["step"];
+    assert_eq!(step.count, 3);
+    assert!(step.total_us >= 6_000.0 && step.max_us >= 2_000.0 && step.max_us <= step.total_us);
+}

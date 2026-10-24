@@ -25,6 +25,8 @@ pub enum LanKey {
 pub enum MenuOut {
     /// Close the LAN menu and go back to the main menu.
     Close,
+    /// The player's name was changed: keep it in the settings and the config file.
+    SaveName(crate::settings::net::NetName),
     /// Open the car select (`Car_Select.fng`); its pick comes back with [`super::LanMenu::car_chosen`].
     CarSelect,
 }

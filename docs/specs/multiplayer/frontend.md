@@ -7,20 +7,31 @@ Where this file and the code disagree, the code's tests are the reference and th
 
 ## 1. What the player sees
 
-The main menu's **LAN** icon (the install's `Main_Icon_LAN` picture and `lan` label, enabled now) opens the LAN menu. The
-original game has no LAN screens in this build's packages, so there is no FEng package to run: the menu is an **egui panel**
-(the layer of the developer panels) drawn over the main menu, in the active UI theme's palette, radius, padding and text size
-(`devtools/theme_style.rs`), so it follows Original, Custom and Remastered alike. The main menu stays under it and takes no
-input while it is up. The menu is pad-driven like the FEng menus (up, down, left, right, accept, back; a `--ui-script` drives
-it), takes typed text on its text rows, and takes clicks on its rows and chevrons.
+The main menu's **LAN** icon (the install's `Main_Icon_LAN` picture and `lan` label, enabled now) opens the LAN menu, so a
+session is hosted, joined and played from the menus with no command line. The original game has no LAN screens in this build's
+packages, so there is no FEng package to run: the pages and the session HUD are drawn with the game's own UI toolkit, as the
+menus and the settings are (no egui). The menu publishes each page as plain data (`present.rs`: a [`MenuList`] and the lines
+around it, a `LanPage`) into the theme registry's `LanCell`, and the themes' components of the `LanMenu` slot draw it:
+
+- **Original** (`ui/theme/original/lan.rs`): the game's own fonts (`FONT_MW_TITLE` for the title, `FONT_MW_BODY` for the rest),
+  the logo at the top right, white rows with the gold selection of the icon menu, values between gold chevrons, a chat column on
+  a dark plate and the key-cap footer.
+- **Remastered** (`ui/theme/remastered/menu/lan.rs`): the vertical list (the slanted bar, the lightning bolt, the wide title,
+  the ruled footer) of the same entries, with the line under the title, the failure line and the side column added.
+- **Custom** and the mod themes fall back to the Original look, as for every slot a theme leaves.
+
+The two themes put the rows in the same places, so one hit test serves both. A page covers the front end: the screens under it
+are not drawn and take no input while it is up. The menu is pad-driven like the FEng menus (up, down, left, right, accept,
+back; a `--ui-script` drives it), takes typed text on its text rows, and takes mouse clicks (a row, a chevron of a choice, the
+select and back hints of the footer).
 
 | Page | Rows | Notes |
 |---|---|---|
-| Home | Host a Game, Join a Game, Back | The subtitle names the player (`net_name`). Back closes the menu |
+| Home | Host a Game, Join a Game, Your name, Back | The subtitle names the player (`net_name`). Your name: accept starts typing the current name, accept again keeps it (a name the protocol refuses shows its reason) and writes `net_name` to the config file, Back drops the edit. Back closes the menu |
 | Host | Room name, Mode, Track, Laps, Traffic density, Police, Player limit, Password, Start Hosting, Back | Defaults from `nfsmw_net::settings::defaults` (8 racers, free roam, 50 % traffic, police up to heat 5). Modes: free roam, circuit, sprint, speedtrap, lap knockout, pursuit co-op, tag (drag and cops vs racers are refused by the lobby, ADR 0011). Tracks: the whole city (id 0) for the free modes, the quick-race list's races of the mode otherwise (id: the FEng hash of the race's collection name). Laps only for the lap modes; police off turns pursuits off. The settings are checked by `nfsmw_net::settings::validate` before `host` is called; a refusal or a failed host shows its reason |
 | Join | One row per server found (name; mode, players, ping, `locked`, `racing`, `other version`), Refresh, Direct connect, Back | Opening the page scans. A server of another protocol major is dimmed and refused. A locked room asks for its password (a prompt of Password, Join, Cancel); so does a server that ends the session with `PasswordRequired`. Direct connect takes `1.2.3.4`, `1.2.3.4:9760`, `[::1]:9760` or `localhost[:port]`, with `net_port` when no port is typed; no name lookup |
 | Lobby | One row per player, Ready, Car, Role, Say, Quick message, the running vote's options (or Vote to restart), Session settings and Start race (host or admin), Leave | A player row shows the name with `[host]`, `[admin]`, `[muted]`, `(you)`, and the car, ready or watching, and the ping. Ready and Role toggle with accept or left and right. Car opens the custom race's car select (`Car_Select.fng`, quick race mode) and the pick comes back as the loadout. Say starts typing; accept sends the line. Quick message cycles the preset lines and sends one. Start race needs every racer ready and the lobby phase. The subtitle has the mode, the head count and the countdown (`Race starts in 3`) or the phase. The chat and the notices are a panel to the right. Back only ends typing: leaving is the Leave row |
-| Player menu | Mute for me (or Unmute), Vote to kick, and for the host or an admin Kick, Mute in session (or Unmute), Ban for 10 minutes, Back | Opened by accept on another player's row. The local mute is `nfsmw_net::roles::LocalMutes` (MP-42); the others are `AdminCommand`s the server checks |
+| Player menu | Whisper (accept types, accept sends to that player alone, Back stops typing), Mute for me (or Unmute), Vote to kick, and for the host or an admin Kick, Mute in session (or Unmute), Ban for 10 minutes, Back | Opened by accept on another player's row. The local mute is `nfsmw_net::roles::LocalMutes` (MP-42); the others are `AdminCommand`s the server checks |
 | Session settings | The Host page's rows without the password, Apply, Back | Host or admin (MP-25): Apply sends a `SettingsPatch` of what changed |
 | Results | `1st  Ann` and `2:31.250  best 0:50.416  DNF` per racer, Continue | Opens over the world when the session's `RaceResults` event arrives, as the original's post-race page does; Continue goes back to the lobby |
 
@@ -58,7 +69,8 @@ the start counts down five seconds, the race lasts five more with a chat line, a
 record. The screenshots of section 6 use it.
 
 **Files.** `backend.rs`, `handle.rs` (the resource), `menu/` (the pages: `mod.rs` the keys of each page, `host_form.rs`,
-`browser.rs`, `lobby.rs`, `player.rs`, `follow.rs`, `page_view.rs`, `rows.rs`, `field.rs`, `cx.rs`), `view.rs` (egui), `system.rs`
+`browser.rs`, `lobby.rs`, `player.rs`, `follow.rs`, `page_view.rs`, `rows.rs`, `field.rs`, `cx.rs`), `present.rs` (the page and the HUD as
+theme data, and the click map), `system.rs`
 (the Bevy systems), `gate.rs` (the front end waits while the menu is up, and opens the car select it asked for), `link.rs` (the
 requests between the FEng screens and the menu), `feed.rs`, `hud.rs`, `results.rs`, `text.rs`, `car.rs`, `quick.rs`,
 `address.rs`, `host_options.rs`, `offline.rs`, `demo.rs`, `mock.rs` (tests).
@@ -69,12 +81,14 @@ in hex.
 
 ## 3. The session HUD
 
-While the session's world has the screen (`lan/hud.rs`, drawn by `view.rs`):
+While the session's world has the screen (`lan/hud.rs`, published as a `LanHud` and drawn by the themes' `LanHud` slot: one
+builder, `ui/theme/lan_hud.rs`, with each theme's font and colours; it is presented by its own system, so it shows while the car's
+HUD is hidden too):
 
 - **Feed** (MP-40), bottom left: chat lines (`Ann: go`, `Ann (whisper): ...`) and notices (join, leave, kick, mute, vote,
   result, `Session over: ...`, connection lost and resumed), six at most, each for 8 s and fading over its last 2 s. Chat of a
   locally muted player is left out.
-- **Vote** (MP-27), top: `Vote: kick Ann  2 votes  18 s left  (vote in the lobby)`.
+- **Vote** (MP-27), top: `Vote: kick Ann  2 votes  18 s left  (F7 to vote)`. F7 votes for the running vote's first option while the world has the screen.
 - **Countdown** (MP-22), top: `Race starts in 3`, from `StartCountdown` and the estimated server tick.
 - **Spectator panel** (MP-41), top right: `Following Ann` (or `Free camera`) and the racers, in the last result's order when
   there is one. Left and right step the follow camera (`NetFrontend::follow`).
@@ -143,10 +157,7 @@ Original and Remastered styles, the HUD while racing (feed, vote banner, the net
 
 ## 7. Not built
 
-- FEng screens for LAN: the install has none to run; the egui panels stand in. The original's post-race page for a session's
-  results waits for the session world's race end (section 1).
-- Voting from the HUD while racing: the vote prompt says to vote in the lobby (the pause key opens the FEng pause menu, not the
-  LAN menu, in a session; ADR 0011 keeps the world running).
-- Team chat and whispers from the menu (the feed shows them; `say` sends to all); quick lines from other players (the catalogue
-  has no server-to-client quick message, [features](features.md) MP-44).
-- Saving `net_name` from the menu (the console and the config file set it).
+- FEng screens for LAN: the install has none to run; the Original theme draws the pages with the toolkit in the game's look
+  instead. The original's post-race page for a session's results waits for the session world's race end (section 1).
+- Team chat from the menu (the feed shows it; `say` sends to all); quick lines from other players (the catalogue has no
+  server-to-client quick message, [features](features.md) MP-44).

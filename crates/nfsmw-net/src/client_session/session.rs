@@ -45,6 +45,8 @@ pub(super) struct Seat {
 #[derive(Default)]
 pub(super) struct Pake {
     pub confirm: Option<PakeConfirm>,
+    /// The Noise handshake hash the connection reported, when its link has no hash of its own.
+    pub hash: Option<[u8; 32]>,
 }
 
 /// Counters of what the session refused or lost.

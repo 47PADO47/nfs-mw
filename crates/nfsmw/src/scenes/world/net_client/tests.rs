@@ -95,3 +95,12 @@ fn cars_are_drawn_with_rigs_and_the_rest_is_not() {
     assert!(!is_car(&view(EntityKind::Roadblock, 0)), "a spike strip");
     assert!(!is_car(&view(EntityKind::Helicopter, 0)) && !is_car(&view(EntityKind::MovingProp, 0)));
 }
+
+#[test]
+fn the_clock_follows_the_server_only_when_it_has_strayed_also_across_midnight() {
+    use super::hud::strayed;
+    assert!(!strayed(720.0, 724.0));
+    assert!(strayed(720.0, 730.0));
+    assert!(!strayed(1438.0, 2.0), "four minutes across midnight");
+    assert!(strayed(1430.0, 20.0), "thirty minutes across midnight");
+}

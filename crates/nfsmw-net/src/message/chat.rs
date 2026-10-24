@@ -71,6 +71,14 @@ wire_struct! {
     }
 }
 
+wire_struct! {
+    /// A preset line (MP-44) as the server relays it: who said it and which line. The text is the game's table.
+    pub struct QuickRelay {
+        pub from_slot: u8,
+        pub id: u16,
+    }
+}
+
 wire_enum! {
     pub enum BulkKind {
         SessionData = 0,

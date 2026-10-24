@@ -5,6 +5,7 @@ mod contact;
 mod effects;
 mod fragments;
 mod ground;
+mod ids;
 mod lifetime;
 mod net;
 mod obb;
@@ -144,11 +145,12 @@ impl PropWorld {
         self.remove_tile(tile);
         let hidden = self.streaming.reload(tile);
         let mut ids = Vec::new();
-        for p in placed {
+        for (index, p) in placed.iter_mut().enumerate() {
             let Some(shape) = p.prop.clone() else { continue };
             self.next_id += 1;
-            // Stable original IDs fix contact order independently of tile completion order.
-            let id = p.spawner.map_or(self.next_id | 0x8000_0000, |s| s.unique_id + 1);
+            // Stable original IDs fix contact order independently of tile completion order. A prop with none gets one
+            // from its tile and its place in it, which does not depend on the order the tiles arrived in.
+            let id = p.spawner.map_or_else(|| ids::unspawned_id(tile, index, self.next_id), |s| s.unique_id + 1);
             if self.colliders.contains_key(&id) {
                 continue;
             }

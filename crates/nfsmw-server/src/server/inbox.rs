@@ -25,7 +25,10 @@ impl<W: WorldControl> Server<W> {
     pub(super) fn drain_inbox(&mut self) {
         while let Some(event) = self.endpoint.poll_event() {
             match event {
-                ServerEvent::Connected { peer, key, addr, local } => self.on_connected(peer, key, addr, local),
+                ServerEvent::Connected { peer, key, addr, local, handshake_hash } => {
+                    self.on_connected(peer, key, addr, local, handshake_hash)
+                }
+                ServerEvent::PathChanged { peer, addr } => log::info!("connection {}: now at {addr}", peer.0),
                 ServerEvent::Disconnected { peer, reason } => self.on_disconnected(peer, reason),
                 ServerEvent::Reliable { peer, bytes, .. } => self.on_reliable(peer, &bytes),
                 ServerEvent::Unreliable { peer, frame_type, bytes } => self.on_unreliable(peer, frame_type, &bytes),
@@ -36,10 +39,17 @@ impl<W: WorldControl> Server<W> {
         }
     }
 
-    fn on_connected(&mut self, peer: PeerId, key: blackbox_net_core::secure::KeyId, addr: SocketAddr, local: bool) {
+    fn on_connected(
+        &mut self,
+        peer: PeerId,
+        key: blackbox_net_core::secure::KeyId,
+        addr: SocketAddr,
+        local: bool,
+        handshake_hash: [u8; 32],
+    ) {
         let mut hasher = DefaultHasher::new();
         addr.hash(&mut hasher);
-        self.peers.insert(peer, Peer::new(peer, key, hasher.finish(), self.world.tick()));
+        self.peers.insert(peer, Peer::new(peer, key, hasher.finish(), handshake_hash, self.world.tick()));
         self.stats.connections += 1;
         let local = match local {
             true => " (local)",

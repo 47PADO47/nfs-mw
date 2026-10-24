@@ -34,6 +34,8 @@ pub struct NetCar<'a> {
     /// The light bar flashes.
     pub lights: bool,
     pub wrecked: bool,
+    /// The racer number when a race drives this car (`AiCar::racer_id`): the lead is 0, the people after it.
+    pub racer: Option<usize>,
 }
 
 /// The brake pedal from which the brake lamps count as lit [ours].
@@ -60,6 +62,7 @@ impl TrafficWorld {
                 braking: car.brake_pedal() > BRAKING,
                 lights: car.emergency_lights(),
                 wrecked: car.is_wrecked(),
+                racer: car.racer_id(),
             }
         })
     }

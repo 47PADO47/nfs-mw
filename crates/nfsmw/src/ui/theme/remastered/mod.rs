@@ -39,7 +39,7 @@ pub use pursuit::PursuitTimer;
 pub use radar::PoliceRadar;
 pub use radio::RadioCard;
 pub use readout::Readout;
-pub use skin::{palette_skin, skin};
+pub use skin::{hud_dress, palette_skin, skin};
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
 
@@ -89,6 +89,11 @@ impl Theme for RemasteredTheme {
             ElementId::Turbo => Some(Box::new(Bar::new(self.drive.clone(), Gauge::Supercharger))),
             // The cluster draws the gear inside the dial, so the original gear digit stays hidden.
             ElementId::GearIndicator => Some(Box::new(Empty)),
+            // The LAN screens: the page as a vertical menu with its side column, and the session's HUD pieces.
+            ElementId::LanMenu => Some(Box::new(menu::LanMenu::new(self.frame.lan()))),
+            ElementId::LanHud => {
+                Some(Box::new(crate::ui::theme::lan_hud::LanHudParts::new(self.frame.lan(), hud_dress())))
+            }
             // The icon menus are drawn as vertical lists from the entries the frontend publishes.
             menu @ (ElementId::MainMenu
             | ElementId::Categories

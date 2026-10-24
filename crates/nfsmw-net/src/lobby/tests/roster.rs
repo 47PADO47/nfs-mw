@@ -116,3 +116,17 @@ fn session_data_carries_every_car() {
     assert_eq!(data.loadouts.len(), 3);
     assert_eq!(crate::drop::SessionData::decode(&data.encode()), Ok(data));
 }
+
+#[test]
+fn a_joiner_with_the_name_of_a_member_gets_a_number_also_when_it_only_looks_the_same() {
+    let mut lobby = lobby();
+    let named =
+        |id: u8, name: &str| NewMember { name: Name::new(name).unwrap(), ..member(id, Rank::Player, Placement::Racer) };
+    let names =
+        |lobby: &Lobby| lobby.state().players.iter().map(|row| row.name.as_str().to_owned()).collect::<Vec<_>>();
+    lobby.add(named(0, "Ann"), 0).unwrap();
+    lobby.add(named(1, "Ann"), 0).unwrap();
+    lobby.add(named(2, "\u{430}nn"), 0).unwrap();
+    lobby.add(named(3, "Bob"), 0).unwrap();
+    assert_eq!(names(&lobby), ["Ann", "Ann 2", "\u{430}nn 3", "Bob"]);
+}

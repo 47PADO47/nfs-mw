@@ -25,6 +25,10 @@ mod compose;
 mod compose_tests;
 pub mod custom;
 mod element;
+mod lan;
+mod lan_hud;
+#[cfg(test)]
+mod lan_tests;
 mod menu_list;
 pub mod modded;
 pub mod original;
@@ -35,6 +39,7 @@ mod tests;
 pub use compose::{hud_layer, slot_layer};
 
 pub use element::ElementId;
+pub use lan::{LanCell, LanHud, LanLine, LanLineKind, LanPage, LanSpectator};
 pub use menu_list::{
     DEFAULT_ASPECT, MenuEntry, MenuHint, MenuIcon, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, RivalInfo,
     RivalStatus,
@@ -123,7 +128,7 @@ fn check_floor_fills_every_slot(frame: &FrameCell) {
 /// the Remastered dial's and readout's. The keys are namespaced by theme and element, so they do not clash. The active
 /// theme's tokens are merged into it ([`UiThemes::refresh_skin`]).
 pub fn default_skin() -> Skin {
-    custom::card_skin().merged(remastered::skin())
+    custom::card_skin().merged(remastered::skin()).merged(original::lan::skin())
 }
 
 /// The theme registry, the skin and the cells, as one Bevy resource. The HUD and the menus resolve their slots through it

@@ -82,6 +82,7 @@ fn entities(host: &WorldSimHost) -> Vec<EntityView> {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about a minute)"]
 fn two_hosts_fed_the_same_inputs_from_the_same_seed_stay_equal() {
+    let _turn = super::super::super::installed_turn::take();
     let traffic = Some((16, 20));
     let (mut a, mut b) = (open(0x5EED, traffic), open(0x5EED, traffic));
     assert_eq!(a.state_hash(), b.state_hash(), "the same opening");
@@ -114,6 +115,7 @@ fn two_hosts_fed_the_same_inputs_from_the_same_seed_stay_equal() {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about a minute)"]
 fn sixteen_players_join_are_exported_in_id_order_and_leave() {
+    let _turn = super::super::super::installed_turn::take();
     let mut host = open(1, Some((12, 25)));
     assert_eq!(host.add_player(PlayerId(0), &PlayerJoin::default()), Err(SimError::AlreadyJoined(PlayerId(0))));
     for n in 1..16 {
@@ -160,6 +162,7 @@ fn sixteen_players_join_are_exported_in_id_order_and_leave() {
 #[test]
 #[ignore = "needs the installed game; set NFSMW_GAME_DIR (about 30 s)"]
 fn hostile_input_does_not_break_the_world() {
+    let _turn = super::super::super::installed_turn::take();
     let mut host = open(2, Some((8, 25)));
     host.add_player(PlayerId(1), &join(CAR)).unwrap();
     let wild = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, f32::MAX, -1.0e30, 7.0];

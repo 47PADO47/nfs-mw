@@ -120,8 +120,9 @@ in place). Inside the lend:
 | `state`, `set_state` | The reduced motion in render space (`drive/sim/predict.rs`): the model's origin and axes as `CarSim::pose` draws them, the body's velocities mapped axis by axis as the entity views map them. `set_state` writes pose and velocities into the body; the engine, gear and nitrous keep their own state |
 
 Outside a lend a step does nothing, `state` answers the last state, and a state set meanwhile waits for the next lend; a car
-that does not stand on a road yet is asked onto the road at the state's place (the first own block of a client whose world
-opened elsewhere). The car is drawn at `ClientSession::own_pose` (prediction plus the decaying correction) through a drawn-pose
+that does not stand on a road yet, or is more than 100 m from the state (a race grid, a reset far away), is asked onto the road at
+the state's place (the first own block of a client whose world opened elsewhere): streaming follows the request, so the road is
+loaded before the car lands. The car is drawn at `ClientSession::own_pose` (prediction plus the decaying correction) through a drawn-pose
 override (`Drive::set_net_pose`, below a NIS pose).
 
 **The frame** (`frame.rs`): streaming first (while the player's surroundings are not resident the car is held and
@@ -156,7 +157,7 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | Trait call | As built |
 |---|---|
 | `status` | `Idle`, `Scanning`, `Connecting` (the listen server is opening, or connecting, admitting, reconnecting), `InLobby` (lobby and results phases), `Playing` (loading to running), `Spectating`, `Disconnected` (the session's end reason, or why hosting or connecting failed) |
-| `host` | A listen server with the screen's settings (checked), port and name; the player's name and car come from the options. A room password is refused: the server cannot check one yet |
+| `host` | A listen server with the screen's settings (checked), port and name; the player's name and car come from the options. The room password goes to the server's config (`ServeOptions::password`) and turns `password_required` on |
 | `connect`, `leave`, `scan` | `NetSession::join` with the password, `leave`, a 2 s scan on port 9750 |
 | `set_ready`, `choose_loadout`, `set_role`, `update_settings`, `vote`, `admin`, `say`, `quick_message`, `follow` | The client session's commands |
 | `start_race` | The host says ready: the lobby starts by itself once everyone is ready; the client session has no early-start message |
@@ -176,9 +177,11 @@ copies taken each frame (`NetSession::refresh`) so the screens can borrow them; 
 | Which systems a frame runs, single player and client | `frame_systems.rs` | no |
 | The HUD from the global block | `net_client/hud.rs` | no |
 | `GameCar` rewinds the real `Drive` exactly | `net_client/installed.rs` | yes |
+| A client in a race seat (the bot has the host's seat): its car is set down on the far grid by the first own block, then follows the server's race car for four seconds at up to 25 m/s with no snaps and a median correction under 20 cm (measured 1.3 cm, 95th percentile 4.7 cm) | `net_client/installed.rs` | yes |
 | End to end: the real `Server` over a `WorldSimHost`, a client-mode world and a bot over loopback UDP, the session starts by itself, the client drives 20 s; the server's car follows, the prediction stays within the lead's distance plus 1 m of the server's car every second, no snaps, corrections under the snap distance, the bot drawn interpolated 90 % of frames or more | `net_client/installed.rs` | yes |
 
-The end-to-end test paces its fake 60 Hz clock to the wall clock: the net threads run in real time, and a clock that outruns
+The installed-game tests take turns (`installed_turn.rs`): several open the real world and pace a real-time clock, and run side
+by side they starve each other's net threads. The end-to-end test paces its fake 60 Hz clock to the wall clock: the net threads run in real time, and a clock that outruns
 them makes every datagram look late, so the input lead climbs to its maximum and the server drops the inputs as too early. A
 run on 2026-10-22: 323 m driven, 515 own-car checks, 239 corrections (95th percentile 6 cm), no snaps, the bot interpolated in
 1,195 of 1,200 frames.
@@ -193,6 +196,6 @@ run on 2026-10-22: 323 m driven, 515 own-car checks, 239 corrections (95th perce
 - The predicted car's replays run the tick's effects and sounds again; props it knocks over are local and do not move (the
   client runs no prop physics).
 - Time of day: the server sends it (`fill_global`); the client does not set its own clock from it yet.
-- `start_race` is a ready; `set_net_sim` is refused; room passwords are refused when hosting.
+- `start_race` is a ready; `set_net_sim` is refused.
 - The car is the default car (`BMWM3GTR`) from the command line; the transmission setting of the client and the server's car
   may differ, which the prediction then corrects.

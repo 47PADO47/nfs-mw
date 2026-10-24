@@ -6,7 +6,28 @@ use std::net::{SocketAddr, UdpSocket};
 use std::thread;
 use std::time::Duration;
 
+use socket2::{Domain, Protocol, Socket, Type};
+
 use crate::link::{Link, LossyLink, MemoryLink, UdpLink};
+
+/// The buffer size asked of the system for a game or discovery socket: a burst of snapshots to 16 players and their
+/// inputs back must not be dropped while the net thread is between passes.
+pub const SOCKET_BUFFER: usize = 256 * 1024;
+
+/// A bound UDP socket with the buffers asked for; `shared` allows other sockets on the same address and port.
+fn bound(addr: SocketAddr, shared: bool) -> io::Result<UdpSocket> {
+    let socket = Socket::new(Domain::for_address(addr), Type::DGRAM, Some(Protocol::UDP))?;
+    if shared {
+        socket.set_reuse_address(true)?;
+        #[cfg(all(unix, not(any(target_os = "solaris", target_os = "illumos", target_os = "cygwin"))))]
+        socket.set_reuse_port(true)?;
+    }
+    // A system that refuses the size keeps its own: smaller buffers cost packets under load, not correctness.
+    let _ = socket.set_recv_buffer_size(SOCKET_BUFFER);
+    let _ = socket.set_send_buffer_size(SOCKET_BUFFER);
+    socket.bind(&addr.into())?;
+    Ok(socket.into())
+}
 
 /// The longest single sleep of a polled in-memory transport while it waits.
 const MEMORY_NAP: Duration = Duration::from_millis(1);
@@ -40,9 +61,16 @@ pub struct UdpTransport {
 }
 
 impl UdpTransport {
-    /// Binds a UDP socket to `addr`. Port 0 picks a free port.
+    /// Binds a UDP socket to `addr`, with the send and receive buffers asked to be [`SOCKET_BUFFER`] bytes (the system
+    /// may give less). Port 0 picks a free port.
     pub fn bind(addr: SocketAddr) -> io::Result<Self> {
-        Self::from_socket(UdpSocket::bind(addr)?)
+        Self::from_socket(bound(addr, false)?)
+    }
+
+    /// Binds a UDP socket to `addr` that other sockets may bind to as well, so two servers on one PC can both answer
+    /// discovery on its port (broadcasts reach all of them; a unicast request reaches one).
+    pub fn bind_shared(addr: SocketAddr) -> io::Result<Self> {
+        Self::from_socket(bound(addr, true)?)
     }
 
     /// Binds a UDP socket to `addr` that may send to broadcast addresses (a discovery scan).

@@ -59,7 +59,10 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
 
     fn on_link_event(&mut self, event: ClientEvent, now_ms: u64) {
         match event {
-            ClientEvent::Connected { .. } => self.on_connected(),
+            ClientEvent::Connected { handshake_hash, .. } => {
+                self.pake.hash = Some(handshake_hash);
+                self.on_connected();
+            }
             ClientEvent::Disconnected(why) => self.on_disconnected(why, now_ms),
             ClientEvent::Reliable { channel, bytes } => {
                 self.stats.on_bytes_in(bytes.len(), now_ms);

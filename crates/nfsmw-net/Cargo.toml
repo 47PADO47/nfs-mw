@@ -15,6 +15,8 @@ blackbox-vehicle.workspace = true
 nfsmw-sim.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+unicode-normalization.workspace = true
+unicode-security.workspace = true
 
 [lints]
 workspace = true

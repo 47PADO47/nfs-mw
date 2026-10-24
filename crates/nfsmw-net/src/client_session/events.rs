@@ -6,7 +6,7 @@ use nfsmw_sim::{EntityId, Tick};
 use super::lobby::ChatLine;
 use super::status::EndReason;
 use crate::message::{
-    CancelReason, EventHead, LoadWorld, Message, RaceResults, StartCountdown, SystemNotice, VoteState,
+    CancelReason, EventHead, LoadWorld, Message, QuickRelay, RaceResults, StartCountdown, SystemNotice, VoteState,
 };
 use crate::reconcile::SnapReason;
 
@@ -31,6 +31,8 @@ pub enum SessionEvent {
     /// The late-join session data arrived (every member's loadout).
     SessionData,
     Chat(ChatLine),
+    /// A preset line another player (or this one) said: the slot and the id into the game's table of lines.
+    Quick(QuickRelay),
     Notice(SystemNotice),
     Countdown(StartCountdown),
     CountdownCancelled(CancelReason),
@@ -55,6 +57,10 @@ pub fn event_head(message: &Message) -> Option<EventHead> {
         Message::LapComplete(m) => m.head,
         Message::RaceFinish(m) => m.head,
         Message::RaceResults(m) => m.head,
+        Message::KnockedOut(m) => m.head,
+        Message::TrapScore(m) => m.head,
+        Message::TagPassed(m) => m.head,
+        Message::Penalty(m) => m.head,
         Message::PursuitStart(m) => m.head,
         Message::PursuitEnd(m) => m.head,
         Message::HeatChange(m) => m.head,

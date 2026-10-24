@@ -1,6 +1,7 @@
-//! The chat text policy without a Unicode table crate: a bounded pass over `char`s.
+//! The chat text policy: NFKC first, then a bounded pass over `char`s.
 //!
-//! Done, in one pass:
+//! The text is put in NFKC (a full-width letter is the plain letter, `fi` the ligature is two letters, an accent
+//! composes with its letter), then in one pass:
 //!
 //! - control characters (C0, DEL, C1; tab and line breaks included) become a space;
 //! - bidirectional controls (`U+200E`, `U+200F`, `U+061C`, `U+202A`-`U+202E`, `U+2066`-`U+2069`) are removed, so a
@@ -16,9 +17,11 @@
 //!   from drawing over other lines;
 //! - runs of whitespace become one space, the ends are trimmed, and the text is cut to [`ChatText`]'s 200 characters.
 //!
-//! Skipped, because they need the Unicode data tables: NFKC normalisation, confusable and homoglyph folding, counting
-//! grapheme clusters instead of `char`s, and the combining marks of script-specific blocks (Hebrew points, Indic
-//! signs), which are left alone because those scripts need them. The 200-`char` bound is stricter than a grapheme bound.
+//! Skipped, because they need tables this crate does not carry: confusable and homoglyph folding, counting grapheme
+//! clusters instead of `char`s, and the combining marks of script-specific blocks (Hebrew points, Indic signs), which
+//! are left alone because those scripts need them. The 200-`char` bound is stricter than a grapheme bound.
+
+use unicode_normalization::UnicodeNormalization;
 
 use crate::message::ChatText;
 
@@ -33,7 +36,7 @@ pub fn normalise(raw: &str) -> Option<ChatText> {
     let mut chars = 0;
     let mut combining = 0;
     let mut last = Last::Start;
-    for c in raw.chars() {
+    for c in raw.chars().take(MAX_CHAT_CHARS * 4).nfkc() {
         if chars >= MAX_CHAT_CHARS {
             break;
         }

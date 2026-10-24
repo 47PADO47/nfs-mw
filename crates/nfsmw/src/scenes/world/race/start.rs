@@ -110,10 +110,15 @@ impl WorldScene {
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
         let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
         // A co-op race seats player 2 as a split-screen race does, among the race's own opponents (`players/race.rs`).
-        let coop = self.coop_race_setup(&race);
+        // The network's seats race as people beside the lead; a co-op guest on this machine takes the split-screen seat.
+        let people = self.net_race_people(&race);
+        let coop = match people.is_empty() {
+            true => self.coop_race_setup(&race),
+            false => None,
+        };
         let queued = self.queued_split.take();
         let split = coop.clone().or(queued);
-        let opponents = match (&split, coop.is_some()) {
+        let race_opponents = match (&split, coop.is_some()) {
             (Some(setup), true) => {
                 let mut opponents = vec![setup.second_player()];
                 opponents.extend(setup::opponents_of(&data, &race, &options, &resolve_preset));
@@ -122,6 +127,7 @@ impl WorldScene {
             (Some(setup), false) => vec![setup.second_player()],
             (None, _) => setup::opponents_of(&data, &race, &options, &resolve_preset),
         };
+        let opponents: Vec<_> = people.iter().map(|seat| seat.opponent()).chain(race_opponents).collect();
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
         let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
@@ -132,6 +138,9 @@ impl WorldScene {
             }
             setup.name_players(&mut plan);
             self.name_coop_racers(&mut plan);
+        }
+        if !people.is_empty() {
+            self.seat_race_people(&mut plan, &people)?;
         }
         let p = &race.params;
         let prepared = Prepared {

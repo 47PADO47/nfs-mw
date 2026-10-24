@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use blackbox_net_core::endpoint::EndpointConfig;
 use blackbox_net_core::secure::IdentityKey;
-use nfsmw_net::client_session::SessionConfig;
+use nfsmw_net::client_session::{EndReason, SessionConfig, Status};
 use nfsmw_net::loadout::Loadout;
 use nfsmw_net::message::{Name, SessionPhase};
 use nfsmw_net::predict::{InputState, PredictedCar};
@@ -83,4 +83,39 @@ fn the_game_client_joins_the_real_server_over_the_listen_host_link() {
 
 fn distance(view: &EntityView, position: [f32; 3]) -> f32 {
     view.position.iter().zip(position).map(|(a, b)| (a - b) * (a - b)).sum::<f32>().sqrt()
+}
+
+/// A host's own client on a room with the password `secret`, trying `typed`; runs until it is seated or the session
+/// ends, and returns its status.
+fn join_locked_room(typed: &str) -> Status {
+    let mut locked = config();
+    locked.password = Some("secret".into());
+    let world = ToyWorld::new(7, ToyConfig { traffic: 0, police: 0, ..ToyConfig::default() });
+    let setup = ServerSetup::toy(world.config().car_types);
+    let endpoint = nfsmw_server::bind(&locked, IdentityKey::generate().unwrap()).unwrap();
+    let mut server = Server::new(locked, setup, endpoint, world, 0).unwrap();
+    let link = server.connect_local(IdentityKey::generate().unwrap().key_id(), EndpointConfig::default()).unwrap();
+    let build = toy_build();
+    let mut session = SessionConfig::new(Name::new("host").unwrap(), Loadout::stock(0), build.sim_build, build.data_id);
+    session.password = Some(typed.into());
+    let mut client = NetClient::new(link, session, false);
+    let started = Instant::now();
+    for tick in 0..60 * 3 {
+        server.tick_once(ms(tick));
+        client.set_now_ms(ms(tick));
+        client.pump();
+        let status = client.session().status().clone();
+        if status.is_joined() || matches!(status, Status::Ended(_)) {
+            return status;
+        }
+        let due = started + Duration::from_micros((tick + 1) * 1_000_000 / 60);
+        thread::sleep(due.saturating_duration_since(Instant::now()));
+    }
+    client.session().status().clone()
+}
+
+#[test]
+fn the_game_client_joins_a_locked_room_with_the_right_password_only() {
+    assert!(join_locked_room("secret").is_joined(), "the right password seats the host's client");
+    assert_eq!(join_locked_room("guess"), Status::Ended(EndReason::PasswordRejected), "a wrong one is told so");
 }

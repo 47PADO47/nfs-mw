@@ -25,7 +25,10 @@ area is resident, so moving cars cannot hit traffic frozen by streaming.
 
 ## Parallel AI integration
 
-From eight AI cars up, the 60 Hz step integrates the cars on several threads (`ai/parallel.rs`). Only the
+The 60 Hz step can integrate the AI cars on several threads (`ai/parallel.rs`, from eight cars up) but does not by
+default: it starts its threads anew every tick, which made the mean tick 10 % slower at 16 traffic cars and the p95
+tick ten times slower at 59 (2026-10-24, 16 players, dev profile; `world_step_costs` with `NFSMW_BENCH_CARS`). A pool
+that stays would be needed first. When it runs on threads, only the
 integration runs there: each car's start (search, think with every random draw, driver, input, explosions) runs
 first in car order, and its end (props, walls, damage, effects, sounds) runs afterwards in car order. No car reads
 another car's new state within a step, and each thread casts rays through its own candidate window, so the

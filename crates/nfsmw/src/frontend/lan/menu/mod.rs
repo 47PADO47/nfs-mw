@@ -31,10 +31,16 @@ use super::NetStatus;
 use super::feed::Feed;
 use super::host_options::{default_room, host_options};
 use browser::{Browser, BrowserGo};
+use field::Field;
 use host_form::{FormOut, HostForm};
 use lobby::{Go, LobbyPage};
 use player::PlayerMenu;
 use rows::Cursor;
+
+/// The longest player name, in characters (`nfsmw_net` `Name`).
+const NAME_MAX: usize = 24;
+/// Rows of Home: host, join, name, back.
+const HOME_ROWS: usize = 4;
 
 /// The pages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +61,8 @@ pub struct LanMenu {
     pub open: bool,
     page: Page,
     home: Cursor,
+    /// The name being typed on Home (`net_name`).
+    name: Field,
     host: HostForm,
     browser: Browser,
     lobby: LobbyPage,
@@ -80,6 +88,7 @@ impl Default for LanMenu {
             open: false,
             page: Page::Home,
             home: Cursor::default(),
+            name: Field::new("", NAME_MAX),
             host: HostForm::new("", vec![city()]),
             browser: Browser::default(),
             lobby: LobbyPage::default(),
@@ -129,10 +138,12 @@ impl LanMenu {
     /// Whether a text row has the keys: the letters are text then, not menu buttons.
     pub fn typing(&self) -> bool {
         match self.page {
+            Page::Home => self.name.editing,
             Page::Host => self.host.typing(),
             Page::Browser => self.browser.typing(),
             Page::Lobby => self.lobby.typing(),
             Page::Settings => self.settings_form.as_ref().is_some_and(HostForm::typing),
+            Page::Player => self.player.typing(),
             _ => false,
         }
     }
@@ -176,10 +187,12 @@ impl LanMenu {
 
     fn typed(&mut self, typed: Typed) {
         match self.page {
+            Page::Home => self.name.take(typed),
             Page::Host => self.host.take(typed),
             Page::Browser => self.browser.take(typed),
             Page::Lobby => self.lobby.take(typed),
             Page::Settings => self.settings_form.iter_mut().for_each(|form| form.take(typed)),
+            Page::Player => self.player.take(typed),
             _ => {}
         }
     }
@@ -200,10 +213,12 @@ impl LanMenu {
 
     fn home_key(&mut self, key: LanKey, cx: &mut Cx) {
         match key {
-            LanKey::Up => self.home.up(3),
-            LanKey::Down => self.home.down(3),
+            LanKey::Up => self.home.up(HOME_ROWS),
+            LanKey::Down => self.home.down(HOME_ROWS),
+            // Back while typing the name drops the edit.
+            LanKey::Back if self.name.editing => self.name.editing = false,
             LanKey::Back => self.close(cx),
-            LanKey::Accept => match self.home.clamped(3) {
+            LanKey::Accept => match self.home.clamped(HOME_ROWS) {
                 0 => {
                     let room = default_room(cx.settings.net.name.as_str());
                     self.host = HostForm::new(&room, self.tracks.clone());
@@ -214,9 +229,26 @@ impl LanMenu {
                     cx.net.scan();
                     self.page = Page::Browser;
                 }
+                2 => self.edit_name(cx),
                 _ => self.close(cx),
             },
             _ => {}
+        }
+    }
+
+    /// Accept on the name row: starts typing the current name, or keeps the typed one if the protocol takes it.
+    fn edit_name(&mut self, cx: &mut Cx) {
+        if !self.name.editing {
+            self.name = Field::new(cx.settings.net.name.as_str(), NAME_MAX);
+            self.name.editing = true;
+            return;
+        }
+        match crate::settings::net::valid_name(self.name.value()) {
+            Ok(name) => {
+                self.name.editing = false;
+                cx.out.push(MenuOut::SaveName(name));
+            }
+            Err(e) => self.error = Some(e),
         }
     }
 
@@ -338,6 +370,8 @@ impl LanMenu {
         match key {
             LanKey::Up => self.player.up(&lobby),
             LanKey::Down => self.player.down(&lobby),
+            // Back while typing a whisper only ends the typing.
+            LanKey::Back if self.player.back() => {}
             LanKey::Back => self.page = Page::Lobby,
             LanKey::Accept if self.player.accept(cx, &mut self.mutes) => self.page = Page::Lobby,
             _ => {}

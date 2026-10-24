@@ -28,6 +28,9 @@ pub(in crate::scenes::world) struct RaceMods {
     outcomes: HashMap<String, Outcome>,
     /// The next race a mod starts is a demo run (`race mod demo`).
     demo: bool,
+    /// The list and the results the mods were last given are what the world has now: no race was registered or finished
+    /// since, and the install's races were known when it was built.
+    published: bool,
 }
 
 impl RaceMods {
@@ -54,10 +57,17 @@ impl WorldScene {
     pub(in crate::scenes::world) fn update_race_mods(&mut self) {
         let seen = self.race_mods.customs.len();
         self.race_mods.customs.extend(races_feed::customs_after(seen));
+        self.race_mods.published &= self.race_mods.customs.len() == seen;
         for request in races_feed::take_requests() {
             self.apply_race_request(request);
         }
+        // Building the list walks every race of the install, so it is done again only when something in it changed.
+        if self.race_mods.published {
+            races_feed::publish_now(self.race_now());
+            return;
+        }
         races_feed::publish(self.races_snapshot());
+        self.race_mods.published = self.gameplay.is_some();
     }
 
     /// The console's `race mod`: does what a mod does, to try the interface by hand. It registers a loop of three
@@ -194,6 +204,7 @@ impl WorldScene {
         };
         let outcome = Outcome { position: result.place, time, won, winnings };
         self.race_mods.outcomes.insert(session.name.clone(), outcome);
+        self.race_mods.published = false;
     }
 }
 

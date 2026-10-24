@@ -146,16 +146,32 @@ impl PredictedCar for GameCar {
     fn restore(&mut self, saved: &GameCarSave) {
         let mut desk = self.desk.borrow_mut();
         if let (Some(lent), Some(drive)) = (desk.lent.as_mut(), saved.drive.as_ref()) {
-            lent.drive.predict_restore(drive);
+            // A save from before a teleport is of no use: the car stood somewhere else then. Restoring it would put
+            // the car back at the old place, and the state set right after would start the teleport over.
+            let teleported = lent
+                .drive
+                .motion()
+                .is_some_and(|motion| motion.position.distance(Vec3::from_array(saved.state.position)) > TELEPORT_M);
+            if !teleported {
+                lent.drive.predict_restore(drive);
+            }
         }
         desk.state = saved.state;
     }
 }
 
-/// Puts `drive` in `state`. A car that does not stand on a road yet is asked onto the road nearest the state's place,
-/// facing its way, and `false` says the state still waits.
+/// How far from the car a state may be before it is a teleport (a race grid, a reset far away, a respawn) and not a
+/// correction, metres. The surroundings of a teleport are not streamed in yet: a car set down there would fall through
+/// the world and be put back where it was, over and over.
+const TELEPORT_M: f32 = 100.0;
+
+/// Puts `drive` in `state`. A car that does not stand on a road yet, or that is far from the state, is asked onto the
+/// road nearest the state's place, facing its way (streaming follows the request, so the road is loaded before the car
+/// lands), and `false` says the state still waits.
 fn apply(drive: &mut Drive, state: &CarState) -> bool {
-    if drive.motion().is_none() || drive.waiting_for_road().is_some() {
+    let teleport =
+        drive.motion().is_some_and(|motion| motion.position.distance(Vec3::from_array(state.position)) > TELEPORT_M);
+    if drive.motion().is_none() || drive.waiting_for_road().is_some() || teleport {
         let forward = Quat::from_array(state.orientation) * Vec3::X;
         drive.respawn_near([state.position[0], state.position[1]], Some(forward.y.atan2(forward.x)));
         return false;

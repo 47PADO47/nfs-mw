@@ -60,6 +60,7 @@ impl Lobby {
                 self.require(slot, Command::Restart)?;
                 self.restart(tick)
             }
+            AdminCommand::Hold { on } => self.hold(slot, on),
             AdminCommand::ChangeMode { mode } => {
                 self.require(slot, Command::ChangeMode)?;
                 let rank = self.members.get(&slot).ok_or(LobbyError::UnknownSlot)?.rank;

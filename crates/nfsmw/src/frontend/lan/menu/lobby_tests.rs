@@ -139,9 +139,12 @@ fn the_player_menu_mutes_locally_votes_and_for_the_host_kicks_mutes_and_bans() {
     let mut mutes = LocalMutes::new();
     let mut menu = PlayerMenu::new(1);
     let rows: Vec<String> = menu.rows(net.lobby().unwrap(), &mutes).into_iter().map(|r| r.label).collect();
-    assert_eq!(rows, ["Mute for me", "Vote to kick", "Kick", "Mute in session", "Ban for 10 minutes", "Back"]);
+    assert_eq!(
+        rows,
+        ["Whisper", "Mute for me", "Vote to kick", "Kick", "Mute in session", "Ban for 10 minutes", "Back"]
+    );
     let settings = settings();
-    for at in 0..5 {
+    for at in 1..6 {
         menu.cursor = Cursor(at);
         let mut cx = Cx::new(&mut net, &settings, &[]);
         menu.accept(&mut cx, &mut mutes);
@@ -158,5 +161,46 @@ fn the_player_menu_mutes_locally_votes_and_for_the_host_kicks_mutes_and_bans() {
     );
     let guest = MockNetFrontend::in_lobby(&["Host", "Me", "Ann"], 1);
     let rows = PlayerMenu::new(2).rows(guest.lobby().unwrap(), &mutes);
-    assert_eq!(rows.len(), 3, "a player gets mute, vote and back");
+    assert_eq!(rows.len(), 4, "a player gets whisper, mute, vote and back");
+}
+
+#[test]
+fn a_whisper_is_typed_on_the_player_menu_and_goes_to_that_player_alone() {
+    let mut net = MockNetFrontend::in_lobby(&["Me", "Ann"], 0);
+    let mut mutes = LocalMutes::new();
+    let mut menu = PlayerMenu::new(1);
+    let settings = settings();
+    menu.cursor = Cursor(0);
+    assert!(!menu.typing());
+    menu.accept(&mut Cx::new(&mut net, &settings, &[]), &mut mutes);
+    assert!(menu.typing(), "Accept on the row starts the typing");
+    for c in "hi Ann".chars() {
+        menu.take(Typed::Char(c));
+    }
+    assert!(menu.back() && !menu.typing(), "Back while typing only stops the typing");
+    assert!(!menu.back(), "Back with no typing closes the menu");
+    menu.accept(&mut Cx::new(&mut net, &settings, &[]), &mut mutes);
+    menu.take(Typed::Char('!'));
+    menu.accept(&mut Cx::new(&mut net, &settings, &[]), &mut mutes);
+    assert_eq!(
+        net.take_calls(),
+        [Call::Whisper(1, "hi Ann!".into())],
+        "the line kept through Back is sent on the next Accept"
+    );
+}
+
+#[test]
+fn the_host_holds_everyone_from_the_lobby() {
+    let mut net = MockNetFrontend::in_lobby(&["Host", "Ann"], 0);
+    let mut page = LobbyPage::default();
+    let rows = page.rows(net.lobby().unwrap(), &[], "-");
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "No");
+    accept(&mut page, &mut net, "Everyone wait");
+    assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: true })]);
+    net.lobby.as_mut().unwrap().players[0].flags |= nfsmw_net::lobby::FLAG_HOLD;
+    let rows = page.rows(net.lobby().unwrap(), &[], "-");
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "Yes");
+    assert!(!rows.iter().find(|row| row.label == "Start race").unwrap().enabled, "a hold stops the start");
+    accept(&mut page, &mut net, "Everyone wait");
+    assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: false })]);
 }

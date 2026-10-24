@@ -32,6 +32,7 @@ mod config;
 mod discovery;
 mod event;
 mod link;
+mod path;
 mod server;
 mod stats;
 #[cfg(test)]

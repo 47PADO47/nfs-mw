@@ -5,7 +5,7 @@
 //! not in the world for the clients, as in co-op.
 
 use glam::{Quat, Vec3};
-use nfsmw_sim::{EntityId, EntityKind, EntityView};
+use nfsmw_sim::{EntityId, EntityKind, EntityView, PlayerId};
 
 use super::super::WorldScene;
 use super::super::ai::{NetCar, NetCarKind};
@@ -28,15 +28,17 @@ struct Motion {
     angular: Vec3,
 }
 
-/// The things the world has to replicate now besides the players, by their world identity. `props` is scratch.
-pub fn natives(scene: &WorldScene, props: &mut Vec<MovingProp>) -> Vec<Native> {
+/// The things the world has to replicate now besides the players, by their world identity. `props` are the props in
+/// motion after the tick (`WorldSimHost::props`).
+pub fn natives(scene: &WorldScene, props: &[MovingProp]) -> Vec<Native> {
     let mut natives = Vec::new();
     if let Some(traffic) = scene.traffic.as_ref() {
-        natives.extend(traffic.net_cars().map(|car| Native::Car(car.entity)));
+        natives.extend(
+            traffic.net_cars().filter(|car| person_of(scene, car).is_none()).map(|car| Native::Car(car.entity)),
+        );
         natives.extend(traffic.net_helicopter().map(|_| Native::Helicopter));
         natives.extend(traffic.spike_strips().map(|(block, index, _)| strip(block, index)));
     }
-    scene.residency.props().moving_props(props);
     natives.extend(props.iter().map(|prop| Native::Prop(prop.id)));
     natives
 }
@@ -46,12 +48,23 @@ fn strip(block: u32, index: usize) -> Native {
 }
 
 /// Every entity of the world appended to `out`, in ascending id order. A thing the table has no id for yet (it
-/// appeared after the table's last refresh) is left out until it has one.
-pub fn export(scene: &WorldScene, table: &EntityTable, catalog: &CarCatalog, out: &mut Vec<EntityView>) {
+/// appeared after the table's last refresh) is left out until it has one. `props` are the props in motion after the
+/// tick, the same the table was refreshed with.
+pub fn export(
+    scene: &WorldScene,
+    props: &[MovingProp],
+    table: &EntityTable,
+    catalog: &CarCatalog,
+    out: &mut Vec<EntityView>,
+) {
     let start = out.len();
     players(scene, catalog, out);
     if let Some(traffic) = scene.traffic.as_ref() {
         for car in traffic.net_cars() {
+            if let Some(player) = person_of(scene, &car) {
+                out.push(person_car(player, &car, catalog));
+                continue;
+            }
             let Some(id) = table.get(Native::Car(car.entity)) else { continue };
             out.push(ai_car(id, &car, catalog));
         }
@@ -68,9 +81,7 @@ pub fn export(scene: &WorldScene, table: &EntityTable, catalog: &CarCatalog, out
             out.push(view(id, EntityKind::Roadblock, &motion, SPIKE_STRIP_TYPE, FLAG_SPIKE_STRIP));
         }
     }
-    let mut props = Vec::new();
-    scene.residency.props().moving_props(&mut props);
-    for prop in &props {
+    for prop in props {
         let Some(id) = table.get(Native::Prop(prop.id)) else { continue };
         let motion = Motion {
             position: prop.position,
@@ -108,6 +119,21 @@ fn players(scene: &WorldScene, catalog: &CarCatalog, out: &mut Vec<EntityView>) 
         view.owner = Some(player.id);
         out.push(view);
     }
+}
+
+/// The player a race seats in this car: a network seat drives a racer of the traffic world while its own car is parked
+/// (`players/race.rs`), and the clients know that racer as the player's car.
+fn person_of(scene: &WorldScene, car: &NetCar<'_>) -> Option<PlayerId> {
+    let racer = car.racer.filter(|&racer| racer >= 1)?;
+    scene.race_people.get(racer - 1).copied()
+}
+
+/// A person's racer car as their player car: the player's id, kind and owner.
+fn person_car(player: PlayerId, car: &NetCar<'_>, catalog: &CarCatalog) -> EntityView {
+    let mut view = ai_car(EntityId::from(player.0), car, catalog);
+    view.kind = EntityKind::PlayerCar;
+    view.owner = Some(player);
+    view
 }
 
 /// A computer-driven car: a roadblock's car is a roadblock entity, flagged as a car.

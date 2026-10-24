@@ -19,6 +19,7 @@
 
 mod frame;
 mod hud_slots;
+pub(crate) mod lan;
 mod menu;
 #[cfg(test)]
 mod menu_tests;
@@ -65,6 +66,12 @@ impl Theme for OriginalTheme {
         // screen keeps drawing its own list, card, tab and zoom.
         if element == ElementId::WorldMapChrome {
             return Some(Box::new(Empty));
+        }
+        // The LAN screens have no FEng package: the Original look of them is drawn with the toolkit (`lan.rs`).
+        match element {
+            ElementId::LanMenu => return Some(Box::new(lan::LanMenu::new(self.frame.lan()))),
+            ElementId::LanHud => return Some(Box::new(lan::hud(self.frame.lan()))),
+            _ => {}
         }
         if let Some(adapter) = hud_slots::adapter(&self.frame, element) {
             return Some(Box::new(adapter));

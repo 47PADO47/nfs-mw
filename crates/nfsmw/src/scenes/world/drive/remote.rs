@@ -67,6 +67,12 @@ impl Drive {
         self.remote_input = input;
     }
 
+    /// The input a server holds for this seat, `None` for a car its own devices drive. A race seat reads its pedals
+    /// from it (`players/race.rs`).
+    pub fn remote_pedals(&self) -> Option<DriveInput> {
+        self.remote_input
+    }
+
     /// The network seat asked for a reset with its current input (the catch-up prompt reads it as a device's Reset).
     pub fn remote_reset(&self) -> bool {
         self.remote_input.is_some_and(|input| input.reset)

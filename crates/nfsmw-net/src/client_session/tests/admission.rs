@@ -138,3 +138,29 @@ fn an_unconfirmed_password_refuses_the_seat() {
     h.frame();
     assert_eq!(*h.session.status(), Status::Ended(EndReason::PasswordRejected));
 }
+
+#[test]
+fn a_refusal_after_the_password_exchange_is_a_wrong_password() {
+    let mut config = config();
+    config.password = Some("secret".into());
+    let refusal = || JoinRejected {
+        reason: RejectReason::ServerFull,
+        detail: 0,
+        server_proto: ProtoVersion::CURRENT,
+        server_data_id: DataId::compute(&[2; 32], &[]),
+    };
+
+    let mut h = Harness::new(config.clone());
+    h.connect();
+    h.sent();
+    host_exchange(&mut h, b"other");
+    h.reliable(refusal().into());
+    h.frame();
+    assert_eq!(*h.session.status(), Status::Ended(EndReason::PasswordRejected), "no server tag came back");
+
+    let mut h = Harness::new(config);
+    h.connect();
+    h.reliable(refusal().into());
+    h.frame();
+    assert_eq!(*h.session.status(), Status::Ended(EndReason::Rejected(refusal())), "a full room stays a full room");
+}

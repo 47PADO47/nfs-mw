@@ -58,7 +58,22 @@ pub fn hud_view(menu: &LanMenu, net: &dyn NetFrontend) -> Option<HudView> {
     })
 }
 
-/// `Vote: kick Ann  2 votes  20 s left  (vote in the lobby)`.
+/// The key that votes for the running vote while the world has the screen.
+pub const VOTE_KEY: &str = "F7";
+
+/// Votes for the running vote's first option (the one a kick, restart or skip asks about), as the vote key does in a
+/// race. `false` when no vote runs or the session did not take it.
+pub fn cast_vote(net: &mut dyn NetFrontend) -> bool {
+    let Some((kind, option)) = net.lobby().and_then(|lobby| {
+        let vote = lobby.vote.as_ref()?;
+        Some((vote.kind, vote.options.first()?.id))
+    }) else {
+        return false;
+    };
+    net.vote(kind, option)
+}
+
+/// `Vote: kick Ann  2 votes  20 s left  (F7 to vote)`.
 fn vote_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
     let vote = lobby.vote.as_ref()?;
     let option = vote.options.first()?;
@@ -74,7 +89,7 @@ fn vote_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
         let left = ((f64::from(vote.ends_tick) - now) / 60.0).ceil().max(0.0);
         text.push_str(&format!("  {left:.0} s left"));
     }
-    text.push_str("  (vote in the lobby)");
+    text.push_str(&format!("  ({VOTE_KEY} to vote)"));
     Some(text)
 }
 
@@ -130,8 +145,23 @@ mod tests {
         assert_eq!(hud.feed[0].1, "Ann: go");
         assert!((hud.feed[0].2 - 0.5).abs() < 1e-4, "half faded");
         assert_eq!(hud.feed[1].2, 1.0);
-        assert_eq!(hud.vote.as_deref(), Some("Vote: kick Bob  1 vote  20 s left  (vote in the lobby)"));
+        assert_eq!(hud.vote.as_deref(), Some("Vote: kick Bob  1 vote  20 s left  (F7 to vote)"));
         assert_eq!(hud.spectator, None);
+    }
+
+    #[test]
+    fn the_vote_key_votes_for_the_running_vote_only() {
+        use crate::frontend::lan::mock::Call;
+        let mut net = MockNetFrontend::in_lobby(&["Host", "Ann"], 0);
+        net.status = Some(NetStatus::Playing);
+        assert!(!cast_vote(&mut net), "no vote runs");
+        net.lobby.as_mut().unwrap().vote = Some(VoteState {
+            kind: VoteKind::Kick,
+            options: List::new(vec![VoteOption { id: 1, count: 0 }]).unwrap(),
+            ends_tick: 1800,
+        });
+        assert!(cast_vote(&mut net));
+        assert_eq!(net.take_calls(), [Call::Vote(VoteKind::Kick, 1)]);
     }
 
     #[test]

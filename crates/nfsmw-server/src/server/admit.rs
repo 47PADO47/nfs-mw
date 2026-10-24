@@ -29,7 +29,7 @@ pub(super) const CLOSE_DELAY_MS: u64 = 250;
 
 impl<W: WorldControl> Server<W> {
     /// `Join` from an authenticated connection.
-    pub(super) fn on_join(&mut self, peer: PeerId, join: Join) {
+    pub(super) fn on_join(&mut self, peer: PeerId, join: Join, password: PasswordProof) {
         let now = self.now_ms;
         let Some(state) = self.peers.get(&peer) else {
             return;
@@ -49,7 +49,7 @@ impl<W: WorldControl> Server<W> {
             player_id,
             offer,
             caps: auth.caps,
-            password: PasswordProof::Missing,
+            password,
             resume: auth.resume.as_deref(),
             loadout: &join.loadout,
         };

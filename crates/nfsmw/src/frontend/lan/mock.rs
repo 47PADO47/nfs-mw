@@ -28,6 +28,7 @@ pub enum Call {
     Vote(VoteKind, u32),
     Admin(AdminCommand),
     Say(String),
+    Whisper(u8, String),
     Quick(u16),
     Follow(bool),
     NetSim(NetSim),
@@ -174,6 +175,12 @@ impl NetFrontend for MockNetFrontend {
     fn say(&mut self, text: &str) -> Result<bool, LimitError> {
         let text = ChatText::new(text)?;
         self.calls.push(Call::Say(text.as_str().to_owned()));
+        Ok(self.seated())
+    }
+
+    fn whisper(&mut self, slot: u8, text: &str) -> Result<bool, LimitError> {
+        let text = ChatText::new(text)?;
+        self.calls.push(Call::Whisper(slot, text.as_str().to_owned()));
         Ok(self.seated())
     }
 

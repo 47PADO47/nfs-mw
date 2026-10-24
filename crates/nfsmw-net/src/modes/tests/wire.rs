@@ -1,6 +1,7 @@
 use super::*;
 use crate::message::{
-    HeatChange, LapComplete, Message, PursuitEnd, PursuitEndReason, PursuitStart, Role, RoleChanged, decode, encode,
+    HeatChange, KnockedOut, LapComplete, Message, Penalty, PursuitEnd, PursuitEndReason, PursuitStart, Role,
+    RoleChanged, TagPassed, TrapScore, decode, encode,
 };
 use crate::results::{Roster, Seat};
 
@@ -66,12 +67,48 @@ fn pursuit_events_name_the_chased_cars() {
 }
 
 #[test]
+fn a_knockout_a_trap_a_tag_and_a_penalty_name_the_cars() {
+    let roster = roster();
+    let out = messages(&ModeEvent::KnockedOut { player: p(2), lap: 2 }, 11, &roster);
+    assert!(matches!(&out[..], [Message::KnockedOut(KnockedOut { entity_id: 20, lap: 2, .. })]), "{out:?}");
+
+    let trap = ModeEvent::TrapScored { player: p(1), trap: 3, speed: 69.4, total: 128.804 };
+    let scored = messages(&trap, 12, &roster);
+    let fields = match &scored[..] {
+        [Message::TrapScore(TrapScore { entity_id, trap, speed_cm_s, total_cm_s, .. })] => {
+            (*entity_id, *trap, *speed_cm_s, *total_cm_s)
+        }
+        _ => panic!("{scored:?}"),
+    };
+    assert_eq!(fields, (10, 3, 6_940, 12_880), "metres per second become whole centimetres per second");
+
+    let first = messages(&ModeEvent::TagPassed { from: None, to: p(1) }, 13, &roster);
+    assert!(matches!(&first[..], [Message::TagPassed(TagPassed { from_entity: None, to_entity: 10, .. })]));
+    let passed = messages(&ModeEvent::TagPassed { from: Some(p(1)), to: p(2) }, 14, &roster);
+    assert!(matches!(&passed[..], [Message::TagPassed(TagPassed { from_entity: Some(10), to_entity: 20, .. })]));
+
+    let penalty = messages(&ModeEvent::Penalty { player: p(2), ms: 5_000 }, 15, &roster);
+    assert!(matches!(&penalty[..], [Message::Penalty(Penalty { entity_id: 20, ms: 5_000, .. })]));
+
+    for message in out.iter().chain(&scored).chain(&first).chain(&passed).chain(&penalty) {
+        round_trip(message);
+    }
+}
+
+#[test]
+fn a_bad_trap_speed_reads_as_zero() {
+    let trap = ModeEvent::TrapScored { player: p(1), trap: 0, speed: f32::NAN, total: -3.0 };
+    let scored = messages(&trap, 1, &roster());
+    assert!(matches!(&scored[..], [Message::TrapScore(TrapScore { speed_cm_s: 0, total_cm_s: 0, .. })]), "{scored:?}");
+}
+
+#[test]
 fn events_without_a_message_and_unseated_players_give_nothing() {
     let roster = roster();
     let none = [
-        ModeEvent::KnockedOut { player: p(1), lap: 1 },
-        ModeEvent::TagPassed { from: None, to: p(1) },
-        ModeEvent::Penalty { player: p(1), ms: 5_000 },
+        ModeEvent::KnockedOut { player: p(9), lap: 1 },
+        ModeEvent::TagPassed { from: None, to: p(9) },
+        ModeEvent::Penalty { player: p(9), ms: 5_000 },
         ModeEvent::Over { reason: OverReason::Finished },
         ModeEvent::PursuitEnded { pursuit: 1, reason: PursuitEndReason::Evaded },
         ModeEvent::Finished { player: p(9), place: 1, time_ms: 1 },

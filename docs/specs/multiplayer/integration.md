@@ -43,7 +43,7 @@ docs are the reference. It has no game names: messages are opaque bytes, and the
 | Commands from the game | `send_reliable`, `send_unreliable` (with an optional `tag`, reported back as `Delivered` or `Lost` when the packet that carried it is acknowledged or written off: the hook for delta baselines), `broadcast_reliable`, `broadcast_unreliable`, `disconnect(peer, reason)`, `set_budget(peer, PeerLimits)`, `set_discovery_reply`, `shutdown` (also on drop) |
 | Queues | `handoff::ring` for events (4,096), sends (4,096) and control commands (256: disconnect, budgets, discovery reply, local attach), so sends cannot push a kick out. Full queues drop the oldest entry and count it (`dropped_events`, `dropped_commands`); shutdown is a flag and a join, never a queued command |
 | Snapshot path | `ClientEndpointConfig::latest_frame_type`: frames of that type go to a `handoff::latest` cell (`take_latest`, `latest`) instead of the event ring. Only for frames the game may skip: a delta whose baseline follows packet acknowledgements must be decoded, so with transport-acknowledged baselines the game leaves it unset and reads every frame from the ring |
-| Socket | `std::net::UdpSocket`: blocking with a 1 ms read timeout when the last pass had nothing to do, non-blocking while busy. No async runtime, no `socket2` |
+| Socket | `std::net::UdpSocket` made through `socket2` (256 KiB buffers asked for, address reuse on the discovery port): blocking with a 1 ms read timeout when the last pass had nothing to do, non-blocking while busy. No async runtime |
 | Timers | keep-alive after 2 s of silence, idle timeout 10 s (`EndpointConfig`); a new server-side connection sends an acknowledgement-only packet every 100 ms until it hears from the client, so a lost key confirmation is repaired inside the client's retry window; DISCONNECT goes out 3 times |
 | Fairness under flood | at most 256 datagrams per pass before commands, timers and sends get a turn |
 
@@ -55,8 +55,7 @@ so the tests run the same endpoints over loopback sockets and over the seeded lo
 soak (one server, N clients, one process).
 
 **Not built here:** the server loop with its fixed-step timer (that is `nfsmw-server` or the listen server's thread, which drains
-`ServerEvent`s); path validation (a peer that changes address is dropped, not migrated); 256 KiB socket buffers and address reuse
-on the discovery port (they need `socket2`); listing the host's interfaces for the discovery source filter (the caller passes the
+`ServerEvent`s); listing the host's interfaces for the discovery source filter (the caller passes the
 subnets; the default is the private ranges). Broadcast itself is not exercised by the tests, which send discovery to `127.0.0.1`.
 
 ## 2. Game-side pieces in `crates/nfsmw`
@@ -65,7 +64,7 @@ subnets; the default is the private ranges). Broadcast itself is not exercised b
 |---|---|
 | `NetSession` (a Bevy resource) | Owns the net-thread handles and queues; holds connection state, lobby state, clock estimate, and statistics. Created by the "LAN game" menu entry or by `--connect`/`--host` |
 | `NetWorldScene` (a `Scene`) | The multiplayer world. `update` drains the inbox, advances the clock, runs the fixed-step accumulator for the owner's car (sample input, quantise, step, store history), applies reconciliation, and advances the display time of remote entities. `frame` builds the instance list from the owner's pose plus the interpolated remote poses, through the code the single-player world uses for AI cars (`CarPose`). Planned: it reuses the `Players` list (section 4, step 3a), one entry per seat |
-| Lobby screens | FEng front-end screens (the same host layer as the menus) driven by `NetSession`; egui panels for the debug view |
+| Lobby screens | Pages drawn by the themes' `LanMenu` slot (the toolkit the menus use), driven by `NetSession` through `NetFrontend` |
 | HUD hooks | The HUD reads the same `HudState` as single player; the multiplayer scene fills it from the server's pursuit, race and own-car blocks (heat, busted meter, position, lap) |
 | Console | `net.host`, `net.connect <addr>`, `net.disconnect`, `net.stats`, `net.sim <loss> <rtt> <jitter>`, `net.kick <slot>`, `net.say`, `net.lead`. They go through the existing command table so scripts and telemetry control can share them |
 | Settings | New keys in the layered settings (CLI > environment > config file > defaults): `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`, `net_identity_file` (the identity key path, by `security.md`) |
@@ -104,8 +103,9 @@ player is `PlayerId(0)`, the lead. The full description and the gaps: [world hos
 built against a seam, the `NetFrontend` trait (`frontend/lan/backend.rs`), which the game's `NetSession` implements and keeps in
 the non-send resource `LanBackend`; the full description is [frontend](frontend.md). The main menu's LAN icon opens the LAN menu
 (host, join with discovery, direct connect and the password prompt, the lobby with ready, car, role, chat, quick lines, votes,
-the player menu and the host's settings and start, the results). The original has no LAN screens in its packages, so these are
-egui panels in the active theme's style rather than FEng screens; the car select is the custom race's `Car_Select.fng`. The
+the player menu and the host's settings and start, the results). The original has no LAN screens in its packages, so the
+Original and Remastered themes draw them with the game's UI toolkit (the `LanMenu` and `LanHud` slots, no egui); the car select
+is the custom race's `Car_Select.fng`. The
 session HUD draws the chat and notice feed, the vote, the countdown and the spectator panel. The console has `net.host`,
 `net.connect`, `net.disconnect`, `net.stats`, `net.sim`, `net.kick`, `net.say`, `net.lead`, `net.scan`, `net.servers` and
 `net.status`; the settings are `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats` and
@@ -141,12 +141,12 @@ it). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies ar
 only and has every module that needs no crate (`bits`, `link`, `conn`, `replicate`, `clock`, `session`, `discovery`, `rng` and
 `ratelimit`). Feature `handoff` adds the `handoff` module (`crossbeam-queue`, `triple_buffer`), which telemetry can take without
 any crypto. Feature `netcode` (implies `handoff`) adds the `secure` module: `snow`, `chacha20poly1305`, `blake2`, `sha2`,
-`subtle`, `zeroize`, `getrandom` and `spake2`. `socket2`, `postcard` and `serde` are not needed yet and are not pulled.
+`subtle`, `zeroize`, `getrandom` and `spake2`. `socket2` (buffers and address reuse) is pulled with `netcode`; `postcard` and `serde` are not needed yet and are not pulled.
 `deny.toml` now sets `all-features = true`, so `cargo deny check` covers the `netcode` crates without a flag (it passed on
-2026-10-22). What `secure` contains and what is not built yet (path validation): [protocol-handshake](protocol-handshake.md)
-and [security](security.md) section 8. Feature `netcode` also holds `endpoint`, the net thread of section 1; it needs no new crate,
-because `std::net::UdpSocket` covers blocking reads with a timeout and broadcast. `socket2` stays out until the 256 KiB buffers of
-[operations security](security-ops.md) section 2.1 or address reuse are wanted.
+2026-10-22). What `secure` contains and what is not built yet: [protocol-handshake](protocol-handshake.md)
+and [security](security.md) section 8. Feature `netcode` also holds `endpoint`, the net thread of section 1; it makes its sockets with
+`socket2` for the 256 KiB buffers of [operations security](security-ops.md) section 2.1 and for address reuse on the discovery port;
+`std::net::UdpSocket` does the reading and sending.
 
 If `blackbox-net-core` passes a few thousand lines, the snapshot machinery moves to a sibling `blackbox-net-replication`
 without changing any public name used by the game.

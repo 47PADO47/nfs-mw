@@ -37,8 +37,13 @@ pub struct EndpointStats {
     pub garbage: u64,
     /// Data packets for no known connection.
     pub unknown_connection: u64,
-    /// Data packets for a connection, from another address (no path validation yet: dropped).
+    /// Data packets for a connection, from another address, dropped before opening: over the rate for such packets or
+    /// the peer's budget, or for the in-memory link. The others are opened (counted in `rejected` if they do not open).
     pub wrong_address: u64,
+    /// Path challenges sent to an address a peer's packets came from.
+    pub path_challenges: u64,
+    /// Peers that moved to a new address after it answered a challenge.
+    pub path_migrations: u64,
     /// Data packets over the peer's inbound budget, dropped before opening.
     pub over_budget: u64,
     /// Data packets the connection refused: bad tag, duplicate, too old, malformed.

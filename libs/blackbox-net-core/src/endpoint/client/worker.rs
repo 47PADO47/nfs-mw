@@ -44,6 +44,8 @@ pub(crate) struct ClientWorker<T: Transport> {
     pub(super) link: Option<PeerLink>,
     pub(super) connected: bool,
     pub(super) server_key: Option<KeyId>,
+    /// The Noise handshake hash of this connection (all zero for the in-memory link).
+    pub(super) handshake_hash: [u8; 32],
     pub(super) events: RingSender<ClientEvent>,
     commands: RingReceiver<ClientCommand>,
     control: RingReceiver<u8>,
@@ -79,6 +81,7 @@ impl<T: Transport> ClientWorker<T> {
             link,
             connected: false,
             server_key,
+            handshake_hash: [0; 32],
             events,
             commands,
             control,
@@ -124,7 +127,7 @@ impl<T: Transport> ClientWorker<T> {
         let Some(server_key) = self.server_key else {
             return;
         };
-        self.events.push(ClientEvent::Connected { server_key });
+        self.events.push(ClientEvent::Connected { server_key, handshake_hash: self.handshake_hash });
     }
 
     /// Sends DISCONNECT with `byte` if the connection is open, and forgets it.

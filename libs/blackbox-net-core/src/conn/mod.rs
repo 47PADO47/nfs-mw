@@ -27,7 +27,8 @@
 //! **Frames** (ADR 0009 section 4): `type` u8, then the payload length as a byte-aligned LEB128 varint (7 bits per byte,
 //! low group first, top bit = more, canonical, at most 3 bytes), then the payload. Type `0x00` is one padding byte with no
 //! length. Every other type has a length, so any receiver can skip any frame. The connection owns [`FRAME_RELIABLE`],
-//! [`FRAME_DISCONNECT`] and the reserved `0x12`/`0x13` (ignored); every other frame is handed to the caller in order.
+//! [`FRAME_DISCONNECT`], [`FRAME_PATH_CHALLENGE`] and [`FRAME_PATH_RESPONSE`]; every other frame is handed to the caller
+//! in order.
 //!
 //! **Reliable frame payload:** byte 0 = channel (bits 7..6), first (bit 5), last (bit 4), bits 3..0 zero; bytes 1..3 =
 //! `msg_id` u16 (per channel, +1 per fragment, wrapping); then data. A message larger than [`MAX_FRAGMENT`] is split into
@@ -78,6 +79,13 @@ pub const FRAME_PADDING: u8 = 0x00;
 pub const FRAME_RELIABLE: u8 = 0x10;
 /// Frame type: the sender closes the connection; payload is one reason byte.
 pub const FRAME_DISCONNECT: u8 = 0x11;
+/// Frame type: the sender asks the receiver to prove it can be reached at the address the frame came from; the payload
+/// is [`PATH_TOKEN_LEN`] random bytes. The receiver answers with [`FRAME_PATH_RESPONSE`] in its next packet.
+pub const FRAME_PATH_CHALLENGE: u8 = 0x12;
+/// Frame type: the answer to a path challenge, the same [`PATH_TOKEN_LEN`] bytes.
+pub const FRAME_PATH_RESPONSE: u8 = 0x13;
+/// Bytes of a path challenge's token.
+pub const PATH_TOKEN_LEN: usize = 8;
 
 /// Static configuration of one connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

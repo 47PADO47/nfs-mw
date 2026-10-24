@@ -3,8 +3,8 @@
 //! start; leave. The countdown shows in the subtitle.
 
 use nfsmw_net::client_session::LobbyView;
-use nfsmw_net::lobby::{FLAG_ADMIN, FLAG_HOST, FLAG_MUTED};
-use nfsmw_net::message::{LobbyPlayer, Role, SessionPhase, VoteKind, VoteState};
+use nfsmw_net::lobby::{FLAG_ADMIN, FLAG_HOLD, FLAG_HOST, FLAG_MUTED};
+use nfsmw_net::message::{AdminCommand, LobbyPlayer, Role, SessionPhase, VoteKind, VoteState};
 
 use super::cx::{Cx, MenuOut};
 use super::field::{Field, Typed};
@@ -35,6 +35,7 @@ enum Item {
     VoteFor(u32),
     VoteRestart,
     Settings,
+    Hold,
     Start,
     Leave,
 }
@@ -58,6 +59,11 @@ pub fn may_manage(lobby: &LobbyView) -> bool {
     lobby.is_host() || lobby.me().is_some_and(|me| me.flags & FLAG_ADMIN != 0)
 }
 
+/// Whether a member holds everyone ("everyone wait", MP-54).
+pub fn held(lobby: &LobbyView) -> bool {
+    lobby.players.iter().any(|row| row.flags & FLAG_HOLD != 0)
+}
+
 /// Whether every racer is ready.
 pub fn all_ready(lobby: &LobbyView) -> bool {
     lobby.players.iter().filter(|row| row.role != Role::Spectator).all(|row| row.ready)
@@ -74,7 +80,7 @@ fn items(lobby: &LobbyView) -> Vec<Item> {
         None => items.push(Item::VoteRestart),
     }
     if may_manage(lobby) {
-        items.extend([Item::Settings, Item::Start]);
+        items.extend([Item::Settings, Item::Hold, Item::Start]);
     }
     items.push(Item::Leave);
     items
@@ -116,7 +122,10 @@ impl LobbyPage {
             }
             Item::VoteRestart => Row::action("Vote to restart", lobby.phase != SessionPhase::Lobby),
             Item::Settings => Row::action("Session settings", true),
-            Item::Start => Row::action("Start race", lobby.phase == SessionPhase::Lobby && all_ready(lobby)),
+            Item::Hold => Row::choice("Everyone wait", yes_no(held(lobby)), true),
+            Item::Start => {
+                Row::action("Start race", lobby.phase == SessionPhase::Lobby && all_ready(lobby) && !held(lobby))
+            }
             Item::Leave => Row::action("Leave", true),
         }
     }
@@ -151,6 +160,9 @@ impl LobbyPage {
             Some(Item::Role) => {
                 cx.net.set_role(other_role(lobby.my_role()));
             }
+            Some(Item::Hold) => {
+                cx.net.admin(AdminCommand::Hold { on: !held(&lobby) });
+            }
             Some(Item::Quick) => {
                 let len = QUICK_LINES.len() as u16;
                 self.quick = match forward {
@@ -169,7 +181,7 @@ impl LobbyPage {
         match item {
             Item::Player(slot) if Some(slot) != lobby.my_slot => return Go::Player(slot),
             Item::Player(_) => {}
-            Item::Ready | Item::Role => self.step(cx, true),
+            Item::Ready | Item::Role | Item::Hold => self.step(cx, true),
             Item::Car => cx.out.push(MenuOut::CarSelect),
             Item::Chat => self.send_chat(cx),
             Item::Quick => {
@@ -184,7 +196,7 @@ impl LobbyPage {
             }
             Item::VoteRestart => {}
             Item::Settings => return Go::Settings,
-            Item::Start if lobby.phase == SessionPhase::Lobby && all_ready(&lobby) => {
+            Item::Start if lobby.phase == SessionPhase::Lobby && all_ready(&lobby) && !held(&lobby) => {
                 cx.net.start_race();
             }
             Item::Start => {}

@@ -89,7 +89,11 @@ impl Plugin for HudPlugin {
                 Update,
                 sync.in_set(FrameSet::SceneUpdate).run_if(ready).run_if(resource_exists::<SharedAssets>),
             )
-            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>));
+            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
+            .add_systems(
+                Update,
+                present_lan.in_set(FrameSet::Hud).after(present).run_if(ready).run_if(resource_exists::<SharedAssets>),
+            );
         super::split::install(app);
     }
 }
@@ -220,6 +224,27 @@ fn sync(
     }
     let orientation = settings.minimap.orientation();
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
+}
+
+/// The LAN session's feed, vote, countdown and spectator panel (`frontend/lan`). They are the session's, not the car's HUD:
+/// they show while the HUD is hidden (the front end, a spectator without a car, the HUD option off) and change every frame,
+/// so they are not cached with the HUD's layers.
+fn present_lan(
+    assets: Res<SharedAssets>,
+    themes: Res<UiThemes>,
+    time: Res<Time>,
+    mut presenter: ResMut<Presenter>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    mut out: ResMut<UiOutput>,
+) {
+    if themes.frame().lan().hud().is_none() {
+        return;
+    }
+    let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+    let layer = slot_layer(&themes, ElementId::LanHud, time.elapsed_secs());
+    if !layer.nodes.is_empty() {
+        presenter.0.present(&layer, &assets.0, screen, &mut out);
+    }
 }
 
 /// Draws the HUD through the theme composer (`ui/theme/compose.rs`). Each frame the plugin stores each source's tree in

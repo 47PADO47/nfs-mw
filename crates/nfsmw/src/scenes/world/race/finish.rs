@@ -74,6 +74,8 @@ impl WorldScene {
     /// Takes the race down: the racers leave, the traffic count is given back and the car is let go.
     pub(super) fn end_race(&mut self, mut session: RaceSession) {
         self.release_race(&mut session);
+        self.race_hold = false;
+        self.race_lead_idle = false;
         self.end_split();
         self.unpark_guest_after_race();
         log::info!("race: {} ended", session.name);

@@ -14,10 +14,10 @@ use blackbox_ui::SlotId;
 
 impl ElementId {
     /// Whether the slot is a menu or career screen (raw 20 and up), which the menu cell feeds, rather than a HUD slot.
-    /// The world-map chrome is numbered with the frontend block but is not menu-cell-fed (it is drawn as its own overlay
-    /// layer), so it is not a menu slot.
+    /// The world-map chrome and the two LAN slots are numbered with the frontend block but are not menu-cell-fed (the map's
+    /// chrome is its own overlay layer, the LAN screens have their own cell, `LanCell`), so they are not menu slots.
     pub const fn is_menu(self) -> bool {
-        self.raw() >= 20 && !matches!(self, ElementId::WorldMapChrome)
+        self.raw() >= 20 && !matches!(self, ElementId::WorldMapChrome | ElementId::LanMenu | ElementId::LanHud)
     }
 }
 
@@ -91,6 +91,10 @@ catalogue! {
     ControlsList = 28,
     Jukebox = 29,
     Credits = 30,
+    // The LAN screens (`frontend/lan/`): the menu page that covers the front end, and the session's HUD pieces over the world.
+    // Both are fed by the LAN front end's cell (`LanCell`); neither has a FEng package.
+    LanMenu = 31,
+    LanHud = 32,
     // Career screens (`frontend/career_screens/`). Numbers 40 to 45.
     Blacklist = 40,
     CarLot = 41,

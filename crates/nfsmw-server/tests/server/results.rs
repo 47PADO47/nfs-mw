@@ -15,6 +15,11 @@ use super::harness::{Harness, test_config};
 
 /// Steers towards `target` from the client's newest own block, as the toy world's own bots do.
 fn steer(client: &TestClient, target: [f32; 2]) -> InputCode {
+    steer_paced(client, target, 1.0)
+}
+
+/// As [`steer`], with the throttle scaled by `pace` (0 to 1): a driver who falls behind.
+pub(super) fn steer_paced(client: &TestClient, target: [f32; 2], pace: f32) -> InputCode {
     let Some(own) = client.snapshots.last().and_then(|snapshot| snapshot.own) else {
         return InputCode::NEUTRAL;
     };
@@ -37,7 +42,7 @@ fn steer(client: &TestClient, target: [f32; 2]) -> InputCode {
         true => 0.4,
         false => 1.0,
     };
-    InputCode::quantise(&InputState { throttle, steer: turn, ..InputState::default() })
+    InputCode::quantise(&InputState { throttle: throttle * pace, steer: turn, ..InputState::default() })
 }
 
 #[test]
