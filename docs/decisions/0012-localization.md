@@ -45,8 +45,9 @@ Option C.
    `generation`. Text a mod hands the host to keep (menu rows, theme names, HUD messages, interior prompts) that names a
    message of the mod's catalogue is shown as that message, resolved at each draw. No existing table changes, so the ABI
    version stays and built mods keep working.
-5. **Live switching.** The `Strings` behind `UiAssets` is swapped in place; FEng packages relabel when their resolver is set
-   again, egui text redraws on a generation counter.
+5. **Live switching.** The current language is process-wide (`crate::i18n::current`), like the custom fonts' state, and a
+   change swaps it and bumps a generation counter. FEng packages relabel when their resolver is set again, and egui and the
+   presenter's fallback text follow the counter.
 6. **Scope.** Menus, HUD, LAN, co-op and dialogs. The F6 garage, the F8 lab, the performance overlay, the console, the CLI and
    logs stay English.
 
