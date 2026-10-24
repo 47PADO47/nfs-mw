@@ -276,7 +276,7 @@ fn menus() -> Vec<Binding> {
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
 /// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera,
-/// Enter to interact. The pad follows NFS-XtendedInput's Most Wanted layout (the Xbox 360 one), so the remake and the
+/// Enter to interact, X to dismiss the HUD's notification (a key no other default uses; the pad has no default). The pad follows NFS-XtendedInput's Most Wanted layout (the Xbox 360 one), so the remake and the
 /// original share muscle memory: the triggers are the pedals, the left stick steers, the right stick pushed up/down
 /// shifts up/down, A is the handbrake, B nitrous, X the speed breaker, the right bumper changes the camera, the left
 /// bumper looks back, Back resets the car, D-pad up engages an event (A also does, to skip a cutscene) and D-pad left
@@ -312,6 +312,7 @@ fn driving() -> Vec<Binding> {
         Binding::new(ToggleHeadlights, key(KeyCode::KeyH), 1.0),
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Interact, key(KeyCode::Enter), 1.0),
+        Binding::new(DismissNotification, key(KeyCode::KeyX), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),

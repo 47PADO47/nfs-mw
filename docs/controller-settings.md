@@ -17,6 +17,9 @@ to stop it. **Right Ctrl** and Q downshift; Left Ctrl does not also downshift.
 The original keyboard Controls screen includes a Speedbreaker row. The `keys`
 listing reflects live assignments; its gamepad button labels use Xbox names.
 
+**X** dismisses the HUD's oldest notification (`dismiss_notification`). It has no gamepad default; bind one under
+`[bindings]` or from the console.
+
 ## Default gamepad layout
 
 The defaults follow the Xbox 360 layout of [NFS-XtendedInput](mods/nfs-xtendedinput.md)'s Most Wanted

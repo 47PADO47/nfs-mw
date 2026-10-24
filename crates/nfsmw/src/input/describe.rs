@@ -34,7 +34,7 @@ fn section(action: Action) -> Section {
     match action {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
-        | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact => Section::Driving,
+        | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact | DismissNotification => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
         | MenuButton3 | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => {
@@ -102,6 +102,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Click => ("Skip a movie, continue at the title screen", ""),
         RadioToggle => ("Radio: pause / resume", "N"),
         Map => ("World map", "M"),
+        DismissNotification => ("Dismiss the HUD notification", ""),
         RadioNext => ("Radio: next song", ""),
         RadioPrevious => ("Radio: previous song", ""),
     }

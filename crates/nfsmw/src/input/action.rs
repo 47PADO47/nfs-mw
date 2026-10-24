@@ -104,6 +104,8 @@ pub enum Action {
     Garage,
     /// Button: open or close the full-screen world map, from free roam (`frontend/world_map`).
     Map,
+    /// Driving button: take the HUD's oldest notification off the screen (`hud/notify`).
+    DismissNotification,
 }
 
 impl Action {
@@ -165,6 +167,7 @@ impl Action {
             "radio_previous",
             "garage",
             "map",
+            "dismiss_notification",
         ];
         NAMES[self.index()]
     }
@@ -176,7 +179,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 56] = [
+    pub const ALL: [Action; 57] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -233,6 +236,7 @@ impl Action {
         Action::RadioPrevious,
         Action::Garage,
         Action::Map,
+        Action::DismissNotification,
     ];
 
     /// Actions that still work while the UI has the keyboard.
