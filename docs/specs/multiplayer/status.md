@@ -56,8 +56,8 @@ Open work of this build, in rough order of importance:
 9. **Text rules.** Names, chat, plates and room passwords are in NFKC (`unicode-normalization`; the wire refuses text that is not). Confusable folding and grapheme counting are not done (the `char` count is the stricter bound).
 10. **Fuzzing.** The cargo-fuzz targets type-check but have never been run under libFuzzer; the in-tree seeded tests are what
     runs in CI.
-11. **Sockets.** `socket2` is not used: no enlarged socket buffers, and two servers on one PC cannot share the discovery port.
-    Broadcast itself and IPv6 are untested (the tests use 127.0.0.1).
+11. **Sockets.** Sockets ask for 256 KiB buffers and the discovery port is shared (`socket2`), so two servers on one PC both answer
+    discovery. Broadcast itself and IPv6 are untested (the tests use 127.0.0.1).
 12. **Tuning.** Several rule numbers are marked **[ours]** in [modes.md](modes.md) and the 10 Hz spectator rate, the start
     countdown and similar values are first guesses to be set by play.
 13. **World timing.** The 16-player world step has a mean of 2.3 ms and a p95 of 2.5 ms in the dev profile at 59 traffic cars

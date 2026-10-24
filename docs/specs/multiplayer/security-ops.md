@@ -47,7 +47,7 @@ Set on both ends. A client also bounds what a host can make it do.
 the in-memory host client has none. A full reliable channel (256 messages in flight) closes the connection with DISCONNECT
 reason 3 and reports `DisconnectReason::Overflow`. A data packet from an address other than the peer's is opened at a limited rate (20 a second per peer) and moves the peer only after the new address answers a path challenge (`endpoint/path.rs`); the rest are dropped and counted. The net thread takes at most 256 datagrams per pass before it serves timers and
 sends, so a flood cannot starve admitted players; the flood test sends 20,000 garbage datagrams and 30 real handshakes from one
-address while an established client keeps its round trips. Not built: the 256 KiB socket buffers (`std` cannot set them), the
+address while an established client keeps its round trips. The sockets ask for 256 KiB buffers (`socket2`; the system may give less). Not built: the
 authorisation deadline (game protocol) and the reassembly memory caps beyond the connection's own 16 KiB message limit.
 
 ### 2.2 Global and per-address caps

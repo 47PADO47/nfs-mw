@@ -43,7 +43,7 @@ docs are the reference. It has no game names: messages are opaque bytes, and the
 | Commands from the game | `send_reliable`, `send_unreliable` (with an optional `tag`, reported back as `Delivered` or `Lost` when the packet that carried it is acknowledged or written off: the hook for delta baselines), `broadcast_reliable`, `broadcast_unreliable`, `disconnect(peer, reason)`, `set_budget(peer, PeerLimits)`, `set_discovery_reply`, `shutdown` (also on drop) |
 | Queues | `handoff::ring` for events (4,096), sends (4,096) and control commands (256: disconnect, budgets, discovery reply, local attach), so sends cannot push a kick out. Full queues drop the oldest entry and count it (`dropped_events`, `dropped_commands`); shutdown is a flag and a join, never a queued command |
 | Snapshot path | `ClientEndpointConfig::latest_frame_type`: frames of that type go to a `handoff::latest` cell (`take_latest`, `latest`) instead of the event ring. Only for frames the game may skip: a delta whose baseline follows packet acknowledgements must be decoded, so with transport-acknowledged baselines the game leaves it unset and reads every frame from the ring |
-| Socket | `std::net::UdpSocket`: blocking with a 1 ms read timeout when the last pass had nothing to do, non-blocking while busy. No async runtime, no `socket2` |
+| Socket | `std::net::UdpSocket` made through `socket2` (256 KiB buffers asked for, address reuse on the discovery port): blocking with a 1 ms read timeout when the last pass had nothing to do, non-blocking while busy. No async runtime |
 | Timers | keep-alive after 2 s of silence, idle timeout 10 s (`EndpointConfig`); a new server-side connection sends an acknowledgement-only packet every 100 ms until it hears from the client, so a lost key confirmation is repaired inside the client's retry window; DISCONNECT goes out 3 times |
 | Fairness under flood | at most 256 datagrams per pass before commands, timers and sends get a turn |
 
@@ -55,8 +55,7 @@ so the tests run the same endpoints over loopback sockets and over the seeded lo
 soak (one server, N clients, one process).
 
 **Not built here:** the server loop with its fixed-step timer (that is `nfsmw-server` or the listen server's thread, which drains
-`ServerEvent`s); 256 KiB socket buffers and address reuse
-on the discovery port (they need `socket2`); listing the host's interfaces for the discovery source filter (the caller passes the
+`ServerEvent`s); listing the host's interfaces for the discovery source filter (the caller passes the
 subnets; the default is the private ranges). Broadcast itself is not exercised by the tests, which send discovery to `127.0.0.1`.
 
 ## 2. Game-side pieces in `crates/nfsmw`
@@ -142,12 +141,12 @@ it). CI runs `cargo deny` with `--all-features` so the `netcode` dependencies ar
 only and has every module that needs no crate (`bits`, `link`, `conn`, `replicate`, `clock`, `session`, `discovery`, `rng` and
 `ratelimit`). Feature `handoff` adds the `handoff` module (`crossbeam-queue`, `triple_buffer`), which telemetry can take without
 any crypto. Feature `netcode` (implies `handoff`) adds the `secure` module: `snow`, `chacha20poly1305`, `blake2`, `sha2`,
-`subtle`, `zeroize`, `getrandom` and `spake2`. `socket2`, `postcard` and `serde` are not needed yet and are not pulled.
+`subtle`, `zeroize`, `getrandom` and `spake2`. `socket2` (buffers and address reuse) is pulled with `netcode`; `postcard` and `serde` are not needed yet and are not pulled.
 `deny.toml` now sets `all-features = true`, so `cargo deny check` covers the `netcode` crates without a flag (it passed on
 2026-10-22). What `secure` contains and what is not built yet: [protocol-handshake](protocol-handshake.md)
-and [security](security.md) section 8. Feature `netcode` also holds `endpoint`, the net thread of section 1; it needs no new crate,
-because `std::net::UdpSocket` covers blocking reads with a timeout and broadcast. `socket2` stays out until the 256 KiB buffers of
-[operations security](security-ops.md) section 2.1 or address reuse are wanted.
+and [security](security.md) section 8. Feature `netcode` also holds `endpoint`, the net thread of section 1; it makes its sockets with
+`socket2` for the 256 KiB buffers of [operations security](security-ops.md) section 2.1 and for address reuse on the discovery port;
+`std::net::UdpSocket` does the reading and sending.
 
 If `blackbox-net-core` passes a few thousand lines, the snapshot machinery moves to a sibling `blackbox-net-replication`
 without changing any public name used by the game.
