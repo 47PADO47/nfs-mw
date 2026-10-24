@@ -13,7 +13,7 @@
 //! - [`menu`]: the vertical menus (main menu, option categories, pause menu, safe house), read from the menu list cell.
 //! - [`skin`]: the colours and fonts the components read, by key.
 //!
-//! State comes from the same drive feed the Custom theme reads (`custom::DriveFeedCell`), filled once per frame by the HUD.
+//! State comes from the drive feed (`custom::DriveFeedCell`), filled once per frame by the HUD.
 
 mod arc;
 mod bar;
