@@ -295,7 +295,7 @@ pub struct WorldScene {
     /// The free camera jumped (a new scene, the camera toggle, `goto`, the start settling on the ground).
     cut: CameraCut,
     /// When the car started waiting for a road (no physics while it waits).
-    waiting_since: Option<std::time::Instant>,
+    waiting_since: Option<drive_input::RoadWait>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).

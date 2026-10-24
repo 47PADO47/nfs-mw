@@ -64,8 +64,7 @@ Open work of this build, in rough order of importance:
     ([bandwidth.md](bandwidth.md) section 5); the first measurement's p95 of 4.35 ms came from threads started every tick and a
     race list built every tick, both fixed. The machine is noisy: a run now and then is several times slower for its whole
     length, so a figure needs two runs.
-14. **Determinism leftovers.** The 10 s wall-clock wait before the car spawns, model choice from the full catalogue, prop ids from
-    tile and index and strict id order for car pairs ([determinism.md](determinism.md)).
+14. **Determinism leftovers.** Model choice from the full catalogue and strict id order for car pairs ([determinism.md](determinism.md)).
 
 ## Not planned for milestone 10
 
