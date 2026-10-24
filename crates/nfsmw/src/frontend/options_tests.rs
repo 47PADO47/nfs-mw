@@ -77,6 +77,13 @@ fn the_speech_volume_row_is_a_slider_that_records_its_change() {
     assert_eq!(changes, Partial { speech_volume: Some(s.speech_volume), ..Partial::default() });
 }
 #[test]
+fn the_speech_volume_row_reads_police_dispatch() {
+    let audio = rows(Category::Audio, &crate::settings::test_caps::native());
+    let row = audio.iter().find(|row| row.setting == Setting::SpeechVolume).expect("the speech volume row");
+    assert_eq!(row.title, Title::Key("options-police-dispatch-volume"));
+    assert_eq!(row.title.text(), "Police Dispatch");
+}
+#[test]
 fn video_window_mode_cycles_both_directions_and_records_the_selection() {
     let (mut s, mut changes) = (defaults(), Partial::default());
     Setting::WindowMode.step(&mut s, &mut changes, true);

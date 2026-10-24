@@ -22,6 +22,11 @@ options-remastered = Remastered
 # A row whose setting the running renderer cannot do.
 options-unavailable = Unavailable
 
+## Audio
+
+# The speech volume row: the police dispatch's radio lines (the setting `speech_volume`).
+options-police-dispatch-volume = Police Dispatch
+
 ## Gameplay
 
 options-hud-layout = HUD Layout

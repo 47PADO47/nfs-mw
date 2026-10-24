@@ -23,7 +23,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::SfxVolume, Title::Label(0xFD48_7543)),
             row(Setting::EngineVolume, Title::Label(0xA2B1_F888)),
             row(Setting::MusicVolume, Title::Label(0x418E_681D)),
-            row(Setting::SpeechVolume, Title::Label(0x9E5F_B82A)),
+            // The speech volume is the police dispatch's radio, so the row says so (`speech_volume` keeps its key).
+            row(Setting::SpeechVolume, Title::Key("options-police-dispatch-volume")),
         ],
         Category::Video => vec![row(Setting::WindowMode, Title::Key("options-window-mode"))]
             .into_iter()
