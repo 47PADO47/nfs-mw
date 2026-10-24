@@ -27,6 +27,8 @@ impl Flags {
     pub const INFRACTIONS_SEEN: Flags = Flags(0x1000);
     /// Bit 13, set by an availability routine. Unknown.
     pub const UNKNOWN_0X2000: Flags = Flags(0x2000);
+    /// Burger King reward: opens compatible Junkman packages in My Cars (garage-shop.md).
+    pub const QUICK_RACE_JUNKMAN: Flags = Flags(0x2000);
     /// Career complete (winning the last race): unlocks every rival challenge and the first bonus cars.
     pub const CAREER_COMPLETE: Flags = Flags(0x4000);
     /// Event `19.8.69` done (career-state) / unlocks the `BONUS_SL65` car (career-save).

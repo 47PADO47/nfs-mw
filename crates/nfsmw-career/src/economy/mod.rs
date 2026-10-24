@@ -19,6 +19,7 @@ pub mod infraction;
 pub mod infractions_screen;
 pub mod markers;
 pub mod pursuit;
+pub mod shop;
 
 pub use cash::{AWARD_BOUNTY_DIVISOR, RaceWin, award_player_bounty, award_race_win, race_win_cash, sale_proceeds};
 pub use infraction::{FINES, InfractionKind, InfractionMask, fine_of_counters};
