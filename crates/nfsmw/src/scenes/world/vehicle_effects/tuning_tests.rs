@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::settings::xenon_effects::XenonEffectsLayer;
+use blackbox_gfx::EffectVertex;
 use glam::Quat;
 use nfsmw_data::vehicle_effects::EmitterStyle;
 
@@ -93,4 +94,23 @@ fn a_cutscene_trail_needs_the_option_and_the_trail_switch_and_ages_with_the_scen
         on.cutscene_step(pose(), velocity, dt);
     }
     assert_eq!(on.trails.len(), 0);
+}
+
+#[test]
+fn the_shadow_option_flags_the_streaks_and_glows_it_draws_and_nothing_else() {
+    let flags = |layer: XenonEffectsLayer| {
+        let mut e = effects(tuned(layer));
+        e.set_enabled(false, true);
+        e.step(&[], pose(), Vec3::X * 80.0, false, STEP);
+        let mut streaks = vec![EffectVertex { position: [0.0; 3], color: [0; 4], uv: [0.0; 2], detail: [0.0; 2] }];
+        e.geometry(Vec3::ZERO, Vec3::X, true, &mut streaks);
+        let mut glows = vec![EffectVertex { position: [0.0; 3], color: [0; 4], uv: [0.0; 2], detail: [0.0; 2] }];
+        e.glows(Vec3::ZERO, Vec3::X, &mut glows);
+        (streaks, glows)
+    };
+    let (off, _) = flags(XenonEffectsLayer::default());
+    assert!(off.len() > 1 && off.iter().all(|v| v.detail[1] == 0.0));
+    let (on, _) = flags(XenonEffectsLayer { shadows: Some(true), ..Default::default() });
+    assert_eq!(on[0].detail[1], 0.0, "what was already in the layer is left alone");
+    assert!(on[1..].iter().all(|v| v.detail[1] == 1.0));
 }

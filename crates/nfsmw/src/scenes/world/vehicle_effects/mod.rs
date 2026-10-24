@@ -175,14 +175,29 @@ impl VehicleEffects {
     }
 
     pub fn geometry(&self, camera: Vec3, forward: Vec3, show_trails: bool, out: &mut Vec<EffectVertex>) {
+        let start = out.len();
         self.sparks.geometry(camera, forward, self.body, out);
         if show_trails {
             self.trails.geometry(camera, forward, out);
         }
+        self.take_shadows(&mut out[start..]);
     }
 
     pub fn glows(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        let start = out.len();
         self.sparks.glows(camera, forward, self.body, out);
+        self.take_shadows(&mut out[start..]);
+    }
+
+    /// With the `shadows` option the vertices ask the renderer for the sun's shadow (`EffectVertex::detail`); a renderer
+    /// without it draws them lit.
+    fn take_shadows(&self, vertices: &mut [EffectVertex]) {
+        if !self.tuning.shadows {
+            return;
+        }
+        for vertex in vertices {
+            vertex.detail[1] = 1.0;
+        }
     }
 
     pub fn textured(
