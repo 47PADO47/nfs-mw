@@ -1,4 +1,5 @@
-//! The hidden `--hud-demo` value: a HUD state typed on the command line, for checking the HUD by eye.
+//! The hidden `--hud-demo` value: a HUD state typed on the command line, for checking the HUD by eye. Its companion,
+//! the hidden `--hud-scenario` value, names one of the deterministic fixtures of `devtools/hud_scenarios` instead.
 
 pub(super) fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
     let n: Vec<f32> =
@@ -42,3 +43,8 @@ pub(super) fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
 }
 
 pub(super) const HUD_DEMO_FORMAT: &str = "expected SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI[,SPEEDBREAKER_PERCENT[,SPEEDBREAKER_ACTIVE[,PURSUIT_SECONDS[,EVADE_PERCENT[,BUSTED_PERCENT[,RADAR_METRES]]]]]]]]";
+
+/// The `--hud-scenario` value: one of the names of `devtools/hud_scenarios` (free-roam, racing, cooldown and so on).
+pub(super) fn parse_hud_scenario(s: &str) -> Result<crate::devtools::hud_scenarios::HudScenario, String> {
+    s.parse()
+}

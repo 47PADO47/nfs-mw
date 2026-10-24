@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use blackbox_gfx::GraphicsApi;
 use clap::Args;
 
-use super::hud_demo::parse_hud_demo;
+use super::hud_demo::{parse_hud_demo, parse_hud_scenario};
 use super::parse::parse_screenshot_size;
 use crate::app::pacing::MaxFps;
 use crate::devtools::{ShowMetrics, ShowReadout};
@@ -330,6 +330,11 @@ pub struct ViewArgs {
     /// reference screenshots; a nitrous or boost value shows that gauge).
     #[arg(long, hide = true, value_name = "SPEED,RPM,MAX_RPM,GEAR[,NOS[,PSI[,BREAKER[,ACTIVE[,PURSUIT[,EVADE[,BUSTED[,RADAR]]]]]]]]", value_parser = parse_hud_demo, allow_hyphen_values = true)]
     pub hud_demo: Option<crate::hud::HudState>,
+    /// A named, deterministic HUD state for checking the HUD by eye and the screenshot matrix (`tools/hud_shots.ps1`):
+    /// a development fixture drawn over the scene with a `SCENARIO` label, never game data
+    /// (`docs/specs/custom-hud-scenarios.md`).
+    #[arg(long, hide = true, value_name = "NAME", value_parser = parse_hud_scenario, conflicts_with = "hud_demo")]
+    pub hud_scenario: Option<crate::devtools::hud_scenarios::HudScenario>,
     /// Load no mods, native ones included: the same as `mods = off` (ADR 0005 section 6) [env NFSMW_MODS].
     #[arg(long)]
     pub no_mods: bool,
@@ -356,8 +361,10 @@ impl ViewArgs {
             open_console: self.open_console,
             open_garage: self.open_garage,
             garage_tab: self.garage_tab,
-            hud: (self.hud || hud_default || self.hud_demo.is_some()).then(|| dir.clone()),
+            hud: (self.hud || hud_default || self.hud_demo.is_some() || self.hud_scenario.is_some())
+                .then(|| dir.clone()),
             hud_demo: self.hud_demo.clone(),
+            hud_scenario: self.hud_scenario,
             // A screenshot run has no sound unless the radio is asked for: the radio's songs drive the chyron.
             audio: (!self.no_sound && (self.screenshot.is_none() || self.radio)).then(|| dir.clone()),
             frontend: None,

@@ -95,6 +95,17 @@ impl Plugin for HudPlugin {
                     .run_if(ready)
                     .run_if(resource_exists::<SharedAssets>),
             )
+            // A `--hud-scenario` run writes its fixture over the scene's state (`devtools/hud_scenarios`); without the
+            // flag the resource is absent and the system never runs.
+            .add_systems(
+                Update,
+                crate::devtools::hud_scenarios::apply
+                    .in_set(FrameSet::SceneUpdate)
+                    .after(sync)
+                    .before(notify)
+                    .run_if(ready)
+                    .run_if(resource_exists::<crate::devtools::hud_scenarios::ActiveScenario>),
+            )
             .init_resource::<HudNotifications>()
             .add_systems(Update, notify.in_set(FrameSet::SceneUpdate).after(sync))
             .add_systems(Update, super::notify::output.in_set(FrameSet::SceneUpdate).after(notify))
