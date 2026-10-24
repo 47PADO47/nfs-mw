@@ -80,6 +80,7 @@ impl WorldScene {
             state.camera = self.hud_camera();
             state.route = self.nav_route();
             state.markers = self.nav_markers();
+            state.world_marks = self.world_marks(state);
             state.events = self.hud_feed.events().to_vec();
             state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
