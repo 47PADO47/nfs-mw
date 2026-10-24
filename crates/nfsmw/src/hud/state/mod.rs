@@ -30,9 +30,7 @@ pub use camera::HudCamera;
 pub use context::{EntryAction, EntryPrompt, HudContext, RaceIntro, RaceStage, entry_action};
 pub use events::HudEvent;
 pub use marks::{EntranceMark, MarkPoint, WorldMarks};
-#[cfg(test)]
-pub use nav::TurnDirection;
-pub use nav::{NavMarker, NavMarkerKind, NavRoute, next_turn};
+pub use nav::{NavMarker, NavMarkerKind, NavRoute, TurnDirection, next_turn};
 pub use police::{HelicopterIntel, LastKnown, PoliceIntel, PursuitPhase, known_roadblocks, sighted};
 pub use race_info::{RaceInfo, RivalGap, checkpoint_gap, rival_of, shows_rival_gap};
 pub use vehicle::{ConditionWarning, HEAVY_DAMAGE, HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
@@ -140,6 +138,12 @@ pub struct HudState {
     pub route: Option<NavRoute>,
     /// The places on the map the player can go to (race starts, safe houses, shops), as the map shows them.
     pub markers: Vec<NavMarker>,
+    /// The roads of the loaded network for the Custom map, shared, not copied (`hud/map_roads`); `None` in a world with
+    /// no road network.
+    pub map_roads: Option<super::MapRoadsHandle>,
+    /// The car's place for the Custom map. The HUD plugin copies it from `minimap` before the minimap setting is
+    /// applied, so it stays when the minimap is off; its `orientation` is not read (the map turns by `minimap`'s).
+    pub map_car: Option<MapPosition>,
     /// What changed this frame, once per change (`scenes/world/feed/hud.rs`).
     pub events: Vec<HudEvent>,
     /// The frame `events` belong to: a reader that gets the same frame twice (a paused scene) does not take them again.
@@ -197,6 +201,8 @@ impl Default for HudState {
             police_intel: PoliceIntel::default(),
             route: None,
             markers: Vec::new(),
+            map_roads: None,
+            map_car: None,
             events: Vec::new(),
             events_frame: 0,
             world_marks: WorldMarks::default(),
