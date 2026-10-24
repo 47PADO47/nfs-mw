@@ -3,22 +3,27 @@
 //! The map's orientation is not here: it is the `minimap` setting ([`MinimapMode`](super::MinimapMode)).
 //!
 //! Config: the `[hud]` table. The old `hud = true/false` switch shares its key and moves into the table as `enabled` once
-//! the table is written (`config.rs`). A number outside its range is clamped; a value
+//! the table is written (`config.rs`). Console: `set hud.<key> <value>`. A number outside its range is clamped; a value
 //! of the wrong kind is reported and only that key is ignored.
 //!
 //! - `kinds`: the preset, map mode, notification level and palette choices.
 //! - `preset`: the layer each preset puts under the player's own values.
 //! - `config`: reading and writing the `[hud]` table.
+//! - `console`: the `hud.<key>` keys of `get` and `set`.
 
 mod config;
 #[cfg(test)]
 mod config_tests;
+mod console;
+#[cfg(test)]
+mod console_tests;
 mod kinds;
 mod preset;
 #[cfg(test)]
 mod tests;
 
 pub use config::{merge_into, read, read_switch};
+pub use console::{flag, get, is_key, set, syntax};
 pub use kinds::{HudPalette, HudPreset, MapMode, NotificationLevel};
 
 /// HUD scale, a factor of the theme's size (`scale`).

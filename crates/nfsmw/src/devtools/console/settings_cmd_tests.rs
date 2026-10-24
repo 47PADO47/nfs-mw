@@ -290,3 +290,21 @@ fn traffic_population_commands_preserve_independent_range_and_context() {
     assert!(set(&mut s, "traffic_population", "bad").is_err());
     assert_eq!(s, before);
 }
+
+#[test]
+fn the_hud_keys_set_and_read_back() {
+    let mut s = defaults();
+    assert_eq!(get(&s, "hud.map_mode").unwrap(), "hud.map_mode = centered");
+    assert_eq!(set(&mut s, "hud.scale", "1.25").unwrap(), "hud.scale = 1.25");
+    assert_eq!(set(&mut s, "hud.camera_shake", "3").unwrap(), "hud.camera_shake = 1", "clamped");
+    assert_eq!(set(&mut s, "hud.palette", "tritanopia").unwrap(), "hud.palette = tritanopia");
+    assert_eq!(set(&mut s, "hud.haptics", "").unwrap(), "hud.haptics = off", "a switch flips");
+    assert_eq!(set(&mut s, "hud.preset", "minimal").unwrap(), "hud.preset = minimal");
+    assert_eq!(get(&s, "hud.map_mode").unwrap(), "hud.map_mode = compact", "the preset applies at once");
+    assert!(s.hud, "the old hud switch is a separate key");
+    let before = s;
+    assert!(set(&mut s, "hud.map_mode", "huge").is_err());
+    assert!(set(&mut s, "hud.opacity", "lots").is_err());
+    assert_eq!(s, before, "a rejected value changes nothing");
+    assert!(set(&mut s, "hud.map_zoom", "").unwrap_err().starts_with("usage: set hud.map_zoom <0.5-2>"));
+}
