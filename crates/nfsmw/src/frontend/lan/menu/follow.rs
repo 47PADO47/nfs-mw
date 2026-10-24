@@ -7,6 +7,7 @@ use super::cx::Cx;
 use super::{LanMenu, Page};
 use crate::frontend::lan::text::disconnect_text;
 use crate::frontend::lan::{Disconnect, NetStatus};
+use crate::i18n::t;
 
 impl LanMenu {
     /// One frame: `dt` seconds passed. The feed takes the events, a result record opens the results page.
@@ -44,7 +45,7 @@ impl LanMenu {
                 if let Some((addr, name)) = self.browser.last.clone() {
                     self.browser.ask_password(addr, name);
                 }
-                self.error = Some("this game needs a password".into());
+                self.error = Some(t!("lan-browser-needs-password"));
             }
             NetStatus::Disconnected(why) if self.open => {
                 self.error = Some(disconnect_text(why));

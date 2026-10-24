@@ -283,7 +283,7 @@ impl Page<'_, '_> {
                     }
                 }
             }
-            self.text(keys::FONT_BODY, hint.label, keys::TEXT, LABEL_SCALE, (spot.label_x, spot.area.y), false);
+            self.text(keys::FONT_BODY, &hint.label, keys::TEXT, LABEL_SCALE, (spot.label_x, spot.area.y), false);
         }
     }
 

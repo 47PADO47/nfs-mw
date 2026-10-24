@@ -21,7 +21,11 @@ fn view() -> PageView {
         side_title: "Chat".into(),
         side: vec!["Ann: hi".into()],
         error: Some("no port".into()),
-        hints: vec![("Enter", "Select / type"), ("Esc", "Back"), ("Arrows", "Move")],
+        hints: vec![
+            (HintKey::Enter, HintDoes::SelectOrType),
+            (HintKey::Esc, HintDoes::Back),
+            (HintKey::Arrows, HintDoes::Move),
+        ],
     }
 }
 

@@ -4,11 +4,12 @@
 
 use nfsmw_net::client_session::GlobalView;
 use nfsmw_net::frames::PursuitStatus;
-use nfsmw_net::message::Message;
+use nfsmw_net::message::{Message, PursuitEndReason};
 use nfsmw_sim::EntityKind;
 
 use super::super::WorldScene;
 use crate::hud::{HudState, PursuitHud, RaceHud};
+use crate::i18n::{self, Args, t};
 
 /// Minutes in a day (`GlobalBlock::time_of_day` is under this).
 const DAY_MINUTES: f32 = 1_440.0;
@@ -94,14 +95,24 @@ pub fn apply_global(global: &GlobalView, state: &mut HudState) {
 /// The line a gameplay event shows, if it shows one.
 pub fn game_line(message: &Message) -> Option<String> {
     match message {
-        Message::RaceStart(start) => Some(format!("GO! {} racers", start.order.len())),
-        Message::RaceFinish(finish) => Some(format!("Car {} finished in place {}", finish.entity_id, finish.place)),
-        Message::PursuitStart(start) => Some(format!("Pursuit! Heat {}", start.heat)),
-        Message::PursuitEnd(end) => Some(format!("Pursuit over: {:?}", end.reason)),
-        Message::PlayerJoined(joined) => Some(format!("{} joined", joined.name.as_str())),
-        Message::PlayerLeft(left) => Some(format!("Player {} left", u16::from(left.slot) + 1)),
+        Message::RaceStart(start) => Some(t!("lan-net-race-start", racers = start.order.len())),
+        Message::RaceFinish(finish) => Some(t!("lan-net-race-finish", car = finish.entity_id, place = finish.place)),
+        Message::PursuitStart(start) => Some(t!("lan-net-pursuit-start", heat = start.heat)),
+        Message::PursuitEnd(end) => Some(pursuit_end_line(end.reason)),
+        Message::PlayerJoined(joined) => Some(t!("lan-notice-join", who = joined.name.as_str())),
+        Message::PlayerLeft(left) => Some(t!("lan-net-player-left", player = u16::from(left.slot) + 1)),
         _ => None,
     }
+}
+
+/// How a pursuit ended, in words of its own for each way.
+fn pursuit_end_line(reason: PursuitEndReason) -> String {
+    let id = match reason {
+        PursuitEndReason::Busted => "lan-net-pursuit-busted",
+        PursuitEndReason::Evaded => "lan-net-pursuit-evaded",
+        PursuitEndReason::Abandoned => "lan-net-pursuit-abandoned",
+    };
+    i18n::text(id, &Args::new())
 }
 
 #[cfg(test)]

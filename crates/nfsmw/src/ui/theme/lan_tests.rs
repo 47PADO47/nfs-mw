@@ -34,7 +34,7 @@ fn page() -> LanPage {
             first: 0,
             hints: vec![MenuHint {
                 keys: vec![Prompt::Key("Enter".into())],
-                label: "Select / type",
+                label: "Select / type".into(),
                 action: Some(Action::MenuAccept),
             }],
             style: MenuStyle::Sub,

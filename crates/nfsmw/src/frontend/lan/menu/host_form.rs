@@ -5,11 +5,14 @@
 use nfsmw_net::message::{
     MAX_COP_LEVEL, MAX_LAPS, MAX_TRAFFIC_DENSITY, Mode, PLAYERS_RANGE, ServerName, Settings, SettingsPatch,
 };
-use nfsmw_net::settings::has_laps;
+use nfsmw_net::settings::{Field as SettingsField, has_laps};
 
 use super::field::{Field, Typed};
 use super::rows::{Cursor, Row, cycle, nudge};
-use crate::frontend::lan::text::{HOST_MODES, mode_name};
+use crate::frontend::lan::host_options::field_name;
+use crate::frontend::lan::text::{HOST_MODES, game, label, mode_name};
+use crate::i18n::fmt::percent;
+use crate::i18n::t;
 
 /// One track a session can run: its id on the wire (0 is the whole city), its title and the mode it is for (`None`: the
 /// free modes).
@@ -22,7 +25,7 @@ pub struct TrackChoice {
 
 /// The whole city, the track of the free modes (free roam, pursuit co-op, tag).
 pub fn city() -> TrackChoice {
-    TrackChoice { id: 0, title: "Whole city".into(), mode: None }
+    TrackChoice { id: 0, title: t!("lan-track-city"), mode: None }
 }
 
 /// The rows of the form, in order.
@@ -123,7 +126,7 @@ impl HostForm {
     fn track_title(&self) -> String {
         let tracks = self.mode_tracks();
         let found = tracks.iter().find(|track| track.id == self.track);
-        found.map_or_else(|| "none".to_owned(), |track| track.title.clone())
+        found.map_or_else(|| t!("lan-none"), |track| track.title.clone())
     }
 
     /// Whether a text row has the keys.
@@ -138,22 +141,26 @@ impl HostForm {
 
     fn row(&self, item: Item) -> Row {
         match item {
-            Item::Room => Row::text("Room name", self.room.shown(), self.room.editing),
-            Item::Mode => Row::choice("Mode", mode_name(self.mode), true),
-            Item::Track => Row::choice("Track", self.track_title(), self.mode_tracks().len() > 1),
-            Item::Laps => Row::choice("Laps", self.laps.to_string(), has_laps(self.mode)),
-            Item::Traffic => Row::choice("Traffic density", format!("{}%", self.traffic), true),
-            Item::Cops => Row::choice("Police", cops_text(self.cops), true),
-            Item::Players => Row::choice("Player limit", self.players.to_string(), true),
+            Item::Room => Row::text(field_name(SettingsField::Name), self.room.shown(), self.room.editing),
+            Item::Mode => Row::choice(field_name(SettingsField::Mode), mode_name(self.mode), true),
+            Item::Track => {
+                Row::choice(field_name(SettingsField::Track), self.track_title(), self.mode_tracks().len() > 1)
+            }
+            Item::Laps => Row::choice(game(label::LAPS), self.laps.to_string(), has_laps(self.mode)),
+            Item::Traffic => {
+                Row::choice(field_name(SettingsField::TrafficDensity), percent(i64::from(self.traffic)), true)
+            }
+            Item::Cops => Row::choice(field_name(SettingsField::CopLevelCap), cops_text(self.cops), true),
+            Item::Players => Row::choice(field_name(SettingsField::MaxPlayers), self.players.to_string(), true),
             Item::Password if self.password.text.is_empty() && !self.password.editing => {
-                Row::text("Password", "none", false)
+                Row::text(game(label::PASSWORD), t!("lan-none"), false)
             }
-            Item::Password => Row::text("Password", self.password.shown(), self.password.editing),
-            Item::Submit if self.editing_session => Row::action("Apply", true),
+            Item::Password => Row::text(game(label::PASSWORD), self.password.shown(), self.password.editing),
+            Item::Submit if self.editing_session => Row::action(t!("lan-host-apply"), true),
             Item::Submit => {
-                Row::action("Start Hosting", !self.room.value().is_empty() && !self.mode_tracks().is_empty())
+                Row::action(t!("lan-host-start"), !self.room.value().is_empty() && !self.mode_tracks().is_empty())
             }
-            Item::Back => Row::action("Back", true),
+            Item::Back => Row::action(game(label::BACK), true),
         }
     }
 
@@ -272,8 +279,8 @@ fn track_mode(mode: Mode) -> Option<Mode> {
 
 fn cops_text(cap: u8) -> String {
     match cap {
-        0 => "Off".into(),
-        heat => format!("Up to heat {heat}"),
+        0 => game(label::OFF),
+        heat => t!("lan-host-heat", heat = heat),
     }
 }
 

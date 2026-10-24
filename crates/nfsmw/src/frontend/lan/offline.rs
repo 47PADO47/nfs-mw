@@ -9,9 +9,12 @@ use nfsmw_net::netsim::NetSim;
 use nfsmw_net::netstats::NetLine;
 
 use super::backend::{Disconnect, HostOptions, LeadInfo, NetFrontend, NetStatus, ServerEntry};
+use crate::i18n::t;
 
 /// What the menu says when host or join is tried.
-pub const NO_NETWORK: &str = "LAN play is not available in this run";
+pub fn no_network() -> String {
+    t!("lan-unavailable")
+}
 
 /// No network: every command is refused.
 #[derive(Debug, Default)]
@@ -22,7 +25,7 @@ pub struct Offline {
 impl NetFrontend for Offline {
     fn status(&self) -> NetStatus {
         match self.failed {
-            true => NetStatus::Disconnected(Disconnect::Failed(NO_NETWORK.into())),
+            true => NetStatus::Disconnected(Disconnect::Failed(no_network())),
             false => NetStatus::Idle,
         }
     }
@@ -35,12 +38,12 @@ impl NetFrontend for Offline {
 
     fn host(&mut self, _options: HostOptions) -> Result<(), String> {
         self.failed = true;
-        Err(NO_NETWORK.into())
+        Err(no_network())
     }
 
     fn connect(&mut self, _addr: SocketAddr, _password: Option<&str>) -> Result<(), String> {
         self.failed = true;
-        Err(NO_NETWORK.into())
+        Err(no_network())
     }
 
     fn leave(&mut self) {
@@ -114,6 +117,6 @@ impl NetFrontend for Offline {
     }
 
     fn set_net_sim(&mut self, _sim: NetSim) -> Result<(), String> {
-        Err(NO_NETWORK.into())
+        Err(no_network())
     }
 }

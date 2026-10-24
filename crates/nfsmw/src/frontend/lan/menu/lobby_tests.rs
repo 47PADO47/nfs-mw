@@ -42,14 +42,16 @@ fn the_roster_shows_badges_car_ready_and_ping() {
     assert_eq!(rows[2].label, "Bob  [admin]  [muted]");
     assert_eq!(rows[2].value, "SL65  not ready  12 ms");
     let names = labels(&LobbyPage::default(), &net);
-    assert_eq!(names[3..], ["Ready", "Car", "Role", "Say", "Quick message", "Vote to restart", "Leave"]);
+    let ready = game(label::READY);
+    assert_eq!(names[3..], [ready.as_str(), "Car", "Role", "Say", "Quick message", "Vote to restart", "Leave"]);
 }
 
 #[test]
 fn ready_role_and_car_send_or_ask() {
     let mut net = MockNetFrontend::in_lobby(&["Host", "Me"], 1);
     let mut page = LobbyPage::default();
-    accept(&mut page, &mut net, "Ready");
+    // The game's label: empty in the tests (no string table), and the first row without text.
+    accept(&mut page, &mut net, &game(label::READY));
     accept(&mut page, &mut net, "Role");
     assert_eq!(net.take_calls(), [Call::Ready(true), Call::Role(nfsmw_net::message::Role::Spectator)]);
     let settings = settings();
@@ -139,9 +141,10 @@ fn the_player_menu_mutes_locally_votes_and_for_the_host_kicks_mutes_and_bans() {
     let mut mutes = LocalMutes::new();
     let mut menu = PlayerMenu::new(1);
     let rows: Vec<String> = menu.rows(net.lobby().unwrap(), &mutes).into_iter().map(|r| r.label).collect();
+    let back = game(label::BACK);
     assert_eq!(
         rows,
-        ["Whisper", "Mute for me", "Vote to kick", "Kick", "Mute in session", "Ban for 10 minutes", "Back"]
+        ["Whisper", "Mute for me", "Vote to kick", "Kick", "Mute in session", "Ban for 10 minutes", back.as_str()]
     );
     let settings = settings();
     for at in 1..6 {
@@ -194,12 +197,14 @@ fn the_host_holds_everyone_from_the_lobby() {
     let mut net = MockNetFrontend::in_lobby(&["Host", "Ann"], 0);
     let mut page = LobbyPage::default();
     let rows = page.rows(net.lobby().unwrap(), &[], "-");
-    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "No");
+    assert!(!held(net.lobby().unwrap()));
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, game(label::NO));
     accept(&mut page, &mut net, "Everyone wait");
     assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: true })]);
     net.lobby.as_mut().unwrap().players[0].flags |= nfsmw_net::lobby::FLAG_HOLD;
+    assert!(held(net.lobby().unwrap()));
     let rows = page.rows(net.lobby().unwrap(), &[], "-");
-    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, "Yes");
+    assert_eq!(rows.iter().find(|row| row.label == "Everyone wait").unwrap().value, game(label::YES));
     assert!(!rows.iter().find(|row| row.label == "Start race").unwrap().enabled, "a hold stops the start");
     accept(&mut page, &mut net, "Everyone wait");
     assert_eq!(net.take_calls(), [Call::Admin(AdminCommand::Hold { on: false })]);
