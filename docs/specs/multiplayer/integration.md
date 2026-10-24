@@ -55,7 +55,7 @@ so the tests run the same endpoints over loopback sockets and over the seeded lo
 soak (one server, N clients, one process).
 
 **Not built here:** the server loop with its fixed-step timer (that is `nfsmw-server` or the listen server's thread, which drains
-`ServerEvent`s); path validation (a peer that changes address is dropped, not migrated); 256 KiB socket buffers and address reuse
+`ServerEvent`s); 256 KiB socket buffers and address reuse
 on the discovery port (they need `socket2`); listing the host's interfaces for the discovery source filter (the caller passes the
 subnets; the default is the private ranges). Broadcast itself is not exercised by the tests, which send discovery to `127.0.0.1`.
 
@@ -144,7 +144,7 @@ only and has every module that needs no crate (`bits`, `link`, `conn`, `replicat
 any crypto. Feature `netcode` (implies `handoff`) adds the `secure` module: `snow`, `chacha20poly1305`, `blake2`, `sha2`,
 `subtle`, `zeroize`, `getrandom` and `spake2`. `socket2`, `postcard` and `serde` are not needed yet and are not pulled.
 `deny.toml` now sets `all-features = true`, so `cargo deny check` covers the `netcode` crates without a flag (it passed on
-2026-10-22). What `secure` contains and what is not built yet (path validation): [protocol-handshake](protocol-handshake.md)
+2026-10-22). What `secure` contains and what is not built yet: [protocol-handshake](protocol-handshake.md)
 and [security](security.md) section 8. Feature `netcode` also holds `endpoint`, the net thread of section 1; it needs no new crate,
 because `std::net::UdpSocket` covers blocking reads with a timeout and broadcast. `socket2` stays out until the 256 KiB buffers of
 [operations security](security-ops.md) section 2.1 or address reuse are wanted.

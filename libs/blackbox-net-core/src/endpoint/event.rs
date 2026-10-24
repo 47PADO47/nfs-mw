@@ -55,6 +55,14 @@ pub enum ServerEvent {
         /// The Noise handshake hash the room password is bound to; all zero for a local peer.
         handshake_hash: [u8; 32],
     },
+    /// A peer's packets now come from `addr`: it answered a path challenge there (a NAT rebinding or a roaming device).
+    /// The connection sends to the new address from now on.
+    PathChanged {
+        /// The peer.
+        peer: PeerId,
+        /// The address it was proved at.
+        addr: SocketAddr,
+    },
     /// A peer is gone; commands naming it are ignored from now on.
     Disconnected {
         /// The peer.

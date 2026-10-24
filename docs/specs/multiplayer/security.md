@@ -369,7 +369,7 @@ In `libs/blackbox-net-core`, module `secure` (feature `netcode`), sans-IO; byte 
 | S-05 room password | Built: symmetric SPAKE2 with the handshake hash as identity, role-specific confirmation tags; experimental (no known audit of `spake2`). both ends feed `message::password_secret` (NFKC) to it |
 | S-06 connect tokens | Built on the server side and for minting: XChaCha20-Poly1305, two `kid`s, every check of 4.8, single use in a bounded table |
 | 4.6 guess limits, auth failures | Built: `ratelimit::FailureRule::PASSWORD` and `AUTH` |
-| Path validation (4.4) | Not built: `PATH_CHALLENGE` frames are still skipped |
+| Path validation (4.4) | Built: a packet from a new address that opens under the peer's keys with a new number is taken in, the server keeps sending to the old address and asks the new one with `PATH_CHALLENGE` (3 tries, 250 ms apart, one candidate at a time, 1 s quiet after each); the answer from that address moves the peer |
 | Accounts (5), result signing, OS credential store | Not built (milestone 11) |
 
 Licences checked with `cargo deny check licenses` and `all-features = true` on 2026-10-22: `snow`, `chacha20poly1305`,

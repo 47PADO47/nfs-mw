@@ -28,6 +28,7 @@ impl<W: WorldControl> Server<W> {
                 ServerEvent::Connected { peer, key, addr, local, handshake_hash } => {
                     self.on_connected(peer, key, addr, local, handshake_hash)
                 }
+                ServerEvent::PathChanged { peer, addr } => log::info!("connection {}: now at {addr}", peer.0),
                 ServerEvent::Disconnected { peer, reason } => self.on_disconnected(peer, reason),
                 ServerEvent::Reliable { peer, bytes, .. } => self.on_reliable(peer, &bytes),
                 ServerEvent::Unreliable { peer, frame_type, bytes } => self.on_unreliable(peer, frame_type, &bytes),

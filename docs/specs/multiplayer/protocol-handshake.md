@@ -90,8 +90,6 @@ keys with `snow`'s raw split.
 
 ## 6. Not built yet
 
-- Path validation: `PATH_CHALLENGE` and `PATH_RESPONSE` (`0x12`, `0x13`) are still skipped by `conn`, so a sealed packet from a
-  new address is accepted but nothing yet holds back bulk data until a challenge is answered.
 - The `Auth` message, its 5 s deadline and the resume token: game protocol, in `nfsmw-net`.
 - Carrying the connect token and the PAKE messages on the control channel: the library opens and checks them
   (`secure::token`, `secure::password`); the game sends them.

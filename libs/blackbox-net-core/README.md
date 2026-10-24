@@ -31,7 +31,7 @@ Handshake and sealing as built: [protocol-handshake](../../docs/specs/multiplaye
 
 The net thread as built: [integration](../../docs/specs/multiplayer/integration.md) section 1.
 
-Not here yet: path validation (`PATH_CHALLENGE`), socket buffer sizes and address reuse (no `socket2`), and everything
+Not here yet: socket buffer sizes and address reuse (no `socket2`), and everything
 game-specific (schemas, prediction, the server loop, the `Auth` message). They come in later steps of milestone 10.
 
 ```sh

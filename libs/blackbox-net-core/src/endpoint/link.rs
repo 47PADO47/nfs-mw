@@ -4,9 +4,11 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 
+use super::path::PathProbe;
 use super::stats::PeerStats;
 use crate::conn::{
-    ConnError, ConnEvent, Connection, FRAME_DISCONNECT, FRAME_PADDING, FRAME_RELIABLE, FRAME_SPACE, HEADER_LEN, Sealer,
+    ConnError, ConnEvent, Connection, FRAME_DISCONNECT, FRAME_PADDING, FRAME_RELIABLE, FRAME_SPACE, HEADER_LEN,
+    PATH_TOKEN_LEN, Sealer,
 };
 use crate::ratelimit::PeerBudget;
 use crate::session::PeerId;
@@ -49,12 +51,16 @@ struct Pending {
 pub(crate) struct PeerLink {
     conn: DynConnection,
     addr: SocketAddr,
+    /// The address the handshake ran with: what the pre-authentication gate counted this connection against, which a
+    /// move to another address does not change.
+    admitted: SocketAddr,
     local_id: u16,
     budget: Option<PeerBudget>,
     unreliable: Vec<Pending>,
     tags: VecDeque<(u32, u32)>,
     ack_wanted: bool,
     confirm_next_ms: Option<u64>,
+    path: PathProbe,
 }
 
 impl PeerLink {
@@ -70,18 +76,25 @@ impl PeerLink {
         Self {
             conn,
             addr,
+            admitted: addr,
             local_id,
             budget,
             unreliable: Vec::new(),
             tags: VecDeque::new(),
             ack_wanted: false,
             confirm_next_ms: confirm.then_some(0),
+            path: PathProbe::default(),
         }
     }
 
     /// The peer's address.
     pub(crate) fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// The address the handshake ran with, for the gate's per-address count when the connection ends.
+    pub(crate) fn admitted_addr(&self) -> SocketAddr {
+        self.admitted
     }
 
     /// The connection id this side answers to.
@@ -125,6 +138,31 @@ impl PeerLink {
         }
         self.unreliable.push(Pending { frame_type, bytes, tag });
         true
+    }
+
+    /// Whether a packet from an address the peer is not at may be opened now (path validation's cheap limit).
+    pub(crate) fn admit_foreign(&mut self, now_ms: u64) -> bool {
+        self.path.admit_foreign(now_ms)
+    }
+
+    /// An authenticated packet came from `from`, not the peer's address: asks `from` to prove itself, and moves the
+    /// peer there if the packet itself carried the answer to an earlier challenge. Returns whether the peer moved.
+    pub(crate) fn path_heard_from(&mut self, now_ms: u64, from: SocketAddr) -> bool {
+        if let Some(token) = self.conn.take_path_response()
+            && self.path.confirm(now_ms, from, &token)
+        {
+            self.addr = from;
+            return true;
+        }
+        self.path.offer(now_ms, from, new_token);
+        false
+    }
+
+    /// The challenge due for a candidate address, written into `out`: the address and the packet's length.
+    pub(crate) fn path_challenge(&mut self, now_ms: u64, out: &mut [u8]) -> Option<(SocketAddr, usize)> {
+        let (addr, token) = self.path.probe_due(now_ms)?;
+        let sent = self.conn.write_path_challenge(now_ms, &token, out).ok()?;
+        Some((addr, sent.len))
     }
 
     /// Takes in one datagram (opened in place). Unreliable frames go to `on_frame`; messages and events wait for
@@ -288,6 +326,13 @@ impl PeerLink {
         self.unreliable = pending;
         sent_any
     }
+}
+
+/// A fresh path token, `None` if the system has no randomness.
+fn new_token() -> Option<[u8; PATH_TOKEN_LEN]> {
+    let mut token = [0u8; PATH_TOKEN_LEN];
+    getrandom::fill(&mut token).ok()?;
+    Some(token)
 }
 
 /// Bytes of a frame with a `len`-byte payload: type, the LEB128 length, the payload.
