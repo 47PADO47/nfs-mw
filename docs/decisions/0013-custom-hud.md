@@ -67,7 +67,10 @@ disturbing Remastered or Original, without a second draw path, and without inven
 9. **A `[hud]` settings table** (PR 2) carries the presets (Minimal, Balanced, Advanced), scale, opacity, text size, the
    map, the information toggles, the notification filter, accessibility (high contrast, colour-vision palettes, motion
    reduction), camera shake and FOV multipliers, haptics and a HUD volume. It goes through the existing layered settings
-   and the per-key TOML merge, so an old config without the table loads with the defaults.
+   and the per-key TOML merge, so an old config without the table loads with the defaults. TOML cannot hold the
+   existing top-level `hud = true | false` key beside a `[hud]` table, so that switch moves into the table as
+   `[hud] enabled`; the reader still accepts the old boolean and the writer replaces it
+   ([settings.md](../specs/custom-hud/settings.md) section 4).
 10. **Never invent data.** A metric the game does not compute is hidden, not faked. Optional data is `Option` and hides
     its widget when absent. The list of what is not shown, and why, is part of the spec.
 
