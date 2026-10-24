@@ -152,6 +152,22 @@ impl ReflectionCapture {
 }
 
 impl Renderer {
+    /// The edge of a cube face at `quality` under the current resolution setting and output size.
+    fn reflection_cube_size(&self, quality: ReflectionQuality) -> u32 {
+        let (_, output_height) = self.surface_size();
+        self.graphics.reflection_resolution.cube_face(
+            quality.size(),
+            output_height,
+            blackbox_gfx::reflection::PLANAR_MAX,
+        )
+    }
+
+    /// Whether the next capture at `quality` starts a fresh cube, which is drawn whole whatever faces are asked for.
+    pub(super) fn reflection_cube_is_fresh(&self, quality: ReflectionQuality) -> bool {
+        let size = self.reflection_cube_size(quality);
+        self.reflections.as_ref().is_none_or(|capture| capture.size != size)
+    }
+
     pub(super) fn capture_reflections(
         &mut self,
         scene: Option<ReflectionScene<'_>>,
@@ -165,12 +181,7 @@ impl Renderer {
             }
             return;
         };
-        let (_, output_height) = self.surface_size();
-        let size = self.graphics.reflection_resolution.cube_face(
-            scene.quality.size(),
-            output_height,
-            blackbox_gfx::reflection::PLANAR_MAX,
-        );
+        let size = self.reflection_cube_size(scene.quality);
         let (mut capture, created) = match self.reflections.take().filter(|p| p.size == size) {
             Some(capture) => (capture, false),
             None => {

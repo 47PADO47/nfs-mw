@@ -23,6 +23,8 @@ impl Renderer {
             self.capture_reflections(None, None);
             return;
         };
+        // Only the faces the capture draws are read. A fresh cube draws all of them, so then all are kept.
+        let fresh = self.reflection_cube_is_fresh(scene.quality);
         let pending = self.pending_reflections.get_or_insert_with(|| Pending {
             ready: false,
             shadows: false,
@@ -43,7 +45,10 @@ impl Renderer {
         pending.quality = scene.quality;
         pending.fade = scene.fade_distance;
         pending.frame = scene.frame;
-        for (stored, face) in pending.faces.iter_mut().zip(scene.faces) {
+        for (index, (stored, face)) in pending.faces.iter_mut().zip(scene.faces).enumerate() {
+            if !fresh && (scene.refresh >> index) & 1 == 0 {
+                continue;
+            }
             stored.clear();
             stored.extend_from_slice(face);
         }
