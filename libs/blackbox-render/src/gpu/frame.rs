@@ -1,11 +1,12 @@
 //! Drawing a frame: the scene straight into the surface, or into an offscreen image that the
-//! post-process chain then writes to the surface, then the UI over it.
+//! post-process chain then writes to the surface, then the UI over it. The surface image is acquired as late as the
+//! frame allows (see `acquire.rs`).
 
 use super::Renderer;
+use super::acquire::{Acquired, FrameOutput, Recorded};
 use super::cull::Face;
 use super::draw_list::drawn_here;
 use super::draw_list::instance_view::upload_view;
-use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
 use super::targets::SceneTargets;
@@ -24,59 +25,36 @@ impl Renderer {
             self.presentation.render_start();
             self.prepare_generation(frame);
         }
-        let acquire_started = std::time::Instant::now();
-        let acquire_trace = blackbox_trace::scope("Wait: acquire surface");
-        let (surface_texture, view) = match &self.output {
-            #[cfg(all(windows, feature = "streamline"))]
-            Output::Window { dx12: Some(native), .. } => (None, native.view()?),
-            Output::Window { surface, config, .. } => {
-                let acquired = surface.get_current_texture();
-                blackbox_trace::global().counter(
-                    "Surface acquisition",
-                    &[("elapsed_ms", acquire_started.elapsed().as_secs_f64() * 1000.0)],
-                );
-                let outcome = match &acquired {
-                    wgpu::CurrentSurfaceTexture::Success(_) => "success",
-                    wgpu::CurrentSurfaceTexture::Suboptimal(_) => "suboptimal",
-                    wgpu::CurrentSurfaceTexture::Timeout => "timeout",
-                    wgpu::CurrentSurfaceTexture::Occluded => "occluded",
-                    wgpu::CurrentSurfaceTexture::Outdated => "outdated",
-                    wgpu::CurrentSurfaceTexture::Lost => "lost",
-                    wgpu::CurrentSurfaceTexture::Validation => "validation",
-                };
-                if outcome != "success" {
-                    blackbox_trace::global().note(
-                        "Surface acquisition outcome",
-                        &format!(
-                            "{outcome}; present_mode={:?}; {}x{}",
-                            config.present_mode, config.width, config.height
-                        ),
-                    );
+        // The window's image is acquired once the work for the renderer's own images is recorded when the frame
+        // allows it (see `acquire.rs`), else now, before anything is recorded.
+        let late = self.acquires_late();
+        let early = match late {
+            true => None,
+            false => match self.acquire_output()? {
+                Some(acquired) => Some(acquired),
+                None => {
+                    self.flush_captures();
+                    return Ok(false);
                 }
-                let texture = match acquired {
-                    wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-                    wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(false),
-                    wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                        #[cfg(all(windows, feature = "streamline"))]
-                        if self.dlss.is_some() {
-                            self.presentation.suspend(&self.device);
-                        }
-                        surface.configure(&self.device, config);
-                        return Ok(false);
-                    }
-                    #[allow(unreachable_patterns)]
-                    other => return Err(RenderError::Surface(format!("{other:?}"))),
-                };
-                let view = texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
-                (Some(texture), view)
-            }
-            Output::Texture { texture, .. } => (None, texture.create_view(&wgpu::TextureViewDescriptor::default())),
+            },
         };
-        self.performance.acquire_wait_ms = acquire_started.elapsed().as_secs_f32() * 1000.0;
-        drop(acquire_trace);
         let submit_started = std::time::Instant::now();
-        self.submit_frame(None, &view, self.surface_size(), frame, instances);
-        self.performance.cpu_render_ms = submit_started.elapsed().as_secs_f32() * 1000.0;
+        let output = match &early {
+            Some(acquired) => FrameOutput::View(acquired.view()),
+            None => FrameOutput::Surface,
+        };
+        let recorded = self.record_frame(None, output, self.surface_size(), frame, instances)?;
+        let presented = match recorded {
+            Recorded::Given => early,
+            Recorded::Acquired(acquired) => Some(acquired),
+            Recorded::Skipped => return Ok(false),
+        };
+        // A late acquire waited in the middle of the recording; that wait is not recording time.
+        let waited = match late {
+            true => self.performance.acquire_wait_ms,
+            false => 0.0,
+        };
+        self.performance.cpu_render_ms = (submit_started.elapsed().as_secs_f32() * 1000.0 - waited).max(0.0);
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             self.presentation.marker(3);
@@ -85,14 +63,14 @@ impl Renderer {
         let present_started = std::time::Instant::now();
         let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
         #[cfg(all(windows, feature = "streamline"))]
-        if let Output::Window { dx12: Some(native), config, .. } = &self.output {
+        if let super::output::Output::Window { dx12: Some(native), config, .. } = &self.output {
             native.present(
                 &self.device,
                 &self.queue,
                 matches!(config.present_mode, wgpu::PresentMode::AutoVsync | wgpu::PresentMode::Fifo),
             )?;
         }
-        match surface_texture {
+        match presented.and_then(Acquired::into_surface) {
             Some(t) => self.queue.present(t),
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),

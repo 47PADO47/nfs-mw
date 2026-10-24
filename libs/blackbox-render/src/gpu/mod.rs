@@ -1,5 +1,6 @@
 //! The wgpu implementation of the renderer (Vulkan, Direct3D 12, OpenGL).
 
+mod acquire;
 mod activity;
 mod adapters;
 pub(crate) mod ao;
@@ -164,6 +165,8 @@ pub struct Renderer {
     screen_control_off: bool,
     /// Captures recorded before the frame that go out in its submission (see `queued.rs`).
     queued_captures: queued::QueuedCaptures,
+    /// The window had no image for the last frame (minimised, resized): the next one acquires before recording.
+    surface_missed: bool,
 }
 
 impl Renderer {
