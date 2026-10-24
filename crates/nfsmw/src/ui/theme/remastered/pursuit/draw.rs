@@ -4,10 +4,15 @@
 use blackbox_ui::{Component, LayoutCx, LinearProgress, Panel, Rect, Text, Trapezoid, justify};
 
 use super::super::skin::keys;
-use super::{meter, time_parts};
-use crate::hud::PursuitHud;
+use super::{Side, meter, time_parts};
+use crate::hud::{PursuitHud, game_word};
+use crate::i18n::fmt::percent;
+use crate::i18n::t;
 use crate::ui::raster_text::{RASTER_TIMER_FONT_KEY, width_units};
 use crate::ui::theme::custom::DriveFeed;
+
+/// The language label of the cool-down bar: `HUD_COOLDOWN`.
+const LABEL_COOLDOWN: u32 = 0x5E18_D044;
 
 /// Shrinks (or grows) the whole panel about its top-right corner: every size, offset and text scale below is in terms of it,
 /// while the anchor (`RIGHT`, `PLATE_TOP`) and the gradient ratios stay put. One at the design size; lower for a smaller panel.
@@ -73,7 +78,7 @@ pub(super) fn parts(feed: &DriveFeed, pursuit: &PursuitHud, cx: &LayoutCx<'_>) -
         Rect::new((foot + plate.max_x()) / 2.0, plate.min_y() + EDGE_LINE / 2.0, plate.max_x() - foot, EDGE_LINE),
     );
     let side =
-        if signed.is_some_and(|(label, _)| label == "BUSTED") { keys::PURSUIT_BUSTED } else { keys::UNIT_HIGHLIGHT };
+        if signed.is_some_and(|(side, _)| side == Side::Busted) { keys::PURSUIT_BUSTED } else { keys::UNIT_HIGHLIGHT };
     line(side, Rect::new(plate.max_x() - SIDE_BAR / 2.0, plate.y, SIDE_BAR, height));
 
     // The timer's right edge is the plate's less the inset; the hundredths take their width from it and the rest ends where
@@ -93,22 +98,23 @@ pub(super) fn parts(feed: &DriveFeed, pursuit: &PursuitHud, cx: &LayoutCx<'_>) -
         (edge - cents_width, at(TIMER_Y)),
         Align::Right,
     ));
-    parts.push(text(cx, "PURSUIT TIME", keys::VALUE, keys::FONT_MENU, LABEL_SCALE, (edge, at(LABEL_Y)), Align::Right));
+    let caption = t!("hud-pursuit-time-label").to_uppercase();
+    parts.push(text(cx, &caption, keys::VALUE, keys::FONT_MENU, LABEL_SCALE, (edge, at(LABEL_Y)), Align::Right));
 
     // The cop cars: called, damaged, wrecked.
     let content = (plate.min_x() + SLANT + FOOT_INSET, edge);
     let cell = (content.1 - content.0) / 3.0;
     let counts = [
-        ("CALLED", feed.cops_engaged, keys::PURSUIT_CALLED),
-        ("DAMAGED", feed.cops_damaged, keys::PURSUIT_DAMAGED),
-        ("WRECKED", pursuit.cops_destroyed, keys::PURSUIT_WRECKED),
+        (t!("hud-pursuit-called"), feed.cops_engaged, keys::PURSUIT_CALLED),
+        (t!("hud-pursuit-damaged"), feed.cops_damaged, keys::PURSUIT_DAMAGED),
+        (t!("hud-pursuit-wrecked"), pursuit.cops_destroyed, keys::PURSUIT_WRECKED),
     ];
     for (i, (label, count, colour)) in counts.into_iter().enumerate() {
         let x = content.0 + cell * (i as f32 + 0.5);
         let y = top + HEAD;
         parts.push(text(
             cx,
-            label,
+            &label.to_uppercase(),
             keys::UNIT,
             keys::FONT_MENU,
             COUNT_LABEL_SCALE,
@@ -129,13 +135,14 @@ pub(super) fn parts(feed: &DriveFeed, pursuit: &PursuitHud, cx: &LayoutCx<'_>) -
 
     // The bars of the chase's end, one under the other.
     let mut row = top + HEAD + COUNTS_HEIGHT;
-    if let Some((label, fill)) = signed {
-        let key = if label == "BUSTED" { keys::PURSUIT_BUSTED } else { keys::UNIT_HIGHLIGHT };
-        bar(&mut parts, cx, label, key, fill, content, row);
+    if let Some((side, fill)) = signed {
+        let key = if side == Side::Busted { keys::PURSUIT_BUSTED } else { keys::UNIT_HIGHLIGHT };
+        bar(&mut parts, cx, &side.label(), key, fill, content, row);
         row += BAR_ROW;
     }
     if cooling {
-        bar(&mut parts, cx, "COOLDOWN", keys::VALUE, pursuit.evade, content, row);
+        let label = game_word(LABEL_COOLDOWN, "COOLDOWN").to_uppercase();
+        bar(&mut parts, cx, &label, keys::VALUE, pursuit.evade, content, row);
     }
     parts
 }
@@ -151,7 +158,7 @@ fn bar(
     row: f32,
 ) {
     parts.push(text(cx, label, colour, keys::FONT_MENU, BAR_LABEL_SCALE, (content.0, row + BAR_LABEL_Y), Align::Left));
-    let share = format!("{}%", (fill.clamp(0.0, 1.0) * 100.0).round() as u32);
+    let share = percent((fill.clamp(0.0, 1.0) * 100.0).round() as i64);
     parts.push(text(
         cx,
         &share,

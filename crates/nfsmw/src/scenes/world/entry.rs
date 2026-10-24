@@ -14,6 +14,7 @@ use super::players::{LEAD, PlayerId};
 use super::road::Spawn;
 use super::{View, WorldScene};
 use crate::hud::{InteractPopup, Prompt};
+use crate::i18n::t;
 use crate::input::{Action, ActionState};
 use crate::modding::content::interior::ModInterior;
 use crate::modding::content::interior::machine::{Clock, Command, Machine, Plan, Snapshot, traffic_while_inside};
@@ -66,7 +67,7 @@ impl WorldScene {
             Ok(line) => log::info!("race: {line}"),
             Err(why) => {
                 log::warn!("race {name}: {why}");
-                let card = Prompt { title: "Race".to_string(), line: why };
+                let card = Prompt { title: t!("hud-entry-race"), line: why };
                 self.entry.popup.flash(card, PLACEHOLDER_SECS);
             }
         }
@@ -216,7 +217,7 @@ impl WorldScene {
                 Command::Notice(line) => {
                     self.entry
                         .popup
-                        .flash(Prompt { title: "Interior".to_string(), line: line.to_string() }, PLACEHOLDER_SECS);
+                        .flash(Prompt { title: t!("hud-entry-interior"), line: line.to_string() }, PLACEHOLDER_SECS);
                 }
             }
         }
@@ -291,13 +292,13 @@ impl WorldScene {
 
 /// The entry card of a mod interior: its label, and its line (the manifest's, or the game's).
 fn interior_prompt(interior: &ModInterior) -> Prompt {
-    let line = interior.prompt.clone().unwrap_or_else(|| "Press Enter to go in".to_string());
+    let line = interior.prompt.clone().unwrap_or_else(|| t!("hud-entry-go-in"));
     Prompt { title: interior.label.clone(), line }
 }
 
 /// The exit card of a mod interior.
 fn exit_prompt(exit: &Exit, label: &str) -> Prompt {
-    let line = exit.prompt.clone().unwrap_or_else(|| "Press Enter to leave".to_string());
+    let line = exit.prompt.clone().unwrap_or_else(|| t!("hud-entry-leave"));
     Prompt { title: label.to_string(), line }
 }
 
@@ -337,14 +338,30 @@ fn enter_wanted(input: &ActionState, popup: &InteractPopup, in_zone: bool) -> bo
 
 /// The card's text for a zone.
 fn prompt_for(kind: ZoneKind) -> Prompt {
-    Prompt { title: capitalise(kind.label()), line: "Press Enter to go in".to_string() }
+    Prompt { title: place_name(kind), line: t!("hud-entry-go-in") }
+}
+
+/// The name of a kind of place, as a card's heading.
+fn place_name(kind: ZoneKind) -> String {
+    match kind {
+        ZoneKind::AutoShop => t!("hud-entry-auto-shop"),
+        ZoneKind::SafeHouse => t!("hud-entry-safe-house"),
+        ZoneKind::CarLot => t!("hud-entry-car-lot"),
+        ZoneKind::Race => t!("hud-entry-race"),
+    }
 }
 
 /// The stub destination: log the entry and flash the placeholder. Replace with the real entry (a race, the safe house
 /// or the auto shop) when those exist.
 fn enter_stub(popup: &mut InteractPopup, kind: ZoneKind, name: &str) {
     log::info!("entering {} {name} (stub: the destination is not built yet)", kind.label());
-    let placeholder = Prompt { title: format!("Entering {}", kind.label()), line: "Not built yet".to_string() };
+    let title = match kind {
+        ZoneKind::AutoShop => t!("hud-entry-entering-auto-shop"),
+        ZoneKind::SafeHouse => t!("hud-entry-entering-safe-house"),
+        ZoneKind::CarLot => t!("hud-entry-entering-car-lot"),
+        ZoneKind::Race => t!("hud-entry-entering-race"),
+    };
+    let placeholder = Prompt { title, line: t!("hud-entry-not-built") };
     popup.flash(placeholder, PLACEHOLDER_SECS);
 }
 
@@ -352,17 +369,8 @@ fn enter_stub(popup: &mut InteractPopup, kind: ZoneKind, name: &str) {
 /// locked (`career-blacklist.md` section 2). The original's label is not in the spec; this one is a stand-in.
 fn flash_locked(popup: &mut InteractPopup, name: &str) {
     log::info!("career: race {name} is locked");
-    let card = Prompt { title: "Race locked".to_string(), line: "Not open yet".to_string() };
+    let card = Prompt { title: t!("hud-entry-race-locked"), line: t!("hud-entry-not-open") };
     popup.flash(card, PLACEHOLDER_SECS);
-}
-
-/// Upper-case the first letter of a label.
-fn capitalise(label: &str) -> String {
-    let mut chars = label.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
 }
 
 #[cfg(test)]
@@ -376,7 +384,7 @@ mod tests {
         assert_eq!(prompt_for(ZoneKind::AutoShop).title, "Auto shop");
         assert_eq!(prompt_for(ZoneKind::SafeHouse).title, "Safe house");
         assert_eq!(prompt_for(ZoneKind::Race).title, "Race");
-        assert_eq!(capitalise(""), "");
+        assert_eq!(prompt_for(ZoneKind::CarLot).title, "Car lot");
     }
 
     /// Input with Interact pressed this frame (`pressed`) or not, after a frame with nothing down.

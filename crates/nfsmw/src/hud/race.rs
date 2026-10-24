@@ -25,6 +25,8 @@ const LABEL_LAP: u32 = 0x0000_BF9C;
 /// The countdown group and the two strings of its text (the shadow and the face).
 const COUNT_GROUP: &str = "321_GO_GROUP";
 const COUNT_TEXT: [u32; 2] = [0xB969_E9EF, 0x2DA2_20AA];
+/// The language label of the countdown's last step (`HUD_GO`).
+const LABEL_GO: u32 = 0x6122_3AB5;
 
 /// Where the countdown is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,22 +48,22 @@ impl Count {
         })
     }
 
-    fn text(self) -> &'static str {
+    /// The step's text: the number, or the language's GO (`HUD_GO`).
+    pub fn text(self) -> String {
         match self {
-            Count::Three => "3",
-            Count::Two => "2",
-            Count::One => "1",
-            Count::Go => "Go!",
+            Count::Three => "3".to_owned(),
+            Count::Two => "2".to_owned(),
+            Count::One => "1".to_owned(),
+            Count::Go => crate::i18n::game_or_error(LABEL_GO),
         }
     }
 
-    /// The step a banner text names (`3`, `2`, `1`, `GO`).
-    pub fn from_banner(text: &str) -> Option<Self> {
-        match text {
-            "3" => Some(Count::Three),
-            "2" => Some(Count::Two),
-            "1" => Some(Count::One),
-            "GO" => Some(Count::Go),
+    /// The step of a countdown number the race raises (3, 2, 1); `None` for any other number.
+    pub fn from_number(n: u32) -> Option<Self> {
+        match n {
+            3 => Some(Count::Three),
+            2 => Some(Count::Two),
+            1 => Some(Count::One),
             _ => None,
         }
     }
@@ -252,10 +254,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_banner_names_the_countdown_steps() {
-        assert_eq!(Count::from_banner("3"), Some(Count::Three));
-        assert_eq!(Count::from_banner("GO"), Some(Count::Go));
-        assert_eq!(Count::from_banner("Finished"), None);
+    fn the_race_numbers_name_the_countdown_steps() {
+        assert_eq!(Count::from_number(3), Some(Count::Three));
+        assert_eq!(Count::from_number(1), Some(Count::One));
+        assert_eq!(Count::from_number(4), None);
     }
 
     #[test]

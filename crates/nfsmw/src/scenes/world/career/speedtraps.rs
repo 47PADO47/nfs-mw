@@ -7,7 +7,8 @@ use nfsmw_career::economy::cash::award_player_bounty;
 use nfsmw_career::milestones::speedtrap::Crossing;
 use nfsmw_career::phone::{BinMoment, bin_messages};
 
-use crate::hud::{MapBlip, ModMessageTone, RACE_SPEEDTRAP, set_mod_message};
+use crate::hud::{LABEL_KMH, MapBlip, ModMessageTone, RACE_SPEEDTRAP, game_word, set_mod_message};
+use crate::i18n::t;
 use crate::scenes::world::players::{LEAD, PlayerId};
 use crate::scenes::world::{WorldScene, space};
 
@@ -16,6 +17,8 @@ use crate::scenes::world::{WorldScene, space};
 const DEFAULT_RADIUS: f32 = 20.0;
 /// Seconds a trap's message stays on the screen.
 const MESSAGE_SECS: f32 = 3.0;
+/// The language label of a crossing below the threshold: `HUD_TOO_SLOW`.
+const LABEL_TOO_SLOW: u32 = 0x0FD7_F0B5;
 
 /// The traps each player's car is inside, by key: a trap fires when a car enters it, not while it stays.
 #[derive(Default)]
@@ -133,14 +136,12 @@ impl WorldScene {
                     bonus_secs: 0.0,
                     bounty,
                 });
-                set_mod_message(
-                    &format!("Speed trap: {speed_kmh:.0} km/h  +{bounty} bounty"),
-                    ModMessageTone::Big,
-                    MESSAGE_SECS,
-                );
+                let unit = game_word(LABEL_KMH, "KM/H");
+                let line = t!("hud-speed-trap", speed = format!("{speed_kmh:.0}"), unit = unit, bounty = bounty);
+                set_mod_message(&line, ModMessageTone::Big, MESSAGE_SECS);
             }
             Some((Crossing::TooSlow, _)) => {
-                set_mod_message("Too slow", ModMessageTone::Warning, MESSAGE_SECS);
+                set_mod_message(&crate::i18n::game_or_error(LABEL_TOO_SLOW), ModMessageTone::Warning, MESSAGE_SECS);
             }
             None => {}
         }

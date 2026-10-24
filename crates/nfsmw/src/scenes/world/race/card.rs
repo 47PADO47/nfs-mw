@@ -41,7 +41,7 @@ impl WorldScene {
             return Some(Message { serial: RESULT_SERIAL, text: card.title() });
         }
         let banner = &session.banner;
-        let counting = Count::from_banner(&banner.text).is_some();
+        let counting = banner.count.is_some();
         if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) || banner.left <= 0.0 || counting {
             return None;
         }
@@ -67,7 +67,7 @@ impl WorldScene {
         let course = engine.course();
         let me = engine.racers().get(racer)?;
         let laps = course.laps.max(1);
-        let count = (session.banner.left > 0.0).then(|| Count::from_banner(&session.banner.text)).flatten();
+        let count = session.banner.count.filter(|_| session.banner.left > 0.0);
         // A circuit and a knockout say the lap, the others how much of the race is done (the original picks by race type).
         let lapped = matches!(session.kind, RaceType::Circuit | RaceType::Knockout) || course.laps > 1;
         Some(RaceHud {
@@ -123,7 +123,7 @@ impl WorldScene {
             return Some(Message { serial: RESULT_SERIAL, text: card.title() });
         }
         let banner = &session.banner;
-        if banner.left <= 0.0 || banner.text != "GO" {
+        if banner.left <= 0.0 || banner.count != Some(Count::Go) {
             return None;
         }
         Some(Message { serial: banner.serial, text: banner.text.clone() })

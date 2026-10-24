@@ -5,6 +5,8 @@ use glam::Vec3;
 
 use super::wrong_way::{Tick, tick_of};
 use super::{Banner, RaceSession, Stage, setup};
+use crate::hud::{Count, LABEL_KMH, game_word};
+use crate::i18n::t;
 use crate::input::{Action, ActionState};
 use crate::scenes::world::drive::STEP;
 use crate::scenes::world::{WorldScene, space};
@@ -15,6 +17,11 @@ const POST_RACE_WAIT: f32 = 10.0;
 const BANNER_SECS: f32 = 1.5;
 /// Seconds the GO stays: the length of the HUD's `GO` script (3200 ms, `docs/provenance/race-mode.md` section 9).
 const GO_SECS: f32 = 3.0;
+/// The language labels of the race-over banners: `HUD_FINISH_TIME_UP`, `HUD_FINISHED` and
+/// `HUD_FINISH_YOU_WERE_KNOCKED_OUT`.
+const LABEL_TIME_UP: u32 = 0x556E_D1B2;
+const LABEL_FINISHED: u32 = 0x527D_89C9;
+const LABEL_KNOCKED_OUT: u32 = 0x0E2F_1243;
 
 impl WorldScene {
     /// One frame of the race: loading, a challenge or the result card, on the real frame time `frame_dt` (the result
@@ -213,14 +220,20 @@ impl WorldScene {
             log::debug!("race: {event:?}");
             note_gate(session, &event);
             match event {
-                RaceEvent::Count(n) => flash(&mut session.banner, n.to_string(), 1.0),
+                RaceEvent::Count(n) => match Count::from_number(n) {
+                    Some(step) => flash_count(&mut session.banner, step, 1.0),
+                    None => flash(&mut session.banner, n.to_string(), 1.0),
+                },
                 RaceEvent::Go => {
-                    flash(&mut session.banner, "GO".into(), GO_SECS);
+                    flash_count(&mut session.banner, Count::Go, GO_SECS);
                     self.release_grid();
                 }
-                RaceEvent::TimeUp => flash(&mut session.banner, "Time is up".into(), BANNER_SECS * 2.0),
+                RaceEvent::TimeUp => {
+                    flash(&mut session.banner, crate::i18n::game_or_error(LABEL_TIME_UP), BANNER_SECS * 2.0)
+                }
                 RaceEvent::Checkpoint { racer: 0, number } => {
-                    flash(&mut session.banner, format!("Checkpoint {number}/{total_checkpoints}"), BANNER_SECS)
+                    let text = t!("race-banner-checkpoint", number = number, total = total_checkpoints);
+                    flash(&mut session.banner, text, BANNER_SECS)
                 }
                 RaceEvent::Lap { racer: 0, lap } => {
                     if let Some(engine) = session.engine.as_ref() {
@@ -228,20 +241,22 @@ impl WorldScene {
                         crate::frontend::custom_race::records::note_lap(&session.event, now - session.lap_mark);
                         session.lap_mark = now;
                     }
-                    flash(&mut session.banner, format!("Lap {}/{laps}", lap + 1), BANNER_SECS)
+                    flash(&mut session.banner, t!("race-banner-lap", lap = lap + 1, laps = laps), BANNER_SECS)
                 }
                 RaceEvent::Finished { racer: 0, .. } => {
-                    flash(&mut session.banner, "Finished".into(), BANNER_SECS * 2.0)
+                    flash(&mut session.banner, crate::i18n::game_or_error(LABEL_FINISHED), BANNER_SECS * 2.0)
                 }
                 RaceEvent::KnockedOut { racer: 0 } => {
-                    flash(&mut session.banner, "Knocked out".into(), BANNER_SECS * 2.0)
+                    flash(&mut session.banner, crate::i18n::game_or_error(LABEL_KNOCKED_OUT), BANNER_SECS * 2.0)
                 }
                 RaceEvent::Bonus { racer: 0, seconds } => {
-                    flash(&mut session.banner, format!("+{seconds:.0} s"), BANNER_SECS)
+                    flash(&mut session.banner, t!("race-banner-bonus", seconds = format!("{seconds:.0}")), BANNER_SECS)
                 }
                 RaceEvent::SpeedTrap { racer: 0, kmh, .. } => {
                     crate::frontend::custom_race::records::note_speed(&session.event, kmh);
-                    flash(&mut session.banner, format!("+{kmh:.0} km/h"), BANNER_SECS)
+                    let unit = game_word(LABEL_KMH, "KM/H");
+                    let text = t!("race-banner-speed-trap", speed = format!("{kmh:.0}"), unit = unit);
+                    flash(&mut session.banner, text, BANNER_SECS)
                 }
                 RaceEvent::KnockedOut { racer } => {
                     if let Some(traffic) = self.traffic.as_mut() {
@@ -332,7 +347,12 @@ fn note_gate(session: &RaceSession, event: &RaceEvent) {
 }
 
 fn flash(banner: &mut Banner, text: String, secs: f32) {
-    *banner = Banner { text, left: secs, serial: banner.serial.wrapping_add(1) };
+    *banner = Banner { text, left: secs, serial: banner.serial.wrapping_add(1), count: None };
+}
+
+/// A countdown step as the banner: the countdown group shows it, and its text is the step's own.
+fn flash_count(banner: &mut Banner, step: Count, secs: f32) {
+    *banner = Banner { text: step.text(), left: secs, serial: banner.serial.wrapping_add(1), count: Some(step) };
 }
 
 /// How far past a gate's centre an opponent aims, metres. A path that ends at the gate would stop the car short of it
@@ -382,5 +402,8 @@ mod tests {
         let mut banner = Banner::default();
         flash(&mut banner, "GO".into(), 1.5);
         assert_eq!((banner.text.as_str(), banner.left), ("GO", 1.5));
+        assert_eq!(banner.count, None, "a line is not a countdown step");
+        flash_count(&mut banner, Count::Three, 1.0);
+        assert_eq!((banner.text.as_str(), banner.count), ("3", Some(Count::Three)));
     }
 }

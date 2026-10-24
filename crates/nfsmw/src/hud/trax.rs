@@ -134,8 +134,8 @@ impl TraxBinding {
 fn album_line(card: &Card) -> String {
     match (card.paused, card.album.is_empty()) {
         (false, _) => card.album.clone(),
-        (true, true) => "PAUSED".into(),
-        (true, false) => format!("{}  PAUSED", card.album),
+        (true, true) => super::radio::paused_word(),
+        (true, false) => format!("{}  {}", card.album, super::radio::paused_word()),
     }
 }
 

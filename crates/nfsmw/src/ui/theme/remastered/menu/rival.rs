@@ -7,8 +7,13 @@ use super::blacklist::{rival_at, status_colour, status_text};
 use super::dialog::wrap_text;
 use super::layout as place;
 use super::{Parts, fitted};
+use crate::hud::game_word;
+use crate::i18n::t;
 use crate::ui::theme::remastered::skin::keys;
 use crate::ui::theme::{MenuList, RivalInfo};
+
+/// The language label of the Blacklist's bounty: `BL_BOUNTY`.
+const LABEL_BOUNTY: u32 = 0x582C_4C0D;
 
 /// The picture's frame, the name's sizes and the rows of facts under it.
 const FRAME_RADIUS: f32 = 3.0;
@@ -51,8 +56,10 @@ impl Parts<'_, '_> {
             self.text(keys::FONT_MENU, &info.alias.to_uppercase(), keys::MENU_TAGLINE, ALIAS_SCALE, (left, y), false);
         }
         y += 28.0;
-        self.fact("BOUNTY", &format!("${}", info.bounty), keys::MENU_TEXT_SELECTED, (left, y));
-        self.fact("STATUS", status_text(info.status), status_colour(info.status), (left, y + FACT_PITCH));
+        let bounty = game_word(LABEL_BOUNTY, "BOUNTY").to_uppercase();
+        self.fact(&bounty, &format!("${}", info.bounty), keys::MENU_TEXT_SELECTED, (left, y));
+        let status = t!("race-rival-status").to_uppercase();
+        self.fact(&status, &status_text(info.status), status_colour(info.status), (left, y + FACT_PITCH));
     }
 
     /// A rival's picture with a thin accent frame. A rival not reached yet is dimmed.
@@ -108,12 +115,17 @@ impl Parts<'_, '_> {
             (x, y),
             false,
         );
-        for (label, value) in [("ALIAS", &info.alias), ("CAR", &info.car), ("STRENGTH", &info.strength)] {
+        let facts = [
+            (t!("race-rival-alias"), &info.alias),
+            (t!("race-rival-car"), &info.car),
+            (t!("race-rival-strength"), &info.strength),
+        ];
+        for (label, value) in facts {
             if value.is_empty() {
                 continue;
             }
             y += 38.0;
-            self.fact(label, &value.to_uppercase(), keys::MENU_TEXT, (x, y));
+            self.fact(&label.to_uppercase(), &value.to_uppercase(), keys::MENU_TEXT, (x, y));
         }
         y += 48.0;
         for line in wrap_text(bio, room, BIO_SCALE) {

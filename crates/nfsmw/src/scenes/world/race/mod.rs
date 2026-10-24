@@ -145,10 +145,13 @@ pub(super) struct RaceResult {
 /// A line the card flashes for a moment (GO, a checkpoint, a knockout).
 #[derive(Debug, Clone, Default)]
 pub(super) struct Banner {
+    /// The line in the language it was raised in.
     pub text: String,
     pub left: f32,
     /// Counts the lines, so the HUD plays a repeated text again.
     pub serial: u32,
+    /// The countdown step the line is (3, 2, 1, GO), which the countdown group shows; `None` for every other line.
+    pub count: Option<crate::hud::Count>,
 }
 
 pub(super) struct RaceSession {
