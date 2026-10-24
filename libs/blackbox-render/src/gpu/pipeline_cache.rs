@@ -22,12 +22,17 @@ impl Renderer {
         blackbox_gpu_passes::pipeline_cache::save(cache, path);
     }
 
-    /// Count a drawn frame, and save the pipeline cache once the first frames have built their pipelines.
+    /// Count a drawn frame, and save the pipeline cache once the first frames have built their pipelines. The file is written off the frame
+    /// thread.
     pub(super) fn count_frame(&mut self) {
         self.frames = self.frames.saturating_add(1);
-        if self.frames == WARM_UP_FRAMES {
-            self.save_pipeline_cache();
+        if self.frames != WARM_UP_FRAMES {
+            return;
         }
+        let (Some(cache), Some(path)) = (&self.pipeline_cache, &self.pipeline_cache_path) else {
+            return;
+        };
+        blackbox_gpu_passes::pipeline_cache::save_in_background(cache, path);
     }
 }
 

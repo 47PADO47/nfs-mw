@@ -6,6 +6,7 @@
 //! adapter. It is derived data: delete it at any time.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// The file the cache for `info` lives in, under `dir`. `None` when the adapter has no cache key (only Vulkan has one).
 pub fn file_for(dir: &Path, info: &wgpu::AdapterInfo) -> Option<PathBuf> {
@@ -48,19 +49,38 @@ fn create(device: &wgpu::Device, data: Option<&[u8]>) -> wgpu::PipelineCache {
 /// returned: a missing cache only costs compile time.
 pub fn save(cache: &wgpu::PipelineCache, path: &Path) {
     let Some(data) = cache.get_data() else { return };
-    match write_atomic(path, &data) {
+    write_logged(path, &data);
+}
+
+/// Like [`save`], but the data is only read here (the cache needs the device); the file is written on a thread of its
+/// own, so a frame does not wait for the disk. Nothing waits for that thread: the write is atomic, and a process that
+/// ends first keeps the previous file.
+pub fn save_in_background(cache: &wgpu::PipelineCache, path: &Path) {
+    let Some(data) = cache.get_data() else { return };
+    let path = path.to_owned();
+    let spawned =
+        std::thread::Builder::new().name("pipeline cache save".to_owned()).spawn(move || write_logged(&path, &data));
+    if let Err(e) = spawned {
+        log::warn!("could not start the pipeline cache save: {e}");
+    }
+}
+
+fn write_logged(path: &Path, data: &[u8]) {
+    match write_atomic(path, data) {
         Ok(()) => log::debug!("saved the pipeline cache to {} ({} bytes)", path.display(), data.len()),
         Err(e) => log::warn!("could not save the pipeline cache to {}: {e}", path.display()),
     }
 }
 
-/// Write `data` to `path` through a `.tmp` file renamed over it, so a crash mid-write keeps the previous file.
+/// Write `data` to `path` through a `.tmp` file renamed over it, so a crash mid-write keeps the previous file. The
+/// temporary file is named per write, so two saves running at once do not share one.
 fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    static WRITES: AtomicU32 = AtomicU32::new(0);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let mut temp = path.as_os_str().to_owned();
-    temp.push(".tmp");
+    temp.push(format!(".{}.tmp", WRITES.fetch_add(1, Ordering::Relaxed)));
     let temp = PathBuf::from(temp);
     std::fs::write(&temp, data)?;
     std::fs::rename(&temp, path)
@@ -108,7 +128,8 @@ mod tests {
         write_atomic(&path, b"first").expect("a first write");
         write_atomic(&path, b"second").expect("a second write");
         assert_eq!(std::fs::read(&path).expect("read back"), b"second".to_vec());
-        assert!(!dir.join("cache.tmp").exists());
+        let leftovers = std::fs::read_dir(&dir).expect("list the directory").count();
+        assert_eq!(leftovers, 1, "only the cache file is left");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
