@@ -85,6 +85,11 @@ fn installed_shared_traffic_rigs_switch_mode_without_actor_reset() {
         );
         before = next;
     }
+    // The window pass keeps clones of the rigs it prepared; the teardown still frees every one of them.
+    drop(live);
+    traffic.update_damaged_windows(&mut renderer, Vec3::Z);
+    traffic.release(&mut renderer);
+    assert!(renderer.mesh_labels.is_empty(), "every traffic rig is freed at teardown");
     eprintln!(
         "live shared appearance: traffic, loaded trailer, cop and helicopter preserve Rc identity/part poses across three shading modes"
     );

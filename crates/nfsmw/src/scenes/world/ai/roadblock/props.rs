@@ -27,6 +27,8 @@ pub const SPIKE_MODEL: &str = "XO_SpikeBelt_1b_DW_00";
 /// The uploaded models.
 pub(in crate::scenes::world::ai) struct Kit {
     spike: Rc<CarRig>,
+    /// The sawhorse's rig, kept to free its meshes: the prop world draws bodies from `sawhorse_local`.
+    sawhorse: Rc<CarRig>,
     /// The sawhorse's meshes in its own frame, as the prop world draws a body.
     sawhorse_local: Vec<Instance>,
     /// The sawhorse's fragments, for its event sequence (the hierarchy of `SAWHORSE_MODEL`).
@@ -37,7 +39,12 @@ impl Kit {
     pub fn new(spike: Rc<CarRig>, sawhorse: Rc<CarRig>) -> Self {
         let mut sawhorse_local = Vec::new();
         sawhorse.instances(&pose(Mat4::IDENTITY), None, &BTreeSet::new(), &mut sawhorse_local);
-        Self { spike, sawhorse_local, sawhorse_parts: None }
+        Self { spike, sawhorse, sawhorse_local, sawhorse_parts: None }
+    }
+
+    /// The two uploaded rigs, for the teardown to free.
+    pub fn into_rigs(self) -> [Rc<CarRig>; 2] {
+        [self.spike, self.sawhorse]
     }
 
     /// The parts the sawhorse's sequence releases when it breaks.

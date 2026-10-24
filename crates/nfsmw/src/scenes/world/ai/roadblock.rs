@@ -78,6 +78,11 @@ impl TrafficWorld {
         self.roadblocks.kit = Some(props::Kit::new(spike, sawhorse));
     }
 
+    /// The uploaded prop rigs, taken for the teardown to free; the roadblocks go without models after it.
+    pub(super) fn take_roadblock_rigs(&mut self) -> Vec<Rc<CarRig>> {
+        self.roadblocks.kit.take().map(|kit| kit.into_rigs().into()).unwrap_or_default()
+    }
+
     /// The parts a sawhorse's sequence releases when it breaks (from the shared scenery).
     pub(in crate::scenes::world) fn set_sawhorse_parts(
         &mut self,
