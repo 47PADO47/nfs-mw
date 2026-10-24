@@ -27,7 +27,7 @@ Read in this order:
 | [notifications.md](notifications.md) | Event sources, a notification's fields, the five priorities, the queue (capacity 3, preemption, deferral, dedupe that refreshes), the catalogue |
 | [world-markers.md](world-markers.md) | Projection before shake, marker kinds, edge arrows, styling, the cap, occlusion |
 | [feedback.md](feedback.md) | Near-miss, speed-trap and bounty feedback, the `hud_volume` group, police dispatch as `speech_volume`, cues, `GamepadRumbleRequest` |
-| [settings.md](settings.md) | The `[hud]` table: every key, type, range and default; the Minimal, Balanced and Advanced presets; the move of the `hud` switch into the table |
+| [settings.md](settings.md) | The `[custom_hud]` table: every key, type, range and default; the Minimal, Balanced and Advanced presets; the user-facing table is [hud-settings.md](../../hud-settings.md) |
 | [menus.md](menus.md) | The Custom menus, the list-look predicate, the screens, the HUD options page |
 | [dev-scenarios.md](dev-scenarios.md) | `--hud-scenario` fixtures, the screenshot matrix, the runtime checks and the measurements owed |
 | [not-shown.md](not-shown.md) | Drafting, drift scoring, temperatures, cooling damage, search-area shape, split-screen styles and the rest, with the reason |
@@ -37,7 +37,7 @@ Read in this order:
 | PR | Builds | Spec pages |
 |---|---|---|
 | 1 | this spec, ADR 0013, stale doc fixes | all |
-| 2 | the `[hud]` settings table | [settings.md](settings.md) |
+| 2 | the `[custom_hud]` settings table | [settings.md](settings.md) |
 | 3a | telemetry, race, damage and camera data in `HudState` | [telemetry.md](telemetry.md), [race.md](race.md), [modes.md](modes.md) |
 | 3b | `PursuitPhase`, `PoliceIntel`, `next_turn` | [pursuit.md](pursuit.md), [fair-knowledge.md](fair-knowledge.md) |
 | 4 | the shared feed detector, `HudEvent`, `NotifyQueue`, the catalogue | [notifications.md](notifications.md) |
