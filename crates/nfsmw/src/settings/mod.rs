@@ -48,6 +48,7 @@ pub mod hd_content;
 pub mod helicopter;
 pub mod helicopter_lists;
 mod hud_layout;
+mod language;
 #[cfg(test)]
 mod hud_layout_tests;
 mod minimap;
@@ -134,6 +135,7 @@ pub use renderer::RendererKind;
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use speed_trail_style::SpeedTrailStyle;
+pub use language::LanguageTag;
 pub use speed_units::SpeedUnits;
 pub use speedbreaker::SpeedbreakerTuning;
 pub use traffic_settings::TrafficSettings;
@@ -271,6 +273,8 @@ pub struct Settings {
     pub ui_style: UiStyle,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
+    /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
+    pub language: Option<LanguageTag>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
@@ -402,6 +406,7 @@ impl From<Partial> for Settings {
             hud_layout: p.hud_layout.unwrap_or_default(),
             ui_style: p.ui_style.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
+            language: p.language,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),

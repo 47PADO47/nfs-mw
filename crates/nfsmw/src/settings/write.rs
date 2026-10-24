@@ -187,6 +187,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ui_style {
         put("ui_style", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.language {
+        put("language", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.speed_units {
         put("speed_units", Value::String(v.to_string()));
     }

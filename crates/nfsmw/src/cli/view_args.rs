@@ -109,6 +109,10 @@ pub struct ViewArgs {
     /// The look of all HUD and menu UI: original, custom or remastered [env NFSMW_UI_STYLE; config `ui_style`; default original].
     #[arg(long, value_name = "original|custom|remastered")]
     pub ui_style: Option<crate::settings::UiStyle>,
+    /// The language of the menus and the HUD, a tag such as en, de or pt-BR; en-XA is the pseudo-locale
+    /// [env NFSMW_LANGUAGE; config `language`; default the installer's language, else the system's].
+    #[arg(long, value_name = "tag")]
+    pub language: Option<crate::settings::LanguageTag>,
     /// Legacy radio switch: ea_trax is --ui-style original, custom is --ui-style custom. --ui-style wins if both are set [env NFSMW_RADIO_HUD].
     #[arg(long, value_name = "ea_trax|custom")]
     pub radio_hud: Option<crate::settings::RadioHudStyle>,
@@ -382,6 +386,7 @@ impl ViewArgs {
             hud: if self.no_hud { Some(false) } else { self.hud.then_some(true) },
             hud_layout: self.hud_layout,
             ui_style: self.ui_style.or(self.radio_hud.map(crate::settings::UiStyle::from)),
+            language: self.language,
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,

@@ -134,6 +134,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
         }),
         speed_units: field(&table, origin, "speed_units", |v| SpeedUnits::from_str(text_of(v)?)),
+        language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
