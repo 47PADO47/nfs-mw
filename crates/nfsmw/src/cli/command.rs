@@ -137,7 +137,11 @@ pub enum Command {
     /// Search the English language table: text containing FILTER, or one label as 0xHASH.
     Strings {
         /// Part of the text, or 0xHASH.
-        filter: String,
+        #[arg(required_unless_present = "match_catalog")]
+        filter: Option<String>,
+        /// List the rewrite's English messages whose text a game label already has (they should use the label).
+        #[arg(long)]
+        match_catalog: bool,
     },
     /// Print the objects, scripts and message responses of one FEng screen: `nfsmw dump-screen MainMenu.fng`.
     DumpScreen {

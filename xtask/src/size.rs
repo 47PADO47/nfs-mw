@@ -6,7 +6,7 @@ use crate::git;
 pub const MAX_LINES: usize = 500;
 
 /// Extensions the limit applies to.
-const CHECKED: &[&str] = &["rs", "wgsl", "wesl", "py", "md", "toml", "yml"];
+const CHECKED: &[&str] = &["rs", "wgsl", "wesl", "py", "md", "toml", "yml", "ftl"];
 
 /// Generated or vendored files exempt from the limit.
 const EXEMPT: &[&str] = &["Cargo.lock", "LICENSE-APACHE"];

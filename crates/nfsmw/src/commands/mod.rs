@@ -109,11 +109,16 @@ pub fn run(cli: Cli) -> Result<()> {
             print!("{}", crate::frontend::dump::list(&catalog));
             Ok(())
         }
-        Command::Strings { filter } => {
+        Command::Strings { filter, match_catalog } => {
             let dir = open_install(game_dir)?;
             let data = nfsmw_data::shared::language(&dir)?;
             let table = blackbox_text::StringTable::from_file(&data)?;
-            print!("{}", crate::frontend::dump::strings(&table, &filter));
+            if match_catalog {
+                let names = nfsmw_data::languages::table(&dir, "LANGUAGES/Labels.bin").ok();
+                print!("{}", crate::i18n::matching::report(&table, names.as_ref()));
+                return Ok(());
+            }
+            print!("{}", crate::frontend::dump::strings(&table, filter.as_deref().unwrap_or_default()));
             Ok(())
         }
         Command::DumpScreen { name } => {

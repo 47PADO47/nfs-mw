@@ -12,6 +12,7 @@
 mod build;
 mod catalog;
 pub mod fmt;
+pub mod matching;
 mod mods;
 mod select;
 mod state;
