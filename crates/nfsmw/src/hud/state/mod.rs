@@ -3,7 +3,9 @@
 //!
 //! - `vehicle`: the extra telemetry and the car's condition;
 //! - `race_info`: the race type, the next gate, the route left and the rival gap;
-//! - `camera`: the gameplay camera, for world-space markers.
+//! - `camera`: the gameplay camera, for world-space markers;
+//! - `police`: the phase of the chase and what the player can know of the cops;
+//! - `nav`: the GPS route with its next turn, and the places on the map.
 
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
@@ -12,10 +14,16 @@ use super::blip_style::MapBlip;
 use super::pursuit::PursuitHud;
 
 mod camera;
+mod nav;
+mod police;
 mod race_info;
 mod vehicle;
 
 pub use camera::HudCamera;
+#[cfg(test)]
+pub use nav::TurnDirection;
+pub use nav::{NavMarker, NavMarkerKind, NavRoute, next_turn};
+pub use police::{HelicopterIntel, LastKnown, PoliceIntel, PursuitPhase, known_roadblocks, sighted};
 pub use race_info::{RaceInfo, RivalGap, checkpoint_gap, rival_of, shows_rival_gap};
 pub use vehicle::{HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
 
@@ -114,6 +122,14 @@ pub struct HudState {
     pub camera: Option<HudCamera>,
     /// The career's cash; `None` outside career mode.
     pub cash: Option<u32>,
+    /// The phase of the chase (`None` with no chase and no end card up).
+    pub pursuit_phase: PursuitPhase,
+    /// What the player can know of the police: sightings, the last-known place, the helicopter, roadblocks.
+    pub police_intel: PoliceIntel,
+    /// The GPS route with its next turn; `None` while no route is set.
+    pub route: Option<NavRoute>,
+    /// The places on the map the player can go to (race starts, safe houses, shops), as the map shows them.
+    pub markers: Vec<NavMarker>,
 }
 
 impl Default for HudState {
@@ -158,6 +174,10 @@ impl Default for HudState {
             race_info: None,
             camera: None,
             cash: None,
+            pursuit_phase: PursuitPhase::None,
+            police_intel: PoliceIntel::default(),
+            route: None,
+            markers: Vec::new(),
         }
     }
 }

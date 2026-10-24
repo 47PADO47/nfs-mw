@@ -89,11 +89,14 @@ pub use message::{
 };
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
-pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
+pub use pursuit_end::{PursuitEndCard, SHOW_SECS as PURSUIT_END_SECS, show as show_pursuit_end};
 pub use race::{Count, Message, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
+#[cfg(test)]
+pub use state::TurnDirection;
 pub use state::{
-    HudCamera, HudState, HudTelemetry, MapPosition, RaceInfo, RivalGap, TireCondition, VehicleCondition,
-    checkpoint_gap, cosmetic_level, rival_of, shows_rival_gap,
+    HelicopterIntel, HudCamera, HudState, HudTelemetry, LastKnown, MapPosition, NavMarker, NavMarkerKind, NavRoute,
+    PoliceIntel, PursuitPhase, RaceInfo, RivalGap, TireCondition, VehicleCondition, checkpoint_gap, cosmetic_level,
+    known_roadblocks, next_turn, rival_of, shows_rival_gap, sighted,
 };
