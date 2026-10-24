@@ -2,9 +2,9 @@
 //! `docs/decisions/0013-custom-hud.md`; the design is `docs/specs/custom-hud/`). It overrides only the slots it has
 //! re-expressed as components and returns `None` for the rest, so every other slot falls back to Original.
 //!
-//! Status (PR 5): the foundation. The old bottom-right drive card is gone; the horizontal telemetry cluster, the centred
-//! map, the free-roam, race and pursuit layouts and the world markers come in the next PRs of the stack, and until then
-//! the drive slots fall back to Original. What is built here is what those components share:
+//! Status (PR 5): the foundation. The old bottom-right drive card is gone; the horizontal telemetry cluster, the
+//! centred map, the free-roam, race and pursuit layouts and the world markers come in the next PRs of the stack, and
+//! until then the drive slots fall back to Original. What is built here is what those components share:
 //!
 //! - [`tokens`]: the colours (`custom.*` skin keys), high contrast, the colour-vision palettes, opacity and the motion
 //!   table. `ui_theme` still chooses the accent family ([`palette`]).
@@ -82,8 +82,8 @@ impl Theme for CustomTheme {
     }
 
     fn element(&self, slot: SlotId, _cx: &BuildCx<'_>) -> Option<Box<dyn Component>> {
-        // The map: the FEng screen is recoloured in place by the frontend, and this legend is drawn over it. Providing the
-        // slot is also what tells the frontend to recolour.
+        // The map: the FEng screen is recoloured in place by the frontend, and this legend is drawn over it. Providing
+        // the slot is also what tells the frontend to recolour.
         if ElementId::from_slot(slot) == Some(ElementId::WorldMapChrome) {
             return Some(Box::new(MapLegend::new(self.legend.clone())));
         }
@@ -98,8 +98,8 @@ impl Theme for CustomTheme {
 /// The component the token-driven look draws for `slot`, or `None` for a slot it does not re-express. Shared by the
 /// built-in token theme and by a mod theme that declares tokens (`ui/theme/modded`).
 ///
-/// The HUD components read `feed`. Until the cluster, the map and the layouts land (PRs 6 to 9), every drive and HUD slot
-/// returns `None`, so it falls back to Original.
+/// The HUD components read `feed`. Until the cluster, the map and the layouts land (PRs 6 to 9), every drive and HUD
+/// slot returns `None`, so it falls back to Original.
 pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell) -> Option<Box<dyn Component>> {
     // No HUD component reads the feed yet; the next PRs hand it to theirs.
     let _ = feed;

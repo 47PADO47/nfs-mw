@@ -5,9 +5,9 @@
 //! - **Delivery.** [`skin`] builds the `custom.*` entries for a [`CustomLook`] (the colour-vision palette and high
 //!   contrast) and an accent colour. `UiThemes::refresh_skin` merges them into the skin every component reads, next to
 //!   the `theme.*` tokens, and rebuilds it only when the look, the theme or `ui_theme` changes.
-//! - **Accent.** The accent is the active theme's `secondary` token, so `ui_theme` keeps choosing the accent family (the
-//!   Bevy cyan or the Remastered gold, `palette.rs`), and a mod theme with tokens brings its own. The meaning colours
-//!   (`nav`, `success`, `caution`, `danger`, `critical`) keep their meaning in either family.
+//! - **Accent.** The accent is the active theme's `secondary` token, so `ui_theme` keeps choosing the accent family
+//!   (the Bevy cyan or the Remastered gold, `palette.rs`), and a mod theme with tokens brings its own. The meaning
+//!   colours (`nav`, `success`, `caution`, `danger`, `critical`) keep their meaning in either family.
 //! - **Opacity** is not in the skin: a component multiplies its colours' alpha by `[custom_hud] opacity` (and its own
 //!   fade) when it lays out, with [`fade`] and [`faded_skin`]. A safety message never drops below [`SAFETY_OPACITY`].
 //! - **Scale and text size** are the layout's (`layout.rs`) and the text helpers' (`text.rs`).

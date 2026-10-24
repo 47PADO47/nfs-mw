@@ -1,5 +1,5 @@
-//! Tests for the Custom tokens: the brief's values, high contrast, the colour-vision palettes, the skin entries, opacity
-//! and the motion table.
+//! Tests for the Custom tokens: the brief's values, high contrast, the colour-vision palettes, the skin entries,
+//! opacity and the motion table.
 
 use blackbox_ui::Skin;
 

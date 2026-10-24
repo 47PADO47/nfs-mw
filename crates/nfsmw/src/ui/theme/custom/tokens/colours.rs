@@ -2,8 +2,8 @@
 //! high-contrast variant and the colour-vision palettes, as `[r, g, b, a]`.
 //!
 //! Order of application: the palette replaces the meaning hues, then high contrast replaces the neutrals and brightens
-//! the hues. With the default palette the high-contrast hues are the spec's table; with a colour-vision palette they are
-//! that palette's hues brightened by [`BRIGHTEN`], so the colours the palette keeps apart stay apart.
+//! the hues. With the default palette the high-contrast hues are the spec's table; with a colour-vision palette they
+//! are that palette's hues brightened by [`BRIGHTEN`], so the colours the palette keeps apart stay apart.
 
 use crate::settings::hud::HudPalette;
 

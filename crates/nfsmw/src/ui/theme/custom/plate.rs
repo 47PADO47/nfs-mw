@@ -3,8 +3,8 @@
 //! (`docs/specs/custom-hud/visual-identity.md` sections 1 to 3). The plate fades with its content: the opacity it is
 //! built at multiplies every part's alpha, so a plate never stays behind faded text.
 //!
-//! Like `Rounded`, a plate is laid out when it is made ([`Plate::new`]), against the skin of the `LayoutCx` it is given;
-//! its `layout` does nothing.
+//! Like `Rounded`, a plate is laid out when it is made ([`Plate::new`]), against the skin of the `LayoutCx` it is
+//! given; its `layout` does nothing.
 
 use blackbox_ui::{Component, DEFAULT_Z, DrawList, LayoutCx, Panel, Rect, Rounded};
 
@@ -79,7 +79,8 @@ pub struct Plate {
 }
 
 impl Plate {
-    /// The plate over `rect` (canvas units) in `style`, its colours read from `cx`'s skin and faded by the style's opacity.
+    /// The plate over `rect` (canvas units) in `style`, its colours read from `cx`'s skin and faded by the style's
+    /// opacity.
     pub fn new(rect: Rect, style: PlateStyle, cx: &LayoutCx<'_>) -> Self {
         let mut colours = vec![style.fill, keys::OUTLINE];
         colours.extend(style.accent);

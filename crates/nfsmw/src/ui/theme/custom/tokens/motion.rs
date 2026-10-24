@@ -1,8 +1,8 @@
 //! The Custom HUD's transition durations, in one table (`docs/specs/custom-hud/visual-identity.md` section 7). Every
 //! animation runs on the frame clock's elapsed seconds (`CustomFeed::elapsed_s`), never on frame counts.
 //!
-//! Motion reduction (`[custom_hud] motion_reduction`) takes the movement out and keeps the information: a slide becomes a
-//! fade in place, a pulse becomes a static highlight held as long as the pulse, and mode and map changes become short
+//! Motion reduction (`[custom_hud] motion_reduction`) takes the movement out and keeps the information: a slide becomes
+//! a fade in place, a pulse becomes a static highlight held as long as the pulse, and mode and map changes become short
 //! crossfades. The speed scale keeps its spring: it is a reading, not decoration.
 
 use crate::settings::hud::HudSettings;

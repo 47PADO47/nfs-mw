@@ -2,8 +2,9 @@
 //! `[custom_hud]` options, the speed unit, the frame clock and the window.
 //!
 //! The same producer rule as `drive_feed.rs` and `radio_feed.rs`: the HUD plugin sets the cell once per frame
-//! (`hud/plugin.rs`, `present`), and the components only read it. The HUD state is behind an `Arc`, so the plugin clones it
-//! once per frame and a component's read is a reference count, not a copy. The cell is `Send + Sync`, as `Theme` requires.
+//! (`hud/plugin.rs`, `present`), and the components only read it. The HUD state is behind an `Arc`, so the plugin
+//! clones it once per frame and a component's read is a reference count, not a copy. The cell is `Send + Sync`, as
+//! `Theme` requires.
 //!
 //! The Remastered theme does not read this cell: it keeps `DriveFeedCell`.
 
@@ -77,7 +78,8 @@ impl CustomFeedCell {
         self.lock().clone()
     }
 
-    /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is ignored.
+    /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is
+    /// ignored.
     fn lock(&self) -> MutexGuard<'_, CustomFeed> {
         self.feed.lock().unwrap_or_else(PoisonError::into_inner)
     }

@@ -1,7 +1,7 @@
 //! Text in the Custom HUD's three font roles (`docs/specs/custom-hud/typography.md`): condensed numerals with tabular
-//! digits, neutral labels, and spaced headings. A [`Label`] names its role, its size in HUD units at scale 1 and a token
-//! colour; [`Label::laid_out`] turns it into a `blackbox_ui::Text` sized by the HUD scale and `[custom_hud] text_size`,
-//! with its colour faded by the opacity.
+//! digits, neutral labels, and spaced headings. A [`Label`] names its role, its size in HUD units at scale 1 and a
+//! token colour; [`Label::laid_out`] turns it into a `blackbox_ui::Text` sized by the HUD scale and `[custom_hud]
+//! text_size`, with its colour faded by the opacity.
 //!
 //! Numbers keep a stable width because the numeric role's font key (`CUSTOM_NUMERIC_FONT_KEY`) is drawn with tabular
 //! digits by the raster text (`ui/raster_text.rs`), whatever the face.

@@ -3,9 +3,9 @@
 //! Units are the presenter's canvas units: the FEng screen is 480 units high and the window's height fills it
 //! (`Screen::scale`), x is centred on the window and y points down, so the canvas centre is the origin.
 //!
-//! - **The content box.** The HUD is laid out in a box as tall as the window and at most 16:9 wide, centred. On 16:9 and
-//!   narrower windows the box is the whole window; on 21:9 and 32:9 it is the central 16:9 part, so the HUD does not
-//!   stretch across an ultrawide window and the cluster anchors to the box's edge, not the window's.
+//! - **The content box.** The HUD is laid out in a box as tall as the window and at most 16:9 wide, centred. On 16:9
+//!   and narrower windows the box is the whole window; on 21:9 and 32:9 it is the central 16:9 part, so the HUD does
+//!   not stretch across an ultrawide window and the cluster anchors to the box's edge, not the window's.
 //! - **The safe area.** Every anchor is inset from the box's edge by [`SAFE_INSET`] of its height, at every scale.
 //! - **The scale.** `[custom_hud] scale`, times a narrow-window factor: below 16:9 the HUD shrinks with the aspect,
 //!   down to [`NARROW_SCALE_FLOOR`] (a 4:3 window draws at 0.8). An element is scaled about its anchor, so a larger HUD
@@ -17,8 +17,8 @@ use blackbox_ui::Rect;
 
 use crate::ui::present::{FENG_HEIGHT, Screen};
 
-/// The FEng canvas as a window: 640 by 480 points. The layout of a window with no size, and the feed's screen before the
-/// first frame.
+/// The FEng canvas as a window: 640 by 480 points. The layout of a window with no size, and the feed's screen before
+/// the first frame.
 pub const CANVAS: Screen = Screen { width: 640.0, height: 480.0, pixels_per_point: 1.0 };
 /// The widest the content box gets, as width over height.
 pub const MAX_ASPECT: f32 = 16.0 / 9.0;
