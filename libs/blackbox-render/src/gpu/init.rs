@@ -100,7 +100,8 @@ where
     // The native Direct3D 12 swapchain of the DLSS path knows only the vsync and tearing modes.
     #[cfg(all(windows, feature = "streamline"))]
     let mailbox = mailbox && options.backend != Backend::Dx12;
-    config.present_mode = super::output::present_mode(options.vsync, mailbox);
+    // Mailbox only once the caller asks for it (`Renderer::set_mailbox`).
+    config.present_mode = super::output::present_mode(options.vsync, false);
     #[cfg(all(windows, feature = "streamline"))]
     let dx12 = {
         if let Some(runtime) = &mut dlss {
@@ -132,6 +133,7 @@ where
             surface,
             config,
             mailbox,
+            wants_mailbox: false,
             #[cfg(all(windows, feature = "streamline"))]
             dx12,
         },

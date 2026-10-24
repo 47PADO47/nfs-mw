@@ -90,6 +90,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             Value::Integer(n) => super::parse_frame_latency(&n.to_string()),
             other => super::parse_frame_latency(text_of(other)?),
         }),
+        present_mode: field(&table, origin, "present_mode", |v| super::PresentMode::from_str(text_of(v)?)),
         show_metrics: field(&table, origin, "show_metrics", |v| ShowMetrics::from_str(text_of(v)?)),
         window_mode: field(&table, origin, "window_mode", |v| WindowMode::from_str(text_of(v)?)),
         monitor: field(&table, origin, "monitor", |v| match v {
