@@ -13,6 +13,21 @@ pub enum FrameStatus {
     Skipped,
 }
 
+/// What the next `render` does about the scene image, for a caller that knows nothing in the picture changed
+/// ([`RenderBackend::set_scene_reuse`](crate::RenderBackend::set_scene_reuse)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SceneReuse {
+    /// Draw the frame normally and forget any image kept earlier.
+    #[default]
+    Off,
+    /// Draw the frame normally and keep its finished scene image (everything but the UI), so a later
+    /// [`Reuse`](Self::Reuse) can show it again.
+    Keep,
+    /// Show the kept image instead of drawing the scene, then draw the UI over it. A backend with no valid kept image
+    /// (see [`RenderBackend::scene_reuse_ready`](crate::RenderBackend::scene_reuse_ready)) draws the frame normally.
+    Reuse,
+}
+
 /// A stable name for one placed object, the same from frame to frame while the object exists.
 ///
 /// A renderer that keeps objects between frames (a retained-mode engine, or a temporal method that

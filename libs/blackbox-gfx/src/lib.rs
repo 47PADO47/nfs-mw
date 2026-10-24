@@ -51,7 +51,7 @@ pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffe
 pub use error::RenderError;
 pub use focus::FocusFilter;
 pub use frame::{
-    Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, ShadowFlags, SurfaceLight,
+    Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, SceneReuse, ShadowFlags, SurfaceLight,
 };
 pub use handles::{
     CaptureId, GlossyMaterialHandle, MeshHandle, NormalMaterialHandle, SkyMaterialHandle, TextureHandle, UiTextureId,

@@ -21,6 +21,8 @@ impl Renderer {
     pub fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<bool, RenderError> {
         let _trace = blackbox_trace::scope("Renderer: frame");
         self.refresh_display(false);
+        // A still frame shows the kept scene image and draws only the UI (`reuse.rs`).
+        let reuse = self.begin_reuse();
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() {
             self.presentation.render_start();
@@ -28,7 +30,7 @@ impl Renderer {
         }
         // The window's image is acquired once the work for the renderer's own images is recorded when the frame
         // allows it (see `acquire.rs`), else now, before anything is recorded.
-        let late = self.acquires_late();
+        let late = !reuse && self.acquires_late();
         let early = match late {
             true => None,
             false => match self.acquire_output()? {
@@ -44,7 +46,15 @@ impl Renderer {
             Some(acquired) => FrameOutput::View(acquired.view()),
             None => FrameOutput::Surface,
         };
-        let recorded = self.record_frame(None, output, self.surface_size(), frame, instances)?;
+        let recorded = match (reuse, early.as_ref()) {
+            // A still frame acquires first (`late` is off for it) and shows the kept image under the UI.
+            (true, Some(acquired)) => {
+                self.submit_reuse(acquired.view(), self.surface_size());
+                Recorded::Given
+            }
+            _ => self.record_frame(None, output, self.surface_size(), frame, instances)?,
+        };
+        self.end_reuse();
         let presented = match recorded {
             Recorded::Given => early,
             Recorded::Acquired(acquired) => Some(acquired),

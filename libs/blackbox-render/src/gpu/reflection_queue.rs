@@ -17,6 +17,9 @@ pub(super) struct Pending {
 impl Renderer {
     pub(super) fn queue_reflections(&mut self, scene: Option<ReflectionScene<'_>>) {
         let Some(scene) = scene.filter(|s| s.quality != blackbox_gfx::ReflectionQuality::Off) else {
+            if self.reflections.is_some() {
+                self.touch_scene();
+            }
             if let Some(pending) = &mut self.pending_reflections {
                 pending.ready = false;
             }
@@ -25,6 +28,10 @@ impl Renderer {
         };
         // Only the faces the capture draws are read. A fresh cube draws all of them, so then all are kept.
         let fresh = self.reflection_cube_is_fresh(scene.quality);
+        // A call that refreshes no face leaves the capture as it is (the menu asks every frame).
+        if scene.refresh != 0 {
+            self.touch_scene();
+        }
         let pending = self.pending_reflections.get_or_insert_with(|| Pending {
             ready: false,
             shadows: false,

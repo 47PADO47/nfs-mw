@@ -118,6 +118,10 @@ where
     #[cfg(not(all(windows, feature = "streamline")))]
     let native = false;
     if !native {
+        // Copies from and to the swapchain let a still frame show the kept scene image again (`reuse.rs`).
+        if caps.usages.contains(super::output::COPY_USAGES) {
+            config.usage |= super::output::COPY_USAGES;
+        }
         surface.configure(&device, &config);
     }
 
@@ -352,6 +356,7 @@ fn assemble(
         screen_control_off: true,
         queued_captures: Default::default(),
         surface_missed: false,
+        reuse: Default::default(),
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

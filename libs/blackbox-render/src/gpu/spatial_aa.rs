@@ -100,6 +100,9 @@ impl Renderer {
             self.composite_generation(&mut encoder, hudless, &output_view);
         }
         if hudless.is_none() {
+            if onscreen {
+                self.encode_keep(&mut encoder, &output_view);
+            }
             self.encode_ui(&mut encoder, &output_view, size);
         }
         self.finish_submit(encoder, onscreen);

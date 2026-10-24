@@ -162,6 +162,10 @@ impl Renderer {
         kind: CaptureKind,
         clip_plane: [f32; 4],
     ) {
+        // Drawing a capture, or dropping the one that is there, changes what the receivers show.
+        if scene.is_some() || self.projected.is_some() {
+            self.touch_scene();
+        }
         let scene = scene.filter(|s| {
             self.caps.projected_reflections
                 && s.size[0] > 0

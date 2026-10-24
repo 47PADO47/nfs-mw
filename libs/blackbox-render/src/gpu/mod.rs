@@ -57,6 +57,7 @@ mod reflection_store_tests;
 mod reflection_tests;
 mod reflections;
 mod resources;
+mod reuse;
 mod scene_pass;
 mod shadows;
 mod sized;
@@ -169,6 +170,8 @@ pub struct Renderer {
     queued_captures: queued::QueuedCaptures,
     /// The window had no image for the last frame (minimised, resized): the next one acquires before recording.
     surface_missed: bool,
+    /// The kept scene image a still frame shows again (`reuse.rs`).
+    reuse: reuse::Reuse,
 }
 
 impl Renderer {
@@ -316,6 +319,8 @@ impl Renderer {
     /// Recreate the scene targets when the surface size, the render scale or the passes in the chain
     /// ask for different ones, and free the post chain's images when the scene goes straight to the surface.
     fn refresh_targets(&mut self) {
+        // A resize, a new chain or new settings: whatever image was kept no longer shows what a frame would draw.
+        self.touch_scene();
         let plan = self.scene_plan(self.surface_size(), true);
         if self.targets.matches(&plan) {
             return;
