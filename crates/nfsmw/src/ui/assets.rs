@@ -101,27 +101,29 @@ pub fn native_size(stock: Option<(u32, u32)>, table: Option<(u32, u32)>) -> Opti
 
 /// The native size of each font's texture (see [`native_size`]). The table is consulted only when the texture is
 /// loaded: a loaded texture that is not a stock copy is a replacement, and its stock size is what the table gives.
+/// The language tables carry the same fonts again, so each texture is sized (and reported) once.
 fn native_font_sizes<'a>(
     fonts: impl Iterator<Item = &'a Font>,
     stock: &HashMap<u32, (u32, u32)>,
     textures: &HashMap<u32, Texture>,
 ) -> HashMap<u32, (u32, u32)> {
-    fonts
-        .filter_map(|font| {
-            let table = textures.contains_key(&font.texture_hash).then(|| table_size(font.hash)).flatten();
-            let stock = stock.get(&font.texture_hash).copied();
-            if let (Some(t), Some(s)) = (table, stock)
-                && t != s
-            {
-                log::warn!(
-                    "font {:#x}: the install's texture is {s:?}, the stock size is {t:?}; using {t:?}",
-                    font.hash
-                );
-            }
-            let size = native_size(stock, table)?;
-            Some((font.texture_hash, size))
-        })
-        .collect()
+    let mut sizes = HashMap::new();
+    for font in fonts {
+        if sizes.contains_key(&font.texture_hash) {
+            continue;
+        }
+        let table = textures.contains_key(&font.texture_hash).then(|| table_size(font.hash)).flatten();
+        let stock = stock.get(&font.texture_hash).copied();
+        if let (Some(t), Some(s)) = (table, stock)
+            && t != s
+        {
+            // An HD font mod: the supported case, laid out on the stock size under the HD fonts option.
+            log::debug!("font {:#x}: the install's texture is {s:?}, the stock size is {t:?}; using {t:?}", font.hash);
+        }
+        let Some(size) = native_size(stock, table) else { continue };
+        sizes.insert(font.texture_hash, size);
+    }
+    sizes
 }
 
 /// The `FEngFont` chunks of every language table of the install, by the table's file in lower case.

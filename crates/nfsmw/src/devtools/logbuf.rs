@@ -109,7 +109,9 @@ impl Log for Tee {
     }
 }
 
-const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn";
+/// `gilrs::gamepad` warns once per device with no SDL mapping (virtual pads report an all-zero UUID); the pad still
+/// works through its raw layout, so only its errors are shown.
+const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,gilrs::gamepad=error";
 
 /// An `env_logger` builder that honours `RUST_LOG`, so the file and stderr keep the same filter.
 fn env_builder() -> env_logger::Builder {

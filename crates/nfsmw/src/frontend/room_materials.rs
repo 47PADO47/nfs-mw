@@ -9,9 +9,16 @@ use game_install::GameDir;
 pub(super) const SOURCES: &[&str] =
     &["GLOBAL/GLOBALB.LZC", "GLOBAL/GLOBALA.BUN", "FRONTEND/FRONTA.LZC", "FRONTEND/FRONTB.LZC"];
 
+/// Material references that no stage, shared pack or the executable names a texture for: the stock crib warehouse
+/// has one. They draw with the fallback material and are not reported.
+pub(super) const KNOWN_UNRESOLVED: &[u32] = &[0x578b_c664];
+
 pub(super) fn complete(dir: &GameDir, solids: &[Solid], packs: &mut Vec<TexturePack>) -> Result<()> {
-    let mut missing: HashSet<_> =
-        solids.iter().flat_map(|solid| solid.groups.iter().filter_map(|group| group.diffuse_texture(solid))).collect();
+    let mut missing: HashSet<_> = solids
+        .iter()
+        .flat_map(|solid| solid.groups.iter().filter_map(|group| group.diffuse_texture(solid)))
+        .filter(|hash| !KNOWN_UNRESOLVED.contains(hash))
+        .collect();
     for pack in packs.iter() {
         for texture in &pack.textures {
             missing.remove(&texture.name_hash);
