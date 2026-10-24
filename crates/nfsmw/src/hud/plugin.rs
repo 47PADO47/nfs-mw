@@ -301,8 +301,21 @@ fn present(
     let frame = themes.frame();
     // The card places itself from the HUD layout, so it takes the feed, not the viewport.
     themes.radio().set(&radio, screen, settings.hud_layout);
-    // The Custom speedometer and tachometer read the drive state the same way.
+    // The Remastered cluster reads the drive state the same way.
     themes.drive().set(&state, screen);
+    // The Custom HUD reads one richer feed: the frame's state (cloned once here, shared after), the options and the
+    // clock. Nothing reads it under Original, so it is not filled there.
+    if !static_hud {
+        themes.custom().set(crate::ui::theme::custom::CustomFeed {
+            hud: std::sync::Arc::new(HudState::clone(&state)),
+            settings: settings.hud_options,
+            units: settings.speed_units,
+            elapsed_s: time.elapsed_secs(),
+            delta_s: time.delta_secs(),
+            screen,
+            ..Default::default()
+        });
+    }
     // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the
     // cell then keeps its generation and the composed layers below are reused as well.
     let placement = parameters(screen, settings.hud_layout);
