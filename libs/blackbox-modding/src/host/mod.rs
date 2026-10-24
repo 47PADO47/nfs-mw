@@ -45,7 +45,8 @@ pub use reject::{RejectReason, Rejected};
 pub use runtime::{DispatchReport, ModRuntime, ModSummary, ReloadError, RunMode};
 pub use table::{
     Attached, AudioBackend, BackendResult, BlipSpec, CameraBackend, CameraKind, CameraState, CommandHandler,
-    CommandsBackend, HotkeyHandler, HudBackend, InputBackend, MAX_CHOICES, MAX_COP_SHARE, MAX_MESSAGE_SECS,
+    CommandsBackend, HotkeyHandler, HudBackend, I18nArg, I18nBackend, InputBackend, MAX_CHOICES, MAX_COP_SHARE,
+    MAX_I18N_ARGS, MAX_MESSAGE_SECS,
     MAX_PRIMITIVES, MapBackend, MenuHandler, MenuKind, MenuRowSpec, MenusBackend, MessageStyle, TimeBackend, UiBackend,
     UiPrim, UiRect, UiThemeSpec, UiTokens, VehicleState, VehiclesBackend, WorldBackend,
 };

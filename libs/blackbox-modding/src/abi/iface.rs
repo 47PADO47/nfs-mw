@@ -9,6 +9,7 @@ mod audio;
 mod camera;
 mod commands;
 mod hud;
+mod i18n;
 mod input;
 mod map;
 mod menus;
@@ -27,6 +28,7 @@ pub use camera::{
 };
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
+pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
 pub use map::{BbBlip, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba};
 pub use menus::{
@@ -106,6 +108,11 @@ pub const IFACE_AUDIO_VERSION: (u16, u16) = (1, 0);
 pub const IFACE_UI: &str = "bb.ui";
 /// The version the host implements for [`IFACE_UI`], as `(major, minor)`.
 pub const IFACE_UI_VERSION: (u16, u16) = (1, 1);
+
+/// Id of the translation interface: the mod's own messages in the player's language.
+pub const IFACE_I18N: &str = "bb.i18n";
+/// The version the host implements for [`IFACE_I18N`], as `(major, minor)`.
+pub const IFACE_I18N_VERSION: (u16, u16) = (1, 0);
 
 /// Id of the world interface: the track, the district, the rain and the traffic.
 pub const IFACE_WORLD: &str = "bb.world";

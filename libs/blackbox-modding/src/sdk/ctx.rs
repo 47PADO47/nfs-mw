@@ -5,11 +5,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
-use super::{Audio, Camera, Commands, Hud, Input, Interface, Map, Menus, ModResult, Time, Ui, Vehicles, World};
+use super::{Audio, Camera, Commands, Hud, I18n, Input, Interface, Map, Menus, ModResult, Time, Ui, Vehicles, World};
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
     IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
-    IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
+    IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME,
     IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
     IFACE_WORLD_VERSION,
 };
@@ -140,6 +140,12 @@ impl Ctx {
     pub fn world(&self) -> Option<World> {
         let iface = self.query_interface(IFACE_WORLD, IFACE_WORLD_VERSION.0, IFACE_WORLD_VERSION.1)?;
         Some(World::new(ffi::world::read(iface)))
+    }
+
+    /// The translation interface (`bb.i18n`), when the host offers it.
+    pub fn i18n(&self) -> Option<I18n> {
+        let iface = self.query_interface(IFACE_I18N, IFACE_I18N_VERSION.0, IFACE_I18N_VERSION.1)?;
+        Some(I18n::new(ffi::i18n::read(iface)))
     }
 }
 

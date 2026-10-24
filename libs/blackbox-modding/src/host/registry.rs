@@ -10,13 +10,14 @@ use std::rc::Rc;
 use super::manifest::InterfaceVersion;
 use super::offer::InterfaceOffer;
 use super::table::{
-    Attached, AudioBackend, CameraBackend, CommandsBackend, HudBackend, InputBackend, MapBackend, MenusBackend,
-    TimeBackend, UiBackend, VehiclesBackend, WorldBackend, attach_audio, attach_camera, attach_commands, attach_hud,
-    attach_input, attach_map, attach_menus, attach_time, attach_ui, attach_vehicles, attach_world,
+    Attached, AudioBackend, CameraBackend, CommandsBackend, HudBackend, I18nBackend, InputBackend, MapBackend,
+    MenusBackend, TimeBackend, UiBackend, VehiclesBackend, WorldBackend, attach_audio, attach_camera, attach_commands,
+    attach_hud, attach_i18n, attach_input, attach_map, attach_menus, attach_time, attach_ui, attach_vehicles,
+    attach_world,
 };
 use crate::abi::{
     IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION,
-    IFACE_HUD, IFACE_HUD_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS,
+    IFACE_HUD, IFACE_HUD_VERSION, IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS,
     IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
     IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
@@ -83,6 +84,12 @@ impl InterfaceRegistry {
     pub fn add_map(&mut self, backend: Rc<dyn MapBackend>) -> &mut Self {
         let build: Build = Box::new(move |ctx: &HostCtx<'_>| attach_map(backend.clone(), ctx.owner()));
         self.push(IFACE_MAP, IFACE_MAP_VERSION, build)
+    }
+
+    /// Offer `bb.i18n`, implemented by `backend`.
+    pub fn add_i18n(&mut self, backend: Rc<dyn I18nBackend>) -> &mut Self {
+        let build: Build = Box::new(move |ctx: &HostCtx<'_>| attach_i18n(backend.clone(), ctx.owner()));
+        self.push(IFACE_I18N, IFACE_I18N_VERSION, build)
     }
 
     /// Offer `bb.menus`, implemented by `backend`.

@@ -67,6 +67,10 @@ pub use iface::{
     IFACE_TIME_VERSION,
 };
 pub use iface::{
+    BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn, IFACE_I18N,
+    IFACE_I18N_VERSION,
+};
+pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
     BbUiTokens, BbUiUnregisterThemeFn, IFACE_UI, IFACE_UI_VERSION,
 };
