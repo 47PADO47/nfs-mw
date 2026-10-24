@@ -3,6 +3,12 @@ use super::super::WorldScene;
 use blackbox_gfx::{BlendMode, DistortionRegion, EffectLayer, ScreenDistortion, TexturedEffect};
 use blackbox_hash::bstring_hash;
 use glam::Vec3;
+use std::cell::RefCell;
+
+thread_local! {
+    /// The falling drops' quads of the frame being built; the vertices go to the renderer, the quads do not.
+    static QUADS: RefCell<Vec<([Vec3; 4], usize)>> = const { RefCell::new(Vec::new()) };
+}
 
 pub(super) struct RainEffects {
     falling: Option<TexturedEffect>,
@@ -23,12 +29,20 @@ impl WorldScene {
             .get(&bstring_hash("RAINDROP"))
             .map(|&(texture, _)| {
                 let mut vertices = Vec::with_capacity(self.rain.falling() * 6);
-                let mut quads = Vec::with_capacity(self.rain.falling());
-                self.rain.quads(camera, &mut quads);
-                for (quad, cell) in quads {
-                    let u = cell as f32 * 0.1;
-                    EffectLayer::particle_quad_uv(&mut vertices, quad, [128; 4], [0.0; 2], [[u, 0.0], [u + 0.1, 1.0]]);
-                }
+                QUADS.with_borrow_mut(|quads| {
+                    quads.clear();
+                    self.rain.quads(camera, quads);
+                    for &(quad, cell) in quads.iter() {
+                        let u = cell as f32 * 0.1;
+                        EffectLayer::particle_quad_uv(
+                            &mut vertices,
+                            quad,
+                            [128; 4],
+                            [0.0; 2],
+                            [[u, 0.0], [u + 0.1, 1.0]],
+                        );
+                    }
+                });
                 TexturedEffect { texture, blend: BlendMode::AlphaBlend, vertices }
             })
             .filter(|effect| !effect.vertices.is_empty());
