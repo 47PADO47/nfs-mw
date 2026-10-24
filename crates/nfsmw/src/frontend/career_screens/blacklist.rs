@@ -154,13 +154,13 @@ pub(super) fn career_rows() -> Vec<RivalRow> {
 
 /// The rank title ("blacklist %d") with the bin number.
 pub(super) fn rank_title(cx: &Cx, bin: u8) -> Option<String> {
-    let text = Text::Game(label_hash("TITLE_BLACKLIST_NUMBER")).resolve(cx.assets)?;
+    let text = Text::Game(label_hash("TITLE_BLACKLIST_NUMBER")).resolve()?;
     Some(text.replace("%d", &bin.to_string()))
 }
 
 /// A text of the game's table, empty when it is missing.
 fn game_text(assets: &UiAssets, key: &str) -> String {
-    Text::Game(label_hash(key)).resolve(assets).unwrap_or_default()
+    Text::Game(label_hash(key)).resolve().unwrap_or_default()
 }
 
 /// Where the player stands with the rival of `row` while `current` is the career's bin: a rival beaten is complete, the one

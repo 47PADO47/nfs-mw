@@ -94,7 +94,7 @@ fn place_key(number: i32, suffix: &str) -> u32 {
 }
 
 fn game_text(assets: &UiAssets, label: u32) -> String {
-    Text::Game(label).resolve(assets).unwrap_or_default()
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 impl Page for BountyPage {

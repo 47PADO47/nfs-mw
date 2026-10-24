@@ -38,7 +38,7 @@ impl PressStart {
 
     /// The headline with the player's number (the original formats it with `iPlayerNum + 1`).
     fn headline(cx: &Cx, player: usize) -> Option<String> {
-        let template = crate::ui::Text::Game(PRESS_START).resolve(cx.assets)?;
+        let template = crate::ui::Text::Game(PRESS_START).resolve()?;
         Some(template.replace("%d", &(player + 1).to_string()))
     }
 
@@ -86,7 +86,7 @@ impl ScreenLogic for PressStart {
         if let (Some(text), Some(o)) = (headline, cx.object(HEADLINE)) {
             cx.rt.set_text(o, text);
         }
-        if let Some(text) = crate::ui::Text::Game(EXPLANATION).resolve(cx.assets)
+        if let Some(text) = crate::ui::Text::Game(EXPLANATION).resolve()
             && let Some(o) = cx.object(BODY)
         {
             cx.rt.set_text(o, text);

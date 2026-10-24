@@ -184,7 +184,7 @@ fn label_key(reward: &Reward) -> Option<&'static str> {
 /// The name of a card's marker from the game's text, or a plain word when the table has none.
 fn card_name(assets: &UiAssets, reward: &Reward) -> String {
     label_key(reward)
-        .and_then(|key| Text::Game(label_hash(key)).resolve(assets))
+        .and_then(|key| Text::Game(label_hash(key)).resolve())
         .unwrap_or_else(|| "Marker".to_string())
 }
 

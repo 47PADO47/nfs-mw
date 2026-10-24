@@ -170,7 +170,7 @@ impl PostRaceLogic {
 
 /// A language label as text; empty when the table lacks it.
 fn label_text(cx: &Cx, label: u32) -> String {
-    Text::Game(label).resolve(cx.assets).unwrap_or_default()
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 fn text_group(cx: &mut Cx, group: u32, label: u32) {

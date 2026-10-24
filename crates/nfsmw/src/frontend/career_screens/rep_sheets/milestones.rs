@@ -138,7 +138,7 @@ impl MilestonePage {
 }
 
 fn game_text(assets: &UiAssets, label: u32) -> String {
-    Text::Game(label).resolve(assets).unwrap_or_default()
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 /// The title and the description of an entry, from the language table.

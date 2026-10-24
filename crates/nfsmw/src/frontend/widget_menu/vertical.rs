@@ -102,7 +102,7 @@ pub(super) fn heading(cx: &Cx, category: super::super::logic::Category, label: u
         Category::Discord => "Discord".into(),
         Category::Mods => "Mods".into(),
         Category::CustomRace => "Track Options".into(),
-        _ => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
+        _ => Text::Game(label).resolve().unwrap_or_default(),
     }
 }
 
@@ -111,14 +111,14 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
     let shown = mod_options::shown(cx.mods, row.setting);
     let label = match (&shown, row.title) {
         (Some(shown), _) => shown.label.clone(),
-        (None, Title::Label(label)) => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
+        (None, Title::Label(label)) => Text::Game(label).resolve().unwrap_or_default(),
         (None, Title::Text(text)) => text.to_owned(),
     };
     let value = match control_of(cx, row.setting) {
         Control::Slider(percent) => MenuValue::Slider(percent),
         Control::Toggle => {
             let text = match data_of(cx, row.setting) {
-                Data::Label(label) => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
+                Data::Label(label) => Text::Game(label).resolve().unwrap_or_default(),
                 Data::Text(text) => text,
             };
             // A row that opens something or runs a command has no values to cycle, so no chevrons.

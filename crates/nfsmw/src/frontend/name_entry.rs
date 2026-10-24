@@ -60,12 +60,12 @@ impl NameEntry {
     }
 
     fn prompt(&self, assets: &UiAssets) -> String {
-        Text::Game(PROMPT).resolve(assets).unwrap_or_else(|| "Enter name:".to_owned())
+        Text::Game(PROMPT).resolve().unwrap_or_else(|| "Enter name:".to_owned())
     }
 
     fn refresh(&self, cx: &mut Cx) {
         let message = self.shown(&self.prompt(cx.assets));
-        set_text(cx, confirm::MESSAGE, &Text::Custom(message));
+        set_text(cx, confirm::MESSAGE, &Text::Literal(message));
     }
 
     /// Takes the name when it is usable, else says why not.
@@ -75,7 +75,7 @@ impl NameEntry {
         }
         if list_aliases().iter().any(|alias| alias.eq_ignore_ascii_case(&self.text)) {
             let notice = format!("The alias {} already exists.", self.text);
-            cx.send(Command::Alert(Alert::new(Text::Custom(notice))));
+            cx.send(Command::Alert(Alert::new(Text::Literal(notice))));
             return;
         }
         cx.send(Command::Pop);
@@ -137,7 +137,7 @@ impl ScreenLogic for NameEntry {
         if !self.vertical {
             return None;
         }
-        let resolve = |text: &Text| text.resolve(assets).unwrap_or_default();
+        let resolve = |text: &Text| text.resolve().unwrap_or_default();
         Some(MenuList {
             title: resolve(&Text::Game(HEADER)),
             message: self.shown(&self.prompt(assets)),

@@ -1,26 +1,29 @@
 //! The subtitles of a movie: which file belongs to it, whether its lines show at all, and the text of each line.
 //! Spec: `docs/specs/subtitles.md` (the gate in section 4.1, the tutorials in 4.3) and `docs/formats/text.md#subtitles`.
 
+use blackbox_text::SubtitleTrack;
 use blackbox_text::subtitles::parse;
-use blackbox_text::{StringTable, SubtitleTrack};
 use egui::{Align2, Color32, RichText};
 use game_install::GameDir;
 
 /// The label of a clear record: a cue with it shows no text. It is in no string table.
 const CLEAR: u32 = 0x001A_20BA;
-/// The suffix every movie file carries after its name, as in `bounty_tutorial_english_ntsc.vp6`.
-const MOVIE_SUFFIX: &str = "_english_ntsc.vp6";
 /// The five tutorial movies. They show their subtitles whatever the language, matched by name.
 const TUTORIALS: [&str; 5] =
     ["bounty_tutorial", "drag_tutorial", "pursuit_tutorial", "speedtrap_tutorial", "tollbooth_tutorial"];
-/// The game's language. The rewrite loads only `LANGUAGES/English.bin` and has no language setting, so it is English.
-const LANGUAGE_IS_ENGLISH: bool = true;
 
-/// The movie's name without its file suffix, lower case: `bounty_tutorial` for `bounty_tutorial_english_ntsc.vp6`.
-/// This is also the name of its subtitle file under `SUBTITLES/`.
+/// The movie's name without its file suffix, lower case: `bounty_tutorial` for `bounty_tutorial_english_ntsc.vp6`
+/// (or `_german_pal.vp6`; `docs/specs/localization.md` section 1.3). This is also the name of its subtitle file under
+/// `SUBTITLES/`.
 pub(super) fn movie_stem(file: &str) -> String {
     let lower = file.to_ascii_lowercase();
-    lower.strip_suffix(MOVIE_SUFFIX).unwrap_or(lower.as_str()).to_owned()
+    let name = lower.strip_suffix(".vp6").unwrap_or(&lower);
+    let Some(name) = name.strip_suffix("_ntsc").or_else(|| name.strip_suffix("_pal")) else { return name.to_owned() };
+    let Some((stem, language)) = name.rsplit_once('_') else { return name.to_owned() };
+    match nfsmw_data::languages::LANGUAGES.iter().any(|l| l.stem.eq_ignore_ascii_case(language)) {
+        true => stem.to_owned(),
+        false => name.to_owned(),
+    }
 }
 
 fn is_tutorial(stem: &str) -> bool {
@@ -40,24 +43,18 @@ pub fn wanted(stem: &str, language_is_english: bool) -> bool {
 /// gate is shut, or there is no subtitle file for it.
 pub(super) fn load(dir: &GameDir, file: &str) -> Option<SubtitleTrack> {
     let stem = movie_stem(file);
-    if !wanted(&stem, LANGUAGE_IS_ENGLISH) {
+    if !wanted(&stem, crate::i18n::current().is_english()) {
         return None;
     }
     let bytes = dir.read(&format!("SUBTITLES/{stem}")).ok()?;
-    let table = string_table(dir)?;
     let cues = parse(&bytes);
-    let lookup = |label| table.get(label);
+    let lookup = crate::i18n::game;
     if is_tutorial(&stem) {
         return Some(SubtitleTrack::with_tutorial_lines(&cues, CLEAR, lookup));
     }
     Some(SubtitleTrack::new(&cues, CLEAR, lookup))
 }
 
-/// The game's string table in the loaded language, shared with the rest of the game (read once per session).
-fn string_table(dir: &GameDir) -> Option<StringTable> {
-    let bytes = nfsmw_data::shared::language(dir).ok()?;
-    StringTable::from_file(&bytes).ok()
-}
 
 /// The lines shown `elapsed` seconds into the movie: none without a track.
 pub(super) fn lines_at(track: Option<&SubtitleTrack>, elapsed: f64) -> (Option<&str>, Option<&str>) {

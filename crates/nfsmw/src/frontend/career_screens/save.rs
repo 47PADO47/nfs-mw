@@ -176,7 +176,7 @@ impl SavePromptLogic {
 
     /// Fills the question and the two labels, hides the third button and focuses the selected answer.
     fn show(&self, cx: &mut Cx) {
-        let template = Text::Game(SAVE_QUESTION).resolve(cx.assets);
+        let template = Text::Game(SAVE_QUESTION).resolve();
         let text = question(template.as_deref(), self.alias.as_deref());
         if let Some(q) = cx.guid(QUESTION) {
             cx.rt.set_text(q, text);
@@ -336,7 +336,7 @@ impl AliasListLogic {
             ListMode::Delete => {
                 let question = format!("Delete the career named {alias}? It cannot be undone.");
                 cx.send(Command::Pop);
-                cx.send(Command::Confirm(Confirm::new(Text::Custom(question), Command::CareerDelete(alias.clone()))));
+                cx.send(Command::Confirm(Confirm::new(Text::Literal(question), Command::CareerDelete(alias.clone()))));
             }
         }
     }
@@ -350,7 +350,7 @@ impl ScreenLogic for AliasListLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.aliases = list_aliases();
         if self.aliases.is_empty() {
-            cx.send(Command::Alert(Alert::new(Text::Custom("There are no careers saved yet.".to_owned()))));
+            cx.send(Command::Alert(Alert::new(Text::Literal("There are no careers saved yet.".to_owned()))));
         }
         cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
         self.show_title(cx);

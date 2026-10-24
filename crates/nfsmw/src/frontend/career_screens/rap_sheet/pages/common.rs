@@ -61,7 +61,7 @@ pub fn put_label(cx: &mut Cx, name: u32, key: &str) {
 
 /// Shows a language string with a value in it. Without the string in the table the value alone is shown.
 pub fn put_value(cx: &mut Cx, name: u32, key: &str, value: &str) {
-    let text = match Text::Game(label_hash(key)).resolve(cx.assets) {
+    let text = match Text::Game(label_hash(key)).resolve() {
         Some(template) => fill(&template, value),
         None => value.to_owned(),
     };

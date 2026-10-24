@@ -152,7 +152,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
 
 /// A game text, empty when missing.
 fn text_of(cx: &Cx, label: u32) -> String {
-    Text::Game(label).resolve(cx.assets).unwrap_or_default()
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 impl Overview {
@@ -323,7 +323,7 @@ impl ScreenLogic for Overview {
         if !self.vertical {
             return None;
         }
-        let text = |label: u32| Text::Game(label).resolve(assets).unwrap_or_default();
+        let text = |label: u32| Text::Game(label).resolve().unwrap_or_default();
         let entries = self
             .list_entries()
             .into_iter()

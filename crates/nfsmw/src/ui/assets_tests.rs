@@ -253,7 +253,7 @@ fn every_loading_tip_has_its_picture_and_text() {
     let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
     let dir = GameDir::open(path).unwrap();
     let assets = UiAssets::load(&dir).unwrap();
-    let strings = assets.strings.as_ref().expect("the English table");
+    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE).expect("the English table");
     for key in crate::ui::tips::TIPS {
         let picture = fe_hash_upper(&crate::ui::tips::picture_name(key));
         assert!(assets.texture(picture).is_some(), "TIP_{key} from GLOBAL/DYNTEX.BIN");

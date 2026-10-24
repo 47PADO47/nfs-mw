@@ -15,6 +15,7 @@ mod frontend;
 mod garage;
 mod gui;
 mod hud;
+mod i18n;
 mod input;
 mod modding;
 mod movie;

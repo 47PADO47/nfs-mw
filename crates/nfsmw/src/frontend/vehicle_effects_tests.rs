@@ -80,7 +80,7 @@ fn vehicle_effects_main_and_pause_video_rows_show_toggle_and_save() {
 
     let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
     let assets = Arc::new(UiAssets::load(&dir).unwrap());
-    let strings = assets.strings.as_ref().expect("the option values need the game's language table");
+    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE).expect("the option values need the game's language table");
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
         let initial = Settings::from(Partial {

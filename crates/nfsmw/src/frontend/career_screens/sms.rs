@@ -151,7 +151,7 @@ pub fn delete(id: u32) {
 
 /// The language table's text for `label`, or the label itself in brackets when the table has no such label.
 fn lookup(cx: &Cx, label: &str) -> String {
-    Text::Game(label_hash(label)).resolve(cx.assets).unwrap_or_else(|| format!("[{label}]"))
+    Text::Game(label_hash(label)).resolve().unwrap_or_else(|| format!("[{label}]"))
 }
 
 /// The row's caption: the sender and the subject of message `id`.

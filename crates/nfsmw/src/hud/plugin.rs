@@ -48,6 +48,7 @@ pub struct HudPlugin {
 #[derive(Resource)]
 struct Hud {
     runtime: Runtime,
+    language: crate::ui::LanguageWatch,
     package: PackageId,
     binding: HudBinding,
     viewport: HudViewport,
@@ -132,9 +133,6 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         assets.missing_resources(&package).len()
     );
     let mut runtime = crate::ui::runtime();
-    if let Some(strings) = assets.strings.clone() {
-        runtime.set_string_resolver(move |label| strings.get(label));
-    }
     let package = runtime.load(package);
     let minimap = MinimapBinding::open_city(&runtime, package, dir, assets);
     // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
@@ -160,6 +158,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
     let event_tiles = EventTiles::new(install_loader(dir.clone()));
     Some(Hud {
         runtime,
+        language: crate::ui::LanguageWatch::default(),
         package,
         binding,
         viewport,
@@ -291,6 +290,7 @@ fn present(
         let song = chyron_shown.then(|| radio.song().zip(radio.serial())).flatten();
         trax.apply(&mut hud.runtime, song);
     }
+    hud.language.apply(&mut hud.runtime);
     hud.runtime.update(time.delta_secs());
     binding.finish_frame(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_ref() {

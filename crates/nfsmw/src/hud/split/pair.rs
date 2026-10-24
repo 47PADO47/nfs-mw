@@ -16,6 +16,7 @@ use crate::ui::present::Screen;
 pub struct Pair {
     pub kind: Kind,
     runtime: Runtime,
+    language: crate::ui::LanguageWatch,
     seats: [SeatHud; 2],
     placements: [Placement; 2],
     map: Option<SharedMap>,
@@ -29,9 +30,6 @@ impl Pair {
             assets.missing_resources(&first).into_iter().chain(assets.missing_resources(&second)).collect();
         log::info!("split HUD {kind:?}: {} resources without a texture ({missing:?})", missing.len());
         let mut runtime = crate::ui::runtime();
-        if let Some(strings) = assets.strings.clone() {
-            runtime.set_string_resolver(move |label| strings.get(label));
-        }
         let ids = [runtime.load(first), runtime.load(second)];
         let map = match kind {
             Kind::Race => SharedMap::open(&mut runtime, ids[0], dir, assets),
@@ -45,7 +43,7 @@ impl Pair {
         let icons = if map.is_some() { SharedMap::icon_hashes() } else { Vec::new() };
         let seats = Seat::BOTH.map(|seat| SeatHud::new(&runtime, ids[seat.index()], kind, seat));
         let placements = [Placement::new(&runtime, ids[0], &icons), Placement::new(&runtime, ids[1], &[])];
-        Self { kind, runtime, seats, placements, map }
+        Self { kind, runtime, language: crate::ui::LanguageWatch::default(), seats, placements, map }
     }
 
     /// Feeds both HUDs for a frame of `dt` seconds. `states` are the players' (the first player's picks the map).
@@ -64,6 +62,7 @@ impl Pair {
         if let (true, Some(map)) = (map_shown, self.map.as_mut()) {
             map.apply(&mut self.runtime, &states[0], &states[1]);
         }
+        self.language.apply(&mut self.runtime);
         self.runtime.update(dt);
         let _ = self.runtime.take_outgoing();
     }

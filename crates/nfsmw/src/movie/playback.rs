@@ -26,11 +26,29 @@ pub(super) fn find(dir: &GameDir, name: &str) -> Result<String> {
         .filter(|f| f.to_ascii_lowercase().trim_end_matches(".vp6").starts_with(wanted))
         .collect();
     found.sort();
+    if found.len() > 1 {
+        found = in_language(found);
+    }
     match found.len() {
         0 => bail!("no movie {name:?} (try `nfsmw list-movies`)"),
         1 => Ok(found.remove(0)),
         _ => bail!("{name:?} could be {}", found.join(", ")),
     }
+}
+
+/// Of the files of one movie in several languages (`ealogo_english_ntsc.vp6`, `ealogo_german_pal.vp6`), the one in the
+/// current language, else the English one. Files of different movies are kept as they are.
+fn in_language(found: Vec<String>) -> Vec<String> {
+    let current = crate::i18n::current();
+    let own = current.table.as_ref().and_then(|t| t.game).map(|g| g.stem.to_ascii_lowercase());
+    for language in own.into_iter().chain(std::iter::once("english".to_owned())) {
+        let marker = format!("_{language}_");
+        let matching: Vec<String> = found.iter().filter(|f| f.to_ascii_lowercase().contains(&marker)).cloned().collect();
+        if matching.len() == 1 {
+            return matching;
+        }
+    }
+    found
 }
 
 /// Seconds played, and whether the movie is over. The sound can outlast the picture, so the end waits for both.

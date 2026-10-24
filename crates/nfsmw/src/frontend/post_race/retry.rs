@@ -10,9 +10,9 @@ use crate::viewer::RaceAnswer;
 /// Back closes the question and leaves the results where they were.
 pub fn offer() -> Confirm {
     Confirm::choice(
-        Text::Custom("You did not win this race. Try it again?".into()),
-        (Text::Custom("Retry".into()), Command::RaceAnswer(RaceAnswer::Restart)),
-        (Text::Custom("Quit".into()), Command::RaceAnswer(RaceAnswer::Exit)),
+        Text::Literal("You did not win this race. Try it again?".into()),
+        (Text::Literal("Retry".into()), Command::RaceAnswer(RaceAnswer::Restart)),
+        (Text::Literal("Quit".into()), Command::RaceAnswer(RaceAnswer::Exit)),
     )
     .looking(Look::Attention)
     .focusing_first(true)
@@ -21,8 +21,8 @@ pub fn offer() -> Confirm {
 /// A race the story goes on from: closing the notice (its one answer, or Back) runs the race again.
 pub fn required() -> Alert {
     Alert {
-        title: Text::Custom("Race lost".into()),
-        message: Text::Custom("You have to win this race to go on. It starts again.".into()),
+        title: Text::Literal("Race lost".into()),
+        message: Text::Literal("You have to win this race to go on. It starts again.".into()),
         on_close: Some(Box::new(Command::RaceAnswer(RaceAnswer::Restart))),
     }
 }

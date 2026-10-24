@@ -125,11 +125,11 @@ impl RacePage {
 
 /// The text of a game label, empty when it is missing.
 fn game_text(assets: &UiAssets, label: u32) -> String {
-    Text::Game(label).resolve(assets).unwrap_or_default()
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 fn track_name(assets: &UiAssets, event: &str) -> String {
-    Text::Game(label_hash(&text::track_label_key(event))).resolve(assets).unwrap_or_else(|| event.to_owned())
+    Text::Game(label_hash(&text::track_label_key(event))).resolve().unwrap_or_else(|| event.to_owned())
 }
 
 impl Page for RacePage {
@@ -162,7 +162,7 @@ impl Page for RacePage {
     fn fill(&self, cx: &mut Cx, at: usize) {
         let Some(row) = self.rows.get(at) else { return };
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
-        let unit = Text::Game(text::unit_label(metric)).resolve(cx.assets).unwrap_or_default();
+        let unit = Text::Game(text::unit_label(metric)).resolve().unwrap_or_default();
         cx.text_object(KIND_NAME, &game_text(cx.assets, text::mode_label(row.kind)));
         if let Some(icon) = cx.object(KIND_ICON) {
             cx.rt.set_texture(icon, text::mode_icon(row.kind));
@@ -178,7 +178,7 @@ impl Page for RacePage {
         };
         cx.text_object(BEST, &best);
         let record = records::best(&row.event);
-        let speed_unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
+        let speed_unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve().unwrap_or_default();
         cx.text_object(AVERAGE, &speed_text(record.average, metric, &speed_unit));
         cx.text_object(TOP, &speed_text(record.top, metric, &speed_unit));
         for name in CASH {

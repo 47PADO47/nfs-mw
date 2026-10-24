@@ -96,7 +96,7 @@ impl Frontend {
             self.apply(commands, host, env);
         }
         let at_start = self.screens.top().is_none();
-        let message = Text::Custom(LOAD_COMPLETE.to_owned());
+        let message = Text::Literal(LOAD_COMPLETE.to_owned());
         let alert = match at_start {
             true => Alert::then(message, Command::QuitTo(QuitTo::Main)),
             false => Alert::new(message),
@@ -220,7 +220,7 @@ impl Frontend {
 
     /// Shows `message` as a notice over the screen that is up.
     fn career_notice(&mut self, message: String, host: &mut Host, env: &mut Env) {
-        self.show_alert(Alert::new(Text::Custom(message)), host, env);
+        self.show_alert(Alert::new(Text::Literal(message)), host, env);
     }
 
     fn show_alert(&mut self, alert: Alert, host: &mut Host, env: &mut Env) {

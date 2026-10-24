@@ -82,7 +82,7 @@ impl IconMenu {
             .iter()
             .map(|icon| {
                 let label =
-                    Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve(assets)).unwrap_or_default();
+                    Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve()).unwrap_or_default();
                 MenuEntry { icon: Self::picture(icon), ..MenuEntry::plain(label, icon.enabled) }
             })
             .collect();
@@ -97,7 +97,7 @@ impl IconMenu {
             Kind::Categories { pause: true, .. } | Kind::Pause => MenuStyle::Pause,
         };
         Some(MenuList {
-            title: Text::Game(self.title_label()).resolve(assets).unwrap_or_default(),
+            title: Text::Game(self.title_label()).resolve().unwrap_or_default(),
             message: String::new(),
             entries,
             selected: self.current_icon().unwrap_or(0),

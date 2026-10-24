@@ -265,7 +265,7 @@ impl ChallengeSeries {
         if let Some(o) = cx.object(EVENT_ICON) {
             cx.rt.set_texture(o, entry.kind.icon());
         }
-        let template = Text::Game(texts::description_label(entry.tag)).resolve(cx.assets).unwrap_or_default();
+        let template = Text::Game(texts::description_label(entry.tag)).resolve().unwrap_or_default();
         let goal = texts::goal_text(entry);
         cx.text_object(DESCRIPTION, &texts::fill(&template, &[goal.clone(), goal]));
         let message = if entry.kind.tutorial().is_some() { TUTORIAL_HINT_ON } else { TUTORIAL_HINT_OFF };
@@ -280,7 +280,7 @@ impl ChallengeSeries {
         }
         cx.rt.post_to_package(cx.package, LOCKED_ON);
         let line = texts::locked_line(self.grid.current);
-        let template = Text::Game(line.label).resolve(cx.assets).unwrap_or_default();
+        let template = Text::Game(line.label).resolve().unwrap_or_default();
         let numbers: Vec<String> = line.numbers.iter().map(usize::to_string).collect();
         cx.text_object(LOCKED_TEXT, &texts::fill(&template, &numbers));
     }

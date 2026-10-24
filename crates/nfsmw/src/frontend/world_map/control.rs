@@ -220,7 +220,7 @@ fn ask_gps(
     let Some(blip) = overlay.blips.get(index) else {
         return draw(fe, overlay, dt, chrome, host, env);
     };
-    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), Command::SetWaypoint(blip.world));
+    let confirm = Confirm::new(Text::Literal("Activate GPS?".into()), Command::SetWaypoint(blip.world));
     let commands = fe.screens.open_with(DIALOG, Box::new(ConfirmLogic::new(confirm)), false, env);
     fe.apply(commands, host, env);
     draw(fe, overlay, dt, chrome, host, env);

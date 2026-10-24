@@ -20,8 +20,7 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
     let tables = CarTables::load(dir)?;
     let mut cars = Vec::new();
     let brands: Vec<_> = tables.types.iter().map(|car| car.manufacturer.clone()).collect();
-    let strings =
-        nfsmw_data::shared::language(dir).ok().and_then(|bytes| blackbox_text::StringTable::from_file(&bytes).ok());
+
     for folder in nfsmw_data::car::list(dir) {
         // Shared accessory folders have geometry but are not vehicle types.
         let Some(car_type) = tables.car_type_for_folder(&folder) else { continue };
@@ -40,7 +39,7 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
             continue;
         }
         let (mut name, manufacturer) =
-            names::display(&car_type.type_name, &car_type.manufacturer, &brands, strings.as_ref());
+            names::display(&car_type.type_name, &car_type.manufacturer, &brands, &crate::i18n::game);
         if let Some(own) = car_mods::display_name(&folder) {
             name = own.to_owned();
         }
@@ -78,14 +77,11 @@ impl WorldScene {
         }
         let mut catalog =
             self.garage_parts.as_ref().context("part inventory unavailable")?.catalog(&self.dir, folder)?;
-        let strings = nfsmw_data::shared::language(&self.dir)
-            .ok()
-            .and_then(|bytes| blackbox_text::StringTable::from_file(&bytes).ok());
         for (index, choices) in catalog.choices.iter_mut().enumerate() {
             for choice in choices.iter_mut() {
                 if index != customization::Category::Body as usize
                     && index != customization::Category::Wheels as usize
-                    && let Some(name) = choice.language_hash.and_then(|h| strings.as_ref()?.get(h))
+                    && let Some(name) = choice.language_hash.and_then(crate::i18n::game)
                     && !name.trim().is_empty()
                 {
                     choice.label = name;

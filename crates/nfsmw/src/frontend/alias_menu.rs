@@ -28,12 +28,12 @@ pub fn press(cx: &mut Cx, id: Id) {
 fn ask_to_save(cx: &mut Cx) {
     let alias = CareerHandle::shared().with_loaded(|career| career.alias.clone());
     let Some(alias) = alias else {
-        cx.send(Command::Alert(Alert::new(Text::Custom(
+        cx.send(Command::Alert(Alert::new(Text::Literal(
             "There is no alias to save. Create or load one first.".into(),
         ))));
         return;
     };
-    let template = Text::Game(SAVE_QUESTION).resolve(cx.assets);
+    let template = Text::Game(SAVE_QUESTION).resolve();
     let question = save::question(template.as_deref(), Some(&alias));
-    cx.send(Command::Confirm(Confirm::new(Text::Custom(question), Command::CareerSave)));
+    cx.send(Command::Confirm(Confirm::new(Text::Literal(question), Command::CareerSave)));
 }

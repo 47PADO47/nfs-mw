@@ -193,7 +193,7 @@ fn the_labels_and_textures_the_brief_names_are_in_the_install() {
     let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(dir) = install() else { return };
     let assets = UiAssets::load(&dir).unwrap();
-    let label = |hash: u32| Text::Game(hash).resolve(&assets);
+    let label = |hash: u32| Text::Game(hash).resolve();
     let kinds = [
         RaceType::Sprint,
         RaceType::Circuit,
@@ -256,7 +256,7 @@ fn the_pool_has_cars_with_folders_logos_and_stats_and_races_with_names() {
         .tracks
         .iter()
         .filter(|t| {
-            Text::Game(label_hash(&text::track_label_key(&crate::career::event_id(&t.name)))).resolve(&assets).is_some()
+            Text::Game(label_hash(&text::track_label_key(&crate::career::event_id(&t.name)))).resolve().is_some()
         })
         .count();
     let outside: Vec<String> =
