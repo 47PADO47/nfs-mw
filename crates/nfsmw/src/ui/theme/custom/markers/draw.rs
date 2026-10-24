@@ -19,6 +19,7 @@ use super::super::plate::{Plate, PlateStyle, RULE_WIDTH};
 use super::super::text::{Label, Sizing, size};
 use super::super::tokens::{fade, faded_skin, keys};
 use super::rules::{Candidate, Kind, Name};
+use super::threats::ThreatStyle;
 
 /// The depth of the markers: behind every other HUD element (a lower `z` draws on top).
 pub const MARK_Z: f32 = DEFAULT_Z + 10.0;
@@ -42,6 +43,12 @@ pub const LABEL_SIZE: f32 = size::NOTIFICATION_LINE;
 const CHAR_WIDTH: f32 = 0.55;
 /// The checkpoint tick's ring grows from the diamond to this many times its size.
 const TICK_GROWTH: f32 = 2.2;
+/// A police edge arrow, half its length; a confirmed threat's dot and a last-known ring, radius; and how much an
+/// on-screen police mark is dimmed, so it stays subtle next to the car it marks.
+const THREAT_HALF: f32 = 8.0;
+const THREAT_DOT: f32 = 2.5;
+const THREAT_RING: f32 = 5.0;
+const THREAT_MARK_ALPHA: f32 = 0.7;
 
 /// The skin key a marker of `kind` draws in.
 pub fn colour_key(kind: Kind) -> &'static str {
@@ -191,6 +198,36 @@ impl Parts {
         self.ring(keys::SUCCESS, at, radius, STROKE * paint.scale, paint.opacity * alpha, cx);
     }
 
+    /// A police indicator of `style` at `at`: along `arrow` at the window's edge, or a small mark on its place. A
+    /// confirmed threat is solid (a heavy chevron, a dot), the last-known place hollow (an outlined arrowhead, a thin
+    /// ring), both in the danger colour.
+    pub fn threat(
+        &mut self,
+        style: ThreatStyle,
+        at: Vec2,
+        arrow: Option<Vec2>,
+        alpha: f32,
+        paint: Paint,
+        cx: &LayoutCx<'_>,
+    ) {
+        let s = paint.scale;
+        let opacity = paint.opacity * alpha;
+        match (style, arrow) {
+            (ThreatStyle::Solid, Some(direction)) => {
+                self.stroke(chevron(at, direction, THREAT_HALF * s), keys::DANGER, STROKE * 1.5 * s, opacity, cx)
+            }
+            (ThreatStyle::Hollow, Some(direction)) => {
+                self.stroke(arrowhead(at, direction, THREAT_HALF * s), keys::DANGER, STROKE * 0.6 * s, opacity, cx)
+            }
+            (ThreatStyle::Solid, None) => {
+                self.ring(keys::DANGER, at, THREAT_DOT * s, THREAT_DOT * s, opacity * THREAT_MARK_ALPHA, cx)
+            }
+            (ThreatStyle::Hollow, None) => {
+                self.ring(keys::DANGER, at, THREAT_RING * s, STROKE * 0.5 * s, opacity * THREAT_MARK_ALPHA, cx)
+            }
+        }
+    }
+
     /// `label` centred on `at` on its plate, at `alpha`.
     pub fn label(&mut self, label: &MarkerLabel, at: Vec2, alpha: f32, paint: Paint, cx: &LayoutCx<'_>) {
         let opacity = paint.opacity * alpha;
@@ -260,6 +297,15 @@ fn triangle(at: Vec2, half: f32) -> Vec<Vec2> {
     let top = at - Vec2::Y * half;
     let base = at.y + half * 0.7;
     vec![top, Vec2::new(at.x + half, base), Vec2::new(at.x - half, base), top]
+}
+
+/// A closed arrowhead at `at` pointing along `direction` (a unit vector), `half` from its centre to its tip: the hollow
+/// edge arrow.
+fn arrowhead(at: Vec2, direction: Vec2, half: f32) -> Vec<Vec2> {
+    let side = direction.perp() * half * 0.7;
+    let back = at - direction * half;
+    let tip = at + direction * half;
+    vec![tip, back + side, back - side, tip]
 }
 
 /// A chevron at `at` pointing along `direction` (a unit vector), `half` from its centre to its tip.

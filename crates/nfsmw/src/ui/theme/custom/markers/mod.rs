@@ -11,12 +11,14 @@
 //!    order ([`arrange`]);
 //! 4. draws the marks and arrows where they project, and the labels where the memory steadies them, snapped to whole
 //!    pixels, so the camera's shake neither jitters nor swims the text.
+//! 5. draws the police indicators: the confirmed threats (at most three, nearest first) or the fading last-known place.
 //!
 //! Submodules:
 //!
 //! - [`project`]: world to canvas, the edge arrows' ellipse, the label low-pass and the pixel snap.
 //! - [`rules`]: the candidates, the priority order and the cap, the styling by distance and occlusion.
 //! - [`draw`]: the shapes and the labels.
+//! - [`threats`]: the police indicators, by the fair-knowledge rules.
 //! - [`memory`]: what is kept between frames, in [`MarkerMemoryCell`].
 
 mod draw;
@@ -29,6 +31,9 @@ mod rules;
 mod rules_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threat_tests;
+mod threats;
 
 pub use memory::MarkerMemoryCell;
 
@@ -127,6 +132,12 @@ fn compose(feed: &CustomFeed, memory: &mut MarkerMemory, cx: &LayoutCx<'_>) -> O
     });
     if let Some((at, progress)) = tick {
         parts.tick(at, progress, motion.pulse_moves, paint, cx);
+    }
+    let edge = project::edge_rect(window, ARROW_HALF * paint.scale);
+    let police = threats::threats(&feed.hud, &feed.settings);
+    for placed in threats::place(police, camera, window, edge, MARK_HALF * paint.scale) {
+        let threat = placed.threat;
+        parts.threat(threat.kind.style(), placed.at, placed.arrow, threat.alpha, paint, cx);
     }
     (!parts.is_empty()).then_some(parts)
 }
