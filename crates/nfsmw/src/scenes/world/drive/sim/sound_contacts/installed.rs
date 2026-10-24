@@ -8,7 +8,7 @@ use nfsmw_data::car::physics::PhysicsData;
 
 fn render(dir: GameDir, contacts: Vec<CarContact>) -> Vec<f32> {
     let mut audio = Audio::replay(dir, 48_000);
-    audio.set_volumes(Volumes { engine: 0.0, music: 0.0, sfx: 1.0, master: 1.0 });
+    audio.set_volumes(Volumes { engine: 0.0, music: 0.0, sfx: 1.0, master: 1.0, hud: 0.0 });
     audio.render_replay(24_000); // Finish volume commands before any engine voice starts.
     let input = CarInput::default();
     let mut state = CarSoundState {
