@@ -301,8 +301,9 @@ impl HudSetting {
     }
 }
 
-/// The line under the HUD page. Under the Custom style it is the result in words, as the rows change ("Centered map,
-/// balanced information, high contrast"); under another style it says that most rows apply to the Custom style.
+/// The line the HUD page's list carries (the Custom menus' description line, the Remastered page's line beside its
+/// title). Under the Custom style it is the result in words, as the rows change ("Centered map, balanced information,
+/// high contrast"); under another style it says that most rows are for the Custom style.
 pub fn note(s: &Settings) -> String {
     if s.ui_style != UiStyle::Custom {
         return text("options-hud-note-other-style");

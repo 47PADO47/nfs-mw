@@ -57,5 +57,6 @@ options-hud-preview-advanced = advanced information
 options-hud-preview-custom = custom information
 options-hud-preview-high-contrast = high contrast
 options-hud-preview-reduced-motion = reduced motion
-# Under another style.
-options-hud-note-other-style = Most of these options apply to the Custom HUD style; the camera, vibration, volume and map orientation apply to every style.
+# Under another style, where most rows wait for the Custom style (the camera, vibration, volume and map orientation rows
+# apply to every style). Short: the Remastered page shows it beside its title.
+options-hud-note-other-style = Mostly for the Custom style
