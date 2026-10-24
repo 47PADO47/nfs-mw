@@ -24,15 +24,13 @@ use super::{
     RIVAL_BIO_CONTENT, RIVAL_CONTENT_START, RIVAL_LIST_READY, RIVAL_OPENED_CAREER, RIVAL_OPENED_PLAIN, post_opening,
 };
 use crate::career::CareerHandle;
+use crate::frontend::disabled;
 use crate::frontend::flow::flow_first_visit::{bio_continue, enter_first_bin_on_open};
 use crate::frontend::ids::screen;
 use crate::frontend::infractions::money;
 use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue, RivalInfo, RivalStatus};
 use crate::ui::{Text, UiAssets};
-
-/// The alpha of a disabled text (the same value the infractions screen uses).
-pub(super) const DISABLED_ALPHA: u8 = 110;
 
 /// Objects of `SafeHouseRivalChallenge.fng` by name hash. The title group holds the rank ("blacklist %d"), the name group
 /// the rival's name, the bounty group the bounty needed, and the defeated group the stamp of a beaten rival.
@@ -272,7 +270,7 @@ impl ChallengeLogic {
         cx.text_group(CHALLENGE_BOUNTY, &money(row.bounty_needed));
         cx.hide(CHALLENGE_DEFEATED, row.state != RivalState::Beaten);
         if let Some(text) = cx.guid(CHALLENGE_TEXT) {
-            let alpha = if row.button_active { 255 } else { DISABLED_ALPHA };
+            let alpha = if row.button_active { 255 } else { disabled::TEXT_ALPHA };
             cx.rt.set_alpha(text, alpha);
         }
     }

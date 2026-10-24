@@ -62,6 +62,13 @@ is selected. The decomp takes the centre `(cx, cy)` from `ICON_SCROLL_REGION`, w
 position of `OPTION_MASTER` instead: the cursor brackets sit on it, and the region is 17 units to the left of it in
 `MainMenu.fng` (7 in `MainMenu_Sub.fng`), which left the selected icon off-centre in its brackets.
 
+**One strip for every icon row (ours).** The original runs every `OPTION_n` carousel through the one
+`IconScrollerMenu`. The rewrite does the same: `icon_strip.rs` owns the slots, the window, the scroll ease, the row
+fade, the placement and the hit test, and a screen gives it a face per icon (texture, picture rectangle, drawn size,
+enabled) and decides what a selection or a click means. The icon menus (`icon_menu.rs`) and the Blacklist overview's
+sheet row (`career_screens/reputation_overview_row.rs`) are both on it. A disabled icon is capped at alpha 150
+(`disabled.rs`; disabled texts use 110).
+
 **Windowing (ours).** A menu may list more icons than its package has objects. The strip is the book ends and the
 icons as above, and the row shows a window of the package's objects over it (`icon_window.rs`). The window is
 centred on the selection, `base = min(max(selected - slots / 2, 0), strip - slots)`, so the three icons either side

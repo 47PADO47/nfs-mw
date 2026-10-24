@@ -14,6 +14,7 @@ mod confirm;
 mod controls_layout;
 mod controls_screen;
 mod credits;
+mod disabled;
 pub mod dump;
 mod factory;
 mod feature_presets;
@@ -21,6 +22,7 @@ mod flow;
 pub(crate) mod graphics_options;
 mod icon_items;
 mod icon_menu;
+mod icon_strip;
 mod icon_window;
 mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).

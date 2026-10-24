@@ -172,3 +172,28 @@ fn the_pad_steps_picks_opens_and_leaves() {
     let top = h.screens.top().unwrap_or_default();
     assert!(top.eq_ignore_ascii_case(screen::MAIN_MENU_SUB), "back leaves for the safe house menu, the top is {top}");
 }
+
+#[test]
+fn the_sheet_row_eases_to_the_next_icon_like_every_other_icon_row() {
+    use blackbox_feng::fe_hash_upper;
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(mut h) = overview(13) else { return };
+    let x = |h: &Harness| h.centre(fe_hash_upper("OPTION_4")).x;
+    let (cursor, start) = (h.centre(OPTION_ICON).x, x(&h));
+    assert!(start > cursor + 20.0, "the second sheet waits to the right of the cursor");
+    h.press(pad::RIGHT);
+    let midway = x(&h);
+    assert!(midway < start - 0.5 && midway > cursor + 0.5, "it is on its way, not jumped: {start} {midway} {cursor}");
+    h.wait(0.3);
+    assert!((x(&h) - cursor).abs() < 0.01, "and arrives under the cursor");
+}
+
+#[test]
+fn a_click_on_an_empty_end_of_the_sheet_row_is_the_rows_and_opens_nothing() {
+    use blackbox_feng::fe_hash_upper;
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(mut h) = overview(13) else { return };
+    assert!(h.click_on(fe_hash_upper("OPTION_2")), "the book end takes the click");
+    assert_eq!(h.screens.top(), Some(screen::SAFE_HOUSE_REPUTATION_OVERVIEW));
+    assert!(h.shows("Race Events"), "and the selection stays where it was");
+}
