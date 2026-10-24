@@ -35,6 +35,18 @@ fn menu_requests_are_drained_once() {
 }
 
 #[test]
+fn hud_cues_queue_apart_from_the_menu_sounds() {
+    take();
+    take_hud();
+    request_hud(10);
+    request(PAD_BACK);
+    request_hud(4);
+    assert_eq!(take(), [5], "a HUD cue is not a menu sound");
+    assert_eq!(take_hud(), [10, 4], "the HUD's cues keep their order");
+    assert!(take_hud().is_empty());
+}
+
+#[test]
 fn one_package_accepts_once_even_with_pad_button_and_script_announcements() {
     take();
     let package = blackbox_feng::PackageId(1);
