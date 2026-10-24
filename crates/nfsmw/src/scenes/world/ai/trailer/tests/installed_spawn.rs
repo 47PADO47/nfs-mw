@@ -40,6 +40,7 @@ fn model(dir: &GameDir, data: &PhysicsData, name: &str, renderer: &mut NullBacke
         name: name.into(),
         rig,
         physics: data.car(name).unwrap(),
+        tunings: Default::default(),
         tractor: data.is_tractor(name),
         trailer: None,
         cop_lights: None,

@@ -149,6 +149,15 @@ fn update(
     let mut current = *settings;
     let mut env = Env { settings: &mut current, changed: &mut changed, caps, mods: map.mods.as_deref() };
     fe.begin(host, &mut env);
+    fe.poll_garage(host, &mut env, &mut garage);
+    if fe.menu_garage_requested || garage.menu_requested {
+        fe.changed = changed;
+        return;
+    }
+    if garage.menu {
+        capture.0 = false;
+        focus.0 = false;
+    }
     if super::lan::gate(fe, host, &mut env) {
         return;
     }
@@ -184,6 +193,9 @@ fn update(
     }
     fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings, fe.remap));
     let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
+    if fe.garage_ui.is_some() && (keys.pressed(KeyCode::Digit4) || script_key == Some(KeyCode::Digit4)) {
+        mask |= pad::START;
+    }
     // A click does what accept does while the game boots: it skips a movie and continues from the title screen.
     if matches!(fe.stage, Stage::Boot(_)) && actions.pressed(Action::Click) {
         mask |= pad::ACCEPT;
@@ -290,8 +302,8 @@ fn update(
             fe.poll_career(host, &mut env);
             // An auto shop asks the garage to open on the next frame (`cursor.rs` opens it, as the start request does).
             if std::mem::take(&mut fe.auto_shop_requested) {
-                garage.start_tab = crate::garage::OptionsTab::Performance;
-                garage.start_requested = true;
+                garage.menu_requested = true;
+                fe.poll_garage(host, &mut env, &mut garage);
             }
             let scripted_start = mask & pad::START != 0 && fe.last_mask & pad::START == 0;
             // The loading screen may have covered a race start just now: nothing pauses it.
@@ -356,6 +368,7 @@ fn update(
             let commands = fe.screens.update(dt, mask, &mut env);
             fe.apply(commands, host, &mut env);
             // The profile step of the boot flow is over when its last screen closed: the main menu follows.
+            fe.garage_requests(host, &mut env, &mut garage);
             fe.poll_startup(host, &mut env);
             fe.end_game_frame(host, &mut env);
             fe.sync_backdrop(host);

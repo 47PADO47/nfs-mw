@@ -57,6 +57,8 @@ pub struct CarScene {
     wanted_shading: CarShading,
     /// Authored presets sampled at this viewer's fixed sun and clear-cloud preview context.
     preview_lighting: Option<nfsmw_data::time_of_day::Presets>,
+    /// The installed shop backroom mirrors the front end's light angles (`car-lighting.md`).
+    frontend_backroom: bool,
     /// Which car is on the floor: another car gets new instance keys.
     car: u32,
     /// The camera jumped (a new scene, another car, the camera toggle).
@@ -96,6 +98,7 @@ impl CarScene {
             shading: CarShading::default(),
             wanted_shading: CarShading::default(),
             preview_lighting: None,
+            frontend_backroom: false,
             car: 0,
             cut: CameraCut::default(),
             view_offset: 0.0,
@@ -135,7 +138,16 @@ impl CarScene {
             .as_ref()
             .and_then(|presets| nfsmw_data::time_of_day::car_specular_scale(presets, 0.0, (-LIGHT_DIR).normalize().z))
             .unwrap_or(1.0);
-        renderer.set_lighting_rig(&original_lighting::frontend(scale));
+        let rig = match self.frontend_backroom {
+            true => original_lighting::backroom(scale),
+            false => original_lighting::frontend(scale),
+        };
+        renderer.set_lighting_rig(&rig);
+    }
+
+    /// Select the original backroom rig without changing a custom shading mode or material profile.
+    pub(crate) fn set_frontend_backroom(&mut self, backroom: bool) {
+        self.frontend_backroom = backroom;
     }
 
     /// Car space to world: the car stands on the floor at z = 0, less what it sinks in, turned by its stand.

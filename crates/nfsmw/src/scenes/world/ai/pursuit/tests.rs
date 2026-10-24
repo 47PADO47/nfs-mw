@@ -208,6 +208,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
             name: name.into(),
             rig,
             physics,
+            tunings: Default::default(),
             tractor: false,
             trailer: None,
             cop_lights: None,

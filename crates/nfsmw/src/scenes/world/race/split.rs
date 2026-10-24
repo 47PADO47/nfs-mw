@@ -6,11 +6,63 @@ use super::setup::Opponent;
 use crate::input::PlayerDevice;
 use crate::settings::Transmission;
 
+fn custom_identity(folder: &str) -> String {
+    format!("my-cars/{}", folder.to_ascii_uppercase())
+}
+
+impl crate::scenes::world::WorldScene {
+    /// Install player 2's custom model under a distinct identity, so Stock retains its own rig and physics.
+    pub(crate) fn prepare_custom_split(
+        &mut self,
+        renderer: &mut dyn blackbox_gfx::RenderBackend,
+        setup: &SplitSetup,
+    ) -> anyhow::Result<()> {
+        use crate::scenes::world::{ai::TrafficModel, drive::CarRig, sun};
+        use anyhow::Context;
+
+        if !setup.customs[1] {
+            return Ok(());
+        }
+        let folder = &setup.cars[1];
+        self.discover_garage_parts(folder)?;
+        let id = setup.custom_ids[1].as_deref().context("Player 2 My Cars slot identity is missing")?;
+        let selection = crate::garage::my_cars::load(&self.dir, &self.garage, id, folder)?;
+        let entry =
+            self.garage.cars.iter().find(|car| car.folder == selection.car).context("Custom car is not installed")?;
+        let physics = self.physics.car_with_performance(&entry.physics_name, selection.performance)?;
+        let tunings = selection.tuning.normalized()?;
+        let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
+        let mut model =
+            nfsmw_data::car::load_customized_driving(&self.dir, &selection.car, &options, &selection.parts)?;
+        if let Some(color) = selection.color {
+            model.set_body_color(color)?;
+        }
+        let traffic = self.traffic.as_mut().context("Split screen needs a road network")?;
+        let rig =
+            std::rc::Rc::new(CarRig::upload(renderer, self.car_keys.next(), model, self.car_shading, sun::to_sun()));
+        traffic.add_model(TrafficModel {
+            name: custom_identity(id),
+            rig,
+            physics,
+            tunings,
+            tractor: false,
+            trailer: None,
+            cop_lights: None,
+            audio_profile: Default::default(),
+            keys: self.car_keys.clone(),
+        });
+        Ok(())
+    }
+}
+
 /// The two players of a split-screen race.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SplitSetup {
     /// The car folder each player chose, player 1 first.
     pub cars: [String; 2],
+    /// Each car was selected from My Cars, rather than Stock or a preset list.
+    pub customs: [bool; 2],
+    pub custom_ids: [Option<String>; 2],
     /// The device each player holds (`input::SplitInput`).
     pub devices: [PlayerDevice; 2],
     /// Each player's gearbox.
@@ -26,7 +78,10 @@ impl SplitSetup {
             name_label: None,
             skill: 1.0,
             bias: 1.0,
-            car: Some(self.cars[1].clone()),
+            car: Some(match self.customs[1] {
+                true => custom_identity(self.custom_ids[1].as_deref().unwrap_or(&self.cars[1])),
+                false => self.cars[1].clone(),
+            }),
             start: None,
         }
     }
@@ -51,6 +106,8 @@ mod tests {
     fn setup() -> SplitSetup {
         SplitSetup {
             cars: ["BMWM3GTR".into(), "PORSCHE911".into()],
+            customs: [false; 2],
+            custom_ids: [None, None],
             devices: [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows],
             transmissions: [Transmission::Automatic, Transmission::Manual],
         }
@@ -76,6 +133,18 @@ mod tests {
         let opponent = setup().second_player();
         assert_eq!(opponent.car.as_deref(), Some("PORSCHE911"));
         assert_eq!(opponent.start, None, "they take the next grid slot");
+    }
+
+    #[test]
+    fn my_cars_and_stock_use_different_model_identities() {
+        let mut setup = setup();
+        let stock = setup.second_player().car.unwrap();
+        setup.customs[1] = true;
+        setup.custom_ids[1] = Some("slot-0001".into());
+        let custom = setup.second_player().car.unwrap();
+        assert_eq!(stock, "PORSCHE911");
+        assert_eq!(custom, "my-cars/SLOT-0001");
+        assert_ne!(stock, custom);
     }
 
     #[test]

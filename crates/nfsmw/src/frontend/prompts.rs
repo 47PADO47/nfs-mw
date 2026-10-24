@@ -35,6 +35,9 @@ pub type Hint = (Vec<Prompt>, &'static str, Option<Action>);
 
 /// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
 pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
+    if let Some(hints) = super::garage_ui::prompts::hints(footer, bindings, device) {
+        return hints;
+    }
     let (rows, main, splash) = (
         [screen::OPTIONS, screen::PAUSE_OPTIONS].iter().any(|s| name.eq_ignore_ascii_case(s)),
         name.eq_ignore_ascii_case(screen::MAIN_MENU),
@@ -69,7 +72,15 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
                 .collect();
             return vec![back, (zoom, "Zoom", None), (arrows, "View Car", None)];
         }
-        Footer::Standard => {}
+        Footer::Standard
+        | Footer::GarageManager { .. }
+        | Footer::GarageMain { .. }
+        | Footer::GarageCategories { .. }
+        | Footer::GarageParts
+        | Footer::GarageSelect
+        | Footer::GarageCart { .. }
+        | Footer::GarageTuning
+        | Footer::GarageNumbers => {}
     }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), "Accept", Some(Action::MenuAccept))];
@@ -144,7 +155,10 @@ pub fn decorate(
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
     let Some(frame) = Frame::find(tree, name, footer) else { return Vec::new() };
-    hide_legacy_hints(tree, splash);
+    hide_legacy_hints(tree, splash, name.eq_ignore_ascii_case("Quick_Race_Brief.fng"));
+    if footer.is_garage() {
+        super::garage_ui::prompts::hide_legacy(tree);
+    }
     let first_hint = tree.nodes.len();
     let hints = hint_set(name, footer, bindings, device);
     let colour = match pause || name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
@@ -232,7 +246,7 @@ fn rect(tree: &mut UiTree, x: f32, y: f32, width: f32, height: f32, colour: [u8;
     push(tree, n);
 }
 
-fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
+fn hide_legacy_hints(tree: &mut UiTree, splash: bool, brief: bool) {
     // 0xD646_3100 is the Game Stats (and Randomize) button group.
     // 0xB8A7_C6CE is the profile list's own Accept; 0x28FD_842D the main menu's Game Stats card header.
     let names = [
@@ -246,14 +260,14 @@ fn hide_legacy_hints(tree: &mut UiTree, splash: bool) {
         super::ids::QUIT_BUTTON,
         // The overview's legacy Back triangle is a direct footer child, outside the Back text group.
         0x1AC9_4CA9,
-        // The Quick Play brief's own Back, Accept and Randomize hints.
-        super::prompt_layout::BRIEF_FOOTER,
-        super::prompt_layout::BRIEF_RANDOMIZE,
     ];
     let mut hidden = vec![false; tree.nodes.len()];
     for (i, n) in tree.nodes.iter().enumerate() {
         let hint_text = n.text.as_deref().is_some_and(|t| matches!(t.trim(), "Accept" | "Back" | "Quit" | "Defaults"));
-        hidden[i] = hint_text || names.contains(&n.name_hash) || (splash && n.name_hash == 0xC4DF_3FF2);
+        // The brief's Randomize root has the generic name "Group", shared by unrelated screens.
+        let brief_hint =
+            brief && [super::prompt_layout::BRIEF_FOOTER, super::prompt_layout::BRIEF_RANDOMIZE].contains(&n.name_hash);
+        hidden[i] = hint_text || names.contains(&n.name_hash) || brief_hint || (splash && n.name_hash == 0xC4DF_3FF2);
     }
     // Ancestors precede descendants in the actual packages; the parent chain also handles other orderings.
     for i in 0..tree.nodes.len() {

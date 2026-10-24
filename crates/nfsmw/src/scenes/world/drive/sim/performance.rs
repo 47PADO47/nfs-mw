@@ -5,7 +5,7 @@ use nfsmw_data::car::physics::CarPhysics;
 use crate::settings::speedbreaker::PhysicsModifiers;
 
 impl CarSim {
-    pub(in crate::scenes::world::drive) fn set_tunings(&mut self, tunings: blackbox_vehicle::Tunings) {
+    pub(in crate::scenes::world) fn set_tunings(&mut self, tunings: blackbox_vehicle::Tunings) {
         self.vehicle.tunings = tunings;
     }
 

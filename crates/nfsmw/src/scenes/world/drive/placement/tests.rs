@@ -79,5 +79,20 @@ fn installed_player_reset_collision_grace_requires_a_successful_replacement() {
     assert!(!drive.sim.as_ref().unwrap().reset_collision_active(), "failed reset cannot grant protection");
     assert!(drive.spawn(spawn, &collision, &data.surfaces));
     assert!(drive.sim.as_ref().unwrap().reset_collision_active(), "successful reset reaches collision admission");
+    let exit = Spawn { position: Vec3::new(5.0, -6.0, 0.0), heading: 0.73 };
+    drive.respawn_at(exit);
+    let request = drive.waiting_for_road().expect("garage exit waits for its exact marker");
+    assert_eq!(request.exact, Some(exit));
+    assert!(request.strict, "a garage exit cannot be relocated to a nearby road");
+    assert_eq!(drive.place_strict(exit, &collision, &data.surfaces), Strict::Placed);
+    // Spawn locates the rigid body; the drawn model origin is offset by its authored pivot.
+    let pivot = crate::scenes::world::space::to_render(drive.physics.bounds.pivot.to_array());
+    let body_position = drive.position() + drive.current.rotation * pivot;
+    assert!(
+        (body_position.truncate() - exit.position.truncate()).length() < 1e-4,
+        "body {body_position:?}, marker {:?}, pivot {pivot:?}",
+        exit.position
+    );
+    assert!((drive.heading() - exit.heading).abs() < 1e-4, "the stored marker heading is preserved");
     drive.rig.release(&mut renderer);
 }

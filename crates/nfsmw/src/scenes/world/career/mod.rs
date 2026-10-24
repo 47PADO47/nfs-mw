@@ -5,7 +5,7 @@
 //! frame after the simulation and the entry zones.
 
 mod bust;
-mod cooling;
+pub(super) mod cooling;
 mod coop_bust;
 mod drive_to_target;
 mod events;
@@ -32,6 +32,7 @@ use crate::career::{CareerHandle, CareerRequest, ProfileDir};
 /// The career state the world keeps between frames.
 #[derive(Default)]
 pub(super) struct WorldCareer {
+    pub garage: Option<super::garage::session::ShopSession>,
     /// The career being played; empty outside career mode.
     pub handle: CareerHandle,
     /// Where autosaves go; `None` without a per-user folder.

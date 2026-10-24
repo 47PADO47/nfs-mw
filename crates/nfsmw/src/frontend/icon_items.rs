@@ -13,6 +13,7 @@ pub enum Id {
     Challenge,
     QuickRace,
     MyCars,
+    PerformanceTuning,
     /// Online has no screen yet, so it is greyed out in the main menu; LAN opens the LAN menu (`lan/`).
     Online,
     LanPlay,
@@ -90,8 +91,8 @@ const fn icon(id: Id, texture: u32, name: u32, enabled: bool) -> Icon {
 /// The icons of a menu: `(texture, name label)` as the original screens give them.
 pub fn icons(kind: Kind) -> Vec<Icon> {
     match kind {
-        // Career and Quick Race both start free roam here; Challenge Series opens its grid of events. My Cars and Online
-        // are greyed out; LAN opens the LAN menu (`lan/menu`, an egui panel: the original has no LAN screens).
+        // Challenge Series opens its grid of events. My Cars opens the normal garage; Online stays greyed out.
+        // LAN opens the LAN menu (`lan/menu`, an egui panel: the original has no LAN screens).
         // Alias Manager (the original's profile manager, which it adds only when the memory card is enabled) opens
         // the save and load rows (`alias_options.rs`).
         // Online and LAN are not in this build's original main menu; the user asked for them, so they are listed
@@ -102,7 +103,7 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
             icon(Id::Career, 0x0370_4F3D, 0x5815_A2B5, true),
             icon(Id::Challenge, 0x9A96_2438, 0xCC8C_B746, true),
             icon(Id::QuickRace, 0x4E6F_BB02, 0x5402_0A7A, true),
-            icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, false),
+            icon(Id::MyCars, 0xB0C4_6023, 0x1AFD_5BE6, true),
             icon(Id::Online, 0x2056_3D30, 0x74FB_90A8, false),
             icon(Id::LanPlay, 0xD13A_2E66, 0x4D78_216D, true),
             icon(Id::AliasManager, 0x6B30_3856, 0xBCB1_8F38, true),
@@ -185,6 +186,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
         list.push(icon(Id::SafeHouseBlacklist(stage), 0x2C14_AC23, 0x80B9_FF9B, true));
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
+    if let Some(enabled) = ctx.tuning {
+        list.push(icon(Id::PerformanceTuning, 0x4832_38FD, 0x6A36_72A2, enabled));
+    }
     if ctx.coop {
         // Greyed out while player 2 races or is chased: their car cannot leave a race or a chase halfway.
         list.push(icon(Id::EndCoop, QUIT_TEXTURE, 0, !ctx.coop_locked));
@@ -268,7 +272,7 @@ mod tests {
         assert!(
             main.iter()
                 .filter(|i| {
-                    ![Id::Career, Id::Challenge, Id::QuickRace, Id::Options, Id::AliasManager, Id::LanPlay]
+                    ![Id::Career, Id::Challenge, Id::QuickRace, Id::MyCars, Id::Options, Id::AliasManager, Id::LanPlay]
                         .contains(&i.id)
                 })
                 .all(|i| !i.enabled)

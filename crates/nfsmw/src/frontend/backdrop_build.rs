@@ -76,6 +76,8 @@ fn load_car(dir: &GameDir, look: &Look) -> Option<(CarModel, LoadOptions)> {
         Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
         Look::Car(look)
         | Look::SafeHouse(look)
+        | Look::Customization(look)
+        | Look::Backroom(look)
         | Look::CarLot(look)
         | Look::LotShowcase(look)
         | Look::Showcase(look) => look.resolve(dir),

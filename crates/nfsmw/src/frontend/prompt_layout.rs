@@ -23,6 +23,19 @@ pub struct Frame {
 
 impl Frame {
     pub fn find(tree: &UiTree, name: &str, footer: Footer) -> Option<Self> {
+        if footer.is_garage() {
+            let main = name.eq_ignore_ascii_case("CustomizeMain.fng")
+                || name.to_ascii_lowercase().starts_with("customizecategory");
+            let groups = match main {
+                true => [0x17b1_f254, 0x84bc_f2b5, 0xb3a6_9e89, 0xc0a3_2823],
+                false => [0x84bc_f2b5, 0xb3a6_9e89, 0x17b1_f254, 0xc0a3_2823],
+            };
+            let root = groups
+                .into_iter()
+                .find_map(|hash| tree.nodes.iter().find(|node| node.name_hash == hash && node.world.w_axis.z > 0.0))?;
+            let at = Vec3::new(0.0, root.world.w_axis.y, root.world.w_axis.z);
+            return Some(Self::new(root, Mat4::from_translation(at), 590.0, 26.0, false));
+        }
         if [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)) {
             let n = tree.nodes.iter().find(|n| n.name_hash == 0xC4DF_3FF2)?;
             return Some(Self::new(n, n.world, 220.0, 32.0, true));

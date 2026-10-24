@@ -13,11 +13,22 @@ use nfsmw_data::car::{
 use super::WorldScene;
 use crate::garage::{Car, Category, Model, Selection};
 
+mod camera;
+mod checkout;
 pub(super) mod command;
 mod names;
+mod pause_tuning;
+mod persistence;
+mod quote;
+mod records;
+pub(super) mod session;
+mod showroom;
 
-pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
+pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
     let tables = CarTables::load(dir)?;
+    let ratings = nfsmw_data::car::physics::ratings::RatingBook::load(dir)?;
+    let mut frontend = physics.database().clone();
+    frontend.load(&nfsmw_data::read_unwrapped(dir, nfsmw_data::career_cars::FE_ATTRIB_FILE)?)?;
     let mut cars = Vec::new();
     let brands: Vec<_> = tables.types.iter().map(|car| car.manufacturer.clone()).collect();
     let strings =
@@ -45,6 +56,13 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
             name = own.to_owned();
         }
         let original_color = stock_parts(&tables, car_type)[slot::BASE_PAINT].map(|part| Paint::of(&tables, &part).rgb);
+        let performance = PerformanceCatalog::read(physics.database(), &car_type.type_name)?;
+        let performance_details = nfsmw_data::car::physics::performance::PerformanceDetails::read(
+            &frontend,
+            &car_type.type_name,
+            &performance,
+            data.spec.induction.kind() == blackbox_vehicle::induction::InductionKind::Turbo,
+        );
         cars.push(Car {
             folder,
             name,
@@ -52,8 +70,12 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
             category,
             original_color,
             paintable: car_type.skinnable,
+            hero: car_type.index == 0x29
+                && tables.stock_types.iter().any(|native| native.type_name_hash == car_type.type_name_hash),
             physics_name: car_type.type_name.clone(),
-            performance: PerformanceCatalog::read(physics.database(), &car_type.type_name)?,
+            performance,
+            performance_details,
+            performance_ratings: ratings.for_car(&car_type.type_name),
             parts: None,
             unavailable: None,
         });
@@ -62,6 +84,31 @@ pub(super) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
     Ok(Model { cars, ..Model::default() })
 }
 
+/// Imported original My Cars records retain their exact handle identity.
+pub(crate) fn native_my_car_handle(
+    dir: &GameDir,
+    model: &Model,
+    folder: &str,
+    handle: u32,
+) -> Result<Option<Selection>> {
+    let entry = model.cars.iter().find(|entry| entry.folder == folder).context("Car is not installed")?;
+    let vehicle_key = blackbox_attrib::vlt_hash(&entry.physics_name.to_ascii_lowercase());
+    let record = crate::career::CareerHandle::shared()
+        .with_loaded(|career| {
+            let car = career
+                .stable
+                .cars
+                .iter()
+                .find(|car| car.is_quick_race() && car.vehicle_key == vehicle_key && car.handle == handle)?;
+            career.stable.customization_for_handle(car.handle)
+        })
+        .flatten();
+    let Some(record) = record else { return Ok(None) };
+    Ok(Some(records::read(&record, &CarTables::load(dir)?, folder, model)?))
+}
+
+#[cfg(test)]
+mod checkout_tests;
 #[cfg(test)]
 mod customization_tests;
 #[cfg(test)]
@@ -105,7 +152,7 @@ impl WorldScene {
                 }
             }
         }
-        car.parts = Some(catalog);
+        car.parts = Some(catalog.into());
         Ok(())
     }
 
@@ -115,6 +162,9 @@ impl WorldScene {
         selection: Selection,
     ) -> Result<()> {
         self.discover_garage_parts(&selection.car)?;
+        self.garage.castrol_unlocked = crate::career::CareerHandle::shared()
+            .with_loaded(|career| career.settings.flags.contains(nfsmw_career::settings::Flags::BONUS_CAR_0X34498EB2))
+            .unwrap_or(false);
         let entry =
             self.garage.cars.iter().find(|car| car.folder == selection.car).context("car is not in the garage")?;
         ensure!(entry.unavailable.is_none(), "{}", entry.unavailable.as_deref().unwrap_or_default());
@@ -127,6 +177,17 @@ impl WorldScene {
             true => Some(self.physics.car_with_performance(&entry.physics_name, selection.performance)?),
             false => None,
         };
+        if let Some(physics) = &physics {
+            self.garage.gauge_max_rpm = physics.spec.engine.max_rpm;
+            self.garage.gauge_has_turbo =
+                physics.spec.induction.kind() != blackbox_vehicle::induction::InductionKind::None;
+        }
+        if physics.is_none()
+            && let Some(hud) = self.players.lead().and_then(|drive| drive.hud_state())
+        {
+            self.garage.gauge_max_rpm = hud.max_rpm;
+            self.garage.gauge_has_turbo = hud.has_turbo;
+        }
         if selection.car == self.last_car
             && !changed_parts
             && selection.color == self.garage.applied.color
@@ -174,7 +235,7 @@ impl WorldScene {
             self.reflection_last = None;
             return Ok(());
         }
-        self.start_driving(renderer, folder, model, None)?;
+        self.start_driving_setup(renderer, folder, model, None, false)?;
         if let Some(drive) = self.players.lead_mut()
             && let Some(physics) = physics
         {
@@ -187,8 +248,7 @@ impl WorldScene {
     }
 
     fn commit_garage_selection(&mut self, selection: Selection, tunings: blackbox_vehicle::Tunings) {
-        // The parts this fits cool the career car's heat (`career/cooling.rs`), compared with what was applied before.
-        self.career_garage_cooling(&selection);
+        // Applying is a preview or a developer experiment. Only normal checkout changes the career.
         if let Some(drive) = self.players.lead_mut() {
             drive.set_tuning(selection.tuning, tunings);
         }

@@ -141,7 +141,7 @@ impl Frontend {
             CareerRequest::RegionUnlock { .. } => {
                 (SAFEHOUSE_REGION_UNLOCK, Args { safehouse: true, ..Args::default() })
             }
-            // The garage is not a front end screen: the update system opens it over the world, which keeps running.
+            // The update system opens the normal garage session over the resident, frozen world.
             CareerRequest::AutoShop { .. } => {
                 self.auto_shop_requested = true;
                 return;

@@ -164,6 +164,15 @@ fn toggle(
     mut focus: ResMut<UiFocus>,
     mut garage: ResMut<crate::garage::Overlay>,
 ) {
+    // A normal shop owns a transaction. Only its confirm/cancel path can close it.
+    if garage.menu {
+        keys.reset(KeyCode::F8);
+        lab.open = false;
+        lab.sync_focus(&mut capture, &mut focus);
+        capture.0 = false;
+        focus.0 = false;
+        return;
+    }
     if keys.just_pressed(KeyCode::F8) {
         if console.open {
             console.set_open(false, &mut capture, &mut focus);

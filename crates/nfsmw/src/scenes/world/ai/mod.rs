@@ -81,7 +81,6 @@ use std::{collections::HashSet, rc::Rc};
 use blackbox_render::{EffectVertex, Instance};
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController};
 use glam::Vec3;
-use nfsmw_data::car::physics::CarPhysics;
 
 use super::drive::CarRig;
 use car::AiCar;
@@ -118,22 +117,8 @@ pub struct Focus {
     pub body: Option<Body>,
 }
 
-/// A car model traffic can use: the rig is shared by every car of the model.
-pub struct TrafficModel {
-    pub name: String,
-    pub rig: Rc<CarRig>,
-    pub physics: CarPhysics,
-    /// Its installed rigid-body behaviour is a tractor, whether or not it currently tows a trailer.
-    pub tractor: bool,
-    /// The trailer a semi tractor pulls.
-    pub trailer: Option<Box<TrafficModel>>,
-    /// A cop model's light bars (`None` for traffic).
-    pub cop_lights: Option<Rc<cop_lights::CopLightSet>>,
-    /// Installed class IDs for the authored traffic producers.
-    pub audio_profile: crate::audio::traffic::TrafficProfile,
-    /// The world's car render keys: each car placed from the model takes the next (`keys.rs`).
-    pub keys: Rc<super::keys::CarKeys>,
-}
+mod model;
+pub use model::TrafficModel;
 
 pub struct TrafficWorld {
     water: water::Water,
