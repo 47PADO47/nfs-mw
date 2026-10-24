@@ -55,7 +55,7 @@ fn update_with(
             }
         };
         if fragment.joint != 0 || fragment.no_physics || fragment.simple_physics || fragment.hide_parent {
-            log::warn!("vehicle fragment {:08X}: unsupported joint/physics/parent flags", fragment.part);
+            log::debug!("vehicle fragment {:08X}: joint/physics/parent flags not yet implemented", fragment.part);
             continue;
         }
         let Some(slot) = LAYOUT.slots.iter().position(|slot| vlt_hash(slot.name) == fragment.part) else { continue };

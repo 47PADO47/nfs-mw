@@ -27,7 +27,7 @@ impl ObjectFx {
             let mut emitters = nfsmw_data::world::object_fx::emitters(db, key);
             emitters.truncate(16);
             if emitters.is_empty() {
-                log::warn!("prop effect {key:08X}: no supported particle group");
+                log::debug!("prop effect {key:08X}: no supported particle group");
                 self.sets.insert(key, None);
                 continue;
             }
