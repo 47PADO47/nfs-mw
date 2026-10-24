@@ -16,7 +16,7 @@ use super::common::{
 };
 use crate::career::{Career, CareerHandle};
 use crate::frontend::ids::{EXIT_COMPLETE, SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT};
-use crate::frontend::logic::{Cx, ScreenLogic};
+use crate::frontend::logic::{Cx, ScreenLogic, wheel_as_rows};
 
 /// The objects of the entry cells `<cell>_i` (i = 1 to 5, the first hash + i - 1) and the buttons.
 const CAR_USED: u32 = 0x273E_2675;
@@ -138,6 +138,10 @@ impl ScreenLogic for TopPursuitsPage {
     fn start(&mut self, cx: &mut Cx) {
         self.load(cx);
         self.paint(cx);
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

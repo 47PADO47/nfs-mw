@@ -17,7 +17,7 @@ use glam::{Vec2, Vec3};
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
 use crate::settings::eatrax::{Jukebox, Mode};
 use crate::ui::UiAssets;
 use crate::ui::theme::remastered::menu::layout::window_start;
@@ -327,6 +327,10 @@ impl ScreenLogic for JukeboxLogic {
             scroll: 0.0,
             aspect: DEFAULT_ASPECT,
         })
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
