@@ -32,7 +32,11 @@ fn the_host_client_and_a_remote_client_look_the_same_to_the_game() {
     assert_eq!(seen, vec![(identity(51).key_id(), false), (host_key, true)]);
 
     let event = client_event(&mut host, |event| matches!(event, ClientEvent::Connected { .. }));
-    assert_eq!(event, Some(ClientEvent::Connected { server_key: server.key_id() }), "the host knows its own server");
+    assert_eq!(
+        event,
+        Some(ClientEvent::Connected { server_key: server.key_id(), handshake_hash: [0; 32] }),
+        "the host knows its own server"
+    );
     client_connected(&mut remote);
 
     host.send_reliable(2, b"host".to_vec());

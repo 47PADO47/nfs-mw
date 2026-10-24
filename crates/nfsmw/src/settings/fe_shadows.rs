@@ -1,5 +1,5 @@
-//! Front-end shadows: an optional sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
-//! The original draws no shadow maps while a front-end menu is up, so the default keeps the backdrop unshadowed.
+//! Front-end shadows follow the selected renderer's shadow settings. `fe_shadows = false` preserves the original
+//! unshadowed backdrop; the default shares the driving scene's shadows (`docs/specs/fe-shadows.md`).
 //!
 //! Config (top-level keys, next to `shadows`): `fe_shadows` (on or off), `fe_shadows_cars` (the car casts and receives),
 //! `fe_shadows_bias` (0.25 to 4.0) and `fe_shadows_divider` (1, 2 or 4). Environment: `NFSMW_FE_SHADOWS`. Command line:
@@ -16,8 +16,8 @@ use toml::{Table, Value};
 use super::Settings;
 use super::partial::parse_bool;
 
-/// Front-end shadows are off: the original draws none in the menus.
-pub const DEFAULT_ENABLED: bool = false;
+/// The menu follows the driving scene's shadow settings unless explicitly disabled.
+pub const DEFAULT_ENABLED: bool = true;
 /// The car casts and receives when the front-end shadows are on (the spec's proposal; see `docs/specs/fe-shadows.md`).
 pub const DEFAULT_CARS: bool = true;
 /// The bias multiplier: 1 keeps the Bevy values.
@@ -69,10 +69,9 @@ impl FeShadows {
         }
     }
 
-    /// These options as the renderer runs them: the front-end shadows need the Bevy renderer's soft shadows, so
-    /// on a renderer without them the switch reads off.
-    pub fn on_renderer(self, soft_shadows: bool) -> Self {
-        Self { enabled: self.enabled && soft_shadows, ..self }
+    /// These options as the renderer runs them. Both native caster flags and Bevy soft shadows are supported.
+    pub fn on_renderer(self, shadows: bool) -> Self {
+        Self { enabled: self.enabled && shadows, ..self }
     }
 }
 
@@ -142,16 +141,13 @@ pub fn publish(settings: Res<Settings>) {
     *active = value;
 }
 
-/// The sun's tuning for the front-end frame, or `None` when the front end keeps the world's (its shadows are off, so
-/// nothing casts). On: the world's quality, or Medium when the world's is off (`docs/specs/fe-shadows.md`, section 6).
+/// The sun's tuning follows the global quality, including Off. Native world-space shadows use the renderer's
+/// shared sun-shadow options; this frame override also carries the global quality to the Bevy backend.
 pub fn tuning(snapshot: Snapshot) -> Option<ShadowTuning> {
     if !snapshot.options.enabled {
         return None;
     }
-    let quality = match snapshot.world_quality {
-        ShadowQuality::Off => ShadowQuality::Medium,
-        quality => quality,
-    };
+    let quality = snapshot.world_quality;
     Some(ShadowTuning { quality, bias: snapshot.options.bias, divider: snapshot.options.divider as usize })
 }
 
@@ -242,7 +238,7 @@ pub fn put_into(changes: &FeShadowsLayer, put: &mut impl FnMut(&str, Value)) {
 /// The command-line switch. Unset switches leave the config file or the environment in charge.
 #[derive(Debug, Clone, Default, Args)]
 pub struct FeShadowsArgs {
-    /// Dynamic shadows in the front-end scenes, Bevy only [env NFSMW_FE_SHADOWS; config `fe_shadows`; default off].
+    /// Share driving shadows with the front-end scenes [env NFSMW_FE_SHADOWS; config `fe_shadows`; default on].
     #[arg(long, conflicts_with = "no_fe_shadows")]
     pub fe_shadows: bool,
     /// Keep the front-end scenes without shadows.

@@ -148,10 +148,15 @@ impl PcEmitter {
 }
 
 pub(super) fn read(db: &Database, wrapper: CollectionRef<'_>) -> [Option<PcEmitter>; PC_EMITTERS] {
-    let mut out = [None; PC_EMITTERS];
+    let out = [None; PC_EMITTERS];
     let Some(group) = wrapper.get("emittergroup").and_then(|v| super::resolve(db, v, "emittergroup")) else {
         return out;
     };
+    read_group(db, group)
+}
+
+pub(super) fn read_group(db: &Database, group: CollectionRef<'_>) -> [Option<PcEmitter>; PC_EMITTERS] {
+    let mut out = [None; PC_EMITTERS];
     let Some(emitters) = super::array(group, "Emitters") else { return out };
     if emitters.len() > PC_EMITTERS {
         return out;

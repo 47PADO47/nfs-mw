@@ -31,6 +31,7 @@ impl WorldScene {
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
             Stage::Intro { .. } => self.race_intro(&mut session, frame_dt),
+            Stage::Staged { .. } => true,
             // `frame_dt` is 0 while the world is frozen (a scene or a story movie plays), so the challenge's clock stops.
             Stage::Running if session.challenge.is_some() => self.challenge_running(renderer, &mut session, frame_dt),
             Stage::Running => self.heat_chase_frame(renderer, &mut session),
@@ -271,6 +272,11 @@ impl WorldScene {
     /// The race-over message stays for its duration, or until Interact; then the post-race screen has the race.
     fn race_results(&mut self, session: &mut RaceSession, input: &ActionState, dt: f32) -> bool {
         let Stage::Results { left } = session.stage else { return true };
+        // A session has no screen to show the race-over message or the report on: the race ends now, the people's cars
+        // come back on the road, and the server's own results follow.
+        if !self.rules.race_screens {
+            return false;
+        }
         let left = left - dt;
         session.stage = Stage::Results { left };
         if left > 0.0 && !input.just_pressed(Action::Interact) {

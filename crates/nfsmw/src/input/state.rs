@@ -17,11 +17,13 @@ pub struct ActionState {
     before: [f32; Action::ALL.len()],
     /// The UI had the keyboard when the actions were last resolved, so every game action reads as released.
     typing: bool,
+    /// Physical wheel movement in lines, separate from viewer Zoom bindings such as the D-pad.
+    menu_scroll: f32,
 }
 
 impl Default for ActionState {
     fn default() -> Self {
-        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false }
+        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false, menu_scroll: 0.0 }
     }
 }
 
@@ -29,6 +31,7 @@ impl ActionState {
     /// Let an overlay claim this frame, including the frame it opened or closed.
     pub fn capture_ui(&mut self) {
         self.typing = true;
+        self.menu_scroll = 0.0;
         for action in Action::ALL {
             if !action.works_in_ui() {
                 self.now[action.index()] = 0.0;
@@ -67,6 +70,11 @@ impl ActionState {
         self.now[action.index()]
     }
 
+    /// Normalized mouse-wheel lines for menu scrolling. Viewer zoom can also come from pad buttons.
+    pub fn menu_scroll(&self) -> f32 {
+        self.menu_scroll
+    }
+
     /// The UI (the console) has the keyboard: the game actions read as released, which is not the player letting go.
     pub fn typing(&self) -> bool {
         self.typing
@@ -86,6 +94,7 @@ impl ActionState {
     pub fn update(&mut self, bindings: &Bindings, snapshot: &Snapshot, ui_focus: bool) {
         self.before = self.now;
         self.typing = ui_focus;
+        self.menu_scroll = if ui_focus { 0.0 } else { snapshot.scroll };
         self.now = [0.0; Action::ALL.len()];
         for b in &bindings.0 {
             // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.
@@ -221,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn q_and_e_shift_and_the_bumpers_too() {
+    fn q_and_e_shift_and_the_right_stick_too() {
         let bindings = Bindings::default();
         for (key, action) in [(KeyCode::KeyE, Action::ShiftUp), (KeyCode::KeyQ, Action::ShiftDown)] {
             let mut state = ActionState::default();
@@ -232,14 +241,29 @@ mod tests {
             let other = if action == Action::ShiftUp { Action::ShiftDown } else { Action::ShiftUp };
             assert!(!state.pressed(other));
         }
+        // As in NFS-XtendedInput, the right stick pushed up shifts up and pushed down shifts down.
+        for (push, action, other) in
+            [(1.0, Action::ShiftUp, Action::ShiftDown), (-1.0, Action::ShiftDown, Action::ShiftUp)]
+        {
+            let mut state = ActionState::default();
+            let mut snap = Snapshot::default();
+            snap.pad_axes.insert(GamepadAxis::RightStickY, push);
+            state.update(&bindings, &snap, false);
+            assert!(state.just_pressed(action), "{push}");
+            assert!(!state.pressed(other));
+            state.update(&bindings, &snap, false);
+            assert!(!state.just_pressed(action), "a held stick shifts once");
+        }
+        // The bumpers no longer shift: they change the camera and look back.
         for (button, action) in
-            [(GamepadButton::RightTrigger, Action::ShiftUp), (GamepadButton::LeftTrigger, Action::ShiftDown)]
+            [(GamepadButton::RightTrigger, Action::CycleCamera), (GamepadButton::LeftTrigger, Action::LookBack)]
         {
             let mut state = ActionState::default();
             let mut snap = Snapshot::default();
             snap.pad_buttons.insert(button);
             state.update(&bindings, &snap, false);
             assert!(state.just_pressed(action), "{button:?}");
+            assert!(!state.pressed(Action::ShiftUp) && !state.pressed(Action::ShiftDown));
         }
     }
 

@@ -97,8 +97,14 @@ impl RenderBackend for Renderer {
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.set_scene_treatment(profile, gain);
     }
+    fn set_surface_water(&mut self, water: blackbox_gfx::SurfaceWater) {
+        self.surface_water = water.sanitized();
+    }
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
         self.capture_projected(scene);
+    }
+    fn set_planar_reflection_scene(&mut self, scene: Option<blackbox_gfx::PlanarReflectionScene<'_>>) {
+        self.capture_planar(scene);
     }
     fn set_reflection_scene(&mut self, scene: Option<blackbox_gfx::ReflectionScene<'_>>) {
         self.queue_reflections(scene);

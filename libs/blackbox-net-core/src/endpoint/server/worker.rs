@@ -148,7 +148,7 @@ impl<T: Transport> ServerWorker<T> {
         }
         let peer = self.peers.swap_remove(index);
         if !peer.local {
-            self.handshake.connection_closed(peer.link.local_id(), peer.link.addr());
+            self.handshake.connection_closed(peer.link.local_id(), peer.link.admitted_addr());
         }
         self.events.push(ServerEvent::Disconnected { peer: peer.id, reason });
     }
@@ -186,6 +186,9 @@ impl<T: Transport> ServerWorker<T> {
             for peer in &mut self.peers {
                 peer.link.start_tick();
             }
+        }
+        for index in 0..self.peers.len() {
+            self.send_path_challenge(index, now_ms);
         }
         let mut index = 0;
         while index < self.peers.len() {

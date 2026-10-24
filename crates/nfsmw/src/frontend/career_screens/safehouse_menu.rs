@@ -51,8 +51,7 @@ pub fn make(args: Args) -> Box<dyn ScreenLogic> {
     }) else {
         return Box::new(Plain);
     };
-    let menu =
-        IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items, CareerHandle::shared().is_prelude()));
+    let menu = IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items));
     Box::new(SafeHouseMenu { menu, totals })
 }
 
@@ -101,6 +100,10 @@ impl ScreenLogic for SafeHouseMenu {
 
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
         self.menu.pick_row(cx, row, pick);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        self.menu.click(cx, point)
     }
 }
 

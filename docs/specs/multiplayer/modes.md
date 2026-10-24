@@ -1,7 +1,7 @@
 # Multiplayer: game modes, fairness rules, results and replays as built
 
-Status: **built and unit-tested** in `crates/nfsmw-net` (modules `modes`, `fairness`, `results`, `record`) on 2026-10-22, not yet
-driven by a running server. The catalogue and priorities are in [features.md](features.md); the messages in
+Status: **built and unit-tested** in `crates/nfsmw-net` (modules `modes`, `fairness`, `results`, `record`) on 2026-10-22 and driven by `nfsmw-server`
+(`server/phase.rs`: the world's events and every car's sample go in, the mode's events go out as messages). The catalogue and priorities are in [features.md](features.md); the messages in
 [protocol-messages.md](protocol-messages.md). Values marked **[ours]** are this build's choice where the docs leave one open; the
 module docs repeat them next to the code.
 
@@ -75,8 +75,11 @@ the damage; only a damaged header makes a file unreadable. A client recording al
 
 ## 7. Gaps
 
-- No wire message yet for a knockout, a trap score, a tag pass or a penalty; spectating travels as `RoleChanged`, the round's end as
-  `RaceResults` and the lobby's phase change. A car joining a running pursuit is a `PursuitStart` for the known id.
-- The modes are not wired to `nfsmw-server` or the game; the world must emit trap passes, the shared heat and car samples.
+- A knockout, a trap score, a tag pass and a penalty are the messages `KnockedOut`, `TrapScore` (speeds in cm/s), `TagPassed` and
+  `Penalty` ([protocol messages](protocol-messages.md) section 7.6; `modes::messages`, drawn as feed lines by the LAN HUD).
+  Spectating travels as `RoleChanged`, the round's end as `RaceResults` and the lobby's phase change. A car joining a running
+  pursuit is a `PursuitStart` for the known id.
+- The real world raises laps and finishes for the race modes, but not yet speed-trap passes: a speedtrap round over the real world
+  scores nothing until the world emits them (the toy world does not either).
 - Drag, cops vs racers, mod modes, last standing by damage (MP-10) and handicaps (MP-36) are not built.
 - No replay viewer (MP-73); the replay is not written as telemetry's JSON lines (F-33 asks for those first).

@@ -64,6 +64,7 @@ impl<T: Transport> ClientWorker<T> {
         let conn = Connection::with_sealer(self.config.conn(info.local_conn_id, info.remote_conn_id), sealer);
         self.link = Some(PeerLink::new(conn, self.server, info.local_conn_id, None, false));
         self.server_key = Some(info.remote_id());
+        self.handshake_hash = info.handshake_hash;
         Ok(())
     }
 
@@ -89,9 +90,10 @@ impl<T: Transport> ClientWorker<T> {
         let opened_by_frame = announce.is_some();
         let events = &mut self.events;
         let latest = &mut self.latest;
+        let handshake_hash = self.handshake_hash;
         let read = link.read(now_ms, datagram, |frame_type, payload| {
             if let Some(server_key) = announce.take() {
-                events.push(ClientEvent::Connected { server_key });
+                events.push(ClientEvent::Connected { server_key, handshake_hash });
             }
             deliver_frame(events, latest, frame_type, payload);
         });

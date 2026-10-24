@@ -1,4 +1,4 @@
-//! The menu room: a front-end stage file (`FRONTEND/PLATFORMS/PlatformCrib.BIN`, five solids and their textures, or the
+//! The menu room: a front-end stage file (`FRONTEND/PLATFORMS/PlatformCrib.BIN`, its selected solids and textures, or the
 //! safe house's `CAREER_SAFEHOUSE.BIN`), drawn behind the menus. Spec: `docs/specs/menu-backdrop.md` and
 //! `docs/specs/menu-backdrop-looks.md`.
 
@@ -23,6 +23,8 @@ pub struct Room {
     meshes: Vec<MeshHandle>,
     textures: Vec<TextureHandle>,
     instances: Vec<Instance>,
+    casters: Vec<Instance>,
+    floor_texture: Option<TextureHandle>,
 }
 
 /// Textures of the room by name hash.
@@ -39,9 +41,11 @@ impl MaterialLookup for Materials {
 /// change look often and each look on the same stage would read and parse the file again.
 pub struct RoomData {
     solids: Vec<Solid>,
+    casters: Vec<Solid>,
     packs: Vec<TexturePack>,
     /// The stage's turn of the room in degrees (`Stage::room_yaw`).
     yaw: f32,
+    floor: Option<u32>,
 }
 
 impl RoomData {
@@ -49,12 +53,19 @@ impl RoomData {
     pub fn read(dir: &GameDir, stage: Stage) -> Result<Arc<Self>> {
         let _trace = blackbox_trace::scope("Frontend: read the menu room");
         let path = stage.file();
-        nfsmw_data::memo(dir, &[path], || {
+        let sources: Vec<_> = std::iter::once(path).chain(super::room_materials::SOURCES.iter().copied()).collect();
+        nfsmw_data::memo(dir, &sources, || {
             let file = dir.read(path).with_context(|| format!("reading {path}"))?;
             let mut solids = blackbox_solid::read_solids(&file).with_context(|| format!("solids in {path}"))?;
+            for solid in &mut solids {
+                solid.name = Stage::canonical_name(&solid.name).to_owned();
+            }
+            let casters = solids.iter().filter(|solid| stage.shadow_source(&solid.name)).cloned().collect();
             solids.retain(|solid| stage.draws(&solid.name));
-            let packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
-            Ok(Self { solids, packs, yaw: stage.room_yaw() })
+            let mut packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
+            super::room_materials::complete(dir, &solids, &mut packs)?;
+            let floor = super::room_floor::floor_texture(&solids, stage);
+            Ok(Self { solids, casters, packs, yaw: stage.room_yaw(), floor })
         })
     }
 }
@@ -81,6 +92,11 @@ impl Room {
                 textures.push(handle);
             }
         }
+        let floor_texture = data
+            .floor
+            .and_then(|hash| map.get(&hash))
+            .filter(|(_, blend)| *blend == BlendMode::AlphaBlend)
+            .map(|(handle, _)| *handle);
         let materials = Materials(map);
         let turn = Mat4::from_rotation_z(data.yaw.to_radians());
         let mut meshes = Vec::new();
@@ -92,7 +108,14 @@ impl Room {
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
             instances.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
         }
-        Self { meshes, textures, instances }
+        let mut casters = Vec::new();
+        for solid in &data.casters {
+            let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
+            meshes.push(mesh);
+            let key = InstanceKey::new(ROOM_ID, (instances.len() + casters.len()) as u32);
+            casters.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
+        }
+        Self { meshes, textures, instances, casters, floor_texture }
     }
 
     /// The room's parts in the order the stage file lists its solids, one instance per mesh. The renderer draws blended
@@ -101,6 +124,14 @@ impl Room {
     /// that reuses what the last backdrop freed, so their order says nothing about the file's.
     pub fn instances(&self) -> &[Instance] {
         &self.instances
+    }
+
+    pub(super) fn shadow_casters(&self) -> &[Instance] {
+        &self.casters
+    }
+
+    pub(super) fn floor_texture(&self) -> Option<TextureHandle> {
+        self.floor_texture
     }
 
     /// Frees the room's meshes and textures.
@@ -113,3 +144,7 @@ impl Room {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "room_materials_tests.rs"]
+mod material_tests;

@@ -41,6 +41,7 @@ impl Plugin for AudioPlugin {
                 play_preview.in_set(FrameSet::Ui),
                 play_one_shots.in_set(FrameSet::Ui),
                 play_cell_calls.in_set(FrameSet::Ui),
+                play_menu_sounds.in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -90,6 +91,12 @@ fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>
 fn play_cell_calls(mut audio: NonSendMut<Audio>) {
     let _trace = blackbox_trace::scope("Audio: cell call voices");
     cell_call::service(&mut audio);
+}
+
+fn play_menu_sounds(mut audio: NonSendMut<Audio>, time: Res<Time>) {
+    let mut player = std::mem::take(&mut audio.menu);
+    player.service(&mut audio, time.delta_secs());
+    audio.menu = player;
 }
 
 /// The scene's car plays its engine.

@@ -1,12 +1,15 @@
 //! Bounded, filtered text (`security-gameplay.md` section 1.1, rule 7).
 //!
-//! [`Text::new`] trims leading and trailing whitespace and refuses control characters, Unicode bidirectional controls
-//! and a length outside `MIN..=MAX` characters. The decoder accepts only text that `new` would return unchanged, so
-//! every decoded string is already clean. Not done yet: NFKC normalisation and counting grapheme clusters instead of
-//! `char`s (both need a Unicode table crate; the character count is the stricter bound).
+//! [`Text::new`] normalises to NFKC, trims leading and trailing whitespace and refuses control characters, Unicode
+//! bidirectional controls and a length outside `MIN..=MAX` characters. The decoder accepts only text that `new` would
+//! return unchanged, so every decoded string is already clean and in one form (a look-alike written in a compatibility
+//! form, such as a full-width letter, is refused on the wire). The length counts `char`s, not grapheme clusters: that
+//! is the stricter bound.
 
 use std::fmt;
 use std::ops::Deref;
+
+use unicode_normalization::{UnicodeNormalization, is_nfkc};
 
 use super::codec::{DecodeError, LimitError, Reader, Writer};
 use super::wire::Wire;
@@ -28,9 +31,14 @@ pub type VersionText = Text<1, 32>;
 pub struct Text<const MIN: usize, const MAX: usize>(String);
 
 impl<const MIN: usize, const MAX: usize> Text<MIN, MAX> {
-    /// `text` trimmed, or [`LimitError`] when it holds a forbidden character or its length is outside `MIN..=MAX`.
+    /// `text` in NFKC and trimmed, or [`LimitError`] when it holds a forbidden character or its length is outside
+    /// `MIN..=MAX`. The text is bounded before it is normalised, as normalising can lengthen it a lot.
     pub fn new(text: &str) -> Result<Self, LimitError> {
-        let trimmed = text.trim();
+        if text.chars().count() > MAX.saturating_mul(4) {
+            return Err(LimitError);
+        }
+        let normal: String = text.nfkc().collect();
+        let trimmed = normal.trim();
         if !is_clean(trimmed, MIN, MAX) {
             return Err(LimitError);
         }
@@ -65,11 +73,18 @@ impl<const MIN: usize, const MAX: usize> Wire for Text<MIN, MAX> {
         let len = r.count(MAX.saturating_mul(4)).map_err(|_| DecodeError::BadText)?;
         let bytes = r.take(len)?;
         let text = std::str::from_utf8(bytes).map_err(|_| DecodeError::BadText)?;
-        if text.trim() != text || !is_clean(text, MIN, MAX) {
+        if text.trim() != text || !is_nfkc(text) || !is_clean(text, MIN, MAX) {
             return Err(DecodeError::BadText);
         }
         Ok(Self(text.to_owned()))
     }
+}
+
+/// A room password as both ends feed it to the key exchange: in NFKC, so the same password typed on two keyboards (or
+/// with a full-width letter) is the same secret (`security.md` section 4). It is not trimmed: a space is a character of
+/// a password.
+pub fn password_secret(password: &str) -> Vec<u8> {
+    password.nfkc().collect::<String>().into_bytes()
 }
 
 /// Whether `text` has `min..=max` characters and none of them is forbidden.

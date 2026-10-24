@@ -17,6 +17,58 @@ const ARROW_LEFT: u32 = 0x3df3_9a82;
 const ARROW_RIGHT: u32 = 0xfcd5_b255;
 const OPTION_ICON: u32 = 0xb046_69e3;
 
+#[test]
+fn overview_binds_four_sheet_icons_and_never_restores_the_car_placeholder() {
+    use blackbox_feng::{NodeKind, fe_hash_upper};
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(mut h) = overview(13) else { return };
+    let textures = ["MAIN_ICON_REP_SHEET", "MILESTONE_MAIN", "MAIN_ICON_BOUNTY", "MAIN_ICON_RIVALBIO"];
+    let dir = GameDir::open(PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
+    let assets = crate::ui::UiAssets::load(&dir).unwrap();
+    for texture in textures {
+        assert!(assets.texture(fe_hash_upper(texture)).is_some(), "the selected installation supplies {texture}");
+    }
+    for selected in 0..textures.len() {
+        let tree = h.screens.trees().pop().unwrap();
+        let master = tree.nodes.iter().find(|node| node.name_hash == OPTION_ICON).unwrap();
+        assert!(!master.visible, "the authored car icon must not reappear after animation updates");
+        for (sheet, texture) in textures.iter().enumerate() {
+            let hash = fe_hash_upper(&format!("OPTION_{}", sheet + 3));
+            let node = tree.nodes.iter().find(|node| node.name_hash == hash).unwrap();
+            assert!(matches!(node.kind, NodeKind::Image { texture: actual, .. } if actual == fe_hash_upper(texture)));
+            if sheet == selected {
+                assert!(node.visible);
+                assert!((node.position.x - master.position.x).abs() < 0.01, "selected art stays inside the cursor");
+            }
+        }
+        h.press(pad::RIGHT);
+        h.wait(0.2);
+    }
+}
+
+#[test]
+fn overview_footer_uses_rebound_keyboard_keys_and_controller_glyphs() {
+    use crate::input::{Action, Bindings, InputDevice};
+    use blackbox_feng::NodeKind;
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(h) = overview(13) else { return };
+    let raw = h.screens.trees().pop().unwrap();
+    let mut bindings = Bindings::default();
+    bindings.bind(Action::MenuBack, "key:Backspace", false).unwrap();
+    for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+        let shown = h.screens.presented_trees(&bindings, device).pop().unwrap();
+        let hints = &shown.nodes[raw.nodes.len()..];
+        assert!(hints.iter().any(|node| node.visible && node.text.as_deref() == Some("Back")));
+        assert!(hints.iter().any(|node| node.visible && node.text.as_deref() == Some("Accept")));
+        match device {
+            InputDevice::Keyboard => assert!(hints.iter().any(|node| node.text.as_deref() == Some("Backspace"))),
+            _ => assert!(hints.iter().any(
+                |node| matches!(node.kind, NodeKind::Image { texture, .. } if texture == crate::ui::input_icons::ATLAS)
+            )),
+        }
+    }
+}
+
 /// The overview over a career whose current rival is `bin`, or `None` without an install.
 fn overview(bin: u8) -> Option<Harness> {
     let root = std::env::var_os("NFSMW_GAME_DIR")?;
@@ -79,9 +131,12 @@ fn the_arrows_walk_the_sheets_and_the_option_opens_the_bio() {
     h.click_on(OPTION_ICON);
     assert_eq!(
         h.screens.top(),
-        Some(screen::SAFE_HOUSE_REPUTATION_OVERVIEW),
-        "a sheet that is not built opens nothing"
+        Some(screen::SAFE_HOUSE_RACE_SHEET),
+        "the selected icon opens the race sheet implemented on main"
     );
+    h.press(pad::BACK);
+    h.wait(0.5);
+    assert_eq!(h.screens.top(), Some(screen::SAFE_HOUSE_REPUTATION_OVERVIEW));
     for _ in 0..3 {
         h.click_on(ARROW_RIGHT);
     }
@@ -116,4 +171,29 @@ fn the_pad_steps_picks_opens_and_leaves() {
     h.wait(0.5);
     let top = h.screens.top().unwrap_or_default();
     assert!(top.eq_ignore_ascii_case(screen::MAIN_MENU_SUB), "back leaves for the safe house menu, the top is {top}");
+}
+
+#[test]
+fn the_sheet_row_eases_to_the_next_icon_like_every_other_icon_row() {
+    use blackbox_feng::fe_hash_upper;
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(mut h) = overview(13) else { return };
+    let x = |h: &Harness| h.centre(fe_hash_upper("OPTION_4")).x;
+    let (cursor, start) = (h.centre(OPTION_ICON).x, x(&h));
+    assert!(start > cursor + 20.0, "the second sheet waits to the right of the cursor");
+    h.press(pad::RIGHT);
+    let midway = x(&h);
+    assert!(midway < start - 0.5 && midway > cursor + 0.5, "it is on its way, not jumped: {start} {midway} {cursor}");
+    h.wait(0.3);
+    assert!((x(&h) - cursor).abs() < 0.01, "and arrives under the cursor");
+}
+
+#[test]
+fn a_click_on_an_empty_end_of_the_sheet_row_is_the_rows_and_opens_nothing() {
+    use blackbox_feng::fe_hash_upper;
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(mut h) = overview(13) else { return };
+    assert!(h.click_on(fe_hash_upper("OPTION_2")), "the book end takes the click");
+    assert_eq!(h.screens.top(), Some(screen::SAFE_HOUSE_REPUTATION_OVERVIEW));
+    assert!(h.shows("Race Events"), "and the selection stays where it was");
 }

@@ -12,6 +12,8 @@ use nfsmw_data::gameplay::RewardRecord;
 
 use crate::career::{AutosaveInputs, Career, event_id, grant_rewards, handle_autosave, race_event_id};
 use crate::scenes::world::WorldScene;
+use crate::scenes::world::effects::entry_marks;
+use crate::scenes::world::entry_zones::ZoneKind;
 
 /// The Blacklist's bins, 1 to 15 (`FIRST_RIVAL_STAGE`).
 const LAST_BIN: u8 = 15;
@@ -113,14 +115,25 @@ impl WorldScene {
         Some((race.story.rewards.clone(), race.story.defer_rewards))
     }
 
-    /// Notes a won race of the challenge bin (events `19.*`) and says whether the series is complete: every event of bin 19
-    /// but `19.8.31` (the tollbooth that belongs to bin 18) has been won **[unconfirmed]**: the spec leaves the optional
-    /// races out, and this build knows none. The won events are kept for the session; they are not in the save.
+    /// Notes a won race of a side bin (events `18.*`, `19.*`, `21.*`), which opens the races it lists, and says whether the
+    /// challenge series is complete: every event of bin 19 but `19.8.31` (the tollbooth that belongs to bin 18) has been
+    /// won **[unconfirmed]**: the spec leaves the optional races out, and this build knows none. The win goes to the
+    /// event's race record, so a reloaded career keeps its ladders.
     fn note_side_race(&mut self, event: &str, place: u8) -> bool {
-        if place != 1 || !event.starts_with("19.") {
+        if place != 1 || !super::ladder::is_side_event(event) {
             return false;
         }
         self.career.side_won.insert(event.to_owned());
+        self.career.handle.with(|career| {
+            let mut nodes = career.settings.nodes();
+            if let Err(e) = nodes.set_won_in_career(event) {
+                log::warn!("race record of {event} not written: {e}");
+            }
+            career.settings.set_nodes(&nodes);
+        });
+        if !event.starts_with("19.") {
+            return false;
+        }
         let Some(data) = self.gameplay.as_ref() else { return false };
         data.races
             .iter()
@@ -150,6 +163,16 @@ impl WorldScene {
             return false;
         };
         blacklisted || self.side_race_locked(&event)
+    }
+
+    /// The names of the race zones near the car whose events the career keeps shut: they get no disc on the road, as they
+    /// get no icon on the map (`race_start_blips`).
+    pub(in crate::scenes::world) fn shut_race_zones(&self) -> Vec<String> {
+        let Some(car) = self.players.lead().map(|drive| drive.position()) else { return Vec::new() };
+        let near = self.entry.zones.near(car, entry_marks::DRAW_RANGE);
+        near.filter(|zone| zone.kind == ZoneKind::Race && self.career_race_locked(&zone.name))
+            .map(|zone| zone.name.clone())
+            .collect()
     }
 
     /// The event-start autosave for an open race: the node is the race's event id. A boss race is flagged as one for

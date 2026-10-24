@@ -11,6 +11,13 @@ pub struct MomentSound {
 }
 
 impl MomentSound {
+    pub fn thunder(db: &Database, close: bool) -> Option<Self> {
+        let name = match close {
+            true => "thunder_close",
+            false => "thunder_distant",
+        };
+        Self::named(db, name)
+    }
     pub fn speedbreaker(db: &Database, interactive: bool) -> Option<Self> {
         let name = match interactive {
             true => "purs_break_start_music",
@@ -44,6 +51,15 @@ fn word(c: CollectionRef<'_>, field: &str) -> Option<u32> {
 
 /// Match the SoundFX phrase's two sample selectors, keeping flags with their own take.
 pub fn moment_take(index: &[u8], sound: MomentSound) -> Result<(usize, usize), String> {
+    let matches = moment_takes(index, sound)?;
+    if matches.len() == 1 {
+        return Ok(matches[0]);
+    }
+    Err(format!("moment selectors have {} matching takes; selection policy unavailable", matches.len()))
+}
+
+/// All recordings allowed by the authored selector masks. The caller owns variation selection.
+pub fn moment_takes(index: &[u8], sound: MomentSound) -> Result<Vec<(usize, usize)>, String> {
     let parsed = SpeechIndex::parse(index).map_err(|e| e.to_string())?;
     for (bank, data) in parsed.banks().iter().enumerate() {
         if data.header.event != 0x400e {
@@ -63,13 +79,10 @@ pub fn moment_take(index: &[u8], sound: MomentSound) -> Result<(usize, usize), S
         for take in 0..data.header.takes() {
             let flags = header.get(14 + take * 4..16 + take * 4).ok_or("moment selectors missing")?;
             if selectors_match(flags, &masks) {
-                matches.push(take);
+                matches.push((bank, take));
             }
         }
-        if matches.len() == 1 {
-            return Ok((bank, matches[0]));
-        }
-        return Err(format!("moment selectors have {} matching takes; selection policy unavailable", matches.len()));
+        return Ok(matches);
     }
     Err("SoundFX moment bank missing".into())
 }

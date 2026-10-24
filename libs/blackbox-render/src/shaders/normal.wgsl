@@ -3,9 +3,10 @@ struct Globals {
     view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>,
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
     scatter_mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32>,
+    camera_right: vec4<f32>, clip_plane: vec4<f32>,
 };
 struct Offset { value: vec4<f32> };
-struct Light { specular: vec4<f32>, reflection: vec4<f32> };
+struct Light { specular: vec4<f32>, reflection: vec4<f32>, water: vec4<f32>, wet_tuning: vec4<f32> };
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(1) @binding(0) var diffuse_texture: texture_2d<f32>;
 @group(1) @binding(1) var normal_texture: texture_2d<f32>;
@@ -25,8 +26,10 @@ struct Input {
 struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
 // instance input: end
 struct Output {
     @invariant @builtin(position) clip: vec4<f32>,
@@ -36,6 +39,8 @@ struct Output {
     @location(6) world: vec3<f32>,
     @location(7) projected_reflection: vec4<f32>,
     @location(8) normal: vec3<f32>,
+    @location(9) tangent: vec3<f32>, @location(10) binormal: vec3<f32>,
+    @location(11) @interpolate(flat) receives_shadow: u32,
 };
 fn unit(v: vec3<f32>) -> vec3<f32> { return v / max(length(v), 1e-9); }
 @vertex
@@ -48,10 +53,12 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     let eye = unit(globals.camera_pos.xyz-world.xyz);
     let to_light = -globals.light_dir.xyz;
     var out: Output;
+    out.receives_shadow = instance_receives_shadow(placed);
     out.clip = globals.view_proj*world;
     out.projected_reflection = vec4(0.5*(out.clip.x+out.clip.w),0.5*(-out.clip.y+out.clip.w),out.clip.z,out.clip.w);
     out.world = world.xyz;
     out.normal = normal;
+    out.tangent = tangent; out.binormal = binormal;
     out.uv = v.uv+uv_offset.value.xy;
     out.light = unit(vec3(dot(tangent,to_light),dot(binormal,to_light),dot(normal,to_light)));
     out.eye = vec3(dot(tangent,eye),dot(binormal,eye),dot(normal,eye));
@@ -77,6 +84,7 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     return out;
 }
 fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
+    if dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
     let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
     let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
@@ -94,17 +102,22 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
         let reflection_uv = in.projected_reflection.xy/in.projected_reflection.w;
         let sample = textureSampleBias(reflection_texture,material_sampler,reflection_uv,globals.fog_range.z);
         reflected = sample.rgb*(2.0*spec_tex.r)*tex.a*in.ambient.a*light.reflection.x;
+        if light.reflection.z>0.5 && uv_offset.value.w>0.5 && light.water.x>0.0 { reflected=vec3(0.0); }
     }
     let plane = receiver_normal(in.world,in.normal);
     if globals.fog_range.w<0.5 && shadow_data.debug.x>0.5 {
         return vec4<f32>(lighting_debug_colour(in.world,plane,in.clip.xy),1.0);
     }
     var q = 1.0;
-    if globals.fog_range.w<0.5 { q = direct_visibility(in.world,plane,in.clip.xy); }
-    if globals.fog_range.w>2.5 { q = capture_sun_visibility(in.world,plane); }
+    if globals.fog_range.w<0.5 && in.receives_shadow != 0u { q = direct_visibility(in.world,plane,in.clip.xy); }
+    if globals.fog_range.w>2.5 && in.receives_shadow != 0u { q = capture_sun_visibility(in.world,plane); }
     var ao = 1.0;
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
-    var rgb = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected)*in.extinction+in.scatter;
+    var surface = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
+    if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
+        surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface);
+    }
+    var rgb = surface*in.extinction+in.scatter;
     if globals.scatter_rayleigh.w<0.5 {
         let distance = length(in.world-globals.camera_pos.xyz);
         let fog = clamp((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001),0.0,1.0);
@@ -125,4 +138,77 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
 fn extended_output(c:vec4<f32>)->vec4<f32> {
     if globals.camera_pos.w>1.5 { return vec4(max(c.rgb,vec3(0.0)),clamp(c.a,0.0,1.0)); }
     return clamp(c,vec4(0.0),vec4(1.0));
+}
+
+// Independent enhanced response. Existing authored masks remain reflection eligibility, not water depth.
+fn wet_hash(p:vec2<i32>)->f32 {
+    var h = bitcast<u32>(p.x)*1597334677u ^ bitcast<u32>(p.y)*3812015801u;
+    h = (h ^ (h>>16u))*2246822519u;
+    return f32((h ^ (h>>13u)) & 65535u)/65535.0;
+}
+fn wet_noise(p:vec2<f32>)->f32 {
+    let cell = vec2<i32>(floor(p));
+    let f = fract(p);
+    let t = f*f*(vec2(3.0)-2.0*f);
+    return mix(mix(wet_hash(cell),wet_hash(cell+vec2(1,0)),t.x),
+        mix(wet_hash(cell+vec2(0,1)),wet_hash(cell+vec2(1,1)),t.x),t.y);
+}
+fn pooled_coverage(world:vec2<f32>)->f32 {
+    if light.wet_tuning.y<=0.0 { return 0.0; }
+    let p = world/max(light.wet_tuning.z,0.25);
+    let field = 0.7*wet_noise(p)+0.3*wet_noise(p*3.7+vec2(19.0));
+    let threshold = 0.86-0.48*light.water.y*light.wet_tuning.y;
+    // Widen edges when patches fall below a pixel; no screen-anchored dither or temporal history.
+    let width = max(0.025,fwidth(field));
+    return smoothstep(threshold-width,threshold+width,field)*light.water.y;
+}
+fn wet_linear(c:vec3<f32>)->vec3<f32> { return pow(max(c,vec3(0.0)),vec3(2.2)); }
+fn wet_encoded(c:vec3<f32>)->vec3<f32> { return pow(max(c,vec3(0.0)),vec3(1.0/2.2)); }
+fn wet_capture(uv:vec2<f32>,pixel:vec2<f32>)->vec3<f32> {
+    return textureSampleLevel(reflection_texture,material_sampler,clamp(uv,pixel*0.5,vec2(1.0)-pixel*0.5),0.0).rgb;
+}
+fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32>,
+    v:vec3<f32>,diffuse_light:vec3<f32>,q:f32,ao:f32,dry:vec3<f32>)->vec3<f32> {
+    // Only upward authored reflective receivers. Vertical walls never acquire procedural pools.
+    let slope = smoothstep(0.90,0.995,unit(in.normal).z);
+    let damp = light.water.x*slope;
+    let pool = pooled_coverage(in.world.xy)*slope;
+    let p = in.world.xy;
+    let footprint = max(length(dpdx(p)),length(dpdy(p)));
+    let ripple_fade = 1.0-smoothstep(0.12,0.8,footprint);
+    let phase = light.water.z*0.785398163;
+    let ripples = vec2(sin(dot(p,vec2(7.3,4.1))+phase),cos(dot(p,vec2(-3.7,8.9))-phase*2.0));
+    let ripple = ripples*(0.012*light.wet_tuning.w*light.water.w*pool*ripple_fade);
+    // Water smooths the road micro-normal, but keeps its geometric slope.
+    let water_n = unit(mix(n,vec3(ripple,1.0),pool*0.94));
+    let nv = clamp(dot(water_n,v),0.0,1.0);
+    let fresnel = 0.02+0.98*pow(1.0-nv,5.0);
+    let uv = in.projected_reflection.xy/in.projected_reflection.w;
+    let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
+    let radius = mix(3.5,0.35,pool);
+    let center = wet_capture(uv,pixel);
+    // Spatially filtered film; pooled water retains the capture's detail. No fabricated parallax offsets.
+    var filtered = (wet_capture(uv+pixel*vec2(radius,0.0),pixel)
+        +wet_capture(uv-pixel*vec2(radius,0.0),pixel)
+        +wet_capture(uv+pixel*vec2(0.0,radius),pixel)
+        +wet_capture(uv-pixel*vec2(0.0,radius),pixel)+center*4.0)/8.0;
+    if light.reflection.z > 0.5 && uv_offset.value.w>0.5 {
+        let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
+        let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
+        let fallback = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
+        filtered = road_environment_at(in.world,world_n,ray,fallback,pool);
+    }
+    let mask = clamp(2.0*spec_tex.r*tex.a*in.ambient.a,0.0,1.0);
+    // The legacy mask already attenuates the old nonphysical reflection. Keep its zero regions,
+    // but let a continuous water layer approach dielectric reflectance within eligible regions.
+    let water_mask = mix(mask,smoothstep(0.0,0.08,mask),pool);
+    let reflectance = fresnel*mix(0.3,1.0,pool)*water_mask;
+    let base = 2.0*tex.rgb*(in.ambient.rgb*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
+    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
+    let power = mix(24.0,192.0,pool);
+    let h = unit(l+v);
+    let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
+    let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
+    let env = wet_linear(filtered)*reflectance*select(0.0,1.0,light.reflection.x>0.0);
+    return mix(dry,wet_encoded(diffuse+spec+env),damp);
 }

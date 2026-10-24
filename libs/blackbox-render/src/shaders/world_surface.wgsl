@@ -50,7 +50,7 @@ fn world_pixel(in: VsOut, texel: vec4<f32>, receive_ao: bool) -> vec4<f32> {
     if receive_ao && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     var visibility = 1.0;
     if WORLD_KIND != 2u || shadow_data.projected.x < 0.5 {
-        visibility = scene_visibility(in.world, receiver, in.clip.xy);
+        visibility = scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow);
     }
     let light = in.world_ambient * ao + in.world_diffuse * visibility;
     let alpha = select(texel.a * in.color.a, texel.a, WORLD_KIND == 2u);

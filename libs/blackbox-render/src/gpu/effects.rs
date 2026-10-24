@@ -9,6 +9,10 @@ pub(super) use blackbox_gpu_passes::{Effects, SoftDraw};
 impl Renderer {
     /// Replace the world effects drawn in every following scene/capture, until replaced again.
     pub fn set_effects(&mut self, layer: &EffectLayer) {
+        let distortion = layer.distortion.as_ref();
+        let view = distortion.and_then(|d| self.texture_views.get(&d.texture.raw()));
+        let regions = distortion.map_or(&[][..], |d| d.regions.as_slice());
+        self.post.set_distortion(&self.device, view, regions);
         self.effects.upload(&self.device, &self.queue, layer);
     }
 
@@ -20,5 +24,23 @@ impl Renderer {
     /// Allocated additive-streak capacity in vertices; retained when the streak layer is cleared.
     pub fn streak_capacity(&self) -> usize {
         self.effects.streak_capacity()
+    }
+}
+
+impl Renderer {
+    pub(super) fn encode_soft_effects(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        depth: &wgpu::TextureView,
+        frame: &crate::FrameParams,
+    ) {
+        let soft = SoftDraw {
+            target,
+            depth,
+            globals: &self.shared.bindings.globals_bind_group,
+            inverse_view_proj: self.world_to_clip(frame).inverse(),
+        };
+        self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
     }
 }

@@ -14,7 +14,6 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use super::camera_rig::CameraRig;
 use super::look::Look;
 use super::room::Room;
-use super::stage::CAR_STAND;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::scenes::car::FLOOR_PART;
@@ -55,6 +54,8 @@ pub struct MenuScene {
     intro: f32,
     /// The car and the room being read and uploaded (`backdrop_build.rs`); the backdrop is ready when it is done.
     build: Build,
+    /// Resolution and quality of the stationary room capture currently submitted to the renderer.
+    reflection: Option<(blackbox_gfx::ReflectionQuality, u32)>,
 }
 
 impl MenuScene {
@@ -91,14 +92,12 @@ impl MenuScene {
     /// Uploads the car and starts its camera.
     fn upload_car(&mut self, renderer: &mut dyn RenderBackend, model: CarModel, options: LoadOptions) {
         let Some(dir) = self.dir.clone() else { return };
-        if let Some(intro) = self.look.camera_intro() {
-            self.rig.begin(&dir, self.look.stage(), intro);
-        }
         let mut car = CarScene::new(model, 0.0).with_source(dir, options);
         car.set_car_shading(self.shading);
         // The room has its own floor at the same height; the car's placeholder floor would z-fight with it.
         car.placeholder_floor = self.room.is_none();
-        car.stand_on(CAR_STAND.yaw, CAR_STAND.sink);
+        let stand = self.look.stage().car_stand();
+        car.stand_on(stand.yaw, stand.sink);
         if let Err(e) = car.init(renderer) {
             log::warn!("the menu backdrop has no car: {e:#}");
             car.close(renderer);
@@ -156,6 +155,28 @@ pub(super) fn flat_frame() -> FrameParams {
     }
 }
 
+impl MenuScene {
+    fn update_car(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        let Some(car) = &mut self.car else { return };
+        if self.look.camera_intro().is_some() && self.rig.advance(dt) {
+            return car.update(renderer, &ActionState::default(), dt);
+        }
+        if matches!(self.look, Look::Showcase(_) | Look::LotShowcase(_)) {
+            showcase_camera(car, input, self.rest, dt);
+            return car.update(renderer, &ActionState::default(), dt);
+        }
+        // The backdrop takes no input and the car stands still: only the camera moves, once, into its rest pose.
+        self.intro = (self.intro + dt).min(INTRO_SECONDS);
+        let (rest_yaw, rest_distance) = self.rest;
+        let t = self.intro / INTRO_SECONDS;
+        let ease = 1.0 - (1.0 - t) * (1.0 - t);
+        let camera = car.camera_mut();
+        camera.yaw = rest_yaw + INTRO_YAW_DEGREES.to_radians() * (1.0 - ease);
+        camera.distance = rest_distance * (1.0 + (INTRO_DISTANCE_SCALE - 1.0) * (1.0 - ease));
+        car.update(renderer, &ActionState::default(), dt);
+    }
+}
+
 impl Scene for MenuScene {
     fn set_car_shading(&mut self, shading: CarShading) {
         self.shading = shading;
@@ -177,11 +198,20 @@ impl Scene for MenuScene {
     /// Starts reading the car and the room on a worker; `update` uploads them as they arrive. Until then the backdrop is flat.
     fn init(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
         let Some(dir) = self.dir.clone() else { return Ok(()) };
+        // Screen selection runs before the worker uploads the car. Start the stage now so those selections
+        // reach this stage's mover, rather than the previous stage (or an empty camera on first startup).
+        if let Some(intro) = self.look.camera_intro() {
+            self.rig.begin(&dir, self.look.stage(), intro);
+        }
         self.build = Build::start(dir, self.look.clone());
         Ok(())
     }
 
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        renderer.set_shadow_casters(None);
+        renderer.set_planar_reflection_scene(None);
+        renderer.set_reflection_scene(None);
+        self.reflection = None;
         // A worker still reading is left to finish; its result is dropped with the handle.
         self.build = Build::Idle;
         if let Some(mut car) = self.car.take() {
@@ -194,29 +224,17 @@ impl Scene for MenuScene {
     }
 
     fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
+        self.reflection = None;
         let Some(car) = self.car.as_mut() else { return };
         car.reshow(renderer);
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.advance(renderer);
-        let Some(car) = &mut self.car else { return };
-        if self.look.camera_intro().is_some() && self.rig.advance(dt) {
-            return car.update(renderer, &ActionState::default(), dt);
-        }
-        if matches!(self.look, Look::Showcase(_)) {
-            showcase_camera(car, input, self.rest, dt);
-            return car.update(renderer, &ActionState::default(), dt);
-        }
-        // The backdrop takes no input and the car stands still: only the camera moves, once, into its rest pose.
-        self.intro = (self.intro + dt).min(INTRO_SECONDS);
-        let (rest_yaw, rest_distance) = self.rest;
-        let t = self.intro / INTRO_SECONDS;
-        let ease = 1.0 - (1.0 - t) * (1.0 - t);
-        let camera = car.camera_mut();
-        camera.yaw = rest_yaw + INTRO_YAW_DEGREES.to_radians() * (1.0 - ease);
-        camera.distance = rest_distance * (1.0 + (INTRO_DISTANCE_SCALE - 1.0) * (1.0 - ease));
-        car.update(renderer, &ActionState::default(), dt);
+        self.update_reflections(renderer);
+        self.update_car(renderer, input, dt);
+        self.update_menu_casters(renderer);
+        self.update_floor_reflection(renderer);
     }
 
     /// Not ready until the car and the room are uploaded, so a screenshot waits for the backdrop.
@@ -344,6 +362,13 @@ impl Pausable {
 
 #[path = "backdrop_build.rs"]
 mod build;
+
+#[path = "backdrop_floor.rs"]
+mod backdrop_floor;
+#[path = "backdrop_shadows.rs"]
+mod backdrop_shadows;
+#[path = "backdrop_reflections.rs"]
+mod reflections;
 
 #[path = "pausable_scene.rs"]
 mod forwarding;

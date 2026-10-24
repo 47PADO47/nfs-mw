@@ -34,7 +34,7 @@ fn the_blacklist_item_shows_the_current_stage_and_the_icons_follow_the_items() {
     let mut s = CareerSettings::new_career();
     s.stage = 1;
     let list = items(&s);
-    let icons = safehouse_icons(&list, false);
+    let icons = safehouse_icons(&list);
     assert_eq!(icons.len(), list.len() + 1, "the greyed Rap Sheet is on the row too");
     assert_eq!(icons[1].id, Id::SafeHouseBlacklist(1));
     assert_eq!(icons[0].id, Id::SafeHouseResume);
@@ -45,24 +45,24 @@ fn the_blacklist_item_shows_the_current_stage_and_the_icons_follow_the_items() {
 #[test]
 fn the_rap_sheet_is_on_the_row_greyed_out_until_the_career_has_it() {
     let new = items(&CareerSettings::new_career());
-    let ids: Vec<Id> = safehouse_icons(&new, false).iter().map(|icon| icon.id).collect();
+    let ids: Vec<Id> = safehouse_icons(&new).iter().map(|icon| icon.id).collect();
     assert_eq!(ids.iter().position(|id| *id == Id::SafeHouseRapSheet), Some(ids.len() - 2), "before Save");
-    let rap = safehouse_icons(&new, false).into_iter().find(|icon| icon.id == Id::SafeHouseRapSheet).unwrap();
+    let rap = safehouse_icons(&new).into_iter().find(|icon| icon.id == Id::SafeHouseRapSheet).unwrap();
     assert!(!rap.enabled);
 
     let mut s = CareerSettings::new_career();
     s.flags.insert(Flags::HAS_RAP_SHEET);
-    let have = safehouse_icons(&items(&s), false);
+    let have = safehouse_icons(&items(&s));
     assert_eq!(have.iter().filter(|icon| icon.id == Id::SafeHouseRapSheet).count(), 1);
     assert!(have.iter().find(|icon| icon.id == Id::SafeHouseRapSheet).unwrap().enabled);
 }
 
 #[test]
-fn before_the_world_exists_car_select_is_greyed_out() {
+fn before_the_world_exists_car_select_still_works() {
     let list = items(&CareerSettings::new_career());
-    let icons = safehouse_icons(&list, true);
+    let icons = safehouse_icons(&list);
     let enabled: Vec<_> = icons.iter().map(|icon| (icon.id, icon.enabled)).collect();
-    assert!(enabled.contains(&(Id::SafeHouseCarSelect, false)));
+    assert!(enabled.contains(&(Id::SafeHouseCarSelect, true)));
     assert!(enabled.contains(&(Id::SafeHouseResume, true)));
 }
 
@@ -116,7 +116,7 @@ fn the_menu_hands_its_items_to_a_theme_that_draws_them_as_a_list() {
     let dir = game_install::GameDir::open(path).unwrap();
     let assets = crate::ui::UiAssets::load(&dir).unwrap();
     let list = items(&CareerSettings::new_career());
-    let icons = safehouse_icons(&list, false);
+    let icons = safehouse_icons(&list);
     let menu = SafeHouseMenu {
         menu: IconMenu::with_icons(Kind::SafeHouse, Args { safehouse: true, ..Args::default() }, icons),
         totals: Totals { bounty: 0, cash: 0, career: 0 },

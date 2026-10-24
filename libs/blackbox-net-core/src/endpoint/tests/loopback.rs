@@ -49,7 +49,7 @@ fn sixteen_clients_ping_pong_reliable_and_unreliable_data_over_loopback_udp() {
             }
             while let Some(event) = client.poll_event() {
                 match event {
-                    ClientEvent::Connected { server_key } => {
+                    ClientEvent::Connected { server_key, .. } => {
                         assert_eq!(server_key, server.key_id(), "the client authenticated the server's key");
                         connected[index] = true;
                     }

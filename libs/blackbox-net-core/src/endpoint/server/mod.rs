@@ -50,7 +50,7 @@ impl ServerEndpoint {
     pub fn bind(addr: SocketAddr, discovery: Option<SocketAddr>, config: ServerEndpointConfig) -> io::Result<Self> {
         let net = UdpTransport::bind(addr)?;
         let discovery = match discovery {
-            Some(addr) => Some(Box::new(UdpTransport::bind(addr)?) as Box<dyn Transport>),
+            Some(addr) => Some(Box::new(UdpTransport::bind_shared(addr)?) as Box<dyn Transport>),
             None => None,
         };
         Self::spawn(net, discovery, config)

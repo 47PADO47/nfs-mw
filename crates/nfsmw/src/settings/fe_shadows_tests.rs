@@ -8,11 +8,11 @@ fn read(text: &str) -> FeShadowsLayer {
 }
 
 #[test]
-fn the_front_end_shadows_are_off_with_cars_on_and_no_tuning() {
+fn the_front_end_shadows_follow_driving_by_default() {
     let s = FeShadows::default();
-    assert_eq!(s, FeShadows { enabled: false, cars: true, bias: 1.0, divider: 1 });
+    assert_eq!(s, FeShadows { enabled: true, cars: true, bias: 1.0, divider: 1 });
     assert_eq!(FeShadows::from_layer(FeShadowsLayer::default()), s);
-    assert!(!Settings::from(Partial::default()).fe_shadows.enabled);
+    assert!(Settings::from(Partial::default()).fe_shadows.enabled);
 }
 
 #[test]
@@ -74,13 +74,17 @@ fn the_config_writer_and_the_reader_agree() {
 }
 
 #[test]
-fn the_front_end_shadows_are_forced_off_without_soft_shadows() {
+fn the_front_end_shadows_support_native_casters_and_bevy_soft_shadows() {
     let s = Settings::from(Partial {
         fe_shadows: FeShadowsLayer { enabled: Some(true), ..Default::default() },
         ..Default::default()
     });
-    assert!(s.effective(&test_caps::native()).fe_shadows == FeShadows { enabled: false, ..s.fe_shadows });
+    assert!(s.effective(&test_caps::native()).fe_shadows.enabled);
     assert!(s.effective(&test_caps::full()).fe_shadows.enabled);
+    let unsupported = blackbox_gfx::Capabilities { separate_shadow_casters: false, ..test_caps::native() };
+    assert!(!s.effective(&unsupported).fe_shadows.enabled);
+    let gl = blackbox_gfx::Capabilities { api: blackbox_gfx::GraphicsApi::Gl, ..test_caps::native() };
+    assert!(!s.effective(&gl).fe_shadows.enabled);
 }
 
 #[test]
@@ -90,8 +94,9 @@ fn the_front_end_tuning_follows_the_switch_and_the_world_quality() {
     use blackbox_gfx::settings::ShadowTuning;
     let on = FeShadows { enabled: true, bias: 2.0, divider: 2, ..Default::default() };
     let tuned = |world| tuning(Snapshot { options: on, world_quality: world });
-    assert_eq!(tuned(ShadowQuality::Off), Some(ShadowTuning { quality: ShadowQuality::Medium, bias: 2.0, divider: 2 }));
+    assert_eq!(tuned(ShadowQuality::Off), Some(ShadowTuning { quality: ShadowQuality::Off, bias: 2.0, divider: 2 }));
     assert_eq!(tuned(ShadowQuality::High).map(|t| t.quality), Some(ShadowQuality::High));
-    let off = Snapshot { options: FeShadows::default(), world_quality: ShadowQuality::High };
+    let off =
+        Snapshot { options: FeShadows { enabled: false, ..Default::default() }, world_quality: ShadowQuality::High };
     assert_eq!(tuning(off), None, "off keeps the world's own tuning");
 }

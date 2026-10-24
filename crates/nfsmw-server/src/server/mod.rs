@@ -23,6 +23,7 @@ mod admit;
 mod drops;
 mod housekeeping;
 mod inbox;
+mod password;
 mod peer;
 mod phase;
 mod replay;
@@ -141,19 +142,20 @@ impl<W: WorldControl> Server<W> {
     /// A server for `config` over `world`, talking through `endpoint` (bound by [`bind`] or spawned over a test
     /// transport). `now_ms` is the caller's clock at the start.
     pub fn new(
-        config: ServerConfig,
+        mut config: ServerConfig,
         setup: ServerSetup,
         endpoint: ServerEndpoint,
         world: W,
         now_ms: u64,
     ) -> Result<Self, SettingsError> {
+        config.settings.password_required |= config.password.is_some();
         let lobby_config = LobbyConfig {
             session: SessionConfig::default(),
             countdown_seconds: config.countdown_seconds,
             auto_start: config.auto_start,
             ..LobbyConfig::default()
         };
-        let lobby = Lobby::new(lobby_config, config.settings.clone(), false)?;
+        let lobby = Lobby::new(lobby_config, config.settings.clone(), config.password.is_some())?;
         let replay = config.replay_dir.as_deref().and_then(|dir| {
             ReplayWriter::create(dir, &setup, world.tick())
                 .map_err(|err| log::warn!("no replay: cannot write to {}: {err}", dir.display()))

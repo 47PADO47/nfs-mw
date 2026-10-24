@@ -66,9 +66,34 @@ fn home_lists_host_join_and_back_and_back_closes() {
     menu.open(&net.status());
     let page = view(&menu, &mut net);
     assert_eq!(page.title, "LAN Game");
-    assert_eq!(page.labels(), ["Host a Game", "Join a Game", "Back"]);
+    assert_eq!(page.labels(), ["Host a Game", "Join a Game", "Your name", "Back"]);
     assert_eq!(press(&mut menu, &mut net, &[LanKey::Back]), [MenuOut::Close]);
     assert!(!menu.open);
+}
+
+#[test]
+fn the_name_row_edits_the_name_and_asks_to_save_it_only_when_it_is_valid() {
+    let mut menu = LanMenu::default();
+    let mut net = MockNetFrontend::default();
+    menu.open(&net.status());
+    press(&mut menu, &mut net, &[LanKey::Down, LanKey::Down, LanKey::Accept]);
+    assert!(menu.typing());
+    assert_eq!(view(&menu, &mut net).row("Your name").unwrap().value, "Player_", "typing starts from the current name");
+    let mut keys = vec![LanKey::Typed(Typed::Backspace); 6];
+    keys.extend(typed("Ann"));
+    assert!(press(&mut menu, &mut net, &keys).is_empty());
+    let out = press(&mut menu, &mut net, &[LanKey::Accept]);
+    let [MenuOut::SaveName(name)] = out.as_slice() else { panic!("one save: {out:?}") };
+    assert_eq!(name.as_str(), "Ann");
+    assert!(!menu.typing());
+    // An empty name is not a player name: nothing is saved and the row keeps the keys.
+    press(&mut menu, &mut net, &[LanKey::Accept]);
+    press(&mut menu, &mut net, &[LanKey::Typed(Typed::Backspace); 6]);
+    assert!(press(&mut menu, &mut net, &[LanKey::Accept]).is_empty());
+    assert!(menu.typing());
+    // Back drops the edit and the menu stays open.
+    assert!(press(&mut menu, &mut net, &[LanKey::Back]).is_empty());
+    assert!(!menu.typing() && menu.open);
 }
 
 #[test]

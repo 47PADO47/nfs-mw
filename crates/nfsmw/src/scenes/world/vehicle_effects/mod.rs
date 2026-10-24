@@ -15,6 +15,9 @@ mod sweep;
 #[cfg(test)]
 mod tests;
 mod trails;
+mod water;
+pub(in crate::scenes::world) use water::WaterContact;
+pub(in crate::scenes::world) use water::WaterEffects as TireWaterEffects;
 
 use blackbox_gfx::EffectVertex;
 use glam::Vec3;
@@ -33,6 +36,7 @@ pub fn streak_strength(speed: f32) -> f32 {
 }
 
 pub struct VehicleEffects {
+    water: water::WaterEffects,
     data: VisualEffectsData,
     sparks: Sparks,
     trails: Trails,
@@ -44,7 +48,10 @@ pub struct VehicleEffects {
 
 impl VehicleEffects {
     pub fn new(data: VisualEffectsData) -> Self {
+        let mut water = water::WaterEffects::new(data.tire_water.clone());
+        water.scale = data.axle_scale;
         Self {
+            water,
             data,
             sparks: Sparks::default(),
             trails: Trails::default(),
@@ -57,6 +64,21 @@ impl VehicleEffects {
 
     pub fn set_body(&mut self, pose: CarPose, bounds: nfsmw_data::car::physics::CarBounds) {
         self.body = body::BodyClip::new(pose, bounds);
+    }
+    pub fn set_surface_water(&mut self, water: Option<(blackbox_gfx::SurfaceWater, blackbox_gfx::RenderExperiments)>) {
+        self.water.surface_water = water;
+    }
+    pub fn set_rain(&mut self, wet: bool) {
+        self.water.wet = wet;
+    }
+    pub(in crate::scenes::world) fn water_step(
+        &mut self,
+        contacts: [Option<WaterContact>; 4],
+        pose: CarPose,
+        velocity: Vec3,
+        dt: f32,
+    ) {
+        self.water.step(contacts, pose, velocity, dt);
     }
 
     pub fn set_style(&mut self, style: crate::settings::SparkStyle) {
@@ -80,6 +102,7 @@ impl VehicleEffects {
     }
 
     pub fn clear(&mut self) {
+        self.water.clear();
         self.sparks.clear();
         self.pc.clear();
         self.trails.clear();
@@ -87,6 +110,7 @@ impl VehicleEffects {
 
     /// A reset or camera parking ends emission and disconnects old trail geometry.
     pub fn disconnect(&mut self) {
+        self.water.disconnect();
         self.sparks.disconnect();
         self.pc.disconnect();
         self.trails.clear();
@@ -97,6 +121,7 @@ impl VehicleEffects {
             return;
         }
         self.sparks.age(dt);
+        self.water.age(dt);
         self.pc.age(dt);
         self.trails.age(dt);
     }
@@ -124,6 +149,7 @@ impl VehicleEffects {
             self.trails.emit(self.data.trail, pose, velocity, dt);
         }
         self.pc.age(dt);
+        self.water.age(dt);
     }
 
     pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
@@ -148,11 +174,12 @@ impl VehicleEffects {
         out: &mut Vec<blackbox_gfx::TexturedEffect>,
     ) {
         self.pc.geometry(forward, textures, out);
+        self.water.geometry(forward, textures, out);
     }
 
     pub fn status(&self) -> String {
         format!(
-            "sparks {} ({}): {}/{} live, {} emitted; speed trails {} (experimental): {}/{} live, {} emitted",
+            "sparks {} ({}): {}/{} live, {} emitted; speed trails {} (experimental): {}/{} live, {} emitted; {}",
             self.enabled[0],
             self.style,
             self.pc.len() + self.sparks.len(),
@@ -165,6 +192,7 @@ impl VehicleEffects {
             self.trails.len(),
             MAX_TRAILS,
             self.trails.emitted,
+            self.water.status(),
         )
     }
 }

@@ -9,10 +9,15 @@ use super::header::{FLAG_ACK_VALID, Header, frame_size, parse_header, read_varin
 use super::rtt::Rtt;
 use super::seal::{Plain, Sealer, parse_clear_header};
 use super::{
-    CHANNELS, ConnConfig, ConnError, ConnEvent, FRAME_DISCONNECT, FRAME_PADDING, FRAME_RELIABLE, FRAME_SPACE,
-    HEADER_LEN, Sent,
+    CHANNELS, ConnConfig, ConnError, ConnEvent, FRAME_DISCONNECT, FRAME_PADDING, FRAME_PATH_CHALLENGE,
+    FRAME_PATH_RESPONSE, FRAME_RELIABLE, FRAME_SPACE, HEADER_LEN, PATH_TOKEN_LEN, Sent,
 };
 use crate::MAX_DATAGRAM;
+
+/// The token a path frame carries; any other length is a malformed frame.
+fn path_token(payload: &[u8]) -> Result<[u8; PATH_TOKEN_LEN], ConnError> {
+    <[u8; PATH_TOKEN_LEN]>::try_from(payload).map_err(|_| ConnError::BadFrame)
+}
 
 /// Packet records kept for matching acknowledgements: the same 1024 numbers the receive window covers.
 const SENT_WINDOW: usize = 1024;
@@ -55,6 +60,10 @@ pub struct Connection<S: Sealer = Plain> {
     last_recv_ms: Option<u64>,
     bytes_sent: u64,
     bytes_received: u64,
+    /// The token of the newest path challenge received, to be answered in the next packet written.
+    path_reply: Option<[u8; PATH_TOKEN_LEN]>,
+    /// The token of the newest path response received since [`Connection::take_path_response`].
+    path_heard: Option<[u8; PATH_TOKEN_LEN]>,
 }
 
 impl Connection<Plain> {
@@ -84,6 +93,8 @@ impl<S: Sealer> Connection<S> {
             last_recv_ms: None,
             bytes_sent: 0,
             bytes_received: 0,
+            path_reply: None,
+            path_heard: None,
         }
     }
 
@@ -147,6 +158,12 @@ impl<S: Sealer> Connection<S> {
                 self.disconnect = None;
             }
         }
+        if let Some(token) = self.path_reply
+            && at + frame_size(PATH_TOKEN_LEN) <= limit
+        {
+            at = write_frame(out, at, FRAME_PATH_RESPONSE, &[&token[..]]).ok_or(ConnError::BufferTooSmall)?;
+            self.path_reply = None;
+        }
 
         let rto = self.rtt.resend_after_ms();
         let mut frags = [(0u8, 0u16); MAX_PACKET_FRAGS];
@@ -182,6 +199,42 @@ impl<S: Sealer> Connection<S> {
             }
         }
 
+        self.finish_packet(now_ms, out, at, count, frags)
+    }
+
+    /// Writes a packet that asks the peer to prove a new path: the acknowledgement block and one path challenge with
+    /// `token`, and nothing else. No reliable fragment, disconnect or answer to the peer's own challenge goes in it, so
+    /// the address it is sent to learns nothing the connection would have to resend.
+    pub fn write_path_challenge(
+        &mut self,
+        now_ms: u64,
+        token: &[u8; PATH_TOKEN_LEN],
+        out: &mut [u8],
+    ) -> Result<Sent, ConnError> {
+        if out.len() < MAX_DATAGRAM {
+            return Err(ConnError::BufferTooSmall);
+        }
+        if self.created_ms.is_none() {
+            self.created_ms = Some(now_ms);
+        }
+        let at = write_frame(out, HEADER_LEN, FRAME_PATH_CHALLENGE, &[&token[..]]).ok_or(ConnError::BufferTooSmall)?;
+        self.finish_packet(now_ms, out, at, 0, [(0, 0); MAX_PACKET_FRAGS])
+    }
+
+    /// The token of the newest path response read since the last call, if any.
+    pub fn take_path_response(&mut self) -> Option<[u8; PATH_TOKEN_LEN]> {
+        self.path_heard.take()
+    }
+
+    /// Seals the packet whose frames end at `at` and records it as sent.
+    fn finish_packet(
+        &mut self,
+        now_ms: u64,
+        out: &mut [u8],
+        at: usize,
+        count: usize,
+        frags: [(u8, u16); MAX_PACKET_FRAGS],
+    ) -> Result<Sent, ConnError> {
         let number = self.next_number;
         let header = Header {
             flags: FLAG_ACK_VALID * u8::from(self.window.any()),
@@ -210,8 +263,8 @@ impl<S: Sealer> Connection<S> {
     /// Takes in one datagram, opened in place in `datagram`. The clear header is checked (connection id, and the window
     /// is asked whether the number is new) before the sealer opens it; the number is recorded only once the tag
     /// verified. Then the acknowledgements are applied and each frame is handled in order: reliable frames go to the
-    /// channels, a disconnect becomes [`ConnEvent::Disconnected`], the reserved types `0x12` and `0x13` are skipped, and
-    /// every other frame is passed to `on_frame` with its payload. Returns the packet number. On
+    /// channels, a disconnect becomes [`ConnEvent::Disconnected`], a path challenge is answered in the next packet
+    /// written, a path response waits for [`Connection::take_path_response`], and every other frame is passed to `on_frame` with its payload. Returns the packet number. On
     /// [`ConnError::BadFrame`] the frames before the bad one stay handled.
     pub fn read_packet<'a, F: FnMut(u8, &'a [u8])>(
         &mut self,
@@ -347,7 +400,8 @@ impl<S: Sealer> Connection<S> {
                     };
                     self.events.push_back(ConnEvent::Disconnected(reason));
                 }
-                0x12 | 0x13 => {}
+                FRAME_PATH_CHALLENGE => self.path_reply = Some(path_token(payload)?),
+                FRAME_PATH_RESPONSE => self.path_heard = Some(path_token(payload)?),
                 _ => on_frame(ftype, payload),
             }
         }

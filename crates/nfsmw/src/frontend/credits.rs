@@ -133,6 +133,7 @@ impl ScreenLogic for CreditsLogic {
         }
         let args = Args { options: true, category: Category::Audio, ..Args::default() };
         cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), args));
+        crate::audio::menu::request(PAD_BACK);
         true
     }
 

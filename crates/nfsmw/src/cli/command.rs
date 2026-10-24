@@ -97,6 +97,9 @@ pub enum Command {
         /// For Pause_Main.fng and MainMenu_Sub.fng: the option categories.
         #[arg(long)]
         options: bool,
+        /// Preview the safe-house menu with an in-memory career, without reading or writing a profile.
+        #[arg(long, hide = true, conflicts_with_all = ["pause", "options"])]
+        safehouse: bool,
         /// For the option screens: audio, video, gameplay, player, controls or discord.
         #[arg(long, default_value = "audio")]
         category: String,

@@ -2,8 +2,9 @@
 //! to the peer its connection id names), the in-memory link of the host's own client, and the discovery port.
 //!
 //! Every check before opening a packet is cheap and silent: the length, the first byte, the clear header, the
-//! connection id, the source address (no path validation yet, so a packet from another address is dropped) and the
-//! peer's inbound budget. Only then does the connection check the tag.
+//! connection id, the source address (a packet from another address is opened only at a limited rate and moves the
+//! peer only after the new address answers a challenge, `endpoint/path.rs`) and the peer's inbound budget. Only then
+//! does the connection check the tag.
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -144,7 +145,13 @@ impl<T: Transport> ServerWorker<T> {
         let conn = Connection::with_sealer(self.config.conn(info.local_conn_id, info.remote_conn_id), sealer);
         let link = PeerLink::new(conn, info.addr, info.local_conn_id, Some(self.limits.budget()), true);
         self.peers.push(Peer { id, local: false, link });
-        self.events.push(ServerEvent::Connected { peer: id, key: info.remote_id(), addr: info.addr, local: false });
+        self.events.push(ServerEvent::Connected {
+            peer: id,
+            key: info.remote_id(),
+            addr: info.addr,
+            local: false,
+            handshake_hash: info.handshake_hash,
+        });
     }
 
     /// A data packet: routed, checked against the address and budget, opened, and its contents handed on.
@@ -161,7 +168,7 @@ impl<T: Transport> ServerWorker<T> {
             return;
         };
         if peer.link.addr() != from {
-            self.counters.wrong_address += 1;
+            self.on_foreign_data(now_ms, index, from, datagram);
             return;
         }
         if !peer.link.admit(now_ms, datagram.len()) {
@@ -177,5 +184,48 @@ impl<T: Transport> ServerWorker<T> {
             self.counters.rejected += 1;
         }
         self.drain_peer(index);
+    }
+
+    /// A data packet for a known connection from an address it is not at (a NAT rebinding, a roaming device, or a
+    /// forger). Checked against a cheap limit, then opened like any packet: only one that opens under the peer's keys
+    /// with a new packet number counts. The peer stays where it is until the new address answers a challenge; the
+    /// answer moves it.
+    fn on_foreign_data(&mut self, now_ms: u64, index: usize, from: SocketAddr, datagram: &mut [u8]) {
+        let Some(peer) = self.peers.get_mut(index) else {
+            return;
+        };
+        if peer.local || !peer.link.admit_foreign(now_ms) || !peer.link.admit(now_ms, datagram.len()) {
+            self.counters.wrong_address += 1;
+            return;
+        }
+        let id = peer.id;
+        let events = &mut self.events;
+        let read = peer.link.read(now_ms, datagram, |frame_type, payload| {
+            events.push(ServerEvent::Unreliable { peer: id, frame_type, bytes: payload.to_vec() });
+        });
+        if read.is_err() {
+            self.counters.rejected += 1;
+            return;
+        }
+        if peer.link.path_heard_from(now_ms, from) {
+            self.counters.path_migrations += 1;
+            self.events.push(ServerEvent::PathChanged { peer: id, addr: from });
+        }
+        self.drain_peer(index);
+        self.send_path_challenge(index, now_ms);
+    }
+
+    /// Sends the challenge a peer's candidate address is due, if there is one.
+    pub(super) fn send_path_challenge(&mut self, index: usize, now_ms: u64) {
+        let Some(peer) = self.peers.get_mut(index) else {
+            return;
+        };
+        let Some((addr, len)) = peer.link.path_challenge(now_ms, &mut self.out) else {
+            return;
+        };
+        if let Some(bytes) = self.out.get(..len) {
+            self.wire.send(false, addr, bytes);
+            self.counters.path_challenges += 1;
+        }
     }
 }

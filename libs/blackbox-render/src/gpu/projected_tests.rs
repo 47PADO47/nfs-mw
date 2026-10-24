@@ -38,6 +38,16 @@ fn upload(r: &mut Renderer, rgba: [u8; 4]) -> TextureHandle {
     })
 }
 fn quad(r: &mut Renderer, bounds: [f32; 4], rgba: [u8; 4], texture: TextureHandle, shading: Shading) -> MeshHandle {
+    quad_sided(r, bounds, rgba, texture, shading, true)
+}
+fn quad_sided(
+    r: &mut Renderer,
+    bounds: [f32; 4],
+    rgba: [u8; 4],
+    texture: TextureHandle,
+    shading: Shading,
+    two_sided: bool,
+) -> MeshHandle {
     let [x0, y0, x1, y1] = bounds;
     let [red, green, blue, alpha] = rgba;
     let vertices = [[x0, y0, 0.5], [x0, y1, 0.5], [x1, y1, 0.5], [x1, y0, 0.5]].map(|position| Vertex {
@@ -59,7 +69,7 @@ fn quad(r: &mut Renderer, bounds: [f32; 4], rgba: [u8; 4], texture: TextureHandl
             texture: Some(texture),
             blend: BlendMode::Opaque,
             shading,
-            two_sided: true,
+            two_sided,
         }],
     })
 }
@@ -349,3 +359,41 @@ fn projected_custom_cars_ignore_main_ao_contact_and_debug_without_disabling_main
         "neutral main-view shading must round trip"
     );
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn projected_capture_reverses_faces_without_changing_two_sided_textures() {
+    let _gpu = test_support::serial();
+    let mut r = Renderer::headless((64, 64), test_support::options()).expect("selected GPU required");
+    let texture = upload(&mut r, [255; 4]);
+    for (bounds, clockwise) in [([-1.0, -1.0, 1.0, 1.0], true), ([1.0, -1.0, -1.0, 1.0], false)] {
+        for both in [false, true] {
+            let mesh = quad_sided(&mut r, bounds, [64, 64, 64, 255], texture, Shading::WorldNoFog, both);
+            for flip in [false, true] {
+                for mirror in [false, true] {
+                    let transform = match mirror {
+                        true => Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)),
+                        false => Mat4::IDENTITY,
+                    };
+                    let instances = [Instance::new(mesh, transform).with_flipped_winding(flip)];
+                    capture(&mut r, frame(), [64, 64], &instances, false);
+                    let expected = match both || (clockwise != flip) {
+                        true => [128; 3],
+                        false => [0; 3],
+                    };
+                    rgb(&r.read_projected_scene().unwrap().unwrap(), (32, 32), expected);
+                    r.render(&frame(), &instances).unwrap();
+                    let expected = match both || (clockwise == flip) {
+                        true => [128; 3],
+                        false => [0; 3],
+                    };
+                    rgb(&r.read_output().unwrap().unwrap(), (32, 32), expected);
+                }
+            }
+            r.destroy_mesh(mesh);
+        }
+    }
+}
+
+#[path = "enhanced_wet_tests.rs"]
+mod enhanced;

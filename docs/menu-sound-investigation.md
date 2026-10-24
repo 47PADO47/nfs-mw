@@ -1,6 +1,11 @@
 # Menu navigation and selection sounds: findings
 
-Status: **open**. The Rust front end does not play menu navigation or selection sounds. The original
+Status: **partially implemented (2026-10-23)**. Menu messages now reach authored bank playback;
+see [the implementation spec](specs/frontend-audio.md) and
+[provenance](provenance/frontend-audio.md) for the verified mapping and remaining gaps.
+The historical investigation below describes the state before that change.
+
+The Rust front end did not play menu navigation or selection sounds. The original
 does. This note records what was established about the original's sound path in `speed.exe` (the
 NFS: Most Wanted PC build), what was ruled out, and where to continue. No code change was made for
 this; the front end still drops the sound messages.

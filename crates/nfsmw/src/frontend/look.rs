@@ -48,6 +48,10 @@ pub enum Look {
     Car(CarLook),
     /// The career car in the safe house interior: the safe house menu and the screens it opens.
     SafeHouse(CarLook),
+    /// A car in the car lot's own room: the lot zones' car select and the first car's purchase.
+    CarLot(CarLook),
+    /// The Showcase of the car lot: the lot's room, with the camera the arrow keys turn (`career_screens/car_lot.rs`).
+    LotShowcase(CarLook),
     /// A car in the stage room that the arrow keys turn and the zoom keys bring nearer: the Showcase of the custom race's car
     /// select (`Showcase.fng`, docs/specs/custom-race.md section 6).
     Showcase(CarLook),
@@ -66,8 +70,10 @@ impl Look {
             "main" => Ok(Look::Main),
             "car" => Ok(Look::Car(car)),
             "safehouse" => Ok(Look::SafeHouse(car)),
+            "carlot" => Ok(Look::CarLot(car)),
             "showcase" => Ok(Look::Showcase(car)),
-            other => anyhow::bail!("unknown look {other:?} (main, car, safehouse, showcase)"),
+            "lotshowcase" => Ok(Look::LotShowcase(car)),
+            other => anyhow::bail!("unknown look {other:?} (main, car, safehouse, carlot, showcase, lotshowcase)"),
         }
     }
 }

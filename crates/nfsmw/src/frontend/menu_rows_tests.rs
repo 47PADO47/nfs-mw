@@ -23,13 +23,25 @@ fn the_pause_menu_in_a_race_offers_resume_race_and_restart_and_names_its_quit() 
     use super::logic::{PauseCtx, QuitTo};
     let free = pause_icons(PauseCtx::default());
     assert_eq!(free.iter().map(|i| i.id).collect::<Vec<_>>(), [Id::Resume, Id::Options, Id::Quit(QuitTo::Main)]);
-    let race = pause_icons(PauseCtx { race: true, quit: QuitTo::QuickRace, coop: false, coop_locked: false });
+    let race =
+        pause_icons(PauseCtx { race: true, quit: QuitTo::QuickRace, coop: false, coop_locked: false, blacklist: None });
     assert_eq!(
         race.iter().map(|i| i.id).collect::<Vec<_>>(),
         [Id::ResumeRace, Id::RestartRace, Id::Options, Id::Quit(QuitTo::QuickRace)]
     );
     assert_eq!(race[0].name, 0xDED3_57E7, "Resume Race");
     assert_eq!(race[3].name, 0x4349_998B, "Quit to Quick Race Menu");
-    let career = pause_icons(PauseCtx { race: true, quit: QuitTo::Career, coop: false, coop_locked: false });
+    let career =
+        pause_icons(PauseCtx { race: true, quit: QuitTo::Career, coop: false, coop_locked: false, blacklist: None });
     assert_eq!(career[3].name, 0x690E_9B7C, "Quit to Career Main Menu");
+}
+
+#[test]
+fn the_pause_menu_lists_the_blacklist_only_when_the_career_offers_it() {
+    use super::icon_items::{Id, pause_icons};
+    use super::logic::{PauseCtx, QuitTo};
+    let ids = |ctx: PauseCtx| pause_icons(ctx).iter().map(|i| i.id).collect::<Vec<_>>();
+    assert!(!ids(PauseCtx::default()).contains(&Id::SafeHouseBlacklist(12)));
+    let career = ids(PauseCtx { blacklist: Some(12), quit: QuitTo::Career, ..PauseCtx::default() });
+    assert_eq!(career, [Id::Resume, Id::SafeHouseBlacklist(12), Id::Options, Id::Quit(QuitTo::Career)]);
 }

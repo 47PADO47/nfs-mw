@@ -287,3 +287,28 @@ Tags: **[exe]** (CF 4, CSH2 6.1, CSE 2.3, CB 9). These run when a save loads.
 
 Stage 16 with `16.2.1` complete goes to the safe house menu. A save at CurrentBin 16 with 16.2.1 unfinished restarts the
 prologue.
+
+### 2.8 Rewrite choices in the prologue **[ours]**
+
+What the rewrite decides where the spec above is silent. All of it is open to Ghidra checks.
+
+1. The call, kill, cop and bail triggers of `16.1.0` and `16.2.1` are **plane triggers** (`planetrigger`), not boxes. A plane
+   is a slab 1 m thick, so it is tested along the player's step, not by where the step ends. `16.1.0` has only
+   `call_from_mia` (and `wrongway`); the chase script runs on it as on `16.2.1`.
+2. The voice load of call 10 is a fixed 10 s (`WaitForCallLoad`), so the backup sabotage (15 s after the call trigger) comes
+   before the call's own fade (8 s after the call starts). `notifyengineblown` is the sabotage plus 6 s, or the car coasting
+   under 3 m/s after 1.5 s. Then the 1 s timer ends the race (F-16). The screen fades to black over 3 s and stays black until
+   the next race or movie takes the screen.
+3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.1.0`
+   leads to `16.2.2`; `16.2.1` plays `storyfmv_bus12` and then opens the car lot.
+4. The flashback races open on a days-ago card: `16.2.2` "Six Days Ago..." (message 6), `16.2.3` "Four Days Ago..." (4),
+   `16.1.1` "Two Days Ago..." (message 2, from the data). The texts are the install's (`0x4CBBA984`, `0x2117EECC`,
+   `0xA461D64A`; `^` is a line break). Messages 6 and 4 are not in the race data **[unconfirmed]**.
+5. The car lot is platform 5: its room is `FRONTEND/PLATFORMS/CAR_LOT.BIN`, the camera `angle_entry_car_lot` onto
+   `angle_final_car_lot` and the screen pose `carlot_car_select`, the car stood at 340 degrees. It replaces the world; leaving
+   a lot zone starts the world again at the zone.
+6. Until the first safe house is reached (stage 16) the map shows only that safe house, and the career row says "Start Career".
+   A career that won `16.2.1` resumes in the lot while it owns no car, and on the drive to the safe house after that.
+7. `IntroNisDDEnd` is not a second cutscene of the prologue. Ghidra: its only code use is `FUN_00641840` (0x00641840), the
+   teardown of the race status, which posts the name as an event for a human racer when the race state is not 8. Nothing
+   plays a scene of that name, so no extra NIS follows `16.1.0` or `16.2.1` **[exe]**.

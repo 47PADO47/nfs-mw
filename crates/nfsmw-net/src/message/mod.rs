@@ -47,5 +47,6 @@ pub use events::*;
 pub use lobby::*;
 pub use settings::*;
 pub use strikes::{INVALID_LIMIT, INVALID_WINDOW_MS, InvalidMessages};
+pub use text::password_secret;
 pub use text::{ChatText, Name, Plate, ServerName, Text, VersionText};
 pub use wire::{Bytes, List, Wire, wire_len};

@@ -5,8 +5,8 @@
 //!
 //! `Args` carries no message id, so the list stores the id it opens in [`OPENED`] and the message screen reads it when
 //! it starts. Opening a story message the first time asks the audio system for its voice ([`crate::audio::cell_call`]);
-//! Replay (pad button 4) asks again, cutting the line in progress. Delete (pad button 5) empties the slot at once and
-//! goes back to the list: the original asks first in `InGameDialog.fng`, and that question's label is not known yet.
+//! Replay (pad button 4) asks again, cutting the line in progress. Delete (pad button 5) asks "Are you sure you want to
+//! delete this SMS message?" (`0x8C3C2171`); Yes empties the slot and goes back (`Command::DeleteSms`), No keeps it.
 
 use std::sync::Mutex;
 
@@ -17,6 +17,7 @@ use nfsmw_career::settings::SmsInbox;
 
 use crate::audio::cell_call;
 use crate::career::CareerHandle;
+use crate::frontend::confirm::Confirm;
 use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE, screen};
 use crate::frontend::logic::{Args, Command, Cx, ScreenLogic};
 use crate::ui::Text;
@@ -26,6 +27,8 @@ use crate::ui::Text;
 /// open action.
 pub const REPLAY: u32 = PAD_BUTTON0 + 4;
 pub const DELETE: u32 = PAD_BUTTON0 + 5;
+/// The delete question's label: "Are you sure you want to delete this SMS message?".
+const DELETE_QUESTION: u32 = 0x8C3C_2171;
 
 /// The messages the list sends: the Read button (`0x775CE5DF`), a row (`0x0C407210`), the tab hotspots (`0x9120409E`,
 /// either one), and the list's arrows (`0x72619778` up, `0x911C0A4B` down).
@@ -47,10 +50,15 @@ const TIPS_NEW: u32 = 0x000F_321F;
 /// The message screen's objects: the body, the sender and subject values, and the replay hint and voice group that are
 /// hidden for non-story messages (the voice group's role is read from its script only, unconfirmed).
 const BODY: u32 = 0x000F_A6B1;
-const FROM: u32 = 0x000E_5A97;
-const SUBJECT: u32 = 0x000F_9301;
+/// The sender's value sits on the package's second row and the subject's on its first (`From:` and `Subject:` are the labels
+/// above them in the window): the values are named for the row they stand on.
+const FROM: u32 = 0x000F_9301;
+const SUBJECT: u32 = 0x000E_5A97;
 const REPLAY_HINT: u32 = 0x000F_A582;
 const VOICE: u32 = 0x000F_4BA4;
+/// The controller's copy of the Done, Delete and Re-Play buttons (the triangle, circle and square). It stands on the same
+/// line as the keyboard's copy (`PC_key_esc`, `1`, `2`), so showing both prints each label twice over the other.
+const GAMEPAD_FOOTER: u32 = 0x000F_A53F;
 
 /// The message the list opened last: the message screen shows it.
 static OPENED: Mutex<Option<u32>> = Mutex::new(None);
@@ -175,13 +183,24 @@ fn show_row(cx: &mut Cx, slot: usize, entry: Option<ListEntry>) {
     show_object(cx, ROW_NEW[slot], entry.unread);
 }
 
+/// The question the delete button asks (`0x8C3C2171`): its Yes answer deletes message `id`, then runs `then` to close the
+/// screen.
+pub fn delete_question(id: u32, then: Command) -> Confirm {
+    Confirm::new(Text::Game(DELETE_QUESTION), Command::DeleteSms { id, then: Box::new(then) })
+}
+
+/// What leaving the message screen does: back to the safe house menu when the inbox was opened there, otherwise the screen
+/// pops.
+pub fn leave_command(args: Args) -> Command {
+    if !args.safehouse {
+        return Command::Pop;
+    }
+    Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() })
+}
+
 /// Back: to the safe house menu when the inbox was opened there, otherwise the screen pops.
 fn leave(cx: &mut Cx, args: Args) {
-    if !args.safehouse {
-        cx.send(Command::Pop);
-        return;
-    }
-    cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() }));
+    cx.send(leave_command(args));
 }
 
 /// The inbox list of one tab, six rows at a time.
@@ -277,10 +296,17 @@ pub struct MessageLogic {
     args: Args,
 }
 
+/// Keeps the controller's copy of the footer off the screen: the package's scripts can show it again, so every tick
+/// puts it back (the world map keeps its keyboard prompts the same way).
+pub fn hide_gamepad_footer(cx: &mut Cx) {
+    show_object(cx, GAMEPAD_FOOTER, false);
+}
+
 /// Shows message `id` on the message screen and marks it read, as opening it does. The body, sender and subject come
 /// from the language table; the replay hint and the voice group show for story messages only.
 pub fn show_message(cx: &mut Cx, id: u32) {
     open_message(id);
+    hide_gamepad_footer(cx);
     let body = lookup(cx, &label_for(id));
     set_text(cx, BODY, body);
     let sender = lookup(cx, &from_label_for(id));
@@ -302,6 +328,10 @@ impl ScreenLogic for MessageLogic {
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
     }
 
+    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        hide_gamepad_footer(cx);
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if message == PAD_BACK {
             leave(cx, self.args);
@@ -311,10 +341,7 @@ impl ScreenLogic for MessageLogic {
         match message {
             INIT_COMPLETE => open_message(id),
             REPLAY => replay_voice(id),
-            DELETE => {
-                delete(id);
-                leave(cx, self.args);
-            }
+            DELETE => cx.send(Command::Confirm(delete_question(id, leave_command(self.args)))),
             _ => {}
         }
     }

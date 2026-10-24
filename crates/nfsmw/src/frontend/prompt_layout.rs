@@ -32,6 +32,7 @@ impl Frame {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
             "pause_options.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
             "options.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "safehousereputationoverview.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             // The custom race's screens (`custom_race/`); the career's car lot keeps the package's own footer.
             "track_select.fng" | "track_options.fng" | "showcase.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             "car_select.fng" if footer.is_custom_car_select() => (0x84BC_F2B5, 0x3D3B_C1AC),

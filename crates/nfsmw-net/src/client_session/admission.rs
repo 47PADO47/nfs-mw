@@ -10,11 +10,12 @@ use super::session::ClientSession;
 use super::status::{EndReason, Status};
 use crate::interp::InterpConfig;
 use crate::message::{
-    Auth, Bytes, Join, JoinAccepted, MAX_RESUME_TOKEN, Message, PakeConfirm, PakeMsg, PakeStart, encode,
+    Auth, Bytes, Join, JoinAccepted, JoinRejected, MAX_RESUME_TOKEN, Message, PakeConfirm, PakeMsg, PakeStart, encode,
 };
 use crate::netstats::NetStats;
 use crate::predict::PredictedCar;
 use crate::schema::GameSchema;
+use crate::version::RejectReason;
 
 impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
     /// The connection is open: present the build, the resume token when reconnecting, and the seat request. `Join`
@@ -57,8 +58,9 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
             self.end(EndReason::PasswordRequired);
             return;
         };
-        let hash = self.link.as_ref().and_then(ClientLink::handshake_hash).unwrap_or([0; 32]);
-        let Ok((state, mine)) = password::start(secret.as_bytes(), &hash, PakeRole::Joiner) else {
+        let hash = self.link.as_ref().and_then(ClientLink::handshake_hash).or(self.pake.hash).unwrap_or([0; 32]);
+        let Ok((state, mine)) = password::start(&crate::message::password_secret(&secret), &hash, PakeRole::Joiner)
+        else {
             self.end(EndReason::PasswordRejected);
             return;
         };
@@ -83,6 +85,16 @@ impl<L: ClientLink, C: PredictedCar + Clone> ClientSession<L, C> {
         };
         if !confirm.verify(tag) {
             self.end(EndReason::PasswordRejected);
+        }
+    }
+
+    /// The seat is refused. A server that never sent its confirmation tag after this side's password exchange did not
+    /// accept the password; it answers that like a full room, so the player is told about the password instead.
+    pub(super) fn on_rejected(&mut self, rejected: JoinRejected) {
+        let password_refused = self.pake.confirm.is_some() && rejected.reason == RejectReason::ServerFull;
+        match password_refused {
+            true => self.end(EndReason::PasswordRejected),
+            false => self.end(EndReason::Rejected(rejected)),
         }
     }
 

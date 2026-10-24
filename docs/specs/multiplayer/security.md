@@ -255,7 +255,7 @@ A password limits who can join and removes the first-use risk without comparing 
 - Guess limits on the host: 5 wrong attempts per player id and per source address in 60 seconds, then 60 seconds of
   refusal, doubling to a 15 minute ceiling. No lockout of the room as a whole (a griefer must not be able to lock out
   friends).
-- Passwords: 1 to 64 characters, normalised (NFKC), never stored. The host holds it in memory only.
+- Passwords: 1 to 64 characters, normalised (NFKC; `message::password_secret`, used by both ends), never stored. The host holds it in memory only.
 
 ### 4.7 Replay and ordering
 
@@ -366,10 +366,10 @@ In `libs/blackbox-net-core`, module `secure` (feature `netcode`), sans-IO; byte 
 | S-01 Noise, sealing | Built. `snow` 0.10 (RustCrypto resolver, no `ring`) runs `XX` and `XK`; sealing uses the split keys directly with `chacha20poly1305`, the Noise `ChaChaPoly` nonce layout and Noise `REKEY`, because `snow`'s stateless transport takes no associated data. Key phases, the 3 s old key and the replay window are built and tested |
 | S-02 cookie | Built: keyed BLAKE2s over the address, nonce and both connection ids; 15 s buckets, two secrets; 512-byte requests, 36-byte `Challenge`; 3x limit per slot |
 | S-04 identity, TOFU | Built as a pure API: `IdentityKey` (zeroised secret, the caller stores it), `KeyId` (SHA-256, 16 bytes), fingerprint, the four 11-bit phrase indices (the game supplies the word list), `assess` and `admit` over a caller's `PeerStore` |
-| S-05 room password | Built: symmetric SPAKE2 with the handshake hash as identity, role-specific confirmation tags; experimental (no known audit of `spake2`). NFKC normalisation is the caller's |
+| S-05 room password | Built: symmetric SPAKE2 with the handshake hash as identity, role-specific confirmation tags; experimental (no known audit of `spake2`). both ends feed `message::password_secret` (NFKC) to it |
 | S-06 connect tokens | Built on the server side and for minting: XChaCha20-Poly1305, two `kid`s, every check of 4.8, single use in a bounded table |
 | 4.6 guess limits, auth failures | Built: `ratelimit::FailureRule::PASSWORD` and `AUTH` |
-| Path validation (4.4) | Not built: `PATH_CHALLENGE` frames are still skipped |
+| Path validation (4.4) | Built: a packet from a new address that opens under the peer's keys with a new number is taken in, the server keeps sending to the old address and asks the new one with `PATH_CHALLENGE` (3 tries, 250 ms apart, one candidate at a time, 1 s quiet after each); the answer from that address moves the peer |
 | Accounts (5), result signing, OS credential store | Not built (milestone 11) |
 
 Licences checked with `cargo deny check licenses` and `all-features = true` on 2026-10-22: `snow`, `chacha20poly1305`,

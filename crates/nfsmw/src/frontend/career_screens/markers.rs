@@ -280,7 +280,11 @@ impl ScreenLogic for MarkersLogic {
         }
         self.cursor = row;
         if matches!(pick, Pick::Press(..)) {
+            let before = (self.deck.picks, cx.commands.len());
             self.press(cx, row);
+            if before != (self.deck.picks, cx.commands.len()) {
+                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+            }
         }
     }
 

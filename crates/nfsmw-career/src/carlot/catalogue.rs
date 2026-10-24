@@ -100,10 +100,12 @@ impl LotCar {
         stage <= self.unlock_rank
     }
 
-    /// True when the car is offered in the lot: the for-sale flag is set and the class is one of the three car
-    /// classes, not the vehicles class (spec section 1, **[exe]** for the flag rule).
+    /// True when the car is offered in the lot: the for-sale flag is set, the class is one of the three car classes (not
+    /// the vehicles class) and the car has a price (spec section 1, **[exe]** for the flag rule). The install's region and
+    /// manufacturer collections (`europe`, `bmw`, `rx8speed`...) inherit the flag and a class but have no price: they are
+    /// not cars **[ours]**.
     pub fn is_offered(&self) -> bool {
-        self.for_sale && !matches!(self.class, LotClass::Vehicles | LotClass::Other(_))
+        self.for_sale && self.price > 0 && !matches!(self.class, LotClass::Vehicles | LotClass::Other(_))
     }
 
     /// The car's state in the lot at `stage`.

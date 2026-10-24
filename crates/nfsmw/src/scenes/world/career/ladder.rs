@@ -1,10 +1,12 @@
 //! The unlock ladder of the side bins (the pursuit challenges `19.*`, the tollbooths `18.*` and the speed-trap bin
 //! `21.*`). A race opens when its record says `InitiallyUnlocked` or when a won race lists it in `UnlockRaces`
 //! (`docs/specs/career-scripts-events.md` section 6.2, `docs/formats/gameplay-races.md` section 9). The won events are
-//! the session's `side_won` set, which is not in the save, so a new run starts the ladders again.
+//! the `side_won` set. A win is also written to the race record of the event (the won-in-career flag, as the Blacklist's
+//! races are), and the set is read back from the records when the world takes the career, so the ladders keep their place.
 
 use std::collections::BTreeSet;
 
+use nfsmw_career::settings::NodeStates;
 use nfsmw_data::gameplay::GameplayData;
 
 use super::events::RaceEntry;
@@ -17,7 +19,7 @@ const SIDE_BINS: [&str; 3] = ["18.", "19.", "21."];
 /// Whether the ladder holds this event shut. An event outside the side bins, or one the data does not know, is never
 /// held.
 pub(super) fn side_locked(data: &GameplayData, won: &BTreeSet<String>, event: &str) -> bool {
-    if !SIDE_BINS.iter().any(|bin| event.starts_with(bin)) {
+    if !is_side_event(event) {
         return false;
     }
     let Some(race) = data.races.iter().find(|r| race_event_id(r) == event) else {
@@ -32,7 +34,29 @@ pub(super) fn side_locked(data: &GameplayData, won: &BTreeSet<String>, event: &s
     !data.races.iter().any(opened_by)
 }
 
+/// The side-bin events of `data` whose race record says they were won in the career.
+pub(super) fn side_events_won(data: &GameplayData, nodes: &NodeStates) -> BTreeSet<String> {
+    data.races
+        .iter()
+        .map(race_event_id)
+        .filter(|id| is_side_event(id))
+        .filter(|id| nodes.get(id).is_some_and(|state| state.won_in_career()))
+        .collect()
+}
+
+/// Whether the event belongs to a side bin, whose races open through the ladder.
+pub(super) fn is_side_event(event: &str) -> bool {
+    SIDE_BINS.iter().any(|bin| event.starts_with(bin))
+}
+
 impl WorldScene {
+    /// Takes the won events of the side bins from the career's race records (the world just took the career).
+    pub(super) fn seed_side_won(&mut self) {
+        let Some(data) = self.gameplay.clone() else { return };
+        let won = self.career.handle.with(|career| side_events_won(&data, &career.settings.nodes()));
+        self.career.side_won = won.unwrap_or_default();
+    }
+
     /// Whether the ladder holds this race zone's event shut.
     pub(in crate::scenes::world) fn side_race_locked(&self, event: &str) -> bool {
         let Some(data) = self.gameplay.as_ref() else { return false };
@@ -93,6 +117,16 @@ mod tests {
         won.insert("19.8.11".to_owned());
         assert!(!side_locked(&data, &won, "19.8.12"), "opened by the first");
         assert!(side_locked(&data, &won, "19.8.44"), "needs the second");
+    }
+
+    #[test]
+    fn the_won_events_are_read_back_from_the_race_records() {
+        let data = data();
+        let mut nodes = NodeStates::default();
+        nodes.set_won_in_career("19.8.11").unwrap();
+        nodes.set_won_in_career("1.2.3").unwrap();
+        let won = side_events_won(&data, &nodes);
+        assert_eq!(won.into_iter().collect::<Vec<_>>(), ["19.8.11"], "only side-bin events the data knows");
     }
 
     #[test]

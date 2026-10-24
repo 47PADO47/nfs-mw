@@ -18,6 +18,8 @@ pub enum Part {
     CarFloor,
     /// The stage's room: its solids, floor included. It receives the car's shadow but does not cast.
     Room,
+    /// Authored shadow proxy, excluded from the colour view.
+    RoomCaster,
 }
 
 /// The shadow flags of a part. With front-end shadows off nothing casts or receives. The car casts and receives
@@ -31,6 +33,7 @@ pub fn flags(part: Part, options: FeShadows) -> ShadowFlags {
         Part::Car => ShadowFlags { cast: options.cars, receive: options.cars },
         Part::CarFloor => ShadowFlags { cast: false, receive: true },
         Part::Room => ShadowFlags { cast: false, receive: true },
+        Part::RoomCaster => ShadowFlags { cast: true, receive: false },
     }
 }
 

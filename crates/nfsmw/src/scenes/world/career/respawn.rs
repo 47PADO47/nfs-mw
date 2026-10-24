@@ -80,6 +80,17 @@ impl WorldScene {
         log::info!("career: the world starts at the safe house marker ({:.0}, {:.0})", at.x, at.y);
     }
 
+    /// The world starts with the car at `at` (render space x and y): a milestone's or a bounty place's spawn point from the
+    /// rap sheet's pages (`career-rapsheet-2.md` section 5). The car is put on the road nearest the point, as a respawn does.
+    pub fn start_at_point(&mut self, at: [f32; 2]) -> bool {
+        (self.camera.position.x, self.camera.position.y) = (at[0], at[1]);
+        let Some(drive) = self.players.lead_mut() else { return false };
+        drive.respawn_near(at, None);
+        self.career.respawn.guests_behind = true;
+        log::info!("career: the car jumps to ({:.0}, {:.0})", at[0], at[1]);
+        true
+    }
+
     /// The game runs again after a paid bust: the car goes to the respawn marker.
     pub(super) fn career_respawn(&mut self) {
         self.career_guests_behind_lead();

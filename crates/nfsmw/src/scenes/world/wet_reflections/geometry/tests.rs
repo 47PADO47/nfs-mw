@@ -58,6 +58,7 @@ fn source_scenery_collection_is_stable_and_uses_authored_reflection_mesh() {
 fn placed() -> ReflectionPlaced {
     ReflectionPlaced {
         lods: [1, 2, 3, 4].map(|i| Some(MeshHandle::from_raw(i))),
+        local_bounds: [Some(Aabb::new([-0.1; 3], [0.1; 3])); 4],
         transform: Mat4::from_translation(Vec3::Z * 0.5),
         bounds: Aabb::new([-0.1, -0.1, 0.4], [0.1, 0.1, 0.6]),
         radius: 1.0,
@@ -75,4 +76,36 @@ fn camera() -> Camera {
         fov_y_radians: 1.0,
         light_dir: [0.0, 0.0, -1.0],
     }
+}
+
+#[test]
+fn enhanced_capture_uses_reflected_bounds_and_keeps_small_geometry() {
+    let props = PropWorld::default();
+    let mut p = placed();
+    p.bounds = Aabb::new([2.0, 2.0, 2.0], [3.0, 3.0, 3.0]);
+    let mut out = Vec::new();
+    scenery(std::iter::once(&p), &camera(), &props, 240.0, &mut out);
+    assert!(out.is_empty());
+    scenery(std::iter::once(&p), &camera(), &props, 960.0, &mut out);
+    assert_eq!(out.len(), 1, "reflected mesh is visible after its source box leaves the view");
+    let lens = crate::viewer::camera::Lens::look_at(Vec3::ZERO, Vec3::Y, 60.0, 0.1, 16.0 / 9.0);
+    let camera = Camera {
+        view_proj: lens.view_proj(),
+        position: [0.0; 3],
+        forward: Vec3::Y.to_array(),
+        fov_y_radians: 60_f32.to_radians(),
+        light_dir: [0.0; 3],
+    };
+    p.local_bounds = [Some(Aabb::new([-1.0; 3], [1.0; 3])); 4];
+    for distance in [98.0, 100.0, 102.0] {
+        p.transform = Mat4::from_translation(Vec3::Y * distance);
+        p.bounds = p.local_bounds[3].unwrap().transformed(&p.transform);
+        scenery(std::iter::once(&p), &camera, &props, 240.0, &mut out);
+        assert!(out.is_empty(), "source 32-pixel cutoff rejects this object");
+        scenery(std::iter::once(&p), &camera, &props, 960.0, &mut out);
+        assert_eq!(out.len(), 1, "small geometry remains stable as the camera approaches");
+    }
+    p.lods[3] = None;
+    scenery(std::iter::once(&p), &camera, &props, 960.0, &mut out);
+    assert!(out.is_empty(), "enhanced capture must not substitute the normal-view mesh");
 }

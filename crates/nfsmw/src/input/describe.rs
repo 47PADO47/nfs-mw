@@ -270,7 +270,7 @@ mod tests {
         assert!(row(&text, "Nitrous").contains("Left Shift"));
         assert!(!row(&text, "Nitrous").contains(", N"), "N no longer fires the nitrous");
         assert!(!row(&text, "Shift up (manual transmission)").contains("Left Shift"));
-        assert_eq!(row(&text, "Shift up (manual transmission)"), "E, Right Shift, Pad RB");
+        assert_eq!(row(&text, "Shift up (manual transmission)"), "E, Right Shift, Pad right stick up");
     }
 
     #[test]
@@ -303,10 +303,10 @@ mod tests {
     #[test]
     fn the_radio_keys_are_listed() {
         let text = Bindings::default().describe();
-        assert_eq!(row(&text, "Radio: pause / resume"), "N, MediaPlayPause, Pad right stick click");
-        assert_eq!(row(&text, "Radio: next song"), "Period, MediaTrackNext, Pad D-pad right");
-        assert_eq!(row(&text, "Radio: previous song"), "Comma, MediaTrackPrevious, Pad D-pad left");
-        assert_eq!(row(&text, "World map"), "M");
+        assert_eq!(row(&text, "Radio: pause / resume"), "N, MediaPlayPause");
+        assert_eq!(row(&text, "Radio: next song"), "Period, MediaTrackNext, Pad right stick click");
+        assert_eq!(row(&text, "Radio: previous song"), "Comma, MediaTrackPrevious");
+        assert_eq!(row(&text, "World map"), "M, Pad D-pad left");
     }
 
     #[test]

@@ -28,8 +28,8 @@ dependency.
 | enum with data | a varint tag, then the variant's fields |
 
 Fields follow the declaration order of the body struct. Text is UTF-8 with no control characters and no Unicode bidirectional
-controls, already trimmed, within its character count; NFKC normalisation and grapheme counting are not done yet (the character
-count is the stricter bound).
+controls, already trimmed and in NFKC (a message with text that is not is refused), within its character count; grapheme
+counting is not done (the character count is the stricter bound).
 
 **Growth** (protocol.md section 8.2). A new field is appended and the type's `format` goes up. A reader that meets a newer format
 decodes the fields it knows and skips the rest; at its own format, trailing bytes are an error; an older format than it knows is an
@@ -77,7 +77,7 @@ nothing else (`security.md` 4.6 and 4.8).
 | 0x001A | StartAt | S | `start_tick`; the owner's input is neutral until then |
 | 0x001B | Vote | C | `kind` (kick, restart, change mode, change track, skip results), `option` u32 |
 | 0x001C | VoteState | S | `kind`, `options` (at most 8 pairs of option id and count), `ends_tick` |
-| 0x001D | HostCommand | C | kick slot, ban slot for minutes, mute slot, restart, change mode (checked against the sender's role) |
+| 0x001D | HostCommand | C | kick slot, ban slot for minutes, mute slot, restart, change mode, everyone wait on or off (checked against the sender's role) |
 | 0x001E | StreamingStall | C | `stalled` |
 | 0x001F | ResultRequest | C | ask for the last result record again (after a reconnect) |
 | 0x0020 | ResetRequest | C | `tick`; at most one per 10 s; the server validates and answers with a `Respawn` event |
@@ -122,6 +122,10 @@ which a client must apply it). Events are idempotent; a client ignores a `seq` i
 | 0x1102 | LapComplete | `entity_id`, `lap`, `time_ms` |
 | 0x1103 | RaceFinish | `entity_id`, `place`, `time_ms` |
 | 0x1104 | RaceResults | at most 32 rows: slot, entity id, place, time, best lap, flags (bit 0 did not finish, bit 1 busted) |
+| 0x1105 | KnockedOut | `entity_id`, `lap` (from 1): last at the end of the lap in a knockout; the racer then spectates (`RoleChanged`) |
+| 0x1106 | TrapScore | `entity_id`, `trap`, `speed_cm_s` (this pass), `total_cm_s` (the racer's points after it) |
+| 0x1107 | TagPassed | `from_entity` (none for the first holder), `to_entity` |
+| 0x1108 | Penalty | `entity_id`, `ms`: a reset added this to the race time |
 | 0x1110 | PursuitStart | `pursuit_id`, `targets` (at most 32), `heat` |
 | 0x1111 | PursuitEnd | `pursuit_id`, `reason` (busted, evaded, abandoned), `entity_id` |
 | 0x1112 | HeatChange | `entity_id`, `level` |
@@ -149,6 +153,7 @@ which a client must apply it). Events are idempotent; a client ignores a `seq` i
 | 0x0201 | ChatMessage | S | `from_slot`, `channel`, `text`, `tick` |
 | 0x0202 | SystemNotice | S | `code` (join, leave, kick, mute, vote, result), `args` (at most 4 numbers) |
 | 0x0203 | QuickMessage | C | `id` (a preset line, MP-44) |
+| 0x0204 | QuickRelay | S | `from_slot`, `id`: the server checked the id (a line `0..64` or an emote), the mute and the chat rate, and relays it to every seated player, the sender too; the text is the game's table |
 
 `text` is 1 to 200 characters; chat is limited to one message per second with a burst of 3 (the rate is the lobby's job).
 
@@ -170,5 +175,5 @@ The receiver verifies `length` and the hash before use. Only data, never code, a
   vote rules.
 - A server-to-client quick message (MP-44) and a lobby message that tells a player why its car was refused (MP-31); the lobby
   returns the reason to the server crate, which has no message to carry it yet.
-- NFKC normalisation and grapheme counting of text.
+- Grapheme counting of text. (A joiner whose name is confusable with a member's is numbered by the lobby, not refused.)
 - Quantised collision and respawn vectors (they are `f32` today; events are rare enough that the bytes do not matter yet).

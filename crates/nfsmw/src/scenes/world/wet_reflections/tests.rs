@@ -47,3 +47,29 @@ fn wetness_override_and_quality_never_replace_rain_history() {
     road.override_amount = None;
     assert_eq!(road.amount(), history);
 }
+
+#[test]
+fn pooled_water_drains_before_dampness_and_pause_holds_both() {
+    let mut road = WetRoad::default();
+    run(&mut road, 60, 60, true);
+    let wet = road.water();
+    assert!(wet.pooling > 0.9);
+    road.step(0.0, false);
+    assert_eq!(wet, road.water());
+    run(&mut road, 60, 4, false);
+    let after = road.water();
+    assert!(after.pooling > 0.1 && after.pooling < wet.pooling);
+    assert!(after.dampness > 0.1);
+    assert!(after.pooling < after.dampness);
+    assert_eq!(after.rain, 0.0);
+    let mut fast = WetRoad::default();
+    run(&mut fast, 360, 60, true);
+    run(&mut fast, 360, 4, false);
+    assert!((after.pooling - fast.water().pooling).abs() < 0.002);
+    road.override_amount = Some(0.0);
+    assert_eq!(road.water().pooling, 0.0);
+    road.override_amount = Some(1.0);
+    assert_eq!(road.water().pooling, 1.0);
+    road.override_amount = None;
+    assert_eq!(road.water(), after);
+}

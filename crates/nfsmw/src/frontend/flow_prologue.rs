@@ -2,19 +2,25 @@
 //! start the prologue race the chain is at, as a career race in the car that race forces. The car lot that the scripted
 //! chase of `16.2.1` opens picks the car the drive to the first safe house is made in.
 
-use nfsmw_career::settings::NodeStates;
+use nfsmw_career::carlot;
+use nfsmw_career::safehouse::resume::PROLOGUE_END_EVENT;
+use nfsmw_career::settings::{NodeStates, PROLOGUE_STAGE};
 use nfsmw_career::story::prologue::{PrologueResume, resume_point};
 use nfsmw_data::car::{CarTables, list, pick_folder};
 use nfsmw_data::gameplay::GameplayData;
 
 use crate::app::Host;
 use crate::career::race_event_id;
-use crate::frontend::logic::{Env, QuitTo};
+use crate::frontend::ids::screen;
+use crate::frontend::logic::{Args, Env, QuitTo};
 use crate::frontend::look::{CarLook, DEFAULT_CAR};
 use crate::scenes::world::RaceOptions;
 
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
+
+/// The car lot zone the first drive starts from (`menu_gate_carlot/zone_carlot_1`): the player leaves the lot there.
+const FIRST_CAR_LOT_ZONE: &str = "menu_gate_carlot/zone_carlot_1";
 
 /// The prologue race a new career starts with (`16.1.0`, section 2.3 rule 1).
 pub(super) const FIRST_PROLOGUE_RACE: &str = "16.1.0";
@@ -74,19 +80,73 @@ impl Frontend {
         self.career.with(|career| prologue_resume(&career.settings.nodes(), career.stage())).flatten()
     }
 
+    /// A career that won `16.2.1` and has not reached the first safe house goes on where it stopped: back in the lot while it
+    /// owns no car, else on the drive to the safe house in the car it bought (`story-flow.md` sections 2.3 and 2.5).
+    /// `false` when the career is not there.
+    pub(super) fn resume_first_car(&mut self, host: &mut Host, env: &mut Env) -> bool {
+        let state = self.career.with(|career| {
+            let won = career.settings.nodes().get(PROLOGUE_END_EVENT).is_some_and(|node| node.won_in_career());
+            (career.stage() == PROLOGUE_STAGE && won).then(|| carlot::owned_count(&career.stable) > 0)
+        });
+        match state.flatten() {
+            None => false,
+            Some(true) => {
+                log::info!("career: resuming the drive to the first safe house");
+                self.start_first_drive(host, env);
+                true
+            }
+            Some(false) => {
+                log::info!("career: resuming in the car lot");
+                self.open_car_lot(None, host, env);
+                true
+            }
+        }
+    }
+
+    /// The car the career drives now, as the world names a car (`folder` or `folder:preset`).
+    pub(super) fn profile_car(&self) -> String {
+        let (folder, preset) = CarLook::of_profile(&self.career).resolve(&self.dir);
+        match preset {
+            Some(preset) => format!("{folder}:{preset}"),
+            None => folder,
+        }
+    }
+
+    /// Opens the car lot as a room of its own: the world gives way to the lot's backdrop with the car under the cursor on
+    /// show. A lot zone in free roam (`zone`) sends the player back to the world at that zone when they leave; the lot the
+    /// scripted chase of `16.2.1` opens (no zone) is the first car's, which cannot be left without a car
+    /// (`story-flow.md` section 2.3).
+    pub(super) fn open_car_lot(&mut self, zone: Option<String>, host: &mut Host, env: &mut Env) {
+        log::info!("career: the car lot opens ({zone:?})");
+        let args = Args { safehouse: true, first_car: zone.is_none(), from_world: zone.is_some(), ..Args::default() };
+        self.safe_house_start.zone = zone;
+        self.latch = true;
+        self.paused.set(false);
+        self.screens.clear();
+        self.in_safe_house = false;
+        self.open_menu(screen::CAR_SELECT, args, host, env);
+    }
+
+    /// Back out of the car lot a free-roam zone opened: the world starts again at that zone.
+    pub(super) fn leave_car_lot(&mut self, host: &mut Host, env: &mut Env) {
+        self.save_settings(env.changed);
+        self.safe_house_start.pending = true;
+        self.origin = QuitTo::Career;
+        self.start_free_roam(LoadingScreen::Tips, host, env);
+    }
+
     /// The car lot after the scripted chase closed with Accept on the car the player picked: the world starts the drive to
     /// the first safe house in that car, through the loading screen. Leaving the car lot is a roaming start, as leaving the
     /// safe house is.
     pub(super) fn start_first_drive(&mut self, host: &mut Host, env: &mut Env) {
-        let (folder, preset) = CarLook::of_profile(&self.career).resolve(&self.dir);
-        log::info!("career: driving to the first safe house in {folder}");
+        log::info!("career: driving to the first safe house");
         self.in_safe_house = true;
         self.leave_safe_house();
         self.origin = QuitTo::Career;
-        self.quick_car = Some(match preset {
-            Some(preset) => format!("{folder}:{preset}"),
-            None => folder,
-        });
+        self.quick_car = Some(self.profile_car());
+        // The drive starts where the player leaves the lot, not at the career's start point.
+        self.safe_house_start.zone = Some(FIRST_CAR_LOT_ZONE.to_owned());
+        self.safe_house_start.pending = true;
         self.drive_to_safe_house = true;
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }

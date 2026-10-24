@@ -1,4 +1,5 @@
 //! Authored road lifetimes and weather wind; spec: car-audio-road-weather.md.
+mod rain;
 mod road;
 mod stitch;
 #[cfg(test)]
@@ -67,6 +68,7 @@ impl Slot {
 
 #[derive(Default)]
 pub(super) struct AmbientPlayback {
+    rain: rain::RainPlayback,
     wind: Slot,
     weather: Slot,
     road: [Slot; 2],
@@ -81,6 +83,9 @@ pub(super) struct AmbientPlayback {
 }
 
 impl AmbientPlayback {
+    pub fn update_rain(&mut self, audio: &mut Audio, view: crate::audio::AudioView, levels: [i32; 2], dt: f32) {
+        self.rain.update(audio, view, levels, dt);
+    }
     pub fn owns_loop(&self, id: LoopId) -> bool {
         match id {
             LoopId::Wind => self.wind.module.is_some() && !self.wind.failed,

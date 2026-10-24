@@ -1,5 +1,6 @@
-//! The in-world Interact button: Enter on the keyboard and the pad's South (A) face button, which it shares with
-//! Handbrake, as Space shares Menu accept and Handbrake.
+//! The in-world Interact button: Enter on the keyboard, and on the pad D-pad up (the original's "engage event") and the
+//! South (A) face button, which it shares with Handbrake (A skips a cutscene in the original), as Space shares Menu
+//! accept and Handbrake.
 
 use bevy_input::{gamepad::GamepadButton, keyboard::KeyCode};
 
@@ -12,10 +13,14 @@ fn sources_for(bindings: &Bindings, action: Action) -> Vec<Source> {
 }
 
 #[test]
-fn interact_is_enter_and_the_pad_south_button() {
+fn interact_is_enter_the_pad_south_button_and_dpad_up() {
     assert_eq!(
         sources_for(&Bindings::default(), Action::Interact),
-        vec![Source::Key(KeyCode::Enter), Source::PadButton(GamepadButton::South)]
+        vec![
+            Source::Key(KeyCode::Enter),
+            Source::PadButton(GamepadButton::South),
+            Source::PadButton(GamepadButton::DPadUp)
+        ]
     );
 }
 

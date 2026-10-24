@@ -5,14 +5,11 @@ use super::Renderer;
 use super::cull::Face;
 use super::draw_list::drawn_here;
 use super::draw_list::instance_view::upload_view;
-use super::effects::SoftDraw;
 use super::output::Output;
 use super::pipelines::{BLEND_ORDER, SHADINGS};
 use super::post::PassContext;
-use super::resources::Globals;
 use super::targets::SceneTargets;
 use crate::{FrameParams, Instance, RenderError, Shading};
-
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
     /// (window minimised or the surface had to be reconfigured). A headless renderer draws into its
@@ -209,72 +206,9 @@ impl Renderer {
             glossy.screen.disable(&self.queue);
         }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
-        let lit_cube = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::LitCube);
+        let planar = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Planar);
+        let globals = self.scene_globals(frame, capture.as_deref(), reduced, targets.is_some());
         let [r, g, b] = frame.clear_color;
-        let [fog_start, fog_end] = frame.fog_range();
-        // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
-        // upscale after, so the bias that matches texel density to the output would only sharpen them too much.
-        let mip_bias = match reflection || (targets.is_some() && self.post.has_temporal()) {
-            true => 0.0,
-            false => self.upscale.texture_lod_bias,
-        };
-        let (scatter_rayleigh, scatter_mie, to_sun) = match frame.scattering {
-            Some(s) => (
-                [s.rayleigh[0], s.rayleigh[1], s.rayleigh[2], 1.0],
-                [s.mie[0], s.mie[1], s.mie[2], s.g],
-                s.to_sun.normalize_or_zero().extend(s.distance_scale).to_array(),
-            ),
-            None => ([0.0; 4], [0.0; 4], [0.0; 4]),
-        };
-        let (surface_ambient, surface_diffuse) = match frame.surface_light {
-            Some(l) => {
-                ([l.ambient[0], l.ambient[1], l.ambient[2], 1.0], [l.diffuse[0], l.diffuse[1], l.diffuse[2], 0.0])
-            }
-            None => ([0.0; 4], [0.0; 4]),
-        };
-        let globals = Globals {
-            view_proj: match reflection {
-                true => frame.view_proj(),
-                false => self.world_to_clip(frame),
-            }
-            .to_cols_array_2d(),
-            // w is reserved for the HDR extension; reflection contracts stay SDR.
-            camera_pos: frame
-                .camera_position
-                .extend(match !reflection && self.post.display.is_some() {
-                    true => 2.0,
-                    false => 1.0,
-                })
-                .to_array(),
-            light_dir: frame
-                .light_dir
-                .normalize_or_zero()
-                .extend(u8::from(self.experiments.original_world_materials || projected) as f32)
-                .to_array(),
-            fog_color: [r, g, b, frame.surface_light.map_or(1.0, |s| s.ambient_alpha)],
-            fog_range: [
-                fog_start,
-                fog_end,
-                mip_bias,
-                match (projected, reflection || reduced) {
-                    _ if lit_cube => 3.0,
-                    (true, _) => 2.0,
-                    (_, true) => 1.0,
-                    _ => 0.0,
-                },
-            ],
-            scatter_rayleigh,
-            scatter_mie,
-            to_sun,
-            surface_ambient,
-            surface_diffuse: [
-                surface_diffuse[0],
-                surface_diffuse[1],
-                surface_diffuse[2],
-                frame.scattering.map_or(1.0, |s| s.in_scatter_scale),
-            ],
-            camera_right: [frame.view.x_axis.x, frame.view.y_axis.x, frame.view.z_axis.x, 0.0],
-        };
         // `slots_at`: where the per-instance data of the non-glossy pipelines starts in the view's buffer. The glossy
         // pipelines read matrices from its start.
         let (uniform, bind_group, instance_buffer, slots_at) = match capture {
@@ -306,27 +240,22 @@ impl Renderer {
         let depth = &depth_view;
         let prepared_depth = !reflection && self.surfaces.as_ref().is_some_and(|s| s.targets.depth == *depth);
         let format = targets.color_format();
-        let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view());
+        // The projected capture shares the main camera but keeps the opposite faces.
+        let (culled, mirrored_view) = (self.pipelines.culled(), frame.mirrored_view() ^ projected);
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
             sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());
             sky.prepare_clouds(&self.device, encoder, &self.shared.bindings.globals_layout, &bind_group, &globals);
         }
-        if self.experiments.original_world_materials
-            && !projected
-            && let Some(normal) = &mut self.normal
-        {
-            normal.prepare(&self.device, &self.queue, (format, culled), frame, self.pipeline_cache.as_ref());
+        if self.experiments.original_world_materials && !projected {
+            self.prepare_normal(frame, format, culled);
         }
         if (self.experiments.original_world_materials || projected)
             && let Some(window) = &mut self.window
         {
             window.prepare(&self.device, (format, culled), self.pipeline_cache.as_ref());
         }
-        // Every instance run and draw is sorted into the pass's lists once, up front: the sky, normal-map, window
-        // and colour draws below walk their own list instead of every instance. A draw is only skipped there when
-        // this view's rules (projected, reflection, original materials) exclude it.
         self.draw_list.build(instances, &self.meshes, &self.redirects, &self.textures);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
@@ -335,9 +264,10 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(match projected {
-                        true => wgpu::Color::BLACK,
-                        false => wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 },
+                    load: wgpu::LoadOp::Clear(match (planar, projected) {
+                        (true, _) => wgpu::Color::TRANSPARENT,
+                        (_, true) => wgpu::Color::BLACK,
+                        _ => wgpu::Color { r: r.into(), g: g.into(), b: b.into(), a: 1.0 },
                     }),
                     store: wgpu::StoreOp::Store,
                 },
@@ -372,7 +302,15 @@ impl Renderer {
             {
                 let list = self.draw_list.normal(mode_index);
                 let shadows = &self.shared.shadows.fallback;
-                normal.draw(&mut pass, format, view, &self.meshes, list, shadows, store_group.as_ref());
+                normal.draw(
+                    &mut pass,
+                    format,
+                    (mode, mirrored_view, false),
+                    &self.meshes,
+                    list,
+                    shadows,
+                    store_group.as_ref(),
+                );
             }
             if (original || projected)
                 && let Some(window) = &self.window
@@ -388,7 +326,7 @@ impl Renderer {
                     continue;
                 }
                 if ((screen && matches!(mode, blackbox_gfx::BlendMode::Opaque | blackbox_gfx::BlendMode::AlphaTest))
-                    || (reflection && !projected))
+                    || (reflection && !projected && !planar))
                     && matches!(shading, Shading::Glossy(_))
                 {
                     continue;
@@ -468,9 +406,18 @@ impl Renderer {
                     pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
                 }
             }
-            if screen && mode == blackbox_gfx::BlendMode::AlphaTest {
+            if mode == blackbox_gfx::BlendMode::AlphaTest
+                && (screen || self.road_reflections_active(frame, reflection || reduced))
+            {
                 drop(pass);
-                self.encode_screen_glossy(encoder, target, depth, frame, instances);
+                self.encode_material_reflections(
+                    encoder,
+                    target,
+                    depth,
+                    frame,
+                    instances,
+                    (screen, reflection || reduced),
+                );
                 pass = super::glossy::screen_draw::resume(encoder, target, depth);
                 pass.set_bind_group(0, &bind_group, &[]);
                 pass.set_vertex_buffer(1, instance_buffer.slice(slots_at..));
@@ -485,12 +432,6 @@ impl Renderer {
         self.effects.draw(&mut pass);
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);
-        let soft = SoftDraw {
-            target,
-            depth,
-            globals: &self.shared.bindings.globals_bind_group,
-            inverse_view_proj: self.world_to_clip(frame).inverse(),
-        };
-        self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
+        self.encode_soft_effects(encoder, target, depth, frame);
     }
 }

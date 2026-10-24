@@ -161,3 +161,18 @@ fn a_server_refuses_sources_outside_its_policy() {
     assert!(wait_for(WAIT, || scan.is_finished().then_some(())).is_some());
     assert_eq!(scan.poll(), None, "loopback is not on the private LAN policy");
 }
+
+#[test]
+fn two_servers_on_one_pc_can_answer_discovery_on_the_same_port() {
+    use crate::endpoint::{ServerEndpoint, Transport, UdpTransport};
+
+    use super::support::{loopback, server_config};
+
+    let held = UdpTransport::bind_shared(loopback()).expect("a shared socket");
+    let port = held.local_addr();
+    let first = ServerEndpoint::bind(loopback(), Some(port), server_config()).expect("the first server binds");
+    let second = ServerEndpoint::bind(loopback(), Some(port), server_config()).expect("the second server binds");
+    assert_eq!(first.discovery_addr(), Some(port));
+    assert_eq!(second.discovery_addr(), Some(port));
+    assert!(UdpTransport::bind(port).is_err(), "a socket that does not ask to share is refused the port");
+}

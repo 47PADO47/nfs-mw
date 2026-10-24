@@ -205,7 +205,9 @@ impl Renderer {
             }
             if let Some(normal) = normal {
                 scope.spawn(|| {
-                    formats.iter().for_each(|&format| normal.prepare(device, queue, (format, culled), frame, cache))
+                    formats.iter().for_each(|&format| {
+                        normal.prepare(device, queue, (format, culled), frame, cache, Default::default())
+                    })
                 });
             }
             if let Some(window) = window {

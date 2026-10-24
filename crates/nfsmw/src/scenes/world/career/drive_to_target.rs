@@ -25,7 +25,15 @@ pub(in crate::scenes::world) struct SafeHouseDrive {
     pub waiting: bool,
     /// The drive while it runs. `None` before it starts and once it is done.
     pub machine: Option<DriveToSafeHouse>,
+    /// The GPS route to the safe house is wanted and not set yet: the car may not stand on a road when the drive starts, so
+    /// the route is tried again until it holds.
+    pub gps_wanted: bool,
+    /// Seconds until the next try at the route.
+    pub gps_retry: f32,
 }
+
+/// Seconds between the tries at the GPS route.
+const GPS_RETRY_SECS: f32 = 1.0;
 
 /// Whether the player is at the safe house: inside the activity's `gpstarget` box when the data has it, else within
 /// [`ARRIVAL_RADIUS_M`] of the respawn marker. Positions are in physics space. Pure, so the caller reads the data.
@@ -55,6 +63,7 @@ impl WorldScene {
         if self.career.safe_house_drive.machine.is_none() {
             return;
         }
+        self.retry_gps(dt);
         let arrived = self.at_safe_house();
         let Some(machine) = self.career.safe_house_drive.machine.as_mut() else { return };
         let mut events = machine.update(dt);
@@ -73,6 +82,7 @@ impl WorldScene {
     /// The GPS is taken as set to auto (the setting is not read yet).
     fn begin_safe_house_drive(&mut self) {
         let skip = self.career.handle.with(|career| skip_career_intro(false, career.settings.flags)).unwrap_or(false);
+        log::info!("drive: the drive to the first safe house starts (career intro skipped: {skip})");
         let (machine, events) = DriveToSafeHouse::start(true, skip);
         self.career.safe_house_drive.machine = Some(machine);
         self.apply_safe_house_drive(events);
@@ -85,10 +95,14 @@ impl WorldScene {
                 DriveEvent::CopsOff => self.bar_drive_cops(true),
                 DriveEvent::CopsOn => self.bar_drive_cops(false),
                 DriveEvent::AddSms(id) => self.deliver_drive_sms(id),
-                DriveEvent::GpsNavigate { .. } => self.route_to_safe_house(),
+                DriveEvent::GpsNavigate { .. } => {
+                    self.career.safe_house_drive.gps_wanted = !self.route_to_safe_house();
+                    self.career.safe_house_drive.gps_retry = GPS_RETRY_SECS;
+                }
                 // The hint at an offset from the target is not drawn yet; the route set at the start stays.
                 DriveEvent::GpsShow { .. } => {}
                 DriveEvent::GpsOff => {
+                    self.career.safe_house_drive.gps_wanted = false;
                     self.route_to(None);
                 }
                 DriveEvent::SafeHouseIntro { .. } => {
@@ -109,17 +123,36 @@ impl WorldScene {
     /// `EAddSMS(id)`: the message goes to the inbox at once, or is queued when the phone holds it.
     fn deliver_drive_sms(&mut self, id: u32) {
         let phone = &mut self.career.phone;
-        let _ = self.career.handle.with(|career| phone.add_sms(&mut career.settings.sms, id));
+        let outcome = self.career.handle.with(|career| phone.add_sms(&mut career.settings.sms, id));
+        log::info!("drive: message {id} sent: {outcome:?}");
     }
 
-    /// Sets the GPS route to the safe house's respawn marker.
-    fn route_to_safe_house(&mut self) {
+    /// Sets the GPS route to the safe house's respawn marker. `false` when there is no route yet.
+    fn route_to_safe_house(&mut self) -> bool {
         let Some(placement) = self.gameplay.as_ref().and_then(|data| data.zone_respawn(SAFE_HOUSE_ZONE)) else {
             log::warn!("drive: {SAFE_HOUSE_ZONE} has no respawn marker, so the GPS has no route");
-            return;
+            return true;
         };
         let marker = space::to_render(placement.position.to_array());
-        self.route_to(Some([marker.x, marker.y]));
+        self.route_to(Some([marker.x, marker.y]))
+    }
+
+    /// Tries the GPS route again while it is wanted and not set, once a second.
+    fn retry_gps(&mut self, dt: f32) {
+        let drive = &mut self.career.safe_house_drive;
+        if !drive.gps_wanted {
+            return;
+        }
+        drive.gps_retry -= dt;
+        if drive.gps_retry > 0.0 {
+            return;
+        }
+        drive.gps_retry = GPS_RETRY_SECS;
+        let set = self.route_to_safe_house();
+        self.career.safe_house_drive.gps_wanted = !set;
+        if set {
+            log::info!("drive: the GPS route to the safe house is set");
+        }
     }
 
     /// Whether the car is at the safe house now (`false` without a car or the data).

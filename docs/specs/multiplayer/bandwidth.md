@@ -135,6 +135,18 @@ machine, one spot of the map, and fewer traffic cars on the road than asked for 
 
 The mean stays inside the 4 ms budget at 16 players; the p95 at 16 players does not.
 
+**Re-measured, 2026-10-23** on the same machine and profile (`world_step_costs`, and `host_tick_costs` in `scenes/world/net/tests/bench.rs`, which times what the server asks of the host each tick). 16 players: the scene frame has a mean of 2.55 ms and a p95 of 3.34 ms (p99 3.82 ms); the host's step with its event collection a mean of 2.35 ms and a p95 of 3.09 ms (p99 3.57 ms); the entity export 5 microseconds and the 16 seats' own state 2 microseconds. The p95 is inside the budget in these runs, so the 4.35 ms above is run to run noise and not a fixed cost. The slowest ticks (up to 4.9 ms) are scattered with no period, which points at ticks with many contacts and not at one hot path. Per-player cost is about 0.07 ms.
+
+**Where `WorldScene::update` spends its tick** (2026-10-24, 16 players, 59 traffic and cop cars, `NFSMW_BENCH_TRACE=1
+NFSMW_BENCH_CARS=59 cargo test -p nfsmw world_step_costs -- --ignored --nocapture`, trace scopes in `update.rs` and
+`simulation.rs`; nested scopes overlap). Mean tick 2.28 ms, p95 2.45 ms: traffic step 0.85 ms (37 %), effects uploads 0.32 ms
+(14 %), player cars 0.28 ms (12 %), streaming 0.20 ms (9 %), props 0.13 ms, police 0.04 ms; everything else under 0.03 ms. Three
+things in that tick were not the world's work and are gone: the AI cars were integrated on threads started anew every tick
+(p95 32.8 ms at 59 cars against 3.4 ms serial, now the default), the mods' race list was built every tick whether or not a
+race changed (0.62 ms, now built when a race is registered or finished), and the world's props were scanned twice per tick
+for the export (now once). No single phase is left to take out: the traffic step, the effect uploads (which a server's
+renderer discards, but which advance effect state the hash reads) and the player cars are the world's own work.
+
 ## 6. Levers when a budget is exceeded
 
 In order of use: lower the snapshot rate for far entities; widen the quantisation steps of traffic and police (position 2 cm to

@@ -32,7 +32,9 @@ impl Settings {
                 false => super::RoadReflections::Off,
             },
             shadows: run.shadows,
-            fe_shadows: self.fe_shadows.on_renderer(caps.soft_shadows),
+            fe_shadows: self.fe_shadows.on_renderer(
+                caps.soft_shadows || (caps.separate_shadow_casters && caps.api != blackbox_gfx::GraphicsApi::Gl),
+            ),
             ao: run.ao.quality,
             ..*self
         }

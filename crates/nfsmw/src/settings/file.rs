@@ -142,6 +142,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
             super::TextureFiltering::from_str(text_of(v)?)
         }),
         reflections: field(&table, origin, "reflections", |v| super::ReflectionQuality::from_str(text_of(v)?)),
+        rain_droplet_scale: field(&table, origin, "rain_droplet_scale", number),
         road_reflections: field(&table, origin, "road_reflections", |v| super::RoadReflections::from_str(text_of(v)?)),
         road_reflection_resolution: field(&table, origin, "road_reflection_resolution", |v| {
             super::RoadReflectionResolution::from_str(text_of(v)?)

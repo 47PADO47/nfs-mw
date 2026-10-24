@@ -2,7 +2,8 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 13] = [
+const SHADERS: [(&str, &str); 15] = [
+    ("screen displacement", include_str!("shaders/screen_distortion.wgsl")),
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
     ("contact", include_str!("shaders/contact.wgsl")),
@@ -11,6 +12,7 @@ const SHADERS: [(&str, &str); 13] = [
     ("shadow depth", include_str!("shaders/shadow_depth.wgsl")),
     ("sky", include_str!("shaders/sky.wgsl")),
     ("enhanced sky", include_str!("shaders/sky_enhanced.wgsl")),
+    ("sky filter", include_str!("shaders/sky_filter.wgsl")),
     ("sky noise", include_str!("shaders/sky_noise.wgsl")),
     ("normal", include_str!("shaders/normal.wgsl")),
     ("window", include_str!("shaders/window.wgsl")),
@@ -28,7 +30,13 @@ fn entry_points(name: &str) -> Vec<String> {
             include_str!("shaders/world_surface.wgsl"),
             include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
         ),
-        "normal" | "window" => {
+        "normal" => format!(
+            "{}\n{}\n{}",
+            source,
+            include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+            include_str!("shaders/road_reflection.wgsl")
+        ),
+        "window" => {
             format!("{}\n{}", source, include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"))
         }
         _ => source.to_string(),

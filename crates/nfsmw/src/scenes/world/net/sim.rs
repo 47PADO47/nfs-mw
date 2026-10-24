@@ -62,6 +62,7 @@ impl WorldSim for WorldSimHost {
 
     fn step(&mut self, inputs: &SimInputs, events: &mut Vec<SimEvent>) {
         self.feed_inputs(inputs);
+        self.release_race_countdown();
         self.wait_for_streaming();
         self.scene.update(&mut self.renderer, &ActionState::default(), STEP);
         self.tick = self.tick.wrapping_add(1);
@@ -69,19 +70,22 @@ impl WorldSim for WorldSimHost {
     }
 
     fn entities(&self, out: &mut Vec<EntityView>) {
-        super::export::export(&self.scene, &self.ids, &self.catalog, out);
+        super::export::export(&self.scene, &self.props, &self.ids, &self.catalog, out);
     }
 
     fn own_state(&self, id: PlayerId) -> Option<OwnState> {
         let drive = self.scene.players.get(id)?;
         let mut flags = 0;
-        if self.scene.players.is_parked(id) {
+        // A person in a race drives a racer of the traffic world while their own car is parked: the gauges are the
+        // racer's, and the player is in the world, not parked.
+        let racer_hud = self.race_hud_of(id);
+        if racer_hud.is_none() && self.scene.players.is_parked(id) {
             flags |= OWN_PARKED;
         }
-        if drive.waiting_for_road().is_some() || !drive.has_sim() {
+        if racer_hud.is_none() && (drive.waiting_for_road().is_some() || !drive.has_sim()) {
             flags |= OWN_WAITING;
         }
-        let Some(hud) = drive.hud_state() else {
+        let Some(hud) = racer_hud.or_else(|| drive.hud_state()) else {
             return Some(OwnState { flags, ..OwnState::default() });
         };
         for (on, flag) in [
@@ -109,6 +113,31 @@ impl WorldSim for WorldSimHost {
         hash.u32(self.tick);
         hash.u64(self.scene.state_hash());
         hash.finish()
+    }
+}
+
+impl WorldSimHost {
+    /// Releases the staged race's countdown on the tick that puts GO on the tick the server scheduled.
+    fn release_race_countdown(&mut self) {
+        let Some(go) = self.race_go_at else { return };
+        let Some(lead) = self.scene.staged_race() else {
+            // No race stands on the grid: the schedule is for one that has not staged yet, or one that is gone.
+            if self.scene.race.is_none() {
+                self.race_go_at = None;
+            }
+            return;
+        };
+        if u64::from(self.tick) + u64::from(lead) < u64::from(go) {
+            return;
+        }
+        self.scene.release_staged_race();
+        self.race_go_at = None;
+    }
+
+    /// The gauges of the racer `id` drives in the running race, when `id` is one of the race's people.
+    fn race_hud_of(&self, id: PlayerId) -> Option<crate::hud::HudState> {
+        let seat = self.scene.race_people.iter().position(|&person| person == id)?;
+        self.scene.traffic.as_ref()?.racer_hud(seat + 1)
     }
 }
 
@@ -159,11 +188,20 @@ pub(super) fn chase_state(scene: &WorldScene) -> ChaseState {
 /// (the split-screen seat a co-op race gives the guest, `players/race.rs`). `None` without a race engine.
 pub(super) fn racer_states(scene: &WorldScene) -> Option<Vec<RacerState>> {
     let engine = scene.race.as_ref()?.engine.as_ref()?;
-    let mut seats = [LEAD, super::super::players::coop::GUEST].into_iter();
+    let people = &scene.race_people;
+    // The lead sits in the first seat unless nobody drives its car (a dedicated server's idle one); then it is a
+    // computer racer and the humans are the people alone.
+    let lead = (!scene.race_lead_idle).then_some(LEAD);
+    let mut seats = match people.is_empty() {
+        true => lead.into_iter().chain([super::super::players::coop::GUEST]).collect::<Vec<_>>(),
+        false => lead.into_iter().chain(people.iter().copied()).collect(),
+    }
+    .into_iter();
     let racers = engine.racers().iter().map(|racer| RacerState {
         player: racer.human.then(|| seats.next()).flatten(),
         lap_times: racer.lap_times.clone(),
         finished_at: racer.finished_at,
+        trap_speeds: racer.traps.slots().to_vec(),
     });
     Some(racers.collect())
 }

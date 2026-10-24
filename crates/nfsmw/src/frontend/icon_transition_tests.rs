@@ -65,6 +65,9 @@ fn assert_exit(h: &mut Harness, count: usize, icon: Icon, button: u32) {
             _ => 0,
         };
         h.run(mask, 1);
+        let tree = h.screens.trees().pop().unwrap();
+        let master = tree.nodes.iter().find(|n| n.name_hash == ids::OPTION_MASTER).unwrap();
+        assert!(!master.visible, "the authored placeholder must stay hidden during exit frame {frame}");
         let current = row(h, count);
         for ((p, before), idle) in current.iter().zip(&previous).zip(&full) {
             assert!(p.size.x <= before.size.x + 0.001, "icon grew during exit: {before:?} -> {p:?}");

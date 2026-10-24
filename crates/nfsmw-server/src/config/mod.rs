@@ -11,8 +11,9 @@
 //!   the relevancy radius, the lobby timers, the replay folder, the log file, the log level and the status period.
 //!
 //! An unknown key, a wrong type, a value out of range or a session set that does not hold together is a
-//! [`ConfigError`] that names the key. A room password is refused for now: the PAKE exchange is not wired into the
-//! server, and a password the server cannot check would lock everyone out.
+//! [`ConfigError`] that names the key. A non-empty `password` turns `password_required` on; the server checks it with
+//! the PAKE exchange of `blackbox-net-core` (`server/password.rs`), and `password_required = true` without a
+//! password is refused.
 
 mod error;
 mod keys;
@@ -27,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use log::LevelFilter;
 use nfsmw_net::message::{ServerName, Settings};
-use nfsmw_net::settings::{dedicated_defaults, validate};
+use nfsmw_net::settings::{SettingsError, dedicated_defaults, validate};
 
 /// The default game port. The discovery port is the next one.
 pub const DEFAULT_PORT: u16 = 9750;
@@ -45,6 +46,11 @@ pub const DEFAULT_RELEVANCY_RADIUS: f32 = 600.0;
 pub struct ServerConfig {
     /// The session settings (name, mode, track, limits, rules).
     pub settings: Settings,
+    /// Where the identity key is kept (made the first time), or `None` for a new key every start. A server that keeps
+    /// its key stays the same server to the clients that pinned it.
+    pub identity_file: Option<PathBuf>,
+    /// The room password, or `None` for an open room. Never logged, never sent: the PAKE proves knowledge of it.
+    pub password: Option<String>,
     /// The address the game port binds to.
     pub bind: IpAddr,
     /// The game port; 0 lets the system pick one.
@@ -78,6 +84,8 @@ impl Default for ServerConfig {
         let name = ServerName::new("nfsmw-server").unwrap_or_default();
         Self {
             settings: dedicated_defaults(name),
+            identity_file: None,
+            password: None,
             bind: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             port: DEFAULT_PORT,
             discovery: true,
@@ -95,20 +103,37 @@ impl Default for ServerConfig {
     }
 }
 
+/// The key file name a config file's folder keeps the server's identity in, when the file names none.
+pub const DEFAULT_IDENTITY_FILE: &str = "server.key";
+
 impl ServerConfig {
-    /// Reads and checks the config file at `path`.
+    /// Reads and checks the config file at `path`. A file that does not name an `identity_file` keeps the server's
+    /// key in [`DEFAULT_IDENTITY_FILE`] beside it, so the clients that pinned the server know it again.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
         let text =
             std::fs::read_to_string(path).map_err(|source| ConfigError::Read { path: path.to_path_buf(), source })?;
-        Self::from_toml(&text)
+        let dir = path.parent().unwrap_or(Path::new(""));
+        Self::parse(&text, Some(dir))
     }
 
-    /// Parses and checks config text: the defaults with every key of `text` applied.
+    /// Parses and checks config text: the defaults with every key of `text` applied. Text has no folder, so a key file
+    /// is kept only where `identity_file` says.
     pub fn from_toml(text: &str) -> Result<Self, ConfigError> {
+        Self::parse(text, None)
+    }
+
+    fn parse(text: &str, dir: Option<&Path>) -> Result<Self, ConfigError> {
         let table: toml::Table = text.parse().map_err(|err: toml::de::Error| ConfigError::Syntax(err.to_string()))?;
         let mut config = Self::default();
         for (key, value) in &table {
             keys::apply(&mut config, key, value)?;
+        }
+        if let (Some(dir), false) = (dir, table.contains_key("identity_file")) {
+            config.identity_file = Some(dir.join(DEFAULT_IDENTITY_FILE));
+        }
+        config.settings.password_required |= config.password.is_some();
+        if config.settings.password_required && config.password.is_none() {
+            return Err(ConfigError::Settings(SettingsError::NoPassword));
         }
         validate(&config.settings).map_err(ConfigError::Settings)?;
         Ok(config)

@@ -138,7 +138,7 @@ pub fn run(cli: Cli) -> Result<()> {
             let start = start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro);
             run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
-        Command::ViewScreen { name, pause, options, category, ui_script, look, car, view } => {
+        Command::ViewScreen { name, pause, options, safehouse, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let category = match category.to_ascii_lowercase().as_str() {
                 "audio" => crate::frontend::Category::Audio,
@@ -154,9 +154,14 @@ pub fn run(cli: Cli) -> Result<()> {
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
             }
+            if safehouse {
+                let data = std::sync::Arc::new(crate::career::CareerData::load(&dir)?);
+                let career = crate::career::Career::new("PREVIEW", data, &Default::default())?;
+                crate::career::CareerHandle::shared().set(career);
+            }
             let start = crate::frontend::Start::Screen(
                 name,
-                crate::frontend::Args { pause, options, category, ..Default::default() },
+                crate::frontend::Args { pause, options, safehouse, category, ..Default::default() },
             );
             let settle = view.screenshot.is_some().then_some("wait 2");
             let look = look.map(|kind| crate::frontend::Look::from_cli(&kind, car.as_deref())).transpose()?;

@@ -103,7 +103,7 @@ fn update(
     keys: Res<ButtonInput<KeyCode>>,
     mut settings: ResMut<Settings>,
     time: Res<Time>,
-    console: Res<Console>,
+    mut console: ResMut<Console>,
     mut capture: ResMut<MouseCapture>,
     mut exit: MessageWriter<AppExit>,
     input: Res<InputPresentation>,
@@ -227,6 +227,9 @@ fn update(
         }
         mask |= press_buttons;
     }
+    if let Some(line) = fe.script.as_mut().and_then(UiScript::take_console) {
+        console.queue_lines(vec![line]);
+    }
     // A screen that takes text (the alias name prompt) gets the typed characters, and only Enter and Escape press its pad.
     if matches!(fe.stage, Stage::Menus | Stage::Paused) && fe.screens.wants_text() {
         let typed = std::mem::take(&mut map.typed.0).into_iter();
@@ -248,11 +251,9 @@ fn update(
     }
     // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
     let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list;
-    *wheel = if menus { *wheel + actions.value(Action::Zoom) } else { 0.0 };
-    let notches = wheel.trunc();
-    *wheel -= notches;
-    if menus && notches != 0.0 {
-        let commands = fe.screens.scroll(notches as i32, &mut env);
+    let notches = super::plugin_keys::menu_wheel_steps(&actions, &mut wheel, menus);
+    if notches != 0 {
+        let commands = fe.screens.scroll(notches, &mut env);
         fe.apply(commands, host, &mut env);
     }
     if fe.latch {
@@ -417,6 +418,12 @@ fn present(
             presenter.0.present(&legend, &assets.0, screen, &mut out);
         }
     }
+    // A LAN page covers the front end: it is drawn, the screens under it are composed (their cells stay current) but not
+    // presented (`frontend/lan`).
+    let lan_page = frame.lan().has_page();
+    if lan_page {
+        presenter.0.present(&slot_layer(&themes, ElementId::LanMenu, time_s), &assets.0, screen, &mut out);
+    }
     let mut claimed: Vec<ElementId> = Vec::new();
     let reusable = themes.menus_are_static();
     for Presented { tree, serial, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
@@ -438,6 +445,9 @@ fn present(
             }
             _ => tree,
         };
+        if lan_page {
+            continue;
+        }
         presenter.0.present(&layer, &assets.0, screen, &mut out);
     }
     // A closed screen leaves no tree behind: the menu slots no screen took this frame are emptied (a slot that is not

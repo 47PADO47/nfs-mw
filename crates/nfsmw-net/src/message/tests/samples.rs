@@ -138,6 +138,7 @@ pub fn all() -> Vec<Message> {
         ChatMessage { from_slot: 2, channel: ChatChannel::All, text: ChatText::new("gg ✓").unwrap(), tick: 77 }.into(),
         SystemNotice { code: NoticeCode::Vote, args: List::new(vec![1, 2]).unwrap() }.into(),
         QuickMessage { id: 12 }.into(),
+        QuickRelay { from_slot: 3, id: 12 }.into(),
         BulkStart { kind: BulkKind::SessionData, id: 1, length: 4096, hash: [6; 32] }.into(),
         BulkChunk { id: 1, offset: 1024, bytes: Bytes::new(vec![0xAB; 1024]).unwrap() }.into(),
         BulkEnd { id: 1 }.into(),
@@ -165,6 +166,10 @@ fn events() -> Vec<Message> {
             .unwrap(),
         }
         .into(),
+        KnockedOut { head: head(12), entity_id: 9, lap: 2 }.into(),
+        TrapScore { head: head(13), entity_id: 4, trap: 1, speed_cm_s: 6_940, total_cm_s: 12_880 }.into(),
+        TagPassed { head: head(14), from_entity: Some(4), to_entity: 9 }.into(),
+        Penalty { head: head(16), entity_id: 4, ms: 5_000 }.into(),
         PursuitStart { head: head(6), pursuit_id: 2, targets: List::new(vec![4, 9]).unwrap(), heat: 3 }.into(),
         PursuitEnd { head: head(7), pursuit_id: 2, reason: PursuitEndReason::Evaded, entity_id: 4 }.into(),
         HeatChange { head: head(8), entity_id: 4, level: 4 }.into(),

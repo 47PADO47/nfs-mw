@@ -58,6 +58,47 @@ wire_struct! {
     }
 }
 
+wire_struct! {
+    /// Last at the end of `lap` in a knockout: the racer is out and watches the rest.
+    pub struct KnockedOut {
+        pub head: EventHead,
+        pub entity_id: u16,
+        /// From 1.
+        pub lap: u8,
+    }
+}
+
+wire_struct! {
+    /// A speed trap paid. Speeds are centimetres per second (the result record's unit).
+    pub struct TrapScore {
+        pub head: EventHead,
+        pub entity_id: u16,
+        pub trap: u8,
+        /// The stored speed of this pass.
+        pub speed_cm_s: u32,
+        /// The racer's total points after it.
+        pub total_cm_s: u32,
+    }
+}
+
+wire_struct! {
+    /// The tag moved. `from_entity` is `None` for the first holder.
+    pub struct TagPassed {
+        pub head: EventHead,
+        pub from_entity: Option<u16>,
+        pub to_entity: u16,
+    }
+}
+
+wire_struct! {
+    /// A reset added time to the racer's race time.
+    pub struct Penalty {
+        pub head: EventHead,
+        pub entity_id: u16,
+        pub ms: u32,
+    }
+}
+
 /// Result row flag: the racer did not finish.
 pub const RESULT_DNF: u8 = 1 << 0;
 /// Result row flag: the racer was busted.

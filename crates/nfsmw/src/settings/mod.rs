@@ -278,6 +278,7 @@ pub struct Settings {
     pub post_bloom: PostBloom,
     pub post_aa: PostAa,
     pub texture_filtering: TextureFiltering,
+    pub rain_droplet_scale: f32,
     pub road_reflections: RoadReflections,
     pub road_reflection_resolution: RoadReflectionResolution,
     pub visual_treatment: VisualTreatment,
@@ -323,7 +324,7 @@ pub struct Settings {
     pub hd_content: hd_content::HdContent,
     /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).
     pub custom_fonts: custom_fonts::CustomFonts,
-    /// The front-end shadows: a sun shadow pass in the menu backdrop, off by default (`docs/specs/fe-shadows.md`).
+    /// The front-end shadows share the driving shadow settings unless explicitly disabled (`docs/specs/fe-shadows.md`).
     pub fe_shadows: fe_shadows::FeShadows,
     /// The LAN play settings: name, port, snapshot rate, interpolation delay, the overlay line, the identity file.
     pub net: net::NetSettings,
@@ -406,6 +407,7 @@ impl From<Partial> for Settings {
             post_bloom: p.post_bloom.unwrap_or_default(),
             post_aa: p.post_aa.unwrap_or_default(),
             texture_filtering: p.texture_filtering.unwrap_or_default(),
+            rain_droplet_scale: road_reflections::finite_scale(p.rain_droplet_scale, 0.5, 2.0),
             road_reflections: p.road_reflections.unwrap_or_default(),
             road_reflection_resolution: p.road_reflection_resolution.unwrap_or_default(),
             visual_treatment: p.visual_treatment.unwrap_or_default(),

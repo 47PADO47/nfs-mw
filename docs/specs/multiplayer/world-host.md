@@ -54,7 +54,7 @@ WorldSimHost  (scenes/world/net)
 |---|---|
 | `Contact { a, b, speed }` | The tick's car contacts: player pairs (`players/contact.rs`), the followed player and the guests against the traffic, and traffic pairs (`ai/touches.rs`, filled by `collide` and `collide_guests`). One event per entity pair, the lower id first, at the pair's highest closing speed (measured before the contact), in id order; a car and its trailer are one entity |
 | `PursuitStarted`, `PursuitEnded`, `Busted`, `Evaded` | `PursuitTracker` over the chase after the tick: the co-op chase's targets (ADR 0010 section 4) when remote players are in, else the police's one player; the police's bust flag (`TrafficWorld::is_busted`) for the player they follow; `end_reason() == Evaded` when the chase ends in an escape. A player busted on its own meter gets `Busted` then `PursuitEnded` and does not restart the same chase |
-| `LapCompleted`, `RaceFinished` | `RaceTracker` over the race engine's racers: a new lap time is a lap (its own duration), a finish time a finish; places count the computer racers. The first human racer is the lead, the second player 2 (the split-screen seat co-op races use) |
+| `LapCompleted`, `RaceFinished`, `SpeedTrapPassed` | `RaceTracker` over the race engine's racers: a new lap time is a lap (its own duration), a finish time a finish, a speed trap's stored speed that is new or higher a pass (km/h); places count the computer racers. The first human racer is the lead, then the race's people in grid order (`scene.race_people`; the split-screen guest in a co-op race without a network) |
 | `Moved { player }` | `MovedTracker`: a car that was waiting for its road and now stands on it, or one that went further in a tick than its speed allows (2 m slack): a reset, a bust's respawn, a catch-up warp |
 
 The tick count goes up by one per `step` whatever happened, so it is the server's clock.
@@ -120,6 +120,10 @@ focus turns over every player, `ai/population/guests.rs`), the chase (`players/c
 
 | Call | As built |
 |---|---|
+| `start_race` | Finds the race whose collection name hashes to the track id (`fe_hash_upper`), and begins it with the session's laps and traffic. A race whose type does not match the round's mode (a speedtrap round on a sprint) is refused, and the server goes on without a world race. Every remote player is one of the race's people (section 7). The racers stand on the grid and wait (`Stage::Staged`); a session skips the race screens (`SessionRules::race_screens`) |
+| `race_staged` | True when the race stands on its grid, or when there is no race to wait for |
+| `schedule_race_go` | The host starts the staged race's countdown on the tick that puts GO on the given server tick (at once when that is too close) |
+| `stop_race` | Ends the race the world runs; the people's cars come back behind the lead |
 | `reset_player` | `request_reset` on the next tick; refused for a player with no car |
 | `set_ghost` | Parks the car (co-op parking): out of play, not stepped, not collided, not exported; unparking brings it back where it stood |
 | `fill_global` | The world's time of day; for a chased or busted player the heat, its busted meter (its own while two or more are chased), the cooldown bar and the chase state (`Chased`, `Cooldown`, `Evaded`, `Busted`); for a racer its place and lap from the race card |
@@ -148,12 +152,53 @@ unchanged.
 | 16 players join, export in id order with kinds and owners, own-car blocks, leave; `Full`, `AlreadyJoined`, `UnknownCar` | `net/tests/installed.rs` | yes |
 | NaN, infinite and huge input for 10 s: no panic, finite entities | `net/tests/installed.rs` | yes |
 | A bump between two players is a `Contact`; a console chase gives `PursuitStarted` and `PursuitEnded` | `net/tests/installed_events.rs` | yes |
+| A sprint with the lead and two remote players: they are the race's people in grid order, parked from free roam, exported as their player cars, driven by their seats' pedals (20 m in six seconds each), named in the race events, and back on the road after `stop_race` | `net/tests/installed_race.rs` | yes |
+| The staged grid holds the cars through a throttle, GO falls on the scheduled tick (still counting five ticks before, racing five after), and a person's own-car block has rpm, a forward gear and no parked flag | `net/tests/installed_race.rs` | yes |
+| A trap pass comes once, and again only when it beats the best; the person grid's racer numbers | `net/events/race.rs` | no |
 
-## 7. Known gaps
+## 7. Races with remote players
 
-- **Races with remote players.** A co-op race seats player 2 in the split-screen racer seat, which reads its pedals from the
-  local split-screen input (`split/mod.rs`, `feed_second_player`), not from the network; players 3 to 16 stay in free roam
-  during a race; without player 2 the race seats player 1 alone. The race events map only the first two human racers.
+The server asks for a race with `WorldControl::start_race` when the lobby enters loading (`server/phase.rs`: the race modes with a
+track chosen). In the world (`players/race.rs`, `race/start.rs`):
+
+- **The people.** Every remote player (a seat whose input a server holds, `Drive::remote_pedals`) is a human racer on the grid right
+  after the lead, in id order, in the car of their loadout: `Opponent`s with `person` set, like the split-screen guest. Their
+  free-roam cars are parked for the race and come back behind the lead when it ends (`unpark_guest_after_race`). A person whose car
+  does not load or stand is dropped from `scene.race_people`, so the racer numbers stay right. Story races (the scripted chase and the
+  final race) are never given people; the lead drives them alone.
+- **Pedals.** A person's racer is a car of the traffic world (the AI car's physics, with a person seated): each tick
+  `feed_race_people` copies the seat's pedals into it (`set_racer_pedals`). The lead drives its own `Drive` as always.
+- **Export.** The racer is exported as the player's car (`PlayerCar`, the player's id and owner) and left out of the traffic ids
+  (`net/export.rs`), so the clients, the mode rules' car samples and the spectators see one car per player.
+- **The grid waits for the server.** A session's race does not count down by itself (`race_hold`, `race/hold.rs`): the racers stand
+  on the grid, `Stage::Staged { lead }`, with `lead` the ticks the countdown takes to reach GO (180 for the usual 3 s, 0 for a rolling
+  start). The server holds its load barrier until `race_staged`, so nobody is counted down over a race that is still loading
+  (it goes on without the race after 60 s). When the lobby's countdown begins it calls `schedule_race_go(target tick)`, and the
+  host releases the world's countdown `lead` ticks before that tick: GO is the round's start tick. The lobby's countdown is 180
+  ticks, the same as the world's, so the release comes at once.
+- **Events.** `racer_states` names the lead (when someone drives it) and then the people, so laps, finishes and speed-trap passes
+  reach the mode rules by player id.
+- **The idle lead.** A dedicated server's lead car has no driver unless a player took slot 0. When the request's players do not
+  include slot 0 the lead stands on the grid as a computer racer (`race_lead_idle`, `race/hold.rs`), so the engine's humans are
+  the people alone and the race ends when they are done, not 30 s after the first of them finishes.
+- **Own-car block.** A person's race car is an AI car, not a `Drive`, but `own_state` reads its gauges (rpm, gear, nitrous,
+  shifting) from the racer (`racer_hud`) and the player is not flagged parked.
+- **Prediction.** The person's racer is an AI body (`drive/sim/ai.rs`, `configure_human`) with the player's own control set-up
+  and chassis, so a client's `Drive` predicts it as it predicts a free-roam car: over four seconds at up to 25 m/s the median
+  correction was 1.3 cm, the 95th percentile 4.7 cm, and there were no snaps (`net_client/installed.rs`). No AI-car physics on the
+  client is needed. What a client does need is to land on the grid: it is far from where its world opened, so a state more than
+  100 m from the car is a teleport, answered with a spawn request at the state's place (streaming follows the request) and not
+  with a car set down on ground that is not loaded, which fell through the world and was put back at its old spot every few
+  frames (`net_client/car.rs`). While the road streams in, the prediction ring keeps recording saves at the old spot; a rewind
+  does not restore a save that is itself more than 100 m from the car (`GameCar::restore`), or each rewind would carry the car
+  back and start the teleport over.
+- **No screens.** A session's race has no race-over message and no post-race screen: it ends the moment the engine says it is
+  over (`SessionRules::race_screens`), the people's cars come back behind the lead, and the server's own results follow.
+
+## 8. Known gaps
+
+- **Races with remote players.** See section 7 for what is built. The people race in one grid with the race's own computer
+  opponents.
 - **Reset.** `InputState` carries no reset; the server calls `request_reset` through `WorldControl::reset_player` when a
   client sends `ResetRequest` (the client's reset key).
 - **Speedbreaker.** Barred in a session (`SessionRules::time_scale_allowed`); a per-car speedbreaker waits for

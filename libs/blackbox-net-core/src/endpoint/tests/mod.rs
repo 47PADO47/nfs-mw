@@ -9,4 +9,5 @@ mod lifecycle;
 mod local;
 mod loopback;
 mod lossy;
+mod path;
 mod support;

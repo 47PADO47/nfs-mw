@@ -29,7 +29,9 @@ impl WorldScene {
     pub(super) fn update_simulation(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) -> f32 {
         let _trace = blackbox_trace::scope("World: simulation");
         let _span = bevy_log::info_span!("world::simulation").entered();
+        let trace = blackbox_trace::scope("World: simulation / prepare traffic");
         self.prepare_traffic(renderer);
+        drop(trace);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         let speedbreaker = self.tuning.speedbreaker;
         self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
@@ -94,8 +96,13 @@ impl WorldScene {
         // their state and the random numbers they draw do not depend on how ticks group into frames
         // (`docs/specs/multiplayer/determinism.md`, D2 and D4).
         for _ in 0..steps {
+            let trace = blackbox_trace::scope("World: simulation / physics step");
             self.physics_step(driving, look, &guest_looks);
+            drop(trace);
+            let trace = blackbox_trace::scope("World: simulation / police step");
             self.police_step(renderer);
+            drop(trace);
+            let _trace = blackbox_trace::scope("World: simulation / race tick");
             self.race_tick();
         }
         self.step_moment(sim_dt);
@@ -149,6 +156,7 @@ impl WorldScene {
             traffic.update_sight(STEP, &cast);
         }
         ai::speeding_pursuit(self, renderer);
+        ai::scripted_cops(self, renderer);
         // The helicopter's sight asks the world whether the line to the player is clear.
         let (collision, _) = self.residency.world_parts();
         let mut roadblock_view = None;
@@ -212,6 +220,7 @@ impl WorldScene {
             props.take_authored_blasts().into_iter().map(|point| space::to_render(point.to_array())),
         );
         self.explosions.step(STEP);
+        let trace = blackbox_trace::scope("World: physics / player cars step");
         let player_step = match (driving, self.players.lead_mut()) {
             (true, Some(drive)) => drive.step(collision, props, surfaces),
             _ => None,
@@ -222,6 +231,7 @@ impl WorldScene {
             true => self.players.guests_mut().map(|guest| guest.drive.step(collision, props, surfaces)).collect(),
             false => Vec::new(),
         };
+        drop(trace);
         let mut world_sounds = Vec::new();
         // The car the police follow takes the traffic's player contacts (the lead outside co-op); the others collide
         // with the traffic as guests.
@@ -239,15 +249,20 @@ impl WorldScene {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
             traffic.note_primary_target(primary.0);
+            let trace = blackbox_trace::scope("World: physics / traffic step");
             traffic.step(focus, collision, props, surfaces);
+            drop(trace);
+            let trace = blackbox_trace::scope("World: physics / traffic collisions");
             traffic.collide(lead.as_deref_mut());
             traffic.collide_guests(&mut guest_sims);
+            drop(trace);
             let touches = traffic.touches().iter();
             contacts.extend(touches.filter_map(|touch| super::players::touch_contact(touch, lead_id, &guest_ids)));
             traffic.update_events(props, &self.physics, event_view);
             // Recycle may remove a car or loose trailer; keep its final completed callback first.
             world_sounds.extend(traffic.take_collision_sounds());
             traffic.set_heli_camera(Some((camera.position, camera.forward)));
+            let _trace = blackbox_trace::scope("World: physics / traffic finish");
             traffic.finish_step(focus, &camera, &shown, props, collision, surfaces);
         }
         super::players::collide_players(lead_id.zip(lead), &mut guest_sims, &guest_ids, &mut contacts);
@@ -261,6 +276,7 @@ impl WorldScene {
             guest.drive.update_events(props, &self.physics, event_view);
             guest.drive.finish_step(collision, surfaces, step);
         }
+        let trace = blackbox_trace::scope("World: physics / props");
         props.finish_native_world(&super::drive::WorldGround { collision, surfaces }, STEP);
         let mut visual_contacts = props.take_impact_effects();
         for drive in self.players.drives_mut() {
@@ -276,6 +292,7 @@ impl WorldScene {
             drive.append_world_sound_contacts(world_sounds, player_advanced);
         }
         let stops = props.update_scenery(&self.physics);
+        drop(trace);
         let moments = props.take_moments();
         let fired: Vec<Vec3> = stops.iter().map(|stop| stop.position).collect();
         self.object_fx.request(props.take_particle_commands());
@@ -295,6 +312,7 @@ impl WorldScene {
         self.heli_wash.step(STEP, helicopter, self.residency.collision());
         self.finish_flares.step(STEP);
         self.record_original_camera();
+        let _trace = blackbox_trace::scope("World: physics / prop lifetimes, moments and break icons");
         let view = self.rules_lens(self.physics_aspect).view_proj();
         let others = self.guest_view_projs();
         let (collision, props) = self.residency.world_parts();

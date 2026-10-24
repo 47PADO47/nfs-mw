@@ -128,3 +128,62 @@ fn held_markers_are_saved_with_the_profile_and_read_back() {
     assert_eq!(back.markers.count(MarkerKind::ImpoundRelease), 1);
     assert_eq!(back.markers, career.markers);
 }
+
+/// Bin 14 with one free race and one boss race, so a career can win them.
+fn data_with_races() -> Arc<CareerData> {
+    let mut bins: Vec<BinDef> = (1..=15).map(bin).collect();
+    bins[13] = BinDef {
+        number: 14,
+        races: vec!["14.1.1".into()],
+        races_needed: 1,
+        challenges_needed: 0,
+        bounty_needed: 0,
+        rival_events: vec!["14.8.1".into()],
+    };
+    let mut data = Arc::unwrap_or_clone(data());
+    data.bins = bins;
+    Arc::new(data)
+}
+
+#[test]
+fn the_races_won_survive_a_save_and_load() {
+    let mut career = Career::new("mwo", data_with_races(), &NewCareer::default()).unwrap();
+    career.blacklist.enter_bin(14);
+    let mut flags = career.settings.flags;
+    career.blacklist.race_finished("14.1.1", true, &mut flags);
+    assert_eq!(career.blacklist.bin(14).unwrap().races_won, ["14.1.1"]);
+    let bytes = career.profile_bytes();
+    let back = Career::from_profile_bytes("mwo", &bytes, data_with_races()).unwrap();
+    assert_eq!(back.stage(), 14);
+    let record = back.blacklist.bin(14).unwrap();
+    assert_eq!(record.races_won, ["14.1.1"]);
+    assert_eq!(
+        record.state,
+        Some(nfsmw_career::blacklist::BinState::RivalUnlocked),
+        "the gate of the bin is met again"
+    );
+}
+
+#[test]
+fn a_rival_beaten_stays_beaten_after_a_save_and_load() {
+    let mut career = Career::new("mwo", data_with_races(), &NewCareer::default()).unwrap();
+    career.blacklist.enter_bin(14);
+    let mut flags = career.settings.flags;
+    career.blacklist.race_finished("14.1.1", true, &mut flags);
+    career.blacklist.race_finished("14.8.1", true, &mut flags);
+    assert_eq!(career.stage(), 13, "the walk went down to the next bin");
+    let bytes = career.profile_bytes();
+    let back = Career::from_profile_bytes("mwo", &bytes, data_with_races()).unwrap();
+    assert_eq!(back.stage(), 13);
+    let record = back.blacklist.bin(14).unwrap();
+    assert_eq!(record.state, Some(nfsmw_career::blacklist::BinState::Done));
+    assert_eq!(record.rival_races_won, ["14.8.1"]);
+}
+
+#[test]
+fn a_career_with_no_races_won_writes_no_race_records() {
+    let mut career = Career::new("mwo", data_with_races(), &NewCareer::default()).unwrap();
+    let before = career.settings.nodes().len();
+    career.profile_bytes();
+    assert_eq!(career.settings.nodes().len(), before);
+}

@@ -36,6 +36,11 @@ pub struct SessionRules {
     /// so the ids of their props and the order of their collision do not depend on the disk's speed (the server's
     /// residency).
     pub lockstep_streaming: bool,
+    /// A race plays its screens: the intro (the message card, tutorial and intro movies, the intro NIS) before the
+    /// countdown, and the race-over message and the post-race screen after the finish. Off in a session: nobody's screen
+    /// is the world's to take, so the racers go from the grid to the countdown, and the race ends the moment it is over
+    /// (the server's results screen follows).
+    pub race_screens: bool,
 }
 
 impl Default for SessionRules {
@@ -47,6 +52,7 @@ impl Default for SessionRules {
             views: ViewSource::LocalCamera,
             blocking_models: false,
             lockstep_streaming: false,
+            race_screens: true,
         }
     }
 }
@@ -61,6 +67,7 @@ impl SessionRules {
             views: ViewSource::PlayerCars,
             blocking_models: true,
             lockstep_streaming: true,
+            race_screens: false,
         }
     }
 

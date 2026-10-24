@@ -68,6 +68,27 @@ a reconstruction choice until calibrated against source culling.
 
 ## Capture materials
 
+### Face selection [decomp, installed reproduction]
+
+The PC dispatcher reverses the ordinary face-culling orientation while drawing
+the road target and restores it for player views. The texture-state updater
+combines that orientation with a per-draw inversion bit. Textures that disable
+culling remain double-sided. This is separate from the reflected model matrix.
+
+Drawing every opaque surface from both sides can put the ordinary road into
+the projected image, covering the reflected sky and trees. The installed
+highway at map points (-130, 4089) and (-78, 4108) exposes this difference.
+The native renderer's per-texture and per-instance winding rule is documented in
+[backface culling](backface-culling.md). Preserve that rule in the projected
+capture too, including two-sided textures. The projected view explicitly reverses
+the kept side because it shares the main camera. Do not add a family-wide
+fragment face discard over it. Main and reflected views keep their authored winding flags.
+
+The highway junction at (2191, 2515) still exposes dark capture occlusion from
+highway-prop meshes. A comparison with original-game reflection pixels is
+needed before changing their authored placement or eligibility. Extending
+face rejection to other scene families did not resolve this reproduction.
+
 The original road-target draw dispatch substitutes these effect families:
 
 | Surface effect | Capture family |
@@ -192,3 +213,19 @@ enhanced reference's modifications. Persistent dry reflections in an enhanced
 reference must remain an explicit compatibility/enhancement choice, separate
 from stock dampness behavior. Full parity must remain unclaimed until these
 boundaries are validated.
+
+## Enhanced capture visibility [enhancement]
+
+At enhanced capture resolutions, cull each selected authored reflection mesh
+using its own solid bounds transformed by the submitted reflection matrix.
+Do not cull reflected geometry using the normal-view scenery box: a reflected
+mesh may remain visible after the source object leaves the normal frustum.
+Moving props use their current submitted pose. Missing mesh bounds fall back
+to the scenery bounds; they must not drop otherwise available authored geometry.
+
+Enhanced captures use their actual height and reject only reflected bounds
+smaller than two projected pixels. The original 32-pixel test at 240 lines is
+retained for Original resolution. Higher resolution therefore improves geometry
+coverage as well as image detail, without inventing a fallback main-view mesh.
+No temporal fading or history is introduced. Section streaming still limits
+available geometry; this does not claim complete elimination of pop-in.

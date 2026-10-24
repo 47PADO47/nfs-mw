@@ -70,7 +70,7 @@ files), and the placement is in the executable (section 4) and the `frontend` at
 
 | File | Solids | Drawn |
 |---|---|---|
-| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five, each placed by its pivot matrix |
+| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five, each placed by its pivot matrix; the doubled prefix is read as `BACKDROP_*` (`Stage::canonical_name`), and the crib draws every `BACKDROP_*` solid, so a file with more or fewer props than the stock one still shows its room |
 | `CAREER_SAFEHOUSE.BIN` (stage 2) | `BACKDROP_CRIB` (the garage, 4,387 vertices, x -15..12.7, y -12..11.3, z 0..8.5), `BACKDROP_REFLECTION` (the garage mirrored under the floor), `BACKDROP_CURRGEN` (the bright sky outside the windows), `BACKDROP_CAST_SHADOW_MAP`, `..2` and `..3` (the room's props and some wall parts: the couch, the tank, the TV, the fridge, the posters, the pipes), `BACKDROP_CAST_SHADOW_MAP_NEXTGEN` (a high resolution caster sheet above the room), seven `STEAM EMITTER*` (particle markers) | all but the last two kinds |
 
 The three `..MAP`, `..MAP2` and `..MAP3` solids are inside the room, and the mirrored garage repeats their groups (the couch, the TV, the posterboard, the roll door), so they are scenery, drawn like the rest **[verified: groups against `BACKDROP_REFLECTION`; the reference screenshot shows the tank]**. Only `..MAP_NEXTGEN` (z 22.7..24.5, above the room) and the emitter markers are skipped **[ours]**. Without `BACKDROP_CURRGEN` the windows show the clear colour and the floor loses
@@ -189,6 +189,15 @@ when the look changes (the main menu to the career menu): the front end and ever
 backdrop's `update` advances it with the frame time and its `frame` takes the pose. The poses are read from the install
 once (`nfsmw_data::frontend_camera::PoseBook`).
 
+The stage's camera starts when the backdrop is initialized, before its asynchronous asset upload. Screen changes
+made while loading therefore retarget this stage rather than a previous stage's mover. Camera time advances only
+when the car is ready, keeping the intro visible. [ours]
+
+The menu car now shares driving's local-reflection quality, resolution and brightness settings. The stationary
+room is captured without the car, then reused until quality or resolution changes. Off and Simple shading
+disable the capture, as in driving. This is a rewrite extension; exact original front-end reflection capture
+behavior remains unverified. Authored front-end lighting remains separate from outdoor gameplay lighting. [ours]
+
 **The crib.** The stage name of `0x007A1E70` is `main_fe` in the crib and `career_manager` with the career context bit 8; the
 rewrite plays `career_manager` when the first backdrop of a session is the career menu's (`Look::Car`) and `main_fe` for
 every other crib look **[ours]**. `main_fe` runs 6 s from `angle_entry_main_fe` (93.1, -58, 18, ...) onto
@@ -264,3 +273,32 @@ nfsmw view-screen MainMenu_Sub.fng --look car --car BMWM3GTRE46:M3GTRCAREERSTART
 - One group of `BACKDROP_CRIB` (96 indices) and of `BACKDROP_REFLECTION` (213) names the texture `0x00163C76`, which is in neither the stage file's
   texture pack nor found elsewhere yet; it draws white. **[unverified]**
 - `BACKDROP_CURRGEN` is the sky only by its shape and its effect; the original's draw order and blending for it are not read.
+## Visible stage geometry and shadow proxies
+
+**[observed installed data and captures]** Crib platform variants include emitter
+markers and `LIGHT HELPER 3`. These are helper geometry and stay out of colour
+views. Keep `BACKDROP_CRIB`, `BACKDROP_CURRGEN` and `BACKDROP_CAST_SHADOW_MAP`
+in the colour view. Despite its name, the last solid contains the textured
+warehouse: 55 material groups include brick, concrete, graffiti, lamps, fences
+and girders. Excluding it removes the warehouse from the captured main menu.
+It also supplies the separate caster input. Only the safe-house NEXTGEN sheet
+is a hidden high-resolution proxy. Mesh names alone do not establish visibility.
+Keep the port's fitted 180-degree crib turn until the complete coordinate
+conversion is established. A zero-turn capture places the distant city behind
+the title car, contrary to the supplied original silo/warehouse view. The turn
+is a visual fit, not a recovered original stage parameter.
+
+
+## Shared platform textures
+
+**[observed installed data]** Stage-local texture packs do not resolve every
+material. `BACKDROP_CURRGEN` references `DEFAULTALPHA` (hash `0x66994F4A`),
+found in `GLOBAL/GLOBALB.LZC`. Its DXT3 image has zero alpha and additive blend.
+The `GREY` reference (`0x00163C76`) resolves from the front-end pack; it is an
+opaque DXT1 texture. Missing them produces opaque white geometry in both rooms.
+
+Resolve stage-local textures first, then only unresolved diffuse references
+from shared global and front-end packs. Keep local replacements authoritative,
+retain each texture's authored blend mode, include shared sources in the room
+cache key, and release supplemental uploads with the room. Never replace a
+missing texture with fabricated image data or change installed files.

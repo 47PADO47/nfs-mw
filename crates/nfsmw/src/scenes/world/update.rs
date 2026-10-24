@@ -33,6 +33,17 @@ impl WorldScene {
             true => 0.0,
             false => dt,
         };
+        // The free camera looks with the right stick, which also shifts the car: the stick moves one or the other.
+        let mut free_camera_input;
+        let input = if self.view == View::Fly {
+            free_camera_input = input.clone();
+            free_camera_input.consume(Action::ShiftUp);
+            free_camera_input.consume(Action::ShiftDown);
+            &free_camera_input
+        } else {
+            input
+        };
+        let trace = blackbox_trace::scope("World: update / shading and effects set-up");
         self.update_car_shading(renderer);
         if let Some(traffic) = self.traffic.as_ref() {
             traffic.update_damaged_windows(renderer, self.sun.to_sun());
@@ -49,13 +60,11 @@ impl WorldScene {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
         }
-        let camera = match (self.view, self.players.lead()) {
-            (View::Chase, Some(drive)) => drive.camera().position,
-            _ => self.camera.position,
-        };
         if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());
         }
+        drop(trace);
+        let trace = blackbox_trace::scope("World: update / streaming");
         let [x, y] = self.focus();
         let lens = self.gameplay_lens(renderer.aspect_ratio());
         let tan_y = (lens.fov_y_degrees.to_radians() * 0.5).tan();
@@ -73,35 +82,93 @@ impl WorldScene {
         self.residency.world_parts().1.set_streaming_reset_locked(racing);
         let centres = self.foci();
         self.residency.update_centres(renderer, &centres);
+        drop(trace);
+        let trace = blackbox_trace::scope("World: update / players and guests");
         self.prepare_drive();
         self.start_queued_coop(renderer);
         self.place_guests();
         self.feed_second_player();
+        self.feed_race_people();
+        for drive in self.players.drives_mut() {
+            let environment = self
+                .audio_environment
+                .as_ref()
+                .map(|map| map.at(glam::Vec3::from_array(space::to_physics(drive.position()))))
+                .unwrap_or_default();
+            let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
+            let enhanced = options.enhanced_wet_surfaces;
+            let water = self.wet_road.water();
+            let wet = (self.rain.intensity() > 0.0 || (enhanced && water.dampness > 0.05)) && exposed;
+            drive.vehicle_effects.set_surface_water(enhanced.then_some((water, options)));
+            drive.vehicle_effects.set_rain(wet);
+            drive.effects.set_wet(wet);
+        }
         // Single player runs the world's rules; a multiplayer client predicts its car and draws the rest from the
         // server (`frame_systems.rs`).
+        drop(trace);
         let systems = self.frame_systems();
         let sim_dt = match (frozen, systems.world_simulation) {
             (true, _) => 0.0,
             (false, true) => self.update_simulation(renderer, input, dt),
             (false, false) => self.update_net_client(renderer, input, dt),
         };
+        let trace = blackbox_trace::scope("World: update / catch-up, races, entry, career");
         if systems.catch_up {
-            self.update_catch_up(input);
+            {
+                let _t = blackbox_trace::scope("World: update / catch-up");
+                self.update_catch_up(input);
+            }
         }
-        self.follow_second_player(dt);
+        {
+            let _t = blackbox_trace::scope("World: update / second player");
+            self.follow_second_player(dt);
+        }
         if systems.races {
-            self.update_race(renderer, input, dt);
+            {
+                let _t = blackbox_trace::scope("World: update / race");
+                self.update_race(renderer, input, dt);
+            }
         }
         if systems.entry {
-            self.update_entry(input, dt);
+            {
+                let _t = blackbox_trace::scope("World: update / entry");
+                self.update_entry(input, dt);
+            }
         }
         if systems.career {
-            self.update_career(dt);
+            {
+                let _t = blackbox_trace::scope("World: update / career");
+                self.update_career(dt);
+            }
         }
+        drop(trace);
+        let trace = blackbox_trace::scope("World: update / focus, rain and atmosphere");
         self.feed_focus(renderer, sim_dt);
-        self.rain.update(sim_dt, camera);
-        self.wet_road.step(dt, self.rain.intensity() > 0.0);
+        let lens = self.gameplay_lens(renderer.aspect_ratio());
+        let environment = self
+            .audio_environment
+            .as_ref()
+            .map(|map| map.at(glam::Vec3::from_array(space::to_physics(lens.position))))
+            .unwrap_or_default();
+        let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
+        self.rain.update_view(sim_dt, lens.position, lens.forward, exposed);
+        self.wet_road.step_rain(sim_dt, self.rain.intensity());
+        if let Some(traffic) = &mut self.traffic {
+            traffic.step_rain(
+                self.physics.database(),
+                self.residency.collision(),
+                super::ai::RainView {
+                    camera: lens.position,
+                    intensity: self.rain.intensity(),
+                    water: options.enhanced_wet_surfaces.then_some((self.wet_road.water(), options)),
+                    environment: self.audio_environment.as_ref(),
+                    dt: sim_dt,
+                },
+            );
+        }
         self.update_atmosphere(sim_dt);
+        drop(trace);
+        let trace = blackbox_trace::scope("World: update / sky, day and animation");
         self.clock += sim_dt * self.tuning.animation_speed;
         self.environment_lights.blink.advance(sim_dt);
         self.update_sky(renderer);
@@ -112,6 +179,7 @@ impl WorldScene {
         if self.view == View::Fly {
             self.camera.update(input, sim_dt);
         }
+        drop(trace);
         if !self.grounded && self.residency.complete() {
             self.grounded = true;
             let estimate = ground::height_near(self.residency.placed(), self.start[0], self.start[1], 150.0);
@@ -125,8 +193,10 @@ impl WorldScene {
                 self.camera.position.z
             );
         }
+        let trace = blackbox_trace::scope("World: update / effects uploads");
         self.upload_effects(renderer);
         self.original_shadows = renderer.render_experiments().original_shadows;
+        drop(trace);
         self.update_reflections(renderer);
         self.update_shadow_casters(renderer);
     }

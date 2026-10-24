@@ -12,7 +12,7 @@ use crate::input::{Action, Bindings, Control};
 
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
-use super::logic::{Args, Command, Cx, Pick, ScreenLogic};
+use super::logic::{Args, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
 use crate::ui::UiAssets;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 
@@ -190,6 +190,7 @@ impl ScreenLogic for ControlsLogic {
         focus(cx, self.layout, self.cell);
         if matches!(pick, Pick::Press(..)) {
             cx.send(Command::Remap(ROWS[self.cell.row], self.cell.slot));
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
         }
     }
 
@@ -239,6 +240,10 @@ impl ScreenLogic for ControlsLogic {
             set_text(cx, layout.secondary_text[row], &texts[1]);
         }
         self.shown = cx.key_texts.to_vec();
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

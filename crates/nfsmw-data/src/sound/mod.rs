@@ -27,7 +27,7 @@ pub use collision::{CollisionSounds, CollisionZone, EventKind, ImpactSound, heav
 pub use effect::EffectSound;
 pub use engine::{DecelWindow, EngineGroup, EngineMix, EngineSound, MixLevels};
 pub use load::{EngineLoops, load_loop};
-pub use moment::{MomentSound, moment_take};
+pub use moment::{MomentSound, moment_take, moment_takes};
 pub use nis::{NIS_SCENES, NisBranch, NisTake, nis_branch, nis_row, nis_take};
 pub use shift::{ShiftSound, ShiftStage, Wobble};
 pub use stitch::{Stitch, StitchPiece, collision_stitches, whoosh_stitches};

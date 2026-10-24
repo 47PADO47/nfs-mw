@@ -36,12 +36,16 @@ assets, presenter).
     default is no wrapping and no screen here asks for it.
   - One pad: the original has one mask per controller and per-package control masks; here a package has control
     or not.
-  - Sounds the screens send (`SOUND_*` messages) are reported to the host and ignored.
+  - Menu sound dispatch now uses installed AEMS banks. Original mix-map gain and
+    complete screen-specific cue coverage remain open; see
+    [front-end audio](frontend-audio.md).
   - The icon-menu scroll uses a cubic ease of 0.2 s; the original seeks a spline whose exact shape was not read.
-  - Dialogs (confirm on leaving a changed option screen, defaults), the keyboard screen and the memory-card
-    screens are not implemented.
+  - Confirmation and defaults dialogs, keyboard controls and profile screens now
+    have runtime implementations. Their presence does not establish all original
+    variants or flow parity; see [menu UI audit](../menu-ui-parity.md).
   - The option rows are those of this rewrite's settings (spec section 3.1), not the original settings.
   - Quick Race (spec section 5): the package names (`Track_Select.fng`, `Track_Options.fng`) and the class names
     (`UIQRTrackSelect`, `UIQRTrackOptions`) were confirmed in `speed.exe` strings and by `nfsmw list-screens`. Message
-    and object hashes were read from `nfsmw dump-screen` and checked with `bStringHash`. The track list is not
-    populated; its data source was not read.
+    and object hashes were read from `nfsmw dump-screen` and checked with `bStringHash`.
+    The current Custom Race implementation populates its track list; see
+    [Custom Race](../specs/custom-race.md) for the later evidence and limits.

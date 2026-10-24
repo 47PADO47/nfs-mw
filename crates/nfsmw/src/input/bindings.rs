@@ -202,8 +202,9 @@ pub fn defaults() -> Vec<Binding> {
 }
 
 /// The radio: N pauses and resumes, `.` is the next song and `,` the previous one (the media keys do the same). On a
-/// pad the right stick's click pauses and resumes, the D-pad's right and left are next and previous. The game
-/// ignores them in the pause menu, which uses the D-pad itself. M is the world map (`Action::Map`), not the radio.
+/// pad the right stick's click is the next song, as in the original; the D-pad is left to the map and the HUD
+/// shortcuts. The game ignores them in the pause menu, which uses the D-pad itself. M is the world map
+/// (`Action::Map`), not the radio.
 fn radio() -> Vec<Binding> {
     use Action::*;
     let key = Source::Key;
@@ -211,18 +212,17 @@ fn radio() -> Vec<Binding> {
     vec![
         Binding::new(RadioToggle, key(KeyCode::KeyN), 1.0),
         Binding::new(RadioToggle, key(KeyCode::MediaPlayPause), 1.0),
-        Binding::new(RadioToggle, button(GamepadButton::RightThumb), 1.0),
         Binding::new(RadioNext, key(KeyCode::Period), 1.0),
         Binding::new(RadioNext, key(KeyCode::MediaTrackNext), 1.0),
-        Binding::new(RadioNext, button(GamepadButton::DPadRight), 1.0),
+        Binding::new(RadioNext, button(GamepadButton::RightThumb), 1.0),
         Binding::new(RadioPrevious, key(KeyCode::Comma), 1.0),
         Binding::new(RadioPrevious, key(KeyCode::MediaTrackPrevious), 1.0),
-        Binding::new(RadioPrevious, button(GamepadButton::DPadLeft), 1.0),
     ]
 }
 
 /// Menus: the arrows or WASD and the pad's D-pad or left stick move, Enter or Space accepts, Esc goes back,
-/// P or the pad's Start is Start, Q quits from the main menu.
+/// P or the pad's Start is Start, Q quits from the main menu. The pad's extra buttons follow NFS-XtendedInput:
+/// `PAD_BUTTON0`/`1` are the right/left bumper, `PAD_BUTTON4` is X, and the triggers are `PAD_RTRIGGER`/`LTRIGGER`.
 fn menus() -> Vec<Binding> {
     use Action::*;
     let key = Source::Key;
@@ -255,19 +255,19 @@ fn menus() -> Vec<Binding> {
         Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
         Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
         Binding::new(MenuButton1, key(KeyCode::Digit1), 1.0),
-        Binding::new(MenuButton1, button(GamepadButton::West), 1.0),
+        Binding::new(MenuButton1, button(GamepadButton::LeftTrigger), 1.0),
         Binding::new(MenuButton2, key(KeyCode::Digit2), 1.0),
-        Binding::new(MenuButton2, button(GamepadButton::North), 1.0),
+        Binding::new(MenuButton2, button(GamepadButton::West), 1.0),
         Binding::new(MenuButton3, key(KeyCode::Digit3), 1.0),
-        Binding::new(MenuButton3, button(GamepadButton::LeftThumb), 1.0),
+        Binding::new(MenuButton3, button(GamepadButton::RightTrigger), 1.0),
         Binding::new(MenuZoomIn, key(KeyCode::Digit9), 1.0),
         Binding::new(MenuZoomOut, key(KeyCode::Digit0), 1.0),
-        Binding::new(MenuZoomIn, button(GamepadButton::RightTrigger), 1.0),
-        Binding::new(MenuZoomOut, button(GamepadButton::LeftTrigger), 1.0),
+        Binding::new(MenuZoomIn, button(GamepadButton::RightTrigger2), 1.0),
+        Binding::new(MenuZoomOut, button(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(MenuTriggerLeft, key(KeyCode::PageUp), 1.0),
-        Binding::new(MenuTriggerLeft, button(GamepadButton::LeftTrigger), 1.0),
+        Binding::new(MenuTriggerLeft, button(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(MenuTriggerRight, key(KeyCode::PageDown), 1.0),
-        Binding::new(MenuTriggerRight, button(GamepadButton::RightTrigger), 1.0),
+        Binding::new(MenuTriggerRight, button(GamepadButton::RightTrigger2), 1.0),
         Binding::new(MenuQuit, key(KeyCode::KeyQ), 1.0),
         Binding::new(MenuQuit, button(GamepadButton::Select), 1.0),
         Binding::new(Click, Source::MouseButton(MouseButton::Left), 1.0),
@@ -276,8 +276,12 @@ fn menus() -> Vec<Binding> {
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
 /// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera,
-/// Enter to interact. On a pad the triggers are the pedals, the left stick steers, the right/left bumper shifts
-/// up/down, the A button is the handbrake and also interacts.
+/// Enter to interact. The pad follows NFS-XtendedInput's Most Wanted layout (the Xbox 360 one), so the remake and the
+/// original share muscle memory: the triggers are the pedals, the left stick steers, the right stick pushed up/down
+/// shifts up/down, A is the handbrake, B nitrous, X the speed breaker, the right bumper changes the camera, the left
+/// bumper looks back, Back resets the car, D-pad up engages an event (A also does, to skip a cutscene) and D-pad left
+/// opens the map. Y toggles the free camera, which the original has no button for; there the right stick looks, so
+/// the world gates the stick's shifting off.
 /// A wheel's paddles are extra buttons: see [`paddles`]. Its axes, pedals, clutch and H-shifter gears have no
 /// default: the codes depend on the device, so they come from the `[bindings]` table or the console.
 fn driving() -> Vec<Binding> {
@@ -313,12 +317,16 @@ fn driving() -> Vec<Binding> {
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
         Binding::new(Handbrake, button(GamepadButton::South), 1.0),
         Binding::new(Interact, button(GamepadButton::South), 1.0),
-        Binding::new(Nos, button(GamepadButton::West), 1.0),
-        Binding::new(Speedbreaker, button(GamepadButton::East), 1.0),
-        Binding::new(ShiftUp, button(GamepadButton::RightTrigger), 1.0),
-        Binding::new(ShiftDown, button(GamepadButton::LeftTrigger), 1.0),
+        Binding::new(Interact, button(GamepadButton::DPadUp), 1.0),
+        Binding::new(Nos, button(GamepadButton::East), 1.0),
+        Binding::new(Speedbreaker, button(GamepadButton::West), 1.0),
+        Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
+        Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
+        Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),
+        Binding::new(LookBack, button(GamepadButton::LeftTrigger), 1.0),
+        Binding::new(Map, button(GamepadButton::DPadLeft), 1.0),
     ]
 }
 

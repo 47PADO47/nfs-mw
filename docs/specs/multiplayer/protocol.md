@@ -131,8 +131,10 @@ the slot is still held, the server answers `JoinAccepted` with the same `player_
 **Built** (2026-10-22), layout in [protocol-handshake](protocol-handshake.md) section 5: flags, connection id and packet number
 (7 bytes) in the clear as associated data; `ack`, `ack_bits` and the frames sealed with ChaCha20-Poly1305 under the Noise
 transport keys; a 16-byte tag. The receive window of 1,024 numbers is checked before the tag and updated after it; a bad tag is
-dropped silently and counted. Flag bits 6 and 5 are the key phase (rekey every 2^24 packets or one hour). Path validation on a new
-address (`PATH_CHALLENGE`) is not built yet.
+dropped silently and counted. Flag bits 6 and 5 are the key phase (rekey every 2^24 packets or one hour). A packet from a new
+address that opens under the peer's keys is taken in; the receiver keeps sending to the old address and asks the new one with
+`PATH_CHALLENGE` (8 random bytes, alone in its packet). The peer answers with `PATH_RESPONSE` in its next packet, and the answer
+read from that address moves the connection there (`endpoint/path.rs`).
 
 ### 5.2 Frame types
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::scenes::world::ai::CopRequestRole;
+use crate::scenes::world::ai::cop_manager::requests::Role as CopRequestRole;
 use blackbox_driver::VehicleView;
 
 fn body(at: Vec3, speed: f32) -> Body {

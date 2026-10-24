@@ -120,6 +120,7 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.ao_compare = false;
         }
         Tab::Environment => {
+            settings.rain_droplet_scale = 0.5;
             lab.message =
                 Some("Time/weather overrides are independent; choose sun mode, clouds and rain in Environment.".into());
         }

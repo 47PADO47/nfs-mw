@@ -66,6 +66,8 @@ pub struct FrameCell {
     generation: Arc<AtomicU64>,
     /// What the HUD tree says about its own shape (`structure.rs`), worked out once per package.
     structure: Arc<Mutex<Option<Structure>>>,
+    /// The LAN screens of this frame: not FEng trees, so they have their own cell, shared the same way.
+    lan: crate::ui::theme::LanCell,
 }
 
 impl std::fmt::Debug for FrameCell {
@@ -78,6 +80,12 @@ impl FrameCell {
     /// An empty cell: every source and every menu slot is absent until the plugin sets it.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The LAN screens this frame. The LAN front end fills it (it is a clone: all clones share one), the `LanMenu` and
+    /// `LanHud` components read it.
+    pub fn lan(&self) -> crate::ui::theme::LanCell {
+        self.lan.clone()
     }
 
     /// Stores `tree` as this frame's tree for `source`.

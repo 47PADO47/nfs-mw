@@ -114,3 +114,42 @@ fn race_routes() {
     assert!(courses > 200);
     assert!(totals[3] * 10 <= legs, "most legs have a road");
 }
+
+/// The scripted chases of the prologue (`docs/specs/story-flow.md` section 2.4) start on plane triggers across the road: the
+/// route of the race must pass through each of them, or the script never fires.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_prologue_chase_planes_lie_on_their_race_routes() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let mut index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let mut net = index.road_network.take().expect("road network");
+    let segments = SegmentIndex::build(&net);
+    let triggers: [(&str, &[&str]); 2] = [
+        ("16_1_0_partial_dday", &["call_from_mia"]),
+        ("16_2_1_d_day_intro", &["call_from_mia", "kill_engine", "cop_spawn_trigger", "bail_trigger"]),
+    ];
+    for (name, children) in triggers {
+        let race = data.race_named(name).expect("the prologue race");
+        let gates = gates(&data, race);
+        let start = race.start.unwrap();
+        let start = Goal { position: start.position, forward: world_heading(start.heading_deg) };
+        let goals: Vec<Goal> = gates.iter().map(|g| Goal { position: g.centre, forward: g.forward }).collect();
+        let lines = active_lines(&index, race);
+        let through = |leg: usize, points: &[Vec3]| points.windows(2).any(|pair| gates[leg].touches(pair[0], pair[1]));
+        let (route, _) = build_route(&mut net, &segments, start, &goals, (&lines, &[]), through);
+        let points: Vec<Vec3> = (0..)
+            .map(|i| i as f32 * 2.0)
+            .take_while(|d| *d <= route.length)
+            .filter_map(|d| route.point_at(&net, d).map(|(p, _)| p))
+            .collect();
+        for child in children {
+            let plane = data.planes.iter().find(|p| p.name == format!("{name}/{child}")).expect("the plane");
+            let gate = Gate::new(plane.position, world_heading(plane.heading_deg), Vec3::Y, [1.0, plane.width, 100.0]);
+            let crossed = points.windows(2).position(|pair| gate.touches(pair[0], pair[1]));
+            let nearest = points.iter().map(|p| p.distance(plane.position)).fold(f32::MAX, f32::min);
+            eprintln!("{name}/{child}: route crosses it at step {crossed:?}, nearest route point {nearest:.1} m");
+            assert!(crossed.is_some(), "{name}/{child} is not on the route ({nearest:.0} m away)");
+        }
+    }
+}

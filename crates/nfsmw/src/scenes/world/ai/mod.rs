@@ -63,6 +63,7 @@ mod spawn;
 mod spawn_requests;
 mod spikes;
 mod state_hash;
+mod status;
 mod stop;
 mod streams;
 mod support;
@@ -73,9 +74,9 @@ mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
 mod trailer;
+mod water;
 
-use std::collections::HashSet;
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use blackbox_render::{EffectVertex, Instance};
 use blackbox_roads::{Body, RoadNetwork, SegmentIndex, SignalController};
@@ -85,11 +86,10 @@ use nfsmw_data::car::physics::CarPhysics;
 use super::drive::CarRig;
 use car::AiCar;
 pub(super) use commands::{
-    configure_pursuit_context, pursuit_command, roadblock_command, signals_command, speeding_pursuit,
+    configure_pursuit_context, pursuit_command, roadblock_command, scripted_cops, signals_command, speeding_pursuit,
     start_event_pursuit, traffic_command,
 };
 pub use cop::CopCar;
-pub use cop_manager::requests::Role as CopRequestRole;
 pub use lamps::LampMeshes;
 use manager::TypeTimers;
 pub(super) use models::load_requested;
@@ -103,6 +103,7 @@ pub use pursuit::{CopModel, Pursuit};
 pub use racers::{ModelState, RacerSpawn};
 pub use tally::{PursuitCostTally, RoadblockTally};
 pub use touches::{CarTouch, Toucher};
+pub(in crate::scenes::world) use water::RainView;
 
 /// Where the player (or the free camera) is: traffic spawns ahead of it and stays near it.
 #[derive(Debug, Clone, Copy)]
@@ -135,6 +136,7 @@ pub struct TrafficModel {
 }
 
 pub struct TrafficWorld {
+    water: water::Water,
     network: RoadNetwork,
     index: SegmentIndex,
     /// The track barrier lines (`road_barriers.rs`).
@@ -259,6 +261,7 @@ impl TrafficWorld {
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
+            water: Default::default(),
             signals: SignalController::new(&network),
             signal_time: 0.0,
             signal_lamps: signal_props::SignalLamps::default(),
@@ -465,36 +468,5 @@ impl TrafficWorld {
     /// Whether the manager is waiting for a model.
     pub fn wants_models(&self) -> bool {
         !self.requests.is_empty()
-    }
-
-    /// One line per car for the `traffic status` command.
-    pub fn status(&self, focus: Focus) -> String {
-        let mut lines = vec![self.population_status(focus), self.pursuit_status()];
-        lines.push(format!(
-            "range {}-{} m; unseen <= {} m / {} s; density {}%; {} occupied vehicle slots",
-            self.policy.spawn_min,
-            self.policy.spawn_max,
-            self.policy.retire_distance,
-            self.policy.offscreen_seconds,
-            self.policy.density_percent,
-            self.population_slots(focus)
-        ));
-        for car in self.cars.iter().take(12) {
-            let p = car.position();
-            let c = car.controls();
-            lines.push(format!(
-                "{} at ({:.0}, {:.0}), {:.0} m away, {:.1} m/s, gas {:.0} brake {:.0} steer {:+.2}; {}",
-                car.name,
-                p.x,
-                p.y,
-                (p.x - focus.position[0]).hypot(p.y - focus.position[1]),
-                car.speed(),
-                c.gas,
-                c.brake,
-                c.steer,
-                car.debug()
-            ));
-        }
-        lines.join("\n")
     }
 }

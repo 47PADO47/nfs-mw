@@ -28,7 +28,7 @@ fn the_samples_cover_the_catalogue_once_each() {
     let samples = samples::all();
     let ids: HashSet<u16> = samples.iter().map(Message::type_id).collect();
     assert_eq!(ids.len(), samples.len());
-    assert_eq!(ids.len(), 56);
+    assert_eq!(ids.len(), 61);
     for id in &ids {
         assert_eq!(Message::known_format(*id), Some(1));
     }
@@ -137,4 +137,20 @@ fn session_phases_map_from_the_core_machine() {
     assert_eq!(SessionPhase::from(Phase::Results), SessionPhase::Results);
     assert_eq!(Mode::from_code(9), None);
     assert_eq!(Mode::from_code(130), Some(Mode::Custom(130)));
+}
+
+#[test]
+fn every_admin_command_round_trips() {
+    for command in [
+        AdminCommand::Kick { slot: 3 },
+        AdminCommand::Ban { slot: 3, minutes: 30 },
+        AdminCommand::Mute { slot: 3, muted: true },
+        AdminCommand::Restart,
+        AdminCommand::ChangeMode { mode: Mode::Sprint },
+        AdminCommand::Hold { on: true },
+        AdminCommand::Hold { on: false },
+    ] {
+        let message: Message = HostCommand { command }.into();
+        assert_eq!(decode(&bytes_of(&message)), Ok(message), "{command:?}");
+    }
 }

@@ -7,6 +7,7 @@ mod barriers;
 mod blips;
 mod card;
 mod challenge;
+pub(in crate::scenes::world) mod chase_fade;
 mod command;
 mod coop_finish;
 mod demo;
@@ -18,6 +19,7 @@ mod flares;
 mod flow;
 mod grid;
 mod heat;
+mod hold;
 mod intro;
 mod load;
 pub(super) mod mods;
@@ -43,6 +45,7 @@ mod wrong_way;
 pub(super) use command::race_command;
 pub use grid::MAX_RACERS;
 pub(super) use restart::Kit as RestartKit;
+pub(in crate::scenes::world) use setup::Opponent;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
 
@@ -74,6 +77,9 @@ pub(super) enum Stage {
     /// The post-race screen has the race: it waits for the front end to take the report and answer. `left` is how long
     /// the world waits for a front end before it ends the race itself (a run with no front end).
     PostRace { left: f32 },
+    /// The racers stand on the grid and the countdown waits to be released (`hold.rs`): a session's race starts when the
+    /// server says. `lead` is the ticks the countdown takes to reach GO (0 for a rolling start).
+    Staged { lead: u32 },
     /// The race's outro, after the post-race answer: the outro NIS, message and movie (`outro.rs`). `won` is whether the
     /// race's chain runs once the outro is over.
     Outro { steps: VecDeque<OutroStep>, current: intro::Playing, won: bool },
@@ -85,6 +91,7 @@ impl Stage {
         match self {
             Stage::Loading { .. } => "loading",
             Stage::Intro { .. } => "intro",
+            Stage::Staged { .. } => "staged",
             Stage::Running => "running",
             Stage::Results { .. } => "results",
             Stage::PostRace { .. } => "post-race",
@@ -95,7 +102,7 @@ impl Stage {
     /// The race is staged or on: loading, the intro, counting down or running. Once the result is fixed (`Results`,
     /// `PostRace`) the career has been told and the post-race screen owns the race (`docs/specs/race-restart.md` section 1).
     pub(super) fn is_live(&self) -> bool {
-        matches!(self, Stage::Loading { .. } | Stage::Intro { .. } | Stage::Running)
+        matches!(self, Stage::Loading { .. } | Stage::Intro { .. } | Stage::Staged { .. } | Stage::Running)
     }
 }
 

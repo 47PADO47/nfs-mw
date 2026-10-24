@@ -11,7 +11,7 @@ mod prefilter;
 mod probe;
 #[cfg(test)]
 mod probe_tests;
-mod screen;
+pub(in crate::gpu) mod screen;
 pub(in crate::gpu) mod screen_draw;
 #[cfg(test)]
 mod screen_tests;
@@ -172,6 +172,10 @@ impl Glossy {
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
         }
+    }
+
+    pub(in crate::gpu) fn road_environment(&self) -> (wgpu::TextureView, wgpu::TextureView) {
+        (self.environment.clone(), self.static_environment.clone())
     }
 
     pub(super) fn restore_environment(&mut self, queue: &wgpu::Queue) {

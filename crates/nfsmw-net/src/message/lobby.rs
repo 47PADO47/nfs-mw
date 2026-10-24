@@ -213,11 +213,25 @@ wire_struct! {
 /// An admin command, checked against the sender's role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AdminCommand {
-    Kick { slot: u8 },
-    Ban { slot: u8, minutes: u32 },
-    Mute { slot: u8, muted: bool },
+    Kick {
+        slot: u8,
+    },
+    Ban {
+        slot: u8,
+        minutes: u32,
+    },
+    Mute {
+        slot: u8,
+        muted: bool,
+    },
     Restart,
-    ChangeMode { mode: Mode },
+    ChangeMode {
+        mode: Mode,
+    },
+    /// "Everyone wait" on or off (MP-54).
+    Hold {
+        on: bool,
+    },
 }
 
 impl Wire for AdminCommand {
@@ -242,21 +256,26 @@ impl Wire for AdminCommand {
                 w.varint(4);
                 mode.put(w);
             }
+            Self::Hold { on } => {
+                w.varint(5);
+                on.put(w);
+            }
         }
     }
 
     fn take(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        let tag = r.varint(4).map_err(|_| DecodeError::BadEnum)?;
+        let tag = r.varint(5).map_err(|_| DecodeError::BadEnum)?;
         let command = match tag {
             0 => Self::Kick { slot: u8::take(r)? },
             1 => Self::Ban { slot: u8::take(r)?, minutes: u32::take(r)? },
             2 => Self::Mute { slot: u8::take(r)?, muted: bool::take(r)? },
             3 => Self::Restart,
-            _ => Self::ChangeMode { mode: Mode::take(r)? },
+            4 => Self::ChangeMode { mode: Mode::take(r)? },
+            _ => Self::Hold { on: bool::take(r)? },
         };
         let slot_ok = match command {
             Self::Kick { slot } | Self::Ban { slot, .. } | Self::Mute { slot, .. } => is_slot(slot),
-            Self::Restart | Self::ChangeMode { .. } => true,
+            Self::Restart | Self::ChangeMode { .. } | Self::Hold { .. } => true,
         };
         ensure(slot_ok)?;
         Ok(command)

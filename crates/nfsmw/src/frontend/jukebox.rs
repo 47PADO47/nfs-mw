@@ -17,7 +17,7 @@ use glam::{Vec2, Vec3};
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
 use crate::settings::eatrax::{Jukebox, Mode};
 use crate::ui::UiAssets;
 use crate::ui::theme::remastered::menu::layout::window_start;
@@ -285,7 +285,7 @@ impl ScreenLogic for JukeboxLogic {
         self.state.selected = row.min(self.state.jukebox.len() - 1);
         match pick {
             Pick::Hover => self.fill(cx),
-            Pick::Press(..) => self.act(cx, PAD_ACCEPT),
+            Pick::Press(..) => self.act_pointer(cx, PAD_ACCEPT),
         }
     }
 
@@ -329,6 +329,10 @@ impl ScreenLogic for JukeboxLogic {
         })
     }
 
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
+    }
+
     fn message(&mut self, cx: &mut Cx, message: u32) {
         self.act(cx, message);
     }
@@ -342,7 +346,7 @@ impl ScreenLogic for JukeboxLogic {
             let Some(label) = tree.nodes.iter().find(|n| n.name_hash == name) else { continue };
             let centre = label.world.transform_point3(Vec3::ZERO).truncate() + Vec2::new(20.0, 0.0);
             if (point - centre).abs().cmple(FOOTER_HALF).all() {
-                self.act(cx, message);
+                self.act_pointer(cx, message);
                 return true;
             }
         }
@@ -351,6 +355,15 @@ impl ScreenLogic for JukeboxLogic {
 }
 
 impl JukeboxLogic {
+    fn act_pointer(&mut self, cx: &mut Cx, message: u32) {
+        let before = self.state.clone();
+        let commands = cx.commands.len();
+        self.act(cx, message);
+        if self.state != before || cx.commands.len() != commands {
+            crate::audio::menu::request(message);
+        }
+    }
+
     fn act(&mut self, cx: &mut Cx, message: u32) {
         match self.state.press(message) {
             Action::Nothing => {}

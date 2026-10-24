@@ -15,12 +15,12 @@ use anyhow::{Context, Result};
 use nfsmw_career::blacklist::{Blacklist, PopupQueue};
 use nfsmw_career::economy::markers::MarkerInventory;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
-use nfsmw_career::milestones::{Milestone, MilestoneSet, STAT_COUNT, StatValue};
+use nfsmw_career::milestones::{Milestone, MilestoneSet, MilestoneState, STAT_COUNT, StatValue};
 use nfsmw_career::rapsheet::PursuitHistory;
 use nfsmw_career::save::ProfileSave;
 use nfsmw_career::save::milestones_block::{ArrayError, BinCounter, MilestoneBlock, MilestoneEntry, SpeedTrapEntry};
 use nfsmw_career::savefile::AutosaveManager;
-use nfsmw_career::settings::{CareerSettings, NewCareer, new_career_with};
+use nfsmw_career::settings::{CareerSettings, FIRST_RIVAL_STAGE, NewCareer, new_career_with};
 use nfsmw_career::stable::Stable;
 
 use super::CareerData;
@@ -102,6 +102,13 @@ impl Career {
         // The Blacklist re-checks its rival gates against the bounty; the entries it returns are not replayed here.
         let _ = blacklist.bounty_changed(total);
         let (milestones, traps) = restored_progress(&settings, &data).unwrap_or_else(|| fresh_progress(&data));
+        // The bins the career has entered get their races won (the race records' won-in-career flag) and challenges passed
+        // back, and with them their resting state (`career-blacklist.md` sections 4.3 and 8).
+        let nodes = settings.nodes();
+        blacklist.restore_progress(
+            |event| nodes.get(event).is_some_and(|state| state.won_in_career()),
+            |bin| passed_challenges(&milestones, &traps, bin),
+        );
         let markers = MarkerInventory::from_table(&settings.inventory[..]).context("reading the marker inventory")?;
         Ok(Career {
             alias: alias.to_string(),
@@ -128,6 +135,7 @@ impl Career {
     /// written, the milestone block only when its header counts already hold the records (see [`write_progress`]).
     pub fn profile_bytes(&mut self) -> Vec<u8> {
         self.blacklist.apply_to_settings(&mut self.settings);
+        self.write_race_records();
         if let Err(e) = self.write_progress() {
             log::warn!("career progress not written to the milestone block: {e:#}");
         }
@@ -140,6 +148,21 @@ impl Career {
             log::warn!("pursuit history not written to the profile: {e}");
         }
         self.profile.to_bytes()
+    }
+
+    /// Marks every race the Blacklist counts as won with the won-in-career flag of its race record, which is how the original
+    /// keeps them (`career-blacklist.md` section 4.1). The records already in the file keep their other bits and results.
+    fn write_race_records(&mut self) {
+        let mut nodes = self.settings.nodes();
+        for number in 1..=FIRST_RIVAL_STAGE {
+            let Some(record) = self.blacklist.bin(number) else { continue };
+            for event in record.races_won.iter().chain(&record.rival_races_won) {
+                if let Err(e) = nodes.set_won_in_career(event) {
+                    log::warn!("race record of {event} not written: {e}");
+                }
+            }
+        }
+        self.settings.set_nodes(&nodes);
     }
 
     /// The Blacklist's current bin, the stage the career is at (16 for the prologue, 1 for the last rival).
@@ -197,6 +220,18 @@ impl Career {
         block.write_into(&mut self.settings.gameplay_blob[..])?;
         Ok(())
     }
+}
+
+/// The ids of the challenges passed in bin `bin`, as the Blacklist counts them: the milestones banked and the speed traps
+/// done, each by its collection key.
+fn passed_challenges(milestones: &MilestoneSet, traps: &[SpeedTrap], bin: u8) -> Vec<String> {
+    let banked = milestones
+        .milestones()
+        .iter()
+        .filter(|m| m.def.bin == bin && m.state == MilestoneState::Complete)
+        .map(|m| m.def.key.to_string());
+    let done = traps.iter().filter(|trap| trap.bin() == bin && trap.done()).map(|trap| trap.key().to_string());
+    banked.chain(done).collect()
 }
 
 /// The milestone block of a new career: every milestone and speed trap locked, nothing banked, one bin counter per

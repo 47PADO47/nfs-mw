@@ -6,6 +6,7 @@ use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEF
 use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
 use glam::{Vec2, Vec3};
 
+use super::disabled;
 use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, Pick, ScreenLogic, Way};
 use super::mod_options;
@@ -23,8 +24,6 @@ const ROWS_ON_SCREEN_PAUSED: usize = 10;
 /// (the fill image is 32 high and the base 6), and the base sits this far below the row's top.
 const FILL_INSET: Vec2 = Vec2::new(2.0, -12.0);
 const SLIDER_DROP: f32 = 9.5;
-/// The alpha of a disabled row's title, value and arrows (the enabled ones are fully opaque).
-const DISABLED_ALPHA: u8 = 110;
 pub struct WidgetMenu {
     args: Args,
     rows: Vec<Row>,
@@ -182,9 +181,9 @@ impl WidgetMenu {
         for o in objects {
             let Some(current) = cx.rt.alpha(o) else { continue };
             let alpha = match (enabled, current) {
-                (true, DISABLED_ALPHA) => 255,
+                (true, disabled::TEXT_ALPHA) => 255,
                 (true, _) => continue,
-                (false, _) => current.min(DISABLED_ALPHA),
+                (false, _) => current.min(disabled::TEXT_ALPHA),
             };
             cx.rt.set_alpha(o, alpha);
         }
@@ -241,7 +240,7 @@ impl WidgetMenu {
             return;
         }
         let Some(r) = self.objects.get(self.selected.saturating_sub(self.top)) else { return };
-        let alpha = if row.setting.enabled_in(cx.settings, &cx.caps) { 255 } else { DISABLED_ALPHA };
+        let alpha = if row.setting.enabled_in(cx.settings, &cx.caps) { 255 } else { disabled::TEXT_ALPHA };
         cx.rt.set_alpha(r.name, alpha);
     }
 
@@ -300,15 +299,14 @@ impl WidgetMenu {
         }
         let Some(slot) = self.slot_at(cx.rt, point) else { return false };
         let Some((left, right)) = self.objects.get(slot).map(|r| (r.left, r.right)) else { return false };
-        let arrows: Vec<ObjectRef> = [left, right].into_iter().flatten().collect();
-        let arrow = cx.rt.object_at(&arrows, point);
+        let arrow = cx.hit_index(&[left, right], point);
         self.select(cx, self.top + slot);
         if self.rows[self.selected].setting == options::Setting::AdvancedGraphics {
-            self.change(cx, true);
+            self.change_from_pointer(cx, true);
             return true;
         }
         if let Some(arrow) = arrow {
-            self.change(cx, Some(arrow) == right);
+            self.change_from_pointer(cx, arrow == 1);
         }
         true
     }

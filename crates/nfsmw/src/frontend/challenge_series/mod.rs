@@ -52,7 +52,7 @@ pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};
 use super::ids::{self, screen};
-use super::logic::{Args, Command, Cx, ScreenLogic};
+use super::logic::{Args, Command, Cx, ScreenLogic, wheel_as_rows};
 use crate::settings::Transmission;
 use crate::ui::Text;
 use board::{Board, Entry};
@@ -373,15 +373,13 @@ impl ChallengeSeries {
     fn click_icon(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
         let icons: Vec<Option<blackbox_feng::ObjectRef>> =
             (1..=SLOTS).map(|n| cx.object(fe_hash_upper(&format!("EVENT_ICON_{n}")))).collect();
-        let found = icons.iter().flatten().copied().collect::<Vec<_>>();
-        let Some(hit) = cx.rt.object_at(&found, point) else { return false };
-        let Some(slot) = icons.iter().position(|o| *o == Some(hit)) else { return false };
+        let Some(slot) = cx.hit_index(&icons, point) else { return false };
         if !self.grid.pick(slot) {
             return false;
         }
         cx.memory.insert(Self::memory_key(), self.grid.current);
         self.refresh(cx);
-        self.press(cx);
+        cx.press_sound(|cx| self.press(cx));
         true
     }
 
@@ -423,6 +421,10 @@ impl ScreenLogic for ChallengeSeries {
 
     fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
         !self.leaving && self.click_icon(cx, point)
+    }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

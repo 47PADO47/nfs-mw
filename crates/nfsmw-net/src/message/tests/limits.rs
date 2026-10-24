@@ -38,6 +38,21 @@ fn text_on_the_wire_must_be_clean() {
     assert_eq!(send(&[0xC3, 0x28]), Err(DecodeError::BadText));
     assert_eq!(send("a\u{2066}b".as_bytes()), Err(DecodeError::BadText));
     assert_eq!(send(b"a\x07b"), Err(DecodeError::BadText));
+    // A compatibility form (a full-width letter, a ligature) is not NFKC: the wire refuses it.
+    assert_eq!(send("\u{FF21}nn".as_bytes()), Err(DecodeError::BadText));
+    assert_eq!(send("o\u{FB01}ce".as_bytes()), Err(DecodeError::BadText));
+    assert!(send("caf\u{E9}".as_bytes()).is_ok(), "an NFKC letter with an accent is fine");
+}
+
+#[test]
+fn text_is_made_normal_when_it_is_built_and_bounded_before() {
+    assert_eq!(Name::new("\u{FF21}nn").unwrap().as_str(), "Ann");
+    assert_eq!(Name::new("o\u{FB01}ce").unwrap().as_str(), "ofice");
+    assert_eq!(Name::new("e\u{301}").unwrap().as_str(), "\u{E9}", "a letter and its accent compose");
+    // U+FDFA is one character that becomes eighteen: the bound is checked on the normal form.
+    assert!(Name::new("\u{FDFA}").is_ok());
+    assert!(Name::new("\u{FDFA}\u{FDFA}").is_err());
+    assert!(Name::new(&"\u{FDFA}".repeat(1000)).is_err(), "an input far past the bound is refused unprocessed");
 }
 
 #[test]
@@ -145,4 +160,12 @@ fn primitives_are_strict() {
     assert_eq!(decode(&[0x08, 0x00, 1, 9, 0]), Err(DecodeError::BadEnum));
     // A reserved mode byte in a LoadWorld.
     assert_eq!(decode(&[0x18, 0x00, 1, 1, 9, 0, 0, 0, 0, 0, 0, 0, 0]), Err(DecodeError::BadEnum));
+}
+
+#[test]
+fn a_room_password_is_the_same_secret_in_any_compatibility_form() {
+    use super::super::password_secret;
+    assert_eq!(password_secret("\u{FF50}ass word"), password_secret("pass word"));
+    assert_eq!(password_secret(" pass "), b" pass ".to_vec(), "spaces are part of a password");
+    assert_eq!(password_secret("e\u{301}"), password_secret("\u{E9}"));
 }

@@ -2,10 +2,11 @@
 
 mod contacts;
 pub(super) mod cop_health;
-mod entry_marks;
+pub(in crate::scenes::world) mod entry_marks;
 #[cfg(test)]
 mod ground_tests;
 mod marks;
+mod rain;
 mod smoke;
 #[cfg(test)]
 mod tests;
@@ -23,6 +24,7 @@ pub const MAX_HIGH_PARTICLES: usize = 1536;
 pub const MAX_MARKS: usize = 2048;
 
 pub struct TireEffects {
+    wet: bool,
     smoke: Smoke,
     marks: Marks,
     enabled: [bool; 2],
@@ -31,11 +33,23 @@ pub struct TireEffects {
 
 impl Default for TireEffects {
     fn default() -> Self {
-        Self { smoke: Smoke::default(), marks: Marks::default(), enabled: [true; 2], layer: EffectLayer::default() }
+        Self {
+            wet: false,
+            smoke: Smoke::default(),
+            marks: Marks::default(),
+            enabled: [true; 2],
+            layer: EffectLayer::default(),
+        }
     }
 }
 
 impl TireEffects {
+    pub fn set_wet(&mut self, wet: bool) {
+        if wet && !self.wet {
+            self.smoke.clear();
+        }
+        self.wet = wet;
+    }
     pub fn set_quality(&mut self, quality: crate::settings::SmokeQuality) {
         self.smoke.set_quality(quality);
     }
@@ -75,7 +89,7 @@ impl TireEffects {
         }
         self.age(dt);
         for (wheel, contact) in contacts.into_iter().enumerate() {
-            if self.enabled[0] {
+            if self.enabled[0] && !self.wet {
                 self.smoke.emit(wheel, contact, velocity, dt);
             }
             if self.enabled[1] {

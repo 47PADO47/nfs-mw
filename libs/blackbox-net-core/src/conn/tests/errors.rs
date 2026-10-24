@@ -182,12 +182,59 @@ fn frames_before_a_bad_one_are_still_handed_out() {
 }
 
 #[test]
-fn padding_and_reserved_types_are_skipped() {
+fn padding_is_skipped_and_the_path_frames_are_the_connections_own() {
     let (_, mut b) = pair();
-    let frames = [0x00, 0x12, 0x00, 0x13, 0x01, 0x07, 0x00, 0x00, 0x30, 0x01, 0x42, 0x00];
+    let mut frames = vec![0x00, 0x12, 0x08];
+    frames.extend_from_slice(&[1; 8]);
+    frames.extend_from_slice(&[0x13, 0x08]);
+    frames.extend_from_slice(&[2; 8]);
+    frames.extend_from_slice(&[0x00, 0x00, 0x30, 0x01, 0x42, 0x00]);
     let (result, got) = read(&mut b, 0, &raw(0, &frames));
     assert_eq!(result, Ok(0));
-    assert_eq!(got, vec![(0x30, vec![0x42])]);
+    assert_eq!(got, vec![(0x30, vec![0x42])], "path frames are not handed to the caller");
+    assert_eq!(b.take_path_response(), Some([2; 8]));
+    assert_eq!(b.take_path_response(), None, "a response is taken once");
+}
+
+#[test]
+fn a_path_frame_with_a_token_of_the_wrong_length_is_malformed() {
+    for frames in [[0x12, 0x00].as_slice(), &[0x12, 0x01, 0x07], &[0x13, 0x02, 0x07, 0x07], &[0x13, 0x00]] {
+        let (_, mut b) = pair();
+        assert_eq!(read(&mut b, 0, &raw(0, frames)).0, Err(ConnError::BadFrame), "frames {frames:02x?}");
+    }
+}
+
+#[test]
+fn a_path_challenge_is_answered_in_the_next_packet_and_only_once() {
+    let (mut a, mut b) = pair();
+    let mut probe = vec![0u8; MAX_DATAGRAM];
+    let sent = a.write_path_challenge(0, &[5; 8], &mut probe).expect("probe");
+    probe.truncate(sent.len);
+    assert_eq!(read(&mut b, 0, &probe).0, Ok(0));
+    let first = packet(&mut b, 10, &[]);
+    let (result, got) = read(&mut a, 10, &first);
+    assert_eq!(result, Ok(0));
+    assert!(got.is_empty());
+    assert_eq!(a.take_path_response(), Some([5; 8]), "the answer carries the challenge's token");
+    let second = packet(&mut b, 20, &[]);
+    assert_eq!(read(&mut a, 20, &second).0, Ok(1));
+    assert_eq!(a.take_path_response(), None, "the answer went out once");
+}
+
+#[test]
+fn a_path_challenge_packet_carries_nothing_else() {
+    let (mut a, mut b) = pair();
+    a.send_message(0, b"queued").unwrap();
+    a.close(3);
+    let mut probe = vec![0u8; MAX_DATAGRAM];
+    let sent = a.write_path_challenge(0, &[5; 8], &mut probe).expect("probe");
+    assert_eq!(sent.len, HEADER_LEN + 2 + 8, "the header, the frame's type and length, the token");
+    probe.truncate(sent.len);
+    assert_eq!(read(&mut b, 0, &probe).0, Ok(0));
+    let mut message = Vec::new();
+    assert_eq!(b.recv_message(&mut message), None, "the queued message did not go to the probed address");
+    assert_eq!(b.poll_event(), None, "nor did the disconnect");
+    assert!(a.has_due_reliable(0), "it is still due on the real path");
 }
 
 #[test]

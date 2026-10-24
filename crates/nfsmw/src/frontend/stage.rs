@@ -10,6 +10,8 @@ pub enum Stage {
     Crib,
     /// Platform 2: the career safe house.
     SafeHouse,
+    /// Platform 5: the car lot, its own room, which the lot zones and the first car's purchase open.
+    CarLot,
 }
 
 /// How the original stands a car on a platform: the yaw of the car and the height its wheels rest at. [exe]
@@ -20,14 +22,19 @@ pub struct CarStand {
     pub sink: f32,
 }
 
-/// How the car stands on the platforms here (the crib and the safe house share it). [exe]
+/// How the car stands on the crib and the safe house, which share it. [exe]
 pub const CAR_STAND: CarStand = CarStand { yaw: 304.97, sink: 0.025 };
+
+/// How the car stands in the car lot: the stand routine turns it 340 degrees there (`menu-backdrop-looks.md` section 4.1).
+/// [exe]
+pub const CAR_LOT_STAND: CarStand = CarStand { yaw: 340.0, sink: 0.025 };
 
 impl Look {
     /// The stage the look stands on.
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
+            Look::CarLot(_) | Look::LotShowcase(_) => Stage::CarLot,
             Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
         }
     }
@@ -40,7 +47,8 @@ impl Look {
             Look::Main => Some("main_fe"),
             Look::Car(_) => Some("career_manager"),
             Look::SafeHouse(_) => Some("career_safehouse"),
-            Look::Showcase(_) => None,
+            Look::CarLot(_) => Some("car_lot"),
+            Look::Showcase(_) | Look::LotShowcase(_) => None,
         }
     }
 }
@@ -51,28 +59,55 @@ impl Stage {
         match self {
             Stage::Crib => "FRONTEND/PLATFORMS/PlatformCrib.BIN",
             Stage::SafeHouse => "FRONTEND/PLATFORMS/CAREER_SAFEHOUSE.BIN",
+            Stage::CarLot => "FRONTEND/PLATFORMS/CAR_LOT.BIN",
         }
     }
 
-    /// Degrees the room is turned about the vertical axis from where its file puts it, so the camera poses of the original
-    /// (which turn about the car) see the room as its pictures show it. [unverified] Fitted against pictures of the original's
-    /// main menu and career menu, where the crib's houses stand behind the car; the executable gives no such turn. The
-    /// safe house needs none.
+    /// How a car stands on this stage.
+    pub fn car_stand(self) -> &'static CarStand {
+        match self {
+            Stage::CarLot => &CAR_LOT_STAND,
+            Stage::Crib | Stage::SafeHouse => &CAR_STAND,
+        }
+    }
+
+    /// Crib framing retains the port's visual fit; the complete original coordinate conversion is unverified.
     pub fn room_yaw(self) -> f32 {
         match self {
             Stage::Crib => 180.0,
-            Stage::SafeHouse => 0.0,
+            Stage::SafeHouse | Stage::CarLot => 0.0,
         }
     }
 
-    /// Whether the solid called `name` is drawn. The crib draws all of its five. The safe house file also holds the high
+    /// The name of a solid as the tables here spell it. A modified platform file can name its solids twice over
+    /// (`BACKDROP_BACKDROP_CRIB`, `menu-backdrop-looks.md` section 2), which is the same solid as `BACKDROP_CRIB`.
+    pub fn canonical_name(name: &str) -> &str {
+        const PREFIX: &str = "BACKDROP_";
+        match name.strip_prefix(PREFIX) {
+            Some(rest) if rest.starts_with(PREFIX) => rest,
+            _ => name,
+        }
+    }
+
+    /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour. Names are canonical.
+    pub fn shadow_source(self, name: &str) -> bool {
+        match self {
+            Stage::Crib => name.starts_with("BACKDROP_CAST_SHADOW_MAP"),
+            Stage::SafeHouse => name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"),
+            Stage::CarLot => false,
+        }
+    }
+
+    /// Whether the solid called `name` (canonical) is drawn. The crib draws its `BACKDROP_*` solids: the room, the sky and
+    /// the warehouse props, whatever their count, and omits emitter and light-helper meshes. The safe house file also holds the high
     /// resolution geometry the original renders its shadow map from (`BACKDROP_CAST_SHADOW_MAP_NEXTGEN`, above the room) and
     /// particle emitter markers (`STEAM EMITTER*`), which are not part of the picture. The three other `BACKDROP_CAST_SHADOW_MAP*`
     /// solids are inside the room and hold its props and wall parts (the couch, the tank, the posters, the pipes), which the
     /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
-            Stage::Crib => true,
+            Stage::Crib => name.starts_with("BACKDROP_"),
+            Stage::CarLot => true,
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
             }
@@ -90,6 +125,15 @@ mod tests {
         assert_eq!(Look::Main.stage(), Stage::Crib);
         assert_eq!(Look::Car(CarLook::default_car()).stage(), Stage::Crib);
         assert_eq!(Look::SafeHouse(CarLook::default_car()).stage(), Stage::SafeHouse);
+        assert_eq!(Look::CarLot(CarLook::default_car()).stage(), Stage::CarLot);
+    }
+
+    #[test]
+    fn the_car_lot_is_its_own_room_and_turns_the_car_340_degrees() {
+        assert_eq!(Stage::CarLot.file(), "FRONTEND/PLATFORMS/CAR_LOT.BIN");
+        assert_eq!(Look::CarLot(CarLook::default_car()).camera_intro(), Some("car_lot"));
+        assert_eq!(Stage::CarLot.car_stand().yaw, 340.0);
+        assert_eq!(Stage::SafeHouse.car_stand().yaw, 304.97);
     }
 
     #[test]
@@ -99,7 +143,25 @@ mod tests {
         assert!(Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP2"));
         assert!(!Stage::SafeHouse.draws("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
         assert!(!Stage::SafeHouse.draws("STEAM EMITTER03"));
-        assert!(Stage::Crib.draws("BACKDROP_BACKDROP_CAST_SHADOW_MAP2"));
+        assert!(Stage::Crib.draws("BACKDROP_CRIB"));
+        assert!(Stage::Crib.draws("BACKDROP_CURRGEN"));
+        assert!(Stage::Crib.draws("BACKDROP_CAST_SHADOW_MAP"), "the textured warehouse is visible scenery");
+        assert!(Stage::Crib.draws("BACKDROP_CAST_SHADOW_MAP2"), "so are the props of a file that has more than one");
+        for helper in ["LIGHT HELPER 3", "FX_STEAM", "BIRDEMITTER"] {
+            assert!(!Stage::Crib.draws(helper), "{helper} must not enter the colour pass");
+        }
+        assert!(Stage::Crib.shadow_source("BACKDROP_CAST_SHADOW_MAP"));
+        assert!(!Stage::Crib.shadow_source("BACKDROP_CRIB"));
+        assert!(Stage::SafeHouse.shadow_source("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
+    }
+
+    #[test]
+    fn a_doubled_prefix_names_the_same_solid() {
+        assert_eq!(Stage::canonical_name("BACKDROP_BACKDROP_CRIB"), "BACKDROP_CRIB");
+        assert_eq!(Stage::canonical_name("BACKDROP_BACKDROP_CAST_SHADOW_MAP5"), "BACKDROP_CAST_SHADOW_MAP5");
+        assert_eq!(Stage::canonical_name("BACKDROP_CRIB"), "BACKDROP_CRIB");
+        assert_eq!(Stage::canonical_name("STEAM EMITTER01"), "STEAM EMITTER01");
+        assert!(Stage::Crib.draws(Stage::canonical_name("BACKDROP_BACKDROP_CRIB")), "the modified room is drawn");
     }
 
     #[test]

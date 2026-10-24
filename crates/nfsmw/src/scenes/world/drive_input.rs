@@ -9,6 +9,33 @@ use super::{FLOWN_AWAY, View, WorldScene, ground, road};
 
 /// How long a car may wait for its surroundings to load before it is placed on the nearest road anyway.
 const ROAD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+/// The same wait in a session, counted in ticks (`SessionRules::lockstep_streaming`): the wall clock would make the
+/// moment the car is placed depend on how fast this machine loads (`docs/specs/multiplayer/determinism.md`, D2).
+const ROAD_WAIT_TICKS: u32 = 600;
+
+/// How long a car has waited for the road: the wall clock, and the updates that passed.
+#[derive(Debug)]
+pub(super) struct RoadWait {
+    since: std::time::Instant,
+    ticks: u32,
+}
+
+impl RoadWait {
+    fn new() -> Self {
+        Self { since: std::time::Instant::now(), ticks: 0 }
+    }
+
+    /// Counts one more update; the time waited so far in seconds, and whether the wait is over. A session counts ticks,
+    /// single player the wall clock.
+    fn tick(&mut self, by_ticks: bool) -> (f32, bool) {
+        self.ticks = self.ticks.saturating_add(1);
+        let seconds = self.since.elapsed().as_secs_f32();
+        match by_ticks {
+            true => (self.ticks as f32 / 60.0, self.ticks > ROAD_WAIT_TICKS),
+            false => (seconds, self.since.elapsed() > ROAD_WAIT),
+        }
+    }
+}
 /// How far above a car reset where it stands the road under it is looked for.
 const RESET_ABOVE: f32 = 3.0;
 
@@ -22,9 +49,9 @@ impl WorldScene {
             self.waiting_since = None;
             return;
         };
-        let waited = self.waiting_since.get_or_insert_with(std::time::Instant::now).elapsed();
+        let (waited, timed_out) =
+            self.waiting_since.get_or_insert_with(RoadWait::new).tick(self.rules.lockstep_streaming);
         let loaded = self.residency.complete();
-        let timed_out = waited > ROAD_WAIT;
         if !loaded && !timed_out {
             return;
         }
@@ -45,7 +72,7 @@ impl WorldScene {
                     spawn.position.x,
                     spawn.position.y,
                     spawn.position.z,
-                    waited.as_secs_f32()
+                    waited
                 ),
             }
             return;
@@ -53,7 +80,7 @@ impl WorldScene {
         if !loaded {
             log::warn!(
                 "the world did not finish loading after {:.0} s; placing the car on the nearest road it can reach",
-                waited.as_secs_f32()
+                waited
             );
         }
         self.waiting_since = None;

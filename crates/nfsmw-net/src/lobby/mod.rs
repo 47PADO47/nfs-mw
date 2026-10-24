@@ -31,6 +31,7 @@
 mod admin;
 mod choices;
 mod member;
+mod names;
 mod rate;
 mod roster;
 mod start;

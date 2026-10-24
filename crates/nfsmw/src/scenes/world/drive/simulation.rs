@@ -96,8 +96,15 @@ impl Drive {
         let (strength, speed, slip) = sim.drift_charge();
         self.breaker.charge_drift(strength, speed, slip, clock::STEP);
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));
-        self.effects.step(sim.tire_contacts(collision), sim.effect_velocity(), clock::STEP);
+        let tire_contacts = sim.tire_contacts(collision);
+        self.effects.step(tire_contacts, sim.effect_velocity(), clock::STEP);
         self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
+        self.vehicle_effects.water_step(
+            sim.water_contacts(tire_contacts),
+            sim.pose(),
+            sim.effect_velocity(),
+            clock::STEP,
+        );
         self.vehicle_effects.bounce(collision, clock::STEP);
         self.markers.record(&impact.contacts, sim.tyre_hits());
         self.prop_touch.step(&impact.contacts, clock::STEP);

@@ -16,7 +16,10 @@ fn install() -> Option<GameDir> {
 }
 
 fn backend() -> NullBackend {
-    NullBackend::new(crate::settings::test_caps::native()).with_mesh_tracking().with_texture_tracking()
+    NullBackend::new(crate::settings::test_caps::native())
+        .with_mesh_tracking()
+        .with_texture_tracking()
+        .with_reflection_tracking()
 }
 
 /// Builds the backdrop of `look`, draws a frame and tears it down; returns the meshes it uploaded and the drawn parts.
@@ -140,14 +143,26 @@ fn the_rooms_draw_the_solids_their_stage_names() {
     use crate::frontend::room::Room;
     let Some(dir) = install() else { return };
     let mut renderer = backend();
-    // The safe house file has sixteen solids; the drawn ones are the room, its floor reflection, the sky and the three solids of
-    // props inside the room.
-    for (stage, solids) in [(Stage::SafeHouse, 6), (Stage::Crib, 5)] {
+    for stage in [Stage::SafeHouse, Stage::Crib] {
+        // Stage files vary across installations. Compare the selected file's drawable solids in order,
+        // rather than assuming a historical count of five crib solids.
+        let bytes = dir.read(stage.file()).unwrap();
+        let expected: Vec<String> = blackbox_solid::read_solids(&bytes)
+            .unwrap()
+            .into_iter()
+            .map(|solid| (Stage::canonical_name(&solid.name).to_owned(), solid))
+            .filter(|(name, _)| stage.draws(name))
+            .filter(|(_, solid)| !solid.vertices.is_empty() && !solid.indices.is_empty())
+            .map(|(name, _)| name)
+            .collect();
+        assert!(expected.iter().any(|name| name == "BACKDROP_CRIB"), "{stage:?} includes its room");
         let room = Room::load(&mut renderer, &dir, stage).unwrap();
-        assert_eq!(room.instances().len(), solids, "{stage:?}");
+        let actual: Vec<String> =
+            room.instances().iter().map(|instance| renderer.mesh_labels[&instance.mesh].clone()).collect();
+        assert_eq!(actual, expected, "{stage:?} uploads exactly the selected file's drawable solids in file order");
         room.destroy(&mut renderer);
+        assert!(renderer.mesh_labels.is_empty(), "{stage:?} releases every room mesh");
     }
-    assert!(renderer.mesh_labels.is_empty());
 }
 
 #[test]
@@ -215,4 +230,161 @@ fn a_backdrop_without_an_install_is_ready_at_once() {
     menu.init(&mut renderer).unwrap();
     assert!(menu.ready());
     assert!(menu.frame(16.0 / 9.0).1.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed menu camera and geometry; set NFSMW_GAME_DIR"]
+fn navigating_before_the_backdrop_uploads_keeps_the_latest_camera_target() {
+    let dir = install().expect("installed menu camera and geometry");
+    let mut renderer = backend();
+    let rig = CameraRig::default();
+    let mut menu = MenuScene::with_look(Some(dir.clone()), Look::Main).with_rig(rig.clone());
+    menu.init(&mut renderer).unwrap();
+    assert!(!menu.ready());
+    rig.show("mainmenu");
+    rig.show("career_manager");
+    menu.settle(&mut renderer);
+    let eye = eye_after(&mut menu, &mut renderer, 8.0);
+    assert!((eye - eye_of(&dir, "angle_career_manager")).length() < 1e-3, "latest screen wins: {eye:?}");
+    menu.close(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires installed menu camera and geometry; set NFSMW_GAME_DIR"]
+fn a_settled_direct_screen_uses_its_own_pose_instead_of_the_stage_intro() {
+    let dir = install().expect("installed menu camera and geometry");
+    let mut renderer = backend();
+    let rig = CameraRig::settled();
+    let mut menu = MenuScene::with_look(Some(dir.clone()), Look::Main).with_rig(rig.clone());
+    menu.init(&mut renderer).unwrap();
+    rig.show("career_manager");
+    menu.settle(&mut renderer);
+    let eye = eye_after(&mut menu, &mut renderer, 0.0);
+    assert!((eye - eye_of(&dir, "angle_career_manager")).length() < 1e-3, "direct screen pose: {eye:?}");
+    menu.close(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires installed menu camera and geometry; set NFSMW_GAME_DIR"]
+fn menu_reflections_capture_only_the_room_and_follow_live_graphics_settings() {
+    use blackbox_gfx::ReflectionQuality;
+    use blackbox_gfx::reflection::ALL_FACES;
+    let dir = install().expect("installed menu camera and geometry");
+    let mut renderer = backend();
+    let rig = CameraRig::settled();
+    let mut menu = menu_on(&dir, Look::Main, &rig, &mut renderer);
+    let set_quality = |renderer: &mut NullBackend, quality| {
+        let mut graphics = *renderer.graphics();
+        graphics.reflections = quality;
+        renderer.apply_graphics(&graphics);
+    };
+    set_quality(&mut renderer, ReflectionQuality::High);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    let capture = renderer.reflection.as_ref().expect("menu submits a local room capture");
+    assert_eq!(capture.quality, ReflectionQuality::High);
+    assert_eq!(capture.refresh, ALL_FACES);
+    for face in &capture.faces {
+        let room = menu.room.as_ref().unwrap().instances();
+        assert_eq!(face.len(), room.len(), "the car never reflects itself");
+        for (actual, expected) in face.iter().zip(room) {
+            assert_eq!((actual.mesh, actual.transform, actual.key), (expected.mesh, expected.transform, expected.key));
+        }
+    }
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(renderer.reflection.as_ref().unwrap().refresh, 0, "the stationary room reuses its capture");
+    let mut graphics = *renderer.graphics();
+    graphics.reflection_resolution.cube = blackbox_gfx::reflection::ReflectionSize::Auto;
+    renderer.apply_graphics(&graphics);
+    renderer.resize([2560, 1440]);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(renderer.reflection.as_ref().unwrap().refresh, ALL_FACES, "automatic resolution follows resize");
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(renderer.reflection.as_ref().unwrap().refresh, 0);
+    renderer.set_reflection_scene(None);
+    menu.reattached(&mut renderer);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(
+        renderer.reflection.as_ref().unwrap().refresh,
+        ALL_FACES,
+        "returning from driving restores the room capture"
+    );
+    set_quality(&mut renderer, ReflectionQuality::Low);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert_eq!(renderer.reflection.as_ref().unwrap().refresh, ALL_FACES, "quality changes recapture");
+    set_quality(&mut renderer, ReflectionQuality::Off);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert!(renderer.reflection.is_none(), "disabling reflections releases the room capture");
+    set_quality(&mut renderer, ReflectionQuality::High);
+    menu.set_car_shading(CarShading::Simple);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert!(renderer.reflection.is_none(), "simple shading follows the same rule as driving");
+    menu.close(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires installed safe-house geometry; set NFSMW_GAME_DIR"]
+fn safe_house_floor_capture_uses_only_the_car_and_keeps_main_camera_cuts() {
+    let dir = install().expect("installed safe house");
+    let mut renderer = backend();
+    let mut graphics = *renderer.graphics();
+    graphics.reflections = blackbox_gfx::ReflectionQuality::High;
+    renderer.apply_graphics(&graphics);
+    let rig = CameraRig::settled();
+    let mut menu = menu_on(&dir, Look::SafeHouse(CarLook::default_car()), &rig, &mut renderer);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    let capture = renderer.planar.as_ref().expect("verified floor receives the car capture");
+    assert!(!capture.instances.is_empty());
+    assert_eq!(capture.clip_plane, [0.0, 0.0, 1.0, 0.0]);
+    assert_eq!(capture.receivers, [menu.room.as_ref().unwrap().floor_texture().unwrap()]);
+    assert!(capture.instances.iter().all(|part| matches!(car_part(part), Part::Car)));
+    let (main, parts) = menu.frame(16.0 / 9.0);
+    assert!(main.camera_cut, "reduced captures must not consume the main camera cut");
+    let reflection = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0));
+    assert_eq!(capture.frame.view, main.view * reflection);
+    assert_eq!(capture.frame.camera_position, reflection.transform_point3(main.camera_position));
+    for source in &capture.instances {
+        assert!(parts.iter().any(|part| part.mesh == source.mesh && part.transform == source.transform));
+    }
+    let mut graphics = *renderer.graphics();
+    graphics.reflections = blackbox_gfx::ReflectionQuality::Off;
+    renderer.apply_graphics(&graphics);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert!(renderer.planar.is_none());
+    graphics.reflections = blackbox_gfx::ReflectionQuality::High;
+    renderer.apply_graphics(&graphics);
+    menu.reattached(&mut renderer);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+    assert!(renderer.planar.is_some());
+    menu.close(&mut renderer);
+    assert!(renderer.planar.is_none() && renderer.shadow_casters.is_none());
+    assert!(renderer.mesh_labels.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed stage geometry; set NFSMW_GAME_DIR"]
+fn floor_receiver_rejects_nonplanar_replacement_geometry_and_crib_helpers_are_hidden() {
+    let dir = install().expect("installed stage");
+    let file = dir.read(Stage::SafeHouse.file()).unwrap();
+    let mut solids = blackbox_solid::read_solids(&file).unwrap();
+    assert!(crate::frontend::room_floor::floor_texture(&solids, Stage::SafeHouse).is_some());
+    for solid in &mut solids {
+        for vertex in &mut solid.vertices {
+            vertex.position[2] += 1.0;
+        }
+    }
+    assert!(crate::frontend::room_floor::floor_texture(&solids, Stage::SafeHouse).is_none());
+    let mut renderer = backend();
+    let room = crate::frontend::room::Room::load(&mut renderer, &dir, Stage::Crib).unwrap();
+    // A modified file has more props than the stock one and spells every name twice; none is a helper.
+    assert!(!room.instances().is_empty(), "the crib draws its room");
+    assert!(room.instances().iter().all(|part| renderer.mesh_labels[&part.mesh].starts_with("BACKDROP_")));
+    assert!(room.instances().iter().any(|part| renderer.mesh_labels[&part.mesh] == "BACKDROP_CRIB"));
+    assert!(
+        room.shadow_casters()
+            .iter()
+            .all(|part| renderer.mesh_labels[&part.mesh].starts_with("BACKDROP_CAST_SHADOW_MAP"))
+    );
+    assert!(!room.shadow_casters().is_empty());
+    room.destroy(&mut renderer);
+    assert!(renderer.mesh_labels.is_empty());
 }

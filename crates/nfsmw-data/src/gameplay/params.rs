@@ -42,8 +42,6 @@ pub struct RaceParams {
     pub force_heat_level: i32,
     /// Event/bin heat limits. Spec: `docs/specs/ai-pursuit-context.md`.
     pub pursuit_heat: crate::pursuit::EventHeat,
-    /// Authored police placements used by the opening script (`cop_spawn_1`, `cop_spawn_2`).
-    pub scripted_cop_spawns: Vec<Placement>,
     /// `CopsInRace`.
     pub cops_in_race: bool,
     /// `PursuitRace`: the challenge races.
@@ -113,7 +111,6 @@ impl Default for RaceParams {
             force_traffic_density: 0,
             force_heat_level: 0,
             pursuit_heat: Default::default(),
-            scripted_cop_spawns: Vec::new(),
             cops_in_race: false,
             pursuit_race: false,
             catch_up: true,
@@ -155,13 +152,6 @@ impl RaceParams {
             force_traffic_density: c.get_i32("ForceTrafficDensity").unwrap_or(0),
             force_heat_level: c.get_i32("ForceHeatLevel").unwrap_or(0),
             pursuit_heat: crate::pursuit::EventHeat::read(db, c.name().unwrap_or("")),
-            scripted_cop_spawns: ["cop_spawn_1", "cop_spawn_2"]
-                .into_iter()
-                .filter_map(|child| {
-                    let name = format!("{}/{child}", c.name()?);
-                    db.collection("gameplay", &name).map(super::placement)
-                })
-                .collect(),
             cops_in_race: c.get_bool("CopsInRace").unwrap_or(d.cops_in_race),
             pursuit_race: c.get_bool("PursuitRace").unwrap_or(d.pursuit_race),
             catch_up: c.get_bool("CatchUp").unwrap_or(d.catch_up),

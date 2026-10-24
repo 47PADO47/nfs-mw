@@ -1,5 +1,8 @@
 # blackbox-render
 
+Screen displacement draws sparse textured regions after post effects and upscaling,
+before display mapping and HUD. It has no pass or scratch cost while disabled.
+
 `EffectLayer` supports depth-tested surface overlays, circular particles and additive
 streak triangles and additive radial glows. Streak UV x spans the width and UV y runs head to tail; the analytic
 mask concentrates energy at the tip and dims the tail. Streaks use source-alpha additive RGB, no depth
@@ -12,6 +15,10 @@ format, DXT or RGBA textures, instanced draws, opaque/alpha-test/blend/additive 
 shading, distance fog, a 2D UI layer (textured, clipped, premultiplied-alpha triangles for consoles, overlays and menus), off-screen capture. Runs on wgpu (Vulkan, Direct3D 12, OpenGL; Metal on macOS).
 
 License: MIT OR Apache-2.0.
+
+Instance shadow flags independently control casting and receiving. Receiver metadata follows the unchanged
+model matrix in an 80-byte instance record, with equivalent attribute and storage-buffer paths. Caster flags
+also participate in static-shadow cache invalidation.
 
 The optional `streamline` feature adds NVIDIA DLSS Super Resolution and DLAA on
 Windows with Vulkan or DX12. It needs SDK headers at build time and signed runtime plugins;
@@ -242,3 +249,12 @@ Authored sky materials retain their independent original shading path.
 Local captures can retain six-face depth for current-frame parallax correction.
 Structural draw selection reuses CPU preparation without reusing reflected images.
 See [custom reflections and lighting](../../docs/custom-reflections-lighting.md).
+
+The optional [Enhanced sky](../../docs/enhanced-sky.md) combines an analytic
+atmosphere with a sun-lit shallow cloud volume in every native sky view.
+Authored sky materials retain their independent original shading path.
+
+Transparent planar captures retain coverage in an independent HDR target. Diffuse
+receivers sample their unjittered projection through complementary floor alpha,
+keeping their original draw bucket, depth and blend order. Road captures retain
+their separate culling contract.

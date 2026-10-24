@@ -28,6 +28,7 @@ mod net;
 mod original_camera;
 mod patrol;
 mod racing;
+mod rain;
 mod setup;
 mod sight;
 mod sound;

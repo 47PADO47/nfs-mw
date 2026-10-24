@@ -8,6 +8,7 @@ use nfsmw_career::story::{OutroStep, chain_after, outro_steps};
 
 use super::intro::{Cue, Playing, Progress, Stand, drive, story_fields};
 use super::{RaceSession, Stage};
+use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
 
 /// Puts the race into its outro, with `won` deciding whether the chain runs after it. The outro plays on the next frame.
@@ -46,9 +47,15 @@ impl WorldScene {
         if progress == Progress::Running {
             return true;
         }
-        if let Some(name) = next_race(won, session.chain.as_deref(), session.options.career) {
+        let next = next_race(won, session.chain.as_deref(), session.options.career);
+        if let Some(name) = next {
             self.queued_race = Some((name, session.options));
             self.queued_again = None;
+            return false;
+        }
+        // The last race of the prologue leads to the car lot (`JumpToCarLot`, `story-flow.md` section 2.3 rule 3).
+        if won && session.options.career && session.event == super::scripted_chase::CHASE_EVENT {
+            self.career.requests.push_back(CareerRequest::FirstCarLot);
         }
         false
     }

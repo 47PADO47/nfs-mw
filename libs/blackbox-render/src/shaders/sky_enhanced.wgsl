@@ -24,8 +24,10 @@ struct Input {
 struct InstanceIn {
     @location(4) model_0: vec4<f32>, @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>, @location(7) model_3: vec4<f32>,
+    @location(12) shadow_flags: vec4<f32>,
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
+fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
 // instance input: end
 struct Output {
     @builtin(position) clip: vec4<f32>,
@@ -119,21 +121,24 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
     let entry = (CLOUD_BOTTOM - origin.z) / ray.z;
     let exit = min((CLOUD_BOTTOM + CLOUD_THICKNESS - origin.z) / ray.z, 128.0);
     if exit <= entry { return vec4(0.0, 0.0, 0.0, 1.0); }
-    let step_size = (exit - entry) / 96.0;
-    // Fixed screen-space phase breaks slab bands without frame-varying seeds or history.
-    let phase = fract(52.9829189 * fract(dot(pixel, vec2(0.06711056, 0.00583715))));
+    let steps = clamp(ceil((exit-entry)/0.12), 96.0, 384.0);
+    let step_size = (exit - entry) / steps;
+    // Midpoint quadrature has no screen-space dither lattice. Filter density to
+    // the ray segment and angular footprint instead of concealing undersampling.
+    let phase = 0.5;
     var transmittance = 1.0;
     var radiance = vec3(0.0);
     let daylight = smoothstep(-0.12, 0.18, sun.z);
     let sky_fill = mix(vec3(0.48, 0.56, 0.68), vec3(0.48, 0.51, 0.55), coverage);
     let alignment = dot(ray, sun);
-    for (var i = 0u; i < 96u; i++) {
+    for (var i = 0u; i < u32(steps); i++) {
         let p = origin + ray * (entry + (f32(i) + phase) * step_size);
-        let d = density(p, coverage);
+        let footprint = max(step_size, length(p-origin) * 0.0041);
+        let d = density(p, coverage, footprint);
         if d > 0.001 {
             var optical_depth = 0.0;
             for (var light_step = 0u; light_step < 6u; light_step++) {
-                optical_depth += density(p + sun * ((f32(light_step)+0.5)*(CLOUD_THICKNESS/6.0)), coverage) * (CLOUD_THICKNESS/6.0);
+                optical_depth += density(p + sun * ((f32(light_step)+0.5)*(CLOUD_THICKNESS/6.0)), coverage, max(footprint, CLOUD_THICKNESS/6.0)) * (CLOUD_THICKNESS/6.0);
             }
             let direct = cloud_scattering(optical_depth, alignment);
             let height = clamp((p.z-CLOUD_BOTTOM)/CLOUD_THICKNESS, 0.0, 1.0);

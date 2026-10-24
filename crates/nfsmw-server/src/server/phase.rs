@@ -9,7 +9,39 @@ use nfsmw_net::results::{RaceRecord, RecordMeta, Roster, Tally, build_record};
 use nfsmw_sim::{PlayerId, SimEvent};
 
 use super::Server;
-use crate::control::WorldControl;
+use crate::control::{RaceRequest, WorldControl};
+
+/// A world event as the mode rules take it: a speed trap pass is its own input, everything else passes through.
+fn mode_input(event: &SimEvent) -> nfsmw_net::modes::ModeInput {
+    match *event {
+        SimEvent::SpeedTrapPassed { player, trap, kmh } => nfsmw_net::modes::ModeInput::TrapPass { player, trap, kmh },
+        event => nfsmw_net::modes::ModeInput::Sim(event),
+    }
+}
+
+/// The world race a session's settings ask for: the race modes with a track, with `slots` racing. None for free roam,
+/// pursuit co-op and tag (they run in the open city) and for a race mode with no track chosen.
+fn race_request(settings: &nfsmw_net::message::Settings, slots: &[u8]) -> Option<RaceRequest> {
+    use nfsmw_net::message::Mode;
+    let runs_a_race = matches!(settings.mode, Mode::Circuit | Mode::Sprint | Mode::Speedtrap | Mode::Knockout);
+    if !runs_a_race || settings.track == 0 {
+        return None;
+    }
+    Some(RaceRequest {
+        mode: settings.mode,
+        track: settings.track,
+        laps: settings.laps,
+        traffic_density: settings.traffic_density,
+        players: slots.iter().copied().map(PlayerId).collect(),
+    })
+}
+
+/// How long the server waits for the world's race to stand on its grid before it goes on without it, milliseconds.
+const WORLD_RACE_PATIENCE_MS: u64 = 60_000;
+
+/// Speed traps a speedtrap round has room for. The world checks each pass against the trap's own threshold, so the
+/// round's thresholds are zero: only "better than the racer's best" is left for the rules.
+const TRAP_SLOTS: usize = 32;
 
 /// The running round: its rules, tally and roster, and what the server remembers of it.
 #[derive(Debug, Default)]
@@ -19,6 +51,9 @@ pub(crate) struct RaceState {
     pub(crate) roster: Roster,
     /// The race start tick from the countdown.
     pub(crate) start_tick: Option<u32>,
+    /// When the server began waiting for the world's race to stand on its grid, in server milliseconds: the load barrier
+    /// is held until it does ([`WorldControl::race_staged`]).
+    pub(crate) awaiting_world_since_ms: Option<u64>,
     /// When the results screen goes back to the lobby.
     pub(crate) results_until_ms: Option<u64>,
     /// Mode events not handled yet.
@@ -59,6 +94,7 @@ impl<W: WorldControl> Server<W> {
     /// The lobby's timers, the votes' end, and the results screen's end.
     pub(super) fn update_lobby(&mut self) {
         let tick = self.world.tick();
+        self.finish_waiting_for_world();
         let actions = self.lobby.update(self.now_ms, tick);
         self.apply_actions(actions);
         let events = self.votes.update(tick);
@@ -79,15 +115,23 @@ impl<W: WorldControl> Server<W> {
                 for slot in self.lobby.racer_slots() {
                     self.spawn_car(slot, false);
                 }
-                return self.lobby.server_loaded(self.now_ms).unwrap_or_else(|err| {
-                    log::warn!("the load barrier refused the server: {err:?}");
-                    Vec::new()
-                });
+                // A world race that was asked for must stand on its grid before the server counts as loaded, so the
+                // countdown does not run over a race that is still loading.
+                if self.start_world_race() {
+                    self.race.awaiting_world_since_ms = Some(self.now_ms);
+                    return Vec::new();
+                }
+                return self.server_loaded();
             }
-            SessionPhase::Countdown => self.race.start_tick = Some(target_tick),
+            SessionPhase::Countdown => {
+                self.race.start_tick = Some(target_tick);
+                self.world.schedule_race_go(target_tick);
+            }
             SessionPhase::Running => self.start_round(),
             SessionPhase::Results => self.end_round(),
             SessionPhase::Lobby => {
+                self.race.awaiting_world_since_ms = None;
+                self.world.stop_race();
                 self.race.mode = None;
                 self.race.start_tick = None;
                 self.race.results_until_ms = None;
@@ -95,6 +139,51 @@ impl<W: WorldControl> Server<W> {
             SessionPhase::WaitLoads | SessionPhase::Intro => {}
         }
         Vec::new()
+    }
+
+    /// Asks the world to run the session's race, for the modes that have a track. A world that cannot is not an error:
+    /// the toy world has no races, and the round then runs on the events the world does raise.
+    /// Returns whether the world took the race.
+    fn start_world_race(&mut self) -> bool {
+        let slots = self.lobby.racer_slots();
+        let Some(request) = race_request(self.lobby.settings(), &slots) else {
+            return false;
+        };
+        match self.world.start_race(&request) {
+            Ok(()) => {
+                log::info!("the world runs the race: track {:#010x}, {} racers", request.track, request.players.len());
+                true
+            }
+            Err(why) => {
+                log::info!("no world race: {why}");
+                false
+            }
+        }
+    }
+
+    /// The server reports itself loaded to the lobby's barrier.
+    fn server_loaded(&mut self) -> Vec<Action> {
+        self.lobby.server_loaded(self.now_ms).unwrap_or_else(|err| {
+            log::warn!("the load barrier refused the server: {err:?}");
+            Vec::new()
+        })
+    }
+
+    /// Reports the server loaded once the world's race stands on its grid, or after [`WORLD_RACE_PATIENCE_MS`].
+    fn finish_waiting_for_world(&mut self) {
+        let Some(since) = self.race.awaiting_world_since_ms else {
+            return;
+        };
+        let patient = self.now_ms.saturating_sub(since) < WORLD_RACE_PATIENCE_MS;
+        if patient && !self.world.race_staged() {
+            return;
+        }
+        self.race.awaiting_world_since_ms = None;
+        if !patient {
+            log::warn!("the world's race did not stand on its grid in time; going on without waiting");
+        }
+        let actions = self.server_loaded();
+        self.apply_actions(actions);
     }
 
     /// Puts `slot`'s car in the world, unless it has one. `announce` sends the late joiner's `Respawn`.
@@ -130,7 +219,10 @@ impl<W: WorldControl> Server<W> {
         let players: Vec<PlayerId> = self.lobby.racer_slots().into_iter().map(PlayerId).collect();
         let settings = self.lobby.settings();
         let rules = CustomRules::from_settings(settings, nfsmw_net::lobby::LobbyConfig::default().time_of_day);
-        let setup = ModeSetup::new(settings.mode, rules, players.clone(), start);
+        let mut setup = ModeSetup::new(settings.mode, rules, players.clone(), start);
+        if settings.mode == nfsmw_net::message::Mode::Speedtrap {
+            setup.trap_thresholds_kmh = vec![0.0; TRAP_SLOTS];
+        }
         let mut mode = match AnyMode::build(&setup) {
             Ok(mode) => mode,
             Err(err) => {
@@ -203,7 +295,7 @@ impl<W: WorldControl> Server<W> {
             return;
         };
         for event in events {
-            let input = nfsmw_net::modes::ModeInput::Sim(*event);
+            let input = mode_input(event);
             mode.feed(tick, &input, &mut self.race.events);
             self.race.tally.feed(&input);
         }
@@ -242,5 +334,44 @@ impl<W: WorldControl> Server<W> {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nfsmw_net::message::{Mode, ServerName, Settings};
+
+    use super::*;
+
+    fn settings(mode: Mode, track: u32) -> Settings {
+        Settings { mode, track, laps: 3, traffic_density: 40, ..Settings::lan(ServerName::new("t").expect("a name")) }
+    }
+
+    #[test]
+    fn a_race_mode_with_a_track_asks_the_world_for_the_race() {
+        let request = race_request(&settings(Mode::Circuit, 0xABCD), &[0, 2, 5]).expect("a request");
+        assert_eq!(request.mode, Mode::Circuit);
+        assert_eq!((request.track, request.laps, request.traffic_density), (0xABCD, 3, 40));
+        assert_eq!(request.players, [PlayerId(0), PlayerId(2), PlayerId(5)]);
+        for mode in [Mode::Sprint, Mode::Speedtrap, Mode::Knockout] {
+            assert!(race_request(&settings(mode, 7), &[0, 1]).is_some(), "{mode:?}");
+        }
+    }
+
+    #[test]
+    fn a_trap_pass_is_its_own_mode_input_and_other_events_pass_through() {
+        use nfsmw_net::modes::ModeInput;
+        let pass = SimEvent::SpeedTrapPassed { player: PlayerId(1), trap: 2, kmh: 190.0 };
+        assert!(matches!(mode_input(&pass), ModeInput::TrapPass { player: PlayerId(1), trap: 2, .. }));
+        let lap = SimEvent::LapCompleted { player: PlayerId(1), lap: 1, time_ms: 60_000 };
+        assert!(matches!(mode_input(&lap), ModeInput::Sim(SimEvent::LapCompleted { .. })));
+    }
+
+    #[test]
+    fn the_open_city_modes_and_a_missing_track_ask_for_nothing() {
+        for mode in [Mode::FreeRoam, Mode::PursuitCoop, Mode::Tag] {
+            assert!(race_request(&settings(mode, 7), &[0, 1]).is_none(), "{mode:?}");
+        }
+        assert!(race_request(&settings(Mode::Circuit, 0), &[0, 1]).is_none(), "track 0 is the whole city");
     }
 }

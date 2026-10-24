@@ -26,17 +26,17 @@ pub mod menu;
 #[cfg(test)]
 pub mod mock;
 pub mod offline;
+pub mod present;
 pub mod quick;
 pub mod results;
 pub mod system;
 pub mod text;
-pub mod view;
 
 pub use backend::{Disconnect, LeadInfo, NetFrontend, NetStatus};
 pub(in crate::frontend) use gate::gate;
 pub use handle::LanBackend;
 pub(in crate::frontend) use system::build;
-pub use system::{LanUi, show, stats_line};
+pub use system::{LanUi, stats_line};
 
 /// Serialises the tests that use the shared requests of [`link`].
 #[cfg(test)]

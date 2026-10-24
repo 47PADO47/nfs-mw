@@ -7,6 +7,13 @@ use crate::frontend::career_screens::sms_popup::SmsPopup;
 use crate::frontend::ids::screen::SMS_MESSAGE;
 
 impl Frontend {
+    /// The delete question was answered Yes: the message's slot is emptied, then the screen closes as `then` says.
+    pub(super) fn delete_sms(&mut self, id: u32, then: Command, host: &mut Host, env: &mut Env) {
+        log::info!("career: SMS {id} deleted");
+        crate::frontend::career_screens::sms::delete(id);
+        self.apply(vec![then], host, env);
+    }
+
     /// Opens message `id` over the frozen game, with the stage `Paused` so the screens take the pad. The message is
     /// marked read when its screen starts.
     pub(super) fn open_sms(&mut self, id: u32, host: &mut Host, env: &mut Env) {
@@ -58,5 +65,29 @@ mod tests {
             commands.extend(screens.update(FRAME, 0, &mut env));
         }
         assert!(commands.iter().any(|c| matches!(c, Command::Resume)), "Back asks to resume: {commands:?}");
+    }
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn the_popup_shows_one_footer_not_the_keyboards_and_the_controllers_over_each_other() {
+        // `SMS_Message.fng` has the keyboard's Done, Delete and Re-Play and the controller's, on the same line.
+        const KEYBOARD: [u32; 3] = [0x914614e5, 0x523250e9, 0xc1c190eb];
+        const CONTROLLER: u32 = 0xb04b66c8;
+        let Some(root) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+        let dir = GameDir::open(PathBuf::from(root)).unwrap();
+        let assets = Arc::new(UiAssets::load(&dir).unwrap());
+        let catalog = Catalog::load(&dir, &SCREEN_FILES);
+        let mut screens = Screens::new(catalog, assets);
+        let mut settings = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        let mut env = Env { settings: &mut settings, changed: &mut changed, caps: test_caps::native(), mods: None };
+        screens.open_with(SMS_MESSAGE, Box::new(SmsPopup::new(15)), true, &mut env);
+        for _ in 0..120 {
+            screens.update(FRAME, 0, &mut env);
+        }
+        let tree = screens.trees().pop().unwrap();
+        let shown = |hash: u32| tree.nodes.iter().any(|n| n.name_hash == hash && n.visible);
+        assert!(KEYBOARD.iter().all(|&hash| shown(hash)), "the keyboard's hints show");
+        assert!(!shown(CONTROLLER), "the controller's copy does not draw over them");
     }
 }

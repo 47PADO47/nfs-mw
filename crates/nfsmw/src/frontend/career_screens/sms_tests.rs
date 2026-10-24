@@ -110,6 +110,21 @@ fn delete_empties_the_slot_and_the_list_drops_it() {
 }
 
 #[test]
+fn the_delete_button_asks_first_and_only_yes_deletes() {
+    let question = delete_question(15, Command::Pop);
+    assert_eq!(question.message, Text::Game(0x8C3C_2171), "Are you sure you want to delete this SMS message?");
+    assert_eq!(*question.on_yes, Command::DeleteSms { id: 15, then: Box::new(Command::Pop) });
+    assert!(question.on_no.is_none(), "No keeps the message and closes the question");
+}
+
+#[test]
+fn leaving_pops_or_goes_to_the_safe_house_menu() {
+    assert_eq!(leave_command(Args::default()), Command::Pop);
+    let safehouse = Args { safehouse: true, ..Args::default() };
+    assert!(matches!(leave_command(safehouse), Command::Switch(..)));
+}
+
+#[test]
 fn delete_of_an_id_with_no_slot_changes_nothing() {
     let mut inbox = inbox_with(&[17]);
     assert!(!delete_message(&mut inbox, 150));

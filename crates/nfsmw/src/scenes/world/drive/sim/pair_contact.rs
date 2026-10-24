@@ -19,28 +19,6 @@ struct Side {
     forward: Vec3,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use blackbox_vehicle::rigid_body::RigidBodySpec;
-
-    fn body(velocity: Vec3) -> RigidBody {
-        let mut body = RigidBody::new(1000.0, Vec3::ONE, Vec3::ONE, RigidBodySpec::default());
-        body.linear_velocity = velocity;
-        body
-    }
-
-    #[test]
-    fn signed_normal_velocity_distinguishes_causing_a_rear_end_from_being_rear_ended() {
-        let me = body(Vec3::X * 20.0);
-        let stopped = body(Vec3::ZERO);
-        let normal = -Vec3::X;
-        assert!(PairContact::capture(&me, &stopped, Vec3::ZERO, normal, 20.0).first_caused());
-        let rear_ender = body(-Vec3::X * 20.0);
-        assert!(!PairContact::capture(&stopped, &rear_ender, Vec3::ZERO, normal, 20.0).first_caused());
-    }
-}
-
 impl Side {
     fn of(body: &RigidBody, point: Vec3, normal: Vec3) -> Self {
         let axes = body.rotation();
@@ -114,5 +92,27 @@ impl PairContact {
             speed_cop: cop.speed,
             speed_player: player.speed,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blackbox_vehicle::rigid_body::RigidBodySpec;
+
+    fn body(velocity: Vec3) -> RigidBody {
+        let mut body = RigidBody::new(1000.0, Vec3::ONE, Vec3::ONE, RigidBodySpec::default());
+        body.linear_velocity = velocity;
+        body
+    }
+
+    #[test]
+    fn signed_normal_velocity_distinguishes_causing_a_rear_end_from_being_rear_ended() {
+        let me = body(Vec3::X * 20.0);
+        let stopped = body(Vec3::ZERO);
+        let normal = -Vec3::X;
+        assert!(PairContact::capture(&me, &stopped, Vec3::ZERO, normal, 20.0).first_caused());
+        let rear_ender = body(-Vec3::X * 20.0);
+        assert!(!PairContact::capture(&stopped, &rear_ender, Vec3::ZERO, normal, 20.0).first_caused());
     }
 }

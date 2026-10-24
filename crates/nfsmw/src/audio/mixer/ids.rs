@@ -19,6 +19,7 @@ pub mod object {
     pub const ROAD: u8 = 8;
     pub const WIND: u8 = 9;
     pub const WEATHER: u8 = 12;
+    pub const RAIN: u8 = 11;
     pub const BOTTOM_OUT: u8 = 13;
 }
 
