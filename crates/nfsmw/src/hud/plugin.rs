@@ -16,7 +16,7 @@ use super::event_tiles::{EventTiles, install_loader};
 use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
 use super::minimap::MinimapBinding;
-use super::notify::{HudNotifications, NotifyLevel, intense};
+use super::notify::{HudNotifications, intense};
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
@@ -237,16 +237,16 @@ fn sync(
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
 }
 
-/// Feeds the frame's HUD events to the notifications, ages them, and takes the dismiss action. The level is the
-/// default (every notification) until the `[hud] notifications` setting is read here.
+/// Feeds the frame's HUD events to the notifications at the player's `[custom_hud] notifications` level, ages them, and
+/// takes the dismiss action.
 fn notify(
     state: Res<HudState>,
+    settings: Res<Settings>,
     time: Res<Time>,
     actions: Option<Res<crate::input::ActionState>>,
     mut notifications: ResMut<HudNotifications>,
 ) {
-    let level = NotifyLevel::default();
-    notifications.take_events(&state, level);
+    notifications.take_events(&state, settings.hud_options.notifications);
     notifications.tick(time.delta_secs(), intense(&state));
     if actions.is_some_and(|actions| actions.just_pressed(crate::input::Action::DismissNotification)) {
         notifications.dismiss_oldest();

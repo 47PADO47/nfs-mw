@@ -75,7 +75,7 @@ fn a_phase_change_has_no_notice_and_the_nitrous_only_feedback() {
     let nitrous = spec(&HudEvent::NitrousOn).unwrap();
     assert_eq!((nitrous.text, nitrous.audio), (None, Some(AudioCue::Nitrous)));
     let mut notifications = HudNotifications::default();
-    notifications.take_events(&frame(1, vec![HudEvent::NitrousOn]), NotifyLevel::All);
+    notifications.take_events(&frame(1, vec![HudEvent::NitrousOn]), NotificationLevel::All);
     assert!(visible(&notifications).is_empty());
 }
 
@@ -85,12 +85,12 @@ fn an_identical_state_over_many_frames_gives_one_notification() {
     let punctured = frame(1, vec![HudEvent::TirePunctured]);
     // The same frame handed over again (a paused scene) adds nothing.
     for _ in 0..5 {
-        notifications.take_events(&punctured, NotifyLevel::All);
+        notifications.take_events(&punctured, NotificationLevel::All);
         notifications.tick(1.0 / 60.0, false);
     }
     // The next frames have no event: the state did not change.
     for n in 2..60 {
-        notifications.take_events(&frame(n, Vec::new()), NotifyLevel::All);
+        notifications.take_events(&frame(n, Vec::new()), NotificationLevel::All);
         notifications.tick(1.0 / 60.0, false);
     }
     assert_eq!(visible(&notifications), [NoticeId::TirePunctured]);
@@ -101,11 +101,11 @@ fn an_identical_state_over_many_frames_gives_one_notification() {
 fn the_level_filters_by_priority() {
     let events = vec![HudEvent::Checkpoint { number: 1, total: 4 }, HudEvent::RoadblockReported];
     let mut important = HudNotifications::default();
-    important.take_events(&frame(1, events.clone()), NotifyLevel::Important);
-    assert_eq!(visible(&important), [NoticeId::Roadblock]);
+    important.take_events(&frame(1, events.clone()), NotificationLevel::Important);
+    assert_eq!(visible(&important), [NoticeId::Checkpoint, NoticeId::Roadblock], "important keeps the Medium ones");
     let mut off = HudNotifications::default();
-    off.take_events(&frame(1, events), NotifyLevel::Off);
-    assert!(visible(&off).is_empty());
+    off.take_events(&frame(1, events), NotificationLevel::Off);
+    assert_eq!(visible(&off), [NoticeId::Roadblock], "a Critical warning is never filtered out");
 }
 
 #[test]
@@ -113,17 +113,17 @@ fn a_notice_of_a_phase_goes_when_the_chase_leaves_it() {
     use PursuitPhase as P;
     let mut notifications = HudNotifications::default();
     let lost = vec![HudEvent::PhaseChanged { from: P::Active, to: P::Search }, HudEvent::ContactLost];
-    notifications.take_events(&frame(1, lost), NotifyLevel::All);
+    notifications.take_events(&frame(1, lost), NotificationLevel::All);
     assert_eq!(visible(&notifications), [NoticeId::ContactLost]);
     let reacquired = vec![HudEvent::PhaseChanged { from: P::Search, to: P::Active }];
-    notifications.take_events(&frame(2, reacquired), NotifyLevel::All);
+    notifications.take_events(&frame(2, reacquired), NotificationLevel::All);
     assert!(visible(&notifications).is_empty(), "the search is over");
 }
 
 #[test]
 fn the_dismiss_action_takes_the_oldest_notice() {
     let mut notifications = HudNotifications::default();
-    notifications.take_events(&frame(1, vec![HudEvent::HeavyDamage, HudEvent::TirePunctured]), NotifyLevel::All);
+    notifications.take_events(&frame(1, vec![HudEvent::HeavyDamage, HudEvent::TirePunctured]), NotificationLevel::All);
     assert!(notifications.dismiss_oldest());
     assert_eq!(visible(&notifications), [NoticeId::TirePunctured]);
     assert!(notifications.dismiss_oldest());
@@ -136,7 +136,7 @@ fn near_misses_wait_during_an_active_chase_and_go_stale() {
     assert!(intense(&chase));
     let mut notifications = HudNotifications::default();
     notifications.tick(0.016, intense(&chase));
-    notifications.take_events(&chase, NotifyLevel::All);
+    notifications.take_events(&chase, NotificationLevel::All);
     assert!(visible(&notifications).is_empty(), "a Low notice waits while the chase is active");
     notifications.tick(2.0, true);
     notifications.tick(0.016, false);

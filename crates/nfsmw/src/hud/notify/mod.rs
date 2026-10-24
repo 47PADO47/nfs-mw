@@ -20,27 +20,15 @@ pub use catalog::NoticeId;
 use catalog::{Dismissal, spec};
 
 use super::{HudEvent, HudState, PursuitPhase};
+use crate::settings::hud::NotificationLevel;
 
-/// Which notifications the player wants: the `[hud] notifications` setting. Until that setting is read, the HUD passes
-/// [`NotifyLevel::All`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[allow(dead_code)] // the [hud] notifications setting picks Important and Off; it is not wired yet
-pub enum NotifyLevel {
-    #[default]
-    All,
-    /// Only the Critical and High ones.
-    Important,
-    Off,
-}
-
-impl NotifyLevel {
-    /// Whether a notice of `priority` is shown at this level.
-    fn admits(self, priority: Priority) -> bool {
-        match self {
-            NotifyLevel::All => true,
-            NotifyLevel::Important => priority <= Priority::High,
-            NotifyLevel::Off => false,
-        }
+/// Whether the player's `[custom_hud] notifications` level shows a notice of `priority`: `all` shows everything,
+/// `important` the Critical, High and Medium ones, and `off` the Critical ones only, which are never filtered out.
+fn admits(level: NotificationLevel, priority: Priority) -> bool {
+    match level {
+        NotificationLevel::All => true,
+        NotificationLevel::Important => priority <= Priority::Medium,
+        NotificationLevel::Off => priority == Priority::Critical,
     }
 }
 
@@ -55,7 +43,7 @@ pub struct HudNotifications {
 impl HudNotifications {
     /// Take the frame's events from `state` into the queue, at the player's `level`. A frame already taken adds
     /// nothing. A phase change takes away the notices that last only while the chase was in the phase it left.
-    pub fn take_events(&mut self, state: &HudState, level: NotifyLevel) {
+    pub fn take_events(&mut self, state: &HudState, level: NotificationLevel) {
         if self.taken == Some(state.events_frame) {
             return;
         }
@@ -65,7 +53,7 @@ impl HudNotifications {
                 self.end_phase(from);
             }
             let Some(entry) = spec(event) else { continue };
-            if entry.text.is_none() || !level.admits(entry.priority) {
+            if entry.text.is_none() || !admits(level, entry.priority) {
                 continue;
             }
             self.queue.push(entry.notice(*event));
