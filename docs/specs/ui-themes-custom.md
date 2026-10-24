@@ -128,8 +128,8 @@ baseline.
 ## 8. The speedometer and the tachometer (retired)
 
 **Retired in the Custom HUD 2026 (ADR 0013, PR 5).** Sections 8 and 9 record the first drive card; its files are
-deleted, and the drive slots fall back to Original until the horizontal cluster lands (PR 6). The Custom HUD reads
-`CustomFeedCell` (`custom/feed.rs`); `DriveFeedCell` stays for the Remastered theme.
+deleted, and the horizontal cluster of PR 6 now fills the drive slots ([custom-hud-cluster.md](custom-hud-cluster.md)).
+The Custom HUD reads `CustomFeedCell` (`custom/feed.rs`); `DriveFeedCell` stays for the Remastered theme.
 
 The Custom theme also filled `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
 rest of the HUD (the gear digit in the tachometer group, the minimap, the blips, the pursuit board) stays Original.
