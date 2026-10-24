@@ -242,10 +242,9 @@ pub fn spec(event: &HudEvent) -> Option<NoticeSpec> {
         HudEvent::BountyMilestone { .. } => {
             NoticeSpec { dedupe: 5.0, ..entry(Id::Bounty, Career, Low, "hud-notify-bounty", "bounty", 3.0) }
         }
-        HudEvent::BountyGained { .. } => NoticeSpec {
-            lane: true,
-            ..entry(Id::BountyGain, Career, Low, "hud-feedback-bounty-gain", "bounty", 2.0)
-        },
+        HudEvent::BountyGained { .. } => {
+            NoticeSpec { lane: true, ..entry(Id::BountyGain, Career, Low, "hud-feedback-bounty-gain", "bounty", 2.0) }
+        }
         HudEvent::TirePunctured => NoticeSpec {
             audio: Some(AudioCue::CriticalDamage),
             haptic: Some(Haptic::Strong),

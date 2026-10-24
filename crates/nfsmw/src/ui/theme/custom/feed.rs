@@ -10,7 +10,9 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use crate::hud::HudState;
+use blackbox_ui::notify::Priority;
+
+use crate::hud::{ChipKind, HudState, NoticeCategory, NoticeId};
 use crate::settings::hud::HudSettings;
 use crate::settings::{SpeedUnits, Transmission};
 use crate::ui::present::Screen;
@@ -19,10 +21,52 @@ use super::cluster::ClusterMemory;
 use super::layout::CANVAS;
 use super::markers::MarkerMemoryCell;
 
-/// What the notification manager shows this frame. A placeholder until the notification queue is drawn (PR 8): the
-/// field that holds it, [`CustomFeed::notifications`], is `None` until then.
+/// What the notification manager shows this frame (`hud/notify/view.rs` fills it from the queue and the feedback lane):
+/// the notices, the lane's chip and the nitrous pulse, with their text already in the current language.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct NotificationView {}
+pub struct NotificationView {
+    /// The visible notices, top down: the most urgent first, then the oldest.
+    pub notices: Vec<NoticeView>,
+    /// The feedback lane's chip, if one is up.
+    pub chip: Option<ChipView>,
+    /// Seconds since the nitrous came on, while its pulse runs; the cluster's nitrous bar pulses from it.
+    pub nitrous_age: Option<f32>,
+}
+
+/// One notice on the screen.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NoticeView {
+    pub id: NoticeId,
+    pub priority: Priority,
+    pub category: NoticeCategory,
+    /// The text, in the current language, with its values.
+    pub text: String,
+    /// The second line, in the current language.
+    pub secondary: Option<String>,
+    /// The icon drawn beside the text (`custom/notify/icon.rs`).
+    pub icon: &'static str,
+    /// Seconds since it came up: its entry runs from 0, and a repeat folded into it does not reset it.
+    pub age: f32,
+    /// Seconds until it goes (infinite for one that stays until dismissed): its exit fade runs to 0.
+    pub remaining: f32,
+    /// The pushes folded into it, 1 for the first: the count badge shows more.
+    pub count: u32,
+}
+
+/// The feedback lane's chip.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChipView {
+    pub kind: ChipKind,
+    /// The text, in the current language: the bounty delta as it counts up.
+    pub text: String,
+    pub icon: &'static str,
+    /// Seconds since it came up; a repeat folded into it does not reset it.
+    pub age: f32,
+    /// Seconds until it goes.
+    pub remaining: f32,
+    /// The events folded into it (`Near miss ×3`).
+    pub count: u32,
+}
 
 /// One frame of what the Custom HUD draws from.
 #[derive(Clone, Debug, PartialEq)]
@@ -42,7 +86,7 @@ pub struct CustomFeed {
     pub delta_s: f32,
     /// The window, in points: the layout's content box comes from it (`layout.rs`).
     pub screen: Screen,
-    /// The notifications on screen. `None` until the notification manager fills it (PR 8).
+    /// The notifications on screen. `None` before the HUD plugin fills it (a viewer without the notification manager).
     pub notifications: Option<NotificationView>,
 }
 
@@ -113,7 +157,7 @@ mod tests {
     fn an_empty_cell_reads_the_default_feed() {
         let feed = CustomFeedCell::new().get();
         assert_eq!(feed, CustomFeed::default());
-        assert!(feed.notifications.is_none(), "no notification view before PR 8");
+        assert!(feed.notifications.is_none(), "no notification view before the plugin fills it");
     }
 
     #[test]

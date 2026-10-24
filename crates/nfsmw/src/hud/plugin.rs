@@ -283,6 +283,7 @@ fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
     radio: Res<RadioHud>,
+    notifications: Res<HudNotifications>,
     settings: Res<Settings>,
     time: Res<Time>,
     assets: Res<SharedAssets>,
@@ -342,7 +343,9 @@ fn present(
             elapsed_s: time.elapsed_secs(),
             delta_s: time.delta_secs(),
             screen,
-            ..Default::default()
+            // The notices and the feedback lane, their text in the current language. Motion reduction shows the
+            // bounty delta's sum at once instead of counting it up.
+            notifications: Some(notifications.view(settings.speed_units, !settings.hud_options.motion_reduction)),
         });
     }
     // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the

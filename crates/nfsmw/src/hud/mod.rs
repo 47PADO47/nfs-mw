@@ -89,6 +89,7 @@ pub use message::{
     Tone as ModMessageTone, hide as hide_mod_message, is_up as mod_message_up, set as set_mod_message,
     show as show_mod_message,
 };
+pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, SHOW_SECS as PURSUIT_END_SECS, show as show_pursuit_end};
