@@ -109,3 +109,57 @@ fn enhanced_capture_uses_reflected_bounds_and_keeps_small_geometry() {
     scenery(std::iter::once(&p), &camera, &props, 960.0, &mut out);
     assert!(out.is_empty(), "enhanced capture must not substitute the normal-view mesh");
 }
+
+/// A grid of placements with every kind the sweep treats differently: each authored slot, a null matrix and props.
+fn grid_set(offset: f32) -> SectionResources {
+    let mut set = SectionResources::default();
+    for i in 0..300u32 {
+        let at = Vec3::new(offset + (i % 20) as f32 * 15.0, (i / 20) as f32 * 15.0 + 20.0, (i % 5) as f32);
+        let half = Vec3::splat(1.0 + (i % 4) as f32);
+        let mut p = placed();
+        p.transform = Mat4::from_translation(at);
+        p.bounds = Aabb { min: at - half, max: at + half };
+        p.local_bounds = [Some(Aabb::new((-half).to_array(), half.to_array())); 4];
+        p.flags = match i % 6 {
+            0 => 0x80,
+            1 => 0x100,
+            2 => 0x200,
+            _ => 0x40,
+        };
+        p.radius = 2.0 + (i % 7) as f32;
+        p.prop_id = if i % 17 == 0 { 900 + i } else { 0 };
+        p.key = InstanceKey::new(7, i + offset as u32 * 1000);
+        set.reflection_placed.push(p);
+    }
+    set
+}
+
+#[test]
+fn the_set_path_selects_what_the_flat_path_selects() {
+    let sets = [grid_set(0.0), grid_set(60.0)];
+    let mut props = PropWorld::default();
+    props.knock(900);
+    let mut selected = 0;
+    for target in [Vec3::new(100.0, 100.0, 2.0), Vec3::new(100.0, -100.0, 2.0)] {
+        let lens = crate::viewer::camera::Lens::look_at(Vec3::new(100.0, 0.0, 2.0), target, 60.0, 0.1, 16.0 / 9.0);
+        let camera = Camera {
+            view_proj: lens.view_proj(),
+            position: lens.position.to_array(),
+            forward: lens.forward.to_array(),
+            fov_y_radians: lens.fov_y_degrees.to_radians(),
+            light_dir: [0.0; 3],
+        };
+        for height in [240.0, 960.0] {
+            let (mut flat, mut swept) = (Vec::new(), Vec::new());
+            scenery(sets.iter().flat_map(|set| set.reflection_placed.iter()), &camera, &props, height, &mut flat);
+            scenery_sets(sets.iter(), &camera, &props, height, &mut swept);
+            crate::scenes::world::visibility::sort_by_mesh(&mut swept);
+            let ordered = |list: &[Instance]| {
+                list.iter().map(|i| (i.mesh.raw(), i.key, i.transform.to_cols_array())).collect::<Vec<_>>()
+            };
+            assert_eq!(ordered(&swept), ordered(&flat), "height {height}, looking at {target}");
+            selected += flat.len();
+        }
+    }
+    assert!(selected > 50, "the comparison must include visible geometry");
+}

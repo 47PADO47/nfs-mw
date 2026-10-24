@@ -9,7 +9,7 @@ use nfsmw_data::world::{GlobalTextures, PropCatalog, SectionData, Streamer, Stre
 
 use super::keys;
 use super::props::PropWorld;
-use super::resident::{Placed, ReflectionPlaced, SectionResources, resolve_placed, resolve_reflections, take_prepared};
+use super::resident::{Placed, SectionResources, resolve_placed, resolve_reflections, take_prepared};
 use super::zone::Zones;
 mod cull;
 mod lights;
@@ -315,9 +315,7 @@ impl Residency {
         // must not accumulate every tile inside the larger hysteresis region.
         let mut unwanted = std::mem::take(&mut self.unwanted_scratch);
         unwanted.clear();
-        unwanted.extend(
-            self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i)),
-        );
+        unwanted.extend(self.tiles.keys().copied().filter(|i| !self.keep_scratch.contains(i)));
         // The map's order is a random hash; removals touch the prop world and the collision, so they go in tile order
         // (`docs/specs/multiplayer/determinism.md`, D3).
         unwanted.sort_unstable();
@@ -375,9 +373,21 @@ impl Residency {
         self.shared_placed.iter().chain(tiles).filter(|p| self.group_shown(p))
     }
 
+    /// The sets that hold the authored road view's placements: the shared sets, then every resident tile. Each set's
+    /// `reflection_placed` lists instances hidden from the player too. Their meshes/materials have exactly the owning
+    /// section's resident lifetime.
+    pub(super) fn reflection_sets(&self) -> impl Iterator<Item = &SectionResources> {
+        let tiles = self.tiles.values().filter_map(|state| match state {
+            TileState::Resident { resources, .. } => Some(&**resources),
+            TileState::Requested => None,
+        });
+        std::iter::once(&self.shared).chain(tiles)
+    }
+
     /// Only the authored road view's placements, including instances hidden from the player.
     /// Their meshes/materials have exactly the owning section's resident lifetime.
-    pub(super) fn reflection_placed(&self) -> impl Iterator<Item = &ReflectionPlaced> {
+    #[cfg(test)]
+    pub(super) fn reflection_placed(&self) -> impl Iterator<Item = &super::resident::ReflectionPlaced> {
         self.shared.reflection_placed.iter().chain(
             self.tiles
                 .values()
