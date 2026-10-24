@@ -306,6 +306,10 @@ fn present(
     mut drawn: Local<Drawn>,
 ) {
     let _trace = blackbox_trace::scope("HUD: bind / animate / compose / present");
+    // A theme that fills the banner with its own component draws the world's cards too, so the world's egui cards stay
+    // out (`cards.rs`).
+    let routed = !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
+    super::set_cards_routed(routed);
     if !state.visible || !settings.hud {
         drawn.hidden(&mut out, window.scale_factor());
         return;

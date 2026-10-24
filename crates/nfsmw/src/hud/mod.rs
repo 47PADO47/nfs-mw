@@ -15,6 +15,7 @@ mod blips;
 #[cfg(test)]
 mod blips_tests;
 mod busted_overlay;
+mod cards;
 mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;
@@ -79,6 +80,7 @@ pub use blip_styles::{
     RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, ROADBLOCK, SAFE_HOUSE,
     SAFE_HOUSE_TINT,
 };
+pub use cards::{cards_routed, set_cards_routed};
 pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use leaders::{
