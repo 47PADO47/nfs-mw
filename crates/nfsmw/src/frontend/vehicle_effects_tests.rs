@@ -8,8 +8,8 @@ fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
     use crate::settings::SparkStyle::{OriginalPc, RestoredExperimental};
     let rows = rows(Category::Video, &crate::settings::test_caps::native());
     let at = rows.iter().position(|row| row.setting == Setting::CollisionSparks).unwrap();
-    assert_eq!(rows[at].title, Title::Text("Collision Sparks"));
-    assert_eq!(rows[at + 1].title, Title::Text("Speed Trails (Experimental)"));
+    assert_eq!(rows[at].title, Title::Key("options-collision-sparks"));
+    assert_eq!(rows[at + 1].title, Title::Key("options-speed-trails"));
     let initial = Settings::from(Partial {
         hud: Some(false),
         tire_smoke: Some(false),
@@ -30,7 +30,7 @@ fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
                 Partial { collision_sparks: Some(enabled), spark_style: Some(mode), ..Partial::default() }
             );
             let expected = match enabled {
-                true => Data::Text(mode.label().into()),
+                true => Data::Text(mode.label()),
                 false => Data::Label(LABEL_OFF),
             };
             assert_eq!(Setting::CollisionSparks.data(&settings), expected);

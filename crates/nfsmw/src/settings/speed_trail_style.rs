@@ -10,11 +10,13 @@ pub enum SpeedTrailStyle {
 }
 
 impl SpeedTrailStyle {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Streaks => "Speed Streaks",
-            Self::Car => "Car Only",
-        }
+    /// The style's name in the current language, as the options show it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Streaks => "options-speed-trails-streaks",
+            Self::Car => "options-speed-trails-car",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

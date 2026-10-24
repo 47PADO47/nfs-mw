@@ -8,6 +8,9 @@ use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
 use blackbox_gfx::Capabilities;
 
+/// The original's Rearview Mirror row title (`OPT_GAMEPLAY_REARVIEW`).
+const LABEL_REARVIEW: u32 = 0x85A6_CE05;
+
 /// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (the temporal
 /// upscalers' quality mode) is left out; ray tracing is always listed, dimmed and reading "Unavailable" on a
 /// renderer without it, so that the player can see it exists. Dependencies of supported options can be dimmed too.
@@ -22,21 +25,21 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::MusicVolume, Title::Label(0x418E_681D)),
             row(Setting::SpeechVolume, Title::Label(0x9E5F_B82A)),
         ],
-        Category::Video => vec![row(Setting::WindowMode, Title::Text("Window Mode"))]
+        Category::Video => vec![row(Setting::WindowMode, Title::Key("options-window-mode"))]
             .into_iter()
             .chain(offered(RendererSetting::Renderer))
             .chain(offered(RendererSetting::GraphicsApi))
             .chain([
                 row(Setting::Vsync, Title::Label(0x6CEB_9CB6)),
-                row(Setting::MaxFps, Title::Text("Frame Limit")),
+                row(Setting::MaxFps, Title::Key("options-frame-limit")),
                 row(Setting::Graphics(GraphicsSetting::Style), GraphicsSetting::Style.title()),
                 row(Setting::Graphics(GraphicsSetting::Quality), GraphicsSetting::Quality.title()),
-                row(Setting::AdvancedGraphics, Title::Text("Advanced Graphics")),
-                row(Setting::RenderScale, Title::Text("Render Scale")),
-                row(Setting::Upscaler, Title::Text("Upscaler")),
+                row(Setting::AdvancedGraphics, Title::Key("options-advanced-graphics")),
+                row(Setting::RenderScale, Title::Key("options-render-scale")),
+                row(Setting::Upscaler, Title::Key("options-upscaler")),
             ])
             .chain(offered(RendererSetting::UpscaleQuality))
-            .chain([row(Setting::UpscaleSharpness, Title::Text("Sharpening"))])
+            .chain([row(Setting::UpscaleSharpness, Title::Key("options-sharpening"))])
             .chain(offered(RendererSetting::FrameGeneration))
             .chain(
                 PostSetting::ALL
@@ -64,36 +67,38 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                         [
                             Some(row(Setting::Graphics(setting), setting.title())),
                             (setting == GraphicsSetting::CarGeometry)
-                                .then(|| row(Setting::TrafficPreset, Title::Text("Traffic Range Preset"))),
+                                .then(|| row(Setting::TrafficPreset, Title::Key("options-traffic-range-preset"))),
                         ]
                         .into_iter()
                         .flatten()
                     }),
             )
             .chain([
-                row(Setting::TireSmoke, Title::Text("Tire Smoke")),
-                row(Setting::SmokeQuality, Title::Text("Smoke Quality")),
-                row(Setting::SkidMarks, Title::Text("Skid Marks")),
-                row(Setting::CollisionSparks, Title::Text("Collision Sparks")),
-                row(Setting::SpeedTrails, Title::Text("Speed Trails (Experimental)")),
-                row(Setting::SpeedTrailStyle, Title::Text("Speed Trail Style")),
-                row(Setting::ExhaustFlames, Title::Text("Exhaust Flames")),
-                row(Setting::CustomFonts, Title::Text("Custom Fonts")),
+                row(Setting::TireSmoke, Title::Key("options-tire-smoke")),
+                row(Setting::SmokeQuality, Title::Key("options-smoke-quality")),
+                row(Setting::SkidMarks, Title::Key("options-skid-marks")),
+                row(Setting::CollisionSparks, Title::Key("options-collision-sparks")),
+                row(Setting::SpeedTrails, Title::Key("options-speed-trails")),
+                row(Setting::SpeedTrailStyle, Title::Key("options-speed-trail-style")),
+                row(Setting::ExhaustFlames, Title::Key("options-exhaust-flames")),
+                row(Setting::CustomFonts, Title::Key("options-custom-fonts")),
                 row(Setting::Hd(HdSetting::Fonts), HdSetting::Fonts.title()),
                 row(Setting::Hd(HdSetting::Cursor), HdSetting::Cursor.title()),
                 row(Setting::Hd(HdSetting::Movies), HdSetting::Movies.title()),
-                row(Setting::Metrics, Title::Text("Performance Overlay")),
+                row(Setting::Metrics, Title::Key("options-performance-overlay")),
             ])
             .collect(),
         Category::Gameplay => vec![
-            row(Setting::HudLayout, Title::Text("HUD Layout")),
-            row(Setting::UiStyle, Title::Text("HUD style")),
-            row(Setting::UiTheme, Title::Text("HUD theme")),
-            row(Setting::SpeedUnits, Title::Text("Speed units")),
-            row(Setting::Minimap, Title::Text("Minimap")),
-            row(Setting::RearViewMirror, Title::Text("Rear-View Mirror")),
-            row(Setting::TurnSignals, Title::Text("Turn Signals")),
-            row(Setting::CopHealthBars, Title::Text("Cop Health Bars")),
+            row(Setting::HudLayout, Title::Key("options-hud-layout")),
+            row(Setting::UiStyle, Title::Key("options-hud-style")),
+            row(Setting::UiTheme, Title::Key("options-hud-theme")),
+            row(Setting::SpeedUnits, Title::Key("options-speed-units")),
+            row(Setting::Minimap, Title::Key("options-minimap")),
+            row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
+            row(Setting::TurnSignals, Title::Key("options-turn-signals")),
+            row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
+            // The general game options live here; the original has no label that names the language row.
+            row(Setting::Language, Title::Key("options-language")),
         ],
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
@@ -111,8 +116,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .collect(),
         // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
         Category::Discord => vec![
-            row(Setting::Discord, Title::Text("Discord Rich Presence")),
-            row(Setting::DiscordTimePlayed, Title::Text("Show Time Played")),
+            row(Setting::Discord, Title::Key("options-discord-presence")),
+            row(Setting::DiscordTimePlayed, Title::Key("options-discord-time-played")),
         ],
     }
 }

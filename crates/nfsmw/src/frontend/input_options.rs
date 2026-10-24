@@ -1,6 +1,7 @@
 //! Controls response rows; kept separate from the original option categories.
 
-use super::options::{Data, Title};
+use super::ids::{LABEL_OFF, LABEL_ON};
+use super::options::{Data, Title, message};
 use crate::settings::{DeadzoneMode, Partial, Settings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,35 +28,40 @@ impl InputSetting {
         Self::InvertCameraY,
     ];
     pub fn title(self) -> Title {
-        Title::Text(match self {
-            Self::DeadzoneMode => "Deadzone Mode",
-            Self::SteeringDeadzone => "Steering Deadzone",
-            Self::CameraDeadzone => "Camera Deadzone",
-            Self::TriggerDeadzone => "Trigger Deadzone",
-            Self::SteeringSensitivity => "Steering Sensitivity",
-            Self::CameraSensitivity => "Camera Sensitivity",
-            Self::MouseSensitivity => "Mouse Sensitivity",
-            Self::InvertCameraY => "Invert Camera Y",
+        Title::Key(match self {
+            Self::DeadzoneMode => "options-deadzone-mode",
+            Self::SteeringDeadzone => "options-steering-deadzone",
+            Self::CameraDeadzone => "options-camera-deadzone",
+            Self::TriggerDeadzone => "options-trigger-deadzone",
+            Self::SteeringSensitivity => "options-steering-sensitivity",
+            Self::CameraSensitivity => "options-camera-sensitivity",
+            Self::MouseSensitivity => "options-mouse-sensitivity",
+            Self::InvertCameraY => "options-invert-camera-y",
         })
     }
     pub fn data(self, s: &Settings) -> Data {
-        let value = match self {
-            Self::DeadzoneMode => match s.controls.deadzone_mode {
-                DeadzoneMode::Rescaled => "Rescaled".to_owned(),
-                DeadzoneMode::Cutoff => "Cutoff".to_owned(),
-            },
-            Self::SteeringDeadzone => format!("{}%", s.controls.steering_deadzone),
-            Self::CameraDeadzone => format!("{}%", s.controls.camera_deadzone),
-            Self::TriggerDeadzone => format!("{}%", s.controls.trigger_deadzone),
-            Self::SteeringSensitivity => format!("{}%", s.controls.steering_sensitivity),
-            Self::CameraSensitivity => format!("{}%", s.controls.camera_sensitivity),
-            Self::MouseSensitivity => format!("{}%", s.controls.mouse_sensitivity),
-            Self::InvertCameraY => match s.controls.invert_camera_y {
-                true => "On".to_owned(),
-                false => "Off".to_owned(),
-            },
+        let controls = &s.controls;
+        let percent = match self {
+            Self::DeadzoneMode => {
+                return match controls.deadzone_mode {
+                    DeadzoneMode::Rescaled => message("options-deadzone-rescaled"),
+                    DeadzoneMode::Cutoff => message("options-deadzone-cutoff"),
+                };
+            }
+            Self::InvertCameraY => {
+                return Data::Label(match controls.invert_camera_y {
+                    true => LABEL_ON,
+                    false => LABEL_OFF,
+                });
+            }
+            Self::SteeringDeadzone => i64::from(controls.steering_deadzone.percent()),
+            Self::CameraDeadzone => i64::from(controls.camera_deadzone.percent()),
+            Self::TriggerDeadzone => i64::from(controls.trigger_deadzone.percent()),
+            Self::SteeringSensitivity => i64::from(controls.steering_sensitivity.percent()),
+            Self::CameraSensitivity => i64::from(controls.camera_sensitivity.percent()),
+            Self::MouseSensitivity => i64::from(controls.mouse_sensitivity.percent()),
         };
-        Data::Text(value)
+        Data::Text(crate::i18n::fmt::percent(percent))
     }
     pub fn step(self, s: &mut Settings, changed: &mut Partial, forward: bool) -> bool {
         let before = s.controls;

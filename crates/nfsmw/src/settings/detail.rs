@@ -17,6 +17,7 @@ names!(
 );
 impl WorldDetail {
     pub const ALL: [Self; 4] = [Self::Low, Self::Medium, Self::High, Self::Maximum];
+    /// The detail level's English name, for the F8 graphics lab (which stays in English).
     pub const fn label(self) -> &'static str {
         match self {
             Self::Low => "Low",
@@ -24,6 +25,16 @@ impl WorldDetail {
             Self::High => "High",
             Self::Maximum => "Maximum",
         }
+    }
+    /// The detail level's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::Low => "options-low",
+            Self::Medium => "options-medium",
+            Self::High => "options-high",
+            Self::Maximum => "options-maximum",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
     pub const fn mip_discard(self) -> u32 {
         match self {
@@ -81,12 +92,22 @@ pub enum CarGeometry {
 names!(CarGeometry, "low, high or highest", [(Self::Low, "low"), (Self::High, "high"), (Self::Highest, "highest")]);
 impl CarGeometry {
     pub const ALL: [Self; 3] = [Self::Low, Self::High, Self::Highest];
+    /// The car detail's English name, for the F8 graphics lab (which stays in English).
     pub const fn label(self) -> &'static str {
         match self {
             Self::Low => "Low (adaptive)",
             Self::High => "High (adaptive)",
             Self::Highest => "Always highest",
         }
+    }
+    /// The car detail's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::Low => "options-car-geometry-low",
+            Self::High => "options-car-geometry-high",
+            Self::Highest => "options-car-geometry-highest",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

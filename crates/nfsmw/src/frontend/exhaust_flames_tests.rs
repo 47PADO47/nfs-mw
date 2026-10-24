@@ -7,7 +7,7 @@ use crate::settings::{Partial, Settings};
 fn the_video_screen_has_one_exhaust_flames_row_after_the_vehicle_effects() {
     let video = rows(Category::Video, &crate::settings::test_caps::native());
     let at = video.iter().position(|r| r.setting == Setting::ExhaustFlames).expect("a row");
-    assert_eq!(video[at].title, Title::Text("Exhaust Flames"));
+    assert_eq!(video[at].title, Title::Key("options-exhaust-flames"));
     assert_eq!(video[at - 1].setting, Setting::SpeedTrailStyle);
     assert_eq!(video[at - 2].setting, Setting::SpeedTrails);
     // The pause menu shows the same rows as the main menu.

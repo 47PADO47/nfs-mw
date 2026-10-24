@@ -8,11 +8,13 @@ pub enum SparkStyle {
 }
 
 impl SparkStyle {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::OriginalPc => "Original PC",
-            Self::RestoredExperimental => "Restored (Experimental)",
-        }
+    /// The style's name in the current language, as the options show it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::OriginalPc => "options-original-pc",
+            Self::RestoredExperimental => "options-sparks-restored",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

@@ -7,7 +7,7 @@ fn hud_layout_starts_gameplay_options_and_keeps_the_hud_enabled() {
     let rows = rows(Category::Gameplay, &crate::settings::test_caps::native());
     let index = 0;
     assert_eq!(rows[index].setting, Setting::HudLayout);
-    assert_eq!(rows[index].title, Title::Text("HUD Layout"));
+    assert_eq!(rows[index].title, Title::Key("options-hud-layout"));
     let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());
     assert_eq!(Setting::HudLayout.control(&settings), Control::Toggle);
     assert_eq!(Setting::HudLayout.data(&settings), Data::Text("PC".into()));
