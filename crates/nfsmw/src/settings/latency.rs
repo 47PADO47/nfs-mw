@@ -1,6 +1,22 @@
 //! Optional NVIDIA presentation controls. Stored requests survive an unavailable runtime.
 pub use blackbox_gfx::ReflexMode;
 
+/// Frames the presentation engine may queue ahead of the display (`frame_latency`): 2 keeps the GPU busy, 1 shows each
+/// frame sooner and stalls more when the CPU is late. Read when the renderer starts.
+pub const DEFAULT_FRAME_LATENCY: u32 = 2;
+
+/// The frame latencies a setting may hold.
+pub const FRAME_LATENCIES: std::ops::RangeInclusive<u32> = 1..=2;
+
+/// The `frame_latency` text: 1 or 2.
+pub fn parse_frame_latency(text: &str) -> Result<u32, String> {
+    text.trim()
+        .parse::<u32>()
+        .ok()
+        .filter(|frames| FRAME_LATENCIES.contains(frames))
+        .ok_or_else(|| format!("expected 1 or 2, got {text:?}"))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct FrameGeneration(pub u32);
 

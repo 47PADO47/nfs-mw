@@ -38,7 +38,7 @@ mod filtering_tests;
 pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
 mod latency;
-pub use latency::{FrameGeneration, ReflexMode};
+pub use latency::{DEFAULT_FRAME_LATENCY, FrameGeneration, ReflexMode, parse_frame_latency};
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
@@ -191,6 +191,7 @@ pub struct Settings {
     pub frame_generation: FrameGeneration,
     pub vsync: bool,
     pub max_fps: MaxFps,
+    pub frame_latency: u32,
     pub show_metrics: ShowMetrics,
     pub window_mode: WindowMode,
     pub monitor: Monitor,
@@ -362,6 +363,7 @@ impl From<Partial> for Settings {
             frame_generation: p.frame_generation.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
+            frame_latency: p.frame_latency.unwrap_or(DEFAULT_FRAME_LATENCY),
             show_metrics: p.show_metrics.unwrap_or_default(),
             window_mode: p.window_mode.unwrap_or_default(),
             monitor: p.monitor.unwrap_or_default(),

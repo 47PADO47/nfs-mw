@@ -134,6 +134,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         frame_generation: Some(s.frame_generation),
         vsync: Some(s.vsync),
         max_fps: Some(s.max_fps),
+        frame_latency: Some(s.frame_latency),
         show_metrics: Some(s.show_metrics),
         window_mode: Some(s.window_mode),
         monitor: Some(s.monitor),

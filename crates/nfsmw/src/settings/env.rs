@@ -21,6 +21,7 @@ pub const BACKEND: &str = "NFSMW_BACKEND";
 pub const RENDERER: &str = "NFSMW_RENDERER";
 pub const VSYNC: &str = "NFSMW_VSYNC";
 pub const MAX_FPS: &str = "NFSMW_MAX_FPS";
+pub const FRAME_LATENCY: &str = "NFSMW_FRAME_LATENCY";
 pub const SHOW_METRICS: &str = "NFSMW_SHOW_METRICS";
 pub const WINDOW_MODE: &str = "NFSMW_WINDOW_MODE";
 pub const MONITOR: &str = "NFSMW_MONITOR";
@@ -124,6 +125,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         frame_generation: value(&get, "NFSMW_FRAME_GENERATION", super::FrameGeneration::from_str),
         vsync: value(&get, VSYNC, parse_bool),
         max_fps: value(&get, MAX_FPS, MaxFps::from_str),
+        frame_latency: value(&get, FRAME_LATENCY, super::parse_frame_latency),
         show_metrics: value(&get, SHOW_METRICS, ShowMetrics::from_str),
         window_mode: value(&get, WINDOW_MODE, WindowMode::from_str),
         monitor: value(&get, MONITOR, Monitor::from_str),
