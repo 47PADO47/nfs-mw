@@ -29,4 +29,7 @@ pub struct WorldMarks {
     pub entrances: Vec<EntranceMark>,
     /// The pursuit breakers within sight distance of the car while a chase is on, nearest first.
     pub breakers: Vec<MarkPoint>,
+    /// The car's height, render z, metres: the height the markers give the places known only across the ground (the
+    /// police intel). `None` without a car.
+    pub car_z: Option<f32>,
 }

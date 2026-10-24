@@ -58,7 +58,7 @@ impl WorldScene {
             .into_iter()
             .map(|place| MarkPoint { position: place.to_array(), occluded: hidden(place) })
             .collect();
-        WorldMarks { gate_occluded, entrances, breakers }
+        WorldMarks { gate_occluded, entrances, breakers, car_z: Some(car.z) }
     }
 }
 
