@@ -28,6 +28,8 @@
 //! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
 //! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
 //! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
+//! - [`menu`]: the menus (PR 11a): the main menu, the option categories, the pause menu, the safe house, the option
+//!   pages and the dialogs, drawn from the lists the frontend publishes ([`MenuListCell`]).
 //!
 //! Kept from before the rewrite until their own PRs replace them:
 //!
@@ -61,6 +63,7 @@ mod markers;
 mod notify;
 mod memory;
 pub mod mode;
+pub mod menu;
 pub mod palette;
 mod parts;
 #[allow(dead_code)]
@@ -91,6 +94,8 @@ use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId, Tokens};
 
 use crate::ui::theme::ElementId;
 use cluster::Cluster;
+use crate::ui::theme::{ElementId, MenuListCell};
+use menu::{CustomMenu, GlideCell};
 
 /// The token-driven theme: its id, the tokens it declares, and the feeds its components read.
 #[derive(Clone, Debug)]
@@ -100,13 +105,29 @@ pub struct CustomTheme {
     radio: RadioFeedCell,
     feed: CustomFeedCell,
     legend: WorldMapLegendCell,
+    /// The lists the menus draw (filled by the frontend for the list looks), and where each menu's selection plate is.
+    menus: MenuListCell,
+    glide: GlideCell,
 }
 
 impl CustomTheme {
     /// The token-driven theme (`ThemeId::Custom`), whose radio card reads `radio`, whose HUD components read `feed` and
     /// whose map legend reads `legend`.
     pub fn new(radio: RadioFeedCell, feed: CustomFeedCell, legend: WorldMapLegendCell) -> Self {
-        Self { id: ThemeId::Custom, tokens: palette::bevy(), radio, feed, legend }
+        Self {
+            id: ThemeId::Custom,
+            tokens: palette::bevy(),
+            radio,
+            feed,
+            legend,
+            menus: MenuListCell::new(),
+            glide: GlideCell::default(),
+        }
+    }
+
+    /// This theme with its menus drawn from `menus`, the cell the frontend fills each frame.
+    pub fn with_menus(self, menus: MenuListCell) -> Self {
+        Self { menus, ..self }
     }
 }
 
@@ -120,6 +141,10 @@ impl Theme for CustomTheme {
         // the slot is also what tells the frontend to recolour.
         if ElementId::from_slot(slot) == Some(ElementId::WorldMapChrome) {
             return Some(Box::new(MapLegend::new(self.legend.clone())));
+        }
+        // The menus are the Custom theme's own; the HUD components below are shared with the mod themes.
+        if menu::draws(slot) {
+            return Some(Box::new(CustomMenu::new(slot, self.menus.clone(), self.glide.clone())));
         }
         hud_component(slot, &self.radio, &self.feed)
     }

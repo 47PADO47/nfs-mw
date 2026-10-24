@@ -50,9 +50,9 @@ fn texts(nodes: &[UiNode]) -> Vec<&str> {
 }
 
 #[test]
-fn custom_fills_the_radio_card_the_map_legend_and_the_layouts_and_falls_back_for_every_other_slot() {
-    // The cluster (PR 6), the markers (PR 9), the notifications (PR 10) and the contextual layouts (PR 8) fill their
-    // slots; the map comes in PR 7b, so the minimap and the blips still fall back.
+fn custom_fills_the_hud_the_menus_the_radio_card_and_the_map_legend_and_falls_back_for_every_other_slot() {
+    // The rewrite (ADR 0013) draws every HUD slot but the busted overlay, the radio card, the map legend and the menus
+    // of PR 11a with its own components; every other slot falls back to Original.
     let theme = CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), Default::default());
     let skin = default_skin();
     let cx = BuildCx::new(&skin);
@@ -79,6 +79,12 @@ fn custom_fills_the_radio_card_the_map_legend_and_the_layouts_and_falls_back_for
                 | ElementId::VehicleCondition
                 | ElementId::Minimap
                 | ElementId::Blips
+                | ElementId::MainMenu
+                | ElementId::Categories
+                | ElementId::PauseMenu
+                | ElementId::SafeHouseMenu
+                | ElementId::OptionTable
+                | ElementId::Dialog
         );
         assert_eq!(filled, custom, "{}", element.name());
     }
