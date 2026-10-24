@@ -25,6 +25,8 @@ pub fn create(
     // SAFETY: this runs in a system that takes `NonSendMut`, so it is on the main thread, which is
     // what `get_handle` requires.
     let handle = unsafe { raw.get_handle() };
-    let renderer = Renderer::new(handle, size, display.0.clone(), options)?;
+    let mut renderer = Renderer::new(handle, size, display.0.clone(), options)?;
+    // How many frames the swapchain queues ahead; the default of 2 is what the surface starts with.
+    renderer.set_max_frame_latency(settings.frame_latency);
     Ok(Box::new(renderer))
 }

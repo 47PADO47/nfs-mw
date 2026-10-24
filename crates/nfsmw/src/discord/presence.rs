@@ -12,11 +12,12 @@ pub enum PresenceStatus {
 }
 
 impl PresenceStatus {
-    /// The line Discord shows under the application's name.
-    pub fn details(self) -> &'static str {
-        match self {
-            Self::Playing => "Playing NFS: Most Wanted",
-        }
+    /// The line Discord shows under the application's name, in the current language.
+    pub fn details(self) -> String {
+        let id = match self {
+            Self::Playing => "menus-presence-playing",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 
@@ -24,7 +25,7 @@ impl PresenceStatus {
 /// turns into "elapsed" time. `None` shows the status line alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Presence {
-    pub details: &'static str,
+    pub details: String,
     pub started_at_ms: Option<i64>,
 }
 

@@ -4,17 +4,18 @@
 //! whose end (`EXIT_COMPLETE`) ends the race. `docs/provenance/race-mode.md` section 10 has what is known of the package.
 
 use super::ids;
-use super::infractions::money;
 use super::logic::{Command, Cx, ScreenLogic};
 use super::post_race::lap_time;
+use crate::i18n::fmt::grouped;
 use crate::viewer::{PursuitReport, RaceAnswer};
 
 /// The label and the value of row `n` (0 to 8) are the name hashes `0x38B136A8 + n` and `0x85AB7369 + n`.
 const FIRST_LABEL: u32 = 0x38B1_36A8;
 const FIRST_VALUE: u32 = 0x85AB_7369;
-/// The heading and its shadow.
+/// The heading and its shadow, and the language label they show (`PRP_HEADER_PURSUIT`).
 const HEADING: u32 = 0xB987_AEA9;
 const HEADING_SHADOW: u32 = 0x8481_22A4;
+const HEADING_TEXT: u32 = 0xFEA8_72D4;
 /// The rows the package has past the six this build fills: the unserved infractions, the escapes in a row and the
 /// unserved infractions again. They are left empty.
 const SPARE_ROWS: std::ops::Range<u32> = 6..9;
@@ -38,7 +39,7 @@ pub fn row_text(report: &PursuitReport, row: usize) -> String {
         2 => (report.cops_damaged.to_string(), count),
         3 => (report.cops_destroyed.to_string(), count),
         4 => (report.roadblocks_dodged.to_string(), count),
-        _ => (money(report.cost_to_state), cost),
+        _ => (grouped(i64::from(report.cost_to_state)), cost),
     };
     match report.goal {
         Some((goal_row, target)) if goal_row == row => format!("{value} / {}", goal(target)),
@@ -51,14 +52,15 @@ fn count(value: f32) -> String {
 }
 
 fn cost(value: f32) -> String {
-    money(value.round() as u32)
+    grouped(i64::from(value.round() as u32))
 }
 
 impl ScreenLogic for PursuitResultsLogic {
     fn start(&mut self, cx: &mut Cx) {
         // The package's heading reads INFRACTIONS (the screen is shared with the infractions page of a chase).
-        cx.text_object(HEADING, "PURSUIT");
-        cx.text_object(HEADING_SHADOW, "PURSUIT");
+        let heading = crate::i18n::game_or_error(HEADING_TEXT);
+        cx.text_object(HEADING, &heading);
+        cx.text_object(HEADING_SHADOW, &heading);
         for row in 0..PursuitReport::ROWS.len() {
             cx.text_object(FIRST_VALUE + row as u32, &row_text(&self.report, row));
         }

@@ -3,10 +3,12 @@
 
 use std::net::{IpAddr, SocketAddr};
 
+use crate::i18n::t;
+
 /// The IP and the port, if one was given: `1.2.3.4`, `1.2.3.4:9760`, `[::1]:9760`, `::1` or `localhost[:port]`.
 pub fn address_of(address: &str) -> Result<(IpAddr, Option<u16>), String> {
     let address = address.trim();
-    let bad = || format!("{address:?} is not an address (an IP, optionally with :port)");
+    let bad = || t!("lan-address-bad", address = address);
     if let Ok(ip) = address.parse::<IpAddr>() {
         return Ok((ip, None));
     }
@@ -39,7 +41,7 @@ mod tests {
         assert_eq!(socket_of(" 10.0.0.2:9800 ", 9750), Ok("10.0.0.2:9800".parse().unwrap()));
         assert_eq!(socket_of("[::1]:9800", 9750), Ok("[::1]:9800".parse().unwrap()));
         assert_eq!(socket_of("LOCALHOST", 9750), Ok("127.0.0.1:9750".parse().unwrap()));
-        assert!(socket_of("lan-box", 9750).is_err());
+        assert!(socket_of("mybox", 9750).is_err());
         assert!(socket_of("10.0.0.2:x", 9750).is_err());
     }
 }

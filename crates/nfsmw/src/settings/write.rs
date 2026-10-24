@@ -79,6 +79,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.max_fps {
         put("max_fps", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.frame_latency {
+        put("frame_latency", Value::Integer(i64::from(v)));
+    }
     if let Some(v) = changes.show_metrics {
         put("show_metrics", Value::String(v.to_string()));
     }
@@ -186,6 +189,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.ui_style {
         put("ui_style", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.language {
+        put("language", Value::String(v.to_string()));
     }
     if let Some(v) = changes.speed_units {
         put("speed_units", Value::String(v.to_string()));
@@ -398,6 +404,7 @@ mod tests {
         let changes = Partial {
             vsync: Some(false),
             max_fps: Some(MaxFps::from_str("120").unwrap()),
+            frame_latency: Some(1),
             show_metrics: Some(ShowMetrics::Advanced),
             show_readout: Some(ShowReadout::Full),
             master_volume: Some(Percent(10)),

@@ -22,6 +22,54 @@ impl Scene for Pausable {
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }
+
+    fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.inner.begin_garage(renderer)
+    }
+    fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.inner.begin_tuning(renderer)
+    }
+
+    fn tuning_available(&self) -> Option<bool> {
+        self.inner.tuning_available()
+    }
+
+    fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.inner.confirm_tuning(renderer, selection)
+    }
+
+    fn garage_view(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        stage: crate::garage::View,
+        camera: &'static str,
+    ) -> Result<()> {
+        self.inner.garage_view(renderer, stage, camera)
+    }
+
+    fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.inner.preview_garage(renderer, selection)
+    }
+
+    fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.inner.confirm_garage(renderer, selection)
+    }
+
+    fn cancel_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.inner.cancel_garage(renderer)
+    }
+    fn take_garage_request(&mut self) -> bool {
+        self.inner.take_garage_request()
+    }
+    fn select_garage_slot(&mut self, renderer: &mut dyn RenderBackend, id: &str) -> Result<()> {
+        self.inner.select_garage_slot(renderer, id)
+    }
+    fn add_garage_slot(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.inner.add_garage_slot(renderer)
+    }
+    fn delete_garage_slot(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.inner.delete_garage_slot(renderer)
+    }
     fn title(&self) -> String {
         self.inner.title()
     }
@@ -31,21 +79,7 @@ impl Scene for Pausable {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        // A multiplayer client's world never stops (the server does not pause): it runs on under the menu with
-        // neutral input.
-        if self.paused.get() && self.inner.runs_while_paused() {
-            self.inner.update(renderer, &ActionState::default(), dt);
-            return;
-        }
-        if self.paused.get() {
-            if self.effects_dirty {
-                self.inner.refresh_effects(renderer);
-                self.effects_dirty = false;
-            }
-            return;
-        }
-        self.inner.update(renderer, input, dt);
-        self.effects_dirty = false;
+        self.advance_scene(renderer, input, dt);
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
@@ -109,6 +143,18 @@ impl Scene for Pausable {
 
     fn ready(&self) -> bool {
         self.inner.ready()
+    }
+
+    /// A frozen or concealed world does not move on its own: the camera and the instances are what the picture is. A
+    /// pending refresh of its effect buffers changes renderer state, so that frame is not still.
+    fn menu_frame(&self) -> bool {
+        if self.effects_dirty {
+            return false;
+        }
+        if self.concealed() || (self.paused.get() && !self.inner.runs_while_paused()) {
+            return true;
+        }
+        self.inner.menu_frame()
     }
 
     fn race_staging(&self) -> bool {
@@ -241,39 +287,27 @@ impl Scene for Pausable {
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.paused.get() || self.concealed() {
-            return None;
-        }
-        self.inner.car_sound()
+        self.paused_car_sound()
+    }
+
+    fn radio_on_menus(&self) -> bool {
+        self.inner.radio_on_menus()
     }
 
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.paused.get() || self.concealed() {
-            return None;
-        }
-        self.inner.second_car_sound()
+        self.paused_second_car_sound()
     }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
-        let sounds = self.inner.take_common_sounds();
-        if self.paused.get() || self.concealed() {
-            return Vec::new();
-        }
-        sounds
+        self.paused_take_common_sounds()
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.pursuit_feed()
+        self.paused_pursuit_feed()
     }
 
     fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.roam_feed()
+        self.paused_roam_feed()
     }
 
     fn start_911_call(&mut self, secs: f32) {
@@ -416,27 +450,15 @@ impl Scene for Pausable {
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
-        let sounds = self.inner.take_traffic_sounds();
-        if self.concealed() {
-            return Vec::new();
-        }
-        sounds
+        self.paused_take_traffic_sounds()
     }
 
     fn rotor_frame(&mut self, dt: f32) -> Option<crate::audio::HeliFrame> {
-        let frame = self.inner.rotor_frame(dt);
-        if self.concealed() {
-            return None;
-        }
-        frame
+        self.paused_rotor_frame(dt)
     }
 
     fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
-        let frame = self.inner.siren_frame(dt);
-        if self.concealed() {
-            return None;
-        }
-        frame
+        self.paused_siren_frame(dt)
     }
 
     fn take_explosions(&mut self) -> Vec<glam::Vec3> {

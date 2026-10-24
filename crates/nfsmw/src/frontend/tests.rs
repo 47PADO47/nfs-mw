@@ -1,20 +1,20 @@
 //! The screens against the packages of the install (skipped without `NFSMW_GAME_DIR`): pad presses in, what the
 //! screens ask for and show out.
 
-use std::sync::Arc;
-
-use blackbox_feng::runtime::pad;
-use game_install::GameDir;
-
 use super::ids::screen;
 use super::logic::{Args, Category, Command, Env};
 use super::screens::Screens;
 use crate::settings::{Partial, Percent, Settings, test_caps};
 use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+use blackbox_feng::runtime::pad;
+use game_install::GameDir;
+use std::sync::Arc;
 const FRAME: f32 = 1.0 / 60.0;
 #[path = "click_tests.rs"]
 mod click_tests;
 mod custom_race_screen_tests;
+#[path = "garage_entry_tests.rs"]
+mod garage_entry_tests;
 #[path = "icon_transition_tests.rs"]
 mod icon_transition_tests;
 #[path = "player_options_tests.rs"]
@@ -448,11 +448,11 @@ fn controls_options_show_every_response_row_with_visible_values() {
         for (index, row) in rows.iter().enumerate() {
             let slot = index.min(visible - 1) + 1;
             let tree = h.screens.trees().pop().unwrap();
-            if let Title::Text(title) = row.title {
+            if let Title::Key(_) = row.title {
                 let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_NAME_{slot}"));
                 let node =
                     tree.nodes.iter().find(|node| node.name_hash == hash && node.visible).expect("visible option name");
-                assert_eq!(node.text.as_deref(), Some(title), "{name}, row {index}");
+                assert_eq!(node.text.as_deref(), Some(row.title.text().as_str()), "{name}, row {index}");
             }
             if let Data::Text(value) = row.setting.data(&h.settings) {
                 let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_DATA_{slot}"));

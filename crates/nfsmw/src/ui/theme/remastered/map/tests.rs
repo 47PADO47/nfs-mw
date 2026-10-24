@@ -30,8 +30,8 @@ fn snapshot(session: WorldMap) -> MapSnapshot {
         ..Default::default()
     };
     let hints = vec![
-        MenuHint { keys: vec![Prompt::Key("Esc".into())], label: "Back", action: Some(Action::MenuBack) },
-        MenuHint { keys: vec![Prompt::Icon(Glyph::Horizontal)], label: "Filter", action: None },
+        MenuHint { keys: vec![Prompt::Key("Esc".into())], label: "Back".into(), action: Some(Action::MenuBack) },
+        MenuHint { keys: vec![Prompt::Icon(Glyph::Horizontal)], label: "Filter".into(), action: None },
     ];
     MapSnapshot { frame, hints, aspect: ASPECT }
 }

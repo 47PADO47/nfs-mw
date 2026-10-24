@@ -29,12 +29,22 @@ names!(
 );
 impl VisualStyle {
     pub const ALL: [Self; 3] = [Self::OriginalPc, Self::Enhanced, Self::Custom];
+    /// The style's English name, for the F8 graphics lab (which stays in English).
     pub fn label(self) -> &'static str {
         match self {
             Self::OriginalPc => "Original PC (incomplete)",
             Self::Enhanced => "Enhanced",
             Self::Custom => "Custom",
         }
+    }
+    /// The style's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::OriginalPc => "options-style-original-pc",
+            Self::Enhanced => "options-enhanced",
+            Self::Custom => "options-custom",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,13 +69,15 @@ impl Quality {
             super::RendererKind::Bevy => &[Self::Low, Self::Balanced, Self::High],
         }
     }
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Low => "Low",
-            Self::Balanced => "Balanced",
-            Self::High => "High",
-            Self::VeryHigh => "Very High",
-        }
+    /// The quality's name in the current language, as the options show it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Low => "options-low",
+            Self::Balanced => "options-balanced",
+            Self::High => "options-high",
+            Self::VeryHigh => "options-very-high",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq)]

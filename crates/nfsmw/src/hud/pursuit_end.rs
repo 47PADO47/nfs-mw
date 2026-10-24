@@ -6,6 +6,7 @@ use blackbox_pursuit::EndReason;
 use egui::{Align2, Color32, RichText};
 
 use super::pursuit::timer_text;
+use crate::i18n::t;
 
 /// Seconds the card stays up after the chase ended.
 pub const SHOW_SECS: f32 = 6.0;
@@ -39,11 +40,11 @@ impl PursuitEndCard {
     }
 
     /// The card's heading.
-    pub fn title(&self) -> &'static str {
+    pub fn title(&self) -> String {
         match self.reason {
-            EndReason::Evaded => "You escaped",
-            EndReason::Busted => "Busted",
-            EndReason::None => "",
+            EndReason::Evaded => t!("hud-pursuit-escaped"),
+            EndReason::Busted => t!("hud-pursuit-busted"),
+            EndReason::None => String::new(),
         }
     }
 }
@@ -64,8 +65,8 @@ pub fn show(ctx: &egui::Context, card: &PursuitEndCard) {
                 .inner_margin(egui::Margin::same(16))
                 .show(ui, |ui| {
                     let title = RichText::new(card.title()).size(32.0).strong().color(ink(Color32::WHITE));
-                    let wrecked = format!("Cops wrecked: {}", card.cops_destroyed);
-                    let time = format!("Time: {}", timer_text(card.secs));
+                    let wrecked = t!("hud-pursuit-cops-wrecked", n = card.cops_destroyed);
+                    let time = t!("hud-pursuit-time", time = timer_text(card.secs));
                     ui.label(title);
                     ui.label(RichText::new(wrecked).size(18.0).color(ink(Color32::from_gray(210))));
                     ui.label(RichText::new(time).size(18.0).color(ink(Color32::from_gray(210))));

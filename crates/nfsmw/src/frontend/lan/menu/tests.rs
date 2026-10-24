@@ -7,6 +7,7 @@ use nfsmw_net::message::{EventHead, List, Mode, RaceResults, ResultRow};
 use super::*;
 use crate::frontend::lan::backend::ServerEntry;
 use crate::frontend::lan::mock::{Call, MockNetFrontend};
+use crate::frontend::lan::text::{game, label};
 use crate::frontend::lan::{Disconnect, NetFrontend};
 use crate::settings::{Partial, Settings};
 
@@ -66,7 +67,7 @@ fn home_lists_host_join_and_back_and_back_closes() {
     menu.open(&net.status());
     let page = view(&menu, &mut net);
     assert_eq!(page.title, "LAN Game");
-    assert_eq!(page.labels(), ["Host a Game", "Join a Game", "Your name", "Back"]);
+    assert_eq!(page.labels(), ["Host a Game", "Join a Game", "Your name", game(label::BACK).as_str()]);
     assert_eq!(press(&mut menu, &mut net, &[LanKey::Back]), [MenuOut::Close]);
     assert!(!menu.open);
 }
@@ -155,7 +156,7 @@ fn join_scans_lists_servers_and_asks_a_password_for_a_locked_one() {
     assert_eq!(net.take_calls(), [Call::Scan]);
     net.servers = vec![server("Open room", false), server("Locked room", true)];
     let page = view(&menu, &mut net);
-    assert_eq!(page.labels(), ["Open room", "Locked room", "Refresh", "Direct connect", "Back"]);
+    assert_eq!(page.labels(), ["Open room", "Locked room", "Refresh", "Direct connect", game(label::BACK).as_str()]);
     assert_eq!(page.rows[1].value, "Free Roam  2/8  3 ms  locked");
     let mut keys = vec![LanKey::Down, LanKey::Accept];
     keys.extend(typed("hunter2"));
@@ -177,7 +178,7 @@ fn direct_connect_parses_the_typed_address_with_the_settings_port() {
     press(&mut menu, &mut net, &keys);
     assert_eq!(net.take_calls(), [Call::Connect("10.0.0.9:9750".parse().unwrap(), None)]);
     let mut bad = vec![LanKey::Click(1)];
-    bad.extend(typed("lan-box"));
+    bad.extend(typed("mybox"));
     bad.push(LanKey::Accept);
     press(&mut menu, &mut net, &bad);
     assert!(view(&menu, &mut net).error.unwrap().contains("not an address"));
@@ -194,7 +195,8 @@ fn a_server_that_wants_a_password_brings_the_prompt_back() {
     net.status = Some(NetStatus::Disconnected(Disconnect::Session(EndReason::PasswordRequired)));
     frame(&mut menu, &mut net);
     let page = view(&menu, &mut net);
-    assert_eq!(page.labels(), ["Password", "Join", "Cancel"]);
+    let (password, join, cancel) = (game(label::PASSWORD), game(label::JOIN), game(label::CANCEL));
+    assert_eq!(page.labels(), [password.as_str(), join.as_str(), cancel.as_str()]);
     assert_eq!(page.error.as_deref(), Some("this game needs a password"));
 }
 
@@ -227,7 +229,7 @@ fn results_open_over_the_world_and_continue_to_the_lobby() {
     frame(&mut menu, &mut net);
     assert!(menu.visible(&net.status()), "the results show over the world");
     let page = view(&menu, &mut net);
-    assert_eq!(page.labels(), ["1st  Ann", "2nd  Host", "Continue"]);
+    assert_eq!(page.labels(), ["1st  Ann", "2nd  Host", game(label::CONTINUE).as_str()]);
     assert_eq!(menu.feed.last(1).next().unwrap().text, "Ann won (1st of 2)");
     net.status = Some(NetStatus::InLobby);
     press(&mut menu, &mut net, &[LanKey::Accept]);

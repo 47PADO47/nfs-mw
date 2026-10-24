@@ -43,7 +43,11 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
             .copied()
             .unwrap_or(0);
         for (i, vinyl) in model.draft.parts.vinyl_colors.iter_mut().enumerate().take(count.min(3)) {
+            let previous = *vinyl;
             color(ui, &format!("Vinyl color {}", i + 1), vinyl);
+            if *vinyl != previous {
+                model.draft.parts.vinyl_color_parts[i] = None;
+            }
         }
         ui.weak("Fixed artwork. Color controls appear for recolorable vinyls.");
     });
@@ -55,6 +59,7 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         }
         model.draft.parts.rim_color = None;
         model.draft.parts.vinyl_colors = [None; 3];
+        model.draft.parts.vinyl_color_parts = [None; 3];
         model.draft.gauges = Default::default();
         model.draft.color = None;
     }
@@ -81,9 +86,15 @@ fn gauges(ui: &mut egui::Ui, model: &mut Model, catalog: &Catalog, settings: &mu
                 ui.selectable_value(&mut model.draft.gauges.skin, skin, format!("Style {skin}"));
             }
         });
+    let before = model.draft.gauges.colors();
     color(ui, "Backing", &mut model.draft.gauges.backing);
     color(ui, "Needle", &mut model.draft.gauges.needle);
     color(ui, "Digits", &mut model.draft.gauges.digits);
+    for (index, color) in model.draft.gauges.colors().into_iter().enumerate() {
+        if color != before[index] {
+            model.draft.gauges.color_parts[index] = None;
+        }
+    }
     if ui.button("Restore stock gauges").clicked() {
         model.draft.gauges = Default::default();
     }
@@ -125,7 +136,7 @@ mod tests {
         model.cars.push(super::super::Car {
             folder: "CAR".into(),
             original_color: Some([80; 3]),
-            parts: Some(catalog),
+            parts: Some(catalog.into()),
             ..Default::default()
         });
         model.select("CAR".into());

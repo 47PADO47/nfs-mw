@@ -112,7 +112,7 @@ fn gps_dialog(answer: Command) -> Option<Harness> {
     use crate::ui::Text;
     let mut h = Harness::open(screen::OPTIONS, Args { category: Category::Video, ..Args::default() })?;
     h.wait(1.5);
-    let confirm = Confirm::new(Text::Custom("Activate GPS?".into()), answer);
+    let confirm = Confirm::new(Text::Literal("Activate GPS?".into()), answer);
     let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
     let opened = h.screens.open_with(screen::DIALOG, Box::new(ConfirmLogic::new(confirm)), false, &mut env);
     h.commands.extend(opened);

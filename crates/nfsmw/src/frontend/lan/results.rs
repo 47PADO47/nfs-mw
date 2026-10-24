@@ -7,7 +7,9 @@ use nfsmw_net::message::{Mode, RESULT_BUSTED, RESULT_DNF, RaceResults, ResultRow
 use nfsmw_net::results::{FLAG_KNOCKED_OUT, FLAG_LEFT};
 
 use super::menu::rows::Row;
-use super::text::{ordinal, race_time, slot_name};
+use super::text::{race_time, slot_name};
+use crate::i18n::fmt::ordinal;
+use crate::i18n::{self, Args, t};
 use crate::viewer::{RaceReport, ReportRacer};
 
 /// The rows in finishing order (a row without a place last).
@@ -19,13 +21,17 @@ pub fn ordered(results: &RaceResults) -> Vec<ResultRow> {
 
 /// What a row's flags say: `DNF`, `busted`, `knocked out`, `left`.
 pub fn flags_text(flags: u8) -> String {
-    let words: Vec<&str> =
-        [(RESULT_DNF, "DNF"), (RESULT_BUSTED, "busted"), (FLAG_KNOCKED_OUT, "knocked out"), (FLAG_LEFT, "left")]
-            .into_iter()
-            .filter(|(bit, _)| flags & bit != 0)
-            .map(|(_, word)| word)
-            .collect();
-    words.join(", ")
+    let words: Vec<String> = [
+        (RESULT_DNF, "lan-result-dnf"),
+        (RESULT_BUSTED, "lan-result-busted"),
+        (FLAG_KNOCKED_OUT, "lan-result-knocked-out"),
+        (FLAG_LEFT, "lan-result-left"),
+    ]
+    .into_iter()
+    .filter(|(bit, _)| flags & bit != 0)
+    .map(|(_, id)| i18n::text(id, &Args::new()))
+    .collect();
+    words.join(t!("lan-result-separator").as_str())
 }
 
 /// The page's rows: `1st  Ann` and `1:23.456  best 0:40.100  DNF`.
@@ -40,7 +46,7 @@ pub fn rows(results: &RaceResults, lobby: Option<&LobbyView>) -> Vec<Row> {
             let label = format!("{place}  {}", slot_name(lobby, u32::from(row.slot)));
             let mut value = race_time(row.time_ms);
             if row.best_lap_ms != 0 {
-                value.push_str(&format!("  best {}", race_time(row.best_lap_ms)));
+                value.push_str(&format!("  {}", t!("lan-result-best", time = race_time(row.best_lap_ms))));
             }
             let flags = flags_text(row.flags);
             if !flags.is_empty() {

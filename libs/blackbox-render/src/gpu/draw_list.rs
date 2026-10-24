@@ -97,6 +97,15 @@ pub(super) struct DrawList {
     normal: [Vec<LayerCmd>; BLEND_ORDER.len()],
     /// Window draws, one list per blend mode in `BLEND_ORDER`.
     window: [Vec<LayerCmd>; BLEND_ORDER.len()],
+    /// The normal-map draws of `normal` whose material reads the projected capture, in the same order: what the road
+    /// reflection pass redraws.
+    water: [Vec<LayerCmd>; BLEND_ORDER.len()],
+    /// The slots of the normal materials that read the projected capture, ascending. The water lists follow it.
+    projected: Vec<usize>,
+    /// Bumped whenever `projected` changes, and the value the last build saw: a list built under an older set of
+    /// materials is not used.
+    projected_epoch: u64,
+    built_epoch: u64,
     /// Sky layer draws of every layer kind, one instance at a time in instance order (the layers blend, so the
     /// order between instances is part of the picture).
     sky: Vec<LayerCmd>,
@@ -123,6 +132,27 @@ impl DrawList {
         list
     }
 
+    /// The normal-map draws of blend mode number `blend` whose material reads the projected capture, in draw order.
+    /// `None` when the last build did not know the current projected materials ([`Self::set_projected`] changed
+    /// them since): the caller walks [`Self::normal`] and filters instead.
+    pub(super) fn water(&self, blend: usize) -> Option<&[LayerCmd]> {
+        if self.built_epoch != self.projected_epoch {
+            return None;
+        }
+        self.water.get(blend).map(Vec::as_slice)
+    }
+
+    /// Tell the lists which normal materials (by slot, ascending) read the projected capture, so the next build
+    /// sorts their draws into the water lists. A no-op when the set is the same as before.
+    pub(super) fn set_projected(&mut self, materials: impl Iterator<Item = usize> + Clone) {
+        if self.projected.iter().copied().eq(materials.clone()) {
+            return;
+        }
+        self.projected.clear();
+        self.projected.extend(materials);
+        self.projected_epoch += 1;
+    }
+
     /// The sky layer draws of every kind, in instance order.
     pub(super) fn sky(&self) -> &[LayerCmd] {
         &self.sky
@@ -139,36 +169,37 @@ impl DrawList {
         let _trace = blackbox_trace::scope("Renderer CPU: build draw list");
         self.fill(
             instances,
-            |slot| meshes.get(slot).map(|mesh| (mesh.draws.as_slice(), mesh.draw_masks.as_slice())),
+            |slot| meshes.get(slot).map(|mesh| (mesh.draws.as_slice(), mesh.draw_masks.as_slice(), mesh.single_sided)),
             |texture| resolve_texture(texture, redirects, textures),
         );
     }
 
     /// The walk behind [`Self::build`], over plain draw lists so the tests need no device. `draws_of`
-    /// gives a mesh's draws and their masks (`None` for a mesh that is not live); `texture_of` gives a draw's
-    /// texture slot.
+    /// gives a mesh's draws, their masks and whether any draw is single-sided (`None` for a mesh that is not
+    /// live); `texture_of` gives a draw's texture slot.
     fn fill<'a>(
         &mut self,
         instances: &[Instance],
-        draws_of: impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask])>,
+        draws_of: impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask], bool)>,
         texture_of: impl Fn(Option<TextureHandle>) -> Option<usize>,
     ) {
         self.buckets.resize_with(BUCKETS, Vec::new);
         for bucket in &mut self.buckets {
             bucket.clear();
         }
-        for list in self.normal.iter_mut().chain(&mut self.window) {
+        for list in self.normal.iter_mut().chain(&mut self.window).chain(&mut self.water) {
             list.clear();
         }
+        self.built_epoch = self.projected_epoch;
         self.sky.clear();
         let mut start = 0;
         while start < instances.len() {
             let mesh = instances[start].mesh.raw();
-            let Some((draws, masks)) = draws_of(mesh) else {
+            let Some((draws, masks, single_sided)) = draws_of(mesh) else {
                 start = run(instances, start, false).0;
                 continue;
             };
-            let (end, mirrored) = run(instances, start, draws.iter().any(|d| !d.two_sided));
+            let (end, mirrored) = run(instances, start, single_sided);
             self.push_run(mesh, (draws, masks), ((start as u32, end as u32), mirrored), &texture_of);
             start = end;
         }
@@ -187,9 +218,17 @@ impl DrawList {
             let draw = index as u32;
             let face = Face::of(d, mirrored);
             let layer = LayerCmd { mesh, draw, instances, face };
-            for (blend, (normal, window)) in self.normal.iter_mut().zip(&mut self.window).enumerate() {
+            let projected = match d.shading {
+                Shading::WorldNormal(material) => self.projected.binary_search(&material.raw()).is_ok(),
+                _ => false,
+            };
+            let lists = self.normal.iter_mut().zip(&mut self.window).zip(&mut self.water);
+            for (blend, ((normal, window), water)) in lists.enumerate() {
                 if mask.normal(blend) {
                     normal.push(layer);
+                    if projected {
+                        water.push(layer);
+                    }
                 }
                 if mask.window(blend) {
                     window.push(layer);

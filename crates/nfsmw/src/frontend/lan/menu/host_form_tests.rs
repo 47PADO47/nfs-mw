@@ -9,14 +9,22 @@ fn tracks() -> Vec<TrackChoice> {
     ]
 }
 
-fn select(form: &mut HostForm, label: &str) {
+/// Moves the cursor to `item` by pressing Down, as the keys would. By item, not by label: the rows the game's labels
+/// name have no text in the tests, which run without the install's string table.
+fn select(form: &mut HostForm, item: Item) {
     for _ in 0..12 {
-        if form.rows()[form.cursor.clamped(form.rows().len())].label == label {
+        if form.item() == item {
             return;
         }
         form.down();
     }
-    panic!("no row {label}");
+    panic!("no row {item:?}");
+}
+
+/// The row of `item`.
+fn row_of(form: &HostForm, item: Item) -> Row {
+    let at = form.items().position(|shown| shown == item).unwrap_or_else(|| panic!("no row {item:?}"));
+    form.rows()[at].clone()
 }
 
 #[test]
@@ -30,24 +38,24 @@ fn a_new_room_has_the_lan_defaults_and_the_city() {
     assert_eq!(value("Traffic density"), "50%");
     assert_eq!(value("Police"), "Up to heat 5");
     assert_eq!(value("Player limit"), "8");
-    assert_eq!(value("Password"), "none");
-    assert!(!rows.iter().find(|row| row.label == "Laps").unwrap().enabled, "free roam has no laps");
-    assert_eq!(rows.last().unwrap().label, "Back");
+    assert_eq!(row_of(&form, Item::Password).value, "none");
+    assert!(!row_of(&form, Item::Laps).enabled, "free roam has no laps");
+    assert_eq!(rows.last().unwrap().label, game(label::BACK));
 }
 
 #[test]
 fn the_mode_brings_its_tracks_and_laps() {
     let mut form = HostForm::new("Room", tracks());
-    select(&mut form, "Mode");
+    select(&mut form, Item::Mode);
     form.step(true);
     assert_eq!(form.mode, Mode::Circuit);
     assert_eq!(form.track, 11, "the first circuit");
-    select(&mut form, "Track");
+    select(&mut form, Item::Track);
     form.step(true);
     assert_eq!(form.track, 12);
     form.step(true);
     assert_eq!(form.track, 11, "wraps");
-    select(&mut form, "Laps");
+    select(&mut form, Item::Laps);
     form.step(true);
     assert_eq!(form.laps, 2);
     let settings = form.settings(&Settings::lan(ServerName::new("Room").unwrap()));
@@ -58,17 +66,17 @@ fn the_mode_brings_its_tracks_and_laps() {
 #[test]
 fn numbers_stay_in_range_and_police_off_stops_pursuits() {
     let mut form = HostForm::new("Room", tracks());
-    select(&mut form, "Police");
+    select(&mut form, Item::Cops);
     for _ in 0..8 {
         form.step(false);
     }
     assert_eq!(form.cops, 0);
-    select(&mut form, "Player limit");
+    select(&mut form, Item::Players);
     for _ in 0..20 {
         form.step(true);
     }
     assert_eq!(form.players, 16);
-    select(&mut form, "Traffic density");
+    select(&mut form, Item::Traffic);
     form.step(true);
     assert_eq!(form.traffic, 60);
     let settings = form.settings(&Settings::lan(ServerName::new("Room").unwrap()));
@@ -79,24 +87,25 @@ fn numbers_stay_in_range_and_police_off_stops_pursuits() {
 #[test]
 fn text_rows_type_and_back_ends_typing_first() {
     let mut form = HostForm::new("Room", tracks());
-    select(&mut form, "Password");
+    select(&mut form, Item::Password);
     assert_eq!(form.accept(), None);
     assert!(form.typing());
     for c in "pw".chars() {
         form.take(Typed::Char(c));
     }
-    assert_eq!(form.rows().iter().find(|r| r.label == "Password").unwrap().value, "**_");
+    assert_eq!(row_of(&form, Item::Password).value, "**_");
     assert_eq!(form.back(), None, "Back ends typing");
     assert_eq!(form.password.value(), "pw");
     assert_eq!(form.back(), Some(FormOut::Back));
-    select(&mut form, "Start Hosting");
+    select(&mut form, Item::Submit);
+    assert_eq!(row_of(&form, Item::Submit).label, "Start Hosting");
     assert_eq!(form.accept(), Some(FormOut::Submit));
 }
 
 #[test]
 fn an_empty_room_name_cannot_host() {
     let mut form = HostForm::new("", tracks());
-    select(&mut form, "Start Hosting");
+    select(&mut form, Item::Submit);
     assert_eq!(form.accept(), None);
 }
 
@@ -104,12 +113,12 @@ fn an_empty_room_name_cannot_host() {
 fn the_settings_page_patches_only_what_changed() {
     let old = Settings::lan(ServerName::new("Room").unwrap());
     let mut form = HostForm::from_settings(&old, tracks());
-    assert!(form.rows().iter().all(|row| row.label != "Password"), "the password is set when hosting");
+    assert!(form.items().all(|item| item != Item::Password), "the password is set when hosting");
     assert_eq!(form.rows().iter().filter(|row| row.label == "Apply").count(), 1);
     assert_eq!(form.patch(&old), SettingsPatch::default());
-    select(&mut form, "Player limit");
+    select(&mut form, Item::Players);
     form.step(false);
-    select(&mut form, "Police");
+    select(&mut form, Item::Cops);
     form.step(false);
     let patch = form.patch(&old);
     assert_eq!(patch.max_players, Some(7));

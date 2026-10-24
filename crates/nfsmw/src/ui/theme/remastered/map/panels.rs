@@ -8,6 +8,7 @@ use super::super::skin::keys;
 use super::ease_out;
 use crate::frontend::world_map::WorldMapFrame;
 use crate::frontend::world_map::control::{blip_rgba, icon_name, style_name};
+use crate::i18n::t;
 use crate::ui::theme::remastered::group::Group;
 use crate::ui::theme::remastered::menu::layout as menu;
 
@@ -49,7 +50,8 @@ pub fn title(parts: &mut Parts, frame: &WorldMapFrame, left: f32) {
     let shade = Rect::new(left + 170.0, -190.0, 340.0, 84.0);
     parts.add(Slant::at_default_depth(keys::MENU_SHADE, shade, 0.0, &TITLE_STOPS, parts.cx()));
     let at = left + TEXT_LEFT;
-    parts.text(keys::FONT_MENU_TITLE, "MAP", keys::MENU_TEXT_SELECTED, TITLE_SCALE, (at, TITLE_Y), false);
+    let heading = t!("map-title").to_uppercase();
+    parts.text(keys::FONT_MENU_TITLE, &heading, keys::MENU_TEXT_SELECTED, TITLE_SCALE, (at, TITLE_Y), false);
     let tab = frame.session.filter.label().to_uppercase();
     parts.text(keys::FONT_MENU, &tab, keys::MENU_TITLE, SUBTITLE_SCALE, (at, SUBTITLE_Y), false);
 }
@@ -64,12 +66,13 @@ pub fn compass(parts: &mut Parts, frame: &WorldMapFrame, half_width: f32) {
         let leg = Rect::new(x + lean * -0.3, COMPASS_Y + 1.0, 2.2, 15.0);
         parts.add(Slant::at_default_depth(keys::MENU_BOLT, leg, lean, &[], parts.cx()));
     }
-    let n = Text::new(keys::FONT_MENU, "N")
+    let n = Text::new(keys::FONT_MENU, t!("map-compass-north"))
         .with_colour_key(keys::MENU_TEXT)
         .with_scale(1.3)
         .with_justification(justify::H_CENTRE | justify::V_CENTRE);
     parts.push(n, Rect::new(x, COMPASS_Y - COMPASS_RADIUS - 8.0, 20.0, 10.0));
-    let zoom = Text::new(keys::FONT_MENU, format!("ZOOM x{:.1}", frame.session.camera.zoom()))
+    let zoom = format!("{} x{:.1}", t!("map-zoom").to_uppercase(), frame.session.camera.zoom());
+    let zoom = Text::new(keys::FONT_MENU, zoom)
         .with_colour_key(keys::MENU_TAGLINE)
         .with_scale(1.2)
         .with_justification(justify::H_CENTRE | justify::V_CENTRE);
@@ -97,7 +100,8 @@ pub fn legend(parts: &mut Parts, frame: &WorldMapFrame, half_width: f32) {
     let count_x = right - 28.0;
     let y_of = |row: usize| LEGEND_TOP + row as f32 * ROW_PITCH;
     inner.push(blackbox_ui::Image::new(PLAYER_ICON), Rect::new(icon_x, y_of(0), ROW_ICON, ROW_ICON));
-    inner.text(keys::FONT_MENU, "PLAYER", keys::MENU_TEXT, ROW_SCALE, (name_x, y_of(0)), false);
+    let player = t!("map-player").to_uppercase();
+    inner.text(keys::FONT_MENU, &player, keys::MENU_TEXT, ROW_SCALE, (name_x, y_of(0)), false);
     for (k, style) in styles.iter().enumerate() {
         let y = y_of(k + 1);
         let icon = blackbox_ui::Image::new(icon_name(style)).with_tint(blip_rgba(style));

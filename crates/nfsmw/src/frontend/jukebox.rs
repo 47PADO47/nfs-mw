@@ -18,10 +18,11 @@ use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
 use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
+use crate::i18n::t;
 use crate::settings::eatrax::{Jukebox, Mode};
-use crate::ui::UiAssets;
 use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
+use crate::ui::{Text, UiAssets};
 
 /// The songs of the install's list, read once when the front end starts (`prime`). Empty when the install has none.
 static SONGS: OnceLock<Vec<Song>> = OnceLock::new();
@@ -184,14 +185,24 @@ pub fn number(pos: usize) -> String {
 }
 
 /// The title line of a row: the title, then the mode in brackets, with a mark on the highlighted row while re-ordering.
-pub fn title_line(title: &str, mode: Mode, mark: bool) -> String {
+pub fn title_line(title: &str, mode: &str, mark: bool) -> String {
     let prefix = if mark { "> " } else { "" };
-    format!("{prefix}{title} [{}]", mode.label())
+    format!("{prefix}{title} [{mode}]")
 }
 
-/// The order line's word.
-pub fn order_word(random: bool) -> &'static str {
-    if random { "Random" } else { "Sequential" }
+/// The word the screen shows for a song's mode: the game's "Off" and "Menu" (`JUKEBOX_PLAY_OFF`, `JUKEBOX_PLAY_FRONTEND`);
+/// its "Racing" and "All" read otherwise than the screen's words, so in game and both are the setting's own words.
+pub fn mode_text(mode: Mode) -> String {
+    match mode {
+        Mode::Off => Text::Game(0x9CCE_9F86).show(),
+        Mode::Menu => Text::Game(0x5278_C50B).show(),
+        Mode::InGame | Mode::Both => mode.label(),
+    }
+}
+
+/// The order line's word: the game's "Random" or "Sequential" (`JUKEBOX_RANDOM`, `JUKEBOX_INORDER`).
+pub fn order_word(random: bool) -> Text {
+    Text::Game(if random { 0xA9C9_C8F7 } else { 0x4CA3_6B89 })
 }
 
 /// Shows the jukebox and passes the package's messages to [`State`].
@@ -214,7 +225,7 @@ impl JukeboxLogic {
     fn fill(&self, cx: &mut Cx) {
         let first = self.state.page_start();
         if self.songs.is_empty() {
-            set_text(cx, ARTIST[0], "No EA Trax songs in this install");
+            set_text(cx, ARTIST[0], &t!("menus-jukebox-no-songs"));
         }
         for slot in 0..ROWS {
             let pos = first + slot;
@@ -226,7 +237,7 @@ impl JukeboxLogic {
                     set_text(cx, NUMBER[slot], &number(pos));
                     set_text(cx, ARTIST[slot], &song.artist);
                     let mark = selected && self.state.reorder;
-                    set_text(cx, TITLE[slot], &title_line(&song.title, entry.mode, mark));
+                    set_text(cx, TITLE[slot], &title_line(&song.title, &mode_text(entry.mode), mark));
                     set_text(cx, ALBUM[slot], &song.album);
                     script(cx, TITLE[slot], if selected { SCRIPT_HIGHLIGHT } else { SCRIPT_UNHIGHLIGHT });
                 }
@@ -237,7 +248,7 @@ impl JukeboxLogic {
                 }
             }
         }
-        set_text(cx, ORDER_LINE, order_word(self.state.jukebox.random));
+        set_text(cx, ORDER_LINE, &order_word(self.state.jukebox.random).show());
     }
 
     /// Writes the choices to the file. A failure is logged; the screen keeps the choices for this session.
@@ -306,18 +317,23 @@ impl ScreenLogic for JukeboxLogic {
                 MenuEntry {
                     label,
                     enabled: true,
-                    value: MenuValue::Choice { text: entry.mode.label().to_owned(), arrows: false },
+                    value: MenuValue::Choice { text: mode_text(entry.mode), arrows: false },
                     icon: None,
                 }
             })
             .collect();
-        let mut order = format!("{} order", order_word(self.state.jukebox.random));
-        if self.state.reorder {
-            order.push_str(", re-order on");
-        }
+        let order = match self.state.jukebox.random {
+            true => t!("menus-jukebox-order-random"),
+            false => t!("menus-jukebox-order-sequential"),
+        };
+        let message = match self.state.reorder {
+            true => t!("menus-jukebox-reordering", order = order),
+            false => order,
+        };
         Some(MenuList {
+            // The name of the game's licensed music, the same in every language.
             title: "EA Trax".into(),
-            message: order,
+            message,
             entries,
             selected: self.state.selected,
             first: self.top,
@@ -472,9 +488,10 @@ mod tests {
     fn the_row_text_is_the_number_and_the_mode() {
         assert_eq!(number(0), "01");
         assert_eq!(number(11), "12");
-        assert_eq!(title_line("Tilted", Mode::Both, false), "Tilted [Both]");
-        assert_eq!(title_line("Tilted", Mode::Off, true), "> Tilted [Off]");
-        assert_eq!(order_word(true), "Random");
-        assert_eq!(order_word(false), "Sequential");
+        assert_eq!(title_line("Tilted", &mode_text(Mode::Both), false), "Tilted [Both]");
+        assert_eq!(title_line("Tilted", "Off", true), "> Tilted [Off]");
+        assert_eq!(mode_text(Mode::Off), Text::Game(0x9CCE_9F86).show(), "the game's Off");
+        assert_eq!(order_word(true), Text::Game(0xA9C9_C8F7), "the game's Random");
+        assert_eq!(order_word(false), Text::Game(0x4CA3_6B89), "the game's Sequential");
     }
 }

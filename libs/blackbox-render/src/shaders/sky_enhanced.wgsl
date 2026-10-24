@@ -115,6 +115,11 @@ fn sky_output(background: vec3<f32>, disk: vec3<f32>) -> vec3<f32> {
     return clamp(sky_encoded(mapped + disk), vec3(0.0), vec3(1.0));
 }
 
+// Four midpoint samples through the 4 km slab: the shared map is rebuilt in bands every frame, so the light march is
+// kept short. The optical depth is the same integral as before, only more coarsely sampled.
+const LIGHT_STEPS: u32 = 4u;
+const LIGHT_STEP: f32 = CLOUD_THICKNESS / 4.0;
+
 fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> vec4<f32> {
     if coverage < 0.005 || ray.z < 0.015 { return vec4(0.0, 0.0, 0.0, 1.0); }
     let origin = vec3(globals.camera_pos.xy * 0.001, clamp(globals.camera_pos.z * 0.001, -0.2, 0.8));
@@ -137,8 +142,8 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
         let d = density(p, coverage, footprint);
         if d > 0.001 {
             var optical_depth = 0.0;
-            for (var light_step = 0u; light_step < 6u; light_step++) {
-                optical_depth += density(p + sun * ((f32(light_step)+0.5)*(CLOUD_THICKNESS/6.0)), coverage, max(footprint, CLOUD_THICKNESS/6.0)) * (CLOUD_THICKNESS/6.0);
+            for (var light_step = 0u; light_step < LIGHT_STEPS; light_step++) {
+                optical_depth += density(p + sun * ((f32(light_step)+0.5)*LIGHT_STEP), coverage, max(footprint, LIGHT_STEP)) * LIGHT_STEP;
             }
             let direct = cloud_scattering(optical_depth, alignment);
             let height = clamp((p.z-CLOUD_BOTTOM)/CLOUD_THICKNESS, 0.0, 1.0);

@@ -90,9 +90,13 @@ impl PostPass for DistortionPass {
     fn extent(&self) -> Extent {
         Extent::Output
     }
-    fn set_distortion(&mut self, view: &wgpu::TextureView, regions: &[DistortionRegion]) {
-        self.view = view.clone();
+    fn active(&self) -> bool {
+        !self.vertices.is_empty()
+    }
+    fn set_distortion(&mut self, view: Option<&wgpu::TextureView>, regions: &[DistortionRegion]) {
         self.vertices.clear();
+        let Some(view) = view else { return };
+        self.view = view.clone();
         for region in regions {
             let [x, y, w, h] = region.rect;
             if ![x, y, w, h, region.opacity, region.brightness].iter().all(|v| v.is_finite())
@@ -199,17 +203,20 @@ impl PostChain {
         view: Option<&wgpu::TextureView>,
         regions: &[DistortionRegion],
     ) {
+        // Once built the pass stays in the chain: with no regions it has no vertices and sits out of every frame's
+        // plan (see `PostPass::active`), so droplets coming back do not rebuild its shader, layouts and pipelines.
         let Some(view) = view.filter(|_| !regions.is_empty()) else {
-            self.remove(NAME);
+            for pass in self.passes.iter_mut().filter(|pass| pass.name() == NAME) {
+                pass.set_distortion(None, &[]);
+            }
             return;
         };
         if !self.has(NAME) {
+            let _trace = blackbox_trace::scope("Renderer CPU: lens distortion pass created");
             self.insert(usize::MAX, Box::new(DistortionPass::new(device, view, self.cache.as_ref())));
         }
-        for pass in &mut self.passes {
-            if pass.name() == NAME {
-                pass.set_distortion(view, regions);
-            }
+        for pass in self.passes.iter_mut().filter(|pass| pass.name() == NAME) {
+            pass.set_distortion(Some(view), regions);
         }
     }
 }

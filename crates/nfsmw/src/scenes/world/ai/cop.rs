@@ -76,6 +76,8 @@ pub struct CopState {
     close: close::Close,
     environment: Environment,
     pub(super) ram_allowed: bool,
+    /// The other cars of the think in progress; kept so a think does not allocate.
+    traffic_scratch: Vec<Body>,
     #[cfg(test)]
     pub(super) last_diagnostic: String,
 }
@@ -134,6 +136,7 @@ impl CopState {
             close: close::Close::default(),
             environment: Environment::default(),
             ram_allowed: false,
+            traffic_scratch: Vec::new(),
             #[cfg(test)]
             last_diagnostic: String::new(),
         }
@@ -176,17 +179,31 @@ impl CopState {
         traffic: impl IntoIterator<Item = Body>,
         inputs: ActionInputs<'_>,
     ) -> CopThink {
+        let mut others = std::mem::take(&mut self.traffic_scratch);
+        others.clear();
+        others.extend(traffic);
+        let think = self.think_among(ctx, nav, car, target, &others, inputs);
+        self.traffic_scratch = others;
+        think
+    }
+
+    fn think_among<R: RandomSource>(
+        &mut self,
+        ctx: &mut Ctx<'_, R>,
+        nav: &mut RoadNav,
+        car: &CarState,
+        target: &Target,
+        traffic: &[Body],
+        inputs: ActionInputs<'_>,
+    ) -> CopThink {
         let ActionInputs { collision, grade, ram, nitrous } = inputs;
-        let traffic: Vec<Body> = traffic.into_iter().collect();
         #[cfg(test)]
-        let mut diagnostic_traffic = traffic.clone();
+        let mut diagnostic_traffic = traffic.to_vec();
         let road = match self.environment.shared_target_road {
             true => self.environment.target_road,
             false => roads::target(ctx, target, self.environment.level, self.environment.jerk),
         };
         let clear_target = roads::clear(collision, car.body.position, target.body.position);
-        // Drivability to the cop's road is a separate test from target visibility.
-        let own_road = roads::at_car(ctx, &car.body, self.environment.level);
         let clear_nav = roads::clear(collision, car.body.position + car.body.velocity * 0.65, nav.position);
         self.ram_allowed = clear_target && clear_nav;
         if ram && self.ram_allowed {
@@ -202,10 +219,11 @@ impl CopState {
         let road_gap = road.as_ref().map_or(0.0, |road| road.gap);
         if close::eligible(&car.body, &target.body, road_gap, clear_target, clear_nav) {
             self.road_nos.leave();
+            // Drivability to the cop's road is a separate test from target visibility.
             if !self.close.active()
-                && let Some(own) = own_road.as_ref()
+                && let Some(own) = roads::at_car(ctx, &car.body, self.environment.level)
             {
-                *nav = own.clone();
+                *nav = own;
                 nav.enable_trail(ctx.net);
             }
             let avoidance = roads::wall(collision, &car.body);
@@ -233,7 +251,7 @@ impl CopState {
                     target_nos_input: self.environment.nitrous_input,
                     jerk: self.environment.jerk,
                 },
-                |point| roads::snap(ctx, nav, &car.body, point, direction, &traffic, self.environment.level),
+                |point| roads::snap(ctx, nav, &car.body, point, direction, traffic, self.environment.level),
             );
             #[cfg(test)]
             {
@@ -289,9 +307,9 @@ impl CopState {
             nav.advance_with_lookahead(net, advance, toward, look, rng);
         }
         // Everything but the player is something to steer round.
-        let occlusion = nav
-            .trail()
-            .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, traffic, false, nav.half_width));
+        let occlusion = nav.trail().and_then(|trail| {
+            update_occluded_position(trail, &car.body, nav.position, traffic.iter().copied(), false, nav.half_width)
+        });
         let curvature = match (&occlusion, nav.trail()) {
             (Some(o), Some(trail)) => {
                 trail_curvature(trail.cookies(), o.current_index, car.body.position, o, nav.position, car.forward_speed)
@@ -385,6 +403,7 @@ impl CopState {
             );
         }
         if turning {
+            let own_road = roads::at_car_on(net, index, &car.body, self.environment.level);
             let mut future = own_road.unwrap_or_else(|| nav.clone());
             let heading = close::lift(car.body.forward, 0.0);
             future.advance(net, car.body.velocity.length().max(2.0), heading, rng);

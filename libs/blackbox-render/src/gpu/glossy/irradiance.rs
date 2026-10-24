@@ -5,6 +5,8 @@ pub(super) struct Irradiance {
     pub dirty: bool,
     /// Used by the pipeline, which is built the first time the cube is projected.
     cache: Option<wgpu::PipelineCache>,
+    /// The inputs of the last update with the cube and sampler they were made for; reused while those stay.
+    inputs: Option<(wgpu::TextureView, wgpu::Sampler, wgpu::BindGroup)>,
 }
 
 impl Irradiance {
@@ -19,6 +21,7 @@ impl Irradiance {
             pipeline: None,
             dirty: true,
             cache: cache.cloned(),
+            inputs: None,
         }
     }
 
@@ -46,22 +49,27 @@ impl Irradiance {
                 cache: self.cache.as_ref(),
             })
         });
-        let inputs = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("diffuse environment projection"),
-            layout: &pipeline.get_bind_group_layout(0),
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(cube) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
-                wgpu::BindGroupEntry { binding: 2, resource: self.buffer.as_entire_binding() },
-            ],
-        });
+        let current = self.inputs.as_ref().is_some_and(|(view, made, _)| view == cube && made == sampler);
+        if !current {
+            let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("diffuse environment projection"),
+                layout: &pipeline.get_bind_group_layout(0),
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(cube) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+                    wgpu::BindGroupEntry { binding: 2, resource: self.buffer.as_entire_binding() },
+                ],
+            });
+            self.inputs = Some((cube.clone(), sampler.clone(), group));
+        }
+        let Some((_, _, inputs)) = &self.inputs else { return };
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("diffuse probe update"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &inputs, &[]);
+            pass.set_bind_group(0, inputs, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
         self.dirty = false;

@@ -8,6 +8,7 @@ mod source;
 use std::path::{Path, PathBuf};
 
 pub use config::{cache_dir, config_file_path, log_dir};
+pub use registry::registry_string;
 pub use source::{Discovered, Source};
 
 use crate::GameSpec;

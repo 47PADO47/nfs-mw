@@ -16,6 +16,8 @@ const NEAR: f32 = 40.0;
 const PAST: f32 = 90.0;
 /// Seconds the "challenge complete" line stays.
 const BANNER_SECS: f32 = 3.0;
+/// The language label of that line: `HUD_CHALLENGE_COMPLETE`.
+const LABEL_CHALLENGE_COMPLETE: u32 = 0xF03E_279A;
 
 /// The statistic a challenge asks for (`MilestoneName`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -327,9 +329,10 @@ impl WorldScene {
         let verdict = challenge.judge(value, reason);
         if challenge.reached && !was_reached {
             session.banner = Banner {
-                text: "Challenge complete: now get away".into(),
+                text: crate::i18n::game_or_error(LABEL_CHALLENGE_COMPLETE),
                 left: BANNER_SECS,
                 serial: session.banner.serial.wrapping_add(1),
+                count: None,
             };
             log::info!("race: {}: the challenge value is reached ({value})", session.name);
         }
@@ -356,6 +359,11 @@ impl WorldScene {
         }
         if won {
             crate::frontend::challenge_series::record_win(&session.event);
+            crate::frontend::challenge_series::record_profile_reward(
+                &session.event,
+                &self.career.handle,
+                self.career.profiles.as_ref(),
+            );
         }
     }
 }

@@ -172,6 +172,19 @@ pub trait RenderBackend {
     /// everything up front keep the empty default.
     fn prewarm(&mut self) {}
 
+    /// What the next [`render`](Self::render) does about the scene image: see [`SceneReuse`](crate::SceneReuse). The
+    /// request covers one frame, and a frame that asks for nothing is [`SceneReuse::Off`](crate::SceneReuse::Off).
+    /// Backends that cannot show a kept image ignore it.
+    fn set_scene_reuse(&mut self, _mode: crate::SceneReuse) {}
+
+    /// Whether a [`SceneReuse::Reuse`](crate::SceneReuse::Reuse) frame would show a kept image now. False until a
+    /// `Keep` frame has been drawn, and again after anything that changes the picture without a new frame (a
+    /// resize, settings, a resource created or destroyed) or while the backend cannot hold a still image (temporal
+    /// anti-aliasing and upscalers, frame generation).
+    fn scene_reuse_ready(&self) -> bool {
+        false
+    }
+
     /// Draw `instances` and present. Instances of the same mesh should be adjacent.
     fn render(&mut self, frame: &FrameParams, instances: &[Instance]) -> Result<FrameStatus, RenderError>;
 

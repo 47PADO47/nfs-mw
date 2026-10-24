@@ -3,6 +3,15 @@
 use super::*;
 
 impl Frontend {
+    /// Shows a browsed screen over the scene already in the window.
+    pub(in crate::frontend) fn show_browsed(&mut self, name: &str, host: &mut Host, env: &mut Env) {
+        self.latch = true;
+        self.screens.clear();
+        let commands = self.screens.open(name, Args::default(), true, env);
+        self.stage = Stage::Menus;
+        self.apply(commands, host, env);
+    }
+
     /// Puts `scene` in the window. With `park`, a menu backdrop being replaced is kept for the menus that come back
     /// (`Host::replace_scene_parking_old`); any other scene is released.
     pub(super) fn replace_scene(&mut self, host: &mut Host, scene: Box<dyn crate::viewer::Scene>, park: bool) -> bool {

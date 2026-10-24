@@ -11,7 +11,8 @@ use super::field::{Field, Typed};
 use super::rows::{Cursor, Row, RowKind};
 use crate::frontend::lan::car::car_name;
 use crate::frontend::lan::quick::{QUICK_LINES, quick_line};
-use crate::frontend::lan::text::{mode_name, slot_name, votes};
+use crate::frontend::lan::text::{game, label, mode_name, ping_text, slot_name, votes};
+use crate::i18n::{self, Args, t};
 
 /// Where Accept on the lobby goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -106,27 +107,28 @@ impl LobbyPage {
         match item {
             Item::Player(slot) => match lobby.player(slot) {
                 Some(row) => player_row(row, lobby, cars, my_car),
-                None => Row::info(format!("slot {slot}"), ""),
+                None => Row::info(slot_name(None, u32::from(slot)), ""),
             },
-            Item::Ready => Row::choice("Ready", yes_no(me.is_some_and(|me| me.ready)), true),
-            Item::Car => Row { label: "Car".into(), value: my_car.into(), enabled: true, kind: RowKind::Action },
-            Item::Role => Row::choice("Role", role_name(lobby.my_role()), true),
-            Item::Chat if self.chat.editing => Row::text("Say", self.chat.shown(), true),
-            Item::Chat => Row::text("Say", "", false),
-            Item::Quick => Row::choice("Quick message", quick_line(self.quick).unwrap_or_default(), true),
+            Item::Ready => Row::choice(game(label::READY), yes_no(me.is_some_and(|me| me.ready)), true),
+            Item::Car => Row { label: t!("lan-lobby-car"), value: my_car.into(), enabled: true, kind: RowKind::Action },
+            Item::Role => Row::choice(t!("lan-lobby-role"), role_name(lobby.my_role()), true),
+            Item::Chat if self.chat.editing => Row::text(t!("lan-lobby-say"), self.chat.shown(), true),
+            Item::Chat => Row::text(t!("lan-lobby-say"), "", false),
+            Item::Quick => Row::choice(t!("lan-lobby-quick"), quick_line(self.quick).unwrap_or_default(), true),
             Item::VoteFor(option) => {
                 let vote = lobby.vote.as_ref();
                 let count = vote.and_then(|vote| vote.options.iter().find(|o| o.id == option)).map_or(0, |o| o.count);
                 let label = vote.map_or_else(String::new, |vote| vote_label(vote, option, lobby));
                 Row { label, value: votes(count), enabled: true, kind: RowKind::Action }
             }
-            Item::VoteRestart => Row::action("Vote to restart", lobby.phase != SessionPhase::Lobby),
-            Item::Settings => Row::action("Session settings", true),
-            Item::Hold => Row::choice("Everyone wait", yes_no(held(lobby)), true),
+            Item::VoteRestart => Row::action(t!("lan-lobby-vote-restart"), lobby.phase != SessionPhase::Lobby),
+            Item::Settings => Row::action(t!("lan-lobby-settings"), true),
+            Item::Hold => Row::choice(t!("lan-lobby-hold"), yes_no(held(lobby)), true),
             Item::Start => {
-                Row::action("Start race", lobby.phase == SessionPhase::Lobby && all_ready(lobby) && !held(lobby))
+                let startable = lobby.phase == SessionPhase::Lobby && all_ready(lobby) && !held(lobby);
+                Row::action(t!("lan-lobby-start"), startable)
             }
-            Item::Leave => Row::action("Leave", true),
+            Item::Leave => Row::action(t!("lan-lobby-leave"), true),
         }
     }
 
@@ -227,54 +229,53 @@ impl LobbyPage {
 }
 
 fn player_row(row: &LobbyPlayer, lobby: &LobbyView, cars: &[String], my_car: &str) -> Row {
-    let mut label = row.name.as_str().to_owned();
-    if row.flags & FLAG_HOST != 0 || row.slot == lobby.host_slot {
-        label.push_str("  [host]");
-    }
-    if row.flags & FLAG_ADMIN != 0 {
-        label.push_str("  [admin]");
-    }
-    if row.flags & FLAG_MUTED != 0 {
-        label.push_str("  [muted]");
-    }
-    if Some(row.slot) == lobby.my_slot {
-        label.push_str("  (you)");
+    // The name is the player's own; the badges are words of the interface.
+    let mut name = row.name.as_str().to_owned();
+    let badges = [
+        (row.flags & FLAG_HOST != 0 || row.slot == lobby.host_slot, "lan-badge-host"),
+        (row.flags & FLAG_ADMIN != 0, "lan-badge-admin"),
+        (row.flags & FLAG_MUTED != 0, "lan-badge-muted"),
+        (Some(row.slot) == lobby.my_slot, "lan-badge-you"),
+    ];
+    for (_, id) in badges.into_iter().filter(|(on, _)| *on) {
+        name.push_str(&format!("  {}", i18n::text(id, &Args::new())));
     }
     let state = match (row.role, row.ready) {
-        (Role::Spectator, _) => "watching",
-        (_, true) => "ready",
-        (_, false) => "not ready",
+        (Role::Spectator, _) => t!("lan-player-watching"),
+        (_, true) => t!("lan-player-ready"),
+        (_, false) => t!("lan-player-not-ready"),
     };
     let car = car_name(row.car_type, cars.iter().map(String::as_str).chain([my_car]));
-    Row::info(label, format!("{car}  {state}  {} ms", row.ping_ms))
+    Row::info(name, format!("{car}  {state}  {}", ping_text(u32::from(row.ping_ms))))
 }
 
 fn vote_label(vote: &VoteState, option: u32, lobby: &LobbyView) -> String {
     match vote.kind {
-        VoteKind::Kick => format!("Vote: kick {}", slot_name(Some(lobby), option)),
-        VoteKind::Restart => "Vote: restart".into(),
+        VoteKind::Kick => t!("lan-lobby-voting-kick", name = slot_name(Some(lobby), option)),
+        VoteKind::Restart => t!("lan-lobby-voting-restart"),
         VoteKind::ChangeMode => {
             let mode = u8::try_from(option).ok().and_then(nfsmw_net::message::Mode::from_code);
-            format!("Vote: mode {}", mode.map_or_else(|| option.to_string(), mode_name))
+            t!("lan-lobby-voting-mode", mode = mode.map_or_else(|| option.to_string(), mode_name))
         }
-        VoteKind::ChangeTrack => format!("Vote: track {option}"),
-        VoteKind::SkipResults => "Vote: skip results".into(),
+        VoteKind::ChangeTrack => t!("lan-lobby-voting-track", track = option),
+        VoteKind::SkipResults => t!("lan-lobby-voting-skip-results"),
     }
 }
 
-fn yes_no(on: bool) -> &'static str {
+fn yes_no(on: bool) -> String {
     match on {
-        true => "Yes",
-        false => "No",
+        true => game(label::YES),
+        false => game(label::NO),
     }
 }
 
-fn role_name(role: Role) -> &'static str {
-    match role {
-        Role::Racer => "Racer",
-        Role::Cop => "Cop",
-        Role::Spectator => "Spectator",
-    }
+fn role_name(role: Role) -> String {
+    let id = match role {
+        Role::Racer => "lan-role-racer",
+        Role::Cop => "lan-role-cop",
+        Role::Spectator => "lan-role-spectator",
+    };
+    i18n::text(id, &Args::new())
 }
 
 fn other_role(role: Role) -> Role {
@@ -288,10 +289,10 @@ fn other_role(role: Role) -> Role {
 pub fn countdown_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
     let countdown = lobby.countdown.as_ref()?;
     let Some(now) = server_tick else {
-        return Some(format!("Race starts in {}", countdown.seconds));
+        return Some(t!("lan-countdown", seconds = countdown.seconds));
     };
     let left = ((f64::from(countdown.start_tick) - now) / 60.0).ceil().max(0.0);
-    Some(format!("Race starts in {left:.0}"))
+    Some(t!("lan-countdown", seconds = left as i64))
 }
 
 #[cfg(test)]

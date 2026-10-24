@@ -14,6 +14,10 @@ pub(super) struct GpuMesh {
     pub draws: Vec<DrawRange>,
     /// Which draw lists each of `draws` belongs in, worked out once here instead of in every pass.
     pub draw_masks: Vec<DrawMask>,
+    /// Whether any draw is glossy: its runs of instances need their matrices written for the glossy pipelines.
+    pub has_glossy: bool,
+    /// Whether any draw is single-sided: its runs of instances split where the mirroring changes.
+    pub single_sided: bool,
     pub center: glam::Vec3,
     pub radius: f32,
 }
@@ -73,7 +77,8 @@ impl Renderer {
         }
         let center = (min + max) * 0.5;
         let radius = center.distance(max);
-        if desc.draws.iter().any(|draw| !draw.two_sided) {
+        let single_sided = desc.draws.iter().any(|draw| !draw.two_sided);
+        if single_sided {
             self.pipelines.enable_culling();
         }
         MeshHandle::from_raw(self.meshes.insert(GpuMesh {
@@ -83,6 +88,8 @@ impl Renderer {
             indices,
             draws: desc.draws.clone(),
             draw_masks: desc.draws.iter().map(DrawMask::of).collect(),
+            has_glossy: desc.draws.iter().any(|draw| matches!(draw.shading, crate::Shading::Glossy(_))),
+            single_sided,
             center,
             radius,
         }))

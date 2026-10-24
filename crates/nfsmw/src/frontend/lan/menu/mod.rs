@@ -30,6 +30,7 @@ use nfsmw_net::roles::LocalMutes;
 use super::NetStatus;
 use super::feed::Feed;
 use super::host_options::{default_room, host_options};
+use crate::i18n::t;
 use browser::{Browser, BrowserGo};
 use field::Field;
 use host_form::{FormOut, HostForm};
@@ -248,7 +249,8 @@ impl LanMenu {
                 self.name.editing = false;
                 cx.out.push(MenuOut::SaveName(name));
             }
-            Err(e) => self.error = Some(e),
+            // The settings' reason is for the config file and the log; the menu says it in the player's language.
+            Err(_) => self.error = Some(t!("lan-name-bad", max = NAME_MAX)),
         }
     }
 

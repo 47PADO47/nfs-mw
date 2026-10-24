@@ -9,7 +9,9 @@ use nfsmw_net::message::{ChatChannel, Message};
 use nfsmw_net::roles::LocalMutes;
 
 use super::quick::quick_line;
-use super::text::{end_text, notice_text, ordinal, slot_name};
+use super::text::{end_text, game, label, notice_text, slot_name};
+use crate::i18n::fmt::ordinal;
+use crate::i18n::t;
 
 /// Lines kept.
 pub const KEEP: usize = 64;
@@ -70,7 +72,7 @@ impl Feed {
             SessionEvent::Quick(quick) if shows(quick.from_slot, lobby, mutes) => {
                 let Some(line) = quick_line(quick.id) else { return };
                 let name = slot_name(lobby, u32::from(quick.from_slot));
-                self.push(FeedKind::Chat, format!("{name}: {line}"));
+                self.push(FeedKind::Chat, t!("lan-chat-all", name = name, text = line));
             }
             SessionEvent::Game(message) => {
                 if let Some(text) = game_text(message, lobby) {
@@ -78,14 +80,19 @@ impl Feed {
                 }
             }
             SessionEvent::Notice(notice) => self.push(FeedKind::Notice, notice_text(notice, lobby)),
-            SessionEvent::Ended(reason) => self.push(FeedKind::Notice, format!("Session over: {}", end_text(reason))),
-            SessionEvent::ConnectionLost => self.push(FeedKind::Notice, "Connection lost, trying to resume".into()),
-            SessionEvent::Admitted { resumed: true, .. } => self.push(FeedKind::Notice, "Connection resumed".into()),
+            SessionEvent::Ended(reason) => {
+                self.push(FeedKind::Notice, t!("lan-feed-session-over", why = end_text(reason)));
+            }
+            SessionEvent::ConnectionLost => self.push(FeedKind::Notice, t!("lan-feed-connection-lost")),
+            SessionEvent::Admitted { resumed: true, .. } => {
+                self.push(FeedKind::Notice, t!("lan-feed-connection-resumed"));
+            }
             SessionEvent::Results(results) => {
                 let winner = results.rows.iter().find(|row| row.place == 1);
                 if let Some(row) = winner {
                     let name = slot_name(lobby, u32::from(row.slot));
-                    self.push(FeedKind::Notice, format!("{name} won ({} of {})", ordinal(1), results.rows.len()));
+                    let won = t!("lan-feed-won", name = name, place = ordinal(1), racers = results.rows.len());
+                    self.push(FeedKind::Notice, won);
                 }
             }
             _ => {}
@@ -98,15 +105,18 @@ impl Feed {
 fn game_text(message: &Message, lobby: Option<&LobbyView>) -> Option<String> {
     let name = |entity: u16| slot_name(lobby, u32::from(entity));
     match message {
-        Message::KnockedOut(out) => Some(format!("{} is knocked out (lap {})", name(out.entity_id), out.lap)),
+        Message::KnockedOut(out) => Some(t!("lan-feed-knocked-out", name = name(out.entity_id), lap = out.lap)),
         Message::TrapScore(trap) => {
-            // Centimetres per second to kilometres per hour.
+            // Centimetres per second to kilometres per hour, under the HUD's unit label. The feed does not know the
+            // player's unit setting, so it stays metric.
             let kmh = trap.speed_cm_s as f32 * 0.036;
-            Some(format!("{}: speed trap {}, {kmh:.0} km/h", name(trap.entity_id), u32::from(trap.trap) + 1))
+            let (who, number, speed) = (name(trap.entity_id), u32::from(trap.trap) + 1, format!("{kmh:.0}"));
+            Some(t!("lan-feed-speed-trap", name = who, trap = number, speed = speed, unit = game(label::KMH)))
         }
-        Message::TagPassed(tag) => Some(format!("{} is it", name(tag.to_entity))),
+        Message::TagPassed(tag) => Some(t!("lan-feed-tag", name = name(tag.to_entity))),
         Message::Penalty(penalty) => {
-            Some(format!("{}: +{:.0} s for the reset", name(penalty.entity_id), penalty.ms as f32 / 1000.0))
+            let seconds = format!("{:.0}", penalty.ms as f32 / 1000.0);
+            Some(t!("lan-feed-penalty", name = name(penalty.entity_id), seconds = seconds))
         }
         _ => None,
     }
@@ -122,10 +132,11 @@ fn shows(slot: u8, lobby: Option<&LobbyView>, mutes: &LocalMutes) -> bool {
 /// `Name: text`, or `Name (team): text` and `Name (whisper): text`.
 pub fn chat_text(line: &ChatLine, lobby: Option<&LobbyView>) -> String {
     let name = slot_name(lobby, u32::from(line.from_slot));
+    let text = line.text.as_str();
     match line.channel {
-        ChatChannel::All => format!("{name}: {}", line.text),
-        ChatChannel::Team => format!("{name} (team): {}", line.text),
-        ChatChannel::Whisper => format!("{name} (whisper): {}", line.text),
+        ChatChannel::All => t!("lan-chat-all", name = name, text = text),
+        ChatChannel::Team => t!("lan-chat-team", name = name, text = text),
+        ChatChannel::Whisper => t!("lan-chat-whisper", name = name, text = text),
     }
 }
 
@@ -176,12 +187,13 @@ mod tests {
         feed.take(&SessionEvent::Game(TagPassed { head, from_entity: Some(1), to_entity: 2 }.into()), lobby, &mutes);
         feed.take(&SessionEvent::Game(Penalty { head, entity_id: 1, ms: 5_000 }.into()), lobby, &mutes);
         let lines: Vec<&str> = feed.last(10).map(|line| line.text.as_str()).collect();
+        let trap_line = format!("Ann: speed trap 1, 250 {}", game(label::KMH));
         assert_eq!(
             lines,
             [
                 "Ann: Go go go!",
                 "Bob is knocked out (lap 2)",
-                "Ann: speed trap 1, 250 km/h",
+                trap_line.as_str(),
                 "Bob is it",
                 "Ann: +5 s for the reset",
             ],

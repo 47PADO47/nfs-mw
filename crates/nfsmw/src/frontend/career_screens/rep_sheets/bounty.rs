@@ -12,7 +12,7 @@ use super::milestones::render_xy;
 use super::{Ask, Page, Status};
 use crate::career::CareerHandle;
 use crate::frontend::logic::{Command, Cx};
-use crate::ui::{Text, UiAssets};
+use crate::ui::Text;
 
 /// Objects of `SafeHouseBounty.fng` by name hash: the header (and its shadow) and the description.
 const HEADER: [u32; 2] = [0xCFA2_3A2D, 0x2D90_7846];
@@ -93,8 +93,8 @@ fn place_key(number: i32, suffix: &str) -> u32 {
     label_hash(&format!("BLACKLIST_BOUNTY_SPAWN_POINT_{number:02}{suffix}"))
 }
 
-fn game_text(assets: &UiAssets, label: u32) -> String {
-    Text::Game(label).resolve(assets).unwrap_or_default()
+fn game_text(label: u32) -> String {
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 impl Page for BountyPage {
@@ -109,25 +109,25 @@ impl Page for BountyPage {
         }
     }
 
-    fn name(&self, assets: &UiAssets, at: usize) -> String {
-        self.rows.get(at).map(|row| game_text(assets, place_key(row.number, ""))).unwrap_or_default()
+    fn name(&self, at: usize) -> String {
+        self.rows.get(at).map(|row| game_text(place_key(row.number, ""))).unwrap_or_default()
     }
 
-    fn summary(&self, assets: &UiAssets, at: usize) -> String {
-        self.rows.get(at).map(|row| game_text(assets, place_key(row.number, "_DESC"))).unwrap_or_default()
+    fn summary(&self, at: usize) -> String {
+        self.rows.get(at).map(|row| game_text(place_key(row.number, "_DESC"))).unwrap_or_default()
     }
 
-    fn heading(&self) -> &'static str {
-        "Bounty"
+    fn heading(&self) -> u32 {
+        label_hash("REP_SHEET_BOUNTY")
     }
 
     fn fill(&self, cx: &mut Cx, at: usize) {
         let Some(row) = self.rows.get(at) else { return };
-        let title = game_text(cx.assets, place_key(row.number, ""));
+        let title = game_text(place_key(row.number, ""));
         for name in HEADER {
             cx.text_object(name, &title);
         }
-        cx.text_object(DESCRIPTION, &game_text(cx.assets, place_key(row.number, "_DESC")));
+        cx.text_object(DESCRIPTION, &game_text(place_key(row.number, "_DESC")));
         for hidden in MEDALS {
             cx.hide(hidden, true);
         }

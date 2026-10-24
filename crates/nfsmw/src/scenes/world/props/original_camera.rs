@@ -8,7 +8,13 @@ use crate::viewer::camera::original::Avoidable;
 
 impl PropWorld {
     pub fn camera_bodies(&self, out: &mut Vec<Avoidable>) {
-        let mut ids: Vec<_> = self.colliders.keys().copied().collect();
+        // Only the few props that opt in are sorted (by id, the registration order); the many that never do are
+        // dropped by the static part of the test before the sort.
+        let opted_in = |collider: &super::Collider| {
+            collider.body.is_some() && collider.shape.dynamics.as_ref().is_some_and(|spec| spec.camera_avoidable)
+        };
+        let candidates = self.colliders.iter().filter(|(_, collider)| opted_in(collider));
+        let mut ids: Vec<_> = candidates.map(|(id, _)| *id).collect();
         ids.sort_unstable();
         for id in ids {
             let collider = &self.colliders[&id];

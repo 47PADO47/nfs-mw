@@ -1,25 +1,23 @@
-//! Display names come from the installed language table; model folder names remain the fallback.
+//! Display names come from the language's game labels (`crate::i18n::game`); model folder names remain the fallback.
 
-use blackbox_text::{StringTable, label_hash};
+use blackbox_text::label_hash;
 
 pub(super) fn display(
     folder: &str,
     manufacturer: &str,
     brands: &[String],
-    strings: Option<&StringTable>,
+    label_text: &dyn Fn(u32) -> Option<String>,
 ) -> (String, String) {
     if let Some(name) = police_name(folder) {
         return (name.to_owned(), "Police".to_owned());
     }
-    if let Some(table) = strings {
-        for brand in std::iter::once(manufacturer.to_owned()).chain(brands.iter().cloned()) {
-            let brand = key_brand(&brand);
-            let short = folder.strip_prefix(&brand).unwrap_or(folder);
-            for model in [folder, short] {
-                let label = format!("CARNAME_{brand}_{model}");
-                if let Some(name) = table.get(label_hash(&label)) {
-                    return (name, pretty_brand(&brand));
-                }
+    for brand in std::iter::once(manufacturer.to_owned()).chain(brands.iter().cloned()) {
+        let brand = key_brand(&brand);
+        let short = folder.strip_prefix(&brand).unwrap_or(folder);
+        for model in [folder, short] {
+            let label = format!("CARNAME_{brand}_{model}");
+            if let Some(name) = label_text(label_hash(&label)) {
+                return (name, pretty_brand(&brand));
             }
         }
     }

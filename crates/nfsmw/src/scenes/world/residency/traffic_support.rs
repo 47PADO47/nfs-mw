@@ -4,6 +4,10 @@ use blackbox_collision::CollisionPack;
 use glam::Vec2;
 use std::collections::{HashMap, HashSet};
 
+/// The sets are looked up for every wanted section every frame, so they use the fast fixed hasher.
+type FastSet<K> = HashSet<K, foldhash::fast::FixedState>;
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 const MAX_EXTRA: usize = 128;
 const MAX_PENDING: usize = 2;
 
@@ -17,10 +21,10 @@ pub(super) struct TrafficSupport {
     focus: Option<(Vec2, f32)>,
     spawn: Vec2,
     actors: Vec<(Vec2, f32)>,
-    pub(super) wanted: HashSet<usize>,
-    pub(super) resident: HashMap<usize, Vec<u32>>,
-    pub(super) pending: HashSet<usize>,
-    pub(super) failed: HashSet<usize>,
+    pub(super) wanted: FastSet<usize>,
+    pub(super) resident: FastMap<usize, Vec<u32>>,
+    pub(super) pending: FastSet<usize>,
+    pub(super) failed: FastSet<usize>,
 }
 
 impl TrafficSupport {
@@ -92,7 +96,9 @@ impl Residency {
         }
         candidates.sort_unstable_by(|a, b| a.1.cmp(&b.1).then(a.2.total_cmp(&b.2)).then(a.0.cmp(&b.0)));
         support.wanted = candidates.into_iter().take(MAX_EXTRA).map(|c| c.0).collect();
-        let expired: Vec<_> = support.resident.keys().copied().filter(|i| !support.wanted.contains(i)).collect();
+        let mut expired: Vec<_> = support.resident.keys().copied().filter(|i| !support.wanted.contains(i)).collect();
+        // The map's order is arbitrary; releases touch the collision, so they go in section order.
+        expired.sort_unstable();
         for index in expired {
             self.release_traffic_collision(index);
         }
@@ -104,6 +110,10 @@ impl Residency {
     /// Asks for the collision of the wanted sections that are not loaded or on their way.
     fn request_traffic_collision(&mut self) {
         let support = &mut self.traffic_support;
+        // Only `MAX_PENDING` loads are in flight at once, so with that many there is nothing to ask for.
+        if support.pending.len() >= MAX_PENDING {
+            return;
+        }
         let mut missing: Vec<_> = support
             .wanted
             .iter()

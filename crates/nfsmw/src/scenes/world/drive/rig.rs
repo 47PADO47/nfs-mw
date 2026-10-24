@@ -265,6 +265,11 @@ impl CarRig {
         let variants = self.glass.borrow();
         let variant = variants.get(&SurfaceDamage::new(glass, broken_lights));
         for base in &self.appearance.borrow().parts {
+            // A glass variant keeps its part's key, LOD and damage flag (`glass.rs` keys it by them), so the other
+            // LODs are skipped before the variant lookup.
+            if base.lod != lod {
+                continue;
+            }
             let part = variant.and_then(|v| v.parts.get(&(base.key, base.lod, base.damaged))).unwrap_or(base);
             if part.lod != lod {
                 continue;

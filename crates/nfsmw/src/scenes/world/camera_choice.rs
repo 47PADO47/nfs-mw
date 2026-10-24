@@ -20,6 +20,10 @@ impl WorldScene {
     /// The lens for this frame: an original view on the car, the chase camera (or its dynamic-FOV variant), or the
     /// free camera when there is no car to follow.
     pub(super) fn gameplay_lens(&self, aspect: f32) -> Lens {
+        let _trace = blackbox_trace::scope("World: gameplay lens");
+        if let Some(lens) = self.garage_lens(aspect) {
+            return lens;
+        }
         if let Some(lens) = self.moment.lens(aspect) {
             return lens;
         }
@@ -44,6 +48,7 @@ impl WorldScene {
 
     /// The selected retained shot on the physical body, independent of render interpolation.
     pub(super) fn simulation_lens(&self, aspect: f32) -> Lens {
+        let _trace = blackbox_trace::scope("World: simulation lens");
         if let Some(lens) = self.moment.lens(aspect) {
             return lens;
         }

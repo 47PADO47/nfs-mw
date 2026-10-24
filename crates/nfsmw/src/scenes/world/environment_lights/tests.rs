@@ -70,8 +70,10 @@ pub(super) fn fixture() -> (EnvironmentLights, HashMap<u32, (TextureHandle, Blen
     let lights = EnvironmentLights {
         blink: BlinkClock { on: [true; 3], ..Default::default() },
         profiles: vec![(Kind::AmberBlink, profile)],
-        sources: HashMap::from([(mesh, vec![Marker { position: Vec3::X, kind: Kind::AmberBlink }].into())]),
+        sources: [(mesh, vec![Marker { position: Vec3::X, kind: Kind::AmberBlink }].into())].into_iter().collect(),
+        candidates: Vec::new(),
         revision: None,
+        groups: Default::default(),
         detail: Default::default(),
         visible: vec![Instance::new(mesh, Mat4::IDENTITY)],
     };

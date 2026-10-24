@@ -1,6 +1,7 @@
 //! Coarse feature presets share the same budgets as the overall quality control.
 use super::graphics_options::GraphicsSetting;
-use super::options::Data;
+use super::ids::LABEL_OFF;
+use super::options::{Data, message};
 use crate::settings::{GraphicsQuality as Quality, Partial, Settings};
 
 pub(super) fn data(row: GraphicsSetting, settings: &Settings) -> Option<Data> {
@@ -13,12 +14,11 @@ pub(super) fn data(row: GraphicsSetting, settings: &Settings) -> Option<Data> {
         }
         _ => return None,
     };
-    let label = match (off, quality) {
-        (true, _) => "Off",
-        (false, Some(quality)) => quality.label(),
-        _ => "Custom",
-    };
-    Some(Data::Text(label.into()))
+    Some(match (off, quality) {
+        (true, _) => Data::Label(LABEL_OFF),
+        (false, Some(quality)) => Data::Text(quality.label()),
+        _ => message("options-custom"),
+    })
 }
 
 pub(super) fn step(row: GraphicsSetting, settings: &mut Settings, changed: &mut Partial, forward: bool) -> bool {

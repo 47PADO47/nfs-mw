@@ -4,10 +4,12 @@ use blackbox_gfx::RenderBackend;
 
 use super::{View, WorldScene, ground, space};
 use crate::input::{Action, ActionState};
+use crate::viewer::Scene;
 
 impl WorldScene {
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.update_garage_camera(input, dt);
         let options = renderer.render_experiments();
         self.original_sky = options.original_world_materials || options.enhanced_sky;
         let _span = bevy_log::info_span!("world::update").entered();
@@ -199,5 +201,18 @@ impl WorldScene {
         drop(trace);
         self.update_reflections(renderer);
         self.update_shadow_casters(renderer);
+        // Both have read the traffic cars; the next frame moves them.
+        self.shadow_feed.cars.invalidate();
+    }
+}
+
+impl WorldScene {
+    pub(super) fn update_scene(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        if let Some(backdrop) = &mut self.garage_backdrop {
+            backdrop.update(renderer, input, dt);
+            return;
+        }
+        self.update_frame(renderer, input, dt);
+        self.update_route(dt);
     }
 }

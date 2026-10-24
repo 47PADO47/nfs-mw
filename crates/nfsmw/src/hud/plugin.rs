@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::{PackageId, Runtime};
-use blackbox_ui::ThemeId;
+use blackbox_ui::{ThemeId, UiTree};
 use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
@@ -48,6 +48,7 @@ pub struct HudPlugin {
 #[derive(Resource)]
 struct Hud {
     runtime: Runtime,
+    language: crate::ui::LanguageWatch,
     package: PackageId,
     binding: HudBinding,
     viewport: HudViewport,
@@ -132,9 +133,6 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         assets.missing_resources(&package).len()
     );
     let mut runtime = crate::ui::runtime();
-    if let Some(strings) = assets.strings.clone() {
-        runtime.set_string_resolver(move |label| strings.get(label));
-    }
     let package = runtime.load(package);
     let minimap = MinimapBinding::open_city(&runtime, package, dir, assets);
     // The full map is the one `open_city` opened; the other two variants count when their tiles open too.
@@ -160,6 +158,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
     let event_tiles = EventTiles::new(install_loader(dir.clone()));
     Some(Hud {
         runtime,
+        language: crate::ui::LanguageWatch::default(),
         package,
         binding,
         viewport,
@@ -291,6 +290,7 @@ fn present(
         let song = chyron_shown.then(|| radio.song().zip(radio.serial())).flatten();
         trax.apply(&mut hud.runtime, song);
     }
+    hud.language.apply(&mut hud.runtime);
     hud.runtime.update(time.delta_secs());
     binding.finish_frame(&mut hud.runtime, &state);
     if let Some(trax) = hud.trax.as_ref() {
@@ -332,14 +332,20 @@ fn present(
     // The presenter puts each call's meshes over the ones of the calls before it, so the chyron (or the card) goes
     // first, the HUD over it, and the busted overlay last, as the presenter always drew them.
     let time_s = time.elapsed_secs();
+    // Under the Original theme the composed HUD layer is the HUD tree of the cell node for node (`compose_tests.rs`;
+    // only the `parent` links of the slot roots differ, and nothing draws from them), so it is presented as it is and
+    // the layers kept here hold an empty one. The other themes compose theirs every frame.
+    let source = static_hud.then(|| frame.get(FengSource::Hud)).flatten();
     let layers = hud.cache.layers(frame.generation(), static_hud, || {
         [
             slot_layer(&themes, ElementId::RadioCard, time_s),
-            hud_layer(&themes, time_s),
+            if static_hud { UiTree::default() } else { hud_layer(&themes, time_s) },
             slot_layer(&themes, ElementId::BustedOverlay, time_s),
         ]
     });
-    for layer in layers {
+    let [radio_layer, hud_composed, busted_layer] = layers;
+    let hud_tree = source.as_deref().or_else(|| (!static_hud).then_some(hud_composed));
+    for layer in [Some(radio_layer), hud_tree, Some(busted_layer)].into_iter().flatten() {
         if layer.nodes.is_empty() {
             continue;
         }

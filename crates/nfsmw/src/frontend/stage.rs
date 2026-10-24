@@ -10,6 +10,10 @@ pub enum Stage {
     Crib,
     /// Platform 2: the career safe house.
     SafeHouse,
+    /// Platform 3: the customization shop.
+    Customization,
+    /// Platform 4: the marker-upgrade backroom.
+    Backroom,
     /// Platform 5: the car lot, its own room, which the lot zones and the first car's purchase open.
     CarLot,
 }
@@ -34,6 +38,8 @@ impl Look {
     pub fn stage(&self) -> Stage {
         match self {
             Look::SafeHouse(_) => Stage::SafeHouse,
+            Look::Customization(_) => Stage::Customization,
+            Look::Backroom(_) => Stage::Backroom,
             Look::CarLot(_) | Look::LotShowcase(_) => Stage::CarLot,
             Look::Main | Look::Car(_) | Look::Showcase(_) => Stage::Crib,
         }
@@ -47,6 +53,8 @@ impl Look {
             Look::Main => Some("main_fe"),
             Look::Car(_) => Some("career_manager"),
             Look::SafeHouse(_) => Some("career_safehouse"),
+            Look::Customization(_) => Some("customization_shop"),
+            Look::Backroom(_) => Some("backroom"),
             Look::CarLot(_) => Some("car_lot"),
             Look::Showcase(_) | Look::LotShowcase(_) => None,
         }
@@ -59,6 +67,8 @@ impl Stage {
         match self {
             Stage::Crib => "FRONTEND/PLATFORMS/PlatformCrib.BIN",
             Stage::SafeHouse => "FRONTEND/PLATFORMS/CAREER_SAFEHOUSE.BIN",
+            Stage::Customization => "FRONTEND/PLATFORMS/CUSTOMIZATION_SHOP.BIN",
+            Stage::Backroom => "FRONTEND/PLATFORMS/CUSTOMIZATION_SHOP_BACKROOM.BIN",
             Stage::CarLot => "FRONTEND/PLATFORMS/CAR_LOT.BIN",
         }
     }
@@ -67,7 +77,7 @@ impl Stage {
     pub fn car_stand(self) -> &'static CarStand {
         match self {
             Stage::CarLot => &CAR_LOT_STAND,
-            Stage::Crib | Stage::SafeHouse => &CAR_STAND,
+            Stage::Crib | Stage::SafeHouse | Stage::Customization | Stage::Backroom => &CAR_STAND,
         }
     }
 
@@ -75,7 +85,7 @@ impl Stage {
     pub fn room_yaw(self) -> f32 {
         match self {
             Stage::Crib => 180.0,
-            Stage::SafeHouse | Stage::CarLot => 0.0,
+            Stage::SafeHouse | Stage::CarLot | Stage::Customization | Stage::Backroom => 0.0,
         }
     }
 
@@ -92,7 +102,7 @@ impl Stage {
     /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour. Names are canonical.
     pub fn shadow_source(self, name: &str) -> bool {
         match self {
-            Stage::Crib => name.starts_with("BACKDROP_CAST_SHADOW_MAP"),
+            Stage::Crib | Stage::Customization | Stage::Backroom => name.starts_with("BACKDROP_CAST_SHADOW_MAP"),
             Stage::SafeHouse => name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"),
             Stage::CarLot => false,
         }
@@ -106,7 +116,7 @@ impl Stage {
     /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
-            Stage::Crib => name.starts_with("BACKDROP_"),
+            Stage::Crib | Stage::Customization | Stage::Backroom => name.starts_with("BACKDROP_"),
             Stage::CarLot => true,
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
@@ -134,6 +144,19 @@ mod tests {
         assert_eq!(Look::CarLot(CarLook::default_car()).camera_intro(), Some("car_lot"));
         assert_eq!(Stage::CarLot.car_stand().yaw, 340.0);
         assert_eq!(Stage::SafeHouse.car_stand().yaw, 304.97);
+    }
+
+    #[test]
+    fn the_shop_and_backroom_use_their_installed_rooms_and_intros() {
+        let car = CarLook::default_car;
+        assert_eq!(Look::Customization(car()).stage(), Stage::Customization);
+        assert_eq!(Look::Backroom(car()).stage(), Stage::Backroom);
+        assert_eq!(Stage::Customization.file(), "FRONTEND/PLATFORMS/CUSTOMIZATION_SHOP.BIN");
+        assert_eq!(Stage::Backroom.file(), "FRONTEND/PLATFORMS/CUSTOMIZATION_SHOP_BACKROOM.BIN");
+        assert_eq!(Look::Customization(car()).camera_intro(), Some("customization_shop"));
+        assert_eq!(Look::Backroom(car()).camera_intro(), Some("backroom"));
+        assert_eq!(Stage::Customization.car_stand().yaw, 304.97);
+        assert_eq!(Stage::Backroom.car_stand().yaw, 304.97);
     }
 
     #[test]

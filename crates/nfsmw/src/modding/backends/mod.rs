@@ -14,6 +14,7 @@ mod camera;
 mod career;
 pub mod commands;
 mod hud;
+mod i18n;
 mod input;
 mod map;
 pub mod menu_store;
@@ -78,6 +79,7 @@ pub fn interfaces() -> Interfaces {
         .add_time(Rc::new(time::TimePort(bridge.clone())))
         .add_map(Rc::new(map::MapPort(bridge.clone())))
         .add_menus(Rc::new(menus::MenusPort(bridge.clone())))
+        .add_i18n(Rc::new(i18n::I18nPort))
         .add_vehicles(Rc::new(vehicles::VehiclesPort(bridge.clone())))
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))

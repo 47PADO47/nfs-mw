@@ -1,14 +1,23 @@
 //! Session-local garage selections, shared by the overlay and driving scenes.
 
 mod appearance;
+mod catalog_snapshot;
+pub use catalog_snapshot::CatalogSnapshot;
+mod color_parts;
 mod controls;
 #[cfg(test)]
 mod interaction_tests;
+mod menu;
+pub(crate) mod menu_rows;
+#[cfg(test)]
+mod menu_tests;
+pub(crate) mod my_cars;
 mod parts;
 mod performance;
 #[cfg(test)]
 mod performance_tests;
 pub(crate) mod presets;
+pub(crate) mod pricing;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -18,7 +27,17 @@ use bevy_ecs::resource::Resource;
 
 use crate::input::{MouseCapture, UiFocus};
 
+pub use menu::MenuEvent;
+pub(crate) use menu::can_confirm;
 pub use view::show;
+
+/// Installed front-end platform displayed by a normal garage page.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum View {
+    Cars,
+    Customization,
+    Backroom,
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Category {
@@ -53,9 +72,14 @@ pub struct Car {
     pub category: Category,
     pub original_color: Option<[u8; 3]>,
     pub paintable: bool,
+    /// Original fixed hero-car restriction, derived from the packed native CarType identifier.
+    pub hero: bool,
     pub physics_name: String,
     pub performance: nfsmw_data::car::physics::PerformanceCatalog,
-    pub parts: Option<nfsmw_data::car::customization::Catalog>,
+    pub performance_details: nfsmw_data::car::physics::performance::PerformanceDetails,
+    /// Original frontend stock/max endpoints, normalized across the installed vehicle population.
+    pub performance_ratings: Option<nfsmw_data::car::physics::ratings::RatingEndpoints>,
+    pub parts: Option<CatalogSnapshot>,
     /// An installed vehicle that cannot be driven remains listed with a reason.
     pub unavailable: Option<String>,
 }
@@ -77,6 +101,8 @@ pub struct GaugeSelection {
     pub backing: Option<[u8; 3]>,
     pub needle: Option<[u8; 3]>,
     pub digits: Option<[u8; 3]>,
+    #[serde(default, with = "color_parts")]
+    pub color_parts: [Option<u32>; 3],
 }
 
 impl GaugeSelection {
@@ -86,6 +112,9 @@ impl GaugeSelection {
 
     pub fn validate(&self, catalog: &nfsmw_data::car::customization::Catalog) -> anyhow::Result<()> {
         anyhow::ensure!(self.skin == 0 || catalog.gauge_skins.contains(&self.skin), "Gauge skin is unavailable");
+        for (index, hash) in self.color_parts.into_iter().enumerate() {
+            catalog.validate_palette_color(3 + index, hash, self.colors()[index])?;
+        }
         Ok(())
     }
 }
@@ -99,8 +128,40 @@ pub enum OptionsTab {
     Parts,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Model {
+    pub open_requested: bool,
+    /// Career shop limits the session to the selected owned vehicle.
+    pub shop: bool,
+    pub lock_car: bool,
+    pub backroom: bool,
+    /// Latest validated checkout quote; an absent quote blocks a shop purchase.
+    pub shop_total: Option<u32>,
+    pub shop_refund: Option<u32>,
+    /// The validated cart lines, from installed prices and trade-in rules.
+    pub shop_items: Vec<nfsmw_career::economy::shop::Item>,
+    pub shop_cash: Option<u32>,
+    pub shop_markers: Option<u32>,
+    pub shop_marker_counts: [u32; 17],
+    pub pricing: Option<pricing::Pricing>,
+    pub shop_heat: Option<(f32, f32)>,
+    pub gauge_max_rpm: f32,
+    pub gauge_has_turbo: bool,
+    /// Persisted reward entitlement used by the original Ford GT performance-detail variant.
+    pub castrol_unlocked: bool,
+    /// The highest unlocked ordinary package for each category in My Cars; Junkman remains unchanged.
+    pub maximum_regular: Option<nfsmw_data::car::physics::PerformancePackage>,
+    pub custom_slots: Vec<(String, String)>,
+    pub custom_slot_cars: std::collections::HashMap<String, String>,
+    pub custom_slot: Option<String>,
+    pub custom_slots_enabled: bool,
+    pub custom_slot_limit: usize,
+    pub pending_delete: bool,
+    pub shop_error: Option<String>,
+    pub selection_locked: bool,
+    /// Focus for device-independent menu navigation.
+    pub menu_row: usize,
+    pub(super) menu_scroll: bool,
     pub preview: bool,
     pub options_tab: OptionsTab,
     pub category: Category,
@@ -124,6 +185,9 @@ impl Model {
     }
 
     pub fn reset_draft(&mut self) {
+        self.pending_delete = false;
+        self.menu_row = 0;
+        self.menu_scroll = true;
         self.draft = self.applied.clone();
         if self.draft.car.is_empty()
             && let Some(car) = self.cars.iter().find(|car| car.category == self.category && car.unavailable.is_none())
@@ -140,6 +204,9 @@ impl Model {
 /// Input ownership belongs to the app, not a particular world scene.
 #[derive(Resource, Default)]
 pub struct Overlay {
+    /// Normal garage presentation; F6 retains the developer overlay.
+    pub menu: bool,
+    pub menu_requested: bool,
     pub open: bool,
     /// A startup request can wait while the front end creates its driving scene.
     pub start_requested: bool,

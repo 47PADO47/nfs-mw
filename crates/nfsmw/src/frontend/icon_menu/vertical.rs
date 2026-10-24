@@ -3,6 +3,7 @@
 
 use super::{Category, Cx, Icon, IconMenu, Id, Kind, Pick};
 use crate::frontend::custom_race::state as custom_state;
+use crate::i18n::t;
 use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuIcon, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
@@ -25,14 +26,15 @@ impl IconMenu {
         }
     }
 
-    /// The text of an icon that is not a language label: the entries the original has no name for.
+    /// The text of an icon that is not a language label: the entries the original has no name for. Discord is a name, the
+    /// same in every language.
     pub(super) fn special_text(id: Id) -> Option<String> {
         match id {
-            Id::ControlOptions => Some("Control Options".into()),
-            Id::EndCoop => Some("End Co-op".into()),
+            Id::ControlOptions => Some(t!("menus-control-options")),
+            Id::EndCoop => Some(t!("menus-end-coop")),
             Id::Category(Category::Discord) => Some("Discord".into()),
-            Id::Category(Category::Mods) => Some("Mods".into()),
-            Id::SafeHouseBlacklist(stage) => Some(format!("Blacklist {stage}")),
+            Id::Category(Category::Mods) => Some(t!("menus-mods")),
+            Id::SafeHouseBlacklist(stage) => Some(t!("menus-blacklist-stage", stage = stage)),
             _ => None,
         }
     }
@@ -73,7 +75,7 @@ impl IconMenu {
     }
 
     /// The menu's entries as the list a theme draws (the footer hints and the aspect are filled in by `Screens`).
-    pub(super) fn menu_list(&self, assets: &UiAssets) -> Option<MenuList> {
+    pub(super) fn menu_list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if self.icons.is_empty() {
             return None;
         }
@@ -81,8 +83,7 @@ impl IconMenu {
             .icons
             .iter()
             .map(|icon| {
-                let label =
-                    Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve(assets)).unwrap_or_default();
+                let label = Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve()).unwrap_or_default();
                 MenuEntry { icon: Self::picture(icon), ..MenuEntry::plain(label, icon.enabled) }
             })
             .collect();
@@ -97,7 +98,7 @@ impl IconMenu {
             Kind::Categories { pause: true, .. } | Kind::Pause => MenuStyle::Pause,
         };
         Some(MenuList {
-            title: Text::Game(self.title_label()).resolve(assets).unwrap_or_default(),
+            title: Text::Game(self.title_label()).resolve().unwrap_or_default(),
             message: String::new(),
             entries,
             selected: self.current_icon().unwrap_or(0),

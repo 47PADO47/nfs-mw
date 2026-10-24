@@ -25,9 +25,6 @@ pub(in crate::scenes::world) struct PhoneState {
     queue: PhoneQueue,
     /// `ECellCall` requests from the immediate ids, processed on the next frame.
     calls: Vec<CellCallRequest>,
-    /// The kind of the running game's language: text languages show a call as a message, voice languages speak it.
-    /// Not read from the install yet, so it stays at voice.
-    language: Language,
     /// The Blacklist as the last frame saw it. `None` until the first frame of the career: that frame only records
     /// the state, so a career loaded mid-progress does not replay the messages of the bins it has already passed.
     seen: Option<BinSnapshot>,
@@ -35,7 +32,16 @@ pub(in crate::scenes::world) struct PhoneState {
 
 impl Default for PhoneState {
     fn default() -> Self {
-        PhoneState { queue: PhoneQueue::new(), calls: Vec::new(), language: Language::Voice, seen: None }
+        PhoneState { queue: PhoneQueue::new(), calls: Vec::new(), seen: None }
+    }
+}
+
+/// The kind of the language that runs now: a language the install speaks hears its calls, the others read them as
+/// messages. Asked at each call, so a language change takes effect at once.
+fn call_language() -> Language {
+    match crate::i18n::current().has_voice() {
+        true => Language::Voice,
+        false => Language::Text,
     }
 }
 
@@ -171,6 +177,7 @@ impl WorldScene {
     pub(super) fn career_phone(&mut self, _dt: f32) {
         let facts = self.phone_facts();
         let ctx = flush_context(&facts);
+        let language = call_language();
         let phone = &mut self.career.phone;
         let flushed = self.career.handle.with(|career| {
             let now = bin_snapshot(&career.blacklist);
@@ -178,7 +185,7 @@ impl WorldScene {
             phone.note_bins(inbox, now);
             for call in phone.take_calls() {
                 // Ids from the calls are small positive numbers, so the `i32` cast is exact.
-                let outcome = process_cell_call(inbox, call.id as i32, phone.language, ctx.overlay_allowed);
+                let outcome = process_cell_call(inbox, call.id as i32, language, ctx.overlay_allowed);
                 log_call(call.id, outcome);
                 if let CellCallOutcome::Speak(_) = outcome {
                     cell_call::request(call.id);

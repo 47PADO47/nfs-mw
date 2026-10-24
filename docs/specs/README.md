@@ -144,6 +144,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [prologue-car-and-audio.md](prologue-car-and-audio.md): why the prologue races drew no car (the forced preset on the wrong folder) and why their intro sounded quiet and far.
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
+- [localization.md](localization.md): the game's language ids and files, how a language is chosen, and where every player-facing text comes from (game tables, the rewrite's catalogue, mods).
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-reputation-overview.md](career-reputation-overview.md): the Original look's Blacklist page behind the safe house item (rival panel, options, key 2).

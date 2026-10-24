@@ -5,6 +5,7 @@ use blackbox_ui::{Component, DrawList, LayoutCx, Rect, Text, justify};
 
 use super::layout::{at, size};
 use super::skin::keys;
+use crate::hud::{LABEL_KMH, LABEL_MPH, game_word};
 use crate::ui::theme::custom::DriveFeedCell;
 
 /// The speed sits under the arch's apex, inside the arch, and the unit under it.
@@ -47,11 +48,12 @@ impl Component for Readout {
             ),
             placed(gear_label(feed.gear), keys::GEAR, keys::FONT_NUMBERS, gear_scale, GEAR_PX, GEAR_BOX, CENTRED, cx),
         ];
-        if feed.mph {
-            texts.extend(unit_pair("MP", "H", unit_scale, cx));
-        } else {
-            texts.extend(unit_pair("KM", "/H", unit_scale, cx));
-        }
+        let unit = match feed.mph {
+            true => game_word(LABEL_MPH, "MPH"),
+            false => game_word(LABEL_KMH, "KM/H"),
+        };
+        let (highlight, rest) = split_unit(&unit);
+        texts.extend(unit_pair(highlight, rest, unit_scale, cx));
         self.body = Some(Body { texts });
     }
 
@@ -65,6 +67,16 @@ impl Component for Readout {
 
 struct Body {
     texts: Vec<Text>,
+}
+
+/// The unit word of the language cut in two for its colours: before its slash (`KM` and `/H`), or else before its last
+/// letter (`MP` and `H`).
+fn split_unit(unit: &str) -> (&str, &str) {
+    if let Some(cut) = unit.rfind('/') {
+        return unit.split_at(cut);
+    }
+    let cut = unit.char_indices().next_back().map_or(0, |(cut, _)| cut);
+    unit.split_at(cut)
 }
 
 /// The unit's two parts, the highlighted one (gold) and the rest (muted). They meet at the unit's centre line: the

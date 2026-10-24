@@ -145,6 +145,8 @@ impl WorldScene {
                 garage: garage_catalog,
                 garage_parts: None,
                 garage_open: false,
+                garage_backdrop: None,
+                garage_exit: None,
                 audio_environment,
                 common_sounds: Vec::new(),
                 sound_speedbreaker_active: false,

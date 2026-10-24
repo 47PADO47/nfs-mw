@@ -48,6 +48,7 @@ pub fn completion() -> Completion {
     Completion { special: won.is_won(SPECIAL_EVENT), all: all && !board.entries.is_empty() }
 }
 pub(crate) use board::{map_texture, route_on_map};
+pub(crate) use progress::record_profile_reward;
 pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};
@@ -265,9 +266,9 @@ impl ChallengeSeries {
         if let Some(o) = cx.object(EVENT_ICON) {
             cx.rt.set_texture(o, entry.kind.icon());
         }
-        let template = Text::Game(texts::description_label(entry.tag)).resolve(cx.assets).unwrap_or_default();
+        let template = Text::Game(texts::description_label(entry.tag)).resolve().unwrap_or_default();
         let goal = texts::goal_text(entry);
-        cx.text_object(DESCRIPTION, &texts::fill(&template, &[goal.clone(), goal]));
+        cx.text_object(DESCRIPTION, &blackbox_text::printf::fill(&template, &[goal.as_str(), goal.as_str()]));
         let message = if entry.kind.tutorial().is_some() { TUTORIAL_HINT_ON } else { TUTORIAL_HINT_OFF };
         cx.rt.post_to_package(cx.package, message);
         self.refresh_lock(cx, entry);
@@ -280,9 +281,10 @@ impl ChallengeSeries {
         }
         cx.rt.post_to_package(cx.package, LOCKED_ON);
         let line = texts::locked_line(self.grid.current);
-        let template = Text::Game(line.label).resolve(cx.assets).unwrap_or_default();
+        let template = Text::Game(line.label).resolve().unwrap_or_default();
         let numbers: Vec<String> = line.numbers.iter().map(usize::to_string).collect();
-        cx.text_object(LOCKED_TEXT, &texts::fill(&template, &numbers));
+        let numbers: Vec<&str> = numbers.iter().map(String::as_str).collect();
+        cx.text_object(LOCKED_TEXT, &blackbox_text::printf::fill(&template, &numbers));
     }
 
     /// Swaps the map picture at once and lets the view ease to the event's crop (`SetMapLoaded`).

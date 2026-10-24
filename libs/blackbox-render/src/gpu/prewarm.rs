@@ -58,6 +58,7 @@ impl Renderer {
         let frame = self.warm_params();
         let formats = self.scene_formats();
         self.warm_formats(&formats, &frame);
+        self.warm_clip_variants(&frame);
         self.warm_frame(&frame);
         self.warm_captures(&frame);
         // Captures leave their own format selected; the next scene pass selects its format again, but keep the
@@ -154,6 +155,8 @@ impl Renderer {
     /// The environment cube capture (six scene passes) when reflections are on, else the
     /// scene pipelines the projected capture draws with when the world uses authored reflective materials.
     fn warm_captures(&mut self, frame: &FrameParams) {
+        // The warm capture is submitted on its own: a capture queued for the frame goes first, in recording order.
+        self.flush_captures();
         let quality = self.graphics.reflections;
         if quality != ReflectionQuality::Off && self.reflections.is_none() {
             let nothing: &[Instance] = &[];
@@ -171,7 +174,8 @@ impl Renderer {
                 }),
                 Some(&mut encoder),
             );
-            self.queue.submit([encoder.finish()]);
+            // The faces recorded on worker threads wait as queued captures and go first.
+            self.submit_after_captures(encoder.finish());
             // The capture is kept, so the first real one reuses it, but it is empty: glossy surfaces keep the
             // static environment until a real capture replaces it.
             if let Some(glossy) = self.glossy.as_mut() {
@@ -184,6 +188,21 @@ impl Renderer {
         if projected {
             self.warm_formats(&[CAPTURE_FORMAT], frame);
         }
+    }
+
+    /// The clip-plane variants a planar-reflection capture draws with (see [`Self::select_clip_variant`]). A planar
+    /// capture needs projected captures, reflections on and the HDR scene format, so the variants are built, in that
+    /// format only, just when all three hold; every other renderer never compiles them.
+    fn warm_clip_variants(&mut self, frame: &FrameParams) {
+        let planar = self.caps.projected_reflections
+            && self.graphics.reflections != ReflectionQuality::Off
+            && self.hdr_format == super::targets::HDR_FORMAT;
+        if !planar {
+            return;
+        }
+        self.select_clip_variant(true);
+        self.warm_formats(&[super::targets::HDR_FORMAT], frame);
+        self.select_clip_variant(false);
     }
 
     /// What a scene pass into each of `formats` builds on its first use, without drawing. The scene pipelines and

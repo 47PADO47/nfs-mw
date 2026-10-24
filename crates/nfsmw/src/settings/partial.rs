@@ -67,6 +67,7 @@ pub struct Partial {
     pub frame_generation: Option<super::FrameGeneration>,
     pub vsync: Option<bool>,
     pub max_fps: Option<MaxFps>,
+    pub frame_latency: Option<u32>,
     pub show_metrics: Option<ShowMetrics>,
     pub window_mode: Option<WindowMode>,
     pub monitor: Option<Monitor>,
@@ -121,6 +122,8 @@ pub struct Partial {
     pub ui_style: Option<UiStyle>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
+    /// The language tag (`language`).
+    pub language: Option<super::LanguageTag>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
@@ -197,6 +200,7 @@ impl Partial {
             frame_generation: self.frame_generation.or(lower.frame_generation),
             vsync: self.vsync.or(lower.vsync),
             max_fps: self.max_fps.or(lower.max_fps),
+            frame_latency: self.frame_latency.or(lower.frame_latency),
             show_metrics: self.show_metrics.or(lower.show_metrics),
             window_mode: self.window_mode.or(lower.window_mode),
             monitor: self.monitor.or(lower.monitor),
@@ -243,6 +247,7 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             ui_style: self.ui_style.or(lower.ui_style),
             speed_units: self.speed_units.or(lower.speed_units),
+            language: self.language.or(lower.language),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),

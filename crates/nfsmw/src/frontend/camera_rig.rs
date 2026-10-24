@@ -100,6 +100,33 @@ impl CameraRig {
         }
     }
 
+    /// Resume the selected screen's authored move from the player's inspection pose.
+    pub(super) fn resume_from(&self, pose: CameraPose) -> bool {
+        let mut state = self.state();
+        let Some(goal) = state.shown.and_then(|screen| state.book.as_ref()?.screen(screen)) else { return false };
+        state.motion = Some(CameraMove::from_pose(pose, &goal));
+        true
+    }
+
+    /// Inspection belongs to a screen's Bool policy, not to every screen sharing the garage room.
+    pub(super) fn user_rotate(&self) -> bool {
+        let state = self.state();
+        state
+            .shown
+            .and_then(|screen| state.book.as_ref().map(|book| book.screen_options(screen).user_rotate))
+            .unwrap_or(false)
+    }
+
+    pub(super) fn moving(&self) -> bool {
+        self.state().motion.as_ref().is_some_and(|motion| !motion.finished())
+    }
+
+    /// The selected angle also supplies the damping and periods of the transition into inspection.
+    pub(super) fn screen_angle(&self) -> Option<nfsmw_data::frontend_camera::CameraAngle> {
+        let state = self.state();
+        state.shown.and_then(|screen| state.book.as_ref()?.screen(screen))
+    }
+
     /// Lets `dt` seconds go by. Whether the camera has a pose to show.
     pub fn advance(&self, dt: f32) -> bool {
         let mut state = self.state();

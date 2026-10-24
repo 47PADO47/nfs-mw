@@ -18,6 +18,7 @@ use nfsmw_net::predict::InputState;
 
 use super::super::drive::{CarPose, STEP};
 use super::super::{View, WorldScene};
+use crate::i18n::t;
 use crate::input::ActionState;
 
 /// Seconds a gameplay line stays on screen.
@@ -132,9 +133,10 @@ impl WorldScene {
     /// A gameplay event as a line on screen.
     fn client_event(&mut self, event: &SessionEvent) {
         let line = match event {
-            SessionEvent::Results(results) => Some(format!("Race over: {} finishers", results.rows.len())),
+            SessionEvent::Results(results) => Some(t!("lan-net-race-over", finishers = results.rows.len())),
             SessionEvent::Game(message) => super::hud::game_line(message),
-            SessionEvent::Ended(reason) => Some(crate::net::client::end_line(reason)),
+            // The LAN screens' words for it: `net::client::end_line` is the log's, with `Debug` reasons.
+            SessionEvent::Ended(reason) => Some(crate::frontend::lan::text::end_text(reason)),
             _ => None,
         };
         let Some(line) = line else { return };

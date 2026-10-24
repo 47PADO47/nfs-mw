@@ -141,6 +141,9 @@ impl Renderer {
         ui: Option<&ViewCaptureUi>,
     ) -> Result<CaptureId, RenderError> {
         let [width, height] = size;
+        // This capture writes the shared globals and post uniforms and opens a store epoch of its own, so the
+        // captures queued for the frame go first.
+        self.flush_captures();
         // UI pictures have an RGBA8 SDR contract even when the main window uses float HDR.
         let mapping = self.post.display;
         if mapping.is_some() {
@@ -197,7 +200,8 @@ impl Renderer {
                 Ok(())
             }
         };
-        self.queue.submit([encoder.finish()]);
+        // Reflection faces recorded on worker threads wait as queued captures and go first.
+        self.submit_after_captures(encoder.finish());
         self.end_temporal();
         self.output = output;
         self.post.set_display(&self.device, mapping);

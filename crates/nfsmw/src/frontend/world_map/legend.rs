@@ -15,7 +15,7 @@ pub const VISIBLE_ROWS: usize = 13;
 pub struct LegendRow {
     pub icon: &'static str,
     pub tint: [u8; 4],
-    pub name: &'static str,
+    pub name: String,
     pub distance: String,
     pub attached: bool,
 }
@@ -78,7 +78,7 @@ mod tests {
         let rows = rows(&frame(Some(1)), 0, VISIBLE_ROWS);
         assert_eq!(rows.len(), 2, "the sprint is a race, not a location");
         assert_eq!(rows[0].name, "Safe house");
-        assert_eq!((rows[1].name, rows[1].distance.as_str(), rows[1].attached), ("Auto shop", "1.0 km", true));
+        assert_eq!((rows[1].name.as_str(), rows[1].distance.as_str(), rows[1].attached), ("Auto shop", "1.0 km", true));
         assert_eq!(rows[0].tint, blip_rgba(SAFE_HOUSE));
         assert_eq!(total(&frame(Some(1))), 2);
         assert!(!is_empty(&frame(None)));

@@ -5,6 +5,7 @@
 use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, Text, justify};
 
 use super::{LanCell, LanHud, LanLineKind};
+use crate::i18n::t;
 
 /// The keys of a theme's HUD dress: the font and the colours, as skin keys.
 #[derive(Clone, Copy, Debug)]
@@ -108,7 +109,7 @@ impl Builder<'_, '_> {
             let mut lines = vec![(spectator.following.as_str(), self.dress.text)];
             lines.extend(spectator.board.iter().map(|line| (line.as_str(), self.dress.muted)));
             self.line(
-                "Spectating",
+                &t!("lan-hud-spectating"),
                 self.dress.accent,
                 SPECTATOR_SCALE,
                 (x, SPECTATOR_Y),

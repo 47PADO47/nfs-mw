@@ -395,5 +395,25 @@ fn projected_capture_reverses_faces_without_changing_two_sided_textures() {
     }
 }
 
+#[test]
+#[ignore = "needs a GPU"]
+fn projected_capture_goes_out_with_the_next_submission() {
+    let _gpu = test_support::serial();
+    let mut r = Renderer::headless((64, 64), test_support::options()).expect("selected GPU required");
+    assert!(r.capabilities().projected_reflections, "selected API needs projected capture support");
+    let texture = upload(&mut r, [255; 4]);
+    let mesh = quad(&mut r, [-1.0, -1.0, 1.0, 1.0], [64, 64, 64, 255], texture, Shading::WorldNoFog);
+    let instances = [Instance::new(mesh, Mat4::IDENTITY)];
+    capture(&mut r, frame(), [64, 64], &instances, false);
+    assert!(r.captures_queued(), "the capture waits for the frame's submission");
+    r.render(&frame(), &instances).unwrap();
+    assert!(!r.captures_queued(), "the frame's submission took the capture");
+    rgb(&r.read_projected_scene().unwrap().unwrap(), (32, 32), [128; 3]);
+    capture(&mut r, frame(), [64, 64], &instances, false);
+    rgb(&r.read_projected_scene().unwrap().unwrap(), (32, 32), [128; 3]);
+    assert!(!r.captures_queued(), "reading the capture submitted it");
+    r.destroy_mesh(mesh);
+}
+
 #[path = "enhanced_wet_tests.rs"]
 mod enhanced;

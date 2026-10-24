@@ -19,6 +19,7 @@ names!(
 );
 impl RoadReflections {
     pub const ALL: [Self; 4] = [Self::Off, Self::World, Self::Vehicles, Self::Blurred];
+    /// The reflection detail's English name, for the F8 graphics lab (which stays in English).
     pub const fn label(self) -> &'static str {
         match self {
             Self::Off => "Off",
@@ -26,6 +27,16 @@ impl RoadReflections {
             Self::Vehicles => "World + vehicles",
             Self::Blurred => "World + vehicles + blur",
         }
+    }
+    /// The reflection detail's name in the current language, as the options show it.
+    pub fn menu_label(self) -> String {
+        let id = match self {
+            Self::Off => "options-off",
+            Self::World => "options-road-reflections-world",
+            Self::Vehicles => "options-road-reflections-vehicles",
+            Self::Blurred => "options-road-reflections-blurred",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

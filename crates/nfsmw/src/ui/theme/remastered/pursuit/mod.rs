@@ -7,6 +7,8 @@ mod draw;
 
 use blackbox_ui::{Component, DrawList, LayoutCx, Rect};
 
+use crate::hud::{LABEL_BUSTED, game_word};
+use crate::i18n::t;
 use crate::ui::theme::custom::DriveFeedCell;
 
 /// The signed meter is shown from this much of it, and is full at one.
@@ -47,14 +49,33 @@ pub(super) fn time_parts(secs: f32) -> (String, String) {
     (main, format!("{:02}", hundredths % 100))
 }
 
-/// The signed meter as the panel shows it: the label and the fill of the side it is on, or `None` while it rests at zero. A
-/// positive value is the busted side (the red bar), a negative one the escaping side (the accent).
-pub(super) fn meter(busted: f32) -> Option<(&'static str, f32)> {
+/// Which side of the signed meter the chase is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Side {
+    /// The cops are closing in (the red bar).
+    Busted,
+    /// The player is getting away (the accent).
+    Escaping,
+}
+
+impl Side {
+    /// The side's label, in capitals as the panel writes it: the game's `BUSTED`, the rewrite's "escaping".
+    pub(super) fn label(self) -> String {
+        match self {
+            Side::Busted => game_word(LABEL_BUSTED, "BUSTED").to_uppercase(),
+            Side::Escaping => t!("hud-pursuit-escaping").to_uppercase(),
+        }
+    }
+}
+
+/// The signed meter as the panel shows it: the side it is on and the fill of that side, or `None` while it rests at zero. A
+/// positive value is the busted side, a negative one the escaping side.
+pub(super) fn meter(busted: f32) -> Option<(Side, f32)> {
     let fill = busted.abs().clamp(0.0, 1.0);
     match busted {
-        t if t >= 1.0 => Some(("BUSTED", 1.0)),
-        t if t >= METER_SHOWN => Some(("BUSTED", fill)),
-        t if t <= -METER_SHOWN => Some(("ESCAPING", fill)),
+        t if t >= 1.0 => Some((Side::Busted, 1.0)),
+        t if t >= METER_SHOWN => Some((Side::Busted, fill)),
+        t if t <= -METER_SHOWN => Some((Side::Escaping, fill)),
         _ => None,
     }
 }
@@ -75,9 +96,9 @@ mod tests {
     fn the_signed_meter_is_busted_above_zero_escaping_below_it_and_hidden_at_rest() {
         assert_eq!(meter(0.0), None);
         assert_eq!(meter(0.004), None);
-        assert_eq!(meter(0.4), Some(("BUSTED", 0.4)));
-        assert_eq!(meter(1.0), Some(("BUSTED", 1.0)));
-        assert_eq!(meter(-0.25), Some(("ESCAPING", 0.25)));
-        assert_eq!(meter(-3.0), Some(("ESCAPING", 1.0)), "a value past the end is a full bar");
+        assert_eq!(meter(0.4), Some((Side::Busted, 0.4)));
+        assert_eq!(meter(1.0), Some((Side::Busted, 1.0)));
+        assert_eq!(meter(-0.25), Some((Side::Escaping, 0.25)));
+        assert_eq!(meter(-3.0), Some((Side::Escaping, 1.0)), "a value past the end is a full bar");
     }
 }

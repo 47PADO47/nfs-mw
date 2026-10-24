@@ -3,6 +3,7 @@ use super::surface::targets::Targets;
 
 use super::Renderer;
 use blackbox_gfx::{FrameParams, Projection};
+use blackbox_gpu_passes::BindCache;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -27,6 +28,8 @@ pub(super) struct Contact {
     pipeline: wgpu::RenderPipeline,
     mask: wgpu::TextureView,
     size: (u32, u32),
+    /// Inputs keyed by the depth and normal views, which only change with the surface targets.
+    groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
 }
 
 impl Contact {
@@ -106,7 +109,14 @@ impl Contact {
             multiview_mask: None,
             cache,
         });
-        Self { buffer, layout, pipeline, mask: super::surface::mask(device, size, "contact visibility"), size }
+        Self {
+            buffer,
+            layout,
+            pipeline,
+            mask: super::surface::mask(device, size, "contact visibility"),
+            size,
+            groups: BindCache::default(),
+        }
     }
 
     pub(super) fn size(&self) -> (u32, u32) {
@@ -114,7 +124,7 @@ impl Contact {
     }
 
     fn visibility(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
@@ -132,14 +142,18 @@ impl Contact {
             screen: [size.0 as f32, size.1 as f32, near, 2.0 * (fov_y * 0.5).tan() / size.1 as f32],
         };
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&params));
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("contact depth and normals"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: self.buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&surfaces.depth) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&surfaces.normals) },
-            ],
+        let (layout, buffer) = (&self.layout, &self.buffer);
+        let (depth, normals) = (&surfaces.depth, &surfaces.normals);
+        let group = self.groups.get_or_insert_with(depth, normals, || {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("contact depth and normals"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(depth) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(normals) },
+                ],
+            })
         });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("contact ray march"),
@@ -155,7 +169,7 @@ impl Contact {
             multiview_mask: None,
         });
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.draw(0..3, 0..1);
     }
 }

@@ -18,6 +18,7 @@
 //! - [`day_night`]: the day-night clock's curves (hour, sun phase, lights on and off) and its settings.
 //! - [`career_cars`]: the career car lot's cars, prices and unlock ranks from `GLOBAL/FE_ATTRIB.bin`.
 //! - [`frontend_camera`]: the front end's camera poses and the shape of the move onto each, from `GLOBAL/FE_ATTRIB.bin`.
+//! - [`languages`]: the game's language ids and files, the installed language tables and the registry's language;
 //! - [`gameplay`]: the race events, their box triggers (start, finish, checkpoints) and the auto shop and safe house zones.
 
 pub mod anim;
@@ -31,6 +32,7 @@ pub mod fog;
 pub mod frontend_camera;
 pub mod game;
 pub mod gameplay;
+pub mod languages;
 pub mod minimap;
 pub mod music;
 pub mod nis;

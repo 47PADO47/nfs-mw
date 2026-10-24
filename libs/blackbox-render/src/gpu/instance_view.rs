@@ -12,7 +12,7 @@ use crate::gpu::{
     meshes::GpuMesh,
     slots::Slots,
 };
-use blackbox_gfx::{Instance, Shading};
+use blackbox_gfx::Instance;
 
 const SLOT_ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![4 => Uint32];
 
@@ -107,8 +107,40 @@ fn reserve(buffer: &mut InstanceBuffer, device: &wgpu::Device, queue: &wgpu::Que
     buffer.upload(device, queue, &vec![[0.0_f32; 20]; entries]);
 }
 
-/// Write the matrices of every run of instances whose mesh has a glossy draw at their positions in `buffer`,
-/// adjacent runs in one write.
+/// The most instances of other meshes between two glossy runs that are written along with them, so the runs go out
+/// in one write. Nothing reads those matrices, and a few extra ones cost less than another write.
+const GLOSSY_GAP: usize = 32;
+
+/// Add the glossy run `start..end` to the span of instances being staged for a write (`None` before the first run).
+/// Returns the finished span when the run is too far from it to share its write, and starts a new span.
+fn join_span(span: &mut Option<(usize, usize)>, (start, end): (usize, usize)) -> Option<(usize, usize)> {
+    let Some((first, last)) = *span else {
+        *span = Some((start, end));
+        return None;
+    };
+    if start - last <= GLOSSY_GAP {
+        *span = Some((first, end));
+        return None;
+    }
+    *span = Some((start, end));
+    Some((first, last))
+}
+
+/// Write the matrices of `instances[span.0..span.1]` at their positions in `buffer`, staged in `matrices`.
+fn write_span(
+    queue: &wgpu::Queue,
+    buffer: &wgpu::Buffer,
+    instances: &[Instance],
+    (first, last): (usize, usize),
+    matrices: &mut Vec<[f32; 20]>,
+) {
+    matrices.clear();
+    matrices.extend(instances[first..last].iter().map(crate::gpu::instances::instance_words));
+    queue.write_buffer(buffer, first as u64 * 80, bytemuck::cast_slice(matrices.as_slice()));
+}
+
+/// Write the matrices of every run of instances whose mesh has a glossy draw at their positions in `buffer`.
+/// Runs close together share one write, with the matrices between them.
 fn write_glossy_runs(
     queue: &wgpu::Queue,
     buffer: &wgpu::Buffer,
@@ -116,29 +148,20 @@ fn write_glossy_runs(
     instances: &[Instance],
     matrices: &mut Vec<[f32; 20]>,
 ) {
-    matrices.clear();
-    let mut pending = 0;
+    let mut span = None;
     let mut start = 0;
     while start < instances.len() {
         let mesh = instances[start].mesh;
         let end = start + instances[start..].iter().take_while(|i| i.mesh == mesh).count();
-        let glossy =
-            meshes.get(mesh.raw()).is_some_and(|m| m.draws.iter().any(|d| matches!(d.shading, Shading::Glossy(_))));
-        if glossy && matrices.is_empty() {
-            pending = start;
-        }
-        if glossy {
-            matrices.extend(instances[start..end].iter().map(crate::gpu::instances::instance_words));
-        }
-        if !glossy && !matrices.is_empty() {
-            queue.write_buffer(buffer, pending as u64 * 80, bytemuck::cast_slice(matrices.as_slice()));
-            matrices.clear();
+        if meshes.get(mesh.raw()).is_some_and(|m| m.has_glossy)
+            && let Some(done) = join_span(&mut span, (start, end))
+        {
+            write_span(queue, buffer, instances, done, matrices);
         }
         start = end;
     }
-    if !matrices.is_empty() {
-        queue.write_buffer(buffer, pending as u64 * 80, bytemuck::cast_slice(matrices.as_slice()));
-        matrices.clear();
+    if let Some(done) = span {
+        write_span(queue, buffer, instances, done, matrices);
     }
 }
 
@@ -158,5 +181,28 @@ impl Renderer {
         }
         self.upload_main_instances(instances);
         self.draw_list.store.take_main_ready();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GLOSSY_GAP, join_span};
+
+    #[test]
+    fn a_run_next_to_the_staged_span_extends_it() {
+        let mut span = None;
+        assert_eq!(join_span(&mut span, (3, 5)), None);
+        assert_eq!(join_span(&mut span, (5, 6)), None);
+        assert_eq!(join_span(&mut span, (6 + GLOSSY_GAP, 9 + GLOSSY_GAP)), None);
+        assert_eq!(span, Some((3, 9 + GLOSSY_GAP)));
+    }
+
+    #[test]
+    fn a_run_past_the_gap_finishes_the_span_and_starts_another() {
+        let mut span = None;
+        assert_eq!(join_span(&mut span, (0, 2)), None);
+        let far = 2 + GLOSSY_GAP + 1;
+        assert_eq!(join_span(&mut span, (far, far + 1)), Some((0, 2)));
+        assert_eq!(span, Some((far, far + 1)));
     }
 }

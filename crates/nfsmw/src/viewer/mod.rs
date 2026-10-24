@@ -3,10 +3,12 @@
 
 pub mod camera;
 mod race_report;
+mod static_hash;
 pub use race_report::{
     PhotoKind, PhotoReport, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport,
     photo_picture,
 };
+pub use static_hash::StaticHash;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -126,8 +128,59 @@ pub trait Scene {
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         None
     }
+    fn tuning_available(&self) -> Option<bool> {
+        None
+    }
     fn apply_garage(&mut self, _renderer: &mut dyn RenderBackend, _selection: crate::garage::Selection) -> Result<()> {
         anyhow::bail!("this scene has no garage")
+    }
+    /// Start a normal garage session. Diagnostic F6 edits use `apply_garage` directly.
+    fn begin_garage(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+        let model = self.garage().ok_or_else(|| anyhow::anyhow!("this scene has no garage"))?;
+        model.reset_draft();
+        Ok(())
+    }
+    fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.begin_garage(renderer)
+    }
+
+    /// Select the original garage platform and its authored camera shot.
+    fn garage_view(
+        &mut self,
+        _renderer: &mut dyn RenderBackend,
+        _stage: crate::garage::View,
+        _camera: &'static str,
+    ) -> Result<()> {
+        Ok(())
+    }
+    /// Show an uncommitted selection. Career scenes must not debit or save here.
+    fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.apply_garage(renderer, selection)
+    }
+    /// Validate and commit the cart after the player confirms it.
+    fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.apply_garage(renderer, selection)
+    }
+
+    /// Pause tuning saves an owned career car, but never creates a My Cars slot for a stock race car.
+    fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.confirm_garage(renderer, selection)
+    }
+    /// Restore the selection at session entry.
+    fn cancel_garage(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+        Ok(())
+    }
+    fn take_garage_request(&mut self) -> bool {
+        self.garage().is_some_and(|model| std::mem::take(&mut model.open_requested))
+    }
+    fn select_garage_slot(&mut self, _renderer: &mut dyn RenderBackend, _id: &str) -> Result<()> {
+        anyhow::bail!("This garage has no custom car slots")
+    }
+    fn add_garage_slot(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+        anyhow::bail!("This garage has no custom car slots")
+    }
+    fn delete_garage_slot(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+        anyhow::bail!("This garage has no custom car slots")
     }
     /// Freeze driving while the garage owns the controls, allowing streaming and placement to continue.
     fn set_garage_open(&mut self, _open: bool) {}
@@ -342,6 +395,13 @@ pub trait Scene {
     /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
     /// input.
     fn runs_while_paused(&self) -> bool {
+        false
+    }
+    /// A menu is up over this scene (the backdrop, or the frozen world under the pause menu or the loading screen):
+    /// nothing in the picture moves unless the camera or the instances do, so the game caps the frame rate there and
+    /// a frame that looks like the last one is not drawn again (`app/render/static_frame.rs`). Anything that
+    /// animates by itself, or changes the renderer's state while running, must answer `false`.
+    fn menu_frame(&self) -> bool {
         false
     }
     /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.

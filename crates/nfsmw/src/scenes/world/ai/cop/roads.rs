@@ -1,7 +1,7 @@
 //! Adapters from road and collision queries into the close pursuit rules.
 
 use blackbox_collision::{CollisionWorld, RayOptions};
-use blackbox_roads::{Body, LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
+use blackbox_roads::{Body, LaneType, NavKind, RandomSource, RoadNav, RoadNetwork, SegmentFilter, SegmentIndex};
 use glam::{Vec2, Vec3};
 
 use super::{Target, close};
@@ -41,7 +41,16 @@ pub(super) fn at_car<R>(ctx: &Ctx<'_, R>, body: &Body, level: u32) -> Option<Roa
     road_at(ctx, body, level, true)
 }
 
+/// [`at_car`] from the network and index alone, for a think that already holds `ctx`'s random stream.
+pub(super) fn at_car_on(net: &RoadNetwork, index: &SegmentIndex, body: &Body, level: u32) -> Option<RoadNav> {
+    road_on(net, index, body, level, true)
+}
+
 fn road_at<R>(ctx: &Ctx<'_, R>, body: &Body, level: u32, cop: bool) -> Option<RoadNav> {
+    road_on(ctx.net, ctx.index, body, level, cop)
+}
+
+fn road_on(net: &RoadNetwork, index: &SegmentIndex, body: &Body, level: u32, cop: bool) -> Option<RoadNav> {
     let lane = match level >= 3 {
         true => LaneType::CopReckless,
         false => LaneType::Cop,
@@ -49,7 +58,7 @@ fn road_at<R>(ctx: &Ctx<'_, R>, body: &Body, level: u32, cop: bool) -> Option<Ro
     let mut nav = RoadNav::new(NavKind::Direction, lane, SegmentFilter { cop, ..Default::default() });
     nav.half_width = body.half_width;
     let heading = close::lift(body.forward, 0.0);
-    nav.init_at_point(ctx.net, ctx.index, body.position, heading, false).then_some(nav)
+    nav.init_at_point(net, index, body.position, heading, false).then_some(nav)
 }
 
 pub(super) fn target<R: RandomSource>(

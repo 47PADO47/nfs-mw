@@ -21,8 +21,8 @@ const INGAME_B_BUN_FILE: &str = "GLOBAL/InGameB.bun";
 /// The same pack as the game loads it (`GLOBAL\INGAMEB.LZC`, mod-world-content spec 1.1). Mod tools patch this
 /// file, not the `.bun`, which stays as shipped.
 const INGAME_B_LZC_FILE: &str = "GLOBAL/INGAMEB.LZC";
-/// The English strings of the game, `LANGUAGES/English.bin`.
-pub const LANGUAGE_FILE: &str = "LANGUAGES/English.bin";
+/// The English strings of the game, `LANGUAGES/English.bin`. The other languages are in [`crate::languages`].
+pub const LANGUAGE_FILE: &str = crate::languages::ENGLISH_FILE;
 /// The mix map of the car sound, `SOUND/MIXMAPS/MAPOUTPUT.mxb`.
 pub const MAP_OUTPUT_FILE: &str = "SOUND/MIXMAPS/MAPOUTPUT.mxb";
 /// The metadata bundle of the L2RA track, `TRACKS/L2RA.BUN`.

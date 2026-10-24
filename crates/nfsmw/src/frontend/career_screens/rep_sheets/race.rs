@@ -15,8 +15,9 @@ use crate::frontend::custom_race::records;
 use crate::frontend::logic::{Command, Cx};
 use crate::frontend::quick_play::text;
 use crate::frontend::quick_race::{self, Board};
+use crate::i18n::t;
 use crate::settings::SpeedUnits;
-use crate::ui::{Text, UiAssets};
+use crate::ui::Text;
 
 /// Objects of `SafeHouseRaceSheet.fng` by name hash.
 const KIND_NAME: u32 = 0x9BA7_8BA2;
@@ -124,12 +125,12 @@ impl RacePage {
 }
 
 /// The text of a game label, empty when it is missing.
-fn game_text(assets: &UiAssets, label: u32) -> String {
-    Text::Game(label).resolve(assets).unwrap_or_default()
+fn game_text(label: u32) -> String {
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
-fn track_name(assets: &UiAssets, event: &str) -> String {
-    Text::Game(label_hash(&text::track_label_key(event))).resolve(assets).unwrap_or_else(|| event.to_owned())
+fn track_name(event: &str) -> String {
+    Text::Game(label_hash(&text::track_label_key(event))).resolve().unwrap_or_else(|| event.to_owned())
 }
 
 impl Page for RacePage {
@@ -141,33 +142,33 @@ impl Page for RacePage {
         self.rows.get(at).map_or(Status::Locked, |row| row.status)
     }
 
-    fn name(&self, assets: &UiAssets, at: usize) -> String {
-        self.rows.get(at).map(|row| track_name(assets, &row.event)).unwrap_or_default()
+    fn name(&self, at: usize) -> String {
+        self.rows.get(at).map(|row| track_name(&row.event)).unwrap_or_default()
     }
 
-    fn summary(&self, assets: &UiAssets, at: usize) -> String {
+    fn summary(&self, at: usize) -> String {
         let Some(row) = self.rows.get(at) else { return String::new() };
-        let kind = game_text(assets, text::mode_label(row.kind));
+        let kind = game_text(text::mode_label(row.kind));
         match row.status {
-            Status::Done => format!("{kind}  (won)"),
+            Status::Done => t!("career-sheet-won", kind = kind),
             Status::Open => kind,
-            Status::Locked => unlock_sentence(assets, self.bin),
+            Status::Locked => unlock_sentence(self.bin),
         }
     }
 
-    fn heading(&self) -> &'static str {
-        "Race Events"
+    fn heading(&self) -> u32 {
+        label_hash("REP_SHEET_RACE_EVENTS")
     }
 
     fn fill(&self, cx: &mut Cx, at: usize) {
         let Some(row) = self.rows.get(at) else { return };
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
-        let unit = Text::Game(text::unit_label(metric)).resolve(cx.assets).unwrap_or_default();
-        cx.text_object(KIND_NAME, &game_text(cx.assets, text::mode_label(row.kind)));
+        let unit = Text::Game(text::unit_label(metric)).resolve().unwrap_or_default();
+        cx.text_object(KIND_NAME, &game_text(text::mode_label(row.kind)));
         if let Some(icon) = cx.object(KIND_ICON) {
             cx.rt.set_texture(icon, text::mode_icon(row.kind));
         }
-        cx.text_object(TRACK_NAME, &track_name(cx.assets, &row.event));
+        cx.text_object(TRACK_NAME, &track_name(&row.event));
         for hidden in POLICE {
             cx.hide(hidden, true);
         }
@@ -178,11 +179,11 @@ impl Page for RacePage {
         };
         cx.text_object(BEST, &best);
         let record = records::best(&row.event);
-        let speed_unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
+        let speed_unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve().unwrap_or_default();
         cx.text_object(AVERAGE, &speed_text(record.average, metric, &speed_unit));
         cx.text_object(TOP, &speed_text(record.top, metric, &speed_unit));
         for name in CASH {
-            cx.text_object(name, &crate::frontend::infractions::money(row.cash));
+            cx.text_object(name, &crate::i18n::fmt::grouped(i64::from(row.cash)));
         }
         cx.text_object(DISTANCE, &text::length_text(row.length, metric, &unit));
         let laps = matches!(row.kind, RaceType::Circuit | RaceType::Knockout);
@@ -220,8 +221,8 @@ pub fn speed_text(kmh: Option<f32>, metric: bool, unit: &str) -> String {
 }
 
 /// `Unlock this track by beating <alias>, Blacklist member <bin>.`
-fn unlock_sentence(assets: &UiAssets, bin: u8) -> String {
-    let template = game_text(assets, UNLOCK_LABEL);
-    let alias = game_text(assets, label_hash(&text::alias_key(bin)));
+fn unlock_sentence(bin: u8) -> String {
+    let template = game_text(UNLOCK_LABEL);
+    let alias = game_text(label_hash(&text::alias_key(bin)));
     text::fill_sentence(&template, &alias, bin)
 }

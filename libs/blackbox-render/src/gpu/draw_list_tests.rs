@@ -37,12 +37,14 @@ fn draw(blend: BlendMode, shading: Shading, texture: Option<usize>) -> DrawRange
 struct TestMesh {
     draws: Vec<DrawRange>,
     masks: Vec<DrawMask>,
+    single_sided: bool,
 }
 
 impl TestMesh {
     fn new(draws: Vec<DrawRange>) -> Self {
         let masks = draws.iter().map(DrawMask::of).collect();
-        Self { draws, masks }
+        let single_sided = draws.iter().any(|d| !d.two_sided);
+        Self { draws, masks, single_sided }
     }
 }
 
@@ -79,8 +81,8 @@ fn test_meshes() -> Vec<Option<TestMesh>> {
     ]
 }
 
-fn lookup<'a>(meshes: &'a [Option<TestMesh>]) -> impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask])> {
-    move |slot| meshes.get(slot)?.as_ref().map(|m| (m.draws.as_slice(), m.masks.as_slice()))
+fn lookup<'a>(meshes: &'a [Option<TestMesh>]) -> impl Fn(usize) -> Option<(&'a [DrawRange], &'a [DrawMask], bool)> {
+    move |slot| meshes.get(slot)?.as_ref().map(|m| (m.draws.as_slice(), m.masks.as_slice(), m.single_sided))
 }
 
 fn test_textures() -> Slots<u8> {
@@ -218,6 +220,38 @@ fn sky_draws_stay_one_instance_each_and_normal_draws_share_a_run() {
     assert_eq!(sky, [(3, (0, 1)), (4, (0, 1)), (3, (1, 2)), (4, (1, 2)), (3, (2, 3)), (4, (2, 3))]);
     list.fill(&instances(&[1, 1, 1]), lookup(&meshes), texture_of);
     assert_eq!(list.normal(0).iter().map(|c| c.instances).collect::<Vec<_>>(), [(0, 3)]);
+}
+
+#[test]
+fn water_lists_hold_only_the_projected_materials_draws() {
+    let meshes = test_meshes();
+    let textures = test_textures();
+    let redirects = Redirects::default();
+    let texture_of = |t: Option<TextureHandle>| resolve_texture(t, &redirects, &textures);
+    let run_list = instances(&[0, 1, 1, 2, 0]);
+    let mut list = DrawList::default();
+    list.set_projected([2usize].into_iter());
+    list.fill(&run_list, lookup(&meshes), texture_of);
+    for index in 0..BLEND_ORDER.len() {
+        let projected = |c: &LayerCmd| {
+            let mesh = meshes[c.mesh].as_ref();
+            mesh.is_some_and(|m| m.draws[c.draw as usize].shading == normal(2))
+        };
+        let expected: Vec<LayerCmd> = list.normal(index).iter().copied().filter(projected).collect();
+        assert_eq!(list.water(index), Some(expected.as_slice()), "blend {index}");
+    }
+    assert_eq!(list.water(2).map(<[LayerCmd]>::len), Some(1));
+    assert_eq!(list.water(0).map(<[LayerCmd]>::len), Some(0));
+
+    // A changed set leaves the old lists unusable until the next build.
+    list.set_projected([1usize, 2].into_iter());
+    assert_eq!(list.water(0), None);
+    list.fill(&run_list, lookup(&meshes), texture_of);
+    assert_eq!(list.water(0).map(<[LayerCmd]>::len), Some(list.normal(0).len()));
+
+    // The same set again changes nothing.
+    list.set_projected([1usize, 2].into_iter());
+    assert!(list.water(0).is_some());
 }
 
 #[test]

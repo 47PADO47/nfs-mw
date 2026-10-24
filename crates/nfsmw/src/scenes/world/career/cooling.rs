@@ -2,7 +2,7 @@
 //! `fecooling` factor (`docs/specs/career-cooling.md`). The garage applies a whole selection at once, so the parts that
 //! differ from the applied selection are the parts fitted.
 
-use nfsmw_career::economy::cooling::{CoolingPart, CoolingTable, SHOP_EXTRA};
+use nfsmw_career::economy::cooling::{BACKROOM_EXTRA, CoolingPart, CoolingTable, SHOP_EXTRA};
 use nfsmw_data::car::customization::Category;
 
 use crate::garage::Selection;
@@ -25,7 +25,7 @@ pub(super) fn part_of(category: Category) -> CoolingPart {
 
 /// The parts `new` fits that `old` did not have: each changed model slot, and the paint when the colour changed. A
 /// different car, or no car applied yet, fits nothing (a car swap is not a part purchase).
-pub(super) fn fitted_parts(old: &Selection, new: &Selection) -> Vec<CoolingPart> {
+pub(in crate::scenes::world) fn fitted_parts(old: &Selection, new: &Selection) -> Vec<CoolingPart> {
     if old.car.is_empty() || old.car != new.car {
         return Vec::new();
     }
@@ -37,17 +37,27 @@ pub(super) fn fitted_parts(old: &Selection, new: &Selection) -> Vec<CoolingPart>
     if old.parts.rim_color != new.parts.rim_color && !fitted.contains(&CoolingPart::RimPaint) {
         fitted.push(CoolingPart::RimPaint);
     }
-    if old.parts.vinyl_colors != new.parts.vinyl_colors && !fitted.contains(&CoolingPart::Vinyl) {
-        fitted.push(CoolingPart::Vinyl);
-    }
     if old.color != new.color && !fitted.contains(&CoolingPart::Paint) {
         fitted.push(CoolingPart::Paint);
+    }
+    for zone in 0..6 {
+        for position in 0..8 {
+            if old.parts.decals[zone][position] == new.parts.decals[zone][position] {
+                continue;
+            }
+            let part = match (zone, position) {
+                (2, 6) => CoolingPart::BodyKit,
+                (0..=1, 0) | (2..=3, 0..=5) | (4..=5, 0) => CoolingPart::Decal,
+                _ => continue,
+            };
+            fitted.push(part);
+        }
     }
     fitted
 }
 
 /// The table of the install, read once. `None` when the attribute database lacks the class.
-pub(super) fn read_table(dir: &game_install::GameDir) -> Option<CoolingTable> {
+pub(in crate::scenes::world) fn read_table(dir: &game_install::GameDir) -> Option<CoolingTable> {
     let db = nfsmw_data::shared::attributes(dir).ok()?;
     let table = nfsmw_data::cooling::fe_cooling(&db)?;
     Some(CoolingTable::new([
@@ -83,7 +93,11 @@ impl WorldScene {
             let record = career.stable.career_for_handle_mut(handle)?;
             let before = record.heat;
             for part in &fitted {
-                record.cool_for_part(&table, *part, SHOP_EXTRA);
+                let extra = match self.garage.backroom {
+                    true => BACKROOM_EXTRA,
+                    false => SHOP_EXTRA,
+                };
+                record.cool_for_part(&table, *part, extra);
             }
             Some((before, record.heat))
         });

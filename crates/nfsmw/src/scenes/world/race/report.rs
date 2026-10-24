@@ -54,6 +54,7 @@ impl WorldScene {
                 // The final race's win ends the game: its end-game chain is due now, once the results are answered
                 // (`story-flow-2.md` section 5.4, `frontend/flow_endgame.rs`).
                 if won && session.options.career && session.event == FINAL_RACE_EVENT {
+                    self.career.handle.with(|career| career.mark_career_completed());
                     self.career.requests.push_back(CareerRequest::EndGame);
                 }
                 outro::begin(&mut session, won);
@@ -90,7 +91,7 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collision
             let time = me.and_then(|o| o.time);
             let ran = racer.finished_at.or(racer.out_at).unwrap_or_else(|| engine.elapsed());
             ReportRacer {
-                name: names.get(i).map_or_else(|| format!("Racer {i}"), |n| (*n).to_owned()),
+                name: names.get(i).map_or_else(|| crate::i18n::t!("race-racer-fallback", n = i), |n| (*n).to_owned()),
                 place: me.map_or(i as u32 + 1, |o| o.place),
                 time,
                 laps,

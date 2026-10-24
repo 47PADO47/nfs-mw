@@ -93,11 +93,12 @@ pub struct MenuNudge {
     pub age: f32,
 }
 
-/// One footer hint: the keys that do something, what they do, and the action a click on it presses.
+/// One footer hint: the keys that do something, what they do (in the current language), and the action a click on it
+/// presses.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuHint {
     pub keys: Vec<Prompt>,
-    pub label: &'static str,
+    pub label: String,
     pub action: Option<Action>,
 }
 

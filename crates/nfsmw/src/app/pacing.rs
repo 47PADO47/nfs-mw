@@ -15,6 +15,9 @@ use crate::settings::Settings;
 /// millisecond or more late (Windows especially), so the last stretch is waited out by polling the clock.
 const SPIN_MARGIN: Duration = Duration::from_millis(1);
 
+/// The frame rate a menu is held to when the display's refresh rate is not known.
+const MENU_FALLBACK_FPS: u32 = 60;
+
 /// A frame-rate cap: a number of frames per second, or `unlocked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MaxFps(Option<u32>);
@@ -59,18 +62,23 @@ impl fmt::Display for MaxFps {
 
 /// Sleeps at the end of each frame so frames start at most `max` times per second.
 pub struct FrameLimiter {
-    interval: Option<Duration>,
     next: Instant,
 }
 
+impl Default for FrameLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FrameLimiter {
-    pub fn new(max: MaxFps) -> Self {
-        Self { interval: max.interval(), next: Instant::now() }
+    pub fn new() -> Self {
+        Self { next: Instant::now() }
     }
 
-    /// Call once per frame, after presenting.
-    pub fn wait(&mut self) {
-        let Some(interval) = self.interval else { return };
+    /// Call once per frame, after presenting, with the cap to hold (the player's, or a menu's).
+    pub fn wait(&mut self, cap: MaxFps) {
+        let Some(interval) = cap.interval() else { return };
         let now = Instant::now();
         // Schedule from the previous deadline so the average rate is exact; after a slow frame,
         // start over from now instead of rushing to catch up.
@@ -102,6 +110,20 @@ fn limiter_wanted(vsync: bool, cap: MaxFps, refresh_hz: Option<f32>) -> bool {
     let Some(hz) = refresh_hz else { return true };
     // Half a hertz of slack: a 60 fps cap on a 59.94 Hz display is the display's rate, not a lower one.
     (fps as f32) < hz - 0.5
+}
+
+/// The cap the limiter paces to. A menu gains nothing from frames beyond what the display shows, so without vsync (which
+/// already paces to the display) it is held to the refresh rate, or [`MENU_FALLBACK_FPS`] where that is unknown. A lower
+/// cap of the player's stays.
+fn effective_cap(vsync: bool, menu: bool, cap: MaxFps, refresh_hz: Option<f32>) -> MaxFps {
+    if vsync || !menu {
+        return cap;
+    }
+    let display = refresh_hz.map_or(MENU_FALLBACK_FPS, |hz| hz.round().max(1.0) as u32);
+    match cap.fps() {
+        Some(fps) if fps < display => cap,
+        _ => MaxFps(Some(display)),
+    }
 }
 
 /// The refresh rate in hertz of the monitor the primary window is on, or of the primary monitor.
@@ -145,19 +167,28 @@ pub fn end_of_frame(
         let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
         let fps = host.frames as f32 / elapsed;
         log::debug!("{fps:.1} fps");
-        window.title = format!("{} - {} - {fps:.0} fps{status}", host.scene.title(), renderer.info().summary());
+        window.title = crate::i18n::t!(
+            "menus-window-title",
+            scene = host.scene.title(),
+            renderer = renderer.info().summary(),
+            fps = fps.round() as i64,
+            status = status,
+        );
         (host.title_timer, host.frames) = (Instant::now(), 0);
     }
     if host.latency_pacing {
         return;
     }
-    // Only look the refresh rate up when vsync makes it matter.
-    let refresh = settings.vsync.then(|| refresh_hz(&on_monitor, &monitors)).flatten();
-    if !limiter_wanted(settings.vsync, settings.max_fps, refresh) {
+    // A menu over a backdrop or a frozen world is capped to the display; screenshot and benchmark runs are not.
+    let menu = host.screenshot.is_none() && host.bench.is_none() && host.scene.menu_frame();
+    // Only look the refresh rate up when vsync or a menu makes it matter.
+    let refresh = (settings.vsync || menu).then(|| refresh_hz(&on_monitor, &monitors)).flatten();
+    let cap = effective_cap(settings.vsync, menu, settings.max_fps, refresh);
+    if !limiter_wanted(settings.vsync, cap, refresh) {
         return;
     }
     let _trace = blackbox_trace::scope("Wait: game FPS limiter");
-    host.limiter.wait();
+    host.limiter.wait(cap);
 }
 
 #[cfg(test)]
@@ -175,10 +206,10 @@ mod tests {
 
     #[test]
     fn caps_the_rate() {
-        let mut limiter = FrameLimiter::new(MaxFps(Some(200)));
+        let mut limiter = FrameLimiter::new();
         let start = Instant::now();
         for _ in 0..10 {
-            limiter.wait();
+            limiter.wait(MaxFps(Some(200)));
         }
         assert!(start.elapsed() >= Duration::from_millis(45));
     }
@@ -188,6 +219,21 @@ mod tests {
         let deadline = Instant::now() + Duration::from_millis(5);
         sleep_until(deadline);
         assert!(Instant::now() >= deadline);
+    }
+
+    #[test]
+    fn a_menu_is_held_to_the_display_unless_the_player_caps_lower() {
+        let cap = |fps| MaxFps(Some(fps));
+        // A menu without vsync: the refresh rate, 60 when unknown, whatever the player's cap above it says.
+        assert_eq!(effective_cap(false, true, MaxFps(None), Some(144.0)), cap(144));
+        assert_eq!(effective_cap(false, true, MaxFps(None), Some(59.94)), cap(60));
+        assert_eq!(effective_cap(false, true, MaxFps(None), None), cap(60));
+        assert_eq!(effective_cap(false, true, cap(240), Some(144.0)), cap(144));
+        // A lower cap of the player's stays.
+        assert_eq!(effective_cap(false, true, cap(30), Some(144.0)), cap(30));
+        // Gameplay and vsync keep the player's cap.
+        assert_eq!(effective_cap(false, false, MaxFps(None), Some(144.0)), MaxFps(None));
+        assert_eq!(effective_cap(true, true, MaxFps(None), Some(144.0)), MaxFps(None));
     }
 
     #[test]

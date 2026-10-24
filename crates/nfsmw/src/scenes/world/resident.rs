@@ -93,6 +93,9 @@ pub struct SectionResources {
     pub(super) texture_discard: u32,
     /// Authored road-view placements; never mixed into the player or shadow feed.
     pub(super) reflection_placed: Vec<ReflectionPlaced>,
+    /// The cull data of `reflection_placed`, built on the first road-view sweep after the list is final
+    /// (`wet_reflections/cull.rs`).
+    pub(super) reflection_cull: std::cell::OnceCell<super::wet_reflections::cull::RoadCull>,
     pub(super) normal_materials:
         HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
     pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,

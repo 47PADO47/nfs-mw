@@ -1,5 +1,5 @@
-//! What the FEng screens read from the install besides their packages: the fonts, the textures and the language
-//! strings. Shared by the HUD and the menus.
+//! What the FEng screens read from the install besides their packages: the fonts and the textures. Shared by the HUD and
+//! the menus. The language's text is `crate::i18n`; the language's own fonts are here ([`UiAssets::font`]).
 
 mod load;
 pub(crate) use load::read_wanted;
@@ -11,11 +11,10 @@ use blackbox_chunk::find_all;
 use blackbox_feng::font::uv_size;
 use blackbox_feng::package::ResourceKind;
 use blackbox_feng::{Font, Package, fe_hash_upper};
-use blackbox_text::StringTable;
 use blackbox_tpk::{Texture, decode_rgba8};
 use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
-use nfsmw_data::shared;
+use nfsmw_data::languages;
 use nfsmw_data::shared_unwrapped;
 
 use super::fonts::CustomFontSet;
@@ -102,13 +101,12 @@ pub fn native_size(stock: Option<(u32, u32)>, table: Option<(u32, u32)>) -> Opti
 
 /// The native size of each font's texture (see [`native_size`]). The table is consulted only when the texture is
 /// loaded: a loaded texture that is not a stock copy is a replacement, and its stock size is what the table gives.
-fn native_font_sizes(
-    fonts: &HashMap<u32, Font>,
+fn native_font_sizes<'a>(
+    fonts: impl Iterator<Item = &'a Font>,
     stock: &HashMap<u32, (u32, u32)>,
     textures: &HashMap<u32, Texture>,
 ) -> HashMap<u32, (u32, u32)> {
     fonts
-        .values()
         .filter_map(|font| {
             let table = textures.contains_key(&font.texture_hash).then(|| table_size(font.hash)).flatten();
             let stock = stock.get(&font.texture_hash).copied();
@@ -122,6 +120,26 @@ fn native_font_sizes(
             }
             let size = native_size(stock, table)?;
             Some((font.texture_hash, size))
+        })
+        .collect()
+}
+
+/// The `FEngFont` chunks of every language table of the install, by the table's file in lower case.
+fn language_fonts(dir: &GameDir) -> HashMap<String, HashMap<u32, Font>> {
+    languages::installed(dir)
+        .into_iter()
+        .filter_map(|table| {
+            let data = languages::bytes(dir, &table.file).ok()?;
+            let mut fonts = HashMap::new();
+            for chunk in find_all(&data, FENG_FONT) {
+                match Font::parse(chunk.payload) {
+                    Ok(font) => {
+                        fonts.entry(font.hash).or_insert(font);
+                    }
+                    Err(e) => log::warn!("{}: a font does not parse: {e}", table.file),
+                }
+            }
+            Some((table.file.to_ascii_lowercase(), fonts))
         })
         .collect()
 }
@@ -159,13 +177,16 @@ pub struct UiAssets {
     input_atlas: Image,
     discord_mark: Image,
     mod_mark: Image,
-    pub strings: Option<StringTable>,
+    /// The fonts each language table carries, by its file in lower case (`docs/specs/localization.md` section 5).
+    language_fonts: HashMap<String, HashMap<u32, Font>>,
 }
 
 impl UiAssets {
-    /// The stock assets alone, with no custom fonts (the tests' fixture; the app uses [`UiAssets::load_with`]).
+    /// The stock assets alone, with no custom fonts, and English as the current language so the screens read the game's
+    /// labels (the tests' fixture; the app uses [`UiAssets::load_with`] after `crate::i18n::start`).
     #[cfg(test)]
     pub fn load(dir: &GameDir) -> Result<Self> {
+        crate::i18n::start(dir, "en".parse().ok());
         Self::load_with(dir, CustomFontSet::default())
     }
 
@@ -183,7 +204,7 @@ impl UiAssets {
             input_atlas: blank(),
             discord_mark: blank(),
             mod_mark: blank(),
-            strings: None,
+            language_fonts: HashMap::new(),
         }
     }
 
@@ -202,9 +223,11 @@ impl UiAssets {
             }
         }
 
+        let language_fonts = language_fonts(dir);
         // The stock sizes of the font textures come from the install's own packs, not from an overlay (which may hold an
         // HD copy): only a pack the install serves counts. The first such pack wins, as in the loaded textures below.
-        let font_textures: HashSet<u32> = fonts.values().map(|f| f.texture_hash).collect();
+        let all_fonts = || fonts.values().chain(language_fonts.values().flat_map(HashMap::values));
+        let font_textures: HashSet<u32> = all_fonts().map(|f| f.texture_hash).collect();
         // The groups of textures are independent reads, so they run side by side; they are merged in the order below,
         // which is their priority (first name wins).
         let (mut textures, stock, rivals_and_tips, minimap_tiles, world_maps) = std::thread::scope(|scope| {
@@ -218,11 +241,7 @@ impl UiAssets {
         load::merge(&mut textures, minimap_tiles);
         load::merge(&mut textures, world_maps);
 
-        let strings = shared::language(dir)
-            .ok()
-            .and_then(|d| StringTable::from_file(&d).map_err(|e| log::warn!("English.bin: {e}")).ok());
-
-        let font_native = native_font_sizes(&fonts, &stock, &textures);
+        let font_native = native_font_sizes(all_fonts(), &stock, &textures);
         let aliases = ALIASES.iter().map(|(a, b)| (fe_hash_upper(a), fe_hash_upper(b))).collect();
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
@@ -234,7 +253,7 @@ impl UiAssets {
             font_native,
             custom,
             late: LateTextures::default(),
-            strings,
+            language_fonts,
             input_atlas,
             discord_mark,
             mod_mark,
@@ -258,9 +277,22 @@ impl UiAssets {
     }
 
     /// The font for a name hash: the custom font for the current tier when the custom fonts are on and a file supplies
-    /// one, else the stock font.
+    /// one, else the current language's own font, else English's, else the bundles' stock font.
     pub fn font(&self, hash: u32) -> Option<&Font> {
-        self.custom_font(hash).map(|(_, font)| font).or_else(|| self.fonts.get(&hash))
+        self.custom_font(hash)
+            .map(|(_, font)| font)
+            .or_else(|| self.language_font(hash))
+            .or_else(|| self.fonts.get(&hash))
+    }
+
+    /// The font of the current language's table, else of `English.bin`.
+    fn language_font(&self, hash: u32) -> Option<&Font> {
+        let current = crate::i18n::current().table.as_ref().map(|table| table.file.to_ascii_lowercase());
+        let english = languages::ENGLISH_FILE.to_ascii_lowercase();
+        current
+            .iter()
+            .chain(std::iter::once(&english))
+            .find_map(|file| self.language_fonts.get(file).and_then(|fonts| fonts.get(&hash)))
     }
 
     /// The custom font for a name hash in use now, with its tier. `None` when the custom fonts are off or no file has it.

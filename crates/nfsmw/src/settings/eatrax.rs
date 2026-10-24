@@ -46,14 +46,15 @@ impl Mode {
         }
     }
 
-    /// The word the screen shows for the mode.
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Off => "Off",
-            Self::Menu => "Menu",
-            Self::InGame => "In game",
-            Self::Both => "Both",
-        }
+    /// The word the screen shows for the mode, in the current language.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Off => "options-off",
+            Self::Menu => "options-jukebox-menu",
+            Self::InGame => "options-jukebox-in-game",
+            Self::Both => "options-jukebox-both",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 
     /// The number the file keeps (the original's profile value).

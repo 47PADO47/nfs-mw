@@ -151,13 +151,13 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
 }
 
 /// A game text, empty when missing.
-fn text_of(cx: &Cx, label: u32) -> String {
-    Text::Game(label).resolve(cx.assets).unwrap_or_default()
+fn text_of(label: u32) -> String {
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 impl Overview {
     fn fill_rival(&self, cx: &mut Cx) {
-        if let Some(title) = rank_title(cx, self.shown) {
+        if let Some(title) = rank_title(self.shown) {
             cx.text_group(TITLE, &title);
         }
         cx.label_group(ALIAS, label_hash(&rival_key(self.shown, "AKA")));
@@ -198,8 +198,8 @@ impl Overview {
         if let Some(message) = message {
             cx.rt.post_to_package(cx.package, fe_hash_upper(message));
         }
-        let bounty = format!("{} {}", text_of(cx, LABEL_BOUNTY), money_text(panel.bounty.have));
-        let cash = format!("{} {}", text_of(cx, LABEL_CASH), money_text(u64::from(panel.cash)));
+        let bounty = format!("{} {}", text_of(LABEL_BOUNTY), money_text(panel.bounty.have));
+        let cash = format!("{} {}", text_of(LABEL_CASH), money_text(u64::from(panel.cash)));
         cx.text_group(TICKER_BOUNTY, &bounty);
         cx.text_group(TICKER_CASH, &cash);
     }
@@ -319,11 +319,11 @@ impl ScreenLogic for Overview {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
-        let text = |label: u32| Text::Game(label).resolve(assets).unwrap_or_default();
+        let text = |label: u32| Text::Game(label).resolve().unwrap_or_default();
         let entries = self
             .list_entries()
             .into_iter()
@@ -332,7 +332,8 @@ impl ScreenLogic for Overview {
                 Entry::Challenge => MenuEntry::plain(text(label_hash("RIVAL_CHALLENGE_ACTIVATED")), enabled),
             })
             .collect();
-        let title = text(label_hash("TITLE_BLACKLIST_NUMBER")).replace("%d", &self.shown.to_string());
+        let template = text(label_hash("TITLE_BLACKLIST_NUMBER"));
+        let title = blackbox_text::printf::fill(&template, &[self.shown.to_string().as_str()]);
         Some(MenuList {
             title,
             message: String::new(),

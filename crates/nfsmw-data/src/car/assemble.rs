@@ -44,7 +44,10 @@ fn drawn_in_body_frame(s: usize, slots: &Slots, driver: bool) -> bool {
         slot::UNIVERSAL_SPOILER_BASE => slots[slot::SPOILER].is_some_and(|p| p.upgrade_level != 0),
         // Corner damage is placed but the renderer keeps it hidden until its zone is damaged
         // (`CarModel::damage_overlay`); decal models only show transparent DEFAULTALPHA without a decal.
-        s if slot::DECAL_MODELS.contains(&s) => false,
+        s if slot::DECAL_MODELS.contains(&s) => {
+            let start = *slot::DECAL_TEXTURES.start() + (s - slot::DECAL_MODELS.start()) * 8;
+            slots[start..start + 8].iter().any(Option::is_some)
+        }
         _ => true,
     }
 }

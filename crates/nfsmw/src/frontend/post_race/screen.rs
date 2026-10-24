@@ -141,7 +141,7 @@ impl PostRaceLogic {
         self.rows = page.rows.len().min(ROW_GROUPS.len());
         for (row, cells) in page.rows.iter().take(ROW_GROUPS.len()).enumerate() {
             for (hash, cell) in names(row).into_iter().zip(cells) {
-                let text = resolve(cx, cell);
+                let text = resolve(cell);
                 cx.text_object(hash, &text);
             }
         }
@@ -169,27 +169,27 @@ impl PostRaceLogic {
 }
 
 /// A language label as text; empty when the table lacks it.
-fn label_text(cx: &Cx, label: u32) -> String {
-    Text::Game(label).resolve(cx.assets).unwrap_or_default()
+fn label_text(label: u32) -> String {
+    Text::Game(label).resolve().unwrap_or_default()
 }
 
 fn text_group(cx: &mut Cx, group: u32, label: u32) {
-    let text = label_text(cx, label);
+    let text = label_text(label);
     cx.text_group(group, &text);
 }
 
 fn text_object(cx: &mut Cx, name: u32, label: u32) {
-    let text = label_text(cx, label);
+    let text = label_text(label);
     cx.text_object(name, &text);
 }
 
 /// What a cell reads.
-fn resolve(cx: &Cx, cell: &Cell) -> String {
+fn resolve(cell: &Cell) -> String {
     match cell {
         Cell::Empty => String::new(),
         Cell::Text(text) => text.clone(),
-        Cell::Label(label) => label_text(cx, *label),
-        Cell::WithUnit(number, unit) => format!("{number} {}", label_text(cx, *unit)),
+        Cell::Label(label) => label_text(*label),
+        Cell::WithUnit(number, unit) => format!("{number} {}", label_text(*unit)),
     }
 }
 

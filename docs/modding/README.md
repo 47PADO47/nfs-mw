@@ -26,6 +26,7 @@ when the module is new.
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
+| [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
 
@@ -49,6 +50,7 @@ mods/<id>/
   files/          VFS overlay, mirrors the install layout (CARS/MYCAR/..., MUSIC/...)
   cars/           one <id>.toml per car the mod adds (clone, role, heat); see api-content.md#cars
   music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
+  lang/           <locale>/*.ftl translations of the mod's text, and language packs; see translations.md
   content/        other declarative registrations (TOML), planned
   config.toml     the mod's own settings, managed through bb.config
 ```

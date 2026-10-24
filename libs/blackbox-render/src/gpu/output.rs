@@ -8,6 +8,8 @@ pub(super) enum Output {
     Window {
         surface: wgpu::Surface<'static>,
         config: wgpu::SurfaceConfiguration,
+        /// The surface offers `Mailbox`, the present mode without vsync that never tears and never waits.
+        mailbox: bool,
         #[cfg(all(windows, feature = "streamline"))]
         dx12: Option<super::dlss::dx12::Surface>,
     },
@@ -29,7 +31,9 @@ impl Output {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
         Self::Texture { texture, size }
@@ -72,8 +76,60 @@ impl Output {
 
     /// Switch vertical sync; a texture has none.
     pub(super) fn set_vsync(&mut self, device: &wgpu::Device, vsync: bool) {
-        let Self::Window { config, .. } = self else { return };
-        config.present_mode = if vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
+        let Self::Window { config, mailbox, .. } = self else { return };
+        config.present_mode = present_mode(vsync, *mailbox);
         self.configure(device);
+    }
+
+    /// Frames the presentation engine may queue ahead (1 or 2); a texture has no queue.
+    pub(super) fn set_frame_latency(&mut self, device: &wgpu::Device, frames: u32) {
+        let Self::Window { config, .. } = self else { return };
+        let frames = frames.clamp(1, MAX_FRAME_LATENCY);
+        if config.desired_maximum_frame_latency == frames {
+            return;
+        }
+        config.desired_maximum_frame_latency = frames;
+        self.configure(device);
+    }
+
+    /// Whether the output can be copied from and to, which showing a kept image needs (`reuse.rs`). A window's
+    /// swapchain only takes part when the surface allowed both usages; the native Direct3D 12 swapchain never does.
+    pub(super) fn copyable(&self) -> bool {
+        let Self::Window { config, .. } = self else { return true };
+        #[cfg(all(windows, feature = "streamline"))]
+        if matches!(self, Self::Window { dx12: Some(_), .. }) {
+            return false;
+        }
+        config.usage.contains(COPY_USAGES)
+    }
+}
+
+/// The most frames the presentation engine queues ahead that the renderer asks for; wgpu's own default.
+pub(super) const MAX_FRAME_LATENCY: u32 = 2;
+
+/// What a swapchain also needs to be copied from and to.
+pub(super) const COPY_USAGES: wgpu::TextureUsages = wgpu::TextureUsages::COPY_SRC.union(wgpu::TextureUsages::COPY_DST);
+
+/// The present mode for the vsync setting. Without vsync `Mailbox` shows the newest finished frame at each refresh
+/// without tearing, when the surface has it; otherwise the platform's own no-vsync mode.
+pub(super) fn present_mode(vsync: bool, mailbox: bool) -> wgpu::PresentMode {
+    if vsync {
+        return wgpu::PresentMode::AutoVsync;
+    }
+    if mailbox {
+        return wgpu::PresentMode::Mailbox;
+    }
+    wgpu::PresentMode::AutoNoVsync
+}
+
+impl super::Renderer {
+    /// How many frames the presentation engine may queue ahead of the display: 2 (the default) keeps the GPU busy,
+    /// 1 shows each frame sooner at the cost of stalls when the CPU is late. Clamped to 1..=2.
+    pub fn set_max_frame_latency(&mut self, frames: u32) {
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
+        self.output.set_frame_latency(&self.device, frames);
     }
 }

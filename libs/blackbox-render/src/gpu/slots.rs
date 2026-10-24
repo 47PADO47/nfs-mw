@@ -44,6 +44,11 @@ impl<T> Slots<T> {
         self.items.iter_mut().filter_map(Option::as_mut)
     }
 
+    /// The live items with their slot numbers, in slot order.
+    pub(super) fn iter_indexed(&self) -> impl Iterator<Item = (usize, &T)> + Clone {
+        self.items.iter().enumerate().filter_map(|(i, item)| Some((i, item.as_ref()?)))
+    }
+
     /// Number of live items.
     pub(super) fn len(&self) -> usize {
         self.items.len() - self.free.len()
@@ -63,5 +68,15 @@ mod tests {
         assert_eq!(s.remove(a), None);
         assert_eq!(s.insert("c"), a);
         assert_eq!((s.get(a), s.get(b), s.len()), (Some(&"c"), Some(&"b"), 2));
+    }
+
+    #[test]
+    fn indexed_iteration_skips_freed_slots() {
+        let mut s = Slots::new();
+        let a = s.insert("a");
+        s.insert("b");
+        s.insert("c");
+        s.remove(a);
+        assert_eq!(s.iter_indexed().collect::<Vec<_>>(), [(1, &"b"), (2, &"c")]);
     }
 }

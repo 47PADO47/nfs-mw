@@ -9,9 +9,13 @@
 //! (`TrafficWorld::bodies`) and its own car, and the explosion waves it may push the body with are a part of the props
 //! that the ends never touch. Everything with side effects (props, contacts, sounds, effects, damage, the random
 //! streams) stays in the serial parts, in car order.
+//!
+//! The shares run on Bevy's compute task pool, whose threads stay alive from one tick to the next. Without that pool
+//! (a unit test that never built the app) every step runs on the calling thread.
 
 use std::sync::OnceLock;
 
+use bevy_tasks::ComputeTaskPool;
 use blackbox_collision::CollisionWorld;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -34,12 +38,12 @@ pub(super) struct Parallel {
 }
 
 impl Default for Parallel {
-    /// The simulation thread alone. A step starts its threads afresh (`integrate`), and measured on the dev profile
-    /// with 16 players that costs more than it saves: with 16 traffic cars the mean tick was 2.40 ms and the p95
-    /// 2.77 ms on threads against 2.16 ms and 2.29 ms serial, and with 59 cars the p95 was 32.8 ms against 3.4 ms, as a
-    /// thread that starts late stalls the whole tick (`step_bench_tests.rs`). Threads would need a pool that stays.
+    /// Up to four threads on the compute pool. A step that started its threads afresh every tick (`std::thread::scope`)
+    /// cost more than it saved: with 16 traffic cars the mean tick was 2.40 ms and the p95 2.77 ms against 2.16 ms and
+    /// 2.29 ms serial, and with 59 cars the p95 was 32.8 ms against 3.4 ms, as a thread that starts late stalls the
+    /// whole tick (`step_bench_tests.rs`). The pool's threads are already running, so a share only has to be picked up.
     fn default() -> Self {
-        Self { min_cars: 8, per_thread: 4, max_threads: 1 }
+        Self { min_cars: 8, per_thread: 4, max_threads: 4 }
     }
 }
 
@@ -51,6 +55,9 @@ impl Parallel {
     /// The threads a step of `cars` cars uses; 1 is the plain serial step.
     pub fn threads(&self, cars: usize) -> usize {
         if cars < self.min_cars {
+            return 1;
+        }
+        if ComputeTaskPool::try_get().is_none() {
             return 1;
         }
         let most = match self.max_threads {
@@ -73,7 +80,7 @@ struct Job<'a> {
 }
 
 /// Integrates the cars whose step started (`starts`, by car index; `None` for a car that does not step this tick) on
-/// up to `threads` threads, the calling thread taking the first share.
+/// up to `threads` threads of the compute pool, the calling thread taking the first share.
 pub(super) fn integrate(
     cars: &mut [AiCar],
     starts: &[Option<StepStart>],
@@ -87,11 +94,19 @@ pub(super) fn integrate(
         .filter_map(|(car, start)| Some(Job { start: (*start)?, integration: car.integration() }))
         .collect();
     let share = jobs.len().div_ceil(threads.max(1)).max(1);
-    std::thread::scope(|scope| {
-        let mut shares = jobs.chunks_mut(share);
-        let own = shares.next();
-        for part in shares {
-            scope.spawn(move || run(part, collision, surfaces));
+    let mut shares = jobs.chunks_mut(share);
+    let own = shares.next();
+    let rest: Vec<&mut [Job<'_>]> = shares.collect();
+    let Some(pool) = ComputeTaskPool::try_get() else {
+        for part in own.into_iter().chain(rest) {
+            run(part, collision, surfaces);
+        }
+        return;
+    };
+    // Each share is its own task and the results are unit, so the order tasks finish in decides nothing.
+    pool.scope(move |scope| {
+        for part in rest {
+            scope.spawn(async move { run(part, collision, surfaces) });
         }
         if let Some(own) = own {
             run(own, collision, surfaces);
@@ -106,11 +121,19 @@ fn run(jobs: &mut [Job<'_>], collision: &CollisionWorld, surfaces: &SurfaceTable
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
+    use bevy_tasks::{ComputeTaskPool, TaskPool};
+
     use super::Parallel;
+
+    /// Builds the global compute pool the way the app's task pool plugin does, once per test binary.
+    pub(in crate::scenes::world::ai) fn init_pool() {
+        ComputeTaskPool::get_or_init(TaskPool::new);
+    }
 
     #[test]
     fn small_steps_stay_on_one_thread_and_shares_keep_their_minimum() {
+        init_pool();
         let parallel = Parallel { min_cars: 8, per_thread: 4, max_threads: 6 };
         assert_eq!(parallel.threads(7), 1);
         assert_eq!(parallel.threads(8), 2);
@@ -118,5 +141,6 @@ mod tests {
         assert_eq!(parallel.threads(100), 6);
         assert_eq!(Parallel::SERIAL.threads(100), 1);
         assert_eq!(Parallel::default().threads(1), 1);
+        assert_eq!(Parallel::default().threads(100), 4);
     }
 }

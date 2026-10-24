@@ -116,17 +116,16 @@ impl Default for Words {
     }
 }
 
-/// An integer with the locale's digit grouping (`%$d`, `%$0.0f`): commas in English.
+/// A word of the HUD from the language's table (a unit, a state); `english`, the word the HUD showed before it read the
+/// table, where no language has the label (a run without an install, the tests).
+pub fn game_word(label: u32, english: &str) -> String {
+    crate::i18n::game(label).unwrap_or_else(|| english.to_owned())
+}
+
+/// The size of a value, rounded to a whole number, with the language's digit grouping (`%$d`, `%$0.0f`): commas in
+/// English. The sign is the caller's.
 pub fn group_digits(value: f64) -> String {
-    let text = format!("{:.0}", value.abs());
-    let mut out = String::new();
-    for (i, digit) in text.chars().enumerate() {
-        if i > 0 && (text.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(digit);
-    }
-    out
+    crate::i18n::fmt::grouped(value.abs().round() as i64)
 }
 
 impl Leaders {

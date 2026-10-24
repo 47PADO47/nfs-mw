@@ -16,10 +16,12 @@ pub enum UiTheme {
 names!(UiTheme, "remastered or bevy", [(Self::Remastered, "remastered"), (Self::Bevy, "bevy")]);
 impl UiTheme {
     pub const ALL: [Self; 2] = [Self::Remastered, Self::Bevy];
-    pub fn label(self) -> &'static str {
+    /// The theme's name in the current language, as the options show it.
+    pub fn label(self) -> String {
         match self {
-            Self::Remastered => "Remastered",
-            Self::Bevy => "Bevy",
+            Self::Remastered => crate::i18n::text("options-remastered", &crate::i18n::Args::new()),
+            // The palette is named after the engine: not language.
+            Self::Bevy => "Bevy".to_owned(),
         }
     }
 }

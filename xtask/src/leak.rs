@@ -65,6 +65,10 @@ fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
     if name == ".env" {
         problems.push("local .env file (only .env.example belongs in the repo)".to_owned());
     }
+    if path.starts_with("crates/") && path.contains("/_game/") {
+        problems
+            .push("a `_game` translation folder: the game's text and its translations never go in the repo".to_owned());
+    }
     if let Some(ext) = ext.as_deref().filter(|e| FORBIDDEN_EXTENSIONS.contains(e)) {
         problems.push(format!("forbidden extension .{ext} (game data, binary or extracted media)"));
     }

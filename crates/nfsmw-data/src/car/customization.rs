@@ -8,7 +8,12 @@ use blackbox_hash::bstring_hash;
 use blackbox_solid::Solid;
 use game_install::GameDir;
 
+pub use super::decals::{DecalVariant, DecalZone, DecalZoneCatalog};
 use super::{CarTables, LAYOUT, Placement, Slots, WheelSetup, slot, stock_parts};
+
+mod names;
+mod palettes;
+pub use palettes::ColorChoice;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]
@@ -73,6 +78,10 @@ pub struct Selection {
     pub parts: [Option<u32>; 9],
     pub rim_color: Option<[u8; 3]>,
     pub vinyl_colors: [Option<[u8; 3]>; 3],
+    /// Explicit installed color-part identities; RGB-only developer values leave these unset.
+    pub vinyl_color_parts: [Option<u32>; 3],
+    /// Installed decal part identities, in native zone/position order (slots 83–130).
+    pub decals: [[Option<u32>; 8]; 6],
 }
 
 impl Selection {
@@ -80,6 +89,8 @@ impl Selection {
         self.parts.iter().all(Option::is_none)
             && self.rim_color.is_none()
             && self.vinyl_colors.iter().all(Option::is_none)
+            && self.vinyl_color_parts.iter().all(Option::is_none)
+            && self.decals.iter().flatten().all(Option::is_none)
     }
 }
 
@@ -96,16 +107,33 @@ pub struct Catalog {
     pub choices: [Vec<Choice>; 9],
     pub stock: [Option<u32>; 9],
     pub colors: HashMap<u32, [u8; 3]>,
+    /// Native vinyl channels 0..2, then gauge backing, needle and character palettes.
+    pub color_palettes: [Vec<ColorChoice>; 6],
     pub finishes: Vec<(String, u32)>,
+    /// Installed material family, retained for the garage's finish tabs.
+    pub paint_families: HashMap<u32, String>,
+    /// Installed BRAND_NAME and INNER_RADIUS attributes, keyed by wheel part.
+    pub rim_metadata: HashMap<u32, (u32, u32)>,
+    /// Original low-five-bit customization group, including mod-defined groups.
+    pub part_groups: HashMap<u32, u8>,
     pub gauge_skins: Vec<u8>,
+    /// Native paint finish and spoken-colour language labels for cart descriptions.
+    pub paint_names: HashMap<u32, (u32, u32)>,
+    /// Native custom-HUD part names, indexed by HUDINDEX.
+    pub gauge_names: HashMap<u8, Choice>,
+    /// Original CarPart name and optional language label, including stock pieces.
+    pub native_names: HashMap<u32, (String, Option<u32>)>,
     pub vinyl_remaps: HashMap<u32, usize>,
     pub paintable_wheels: std::collections::HashSet<u32>,
+    pub decals: [DecalZoneCatalog; 6],
+    pub number_choices: [Vec<Choice>; 2],
 }
 
 /// Shared geometry identities and tables are read once, then reused for each selected car.
 pub struct Inventory {
     tables: CarTables,
     shared: HashMap<u32, String>,
+    decal_textures: HashMap<u32, String>,
 }
 
 impl Inventory {
@@ -117,7 +145,8 @@ impl Inventory {
                 shared.extend(pack.into_iter().map(|s| (s.name_hash, s.name)));
             }
         }
-        Ok(Self { tables, shared })
+        let decal_textures = super::decals::available_textures(dir, &tables)?;
+        Ok(Self { tables, shared, decal_textures })
     }
 
     pub fn catalog(&self, dir: &GameDir, folder: &str) -> Result<Catalog> {
@@ -128,6 +157,9 @@ impl Inventory {
         catalog.choices[Category::Vinyl as usize].retain(|p| vinyls.contains(&p.hash));
         catalog.gauge_skins =
             (0..=10).filter(|skin| dir.exists(&format!("GLOBAL/HUDS_Custom_{skin:02}.bin"))).collect();
+        catalog.decals = super::decals::catalog(&self.tables, car, &solids, &self.decal_textures);
+        catalog.number_choices = super::decals::number_choices(&self.tables, &self.decal_textures);
+        names::read(&self.tables, &mut catalog);
         Ok(catalog)
     }
 }
@@ -148,7 +180,16 @@ impl Catalog {
         let stock = Category::ALL.map(|c| slots[c.slot()].map(|p| p.name_hash));
         let base = slots[slot::BASE].and_then(|p| t.parts.model_hash(&p, 0)).and_then(|h| solids.get(&h));
         let wheels = WheelSetup::read(&t.attributes, &car.base_model_name).is_some();
-        let mut catalog = Self { stock, ..Self::default() };
+        let mut catalog = Self { stock, color_palettes: palettes::read(t, car), ..Self::default() };
+        for category in [Category::Paint, Category::RimPaint] {
+            if let Some(part) = stock[category as usize].and_then(|hash| t.parts.by_name_hash(hash)) {
+                let paint = super::Paint::of(t, part);
+                catalog.colors.insert(part.name_hash, paint.rgb);
+                catalog
+                    .paint_families
+                    .insert(part.name_hash, paint.name.split('_').next().unwrap_or("Paint").to_owned());
+            }
+        }
         for category in Category::ALL {
             let slot = category.slot();
             let types: Vec<_> = t.slot_types.search_types(slot, car.type_name_hash).collect();
@@ -194,6 +235,7 @@ impl Catalog {
                         let paint = super::Paint::of(t, part);
                         catalog.colors.insert(part.name_hash, paint.rgb);
                         let family = paint.name.split('_').next().unwrap_or("Paint");
+                        catalog.paint_families.insert(part.name_hash, family.to_owned());
                         let finish = match family {
                             "GLOSS" => "Gloss",
                             "METAL" => "Metallic",
@@ -227,6 +269,15 @@ impl Catalog {
                 if category == Category::Wheels && part.upgrade_level > 0 {
                     catalog.paintable_wheels.insert(part.name_hash);
                 }
+                if category == Category::Wheels {
+                    catalog.rim_metadata.insert(
+                        part.name_hash,
+                        (
+                            t.parts.attribute(part, "BRAND_NAME").unwrap_or(0),
+                            t.parts.attribute(part, "INNER_RADIUS").unwrap_or(0),
+                        ),
+                    );
+                }
                 catalog.choices[category as usize].push(Choice {
                     hash: part.name_hash,
                     label,
@@ -235,12 +286,16 @@ impl Catalog {
                         .flatten(),
                     carbon: t.parts.attribute(part, "CARBONFIBRE").is_some_and(|v| v != 0),
                 });
+                catalog.part_groups.insert(part.name_hash, part.group);
             }
         }
         catalog
     }
 
     pub fn validate(&self, selection: &Selection) -> Result<()> {
+        for (index, hash) in selection.vinyl_color_parts.into_iter().enumerate() {
+            self.validate_palette_color(index, hash, selection.vinyl_colors[index])?;
+        }
         if selection.rim_color.is_some() || selection.parts[Category::RimPaint as usize].is_some() {
             ensure!(
                 selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
@@ -256,6 +311,39 @@ impl Catalog {
                 );
             }
         }
+        for zone in DecalZone::ALL {
+            let options = &self.decals[zone as usize];
+            let body = selection.parts[Category::Body as usize].or(self.stock[Category::Body as usize]);
+            let positions =
+                body.and_then(|hash| options.body_positions.get(&hash)).copied().unwrap_or(options.positions);
+            for (position, hash) in selection.decals[zone as usize].iter().enumerate() {
+                let Some(hash) = hash else { continue };
+                ensure!(options.supports(body, *hash), "{} bitmap is unavailable for this body kit", zone.label());
+                if matches!(zone, DecalZone::LeftDoor | DecalZone::RightDoor) && position >= 6 {
+                    let number = position - 6;
+                    let supported = body
+                        .and_then(|hash| options.body_number_positions.get(&hash))
+                        .copied()
+                        .unwrap_or(options.number_positions);
+                    ensure!(supported[number], "{} number position is unavailable", zone.label());
+                    ensure!(self.number_choices[number].iter().any(|p| p.hash == *hash), "Door number is unavailable");
+                    continue;
+                }
+                ensure!(position < positions, "{} decal position is unavailable", zone.label());
+                ensure!(options.choices.iter().any(|p| p.hash == *hash), "{} decal is unavailable", zone.label());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn validate_palette_color(&self, index: usize, hash: Option<u32>, rgb: Option<[u8; 3]>) -> Result<()> {
+        let Some(hash) = hash else { return Ok(()) };
+        let color = self
+            .color_palettes
+            .get(index)
+            .and_then(|palette| palette.iter().find(|color| color.hash == hash))
+            .context("Native color part is unavailable for this car and channel")?;
+        ensure!(rgb == Some(color.rgb), "Native color part does not match its RGB value");
         Ok(())
     }
 
@@ -292,6 +380,7 @@ pub(super) fn resolve(t: &CarTables, car: &CarTypeInfo, selection: &Selection) -
         slots[s] = Some(part);
     }
     super::stock::fill_from_body(t, car, &mut slots);
+    super::decals::resolve(t, car, selection, &mut slots)?;
     Ok(slots)
 }
 

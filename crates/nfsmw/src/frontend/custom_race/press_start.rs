@@ -37,9 +37,9 @@ impl PressStart {
     }
 
     /// The headline with the player's number (the original formats it with `iPlayerNum + 1`).
-    fn headline(cx: &Cx, player: usize) -> Option<String> {
-        let template = crate::ui::Text::Game(PRESS_START).resolve(cx.assets)?;
-        Some(template.replace("%d", &(player + 1).to_string()))
+    fn headline(player: usize) -> Option<String> {
+        let template = crate::ui::Text::Game(PRESS_START).resolve()?;
+        Some(blackbox_text::printf::fill(&template, &[(player + 1).to_string().as_str()]))
     }
 
     /// Back: in co-op player 2's goes to player 1's Press Start and player 1's to the career menu, with co-op off; in split
@@ -82,11 +82,11 @@ impl PressStart {
 
 impl ScreenLogic for PressStart {
     fn start(&mut self, cx: &mut Cx) {
-        let headline = Self::headline(cx, self.player);
+        let headline = Self::headline(self.player);
         if let (Some(text), Some(o)) = (headline, cx.object(HEADLINE)) {
             cx.rt.set_text(o, text);
         }
-        if let Some(text) = crate::ui::Text::Game(EXPLANATION).resolve(cx.assets)
+        if let Some(text) = crate::ui::Text::Game(EXPLANATION).resolve()
             && let Some(o) = cx.object(BODY)
         {
             cx.rt.set_text(o, text);

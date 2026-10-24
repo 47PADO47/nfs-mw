@@ -13,8 +13,8 @@ use crate::frontend::confirm::Confirm;
 use crate::frontend::icon_items::{Id, safehouse_icons};
 use crate::frontend::icon_menu::{IconMenu, Kind};
 use crate::frontend::ids::screen;
-use crate::frontend::infractions::money;
 use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
+use crate::i18n::fmt::grouped;
 use crate::ui::theme::MenuList;
 use crate::ui::{Text, UiAssets};
 
@@ -62,7 +62,7 @@ impl ScreenLogic for SafeHouseMenu {
             cx.rt.set_text(o, format!("{}%", self.totals.career));
         }
         set_text(cx, BOUNTY_DATA, &money_text(self.totals.bounty));
-        set_text(cx, CASH_DATA, &money(self.totals.cash));
+        set_text(cx, CASH_DATA, &grouped(i64::from(self.totals.cash)));
     }
 
     fn resume(&mut self, cx: &mut Cx) {
@@ -165,7 +165,7 @@ fn command_for(target: MenuTarget, args: Args, vertical: bool) -> Command {
 /// The bounty as the menu shows it: the amount with commas, no currency sign (the label format is `%$d`, career-rapsheet-2
 /// section 4; the sign is not in the label's text).
 pub(super) fn money_text(bounty: u64) -> String {
-    money(u32::try_from(bounty).unwrap_or(u32::MAX))
+    grouped(i64::from(u32::try_from(bounty).unwrap_or(u32::MAX)))
 }
 
 /// Sets a text object's string, if the package has it.

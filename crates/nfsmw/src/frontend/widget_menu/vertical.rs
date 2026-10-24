@@ -4,6 +4,7 @@
 
 use super::options::{self, Control, Data, Row, Title};
 use super::{Cx, Pick, Way, WidgetMenu, mod_options};
+use crate::i18n::t;
 use crate::ui::Text;
 use crate::ui::theme::remastered::menu::layout::{MAX_ROWS, window_start};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuNudge, MenuStyle, MenuValue};
@@ -94,15 +95,18 @@ pub(super) fn data_of(cx: &Cx<'_>, setting: options::Setting) -> Data {
     mod_options::shown(cx.mods, setting).map_or_else(|| setting.data_in(&*cx.settings, &cx.caps), |shown| shown.data)
 }
 
+/// The game's "Track Options" (`LAN_TRACK_OPTIONS`), the custom race's options heading.
+const TRACK_OPTIONS: u32 = 0x73F3_6979;
+
 /// The page's heading: a language label, or the page's own name.
-pub(super) fn heading(cx: &Cx, category: super::super::logic::Category, label: u32) -> String {
+pub(super) fn heading(_cx: &Cx, category: super::super::logic::Category, label: u32) -> String {
     use super::super::logic::Category;
     match category {
-        Category::Controls => "Control Options".into(),
+        Category::Controls => t!("menus-control-options"),
         Category::Discord => "Discord".into(),
-        Category::Mods => "Mods".into(),
-        Category::CustomRace => "Track Options".into(),
-        _ => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
+        Category::Mods => t!("menus-mods"),
+        Category::CustomRace => Text::Game(TRACK_OPTIONS).show(),
+        _ => Text::Game(label).resolve().unwrap_or_default(),
     }
 }
 
@@ -111,14 +115,14 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
     let shown = mod_options::shown(cx.mods, row.setting);
     let label = match (&shown, row.title) {
         (Some(shown), _) => shown.label.clone(),
-        (None, Title::Label(label)) => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
-        (None, Title::Text(text)) => text.to_owned(),
+        (None, Title::Label(label)) => Text::Game(label).resolve().unwrap_or_default(),
+        (None, title @ Title::Key(_)) => title.text(),
     };
     let value = match control_of(cx, row.setting) {
         Control::Slider(percent) => MenuValue::Slider(percent),
         Control::Toggle => {
             let text = match data_of(cx, row.setting) {
-                Data::Label(label) => Text::Game(label).resolve(cx.assets).unwrap_or_default(),
+                Data::Label(label) => Text::Game(label).resolve().unwrap_or_default(),
                 Data::Text(text) => text,
             };
             // A row that opens something or runs a command has no values to cycle, so no chevrons.

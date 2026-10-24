@@ -2,20 +2,21 @@
 
 use nfsmw_net::loadout::Loadout;
 use nfsmw_net::message::{ServerName, Settings};
-use nfsmw_net::settings::{SettingsError, defaults, validate};
+use nfsmw_net::settings::{Field, SettingsError, defaults, validate};
 
 use super::backend::HostOptions;
 use super::car::car_type;
+use crate::i18n::{self, Args, t};
 use crate::settings::net::NetSettings;
 
 /// The room name when none is typed: `<player>'s game`, cut to the protocol's 32 characters.
 pub fn default_room(player: &str) -> String {
-    format!("{player}'s game").chars().take(32).collect()
+    t!("lan-default-room", player = player).chars().take(32).collect()
 }
 
 /// The LAN defaults of `nfsmw_net::settings` for a room called `room`.
 pub fn default_settings(room: &str) -> Result<Settings, String> {
-    let name = ServerName::new(room).map_err(|e| format!("not a room name: {e:?}"))?;
+    let name = ServerName::new(room).map_err(|_| t!("lan-room-name-bad"))?;
     Ok(defaults(name))
 }
 
@@ -36,15 +37,41 @@ pub fn host_options(net: &NetSettings, settings: Settings, password: &str, car: 
 
 /// Why settings were refused, as the screens and the console say it.
 pub fn settings_error(error: &SettingsError) -> String {
-    match error {
-        SettingsError::Invalid(field) => format!("{field:?} is not valid with these settings"),
-        SettingsError::TooLarge => "the settings are too large".into(),
-        SettingsError::NotPermitted => "only the host or an admin may change the settings".into(),
-        SettingsError::Locked(field) => format!("{field:?} cannot change during a race"),
-        SettingsError::BelowCount(field) => format!("{field:?} is below the players already in"),
-        SettingsError::NoPassword => "a password is required but none is set".into(),
-        SettingsError::UnknownKey => "unknown setting".into(),
-    }
+    let id = match error {
+        SettingsError::Invalid(field) => return t!("lan-settings-invalid", field = field_name(*field)),
+        SettingsError::Locked(field) => return t!("lan-settings-locked", field = field_name(*field)),
+        SettingsError::BelowCount(field) => return t!("lan-settings-below-count", field = field_name(*field)),
+        SettingsError::TooLarge => "lan-settings-too-large",
+        SettingsError::NotPermitted => "lan-settings-not-permitted",
+        SettingsError::NoPassword => "lan-settings-no-password",
+        SettingsError::UnknownKey => "lan-settings-unknown-key",
+    };
+    i18n::text(id, &Args::new())
+}
+
+/// A settings field's name, as the Host form's rows and the refusals name it.
+pub fn field_name(field: Field) -> String {
+    let id = match field {
+        Field::Name => "lan-field-name",
+        Field::MaxPlayers => "lan-field-max-players",
+        Field::MaxSpectators => "lan-field-max-spectators",
+        Field::Mode => "lan-field-mode",
+        Field::Track => "lan-field-track",
+        Field::Laps => "lan-field-laps",
+        Field::TrafficDensity => "lan-field-traffic-density",
+        Field::CopLevelCap => "lan-field-cop-level-cap",
+        Field::Pursuits => "lan-field-pursuits",
+        Field::Collision => "lan-field-collision",
+        Field::CatchUp => "lan-field-catch-up",
+        Field::Nitrous => "lan-field-nitrous",
+        Field::Damage => "lan-field-damage",
+        Field::AllowedCars => "lan-field-allowed-cars",
+        Field::JoinInProgress => "lan-field-join-in-progress",
+        Field::PasswordRequired => "lan-field-password-required",
+        Field::Public => "lan-field-public",
+        Field::SimBuildMatch => "lan-field-sim-build-match",
+    };
+    i18n::text(id, &Args::new())
 }
 
 #[cfg(test)]

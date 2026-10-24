@@ -7,7 +7,7 @@ use crate::settings::{Partial, Settings};
 fn the_video_screen_has_one_exhaust_flames_row_after_the_vehicle_effects() {
     let video = rows(Category::Video, &crate::settings::test_caps::native());
     let at = video.iter().position(|r| r.setting == Setting::ExhaustFlames).expect("a row");
-    assert_eq!(video[at].title, Title::Text("Exhaust Flames"));
+    assert_eq!(video[at].title, Title::Key("options-exhaust-flames"));
     assert_eq!(video[at - 1].setting, Setting::SpeedTrailStyle);
     assert_eq!(video[at - 2].setting, Setting::SpeedTrails);
     // The pause menu shows the same rows as the main menu.
@@ -64,7 +64,8 @@ fn main_and_pause_video_screens_show_the_exhaust_flames_row_and_save_it() {
 
     let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
     let assets = Arc::new(UiAssets::load(&dir).unwrap());
-    let strings = assets.strings.as_ref().expect("the option values need the game's language table");
+    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE)
+        .expect("the option values need the game's language table");
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());

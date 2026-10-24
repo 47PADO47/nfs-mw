@@ -8,8 +8,10 @@ use nfsmw_net::message::{Role, VoteKind};
 use super::feed::FeedKind;
 use super::menu::{LanMenu, countdown_text};
 use super::results::ordered;
-use super::text::{ordinal, slot_name, votes};
+use super::text::{slot_name, votes};
 use super::{NetFrontend, NetStatus};
+use crate::i18n::fmt::ordinal;
+use crate::i18n::{self, Args, t};
 
 /// Seconds a feed line stays, and the last of them it fades over.
 pub const FEED_SECONDS: f32 = 8.0;
@@ -78,26 +80,31 @@ fn vote_text(lobby: &LobbyView, server_tick: Option<f64>) -> Option<String> {
     let vote = lobby.vote.as_ref()?;
     let option = vote.options.first()?;
     let what = match vote.kind {
-        VoteKind::Kick => format!("kick {}", slot_name(Some(lobby), option.id)),
-        VoteKind::Restart => "restart".into(),
-        VoteKind::ChangeMode => "change the mode".into(),
-        VoteKind::ChangeTrack => "change the track".into(),
-        VoteKind::SkipResults => "skip the results".into(),
+        VoteKind::Kick => t!("lan-hud-vote-kick", name = slot_name(Some(lobby), option.id)),
+        VoteKind::Restart => vote_words("lan-hud-vote-restart"),
+        VoteKind::ChangeMode => vote_words("lan-hud-vote-change-mode"),
+        VoteKind::ChangeTrack => vote_words("lan-hud-vote-change-track"),
+        VoteKind::SkipResults => vote_words("lan-hud-vote-skip-results"),
     };
-    let mut text = format!("Vote: {what}  {}", votes(option.count));
+    let mut text = t!("lan-hud-vote", what = what, votes = votes(option.count));
     if let Some(now) = server_tick {
         let left = ((f64::from(vote.ends_tick) - now) / 60.0).ceil().max(0.0);
-        text.push_str(&format!("  {left:.0} s left"));
+        text.push_str(&format!("  {}", t!("lan-hud-vote-left", seconds = left as i64)));
     }
-    text.push_str(&format!("  ({VOTE_KEY} to vote)"));
+    text.push_str(&format!("  {}", t!("lan-hud-vote-key", key = VOTE_KEY)));
     Some(text)
+}
+
+fn vote_words(id: &str) -> String {
+    i18n::text(id, &Args::new())
 }
 
 fn spectator(menu: &LanMenu, net: &dyn NetFrontend) -> SpectatorPanel {
     let lobby = net.lobby();
-    let following = net
-        .follow_slot()
-        .map_or_else(|| "Free camera".to_owned(), |slot| format!("Following {}", slot_name(lobby, u32::from(slot))));
+    let following = match net.follow_slot() {
+        Some(slot) => t!("lan-hud-following", name = slot_name(lobby, u32::from(slot))),
+        None => t!("lan-hud-free-camera"),
+    };
     let board = match menu.results.as_ref().or(net.last_results()) {
         Some(results) => ordered(results)
             .iter()

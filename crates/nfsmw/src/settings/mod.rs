@@ -38,7 +38,7 @@ mod filtering_tests;
 pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
 mod latency;
-pub use latency::{FrameGeneration, ReflexMode};
+pub use latency::{DEFAULT_FRAME_LATENCY, FrameGeneration, ReflexMode, parse_frame_latency};
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
@@ -50,6 +50,7 @@ pub mod helicopter_lists;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
+mod language;
 mod minimap;
 pub mod mods;
 pub mod motion_blur;
@@ -124,6 +125,7 @@ pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
+pub use language::LanguageTag;
 pub use minimap::MinimapMode;
 pub use motion_blur::MotionBlur;
 pub use partial::{Partial, Percent, parse_bool};
@@ -189,6 +191,7 @@ pub struct Settings {
     pub frame_generation: FrameGeneration,
     pub vsync: bool,
     pub max_fps: MaxFps,
+    pub frame_latency: u32,
     pub show_metrics: ShowMetrics,
     pub window_mode: WindowMode,
     pub monitor: Monitor,
@@ -271,6 +274,8 @@ pub struct Settings {
     pub ui_style: UiStyle,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
+    /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
+    pub language: Option<LanguageTag>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
@@ -358,6 +363,7 @@ impl From<Partial> for Settings {
             frame_generation: p.frame_generation.unwrap_or_default(),
             vsync: p.vsync.unwrap_or(true),
             max_fps: p.max_fps.unwrap_or_default(),
+            frame_latency: p.frame_latency.unwrap_or(DEFAULT_FRAME_LATENCY),
             show_metrics: p.show_metrics.unwrap_or_default(),
             window_mode: p.window_mode.unwrap_or_default(),
             monitor: p.monitor.unwrap_or_default(),
@@ -402,6 +408,7 @@ impl From<Partial> for Settings {
             hud_layout: p.hud_layout.unwrap_or_default(),
             ui_style: p.ui_style.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
+            language: p.language,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),

@@ -67,22 +67,6 @@ pub fn distance_label(distance: ReflectionDistance) -> String {
     }
 }
 
-/// The row's text for the detail rule: `Capture` or `Main View`.
-pub fn lod_label(lod: ReflectionLod) -> &'static str {
-    match lod {
-        ReflectionLod::Capture => "Capture",
-        ReflectionLod::View => "Main View",
-    }
-}
-
-/// The row's text for the content: `Original` or `Restored`.
-pub fn content_label(content: ReflectionContent) -> &'static str {
-    match content {
-        ReflectionContent::Original => "Original",
-        ReflectionContent::Restored => "Restored",
-    }
-}
-
 /// A brightness in the config file: text (`100%`, `150`) or a whole number of percent.
 pub fn brightness_from_toml(value: &Value) -> Result<VehicleBrightness, String> {
     match value {
@@ -140,8 +124,6 @@ mod tests {
     #[test]
     fn the_rows_show_their_names() {
         assert_eq!(distance_label(ReflectionDistance::Original), "Original");
-        assert_eq!(lod_label(ReflectionLod::View), "Main View");
-        assert_eq!(content_label(ReflectionContent::Restored), "Restored");
         assert_eq!(VehicleBrightness(2.0).to_string(), "200%");
     }
 

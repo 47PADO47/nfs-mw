@@ -22,6 +22,7 @@ default-members = [
     "libs/blackbox-ginsu",
     "libs/blackbox-gpu-passes",
     "libs/blackbox-hash",
+    "libs/blackbox-i18n",
     "libs/blackbox-minimap",
     "libs/blackbox-mixmap",
     "libs/blackbox-modding",
@@ -79,6 +80,7 @@ blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
 blackbox-hash = { path = "libs/blackbox-hash" }
+blackbox-i18n = { path = "libs/blackbox-i18n" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }
 blackbox-modding = { path = "libs/blackbox-modding" }
 blackbox-net-core = { path = "libs/blackbox-net-core" }
@@ -142,6 +144,7 @@ bevy_post_process = "=0.20.0"
 bevy_reflect = "=0.20.0"
 bevy_render = "=0.20.0"
 bevy_shader = "=0.20.0"
+bevy_tasks = "=0.20.0"
 # Solari ray tracing (ADR 0004, `ray-tracing` feature of blackbox-bevy-render). Exists on crates.io for 0.20.0.
 bevy_solari = "=0.20.0"
 bevy_transform = "=0.20.0"
@@ -156,6 +159,11 @@ clap = { version = "4", features = ["derive"] }
 directories = "6"
 discord-rich-presence = "=1.1.0"
 egui = "0.36"
+# Translations (docs/decisions/0012-localization.md): Fluent catalogues, BCP 47 tags and the system locale.
+fluent-bundle = "0.16"
+fluent-syntax = "0.12"
+unic-langid = "0.9"
+sys-locale = "0.3"
 env_logger = "0.11"
 foldhash = "0.2.0"
 glam = { version = "0.34", features = ["bytemuck"] }

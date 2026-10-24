@@ -123,7 +123,7 @@ impl Screens {
     /// The trees to draw, lowest screen first.
     #[cfg(test)]
     pub fn trees(&self) -> Vec<UiTree> {
-        self.stack.iter().map(|s| self.runtime.tree(s.id)).collect()
+        self.stack[self.visible_start()..].iter().map(|s| self.runtime.tree(s.id)).collect()
     }
 
     /// The trees to draw this frame, lowest first, each with its menu slot. The decorated trees are what the presenter
@@ -131,7 +131,7 @@ impl Screens {
     /// last call hands over the same `Arc`.
     pub fn presented(&self, bindings: &Bindings, device: InputDevice) -> Vec<Presented> {
         let mut presented = Vec::with_capacity(self.stack.len());
-        for screen in &self.stack {
+        for screen in &self.stack[self.visible_start()..] {
             let (tree, serial) = {
                 let shown = self.shown(screen, bindings, device);
                 (shown.tree.clone(), shown.serial)
@@ -145,6 +145,10 @@ impl Screens {
             });
         }
         presented
+    }
+
+    fn visible_start(&self) -> usize {
+        self.stack.iter().rposition(|screen| screen.logic.covers_screens()).unwrap_or(0)
     }
 
     /// The trees alone, lowest first (the tests read them; the presenter takes [`Self::presented`]).

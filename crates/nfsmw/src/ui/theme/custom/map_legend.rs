@@ -10,8 +10,6 @@ use super::skin::keys as skin_keys;
 use crate::frontend::world_map::WorldMapFrame;
 use crate::frontend::world_map::legend::{LegendRow, VISIBLE_ROWS, is_empty, rows, total};
 
-const EMPTY: &str = "No blips of this type.";
-
 // Placement in FEng units (640 x 480, origin centre, y down): the panel sits on the right, inside the map container and
 // just below the screen's own filter tab (which stays, recoloured, with its switch).
 const PANEL_X: f32 = 170.0;
@@ -128,7 +126,8 @@ impl Body {
         let rows_top = panel.min_y() + ROW_LIST_PAD_Y;
         if legend.empty {
             let line = lt(left, rows_top, width, ROW_H);
-            parts.push(text(cx, font, EMPTY, token_keys::MUTED, ROW_SCALE, justify::V_CENTRE, line));
+            let empty = crate::i18n::t!("map-legend-empty");
+            parts.push(text(cx, font, &empty, token_keys::MUTED, ROW_SCALE, justify::V_CENTRE, line));
         } else {
             for (k, row) in legend.rows.iter().enumerate() {
                 row_item(&mut parts, row, left, width, rows_top + k as f32 * ROW_STEP, font, cx);
@@ -187,7 +186,7 @@ fn row_item(
     let name_left = left + ICON + 8.0;
     let name = lt(name_left, mid - ROW_H / 2.0, width - ICON - 8.0 - DISTANCE_W, ROW_H);
     let colour = if row.attached { token_keys::SECONDARY } else { token_keys::PRIMARY };
-    parts.push(text(cx, font, row.name, colour, ROW_SCALE, justify::V_CENTRE, name));
+    parts.push(text(cx, font, &row.name, colour, ROW_SCALE, justify::V_CENTRE, name));
     let distance = lt(width + left - DISTANCE_W, mid - ROW_H / 2.0, DISTANCE_W, ROW_H);
     parts.push(text(
         cx,

@@ -8,8 +8,9 @@
 use blackbox_chunk::find;
 use thiserror::Error;
 
+pub mod printf;
 pub mod subtitles;
-pub use subtitles::{Cue, SubtitleTrack};
+pub use subtitles::{Cue, SubtitleTrack, upper_label_hash};
 
 /// The chunk id of a language table.
 pub const LANGUAGE_CHUNK: u32 = 0x0003_9000;

@@ -63,6 +63,8 @@ pub enum QuitTo {
 /// chased, `docs/specs/coop-career.md` section 3.2).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PauseCtx {
+    /// The original tuning entry: absent in modes that exclude it, otherwise grey until a path is available.
+    pub tuning: Option<bool>,
     pub race: bool,
     pub quit: QuitTo,
     pub coop: bool,
@@ -74,14 +76,17 @@ pub struct PauseCtx {
 pub use super::footer::Footer;
 
 mod args;
-mod wheel;
 mod feedback;
 mod pointer;
+mod wheel;
 pub use args::Args;
 pub use wheel::wheel_as_rows;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
+    /// Main menu / My Cars: customize installed cars outside the career economy.
+    OpenGarage,
+    OpenTuning,
     /// Replace the top screen with another.
     Switch(String, Args),
     Push(String, Args),
@@ -404,6 +409,11 @@ pub enum Pick {
 }
 
 pub trait ScreenLogic: Send + Sync {
+    /// Full pages keep their parent for Back without drawing it underneath; dialogs leave it visible.
+    fn covers_screens(&self) -> bool {
+        false
+    }
+
     /// Called once after the package is loaded.
     fn start(&mut self, _cx: &mut Cx) {}
 

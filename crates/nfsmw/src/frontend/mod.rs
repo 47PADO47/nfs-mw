@@ -28,6 +28,8 @@ mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).
 pub(crate) mod custom_race;
 mod footer;
+mod garage_scene;
+mod garage_ui;
 mod infractions;
 pub(crate) mod input_options;
 mod jukebox;
@@ -82,6 +84,10 @@ mod exhaust_flames_tests;
 #[cfg(test)]
 mod flow_movie_tests;
 #[cfg(test)]
+mod garage_flow_tests;
+#[cfg(test)]
+mod garage_request_tests;
+#[cfg(test)]
 mod hud_layout_tests;
 #[cfg(test)]
 mod menu_rows_tests;
@@ -99,10 +105,12 @@ mod vehicle_effects_tests;
 pub use browse::Browse;
 pub use camera_rig::CameraRig;
 pub use flow::{Frontend, Start};
+pub(crate) use garage_scene::validate_selection as validate_garage_unlocks;
 pub use logic::{Args, Category};
 pub use look::Look;
 pub use plugin::{FrontendPlugin, map_pointer_on_picture};
 pub use scene::MenuScene;
+pub(crate) use scene::garage::{GarageBackdrop, GarageStage};
 #[cfg(test)]
 pub(crate) use scene::{Pausable, PauseFlag};
 pub use script::UiScript;

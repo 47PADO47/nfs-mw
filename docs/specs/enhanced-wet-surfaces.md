@@ -54,7 +54,8 @@ The final 65% of the range blends smoothly into the environment by default; the 
 allows 10-90%. Screen-edge blending spans 9% of the image. These controls persist with appearance settings.
 Longer ranges increase GPU cost and cannot recover hidden or off-screen geometry.
 The ray origin bias grows with the receiver pixel footprint to avoid hitting its own depth texel on distant roads. Depth discontinuities, screen edges and the distance limit fade or reject hits.
-Misses sample the current environment cubemap by reflected world direction. Film uses a small spatial filter;
+Pixels the mask leaves with zero reflectance skip the march and use the environment cubemap alone, which they
+weight by zero. A small threshold is not used: over a dark road, a reflectance under 1% still shows once encoded. Misses sample the current environment cubemap by reflected world direction. Film uses a small spatial filter;
 pools retain detail. There is no frame history, ray jitter, ray tracing or game-asset dependency.
 
 The base draw uses disabled ray controls and the static sky environment, preventing snapshot and cubemap feedback. Foreground depth prevents

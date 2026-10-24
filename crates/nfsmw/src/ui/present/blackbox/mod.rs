@@ -1,6 +1,7 @@
 //! The presenter for `blackbox-render`: quads and glyphs of the tree as premultiplied UI meshes, and the
 //! textures they need as UI texture patches.
 
+mod fallback;
 mod mirror;
 mod raster_cache;
 
@@ -412,6 +413,11 @@ impl BlackboxPresenter {
             return;
         }
         let (Some(font), Some(text)) = (assets.font(font_key), node.text.as_deref()) else { return };
+        if !font.draws(text) {
+            let font_scale = assets.font_scale(font.hash);
+            self.fallback_text(node, text, font, style, font_scale, out, builder, scale, origin);
+            return;
+        }
         let Some((id, additive)) = self.ensure(font.texture_hash, assets, out) else { return };
         let size = assets.texture_size(assets.resolve(font.texture_hash)).unwrap_or((256, 256));
         let layout = font.layout_scaled(text, style, size, assets.font_scale(font.hash));

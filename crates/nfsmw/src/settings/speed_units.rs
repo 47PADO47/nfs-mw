@@ -16,11 +16,13 @@ pub enum SpeedUnits {
 names!(SpeedUnits, "metric or imperial", [(Self::Metric, "metric"), (Self::Imperial, "imperial")]);
 impl SpeedUnits {
     pub const ALL: [Self; 2] = [Self::Metric, Self::Imperial];
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Metric => "Metric (km/h)",
-            Self::Imperial => "Imperial (mph)",
-        }
+    /// The units' name in the current language, as the options show it.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Metric => "options-speed-units-metric",
+            Self::Imperial => "options-speed-units-imperial",
+        };
+        crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
 

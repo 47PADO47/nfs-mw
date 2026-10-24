@@ -24,38 +24,54 @@ impl RenderBackend for Renderer {
         &mut self,
         desc: &blackbox_gfx::WindowMaterialDesc,
     ) -> Option<blackbox_gfx::WindowMaterialHandle> {
+        self.touch_scene();
         Renderer::create_window_material(self, desc)
     }
     fn destroy_window_material(&mut self, handle: blackbox_gfx::WindowMaterialHandle) {
+        self.touch_scene();
         Renderer::destroy_window_material(self, handle);
     }
     fn create_normal_material(
         &mut self,
         desc: &blackbox_gfx::NormalMaterialDesc,
     ) -> Option<blackbox_gfx::NormalMaterialHandle> {
+        self.touch_scene();
         Renderer::create_normal_material(self, desc)
     }
     fn destroy_normal_material(&mut self, handle: blackbox_gfx::NormalMaterialHandle) {
+        self.touch_scene();
         Renderer::destroy_normal_material(self, handle)
     }
     fn create_sky_material(&mut self, desc: &blackbox_gfx::SkyMaterialDesc) -> Option<blackbox_gfx::SkyMaterialHandle> {
+        self.touch_scene();
         Renderer::create_sky_material(self, desc)
     }
     fn destroy_sky_material(&mut self, handle: blackbox_gfx::SkyMaterialHandle) {
+        self.touch_scene();
         Renderer::destroy_sky_material(self, handle);
     }
     fn set_sky_state(&mut self, state: blackbox_gfx::SkyState) {
+        self.touch_scene();
         Renderer::set_sky_state(self, state);
+    }
+    fn set_scene_reuse(&mut self, mode: blackbox_gfx::SceneReuse) {
+        self.request_scene_reuse(mode);
+    }
+    fn scene_reuse_ready(&self) -> bool {
+        Renderer::scene_reuse_ready(self)
     }
     fn set_render_experiments(&mut self, options: blackbox_gfx::RenderExperiments) {
         let previous = self.experiments;
         let old_screen = previous.screen_reflections;
         self.experiments = options.sanitized();
-        if (previous.sun_angle != self.experiments.sun_angle
-            || previous.local_reflection_correction != self.experiments.local_reflection_correction)
-            && let Some(glossy) = &self.glossy
+        if previous.sun_angle != self.experiments.sun_angle
+            || previous.local_reflection_correction != self.experiments.local_reflection_correction
         {
-            glossy.sync_probe_options(&self.queue, &self.experiments);
+            // A capture queued for the frame keeps the rig and probe lanes it was recorded with.
+            self.flush_captures();
+            if let Some(glossy) = &self.glossy {
+                glossy.sync_probe_options(&self.queue, &self.experiments);
+            }
         }
         if old_screen != self.experiments.screen_reflections {
             self.refresh_targets();
@@ -64,6 +80,9 @@ impl RenderBackend for Renderer {
             self.experiments.shadow_resolution.min(self.device.limits().max_texture_dimension_2d);
         self.experiments.shadow_detail_resolution =
             self.experiments.shadow_detail_resolution.min(self.device.limits().max_texture_dimension_2d);
+        if previous != self.experiments {
+            self.touch_scene();
+        }
     }
     fn render_experiments(&self) -> blackbox_gfx::RenderExperiments {
         self.experiments
@@ -92,12 +111,15 @@ impl RenderBackend for Renderer {
         self.refresh_targets();
     }
     fn set_focus_filter(&mut self, filter: blackbox_gfx::FocusFilter) {
+        self.touch_scene();
         self.post.set_focus_filter(&self.device, filter);
     }
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
+        self.touch_scene();
         self.set_scene_treatment(profile, gain);
     }
     fn set_surface_water(&mut self, water: blackbox_gfx::SurfaceWater) {
+        self.touch_scene();
         self.surface_water = water.sanitized();
     }
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
@@ -168,6 +190,7 @@ impl RenderBackend for Renderer {
     /// follows the effective render scale: the spatial bias for a spatial upscaler, and one mip sharper for a
     /// temporal one, whose history supplies the samples.
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
+        self.touch_scene();
         #[cfg(all(windows, feature = "streamline"))]
         if self.dlss.is_some() && *requested != self.graphics {
             self.presentation.suspend(&self.device);
@@ -215,30 +238,37 @@ impl RenderBackend for Renderer {
     }
 
     fn create_texture(&mut self, desc: &TextureDesc<'_>) -> TextureHandle {
+        self.touch_scene();
         Renderer::create_texture(self, desc)
     }
 
     fn destroy_texture(&mut self, handle: TextureHandle) {
+        self.touch_scene();
         Renderer::destroy_texture(self, handle);
     }
 
     fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
+        self.touch_scene();
         Renderer::redirect_texture(self, from, to);
     }
 
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
+        self.touch_scene();
         Renderer::create_mesh(self, desc)
     }
 
     fn destroy_mesh(&mut self, handle: MeshHandle) {
+        self.touch_scene();
         Renderer::destroy_mesh(self, handle);
     }
 
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
+        self.touch_scene();
         Renderer::create_glossy_material(self, material)
     }
 
     fn destroy_glossy_material(&mut self, handle: GlossyMaterialHandle) {
+        self.touch_scene();
         Renderer::destroy_glossy_material(self, handle);
     }
 
@@ -247,6 +277,7 @@ impl RenderBackend for Renderer {
     }
 
     fn set_environment(&mut self, environment: Environment<'_>) {
+        self.touch_scene();
         match environment {
             Environment::Sky(sky) => self.set_environment_sky(&sky),
             Environment::Faces { size, faces } => self.set_environment_faces(size, faces),
@@ -254,6 +285,7 @@ impl RenderBackend for Renderer {
     }
 
     fn set_effects(&mut self, layer: &EffectLayer) {
+        self.touch_scene();
         Renderer::set_effects(self, layer);
     }
 

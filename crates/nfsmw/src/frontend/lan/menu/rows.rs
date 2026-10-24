@@ -1,6 +1,9 @@
 //! What a LAN page shows: rows of a label and a value, the selection, a side column and a footer. The pages build it each
 //! frame; `view.rs` draws it and the tests read it. It names no layout and no colour.
 
+use crate::frontend::lan::text::{game, label};
+use crate::i18n::{self, Args, t};
+
 /// What a row does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowKind {
@@ -41,8 +44,59 @@ impl Row {
     }
 }
 
+/// A key a footer hint names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HintKey {
+    Enter,
+    Esc,
+    Arrows,
+    LeftRight,
+}
+
+impl HintKey {
+    /// The key cap's text: a key's own name, or the words for a group of keys.
+    pub fn cap(self) -> String {
+        match self {
+            Self::Enter => "Enter".to_owned(),
+            Self::Esc => "Esc".to_owned(),
+            Self::Arrows => t!("lan-key-arrows"),
+            Self::LeftRight => t!("lan-key-left-right"),
+        }
+    }
+}
+
+/// What a footer hint does. Its words and the action a click on it presses both come from this, never from the text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HintDoes {
+    Select,
+    SelectOrType,
+    SelectOrSay,
+    Change,
+    Move,
+    Back,
+    StopTyping,
+    Continue,
+}
+
+impl HintDoes {
+    /// The hint's words: the game's own where it has them.
+    pub fn label(self) -> String {
+        let id = match self {
+            Self::Select => return game(label::SELECT),
+            Self::Back => return game(label::BACK),
+            Self::Continue => return game(label::CONTINUE),
+            Self::SelectOrType => "lan-hint-select-or-type",
+            Self::SelectOrSay => "lan-hint-select-or-say",
+            Self::Change => "lan-hint-change",
+            Self::Move => "lan-hint-move",
+            Self::StopTyping => "lan-hint-stop-typing",
+        };
+        i18n::text(id, &Args::new())
+    }
+}
+
 /// A footer hint: the key and what it does.
-pub type Hint = (&'static str, &'static str);
+pub type Hint = (HintKey, HintDoes);
 
 /// A page as it is drawn.
 #[derive(Clone, Debug, PartialEq, Default)]

@@ -289,6 +289,9 @@ impl UiPass {
     pub fn free_texture(&mut self, id: UiTextureId) {
         self.textures.remove(&id.raw());
         self.pending_compositions.remove(&id);
+        if let Some(pass) = &mut self.mask_pass {
+            pass.forget(id.raw());
+        }
     }
 
     /// The UI to draw on every following [`Self::encode`], until replaced. An empty layer draws nothing.
@@ -349,7 +352,7 @@ impl UiPass {
         format: wgpu::TextureFormat,
         size: (u32, u32),
     ) {
-        self.compose_textures(device, encoder);
+        self.compose_textures(device, queue, encoder);
         let (target, coverage) = targets;
         let ppp = self.layer.pixels_per_point.max(0.1);
         let (vertex_count, index_count) =
@@ -399,10 +402,14 @@ impl UiPass {
         pass.set_bind_group(0, &self.globals_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
         pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
+        let mut bound = None;
         for (texture, (x, y, w, h), range, base_vertex) in &self.draws {
             let Some(t) = self.textures.get(&texture.raw()) else { continue };
             pass.set_scissor_rect(*x, *y, *w, *h);
-            pass.set_bind_group(1, &t.bind_group, &[]);
+            if bound != Some(*texture) {
+                pass.set_bind_group(1, &t.bind_group, &[]);
+                bound = Some(*texture);
+            }
             pass.draw_indexed(range.clone(), *base_vertex, 0..1);
         }
     }

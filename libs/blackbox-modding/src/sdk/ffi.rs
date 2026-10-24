@@ -11,6 +11,7 @@ pub(crate) mod camera;
 pub(crate) mod commands;
 mod event;
 pub(crate) mod hud;
+pub(crate) mod i18n;
 pub(crate) mod input;
 pub(crate) mod map;
 pub(crate) mod menus;

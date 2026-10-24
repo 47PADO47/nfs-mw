@@ -14,8 +14,10 @@ mod lighting_tests;
 
 use super::{
     Renderer,
+    draw_list::DrawList,
     instances::InstanceBuffer,
     resources::Globals,
+    scene_pass::{PreparedView, SceneDraw},
     targets::{FrameTargets, SceneTargets},
 };
 
@@ -68,6 +70,9 @@ pub(super) struct ReflectionCapture {
     depth: wgpu::TextureView,
     depth_faces: [wgpu::TextureView; 6],
     views: [CaptureView; 6],
+    /// Each face's draw lists, kept for their capacity. Every face due is prepared before any is recorded, so each
+    /// keeps lists of its own.
+    lists: [DrawList; 6],
     store: super::reflection_store::Store,
     /// The faces drawn since the diffuse light was last projected from the cube.
     covered: u8,
@@ -144,6 +149,7 @@ impl ReflectionCapture {
             face_array,
             faces,
             views: std::array::from_fn(|_| CaptureView::new(device, layout)),
+            lists: std::array::from_fn(|_| DrawList::default()),
             scene,
             store,
             covered: 0,
@@ -152,25 +158,38 @@ impl ReflectionCapture {
 }
 
 impl Renderer {
+    /// The edge of a cube face at `quality` under the current resolution setting and output size.
+    fn reflection_cube_size(&self, quality: ReflectionQuality) -> u32 {
+        let (_, output_height) = self.surface_size();
+        self.graphics.reflection_resolution.cube_face(
+            quality.size(),
+            output_height,
+            blackbox_gfx::reflection::PLANAR_MAX,
+        )
+    }
+
+    /// Whether the next capture at `quality` starts a fresh cube, which is drawn whole whatever faces are asked for.
+    pub(super) fn reflection_cube_is_fresh(&self, quality: ReflectionQuality) -> bool {
+        let size = self.reflection_cube_size(quality);
+        self.reflections.as_ref().is_none_or(|capture| capture.size != size)
+    }
+
     pub(super) fn capture_reflections(
         &mut self,
         scene: Option<ReflectionScene<'_>>,
-        encoder: Option<&mut wgpu::CommandEncoder>,
+        mut encoder: Option<&mut wgpu::CommandEncoder>,
     ) {
         let Some(scene) = scene.filter(|s| s.quality != ReflectionQuality::Off) else {
-            if self.reflections.take().is_some()
-                && let Some(glossy) = self.glossy.as_mut()
-            {
-                glossy.restore_environment(&self.queue);
+            if self.reflections.take().is_some() {
+                // A queued capture's glossy draws read the probe settings this rewrites.
+                self.flush_captures();
+                if let Some(glossy) = self.glossy.as_mut() {
+                    glossy.restore_environment(&self.queue);
+                }
             }
             return;
         };
-        let (_, output_height) = self.surface_size();
-        let size = self.graphics.reflection_resolution.cube_face(
-            scene.quality.size(),
-            output_height,
-            blackbox_gfx::reflection::PLANAR_MAX,
-        );
+        let size = self.reflection_cube_size(scene.quality);
         let (mut capture, created) = match self.reflections.take().filter(|p| p.size == size) {
             Some(capture) => (capture, false),
             None => {
@@ -183,6 +202,11 @@ impl Renderer {
             true => ALL_FACES,
             false => scene.refresh & ALL_FACES,
         };
+        // A queued capture's glossy draws read the probe origin: the frame's encoder writes it after them.
+        if encoder.is_none() {
+            self.flush_captures();
+        }
+        let queued = self.captures_queued();
         // The cube texture outlives its captures, so the glossy group is built once, not on every refresh.
         if let Some(glossy) = self.glossy.as_mut() {
             if created || !glossy.capture_bound() {
@@ -191,6 +215,7 @@ impl Renderer {
             glossy.set_probe(
                 &self.device,
                 &self.queue,
+                encoder.as_deref_mut().filter(|_| queued),
                 &capture.depth,
                 scene.origin,
                 self.experiments.local_reflection_correction,
@@ -203,8 +228,12 @@ impl Renderer {
         self.reflections = Some(capture);
     }
 
-    /// Records `faces` of the cube into `encoder`. Once every face has been drawn since the last time, the diffuse
-    /// and specular light are marked to be projected from the cube again, instead of once per capture.
+    /// Records `faces` of the cube after the commands `encoder` holds.
+    ///
+    /// The faces are prepared here in face order, then recorded at the same time, each into a command buffer of its
+    /// own, when there are several. Those go out ahead of what `encoder` records next, in the same submission, as
+    /// queued captures do (see `queued.rs`): the commands recorded before the faces with the first face, then every
+    /// other face in order, so the GPU runs everything in the order a face-by-face recording gave.
     fn draw_cube_faces(
         &mut self,
         capture: &mut ReflectionCapture,
@@ -212,31 +241,29 @@ impl Renderer {
         faces: u8,
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        let _trace = blackbox_trace::scope("Renderer CPU: reflection faces");
         capture.store.configure(&self.queue, scene.fade_distance, scene.frame.clear_color);
-        let kind = match scene.sun_shadows {
-            true => CaptureKind::LitCube,
-            false => CaptureKind::Cube,
-        };
-        for face in (0..6usize).filter(|&face| (faces >> face) & 1 != 0) {
-            let frame = face_frame(scene.origin, face, &scene.frame);
-            capture.views[face].kind = kind;
-            // Retain the actual depth of the faces drawn. Colour storage flips vertically; depth addressing applies
-            // that flip explicitly in the local-probe shader.
-            if let SceneTargets::Offscreen(targets) = &mut capture.scene {
-                targets.depth_view = capture.depth_faces[face].clone();
+        let prepared = self.prepare_cube_faces(capture, scene, faces, encoder);
+        self.cover_faces(capture, faces);
+        let draw = self.scene_draw();
+        let outputs = (&capture.store, &capture.faces, &capture.lists);
+        if prepared.len() < PARALLEL_FACES {
+            for job in &prepared {
+                record_face(draw, outputs, encoder, job);
             }
-            let output = capture.scene.offscreen().expect("capture is offscreen").color_view.clone();
-            self.encode_scene_mode(
-                encoder,
-                Some(&capture.scene),
-                &output,
-                &frame,
-                scene.faces[face],
-                false,
-                Some(&mut capture.views[face]),
-            );
-            capture.store.draw(encoder, &capture.faces[face], face);
+            return;
         }
+        let after = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        let before = std::mem::replace(encoder, after);
+        let recorded = record_in_parallel(draw, &self.device, outputs, &prepared, before);
+        for commands in recorded {
+            self.queue_capture(commands);
+        }
+    }
+
+    /// Count `faces` as drawn. Once every face has been drawn since the last time, the diffuse and specular light are
+    /// marked to be projected from the cube again, instead of once per capture.
+    fn cover_faces(&mut self, capture: &mut ReflectionCapture, faces: u8) {
         capture.covered |= faces;
         if capture.covered != ALL_FACES {
             return;
@@ -246,4 +273,96 @@ impl Renderer {
             glossy.environment_refreshed();
         }
     }
+
+    /// Prepare the colour passes of `faces`, in face order, so their instance slots, uploads and uniform writes
+    /// happen in the order a face-by-face recording made them. A face whose sky clouds need relighting records that
+    /// into `encoder` (only the first face can: every face shares the eye and the light).
+    fn prepare_cube_faces(
+        &mut self,
+        capture: &mut ReflectionCapture,
+        scene: &ReflectionScene<'_>,
+        faces: u8,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> Vec<(usize, PreparedView)> {
+        let kind = match scene.sun_shadows {
+            true => CaptureKind::LitCube,
+            false => CaptureKind::Cube,
+        };
+        let mut prepared = Vec::with_capacity(faces.count_ones() as usize);
+        for face in (0..6usize).filter(|&face| (faces >> face) & 1 != 0) {
+            let _trace = blackbox_trace::scope("Renderer CPU: prepare reflection face");
+            let frame = face_frame(scene.origin, face, &scene.frame);
+            capture.views[face].kind = kind;
+            // Retain the actual depth of the faces drawn. Colour storage flips vertically; depth addressing applies
+            // that flip explicitly in the local-probe shader.
+            if let SceneTargets::Offscreen(targets) = &mut capture.scene {
+                targets.depth_view = capture.depth_faces[face].clone();
+            }
+            let output = capture.scene.offscreen().expect("capture is offscreen").color_view.clone();
+            let view = self.prepare_view(
+                encoder,
+                (Some(&capture.scene), &output),
+                &frame,
+                scene.faces[face],
+                false,
+                Some(&mut capture.views[face]),
+                Some(&mut capture.lists[face]),
+            );
+            prepared.push((face, view));
+        }
+        prepared
+    }
+}
+
+/// Fewer faces than this are recorded on the frame thread, into the frame's encoder: a worker is only worth starting
+/// beside another face.
+const PARALLEL_FACES: usize = 2;
+
+/// What recording a face writes besides its colour pass: the cube store, the cube's faces and the faces' draw lists.
+type FaceOutputs<'a> = (&'a super::reflection_store::Store, &'a [wgpu::TextureView; 6], &'a [DrawList; 6]);
+
+/// Record one prepared face into `encoder`: its colour pass, then the store into its face of the cube.
+fn record_face(
+    draw: SceneDraw<'_>,
+    (store, faces, lists): FaceOutputs<'_>,
+    encoder: &mut wgpu::CommandEncoder,
+    (face, view): &(usize, PreparedView),
+) {
+    let _trace = blackbox_trace::scope("Renderer CPU: record reflection face");
+    draw.record(encoder, view, &lists[*face]);
+    store.draw(encoder, &faces[*face], *face);
+}
+
+/// Record the prepared faces `jobs` at the same time: the first on this thread after the commands `first` holds,
+/// every other into an encoder of its own on a scoped worker thread. Recording only reads the renderer's state, and
+/// wgpu's device, encoders and resources may be used from any thread. Returns the command buffers in the jobs' order,
+/// `first`'s at the start.
+fn record_in_parallel(
+    draw: SceneDraw<'_>,
+    device: &wgpu::Device,
+    outputs: FaceOutputs<'_>,
+    jobs: &[(usize, PreparedView)],
+    mut first: wgpu::CommandEncoder,
+) -> Vec<wgpu::CommandBuffer> {
+    let Some((head, rest)) = jobs.split_first() else { return vec![first.finish()] };
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = rest
+            .iter()
+            .map(|job| {
+                scope.spawn(move || {
+                    let label = Some("reflection face");
+                    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label });
+                    record_face(draw, outputs, &mut encoder, job);
+                    encoder.finish()
+                })
+            })
+            .collect();
+        record_face(draw, outputs, &mut first, head);
+        let mut commands = Vec::with_capacity(jobs.len());
+        commands.push(first.finish());
+        for worker in workers {
+            commands.push(worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)));
+        }
+        commands
+    })
 }

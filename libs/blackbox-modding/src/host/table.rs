@@ -18,6 +18,9 @@ mod commands;
 mod hud;
 #[cfg(test)]
 mod hud_tests;
+mod i18n;
+#[cfg(test)]
+mod i18n_tests;
 mod input;
 mod map;
 mod menus;
@@ -55,6 +58,7 @@ pub(crate) use audio::attach as attach_audio;
 pub(crate) use camera::attach as attach_camera;
 pub(crate) use commands::attach as attach_commands;
 pub(crate) use hud::attach as attach_hud;
+pub(crate) use i18n::attach as attach_i18n;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
@@ -68,6 +72,7 @@ pub use audio::AudioBackend;
 pub use camera::{CameraBackend, CameraKind, CameraState};
 pub use commands::{CommandHandler, CommandsBackend};
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
+pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};

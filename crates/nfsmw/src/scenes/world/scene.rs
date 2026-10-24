@@ -5,6 +5,7 @@ use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        self.close_garage_backdrop(renderer);
         self.release_gpu(renderer);
     }
 
@@ -14,6 +15,47 @@ impl Scene for WorldScene {
 
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage_selection(renderer, selection)
+    }
+
+    fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        anyhow::ensure!(self.garage_entry_allowed(), "Auto shops are unavailable during an event or pursuit");
+        self.begin_garage_session(renderer)
+    }
+
+    fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.begin_garage_session(renderer)
+    }
+
+    fn tuning_available(&self) -> Option<bool> {
+        self.garage_tuning_available()
+    }
+
+    fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.confirm_garage_tuning(renderer, selection)
+    }
+
+    fn garage_view(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        stage: crate::garage::View,
+        camera: &'static str,
+    ) -> Result<()> {
+        self.show_garage_view(renderer, stage, camera)
+    }
+
+    fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.preview_garage_session(renderer, selection)
+    }
+
+    fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
+        self.confirm_garage_session(renderer, selection)
+    }
+
+    fn cancel_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
+        self.cancel_garage_session(renderer)?;
+        self.close_garage_backdrop(renderer);
+        self.leave_garage_at_exit();
+        Ok(())
     }
 
     fn set_garage_open(&mut self, open: bool) {
@@ -42,8 +84,7 @@ impl Scene for WorldScene {
     }
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        self.update_frame(renderer, input, dt);
-        self.update_route(dt);
+        self.update_scene(renderer, input, dt);
     }
 
     fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
@@ -60,16 +101,7 @@ impl Scene for WorldScene {
     }
 
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
-        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
-        crate::hud::show_mod_message(ctx);
-        self.show_pursuit_end(ctx);
-        self.show_race_card(ctx);
-        self.show_race_message_card(ctx);
-        self.show_nis_bars(ctx);
-        self.show_story_movie(ctx);
-        self.nis.screen().draw(ctx);
-        self.show_screen_fade(ctx);
-        0.0
+        self.scene_ui(ctx)
     }
 
     /// Whether any of the panels above has something to draw (see `ui_panels::Panels`). The scene's readout line is the
@@ -87,27 +119,19 @@ impl Scene for WorldScene {
     }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
-        self.tire_effects = [smoke, skid_marks];
-        if let Some(drive) = self.players.lead_mut() {
-            drive.effects.set_enabled(smoke, skid_marks);
-        }
+        self.scene_set_tire_effects(smoke, skid_marks)
     }
 
     fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
         self.update_car_shading(renderer);
         self.update_shadow_casters(renderer);
         self.update_reflections(renderer);
+        self.shadow_feed.cars.invalidate();
         self.upload_effects(renderer);
     }
 
     fn set_spark_style(&mut self, style: crate::settings::SparkStyle) {
-        if self.spark_style != style {
-            self.impact_fx.clear();
-        }
-        self.spark_style = style;
-        if let Some(drive) = self.players.lead_mut() {
-            drive.vehicle_effects.set_style(style);
-        }
+        self.scene_set_spark_style(style)
     }
 
     fn set_vehicle_effects(&mut self, sparks: bool, trails: bool) {
@@ -122,10 +146,7 @@ impl Scene for WorldScene {
     }
 
     fn set_exhaust_flames(&mut self, on: bool) {
-        self.exhaust_flames = on;
-        if let Some(drive) = self.players.lead_mut() {
-            drive.flames.set_enabled(on);
-        }
+        self.scene_set_exhaust_flames(on)
     }
 
     fn note_sputters(&mut self, pops: u32) {
@@ -166,6 +187,9 @@ impl Scene for WorldScene {
     }
     fn set_car_shading(&mut self, shading: crate::settings::CarShading) {
         self.car_shading = shading;
+        if let Some(backdrop) = &mut self.garage_backdrop {
+            backdrop.set_car_shading(shading);
+        }
     }
 
     fn set_rain(&mut self, always: bool, amount: f32) {
@@ -177,17 +201,22 @@ impl Scene for WorldScene {
     }
 
     fn set_smoke_quality(&mut self, quality: crate::settings::SmokeQuality) {
-        self.smoke_quality = quality;
-        if let Some(drive) = self.players.lead_mut() {
-            drive.effects.set_quality(quality);
-        }
+        self.scene_set_smoke_quality(quality)
     }
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        self.world_frame(aspect)
+        // Choose the owner before borrowing its returned instance slice.
+        match self.garage_backdrop.is_some() {
+            true => self.garage_backdrop.as_mut().expect("garage backdrop").frame(aspect),
+            false => self.world_frame(aspect),
+        }
     }
 
     fn prepare_frame(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
+        if let Some(backdrop) = &mut self.garage_backdrop {
+            backdrop.prepare_frame(renderer, aspect);
+            return;
+        }
         self.update_sky(renderer);
         self.update_wet_reflections(renderer, aspect);
     }
@@ -202,6 +231,9 @@ impl Scene for WorldScene {
     }
 
     fn rear_view(&mut self, aspect: f32) -> Option<(FrameParams, &[Instance])> {
+        if self.garage_backdrop.is_some() {
+            return None;
+        }
         // Each half of a split screen has no mirror; the picture is the two views.
         match self.split_on() {
             true => None,
@@ -298,22 +330,15 @@ impl Scene for WorldScene {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
-        // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
-        if self.cutscene_playing() {
-            return Some(crate::hud::HudState { visible: false, ..Default::default() });
-        }
-        if self.moment.hides_hud() {
-            return None;
-        }
-        let looking_back = self.players.lead().is_some_and(|d| d.camera_looking_back(self.camera_mode));
-        if looking_back && !self.tuning.show_hud_on_look_back {
-            return None;
-        }
-        self.hud_frame()
+        self.scene_hud()
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.audio_state()
+    }
+
+    fn radio_on_menus(&self) -> bool {
+        self.garage_backdrop.is_some()
     }
 
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
@@ -325,23 +350,11 @@ impl Scene for WorldScene {
     }
 
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
-        let rain = self.rain.intensity();
-        let look = self.player_look(&self.speech_look).unwrap_or_default();
-        let mut feed = self.traffic.as_ref()?.pursuit_feed()?;
-        feed.rain_intensity = rain;
-        feed.speech.player.car_type = look.car_type;
-        feed.speech.player.car_colour = look.colour;
-        Some(feed)
+        self.scene_pursuit_feed()
     }
 
     fn roam_feed(&mut self) -> Option<crate::audio::RoamFeed> {
-        let look = self.player_look(&self.speech_look).unwrap_or_default();
-        let traffic = self.traffic.as_mut()?;
-        let tuning = traffic.roam_tuning();
-        let mut feed = traffic.roam_feed(&tuning)?;
-        feed.player.car_type = look.car_type;
-        feed.player.car_colour = look.colour;
-        Some(feed)
+        self.scene_roam_feed()
     }
 
     fn start_911_call(&mut self, secs: f32) {

@@ -93,7 +93,7 @@ colour = idle colour * scale + fade colour * (1 - scale)      (white 0xFFFFFFFF 
 ```
 
 **Messages [decomp].** `PAD_LEFT` / `PAD_RIGHT` select the previous / next option that is not greyed out
-(no wrap; **ours:** every icon can be selected, the ones without a screen yet (the challenge series, My Cars) are
+(no wrap; **ours:** every icon can be selected, the ones without a screen yet (Online) are
 greyed and do nothing on accept, except that the package's input lock is released again with `0x8CB81F09`), then refresh the header: the label of the option is set on `ICON_TITLE` and its shadow, and at the first
 or last option the package gets `END_PAD_LEFT` (`0xD7118934`) / `END_PAD_RIGHT` (`0xB9B17747`) (the arrows
 fade). `BUTTON_PRESSED` on the selected icon stores the press and posts `LEAVE_SCREEN`; the pause menu has no
@@ -144,8 +144,9 @@ uses the same slot animation as the installed icons.
 
 ### 2.1 Main menu entries [decomp]
 
-Challenge Series opens `ChallengeSeries.fng` ([challenge-series.md](challenge-series.md)). Entries this rewrite cannot do yet (My Cars, Online, LAN, Alias Manager) are greyed out (alpha 150, never
-selected). `MainMenu.fng` options, in order, as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
+Challenge Series opens `ChallengeSeries.fng` ([challenge-series.md](challenge-series.md)). My Cars opens the normal
+garage ([garage-frontend.md](garage-frontend.md)); Online remains disabled. `MainMenu.fng` options, in order,
+as `(name label, icon texture)`: Career (`0x5815A2B5`, `0x03704F3D`),
 Challenge Series (`0xCC8CB746`, `0x9A962438`), Quick Race (`0x54020A7A`, `0x4E6FBB02`), My Cars
 (`0x1AFD5BE6`, `0xB0C46023`), Online (`0x74FB90A8`, `0x20563D30`), LAN (`0x4D78216D`, `0xD13A2E66`), Alias Manager
 (`0xBCB18F38`, `0x6B303856`), Options (`0x19A8C0AF`, `0x3058FE37`). **Eight entries** (`icons(Kind::Main)`).

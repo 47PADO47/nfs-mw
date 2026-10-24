@@ -109,7 +109,15 @@ impl Split {
     pub fn setup(&self, second: Transmission) -> Option<SplitSetup> {
         let cars = [self.accepted[0].clone()?, self.accepted[1].clone()?];
         let transmissions = [self.transmission(0).unwrap_or_default(), second];
-        Some(SplitSetup { cars, devices: self.seated()?, transmissions })
+        let customs = self
+            .cars
+            .each_ref()
+            .map(|car| super::car_list::List::from_index(car.list) == super::car_list::List::MyCars);
+        let custom_ids = self
+            .cars
+            .each_ref()
+            .map(|car| car.name.as_deref().and_then(|key| key.strip_prefix("custom:")).map(str::to_owned));
+        Some(SplitSetup { cars, customs, custom_ids, devices: self.seated()?, transmissions })
     }
 }
 
@@ -164,6 +172,11 @@ mod tests {
         assert_eq!(setup.cars, ["a".to_owned(), "b:p".to_owned()]);
         assert_eq!(setup.devices, [PlayerDevice::Keyboard, PlayerDevice::KeyboardArrows]);
         assert_eq!(setup.transmissions, [Transmission::Manual, Transmission::Automatic]);
+        assert_eq!(setup.customs, [false; 2]);
+        split.cars[1].list = super::super::car_list::List::MyCars.index();
+        split.cars[1].name = Some("custom:slot-0001".into());
+        assert_eq!(split.setup(Transmission::Automatic).unwrap().customs, [false, true]);
+        assert_eq!(split.setup(Transmission::Automatic).unwrap().custom_ids, [None, Some("slot-0001".into())]);
     }
 
     #[test]

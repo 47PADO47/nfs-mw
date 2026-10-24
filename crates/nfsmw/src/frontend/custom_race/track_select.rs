@@ -163,7 +163,7 @@ impl TrackSelect {
             cx.text_object(name, "");
         }
         cx.text_object(LENGTH, "--");
-        let none = Text::Game(NO_RECORD).resolve(cx.assets).unwrap_or_default();
+        let none = Text::Game(NO_RECORD).resolve().unwrap_or_default();
         cx.text_object(RECORD, &none);
         cx.hide(LOCKED_PANEL, true);
         self.shown = None;
@@ -172,17 +172,17 @@ impl TrackSelect {
     fn show_track(&mut self, cx: &mut Cx, mode: Mode, track: &Track, locked: bool) {
         cx.hide(LOCKED_PANEL, !locked);
         if locked {
-            let sentence = unlock_sentence(cx, track);
+            let sentence = unlock_sentence(track);
             cx.text_object(LOCKED_TEXT, &sentence);
         }
-        let name = Text::Game(label_hash(&text::track_label_key(&track.event))).resolve(cx.assets);
+        let name = Text::Game(label_hash(&text::track_label_key(&track.event))).resolve();
         for object in TRACK_NAME {
             cx.text_object(object, name.as_deref().unwrap_or(&track.event));
         }
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
-        let unit = Text::Game(text::unit_label(metric)).resolve(cx.assets).unwrap_or_default();
+        let unit = Text::Game(text::unit_label(metric)).resolve().unwrap_or_default();
         cx.text_object(LENGTH, &text::length_text(track.brief_length(), metric, &unit));
-        let record = record_text(cx, mode, metric, &track.event);
+        let record = record_text(mode, metric, &track.event);
         cx.text_object(RECORD, &record);
         if let Some(label) = mode.record_label()
             && let Some(o) = cx.object(RECORD_LABEL)
@@ -235,23 +235,23 @@ impl TrackSelect {
 }
 
 /// `Unlock this track by beating <alias>, Blacklist member <bin>.`, `None`-safe: the sentence of a track with no bin is empty.
-fn unlock_sentence(cx: &Cx, track: &Track) -> String {
+fn unlock_sentence(track: &Track) -> String {
     let Some(bin) = track.bin else { return String::new() };
-    let template = Text::Game(UNLOCK_LABEL).resolve(cx.assets).unwrap_or_default();
-    let alias = Text::Game(label_hash(&text::alias_key(bin))).resolve(cx.assets).unwrap_or_default();
+    let template = Text::Game(UNLOCK_LABEL).resolve().unwrap_or_default();
+    let alias = Text::Game(label_hash(&text::alias_key(bin))).resolve().unwrap_or_default();
     text::fill_sentence(&template, &alias, bin)
 }
 
 /// The record line: the best time, or for the speedtrap the best speed in the speed unit; an event never raced reads `0.00` or
 /// `0 MPH`/`0 KPH` **[verified]**.
-fn record_text(cx: &Cx, mode: Mode, metric: bool, event: &str) -> String {
+fn record_text(mode: Mode, metric: bool, event: &str) -> String {
     let best = records::best(event);
     match mode {
         Mode::SpeedTrap => {}
         Mode::Circuit | Mode::Knockout => return records::time_text(best.lap),
         _ => return records::time_text(best.time),
     }
-    let unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve(cx.assets).unwrap_or_default();
+    let unit = Text::Game(if metric { KPH_LABEL } else { MPH_LABEL }).resolve().unwrap_or_default();
     let speed = best.speed.unwrap_or(0.0) * if metric { 1.0 } else { KMH_TO_MPH };
     format!("{speed:.0} {unit}")
 }

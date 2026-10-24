@@ -10,6 +10,8 @@ use super::cx::Cx;
 use super::field::{Field, Typed};
 use super::lobby::may_manage;
 use super::rows::{Cursor, Row};
+use crate::frontend::lan::text::{game, label};
+use crate::i18n::t;
 
 /// The ban the menu offers, in minutes.
 pub const BAN_MINUTES: u32 = 10;
@@ -74,23 +76,25 @@ impl PlayerMenu {
 
     pub fn rows(&self, lobby: &LobbyView, mutes: &LocalMutes) -> Vec<Row> {
         let Some(row) = lobby.player(self.slot) else {
-            return vec![Row::action("Back", true)];
+            return vec![Row::action(game(label::BACK), true)];
         };
         let local = !mutes.shows(row.player_id);
         let server = row.flags & FLAG_MUTED != 0;
         items(lobby)
             .into_iter()
             .map(|item| match item {
-                Item::Whisper if self.whisper.editing => Row::text("Whisper", self.whisper.shown(), true),
-                Item::Whisper => Row::text("Whisper", "", false),
-                Item::LocalMute if local => Row::action("Unmute for me", true),
-                Item::LocalMute => Row::action("Mute for me", true),
-                Item::VoteKick => Row::action("Vote to kick", lobby.vote.is_none()),
-                Item::Kick => Row::action("Kick", true),
-                Item::ServerMute if server => Row::action("Unmute in session", true),
-                Item::ServerMute => Row::action("Mute in session", true),
-                Item::Ban => Row::action(format!("Ban for {BAN_MINUTES} minutes"), true),
-                Item::Back => Row::action("Back", true),
+                Item::Whisper if self.whisper.editing => {
+                    Row::text(t!("lan-player-whisper"), self.whisper.shown(), true)
+                }
+                Item::Whisper => Row::text(t!("lan-player-whisper"), "", false),
+                Item::LocalMute if local => Row::action(t!("lan-player-unmute-local"), true),
+                Item::LocalMute => Row::action(t!("lan-player-mute-local"), true),
+                Item::VoteKick => Row::action(t!("lan-player-vote-kick"), lobby.vote.is_none()),
+                Item::Kick => Row::action(t!("lan-player-kick"), true),
+                Item::ServerMute if server => Row::action(t!("lan-player-unmute-session"), true),
+                Item::ServerMute => Row::action(t!("lan-player-mute-session"), true),
+                Item::Ban => Row::action(t!("lan-player-ban", minutes = BAN_MINUTES), true),
+                Item::Back => Row::action(game(label::BACK), true),
             })
             .collect()
     }

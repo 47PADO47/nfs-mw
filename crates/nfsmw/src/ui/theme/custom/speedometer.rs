@@ -8,6 +8,7 @@ use blackbox_ui::{Component, DrawList, LayoutCx, Rect, Text, justify};
 use super::drive_feed::{DriveFeed, DriveFeedCell};
 use super::drive_layout;
 use super::skin::drive;
+use crate::hud::{LABEL_KMH, LABEL_MPH, game_word};
 
 /// The speed's glyph scale and the unit's (the unit is smaller).
 const VALUE_SCALE: f32 = 2.8;
@@ -53,7 +54,10 @@ impl Body {
             .with_scale(VALUE_SCALE)
             .with_justification(justify::V_CENTRE);
         speed.layout(cx, drive_layout::speed(feed.corner));
-        let label = if feed.mph { "MPH" } else { "KM/H" };
+        let label = match feed.mph {
+            true => game_word(LABEL_MPH, "MPH"),
+            false => game_word(LABEL_KMH, "KM/H"),
+        };
         let mut unit = Text::new(drive::FONT, label)
             .with_colour_key(drive::UNIT)
             .with_scale(UNIT_SCALE)

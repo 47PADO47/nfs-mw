@@ -32,10 +32,14 @@ impl WorldScene {
     }
 
     /// An auto shop entry in career mode: the garage is asked for (`CareerRequest::AutoShop`), and the front end opens it
-    /// over the world. The garage has no performance package prices yet, so nothing is charged here.
+    /// over the world. Purchases are validated and charged only when checkout is confirmed.
     fn career_enter_auto_shop(&mut self, name: &str) -> bool {
+        if !self.garage_entry_allowed() {
+            return true;
+        }
+        self.remember_garage_exit(name);
         self.career.requests.push_back(auto_shop_request(name));
-        log::info!("career: entering auto shop {name} (no charge: the garage has no price data)");
+        log::info!("career: entering auto shop {name}");
         true
     }
 
@@ -77,7 +81,7 @@ impl WorldScene {
     }
 
     /// The chase's phase as the entry rules see it: none, running, or cooling down (the cool-down meter is shown).
-    fn safe_house_phase(&self) -> PursuitPhase {
+    pub(in crate::scenes::world) fn safe_house_phase(&self) -> PursuitPhase {
         match self.traffic.as_ref() {
             Some(traffic) => pursuit_phase(traffic.is_pursuing(), traffic.cooldown_status()),
             None => PursuitPhase::None,

@@ -114,7 +114,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
-            strings: None,
+            language_fonts: HashMap::new(),
         };
         let tree = UiTree { nodes: vec![node(0, None), node(1, Some(2))], draw_order: vec![0, 1] };
         let screen = Screen { width: 640.0, height: 480.0, pixels_per_point: 1.0 };
@@ -202,7 +202,7 @@ fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
         input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
         mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
-        strings: None,
+        language_fonts: HashMap::new(),
     };
     let mut repeating = node(0, None);
     let NodeKind::Image { uv, .. } = &mut repeating.kind else { unreachable!() };
@@ -253,7 +253,7 @@ fn every_loading_tip_has_its_picture_and_text() {
     let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
     let dir = GameDir::open(path).unwrap();
     let assets = UiAssets::load(&dir).unwrap();
-    let strings = assets.strings.as_ref().expect("the English table");
+    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE).expect("the English table");
     for key in crate::ui::tips::TIPS {
         let picture = fe_hash_upper(&crate::ui::tips::picture_name(key));
         assert!(assets.texture(picture).is_some(), "TIP_{key} from GLOBAL/DYNTEX.BIN");

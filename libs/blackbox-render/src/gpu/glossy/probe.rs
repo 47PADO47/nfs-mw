@@ -2,6 +2,8 @@
 use glam::Vec3;
 use wgpu::util::DeviceExt;
 
+use crate::gpu::queued::write_ordered;
+
 pub(super) struct Probe {
     pub depth: wgpu::TextureView,
     pub control: wgpu::Buffer,
@@ -39,15 +41,15 @@ impl super::Glossy {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        encoder: Option<&mut wgpu::CommandEncoder>,
         depth: &wgpu::TextureView,
         origin: Vec3,
         enabled: bool,
     ) {
-        queue.write_buffer(
-            &self.probe.control,
-            0,
-            bytemuck::cast_slice(&origin.extend(u8::from(enabled) as f32).to_array()),
-        );
+        // `encoder` is given while captures are queued ahead of the frame: they keep the origin they were recorded
+        // with, and the frame's views (all recorded after this) read the new one.
+        let control = origin.extend(u8::from(enabled) as f32).to_array();
+        write_ordered(device, queue, encoder, &self.probe.control, 0, bytemuck::cast_slice(&control));
         self.probe.active = true;
         if self.probe.depth == *depth {
             return;

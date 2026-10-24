@@ -12,6 +12,8 @@ use blackbox_gfx::{Fog, FrameParams, Instance, ReflectionQuality, ReflectionScen
 use blackbox_scene::{Aabb, Frustum};
 use glam::Vec3;
 
+use super::reflections_visibility::{Listing, collect_tiles};
+use super::shadow_feed::cars::User as CarsUser;
 use super::{WorldScene, visibility};
 
 #[path = "reflections_cadence.rs"]
@@ -108,11 +110,6 @@ impl WorldScene {
         };
         // The cube face size the renderer captures at, so the detail threshold follows the capture.
         let face_size = size as f32;
-        // The traffic cars are gathered once; each face keeps the ones in its own frustum.
-        self.reflection_scratch.traffic.clear();
-        if let Some(traffic) = self.traffic.as_ref().filter(|_| content.includes_traffic()) {
-            traffic.instances(&mut self.reflection_scratch.traffic);
-        }
         let far = distance.car_far();
         let cameras = std::array::from_fn(|face| {
             let frame = face_frame(origin, face, &template);
@@ -124,18 +121,21 @@ impl WorldScene {
                 fov_y_radians: std::f32::consts::FRAC_PI_2,
             }
         });
-        let placed = self
-            .residency
-            .placed()
-            .filter(|p| self.original_shadows || !p.original_shadow)
+        let listing = Listing {
+            original_shadows: self.original_shadows,
             // The Original PC capture keeps its documented origin-distance selection.
-            .filter(|p| !self.car_shading.is_original() || within(origin, p.transform.w_axis.truncate(), far));
+            origin_far: match self.car_shading.is_original() {
+                true => far,
+                false => None,
+            },
+        };
         let height = match lod.uses_main_view() {
             true => visibility::REFERENCE_HEIGHT,
             false => face_size,
         };
-        super::reflections_visibility::collect(
-            placed,
+        collect_tiles(
+            self.residency.cull_tiles(),
+            listing,
             &cameras,
             &blackbox_scenery::layout::MOST_WANTED.lod,
             self.residency.props(),
@@ -148,10 +148,16 @@ impl WorldScene {
             &mut self.reflection_faces,
             &mut self.reflection_scratch,
         );
+        // The traffic cars are gathered once for the frame (shared with the shadow feed); each face keeps the ones in
+        // its own frustum.
+        let cars = match self.traffic.as_ref().filter(|_| content.includes_traffic() && faces != 0) {
+            Some(traffic) => self.shadow_feed.cars.get(traffic, CarsUser::Reflections),
+            None => &[],
+        };
         // The faces left out keep their last lists, which the renderer does not read.
         for (face, camera) in cameras.iter().enumerate().filter(|(face, _)| (faces >> face) & 1 != 0) {
             add_traffic(
-                &self.reflection_scratch.traffic,
+                cars,
                 origin,
                 far,
                 &Frustum::from_view_proj(&camera.view_proj),

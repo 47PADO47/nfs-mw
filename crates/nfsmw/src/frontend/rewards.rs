@@ -7,14 +7,18 @@ use blackbox_feng::fe_hash_upper;
 use blackbox_feng::ids::PAD_ACCEPT;
 
 use super::ids;
-use super::infractions::money;
 use super::logic::{Command, Cx, ScreenLogic};
+use crate::i18n::{self, fmt::grouped};
 use crate::viewer::RewardsReport;
 
 /// The milestone's line and its bounty line, and the total at the foot, by name hash.
 const MILESTONE_LINE: u32 = 0xE526_D0D2;
 const BOUNTY_LINE: u32 = 0xE104_5A4F;
 const TOTAL_LINE: u32 = 0x324F_7792;
+
+/// The language labels of the two bounty lines' words: the post-pursuit page's `PRP_REP_WON` and `PRP_REP_TOTAL`.
+const BOUNTY_WORD: u32 = 0x29B1_B96A;
+const TOTAL_WORD: u32 = 0x5CCF_949A;
 
 /// The big icon of the milestone, and its reveal script.
 const ICON: u32 = 0xFCC8A;
@@ -40,8 +44,10 @@ impl RewardsLogic {
             cx.rt.run_script(icon, REVEAL);
         }
         cx.text_object(MILESTONE_LINE, &line.text);
-        cx.text_object(BOUNTY_LINE, &format!("+ {} Bounty", money(line.bounty)));
-        cx.text_object(TOTAL_LINE, &format!("Total Bounty: {}", money(self.report.total_bounty)));
+        let bounty = grouped(i64::from(line.bounty));
+        let total = grouped(i64::from(self.report.total_bounty));
+        cx.text_object(BOUNTY_LINE, &format!("+ {bounty} {}", i18n::game_or_error(BOUNTY_WORD)));
+        cx.text_object(TOTAL_LINE, &format!("{}: {total}", i18n::game_or_error(TOTAL_WORD)));
     }
 }
 

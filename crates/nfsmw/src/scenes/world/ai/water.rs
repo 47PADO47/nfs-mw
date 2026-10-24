@@ -30,8 +30,8 @@ impl TrafficWorld {
         if !view.dt.is_finite() || view.dt <= 0.0 {
             return;
         }
+        self.drop_gone_actors();
         let data = self.water.data.get_or_insert_with(|| TireWaterData::read(db));
-        self.water.actors.retain(|id, _| self.cars.iter().any(|car| car.key() == *id));
         for car in &self.cars {
             let near = car.position().distance_squared(view.camera) < 3600.0;
             let key = car.key();
@@ -58,6 +58,17 @@ impl TrafficWorld {
             let (contacts, pose, velocity) = car.rain_contacts(collision);
             group.step(contacts, pose, velocity, view.dt);
         }
+    }
+    /// Forgets the actors of cars that left. Every car with an actor is one hit by the lookup, so the common frame, where
+    /// none left, costs one lookup per car; a car that left makes the keys of the cars the retain checks.
+    fn drop_gone_actors(&mut self) {
+        let alive = self.cars.iter().filter(|car| self.water.actors.contains_key(&car.key())).count();
+        if alive == self.water.actors.len() {
+            return;
+        }
+        let mut keys: Vec<u32> = self.cars.iter().map(|car| car.key()).collect();
+        keys.sort_unstable();
+        self.water.actors.retain(|id, _| keys.binary_search(id).is_ok());
     }
     pub(in crate::scenes::world) fn rain_particles(
         &self,

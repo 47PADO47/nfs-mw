@@ -360,6 +360,7 @@ fn upload(scene: &WorldScene, renderer: &mut dyn RenderBackend, car: CarParts) -
         name,
         rig,
         physics,
+        tunings: Default::default(),
         tractor,
         trailer: None,
         cop_lights: None,

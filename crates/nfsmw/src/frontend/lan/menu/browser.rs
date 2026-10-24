@@ -7,7 +7,8 @@ use super::cx::Cx;
 use super::field::{Field, Typed};
 use super::rows::{Cursor, Row, RowKind};
 use crate::frontend::lan::address::socket_of;
-use crate::frontend::lan::text::server_line;
+use crate::frontend::lan::text::{game, label, server_line};
+use crate::i18n::t;
 
 /// What Accept or Back on the page did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,9 +69,9 @@ impl Browser {
     pub fn rows(&self, cx: &Cx) -> Vec<Row> {
         if let Some(prompt) = &self.prompt {
             return vec![
-                Row::text("Password", prompt.password.shown(), prompt.password.editing),
-                Row::action("Join", true),
-                Row::action("Cancel", true),
+                Row::text(game(label::PASSWORD), prompt.password.shown(), prompt.password.editing),
+                Row::action(game(label::JOIN), true),
+                Row::action(game(label::CANCEL), true),
             ];
         }
         let mut rows: Vec<Row> = cx
@@ -82,13 +83,13 @@ impl Browser {
                 Row { label: name, value, enabled: entry.compatible, kind: RowKind::Info }
             })
             .collect();
-        rows.push(Row::action("Refresh", true));
+        rows.push(Row::action(t!("lan-browser-refresh"), true));
         let shown = match (self.address.editing, self.address.text.is_empty()) {
-            (false, true) => "type an address".to_owned(),
+            (false, true) => t!("lan-browser-type-address"),
             _ => self.address.shown(),
         };
-        rows.push(Row::text("Direct connect", shown, self.address.editing));
-        rows.push(Row::action("Back", true));
+        rows.push(Row::text(t!("lan-browser-direct"), shown, self.address.editing));
+        rows.push(Row::action(game(label::BACK), true));
         rows
     }
 
@@ -144,7 +145,7 @@ impl Browser {
         if at < servers {
             let entry = cx.net.servers()[at].clone();
             if !entry.compatible {
-                return BrowserGo::Error(format!("{} runs another version of the game", entry.name));
+                return BrowserGo::Error(t!("lan-browser-other-version", name = entry.name));
             }
             if entry.password {
                 self.ask_password(entry.addr, entry.name);

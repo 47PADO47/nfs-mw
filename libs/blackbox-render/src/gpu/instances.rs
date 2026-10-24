@@ -33,12 +33,28 @@ impl InstanceBuffer {
         })
     }
 
+    /// Grow the buffer to hold `len` matrices. True when it was replaced, so nothing written before is in it.
+    pub(super) fn reserve(&mut self, device: &wgpu::Device, len: usize) -> bool {
+        if len <= self.capacity {
+            return false;
+        }
+        self.capacity = len.next_power_of_two();
+        self.buffer = Self::allocate(device, self.capacity);
+        true
+    }
+
+    /// Overwrite the matrices from index `first` on, after a [`reserve`](Self::reserve) that made room.
+    pub(super) fn write_at<T: bytemuck::Pod>(&self, queue: &wgpu::Queue, first: usize, matrices: &[T]) {
+        if matrices.is_empty() {
+            return;
+        }
+        let offset = (first * std::mem::size_of::<T>()) as u64;
+        queue.write_buffer(&self.buffer, offset, bytemuck::cast_slice(matrices));
+    }
+
     /// Upload this frame's matrices, growing the buffer when needed.
     pub(super) fn upload<T: bytemuck::Pod>(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, matrices: &[T]) {
-        if matrices.len() > self.capacity {
-            self.capacity = matrices.len().next_power_of_two();
-            self.buffer = Self::allocate(device, self.capacity);
-        }
+        self.reserve(device, matrices.len());
         if !matrices.is_empty() {
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(matrices));
         }
