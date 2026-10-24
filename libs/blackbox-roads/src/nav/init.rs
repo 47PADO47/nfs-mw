@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::traffic_lanes::{forward_traffic_lanes, pick_lane};
 use super::{LaneType, NavKind, RandomSource, RoadNav};
-use crate::{PathType, RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, lane_line, travel_profile};
+use crate::{PathType, RoadNetwork, SegmentFilter, SegmentIndex, closest_segment, flags, travel_profile};
 
 /// The default half width of a car.
 const DEFAULT_HALF_WIDTH: f32 = 1.0;
@@ -165,7 +165,7 @@ impl RoadNav {
 
     /// Rebuilds the lane line, then evaluates the cursor on it.
     pub(super) fn rebuild(&mut self, net: &RoadNetwork) {
-        self.line = lane_line(net, self.segment, self.node_ind, self.lane);
+        self.line = self.drive_line(net);
         self.bound_starts = None;
         self.evaluate();
     }

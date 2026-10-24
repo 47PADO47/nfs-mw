@@ -2,13 +2,22 @@
 //! Spec: `docs/specs/ai-road-nav-trail.md` (§1, §2).
 
 use super::{LaneType, NavKind, RoadNav};
+use crate::lane::{lane_line_at_offsets, lane_line_from_endpoints};
 use crate::trail::{Cookie, DEFAULT_GAP, Trail, xz};
-use crate::{Bezier, RoadNetwork, lane_line_shifted, travel_profile};
+use crate::{Bezier, RoadNetwork, lane_line, travel_profile};
 
 /// Default corridor half width round a lane that is not a traffic lane, metres.
 const DEFAULT_BOUND: f32 = 2.0;
 /// Room kept between a car and the edge of the road, beyond its half width.
 const EDGE_MARGIN: f32 = 1.5;
+/// The centre spline stays this far inside the inset bounds.
+const CENTRE_INSET: f32 = 0.1;
+
+struct Endpoint {
+    offset: f32,
+    left: f32,
+    right: f32,
+}
 
 impl RoadNav {
     pub fn trail(&self) -> Option<&Trail> {
@@ -18,6 +27,7 @@ impl RoadNav {
     /// Starts keeping a trail (and records its first cookie at the cursor).
     pub fn enable_trail(&mut self, net: &RoadNetwork) {
         self.trail = Some(Trail::default());
+        self.rebuild(net);
         self.reset_trail(net);
     }
 
@@ -51,21 +61,16 @@ impl RoadNav {
         }
     }
 
-    /// The corridor round the lane at the cursor: the bounds' lateral offsets from the lane line.
-    fn corridor(&self, net: &RoadNetwork, margin: f32) -> (f32, f32) {
-        let heading_end = self.t >= 0.5;
+    /// Absolute lane and corridor offsets at one endpoint, in the travel frame.
+    fn endpoint(&self, net: &RoadNetwork, heading_end: bool, margin: f32) -> Endpoint {
         let profile = travel_profile(net, self.segment, self.node_ind, heading_end);
-        let lane_offset = |end: bool| {
-            let p = travel_profile(net, self.segment, self.node_ind, end);
-            p.zones.get(self.lane).map(|_| p.signed_offset(self.lane))
+        let offset = match profile.zones.is_empty() {
+            true => 0.0,
+            false => profile.signed_offset(self.lane.min(profile.zones.len() - 1)),
         };
-        let offset = match (lane_offset(false), lane_offset(true)) {
-            (Some(a), Some(b)) => a * (1.0 - self.t) + b * self.t,
-            (Some(o), None) | (None, Some(o)) => o,
-            (None, None) => 0.0,
-        };
+        let default = Endpoint { offset, left: offset - DEFAULT_BOUND, right: offset + DEFAULT_BOUND };
         if profile.zones.is_empty() {
-            return (-DEFAULT_BOUND, DEFAULT_BOUND);
+            return default;
         }
         let mask = match self.lane_type {
             LaneType::Traffic => LaneType::Racing.drivable_mask(),
@@ -75,7 +80,7 @@ impl RoadNav {
         let nearest = (0..profile.zones.len()).filter(|&i| drivable(i)).min_by(|&a, &b| {
             (profile.signed_offset(a) - offset).abs().total_cmp(&(profile.signed_offset(b) - offset).abs())
         });
-        let Some(mid) = nearest else { return (-DEFAULT_BOUND, DEFAULT_BOUND) };
+        let Some(mid) = nearest else { return default };
         let (mut lo, mut hi) = (mid, mid);
         while lo > 0 && drivable(lo - 1) {
             lo -= 1;
@@ -90,7 +95,27 @@ impl RoadNav {
             left -= shortfall * 0.5;
             right += shortfall * 0.5;
         }
-        (left - offset, right - offset)
+        Endpoint { offset, left, right }
+    }
+
+    /// Build the centre from the same endpoint corridors as its active trail.
+    pub(super) fn drive_line(&self, net: &RoadNetwork) -> Bezier {
+        if self.trail.is_none() || self.kind == NavKind::Traffic {
+            return lane_line(net, self.segment, self.node_ind, self.lane);
+        }
+        let margin = self.half_width + EDGE_MARGIN;
+        let offset = |end| {
+            let endpoint = self.endpoint(net, end, margin);
+            endpoint.offset.clamp(endpoint.left + CENTRE_INSET, endpoint.right - CENTRE_INSET)
+        };
+        lane_line_at_offsets(net, self.segment, self.node_ind, offset(false), offset(true))
+    }
+
+    fn corridor_lines(&self, net: &RoadNetwork, margin: f32) -> [Bezier; 2] {
+        let start = self.endpoint(net, false, margin);
+        let end = self.endpoint(net, true, margin);
+        [(start.left, end.left), (start.right, end.right)]
+            .map(|(a, b)| lane_line_at_offsets(net, self.segment, self.node_ind, a, b))
     }
 
     /// The cross-section of the corridor at the cursor.
@@ -102,24 +127,22 @@ impl RoadNav {
     /// Uninset drivable road edges at this cursor, for placing objects across the road.
     /// Unlike the steering corridor, these edges reserve no room for a moving car.
     pub fn road_cross_section(&self, net: &RoadNetwork) -> Cookie {
-        let (left, right) = self.corridor(net, 0.0);
-        let [left, right] = [left, right]
-            .map(|delta| xz(lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta).position(self.t)));
+        let [left, right] = self.corridor_lines(net, 0.0).map(|line| xz(line.position(self.t)));
         Cookie::new(self.position, left, right, self.curvature, self.segment)
     }
 
     /// Lane bounds use the same join as the centre, so the trail cannot snap back to the node's layout.
     pub(super) fn bound_lines(&self, net: &RoadNetwork) -> [Bezier; 2] {
-        let (left, right) = match self.kind {
-            NavKind::Traffic => (-self.half_width * 0.5, self.half_width * 0.5),
-            _ => self.corridor(net, self.half_width + EDGE_MARGIN),
+        let lines = match self.kind {
+            NavKind::Traffic => {
+                let start = self.endpoint(net, false, 0.0).offset;
+                let end = self.endpoint(net, true, 0.0).offset;
+                [-self.half_width * 0.5, self.half_width * 0.5]
+                    .map(|delta| lane_line_at_offsets(net, self.segment, self.node_ind, start + delta, end + delta))
+            }
+            _ => self.corridor_lines(net, self.half_width + EDGE_MARGIN),
         };
-        let deltas = [left, right];
-        let Some(starts) = self.bound_starts else {
-            return deltas.map(|delta| lane_line_shifted(net, self.segment, self.node_ind, self.lane, delta));
-        };
-        std::array::from_fn(|i| {
-            crate::lane::lane_line_from_start(net, self.segment, self.node_ind, self.lane, deltas[i], starts[i])
-        })
+        let Some(starts) = self.bound_starts else { return lines };
+        std::array::from_fn(|i| lane_line_from_endpoints(net, self.segment, self.node_ind, starts[i], lines[i].end()))
     }
 }

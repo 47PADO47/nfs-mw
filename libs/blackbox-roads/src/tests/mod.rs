@@ -9,4 +9,6 @@ mod signal;
 mod signal_props;
 pub(crate) mod synth;
 mod trail;
+mod trail_curvature;
+mod trail_geometry;
 mod zones;

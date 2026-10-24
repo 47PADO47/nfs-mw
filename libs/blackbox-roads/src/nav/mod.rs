@@ -9,6 +9,7 @@ mod lane_type;
 mod next;
 mod path_nav;
 mod random;
+mod state;
 mod traffic_lanes;
 
 use glam::Vec3;

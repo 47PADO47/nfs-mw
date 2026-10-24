@@ -6,6 +6,10 @@ use glam::{Vec2, Vec3};
 
 use super::{CUT, CUT_BEHIND, Cookie, xz};
 
+#[cfg(test)]
+#[path = "predictive_punch_tests.rs"]
+mod tests;
+
 /// Cars higher or lower than this relative to the trail are ignored.
 const MAX_HEIGHT_DIFF: f32 = 5.0;
 /// Half a metre of room on every side of a car.
@@ -55,6 +59,28 @@ fn approach_time(rel: Vec2, vel: Vec2) -> f32 {
     }
 }
 
+/// A cross-section ahead of the point, found at the nearest forward-projection sign change.
+fn closest_cookie_ahead(cookies: &[Cookie], point: Vec2) -> Option<usize> {
+    let mut best = None;
+    let mut closest = f32::INFINITY;
+    let mut previous = 0.0;
+    for (i, cookie) in cookies.iter().enumerate() {
+        let offset = point - xz(cookie.centre);
+        let projection = offset.dot(cookie.forward);
+        let crossing = match i {
+            0 => projection < 0.0,
+            _ => projection * previous < 0.0,
+        };
+        let distance = offset.length_squared();
+        if crossing && distance < closest {
+            best = Some(i);
+            closest = distance;
+        }
+        previous = projection;
+    }
+    best
+}
+
 /// Narrows the bounds of `cookies` (the current one first) around each of `avoidables`. Returns the closest
 /// cut that is further ahead than the two cars' extents.
 pub fn punch_avoidables(
@@ -72,7 +98,7 @@ pub fn punch_avoidables(
         false => MIN_WIDTH,
     };
     let my_speed = xz(me.velocity).length();
-    let mut blocker: Option<(f32, Blocker)> = None;
+    let mut blocker: Option<(usize, Blocker)> = None;
 
     for a in avoidables.into_iter().take(32) {
         if (a.position.y - first.centre.y).abs() > MAX_HEIGHT_DIFF {
@@ -93,8 +119,8 @@ pub fn punch_avoidables(
 
         // Where the noses meet if both keep going.
         let gap = (dist_ahead - my_extent - his_extent).max(0.0);
-        let nose = my_extent.min(gap);
-        let (my_nose, his_nose) = (xz(me.position) + me.forward * nose, xz(a.position) - a.forward * nose);
+        let my_nose = xz(me.position) + f * my_extent.min(gap);
+        let his_nose = xz(a.position) - f * his_extent.min(gap);
         let rel_velocity = xz(a.velocity - me.velocity);
         let time = approach_time(his_nose - my_nose, rel_velocity);
         let closing = (his_nose - my_nose).dot(rel_velocity) < 0.0;
@@ -112,24 +138,25 @@ pub fn punch_avoidables(
             continue;
         }
 
-        // Cut the cookies along the car.
+        // Cut where the vehicles will meet, rather than beside the other car's current body.
         let trailing = a.speed_along(f);
-        let lateral_speed = xz(a.velocity).dot(first.right_axis());
+        let impact = xz(a.position) + f * (trailing * time - my_extent - his_extent);
+        let Some(start) = closest_cookie_ahead(cookies, impact) else { continue };
+        let lateral_speed = xz(a.velocity).dot(cookies[start].right_axis());
         let shift = lateral_speed * time.clamp(0.0, 1.0);
         let close = ramp((dist_ahead - my_extent) / my_extent.max(1.0) * 6.0, -6.0, 6.0);
         let margin = close;
         let mut cut_any = false;
-        for c in cookies.iter_mut() {
-            let along = (xz(c.centre) - xz(a.position)).dot(f);
-            if along < -(my_extent + his_extent) || along > his_extent {
-                continue;
-            }
-            let lateral = c.lateral(xz(a.position)) + 0.8 * shift;
+        for (step, c) in cookies[start..].iter_mut().enumerate() {
+            let lateral = c.lateral(impact) + 0.8 * shift;
             let ra = c.right_axis();
             let diag = |s: f32| ((a.forward * a.half_length + ar * (a.half_width * s)).dot(ra)).abs();
             let half = diag(1.0).max(diag(-1.0)) + 0.2 * shift.abs() + vehicle_half_width + margin;
             // A car clear of the corridor leaves it alone.
             if lateral - half >= c.right_offset || lateral + half <= c.left_offset {
+                if step == 0 {
+                    break;
+                }
                 continue;
             }
             let gap_right = c.right_offset - (lateral + half);
@@ -152,9 +179,12 @@ pub fn punch_avoidables(
                 c.flags |= CUT_BEHIND;
             }
             cut_any = true;
+            if (xz(c.centre) - impact).dot(c.forward) > 2.0 * (my_extent + his_extent) {
+                break;
+            }
         }
-        if cut_any && dist_ahead > my_extent + his_extent && blocker.is_none_or(|(d, _)| dist_ahead < d) {
-            blocker = Some((dist_ahead, Blocker { trail_speed: trailing }));
+        if cut_any && dist_ahead > my_extent + his_extent && blocker.is_none_or(|(index, _)| start < index) {
+            blocker = Some((start, Blocker { trail_speed: trailing }));
         }
     }
 
