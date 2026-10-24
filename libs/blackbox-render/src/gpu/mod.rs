@@ -56,6 +56,7 @@ mod reflection_store_tests;
 mod reflection_tests;
 mod reflections;
 mod resources;
+mod scene_pass;
 mod shadows;
 mod sized;
 mod sky;
