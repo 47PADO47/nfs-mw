@@ -205,7 +205,7 @@ pub struct MarkersLogic {
     deck: Deck,
     /// The highlighted row: a card, or the Continue row after the last card.
     cursor: usize,
-    /// Whether the Remastered look draws the cards as a list (`Cx::vertical_look`).
+    /// Whether the Remastered look draws the cards as a list (`Cx::remastered_look`).
     vertical: bool,
 }
 
@@ -248,7 +248,7 @@ fn leave(cx: &mut Cx) {
 
 impl ScreenLogic for MarkersLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         let queue = CareerHandle::shared().with(|career| career.popups.entries().to_vec()).unwrap_or_default();
         self.deck = Deck::new(build_cards(&queue, &mut self.rng));
         log::info!("markers: {} card(s) offered from {} queued reward(s)", self.deck.cards().len(), queue.len());
@@ -259,7 +259,7 @@ impl ScreenLogic for MarkersLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

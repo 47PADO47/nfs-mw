@@ -257,7 +257,7 @@ fn open_page(kind: Kind, bin: u8) -> Box<dyn Page> {
 
 impl ScreenLogic for Sheet {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.start_maps();
         self.refresh(cx);
     }
@@ -271,7 +271,7 @@ impl ScreenLogic for Sheet {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.maps.poll(cx.assets);
         self.zoom.tick(dt);
         self.place_map(cx);

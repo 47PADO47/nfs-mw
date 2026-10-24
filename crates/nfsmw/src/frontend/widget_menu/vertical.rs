@@ -1,6 +1,6 @@
-//! The option screens as a vertical list: what a theme that draws them its own way (the Remastered settings pages) reads
-//! and does. The package still supplies the messages; the rows, their values and the window onto them are published as a
-//! [`MenuList`], and a click or the pointer picks a row.
+//! The option screens as a vertical list: what a theme that draws them its own way (the Remastered and Custom settings
+//! pages) reads and does. The package still supplies the messages; the rows, their values and the window onto them are
+//! published as a [`MenuList`], and a click or the pointer picks a row.
 
 use super::options::{self, Control, Data, Row, Title};
 use super::{Cx, Pick, Way, WidgetMenu, mod_options};
@@ -37,10 +37,10 @@ impl WidgetMenu {
         }
     }
 
-    /// Whether the Remastered look draws this page, and if it does the rows as the list shows them. The window follows the
+    /// Whether a list look draws this page, and if it does the rows as the list shows them. The window follows the
     /// selection, so a theme change on this very page leaves the selected row in view.
     pub(super) fn refresh(&mut self, cx: &Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         if !self.vertical {
             self.entries.clear();
             return;

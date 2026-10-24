@@ -209,7 +209,7 @@ pub fn order_word(random: bool) -> Text {
 pub struct JukeboxLogic {
     songs: &'static [Song],
     state: State,
-    /// Whether the Remastered look draws the playlist (`Cx::vertical_look`), and the song its window starts at.
+    /// Whether the Remastered look draws the playlist (`Cx::remastered_look`), and the song its window starts at.
     vertical: bool,
     top: usize,
 }
@@ -276,12 +276,12 @@ fn script(cx: &mut Cx, name: u32, which: u32) {
 
 impl ScreenLogic for JukeboxLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.fill(cx);
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.top = window_start(self.top, self.state.selected, self.state.jukebox.len());
     }
 

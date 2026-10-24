@@ -231,7 +231,7 @@ struct ChallengeLogic {
     asked: u8,
     /// Opened from the reputation overview (`Args::overview`): leaving goes back to it.
     overview: bool,
-    /// Whether the Remastered look draws the list of rivals (`Cx::vertical_look`).
+    /// Whether the Remastered look draws the list of rivals (`Cx::remastered_look`).
     vertical: bool,
     /// What the screen was opened with, for the menu it goes back to.
     args: Args,
@@ -296,7 +296,7 @@ impl ChallengeLogic {
 
 impl ScreenLogic for ChallengeLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         post_opening(cx, &[RIVAL_OPENED_CAREER, RIVAL_LIST_READY, RIVAL_CONTENT_START]);
         if let Some(bin) = current_bin() {
             self.selected = start_bin(bin);
@@ -308,7 +308,7 @@ impl ScreenLogic for ChallengeLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
     }
 
     fn vertical(&self) -> bool {
@@ -370,7 +370,7 @@ struct BioLogic {
     bin: u8,
     /// The rival the screen was opened for, or 0 for the career's current one.
     asked: u8,
-    /// Whether the Remastered look draws the page (`Cx::vertical_look`).
+    /// Whether the Remastered look draws the page (`Cx::remastered_look`).
     vertical: bool,
     /// Opened in a Blacklist sequence (`Args::sequence`).
     sequence: bool,
@@ -409,7 +409,7 @@ impl BioLogic {
 
 impl ScreenLogic for BioLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         post_opening(cx, &[RIVAL_OPENED_PLAIN, RIVAL_OPENED_CAREER, RIVAL_BIO_CONTENT]);
         if self.sequence {
             self.first_visit = enter_first_bin_on_open();
@@ -424,7 +424,7 @@ impl ScreenLogic for BioLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
     }
 
     fn vertical(&self) -> bool {

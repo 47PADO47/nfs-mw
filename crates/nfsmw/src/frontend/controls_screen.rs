@@ -151,7 +151,7 @@ pub struct ControlsLogic {
     args: Args,
     layout: &'static Layout,
     shown: Vec<[String; 2]>,
-    /// Whether the Remastered look draws this list (`Cx::vertical_look`), and the cell that has the focus.
+    /// Whether the Remastered look draws this list (`Cx::remastered_look`), and the cell that has the focus.
     vertical: bool,
     cell: Cell,
 }
@@ -178,7 +178,7 @@ impl ControlsLogic {
 
 impl ScreenLogic for ControlsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         let layout = self.layout;
         for (row, label) in LABELS.iter().enumerate() {
             set_text(cx, layout.title[row], &i18n::game_or_error(*label));
@@ -236,7 +236,7 @@ impl ScreenLogic for ControlsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         if let Some(cell) = focused(cx, self.layout) {
             self.cell = cell;
         }

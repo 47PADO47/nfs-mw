@@ -115,7 +115,7 @@ pub fn press(cx: &mut Cx, args: Args, id: Id) {
         return;
     }
     let target = select(item);
-    cx.send(command_for(target, Args { safehouse: true, ..args }, cx.vertical_look()));
+    cx.send(command_for(target, Args { safehouse: true, ..args }, cx.remastered_look()));
 }
 
 /// The menu item an icon stands for; none for the icons of other menus.

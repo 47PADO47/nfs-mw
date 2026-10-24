@@ -107,7 +107,7 @@ pub struct CreditsLogic {
     elapsed: f32,
     /// The first line the window shows, once the text was set.
     shown: Option<usize>,
-    /// Whether the Remastered look draws the roll (`Cx::vertical_look`).
+    /// Whether the Remastered look draws the roll (`Cx::remastered_look`).
     vertical: bool,
 }
 
@@ -122,7 +122,7 @@ impl CreditsLogic {
 
 impl ScreenLogic for CreditsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.lines = LINES.get().cloned().unwrap_or_default();
         self.set_window(cx, 0);
         // The package starts with its buttons off, so Back does nothing until it is told to switch them on.
@@ -176,7 +176,7 @@ impl ScreenLogic for CreditsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.elapsed += dt;
         let first = (self.elapsed * LINES_PER_SECOND) as usize;
         if self.shown != Some(first) {

@@ -35,7 +35,7 @@ pub struct WidgetMenu {
     top: usize,
     on_screen: usize,
     leaving: bool,
-    /// Whether the Remastered look draws this page as a list, and the rows as it shows them (`vertical.rs`).
+    /// Whether a list look (Remastered or Custom) draws this page, and the rows as it shows them (`vertical.rs`).
     vertical: bool,
     entries: Vec<MenuEntry>,
     /// The page's heading, for the list.

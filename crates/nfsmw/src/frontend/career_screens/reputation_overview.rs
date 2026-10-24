@@ -283,7 +283,7 @@ impl Overview {
 
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         self.row.start(cx, self.sheet);
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
@@ -297,7 +297,7 @@ impl ScreenLogic for Overview {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.remastered_look();
         if !self.vertical {
             self.row.tick(cx, dt);
         }
