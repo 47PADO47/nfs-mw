@@ -6,7 +6,8 @@
 //! - `camera`: the gameplay camera, for world-space markers;
 //! - `police`: the phase of the chase and what the player can know of the cops;
 //! - `nav`: the GPS route with its next turn, and the places on the map;
-//! - `events`: what changed this frame, once per change.
+//! - `events`: what changed this frame, once per change;
+//! - `marks`: the places the world markers stand on, with their occlusion.
 
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
@@ -16,6 +17,7 @@ use super::pursuit::PursuitHud;
 
 mod camera;
 mod events;
+mod marks;
 mod nav;
 mod police;
 mod race_info;
@@ -23,6 +25,7 @@ mod vehicle;
 
 pub use camera::HudCamera;
 pub use events::HudEvent;
+pub use marks::{EntranceMark, MarkPoint, WorldMarks};
 #[cfg(test)]
 pub use nav::TurnDirection;
 pub use nav::{NavMarker, NavMarkerKind, NavRoute, next_turn};
@@ -137,6 +140,9 @@ pub struct HudState {
     pub events: Vec<HudEvent>,
     /// The frame `events` belong to: a reader that gets the same frame twice (a paused scene) does not take them again.
     pub events_frame: u64,
+    /// The places the world markers stand on: the ground under the places near the car, the breakers in sight, and
+    /// which of them the static world hides.
+    pub world_marks: WorldMarks,
 }
 
 impl Default for HudState {
@@ -187,6 +193,7 @@ impl Default for HudState {
             markers: Vec::new(),
             events: Vec::new(),
             events_frame: 0,
+            world_marks: WorldMarks::default(),
         }
     }
 }
