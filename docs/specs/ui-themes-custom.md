@@ -125,13 +125,13 @@ baseline.
   depth. The composer sorts by `index`, and the card's nodes keep their build order (stable sort, equal indices).
 - Owed: the end-to-end screenshot with `--ui-style custom` on a GPU machine (`ui-themes-compose.md` section 7).
 
-## 8. The speedometer and the tachometer (historical)
+## 8. The speedometer and the tachometer (retired)
 
-Historical: this was the first Custom drive readout. Section 9 replaced it, and the Custom rewrite of
-[ADR 0013](../decisions/0013-custom-hud.md) replaces both (the cluster is [custom-hud/telemetry.md](custom-hud/telemetry.md)).
-The text below describes code that no longer exists in this form.
+**Retired in the Custom HUD 2026 (ADR 0013, PR 5).** Sections 8 and 9 record the first drive card; its files are
+deleted, and the drive slots fall back to Original until the horizontal cluster lands (PR 6). The Custom HUD reads
+`CustomFeedCell` (`custom/feed.rs`); `DriveFeedCell` stays for the Remastered theme.
 
-The Custom theme also fills `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
+The Custom theme also filled `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
 rest of the HUD (the gear digit in the tachometer group, the minimap, the blips, the pursuit board) stays Original.
 
 - **Data:** `custom/drive_feed.rs`. `DriveFeedCell::set(&HudState)` runs once per frame in the HUD plugin, after the radio.
@@ -147,7 +147,7 @@ rest of the HUD (the gear digit in the tachometer group, the minimap, the blips,
 
 Still Original: the minimap (it needs the track geometry and the blips, so it is a separate piece of work).
 
-## 9. The drive cluster (current)
+## 9. The drive cluster (retired)
 
 The Custom cluster replaces the Original tachometer, speedometer, gear, nitrous, turbo and speed breaker slots. It is
 one card in the bottom-right corner, drawn in parts by six slots, all fed from `DriveFeedCell` (`custom/drive_feed.rs`):
