@@ -27,6 +27,8 @@ impl WorldScene {
         if !streaks {
             return 0.0;
         }
-        self.players.lead().map_or(0.0, |drive| vehicle_effects::streak_strength(drive.speed()))
+        self.players.lead().map_or(0.0, |drive| {
+            vehicle_effects::streak_strength(drive.speed(), drive.nitrous_burning(), &self.tuning.xenon_effects)
+        })
     }
 }

@@ -45,6 +45,7 @@ impl WorldScene {
         drive.effects.set_quality(self.smoke_quality);
         drive.vehicle_effects.set_enabled(self.vehicle_effects[0], car_trails);
         drive.vehicle_effects.set_style(self.spark_style);
+        drive.vehicle_effects.set_tuning(self.tuning.xenon_effects);
         drive.flames.set_enabled(self.exhaust_flames);
         self.players.insert(Player::new(id, drive));
         if let Some(traffic) = self.traffic.as_mut() {

@@ -63,7 +63,10 @@ impl WorldScene {
         if self.view == View::Chase && self.race.is_none() && !cutscene {
             entry_marks::push_discs(&self.entry.zones, car, self.clock, &shut_races, &mut layer.surfaces);
         }
-        drive.vehicle_effects.geometry(position, forward, matches!(self.view, View::Chase), &mut layer.streaks);
+        // A cutscene shows the trail only when it is asked for: the world stands still under it, so a trail from the
+        // drive before it would hang in the air.
+        let show_trails = self.view == View::Chase && (!cutscene || self.tuning.xenon_effects.nis_contrails);
+        drive.vehicle_effects.geometry(position, forward, show_trails, &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         flares.draw(&lamps, lamp_frame, lamp_state, flare_view, &mut layer.textured);
         if trails_visible {

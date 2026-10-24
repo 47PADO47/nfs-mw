@@ -15,6 +15,8 @@ mod sweep;
 #[cfg(test)]
 mod tests;
 mod trails;
+#[cfg(test)]
+mod tuning_tests;
 mod water;
 pub(in crate::scenes::world) use water::WaterContact;
 pub(in crate::scenes::world) use water::WaterEffects as TireWaterEffects;
@@ -24,15 +26,13 @@ use glam::Vec3;
 use nfsmw_data::vehicle_effects::VisualEffectsData;
 
 use super::drive::{CarPose, VisualContact};
+use crate::settings::XenonEffects;
 use sparks::Sparks;
 use trails::Trails;
 
-pub const MAX_SPARKS: usize = 2048;
-pub const MAX_TRAILS: usize = 256;
-
-/// The strength of the high-speed view streaks at `speed` (m/s), 0 to 0.75: the car trail's curve.
-pub fn streak_strength(speed: f32) -> f32 {
-    trails::intensity(speed.abs()).unwrap_or(0.0)
+/// The strength of the high-speed view streaks at `speed` (m/s): the car trail's curve, 0 when it does not show.
+pub fn streak_strength(speed: f32, nitrous: bool, tuning: &XenonEffects) -> f32 {
+    tuning.trail_strength(speed.abs(), nitrous).unwrap_or(0.0)
 }
 
 pub struct VehicleEffects {
@@ -44,6 +44,7 @@ pub struct VehicleEffects {
     body: Option<body::BodyClip>,
     pc: pc_sparks::PcSparks,
     style: crate::settings::SparkStyle,
+    tuning: XenonEffects,
 }
 
 impl VehicleEffects {
@@ -59,6 +60,7 @@ impl VehicleEffects {
             body: None,
             pc: pc_sparks::PcSparks::default(),
             style: crate::settings::SparkStyle::OriginalPc,
+            tuning: XenonEffects::default(),
         }
     }
 
@@ -88,6 +90,16 @@ impl VehicleEffects {
         self.style = style;
         self.sparks.clear();
         self.pc.clear();
+    }
+
+    /// Applies the caps now: the oldest particles above a lowered cap go.
+    pub fn set_tuning(&mut self, tuning: XenonEffects) {
+        if self.tuning == tuning {
+            return;
+        }
+        self.tuning = tuning;
+        self.sparks.truncate(tuning.max_sparks);
+        self.trails.truncate(tuning.max_trails);
     }
 
     pub fn set_enabled(&mut self, sparks: bool, trails: bool) {
@@ -126,13 +138,8 @@ impl VehicleEffects {
         self.trails.age(dt);
     }
 
-    pub fn step(&mut self, contacts: &[VisualContact], pose: CarPose, velocity: Vec3, dt: f32) {
-        if !dt.is_finite()
-            || dt <= 0.0
-            || !velocity.is_finite()
-            || !pose.position.is_finite()
-            || !pose.rotation.is_normalized()
-        {
+    pub fn step(&mut self, contacts: &[VisualContact], pose: CarPose, velocity: Vec3, nitrous: bool, dt: f32) {
+        if !finite_motion(pose, velocity, dt) {
             return;
         }
         self.sparks.age(dt);
@@ -141,15 +148,26 @@ impl VehicleEffects {
             match self.style {
                 crate::settings::SparkStyle::OriginalPc => {} // Source-owned contact manager emits stock groups.
                 crate::settings::SparkStyle::RestoredExperimental => {
-                    self.sparks.emit(contacts, &self.data.collision, velocity, dt)
+                    self.sparks.emit(contacts, &self.data.collision, velocity, &self.tuning, dt)
                 }
             }
         }
         if self.enabled[1] {
-            self.trails.emit(self.data.trail, pose, velocity, dt);
+            self.trails.emit(self.data.trail, pose, velocity, nitrous, &self.tuning, dt);
         }
         self.pc.age(dt);
         self.water.age(dt);
+    }
+
+    /// A cutscene moves the car along its own track while the world stands still, so the trail ages by the scene's `dt`
+    /// here and emits as the car moves at `velocity`. Only with `nis_contrails` and the speed trail on; the nitrous
+    /// is not read, since a scene's car has no physics.
+    pub fn cutscene_step(&mut self, pose: CarPose, velocity: Vec3, dt: f32) {
+        if !self.enabled[1] || !self.tuning.nis_contrails || !finite_motion(pose, velocity, dt) {
+            return;
+        }
+        self.trails.age(dt);
+        self.trails.emit(self.data.trail, pose, velocity, false, &self.tuning, dt);
     }
 
     pub fn bounce(&mut self, world: &blackbox_collision::CollisionWorld, dt: f32) {
@@ -185,14 +203,20 @@ impl VehicleEffects {
             self.pc.len() + self.sparks.len(),
             match self.style {
                 crate::settings::SparkStyle::OriginalPc => 1024,
-                _ => MAX_SPARKS,
+                _ => self.tuning.max_sparks,
             },
             self.pc.emitted + self.sparks.emitted,
             self.enabled[1],
             self.trails.len(),
-            MAX_TRAILS,
+            self.tuning.max_trails,
             self.trails.emitted,
             self.water.status(),
         )
     }
+}
+
+/// Whether a step of `dt` seconds for a car at `pose` moving at `velocity` can emit: finite, forward in time, and a
+/// unit rotation.
+fn finite_motion(pose: CarPose, velocity: Vec3, dt: f32) -> bool {
+    dt.is_finite() && dt > 0.0 && velocity.is_finite() && pose.position.is_finite() && pose.rotation.is_normalized()
 }

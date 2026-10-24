@@ -1,8 +1,10 @@
 use super::*;
+use crate::settings::XenonEffects;
 use glam::Quat;
 use nfsmw_data::vehicle_effects::EmitterStyle;
 
 const STEP: f32 = 1.0 / 60.0;
+const ACTIVATION_SPEED: f32 = 44.0;
 
 fn style() -> EmitterStyle {
     EmitterStyle {
@@ -30,18 +32,18 @@ fn pose() -> CarPose {
 }
 
 fn emit(trails: &mut Trails, speed: f32, dt: f32) {
-    trails.emit(Some(style()), pose(), Vec3::X * speed, dt);
+    trails.emit(Some(style()), pose(), Vec3::X * speed, false, &XenonEffects::default(), dt);
 }
 
 #[test]
 fn wind_trails_gate_total_speed_and_stop_below_threshold_without_debt() {
     let mut trails = Trails::default();
-    for speed in [0.0, trails::ACTIVATION_SPEED - 0.01] {
+    for speed in [0.0, ACTIVATION_SPEED - 0.01] {
         emit(&mut trails, speed, 1.0);
     }
     assert_eq!(trails.len(), 0);
     for _ in 0..60 {
-        emit(&mut trails, trails::ACTIVATION_SPEED, STEP);
+        emit(&mut trails, ACTIVATION_SPEED, STEP);
     }
     assert_eq!(trails.emitted, 900);
     let count = trails.emitted;
@@ -73,10 +75,10 @@ fn trail_brightness_rises_with_speed_without_changing_density_and_remains_bounde
     for _ in 0..1000 {
         emit(&mut fast, 200.0, 1000.0);
     }
-    assert_eq!(fast.len(), MAX_TRAILS);
+    assert_eq!(fast.len(), XenonEffects::default().max_trails);
     let mut vertices = Vec::new();
     fast.geometry(Vec3::new(-10.0, 0.0, 8.0), Vec3::X, &mut vertices);
-    assert!(vertices.len() <= MAX_TRAILS * 6);
+    assert!(vertices.len() <= XenonEffects::default().max_trails * 6);
     assert!(vertices.iter().all(|v| Vec3::from(v.position).is_finite()));
 }
 
@@ -85,7 +87,7 @@ fn lifetime_without_physics_disable_reset_and_free_camera_disconnect_trails() {
     let data = VisualEffectsData { trail: Some(style()), ..VisualEffectsData::default() };
     let mut effects = VehicleEffects::new(data);
     effects.set_enabled(true, true);
-    effects.step(&[], pose(), Vec3::X * 88.0, 0.1);
+    effects.step(&[], pose(), Vec3::X * 88.0, false, 0.1);
     assert!(effects.trails.len() > 0);
     let mut chase = Vec::new();
     effects.geometry(Vec3::ZERO, Vec3::X, true, &mut chase);
@@ -95,15 +97,15 @@ fn lifetime_without_physics_disable_reset_and_free_camera_disconnect_trails() {
     assert!(free.is_empty());
     effects.disconnect();
     assert_eq!(effects.trails.len(), 0);
-    effects.step(&[], pose(), Vec3::X * 88.0, 0.1);
+    effects.step(&[], pose(), Vec3::X * 88.0, false, 0.1);
     effects.age(0.6);
     assert_eq!(effects.trails.len(), 0);
-    effects.step(&[], pose(), Vec3::X * 88.0, 0.1);
+    effects.step(&[], pose(), Vec3::X * 88.0, false, 0.1);
     effects.set_enabled(true, false);
-    effects.step(&[], pose(), Vec3::X * 88.0, 0.1);
+    effects.step(&[], pose(), Vec3::X * 88.0, false, 0.1);
     assert_eq!(effects.trails.len(), 0);
     effects.set_enabled(false, true);
-    effects.step(&[], pose(), Vec3::X * 88.0, 0.1);
+    effects.step(&[], pose(), Vec3::X * 88.0, false, 0.1);
     effects.clear();
     assert_eq!(effects.trails.len(), 0);
 }
@@ -113,10 +115,10 @@ fn invalid_time_and_velocity_never_create_or_age_particles() {
     let mut effects = VehicleEffects::new(VisualEffectsData { trail: Some(style()), ..VisualEffectsData::default() });
     effects.set_enabled(true, true);
     for dt in [f32::NAN, f32::INFINITY, -1.0, 0.0] {
-        effects.step(&[], pose(), Vec3::X * 88.0, dt);
+        effects.step(&[], pose(), Vec3::X * 88.0, false, dt);
     }
-    effects.step(&[], pose(), Vec3::NAN, STEP);
-    effects.step(&[], CarPose { position: Vec3::NAN, ..pose() }, Vec3::X * 88.0, STEP);
+    effects.step(&[], pose(), Vec3::NAN, false, STEP);
+    effects.step(&[], CarPose { position: Vec3::NAN, ..pose() }, Vec3::X * 88.0, false, STEP);
     assert_eq!(effects.trails.len(), 0);
 }
 
@@ -138,12 +140,16 @@ fn repeated_runs_have_identical_trails_after_motion_and_camera_changes() {
 #[test]
 fn speed_streaks_are_gone_below_the_trail_speed_and_grow_with_it() {
     use super::streak_strength;
-    for speed in [0.0, -10.0, trails::ACTIVATION_SPEED - 0.01] {
-        assert_eq!(streak_strength(speed), 0.0, "no streaks at {speed} m/s");
+    for speed in [0.0, -10.0, ACTIVATION_SPEED - 0.01] {
+        assert_eq!(streak_strength(speed, false, &XenonEffects::default()), 0.0, "no streaks at {speed} m/s");
     }
-    let at_start = streak_strength(trails::ACTIVATION_SPEED);
+    let at_start = streak_strength(ACTIVATION_SPEED, false, &XenonEffects::default());
     assert!((at_start - 0.1).abs() < 1e-6, "the trail's first intensity: {at_start}");
-    assert!(streak_strength(60.0) > at_start, "stronger as the car goes faster");
-    assert_eq!(streak_strength(-120.0), streak_strength(120.0), "reverse counts as speed");
-    assert_eq!(streak_strength(200.0), 0.75, "capped like the trail");
+    assert!(streak_strength(60.0, false, &XenonEffects::default()) > at_start, "stronger as the car goes faster");
+    assert_eq!(
+        streak_strength(-120.0, false, &XenonEffects::default()),
+        streak_strength(120.0, false, &XenonEffects::default()),
+        "reverse counts as speed"
+    );
+    assert_eq!(streak_strength(200.0, false, &XenonEffects::default()), 0.75, "capped like the trail");
 }

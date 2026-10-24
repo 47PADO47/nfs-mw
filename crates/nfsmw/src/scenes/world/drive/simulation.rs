@@ -98,7 +98,13 @@ impl Drive {
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));
         let tire_contacts = sim.tire_contacts(collision);
         self.effects.step(tire_contacts, sim.effect_velocity(), clock::STEP);
-        self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), clock::STEP);
+        self.vehicle_effects.step(
+            &impact.visuals,
+            sim.pose(),
+            sim.effect_velocity(),
+            self.telemetry.nos_burning,
+            clock::STEP,
+        );
         self.vehicle_effects.water_step(
             sim.water_contacts(tire_contacts),
             sim.pose(),

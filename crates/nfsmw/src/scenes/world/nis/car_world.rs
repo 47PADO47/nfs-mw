@@ -167,7 +167,10 @@ impl WorldScene {
                     };
                     posed(CarSpot { rotation: spot.rotation * turn, ..spot }, base, spin)
                 });
-                drive.set_nis_pose(pose);
+                match pose {
+                    Some(pose) => drive.move_nis_pose(pose, dt),
+                    None => drive.set_nis_pose(None),
+                }
             }
             Target::Traffic(index) | Target::Spawned(index) => {
                 let Some(traffic) = self.traffic.as_mut() else { return };

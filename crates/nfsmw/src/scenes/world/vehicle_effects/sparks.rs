@@ -6,8 +6,9 @@ use nfsmw_data::vehicle_effects::{CollisionEffects, SparkLink};
 
 use super::super::{drive::VisualContact, space};
 use super::body::BodyClip;
+use super::geometry;
 use super::particle::{Particle, count};
-use super::{MAX_SPARKS, geometry};
+use crate::settings::XenonEffects;
 
 #[cfg(test)]
 #[path = "spark_tests.rs"]
@@ -32,7 +33,7 @@ struct Flash {
 impl Default for Sparks {
     fn default() -> Self {
         Self {
-            particles: VecDeque::with_capacity(MAX_SPARKS),
+            particles: VecDeque::new(),
             flashes: VecDeque::with_capacity(16),
             scrape_flash: None,
             owner_velocity: Vec3::ZERO,
@@ -55,6 +56,12 @@ impl Sparks {
     pub fn disconnect(&mut self) {
         self.carry = 0.0;
     }
+    /// Drops the oldest particles until at most `cap` are left.
+    pub fn truncate(&mut self, cap: usize) {
+        while self.particles.len() > cap {
+            self.particles.pop_front();
+        }
+    }
 
     pub fn age(&mut self, dt: f32) {
         self.particles.iter_mut().for_each(|p| p.age(dt));
@@ -69,7 +76,14 @@ impl Sparks {
         }
     }
 
-    pub fn emit(&mut self, contacts: &[VisualContact], data: &CollisionEffects, velocity: Vec3, dt: f32) {
+    pub fn emit(
+        &mut self,
+        contacts: &[VisualContact],
+        data: &CollisionEffects,
+        velocity: Vec3,
+        tuning: &XenonEffects,
+        dt: f32,
+    ) {
         self.owner_velocity = velocity;
         self.emit_selected(
             contacts,
@@ -77,11 +91,18 @@ impl Sparks {
                 true => data.hit(surface),
                 false => data.scrape(surface),
             },
+            tuning,
             dt,
         );
     }
 
-    fn emit_selected(&mut self, contacts: &[VisualContact], pick: impl Fn(u32, bool) -> Option<SparkLink>, dt: f32) {
+    fn emit_selected(
+        &mut self,
+        contacts: &[VisualContact],
+        pick: impl Fn(u32, bool) -> Option<SparkLink>,
+        tuning: &XenonEffects,
+        dt: f32,
+    ) {
         let mut hit: Option<(&VisualContact, SparkLink, f32)> = None;
         let mut scrape: Option<(&VisualContact, SparkLink, f32)> = None;
         for c in contacts {
@@ -117,7 +138,7 @@ impl Sparks {
             }
         }
         if let Some((c, link, strength)) = hit {
-            self.spawn(c, link, 1, true);
+            self.spawn(c, link, 1, true, tuning);
             if let Some(style) = link.styles.into_iter().flatten().next() {
                 if self.flashes.len() == 16 {
                     self.flashes.pop_front();
@@ -136,11 +157,11 @@ impl Sparks {
             self.disconnect();
             return;
         };
-        // The restoration forces spark intensity to one; weak scrapes do not reduce density.
-        self.carry = (self.carry + 60.0 * dt).min(4.0);
+        // The restoration forces the spark intensity to its configured value; weak scrapes do not reduce density.
+        self.carry = (self.carry + tuning.spark_rate * dt).min(4.0);
         let dispatches = self.carry.floor() as usize;
         self.carry -= dispatches as f32;
-        self.spawn(c, link, dispatches, false);
+        self.spawn(c, link, dispatches, false, tuning);
         if let Some(style) = link.styles.into_iter().flatten().next() {
             self.scrape_flash = Some(Flash {
                 point: space::to_render(c.point.to_array()) + space::to_render(c.normal.to_array()) * 0.04,
@@ -151,7 +172,7 @@ impl Sparks {
         }
     }
 
-    fn spawn(&mut self, c: &VisualContact, link: SparkLink, dispatches: usize, hit: bool) {
+    fn spawn(&mut self, c: &VisualContact, link: SparkLink, dispatches: usize, hit: bool, tuning: &XenonEffects) {
         let normal = space::to_render(c.normal.to_array());
         let velocity = self.owner_velocity * link.inherit_velocity;
         let origin = space::to_render(c.point.to_array());
@@ -162,12 +183,12 @@ impl Sparks {
         let rotation = Quat::from_rotation_arc(local_axis, normal);
         for (index, style) in link.styles.into_iter().enumerate() {
             let Some(style) = style else { continue };
-            for _ in 0..count(style, 1.0) * dispatches {
-                let mut p = Particle::spawn(style, origin, rotation, velocity, self.emitted, 1.0);
+            for _ in 0..count(style, tuning.spark_intensity) * dispatches {
+                let mut p = Particle::spawn(style, origin, rotation, velocity, self.emitted, tuning.spark_intensity);
                 p.origin += normal * (0.02 - (p.origin - origin).dot(normal)).max(0.0);
                 p.previous = p.origin;
                 p.elasticity = [160.0, 120.0][index] / 255.0;
-                if self.particles.len() == MAX_SPARKS {
+                while self.particles.len() >= tuning.max_sparks {
                     self.particles.pop_front();
                 }
                 self.particles.push_back(p);

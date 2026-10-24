@@ -29,7 +29,7 @@ fn vehicle_effects_pc_style_isolated_and_clears_sources_on_switch_disable_and_re
     };
     let mut effects = VehicleEffects::new(data);
     effects.set_enabled(true, false);
-    effects.step(&[contact], pose, Vec3::ZERO, 1.0 / 60.0);
+    effects.step(&[contact], pose, Vec3::ZERO, false, 1.0 / 60.0);
     assert_eq!(effects.pc.len(), 0, "stock groups are owned by the shared contact manager");
     assert_eq!(effects.sparks.len(), 0);
     let mut streaks = Vec::new();
@@ -39,15 +39,15 @@ fn vehicle_effects_pc_style_isolated_and_clears_sources_on_switch_disable_and_re
 
     effects.set_style(SparkStyle::RestoredExperimental);
     assert_eq!(effects.pc.len(), 0);
-    effects.step(&[contact], pose, Vec3::ZERO, 1.0 / 60.0);
+    effects.step(&[contact], pose, Vec3::ZERO, false, 1.0 / 60.0);
     assert!(effects.sparks.len() > 0);
     effects.set_style(SparkStyle::OriginalPc);
     assert_eq!(effects.sparks.len(), 0);
-    effects.step(&[], pose, Vec3::ZERO, 1.0 / 60.0);
+    effects.step(&[], pose, Vec3::ZERO, false, 1.0 / 60.0);
     assert_eq!(effects.pc.len(), 0, "old one-shot clocks cannot leak across styles");
     for reset in [false, true] {
         effects.set_enabled(true, false);
-        effects.step(&[contact], pose, Vec3::ZERO, 1.0 / 60.0);
+        effects.step(&[contact], pose, Vec3::ZERO, false, 1.0 / 60.0);
         assert_eq!(effects.pc.len(), 0, "stock groups are owned by the shared contact manager");
         if reset {
             effects.clear();
@@ -55,7 +55,7 @@ fn vehicle_effects_pc_style_isolated_and_clears_sources_on_switch_disable_and_re
         if !reset {
             effects.set_enabled(false, false);
         }
-        effects.step(&[], pose, Vec3::ZERO, 1.0 / 60.0);
+        effects.step(&[], pose, Vec3::ZERO, false, 1.0 / 60.0);
         assert_eq!(effects.pc.len(), 0);
     }
 }

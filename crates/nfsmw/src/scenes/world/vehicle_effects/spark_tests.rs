@@ -1,4 +1,5 @@
 use super::*;
+use crate::settings::XenonEffects;
 use nfsmw_data::vehicle_effects::EmitterStyle;
 
 const STEP: f32 = 1.0 / 60.0;
@@ -8,14 +9,14 @@ fn moving_scrape_refreshes_one_contact_glow_and_lost_contact_expires_it() {
     let mut sparks = Sparks::default();
     for _ in 0..60 {
         sparks.age(STEP);
-        sparks.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), STEP);
+        sparks.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     }
     assert!(sparks.scrape_flash.is_some());
     assert!(sparks.flashes.is_empty(), "continuing glow does not append impact flashes");
-    sparks.emit_selected(&[], |_, _| Some(link()), STEP);
+    sparks.emit_selected(&[], |_, _| Some(link()), &XenonEffects::default(), STEP);
     sparks.age(0.13);
     assert!(sparks.scrape_flash.is_none());
-    sparks.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), STEP);
+    sparks.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     sparks.clear();
     assert!(sparks.scrape_flash.is_none());
 }
@@ -60,10 +61,10 @@ fn contact(velocity: Vec3, impulse: f32) -> VisualContact {
 fn impact_strength_creates_one_burst_from_the_reacting_contact() {
     let c = contact(Vec3::Z * 10.0, 10.0);
     let mut particles = Sparks::default();
-    particles.emit_selected(&[c, c, c], |_, hit| hit.then(link), STEP);
+    particles.emit_selected(&[c, c, c], |_, hit| hit.then(link), &XenonEffects::default(), STEP);
     assert_eq!(particles.len(), 30, "duplicate probes must not multiply a burst");
     assert!(particles.particles.iter().all(|p| p.origin.abs_diff_eq(Vec3::new(3.98, -2.0, 3.0), 1e-5)));
-    particles.emit_selected(&[contact(Vec3::ZERO, 10.0)], |_, _| Some(link()), STEP);
+    particles.emit_selected(&[contact(Vec3::ZERO, 10.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     assert_eq!(particles.emitted, 30, "stationary correction is not an impact");
 }
 
@@ -71,11 +72,16 @@ fn impact_strength_creates_one_burst_from_the_reacting_contact() {
 fn scrape_needs_contact_motion_and_never_uses_the_hit_impulse_as_speed() {
     let mut particles = Sparks::default();
     for _ in 0..60 {
-        particles.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, hit| (!hit).then(link), STEP);
+        particles.emit_selected(
+            &[contact(Vec3::X * 10.0, 0.0)],
+            |_, hit| (!hit).then(link),
+            &XenonEffects::default(),
+            STEP,
+        );
     }
     assert_eq!(particles.emitted, 1800);
     for quiet in [Vec3::ZERO, Vec3::X * 0.5, Vec3::NEG_Z * 20.0] {
-        particles.emit_selected(&[contact(quiet, 100.0)], |_, _| Some(link()), STEP);
+        particles.emit_selected(&[contact(quiet, 100.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     }
     assert_eq!(particles.emitted, 1800, "static, slow and separating contacts are quiet");
 }
@@ -83,9 +89,14 @@ fn scrape_needs_contact_motion_and_never_uses_the_hit_impulse_as_speed() {
 #[test]
 fn below_linkage_minimum_scrapes_are_silent_and_contact_flashes_expire() {
     let mut particles = Sparks::default();
-    particles.emit_selected(&[contact(Vec3::X * 3.0, 0.0)], |_, _| Some(SparkLink { min: 5.0, ..link() }), STEP);
+    particles.emit_selected(
+        &[contact(Vec3::X * 3.0, 0.0)],
+        |_, _| Some(SparkLink { min: 5.0, ..link() }),
+        &XenonEffects::default(),
+        STEP,
+    );
     assert_eq!(particles.emitted, 0);
-    particles.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| Some(link()), STEP);
+    particles.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     assert_eq!(particles.flashes.len(), 1);
     particles.age(0.13);
     assert_eq!(particles.flashes.len(), 0);
@@ -100,12 +111,13 @@ fn inheritance_uses_current_owner_velocity_while_contact_velocity_gates_the_impa
     particles.emit_selected(
         &[contact(Vec3::Z * 100.0, 10.0)],
         |_, _| Some(SparkLink { inherit_velocity: 0.5, ..link() }),
+        &XenonEffects::default(),
         STEP,
     );
     assert_eq!(particles.len(), 30);
     assert!(particles.particles[0].velocity.abs_diff_eq(Vec3::new(-1.0, -3.0, 0.0), 1e-5));
     let previous = particles.emitted;
-    particles.emit_selected(&[contact(Vec3::ZERO, 10.0)], |_, _| Some(link()), STEP);
+    particles.emit_selected(&[contact(Vec3::ZERO, 10.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
     assert_eq!(particles.emitted, previous, "owner motion cannot turn stationary correction into an impact");
 }
 
@@ -120,12 +132,12 @@ fn missing_material_unsupported_effect_and_invalid_inputs_emit_nothing() {
         VisualContact { impulse_delta_v: f32::NAN, ..c },
     ] {
         let mut particles = Sparks::default();
-        particles.emit_selected(&[invalid], |_, _| Some(link()), STEP);
+        particles.emit_selected(&[invalid], |_, _| Some(link()), &XenonEffects::default(), STEP);
         assert_eq!(particles.len(), 0);
     }
     let mut particles = Sparks::default();
-    particles.emit_selected(&[c], |_, _| None, STEP);
-    particles.emit_selected(&[c], |_, _| Some(SparkLink { max: f32::NAN, ..link() }), STEP);
+    particles.emit_selected(&[c], |_, _| None, &XenonEffects::default(), STEP);
+    particles.emit_selected(&[c], |_, _| Some(SparkLink { max: f32::NAN, ..link() }), &XenonEffects::default(), STEP);
     assert_eq!(particles.len(), 0);
 }
 
@@ -134,13 +146,13 @@ fn long_scrapes_are_bounded_age_out_and_have_no_lost_contact_backlog() {
     let c = contact(Vec3::X * 10.0, 0.0);
     let mut particles = Sparks::default();
     for _ in 0..1000 {
-        particles.emit_selected(&[c], |_, _| Some(link()), 10.0);
+        particles.emit_selected(&[c], |_, _| Some(link()), &XenonEffects::default(), 10.0);
     }
-    assert_eq!(particles.len(), MAX_SPARKS);
+    assert_eq!(particles.len(), XenonEffects::default().max_sparks);
     particles.age(0.6);
     assert_eq!(particles.len(), 0);
-    particles.emit_selected(&[], |_, _| Some(link()), STEP);
-    particles.emit_selected(&[c], |_, _| Some(link()), STEP);
+    particles.emit_selected(&[], |_, _| Some(link()), &XenonEffects::default(), STEP);
+    particles.emit_selected(&[c], |_, _| Some(link()), &XenonEffects::default(), STEP);
     assert_eq!(particles.len(), 30);
     particles.clear();
     assert_eq!(particles.len(), 0);
@@ -150,7 +162,7 @@ fn long_scrapes_are_bounded_age_out_and_have_no_lost_contact_backlog() {
 fn fixed_input_produces_identical_finite_geometry_and_constant_alpha() {
     let run = || {
         let mut particles = Sparks::default();
-        particles.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| Some(link()), STEP);
+        particles.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| Some(link()), &XenonEffects::default(), STEP);
         particles.age(0.1);
         let mut geometry = Vec::new();
         particles.geometry(Vec3::new(-5.0, 0.0, 8.0), Vec3::X, None, &mut geometry);
@@ -160,4 +172,40 @@ fn fixed_input_produces_identical_finite_geometry_and_constant_alpha() {
     assert_eq!(vertices, run());
     assert_eq!(vertices.len(), 30 * 6);
     assert!(vertices.iter().all(|v| Vec3::from(v.position).is_finite() && v.color[3] == 255));
+}
+
+#[test]
+fn spark_intensity_and_rate_and_cap_follow_the_options() {
+    use crate::settings::xenon_effects::XenonEffectsLayer;
+    let tuned = |layer| XenonEffects::from_layer(layer);
+    let burst = |tuning: &XenonEffects| {
+        let mut particles = Sparks::default();
+        particles.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| Some(link()), tuning, STEP);
+        particles
+    };
+    assert_eq!(burst(&XenonEffects::default()).len(), 30);
+    let strong = burst(&tuned(XenonEffectsLayer { spark_intensity: Some(2.0), ..Default::default() }));
+    assert_eq!(strong.len(), 60, "above one the count scales with the intensity");
+    let weak = burst(&tuned(XenonEffectsLayer { spark_intensity: Some(0.5), ..Default::default() }));
+    assert_eq!(weak.len(), 30, "below one only the brightness changes");
+    assert!(weak.particles[0].color[3] < strong.particles[0].color[3]);
+
+    let scrape = |tuning: &XenonEffects| {
+        let mut particles = Sparks::default();
+        for _ in 0..60 {
+            particles.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), tuning, STEP);
+        }
+        particles.emitted
+    };
+    assert_eq!(scrape(&XenonEffects::default()), 60 * 30);
+    assert_eq!(scrape(&tuned(XenonEffectsLayer { spark_rate: Some(30.0), ..Default::default() })), 30 * 30);
+
+    let small = tuned(XenonEffectsLayer { max_sparks: Some(40), ..Default::default() });
+    let mut particles = Sparks::default();
+    for _ in 0..10 {
+        particles.emit_selected(&[contact(Vec3::X * 10.0, 0.0)], |_, _| Some(link()), &small, STEP);
+    }
+    assert_eq!(particles.len(), 40);
+    particles.truncate(16);
+    assert_eq!(particles.len(), 16);
 }

@@ -53,6 +53,7 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);
+            drive.vehicle_effects.set_tuning(self.tuning.xenon_effects);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
         }

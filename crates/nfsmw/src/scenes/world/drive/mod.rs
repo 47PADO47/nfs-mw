@@ -289,6 +289,11 @@ impl Drive {
         self.telemetry.speed_mps
     }
 
+    /// Whether the nitrous burns now (the physics' state at the last step).
+    pub fn nitrous_burning(&self) -> bool {
+        self.telemetry.nos_burning
+    }
+
     /// Whether the script (if any) has run out.
     pub fn script_finished(&self) -> bool {
         self.script.as_ref().is_none_or(|s| s.script.finished(s.time))

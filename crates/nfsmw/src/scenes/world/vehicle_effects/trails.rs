@@ -5,17 +5,9 @@ use glam::Vec3;
 use nfsmw_data::vehicle_effects::EmitterStyle;
 
 use super::super::drive::CarPose;
+use super::geometry;
 use super::particle::{Particle, count};
-use super::{MAX_TRAILS, geometry};
-
-pub(super) const ACTIVATION_SPEED: f32 = 44.0;
-const DISPATCH_RATE: f32 = 60.0;
-
-/// How strong the trail is at `speed` (m/s), 0.1 to 0.75 from the activation speed up; `None` below it. The
-/// view streaks use the same curve, so both effects start and grow together.
-pub(super) fn intensity(speed: f32) -> Option<f32> {
-    (speed >= ACTIVATION_SPEED).then(|| (0.1 + (speed / ACTIVATION_SPEED - 1.0) * 0.65).clamp(0.1, 0.75))
-}
+use crate::settings::XenonEffects;
 
 pub(super) struct Trails {
     particles: VecDeque<Particle>,
@@ -25,7 +17,7 @@ pub(super) struct Trails {
 
 impl Default for Trails {
     fn default() -> Self {
-        Self { particles: VecDeque::with_capacity(MAX_TRAILS), carry: 0.0, emitted: 0 }
+        Self { particles: VecDeque::new(), carry: 0.0, emitted: 0 }
     }
 }
 
@@ -37,27 +29,41 @@ impl Trails {
         self.particles.clear();
         self.carry = 0.0;
     }
+    /// Drops the oldest particles until at most `cap` are left.
+    pub fn truncate(&mut self, cap: usize) {
+        while self.particles.len() > cap {
+            self.particles.pop_front();
+        }
+    }
 
     pub fn age(&mut self, dt: f32) {
         self.particles.iter_mut().for_each(|p| p.age(dt));
         self.particles.retain(Particle::alive);
     }
 
-    pub fn emit(&mut self, style: Option<EmitterStyle>, pose: CarPose, velocity: Vec3, dt: f32) {
+    pub fn emit(
+        &mut self,
+        style: Option<EmitterStyle>,
+        pose: CarPose,
+        velocity: Vec3,
+        nitrous: bool,
+        tuning: &XenonEffects,
+        dt: f32,
+    ) {
         let Some(style) = style else {
             self.carry = 0.0;
             return;
         };
-        let Some(intensity) = intensity(velocity.length()) else {
+        let Some(intensity) = tuning.trail_strength(velocity.length(), nitrous) else {
             self.carry = 0.0;
             return;
         };
-        self.carry = (self.carry + DISPATCH_RATE * dt).min(4.0);
+        self.carry = (self.carry + tuning.contrail_rate * dt).min(4.0);
         let dispatches = self.carry.floor() as usize;
         self.carry -= dispatches as f32;
         let count = count(style, intensity) * dispatches;
         for i in 0..count {
-            let birth_age = dt.min(4.0 / DISPATCH_RATE) * i as f32 / count as f32;
+            let birth_age = dt.min(4.0 / tuning.contrail_rate) * i as f32 / count as f32;
             let mut p = Particle::spawn(
                 style,
                 pose.position - velocity * birth_age,
@@ -67,7 +73,7 @@ impl Trails {
                 intensity,
             );
             p.age(birth_age);
-            if self.particles.len() == MAX_TRAILS {
+            while self.particles.len() >= tuning.max_trails {
                 self.particles.pop_front();
             }
             self.particles.push_back(p);
