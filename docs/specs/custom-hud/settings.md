@@ -1,18 +1,19 @@
-# Custom HUD: the `[hud]` settings table
+# Custom HUD: the `[custom_hud]` settings table
 
-Every player option of the Custom HUD, its type, range and default, the three presets, and how the table is read,
-merged and written. Built in PR 2 (`crates/nfsmw/src/settings/hud.rs`, a `HudLayer` plus `from_layer`, following
-`settings/xenon_effects.rs` and `settings/hd_content.rs`). The options page is PR 11a ([menus.md](menus.md)).
-Index: [README.md](README.md).
+The player options of the Custom HUD: the table, the three presets, and how they are read, merged and applied. Built
+in PR 2 (`crates/nfsmw/src/settings/hud/`: `mod.rs` holds `HudSettings`, `HudLayer` and the ranges, `kinds.rs` the
+choices, `preset.rs` the presets, `config.rs` the table, `console.rs` the console keys). The resolved options are
+`Settings.hud_options`. The user-facing reference, with every key, its values and default, is
+[hud-settings.md](../../hud-settings.md); this page gives the design around it. The options page is PR 11a
+([menus.md](menus.md)). Index: [README.md](README.md).
 
 ## 1. The table
 
 ```toml
-[hud]
-enabled = true
+[custom_hud]
 preset = "balanced"
 scale = 1.0
-opacity = 1.0
+opacity = 0.9
 text_size = 1.0
 map_mode = "centered"
 map_opacity = 0.35
@@ -29,40 +30,43 @@ motion_reduction = false
 camera_shake = 1.0
 fov_intensity = 1.0
 haptics = false
-hud_volume = 80
+hud_volume = 0.8
 ```
 
-| Key | Type | Range or values | Default | Preset field | Applies to |
+Ranges and defaults, from the constants of `settings/hud/mod.rs`:
+
+| Key | Type | Range or values | Default | Preset covers it | Applies to |
 |---|---|---|---|---|---|
-| `enabled` | bool | | `true` | | every look (the existing `hud` switch, section 4) |
-| `preset` | enum | `minimal`, `balanced`, `advanced` | `balanced` | | Custom |
-| `scale` | float | 0.75 to 1.5 | 1.0 | | Custom HUD |
-| `opacity` | float | 0.3 to 1.0 | 1.0 | | Custom HUD |
-| `text_size` | float | 0.8 to 1.5 | 1.0 | | Custom HUD and menus |
-| `map_mode` | enum | `off`, `compact`, `centered`, `expanded` | `centered` | yes | Custom |
-| `map_opacity` | float | 0.1 to 0.8 | 0.35 | | Custom |
-| `map_zoom` | float | 0.5 to 2.0 | 1.0 | | Custom |
+| `preset` | choice | `minimal`, `balanced`, `advanced` | `balanced` | | Custom |
+| `scale` | number | 0.75 to 1.5 | 1.0 | | Custom HUD |
+| `opacity` | number | 0.2 to 1.0 | 0.9 | | Custom HUD |
+| `text_size` | number | 0.8 to 1.5 | 1.0 | | Custom HUD and menus |
+| `map_mode` | choice | `off`, `compact`, `centered`, `expanded` | `centered` | yes | Custom |
+| `map_opacity` | number | 0.1 to 0.9 | 0.35 | | Custom |
+| `map_zoom` | number | 0.5 to 2.0 | 1.0 | | Custom |
 | `advanced_telemetry` | bool | | `false` | yes | Custom |
-| `world_markers` | bool | | `true` | yes | Custom |
+| `world_markers` | bool | | `true` | | Custom |
 | `race_info` | bool | | `true` | yes | Custom |
 | `pursuit_info` | bool | | `true` | yes | Custom |
 | `free_roam_extras` | bool | | `false` | yes | Custom (cash, bounty, event distance) |
-| `notifications` | enum | `all`, `important`, `off` | `all` | yes | Custom |
+| `notifications` | choice | `all`, `important`, `off` | `all` | yes | Custom |
 | `high_contrast` | bool | | `false` | | Custom HUD and menus |
-| `palette` | enum | `default`, `deuteranopia`, `tritanopia` | `default` | | Custom HUD and menus |
+| `palette` | choice | `default`, `deuteranopia`, `tritanopia` | `default` | | Custom HUD and menus |
 | `motion_reduction` | bool | | `false` | | Custom HUD and menus |
-| `camera_shake` | float | 0.0 to 1.0 | 1.0 | | every look (gameplay camera) |
-| `fov_intensity` | float | 0.0 to 1.0 | 1.0 | | every look (gameplay camera) |
+| `camera_shake` | number | 0.0 to 1.0 | 1.0 | | every look (gameplay cameras) |
+| `fov_intensity` | number | 0.0 to 1.0 | 1.0 | | every look (Dynamic FOV) |
 | `haptics` | bool | | `false` | | every look |
-| `hud_volume` | integer percent | 0 to 100 | 80 | | every look (`Group::Hud`) |
+| `hud_volume` | number | 0.0 to 1.0 | 0.8 | | every look (`Group::Hud`) |
 
-`expanded` is accepted for `map_mode` but is a temporary view: the `MapExpand` action opens it and returns
-([map.md](map.md)). A saved `expanded` loads as `centered`. **[ours]**
+`expanded` is an ordinary value of `map_mode`: a file that says `expanded` starts with the Expanded view. The
+`MapExpand` action toggles it on demand and returns to the mode before it, or to `centered` when it started expanded
+([map.md](map.md)). **[ours]**
 
 **Settings reused, not duplicated:**
 
 | Need | Existing setting |
 |---|---|
+| show the HUD at all | the top-level `hud = true` or `false` (with `NFSMW_HUD`, `--no-hud`, `set hud off`), unchanged and separate from the table |
 | speed units | `speed_units` (`metric`, `imperial`) |
 | map orientation (rotating or north-up) | `minimap` (`fixed`, `rotating`, `off`), read as in [map.md](map.md) section 3 |
 | the accent family | `ui_theme` (`bevy`, `remastered`) |
@@ -71,60 +75,49 @@ hud_volume = 80
 
 ## 2. Presets
 
-A preset only fills the fields marked "preset field" that the player has not set. A field set in any layer (file,
-console, options page) wins over the preset. Changing the preset does not erase explicitly set fields; the options page
-offers "reset to preset" (PR 11a), which clears them.
+A preset's layer sits under the player's own values (`HudSettings::from_layer`), so it fills only what the player has
+not set, and an explicit value always wins. Every preset covers the same six options (`settings/hud/preset.rs`):
 
-| Field | `minimal` | `balanced` (default) | `advanced` |
+| Option | `minimal` | `balanced` (default) | `advanced` |
 |---|---|---|---|
-| `map_mode` | `compact` | `centered` | `centered` |
 | `advanced_telemetry` | `false` | `false` | `true` |
-| `world_markers` | `false` | `true` | `true` |
+| `free_roam_extras` | `false` | `false` | `true` |
 | `race_info` | `true` | `true` | `true` |
 | `pursuit_info` | `true` | `true` | `true` |
-| `free_roam_extras` | `false` | `false` | `true` |
 | `notifications` | `important` | `all` | `all` |
+| `map_mode` | `compact` | `centered` | `centered` |
 
-The defaults in section 1 are the Balanced preset's. Minimal still shows speed, gear, nitrous, race position, the
-pursuit status and every critical and high warning: the essential driving and safety information.
+Balanced equals the defaults. Picking a preset at run time (`HudSettings::apply_preset`, the console's
+`set custom_hud.preset`) sets those six options to the preset's values at once and leaves every other option as it
+is. Minimal still shows speed, gear, nitrous, race position, the pursuit status and every critical and high warning:
+the essential driving and safety information. World markers are not a preset option; they stay as the player set
+them.
 
 ## 3. Reading, writing and applying
 
-- **Layers:** the same as every setting (CLI over env over file over default, [ui-themes.md](../ui-themes.md) section
-  11). The table has no new environment variable or command-line flag; the existing `NFSMW_HUD` and `--no-hud` keep
-  driving `enabled`.
-- **File:** the `[hud]` table. A value of the wrong kind is reported and ignored; a number outside its range is clamped
-  and reported; an unknown key is reported. A bad key drops only that key, never the table. An old config without the
-  table loads with the defaults.
-- **Write:** through the existing per-key TOML merge (`settings/write.rs`), so writing one key keeps the player's other
-  keys and comments.
-- **Console:** `set hud.<key> <value>` and `get hud.<key>`, e.g. `set hud.map_mode compact`. `set hud off` keeps
-  working (section 4).
-- **Live:** every key applies on the next frame without a restart. `camera_shake` and `fov_intensity` are copied into
-  `settings/world_tuning.rs`, where the running world reads them: `camera_shake` multiplies the shake of
-  `viewer/camera/chase/shake.rs` and `viewer/camera/original/shake.rs`; `fov_intensity` multiplies the widening of
-  `DynamicFov` (`viewer/camera/dynamic_fov.rs`). At 1.0 both are today's behaviour exactly.
+- **Layers:** file, then console. The table has no environment variable or command-line flag (`settings/env.rs` leaves
+  it at its default).
+- **File:** each key is read on its own (`settings/hud/config.rs`). A value of the wrong kind or an unknown name is
+  reported in the log and only that key is ignored; a number outside its range is clamped by
+  `HudSettings::from_layer`. A config file without the table changes nothing.
+- **Write:** `config::merge_into` puts the changed keys into the `[custom_hud]` table through the existing per-key
+  merge (`settings/write.rs`), keeping the rest of the file. A non-table value under the key is left alone.
+- **Console:** `get custom_hud.<key>` and `set custom_hud.<key> <value>`, for example
+  `set custom_hud.map_mode compact`. A switch with no value flips (`set custom_hud.haptics`). Console changes last for
+  the run.
+- **Live:** the options apply on the next frame without a restart. `camera_shake` and `fov_intensity` are copied into
+  `settings/world_tuning.rs`, where the running world reads them:
+  - `camera_shake` multiplies the contact shake of every camera (`viewer/camera/chase/shake.rs`,
+    `viewer/camera/original/shake.rs`) and the original cameras' terrain and vehicle noise
+    (`viewer/camera/original/noise.rs`); 0 is a steady camera;
+  - `fov_intensity` multiplies how far the Dynamic FOV camera widens with speed (`viewer/camera/dynamic_fov.rs`);
+    0 keeps its rest FOV.
 
-## 4. The existing `hud` key
+  At 1.0 both leave the camera exactly as before.
 
-The config already has a top-level `hud = true | false` (draw the HUD while driving; `settings/file.rs`, `write.rs`,
-`partial.rs`, `env.rs`). TOML cannot hold a key `hud` and a table `[hud]` at once, so PR 2 moves it into the table:
+## 4. Tests (PR 2)
 
-- The reader accepts both forms: a top-level boolean `hud` (legacy) is read as `[hud] enabled`. When a file somehow has
-  neither, `enabled` defaults to `true`.
-- The writer writes `[hud] enabled` and, when it writes the table into a file that still has the boolean, replaces the
-  boolean with the table, carrying its value over.
-- `NFSMW_HUD`, `--no-hud` and the console's `set hud off` keep their meaning and set `enabled`.
-- An older build reading a new file sees a table where it expects a boolean; it reports that one key and keeps the
-  others, as for any bad key.
-
-Tests cover both forms, the rewrite of the boolean into the table, and that no other key moves. **[ours]**
-
-## 5. Tests (PR 2)
-
-- Parse every key at its limits and outside them (clamped); wrong kinds ignored; unknown keys reported.
-- Defaults equal the Balanced preset; each preset fills only unset fields; an explicit field beats the preset.
-- Round trip through `write::merge`: one key written keeps the rest of the file; the legacy boolean becomes the table.
-- A bad key drops only that key.
-- `set hud.*` and `get hud.*` in the console.
-- `camera_shake` 0 removes the shake; 1 leaves it unchanged; `fov_intensity` likewise for the widening.
+`settings/hud/tests.rs`, `config_tests.rs` and `console_tests.rs`: parsing at and beyond the limits, wrong kinds ignored
+key by key, the defaults equal to Balanced, each preset filling only unset options, an explicit value beating the
+preset, `apply_preset`, the round trip through the merge, and the console's `get` and `set`; the camera multipliers in
+the shake, noise and FOV tests.
