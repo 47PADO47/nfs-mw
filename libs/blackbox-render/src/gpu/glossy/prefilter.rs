@@ -11,6 +11,9 @@ pub(super) struct Prefilter {
     texture: wgpu::Texture,
     pipeline: Option<wgpu::ComputePipeline>,
     cache: Option<wgpu::PipelineCache>,
+    /// One bind group per level, with its output view and parameters. Reused while the source and sampler stay.
+    groups: Vec<wgpu::BindGroup>,
+    built_for: Option<(wgpu::TextureView, wgpu::Sampler)>,
     pub dirty: bool,
 }
 
@@ -41,7 +44,16 @@ impl Prefilter {
             array_layer_count: Some(6),
             ..Default::default()
         });
-        Some(Self { view, linear_view, texture, pipeline: None, cache: cache.cloned(), dirty: true })
+        Some(Self {
+            view,
+            linear_view,
+            texture,
+            pipeline: None,
+            cache: cache.cloned(),
+            groups: Vec::new(),
+            built_for: None,
+            dirty: true,
+        })
     }
 
     pub fn encode(
@@ -68,37 +80,56 @@ impl Prefilter {
                 cache: self.cache.as_ref(),
             })
         });
-        for level in 0..LEVELS {
+        let current = self.built_for.as_ref().is_some_and(|(view, made)| view == source && made == sampler);
+        if !current {
+            let texture = &self.texture;
+            self.groups =
+                (0..LEVELS).map(|level| level_group(device, texture, pipeline, source, sampler, level)).collect();
+            self.built_for = Some((source.clone(), sampler.clone()));
+        }
+        for (level, group) in self.groups.iter().enumerate() {
             let size = SIZE >> level;
-            let output = self.texture.create_view(&wgpu::TextureViewDescriptor {
-                dimension: Some(wgpu::TextureViewDimension::D2Array),
-                base_mip_level: level,
-                mip_level_count: Some(1),
-                ..Default::default()
-            });
-            let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("environment filter level"),
-                contents: bytemuck::cast_slice(&[level as f32 / (LEVELS - 1) as f32, size as f32, 0.0, 0.0]),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-            let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("environment filter inputs"),
-                layout: &pipeline.get_bind_group_layout(0),
-                entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(source) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
-                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&output) },
-                    wgpu::BindGroupEntry { binding: 3, resource: params.as_entire_binding() },
-                ],
-            });
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("filter environment level"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &group, &[]);
+            pass.set_bind_group(0, group, &[]);
             pass.dispatch_workgroups(size.div_ceil(8), size.div_ceil(8), 12);
         }
         self.dirty = false;
     }
+}
+
+/// The inputs of one level: the source cube, the level's own output view and its constant parameters.
+fn level_group(
+    device: &wgpu::Device,
+    texture: &wgpu::Texture,
+    pipeline: &wgpu::ComputePipeline,
+    source: &wgpu::TextureView,
+    sampler: &wgpu::Sampler,
+    level: u32,
+) -> wgpu::BindGroup {
+    let size = SIZE >> level;
+    let output = texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        base_mip_level: level,
+        mip_level_count: Some(1),
+        ..Default::default()
+    });
+    let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("environment filter level"),
+        contents: bytemuck::cast_slice(&[level as f32 / (LEVELS - 1) as f32, size as f32, 0.0, 0.0]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("environment filter inputs"),
+        layout: &pipeline.get_bind_group_layout(0),
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(source) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&output) },
+            wgpu::BindGroupEntry { binding: 3, resource: params.as_entire_binding() },
+        ],
+    })
 }
