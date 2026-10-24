@@ -36,7 +36,8 @@ pub fn packs(chain: &[Locale]) -> Packs {
     let mut own = Vec::new();
     for m in mod_dirs().iter().rev() {
         for (locale, folder) in locale_folders(m).into_iter().filter(|(l, _)| chain.contains(l)) {
-            let source = |namespace: String, files| Source { namespace, locale: locale.clone(), origin: m.id.clone(), files };
+            let source =
+                |namespace: String, files| Source { namespace, locale: locale.clone(), origin: m.id.clone(), files };
             own.push(source(mod_namespace(&m.id), ftl_files(&folder)));
             packs.sources.push(source(CORE.to_owned(), ftl_files(&folder.join("_core"))));
             for (other, other_folder) in subfolders(&folder.join("_mods")) {

@@ -279,7 +279,10 @@ impl UiAssets {
     /// The font for a name hash: the custom font for the current tier when the custom fonts are on and a file supplies
     /// one, else the current language's own font, else English's, else the bundles' stock font.
     pub fn font(&self, hash: u32) -> Option<&Font> {
-        self.custom_font(hash).map(|(_, font)| font).or_else(|| self.language_font(hash)).or_else(|| self.fonts.get(&hash))
+        self.custom_font(hash)
+            .map(|(_, font)| font)
+            .or_else(|| self.language_font(hash))
+            .or_else(|| self.fonts.get(&hash))
     }
 
     /// The font of the current language's table, else of `English.bin`.

@@ -83,9 +83,9 @@ pub trait Page: Send + Sync {
     fn len(&self) -> usize;
     fn status(&self, at: usize) -> Status;
     /// The entry's name in the vertical list.
-    fn name(&self, assets: &UiAssets, at: usize) -> String;
+    fn name(&self, at: usize) -> String;
     /// The text to the right of the name in the vertical list.
-    fn summary(&self, assets: &UiAssets, at: usize) -> String;
+    fn summary(&self, at: usize) -> String;
     /// The language label of the vertical list's title.
     fn heading(&self) -> u32;
     /// Writes the entry's panel into the package.
@@ -281,15 +281,15 @@ impl ScreenLogic for Sheet {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
         let entries = (0..self.len())
             .map(|at| MenuEntry {
-                label: self.page.name(assets, at),
+                label: self.page.name(at),
                 enabled: self.page.status(at) != Status::Locked,
-                value: MenuValue::Choice { text: self.page.summary(assets, at), arrows: false },
+                value: MenuValue::Choice { text: self.page.summary(at), arrows: false },
                 icon: None,
             })
             .collect();

@@ -146,7 +146,7 @@ impl WidgetMenu {
         match (mod_options::shown(cx.mods, row.setting), row.title) {
             (Some(shown), _) => cx.rt.set_text(r.name, &shown.label),
             (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
-            (None, title @ Title::Key(_)) => cx.rt.set_text(r.name, &title.text()),
+            (None, title @ Title::Key(_)) => cx.rt.set_text(r.name, title.text()),
         }
         let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));

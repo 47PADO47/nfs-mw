@@ -153,13 +153,13 @@ pub(super) fn career_rows() -> Vec<RivalRow> {
 }
 
 /// The rank title ("blacklist %d") with the bin number.
-pub(super) fn rank_title(cx: &Cx, bin: u8) -> Option<String> {
+pub(super) fn rank_title(bin: u8) -> Option<String> {
     let text = Text::Game(label_hash("TITLE_BLACKLIST_NUMBER")).resolve()?;
     Some(blackbox_text::printf::fill(&text, &[bin.to_string().as_str()]))
 }
 
 /// A text of the game's table, empty when it is missing.
-fn game_text(assets: &UiAssets, key: &str) -> String {
+fn game_text(key: &str) -> String {
     Text::Game(label_hash(key)).resolve().unwrap_or_default()
 }
 
@@ -176,14 +176,14 @@ pub fn status_of(row: &RivalRow, current: u8) -> RivalStatus {
 }
 
 /// What the Remastered look shows of one rival: the name is the entry's label, the rest is here.
-fn rival_entry(assets: &UiAssets, bin: u8, status: RivalStatus, bounty: u32) -> MenuEntry {
-    let name = game_text(assets, &rival_key(bin, "NAME"));
+fn rival_entry(bin: u8, status: RivalStatus, bounty: u32) -> MenuEntry {
+    let name = game_text(&rival_key(bin, "NAME"));
     let info = RivalInfo {
         rank: bin,
         portrait: fe_hash_upper(&format!("RIVAL_{bin:02}")),
-        alias: game_text(assets, &rival_key(bin, "AKA")),
-        car: game_text(assets, &rival_key(bin, "CAR")),
-        strength: game_text(assets, &rival_key(bin, "STRENGTH")),
+        alias: game_text(&rival_key(bin, "AKA")),
+        car: game_text(&rival_key(bin, "CAR")),
+        strength: game_text(&rival_key(bin, "STRENGTH")),
         bounty: grouped(i64::from(bounty)),
         status,
     };
@@ -263,7 +263,7 @@ impl ChallengeLogic {
 
     fn fill(&self, cx: &mut Cx) {
         let Some(row) = self.selected_row() else { return };
-        if let Some(title) = rank_title(cx, row.bin) {
+        if let Some(title) = rank_title(row.bin) {
             cx.text_group(CHALLENGE_TITLE, &title);
         }
         cx.label_group(CHALLENGE_NAME, label_hash(&rival_key(row.bin, "NAME")));
@@ -320,17 +320,16 @@ impl ScreenLogic for ChallengeLogic {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
         let current = start_bin(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         let rows = career_rows();
-        let entries =
-            rows.iter().map(|row| rival_entry(assets, row.bin, status_of(row, current), row.bounty_needed)).collect();
+        let entries = rows.iter().map(|row| rival_entry(row.bin, status_of(row, current), row.bounty_needed)).collect();
         let beaten = rows.iter().filter(|row| row.state == RivalState::Beaten).count();
         Some(MenuList {
-            title: game_text(assets, "TITLE_BLACKLIST_INGAME"),
+            title: game_text("TITLE_BLACKLIST_INGAME"),
             message: format!("{beaten}/{}", rows.len()),
             entries,
             selected: rows.iter().position(|row| row.bin == self.selected).unwrap_or(0),
@@ -397,7 +396,7 @@ impl BioLogic {
     }
 
     fn fill(&self, cx: &mut Cx) {
-        if let Some(title) = rank_title(cx, self.bin) {
+        if let Some(title) = rank_title(self.bin) {
             cx.text_group(BIO_TITLE, &title);
         }
         cx.label_group(BIO_NAME, label_hash(&rival_key(self.bin, "NAME")));
@@ -432,7 +431,7 @@ impl ScreenLogic for BioLogic {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
@@ -440,12 +439,12 @@ impl ScreenLogic for BioLogic {
         let current = start_bin(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         let status = row.as_ref().map_or(RivalStatus::Locked, |row| status_of(row, current));
         let bounty = row.map_or(0, |row| row.bounty_needed);
-        let template = game_text(assets, "TITLE_BLACKLIST_NUMBER");
+        let template = game_text("TITLE_BLACKLIST_NUMBER");
         let title = blackbox_text::printf::fill(&template, &[self.bin.to_string().as_str()]);
         Some(MenuList {
             title,
-            message: game_text(assets, &rival_key(self.bin, "BIO")),
-            entries: vec![rival_entry(assets, self.bin, status, bounty)],
+            message: game_text(&rival_key(self.bin, "BIO")),
+            entries: vec![rival_entry(self.bin, status, bounty)],
             selected: 0,
             first: 0,
             hints: Vec::new(),

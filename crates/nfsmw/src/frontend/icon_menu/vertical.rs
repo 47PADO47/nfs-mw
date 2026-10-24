@@ -83,8 +83,7 @@ impl IconMenu {
             .icons
             .iter()
             .map(|icon| {
-                let label =
-                    Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve()).unwrap_or_default();
+                let label = Self::special_text(icon.id).or_else(|| Text::Game(icon.name).resolve()).unwrap_or_default();
                 MenuEntry { icon: Self::picture(icon), ..MenuEntry::plain(label, icon.enabled) }
             })
             .collect();

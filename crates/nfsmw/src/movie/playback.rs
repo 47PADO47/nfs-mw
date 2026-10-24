@@ -43,7 +43,8 @@ fn in_language(found: Vec<String>) -> Vec<String> {
     let own = current.table.as_ref().and_then(|t| t.game).map(|g| g.stem.to_ascii_lowercase());
     for language in own.into_iter().chain(std::iter::once("english".to_owned())) {
         let marker = format!("_{language}_");
-        let matching: Vec<String> = found.iter().filter(|f| f.to_ascii_lowercase().contains(&marker)).cloned().collect();
+        let matching: Vec<String> =
+            found.iter().filter(|f| f.to_ascii_lowercase().contains(&marker)).cloned().collect();
         if matching.len() == 1 {
             return matching;
         }

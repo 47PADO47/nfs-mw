@@ -183,7 +183,7 @@ fn label_key(reward: &Reward) -> Option<&'static str> {
 }
 
 /// The name of a card's marker from the game's text, or a plain word when the table has none.
-fn card_name(assets: &UiAssets, reward: &Reward) -> String {
+fn card_name(reward: &Reward) -> String {
     label_key(reward).and_then(|key| Text::Game(label_hash(key)).resolve()).unwrap_or_else(|| t!("career-marker"))
 }
 
@@ -297,7 +297,7 @@ impl ScreenLogic for MarkersLogic {
         self.vertical
     }
 
-    fn list(&self, assets: &UiAssets) -> Option<MenuList> {
+    fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
         if !self.vertical {
             return None;
         }
@@ -308,7 +308,7 @@ impl ScreenLogic for MarkersLogic {
             .enumerate()
             .map(|(index, card)| {
                 let label = match card.revealed {
-                    true => card_name(assets, &card.reward),
+                    true => card_name(&card.reward),
                     false => t!("career-marker-card", n = index + 1),
                 };
                 MenuEntry::plain(label, !card.revealed && self.deck.can_pick())

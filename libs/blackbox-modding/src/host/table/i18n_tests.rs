@@ -16,9 +16,12 @@ fn table_of(attached: &Attached) -> &BbI18n {
     unsafe { &*attached.header().cast::<BbI18n>() }
 }
 
+/// One call the fake saw: the owner, the message id and the variables.
+type Call = (String, String, Vec<(String, I18nArg)>);
+
 #[derive(Default)]
 struct FakeI18n {
-    calls: RefCell<Vec<(String, String, Vec<(String, I18nArg)>)>>,
+    calls: RefCell<Vec<Call>>,
 }
 
 impl I18nBackend for FakeI18n {
@@ -65,7 +68,10 @@ fn a_message_reaches_the_backend_and_the_sink() {
     assert_eq!(out.borrow().as_str(), "race-laps x2");
     let calls = fake.calls.borrow();
     assert_eq!(calls[0].0, "example.a");
-    assert_eq!(calls[0].2, vec![("laps".to_owned(), I18nArg::Int(3)), ("who".to_owned(), I18nArg::Text("Razor".into()))]);
+    assert_eq!(
+        calls[0].2,
+        vec![("laps".to_owned(), I18nArg::Int(3)), ("who".to_owned(), I18nArg::Text("Razor".into()))]
+    );
 }
 
 #[test]

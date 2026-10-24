@@ -61,19 +61,19 @@ impl HintLabel {
     /// The label's text in the current language.
     pub fn text(self) -> String {
         let label = match self {
-            Self::Accept => 0x2B65_A216, // H_ACCEPT
-            Self::Back => 0x61D5_96D7, // H_BACK
-            Self::Quit => 0xC51F_BF74, // PC_QUIT
-            Self::Defaults => 0x00CA_369E, // H_DEFAULTS
+            Self::Accept => 0x2B65_A216,       // H_ACCEPT
+            Self::Back => 0x61D5_96D7,         // H_BACK
+            Self::Quit => 0xC51F_BF74,         // PC_QUIT
+            Self::Defaults => 0x00CA_369E,     // H_DEFAULTS
             Self::ViewTutorial => 0xCE39_D54D, // VIEW_TUTORIAL
-            Self::Showcase => 0xD616_E103, // H_SHOWCASE
-            Self::Zoom => 0xC524_9616, // PC_ZOOM
-            Self::ViewCar => 0x5DE7_9F0B, // SHOWCASE_VIEW_CAR
-            Self::Continue => 0x8098_A54C, // COMMON_CONTINUE
-            Self::GameStats => 0x7F73_40AF, // COMMON_GAME_STATS
-            Self::Select => 0x3FC3_2947, // COMMON_SELECT
-            Self::Randomize => 0x363D_108F, // H_RANDOMIZE
-            Self::Done => 0x8CD6_BD6D, // COMMON_DONE
+            Self::Showcase => 0xD616_E103,     // H_SHOWCASE
+            Self::Zoom => 0xC524_9616,         // PC_ZOOM
+            Self::ViewCar => 0x5DE7_9F0B,      // SHOWCASE_VIEW_CAR
+            Self::Continue => 0x8098_A54C,     // COMMON_CONTINUE
+            Self::GameStats => 0x7F73_40AF,    // COMMON_GAME_STATS
+            Self::Select => 0x3FC3_2947,       // COMMON_SELECT
+            Self::Randomize => 0x363D_108F,    // H_RANDOMIZE
+            Self::Done => 0x8CD6_BD6D,         // COMMON_DONE
             Self::Column => return t!("prompts-column"),
             Self::Remap => return t!("prompts-remap"),
             Self::ChangeMode => return t!("prompts-change-mode"),

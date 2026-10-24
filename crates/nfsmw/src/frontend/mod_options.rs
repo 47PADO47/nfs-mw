@@ -36,11 +36,10 @@ pub fn rows(mods: Option<&Mods>) -> Vec<Row> {
         return Vec::new();
     };
     let theme = theme_row(has_ui_themes(mods.bridge()));
-    let switches = (0..mods.manager().rows().len())
-        .map(|index| Row { setting: Setting::ModManaged(index), title: MOD_TITLE });
-    let registered = menu_rows(mods.bridge())
-        .into_iter()
-        .map(|info| Row { setting: Setting::Mod(info.handle), title: MOD_TITLE });
+    let switches =
+        (0..mods.manager().rows().len()).map(|index| Row { setting: Setting::ModManaged(index), title: MOD_TITLE });
+    let registered =
+        menu_rows(mods.bridge()).into_iter().map(|info| Row { setting: Setting::Mod(info.handle), title: MOD_TITLE });
     theme.into_iter().chain(switches).chain(registered).collect()
 }
 

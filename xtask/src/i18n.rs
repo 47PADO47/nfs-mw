@@ -26,7 +26,8 @@ pub fn run() -> Result<bool, String> {
     let mut catalogue: BTreeMap<String, Messages> = BTreeMap::new();
     let mut code = String::new();
     for path in &files {
-        let wanted = (path.starts_with(CATALOGUE) && path.ends_with(".ftl")) || (path.starts_with(CODE) && path.ends_with(".rs"));
+        let wanted = (path.starts_with(CATALOGUE) && path.ends_with(".ftl"))
+            || (path.starts_with(CODE) && path.ends_with(".rs"));
         if !wanted {
             continue;
         }
@@ -86,8 +87,17 @@ fn asked(code: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for call in CALLS {
         for (at, _) in code.match_indices(call) {
+            // A call, not the end of a longer name (`format!("` ends in `t!("`).
+            let joined = code[..at].chars().next_back().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+            if joined {
+                continue;
+            }
             let rest = &code[at + call.len()..];
             let Some(end) = rest.find('"') else { continue };
+            // An empty key is a placeholder that is never shown (the Mods rows' titles are the mods' own labels).
+            if end == 0 {
+                continue;
+            }
             out.insert(rest[..end].to_owned());
         }
     }
@@ -108,7 +118,9 @@ fn messages(text: &str) -> Messages {
         current = None;
         let Some((id, value)) = line.split_once('=') else { continue };
         let id = id.trim();
-        if !id.starts_with(|c: char| c.is_ascii_alphabetic()) || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        if !id.starts_with(|c: char| c.is_ascii_alphabetic())
+            || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
             continue;
         }
         out.entry(id.to_owned()).or_default().extend(variables(value));
@@ -121,7 +133,10 @@ fn messages(text: &str) -> Messages {
 fn variables(text: &str) -> Vec<String> {
     text.match_indices('$')
         .map(|(at, _)| {
-            text[at + 1..].chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect::<String>()
+            text[at + 1..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                .collect::<String>()
         })
         .filter(|name| !name.is_empty())
         .collect()
@@ -131,7 +146,8 @@ fn variables(text: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
-    const EN: &str = "## Group\nback = Back\nvotes = { $n ->\n    [one] { $n } vote\n   *[other] { $n } votes\n}\n-term = x\n";
+    const EN: &str =
+        "## Group\nback = Back\nvotes = { $n ->\n    [one] { $n } vote\n   *[other] { $n } votes\n}\n-term = x\n";
 
     fn catalogue(pairs: &[(&str, &str)]) -> BTreeMap<String, Messages> {
         pairs.iter().map(|(locale, text)| ((*locale).to_owned(), messages(text))).collect()
@@ -146,7 +162,7 @@ mod tests {
 
     #[test]
     fn finds_what_the_code_asks_for() {
-        let code = r#"t!("back"); Text::key("votes"); t!("lan-votes", n = 3); let x = "other";"#;
+        let code = r#"t!("back"); Text::key("votes"); t!("lan-votes", n = 3); let x = "other"; format!("{x}");"#;
         assert_eq!(asked(code).into_iter().collect::<Vec<_>>(), ["back", "lan-votes", "votes"]);
     }
 

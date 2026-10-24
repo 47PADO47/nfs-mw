@@ -64,7 +64,8 @@ fn main_and_pause_video_screens_show_the_exhaust_flames_row_and_save_it() {
 
     let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
     let assets = Arc::new(UiAssets::load(&dir).unwrap());
-    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE).expect("the option values need the game's language table");
+    let strings = nfsmw_data::languages::table(&dir, nfsmw_data::languages::ENGLISH_FILE)
+        .expect("the option values need the game's language table");
     for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
         let mut screens = Screens::new(Catalog::load(&dir, &SCREEN_FILES), assets.clone());
         let (mut settings, mut changes) = (Settings::from(Partial::default()), Partial::default());

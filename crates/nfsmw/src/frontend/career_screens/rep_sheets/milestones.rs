@@ -17,7 +17,7 @@ use crate::frontend::logic::{Command, Cx};
 use crate::i18n::fmt::grouped;
 use crate::i18n::t;
 use crate::settings::SpeedUnits;
-use crate::ui::{Text, UiAssets};
+use crate::ui::Text;
 
 /// Objects of `SafeHouseMilestones.fng` by name hash: the header (and its shadow), the description, and the bounty reward.
 const HEADER: [u32; 2] = [0xCFA2_3A2D, 0xB511_7FDE];
@@ -138,30 +138,30 @@ impl MilestonePage {
     }
 }
 
-fn game_text(assets: &UiAssets, label: u32) -> String {
+fn game_text(label: u32) -> String {
     Text::Game(label).resolve().unwrap_or_default()
 }
 
 /// The title and the description of an entry, from the language table.
-fn words(assets: &UiAssets, entry: &Entry, metric: bool) -> (String, String) {
+fn words(entry: &Entry, metric: bool) -> (String, String) {
     match entry {
         Entry::Pursuit { stat, goal, label, .. } => {
             let goal = goal_text(*stat, *goal);
             let Some(index) = label else { return (stat.name().to_owned(), goal) };
-            let title = game_text(assets, label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}_SHORT")));
-            let body = game_text(assets, label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}")));
+            let title = game_text(label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}_SHORT")));
+            let body = game_text(label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}")));
             (title, blackbox_text::printf::fill(&body, &[goal.as_str()]))
         }
         Entry::Trap { threshold, .. } => {
-            let (speed, unit) = speed_in(assets, f32::from(*threshold), metric);
+            let (speed, unit) = speed_in(f32::from(*threshold), metric);
             (t!("career-sheet-speed-trap"), format!("{speed} {unit}"))
         }
     }
 }
 
 /// A speed in km/h as the player's unit writes it, and the unit's word.
-fn speed_in(assets: &UiAssets, kmh: f32, metric: bool) -> (String, String) {
-    let unit = game_text(assets, if metric { KPH_LABEL } else { MPH_LABEL });
+fn speed_in(kmh: f32, metric: bool) -> (String, String) {
+    let unit = game_text(if metric { KPH_LABEL } else { MPH_LABEL });
     let value = if metric { kmh } else { kmh * KMH_TO_MPH };
     (format!("{value:.0}"), unit)
 }
@@ -175,11 +175,11 @@ impl Page for MilestonePage {
         self.rows.get(at).map_or(Status::Locked, MilestoneRow::status)
     }
 
-    fn name(&self, assets: &UiAssets, at: usize) -> String {
-        self.rows.get(at).map(|row| words(assets, &row.entry, true).0).unwrap_or_default()
+    fn name(&self, at: usize) -> String {
+        self.rows.get(at).map(|row| words(&row.entry, true).0).unwrap_or_default()
     }
 
-    fn summary(&self, _assets: &UiAssets, at: usize) -> String {
+    fn summary(&self, at: usize) -> String {
         let Some(row) = self.rows.get(at) else { return String::new() };
         let bounty = match row.entry {
             Entry::Pursuit { bounty, .. } | Entry::Trap { bounty, .. } => bounty,
@@ -198,7 +198,7 @@ impl Page for MilestonePage {
     fn fill(&self, cx: &mut Cx, at: usize) {
         let Some(row) = self.rows.get(at) else { return };
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
-        let (title, body) = words(cx.assets, &row.entry, metric);
+        let (title, body) = words(&row.entry, metric);
         for name in HEADER {
             cx.text_object(name, &title);
         }

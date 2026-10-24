@@ -216,7 +216,7 @@ impl CareerCarSelectLogic {
             self.accept_coop(cx, handle);
             return;
         }
-        let command = CareerHandle::shared().with(|career| accept_command(career, handle, cx)).flatten();
+        let command = CareerHandle::shared().with(|career| accept_command(career, handle)).flatten();
         match command {
             Some(command) => cx.send(command),
             None => cx.send(Command::Switch(screen::MAIN_MENU_SUB.to_string(), safehouse_args())),
@@ -311,7 +311,7 @@ fn career_menu_args() -> Args {
 }
 
 /// What Accept does on the car with this handle: the release choice for an impounded car, nothing (leave) for a free one.
-fn accept_command(career: &Career, handle: u32, cx: &Cx) -> Option<Command> {
+fn accept_command(career: &Career, handle: u32) -> Option<Command> {
     let record = record_of(career, handle)?;
     if record.is_free_to_drive() {
         return None;

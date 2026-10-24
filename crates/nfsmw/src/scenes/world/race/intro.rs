@@ -5,7 +5,6 @@
 
 use std::collections::VecDeque;
 
-use blackbox_text::StringTable;
 use glam::Vec3;
 use nfsmw_career::story::prologue::{flashback_message, message_card_label};
 use nfsmw_career::story::{

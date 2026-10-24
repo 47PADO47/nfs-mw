@@ -83,7 +83,9 @@ impl PlayerMenu {
         items(lobby)
             .into_iter()
             .map(|item| match item {
-                Item::Whisper if self.whisper.editing => Row::text(t!("lan-player-whisper"), self.whisper.shown(), true),
+                Item::Whisper if self.whisper.editing => {
+                    Row::text(t!("lan-player-whisper"), self.whisper.shown(), true)
+                }
                 Item::Whisper => Row::text(t!("lan-player-whisper"), "", false),
                 Item::LocalMute if local => Row::action(t!("lan-player-unmute-local"), true),
                 Item::LocalMute => Row::action(t!("lan-player-mute-local"), true),

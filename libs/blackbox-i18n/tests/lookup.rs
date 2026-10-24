@@ -53,7 +53,8 @@ fn catalog(sources: &[Source], pseudo: bool) -> Catalog {
 
 #[test]
 fn messages_follow_the_chain_then_fall_back_to_the_id() {
-    let catalog = catalog(&[source("core", "de", "built-in", CORE_DE), source("core", "en", "built-in", CORE_EN)], false);
+    let catalog =
+        catalog(&[source("core", "de", "built-in", CORE_DE), source("core", "en", "built-in", CORE_EN)], false);
     let strings = Strings::new(l("de-AT"), Vec::new(), catalog);
     assert_eq!(strings.text("core", "back", &Args::new()), "Zurück");
     assert_eq!(strings.text("core", "only-english", &Args::new()), "English only");
@@ -63,7 +64,8 @@ fn messages_follow_the_chain_then_fall_back_to_the_id() {
 
 #[test]
 fn plurals_and_ordinals_use_the_answering_language() {
-    let catalog = catalog(&[source("core", "de", "built-in", CORE_DE), source("core", "en", "built-in", CORE_EN)], false);
+    let catalog =
+        catalog(&[source("core", "de", "built-in", CORE_DE), source("core", "en", "built-in", CORE_EN)], false);
     let de = Strings::new(l("de"), Vec::new(), catalog);
     assert_eq!(de.text("core", "votes", &Args::new().with("n", 1)), "1 Stimme");
     assert_eq!(de.text("core", "votes", &Args::new().with("n", 3)), "3 Stimmen");
@@ -86,7 +88,10 @@ fn a_higher_source_overrides_a_lower_one_in_the_same_locale_only() {
 
 #[test]
 fn namespaces_are_separate() {
-    let catalog = catalog(&[source("mod:hello", "en", "hello", "back = Leave"), source("core", "en", "built-in", CORE_EN)], false);
+    let catalog = catalog(
+        &[source("mod:hello", "en", "hello", "back = Leave"), source("core", "en", "built-in", CORE_EN)],
+        false,
+    );
     let strings = Strings::new(l("en"), Vec::new(), catalog);
     assert_eq!(strings.text("mod:hello", "back", &Args::new()), "Leave");
     assert_eq!(strings.text("core", "back", &Args::new()), "Back");
@@ -127,7 +132,8 @@ fn the_pseudo_locale_wraps_english_messages_only() {
 
 #[test]
 fn a_broken_file_reports_and_keeps_its_good_messages() {
-    let (catalog, problems) = Catalog::build(&[source("core", "en", "built-in", "good = Good\nbad = { $\nalso = Also")], false);
+    let (catalog, problems) =
+        Catalog::build(&[source("core", "en", "built-in", "good = Good\nbad = { $\nalso = Also")], false);
     assert!(!problems.is_empty());
     let strings = Strings::new(l("en"), Vec::new(), catalog);
     assert_eq!(strings.text("core", "good", &Args::new()), "Good");
@@ -137,7 +143,11 @@ fn a_broken_file_reports_and_keeps_its_good_messages() {
 #[test]
 fn locales_lists_each_once_in_priority_order() {
     let catalog = catalog(
-        &[source("core", "it", "pack", "back = Indietro"), source("core", "en", "built-in", CORE_EN), source("core", "it", "x", "a = b")],
+        &[
+            source("core", "it", "pack", "back = Indietro"),
+            source("core", "en", "built-in", CORE_EN),
+            source("core", "it", "x", "a = b"),
+        ],
         false,
     );
     assert_eq!(catalog.locales("core"), vec![l("it"), l("en")]);

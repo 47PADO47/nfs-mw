@@ -17,8 +17,10 @@ pub fn fill(template: &str, args: &[&str]) -> String {
             rest = tail;
             continue;
         }
-        let flags = after.bytes().take_while(|b| matches!(b, b'$' | b'0'..=b'9' | b'.' | b'-' | b'+' | b'#' | b' ')).count();
-        let Some(kind) = after[flags..].chars().next().filter(|c| matches!(c, 's' | 'd' | 'i' | 'u' | 'f' | 'x' | 'c')) else {
+        let flags =
+            after.bytes().take_while(|b| matches!(b, b'$' | b'0'..=b'9' | b'.' | b'-' | b'+' | b'#' | b' ')).count();
+        let Some(kind) = after[flags..].chars().next().filter(|c| matches!(c, 's' | 'd' | 'i' | 'u' | 'f' | 'x' | 'c'))
+        else {
             out.push('%');
             rest = after;
             continue;

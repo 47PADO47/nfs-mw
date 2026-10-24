@@ -17,8 +17,7 @@ mod mods;
 mod select;
 mod state;
 
-pub use blackbox_i18n::{Arg, Args, Locale};
-pub use build::Active;
+pub use blackbox_i18n::Args;
 pub use select::Choice;
 pub use state::{choices, current, generation, start, switch};
 
@@ -61,7 +60,7 @@ pub fn game_or_error(label: u32) -> String {
     strings.game(label).or_else(|| strings.game(DEFAULT_STRING_ERROR)).unwrap_or_default()
 }
 
-/// A message of the rewrite's catalogue: `t!("back")`, `t!("lan-votes", n = 3)`. The id is a literal so that
+/// A message of the rewrite's catalogue: `t!("group-separator")`, `t!("lan-votes", n = 3)`. The id is a literal so that
 /// `cargo xtask i18n-check` can find it.
 macro_rules! t {
     ($id:literal) => {

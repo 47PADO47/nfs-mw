@@ -72,7 +72,11 @@ impl LanMenu {
 
     fn session_view(&self, cx: &Cx) -> PageView {
         let Some(lobby) = cx.net.lobby() else {
-            return PageView { title: game(label::LOBBY), subtitle: status_text(&cx.net.status()), ..PageView::default() };
+            return PageView {
+                title: game(label::LOBBY),
+                subtitle: status_text(&cx.net.status()),
+                ..PageView::default()
+            };
         };
         let (title, rows, selected, hints) = match self.page {
             Page::Settings if self.settings_form.is_some() => {

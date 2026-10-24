@@ -1,8 +1,8 @@
 use blackbox_i18n::{Args, Locale};
 
+use super::CORE;
 use super::build::build;
 use super::select::available;
-use super::{CORE, t};
 
 #[test]
 fn the_built_in_catalogue_answers_without_an_install() {

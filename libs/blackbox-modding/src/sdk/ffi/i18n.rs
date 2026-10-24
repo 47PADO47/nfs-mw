@@ -57,8 +57,12 @@ pub(crate) fn text(fns: &I18nFns, id: &str, args: &[(&str, Value<'_>)]) -> ModRe
     let raw: Vec<BbI18nArg> = args
         .iter()
         .map(|(name, value)| match value {
-            Value::Int(n) => BbI18nArg { name: BbStr::new(name), kind: BB_I18N_INT, _pad: 0, int: *n, text: BbStr::EMPTY },
-            Value::Text(t) => BbI18nArg { name: BbStr::new(name), kind: BB_I18N_TEXT, _pad: 0, int: 0, text: BbStr::new(t) },
+            Value::Int(n) => {
+                BbI18nArg { name: BbStr::new(name), kind: BB_I18N_INT, _pad: 0, int: *n, text: BbStr::EMPTY }
+            }
+            Value::Text(t) => {
+                BbI18nArg { name: BbStr::new(name), kind: BB_I18N_TEXT, _pad: 0, int: 0, text: BbStr::new(t) }
+            }
         })
         .collect();
     let mut output = String::new();

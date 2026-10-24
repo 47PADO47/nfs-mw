@@ -21,11 +21,6 @@ pub struct Active {
 }
 
 impl Active {
-    /// The game's language id of the answering table (0 English, 2 German, ...).
-    pub fn game_id(&self) -> Option<u32> {
-        self.table.as_ref().and_then(|table| table.game).map(|game| game.id)
-    }
-
     /// Whether the install speaks this language: the language's own table is a voice language. A language that only a
     /// catalogue or a pack provides is read, not heard.
     pub fn has_voice(&self) -> bool {

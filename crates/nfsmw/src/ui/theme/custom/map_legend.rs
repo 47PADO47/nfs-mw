@@ -10,7 +10,6 @@ use super::skin::keys as skin_keys;
 use crate::frontend::world_map::WorldMapFrame;
 use crate::frontend::world_map::legend::{LegendRow, VISIBLE_ROWS, is_empty, rows, total};
 
-
 // Placement in FEng units (640 x 480, origin centre, y down): the panel sits on the right, inside the map container and
 // just below the screen's own filter tab (which stays, recoloured, with its switch).
 const PANEL_X: f32 = 170.0;

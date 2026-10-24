@@ -40,7 +40,8 @@ pub fn available(dir: Option<&GameDir>) -> Vec<Choice> {
     let mut sources = mods::core_sources();
     sources.extend(catalog::built_in());
     let (catalog, _) = Catalog::build(&sources, false);
-    let name_in = |locale: &Locale| catalog.has(CORE, LANGUAGE_NAME, locale).then(|| own_name(&catalog, locale)).flatten();
+    let name_in =
+        |locale: &Locale| catalog.has(CORE, LANGUAGE_NAME, locale).then(|| own_name(&catalog, locale)).flatten();
 
     let mut out: Vec<Choice> = Vec::new();
     for table in dir.map(languages::installed).unwrap_or_default() {

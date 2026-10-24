@@ -63,7 +63,8 @@ impl BlackboxPresenter {
             };
             let y0 = top + step * row as f32;
             let p = |x: f32, y: f32| (node.world * Vec4::new(x, y, 0.0, 1.0)).truncate();
-            let corners = [p(left, y0), p(left + width, y0), p(left + width, y0 + line_height), p(left, y0 + line_height)];
+            let corners =
+                [p(left, y0), p(left + width, y0), p(left + width, y0 + line_height), p(left, y0 + line_height)];
             let uvs = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
             builder.quad(id, corners, uvs, colour, scale, origin);
         }

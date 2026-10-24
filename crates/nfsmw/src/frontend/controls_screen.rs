@@ -126,7 +126,7 @@ fn key_name(key: KeyCode) -> String {
 }
 
 /// What a slot says while the next key pressed will be bound to it.
-fn waiting() -> String {
+fn waiting_text() -> String {
     t!("keys-waiting").to_uppercase()
 }
 
@@ -137,7 +137,7 @@ pub fn key_texts(bindings: &Bindings, waiting: Option<(Control, usize)>) -> Vec<
         .map(|control| {
             let keys = bindings.keyboard_keys(*control);
             let text = |slot: usize| match waiting {
-                Some((wanted, at)) if wanted == *control && at == slot => waiting(),
+                Some((wanted, at)) if wanted == *control && at == slot => waiting_text(),
                 _ => keys.get(slot).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |k| key_name(*k)),
             };
             [text(0), text(1)]
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn a_slot_waiting_for_its_key_says_so() {
         let texts = key_texts(&Bindings(Vec::new()), Some((ROWS[1], 1)));
-        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), waiting()]);
+        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), waiting_text()]);
         assert_eq!(texts[0][1], KEY_PLACEHOLDER, "the others are as they were");
     }
 

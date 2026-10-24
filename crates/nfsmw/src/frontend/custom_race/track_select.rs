@@ -172,7 +172,7 @@ impl TrackSelect {
     fn show_track(&mut self, cx: &mut Cx, mode: Mode, track: &Track, locked: bool) {
         cx.hide(LOCKED_PANEL, !locked);
         if locked {
-            let sentence = unlock_sentence(cx, track);
+            let sentence = unlock_sentence(track);
             cx.text_object(LOCKED_TEXT, &sentence);
         }
         let name = Text::Game(label_hash(&text::track_label_key(&track.event))).resolve();
@@ -182,7 +182,7 @@ impl TrackSelect {
         let metric = cx.settings.speed_units == SpeedUnits::Metric;
         let unit = Text::Game(text::unit_label(metric)).resolve().unwrap_or_default();
         cx.text_object(LENGTH, &text::length_text(track.brief_length(), metric, &unit));
-        let record = record_text(cx, mode, metric, &track.event);
+        let record = record_text(mode, metric, &track.event);
         cx.text_object(RECORD, &record);
         if let Some(label) = mode.record_label()
             && let Some(o) = cx.object(RECORD_LABEL)
@@ -235,7 +235,7 @@ impl TrackSelect {
 }
 
 /// `Unlock this track by beating <alias>, Blacklist member <bin>.`, `None`-safe: the sentence of a track with no bin is empty.
-fn unlock_sentence(cx: &Cx, track: &Track) -> String {
+fn unlock_sentence(track: &Track) -> String {
     let Some(bin) = track.bin else { return String::new() };
     let template = Text::Game(UNLOCK_LABEL).resolve().unwrap_or_default();
     let alias = Text::Game(label_hash(&text::alias_key(bin))).resolve().unwrap_or_default();
@@ -244,7 +244,7 @@ fn unlock_sentence(cx: &Cx, track: &Track) -> String {
 
 /// The record line: the best time, or for the speedtrap the best speed in the speed unit; an event never raced reads `0.00` or
 /// `0 MPH`/`0 KPH` **[verified]**.
-fn record_text(cx: &Cx, mode: Mode, metric: bool, event: &str) -> String {
+fn record_text(mode: Mode, metric: bool, event: &str) -> String {
     let best = records::best(event);
     match mode {
         Mode::SpeedTrap => {}

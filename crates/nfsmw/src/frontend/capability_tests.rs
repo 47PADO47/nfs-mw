@@ -148,12 +148,7 @@ fn a_dlss_renderer_shows_the_temporal_rows_and_cycles_only_what_it_runs() {
     }
     assert_eq!(
         seen,
-        [
-            shown("DLSS"),
-            shown("Off"),
-            shown("Bilinear"),
-            shown("FSR 1")
-        ],
+        [shown("DLSS"), shown("Off"), shown("Bilinear"), shown("FSR 1")],
         "FSR 3 and FSR 4 are skipped: the DLSS mock's caps do not list them"
     );
 }
@@ -192,10 +187,7 @@ fn a_value_stored_for_another_renderer_shows_as_what_runs_and_moves_to_a_value_t
     let aa = Setting::Post(PostSetting::Aa);
     assert_eq!(aa.data_in(&stored, &native), shown("FXAA"));
     assert_eq!(Setting::Upscaler.data_in(&stored, &native), shown("FSR 1"));
-    assert_eq!(
-        Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native),
-        shown("Unavailable")
-    );
+    assert_eq!(Setting::Renderer(RendererSetting::RayTracing).data_in(&stored, &native), shown("Unavailable"));
     assert!(!aa.offered(&stored, &native) && !Setting::Upscaler.offered(&stored, &native));
     let (mut s, mut c) = (stored, Partial::default());
     aa.advance(&mut s, &mut c, true, &native);
@@ -299,10 +291,7 @@ fn ao_rows_follow_support_and_keep_disabled_preferences() {
     s.ao = AoQuality::Medium;
     assert!(Setting::Graphics(GraphicsSetting::AoIntensity).advance(&mut s, &mut changes, true, &native));
     assert_eq!(changes.ao_intensity, Some(Percent(75)));
-    assert_eq!(
-        Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported),
-        shown("Off")
-    );
+    assert_eq!(Setting::Graphics(GraphicsSetting::AmbientOcclusion).data_in(&s, &unsupported), shown("Off"));
 }
 
 #[test]

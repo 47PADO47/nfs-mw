@@ -48,8 +48,12 @@ pub const LANGUAGES: [GameLanguage; 10] = [
 ];
 
 /// Tables some installs and mods add that the game itself never loads: `(file stem, tag, name)`.
-const OTHER_TABLES: [(&str, &str, &str); 4] =
-    [("Russian", "ru", "Русский"), ("Czech", "cs", "Čeština"), ("Hungarian", "hu", "Magyar"), ("Portuguese", "pt", "Português")];
+const OTHER_TABLES: [(&str, &str, &str); 4] = [
+    ("Russian", "ru", "Русский"),
+    ("Czech", "cs", "Čeština"),
+    ("Hungarian", "hu", "Magyar"),
+    ("Portuguese", "pt", "Português"),
+];
 
 /// Files of the folder that are not languages.
 const NOT_LANGUAGES: [&str; 3] = ["Labels", "Largest", "LanguageTextures"];
@@ -124,9 +128,7 @@ pub fn installed(dir: &GameDir) -> Vec<InstalledLanguage> {
             }
             let file = format!("{FOLDER}/{name}");
             let bytes = shared_unwrapped(dir, &file).ok()?;
-            if blackbox_chunk::find(&bytes, blackbox_text::LANGUAGE_CHUNK).is_none() {
-                return None;
-            }
+            blackbox_chunk::find(&bytes, blackbox_text::LANGUAGE_CHUNK)?;
             Some(describe(file, stem))
         })
         .collect();

@@ -55,7 +55,6 @@ pub(super) fn load(dir: &GameDir, file: &str) -> Option<SubtitleTrack> {
     Some(SubtitleTrack::new(&cues, CLEAR, lookup))
 }
 
-
 /// The lines shown `elapsed` seconds into the movie: none without a track.
 pub(super) fn lines_at(track: Option<&SubtitleTrack>, elapsed: f64) -> (Option<&str>, Option<&str>) {
     track.map_or((None, None), |track| track.lines_at(elapsed as f32))

@@ -74,9 +74,9 @@ pub struct PauseCtx {
 pub use super::footer::Footer;
 
 mod args;
-mod wheel;
 mod feedback;
 mod pointer;
+mod wheel;
 pub use args::Args;
 pub use wheel::wheel_as_rows;
 /// Something a screen asks the front end to do.
