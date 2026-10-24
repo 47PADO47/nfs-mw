@@ -24,6 +24,8 @@ impl AiCar {
             nos: t.nos,
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
+            telemetry: self.sim.hud_telemetry(),
+            condition: Some(self.sim.hud_condition()),
             ..Default::default()
         }
     }

@@ -50,6 +50,11 @@ impl VehicleEvents {
         self.destroyed = true;
     }
 
+    /// Whether the car's health ran out: it is wrecked (the HUD's vehicle condition reads it).
+    pub fn is_destroyed(&self) -> bool {
+        self.destroyed
+    }
+
     pub fn destroy(&mut self) {
         self.note_health_destroyed();
         self.source_levels.fill(6);

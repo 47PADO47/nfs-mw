@@ -390,7 +390,7 @@ impl Drive {
     }
 
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
-        self.sim.as_ref()?;
+        let sim = self.sim.as_ref()?;
         let t = &self.telemetry;
         let pose = self.pose();
         let forward = pose.rotation * Vec3::X;
@@ -413,6 +413,8 @@ impl Drive {
             speedbreaker_active: self.breaker.active(),
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
+            telemetry: sim.hud_telemetry(),
+            condition: Some(sim.hud_condition()),
             ..Default::default()
         })
     }
