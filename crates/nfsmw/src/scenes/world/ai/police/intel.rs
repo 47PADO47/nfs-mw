@@ -45,4 +45,24 @@ impl super::super::TrafficWorld {
         let at = space::to_render(seen.position.to_array());
         Some(LastKnown { position: [at.x, at.y], age_secs: self.police.cooldown.since_seen().max(0.0) })
     }
+
+    /// Dispatch has a roadblock standing in the chase.
+    pub fn roadblock_reported(&self) -> bool {
+        self.police.roadblock_standing()
+    }
+
+    /// The police helicopter has the player in sight.
+    pub fn helicopter_tracking(&self) -> bool {
+        self.police.helicopter_status().is_some_and(|status| status.in_sight)
+    }
+
+    /// The near misses the player has made with this traffic: a count that only grows.
+    pub fn near_misses(&self) -> u32 {
+        self.near_misses
+    }
+
+    /// The chase's notices since the last call, the same the mods heard (`feed/hud.rs`).
+    pub fn take_pursuit_notices(&mut self) -> Vec<crate::scenes::world::feed::pursuit::Notice> {
+        std::mem::take(&mut self.hud_notices)
+    }
 }

@@ -246,6 +246,7 @@ impl TrafficWorld {
             self.note_pass(pass.owner, pass.relative_speed);
             let car = &mut self.cars[pass.owner];
             if pass.relative_speed > 10.0 && pass.distance < 10.0 && car.ready() {
+                self.near_misses = self.near_misses.wrapping_add(1);
                 car.sounded(events.cooldown);
                 self.sounds.push(TrafficSound::NearMiss {
                     emitter: car.audio_emitter().id,

@@ -241,6 +241,10 @@ pub struct TrafficWorld {
     speech_view: Option<PlayerView>,
     /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
     speech_watch: police::SpeechWatch,
+    /// The chase's notices since the HUD last took them (`police/mod_feed.rs`, `police/intel.rs`).
+    hud_notices: Vec<super::feed::pursuit::Notice>,
+    /// The near misses the player has made, a count the HUD diffs (`collide.rs`).
+    near_misses: u32,
 }
 
 impl TrafficWorld {
@@ -315,6 +319,8 @@ impl TrafficWorld {
             window_requests: Default::default(),
             speech_view: None,
             speech_watch: Default::default(),
+            hud_notices: Vec::new(),
+            near_misses: 0,
         }
     }
 
