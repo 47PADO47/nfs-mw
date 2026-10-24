@@ -395,6 +395,13 @@ pub trait Scene {
     fn runs_while_paused(&self) -> bool {
         false
     }
+    /// A menu is up over this scene (the backdrop, or the frozen world under the pause menu or the loading screen):
+    /// nothing in the picture moves unless the camera or the instances do, so the game caps the frame rate there and
+    /// a frame that looks like the last one is not drawn again (`app/render/static_frame.rs`). Anything that
+    /// animates by itself, or changes the renderer's state while running, must answer `false`.
+    fn menu_frame(&self) -> bool {
+        false
+    }
     /// Apply the independently layered tire-visual settings. Scenes without tires ignore them.
     fn set_tire_effects(&mut self, _smoke: bool, _skid_marks: bool) {}
     /// Apply optional collision sparks and high-speed wind trails.

@@ -93,7 +93,7 @@ impl Host {
             graphics: Applied::default(),
             pending_capture: None,
             size: (0, 0),
-            limiter: FrameLimiter::new(settings.max_fps),
+            limiter: FrameLimiter::new(),
             latency_pacing: false,
             cpu_work_started: Instant::now(),
             cpu_update_ms: 0.0,

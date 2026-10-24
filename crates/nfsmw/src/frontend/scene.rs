@@ -246,6 +246,11 @@ impl Scene for MenuScene {
         true
     }
 
+    /// The backdrop holds still: only its camera moves, and `frame` shows when it does.
+    fn menu_frame(&self) -> bool {
+        true
+    }
+
     fn hud_state(&self) -> Option<crate::hud::HudState> {
         Some(crate::hud::HudState { visible: false, ..Default::default() })
     }
