@@ -1,6 +1,5 @@
 //! The curvature number the driver limits its speed with.
-//! Spec: `docs/specs/ai-road-nav-trail.md` (§6). The original marks the function unsolved: the apex term
-//! is approximate.
+//! Spec: `docs/specs/ai-road-nav-trail.md` (§6), `docs/provenance/ai-road-nav-curvature.md`.
 
 use glam::{Vec2, Vec3};
 
@@ -9,7 +8,7 @@ use super::{Cookie, Occlusion, cross, xz};
 /// Each cookie's curvature is clamped to this (1/m) before averaging.
 const CURVATURE_CLAMP: f32 = 0.01;
 
-/// The larger of the road term (length-weighted mean of the cookies' curvature from `from` on) and the
+/// The larger of the road term (absolute signed trapezoidal mean from `from` on) and the
 /// apex term (an occluded view of the corridor), in 1/m.
 pub fn trail_curvature(
     cookies: &[Cookie],
@@ -28,12 +27,14 @@ fn road_term(cookies: &[Cookie], from: usize) -> f32 {
         return 0.0;
     }
     let (mut sum, mut length) = (0.0, 0.0);
-    for c in &usable[1..] {
-        sum += c.curvature.abs().min(CURVATURE_CLAMP) * c.length;
-        length += c.length;
+    for pair in usable.windows(2) {
+        let previous = pair[0].curvature.clamp(-CURVATURE_CLAMP, CURVATURE_CLAMP);
+        let current = pair[1].curvature.clamp(-CURVATURE_CLAMP, CURVATURE_CLAMP);
+        sum += (previous + current) * 0.5 * pair[1].length;
+        length += pair[1].length;
     }
     match length > 0.0 {
-        true => sum / length,
+        true => (sum / length).abs(),
         false => 0.0,
     }
 }
@@ -51,7 +52,7 @@ fn apex_term(count: usize, car: Vec3, occlusion: &Occlusion, cursor: Vec3, own_s
     let width = occlusion.apex_width.max(distance).max(1.0);
     let apex = xz(occlusion.apex);
     let (a, b) = (to_target / distance, (xz(cursor) - apex).try_normalize().unwrap_or(Vec2::Y));
-    let mut sina = cross(a, b).clamp(-1.0, 1.0).asin();
+    let mut sina = cross(a, b).clamp(-1.0, 1.0).asin().abs();
     if a.dot(b) < 0.0 {
         sina = std::f32::consts::PI - sina;
     }

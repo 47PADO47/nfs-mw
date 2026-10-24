@@ -4,6 +4,7 @@ use nfsmw_data::car::physics::CarBounds;
 
 use super::*;
 
+mod ai_nitrous;
 mod coasting;
 mod contact_order;
 mod damage_callbacks;

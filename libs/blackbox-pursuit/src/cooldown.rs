@@ -90,6 +90,18 @@ impl Cooldown {
     /// Advances by `dt` seconds with this frame's input and returns the status after the step. Evaded is terminal, and
     /// a bad `dt` changes nothing.
     pub fn update(&mut self, dt: f32, input: &CooldownInput, tuning: &CooldownTuning) -> Status {
+        self.update_observed(dt, input, tuning, None)
+    }
+
+    /// Advance the shared timer and take the minimum with an active unit's actual last-seen age.
+    /// `None` retains the boolean-input contract for callers without per-unit observation clocks.
+    pub fn update_observed(
+        &mut self,
+        dt: f32,
+        input: &CooldownInput,
+        tuning: &CooldownTuning,
+        observed_age: Option<f32>,
+    ) -> Status {
         if self.status == Status::Evaded || !(dt > 0.0 && dt.is_finite()) {
             return self.status;
         }
@@ -101,6 +113,11 @@ impl Cooldown {
             true => SIGHTED,
             false => self.since_seen + dt,
         };
+        if let Some(age) = observed_age
+            && !age.is_nan()
+        {
+            self.since_seen = self.since_seen.min(age);
+        }
         let in_sight = self.since_seen < tuning.grace;
         self.hidden_time = match (in_sight, input.hidden) {
             (true, _) => 0.0,
@@ -183,6 +200,11 @@ impl Cooldown {
         self.displayed
     }
 
+    /// Pursuit cops cannot reacquire through the initial cooldown display gate.
+    pub fn can_show_busted(&self, tuning: &CooldownTuning) -> bool {
+        !self.displayed || self.mode_timer > tuning.mode_gate
+    }
+
     /// The unseen seconds to evade at the heat level, as frozen while the cool-down shows.
     pub fn required(&self) -> f32 {
         self.required
@@ -215,6 +237,19 @@ impl Cooldown {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sight_is_blocked_only_during_the_initial_cooldown_display_gate() {
+        let mut cooldown = Cooldown::default();
+        assert!(cooldown.can_show_busted(&TUNING));
+        cooldown.displayed = true;
+        cooldown.mode_timer = 0.0;
+        assert!(!cooldown.can_show_busted(&TUNING));
+        cooldown.mode_timer = TUNING.mode_gate;
+        assert!(!cooldown.can_show_busted(&TUNING));
+        cooldown.mode_timer += 0.01;
+        assert!(cooldown.can_show_busted(&TUNING));
+    }
 
     const DT: f32 = 0.05;
 
@@ -371,5 +406,29 @@ mod tests {
         cooldown.update(f32::NAN, &unseen(20.0, false), &TUNING);
         cooldown.update(-1.0, &unseen(20.0, false), &TUNING);
         assert_eq!(cooldown, before);
+    }
+
+    #[test]
+    fn actual_unit_ages_preserve_the_start_grace_and_do_not_refresh_a_held_sighting() {
+        let mut cooldown = Cooldown::default();
+        let input = unseen(20.0, false);
+        cooldown.update_observed(0.1, &input, &TUNING, Some(-0.25));
+        assert!((cooldown.since_seen() + 4.9).abs() < 0.0001, "initial negative-five age is retained");
+        cooldown.update_observed(5.0, &input, &TUNING, Some(-0.25));
+        assert_eq!(cooldown.since_seen(), -0.25);
+        cooldown.update_observed(0.2, &input, &TUNING, Some(0.02));
+        assert!((cooldown.since_seen() + 0.05).abs() < 0.0001);
+        cooldown.update_observed(0.2, &input, &TUNING, Some(0.15));
+        assert!((cooldown.since_seen() - 0.15).abs() < 0.0001, "positive unit age is consumed directly");
+    }
+
+    #[test]
+    fn no_active_unit_observation_allows_the_shared_timer_to_reach_cooldown() {
+        let mut cooldown = Cooldown::default();
+        for _ in 0..200 {
+            cooldown.update_observed(0.1, &unseen(30.0, false), &TUNING, Some(f32::INFINITY));
+        }
+        assert_eq!(cooldown.status(), Status::CoolDown);
+        assert!(cooldown.since_seen() > TUNING.grace);
     }
 }

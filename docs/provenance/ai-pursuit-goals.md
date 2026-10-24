@@ -111,3 +111,18 @@ install's row values were not re-read for this task; the per-heat numbers come f
 
 See the spec's "Next leads" list (six items). The first two decide the question "when is a pit or pull-over goal set":
 the goal-kind setter and the pull-over factory path.
+
+## Stationary target correction (23 October 2026)
+
+Read the reconstructed [AIActionRam.cpp](https://github.com/dbalatoni13/nfsmw/blob/main/src/Speed/Indep/Src/AI/Actions/AIActionRam.cpp)
+and [AISteer.cpp](https://github.com/dbalatoni13/nfsmw/blob/main/src/Speed/Indep/Src/AI/Common/AISteer.cpp).
+The slot builder selects heading below 5 km/h. The separate `UpdateSeek` reads
+actual target velocity for its projection; `Pursuit` adds that velocity for one
+second. This corrects the earlier conflation of slot orientation and prediction.
+The pull-over uses the same action and checks the complete seek before separation
+for arrival, so the earlier lead-offset-only workaround is removed.
+
+Evidence is static reconstructed GameCube behavior, not a recorded PC trajectory.
+Regressions distinguish a stationary target's heading from its predictive velocity,
+cover a slowly moving target below the slot-frame threshold, and check pull-over
+arrival with the complete predictive seek. No original implementation is copied.

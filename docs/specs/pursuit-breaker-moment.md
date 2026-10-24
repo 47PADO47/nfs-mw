@@ -94,9 +94,9 @@ keys"; the rules the cut uses:
 | The HUD is hidden | the HUD group visibility routine hides every group while a NIS exists [decomp] | Yes |
 | The busted meter does not move | [decomp] (CC0 `AIPursuit`: the increment is zeroed while a world moment plays) | Yes (`hold_busted`) |
 | The world runs at the track's speed | [verified] data, [inferred] consumer | Yes |
-| The player's car is driven by the racer AI for the cut: the activity posts `EBecomeAiCar` on loading a Moment and `EBecomePlayerCar` on release | event construction [decomp]; its handler was not located, `SetAiControl(true)` assumed [inferred] | **No**: the rewrite has no player autopilot; the player keeps control |
-| No new traffic is created while a NIS exists (traffic density is 0) | CC0 `AITrafficManager::ComputeDensity` [decomp] | No |
-| Cop spawning is off but removal is allowed during a moment | CC0 `AICopManager::VehicleSpawningEnabled` [decomp] | No (the cut lasts 3 s) |
+| The player's car is driven by the racer AI for the cut: the activity posts `EBecomeAiCar` on loading a Moment and `EBecomePlayerCar` on release | event construction [decomp]; the human AI switch selects the racer goal [decomp] | Temporary racer driver on the same body; entry-speed target remains rewrite policy |
+| No new traffic is created while a NIS exists (traffic density is 0) | CC0 `AITrafficManager::ComputeDensity` [decomp] | Yes during a moment; full NIS already freezes the world |
+| Cop spawning is off but removal is allowed during a moment | CC0 `AICopManager::VehicleSpawningEnabled` [decomp] | New placements wait; existing retirement and timers continue |
 | Camera noise (shake), depth of field, letterbox | the key fields exist; all moments have them zero or off [verified] | Not applied |
 | Sound of the scene | none: the stream is queued by the load path that a Moment skips [decomp] | None |
 
@@ -106,5 +106,5 @@ keys"; the rules the cut uses:
   test places the gas station's cut on its nearest marker: the look point is 0.4 to 1.7 m from the station's roof for
   the whole cut and the eye stands 12 to 18 m away, which confirms the rotation sense and the quarter-turn offset **[verified]**.
 - The touch rule (section 2.2) is a rewrite approximation of the trigger event's "last touched by".
-- The options byte (2.3) and the player autopilot (section 5) are open.
+- The options byte (2.3) and the original non-race autopilot's speed selection remain open.
 - Scenes with no installed camera track (`WMGazebo`, `WMFishMarket`...) play nothing, as the original's gate.

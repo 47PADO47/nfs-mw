@@ -47,6 +47,9 @@ impl WorldScene {
         drive.vehicle_effects.set_style(self.spark_style);
         drive.flames.set_enabled(self.exhaust_flames);
         self.players.insert(Player::new(id, drive));
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.reset_primary_target_road(id.0);
+        }
         Ok(())
     }
 
@@ -60,6 +63,9 @@ impl WorldScene {
             return false;
         };
         drive.release(renderer);
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.reset_primary_target_road(id.0);
+        }
         true
     }
 }

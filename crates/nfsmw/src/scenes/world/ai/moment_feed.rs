@@ -6,6 +6,11 @@ use glam::Vec3;
 use super::TrafficWorld;
 
 impl TrafficWorld {
+    /// A world moment holds new placements while allowing existing cars to retire and timers to advance.
+    pub(in crate::scenes::world) fn hold_world_moment(&mut self, active: bool) {
+        self.world_moment = active;
+    }
+
     /// The ground cops chasing the player (not wrecked), render space.
     pub fn pursuer_positions(&self) -> Vec<Vec3> {
         self.cars.iter().filter(|car| car.is_cop()).map(|car| car.position()).collect()

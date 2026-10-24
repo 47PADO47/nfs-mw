@@ -12,7 +12,9 @@ fn chase_with_heli(level: u32) -> TrafficWorld {
     world.add_cop_model(model);
     let mut row = wave();
     row.cops.push(CopRecord { name: "copheli".into(), count: 1, chance: 60 });
+    world.police.set_forced_pursuit(true);
     world.start_pursuit(level, vec![row], player());
+    assert_eq!(world.police.level(), Some(level));
     world
 }
 

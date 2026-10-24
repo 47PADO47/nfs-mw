@@ -2,6 +2,7 @@
 //! the weighted aggressive formations of the heat level, and the reset when the heat level changes. Spec:
 //! `docs/specs/ai-pursuit-formations.md` sections 1 and 2. The formations' slots and their tightening are not here.
 
+pub mod assignment;
 pub mod collapse;
 pub mod finisher;
 pub mod slots;
@@ -59,10 +60,9 @@ pub fn records(level: u32) -> &'static [Record] {
     }
 }
 
-/// How long a stagger follow lasts at a heat level (`StaggerFormationTime`). The spec gives heats 1 to 7 and 9; heat 8
-/// and heat 10 are not given there, so they take 4 s **[unconfirmed]**.
+/// How long a stagger follow lasts (`StaggerFormationTime`, heat spec section 2.7).
 pub fn stagger_time(level: u32) -> f32 {
-    const TIMES: [f32; 10] = [7.0, 6.0, 5.0, 4.0, 3.0, 5.0, 4.0, 4.0, 7.0, 4.0];
+    const TIMES: [f32; 10] = [7.0, 6.0, 5.0, 4.0, 3.0, 5.0, 4.0, 10.0, 7.0, 10.0];
     TIMES[(level as usize).clamp(1, 10) - 1]
 }
 
@@ -108,15 +108,27 @@ impl Picker {
         follow_forced: bool,
         random: [f32; 2],
     ) -> Option<Choice> {
+        self.tick_with_records(dt, allowed, follow_forced, random, records(level), stagger_time(level))
+    }
+
+    /// The same picker with records and stagger duration supplied by the current game/event table.
+    pub fn tick_with_records(
+        &mut self,
+        dt: f32,
+        allowed: bool,
+        follow_forced: bool,
+        random: [f32; 2],
+        records: &[Record],
+        stagger: f32,
+    ) -> Option<Choice> {
         self.timer -= dt;
-        if self.timer > 0.0 || !allowed {
+        if self.timer > 0.0 || !allowed || records.is_empty() {
             return None;
         }
-        let stagger = stagger_time(level);
         let (formation, duration) = if follow_forced {
             (Formation::Follow, stagger)
         } else if self.attempts % 2 == 1 {
-            let record = pick(records(level), random[0]);
+            let record = pick(records, random[0]);
             (record.formation, record.duration)
         } else {
             (Formation::StaggerFollow, stagger)
@@ -129,6 +141,11 @@ impl Picker {
     /// Attempts made so far in this chase.
     pub fn attempts(&self) -> u32 {
         self.attempts
+    }
+
+    /// Seconds remaining on the selection timer, for deterministic state snapshots.
+    pub fn remaining_time(&self) -> f32 {
+        self.timer
     }
 }
 
@@ -199,5 +216,19 @@ mod tests {
         assert_eq!(stagger_time(1), 7.0);
         assert_eq!(stagger_time(7), 4.0);
         assert_eq!(stagger_time(9), 7.0);
+        assert_eq!(stagger_time(8), 10.0);
+        assert_eq!(stagger_time(10), 10.0);
+    }
+
+    #[test]
+    fn event_records_override_both_the_stagger_timer_and_aggressive_selection() {
+        let mut picker = Picker::new();
+        let records = [Record { formation: Formation::Follow, duration: 15.0, frequency: 1.0 }];
+        assert_eq!(picker.tick_with_records(0.0, true, false, [0.0; 2], &records, 10.0).unwrap().duration, 10.0);
+        assert!(picker.tick_with_records(9.0, true, false, [0.0; 2], &records, 10.0).is_none());
+        assert_eq!(
+            picker.tick_with_records(1.0, true, false, [0.0; 2], &records, 10.0),
+            Some(Choice { formation: Formation::Follow, duration: 15.0 })
+        );
     }
 }

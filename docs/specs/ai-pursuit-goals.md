@@ -196,17 +196,19 @@ steer = seek, plus the separation term (pull-over only, section 7)
 ### 5.2 Lead term
 
 The aim is pushed along the target's motion so the cop arrives where the car will be. With `r = slot - cop position` and
-`v` the target's velocity-or-heading vector (the same vector as section 2.4), the code computes [decomp, formula
-confirmed by the two code paths; helper output partly garbled]:
+`v` the target's actual velocity, the shared ram action computes [decomp; reconstructed
+`AIActionRam::UpdateSeek` and `AISteer::Pursuit`]:
 
 ```
-seek = r + v * (1 + 0.7 * dot(r, v) / |v|^2)        only when |v| > 0.01 (the code's guard)
+seek = r + v + v * 0.7 * dot(r, v) / |v|^2
+                 ^ the final projection term is used only when |v| > 0.01
 ```
 
 This is the "seek" of [ai-pursuit-tactics.md](ai-pursuit-tactics.md) section 5.1, written as one formula. When `r` lies
 ahead of the target along `v` (`dot > 0`) the lead is longer; when `r` is behind, the lead shrinks. The guard is on the
-length of `v`, the velocity-or-heading vector of section 2.4. A stopped target uses its heading, which has unit length, so
-the guard passes and the lead term still applies along that heading. [decomp]
+length of the actual velocity. Slot orientation still uses the velocity-or-heading frame in section 2.4.
+A stopped target contributes no prediction: `seek = r`. Below the projection guard, only the raw one-second
+velocity term remains. These are separate inputs; heading must never become predictive velocity. [decomp]
 
 ### 5.3 Speed and steering
 
@@ -384,19 +386,28 @@ goal) and `car/goal_drive.rs` (the per-cop limiter and command, the speed overri
   box-in or rolling block. Its aim is the in-position point of the slot's record. Other formations give no goal.
 - **Pull-over.** While the collapse is on (a formation is set and the player is under the collapse speed), cops in ring
   slots take the pull-over goal. The aim is the detour point or the ring slot; an arrived cop holds the full brake.
-- **Other cops** keep the chase's aim, the chase's speed and the 2 m slot test.
+- **Other cops** keep the chase action's velocity request. Reaching a moving
+  formation slot does not trigger a brake or handbrake hold.
 
-Approximations in the port (none is a rule change):
+Integration now supplies the player's actual performance and the pursuit's jerk flag.
+Heat-specific tightness and duration use the install-verified free-roam values.
+Pull-over separation reads the live vehicle capsules. Eligible goals consume
+`GoalCommand::target_point` as the physical driver's steering target. Their limiter
+and command update with the cop think, retaining state between thinks. Blocked
+target or drive-nav rays keep the road action in control.
 
-- The target's top speed and acceleration table are the cop's own `Performance`. The player's is private to
-  `pursuit.rs`; exposing it would make this exact.
-- The target's jerk flag is off. The world does not read `IsAJerk` yet.
-- Tightness and durations are the spec defaults (0.5 and 2.0). The level rows are not read yet.
-- The pull-over separation is zero. The driver has no vehicle separation vector yet.
-- The aim the cop paths to is the slot point. The lead steering point (`GoalCommand::target_point`) sets no steering;
-  only the speed and the arrival come from the goal.
-- The limiter steps once per physics step (`dt` = one step), not once per think.
-- The ring slots keep the collapse's existing frame (the player's heading), not the motion vector of section 2.4.
+Remaining limits:
+
+- Alternate event-table goal tuning still requires install-level confirmation.
+- The separation adapter exposes horizontal headings, so pitched and rolled
+  capsule axes remain approximate.
+- The tangent shape and missing ram-grade/NOS terms retain
+  the open questions documented above; close-action terms must not silently be
+  added to the ram action without evidence.
+- No matched original-PC route establishes physical PIT, box or collapse parity.
+
+See [driving integration](ai-pursuit-driving-integration.md) for the history,
+drivability and road-adapter acceptance boundaries.
 
 ## Next leads
 

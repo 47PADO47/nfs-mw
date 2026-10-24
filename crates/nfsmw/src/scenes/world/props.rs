@@ -423,7 +423,9 @@ impl PropWorld {
                     damage.shock_force = response.reaction.impulse;
                     damage.other.smackable = Some((spec.mass, spec.immobile || (p.attached && prop_immobile)));
                     impact.damage.push(damage.resolved(vehicle.body(), response.notification_delta_v[0], true));
-                    impact.smacked.push((id, spec.cost_to_state));
+                    if !prop_immobile {
+                        impact.smacked.push((id, spec.cost_to_state));
+                    }
                     p.attached &= prop_immobile;
                     p.moved |= !prop_immobile;
                     impact.effects.push(super::impact_effects::RawContact::new(

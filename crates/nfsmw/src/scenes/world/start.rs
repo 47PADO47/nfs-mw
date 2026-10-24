@@ -51,6 +51,9 @@ impl WorldScene {
             }
         }
         self.last_car = name;
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.reset_primary_target_road(super::players::LEAD.0);
+        }
         self.garage.applied =
             crate::garage::Selection { car: self.last_car.clone(), color: None, ..Default::default() };
         self.garage.draft = self.garage.applied.clone();

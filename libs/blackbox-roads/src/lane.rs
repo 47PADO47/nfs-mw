@@ -64,6 +64,17 @@ pub(crate) fn lane_line_from_start(
     start: Vec3,
 ) -> Bezier {
     let end = lane_line_shifted(net, segment, node_ind, lane, delta).end();
+    lane_line_from_endpoints(net, segment, node_ind, start, end)
+}
+
+/// Rebuilds the handles of a lane or corridor edge from its own endpoint chord.
+pub(crate) fn lane_line_from_endpoints(
+    net: &RoadNetwork,
+    segment: u16,
+    node_ind: NodeInd,
+    start: Vec3,
+    end: Vec3,
+) -> Bezier {
     if !net.segment(segment).has(flags::CURVED) {
         return Bezier::line(start, end);
     }
@@ -76,7 +87,6 @@ pub(crate) fn lane_line_from_start(
 /// The lane line moved `delta` metres to the right of travel (to the left when negative): the bounds of
 /// the corridor round a lane.
 pub fn lane_line_shifted(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lane: usize, delta: f32) -> Bezier {
-    let centre = centre_line(net, segment, node_ind);
     let offset_at = |heading_end: bool| {
         let profile = travel_profile(net, segment, node_ind, heading_end);
         match profile.zones.is_empty() {
@@ -84,10 +94,21 @@ pub fn lane_line_shifted(net: &RoadNetwork, segment: u16, node_ind: NodeInd, lan
             false => profile.signed_offset(lane.min(profile.zones.len() - 1)) + delta,
         }
     };
+    lane_line_at_offsets(net, segment, node_ind, offset_at(false), offset_at(true))
+}
+
+/// A lane or corridor edge with independently selected offsets at its two node profiles.
+pub(crate) fn lane_line_at_offsets(
+    net: &RoadNetwork,
+    segment: u16,
+    node_ind: NodeInd,
+    start_offset: f32,
+    end_offset: f32,
+) -> Bezier {
+    let centre = centre_line(net, segment, node_ind);
     let [p0, p1, p2, p3] = centre.points;
     let (forward_start, forward_end) = (p1 - p0, p3 - p2);
-    let start = p0 + right_of(forward_start) * offset_at(false);
-    let end = p3 + right_of(forward_end) * offset_at(true);
-    let scale = start.distance(end) / p0.distance(p3).max(MIN_CHORD);
-    Bezier { points: [start, start + (p1 - p0) * scale, end + (p2 - p3) * scale, end] }
+    let start = p0 + right_of(forward_start) * start_offset;
+    let end = p3 + right_of(forward_end) * end_offset;
+    lane_line_from_endpoints(net, segment, node_ind, start, end)
 }

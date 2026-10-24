@@ -218,7 +218,12 @@ the speed deficit `> 60 km/h` (10) and the velocity points at the drive target
 
 ### 3.4 Wall avoidance
 
-If speed is at least 2 m/s cast a ray from the cop along its velocity with length `min(80, speed + 10)`. On a hit with
+If speed is at least 2 m/s cast a ray from the cop's rigid-body position along its velocity with length
+`min(80, speed + 10)`. Test authored collision barriers only; exclude triangle faces, including sloped road surfaces.
+Do not raise the origin above the body. The PC action passes primitive mask 2 to the world query; mask 1 selects
+faces separately. See [the native query provenance](../provenance/ai-pursuit-wall-query.md). [verified PC]
+
+On a barrier hit with
 normal `n`, `c = dot(velocity, n) / speed` (negative when heading into the wall) and `t = hit_distance / speed`; if
 `c < 0`, `avoid = n * (c^2 * 10 km/h) / t^2`. Stronger the closer in time and the more head-on. [decomp]
 
@@ -235,7 +240,12 @@ tuning. [decomp]
 
 ### 3.6 Road affinity
 
-Using the left and right edge points of the road at the cop's nav cookie, with `side` the road's right-hand
+After seek updates the persistent drive-to navigator and its occlusion sweep, read its current cookie: the
+trail cross-section interpolated near the physical car, rather than the far cursor or a fresh nearest-road snap.
+Its edges include the steering corridor inset for this car's half-width and the road-edge margin. Preserve the
+actual car half-width when entering close pursuit or resetting this navigator after an unsuccessful slot snap.
+An unsuccessful snap retains the free-form seek point but uses the reset navigator's cookie near the car.
+Using the left and right edge points of that cookie, with `side` the road's right-hand
 perpendicular: `llen`, `rlen` are the cop's distances from the left and right edges along `side`, plus 1 m, clamped to
 at least 0.1; `sidev` is the sideways speed. `lscale = 0.5 / llen^2 + 2.0 * (max(0, -sidev) / llen)^2`, same for the
 right with `max(0, sidev)`, each clamped to 100 km/h. `affinity = side * lscale - side * rscale` (pushes the cop away

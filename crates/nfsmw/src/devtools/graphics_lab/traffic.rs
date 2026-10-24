@@ -3,6 +3,7 @@ use crate::settings::{PopulationPreset, Settings, TrafficPreset};
 
 pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&str>, pursuit: &mut Option<u8>) {
     super::pursuit::show(ui, pursuit, status.is_some());
+    super::pursuit::options(ui, &mut settings.pursuit_options);
     if let Some(status) = status {
         ui.small(status);
         ui.separator();

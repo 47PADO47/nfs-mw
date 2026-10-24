@@ -9,6 +9,9 @@ impl TrafficWorld {
     }
 
     pub(super) fn density(&self) -> f32 {
+        if self.world_moment {
+            return 0.0;
+        }
         self.policy.density(super::manager::density(self.target > 0, self.pursuit.is_some()))
     }
 

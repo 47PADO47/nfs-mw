@@ -92,6 +92,8 @@ impl Playing {
 /// The moment being played, if any, and the data it needs.
 #[derive(Default)]
 pub struct Moment {
+    /// Temporary control state for the same physical player car, released with the camera cut.
+    pub(super) driver: Option<super::ai::MomentDriver>,
     data: Option<Arc<MomentData>>,
     data_failed: bool,
     play: Option<Playing>,

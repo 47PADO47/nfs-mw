@@ -30,6 +30,7 @@ mod patrol;
 mod racing;
 mod rain;
 mod setup;
+mod sight;
 mod sound;
 mod speech;
 mod stand_in;
@@ -125,6 +126,7 @@ pub struct AiCar {
     perp_hidden_from_me: bool,
     /// The car saw the player at its last sight test (`GetTimeSinceTargetSeen() <= 0`).
     sees_player: bool,
+    sight: sight::Sight,
     /// Seconds the car has been out of the player's view.
     offscreen: f32,
     /// Whether this cop has stood where the patrol pass may not recycle it (`blackbox_pursuit::respawn`).
@@ -159,6 +161,30 @@ pub struct AiCar {
 }
 
 impl AiCar {
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn navigation(&self) -> &RoadNav {
+        &self.nav
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn drive_request(&self) -> (Vec3, f32) {
+        (self.target, self.speed)
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn telemetry_debug(&self) -> String {
+        let action = match &self.role {
+            Role::Cop(cop) => cop.last_diagnostic.as_str(),
+            _ => "action=non-cop",
+        };
+        format!("{:?} {action}", self.sim.telemetry())
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn nitrous_burning(&self) -> bool {
+        self.sim.telemetry().nos_burning
+    }
+
     /// Puts a car of `model` on `spawn` (render space), rolling at `start.speed`, with a cursor in its lane.
     /// `None` when the ground is missing.
     pub fn place(
@@ -232,6 +258,7 @@ impl AiCar {
             arrested: false,
             perp_hidden_from_me: false,
             sees_player: false,
+            sight: sight::Sight::default(),
             offscreen: 0.0,
             respawn: Default::default(),
             breaker_stop: false,
@@ -294,7 +321,7 @@ impl AiCar {
     }
 
     /// The think of the car's role: traffic follows its lane, a cop chases the player.
-    fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>) {
+    fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>, collision: &blackbox_collision::CollisionWorld) {
         let view = self.sim.driver_view();
         let mut state = traffic::CarState {
             body: self.body(),
@@ -370,8 +397,7 @@ impl AiCar {
                     return;
                 };
                 let (bodies, me) = (ctx.bodies, ctx.me);
-                let others =
-                    bodies.iter().enumerate().filter(move |&(i, (_, is_cop))| i != me && !is_cop).map(|(_, b)| b.0);
+                let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(|(_, b)| b.0);
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(
                     cop::THINK_PERIOD,
@@ -391,9 +417,28 @@ impl AiCar {
                     shift(&mut self.sim, Some(gear));
                 }
                 let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
-                let think = cop.think(ctx, &mut self.nav, &state, &Target { body: player, aim }, others);
+                let nos = self.sim.nitrous_spec();
+                let think = cop.think(
+                    ctx,
+                    &mut self.nav,
+                    &state,
+                    &Target { body: player, aim },
+                    others,
+                    cop::ActionInputs {
+                        collision,
+                        grade: view.forward.y,
+                        ram: self.goal.get().command().is_some(),
+                        nitrous: cop::RoadNitrous {
+                            boost: if nos.present() { nos.torque_boost } else { 0.0 },
+                            bottle_seconds: nos.nos_capacity,
+                            capacity: self.sim.telemetry().nos,
+                            was_on: self.controls.nos,
+                        },
+                    },
+                );
+                let ram_allowed = cop.ram_allowed;
                 self.target = think.target;
-                self.think_goal(aim, state.body.position, think.speed);
+                self.think_goal(state.body.position, think.speed, ram_allowed);
                 self.support_drive(&player);
             }
         }

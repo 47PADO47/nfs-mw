@@ -86,8 +86,7 @@ impl WorldScene {
             return;
         }
         session.heat_chase = Some(HeatChase::Begun);
-        let heat = heat.to_string();
-        match crate::scenes::world::ai::pursuit_command(self, renderer, &[heat.as_str()]) {
+        match crate::scenes::world::ai::start_event_pursuit(self, renderer, heat) {
             Ok(line) => log::info!("race {}: {line}", session.name),
             Err(why) => log::warn!("race {}: the chase did not start: {why}", session.name),
         }

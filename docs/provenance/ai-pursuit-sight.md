@@ -1,5 +1,26 @@
 # Cop sight: occlusion, vertical gate and reversing status (epic E7)
 
+## Per-unit clock integration, 23 October 2026
+
+Re-read reconstructed `AIVehiclePursuit.cpp` constructor, `ResetInternals` and
+`Update`, plus `AIPursuit.cpp` observation aggregation. Each real vehicle AI task
+now advances its own visibility timer and time since seen. Queries subtract the
+0.25-second interval; success sets the unit age to -0.25. The pursuit takes the
+minimum active-unit age after advancing its shared clock. The constructor and
+promoted-patrol initial timer states remain distinct. No visibility random phase
+or replacement scheduling rate was introduced.
+
+Patrols retain their existing shared schedule. Roadblocks, hiding latches and the
+cooldown display gate remain independent. Released/fleeing units do not provide
+observations to their former pursuit. Helicopter and secondary-player sightings
+remain independent current observations.
+
+Spec: [per-unit clocks](../specs/ai-pursuit-visibility-clocks.md). Regressions cover
+actual staggered task execution, recent sight after a failed ray, no duplicate
+clock advance from repeated sensing calls, and accurate shared observation ages.
+This does not claim matched original-PC recording evidence. The following older
+notes describe the evidence available during the earlier investigation.
+
 - **Source for the rule:** the decompiled pursuit sources cited in [ai-pursuit-cop-cars.md](../specs/ai-pursuit-cop-cars.md)
   section 2 and [ai-pursuit.md](../specs/ai-pursuit.md) section 4.1: `CanSeeTarget`, the 0.25 s timer, the heat ranges
   (151/151 heat 1 to 7, 201/101 heat 8 to 10), the rear cone `dot(cop.forward, unit(target - cop)) <= -0.3`.

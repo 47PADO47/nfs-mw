@@ -217,6 +217,84 @@ fn a_request_under_the_budget_removes_nobody() {
 }
 
 #[test]
+fn a_chase_request_survives_until_the_scene_starts_its_pursuit() {
+    let mut world = world();
+    let focus = player_at(0.0, 0.0);
+    let (collision, surfaces) = (floor(), SurfaceTable::default());
+    world.queue_cop_spawn("copx", Vec3::new(2.0, 0.0, 120.0), Vec3::Z, RequestRole::Chase);
+    world.cops.lock_out();
+    assert!(!world.requested_chase_ready(focus, &collision, &surfaces));
+    world.service_spawn_requests(focus, &collision, &surfaces);
+    assert_eq!(world.cop_requests_waiting(), 1, "no pursuit does not discard a scripted chase request");
+    world.cops.unlock();
+    assert!(
+        world.requested_chase_ready(focus, &collision, &surfaces),
+        "the scene may now create the requested pursuit"
+    );
+    world.start_pursuit(1, vec![wave()], player());
+    world.service_spawn_requests(focus, &collision, &surfaces);
+    assert_eq!(world.cop_requests_waiting(), 0);
+    assert!(world.cars.iter().any(AiCar::is_cop));
+    assert_eq!(world.pursuit_cost_tally().patrol_cars, 1, "the requested unit counts when it actually joins");
+    assert_eq!(world.cost_to_state(), 250);
+}
+
+#[test]
+fn a_chase_request_overlapping_the_player_does_not_start_an_empty_chase() {
+    let mut world = world();
+    let focus = player_at(0.0, 0.0);
+    let (collision, surfaces) = (floor(), SurfaceTable::default());
+    world.queue_cop_spawn("copx", Vec3::ZERO, Vec3::Z, RequestRole::Chase);
+    assert!(!world.requested_chase_ready(focus, &collision, &surfaces));
+    world.queue_cop_spawn("missing", Vec3::Z * 120.0, Vec3::Z, RequestRole::Chase);
+    assert!(!world.requested_chase_ready(focus, &collision, &surfaces), "unloaded models also wait");
+}
+
+#[test]
+fn a_loaded_chase_request_needs_supported_ground_before_it_can_start_a_pursuit() {
+    let mut world = world();
+    let focus = player_at(0.0, 0.0);
+    let surfaces = SurfaceTable::default();
+    world.queue_cop_spawn("copx", Vec3::new(2.0, 0.0, 120.0), Vec3::Z, RequestRole::Chase);
+    assert!(!world.requested_chase_ready(focus, &CollisionWorld::default(), &surfaces));
+    assert!(!world.is_pursuing());
+    assert_eq!(world.cop_requests_waiting(), 1, "unsupported requests remain available for a later resident tile");
+    assert!(world.requested_chase_ready(focus, &floor(), &surfaces));
+}
+
+#[test]
+fn a_scripted_roadblock_request_creates_a_stationary_police_car_without_a_pursuit() {
+    let mut world = world();
+    let focus = player_at(0.0, 0.0);
+    world.queue_cop_spawn("copx", Vec3::new(2.0, 0.0, 120.0), Vec3::X, RequestRole::Roadblock);
+    world.service_spawn_requests(focus, &floor(), &SurfaceTable::default());
+    assert_eq!(world.cop_requests_waiting(), 0);
+    assert!(world.cars[0].is_roadblock());
+    assert!(world.cars[0].speed().abs() < 0.1);
+    assert!(!world.is_pursuing());
+}
+
+#[test]
+fn finishing_a_chase_cancels_unplaced_chase_requests() {
+    let mut world = world();
+    world.start_pursuit(1, vec![wave()], player());
+    world.queue_cop_spawn("missing", Vec3::Z * 120.0, Vec3::Z, RequestRole::Chase);
+    queue_patrol(&mut world, 150.0);
+    world.stop_pursuit();
+    assert_eq!(world.cop_requests_waiting(), 1, "the unrelated patrol request is retained");
+}
+
+#[test]
+fn the_disc_fallback_faces_the_targets_travel_and_the_seek_walk_reverses_its_road() {
+    let mut world = world();
+    let body = player_at(-200.0, 30.0).body.unwrap();
+    let placements = world.chase_spawn_placements(&body);
+    assert_eq!(placements.len(), 2);
+    assert!(placements[0].1.dot(Vec3::Z) > 0.9, "the backward walk is reversed at its end");
+    assert!(placements[1].1.dot(Vec3::Z) > 0.9, "fallback follows target travel rather than looking back at it");
+}
+
+#[test]
 fn the_cops_sent_away_are_the_ones_that_cannot_see_the_player() {
     let mut world = TrafficWorld::new(cop_road());
     for i in 0..4 {

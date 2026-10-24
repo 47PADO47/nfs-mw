@@ -1,13 +1,16 @@
 //! What a car can do flat out: its top speed and how hard it accelerates at each speed. The AI limits its
 //! requested speed with these numbers (`docs/specs/ai-driver-speed-skill.md` §2, open question 1).
 //!
-//! The original's estimator is not in the sources; this measures the car by driving it full throttle on
-//! flat ground, which is what the table is meant to describe.
+//! [`measure_with_integration`] runs a physical full-throttle trial. [`estimate_ai`] independently builds
+//! the analytical action-planning curve; it excludes launch settling and gear-change delays.
 
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 use crate::input::InputState;
 use crate::vehicle::{Vehicle, VehicleSpec};
+
+mod estimate;
+pub use estimate::estimate_ai;
 
 /// Samples of the acceleration table, evenly spaced from 0 to the top speed.
 pub const TABLE_SIZE: usize = 10;

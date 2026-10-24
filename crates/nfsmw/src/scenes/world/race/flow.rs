@@ -40,6 +40,7 @@ impl WorldScene {
             Stage::Outro { .. } => self.race_outro(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
+        self.sync_race_pursuit_context(&session);
         match keep {
             true => self.race = Some(session),
             false => self.end_race(session),
@@ -55,6 +56,7 @@ impl WorldScene {
             Stage::Running if session.challenge.is_none() => self.race_running(&mut session, STEP),
             _ => Tick::Keep,
         };
+        self.sync_race_pursuit_context(&session);
         match tick {
             Tick::Keep => self.race = Some(session),
             Tick::End => self.end_race(session),

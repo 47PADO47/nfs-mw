@@ -117,6 +117,7 @@ pub fn partial_of(s: &Settings) -> Partial {
     let c = &s.controls;
     Partial {
         traffic_policy: None,
+        pursuit_options: Some(s.pursuit_options),
         detail: None,
         appearance: Some(s.appearance),
         deadzone_mode: Some(c.deadzone_mode),

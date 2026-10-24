@@ -6,8 +6,7 @@
 //! `VehicleSeperation`) is computed by the caller with the scales from [`separation_scales`]; it is not built here.
 
 use super::approach::{
-    AiVehicle, CopState, GoalCommand, KMH, Step, TargetState, combine, drive, lead_offset, lead_seek, limit_step,
-    motion_vector,
+    AiVehicle, CopState, GoalCommand, KMH, Step, TargetState, combine, drive, lead_seek, limit_step,
 };
 use glam::Vec2;
 
@@ -100,14 +99,10 @@ fn tangent_points(from: Vec2, centre: Vec2, radius: f32) -> (Vec2, Vec2) {
 }
 
 /// One think of the pull-over (spec 7 and 5.1). The aim is the ring slot, or the detour point around the target. The
-/// cop stops (arrived, no drive target) when the lead offset to the aim is under [`arrival_threshold`]. Otherwise it
+/// cop stops (arrived, no drive target) when the predictive seek to the aim is under [`arrival_threshold`]. Otherwise it
 /// steers at the seek combined with `separation`, at the speed `min(|steer|, limit)`.
 ///
-/// [unconfirmed] The arrival test. The goal spec says `|seek|` of section 5.2, which includes the one-second term. That
-/// term is `v`, of length at least 1 m/s for a target at rest (its heading is unit), so the literal test could never pass
-/// for a stopped target. This reads the tactics spec's `newseek` instead, which leaves the one-second term out.
-///
-/// [unconfirmed] Whether the lead term applies to the detour point as to a slot. This applies it, as to any aim.
+/// The shared ram action predicts with actual target velocity and tests the complete seek before separation.
 pub fn think(
     cop: &CopState,
     target: &TargetState,
@@ -117,10 +112,9 @@ pub fn think(
     vehicle: AiVehicle,
 ) -> Step {
     let aim = detour(cop.position, slot, target.position).unwrap_or(slot);
-    let motion = motion_vector(target.velocity, target.heading);
-    let seek = lead_seek(cop.position, aim, motion);
+    let seek = lead_seek(cop.position, aim, target.velocity);
     let limit = limit_step(cop, target, vehicle);
-    if has_arrived(lead_offset(cop.position, aim, motion), aggression) {
+    if has_arrived(seek, aggression) {
         return Step { command: arrived_command(), limit };
     }
     let steer = combine(seek, separation, SEPARATION_SCALE_KMH, SEPARATION_SCALE_KMH);
@@ -205,13 +199,25 @@ mod tests {
 
     #[test]
     fn a_cop_short_of_its_slot_steers_at_it_with_the_limiter_speed() {
-        // Cop at (0, -20), ring slot (0, -10), still target facing +Z. Seek = (0, 10) + (0, 1) (1 + 7) = (0, 18). The
-        // limiter grows from 0 by 4 * 0.5 = 2, so the speed is 2 and the drive point is (0, -2).
+        // Cop at (0, -20), ring slot (0, -10), stationary target: no predictive lead.
+        // The limiter grows from 0 by 4 * 0.5 = 2, so the speed is 2 and the drive point remains the slot.
         let cop = CopState { position: Vec2::new(0.0, -20.0), forward_speed: 0.0, limit: 0.0, dt: 0.5 };
         let step = think(&cop, &stopped_target(), Vec2::new(0.0, -10.0), 0.8, Vec2::ZERO, vehicle());
         assert!(!step.command.arrived);
         assert!(close(step.command.desired_speed, 2.0), "{}", step.command.desired_speed);
-        assert!(step.command.target_point.is_some_and(|p| vec_close(p, Vec2::new(0.0, -2.0))));
+        assert!(step.command.target_point.is_some_and(|p| vec_close(p, Vec2::new(0.0, -10.0))));
+    }
+
+    #[test]
+    fn arrival_tests_the_complete_velocity_seek_before_separation() {
+        let slot = Vec2::new(0.0, -6.0);
+        let target = TargetState { velocity: Vec2::X, ..stopped_target() };
+        let cop = CopState { position: slot, forward_speed: 1.0, limit: 2.0, dt: 0.1 };
+        let moving = think(&cop, &target, slot, 0.8, Vec2::ZERO, vehicle());
+        assert!(!moving.command.arrived, "the moving slot requires a one-second velocity lead");
+        let predictive_slot = CopState { position: slot + Vec2::X / 1.7, ..cop };
+        let arrived = think(&predictive_slot, &target, slot, 0.8, Vec2::Y * 5.0, vehicle());
+        assert!(arrived.command.arrived, "the complete seek cancels before separation is added");
     }
 
     #[test]

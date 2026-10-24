@@ -148,6 +148,8 @@ contract has a companion provenance record and an explicit validation boundary.
 
 ## Project tools
 
+Police AI: [implementation coverage and remaining parity limits](police-ai-parity.md).
+
 - **Rust:** `nfsmw check-install | list-cars | view-car | view-world` (see the [root README](../README.md)).
   The engine-generic libraries are in [`libs/`](../libs), each with its own README.
 - [`tools/chunkdump.py`](../tools/chunkdump.py) dumps the bChunk tree of a data file (JDLZ/RAWW aware).

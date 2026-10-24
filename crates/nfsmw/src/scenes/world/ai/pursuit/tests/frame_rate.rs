@@ -64,6 +64,9 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Vec<TickState> {
             world.step(player_focus(at), &collision, &mut props, &surfaces);
             world.update_sight(STEP, &cast);
             let view = PlayerView {
+                nos_input: false,
+                nitrous_boost: 0.0,
+                velocity: (space::to_render(Vec3::Z.to_array())) * (12.0),
                 position: space::to_render(at.to_array()),
                 forward: space::to_render(Vec3::Z.to_array()),
                 speed: 12.0,

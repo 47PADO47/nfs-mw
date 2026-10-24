@@ -8,7 +8,23 @@ use glam::{Mat3, Quat, Vec3};
 use super::CarSim;
 use crate::scenes::world::{road::Spawn, space};
 
+#[cfg(test)]
+#[path = "ai_acceleration_tests.rs"]
+mod acceleration_tests;
+
 impl CarSim {
+    /// Effective input after script, cinematic and arrest overrides; distinct from engine NOS engagement.
+    pub fn nos_input(&self) -> bool {
+        self.vehicle.controls().nos
+    }
+    /// Current nitrous capability after tuning; tank level is separate telemetry.
+    pub(in crate::scenes::world) fn nitrous_spec(&self) -> blackbox_vehicle::nos::NosSpec {
+        let mut spec = self.vehicle.spec().nos;
+        let tuning = self.vehicle.tunings.nos.clamp(-1.0, 1.0);
+        spec.torque_boost *= 1.0 + 0.25 * tuning;
+        spec.nos_capacity *= 1.0 - 0.25 * tuning;
+        spec
+    }
     /// Original destroyed-on-wheels sleep is independent of retirement brake controls.
     pub fn set_destroyed_non_player(&mut self, destroyed: bool) {
         let delay = (destroyed && !self.collision_role.player).then_some(2.0);

@@ -165,6 +165,7 @@ fn drive_car(
     let chase = host.scene.pursuit_feed();
     audio.follow_roam(host.scene.roam_feed());
     audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended(), time.delta_secs());
+    host.scene.note_police_speech(audio.police_speech_phase());
     // The dispatcher's 911 report was said: the world starts the call.
     if let Some(secs) = audio.take_911_call() {
         host.scene.start_911_call(secs);

@@ -14,12 +14,21 @@ impl TrafficWorld {
         hash.f32(self.signal_time);
         hash.f32(self.spawn_timer);
         hash.f32(self.sight_clock);
+        hash.bool(self.world_moment);
         hash.f32(self.hit_timer);
         hash.bool(self.seen_by_cops);
         hash.bool(self.pursuit.is_some());
+        self.target_road.hash_into(hash);
+        if let Some(pursuit) = &self.pursuit {
+            pursuit.hash_spawn_into(hash);
+        }
         hash.f32(self.heat_value());
+        self.formation_membership.borrow().hash_into(hash);
+        self.police.hash_formations(hash);
         hash.f32(self.busted_meter());
         hash.bool(self.is_busted());
+        self.police.hash_observation(hash);
+        self.police.hash_costs(hash);
         hash.bytes(format!("{:?}", self.cooldown_status()).as_bytes());
         for site in self.roadblock_sites() {
             hash.f32(site[0]);
@@ -54,6 +63,7 @@ impl TrafficWorld {
                 one(&|h| [self.signal_time, self.spawn_timer, self.sight_clock].iter().for_each(|&v| h.f32(v))),
             ),
             ("ids".to_owned(), u64::from(self.next_entity)),
+            ("target road".to_owned(), one(&|h| self.target_road.hash_into(h))),
         ];
         for car in &self.cars {
             parts.push((format!("car {} {}", car.key(), car.name), one(&|h| car.hash_into(h))));

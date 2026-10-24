@@ -31,7 +31,7 @@ impl TrafficWorld {
     }
 
     pub fn cops_damaged(&self) -> u32 {
-        self.pursuit.as_ref().map_or(0, |pursuit| pursuit.damaged.len() as u32)
+        self.pursuit.as_ref().map_or_else(|| self.police.damaged_count(), |pursuit| pursuit.damaged.len() as u32)
     }
 }
 

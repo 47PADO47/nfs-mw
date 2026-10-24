@@ -7,8 +7,6 @@
 //! test), and a cop is "in formation" when the formation gives it a slot.
 
 use blackbox_pursuit::CooldownStatus;
-use blackbox_pursuit::formation::slots::assign;
-use blackbox_pursuit::sight;
 use blackbox_roads::{SegmentFilter, closest_segment};
 use glam::{Vec2, Vec3};
 
@@ -59,8 +57,8 @@ impl super::super::TrafficWorld {
         let forward = Vec3::from_array(space::to_physics(view.forward)).normalize_or_zero();
         out.player = PlayerFeed {
             position: at.to_array(),
-            velocity_dir: match view.speed.abs() > 0.5 {
-                true => (forward * view.speed.signum()).to_array(),
+            velocity_dir: match view.velocity.length() > 0.5 {
+                true => Vec3::from_array(space::to_physics(view.velocity)).normalize_or_zero().to_array(),
                 false => [0.0; 3],
             },
             forward: forward.to_array(),
@@ -76,13 +74,19 @@ impl super::super::TrafficWorld {
         out.status = StatusFeed {
             cooling_down: self.police.cooldown_status() == CooldownStatus::CoolDown,
             formation: feed_formation(self.police.last_formation()),
-            collapse_active: false,
+            collapse_active: self.collapse_active(),
             finisher_active: self.police.finisher_running(),
             evade_level: self.police.evade_level(),
             busted: self.police.busted_meter(),
             infractions: *self.police.infractions(),
         };
-        self.list_cops(&mut out, at, forward);
+        let velocity = Vec3::from_array(space::to_physics(view.velocity));
+        let slot_forward = blackbox_pursuit::goals::approach::motion_vector(
+            Vec2::new(velocity.x, velocity.z),
+            Vec2::new(forward.x, forward.z),
+        )
+        .normalize_or_zero();
+        self.list_cops(&mut out, at, forward, slot_forward);
         out.heli = self.heli_feed(at);
         out
     }
@@ -95,23 +99,10 @@ impl super::super::TrafficWorld {
     }
 
     /// Every cop car of the chase and the roadblock's cars, wrecked ones included for a while.
-    fn list_cops(&self, out: &mut SpeechFeed, at: Vec3, forward: Vec3) {
-        let level = self.police.level().unwrap_or(1);
-        let chasers: Vec<usize> = (0..self.cars.len()).filter(|&i| self.cars[i].is_cop()).collect();
-        let positions: Vec<Vec2> = chasers
-            .iter()
-            .map(|&i| {
-                let p = self.cars[i].physics_position();
-                Vec2::new(p.x, p.z)
-            })
-            .collect();
-        let slots = match self.police.last_formation() {
-            Some(formation) => assign(formation, &positions, Vec2::new(at.x, at.z), Vec2::new(forward.x, forward.z)),
-            None => vec![None; positions.len()],
-        };
-        let right = Vec2::new(forward.z, -forward.x);
-        let ahead = Vec2::new(forward.x, forward.z);
-        for (i, car) in self.cars.iter().enumerate() {
+    fn list_cops(&self, out: &mut SpeechFeed, at: Vec3, forward: Vec3, slot_forward: Vec2) {
+        let right = Vec2::new(slot_forward.y, -slot_forward.x);
+        let ahead = slot_forward;
+        for car in &self.cars {
             let listed = matches!(car.role, Role::Cop(_)) || car.is_roadblock();
             if !listed {
                 continue;
@@ -119,13 +110,13 @@ impl super::super::TrafficWorld {
             let position = car.physics_position();
             let to_cop = position - at;
             let distance = to_cop.length();
-            let facing = car.physics_forward().dot((-to_cop).try_normalize().unwrap_or(Vec3::ZERO));
-            let sees = self.seen_by_cops && !car.is_wrecked() && !sight::out_of_range(level, distance, facing);
-            let slot = chasers.iter().position(|&c| c == i).and_then(|c| slots.get(c).copied().flatten());
-            let offset = slot.map_or([0.0; 2], |aim| {
-                let d = aim - Vec2::new(at.x, at.z);
-                [d.dot(right), d.dot(ahead)]
-            });
+            let sees = !car.is_wrecked()
+                && match car.is_roadblock() {
+                    true => !self.hidden_from_cars() && distance < blackbox_pursuit::roadblock::standing::SEES_YOU,
+                    false => car.sees_player(),
+                };
+            let offset = self.formation_slot(car.key());
+            let slot = offset.map(|offset| Vec2::new(at.x, at.z) + right * offset.x + ahead * offset.y);
             let damage = car.cop_health_sample().map_or(0.0, |s| s.damage);
             out.push_cop(CopFeed {
                 id: car.speech_id(),
@@ -140,7 +131,7 @@ impl super::super::TrafficWorld {
                 ahead: horizontal(to_cop).normalize_or_zero().dot(horizontal(forward).normalize_or_zero()) > 0.0,
                 in_formation: slot.is_some(),
                 in_position: slot.is_some_and(|aim| Vec2::new(position.x, position.z).distance(aim) <= IN_POSITION),
-                offset,
+                offset: offset.map_or([0.0; 2], |offset| offset.to_array()),
                 vehicle: crate::audio::radio_tables::vehicle_of(&car.name),
                 road: self.road_speech_id(position, car.physics_forward()).unwrap_or(0),
                 roadblock: car.is_roadblock(),

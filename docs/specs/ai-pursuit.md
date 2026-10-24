@@ -49,7 +49,12 @@ seconds, distances metres, speeds m/s unless a `mph` / `kph` is written (the dat
   `TotalPursuitTime`, divides it into heat, and posts the whole seconds to the HUD), so this spec treats every
   `dT` of the pursuit as **real elapsed seconds since its last run**. The busted timer then fills at 1.0 per second
   (section 6). **[unconfirmed]**: the scheduler function is marked unsolved in the decomp.
-- A rewrite should run the pursuit logic at 4 Hz (0.25 s step) and the busted integration every tick, in seconds.
+- **PC scheduler correction (2026-10-23):** rates are fractions of updates,
+  not elapsed seconds. The PC variable task receives its elapsed-time bank.
+  Pursuit rate 0.25 runs every four updates; cop rate 0.125 every eight.
+  The rewrite uses four simulation ticks per pursuit decision and integrates
+  busted every tick. See [police-ai-parity-core](police-ai-parity-core.md).
+  The earlier 4 Hz recommendation was incorrect.
 
 ### 1.2 Pursuit creation
 

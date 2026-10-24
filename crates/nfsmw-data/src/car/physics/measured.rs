@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
-use blackbox_vehicle::performance::{Performance, measure_with_integration};
+use blackbox_vehicle::performance::{Performance, estimate_ai, measure_with_integration};
 use blackbox_vehicle::tires::TireIntegration;
 use blackbox_vehicle::vehicle::VehicleSpec;
 use game_install::GameDir;
@@ -58,6 +58,16 @@ pub fn performance(
     set.get_or_measure(type_name, measure)
 }
 
+/// Action-planning estimates have their own cache identity, independent of physical launch measurements.
+pub fn ai_performance(
+    dir: &GameDir,
+    type_name: &str,
+    estimate: impl FnOnce() -> Option<Performance>,
+) -> Option<Performance> {
+    let Ok(set) = memo(dir, &FILES, || Ok(Measured::default())) else { return estimate() };
+    set.get_or_measure(&format!("ai-estimate-v1/{type_name}"), estimate)
+}
+
 /// The results of [`performance_of_spec`], by the description of the spec and the integration policy.
 static BY_SPEC: Mutex<Option<HashMap<String, Performance>>> = Mutex::new(None);
 
@@ -70,6 +80,18 @@ pub fn performance_of_spec(spec: &VehicleSpec, integration: TireIntegration) -> 
     }
     let measured = measure_with_integration(spec, integration);
     *lock_specs().get_or_insert_with(HashMap::new).entry(key).or_insert(measured)
+}
+
+/// The analytical AI curve; unsupported parameter sets retain the measured fallback.
+/// This changes action planning only, never the physical vehicle's engine or tires.
+pub fn ai_performance_of_spec(spec: &VehicleSpec, integration: TireIntegration) -> Performance {
+    let key = format!("ai-estimate-v1|{integration:?}|{spec:?}");
+    let hit = lock_specs().as_ref().and_then(|map| map.get(&key).copied());
+    if let Some(hit) = hit {
+        return hit;
+    }
+    let estimated = estimate_ai(spec).unwrap_or_else(|| performance_of_spec(spec, integration));
+    *lock_specs().get_or_insert_with(HashMap::new).entry(key).or_insert(estimated)
 }
 
 fn lock_specs() -> MutexGuard<'static, Option<HashMap<String, Performance>>> {

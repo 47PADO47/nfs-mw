@@ -30,6 +30,7 @@ mod route;
 mod segment;
 mod signal;
 mod signal_props;
+mod tracker;
 mod trail;
 mod zones;
 
@@ -51,7 +52,7 @@ pub use gps::{
     ARRIVAL_DISTANCE, Gps, GpsEnd, GpsState, LOOK_AHEAD_CATCH_UP, LOOK_AHEAD_MAX, LOOK_AHEAD_MIN, LOOK_AHEAD_SECONDS,
     MAX_DEVIATION,
 };
-pub use heli_sheet::{HeliSheet, Triangle as HeliTriangle};
+pub use heli_sheet::{HeliSheet, Surface as HeliSurface, Triangle as HeliTriangle};
 pub use index::SegmentIndex;
 pub use junction_crossing::{SAME_WAY, crossing_point, earliest_oncoming};
 pub use lane::{NodeInd, centre_line, lane_line, lane_line_shifted, right_of, travel_profile};
@@ -72,6 +73,7 @@ pub use signal::{
     OFFSET_PER_JUNCTION, PHASE_ALIGNMENT, PHASES, STOP_LINE_DISTANCE, SignalController, Timing,
 };
 pub use signal_props::{MatchParams, PropPose, match_props};
+pub use tracker::{RoadObservation, RoadTracker};
 pub use trail::Body;
 pub use trail::{
     Avoidable, CAPACITY as TRAIL_CAPACITY, CUT, CUT_BEHIND, Cookie, DEFAULT_GAP, Occlusion, Trail, trail_curvature,

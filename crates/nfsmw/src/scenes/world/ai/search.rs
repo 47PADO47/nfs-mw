@@ -51,6 +51,8 @@ impl TrafficWorld {
         {
             return false;
         }
+        nav.half_width = model.model.physics.spec.dimension.x;
+        nav.enable_trail(&self.network);
         let gap = self.cops.window_gap(nav.position, player);
         if self.cops.bars_spawn(nav.position)
             || !(150.0..=400.0).contains(&gap)
@@ -63,8 +65,6 @@ impl TrafficWorld {
         let spawn = Spawn { position, heading: facing.y.atan2(facing.x) };
         let cruise = self.search_cruise();
         let speed = cruise.street.min(cruise.highway);
-        nav.half_width = model.model.physics.spec.dimension.x;
-        nav.enable_trail(&self.network);
         let start = Start { stagger: (self.rng.police.next_f32() * 8.0) as u32, speed, cruise, patrol: false };
         let Some(mut car) = AiCar::place(
             &model.model,
@@ -76,7 +76,7 @@ impl TrafficWorld {
         ) else {
             return false;
         };
-        car.search_mode(true, cruise, &self.network, &self.index, &mut self.rng.police);
+        car.search_mode(true, cruise, &self.network, &self.index);
         if !car.is_searching() {
             return false;
         }

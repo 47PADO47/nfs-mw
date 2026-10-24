@@ -50,6 +50,7 @@ impl std::fmt::Display for Percent {
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Partial {
     pub traffic_policy: Option<super::TrafficPolicy>,
+    pub pursuit_options: Option<super::PursuitOptions>,
     pub detail: Option<super::DetailSettings>,
     pub appearance: Option<super::Appearance>,
     pub deadzone_mode: Option<super::DeadzoneMode>,
@@ -179,6 +180,7 @@ impl Partial {
     pub fn or(self, lower: Partial) -> Partial {
         Partial {
             traffic_policy: self.traffic_policy.or(lower.traffic_policy),
+            pursuit_options: self.pursuit_options.or(lower.pursuit_options),
             detail: self.detail.or(lower.detail),
             appearance: self.appearance.or(lower.appearance),
             deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),

@@ -6,6 +6,7 @@ mod access;
 mod arrest;
 mod breaker_camera;
 mod car_detail;
+mod cinematic;
 mod clock;
 mod grid;
 mod sabotage;
@@ -129,6 +130,8 @@ pub struct Drive {
     frame_input: DriveInput,
     /// The input of a network seat, which replaces the devices' input while it is set (`remote.rs`).
     remote_input: Option<DriveInput>,
+    /// Temporary racer AI controls while a world-moment camera owns the player.
+    cinematic_input: Option<DriveInput>,
     /// Bust fallback holds controls until the ticket is paid.
     arrested: bool,
     /// A session's rules forbid time scaling, so the speedbreaker is off (`session_rules.rs`).

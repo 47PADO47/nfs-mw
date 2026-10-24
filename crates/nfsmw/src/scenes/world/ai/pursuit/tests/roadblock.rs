@@ -12,6 +12,9 @@ use crate::scenes::world::ai::roadblock::Cause;
 
 fn view_at(z: f32) -> PlayerView {
     PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (space::to_render(Vec3::Z.to_array())) * (20.0),
         position: space::to_render([0.0, 0.0, z]),
         forward: space::to_render(Vec3::Z.to_array()),
         speed: 20.0,
@@ -24,7 +27,9 @@ fn chase(heat: u32) -> TrafficWorld {
     let mut world = TrafficWorld::new(straight_road(1000.0));
     let mut renderer = NullBackend::new(Capabilities::baseline("null", GraphicsApi::Vulkan));
     world.add_cop_model(cop_model(&mut renderer, "copx", player()));
+    world.police.set_forced_pursuit(true);
     world.start_pursuit(heat, vec![wave()], player());
+    assert_eq!(world.police.level(), Some(heat));
     world
 }
 

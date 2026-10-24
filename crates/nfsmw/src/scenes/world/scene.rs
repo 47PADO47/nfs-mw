@@ -476,4 +476,10 @@ impl Scene for WorldScene {
     fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
         self.traffic.as_mut()?.siren_frame(dt)
     }
+
+    fn note_police_speech(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.note_police_speech(phase);
+        }
+    }
 }

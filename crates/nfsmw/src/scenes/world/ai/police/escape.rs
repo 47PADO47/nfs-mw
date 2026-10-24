@@ -9,19 +9,31 @@ use blackbox_pursuit::cooldown::{CooldownInput, TUNING as COOLDOWN_TUNING};
 use blackbox_pursuit::evade;
 
 impl Police {
+    pub(in crate::scenes::world::ai) fn sight_allowed(&self) -> bool {
+        self.cooldown.can_show_busted(&COOLDOWN_TUNING)
+    }
+
     /// Steps the cool-down one frame at the heat `level` and returns `true` on the frame the player got away. A busted
     /// chase does not tick it: the busted outcome comes first and the world ends the chase with it.
     pub(super) fn tick_cooldown(&mut self, dt: f32, sensed: Sensed, level: u32) -> bool {
         if self.busted.is_busted() {
             return false;
         }
+        let observed_age = self.observation.ground_sight_age.map(|age| {
+            match self.helicopter_sees() || self.observation.secondary_seen || self.final_pursuit() {
+                true => age.min(0.0),
+                false => age,
+            }
+        });
         let input = CooldownInput {
-            seen: sensed.seen,
+            seen: observed_age.is_none() && (sensed.seen || self.final_pursuit()),
             hidden: sensed.hidden,
-            required: evade::timeout(level),
-            hidden_multiplier: evade::hidden_multiplier(level),
+            required: self.level_tuning(level).map_or_else(|| evade::timeout(level), |row| row.evade_timeout),
+            hidden_multiplier: self
+                .level_tuning(level)
+                .map_or_else(|| evade::hidden_multiplier(level), |row| row.hidden_multiplier),
         };
-        self.cooldown.update(dt, &input, &COOLDOWN_TUNING) == CooldownStatus::Evaded
+        self.cooldown.update_observed(dt, &input, &COOLDOWN_TUNING, observed_age) == CooldownStatus::Evaded
     }
 
     /// Advances the end card's clock once the chase is over. Without an end reason there is no card, so nothing runs.

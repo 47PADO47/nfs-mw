@@ -198,6 +198,7 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32), guest_looks: &[(f32, f32)]) {
         let _span = bevy_log::info_span!("world::physics_step").entered();
+        self.update_moment_control();
         let primary = self.chase_primary();
         let focus = self.traffic_focus();
         // What the gameplay rules see (the crash gate, the cops' spawn window, the helicopter, what is out of view) is
@@ -247,6 +248,7 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             let _span = bevy_log::info_span!("world::traffic_step").entered();
             traffic.set_damage_view(glam::Vec3::from_array(space::to_physics(event_view)));
+            traffic.note_primary_target(primary.0);
             let trace = blackbox_trace::scope("World: physics / traffic step");
             traffic.step(focus, collision, props, surfaces);
             drop(trace);

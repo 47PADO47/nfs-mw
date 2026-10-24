@@ -158,6 +158,8 @@ pub struct ChaseRun {
     sabotaged_for: Option<f32>,
     /// The player's speed in m/s, as the world last reported it.
     speed: f32,
+    /// Whether the chase has turned the cops on and not yet barred them again.
+    cops_allowed: bool,
 }
 
 impl ChaseRun {
@@ -185,6 +187,7 @@ impl ChaseRun {
             call_load_left: None,
             sabotaged_for: None,
             speed: f32::INFINITY,
+            cops_allowed: false,
         }
     }
 
@@ -196,6 +199,10 @@ impl ChaseRun {
     /// Whether the chase has ended: the race went to postrace.
     pub fn is_finished(&self) -> bool {
         self.chase.is_finished()
+    }
+
+    pub(super) fn cops_allowed(&self) -> bool {
+        self.cops_allowed
     }
 
     /// One frame: `point` is the player's place (physics space) and `dt` the frame's time. Returns what the chase asks
@@ -236,6 +243,13 @@ impl ChaseRun {
             dt,
         };
         let events = self.chase.update(input);
+        for event in &events {
+            match event {
+                ChaseEvent::CopsOn => self.cops_allowed = true,
+                ChaseEvent::NoNewPursuits => self.cops_allowed = false,
+                _ => {}
+            }
+        }
         if events.iter().any(|event| matches!(event, ChaseEvent::SabotageEngine { .. })) {
             self.sabotaged_for.get_or_insert(0.0);
         }
@@ -324,6 +338,7 @@ impl WorldScene {
             }
             ChaseEvent::NoNewPursuits => {
                 if let Some(traffic) = self.traffic.as_mut() {
+                    traffic.cancel_cop_spawns();
                     traffic.bar_cops(true);
                 }
             }

@@ -52,7 +52,7 @@ impl Drive {
 
     /// Meter/button edges run every loaded frame, including frames with no 60 Hz tick.
     pub fn prepare_time(&mut self) -> bool {
-        if self.arrested || self.breaker_barred {
+        if self.arrested || self.breaker_barred || self.cinematic_input.is_some() {
             self.breaker.cancel();
             return false;
         }
@@ -79,7 +79,7 @@ impl Drive {
             .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
         let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
         let active = self.breaker.step(
-            held && !self.arrested && !self.breaker_barred,
+            held && !self.arrested && !self.breaker_barred && self.cinematic_input.is_none(),
             if self.arrested { 0.0 } else { speed },
             sim_dt,
             real_dt,

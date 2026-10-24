@@ -2,6 +2,10 @@ use super::*;
 use crate::scenes::world::ai::PlayerView;
 
 pub(super) fn patrol(world: &mut TrafficWorld, renderer: &mut NullBackend, at: Vec3) {
+    patrol_phased(world, renderer, at, 0);
+}
+
+pub(super) fn patrol_phased(world: &mut TrafficWorld, renderer: &mut NullBackend, at: Vec3, stagger: u32) {
     let model = cop_model(renderer, "copx", player());
     let mut nav = RoadNav::traffic();
     assert!(nav.init_at_point(&world.network, &world.index, at, Vec3::Z, false));
@@ -12,7 +16,7 @@ pub(super) fn patrol(world: &mut TrafficWorld, renderer: &mut NullBackend, at: V
         Role::Traffic,
         nav,
         Spawn { position, heading: heading.y.atan2(heading.x) },
-        Start { speed: 10.0, stagger: 0, cruise: Cruise::default(), patrol: true },
+        Start { speed: 10.0, stagger, cruise: Cruise::default(), patrol: true },
         &WorldGround { collision: &floor(), surfaces: &SurfaceTable::default() },
     )
     .unwrap();
@@ -24,7 +28,16 @@ pub(super) fn see(world: &mut TrafficWorld, seen: bool) {
     world.seen_by_cops = seen;
     world.update_police(
         0.25,
-        &PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 10.0, nitrous: 0.0, throttle: 0.0 },
+        &PlayerView {
+            nos_input: false,
+            nitrous_boost: 0.0,
+            velocity: (Vec3::X) * (10.0),
+            position: Vec3::ZERO,
+            forward: Vec3::X,
+            speed: 10.0,
+            nitrous: 0.0,
+            throttle: 0.0,
+        },
         &|_, _| true,
     );
 }
@@ -69,7 +82,7 @@ fn tracked_sight_keeps_the_grace_then_search_remembers_and_reacquisition_updates
     assert_eq!(target.position, first.position);
     assert_eq!(target.velocity, Vec3::ZERO);
     let mut aims = Vec::new();
-    world.cop_aims(&target, &mut aims);
+    world.cop_aims(&target, &floor(), &mut aims);
     assert!(aims.iter().all(Option::is_none), "search has no chase formation or stationary-point target");
     see(&mut world, true);
     assert_eq!(world.pursuit_target(Some(hidden)).unwrap().position, hidden.position);
@@ -108,10 +121,10 @@ fn police_switch_to_road_search_and_back_without_replacing_or_teleporting() {
     let car = &mut world.cars[0];
     let before = (car.audio_emitter().id, car.physics_position(), car.body().velocity);
     let cruise = Cruise::patrol(10.0, 20.0);
-    car.search_mode(true, cruise, &world.network, &world.index, &mut world.rng.nav);
+    car.search_mode(true, cruise, &world.network, &world.index);
     assert!(car.is_searching());
     assert_eq!((car.audio_emitter().id, car.physics_position(), car.body().velocity), before);
-    car.search_mode(false, cruise, &world.network, &world.index, &mut world.rng.nav);
+    car.search_mode(false, cruise, &world.network, &world.index);
     assert!(!car.is_searching());
     assert_eq!((car.audio_emitter().id, car.physics_position(), car.body().velocity), before);
 }
@@ -263,6 +276,9 @@ fn roadblock_cars_keep_the_layout_offsets_instead_of_snapping_into_lanes() {
     world.add_cop_model(cop_model(&mut renderer(), "copx", player()));
     world.start_pursuit(1, vec![wave()], player());
     let view = PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (space::to_render(Vec3::Z.to_array())) * (20.0),
         position: space::to_render([0.0, 0.0, -150.0]),
         forward: space::to_render(Vec3::Z.to_array()),
         speed: 20.0,

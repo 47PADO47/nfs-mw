@@ -30,6 +30,13 @@ pub(super) struct Avoid {
 }
 
 impl Avoid {
+    pub(super) fn changing_lanes(&self) -> Option<(usize, usize)> {
+        match self.change.phase {
+            Phase::Moving { from, to, .. } => Some((from, to)),
+            _ => None,
+        }
+    }
+
     pub(super) fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
     }

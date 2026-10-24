@@ -206,6 +206,10 @@ impl WorldScene {
         }
         self.view = crate::scenes::world::View::Chase;
         let previous_traffic = self.traffic_manual;
+        crate::scenes::world::ai::configure_pursuit_context(
+            self,
+            super::police_context::context_of(race, options.career),
+        )?;
         self.race = Some(RaceSession {
             event: crate::career::race_event_id(race),
             map: crate::hud::MapSource::of_race(
@@ -278,8 +282,7 @@ impl WorldScene {
                 return true;
             }
             challenge.began = true;
-            let heat = challenge.heat.to_string();
-            match crate::scenes::world::ai::pursuit_command(self, renderer, &[heat.as_str()]) {
+            match crate::scenes::world::ai::start_event_pursuit(self, renderer, challenge.heat) {
                 Ok(line) => log::info!("race: {line}"),
                 Err(why) => {
                     log::warn!("race {}: the chase did not start: {why}", session.name);

@@ -155,6 +155,7 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.hd_content = snapshot.hd_content;
     settings.custom_fonts = snapshot.custom_fonts;
     settings.traffic_policy = snapshot.traffic_policy;
+    settings.pursuit_options = snapshot.pursuit_options;
     settings.traffic = snapshot.traffic;
     settings.cop_share = snapshot.cop_share;
     settings.traffic_lights = snapshot.traffic_lights;

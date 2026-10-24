@@ -96,7 +96,7 @@ fn a_fleeing_cop_stays_out_of_the_chase_when_the_sight_changes() {
     world.flee_surplus(focus(), false);
     let fleeing = world.cars.iter().position(AiCar::is_fleeing).expect("one leaves");
     let cruise = world.search_cruise();
-    world.cars[fleeing].search_mode(false, cruise, &world.network, &world.index, &mut world.rng.nav);
+    world.cars[fleeing].search_mode(false, cruise, &world.network, &world.index);
     assert!(world.cars[fleeing].is_searching() && world.cars[fleeing].is_fleeing(), "the chase cannot call it back");
 }
 

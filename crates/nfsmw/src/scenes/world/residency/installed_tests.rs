@@ -140,6 +140,9 @@ fn installed_simulation_camera_honours_every_selected_view_without_render_interp
     drive.set_alpha(1.0);
     assert!(physical.position.distance(drive.pose().position) > 1.0, "test must exercise the live body pose");
     let player = PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (physical.rotation * Vec3::X) * (60.0),
         position: physical.position,
         forward: physical.rotation * Vec3::X,
         speed: 60.0,

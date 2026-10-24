@@ -42,7 +42,7 @@ newest cookie points almost exactly against its Forward (dot < −0.99, the curs
 cleared first. When the ring is full the oldest cookie is overwritten and the "current index" moves one back.
 `reset` clears the trail and records one cookie at the cursor.
 
-## 2. Corridor bounds **[decomp]**
+## 2. Corridor bounds **[verified PC endpoint construction]**
 
 The left and right points of a cookie come from two more lane lines built with the cursor's lane line
 (`SetBoundPos`), displaced by `left_offset` and `right_offset` instead of the lane offset:
@@ -54,6 +54,22 @@ The left and right points of a cookie come from two more lane lines built with t
   − margin` with `margin = half_width + 1.5`. If `right − left` is smaller than `2 × margin`, widen both
   sides by half the shortfall. The cursor's own offset is clamped to `[left + 0.1, right − 0.1]` when a
   trail is present.
+
+Compute the start and end bounds independently from each endpoint's profile and requested lane offset.
+Clamp the centre offset independently at those endpoints as well. Build the centre spline and both bound
+splines from those endpoint positions. Evaluate these same splines throughout the segment; selecting a
+different profile when `T` crosses 0.5 must not move the bounds discontinuously. Enabling a trail or
+rebuilding a navigator with a trail must apply the centre clamp before recording its cookie.
+
+The `1.5 m` safety margin and the `0.1 m` centre inset are distinct, confirmed constants. Do not reduce
+the safety margin to make an unclamped outer lane fit. See
+[endpoint geometry provenance](../provenance/ai-road-nav-trail-geometry.md).
+
+For a road-constrained vehicle placement, set the vehicle half-width and enable its trail before final
+spawn-window, exclusion-zone and spacing checks. Derive the physical spawn position and heading from
+that prepared cursor. Otherwise the body can start at an old lane point while its initial steering target
+uses the clamped centre. Explicit scripted positions and headings retain their existing placement rules;
+preparing their navigation does not authorize moving a roadblock or scripted vehicle into another lane.
 
 So on a racer's trail the corridor is the whole contiguous drivable road width minus a car-sized margin, and
 on a traffic trail it is a narrow strip: racers may use the road, traffic stays in lane.
@@ -130,6 +146,18 @@ For avoidable `a` and own car `m`, with `F` the closest cookie's Forward:
 - The point of impact is the avoidable's position advanced along `F` by `trailing_speed × approach_time −
   (my_extent + his_extent)`; the closest cookie to it is the cut start. Its lateral velocity component times the
   clamped approach time (0…1) shifts the cut position by `0.8 ×` and widens the avoidable by `0.2 ×`.
+  **[verified native]** This predicted point selects the first cut even when both cars are moving quickly in
+  the same direction. Do not replace it with the avoidable's current body position: a close, slower car can
+  meet the pursuer much farther down the road, so a current-position cut can request an abrupt sideways turn.
+  See [predictive avoidance provenance](../provenance/ai-road-nav-predictive-avoidance.md).
+  **[verified native]** Both nose points use the road forward vector and their own extent, each limited by
+  the remaining gap. The first cut is the nearest forward cookie crossing around the predicted point:
+  consider cookie zero when the point is behind its cross-section, then consider later cookies where
+  successive forward projections have opposite signs, retaining the closest squared distance. A point
+  beyond all recorded cookies has no cut start. Do not restart the cut near the current avoidable body.
+  **[adapter boundary]** The implementation clips the tail in the horizontal plane after twice the
+  combined extents. The inspected PC tail expression has a coordinate discrepancy that is separate
+  from its verified first-cut prediction. This correction does not establish exact tail-rule parity.
 - Its half width in the trail is the larger absolute projection of the footprint's two diagonals on the
   cookie's right axis plus the widening; `close_factor = ramp(avoidable_ahead, −6, 6)` (0 when 6 m or more
   behind the car's own cookie distance, 1 when 6 m or more ahead) scales a safety margin
@@ -148,22 +176,27 @@ For avoidable `a` and own car `m`, with `F` the closest cookie's Forward:
 After all avoidables, cookies cut this way have their centres moved to the middle of the remaining corridor
 (`offsets = ±half remaining width`).
 
-## 6. Curvature for speed choice **[decomp, unsolved]**
+## 6. Curvature for speed choice **[verified PC math]**
 
 `trail curvature(car position, car velocity)` returns the larger of two numbers in 1/m:
 
-- **Road term:** the length-weighted mean of `|curvature|` of consecutive cookies from the current index on,
-  with each cookie's curvature clamped to ±0.01. (Zero with fewer than two usable cookies.)
+- **Road term:** clamp each signed cookie curvature to `[-0.01, 0.01]`. For each adjacent pair from the
+  current index onward, average the two signed values and multiply by the later cookie's length.
+  Sum these contributions, divide by the sum of those lengths, then take the absolute value. Opposing
+  bends can cancel. The result is zero when no positive total length is available.
 - **Apex term** (only with more than 2 cookies, occluded and not occluded from behind): let `d` be the
   distance from the car to the occluded position (> 1 m) and `a` the apex cookie's width (at least `d`, at
   least 1); let `sina` be the angle between the directions car→occluded position and apex→cursor
-  (via the arcsine of the planar cross product; pi minus it when they point opposite ways);
+  (the absolute value of the arcsine of the clamped planar cross product; pi minus that positive angle
+  when the directions have a negative dot product);
   `apex = sina × sin(min(sina, pi/2)) / a`, clamped to [0, pi] before dividing; for avoidable occlusion
   multiplied by `ratio²`, `ratio = ramp(closing_speed / own_speed_along, 0, 1)`.
 
-The driver uses this to limit corner speed ([ai-driver-control.md](ai-driver-control.md)). The decomp marks
-the function "unsolved" (the structure above was reconstructed from a non-matching decompile), so treat the
-apex term as approximate.
+The driver uses this to limit corner speed ([ai-driver-control.md](ai-driver-control.md)). The PC executable
+confirms the signed trapezoidal road average and the absolute angle before the opposite-facing correction.
+It also initializes the apex clamp's upper bound to the single-precision value of pi. See
+[curvature provenance](../provenance/ai-road-nav-curvature.md). The rewrite's apex-cookie selection and
+avoidable-speed projection remain separate parity boundaries; these arithmetic checks do not validate them.
 
 ## 7. Schedule at the call sites **[decomp]**
 

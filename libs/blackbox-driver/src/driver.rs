@@ -63,6 +63,19 @@ pub struct Driver {
 }
 
 impl Driver {
+    /// Visits raw controller state in a stable order for deterministic simulation diagnostics.
+    pub fn visit_state(&self, visit: &mut impl FnMut(u32)) {
+        visit(match self.kind {
+            ControllerKind::Simple => 0,
+            ControllerKind::Pid => 1,
+        });
+        self.steering.visit_state(visit);
+        self.throttle.visit_state(visit);
+        visit(u32::from(self.reversing_speed));
+        visit(u32::from(self.steering_behind));
+        visit(self.reverse_override.to_bits());
+        visit(u32::from(self.shocked));
+    }
     pub fn new(kind: ControllerKind, drag_steering: bool) -> Self {
         let settings = match drag_steering {
             true => AdaptiveSettings::DRAG,

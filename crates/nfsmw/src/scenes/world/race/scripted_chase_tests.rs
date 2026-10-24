@@ -4,6 +4,27 @@ use nfsmw_data::gameplay::PlaneTrigger;
 
 const RACE: &str = "race_bin_16/16_2_1_d_day_intro";
 
+#[test]
+fn scripted_police_permissions_survive_the_next_prepare_frame_and_end_at_bail() {
+    let mut zones: [Option<Zone>; 4] = [None, None, None, None];
+    zones[COPS] = sphere();
+    zones[BAIL] = Some(Zone::Sphere(SphereTrigger {
+        key: 3,
+        name: format!("{RACE}/bail_trigger"),
+        position: Vec3::X * 100.0,
+        radius: 5.0,
+        threshold_speed: 0.0,
+    }));
+    let mut run = ChaseRun::from_zones(zones);
+    assert!(!run.cops_allowed());
+    run.update(inside(), 0.0);
+    assert!(run.cops_allowed());
+    run.update(inside(), 1.0);
+    assert!(run.cops_allowed());
+    run.update(outside(), 1.0);
+    assert!(!run.cops_allowed());
+}
+
 /// A sphere volume of radius 5 m at the origin.
 fn sphere() -> Option<Zone> {
     Some(Zone::Sphere(SphereTrigger {

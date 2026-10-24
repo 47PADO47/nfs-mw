@@ -4,7 +4,7 @@
 //! [`crate::to_zone_space`]. Triangle corners are stored in quarter metres in the plane and heights in sixteenths of a
 //! metre; the lookup returns the plane's height above the point.
 
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use std::collections::HashMap;
 
 /// Bytes of one triangle in the chunk: nine `i16` values.
@@ -20,6 +20,13 @@ const CELL: f32 = 32.0;
 pub struct Triangle {
     pub plane: [Vec2; 3],
     pub height: [f32; 3],
+}
+
+/// One sheet surface, in map coordinates `(plane.x, plane.y, height)`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Surface {
+    pub height: f32,
+    pub normal: Vec3,
 }
 
 impl Triangle {
@@ -96,6 +103,19 @@ impl HeliSheet {
     pub fn elevation(&self, p: Vec2) -> Option<f32> {
         let candidates = self.cells.get(&(cell(p.x), cell(p.y)))?;
         candidates.iter().find_map(|&i| self.triangles[i as usize].height_at(p))
+    }
+
+    /// Height and upward normal of the same first triangle used by [`Self::elevation`].
+    pub fn surface(&self, p: Vec2) -> Option<Surface> {
+        let candidates = self.cells.get(&(cell(p.x), cell(p.y)))?;
+        candidates.iter().find_map(|&i| {
+            let triangle = &self.triangles[i as usize];
+            let height = triangle.height_at(p)?;
+            let points = [0, 1, 2].map(|n| triangle.plane[n].extend(triangle.height[n]));
+            let normal = (points[1] - points[0]).cross(points[2] - points[0]).try_normalize()?;
+            let normal = normal * normal.z.signum();
+            Some(Surface { height, normal })
+        })
     }
 
     /// How many triangles the sheet has.
@@ -186,5 +206,20 @@ mod tests {
         assert_eq!(sheet.len(), 2);
         assert!(sheet.elevation(Vec2::new(1000.0, 1010.0)).is_some());
         assert!(sheet.elevation(Vec2::new(0.0, 20.0)).is_some());
+    }
+
+    #[test]
+    fn surface_is_upward_for_either_winding_and_uses_the_elevation_triangle() {
+        let triangle =
+            Triangle { plane: [Vec2::ZERO, Vec2::new(10.0, 0.0), Vec2::new(0.0, 10.0)], height: [0.0, 10.0, 0.0] };
+        for winding in [[0, 1, 2], [2, 1, 0]] {
+            let triangle =
+                Triangle { plane: winding.map(|i| triangle.plane[i]), height: winding.map(|i| triangle.height[i]) };
+            let sheet = HeliSheet::new(vec![triangle]);
+            let at = Vec2::new(2.0, 3.0);
+            let surface = sheet.surface(at).unwrap();
+            assert_eq!(Some(surface.height), sheet.elevation(at));
+            assert!((surface.normal - Vec3::new(-1.0, 0.0, 1.0).normalize()).length() < 1e-5);
+        }
     }
 }

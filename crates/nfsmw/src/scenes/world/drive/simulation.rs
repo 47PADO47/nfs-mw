@@ -20,14 +20,15 @@ impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
         self.frame_input = self.remote_input.unwrap_or_else(|| DriveInput::from_actions(actions, self.wheel));
-        if self.script.is_none() {
+        if self.script.is_none() && self.cinematic_input.is_none() {
             self.presses.note(&self.frame_input);
         }
         // An interactive app's first frame also has dt=0, before the car has been placed.
         self.batch_run |= dt == 0.0 && self.needs_batch();
         if let Some(sim) = self.sim.as_mut() {
-            sim.set_automatic(self.transmission.is_automatic());
+            sim.set_automatic(self.transmission.is_automatic() || self.cinematic_input.is_some());
             sim.set_wheel_options(self.wheel);
+            sim.cinematic_control(self.cinematic_input.is_some());
         }
     }
 
@@ -53,6 +54,8 @@ impl Drive {
             return None;
         }
         let sim = self.sim.as_mut()?;
+        sim.cinematic_control(self.cinematic_input.is_some());
+        sim.set_automatic(self.transmission.is_automatic() || self.cinematic_input.is_some());
         let input = match self.script.as_mut() {
             Some(run) => {
                 let input = run.script.input_at(run.time);
@@ -61,10 +64,12 @@ impl Drive {
             }
             None => self.presses.take_into(self.frame_input),
         }
+        .cinematic(self.cinematic_input)
         .during_arrest(self.arrested)
         .on_grid(self.gridded)
         .sabotaged(self.sabotaged);
-        let input = Self::assisted(self.assist_aim, sim, input);
+        let assist = self.assist_aim.filter(|_| self.cinematic_input.is_none() && !self.arrested);
+        let input = Self::assisted(assist, sim, input);
         if input.pop {
             self.flames.pop();
         }

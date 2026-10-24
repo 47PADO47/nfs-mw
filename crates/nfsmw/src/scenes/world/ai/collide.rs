@@ -198,6 +198,17 @@ impl TrafficWorld {
         drop(parts);
         self.note_touches(&touched);
         self.note_traffic_hits(&traffic_hits);
+        let traffic_impacts: Vec<u32> = hits
+            .iter()
+            .filter(|hit| {
+                hit.by_player
+                    && self.cars[hit.owner].driver_class() == DriverClass::Traffic
+                    && hit.contact.closing > 4.0
+                    && hit.contact.first_caused()
+            })
+            .map(|hit| self.cars[hit.owner].key())
+            .collect();
+        self.police.traffic_impacts(traffic_impacts);
         self.player_hits.tick(STEP);
         self.player_hits.note(traffic_hits.iter().map(|&(owner, _)| owner));
         for hit in &hits {
@@ -263,18 +274,23 @@ impl TrafficWorld {
         std::mem::take(&mut self.strikes)
     }
 
-    /// Whether a cop sees the player, tested every `TEST_PERIOD` seconds of simulated time (`CanSeeTarget`, ai-pursuit
-    /// section 4.1). Every cop car counts: patrol cars and the chase's cops (a roadblock sees by its own rule). A cop sees the player when
-    /// the heat's range and rear cone allow it and the world's faces do not block the line from its eyes to the
-    /// player's. Between tests the last answer holds.
+    /// Patrols keep their shared detection schedule. Pursuit visibility follows each car's actual staggered AI task.
+    /// The pursuit receives the minimum active unit's observation age, not a repeatedly refreshed held boolean.
     pub fn update_sight(&mut self, dt: f32, cast: Cast<'_>) {
-        self.sight_clock += dt;
-        if self.sight_clock < sight::TEST_PERIOD {
+        if !(dt > 0.0 && dt.is_finite()) {
             return;
         }
-        self.sight_clock = self.sight_clock.rem_euclid(sight::TEST_PERIOD);
+        self.sight_clock += dt;
+        let patrol_due = self.sight_clock >= sight::TEST_PERIOD;
+        if patrol_due {
+            self.sight_clock = self.sight_clock.rem_euclid(sight::TEST_PERIOD);
+        }
         let Some(player) = self.player_position else {
             self.seen_by_cops = false;
+            for car in &mut self.cars {
+                car.forget_sight_target();
+            }
+            self.police.set_ground_sight_age(f32::INFINITY);
             return;
         };
         let level = self.police.patrol_heat();
@@ -282,21 +298,53 @@ impl TrafficWorld {
         let eye = player + EYE;
         // A roadblock car does not look for the player: the roadblock sees it within 60 m (`roadblock/director.rs`).
         let roadblock_sees = self.roadblocks.sees_player();
-        self.seen_by_cops = self.cars.iter_mut().fold(roadblock_sees, |seen, car| {
+        let pursuit_sight_allowed = self.police.sight_allowed();
+        let pursuing = self.pursuit.is_some();
+        let mut seen = roadblock_sees;
+        let mut observation_age = match roadblock_sees {
+            true => 0.0,
+            false => f32::INFINITY,
+        };
+        for car in &mut self.cars {
             if !car.is_live_police() || car.is_roadblock() {
-                return seen;
+                continue;
             }
-            let cop = car.physics_position();
-            let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
-            let facing = car.physics_forward().dot(to_player);
-            let distance = cop.distance(player);
-            let out_of_range = match car.is_cop() {
-                true => sight::out_of_range(level, distance, facing),
-                false => sight::patrol_out_of_range(distance, facing),
+            if !car.sight_active() {
+                continue;
+            }
+            let test = |car: &mut super::car::AiCar, pursuit: bool| {
+                let cop = car.physics_position();
+                let to_player = (player - cop).try_normalize().unwrap_or(Vec3::ZERO);
+                let facing = car.physics_forward().dot(to_player);
+                let distance = cop.distance(player);
+                let out_of_range = match pursuit {
+                    true => self.police.pursuit_out_of_range(level, distance, facing),
+                    false => sight::patrol_out_of_range(distance, facing),
+                };
+                let visible = !out_of_range && (!pursuit || pursuit_sight_allowed) && clear(cast, cop + EYE, eye);
+                car.test_target_sight(hidden, visible)
             };
-            let visible = !out_of_range && clear(cast, cop + EYE, eye);
-            seen | car.report_sight(hidden, visible)
-        });
+            if car.is_cop() && pursuing && !car.is_fleeing() {
+                while let Some(ray_due) = car.next_sight_task() {
+                    if ray_due {
+                        test(car, true);
+                    }
+                }
+                observation_age = observation_age.min(car.sight_age());
+                seen |= car.sees_player();
+                continue;
+            }
+            car.forget_sight_target();
+            if !car.is_patrol() {
+                continue;
+            }
+            if patrol_due {
+                test(car, false);
+            }
+            seen |= car.sees_player();
+        }
+        self.seen_by_cops = seen;
+        self.police.set_ground_sight_age(observation_age);
     }
 }
 

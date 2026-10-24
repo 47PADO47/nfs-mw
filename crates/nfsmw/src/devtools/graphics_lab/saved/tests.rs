@@ -1,6 +1,25 @@
 use super::*;
 
 #[test]
+fn pursuit_limit_enhancements_round_trip_through_startup_and_named_snapshot_payloads() {
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.pursuit_options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7 };
+    let text = payload(&settings).unwrap();
+    let wanted = settings.pursuit_options;
+    settings.pursuit_options = Default::default();
+    settings.master_volume = crate::settings::Percent(17);
+    restore(&mut settings, &text).unwrap();
+    assert_eq!(settings.pursuit_options, wanted);
+    assert_eq!(settings.master_volume, crate::settings::Percent(17));
+    let merged =
+        crate::settings::write::merge("[pursuit_options]\nfuture_limit=42", &settings.graphics_layer()).unwrap();
+    assert_eq!(merged.parse::<toml::Table>().unwrap()["pursuit_options"]["future_limit"].as_integer(), Some(42));
+    let before = settings;
+    assert!(restore(&mut settings, "[pursuit_options]\nmax_active_cops='bad'").is_err());
+    assert_eq!(settings, before);
+}
+
+#[test]
 fn f8_traffic_presets_round_trip_without_changing_audio_or_renderer() {
     let mut settings = Settings::from(Partial::default());
     settings.select_traffic_preset(crate::settings::TrafficPreset::Extended);

@@ -422,3 +422,11 @@ runs were allowed in this pass); its parts have unit tests.
    record at the offsets used by `0x0052d640`. This would confirm the strike and the impound fields.
 9. Find who uses `InGameBusted.fng`: a name hash table, a data file in the game's bundle, or a dead screen.
 10. Map the four pursuit-end card texts to the infraction type that set them (`0x00546fc0`, the pursuit history rows).
+
+### Arrest location integration, 2026-10-23
+
+The NIS now uses the queried road cross-section midpoint, rather than the
+player's lane position. No road produces the existing no-scene outcome.
+See [pursuit-cinematic-control.md](pursuit-cinematic-control.md) for current
+PC evidence and remaining heading-axis limits; the older missing-spot notes
+above are superseded by this integration.

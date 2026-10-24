@@ -4,38 +4,22 @@
 use super::*;
 use crate::hud::PursuitEndCard;
 use blackbox_pursuit::busted::BustInput;
+use blackbox_pursuit::rules;
 
 impl super::super::TrafficWorld {
     /// Advances the police one frame: heat, infractions, the helicopter and the speed effects. The cops' sight comes
     /// from the traffic's sighting at the chase's level (or level 1 with no chase).
     /// The cops in position at their formation slot and their average distance to it, with the formation chosen. A cop
     /// is in position within `IN_POSITION` metres of its slot.
-    fn formation_gap(&self, at: Vec3, forward: Vec3) -> Option<(u32, f32)> {
-        /// Metres from a formation slot at which a cop counts as in position (unconfirmed).
-        const IN_POSITION: f32 = 4.0;
-        let formation = self.police.last_formation()?;
-        let fwd = Vec3::from_array(space::to_physics(forward));
-        let cops: Vec<usize> = (0..self.cars.len()).filter(|&i| self.cars[i].is_cop()).collect();
-        let positions: Vec<Vec2> = cops
-            .iter()
-            .map(|&i| {
-                let p = self.cars[i].avoidable().position;
-                Vec2::new(p.x, p.z)
-            })
-            .collect();
-        let aims = assign(formation, &positions, Vec2::new(at.x, at.z), Vec2::new(fwd.x, fwd.z));
-        let gaps: Vec<f32> = positions
-            .iter()
-            .zip(aims)
-            .filter_map(|(p, aim)| aim.map(|a| p.distance(a)))
-            .filter(|d| *d <= IN_POSITION)
-            .collect();
-        if gaps.is_empty() {
-            return None;
-        }
-        Some((gaps.len() as u32, gaps.iter().sum::<f32>() / gaps.len() as f32))
+    fn formation_gap(
+        &self,
+        at: Vec3,
+        forward: Vec3,
+        velocity: Vec3,
+        clear: &dyn Fn(Vec3, Vec3) -> bool,
+    ) -> Option<(u32, f32)> {
+        self.formation_gap_input(at, forward, velocity, clear)
     }
-
     /// While the lockout runs every active cop is removed, as the original's patrol pass does (`VehicleSpawningEnabled`
     /// is false for a despawn too). A chase clears the lockout when it starts, so a chase never runs under it.
     fn remove_cops_while_locked_out(&mut self) {
@@ -68,6 +52,7 @@ impl super::super::TrafficWorld {
         let at = Vec3::from_array(space::to_physics(player.position));
         let strikes = self.take_strikes();
         self.update_hiding(dt, at);
+        self.police.set_secondary_visibility(self.secondary_seen);
         let sensed = Sensed {
             seen: self.sighting(level).seen || self.secondary_seen,
             unit_random: self.rng.police.next_f32(),
@@ -80,8 +65,9 @@ impl super::super::TrafficWorld {
             hidden_from_heli: self.police.hiding.latch.from_helicopters(),
             in_tunnel: self.in_tunnel(at),
             formation_random: [self.rng.police.next_f32(), self.rng.police.next_f32()],
-            formation_gap: self.formation_gap(at, player.forward),
+            formation_gap: self.formation_gap(at, player.forward, player.velocity, clear),
             support_random: self.rng.police.next_f32(),
+            support_priority_random: self.rng.police.next_f32(),
         };
         // The busted timer's inputs. `flashing` is the post-reset blink, started by a manual reset (FairBusts' penalty).
         let bust = BustInput {

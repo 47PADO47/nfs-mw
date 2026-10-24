@@ -13,6 +13,7 @@ pub struct TrafficSettings {
     /// Whether they go round a car that blocks their lane (`traffic_avoidance`).
     pub avoidance: bool,
     pub policy: TrafficPolicy,
+    pub pursuit: super::PursuitOptions,
 }
 
 impl From<&Settings> for TrafficSettings {
@@ -23,6 +24,7 @@ impl From<&Settings> for TrafficSettings {
             lights: s.traffic_lights,
             avoidance: s.traffic_avoidance,
             policy: s.traffic_policy,
+            pursuit: s.pursuit_options,
         }
     }
 }

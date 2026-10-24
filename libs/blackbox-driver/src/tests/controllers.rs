@@ -20,6 +20,22 @@ fn request(target: Vec3, speed: f32, flags: DriveFlags) -> DriveRequest {
 }
 
 #[test]
+fn controller_history_is_visible_even_when_the_last_control_output_is_zero() {
+    let fresh = Driver::new(ControllerKind::Pid, false);
+    let mut sampled = fresh.clone();
+    let output = sampled.step(&view(20.0), &request(Vec3::Z * 30.0, 20.0, DriveFlags::FULL), 1.0 / 60.0, 0.0);
+    assert_eq!(output.steer, 0.0);
+    assert_eq!(output.gas, 0.0);
+    let state = |driver: &Driver| {
+        let mut words = Vec::new();
+        driver.visit_state(&mut |word| words.push(word));
+        words
+    };
+    assert_ne!(state(&fresh), state(&sampled));
+    assert_eq!(state(&sampled), state(&sampled.clone()));
+}
+
+#[test]
 fn table_and_graph_clamp_and_interpolate() {
     let table = Table { data: [0.0, 10.0, 20.0], min: 0.0, max: 2.0 };
     assert_eq!(table.lookup(-5.0), 0.0);

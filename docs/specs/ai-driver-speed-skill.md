@@ -78,8 +78,9 @@ Acceleration }` from the estimator `EstimatePerformance`, whose body is not in t
 
 The car's own top speed and acceleration come from `GetTopSpeed()` and `GetAcceleration(speed)` of the AI
 behaviour: a 10-sample table of full-throttle acceleration over speed `0..top_speed`, built once when the AI is
-created from the car's `pvehicle` by `compute acceleration table`. That function is not in the sources
-(open question 1). `GetAcceleration(v)` is the linear interpolation of the table at `|v|`; it is 0 when the
+created from the car's `pvehicle` by `compute acceleration table`. Its analytical PC implementation is
+now described in [police acceleration handoff](ai-pursuit-acceleration-handoff.md); a physical launch trial
+is not equivalent. `GetAcceleration(v)` is the linear interpolation of the table at `|v|`; it is 0 when the
 top speed is 0.
 
 ## 3. Potential speed
@@ -314,10 +315,10 @@ more than ~107 degrees from the drive target, it steers at the future road point
 
 ## 11. Open questions
 
-1. `compute acceleration table` and `EstimatePerformance` are not in the sources. A faithful rebuild: the
-   10 samples are the full-throttle acceleration of the car at 10 evenly spaced speeds between 0 and the
-   top speed (gearbox at the best gear, no tire slip), the top speed being where the drivetrain and drag
-   balance (or the speed limiter). Calibrate against a recorded AI launch **[unconfirmed]**.
+1. The PC `compute acceleration table` algorithm was recovered through native inspection: see
+   [police acceleration handoff](ai-pursuit-acceleration-handoff.md). Exact runtime comparisons across
+   all supported parameter sets remain open. The older physical-launch reconstruction was an
+   approximation; it must not substitute for the analytical action estimate.
 2. The three ratings' definition and the 7 `PerformanceWeights` entries.
 3. `ComputeCatchUpSkill` (inputs: the glue history, the race status, whether the car is off world).
 4. Whether the unstage timer influences anything (only set and decremented in the sources).
@@ -326,8 +327,8 @@ more than ~107 degrees from the drive target, it steers at the future road point
 
 - A `SpeedGovernor { speed_limit, last_speed, last_accel }` with `update(...)` as section 5 and the pure
   functions `speed_limit_for_curvature`, `potential_speed`, `potential_accel`.
-- The vehicle crate should expose a one-off `performance_table(&VehicleSpec) -> ([f32; 10], top_speed)`
-  computed by a headless full-throttle run on flat ground (cache it per car), `start_grip()`
+- The vehicle crate exposes an analytical action performance estimate, separately from the cached
+  headless full-throttle trial used to diagnose physical acceleration. It also supplies `start_grip()`
   (`min(static_grip front, rear)`), `aero_downforce(speed)` (exists in the aero module), `mass`, and the nitrous
   boost and capacity (exist in `NosSpec`).
 - Skill, glue and cheat belong in the game crate (they read race state); the cheat multipliers need hooks in

@@ -1,7 +1,7 @@
 //! The slots of each formation: where a cop waits relative to the target (`x`, `z` in the target's frame, metres), its
 //! priority (smaller is filled first) and the tightening of the box-in and rolling block as the finisher approaches.
 //! Spec: `docs/specs/ai-pursuit-formations.md` sections 1 and 3. The in-position offsets of the finishers are not here.
-//! The herd's `x` is rewritten each update by its own rule (section 4) and is not modelled.
+//! The caller supplies road-relative crowding to `herd_offsets` for the herd's lateral placement (section 4).
 
 use super::Formation;
 use glam::Vec2;
@@ -126,21 +126,17 @@ mod tests {
     }
 }
 
-/// The aim of each cop in a formation this update: the cops nearest the target take the highest-priority slots, and
+/// The aim of each cop in a formation this update: candidates fill priority slots using weighted matching, and
 /// each slot is placed in the target's frame (`forward` is the target's facing, metres in the map plane). Cops beyond
 /// the slots get `None` and keep chasing the target. Input and output are in the same order as `cops`.
 pub fn assign(formation: Formation, cops: &[Vec2], target: Vec2, forward: Vec2) -> Vec<Option<Vec2>> {
-    let forward = forward.normalize_or_zero();
+    let forward = forward.try_normalize().unwrap_or(Vec2::Y);
     let side = Vec2::new(forward.y, -forward.x);
     let offsets = offsets(formation, 1.0, 0.5);
-    let mut by_distance: Vec<usize> = (0..cops.len()).collect();
-    by_distance.sort_by(|&a, &b| (cops[a] - target).length().total_cmp(&(cops[b] - target).length()));
-    let mut aims = vec![None; cops.len()];
-    for (&cop, slot) in by_distance.iter().zip(fill_order(formation)) {
-        let offset = offsets[slot];
-        aims[cop] = Some(target + side * offset.x + forward * offset.y);
-    }
-    aims
+    assign_slots(formation, cops, target, forward)
+        .into_iter()
+        .map(|slot| slot.map(|slot| target + side * offsets[slot].x + forward * offsets[slot].y))
+        .collect()
 }
 
 #[cfg(test)]
@@ -160,7 +156,7 @@ mod assign_tests {
     fn cops_beyond_the_slots_keep_the_chase() {
         let cops: Vec<Vec2> = (0..6).map(|i| Vec2::new(-(i as f32) * 10.0, 0.0)).collect();
         let aims = assign(Formation::Pit, &cops, Vec2::ZERO, Vec2::X);
-        assert_eq!(aims.iter().filter(|a| a.is_some()).count(), 2, "pit has two slots");
+        assert_eq!(aims.iter().filter(|a| a.is_some()).count(), 1, "pit chooses one of its two authored sides");
     }
 
     #[test]
@@ -241,15 +237,18 @@ pub fn in_position_offsets(formation: Formation, t: f32) -> Option<Vec<Vec2>> {
     }
 }
 
-/// The slot each cop is given (the same order as [`assign`]): the cop index and its slot index, nearest cops first.
-pub fn assign_slots(formation: Formation, cops: &[Vec2], target: Vec2) -> Vec<Option<usize>> {
-    let mut by_distance: Vec<usize> = (0..cops.len()).collect();
-    by_distance.sort_by(|&a, &b| (cops[a] - target).length().total_cmp(&(cops[b] - target).length()));
-    let mut slot_of = vec![None; cops.len()];
-    for (&cop, slot) in by_distance.iter().zip(fill_order(formation)) {
-        slot_of[cop] = Some(slot);
-    }
-    slot_of
+/// The slot each cop is given (the same order as [`assign`]), using its position in the target frame.
+pub fn assign_slots(formation: Formation, cops: &[Vec2], target: Vec2, forward: Vec2) -> Vec<Option<usize>> {
+    let forward = forward.try_normalize().unwrap_or(Vec2::Y);
+    let side = Vec2::new(forward.y, -forward.x);
+    let local: Vec<Vec2> = cops
+        .iter()
+        .map(|p| {
+            let relative = *p - target;
+            Vec2::new(relative.dot(side), relative.dot(forward))
+        })
+        .collect();
+    super::assignment::assign(formation, &local, &offsets(formation, 1.0, 0.5))
 }
 
 #[cfg(test)]
@@ -287,8 +286,8 @@ mod in_position_tests {
     #[test]
     fn the_slot_assignment_matches_the_offsets_order() {
         let cops = [Vec2::new(0.0, -20.0), Vec2::new(0.0, -2.0)];
-        let slots_of = assign_slots(Formation::Pit, &cops, Vec2::ZERO);
+        let slots_of = assign_slots(Formation::Pit, &cops, Vec2::ZERO, Vec2::Y);
         assert_eq!(slots_of[1], Some(0), "the nearest cop takes the first slot");
-        assert_eq!(slots_of[0], Some(1));
+        assert_eq!(slots_of[0], None, "pit permits only one attacker");
     }
 }

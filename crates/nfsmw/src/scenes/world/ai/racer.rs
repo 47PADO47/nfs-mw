@@ -85,6 +85,11 @@ pub struct RacerThink {
 }
 
 impl RacerState {
+    /// A temporary player autopilot preserves the speed supplied by its ownership handoff.
+    pub(super) fn set_cruise_speed(&mut self, speed: f32) {
+        self.cruise = speed.max(0.0);
+    }
+
     pub fn new(
         id: usize,
         performance: Performance,

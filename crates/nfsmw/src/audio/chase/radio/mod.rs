@@ -102,6 +102,16 @@ pub struct ChaseRadio {
 }
 
 impl ChaseRadio {
+    /// The actual speech flow that drives police sirens and the formation setup gate.
+    pub fn police_phase(&self) -> blackbox_pursuit::siren::Phase {
+        use blackbox_pursuit::{siren::Phase, speech::Focus};
+        match self.machine.focus() {
+            Focus::Pursuit => Phase::Opening,
+            Focus::Lost => Phase::Lost,
+            Focus::Strategy | Focus::Terminal => Phase::Running,
+        }
+    }
+
     pub fn new(seed: u64) -> Self {
         Self {
             machine: Machine::new(tables::layout(), tune_of(&ChaseTune::default()), seed),

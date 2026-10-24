@@ -68,7 +68,11 @@ fn start(at: Vec3) -> Run {
         row.cops.clear();
     }
     world.player_position = Some(player);
+    // Stock starting career bounds keep this heat-1 comparison at heat 1.
+    // A world without a career uses the installed unscaled heat growth time.
+    world.set_career_bin(Some(16));
     world.start_pursuit(1, rows, performance);
+    assert_eq!(world.police.level(), Some(1));
     Run { scene, renderer, pad }
 }
 
@@ -77,6 +81,8 @@ impl Run {
     fn seconds_to_evade(&mut self) -> f32 {
         for tick in 0..(LONGEST / STEP) as usize {
             self.scene.update(&mut self.renderer, &self.pad, STEP);
+            let police = &self.scene.traffic.as_ref().unwrap().police;
+            assert!(police.level().is_none_or(|level| level == 1), "the fixture stays at heat 1");
             if !self.scene.traffic.as_ref().unwrap().is_pursuing() {
                 return tick as f32 * STEP;
             }

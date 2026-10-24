@@ -56,15 +56,21 @@ pub(super) fn finisher_goal(kind: GoalKind, slot: usize, tuning: &Tuning) -> Opt
     Some(Goal::Finisher { kind, record })
 }
 
-/// The goal tuning of a heat level. Only the collapse aggression is read from the level here; the tightnesses and the
-/// durations keep their spec defaults, as the level rows are not read yet.
+/// Install-verified free-roam goal tuning, goals spec §5.4 and heat spec §2.7.
 pub(super) fn tuning_for(level: u32) -> Tuning {
-    let aggression = COLLAPSE_AGGRESSION[(level as usize).clamp(1, 10) - 1];
-    Tuning { collapse_aggression: aggression, ..Tuning::default() }
+    let index = (level as usize).clamp(1, 10) - 1;
+    let tightness = [0.5, 0.6, 0.8, 0.9, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5][index];
+    let duration = [4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 10.0, 3.0, 3.0, 3.0][index];
+    Tuning {
+        collapse_aggression: COLLAPSE_AGGRESSION[index],
+        boxin_tightness: tightness,
+        rolling_block_tightness: tightness,
+        boxin_duration: duration,
+        rolling_block_duration: duration,
+    }
 }
 
-/// The player as the goal rules see it. Its top speed and acceleration table are the cop's own, as a stand-in: the
-/// player's `Performance` is private to `pursuit.rs`. The jerk flag is off, as in the cop's own think.
+/// The player's actual performance model at the cop's current speed.
 pub(super) fn target_state(player: &Body, performance: &Performance, cop_speed: f32) -> TargetState {
     TargetState {
         position: Vec2::new(player.position.x, player.position.z),
@@ -93,6 +99,7 @@ pub(super) fn step_goal(
     target: &TargetState,
     vehicle: AiVehicle,
     tuning: &Tuning,
+    separation: Vec2,
 ) -> (Vec2, Step) {
     match goal {
         Goal::Finisher { record, .. } => {
@@ -102,7 +109,7 @@ pub(super) fn step_goal(
         Goal::Ring(slot) => {
             let aggression = pull_over::aggression(tuning.collapse_aggression, target.jerk);
             let aim = pull_over::detour(cop.position, slot, target.position).unwrap_or(slot);
-            (aim, pull_over::think(cop, target, slot, aggression, Vec2::ZERO, vehicle))
+            (aim, pull_over::think(cop, target, slot, aggression, separation, vehicle))
         }
     }
 }
@@ -156,7 +163,7 @@ mod tests {
         let tuning = tuning_for(1);
         let goal = finisher_goal(GoalKind::Pit, 0, &tuning).expect("the pit has a slot 0");
         let cop = CopState { position: Vec2::new(4.0, -20.0), forward_speed: 0.0, limit: 0.0, dt: 1.0 / 60.0 };
-        let (aim, step) = step_goal(goal, &cop, &still_player(), cop_vehicle(), &tuning);
+        let (aim, step) = step_goal(goal, &cop, &still_player(), cop_vehicle(), &tuning, Vec2::ZERO);
         assert!((aim - Vec2::new(-10.0, -2.7)).length() < 1e-4, "aim {aim:?}");
         assert!(aim.y < 0.0, "behind the target");
         assert!(!step.command.arrived, "a finisher goal does not arrive by itself");
@@ -169,7 +176,7 @@ mod tests {
         let tuning = tuning_for(1);
         let slot = Vec2::new(0.0, 5.0);
         let cop = CopState { position: slot, forward_speed: 0.0, limit: 0.0, dt: 1.0 / 60.0 };
-        let (_, step) = step_goal(Goal::Ring(slot), &cop, &still_player(), cop_vehicle(), &tuning);
+        let (_, step) = step_goal(Goal::Ring(slot), &cop, &still_player(), cop_vehicle(), &tuning, Vec2::ZERO);
         assert!(step.command.arrived, "{:?}", step.command);
         assert_eq!(step.command.desired_speed, 0.0);
         assert!(step.command.target_point.is_none(), "an arrived pull-over sets no drive target");

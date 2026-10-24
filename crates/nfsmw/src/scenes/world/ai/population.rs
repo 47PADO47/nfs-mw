@@ -97,6 +97,9 @@ impl TrafficWorld {
     }
 
     pub(super) fn search_cruise(&self) -> Cruise {
+        if let Some(row) = self.police.level().and_then(|level| self.police.level_tuning(level)) {
+            return Cruise::patrol(row.search_city_mph * MPH, row.search_highway_mph * MPH);
+        }
         self.patrol.as_ref().map_or(Cruise::patrol(35.0 * MPH, 55.0 * MPH), |p| p.search_cruise)
     }
 
@@ -156,6 +159,9 @@ impl TrafficWorld {
     /// One tick of the manager: follow the neighbourhood's pattern, advance the type timers and add at most
     /// one car if there is room for it.
     pub(super) fn manage(&mut self, tick: f32, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
+        if self.world_moment {
+            return;
+        }
         if self.needs_patrol() && self.spawn_patrol(focus, collision, surfaces) {
             return;
         }

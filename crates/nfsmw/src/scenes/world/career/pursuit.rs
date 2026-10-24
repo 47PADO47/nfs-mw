@@ -100,6 +100,8 @@ impl WorldScene {
         }
         if pursuing {
             self.feed_running_stats(&chase);
+        }
+        if pursuing || ended.is_some() {
             self.career.pursuit.tally.observe(traffic);
         }
         if let Some(reason) = ended {

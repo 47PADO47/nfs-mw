@@ -41,6 +41,7 @@ impl super::super::TrafficWorld {
 
     /// The props the player hit this step, with their cost to state.
     pub(in crate::scenes::world::ai) fn note_smacked(&mut self, hits: &[(u32, u32)]) {
+        self.police.property_impacts(hits);
         for &(id, cost) in hits {
             self.cops.roam.note_prop(id, cost);
         }

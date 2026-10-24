@@ -1,10 +1,11 @@
-//! Computer-driven cars in the streamed city. Traffic today: cars that follow the lanes of the road
-//! network, spawned around the player and removed when they are far away.
+//! Computer-driven cars follow the city roads, spawning and retiring around the player.
 //! Specs: `docs/specs/ai-traffic.md`, `docs/specs/ai-traffic-spawning.md`.
 
 mod activation;
 mod air;
+mod arrest_spot;
 mod car;
+mod car_events;
 mod collide;
 mod collide_guests;
 mod collision_sounds;
@@ -28,7 +29,9 @@ mod lamps;
 mod manager;
 mod model_loader;
 mod models;
+mod moment_driver;
 mod moment_feed;
+pub(in crate::scenes::world) use moment_driver::MomentDriver;
 mod net_export;
 mod nis_poses;
 mod original_camera;
@@ -65,6 +68,7 @@ mod stop;
 mod streams;
 mod support;
 mod tally;
+mod target_road;
 mod touches;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
@@ -82,7 +86,8 @@ use nfsmw_data::car::physics::CarPhysics;
 use super::drive::CarRig;
 use car::AiCar;
 pub(super) use commands::{
-    pursuit_command, roadblock_command, scripted_cops, signals_command, speeding_pursuit, traffic_command,
+    configure_pursuit_context, pursuit_command, roadblock_command, scripted_cops, signals_command, speeding_pursuit,
+    start_event_pursuit, traffic_command,
 };
 pub use cop::CopCar;
 pub use lamps::LampMeshes;
@@ -90,13 +95,13 @@ use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use net_export::{NetCar, NetCarKind};
 pub use pattern::{Pattern, Patterns};
-pub use police::PlayerView;
+pub use police::{PlayerView, PursuitContext};
 pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
 pub use racers::{ModelState, RacerSpawn};
-pub use tally::RoadblockTally;
+pub use tally::{PursuitCostTally, RoadblockTally};
 pub use touches::{CarTouch, Toucher};
 pub(in crate::scenes::world) use water::RainView;
 
@@ -152,14 +157,14 @@ pub struct TrafficWorld {
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
     pursuit: Option<Pursuit>,
-    /// The backup values of the heat levels, from the install.
+    target_road: target_road::PrimaryRoad,
     backup_rows: Vec<nfsmw_data::pursuit::BackupRow>,
     police: police::Police,
     /// The cop manager's lockout timer and no-spawn zones (`cop_manager.rs`).
     cops: cop_manager::CopManager,
-    /// The cars in entity-id order (ntities.rs).
+    /// Cars in entity-id order.
     cars: Vec<AiCar>,
-    /// The entity id the last admitted car took (ntities.rs).
+    /// The last admitted entity id.
     next_entity: u32,
     /// One random stream per system (`streams.rs`).
     rng: streams::Streams,
@@ -233,6 +238,10 @@ pub struct TrafficWorld {
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
+    /// Entity-to-slot bindings retained while a formation finisher executes.
+    formation_membership: std::cell::RefCell<cop_aims::Membership>,
+    /// A world-moment cut holds new placements while existing cars keep simulating.
+    world_moment: bool,
     /// When the step integrates the cars on several threads, and the starts of their steps by car index (`parallel.rs`).
     parallel: parallel::Parallel,
     starts: Vec<Option<super::drive::StepStart>>,
@@ -242,24 +251,13 @@ pub struct TrafficWorld {
     /// The rigs and window states of the last `update_damaged_windows`, kept so the frame does not allocate
     /// (`car/glass.rs`).
     window_requests: std::cell::RefCell<Vec<(Rc<CarRig>, Vec<super::drive::SurfaceDamage>)>>,
-    /// The player as the police last saw it, for the radio's feed (`police/speech_feed.rs`).
+    /// The radio's last player observation.
     speech_view: Option<PlayerView>,
     /// What the chase radio watches: the world's events and the player's attitude (`police/speech_events.rs`).
     speech_watch: police::SpeechWatch,
 }
 
 impl TrafficWorld {
-    pub fn update_events(
-        &mut self,
-        props: &mut super::props::PropWorld,
-        data: &nfsmw_data::car::physics::PhysicsData,
-        view: glam::Vec3,
-    ) {
-        for car in &mut self.cars {
-            car.update_events(props, data, view);
-        }
-    }
-
     pub fn new(network: RoadNetwork) -> Self {
         let index = SegmentIndex::build(&network);
         Self {
@@ -277,6 +275,7 @@ impl TrafficWorld {
             model_loader: None,
             helicopter_rig: None,
             pursuit: None,
+            target_road: Default::default(),
             backup_rows: Vec::new(),
             police: police::Police::default(),
             cops: Default::default(),
@@ -321,6 +320,8 @@ impl TrafficWorld {
             shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
+            formation_membership: Default::default(),
+            world_moment: false,
             parallel: parallel::Parallel::default(),
             starts: Vec::new(),
             hits: Vec::new(),

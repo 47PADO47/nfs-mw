@@ -51,6 +51,11 @@ impl Finisher {
         self.in_position
     }
 
+    /// Elapsed attack time, or no running attack, for deterministic state snapshots.
+    pub fn running_time(&self) -> Option<f32> {
+        self.running
+    }
+
     /// Advances by `dt` seconds. `cops_in_position` and `average` (the mean distance of the in-position cops to their
     /// slots, metres; `None` with no cop in position) drive the timer while the finisher is idle.
     pub fn tick(&mut self, dt: f32, cops_in_position: u32, average: Option<f32>, p: &Params) -> Event {
@@ -84,13 +89,13 @@ impl Finisher {
 }
 
 /// The finisher's constants for a formation. Box-in and rolling block: 1.0 m tolerance, 4 s to arm, two cops
-/// (`MinFinisherCops`), a 5 s run **[unconfirmed]**: the spec gives their run time as `BoxinDuration` /
-/// `RollingBlockDuration` (3 to 10 s, per level, not read). Pit: 0.5 m, 1.2 s, one cop, a 2 s run (the spec's table).
+/// (`MinFinisherCops`) and a 2 s run without level attributes. The caller supplies `BoxinDuration` /
+/// `RollingBlockDuration` from the active level. Pit: 0.5 m, 1.2 s, one cop, a 2 s run (the spec's table).
 pub fn params_for(formation: super::Formation) -> Option<Params> {
     use super::Formation;
     match formation {
         Formation::BoxIn | Formation::RollingBlock => {
-            Some(Params { tolerance: 1.0, time_to_arm: 4.0, run_time: 5.0, min_cops: 2 })
+            Some(Params { tolerance: 1.0, time_to_arm: 4.0, run_time: 2.0, min_cops: 2 })
         }
         Formation::Pit => Some(Params { tolerance: 0.5, time_to_arm: 1.2, run_time: 2.0, min_cops: 1 }),
         _ => None,

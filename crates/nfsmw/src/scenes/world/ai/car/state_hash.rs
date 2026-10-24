@@ -20,15 +20,22 @@ impl AiCar {
             Role::Racer(_) => 2,
         });
         hash.u32(self.steps);
+        hash.u32(self.stagger);
+        self.driver.visit_state(&mut |word| hash.u32(word));
+        if let Role::Cop(cop) = &self.role {
+            cop.hash_into(hash);
+        }
+        self.goal_drive().hash_into(hash);
+        self.sight.hash_into(hash);
         hash.vec3(self.target);
         hash.f32(self.speed);
         hash.f32(self.controls.gas);
         hash.f32(self.controls.brake);
         hash.f32(self.controls.steer);
         hash.f32(self.controls.handbrake);
-        hash.u32(u32::from(self.nav.segment));
-        hash.u64(self.nav.lane as u64);
-        hash.f32(self.nav.t);
+        hash.bool(self.controls.nos);
+        hash.f32(self.airborne);
+        self.nav.visit_state(&mut |word| hash.u32(word));
         hash.f32(self.idle);
         hash.f32(self.shock);
         hash.f32(self.offscreen);
@@ -49,5 +56,22 @@ impl AiCar {
         }
         hash.u32(self.roadblock_group);
         hash.option_f32(self.damage_health());
+        hash.bool(self.support.is_some());
+        if let Some(support) = self.support {
+            use super::support_drive::SupportGoal;
+            hash.u32(support.serial);
+            match support.goal {
+                SupportGoal::Chase => hash.u32(0),
+                SupportGoal::Close(offset) => {
+                    hash.u32(1);
+                    hash.f32(offset.x);
+                    hash.f32(offset.y);
+                }
+                SupportGoal::Ram(ram) => {
+                    hash.u32(2);
+                    hash.bool(ram.started());
+                }
+            }
+        }
     }
 }

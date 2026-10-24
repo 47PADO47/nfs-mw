@@ -4,6 +4,19 @@
 
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
 
+#[path = "pursuit_tables.rs"]
+mod tables;
+pub use tables::{EventHeat, PursuitTable};
+#[path = "pursuit_formations.rs"]
+mod formations;
+pub use formations::{FormationRecord, FormationRow};
+#[path = "pursuit_tuning.rs"]
+mod tuning;
+pub use tuning::LevelTuning;
+#[path = "pursuit_support.rs"]
+mod support;
+pub use support::{SupportRecord, SupportRow};
+
 /// Heat levels with their own row.
 pub const HEAT_LEVELS: u32 = 10;
 
@@ -82,7 +95,11 @@ pub fn heat_rows(db: &Database) -> Vec<HeatRow> {
 
 /// The backup values of heat level `heat` (1…10), outside races. A field the row lacks keeps its default.
 pub fn backup_row(db: &Database, heat: u32) -> Option<BackupRow> {
-    let row = level_collection(db, "heattable", heat)?;
+    backup_row_in(db, "heattable", heat)
+}
+
+fn backup_row_in(db: &Database, table: &str, heat: u32) -> Option<BackupRow> {
+    let row = level_collection(db, table, heat)?;
     let fallback = BackupRow::default();
     Some(BackupRow {
         engagement_radius: row.get_f32("FullEngagementRadius").unwrap_or(fallback.engagement_radius),
@@ -240,7 +257,11 @@ pub fn career_heat(db: &Database) -> Option<CareerHeat> {
 /// The growth of heat level `heat` (1…10) from its `heattable` row; None when the row lacks a value or the bin
 /// array does not hold 15 numbers.
 fn heat_growth(db: &Database, heat: u32) -> Option<HeatGrowth> {
-    let row = level_collection(db, "heattable", heat)?;
+    heat_growth_in(db, "heattable", heat)
+}
+
+fn heat_growth_in(db: &Database, table: &str, heat: u32) -> Option<HeatGrowth> {
+    let row = level_collection(db, table, heat)?;
     let time_per_heat_level = row.get_f32("TimePerHeatLevel")?;
     let values = row.get("ScaleEscalationPerBucket")?.as_array()?;
     let scale: Vec<f32> = values.iter().map(Value::as_f32).collect::<Option<_>>()?;
@@ -285,7 +306,11 @@ impl RepTable {
 
 /// The rep rates of heat level `heat` (1…10) from its `pursuitlevels` row. None when the row is not in the database.
 pub fn rep_rates(db: &Database, heat: u32) -> Option<RepRates> {
-    let row = level_collection(db, "heattable", heat)?;
+    rep_rates_in(db, "heattable", heat)
+}
+
+fn rep_rates_in(db: &Database, table: &str, heat: u32) -> Option<RepRates> {
+    let row = level_collection(db, table, heat)?;
     Some(RepRates {
         per_ten_seconds: row.get_i32("RepPointsPerMinute").unwrap_or(0).max(0) as u32,
         destroy_bonus_secs: row.get_f32("DestroyCopBonusTime").unwrap_or(0.0),

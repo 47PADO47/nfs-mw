@@ -12,7 +12,16 @@ fn a_bust_keeps_stopped_cops_until_payment_then_releases_the_terminal_state() {
     let spot = CopSpot { at: Vec3::new(0.0, 0.0, 8.0), target: Vec3::ZERO, speed: 0.0, player: player(), band: None };
     assert!(world.spawn_cop_at("copx", spot, &collision, &surfaces));
     let identity = world.cars[0].audio_emitter().id;
-    let view = PlayerView { position: Vec3::ZERO, forward: Vec3::X, speed: 0.0, nitrous: 0.0, throttle: 0.0 };
+    let view = PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: (Vec3::X) * (0.0),
+        position: Vec3::ZERO,
+        forward: Vec3::X,
+        speed: 0.0,
+        nitrous: 0.0,
+        throttle: 0.0,
+    };
     for _ in 0..51 {
         world.seen_by_cops = true;
         world.update_police(0.1, &view, &|_, _| true);

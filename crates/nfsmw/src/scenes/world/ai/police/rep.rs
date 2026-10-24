@@ -24,6 +24,9 @@ const COST_HELICOPTER: u32 = 2000;
 /// The running totals of one chase. [`RepState::reset`] clears them when a chase starts and keeps the table.
 #[derive(Debug, Default)]
 pub(super) struct RepState {
+    pub(super) costs: super::super::tally::PursuitCostTally,
+    pub(super) traffic_contacts: std::collections::BTreeSet<u32>,
+    pub(super) prop_contacts: std::collections::BTreeSet<u32>,
     /// The rates and destruction points of the track.
     table: RepTable,
     /// Cop cars wrecked in the chase.
@@ -43,6 +46,31 @@ pub(super) struct RepState {
 }
 
 impl RepState {
+    pub(super) fn hash_into(&self, hash: &mut crate::scenes::world::StateHasher) {
+        for value in [
+            self.normal,
+            self.destroyed,
+            self.cost,
+            self.cops_destroyed,
+            self.cops_damaged,
+            self.multiplier,
+            self.costs.traffic_hits,
+            self.costs.patrol_cars,
+            self.costs.support_cars,
+            self.costs.helicopters,
+            self.costs.property_value,
+            self.costs.property_count,
+        ] {
+            hash.u32(value);
+        }
+        hash.f32(self.window_secs);
+        for contacts in [&self.traffic_contacts, &self.prop_contacts] {
+            hash.u64(contacts.len() as u64);
+            for &id in contacts {
+                hash.u32(id);
+            }
+        }
+    }
     /// Clears the totals for a new chase, keeping the table.
     pub(super) fn reset(&mut self) {
         let table = std::mem::take(&mut self.table);
@@ -88,7 +116,7 @@ impl RepState {
     }
 
     /// Adds `amount` to the cost to state.
-    fn add_cost(&mut self, amount: u32) {
+    pub(super) fn add_cost(&mut self, amount: u32) {
         self.cost = self.cost.saturating_add(amount);
     }
 }
@@ -104,6 +132,9 @@ pub(super) fn steps_crossed(before: f32, after: f32) -> u32 {
 }
 
 impl Police {
+    pub(in crate::scenes::world::ai) fn hash_costs(&self, hash: &mut crate::scenes::world::StateHasher) {
+        self.rep.hash_into(hash);
+    }
     /// Sets the rep rates and destruction points of the track (read once per track).
     pub fn set_rep_table(&mut self, table: RepTable) {
         self.rep.table = table;
@@ -156,11 +187,16 @@ impl Police {
             return;
         }
         self.rep.add_cost(COST_HELICOPTER);
+        self.rep.costs.helicopters = self.rep.costs.helicopters.saturating_add(1);
     }
 
     /// The cop cars wrecked in the chase.
     pub fn cops_destroyed(&self) -> u32 {
         self.rep.cops_destroyed
+    }
+
+    pub(in crate::scenes::world::ai) fn damaged_count(&self) -> u32 {
+        self.rep.cops_damaged
     }
 
     /// The rep points of the chase so far: the pending bounty (normal plus destruction).

@@ -21,6 +21,7 @@ const LOST_SECS: f32 = 5.0;
 /// What the chase tells every car.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Chase {
+    pub speech_phase: Option<Phase>,
     /// A chase is on.
     pub on: bool,
     pub heat: u32,
@@ -49,6 +50,9 @@ pub(super) struct CarFacts {
 
 /// Where the chase is as far as the siren cares: the opening exchange, lost contact, or the chase proper.
 pub(super) fn phase(chase: &Chase) -> Phase {
+    if let Some(phase) = chase.speech_phase {
+        return phase;
+    }
     if chase.secs < OPENING_SECS {
         return Phase::Opening;
     }
@@ -176,6 +180,7 @@ impl TrafficWorld {
         let formation = self.police.last_formation().is_some();
         let slow = level.is_some_and(|level| self.player_speed * 3.6 < collapse::level(level).speed_kmh);
         let chase = Chase {
+            speech_phase: self.police.speech_phase(),
             on: level.is_some() && self.is_pursuing(),
             heat: level.unwrap_or_else(|| self.police.patrol_heat()),
             secs: self.pursuit_time(),
