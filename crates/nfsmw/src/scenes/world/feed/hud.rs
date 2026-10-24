@@ -4,7 +4,8 @@
 //! - the places where the game raises an event itself: the race's checkpoints, laps and wrong-way zone, and the speed
 //!   traps (`race/flow.rs`, `career/speedtraps.rs`);
 //! - the diff of a small snapshot taken once a frame (`world.rs`): the pursuit phase, the roadblock report, the
-//!   helicopter's sight, the race place, the near misses, the bounty, the car's condition and the nitrous.
+//!   helicopter's sight, the race place, the near misses, the bounty (its milestones and its gains), the car's
+//!   condition and the nitrous.
 //!
 //! The first snapshot only sets the baseline: a world that opens into a state does not announce it. An identical state
 //! over any number of frames makes no event. Near misses are throttled to one every [`NEAR_MISS_GAP`] seconds.
@@ -151,6 +152,9 @@ fn edges(before: &FeedSnapshot, now: &FeedSnapshot) -> Vec<HudEvent> {
     if let Some(bounty) = milestone(before.bounty, now.bounty) {
         out.push(HudEvent::BountyMilestone { bounty });
     }
+    if let Some(amount) = gained(before.bounty, now.bounty) {
+        out.push(HudEvent::BountyGained { amount });
+    }
     if now.damaged_tires > before.damaged_tires {
         out.push(HudEvent::TirePunctured);
     }
@@ -164,6 +168,13 @@ fn edges(before: &FeedSnapshot, now: &FeedSnapshot) -> Vec<HudEvent> {
         out.push(HudEvent::NitrousOn);
     }
     out
+}
+
+/// How much the bounty rose from `before` to `now`; `None` when it did not rise or either is unknown (entering career
+/// mode is not a gain).
+fn gained(before: Option<u32>, now: Option<u32>) -> Option<u32> {
+    let (before, now) = (before?, now?);
+    (now > before).then(|| now - before)
 }
 
 /// The highest bounty milestone (a multiple of [`BOUNTY_STEP`]) passed on the way from `before` up to `now`; `None`

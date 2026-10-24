@@ -22,6 +22,7 @@ fn every_event() -> Vec<HudEvent> {
         HudEvent::SpeedTrap { kmh: 190.0, passed: true },
         HudEvent::SpeedTrap { kmh: 90.0, passed: false },
         HudEvent::BountyMilestone { bounty: 20_000 },
+        HudEvent::BountyGained { amount: 2_500 },
         HudEvent::TirePunctured,
         HudEvent::HeavyDamage,
         HudEvent::VehicleCritical,

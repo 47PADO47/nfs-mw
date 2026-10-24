@@ -102,6 +102,8 @@ hud-notify-bounty = Bounty { $bounty }
 hud-notify-tire = Tyre punctured
 hud-notify-heavy-damage = Heavy damage
 hud-notify-vehicle-critical = Vehicle disabled
+# The feedback lane's bounty chip: $amount is the bounty gained, already written with the language's digit grouping.
+hud-feedback-bounty-gain = +{ $amount }
 
 ## The Custom HUD's world markers (ui/theme/custom/markers/draw.rs)
 

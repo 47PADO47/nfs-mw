@@ -136,6 +136,18 @@ fn a_bounty_milestone_is_the_highest_multiple_passed() {
 }
 
 #[test]
+fn a_bounty_gain_is_raised_with_its_amount() {
+    assert_eq!(gained(Some(9_500), Some(10_200)), Some(700));
+    assert_eq!(gained(Some(10_200), Some(10_200)), None, "an unchanged bounty gained nothing");
+    assert_eq!(gained(Some(25_000), Some(5_000)), None, "a bounty that falls gained nothing");
+    assert_eq!(gained(None, Some(50_000)), None, "entering career mode is not a gain");
+    let mut feed = HudFeed::default();
+    let richer = FeedSnapshot { bounty: Some(10_500), ..snapshot() };
+    let events = run(&mut feed, &[snapshot(), richer, richer]);
+    assert_eq!(events, [HudEvent::BountyMilestone { bounty: 10_000 }, HudEvent::BountyGained { amount: 10_500 }]);
+}
+
+#[test]
 fn the_chase_notices_give_heat_up_busted_and_escaped() {
     let mut feed = HudFeed::default();
     feed.begin_frame();

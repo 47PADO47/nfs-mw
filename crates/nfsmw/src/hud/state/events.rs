@@ -37,6 +37,8 @@ pub enum HudEvent {
     SpeedTrap { kmh: f32, passed: bool },
     /// The bounty passed a milestone: `bounty` is the milestone reached.
     BountyMilestone { bounty: u32 },
+    /// The career bounty rose by `amount` since the last frame.
+    BountyGained { amount: u32 },
     /// A tyre was punctured (or blew).
     TirePunctured,
     /// The body damage passed the heavy-damage mark.

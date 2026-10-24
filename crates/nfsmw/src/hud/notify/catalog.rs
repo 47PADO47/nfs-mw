@@ -8,8 +8,11 @@
 //! other updates), and the passing news Low (near misses, bounty milestones). The race's and the chase's notices are
 //! Medium or above so that they show while the game is intense, when Low waits.
 //!
-//! A kind with no text is feedback only: it has its sound and rumble but no notice (the nitrous, whose bar pulses). The
-//! phase changes have no entry: they change the HUD's layout instead.
+//! A kind with no text is feedback only: it has its sound and rumble but no notice (the nitrous, whose bar pulses). A
+//! kind in the feedback lane (the near misses, the speed traps, the bounty gains) is a short chip above the cluster
+//! (`feedback.rs`), not a notice of the queue, so it never competes with a warning
+//! (`docs/specs/custom-hud/notifications.md` section 5). The phase changes have no entry: they change the HUD's layout
+//! instead.
 
 use blackbox_ui::notify::{Dedupe, Notice, Priority};
 
@@ -33,6 +36,7 @@ pub enum NoticeId {
     SpeedTrap,
     SpeedTrapSlow,
     Bounty,
+    BountyGain,
     TirePunctured,
     HeavyDamage,
     VehicleCritical,
@@ -103,6 +107,8 @@ pub struct NoticeSpec {
     pub dedupe: f32,
     /// Seconds it may wait for room before it is stale; `None` waits.
     pub max_wait: Option<f32>,
+    /// Shown as a chip of the feedback lane rather than a notice of the queue.
+    pub lane: bool,
 }
 
 impl NoticeSpec {
@@ -141,6 +147,7 @@ const fn entry(
         haptic: None,
         dedupe: 2.0,
         max_wait: None,
+        lane: false,
     }
 }
 
@@ -220,18 +227,25 @@ pub fn spec(event: &HudEvent) -> Option<NoticeSpec> {
         HudEvent::NearMiss => NoticeSpec {
             dedupe: 1.5,
             max_wait: Some(1.0),
+            lane: true,
             ..entry(Id::NearMiss, Driving, Low, "hud-notify-near-miss", "near-miss", 1.5)
         },
         HudEvent::SpeedTrap { passed: true, .. } => NoticeSpec {
             audio: Some(AudioCue::Checkpoint),
-            ..entry(Id::SpeedTrap, Career, Medium, "hud-notify-speed-trap", "speed-trap", 3.0)
+            lane: true,
+            ..entry(Id::SpeedTrap, Career, Medium, "hud-notify-speed-trap", "speed-trap", 2.5)
         },
-        HudEvent::SpeedTrap { passed: false, .. } => {
-            entry(Id::SpeedTrapSlow, Career, Medium, "hud-notify-speed-trap-slow", "speed-trap", 2.5)
-        }
+        HudEvent::SpeedTrap { passed: false, .. } => NoticeSpec {
+            lane: true,
+            ..entry(Id::SpeedTrapSlow, Career, Medium, "hud-notify-speed-trap-slow", "speed-trap", 2.5)
+        },
         HudEvent::BountyMilestone { .. } => {
             NoticeSpec { dedupe: 5.0, ..entry(Id::Bounty, Career, Low, "hud-notify-bounty", "bounty", 3.0) }
         }
+        HudEvent::BountyGained { .. } => NoticeSpec {
+            lane: true,
+            ..entry(Id::BountyGain, Career, Low, "hud-feedback-bounty-gain", "bounty", 2.0)
+        },
         HudEvent::TirePunctured => NoticeSpec {
             audio: Some(AudioCue::CriticalDamage),
             haptic: Some(Haptic::Strong),
