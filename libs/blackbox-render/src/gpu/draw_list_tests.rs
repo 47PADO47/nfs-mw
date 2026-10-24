@@ -221,6 +221,38 @@ fn sky_draws_stay_one_instance_each_and_normal_draws_share_a_run() {
 }
 
 #[test]
+fn water_lists_hold_only_the_projected_materials_draws() {
+    let meshes = test_meshes();
+    let textures = test_textures();
+    let redirects = Redirects::default();
+    let texture_of = |t: Option<TextureHandle>| resolve_texture(t, &redirects, &textures);
+    let run_list = instances(&[0, 1, 1, 2, 0]);
+    let mut list = DrawList::default();
+    list.set_projected([2usize].into_iter());
+    list.fill(&run_list, lookup(&meshes), texture_of);
+    for index in 0..BLEND_ORDER.len() {
+        let projected = |c: &LayerCmd| {
+            let mesh = meshes[c.mesh].as_ref();
+            mesh.is_some_and(|m| m.draws[c.draw as usize].shading == normal(2))
+        };
+        let expected: Vec<LayerCmd> = list.normal(index).iter().copied().filter(projected).collect();
+        assert_eq!(list.water(index), Some(expected.as_slice()), "blend {index}");
+    }
+    assert_eq!(list.water(2).map(<[LayerCmd]>::len), Some(1));
+    assert_eq!(list.water(0).map(<[LayerCmd]>::len), Some(0));
+
+    // A changed set leaves the old lists unusable until the next build.
+    list.set_projected([1usize, 2].into_iter());
+    assert_eq!(list.water(0), None);
+    list.fill(&run_list, lookup(&meshes), texture_of);
+    assert_eq!(list.water(0).map(<[LayerCmd]>::len), Some(list.normal(0).len()));
+
+    // The same set again changes nothing.
+    list.set_projected([1usize, 2].into_iter());
+    assert!(list.water(0).is_some());
+}
+
+#[test]
 fn texture_slots_follow_redirects_then_fall_back_to_white() {
     let textures = test_textures();
     let mut redirects = Redirects::default();

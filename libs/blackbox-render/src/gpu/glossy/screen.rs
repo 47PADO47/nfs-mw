@@ -20,6 +20,8 @@ pub(in crate::gpu) struct Screen {
     depth_copy: Option<wgpu::RenderPipeline>,
     /// The glossy scene group of the last [`Self::scene_group`], with the views it was built from.
     scene: Option<(SceneKey, wgpu::BindGroup)>,
+    /// The depth snapshot's input group with the scene depth view it reads, kept while that view stays the same.
+    inputs: Option<(wgpu::TextureView, wgpu::BindGroup)>,
 }
 impl Screen {
     pub fn new(device: &wgpu::Device) -> Self {
@@ -34,6 +36,7 @@ impl Screen {
             depth: super::super::resources::create_depth(device, 1, 1),
             depth_copy: None,
             scene: None,
+            inputs: None,
         }
     }
     /// The glossy scene group for `key`: the one built last time when the views are the same, else `build`'s.
@@ -74,11 +77,21 @@ impl Screen {
             self.depth = super::super::resources::create_depth(device, size.0, size.1);
         }
         let pipeline = self.depth_copy.get_or_insert_with(|| depth_pipeline(device));
-        let inputs = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("scenery-only reflection depth"),
-            layout: &pipeline.get_bind_group_layout(0),
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(depth) }],
-        });
+        let inputs = match self.inputs.take() {
+            Some(kept) if kept.0 == *depth => kept,
+            _ => {
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("scenery-only reflection depth"),
+                    layout: &pipeline.get_bind_group_layout(0),
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(depth),
+                    }],
+                });
+                (depth.clone(), group)
+            }
+        };
+        let (_, inputs) = self.inputs.insert(inputs);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scenery reflection depth snapshot"),
             color_attachments: &[],
@@ -92,7 +105,7 @@ impl Screen {
             multiview_mask: None,
         });
         pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, &inputs, &[]);
+        pass.set_bind_group(0, &*inputs, &[]);
         pass.draw(0..3, 0..1);
     }
 }
