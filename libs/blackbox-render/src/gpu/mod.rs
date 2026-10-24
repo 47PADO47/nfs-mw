@@ -158,6 +158,9 @@ pub struct Renderer {
     frames: u32,
     /// What the last [`Renderer::prewarm`] built for, so asking again with nothing changed does nothing.
     prewarmed: Option<prewarm::Warmed>,
+    /// The glossy screen-reflection control is known to hold "off" (set by the scene views that draw without
+    /// screen reflections), so they skip rewriting it. A screen-reflection capture clears this.
+    screen_control_off: bool,
 }
 
 impl Renderer {

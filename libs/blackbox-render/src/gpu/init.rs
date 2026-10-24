@@ -344,6 +344,7 @@ fn assemble(
         pipeline_cache_path,
         frames: 0,
         prewarmed: None,
+        screen_control_off: true,
     };
     let white = [255u8; 4];
     renderer.create_texture(&TextureDesc {

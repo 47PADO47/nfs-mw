@@ -201,9 +201,11 @@ impl Renderer {
             && self.glossy.is_some();
         if !screen
             && !reflection
+            && !self.screen_control_off
             && let Some(glossy) = &self.glossy
         {
             glossy.screen.disable(&self.queue);
+            self.screen_control_off = true;
         }
         let projected = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Projected);
         let planar = capture.as_ref().is_some_and(|v| v.kind == super::reflections::CaptureKind::Planar);
@@ -410,6 +412,8 @@ impl Renderer {
                 && (screen || self.road_reflections_active(frame, reflection || reduced))
             {
                 drop(pass);
+                // The screen capture switches the glossy control on.
+                self.screen_control_off &= !screen;
                 self.encode_material_reflections(
                     encoder,
                     target,
