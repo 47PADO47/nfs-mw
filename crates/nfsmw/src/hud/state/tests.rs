@@ -1,6 +1,7 @@
 //! The tests of the HUD state's numbers: the speed readout, the tachometer face and the red-line masks.
 
 use super::*;
+
 #[test]
 fn speed_converts_and_cuts_off() {
     let s = HudState { speed: 27.78, ..Default::default() };

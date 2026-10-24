@@ -1,8 +1,23 @@
+//! The HUD state: what the in-game HUD shows, as plain data the scene fills every frame. The original package's fields
+//! sit on [`HudState`] itself; the data the Custom HUD adds is grouped in sub-structs:
+//!
+//! - `vehicle`: the extra telemetry and the car's condition;
+//! - `race_info`: the race type, the next gate, the route left and the rival gap;
+//! - `camera`: the gameplay camera, for world-space markers.
+
 use bevy_ecs::prelude::Resource;
 use blackbox_minimap::Orientation;
 
 use super::blip_style::MapBlip;
 use super::pursuit::PursuitHud;
+
+mod camera;
+mod race_info;
+mod vehicle;
+
+pub use camera::HudCamera;
+pub use race_info::{RaceInfo, RivalGap, checkpoint_gap, rival_of, shows_rival_gap};
+pub use vehicle::{HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
 
 /// Where the car is, for the minimap (`docs/specs/hud-minimap.md`).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -88,6 +103,17 @@ pub struct HudState {
     /// Which map file the minimap shows: the stage's outside a race, the race's own tiles in one
     /// (`docs/specs/race-minimap.md`).
     pub map_source: super::map_source::MapSource,
+    /// The extra telemetry of the car: the nitrous burn, the shift point, the engine load and the lateral acceleration.
+    pub telemetry: HudTelemetry,
+    /// The car's body, tyres and whether it still drives; `None` without a simulated car.
+    pub condition: Option<VehicleCondition>,
+    /// The race beyond the package's readout (the type, the next gate, the route left, the rival gap); `None` outside a
+    /// race.
+    pub race_info: Option<RaceInfo>,
+    /// The camera the world is drawn from, for world-space markers; `None` in a scene without one.
+    pub camera: Option<HudCamera>,
+    /// The career's cash; `None` outside career mode.
+    pub cash: Option<u32>,
 }
 
 impl Default for HudState {
@@ -127,6 +153,11 @@ impl Default for HudState {
             blips: Vec::new(),
             cop_nearby: false,
             pursuit: None,
+            telemetry: HudTelemetry::default(),
+            condition: None,
+            race_info: None,
+            camera: None,
+            cash: None,
         }
     }
 }

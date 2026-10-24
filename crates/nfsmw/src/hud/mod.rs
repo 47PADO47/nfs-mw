@@ -93,4 +93,7 @@ pub use pursuit_end::{PursuitEndCard, show as show_pursuit_end};
 pub use race::{Count, Message, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};
-pub use state::{HudState, MapPosition};
+pub use state::{
+    HudCamera, HudState, HudTelemetry, MapPosition, RaceInfo, RivalGap, TireCondition, VehicleCondition, checkpoint_gap,
+    cosmetic_level, rival_of, shows_rival_gap,
+};
