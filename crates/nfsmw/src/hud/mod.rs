@@ -88,6 +88,8 @@ pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use leaders::{
     Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_KNOCKED_OUT, LABEL_MPH, LeaderRow, Leaders, game_word,
 };
+#[cfg(test)]
+pub use map_roads::MapRoad;
 pub use map_roads::{MapRoads, MapRoadsHandle, RoadClass};
 pub use map_source::MapSource;
 #[cfg(test)]

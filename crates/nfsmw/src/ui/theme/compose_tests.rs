@@ -262,9 +262,9 @@ fn a_hidden_root_keeps_its_nodes_but_draws_none_of_them() {
 }
 
 #[test]
-fn the_custom_theme_leaves_every_hud_slot_to_original_until_its_components_land() {
-    // The old drive card is gone (ADR 0013); the new cluster, map and layouts come in later PRs. Until then every HUD
-    // slot falls back to Original, and the composed HUD is the Original one.
+fn the_custom_theme_draws_its_map_and_leaves_the_other_hud_slots_to_original() {
+    // The old drive card is gone (ADR 0013). The map fills the minimap and blip slots; the cluster and the layouts come
+    // in later PRs, so until then every other HUD slot falls back to Original.
     let mut themes = UiThemes::build();
     themes.select(UiStyle::Custom);
     themes.frame().set(FengSource::Hud, synthetic_hud());
@@ -273,11 +273,20 @@ fn the_custom_theme_leaves_every_hud_slot_to_original_until_its_components_land(
         // has nothing there either.
         let expected = match element {
             ElementId::Notifications => ThemeId::Custom,
+        }
+
+        let expected = match element {
+            ElementId::Minimap | ElementId::Blips => ThemeId::Custom,
             _ => ThemeId::Original,
         };
         assert_eq!(themes.provided_by(element), Some(expected), "{}", element.name());
     }
-    assert_same(&hud_layer(&themes, 0.0), &expected_hud());
+    let composed = hud_layer(&themes, 0.0);
+    assert!(!has_name(&composed, roots::minimap().roots[0]), "the FEng minimap is still drawn");
+    let blip = roots::blip_icons().first().copied().expect("the blip pool has icons");
+    assert!(!has_name(&composed, blip), "the FEng blips are still drawn");
+    assert!(has_name(&composed, roots::gear().roots[0]), "the gear is Original's");
+    assert!(has_name(&composed, roots::tachometer().roots[0]), "the tachometer is Original's");
 }
 
 #[test]

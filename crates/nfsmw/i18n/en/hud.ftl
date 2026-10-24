@@ -103,6 +103,11 @@ hud-notify-tire = Tyre punctured
 hud-notify-heavy-damage = Heavy damage
 hud-notify-vehicle-critical = Vehicle disabled
 
+## The Custom map's turn-cue chip (ui/theme/custom/map/chip.rs): the distance to the next turn.
+
+hud-map-distance-metres = { $n } m
+hud-map-distance-feet = { $n } ft
+hud-map-distance-miles = { $n } mi
 ## The Custom HUD's contextual layouts (ui/theme/custom: free_roam, race, pursuit, condition, words). Headings are
 ## shown in capitals.
 

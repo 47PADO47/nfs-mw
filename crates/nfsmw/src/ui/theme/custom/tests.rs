@@ -77,6 +77,8 @@ fn custom_fills_the_radio_card_the_map_legend_and_the_layouts_and_falls_back_for
                 | ElementId::BountyRow
                 | ElementId::PoliceRadar
                 | ElementId::VehicleCondition
+                | ElementId::Minimap
+                | ElementId::Blips
         );
         assert_eq!(filled, custom, "{}", element.name());
     }

@@ -27,6 +27,7 @@
 //! - [`pursuit`]: the pursuit panel (`PursuitMeter`) and the end-of-chase cards.
 //! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
 //! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
+//! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
 //!
 //! Kept from before the rewrite until their own PRs replace them:
 //!
@@ -54,6 +55,7 @@ mod helpers_tests;
 pub mod layout;
 #[cfg(test)]
 mod layout_tests;
+pub mod map;
 mod map_legend;
 mod markers;
 mod notify;
@@ -153,6 +155,8 @@ pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell)
         // The map and the edge arrows show what the player can know of the police.
         ElementId::PoliceRadar => Some(Box::new(Empty)),
         ElementId::VehicleCondition => Some(Box::new(condition::ConditionChip::new(feed.clone()))),
+        ElementId::Minimap => Some(Box::new(map::CustomMap::new(feed.clone()))),
+        ElementId::Blips => Some(Box::new(Empty)),
         _ => None,
     }
 }

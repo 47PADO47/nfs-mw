@@ -22,6 +22,7 @@ use super::layout::CANVAS;
 use super::markers::MarkerMemoryCell;
 use super::memory::LayoutMemory;
 use crate::ui::prompts::Prompt;
+use super::map::memory::MapMemoryCell;
 
 /// What the notification manager shows this frame (`hud/notify/view.rs` fills it from the queue and the feedback lane):
 /// the notices, the lane's chip and the nitrous pulse, with their text already in the current language.
@@ -124,6 +125,14 @@ pub struct CustomFeedCell {
     memory: LayoutMemory,
 }
 
+/// The shared cell. Clones share one feed, and one map memory: the state the map keeps between frames (`map/memory.rs`),
+/// since the theme makes a fresh map component every frame.
+#[derive(Clone, Debug, Default)]
+pub struct CustomFeedCell {
+    feed: Arc<Mutex<CustomFeed>>,
+    map: MapMemoryCell,
+}
+
 impl CustomFeedCell {
     /// An empty cell: the components read [`CustomFeed::default`] until the plugin sets it.
     pub fn new() -> Self {
@@ -154,6 +163,11 @@ impl CustomFeedCell {
     /// The contextual layouts' memory.
     pub fn memory(&self) -> &LayoutMemory {
         &self.memory
+    }
+
+    /// The map's memory between frames, shared by every clone of the cell.
+    pub fn map_memory(&self) -> MapMemoryCell {
+        self.map.clone()
     }
 
     /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is
