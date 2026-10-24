@@ -43,6 +43,7 @@ mod population;
 mod population_stats;
 mod pursuit;
 mod pursuit_budget;
+mod pursuit_phase;
 mod race_route;
 mod racer;
 mod racer_route;
