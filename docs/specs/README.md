@@ -181,6 +181,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [pursuit-free-roam.md](pursuit-free-roam.md): patrol promotion, sight/search, radar, heat, soundtrack ownership, damage and roadblock integration.
 
 - [custom-fonts.md](custom-fonts.md): optional replacement FEng fonts from a user folder, per render height, with scaling.
+- [custom-hud-fonts.md](custom-hud-fonts.md): the Custom HUD's fonts read from the operating system, the fallback and tabular digits.
 - [fe-shadows.md](fe-shadows.md): an optional front-end shadow pass (off by default; the original draws none).
 - [hd-content-support.md](hd-content-support.md): HD font glyphs, the mouse pointer and full-motion video at the right size.
 - [hd-reflections.md](hd-reflections.md): optional HD reflection options, with the original defaults.
