@@ -150,9 +150,10 @@ fn the_rooms_draw_the_solids_their_stage_names() {
         let expected: Vec<String> = blackbox_solid::read_solids(&bytes)
             .unwrap()
             .into_iter()
-            .filter(|solid| stage.draws(&solid.name))
-            .filter(|solid| !solid.vertices.is_empty() && !solid.indices.is_empty())
-            .map(|solid| solid.name)
+            .map(|solid| (Stage::canonical_name(&solid.name).to_owned(), solid))
+            .filter(|(name, _)| stage.draws(name))
+            .filter(|(_, solid)| !solid.vertices.is_empty() && !solid.indices.is_empty())
+            .map(|(name, _)| name)
             .collect();
         assert!(expected.iter().any(|name| name == "BACKDROP_CRIB"), "{stage:?} includes its room");
         let room = Room::load(&mut renderer, &dir, stage).unwrap();
@@ -374,11 +375,15 @@ fn floor_receiver_rejects_nonplanar_replacement_geometry_and_crib_helpers_are_hi
     assert!(crate::frontend::room_floor::floor_texture(&solids, Stage::SafeHouse).is_none());
     let mut renderer = backend();
     let room = crate::frontend::room::Room::load(&mut renderer, &dir, Stage::Crib).unwrap();
-    assert!(room.instances().iter().all(|part| matches!(
-        renderer.mesh_labels[&part.mesh].as_str(),
-        "BACKDROP_CRIB" | "BACKDROP_CURRGEN" | "BACKDROP_CAST_SHADOW_MAP"
-    )));
-    assert!(room.shadow_casters().iter().all(|part| renderer.mesh_labels[&part.mesh] == "BACKDROP_CAST_SHADOW_MAP"));
+    // A modified file has more props than the stock one and spells every name twice; none is a helper.
+    assert!(!room.instances().is_empty(), "the crib draws its room");
+    assert!(room.instances().iter().all(|part| renderer.mesh_labels[&part.mesh].starts_with("BACKDROP_")));
+    assert!(room.instances().iter().any(|part| renderer.mesh_labels[&part.mesh] == "BACKDROP_CRIB"));
+    assert!(
+        room.shadow_casters()
+            .iter()
+            .all(|part| renderer.mesh_labels[&part.mesh].starts_with("BACKDROP_CAST_SHADOW_MAP"))
+    );
     assert!(!room.shadow_casters().is_empty());
     room.destroy(&mut renderer);
     assert!(renderer.mesh_labels.is_empty());

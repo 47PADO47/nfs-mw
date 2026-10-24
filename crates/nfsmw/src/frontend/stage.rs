@@ -79,23 +79,34 @@ impl Stage {
         }
     }
 
-    /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour.
+    /// The name of a solid as the tables here spell it. A modified platform file can name its solids twice over
+    /// (`BACKDROP_BACKDROP_CRIB`, `menu-backdrop-looks.md` section 2), which is the same solid as `BACKDROP_CRIB`.
+    pub fn canonical_name(name: &str) -> &str {
+        const PREFIX: &str = "BACKDROP_";
+        match name.strip_prefix(PREFIX) {
+            Some(rest) if rest.starts_with(PREFIX) => rest,
+            _ => name,
+        }
+    }
+
+    /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour. Names are canonical.
     pub fn shadow_source(self, name: &str) -> bool {
         match self {
-            Stage::Crib => name == "BACKDROP_CAST_SHADOW_MAP",
+            Stage::Crib => name.starts_with("BACKDROP_CAST_SHADOW_MAP"),
             Stage::SafeHouse => name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"),
             Stage::CarLot => false,
         }
     }
 
-    /// Whether the solid called `name` is drawn. The crib omits emitter and light-helper meshes. The safe house file also holds the high
+    /// Whether the solid called `name` (canonical) is drawn. The crib draws its `BACKDROP_*` solids: the room, the sky and
+    /// the warehouse props, whatever their count, and omits emitter and light-helper meshes. The safe house file also holds the high
     /// resolution geometry the original renders its shadow map from (`BACKDROP_CAST_SHADOW_MAP_NEXTGEN`, above the room) and
     /// particle emitter markers (`STEAM EMITTER*`), which are not part of the picture. The three other `BACKDROP_CAST_SHADOW_MAP*`
     /// solids are inside the room and hold its props and wall parts (the couch, the tank, the posters, the pipes), which the
     /// mirrored garage repeats, so they are drawn.
     pub fn draws(self, name: &str) -> bool {
         match self {
-            Stage::Crib => matches!(name, "BACKDROP_CRIB" | "BACKDROP_CURRGEN" | "BACKDROP_CAST_SHADOW_MAP"),
+            Stage::Crib => name.starts_with("BACKDROP_"),
             Stage::CarLot => true,
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
@@ -135,12 +146,22 @@ mod tests {
         assert!(Stage::Crib.draws("BACKDROP_CRIB"));
         assert!(Stage::Crib.draws("BACKDROP_CURRGEN"));
         assert!(Stage::Crib.draws("BACKDROP_CAST_SHADOW_MAP"), "the textured warehouse is visible scenery");
+        assert!(Stage::Crib.draws("BACKDROP_CAST_SHADOW_MAP2"), "so are the props of a file that has more than one");
         for helper in ["LIGHT HELPER 3", "FX_STEAM", "BIRDEMITTER"] {
             assert!(!Stage::Crib.draws(helper), "{helper} must not enter the colour pass");
         }
         assert!(Stage::Crib.shadow_source("BACKDROP_CAST_SHADOW_MAP"));
         assert!(!Stage::Crib.shadow_source("BACKDROP_CRIB"));
         assert!(Stage::SafeHouse.shadow_source("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"));
+    }
+
+    #[test]
+    fn a_doubled_prefix_names_the_same_solid() {
+        assert_eq!(Stage::canonical_name("BACKDROP_BACKDROP_CRIB"), "BACKDROP_CRIB");
+        assert_eq!(Stage::canonical_name("BACKDROP_BACKDROP_CAST_SHADOW_MAP5"), "BACKDROP_CAST_SHADOW_MAP5");
+        assert_eq!(Stage::canonical_name("BACKDROP_CRIB"), "BACKDROP_CRIB");
+        assert_eq!(Stage::canonical_name("STEAM EMITTER01"), "STEAM EMITTER01");
+        assert!(Stage::Crib.draws(Stage::canonical_name("BACKDROP_BACKDROP_CRIB")), "the modified room is drawn");
     }
 
     #[test]
