@@ -16,7 +16,7 @@ impl WorldScene {
                 self.residency.placed().filter_map(super::super::ai::signal_props::candidate),
             );
         }
-        self.environment_lights.refresh(&self.residency);
+        self.environment_lights.refresh(&self.residency, &self.scenery_groups);
         let lights = &mut self.environment_lights;
         lights.detail.configure(self.detail.settings);
         let camera = visibility::Camera {
@@ -26,20 +26,19 @@ impl WorldScene {
             fov_y_radians: lens.fov_y_degrees.to_radians(),
             light_dir: self.sun.direction().to_array(),
         };
-        let candidates: Vec<_> = self
-            .residency
-            .placed()
-            .filter(|p| lights.contains(p))
-            .filter(|p| {
-                let controlled = self.traffic_setting.lights
-                    && p.signal.is_some_and(|head| {
-                        self.traffic.as_ref().is_some_and(|traffic| traffic.controls_signal_head(head))
-                    });
-                !controlled
-            })
-            .collect();
+        // The marked placements were picked at `refresh`; what changes between frames is only which scenery groups
+        // are in and which signal heads a junction controller has taken over.
+        let collision = self.residency.collision();
+        let signals = self.traffic_setting.lights;
+        let traffic = self.traffic.as_ref();
+        let controlled = |head| signals && traffic.is_some_and(|traffic| traffic.controls_signal_head(head));
+        let candidates = lights
+            .candidates
+            .iter()
+            .filter(|p| p.group == 0 || collision.group_enabled(p.group))
+            .filter(|p| !p.signal.is_some_and(controlled));
         visibility::collect_subset(
-            candidates.into_iter(),
+            candidates,
             &camera,
             &blackbox_scenery::layout::MOST_WANTED.lod,
             self.residency.props(),
