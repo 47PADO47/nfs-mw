@@ -16,7 +16,7 @@ use crate::scenes::world::effects::entry_marks;
 use crate::scenes::world::entry_zones::ZoneKind;
 
 /// The Blacklist's bins, 1 to 15 (`FIRST_RIVAL_STAGE`).
-const LAST_BIN: u8 = 15;
+pub(super) const LAST_BIN: u8 = 15;
 
 /// Whether a race zone can be entered in the career.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,6 +124,7 @@ impl WorldScene {
             return false;
         }
         self.career.side_won.insert(event.to_owned());
+        self.career.locks.get_mut().invalidate();
         self.career.handle.with(|career| {
             let mut nodes = career.settings.nodes();
             if let Err(e) = nodes.set_won_in_career(event) {
@@ -154,21 +155,11 @@ impl WorldScene {
         handle_autosave(&self.career.handle, self.career.profiles.as_ref(), Trigger::RoamingStart, inputs);
     }
 
-    /// Whether a race is one the Blacklist lists and has not opened yet: its start icon stays off the map.
-    pub(in crate::scenes::world) fn career_race_locked(&self, name: &str) -> bool {
-        let event = event_id(name);
-        let Some(blacklisted) =
-            self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked)
-        else {
-            return false;
-        };
-        blacklisted || self.side_race_locked(&event)
-    }
-
     /// The names of the race zones near the car whose events the career keeps shut: they get no disc on the road, as they
     /// get no icon on the map (`race_start_blips`).
     pub(in crate::scenes::world) fn shut_race_zones(&self) -> Vec<String> {
         let Some(car) = self.players.lead().map(|drive| drive.position()) else { return Vec::new() };
+        self.refresh_race_locks();
         let near = self.entry.zones.near(car, entry_marks::DRAW_RANGE);
         near.filter(|zone| zone.kind == ZoneKind::Race && self.career_race_locked(&zone.name))
             .map(|zone| zone.name.clone())

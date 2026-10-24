@@ -205,6 +205,15 @@ pub fn race_event_id(race: &gameplay::Race) -> String {
     race.event.clone().unwrap_or_else(|| event_id(&race.name))
 }
 
+/// Whether `race` is the race of `event` (the id [`race_event_id`] gives), without making the id when the race stores
+/// one.
+pub fn race_has_event(race: &gameplay::Race, event: &str) -> bool {
+    match race.event.as_deref() {
+        Some(stored) => stored == event,
+        None => event_id(&race.name) == event,
+    }
+}
+
 /// A non-empty run of ASCII digits.
 fn is_number(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
