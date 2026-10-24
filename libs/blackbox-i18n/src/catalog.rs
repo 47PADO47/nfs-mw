@@ -103,6 +103,10 @@ fn layer(source: &Source, locale: Locale, pseudo: bool, problems: &mut Vec<Probl
     let mut bundle = FluentBundle::new_concurrent(vec![source.locale.id().clone()]);
     // The game's fonts have no glyphs for the Unicode isolation marks Fluent puts around variables.
     bundle.set_use_isolating(false);
+    // `NUMBER` is a built-in function only once it is added: the ordinal selectors need it.
+    if let Err(e) = bundle.add_builtins() {
+        problems.push(Problem { origin: source.origin.clone(), file: String::new(), message: format!("{e:?}") });
+    }
     if pseudo {
         bundle.set_transform(Some(pseudo::transform));
     }

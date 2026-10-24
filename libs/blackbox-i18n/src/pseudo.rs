@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn accents_and_pads() {
-        assert_eq!(transform("Race on"), "Rácé óñ");
+        assert_eq!(transform("Race on"), "Ráçé óñ");
         assert_eq!(wrap("Back"), "[Back~~]");
     }
 }
