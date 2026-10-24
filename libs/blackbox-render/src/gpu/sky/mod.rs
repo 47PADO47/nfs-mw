@@ -1,6 +1,7 @@
 //! Authored atmospheric sky layers; behavior specified by the game's caller.
 
 mod cloud_map;
+mod cloud_schedule;
 mod noise;
 mod pipeline;
 #[cfg(test)]
