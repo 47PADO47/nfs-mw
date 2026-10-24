@@ -26,6 +26,7 @@ mod environment;
 mod events;
 mod exhaust;
 mod explosion_fx;
+pub(crate) mod feed;
 mod finish_flares;
 mod frame;
 mod frame_systems;
