@@ -25,11 +25,15 @@
 mod advanced;
 mod bars;
 mod frame;
+#[cfg(test)]
+mod logic_tests;
 mod memory;
 mod nitrous;
 mod revs;
 mod scale;
 mod speed;
+#[cfg(test)]
+mod tests;
 
 pub use memory::ClusterMemory;
 
