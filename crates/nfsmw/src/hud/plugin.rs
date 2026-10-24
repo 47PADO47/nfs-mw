@@ -97,6 +97,7 @@ impl Plugin for HudPlugin {
             )
             .init_resource::<HudNotifications>()
             .add_systems(Update, notify.in_set(FrameSet::SceneUpdate).after(sync))
+            .add_systems(Update, super::notify::output.in_set(FrameSet::SceneUpdate).after(notify))
             .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
             .add_systems(
                 Update,

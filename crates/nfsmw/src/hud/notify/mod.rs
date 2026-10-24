@@ -5,6 +5,7 @@
 //! - `catalog`: what each kind of event tells the player, and how.
 //! - `feedback`: the feedback lane's chips (near misses, speed traps, bounty gains) and the nitrous pulse.
 //! - `signals`: the sounds and rumbles the notices ask for, once each.
+//! - `output`: those sounds and rumbles played, in the Custom style, through the HUD's volume group and the pad.
 //! - `view`: what the Custom HUD draws of the notices and the lane this frame.
 //!
 //! The queue is fed from the state's event list once per frame: a scene that hands the same frame over again (a paused
@@ -13,6 +14,7 @@
 
 mod catalog;
 mod feedback;
+mod output;
 mod signals;
 #[cfg(test)]
 mod tests;
@@ -26,6 +28,7 @@ pub use catalog::{AudioCue, Category, Haptic, NoticeId};
 use catalog::{Dismissal, spec};
 use feedback::FeedbackLane;
 pub use feedback::{Chip, ChipKind};
+pub(in crate::hud) use output::output;
 use signals::Signals;
 
 use super::{HudEvent, HudState, PursuitPhase};
