@@ -164,6 +164,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         custom_fonts: s.custom_fonts.into(),
         fe_shadows: s.fe_shadows.into(),
         net: s.net.into(),
+        xenon_effects: Default::default(), // config file only; the menus never write it
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),

@@ -221,6 +221,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         custom_fonts: custom_fonts::from_env(&get),
         fe_shadows: fe_shadows::from_env(&get),
         net: super::net::from_env(&get),
+        xenon_effects: Default::default(), // config file only
     }
 }
 

@@ -20,6 +20,8 @@ pub struct WorldTuning {
     /// The high-speed radial blur: on or off, and its strength.
     pub motion_blur: MotionBlur,
     pub rain_droplet_scale: f32,
+    /// The restored sparks and the speed trail (`[xenon_effects]`).
+    pub xenon_effects: XenonEffects,
 }
 
 impl Default for WorldTuning {
@@ -35,6 +37,7 @@ impl Default for WorldTuning {
             speedbreaker: SpeedbreakerTuning::default(),
             motion_blur: MotionBlur::default(),
             rain_droplet_scale: 0.5,
+            xenon_effects: XenonEffects::default(),
         }
     }
 }
@@ -52,6 +55,7 @@ impl From<&Settings> for WorldTuning {
             speedbreaker: s.speedbreaker,
             motion_blur: MotionBlur::from(s),
             rain_droplet_scale: s.rain_droplet_scale,
+            xenon_effects: s.xenon_effects,
         }
     }
 }

@@ -176,6 +176,8 @@ pub struct Partial {
     pub fe_shadows: super::fe_shadows::FeShadowsLayer,
     /// The LAN play settings (`net_*`).
     pub net: super::net::NetLayer,
+    /// The restored sparks and the speed trail (`[xenon_effects]`).
+    pub xenon_effects: super::xenon_effects::XenonEffectsLayer,
 }
 
 impl Partial {
@@ -288,6 +290,7 @@ impl Partial {
             custom_fonts: self.custom_fonts.or(lower.custom_fonts),
             fe_shadows: self.fe_shadows.or(lower.fe_shadows),
             net: self.net.or(lower.net),
+            xenon_effects: self.xenon_effects.or(lower.xenon_effects),
         }
     }
 }

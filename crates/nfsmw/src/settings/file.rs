@@ -196,6 +196,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         custom_fonts: custom_fonts::read(&table),
         fe_shadows: fe_shadows::read(&table, origin),
         net: super::net::read(&table, origin),
+        xenon_effects: super::xenon_effects::read(&table),
     }
 }
 
