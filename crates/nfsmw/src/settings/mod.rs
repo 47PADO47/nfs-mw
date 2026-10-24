@@ -248,8 +248,9 @@ pub struct Settings {
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
-    /// The look of all HUD and menu UI: the original (default), the rewrite's Custom elements, or Remastered (not yet
-    /// implemented, falls back to Original). Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
+    /// The look of all HUD and menu UI: the original (default), Remastered (its own cluster, minimap, menus and world
+    /// map), or Custom (the rewrite's own modern HUD and menus, `docs/decisions/0013-custom-hud.md`). A slot a look
+    /// does not fill falls back to Original. Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
     pub ui_style: UiStyle,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
