@@ -40,8 +40,8 @@ pub(super) fn row_colour(entry: &MenuEntry, selected: bool) -> (&'static str, f3
     }
 }
 
-/// The row size, or less when the label at that size is longer than `room` units, so it stops short of the values. An
-/// estimate stands in for the width when the font did not load, so a label is never shrunk on a guess.
+/// The row size, or less when the label at that size is longer than `room` units, so it stops short of the values. A
+/// label whose width is not known (the font did not load) keeps the row size.
 fn fitted(label: &str, room: f32, sizing: Sizing) -> f32 {
     let row = size::MENU_ROW;
     match width_units(CUSTOM_LABEL_FONT_KEY, label, sizing.glyph_scale(row)) {

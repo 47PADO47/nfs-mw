@@ -76,7 +76,11 @@ impl DialogFrame {
         };
         let line_pitch = sizing.units(LINE_PITCH);
         let row_pitch = sizing.units(ROW_PITCH);
-        let head = pad + if title.is_empty() { 0.0 } else { sizing.units(TITLE_HEIGHT) };
+        let title_height = match title.is_empty() {
+            true => 0.0,
+            false => sizing.units(TITLE_HEIGHT),
+        };
+        let head = pad + title_height;
         let body = lines.len() as f32 * line_pitch + MESSAGE_GAP * s;
         let height = head + body + answers as f32 * row_pitch + pad;
         let top = frame.safe().y - height / 2.0;

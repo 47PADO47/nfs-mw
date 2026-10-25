@@ -89,7 +89,10 @@ impl Parts<'_, '_> {
         for i in 0..SEGMENTS {
             let x = left + i as f32 * (segment + gap) + segment / 2.0;
             let rect = Rect::new(x, column.y, segment, SEGMENT_HEIGHT * s);
-            let key = if i < filled { fill } else { keys::RULE };
+            let key = match i < filled {
+                true => fill,
+                false => keys::RULE,
+            };
             self.panel(key, rect, alpha);
         }
         let number = Label::numeric(percent(i64::from(level)), size::MENU_ROW).colour(colour).opacity(alpha);
