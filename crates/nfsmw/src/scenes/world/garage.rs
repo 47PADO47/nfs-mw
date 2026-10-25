@@ -49,10 +49,14 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         {
             continue;
         }
-        let (mut name, manufacturer) =
+        let (mut name, mut manufacturer) =
             names::display(&car_type.type_name, &car_type.manufacturer, &brands, &crate::i18n::game);
         if let Some(own) = car_mods::display_name(&folder) {
             name = own.to_owned();
+        }
+        // The brand a mod gives is shown as it is written; without one the clone's brand stays.
+        if let Some(brand) = car_mods::manufacturer(&folder) {
+            manufacturer = brand.to_owned();
         }
         let original_color = stock_parts(&tables, car_type)[slot::BASE_PAINT].map(|part| Paint::of(&tables, &part).rgb);
         let performance = PerformanceCatalog::read(physics.database(), &car_type.type_name)?;
@@ -170,7 +174,7 @@ impl WorldScene {
         let changed_performance = selection.performance != self.garage.applied.performance;
         let changed_parts = selection.parts != self.garage.applied.parts;
         let physics = match changed_performance || selection.car != self.last_car {
-            true => Some(self.physics.car_with_performance(&entry.physics_name, selection.performance)?),
+            true => Some(self.physics.car_with_performance(entry.physics_key(), selection.performance)?),
             false => None,
         };
         if let Some(physics) = &physics {

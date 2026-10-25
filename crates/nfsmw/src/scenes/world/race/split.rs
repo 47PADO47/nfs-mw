@@ -30,7 +30,7 @@ impl crate::scenes::world::WorldScene {
         let selection = crate::garage::my_cars::load(&self.dir, &self.garage, id, folder)?;
         let entry =
             self.garage.cars.iter().find(|car| car.folder == selection.car).context("Custom car is not installed")?;
-        let physics = self.physics.car_with_performance(&entry.physics_name, selection.performance)?;
+        let physics = self.physics.car_with_performance(entry.physics_key(), selection.performance)?;
         let tunings = selection.tuning.normalized()?;
         let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
         let mut model =

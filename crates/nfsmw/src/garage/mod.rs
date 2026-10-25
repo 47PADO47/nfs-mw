@@ -84,6 +84,16 @@ pub struct Car {
     pub unavailable: Option<String>,
 }
 
+impl Car {
+    /// The name to ask the physics for: a mod car's folder, so its `[performance]` applies, else the car type.
+    pub fn physics_key(&self) -> &str {
+        match nfsmw_data::car::mods::is_mod_car(&self.folder) {
+            true => &self.folder,
+            false => &self.physics_name,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
     pub car: String,

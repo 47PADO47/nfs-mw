@@ -16,17 +16,21 @@ fn names(t: &CarTables, car: &CarTypeInfo, part: &Part) -> (String, String) {
     (name.clone(), format!("{name}_MASK"))
 }
 
+/// The vinyl artwork of `folder`. A mod car has the vinyls of the stock car it clones, after any of its own: the
+/// artwork is drawn over the paint texture, whose layout a mod car shares with its clone.
 fn textures(dir: &GameDir, folder: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
     let mut found = HashMap::new();
-    for file in ["VINYLS.BIN", "PREVINYL.BIN"] {
-        let path = format!("CARS/{folder}/{file}");
-        if !dir.exists(&path) {
-            continue;
-        }
-        for pack in
-            blackbox_tpk::read_texture_packs_filtered(&crate::read_unwrapped(dir, &path)?, |h| wanted.contains(&h))?
-        {
-            for texture in pack.textures {
+    let folders = std::iter::once(folder).chain(super::mods::clone_folder(folder));
+    for folder in folders {
+        for file in ["VINYLS.BIN", "PREVINYL.BIN"] {
+            let path = format!("CARS/{folder}/{file}");
+            if !dir.exists(&path) {
+                continue;
+            }
+            let packs = blackbox_tpk::read_texture_packs_filtered(&crate::read_unwrapped(dir, &path)?, |h| {
+                wanted.contains(&h)
+            })?;
+            for texture in packs.into_iter().flat_map(|pack| pack.textures) {
                 found.entry(texture.name_hash).or_insert(texture);
             }
         }

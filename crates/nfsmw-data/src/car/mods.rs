@@ -12,13 +12,16 @@ use blackbox_carparts::CarTypeInfo;
 
 use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 
+mod tuning;
+pub use tuning::{TYPICAL_NITROUS, Tuning};
+
 /// How many cars of a mod's kind a cop wave with the car has.
 pub const COP_COUNT: u32 = 2;
 /// The spawn weight of a mod's cop car in its waves, in percent.
 pub const COP_CHANCE: u32 = 10;
 
 /// A mod's request for one car, with the facts the caller has checked against the install.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarSpec {
     /// The car's folder under `CARS/`, in upper case.
     pub folder: String,
@@ -36,6 +39,8 @@ pub struct CarSpec {
     pub cop_heat: Option<Vec<u32>>,
     /// Whether the mod's own `files/` folder holds `CARS/<folder>/GEOMETRY.BIN`.
     pub geometry_in_mod: bool,
+    /// How the car drives compared with its clone.
+    pub tuning: Tuning,
 }
 
 /// A car the game admitted, with the car type it adds to the table.
@@ -44,8 +49,14 @@ pub struct ModCar {
     pub folder: String,
     pub owner: String,
     pub name: Option<String>,
+    /// The brand the mod gave. `None` keeps the clone's.
+    pub manufacturer: Option<String>,
     pub player: bool,
     pub cop_heat: Option<Vec<u32>>,
+    /// The stock car folder the car copies, following a chain of mod cars to the end. Its vinyls fit the car's paint
+    /// surfaces, which a mod makes with the clone's texture layout.
+    pub clone_folder: String,
+    pub tuning: Tuning,
     /// A copy of the clone's record, with the mod's folder as its geometry and the brand the mod gave.
     pub car_type: CarTypeInfo,
 }
@@ -121,12 +132,21 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
     if let Some(manufacturer) = &spec.manufacturer {
         car_type.manufacturer = manufacturer.clone();
     }
+    // The clone may itself be a mod car: its own clone is the stock folder.
+    let source_folder = folder_of(source).unwrap_or_default();
+    let clone_folder = cars
+        .iter()
+        .find(|car| car.folder.eq_ignore_ascii_case(source_folder))
+        .map_or_else(|| source_folder.to_owned(), |car| car.clone_folder.clone());
     Ok(ModCar {
         folder: spec.folder.clone(),
         owner: spec.owner.clone(),
         name: spec.name.clone(),
+        manufacturer: spec.manufacturer.clone(),
         player: spec.player,
         cop_heat: spec.cop_heat.clone(),
+        clone_folder,
+        tuning: spec.tuning,
         car_type,
     })
 }
@@ -196,6 +216,32 @@ pub fn display_name(folder: &str) -> Option<&'static str> {
 
 fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder)).and_then(|car| car.name.as_deref())
+}
+
+/// The brand a mod gave the car in `folder`, if any. The clone's brand is used otherwise.
+pub fn manufacturer(folder: &str) -> Option<&'static str> {
+    find_in(published(), folder).and_then(|car| car.manufacturer.as_deref())
+}
+
+/// The stock folder whose vinyl artwork the car in `folder` uses: the car it clones. `None` for a car that is not a mod
+/// car, which uses its own folder.
+pub fn clone_folder(folder: &str) -> Option<&'static str> {
+    find_in(published(), folder).map(|car| car.clone_folder.as_str())
+}
+
+/// How the mod car in `folder` drives compared with its clone. `None` for a car that is not a mod car, or one whose mod
+/// asked for no change.
+pub fn tuning(folder: &str) -> Option<Tuning> {
+    find_in(published(), folder).map(|car| car.tuning).filter(|tuning| !tuning.is_stock())
+}
+
+/// Whether `folder` is a car a mod added.
+pub fn is_mod_car(folder: &str) -> bool {
+    find_in(published(), folder).is_some()
+}
+
+fn find_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a ModCar> {
+    cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder))
 }
 
 /// Add a cop row for each mod car whose heat list has `heat` to `row`, the wave of that heat level. The row names the
