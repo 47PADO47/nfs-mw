@@ -19,10 +19,10 @@ use crate::ui::present::Screen;
 
 use super::cluster::ClusterMemory;
 use super::layout::CANVAS;
+use super::map::memory::MapMemoryCell;
 use super::markers::MarkerMemoryCell;
 use super::memory::LayoutMemory;
 use crate::ui::prompts::Prompt;
-use super::map::memory::MapMemoryCell;
 
 /// What the notification manager shows this frame (`hud/notify/view.rs` fills it from the queue and the feedback lane):
 /// the notices, the lane's chip and the nitrous pulse, with their text already in the current language.

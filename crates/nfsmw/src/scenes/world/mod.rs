@@ -37,8 +37,8 @@ mod gps;
 mod ground;
 mod heli_wash;
 mod hud;
-mod hud_marks;
 mod hud_context;
+mod hud_marks;
 mod hud_nav;
 mod hud_pursuit;
 #[cfg(test)]
