@@ -50,9 +50,9 @@ fn texts(nodes: &[UiNode]) -> Vec<&str> {
 }
 
 #[test]
-fn custom_fills_the_radio_card_the_map_legend_and_the_drive_slots_and_falls_back_for_every_other_slot() {
-    // The telemetry cluster (PR 6) claims the drive slots; the other HUD components come in PRs 7 to 9, so the rest of
-    // the HUD falls back for now.
+fn custom_fills_the_radio_card_the_map_legend_and_the_layouts_and_falls_back_for_every_other_slot() {
+    // The cluster (PR 6), the markers (PR 9), the notifications (PR 10) and the contextual layouts (PR 8) fill their
+    // slots; the map comes in PR 7b, so the minimap and the blips still fall back.
     let theme = CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), Default::default());
     let skin = default_skin();
     let cx = BuildCx::new(&skin);
@@ -70,6 +70,13 @@ fn custom_fills_the_radio_card_the_map_legend_and_the_drive_slots_and_falls_back
                 | ElementId::Speedbreaker
                 | ElementId::WorldMarkers
                 | ElementId::Notifications
+                | ElementId::RaceStatus
+                | ElementId::Leaderboard
+                | ElementId::Banner
+                | ElementId::PursuitMeter
+                | ElementId::BountyRow
+                | ElementId::PoliceRadar
+                | ElementId::VehicleCondition
         );
         assert_eq!(filled, custom, "{}", element.name());
     }

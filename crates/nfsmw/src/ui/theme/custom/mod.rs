@@ -3,8 +3,8 @@
 //! re-expressed as components and returns `None` for the rest, so every other slot falls back to Original.
 //!
 //! Status (PR 5): the foundation. The old bottom-right drive card is gone; the horizontal telemetry cluster, the
-//! centred map, the free-roam, race and pursuit layouts and the world markers come in the next PRs of the stack, and
-//! until then the drive slots fall back to Original. What is built here is what those components share:
+//! centred map and the world markers come in the next PRs of the stack, and until then the drive slots fall back to
+//! Original. What is built here is what those components share:
 //!
 //! - [`tokens`]: the colours (`custom.*` skin keys), high contrast, the colour-vision palettes, opacity and the motion
 //!   table. `ui_theme` still chooses the accent family ([`palette`]).
@@ -15,6 +15,18 @@
 //! - `notify`: the `Notifications` slot, the notification stack and the feedback lane's chip.
 //!
 //! Built on it (PR 6): [`cluster`], the horizontal telemetry cluster, which fills the drive slots.
+//!
+//! The contextual layouts (PR 8, `docs/specs/custom-hud/modes.md`, `race.md`, `pursuit.md`):
+//!
+//! - [`mode`]: the resolver from the HUD state to free roam, the race modes, a pursuit phase or hidden, and the
+//!   crossfade clock.
+//! - [`memory`]: what the layouts remember across frames (the mode clock, the discovery chips, the condition chip's
+//!   last warning, the moments a place or a heat level changed), carried by the feed cell.
+//! - [`free_roam`]: the discovery chips, the entry card and the optional extras line (the `BountyRow` slot).
+//! - [`race`]: the status strip (`RaceStatus`), the compact leaderboard (`Leaderboard`), the intro card and countdown.
+//! - [`pursuit`]: the pursuit panel (`PursuitMeter`) and the end-of-chase cards.
+//! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
+//! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
 //!
 //! Kept from before the rewrite until their own PRs replace them:
 //!
@@ -29,10 +41,13 @@
 //! - [`markers`]: the world-space markers (the `WorldMarkers` slot).
 
 mod cluster;
+mod banner;
+mod condition;
 mod drive_feed;
 // The Custom components that read the feed, the layout, the plate and the text helpers land in PRs 6 to 9.
 #[allow(dead_code)]
 pub mod feed;
+mod free_roam;
 #[cfg(test)]
 mod helpers_tests;
 #[allow(dead_code)]
@@ -42,10 +57,14 @@ mod layout_tests;
 mod map_legend;
 mod markers;
 mod notify;
+mod memory;
 pub mod mode;
 pub mod palette;
+mod parts;
 #[allow(dead_code)]
 pub mod plate;
+mod pursuit;
+mod race;
 mod radio_card;
 mod radio_feed;
 mod radio_placement;
@@ -56,6 +75,7 @@ mod tests;
 pub mod text;
 #[allow(dead_code)]
 pub mod tokens;
+mod words;
 
 pub(in crate::ui::theme) use drive_feed::DriveFeed;
 pub use drive_feed::DriveFeedCell;
@@ -124,6 +144,15 @@ pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell)
         ElementId::Speedbreaker => Some(Box::new(Empty)),
         ElementId::WorldMarkers => Some(Box::new(markers::WorldMarkers::new(feed.clone()))),
         ElementId::Notifications => Some(Box::new(notify::Notifications::new(feed.clone()))),
+        ElementId::RaceStatus => Some(Box::new(race::RaceStrip::new(feed.clone()))),
+        ElementId::Leaderboard => Some(Box::new(race::Leaderboard::new(feed.clone()))),
+        ElementId::Banner => Some(Box::new(banner::Banner::new(feed.clone()))),
+        ElementId::PursuitMeter => Some(Box::new(pursuit::PursuitPanel::new(feed.clone()))),
+        // The bounty is folded into the pursuit panel; the slot draws the free-roam extras.
+        ElementId::BountyRow => Some(Box::new(free_roam::Extras::new(feed.clone()))),
+        // The map and the edge arrows show what the player can know of the police.
+        ElementId::PoliceRadar => Some(Box::new(Empty)),
+        ElementId::VehicleCondition => Some(Box::new(condition::ConditionChip::new(feed.clone()))),
         _ => None,
     }
 }
