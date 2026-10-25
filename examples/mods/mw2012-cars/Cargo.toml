@@ -1,0 +1,18 @@
+[package]
+name = "mw2012-cars-mod"
+description = "Native mod: adds the cars of NFS Most Wanted (2012) to NFS: Most Wanted (2005), converted at start-up from the user's own 2012 install. Not part of the default build."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+blackbox-modding = { path = "../../../libs/blackbox-modding", features = ["sdk"] }
+nfsmw-import2012 = { path = "../../../crates/nfsmw-import2012" }
+
+[lints]
+workspace = true

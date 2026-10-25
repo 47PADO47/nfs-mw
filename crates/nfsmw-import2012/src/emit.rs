@@ -1,16 +1,11 @@
-//! Writing the mod folder: `mod.toml`, one `cars/<id>.toml` per car and the car files under `files/CARS/<ID>/`.
-//! See `docs/modding/api-content.md` ("Cars") for what the game reads.
+//! Writing the mod's generated content: one `cars/<id>.toml` per car and the car files under `files/CARS/<ID>/`, next to
+//! the mod's `mod.toml`. The game reads both folders after the mod has loaded (`docs/modding/api-content.md`, "Cars").
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 
 use crate::config::Role;
-
-/// The mod's id and folder name.
-pub const MOD_ID: &str = "mw2012.cars";
-/// A file the importer leaves in the folders it owns, so it never clears a folder it did not make.
-const MARKER: &str = ".nfsmw-import2012";
 
 /// One imported car, as the mod folder records it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,30 +25,22 @@ pub struct CarFiles<'a> {
     pub textures: &'a [u8],
 }
 
-/// The mod folder being written.
+/// The generated folders of a mod folder.
 pub struct ModFolder {
     root: PathBuf,
 }
 
 impl ModFolder {
-    /// Prepare `root`: create it, or clear the earlier import in it. A folder that exists, has other content and is
-    /// not an earlier import is refused.
+    /// Start a fresh set of generated content in `root`: the folders an earlier run wrote (`files/`, `cars/`) are
+    /// cleared. Both belong to the generator; nothing else of the mod folder is touched.
     pub fn create(root: &Path) -> Result<Self> {
-        if root.exists() {
-            let ours = root.join(MARKER).is_file();
-            let empty = std::fs::read_dir(root)?.next().is_none();
-            if !ours && !empty {
-                bail!("{} exists and is not an earlier import; choose another output folder", root.display());
-            }
-            for part in ["files", "cars"] {
-                let path = root.join(part);
-                if ours && path.exists() {
-                    std::fs::remove_dir_all(&path).with_context(|| format!("clearing {}", path.display()))?;
-                }
+        for part in ["files", "cars"] {
+            let path = root.join(part);
+            if path.exists() {
+                std::fs::remove_dir_all(&path).with_context(|| format!("clearing {}", path.display()))?;
             }
         }
         std::fs::create_dir_all(root).with_context(|| format!("creating {}", root.display()))?;
-        std::fs::write(root.join(MARKER), "written by nfsmw-import2012; the importer may clear files/ and cars/\n")?;
         Ok(Self { root: root.to_owned() })
     }
 
@@ -65,11 +52,6 @@ impl ModFolder {
         let cars = self.root.join("cars");
         std::fs::create_dir_all(&cars)?;
         std::fs::write(cars.join(format!("{}.toml", car.id.to_ascii_lowercase())), car_manifest(car))?;
-        Ok(())
-    }
-
-    pub fn finish(&self, count: usize) -> Result<()> {
-        std::fs::write(self.root.join("mod.toml"), mod_manifest(count))?;
         Ok(())
     }
 }
@@ -86,17 +68,6 @@ fn car_manifest(car: &CarEntry) -> String {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
     text
-}
-
-fn mod_manifest(count: usize) -> String {
-    format!(
-        "# Written by nfsmw-import2012 from the user's own installs of NFS Most Wanted (2012) and (2005).\n\
-         # It holds {count} cars converted from game files: do not share this folder.\n\n\
-         [mod]\nid = \"{MOD_ID}\"\nname = \"NFS Most Wanted (2012) cars\"\nversion = \"0.1.0\"\n\
-         authors = [\"nfsmw-import2012\"]\n\n\
-         [api]\nblackbox_modding = \"0.1\"\n\n\
-         [games]\nsupported = [\"nfsmw\"]\n"
-    )
 }
 
 #[cfg(test)]
@@ -123,27 +94,18 @@ mod tests {
     }
 
     #[test]
-    fn the_mod_manifest_parses() {
-        let parsed: toml::Table = toml::from_str(&mod_manifest(3)).unwrap();
-        assert_eq!(parsed["mod"]["id"].as_str(), Some(MOD_ID));
-        assert_eq!(parsed["games"]["supported"][0].as_str(), Some("nfsmw"));
-    }
-
-    #[test]
-    fn a_foreign_folder_is_never_cleared() {
+    fn a_new_run_clears_the_generated_folders_and_nothing_else() {
         let dir = std::env::temp_dir().join(format!("nfsmw-import2012-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("precious.txt"), "keep").unwrap();
-        assert!(ModFolder::create(&dir).is_err());
-        assert!(dir.join("precious.txt").is_file());
-        std::fs::remove_file(dir.join("precious.txt")).unwrap();
+        std::fs::write(dir.join("mod.toml"), "keep").unwrap();
         let folder = ModFolder::create(&dir).unwrap();
         folder.add_car(&entry(), &CarFiles { geometry: b"g", textures: b"t" }).unwrap();
-        folder.finish(1).unwrap();
         assert!(dir.join("files/CARS/POR911CARR12/GEOMETRY.BIN").is_file());
-        assert!(ModFolder::create(&dir).is_ok());
-        assert!(!dir.join("files").exists());
+        assert!(dir.join("cars/por911carr12.toml").is_file());
+        ModFolder::create(&dir).unwrap();
+        assert!(!dir.join("files").exists() && !dir.join("cars").exists());
+        assert!(dir.join("mod.toml").is_file());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

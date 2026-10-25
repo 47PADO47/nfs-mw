@@ -29,7 +29,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
-| [mw2012-cars.md](mw2012-cars.md) | The 93 cars of NFS: Most Wanted (2012) as a content mod, built from your own installs: settings, what is converted, limits |
+| [mw2012-cars.md](mw2012-cars.md) | The `mw2012-cars` mod: the 93 cars of NFS: Most Wanted (2012), converted at start-up from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
 
@@ -53,7 +53,7 @@ mods/<id>/
   music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
   lang/           <locale>/*.ftl translations of the mod's text, and language packs; see translations.md
   content/        other declarative registrations (TOML), planned
-  config.toml     the mod's own settings, managed through bb.config
+  config.toml     the mod's own settings, managed through bb.config (a mod may also read it itself: ctx.mod_dir())
 ```
 
 `mods/` is `<config dir>/mods/`. The manifest fields, discovery, ordering and failure rules are in the ADR

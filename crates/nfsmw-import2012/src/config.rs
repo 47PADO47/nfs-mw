@@ -1,7 +1,7 @@
-//! The importer's settings: `mw2012-import.toml` next to the game's own `config.toml`, overridden by the command line.
+//! The settings of the mw2012-cars mod: the `config.toml` in the mod's own folder.
 //!
 //! ```toml
-//! # Folder of the user's own NFS Most Wanted (2012) install. Left out: the importer does nothing and says why.
+//! # Folder of the user's own NFS Most Wanted (2012) install. Left out: the mod adds no cars and says why.
 //! source = 'D:\Need For Speed Most Wanted 2012'
 //! # Which cars: "all", or a list of ids or name fragments ("Porsche", "POR911CARR12").
 //! cars = "all"
@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-/// The file name of the settings file.
-pub const FILE_NAME: &str = "mw2012-import.toml";
+/// The file name of the settings file, in the mod's folder.
+pub const FILE_NAME: &str = "config.toml";
 
 /// Who may drive or chase with the imported cars (the mod car manifest's `role`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -71,10 +71,6 @@ impl<'de> Deserialize<'de> for Selection {
 pub struct Config {
     /// The 2012 install folder.
     pub source: Option<PathBuf>,
-    /// The 2005 install folder, for the stock cars' wheel placement. Left out: the game's own discovery is used.
-    pub game_dir: Option<PathBuf>,
-    /// Where the mod folder goes. Left out: `<config dir>/mods/mw2012.cars`.
-    pub output: Option<PathBuf>,
     pub cars: Selection,
     pub exclude: Vec<String>,
     pub max_texture_size: u32,
@@ -83,15 +79,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            source: None,
-            game_dir: None,
-            output: None,
-            cars: Selection::All,
-            exclude: Vec::new(),
-            max_texture_size: 1024,
-            role: Role::Player,
-        }
+        Self { source: None, cars: Selection::All, exclude: Vec::new(), max_texture_size: 1024, role: Role::Player }
     }
 }
 
@@ -103,7 +91,12 @@ impl Config {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
         };
-        let config: Self = toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        Self::parse(&text).with_context(|| format!("reading {}", path.display()))
+    }
+
+    /// Settings from the text of a settings file.
+    pub fn parse(text: &str) -> Result<Self> {
+        let config: Self = toml::from_str(text).context("parsing the settings")?;
         config.check()?;
         Ok(config)
     }

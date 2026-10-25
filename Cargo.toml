@@ -3,7 +3,7 @@ resolver = "3"
 # libs/   engine-generic libraries (EA Black Box formats, codecs, install discovery, rendering).
 #         No NFS:MW-specific code: they are meant to move to a shared utilities monorepo.
 # crates/ the NFS:MW game itself.
-members = ["libs/*", "crates/*", "xtask", "examples/mods/hello"]
+members = ["libs/*", "crates/*", "xtask", "examples/mods/hello", "examples/mods/mw2012-cars"]
 # Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
 # (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
 default-members = [

@@ -4066,6 +4066,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc0287524726960e07b119cebd01678f852f147742ae0d925e6a520dca956126"
 
 [[package]]
+name = "mw2012-cars-mod"
+version = "0.1.0"
+dependencies = [
+ "blackbox-modding",
+ "nfsmw-import2012",
+]
+
+[[package]]
 name = "naga"
 version = "30.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4281,8 +4289,6 @@ dependencies = [
  "chameleon-bundle",
  "chameleon-gfx",
  "chameleon-vehicle",
- "clap",
- "env_logger",
  "game-install",
  "log",
  "nfsmw-data",
