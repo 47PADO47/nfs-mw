@@ -17,6 +17,7 @@ impl WorldScene {
         self.shadow_feed.fed = false;
         renderer.set_reflection_scene(None);
         renderer.set_projected_reflection_scene(None);
+        renderer.set_ray_reflection_instances(&[]);
         self.wet_road.instances.clear();
         self.residency.release(renderer);
         self.nis.release_gpu(renderer);

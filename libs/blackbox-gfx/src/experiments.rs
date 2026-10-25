@@ -35,7 +35,19 @@ pub struct RenderExperiments {
     /// World-space patch size in metres.
     pub puddle_scale: f32,
     pub water_ripples: f32,
-    /// Maximum screen-space reflection ray length in metres.
+    /// Use hardware geometry queries when the renderer was started with RT support.
+    pub ray_road_reflections: bool,
+    /// Hardware reflections on custom glossy materials; rough lobes keep their filtered probe.
+    pub ray_car_reflections: bool,
+    /// Reflection-only texture cache budget: Low, Balanced, High, Very High.
+    pub ray_texture_quality: u32,
+    pub ray_car_range: f32,
+    pub ray_car_blend: f32,
+    /// RT hit contribution relative to the environment fallback.
+    pub ray_road_blend: f32,
+    /// Reuse fully shaded screen colour at an exact visible RT hit.
+    pub ray_road_screen_reuse: f32,
+    /// Maximum reflection ray length in metres.
     pub road_reflection_range: f32,
     /// Fraction of the ray range used to blend into the environment fallback.
     pub road_reflection_fade: f32,
@@ -106,6 +118,13 @@ impl Default for RenderExperiments {
             water_ripples: 0.5,
             road_reflection_range: 320.0,
             road_reflection_fade: 0.65,
+            ray_road_reflections: true,
+            ray_car_reflections: false,
+            ray_texture_quality: 1,
+            ray_car_range: 320.0,
+            ray_car_blend: 1.0,
+            ray_road_blend: 1.0,
+            ray_road_screen_reuse: 1.0,
             sky_wind_speed: 2.0,
             sky_sun_size: 2.0,
             sky_sun_brightness: 1.0,
@@ -155,6 +174,11 @@ impl RenderExperiments {
             puddle_scale: finite(self.puddle_scale, 7.0).clamp(2.0, 30.0),
             road_reflection_range: finite(self.road_reflection_range, 320.0).clamp(80.0, 800.0),
             road_reflection_fade: finite(self.road_reflection_fade, 0.65).clamp(0.1, 0.9),
+            ray_texture_quality: self.ray_texture_quality.min(3),
+            ray_car_range: finite(self.ray_car_range, 320.0).clamp(40.0, 800.0),
+            ray_car_blend: finite(self.ray_car_blend, 1.0).clamp(0.0, 1.0),
+            ray_road_blend: finite(self.ray_road_blend, 1.0).clamp(0.0, 1.0),
+            ray_road_screen_reuse: finite(self.ray_road_screen_reuse, 1.0).clamp(0.0, 1.0),
             water_ripples: finite(self.water_ripples, 0.5).clamp(0.0, 2.0),
             sky_wind_speed: finite(self.sky_wind_speed, 2.0).clamp(0.0, 12.0),
             sky_sun_size: finite(self.sky_sun_size, 2.0).clamp(0.5, 3.0),

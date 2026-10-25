@@ -7,15 +7,34 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     ui.add_enabled_ui(supported && receivers, |ui| {
         let defaults = super::profiles::defaults(settings);
         super::controls::checkbox(ui, &mut lab.options.enhanced_wet_surfaces, "Enhanced wet surfaces", defaults.appearance.lighting.enhanced_wet_surfaces)
-            .on_hover_text("Separates damp asphalt from pooled water on authored reflective surfaces. Patches remain fixed in the world and dry after rain. Uses visible scene geometry for reflections and the environment for off-screen objects. Screen-edge transitions and hidden objects remain approximate.");
+            .on_hover_text("Separates damp asphalt from pooled water on authored reflective surfaces. Patches remain fixed in the world and dry after rain. Uses hardware RT when available, otherwise screen-space reflections. The environment capture fills missing and distant detail.");
+        ui.add_enabled_ui(lab.ray_reflections_available && lab.options.enhanced_wet_surfaces, |ui| {
+            super::controls::checkbox(ui, &mut lab.options.ray_road_reflections, "Hardware RT road reflections", defaults.appearance.lighting.ray_road_reflections)
+                .on_hover_text("Traces loaded geometry, including off-screen objects. Visible hits can reuse screen colour; misses use the environment capture. Off switches to screen-space road reflections immediately. Car paint keeps its separate reflection system.");
+        });
+        if !lab.ray_reflections_available {
+            ui.small("Hardware RT is unavailable in this session. Use the Vulkan RT launcher to enable it at startup.");
+        }
         ui.collapsing("Advanced wet surfaces", |ui| {
             ui.add(egui::Slider::new(&mut lab.options.puddle_coverage, 0.0..=1.0).text("Puddle coverage"));
             ui.add(egui::Slider::new(&mut lab.options.puddle_scale, 2.0..=30.0).text("Puddle patch size (m)"));
             ui.add(egui::Slider::new(&mut lab.options.water_ripples, 0.0..=2.0).text("Rain ripples"));
             ui.add(egui::Slider::new(&mut lab.options.road_reflection_range, 80.0..=800.0).text("Reflection ray range (m)"))
-                .on_hover_text("Maximum distance along a reflected ray, not distance ahead of the car. Longer rays retain distant objects but cost more GPU time. Off-screen objects still use the environment capture.");
+                .on_hover_text("Maximum distance along a reflected ray, not distance ahead of the car. Longer rays retain distant objects but cost more GPU time. Hardware RT can trace loaded off-screen geometry; screen-space mode uses the environment capture outside the view.");
             ui.add(egui::Slider::new(&mut lab.options.road_reflection_fade, 0.1..=0.9).text("Reflection distance blend"))
                 .on_hover_text("Fraction of the ray range used for a gradual transition to the environment capture. Higher values soften the visible boundary but reduce distant reflection contrast. Defaults: 320 m range, 0.65 blend.");
+            ui.add_enabled_ui(lab.ray_reflections_available && lab.options.ray_road_reflections, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add(egui::Slider::new(&mut lab.options.ray_road_blend, 0.0..=1.0).text("RT geometry contribution"))
+                        .on_hover_text("Blends reflected geometry with the environment capture. 1 keeps the full RT hit; 0 shows only the capture. Does not change material wetness or the range fade.");
+                    super::controls::reset(ui, &mut lab.options.ray_road_blend, defaults.appearance.lighting.ray_road_blend, "RT geometry contribution");
+                });
+                ui.horizontal(|ui| {
+                    ui.add(egui::Slider::new(&mut lab.options.ray_road_screen_reuse, 0.0..=1.0).text("RT screen colour reuse"))
+                        .on_hover_text("At an exact visible RT hit, blends approximate hit lighting with the fully shaded screen colour. 1 preserves decals and detailed shading; 0 uses the same approximate lighting as off-screen hits. Intersection remains hardware RT.");
+                    super::controls::reset(ui, &mut lab.options.ray_road_screen_reuse, defaults.appearance.lighting.ray_road_screen_reuse, "RT screen colour reuse");
+                });
+            });
             ui.small("Procedural puddles approximate uneven roads; they do not simulate drainage or map tunnel shelter. Rain ripples stop after rainfall; water remains until it dries.");
         });
         if lab.options.enhanced_wet_surfaces {
@@ -26,7 +45,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
                     false => crate::settings::RoadReflections::Off,
                 };
             }
-            ui.small("Road reflections use the internal render resolution. Off-screen detail uses the car environment capture. The original road capture settings apply when Enhanced wet surfaces is off.");
+            ui.small("Road reflections use the internal render resolution. Hardware RT traces loaded geometry; screen-space mode traces visible geometry. Both blend to the car environment capture. Original road capture settings apply with Enhanced wet surfaces off.");
             return;
         }
         ui.horizontal(|ui| {

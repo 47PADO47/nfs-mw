@@ -78,6 +78,11 @@ pub trait RenderBackend {
         Default::default()
     }
     fn set_shadow_casters(&mut self, _casters: Option<&[Instance]>) {}
+    /// Optional hardware reflection geometry, including objects outside the camera view.
+    fn ray_reflections_enabled(&self) -> bool {
+        false
+    }
+    fn set_ray_reflection_instances(&mut self, _instances: &[Instance]) {}
 
     /// `None` requests the caller's explicit legacy sky fallback on unsupported backends.
     fn create_sky_material(&mut self, _desc: &crate::SkyMaterialDesc) -> Option<crate::SkyMaterialHandle> {

@@ -5,7 +5,7 @@ use nfsmw_data::car::Paint;
 pub(super) fn response(paint: &Paint) -> Option<GlossySurface> {
     let (roughness, coat, kind) = match paint.name.as_str() {
         n if n.starts_with("MATTE") => (0.52, 0.25, SurfaceKind::Legacy),
-        n if n.starts_with("CHROME") => (0.12, 0.0, SurfaceKind::Conductor),
+        n if n.starts_with("CHROME") => (0.12, 0.0, SurfaceKind::TintedChrome),
         n if n.starts_with("METAL") => (0.32, 0.9, SurfaceKind::Metallic),
         n if n.starts_with("PEARL") => (0.30, 0.9, SurfaceKind::Pearl),
         n if n.starts_with("GLOSS") => (0.24, 1.0, SurfaceKind::Coated),
@@ -27,6 +27,8 @@ mod tests {
         paint.name = "GLOSS_L1_COLOR01".into();
         let gloss = response(&paint).unwrap();
         assert!(matte.roughness > gloss.roughness && matte.coat < gloss.coat);
+        paint.name = "CHROME_L1_COLOR01".into();
+        assert_eq!(response(&paint).unwrap().kind, SurfaceKind::TintedChrome);
         paint.name = "UNKNOWN_MOD_PAINT".into();
         assert_eq!(response(&paint), None);
     }

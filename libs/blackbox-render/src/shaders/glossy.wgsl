@@ -188,7 +188,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let reflected = 2.0 * f * n - v;
     var probe_ray = reflected;
     if finish_on { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
-    let sharp_env = textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb;
+    let sharp_env = sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb);
     var env = sharp_env;
     var sun_specular = glint * spec;
     var coat_scale = 1.0;
@@ -219,7 +219,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let rough_paint = finish_on && !layered && material.surface.x >= 0.45;
     var surface_alpha = diff.a;
     if layered {
-        let color = layered_material(n, v, sun, diffuse_rgb, diff.rgb * tex.rgb, diff.a,
+        let layer_albedo = select(diff.rgb * tex.rgb, tex.rgb, material.surface.w > 10.5);
+        let color = layered_material(n, v, sun, diffuse_rgb, layer_albedo, diff.a,
             visibility, occlusion, in.uv, sharp_env, in.world);
         out.rgb = color.rgb;
         surface_alpha = color.a;

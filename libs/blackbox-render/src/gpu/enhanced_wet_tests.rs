@@ -20,6 +20,163 @@ fn draw(r: &mut Renderer, mesh: MeshHandle, water: SurfaceWater, vertical: bool)
 }
 
 #[test]
+#[ignore = "requires Vulkan hardware ray queries and BLACKBOX_RT_REFLECTIONS=1"]
+fn vulkan_rt_reflects_offscreen_textures_and_updates_removed_instances() {
+    if std::env::var("BLACKBOX_RT_REFLECTIONS").as_deref() != Ok("1")
+        || test_support::test_api() != crate::Backend::Vulkan
+    {
+        eprintln!("Vulkan hardware RT test requires explicit opt-in");
+        return;
+    }
+    use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
+    let _gpu = test_support::serial();
+    let mut r = Renderer::headless((257, 193), test_support::options()).unwrap();
+    assert!(r.ray_reflections.is_some(), "this test must actually enable Vulkan hardware RT");
+    let black = upload(&mut r, [0, 0, 0, 255]);
+    let flat = upload(&mut r, [128, 128, 255, 255]);
+    let mask = upload(&mut r, [255; 4]);
+    let mat = material(&mut r, [black, flat, mask], None);
+    let road = quad(&mut r, [-30.0, -30.0, 30.0, 30.0], [255; 4], black, Shading::WorldNormal(mat));
+    let road = Instance::new(road, Mat4::from_translation(Vec3::new(0.0, 0.0, -0.5)));
+    let red = upload(&mut r, [220, 10, 5, 255]);
+    let mut wall = MeshBuilder::new();
+    wall.state(Some(red), BlendMode::Opaque, Shading::Prelit);
+    wall.flat_quad(
+        [
+            Vec3::new(-8.0, 16.0, 6.0),
+            Vec3::new(-8.0, 16.0, 10.0),
+            Vec3::new(8.0, 16.0, 10.0),
+            Vec3::new(8.0, 16.0, 6.0),
+        ],
+        prelit([1.0; 3], 1.0),
+    );
+    let mut wall_data = wall.finish();
+    let wall = Instance::new(wall_data.upload(&mut r, "RT offscreen textured wall"), Mat4::IDENTITY);
+    let mut f = frame();
+    f.camera_position = Vec3::new(0.0, -8.0, 6.0);
+    f.view = glam::camera::rh::view::look_at_mat4(f.camera_position, Vec3::ZERO, Vec3::Z);
+    f.projection = Projection::PerspectiveInfiniteReverse { fov_y: 0.8, aspect: 257.0 / 193.0, near: 0.1 };
+    let options = RenderExperiments {
+        original_world_materials: true,
+        enhanced_wet_surfaces: true,
+        puddle_coverage: 1.0,
+        road_reflection_range: 120.0,
+        road_reflection_fade: 0.1,
+        ..Default::default()
+    };
+    r.set_render_experiments(options);
+    r.set_surface_water(SurfaceWater { dampness: 1.0, pooling: 1.0, ..Default::default() });
+    let cube = [0, 0, 0, 255];
+    r.set_environment(Environment::Faces { size: 1, faces: [&cube; 6] });
+    r.set_ray_reflection_instances(&[]);
+    r.render(&f, &[road]).unwrap();
+    let absent = r.read_output().unwrap().unwrap();
+    r.set_ray_reflection_instances(&[wall]);
+    r.render(&f, &[road]).unwrap();
+    let reflected = r.read_output().unwrap().unwrap();
+    let red_pixels = reflected
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(absent.rgba.as_chunks::<4>().0.iter())
+        .filter(|(b, a)| b[0] > a[0].saturating_add(15) && b[0] > b[1].saturating_add(15))
+        .count();
+    assert!(red_pixels > 100, "offscreen textured wall must reflect: {red_pixels}");
+    r.set_render_experiments(RenderExperiments { ray_road_reflections: false, ..options });
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "live RT off uses SSR without offscreen geometry");
+    r.set_render_experiments(RenderExperiments { ray_road_blend: 0.0, ..options });
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "zero RT contribution shows the probe");
+    r.set_render_experiments(RenderExperiments { ray_road_blend: 0.5, ..options });
+    r.render(&f, &[road]).unwrap();
+    let mixed = r.read_output().unwrap().unwrap();
+    assert_ne!(absent.rgba, mixed.rgba, "partial RT contribution retains geometry");
+    assert_ne!(reflected.rgba, mixed.rgba, "partial RT contribution blends into the probe");
+    r.set_render_experiments(options);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(reflected.rgba, r.read_output().unwrap().unwrap().rgba, "live RT restoration retains the original look");
+    for draw in &mut wall_data.draws {
+        draw.two_sided = false;
+    }
+    let single = Instance::new(wall_data.upload(&mut r, "RT single-sided wall"), Mat4::IDENTITY);
+    r.set_ray_reflection_instances(&[single]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(
+        absent.rgba,
+        r.read_output().unwrap().unwrap().rgba,
+        "back faces of single-sided surfaces must not reflect"
+    );
+    r.set_ray_reflection_instances(&[single.with_flipped_winding(true)]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(
+        reflected.rgba,
+        r.read_output().unwrap().unwrap().rgba,
+        "explicit baked winding reverses the kept side without changing transforms"
+    );
+    let mirrored = Instance::new(single.mesh, Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)));
+    r.set_ray_reflection_instances(&[mirrored]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "mirroring transforms retain the authored side");
+    r.set_ray_reflection_instances(&[mirrored.with_flipped_winding(true)]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(
+        reflected.rgba,
+        r.read_output().unwrap().unwrap().rgba,
+        "mirroring and explicit winding combine correctly"
+    );
+    r.destroy_mesh(single.mesh);
+    for draw in &mut wall_data.draws {
+        draw.two_sided = true;
+    }
+    let moved = Instance::new(wall.mesh, Mat4::from_translation(Vec3::new(30.0, 0.0, 0.0)));
+    r.set_ray_reflection_instances(&[moved]);
+    r.render(&f, &[road]).unwrap();
+    assert_ne!(reflected.rgba, r.read_output().unwrap().unwrap().rgba, "moving instances update the TLAS");
+    let clear = upload(&mut r, [220, 10, 5, 0]);
+    for draw in &mut wall_data.draws {
+        draw.texture = Some(clear);
+        draw.blend = BlendMode::AlphaTest;
+    }
+    let cutout = Instance::new(wall_data.upload(&mut r, "RT transparent cutout"), Mat4::IDENTITY);
+    r.set_ray_reflection_instances(&[cutout]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(
+        absent.rgba,
+        r.read_output().unwrap().unwrap().rgba,
+        "transparent texture candidates must not become solid walls"
+    );
+    r.set_ray_reflection_instances(&[]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "removed instances leave no history");
+    r.destroy_mesh(wall.mesh);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "streamed mesh destruction is safe");
+    let green = upload(&mut r, [5, 220, 10, 255]);
+    for draw in &mut wall_data.draws {
+        draw.texture = Some(green);
+        draw.blend = BlendMode::Opaque;
+    }
+    let replacement = Instance::new(wall_data.upload(&mut r, "RT reused mesh slot"), Mat4::IDENTITY);
+    assert_eq!(replacement.mesh, wall.mesh, "the fixture must exercise handle reuse");
+    r.set_ray_reflection_instances(&[replacement]);
+    r.render(&f, &[road]).unwrap();
+    let image = r.read_output().unwrap().unwrap();
+    assert!(
+        image
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[1] > p[0].saturating_add(15) && p[1] > p[2].saturating_add(15))
+            .count()
+            > 100,
+        "reused slots must upload the new geometry and material"
+    );
+}
+
+#[test]
 #[ignore = "requires a GPU"]
 fn enhanced_water_keeps_dry_pixels_and_produces_stable_patches() {
     let _gpu = test_support::serial();

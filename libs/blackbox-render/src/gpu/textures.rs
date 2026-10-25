@@ -62,6 +62,9 @@ impl Renderer {
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
             self.redirects.forget(handle.raw());
+            if let Some(rt) = &mut self.ray_reflections {
+                rt.remove_texture(handle.raw());
+            }
         }
     }
 

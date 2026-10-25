@@ -3,7 +3,7 @@
 //!
 //! A glossy draw lights its texture with three directional lights, adds a sun-style highlight
 //! and mixes in a reflection of the environment cube map, with every ramp driven by how much
-//! the surface faces the viewer. See `docs/specs/car-assembly.md` Â§8 for the maths.
+//! the surface faces the viewer. See `docs/specs/car-assembly.md` §8 for the maths.
 
 use glam::Vec3;
 
@@ -89,6 +89,8 @@ pub enum SurfaceKind {
     PaintedMetal = 8,
     Rubber = 9,
     Diffuse = 10,
+    /// Coloured reflective body finish; unlike bare metal it uses the composite skin colour.
+    TintedChrome = 11,
 }
 
 /// Shading constants of one material. Each ramp runs from its `min` where the surface is seen

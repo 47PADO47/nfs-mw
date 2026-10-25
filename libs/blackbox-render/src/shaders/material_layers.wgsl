@@ -39,8 +39,11 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
     if shadow_data.options.w > 0.5 { coat = material.surface.y; }
     var f0 = vec3<f32>(mix(0.04, 0.015, coat));
     var body = paint_linear(base);
-    if kind == 5u {
-        f0 = clamp(mix(vec3<f32>(0.65), paint_linear(albedo), 0.35), vec3<f32>(0.06), vec3<f32>(0.95));
+    if kind == 5u || kind == 11u {
+        // Body chrome uses the composited paint/vinyl colour with stronger conductor tint.
+        // Bare metal keeps its authored neutral response and has no diffuse paint layer.
+        let tint = select(0.35, 0.60, kind == 11u);
+        f0 = clamp(mix(vec3<f32>(0.65), paint_linear(albedo), tint), vec3<f32>(0.06), vec3<f32>(0.95));
         body = vec3<f32>(0.0);
     }
     if kind == 9u { f0 = vec3<f32>(0.025); }

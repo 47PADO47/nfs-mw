@@ -17,7 +17,8 @@
 //! their encoder held before them, then one command buffer per face (see `reflections.rs`). They are queued in the
 //! middle of recording that encoder, which goes out right after them in the same submission, so they see the writes
 //! they saw when they were recorded into it. Whoever submits that encoder does so with
-//! [`Renderer::submit_after_captures`].
+//! [`Renderer::submit_after_captures`]. Native DLSS submits its scene prefix internally, so
+//! `encode_post` flushes queued captures before entering that path.
 
 use wgpu::util::DeviceExt;
 

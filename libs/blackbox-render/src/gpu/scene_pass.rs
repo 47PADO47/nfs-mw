@@ -58,6 +58,7 @@ pub(super) struct SceneDraw<'a> {
     pub(super) shadows: &'a wgpu::BindGroup,
     /// The world is drawn with its authored materials (normal-map scenery and windows).
     pub(super) original: bool,
+    pub(super) ray_cars: bool,
 }
 
 impl Renderer {
@@ -74,6 +75,7 @@ impl Renderer {
             glossy: self.glossy.as_ref(),
             shadows: &self.shared.shadows.fallback,
             original: self.experiments.original_world_materials,
+            ray_cars: self.experiments.ray_car_reflections && self.ray_reflections.is_some(),
         }
     }
 }
@@ -138,6 +140,7 @@ impl<'a> SceneDraw<'a> {
     ) where
         'a: 'p,
     {
+        pass.set_bind_group(0, &view.globals, &[]);
         let (original, projected, mirrored_view) = (self.original, view.projected, view.mirrored_view);
         if original
             && !projected
@@ -188,7 +191,16 @@ impl<'a> SceneDraw<'a> {
             return;
         }
         let prepared_depth = view.prepared_depth;
-        let Some(pipeline) = self.pipelines.get(mode, shading, prepared_depth, Face::Both) else { return };
+        let car_ray = self
+            .glossy
+            .and_then(|g| g.ray.as_ref())
+            .filter(|_| self.ray_cars && view.screen && matches!(shading, Shading::Glossy(_)));
+        let pick = |face| match car_ray {
+            Some(ray) => ray.get(view.format, mode, face),
+            None => self.pipelines.get(mode, shading, prepared_depth, face),
+        };
+        let Some(pipeline) = pick(Face::Both) else { return };
+        pass.set_bind_group(0, car_ray.map_or(&view.globals, |ray| &ray.group), &[]);
         pass.set_pipeline(pipeline);
         let mut bound_face = Face::Both;
         let glossy_pipeline = matches!(shading, Shading::Glossy(_));
@@ -236,7 +248,7 @@ impl<'a> SceneDraw<'a> {
             };
             let face = cmd.face.seen(mirrored_view);
             if face != bound_face
-                && let Some(p) = self.pipelines.get(mode, shading, prepared_depth, face)
+                && let Some(p) = pick(face)
             {
                 pass.set_pipeline(p);
                 bound_face = face;

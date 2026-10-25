@@ -175,6 +175,7 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     // Only upward authored reflective receivers. Vertical walls never acquire procedural pools.
     let slope = smoothstep(0.90,0.995,unit(in.normal).z);
     let damp = light.water.x*slope;
+    let ray_footprint = max(length(dpdx(in.world)),length(dpdy(in.world)));
     let pool = pooled_coverage(in.world.xy)*slope;
     let p = in.world.xy;
     let footprint = max(length(dpdx(p)),length(dpdy(p)));

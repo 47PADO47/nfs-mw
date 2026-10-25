@@ -46,6 +46,21 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         controls::checkbox(ui, &mut lab.options.screen_reflections, "Selective screen-space car reflections", defaults.appearance.lighting.screen_reflections)
             .on_hover_text("Reflects visible current-frame scenery on car materials. Misses and screen edges use the local probe. Can add GPU cost; HDR and frame generation keep separate UI.");
     });
+    ui.add_enabled_ui(lab.ray_reflections_available, |ui| {
+        controls::checkbox(ui, &mut lab.options.ray_car_reflections, "Hardware RT car reflections", defaults.appearance.lighting.ray_car_reflections)
+            .on_hover_text("Reflects loaded geometry on Enhanced car paint, glass, rims and chrome. Misses and rough finishes retain filtered cubemaps. Uses consistent approximate hit lighting, without screen-colour switching. Original PC materials retain their existing response.");
+        egui::ComboBox::from_label("RT texture detail")
+            .selected_text(["Low (~213 MiB)", "Balanced (~427 MiB)", "High (~1.17 GiB)", "Very High (~2.17 GiB)"][lab.options.ray_texture_quality.min(3) as usize])
+            .show_ui(ui, |ui| {
+                for (value, label) in ["Low", "Balanced", "High", "Very High"].into_iter().enumerate() {
+                    ui.selectable_value(&mut lab.options.ray_texture_quality, value as u32, label);
+                }
+            }).response.on_hover_text("Shared by RT car and road reflections. Automatically gives nearby textures more detail within a fixed cache budget. Does not add rays. Changing this rebuilds the cache and can briefly pause rendering. Memory values cover RT colour textures only; source textures and RT geometry use additional VRAM.");
+        ui.collapsing("Advanced RT car reflections", |ui| {
+            ui.add(egui::Slider::new(&mut lab.options.ray_car_range, 40.0..=800.0).text("Car reflection ray range (m)"));
+            ui.add(egui::Slider::new(&mut lab.options.ray_car_blend, 0.0..=1.0).text("Car RT geometry contribution"));
+        });
+    });
     super::reflections::show(ui, lab, settings);
     roads::show(ui, lab, settings);
 }

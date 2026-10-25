@@ -375,3 +375,11 @@ no article code or assets copied and no permissive license assumed.
 https://seblagarde.wordpress.com/2013/03/19/water-drop-3a-physically-based-wet-surfaces/
 https://seblagarde.wordpress.com/2013/04/14/water-drop-3b-physically-based-wet-surfaces/
 https://seblagarde.wordpress.com/2013/09/08/water-drop-4a-reflecting-wet-world/
+
+Vulkan ray-query API references
+-------------------------------
+wgpu v30 ray_scene and ray_shadows examples (MIT OR Apache-2.0), gfx-rs contributors:
+https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_scene
+https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_shadows
+Read as references for BLAS/TLAS descriptors and WGSL intersection queries.
+Native reflection material adaptation is independently implemented.

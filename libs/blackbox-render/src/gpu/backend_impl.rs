@@ -122,6 +122,14 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         self.surface_water = water.sanitized();
     }
+    fn ray_reflections_enabled(&self) -> bool {
+        self.ray_reflections.is_some()
+    }
+    fn set_ray_reflection_instances(&mut self, instances: &[blackbox_gfx::Instance]) {
+        if let Some(rt) = &mut self.ray_reflections {
+            rt.set_instances(instances);
+        }
+    }
     fn set_projected_reflection_scene(&mut self, scene: Option<blackbox_gfx::ProjectedReflectionScene<'_>>) {
         self.capture_projected(scene);
     }

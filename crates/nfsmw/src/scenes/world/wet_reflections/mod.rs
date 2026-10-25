@@ -9,6 +9,7 @@ mod installed_tests;
 mod pop_in_tests;
 #[cfg(test)]
 mod rain_drive_tests;
+mod ray_scene;
 mod state;
 #[cfg(test)]
 mod tests;
@@ -21,6 +22,7 @@ use blackbox_gfx::{Fog, FrameParams, ProjectedReflectionScene, RenderBackend};
 
 impl WorldScene {
     pub(super) fn update_wet_reflections(&mut self, renderer: &mut dyn RenderBackend, aspect: f32) {
+        self.update_ray_scene(renderer, aspect);
         renderer.set_surface_water(self.wet_road.water());
         let options = renderer.render_experiments();
         let active = renderer.capabilities().projected_reflections

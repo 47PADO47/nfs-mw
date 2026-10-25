@@ -4,7 +4,7 @@
 @group(2) @binding(6) var screen_colour: texture_2d<f32>;
 @group(2) @binding(7) var screen_depth: texture_depth_2d;
 
-fn hybrid_environment(world: vec3<f32>, normal: vec3<f32>, direction: vec3<f32>, fallback: vec3<f32>) -> vec3<f32> {
+fn screen_environment(world: vec3<f32>, normal: vec3<f32>, direction: vec3<f32>, fallback: vec3<f32>) -> vec3<f32> {
     if screen_control.x < 0.5 || globals.fog_range.w > 0.5 { return fallback; }
     if distance(world, globals.camera_pos.xyz) > 100.0 { return fallback; }
     let size = vec2<i32>(textureDimensions(screen_depth));
