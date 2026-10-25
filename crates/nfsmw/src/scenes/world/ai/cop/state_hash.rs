@@ -22,6 +22,7 @@ impl CopState {
         hash.f32(environment.nitrous_boost);
         hash.bool(environment.jerk);
         hash.bool(environment.racing);
+        hash.bool(environment.head_on_support);
         hash.bool(environment.shared_target_road);
         hash.bool(environment.target_road.is_some());
         if let Some(road) = environment.target_road {

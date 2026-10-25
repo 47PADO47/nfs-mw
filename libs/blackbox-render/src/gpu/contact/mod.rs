@@ -176,7 +176,7 @@ impl Contact {
 
 impl Renderer {
     pub(super) fn encode_contact(&mut self, encoder: &mut wgpu::CommandEncoder, size: (u32, u32), frame: &FrameParams) {
-        if !self.experiments.contact_shadows || !self.screen_lighting_active(frame) {
+        if !self.experiments.contact_shadows || self.ray_shadows_active(frame) || !self.screen_lighting_active(frame) {
             return;
         }
         let view_proj = self.world_to_clip(frame);

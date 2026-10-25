@@ -339,6 +339,11 @@ impl Vehicle {
         self.body.state == BodyState::Asleep
     }
 
+    /// Fill the installed nitrous tank without changing its performance specification.
+    pub fn refill_nitrous(&mut self) {
+        self.powertrain.nos.capacity = 1.0;
+    }
+
     /// Nitrous tank level 0..1.
     pub fn nos_level(&self) -> f32 {
         self.powertrain.nos.capacity

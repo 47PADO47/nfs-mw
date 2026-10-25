@@ -88,3 +88,31 @@ fn a_car_far_to_the_side_is_ignored() {
     let o = update_occluded_position(nav.trail().unwrap(), &me, nav.position, [other], true, 0.9).unwrap();
     assert!(!o.occluded());
 }
+
+#[test]
+fn world_insertion_order_does_not_hide_a_nearby_obstacle_after_the_body_cap() {
+    let (net, traffic_nav) = cursor_ahead();
+    let me = body(Vec3::new(2.0, 0.0, 0.0), Vec2::Y, 10.0);
+    let obstacle = body(Vec3::new(2.0, 0.0, 25.0), Vec2::Y, 0.0);
+    for traffic in [true, false] {
+        let mut cop_nav = RoadNav::new(crate::NavKind::Direction, crate::LaneType::Cop, Default::default());
+        cop_nav.half_width = me.half_width;
+        cop_nav.place(&net, 0, 1, 3, 0.0);
+        cop_nav.enable_trail(&net);
+        cop_nav.advance(&net, 30.0, Vec3::Z, &mut SplitMix(1));
+        let nav = match traffic {
+            true => &traffic_nav,
+            false => &cop_nav,
+        };
+        let expected =
+            update_occluded_position(nav.trail().unwrap(), &me, nav.position, [obstacle], traffic, 0.9).unwrap();
+        assert_ne!(expected.avoidable, 0, "fixture must occlude, traffic={traffic}");
+        for position in [Vec3::new(0.0, 0.0, 1000.0), Vec3::new(2.0, 8.0, 15.0), Vec3::new(25.0, 0.0, 20.0)] {
+            let distant = body(position, Vec2::Y, 0.0);
+            let bodies = std::iter::repeat_n(distant, 40).chain([obstacle]);
+            let actual =
+                update_occluded_position(nav.trail().unwrap(), &me, nav.position, bodies, traffic, 0.9).unwrap();
+            assert_eq!(actual, expected, "traffic={traffic}, distant bodies at {position:?}");
+        }
+    }
+}

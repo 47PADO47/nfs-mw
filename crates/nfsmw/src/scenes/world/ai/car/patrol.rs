@@ -16,15 +16,13 @@ impl AiCar {
         if !self.patrol || self.is_wrecked() {
             return false;
         }
-        let mut nav = RoadNav::new(
-            NavKind::Direction,
-            LaneType::Cop,
-            SegmentFilter { cop: true, no_decision: true, ..Default::default() },
-        );
+        let mut nav =
+            RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter { cop: true, ..Default::default() });
         nav.half_width = self.half.0;
         if !nav.init_at_point(net, index, self.physics_position(), self.physics_forward(), false) {
             return false;
         }
+        nav.preserve_offset_at(net, self.physics_position());
         nav.enable_trail(net);
         self.nav = nav;
         self.role = Role::Cop(Box::new(cop::CopState::new(car, player, self.speed().abs())));

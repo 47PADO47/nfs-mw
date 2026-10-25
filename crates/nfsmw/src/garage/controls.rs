@@ -1,7 +1,7 @@
 //! Live camera and paint controls, kept separate from scrolling through cars.
 
 use super::Model;
-use crate::settings::{CameraMode, Settings};
+use crate::settings::Settings;
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings) {
     let selected = model.selected();
@@ -34,16 +34,6 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         super::tuning::show(ui, model);
         return;
     }
-    ui.heading("Camera view");
-    egui::ComboBox::from_id_salt("garage_camera")
-        .width(ui.available_width())
-        .selected_text(camera_label(settings.camera_mode))
-        .show_ui(ui, |ui| {
-            for camera in CameraMode::ALL {
-                ui.selectable_value(&mut settings.camera_mode, camera, camera_label(camera));
-            }
-        });
-    ui.add_space(16.0);
     super::appearance::show(ui, model, settings);
     if settings.car_shading == crate::settings::CarShading::Simple {
         ui.weak("Paint finishes and tints need material shading.");
@@ -106,19 +96,5 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
     });
     if !paintable {
         ui.weak("This car has a fixed livery.");
-    }
-}
-
-fn camera_label(mode: CameraMode) -> &'static str {
-    match mode {
-        CameraMode::Chase => "Chase",
-        CameraMode::DynamicFov => "Dynamic field of view",
-        CameraMode::Bumper => "Bumper",
-        CameraMode::Hood => "Hood",
-        CameraMode::Close => "Close chase",
-        CameraMode::Far => "Far chase",
-        CameraMode::SuperFar => "Extra far chase",
-        CameraMode::Drift => "Drift",
-        CameraMode::Pursuit => "Pursuit",
     }
 }

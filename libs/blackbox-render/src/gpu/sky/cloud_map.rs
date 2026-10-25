@@ -8,7 +8,7 @@ const SIZE: (u32, u32) = (1536, 384);
 pub(super) struct CloudMap {
     pub layout: wgpu::BindGroupLayout,
     pub group: wgpu::BindGroup,
-    view: wgpu::TextureView,
+    pub(super) view: wgpu::TextureView,
     pipeline: Option<wgpu::RenderPipeline>,
     schedule: Schedule,
     origin: [f32; 3],

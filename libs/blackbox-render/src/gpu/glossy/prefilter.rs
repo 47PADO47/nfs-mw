@@ -1,8 +1,13 @@
 //! Bounded GGX environment filtering; raw reflections remain available for legacy draws.
 use wgpu::util::DeviceExt;
 
-const SIZE: u32 = 64;
-const LEVELS: u32 = 7;
+#[path = "prefilter_source.rs"]
+mod source;
+#[cfg(test)]
+#[path = "prefilter_tests.rs"]
+mod tests;
+const SIZE: u32 = 128;
+const LEVELS: u32 = 8;
 pub(super) const SHADER: &str = include_str!("../../shaders/environment_prefilter.wgsl");
 
 pub(super) struct Prefilter {
@@ -15,6 +20,7 @@ pub(super) struct Prefilter {
     groups: Vec<wgpu::BindGroup>,
     built_for: Option<(wgpu::TextureView, wgpu::Sampler)>,
     pub dirty: bool,
+    source: Option<source::Source>,
 }
 
 impl Prefilter {
@@ -53,6 +59,7 @@ impl Prefilter {
             groups: Vec::new(),
             built_for: None,
             dirty: true,
+            source: None,
         })
     }
 
@@ -80,13 +87,16 @@ impl Prefilter {
                 cache: self.cache.as_ref(),
             })
         });
+        let input = self.source.get_or_insert_with(|| source::Source::new(device, self.cache.as_ref()));
         let current = self.built_for.as_ref().is_some_and(|(view, made)| view == source && made == sampler);
         if !current {
+            input.bind(device, source, sampler);
             let texture = &self.texture;
             self.groups =
-                (0..LEVELS).map(|level| level_group(device, texture, pipeline, source, sampler, level)).collect();
+                (0..LEVELS).map(|level| level_group(device, texture, pipeline, input, sampler, level)).collect();
             self.built_for = Some((source.clone(), sampler.clone()));
         }
+        input.encode(encoder);
         for (level, group) in self.groups.iter().enumerate() {
             let size = SIZE >> level;
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -106,7 +116,7 @@ fn level_group(
     device: &wgpu::Device,
     texture: &wgpu::Texture,
     pipeline: &wgpu::ComputePipeline,
-    source: &wgpu::TextureView,
+    source: &source::Source,
     sampler: &wgpu::Sampler,
     level: u32,
 ) -> wgpu::BindGroup {
@@ -126,10 +136,11 @@ fn level_group(
         label: Some("environment filter inputs"),
         layout: &pipeline.get_bind_group_layout(0),
         entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(source) },
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&source.encoded) },
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&output) },
             wgpu::BindGroupEntry { binding: 3, resource: params.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&source.linear) },
         ],
     })
 }

@@ -61,6 +61,7 @@ mod speech_events;
 mod speech_feed;
 mod state_hash;
 mod support_lifecycle;
+mod support_placement;
 mod target_road;
 mod visibility;
 
