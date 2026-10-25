@@ -47,10 +47,10 @@ mod message_tests;
 pub(crate) mod minimap;
 #[cfg(test)]
 mod minimap_tests;
-/// The notification manager: the frame's HUD events as prioritised notices.
-mod notify;
 #[cfg(test)]
 mod mirror_install_tests;
+/// The notification manager: the frame's HUD events as prioritised notices.
+mod notify;
 mod plugin;
 pub(crate) mod police;
 #[cfg(test)]
