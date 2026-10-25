@@ -9,6 +9,12 @@ use crate::viewer::Scene;
 impl WorldScene {
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
+        self.prepare_extra();
+        let camera_dt = dt;
+        let dt = match self.extra.testing.paused {
+            true => 0.0,
+            false => dt,
+        };
         self.update_garage_camera(input, dt);
         let options = renderer.render_experiments();
         self.original_sky = options.original_world_materials || options.enhanced_sky;
@@ -26,7 +32,9 @@ impl WorldScene {
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.
         let idle = ActionState::default();
-        let frozen = self.garage_open || self.nis.is_playing() || self.story_movie.is_playing();
+        let frozen =
+            self.extra.testing.paused || self.garage_open || self.nis.is_playing() || self.story_movie.is_playing();
+        let camera_input = input.clone();
         let input = match frozen {
             true => &idle,
             false => input,
@@ -179,8 +187,33 @@ impl WorldScene {
         self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
 
         self.residency.animate(renderer, self.clock);
+        if self.extra.testing.paused
+            && self.view == View::Chase
+            && let Some(drive) = self.players.lead_mut()
+        {
+            drive.follow(
+                self.residency.collision(),
+                (camera_input.value(Action::LookX), camera_input.value(Action::LookY)),
+                camera_dt,
+            );
+            drive.set_alpha(1.0);
+        }
+
+        if self.extra.testing.paused && self.view == View::Chase {
+            self.seed_original_camera();
+            self.update_original_camera(camera_dt, 0.0, self.speedbreaker_clock, false, 1.0);
+        }
         if self.view == View::Fly {
-            self.camera.update(input, sim_dt);
+            let tools_camera = (self.extra.freecam || self.extra.testing.paused)
+                && !self.garage_open
+                && !self.nis.is_playing()
+                && !self.story_movie.is_playing();
+            if tools_camera {
+                self.camera.update(&camera_input, camera_dt);
+            }
+            if !tools_camera {
+                self.camera.update(input, sim_dt);
+            }
         }
         drop(trace);
         if !self.grounded && self.residency.complete() {

@@ -63,3 +63,28 @@ pub(crate) fn updated(path: &Path, name: &str, payload: &str) -> Result<String> 
         .insert(name.into(), payload.into());
     toml::to_string(&table).context("Serializing presets")
 }
+
+/// Rename refuses to overwrite another named setup.
+pub fn rename(path: &Path, old: &str, new: &str) -> Result<()> {
+    let new = new.trim();
+    let payload = load(path, old)?;
+    ensure!(old == new || !names(path)?.iter().any(|n| n == new), "A preset with that name already exists");
+    let mut table: toml::Table = updated(path, new, &payload)?.parse()?;
+    if old != new {
+        table.get_mut("presets").and_then(toml::Value::as_table_mut).context("No presets")?.remove(old);
+    }
+    replace(path, &table)
+}
+pub fn delete(path: &Path, name: &str) -> Result<()> {
+    let mut table = read(path)?;
+    ensure!(
+        table.get_mut("presets").and_then(toml::Value::as_table_mut).and_then(|v| v.remove(name)).is_some(),
+        "Preset is missing"
+    );
+    replace(path, &table)
+}
+fn replace(path: &Path, table: &toml::Table) -> Result<()> {
+    let temporary = path.with_extension("toml.tmp");
+    std::fs::write(&temporary, toml::to_string(table)?)?;
+    std::fs::rename(temporary, path).context("Replacing presets")
+}

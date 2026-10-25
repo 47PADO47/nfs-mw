@@ -39,7 +39,9 @@ impl WorldScene {
     /// Whether the first player's own car is in their picture: the win photo shows it, and the camera mode decides
     /// otherwise (a hood or bumper view is inside it).
     pub(super) fn player_in_picture(&self, drive: &super::drive::Drive) -> bool {
-        self.career.garage.is_some()
+        self.extra.freecam
+            || self.extra.selected_bookmark.is_some()
+            || self.career.garage.is_some()
             || self.photo_shot.is_some()
             || render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
     }
