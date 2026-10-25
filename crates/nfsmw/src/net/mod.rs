@@ -10,12 +10,14 @@
 //! - `listen.rs`: the listen server on its own thread; `dedicated.rs`: `--dedicated`; `discover.rs`: LAN scans and
 //!   `--discover`.
 //! - `build.rs`: the build and data ids, the car catalogue loadouts are checked against, the server setup.
+//! - `discord.rs`: the LAN game as the Discord presence's party, and the invites friends send back.
 //! - `identity.rs`: the player's identity key file (`net_identity_file`).
 //! - `options.rs`: [`ServeOptions`], how a server starts.
 
 mod build;
 pub mod client;
 mod dedicated;
+mod discord;
 pub mod discover;
 mod frontend;
 mod identity;

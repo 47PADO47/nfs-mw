@@ -63,6 +63,7 @@ options-invert-camera-y = Invert Camera Y
 
 options-discord-presence = Discord Rich Presence
 options-discord-time-played = Show Time Played
+options-discord-join = Let Friends Join
 
 ## Mods page
 

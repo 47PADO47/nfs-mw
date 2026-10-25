@@ -158,7 +158,7 @@ pub fn build(app: &mut App) {
         .add_systems(Update, apply.in_set(FrameSet::SceneUpdate).before(crate::app::render::update_scene));
 }
 
-fn toggle(
+pub(super) fn toggle(
     mut lab: ResMut<GraphicsLab>,
     mut keys: ResMut<ButtonInput<KeyCode>>,
     mut console: ResMut<super::Console>,
@@ -184,7 +184,11 @@ fn toggle(
         }
         lab.open = !lab.open;
     }
-    if keys.just_pressed(KeyCode::F12) || keys.just_pressed(KeyCode::F6) || garage.start_requested {
+    if keys.just_pressed(KeyCode::F5)
+        || keys.just_pressed(KeyCode::F12)
+        || keys.just_pressed(KeyCode::F6)
+        || garage.start_requested
+    {
         lab.open = false;
     }
     if lab.open && keys.just_pressed(KeyCode::Escape) {

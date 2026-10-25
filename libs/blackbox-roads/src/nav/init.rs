@@ -21,6 +21,7 @@ impl RoadNav {
             node_ind: 1,
             t: 0.0,
             lane: 0,
+            lane_offset: None,
             dead_end: false,
             half_width: DEFAULT_HALF_WIDTH,
             position: Vec3::ZERO,
@@ -46,6 +47,7 @@ impl RoadNav {
         self.segment = segment;
         self.node_ind = node_ind;
         self.lane = lane;
+        self.lane_offset = None;
         self.t = t.clamp(0.0, 1.0);
         self.dead_end = false;
         self.rebuild(net);
@@ -78,10 +80,9 @@ impl RoadNav {
         heading: Vec3,
         force_centre_lane: bool,
     ) {
-        let seg = net.segment(segment);
         let stored = crate::centre_line(net, segment, 1);
         let forward = stored.tangent(t).try_normalize().unwrap_or(Vec3::Z);
-        let node_ind = match seg.is_one_way() || heading.dot(forward) >= 0.0 {
+        let node_ind = match heading.dot(forward) >= 0.0 {
             true => 1,
             false => 0,
         };

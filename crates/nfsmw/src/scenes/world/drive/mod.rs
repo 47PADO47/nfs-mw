@@ -8,6 +8,7 @@ mod breaker_camera;
 mod car_detail;
 mod cinematic;
 mod clock;
+mod extra_options;
 mod grid;
 mod sabotage;
 pub(super) use car_detail::{DetailView, DrawOptions};

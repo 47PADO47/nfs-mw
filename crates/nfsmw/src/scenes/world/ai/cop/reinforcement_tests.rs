@@ -45,6 +45,34 @@ pub(super) fn state(body: Body) -> CarState {
 }
 
 #[test]
+fn an_oncoming_ram_support_car_approaches_the_current_target_before_ram_entry() {
+    let network = road();
+    let index = SegmentIndex::build(&network);
+    let mut rng = SplitMix(4);
+    let mut ctx =
+        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let me = state(Body { forward: -Vec2::Y, velocity: -Vec3::Z * 26.0, ..body(340.0, 26.0) });
+    let target = Target { body: body(0.0, 60.0), aim: None };
+    let mut nav = roads::at_car(&ctx, &me.body, 5).unwrap();
+    nav.enable_trail(&network);
+    let mut cop = cop(26.0);
+    cop.environment(Environment { level: 5, ..Default::default() });
+    cop.set_head_on_support(true);
+    let collision = CollisionWorld::new(None);
+    let think = cop.think(
+        &mut ctx,
+        &mut nav,
+        &me,
+        &target,
+        [],
+        ActionInputs { collision: &collision, grade: 0.0, ram: false, nitrous: RoadNitrous::default() },
+    );
+    assert!(!cop.ram_allowed, "the native 200 m drivability limit has not passed yet");
+    assert_eq!(cop.last_find, target.body.position);
+    assert!(think.target.z < me.body.position.z && think.speed > 0.0, "{think:?}");
+}
+
+#[test]
 fn a_distant_ahead_reinforcement_follows_the_predicted_road_instead_of_a_rear_formation_slot() {
     let network = road();
     let index = SegmentIndex::build(&network);

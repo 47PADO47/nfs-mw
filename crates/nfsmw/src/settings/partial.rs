@@ -113,6 +113,7 @@ pub struct Partial {
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
+    pub discord_join: Option<bool>,
     /// Which mods may load (`mods`).
     pub mods: Option<super::mods::ModsMode>,
     pub transmission: Option<Transmission>,
@@ -246,6 +247,7 @@ impl Partial {
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),
+            discord_join: self.discord_join.or(lower.discord_join),
             mods: self.mods.or(lower.mods),
             transmission: self.transmission.or(lower.transmission),
             camera_mode: self.camera_mode.or(lower.camera_mode),

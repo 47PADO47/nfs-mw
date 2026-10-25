@@ -263,13 +263,14 @@ impl Renderer {
         }
         let environment = self.glossy.as_ref().map(|g| g.road_environment());
         let Some(normal) = &mut self.normal else { return };
-        if let Some((environment, base)) = environment {
+        if let Some((environment, base, filtered)) = environment {
             if normal.water.base_environment != base {
                 normal.water.base_environment = base;
                 normal.rebind_water(&self.device);
             }
-            if normal.water.environment != environment {
+            if normal.water.environment != environment || normal.water.filtered_environment != filtered {
                 normal.water.environment = environment;
+                normal.water.filtered_environment = filtered;
                 for material in normal.materials.iter_mut() {
                     material.water_group = None;
                 }

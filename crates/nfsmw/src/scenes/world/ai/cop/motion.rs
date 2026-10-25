@@ -30,7 +30,7 @@ pub(super) fn nav_advance(offset: Vec3, forward: Vec3, look: f32) -> f32 {
 
 pub(super) fn speed_vectors(me: &Body, target: &Body, last_find: Vec3) -> (Vec2, Vec2) {
     let offset = close::xz(me.position - target.position);
-    let seek = close::xz(last_find - target.position).try_normalize().unwrap_or(target.forward);
+    let seek = close::xz(last_find - target.position).normalize_or_zero();
     (offset, seek)
 }
 
@@ -78,6 +78,13 @@ mod tests {
         assert_eq!(offset, Vec2::new(0.0, -40.0));
         assert_eq!(seek, Vec2::X);
         assert_ne!(seek, target.forward);
+    }
+
+    #[test]
+    fn coincident_path_and_target_do_not_invent_a_chase_direction() {
+        let me = body(Vec3::Z * 340.0, -Vec3::Z * 20.0);
+        let target = body(Vec3::ZERO, Vec3::Z * 60.0);
+        assert_eq!(speed_vectors(&me, &target, target.position).1, Vec2::ZERO);
     }
 
     #[test]

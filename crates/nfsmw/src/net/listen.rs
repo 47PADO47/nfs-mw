@@ -80,6 +80,11 @@ impl ListenServer {
         }
     }
 
+    /// The address the server is bound to, once it is up.
+    pub fn addr(&self) -> Option<SocketAddr> {
+        self.addr
+    }
+
     /// Stops the server and waits for its thread.
     pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);

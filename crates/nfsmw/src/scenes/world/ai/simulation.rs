@@ -100,6 +100,7 @@ impl TrafficWorld {
             car.set_breaker_stop(car.is_roadblock());
             car.set_avoidance(self.avoidance);
             car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
+            let head_on_support = car.head_on_support();
             if let super::car::Role::Cop(cop) = &mut car.role {
                 cop.environment(super::cop::Environment {
                     reaction: self.police.level_tuning(self.police.level().unwrap_or(1)).map(|row| row.speed_reaction),
@@ -109,6 +110,7 @@ impl TrafficWorld {
                     nitrous_boost: self.police.target_nitrous_boost(),
                     jerk: self.police.is_jerk(),
                     racing,
+                    head_on_support,
                     shared_target_road,
                     target_road: if shared_target_road { target_road } else { None },
                 });

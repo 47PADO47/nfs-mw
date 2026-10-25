@@ -52,7 +52,7 @@ perform an increment and update the increment clock:
 - Normalize current road forward. Its planar right vector is `(forward.z, 0,
   -forward.x)`, normalized separately.
 - Project `P - C` onto forward and right. When forward displacement exceeds
-  0.05 m, snap the requested lateral offset to a selectable lane and advance
+  0.05 m, constrain the continuous lateral offset to a selectable lane interval and advance
   the retained current cursor by that forward displacement, with its own
   forward direction as the junction hint.
 - Compute `deficit = length(V) - distance(F, C)`. This represents a one-second
@@ -166,11 +166,11 @@ and previous future identity in stable order using raw scalar bits. The game
 also hashes the copied observation supplied to car environments. No pointers,
 render state, hash iteration order, or random consumption may affect results.
 
-Existing lane geometry remains the adapter boundary: `RoadNav` stores lane
-indices rather than the original continuous offsets. A new tracker must use
-the existing lane representation consistently and must not claim exact lane
-offset parity. Broader race-route and dynamic-barrier support retains the
-limitations of the supplied road network.
+Target road spots retain continuous offsets. Selectable-lane snapping preserves
+position within the chosen lane width and applies the connected corridor's inset;
+see [the native offset correction](ai-pursuit-road-followup.md). Complete native
+lane-change blending and junction spline construction remain separate boundaries.
+Broader race-route and dynamic-barrier support retains the supplied graph's limits.
 
 ## Acceptance
 
